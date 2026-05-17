@@ -265,12 +265,7 @@
       "source": "packages/react/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/react.test-d.ts",
-      "sourceSurface": [
-        "hooks",
-        "link",
-        "router",
-        "runtime"
-      ],
+      "sourceSurface": ["hooks", "link", "router", "runtime"],
       "requiredTypeTestImports": [
         "Action",
         "ActionHandle",
@@ -333,10 +328,7 @@
       "source": "packages/react-db/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/react-db.test-d.ts",
-      "sourceSurface": [
-        "collection",
-        "live-query"
-      ],
+      "sourceSurface": ["collection", "live-query"],
       "requiredTypeTestImports": [
         "Collection",
         "CollectionHandle",
@@ -355,12 +347,7 @@
       "source": "packages/solid/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/solid.test-d.ts",
-      "sourceSurface": [
-        "hooks",
-        "link",
-        "router",
-        "runtime"
-      ],
+      "sourceSurface": ["hooks", "link", "router", "runtime"],
       "requiredTypeTestImports": [
         "Action",
         "ActionHandle",
@@ -422,10 +409,7 @@
       "source": "packages/solid-db/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/solid-db.test-d.ts",
-      "sourceSurface": [
-        "collection",
-        "live-query"
-      ],
+      "sourceSurface": ["collection", "live-query"],
       "requiredTypeTestImports": [
         "Collection",
         "CollectionHandle",
@@ -458,6 +442,7 @@
         "request-trace",
         "rpc",
         "server-function-manifest",
+        "static-export",
         "start-action-client",
         "start-action-request-codec",
         "start-collection-resolution",
@@ -505,6 +490,12 @@
         "startActionForm",
         "startActionInputField",
         "startActionNameField",
+        "extractStartStaticHtmlLinks",
+        "normalizeStartStaticPath",
+        "startStaticPageOutputPath",
+        "StartStaticLinkExtractionOptions",
+        "StartStaticOutputPathOptions",
+        "StartStaticPathError",
         "submitStartActionEffect",
         "defineFileRoute",
         "DefineFileRouteBuilder",
@@ -573,14 +564,8 @@
       "source": "packages/start/src/adapters.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-adapters.test-d.ts",
-      "sourceSurface": [
-        "fetch-adapter",
-        "node-adapter"
-      ],
-      "requiredTypeTestImports": [
-        "StartNodeAdapterError",
-        "StartRequestHandlerError"
-      ]
+      "sourceSurface": ["fetch-adapter", "node-adapter"],
+      "requiredTypeTestImports": ["StartNodeAdapterError", "StartRequestHandlerError"]
     },
     {
       "package": "@effect-ui/start",
@@ -589,9 +574,7 @@
       "source": "packages/start/src/diagnostics-report.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-diagnostics-report.test-d.ts",
-      "sourceSurface": [
-        "start-diagnostics-contract"
-      ]
+      "sourceSurface": ["start-diagnostics-contract"]
     },
     {
       "package": "@effect-ui/start",
@@ -600,13 +583,8 @@
       "source": "packages/start/src/cli.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-cli.test-d.ts",
-      "sourceSurface": [
-        "start-diagnostics-cli-runner"
-      ],
-      "requiredTypeTestImports": [
-        "StartDiagnosticsCliIo",
-        "StartDiagnosticsCliWriteError"
-      ]
+      "sourceSurface": ["start-diagnostics-cli-runner"],
+      "requiredTypeTestImports": ["StartDiagnosticsCliIo", "StartDiagnosticsCliWriteError"]
     },
     {
       "package": "@effect-ui/start",
@@ -615,12 +593,8 @@
       "source": "packages/start/src/fetch-adapter.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-fetch-adapter.test-d.ts",
-      "sourceSurface": [
-        "start-request-handler-error"
-      ],
-      "requiredTypeTestImports": [
-        "StartRequestHandlerError"
-      ]
+      "sourceSurface": ["start-request-handler-error"],
+      "requiredTypeTestImports": ["StartRequestHandlerError"]
     },
     {
       "package": "@effect-ui/start",
@@ -634,10 +608,7 @@
         "start-host-runtime-runner",
         "start-request-handler-error"
       ],
-      "requiredTypeTestImports": [
-        "StartNodeAdapterError",
-        "StartRequestHandlerError"
-      ]
+      "requiredTypeTestImports": ["StartNodeAdapterError", "StartRequestHandlerError"]
     },
     {
       "package": "@effect-ui/start",
@@ -733,6 +704,7 @@
       "sourceSurface": [
         "app-graph",
         "generated-route-definitions",
+        "route-code-splitting",
         "start-app-graph-diagnostics-policy",
         "start-manifest-wall",
         "start-virtual-modules",
@@ -779,9 +751,7 @@
       "source": "packages/start-fetch/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-fetch.test-d.ts",
-      "requiredTypeTestImports": [
-        "StartRequestHandlerError"
-      ]
+      "requiredTypeTestImports": ["StartRequestHandlerError"]
     },
     {
       "package": "@effect-ui/start-node",
@@ -790,10 +760,7 @@
       "source": "packages/start-node/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-node.test-d.ts",
-      "requiredTypeTestImports": [
-        "StartNodeAdapterError",
-        "StartRequestHandlerError"
-      ]
+      "requiredTypeTestImports": ["StartNodeAdapterError", "StartRequestHandlerError"]
     },
     {
       "package": "@effect-ui/tsrx",

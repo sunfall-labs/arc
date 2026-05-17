@@ -217,7 +217,9 @@ const catalogFailures = (catalog) => {
       }
       for (const artifact of starter.artifacts ?? []) {
         if (!requiredFiles.includes(artifact.file)) {
-          failures.push(`${starter.id} source package policy must require generated artifact ${artifact.file}.`);
+          failures.push(
+            `${starter.id} source package policy must require generated artifact ${artifact.file}.`,
+          );
         }
       }
     }
@@ -236,7 +238,8 @@ export const starterCatalogConsistencyEffect = (catalog = starterCatalog) =>
       : Effect.fail(
           new StarterCatalogError({
             message: "Starter catalog manifest is invalid.",
-            repair: "Keep starter ids, package names, generated artifacts, and source-package payload policies unique and complete.",
+            repair:
+              "Keep starter ids, package names, generated artifacts, and source-package payload policies unique and complete.",
             failures,
           }),
         );

@@ -2,7 +2,10 @@ import { Effect, Fiber } from "effect";
 import { parseDuration } from "./resource-duration.js";
 import { publishResourceStoreEvent } from "./resource-events.js";
 import type { ResourceRef, ResourceState, ResourceStatus } from "./resource.js";
-import { resourceStoreFiber, type MutableResourceStore as ResourceStoreState } from "./resource-store.js";
+import {
+  resourceStoreFiber,
+  type MutableResourceStore as ResourceStoreState,
+} from "./resource-store.js";
 import { Signal, type WritableSignal } from "./signal.js";
 
 export interface ResourceInFlight<A, E> {
@@ -29,10 +32,12 @@ export type PreviousResourceValue<A> =
 export const makeResourceEntry = <A, E>(): ResourceLifetimeEntry<A, E> => ({
   state: Signal.make<ResourceState<A, E>>({ _tag: "Initial", waiting: false }),
   inFlight: undefined,
-  gcFiber: undefined
+  gcFiber: undefined,
 });
 
-export const previousResourceValue = <A, E>(state: ResourceState<A, E>): PreviousResourceValue<A> => {
+export const previousResourceValue = <A, E>(
+  state: ResourceState<A, E>,
+): PreviousResourceValue<A> => {
   switch (state._tag) {
     case "Success":
       return { present: true, value: state.value };
@@ -49,7 +54,7 @@ export const previousResourceValue = <A, E>(state: ResourceState<A, E>): Previou
 export const isResourceStateStale = <A, E, RefError>(
   ref: ResourceRef<unknown, A, RefError, unknown>,
   state: ResourceState<A, E>,
-  now: number
+  now: number,
 ): boolean => {
   if (state._tag !== "Success") {
     return false;
@@ -62,7 +67,7 @@ export const isResourceStateStale = <A, E, RefError>(
 export const isResourceStateCollected = <A, E, RefError>(
   ref: ResourceRef<unknown, A, RefError, unknown>,
   state: ResourceState<A, E>,
-  now: number
+  now: number,
 ): boolean => {
   if (state._tag !== "Success") {
     return false;
@@ -81,7 +86,7 @@ const remaining = (deadlineAt: number | undefined, now: number): number | undefi
 export const resourceStatusFromState = <I, A, E, R, RefError = E>(
   ref: ResourceRef<I, A, RefError, R>,
   state: ResourceState<A, E>,
-  now: number
+  now: number,
 ): ResourceStatus<I, A, E, R, RefError> => {
   const staleFor = parseDuration(ref.family.options.policy?.staleFor);
   const gcFor = parseDuration(ref.family.options.policy?.gcFor);
@@ -89,12 +94,7 @@ export const resourceStatusFromState = <I, A, E, R, RefError = E>(
   const staleAt = deadline(updatedAt, staleFor);
   const gcAt = deadline(updatedAt, gcFor);
   const hasPrevious = (state._tag === "Pending" || state._tag === "Failure") && "previous" in state;
-  const value =
-    state._tag === "Success"
-      ? state.value
-      : hasPrevious
-        ? state.previous
-        : undefined;
+  const value = state._tag === "Success" ? state.value : hasPrevious ? state.previous : undefined;
   const base = {
     ref,
     name: ref.family.options.name,
@@ -117,7 +117,7 @@ export const resourceStatusFromState = <I, A, E, R, RefError = E>(
     gcAt,
     ageMillis: updatedAt === undefined ? undefined : Math.max(0, now - updatedAt),
     staleInMillis: remaining(staleAt, now),
-    gcInMillis: remaining(gcAt, now)
+    gcInMillis: remaining(gcAt, now),
   };
 
   switch (state._tag) {
@@ -128,7 +128,7 @@ export const resourceStatusFromState = <I, A, E, R, RefError = E>(
         state,
         value: undefined,
         previous: undefined,
-        error: undefined
+        error: undefined,
       };
     case "Pending":
       return {
@@ -137,7 +137,7 @@ export const resourceStatusFromState = <I, A, E, R, RefError = E>(
         state,
         value,
         previous: hasPrevious ? state.previous : undefined,
-        error: undefined
+        error: undefined,
       };
     case "Success":
       return {
@@ -146,7 +146,7 @@ export const resourceStatusFromState = <I, A, E, R, RefError = E>(
         state,
         value: state.value,
         previous: undefined,
-        error: undefined
+        error: undefined,
       };
     case "Failure":
       return {
@@ -155,7 +155,7 @@ export const resourceStatusFromState = <I, A, E, R, RefError = E>(
         state,
         value,
         previous: hasPrevious ? state.previous : undefined,
-        error: state.error
+        error: state.error,
       };
   }
 };
@@ -163,13 +163,12 @@ export const resourceStatusFromState = <I, A, E, R, RefError = E>(
 export const inspectResourceStatus = <I, A, E, R, RefError = E>(
   ref: ResourceRef<I, A, RefError, R>,
   state: ResourceState<A, E>,
-  now: number
-): ResourceStatus<I, A, E, R, RefError> =>
-  resourceStatusFromState(ref, state, now);
+  now: number,
+): ResourceStatus<I, A, E, R, RefError> => resourceStatusFromState(ref, state, now);
 
 export const interruptResourceGc = <A, E>(
   entry: ResourceLifetimeEntry<A, E>,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): Effect.Effect<boolean> =>
   Effect.suspend(() => {
     const fiber = entry.gcFiber;
@@ -185,7 +184,7 @@ export const interruptResourceGc = <A, E>(
 export const clearResourceInFlight = <A, E>(
   entry: ResourceLifetimeEntry<A, E>,
   store: ResourceStoreState,
-  token: object
+  token: object,
 ): Effect.Effect<void> =>
   Effect.sync(() => {
     const inFlight = entry.inFlight;
@@ -199,7 +198,7 @@ export const clearResourceInFlight = <A, E>(
 
 export const interruptResourceInFlight = <A, E>(
   entry: ResourceLifetimeEntry<A, E>,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): Effect.Effect<boolean> =>
   Effect.suspend(() => {
     const inFlight = entry.inFlight;
@@ -214,7 +213,7 @@ export const interruptResourceInFlight = <A, E>(
 
 export const trackResourceFiber = <A, E>(
   store: ResourceStoreState,
-  fiber: Fiber.Fiber<A, E>
+  fiber: Fiber.Fiber<A, E>,
 ): Effect.Effect<void> =>
   Effect.sync(() => {
     const trackedFiber = resourceStoreFiber(fiber);
@@ -233,7 +232,7 @@ export const trackResourceFiber = <A, E>(
 
 export const forkTrackedDetachedResourceEffect = <A, E, R>(
   store: ResourceStoreState,
-  effect: Effect.Effect<A, E, R>
+  effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<Fiber.Fiber<A, E>, never, R> =>
   Effect.gen(function* () {
     const fiber = yield* Effect.forkDetach(effect, { startImmediately: true });
@@ -247,9 +246,9 @@ export const scheduleResourceGc = <I, A, E, R, RefError = E>(
   store: ResourceStoreState,
   deleteEntryEffect: (
     ref: ResourceRef<I, A, RefError, R>,
-    store: ResourceStoreState
+    store: ResourceStoreState,
   ) => Effect.Effect<void>,
-  isRetained: () => boolean = () => false
+  isRetained: () => boolean = () => false,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     const interrupted = yield* interruptResourceGc(entry, store);
@@ -257,7 +256,7 @@ export const scheduleResourceGc = <I, A, E, R, RefError = E>(
       yield* publishResourceStoreEvent(store, {
         _tag: "ResourceGcInterrupted",
         name: ref.family.options.name,
-        key: ref.key
+        key: ref.key,
       });
     }
 
@@ -279,7 +278,7 @@ export const scheduleResourceGc = <I, A, E, R, RefError = E>(
         }
         yield* deleteEntryEffect(ref, store);
       }),
-      { startImmediately: true }
+      { startImmediately: true },
     );
     entry.gcFiber = fiber;
     store.fiberRegistry.track(resourceStoreFiber(fiber));
@@ -287,7 +286,7 @@ export const scheduleResourceGc = <I, A, E, R, RefError = E>(
       _tag: "ResourceGcScheduled",
       name: ref.family.options.name,
       key: ref.key,
-      gcFor
+      gcFor,
     });
   });
 
@@ -296,33 +295,30 @@ export const setResourcePending = <A, E>(entry: ResourceLifetimeEntry<A, E>): vo
   entry.state.set({
     _tag: "Pending",
     waiting: true,
-    ...(previous.present ? { previous: previous.value } : {})
+    ...(previous.present ? { previous: previous.value } : {}),
   });
 };
 
 export const setResourceSuccess = <A, E>(
   entry: ResourceLifetimeEntry<A, E>,
   value: A,
-  updatedAt: number
+  updatedAt: number,
 ): void => {
   entry.state.set({
     _tag: "Success",
     waiting: false,
     value,
-    updatedAt
+    updatedAt,
   });
 };
 
-export const setResourceFailure = <A, E>(
-  entry: ResourceLifetimeEntry<A, E>,
-  error: E
-): void => {
+export const setResourceFailure = <A, E>(entry: ResourceLifetimeEntry<A, E>, error: E): void => {
   const previous = previousResourceValue(entry.state.get());
   entry.state.set({
     _tag: "Failure",
     waiting: false,
     error,
-    ...(previous.present ? { previous: previous.value } : {})
+    ...(previous.present ? { previous: previous.value } : {}),
   });
 };
 
@@ -335,7 +331,7 @@ export const shouldShowResourcePending = <A, E, RefError>(
   state: ResourceState<A, E>,
   force: boolean,
   now: number,
-  retained = false
+  retained = false,
 ): boolean =>
   force ||
   state._tag === "Initial" ||

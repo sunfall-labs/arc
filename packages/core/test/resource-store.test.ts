@@ -6,7 +6,7 @@ import {
   makeRuntime,
   Resource,
   ResourceStoreDisposeError,
-  ResourceStoreTypeId
+  ResourceStoreTypeId,
 } from "../src/index.js";
 
 describe("Resource Store disposal", () => {
@@ -21,7 +21,7 @@ describe("Resource Store disposal", () => {
         const shutdown = yield* store.diagnostics.eventBusShutdownEffect;
         expect(shutdown).toBe(true);
         yield* disposeResourceStoreEffect(store);
-      })
+      }),
     );
   });
 
@@ -29,12 +29,12 @@ describe("Resource Store disposal", () => {
     const store = makeResourceStore();
     let secondFinalizerRan = false;
     store.moduleRegistry.register(Symbol("failing-module"), {
-      disposeEffect: Effect.fail("dispose failed")
+      disposeEffect: Effect.fail("dispose failed"),
     });
     store.moduleRegistry.register(Symbol("second-module"), {
       disposeEffect: Effect.sync(() => {
         secondFinalizerRan = true;
-      })
+      }),
     });
 
     return Effect.runPromise(
@@ -47,7 +47,7 @@ describe("Resource Store disposal", () => {
         expect(shutdown).toBe(true);
         expect(moduleCount).toBe(0);
         expect(secondFinalizerRan).toBe(true);
-      })
+      }),
     );
   });
 
@@ -57,7 +57,7 @@ describe("Resource Store disposal", () => {
     const Project = Resource.family({
       name: "ResourceStore.diagnostics.project",
       load: (id: string) => Effect.succeed({ id }),
-      provides: () => [ProjectTag]
+      provides: () => [ProjectTag],
     });
 
     runtime.resourceStore.moduleRegistry.register(Symbol("diagnostics-module"), {});
@@ -73,14 +73,14 @@ describe("Resource Store disposal", () => {
           fiberCount: 0,
           familyCount: 1,
           moduleCount: 1,
-          tagCount: 1
+          tagCount: 1,
         });
         expect(familyCount).toBe(1);
         expect(tagCount).toBe(1);
         expect(runtime.resourceStore.diagnostics.snapshotUnsafe()).toEqual(snapshot);
         expect(snapshot).not.toHaveProperty("families");
         expect(snapshot).not.toHaveProperty("tagIndex");
-      }).pipe(Effect.ensuring(runtime.disposeEffect))
+      }).pipe(Effect.ensuring(runtime.disposeEffect)),
     );
   });
 
@@ -88,7 +88,7 @@ describe("Resource Store disposal", () => {
     const runtime = makeRuntime();
     const Project = Resource.family({
       name: "ResourceStore.delete-absent",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const ref = Project("atlas");
 
@@ -98,7 +98,7 @@ describe("Resource Store disposal", () => {
         yield* runtime.provide(Resource.deleteEffect(ref));
         const after = yield* runtime.resourceStore.diagnostics.snapshotEffect;
         expect(after).toEqual(before);
-      }).pipe(Effect.ensuring(runtime.disposeEffect))
+      }).pipe(Effect.ensuring(runtime.disposeEffect)),
     );
   });
 
@@ -110,15 +110,15 @@ describe("Resource Store disposal", () => {
       eventBus: store.eventBus,
       moduleRegistry: store.moduleRegistry,
       fiberRegistry: store.fiberRegistry,
-      diagnostics: store.diagnostics
+      diagnostics: store.diagnostics,
     };
     const Project = Resource.family({
       name: "ResourceStore.fake-adapter",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const provided = runtime.provide(Resource.prefetchEffect(Project("atlas")), {
       // @ts-expect-error structural ResourceStore adapters are intentionally rejected at runtime.
-      resourceStore: fakeStore
+      resourceStore: fakeStore,
     });
 
     return Effect.runPromise(
@@ -128,13 +128,13 @@ describe("Resource Store disposal", () => {
         if (Exit.isFailure(exit)) {
           const defect = exit.cause.reasons.find(Cause.isDieReason)?.defect;
           expect(defect).toMatchObject({
-            _tag: "InvalidResourceStore"
+            _tag: "InvalidResourceStore",
           });
         }
       }).pipe(
         Effect.ensuring(disposeResourceStoreEffect(store)),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -148,15 +148,15 @@ describe("Resource Store disposal", () => {
       eventBus: store.eventBus,
       moduleRegistry: store.moduleRegistry,
       fiberRegistry: store.fiberRegistry,
-      diagnostics: store.diagnostics
+      diagnostics: store.diagnostics,
     };
     const Project = Resource.family({
       name: "ResourceStore.fake-global-marker",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const provided = runtime.provide(Resource.prefetchEffect(Project("atlas")), {
       // @ts-expect-error the implementation marker is private and cannot be recreated with Symbol.for.
-      resourceStore: fakeStore
+      resourceStore: fakeStore,
     });
 
     return Effect.runPromise(
@@ -166,13 +166,13 @@ describe("Resource Store disposal", () => {
         if (Exit.isFailure(exit)) {
           const defect = exit.cause.reasons.find(Cause.isDieReason)?.defect;
           expect(defect).toMatchObject({
-            _tag: "InvalidResourceStore"
+            _tag: "InvalidResourceStore",
           });
         }
       }).pipe(
         Effect.ensuring(disposeResourceStoreEffect(store)),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -191,10 +191,10 @@ describe("Resource Store disposal", () => {
             yield* Deferred.await(releaseSecond);
           }
           return loads;
-      }),
+        }),
       policy: {
-        staleFor: "1 millisecond"
-      }
+        staleFor: "1 millisecond",
+      },
     });
     const ref = Count(undefined);
 
@@ -215,7 +215,7 @@ describe("Resource Store disposal", () => {
 
         const afterRefresh = yield* runtime.resourceStore.diagnostics.fiberCountEffect;
         expect(afterRefresh).toBe(0);
-      }).pipe(Effect.ensuring(runtime.disposeEffect))
+      }).pipe(Effect.ensuring(runtime.disposeEffect)),
     );
   });
 
@@ -226,8 +226,8 @@ describe("Resource Store disposal", () => {
       name: "ResourceStore.sync-stale-read-fiber-cleanup",
       load: () => Effect.succeed(++loads),
       policy: {
-        staleFor: "1 millisecond"
-      }
+        staleFor: "1 millisecond",
+      },
     });
     const ref = Count(undefined);
 
@@ -242,7 +242,7 @@ describe("Resource Store disposal", () => {
 
         const afterRefresh = yield* runtime.resourceStore.diagnostics.fiberCountEffect;
         expect(afterRefresh).toBe(0);
-      }).pipe(Effect.ensuring(runtime.disposeEffect))
+      }).pipe(Effect.ensuring(runtime.disposeEffect)),
     );
   });
 });

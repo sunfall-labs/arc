@@ -1,8 +1,12 @@
 import { Cause, Context, Data, Effect, Exit, Fiber, PubSub, Scope } from "effect";
 
 /** Runtime marker for the Resource Store service. */
-export const ResourceStoreTypeId: unique symbol = Symbol.for("@effect-ui/core/ResourceStore") as typeof ResourceStoreTypeId;
-const ResourceStoreImplementationTypeId: unique symbol = Symbol("@effect-ui/core/ResourceStoreImplementation") as typeof ResourceStoreImplementationTypeId;
+export const ResourceStoreTypeId: unique symbol = Symbol.for(
+  "@effect-ui/core/ResourceStore",
+) as typeof ResourceStoreTypeId;
+const ResourceStoreImplementationTypeId: unique symbol = Symbol(
+  "@effect-ui/core/ResourceStoreImplementation",
+) as typeof ResourceStoreImplementationTypeId;
 
 /** Erased fiber tracked by a Resource Store for interruption on disposal. */
 export type ResourceStoreFiber = Fiber.Fiber<unknown, never>;
@@ -93,7 +97,11 @@ export interface ResourceStoreEventBus {
   /** Publishes a runtime event without exposing the backing PubSub. */
   publishEffect(event: ResourceStoreEvent): Effect.Effect<void>;
   /** Subscribes to runtime events with the subscription bound to the caller's Scope. */
-  readonly subscribeEffect: Effect.Effect<PubSub.Subscription<ResourceStoreEvent>, never, Scope.Scope>;
+  readonly subscribeEffect: Effect.Effect<
+    PubSub.Subscription<ResourceStoreEvent>,
+    never,
+    Scope.Scope
+  >;
   /** Shuts down the backing event queue. */
   readonly shutdownEffect: Effect.Effect<void>;
   /** Effect-first shutdown diagnostic for tests and adapters. */
@@ -217,7 +225,7 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
     fiberCount: fibers.size,
     familyCount: families.size,
     moduleCount: modules.size,
-    tagCount: tagIndex.size
+    tagCount: tagIndex.size,
   });
 
   const eventBus: ResourceStoreEventBus = {
@@ -225,7 +233,7 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
     subscribeEffect: PubSub.subscribe(events),
     shutdownEffect: PubSub.shutdown(events),
     isShutdownEffect: Effect.sync(() => PubSub.isShutdownUnsafe(events)),
-    isShutdownUnsafe: () => PubSub.isShutdownUnsafe(events)
+    isShutdownUnsafe: () => PubSub.isShutdownUnsafe(events),
   };
   const moduleRegistry: ResourceStoreModuleRegistry = {
     get: (key) => modules.get(key),
@@ -237,7 +245,7 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
       modules.clear();
     },
     size: () => modules.size,
-    sizeEffect: Effect.sync(() => modules.size)
+    sizeEffect: Effect.sync(() => modules.size),
   };
   const fiberRegistry: ResourceStoreFiberRegistry = {
     track: (fiber) => {
@@ -252,7 +260,7 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
       return current;
     },
     size: () => fibers.size,
-    sizeEffect: Effect.sync(() => fibers.size)
+    sizeEffect: Effect.sync(() => fibers.size),
   };
   const diagnostics: ResourceStoreDiagnostics = {
     eventBusShutdownEffect: eventBus.isShutdownEffect,
@@ -261,7 +269,7 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
     familyCountEffect: Effect.sync(() => families.size),
     tagCountEffect: Effect.sync(() => tagIndex.size),
     snapshotEffect: Effect.sync(snapshot),
-    snapshotUnsafe: snapshot
+    snapshotUnsafe: snapshot,
   };
 
   return {
@@ -280,25 +288,26 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
     refTags,
     retainedRefs,
     events,
-    fibers
+    fibers,
   };
 };
 
 /** Creates an empty Resource Store with event buffering and tracked fibers. */
-export const makeResourceStore = (): ResourceStore =>
-  makeMutableResourceStore();
+export const makeResourceStore = (): ResourceStore => makeMutableResourceStore();
 
 /** @internal Narrows a public Resource Store to the mutable implementation used by core internals. */
 export const unsafeMutableResourceStore = (store: ResourceStore): MutableResourceStore => {
   if (
     typeof store !== "object" ||
     store === null ||
-    (store as { [ResourceStoreImplementationTypeId]?: unknown })[ResourceStoreImplementationTypeId] !==
+    (store as { [ResourceStoreImplementationTypeId]?: unknown })[
       ResourceStoreImplementationTypeId
+    ] !== ResourceStoreImplementationTypeId
   ) {
     throw new InvalidResourceStore({
-      message: "Resource Store values must come from makeResourceStore(). Custom ResourceStore adapters cannot provide the mutable runtime cache internals required by Resource operations.",
-      received: store
+      message:
+        "Resource Store values must come from makeResourceStore(). Custom ResourceStore adapters cannot provide the mutable runtime cache internals required by Resource operations.",
+      received: store,
     });
   }
   return store as MutableResourceStore;
@@ -307,11 +316,14 @@ export const unsafeMutableResourceStore = (store: ResourceStore): MutableResourc
 const resourceStoreDisposeError = (cause: Cause.Cause<unknown>): ResourceStoreDisposeError =>
   new ResourceStoreDisposeError({
     cause,
-    guidance: "A Resource Store module finalizer failed during runtime disposal. Inspect `cause` to find the failing finalizer and keep module cleanup Effects typed."
+    guidance:
+      "A Resource Store module finalizer failed during runtime disposal. Inspect `cause` to find the failing finalizer and keep module cleanup Effects typed.",
   });
 
 /** Interrupts tracked fibers, runs module finalizers, and shuts down store events. */
-export const disposeResourceStoreEffect = (store: ResourceStore): Effect.Effect<void, ResourceStoreDisposeError> =>
+export const disposeResourceStoreEffect = (
+  store: ResourceStore,
+): Effect.Effect<void, ResourceStoreDisposeError> =>
   Effect.gen(function* () {
     const fibers = store.fiberRegistry.drain();
     if (fibers.length > 0) {
@@ -319,9 +331,8 @@ export const disposeResourceStoreEffect = (store: ResourceStore): Effect.Effect<
     }
     const modules = store.moduleRegistry.values();
     store.moduleRegistry.clear();
-    const exits = yield* Effect.forEach(
-      modules,
-      (module) => Effect.exit(module.disposeEffect ?? Effect.void)
+    const exits = yield* Effect.forEach(modules, (module) =>
+      Effect.exit(module.disposeEffect ?? Effect.void),
     );
     const failure = exits.find(Exit.isFailure);
     if (failure) {

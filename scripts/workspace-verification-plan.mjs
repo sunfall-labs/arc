@@ -6,12 +6,12 @@ class WorkspaceVerificationPlanError extends Data.TaggedError("WorkspaceVerifica
 const fail = (message, repair, cause) =>
   new WorkspaceVerificationPlanError({ message, repair, cause });
 
-const isNonEmptyString = (value) =>
-  typeof value === "string" && value.trim().length > 0;
+const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
 
 const packageVerifyLabelOverrides = new Map([
   ["@effect-ui/example-devtools-extension", "devtools extension"],
   ["@effect-ui/example-devtools-panel", "devtools panel"],
+  ["@effect-ui/example-docs-site", "docs site"],
   ["@effect-ui/example-project-console", "project console"],
   ["@effect-ui/starter-basic", "basic starter"],
   ["@effect-ui/starter-react", "React starter"],
@@ -48,8 +48,8 @@ export const workspaceVerifyPackageTargetsEffect = (workspaceRoot) =>
               "Add package-level verify scripts or update workspace verification policy before release checks can run.",
             ),
           )
-        : Effect.succeed(targets)
-    )
+        : Effect.succeed(targets),
+    ),
   );
 
 export const workspaceVerificationPlanSelfTestEffect = Effect.gen(function* () {
@@ -74,16 +74,23 @@ export const workspaceVerificationPlanSelfTestEffect = Effect.gen(function* () {
     },
   ]);
 
-  if (selfTestTargets.length !== 1 || selfTestTargets[0]?.packageName !== "@effect-ui/example-devtools-panel") {
-    return yield* Effect.fail(fail(
-      "Workspace verification plan self-test did not select exactly the package with a verify script.",
-      "Fix verifyPackageTargetsFromManifests before running workspace verification."
-    ));
+  if (
+    selfTestTargets.length !== 1 ||
+    selfTestTargets[0]?.packageName !== "@effect-ui/example-devtools-panel"
+  ) {
+    return yield* Effect.fail(
+      fail(
+        "Workspace verification plan self-test did not select exactly the package with a verify script.",
+        "Fix verifyPackageTargetsFromManifests before running workspace verification.",
+      ),
+    );
   }
   if (selfTestTargets[0]?.label !== "devtools panel") {
-    return yield* Effect.fail(fail(
-      "Workspace verification plan self-test did not apply package labels.",
-      "Fix workspaceVerifyLabel before running workspace verification."
-    ));
+    return yield* Effect.fail(
+      fail(
+        "Workspace verification plan self-test did not apply package labels.",
+        "Fix workspaceVerifyLabel before running workspace verification.",
+      ),
+    );
   }
 });

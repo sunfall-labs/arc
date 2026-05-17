@@ -29,13 +29,13 @@ Command:
 pnpm benchmark
 ```
 
-| Benchmark | hz | mean | p99 | samples |
-| --- | ---: | ---: | ---: | ---: |
-| Project console streaming SSR | 1.8275 | 547.21 ms | 548.68 ms | 10 |
-| Start route preload request | 11,106.16 | 0.0900 ms | 0.2975 ms | 5,554 |
-| Resource cold plus cached prefetch | 13,467.57 | 0.0743 ms | 0.2435 ms | 6,734 |
-| Collection live query materialization | 8,743.64 | 0.1144 ms | 0.3080 ms | 4,372 |
-| Start RPC transport success | 8,901.93 | 0.1123 ms | 0.3447 ms | 4,451 |
+| Benchmark                             |        hz |      mean |       p99 | samples |
+| ------------------------------------- | --------: | --------: | --------: | ------: |
+| Project console streaming SSR         |    1.8275 | 547.21 ms | 548.68 ms |      10 |
+| Start route preload request           | 11,106.16 | 0.0900 ms | 0.2975 ms |   5,554 |
+| Resource cold plus cached prefetch    | 13,467.57 | 0.0743 ms | 0.2435 ms |   6,734 |
+| Collection live query materialization |  8,743.64 | 0.1144 ms | 0.3080 ms |   4,372 |
+| Start RPC transport success           |  8,901.93 | 0.1123 ms | 0.3447 ms |   4,451 |
 
 ## Follow-Up
 

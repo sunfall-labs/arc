@@ -5,9 +5,7 @@ import { HomePage } from "../HomePage.js";
 const RouteBuilder = defineFileRoute("/");
 
 export const Route = RouteBuilder.preload({
-  resources: [
-    RouteBuilder.resource(WelcomeResource, () => "React")
-  ]
+  resources: [RouteBuilder.resource(WelcomeResource, () => "React")],
 }).route({
-  component: HomePage
+  component: HomePage,
 });

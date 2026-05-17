@@ -1,7 +1,4 @@
-import {
-  Signal,
-  type WritableSignal
-} from "./signal.js";
+import { Signal, type WritableSignal } from "./signal.js";
 
 interface ProgramRuntimeTimelineEventBase {
   readonly sequence: number;
@@ -17,9 +14,11 @@ export type ProgramRuntimeTimelineEventInput<Event extends ProgramRuntimeTimelin
 
 export interface ProgramRuntimeTimelineOptions {
   readonly name?: string;
-  readonly timeline?: false | {
-    readonly limit?: number;
-  };
+  readonly timeline?:
+    | false
+    | {
+        readonly limit?: number;
+      };
 }
 
 export interface ProgramRuntimeTimeline<Event extends ProgramRuntimeTimelineEventBase> {
@@ -32,7 +31,7 @@ export interface ProgramRuntimeTimeline<Event extends ProgramRuntimeTimelineEven
 const defaultProgramTimelineLimit = 200;
 
 export const resolveProgramTimelineLimit = (
-  timeline: ProgramRuntimeTimelineOptions["timeline"]
+  timeline: ProgramRuntimeTimelineOptions["timeline"],
 ): number => {
   if (timeline === false) {
     return 0;
@@ -45,7 +44,7 @@ export const resolveProgramTimelineLimit = (
 };
 
 export const makeProgramRuntimeTimeline = <Event extends ProgramRuntimeTimelineEventBase>(
-  options: ProgramRuntimeTimelineOptions
+  options: ProgramRuntimeTimelineOptions,
 ): ProgramRuntimeTimeline<Event> => {
   const limit = resolveProgramTimelineLimit(options.timeline);
   const timeline = Signal.make<ReadonlyArray<Event>>([]);
@@ -62,17 +61,17 @@ export const makeProgramRuntimeTimeline = <Event extends ProgramRuntimeTimelineE
       const next = {
         sequence: ++sequence,
         ...(options.name === undefined ? {} : { program: options.name }),
-        ...event
+        ...event,
       } as Event;
 
       timeline.update((current) =>
         current.length + 1 <= limit
           ? [...current, next]
-          : [...current.slice(current.length + 1 - limit), next]
+          : [...current.slice(current.length + 1 - limit), next],
       );
     },
     clear: () => {
       timeline.set([]);
-    }
+    },
   };
 };

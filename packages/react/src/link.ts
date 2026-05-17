@@ -4,7 +4,7 @@ import {
   browserRouterLinkPreloadDecision,
   browserRouterLinkPreloadIdentity,
   isPlainLeftClick as coreIsPlainLeftClick,
-  makeBrowserRouterLinkPreloader
+  makeBrowserRouterLinkPreloader,
 } from "@effect-ui/core";
 import {
   createElement,
@@ -13,7 +13,7 @@ import {
   useRef,
   type AnchorHTMLAttributes,
   type MouseEvent,
-  type ReactNode
+  type ReactNode,
 } from "react";
 import { useRouter } from "./router.js";
 
@@ -25,8 +25,10 @@ type RouterLinkRouteOptions<R extends AnyRoute> =
     : { readonly options: Route.HrefOptions<R> };
 
 /** Props for a typed router-owned anchor. */
-export type RouterLinkProps<R extends AnyRoute> =
-  Omit<AnchorHTMLAttributes<HTMLAnchorElement>, "href"> &
+export type RouterLinkProps<R extends AnyRoute> = Omit<
+  AnchorHTMLAttributes<HTMLAnchorElement>,
+  "href"
+> &
   RouterLinkRouteOptions<R> & {
     /** Route definition to build and navigate to. */
     readonly route: R;
@@ -40,14 +42,11 @@ export type RouterLinkProps<R extends AnyRoute> =
 export const isPlainLeftClick = coreIsPlainLeftClick;
 
 const hrefArgs = <R extends AnyRoute>(
-  options: Route.HrefOptions<R> | undefined
-): Route.HrefArgs<R> =>
-  (options === undefined ? [] : [options]) as Route.HrefArgs<R>;
+  options: Route.HrefOptions<R> | undefined,
+): Route.HrefArgs<R> => (options === undefined ? [] : [options]) as Route.HrefArgs<R>;
 
 /** Typed React anchor that builds hrefs, preloads on hover, and navigates on plain clicks. */
-export const RouterLink = <R extends AnyRoute>(
-  props: RouterLinkProps<R>
-): ReactNode => {
+export const RouterLink = <R extends AnyRoute>(props: RouterLinkProps<R>): ReactNode => {
   const {
     route,
     options,
@@ -67,12 +66,15 @@ export const RouterLink = <R extends AnyRoute>(
     preload: preloadOption !== false,
     canHandleRoute: router.canHandleRoute(routeValue),
     target: anchorProps.target,
-    download: anchorProps.download
+    download: anchorProps.download,
   });
-  const preloadConfig = useRef<{
-    readonly enabled: () => boolean;
-    readonly preloadEffect: () => ReturnType<typeof router.preloadEffect<R>>;
-  } | undefined>(undefined);
+  const preloadConfig = useRef<
+    | {
+        readonly enabled: () => boolean;
+        readonly preloadEffect: () => ReturnType<typeof router.preloadEffect<R>>;
+      }
+    | undefined
+  >(undefined);
   preloadConfig.current = {
     enabled: () =>
       browserRouterLinkPreloadDecision({
@@ -80,25 +82,29 @@ export const RouterLink = <R extends AnyRoute>(
         preload: preloadOption !== false,
         canHandleRoute: router.canHandleRoute(routeValue),
         target: anchorProps.target,
-        download: anchorProps.download
+        download: anchorProps.download,
       })._tag === "Preload",
-    preloadEffect: () => router.preloadEffect<R>(routeValue, ...currentHrefArgs())
+    preloadEffect: () => router.preloadEffect<R>(routeValue, ...currentHrefArgs()),
   };
-  const preloader = useMemo(() =>
-    makeBrowserRouterLinkPreloader({
-      runtime: router.runtime,
-      enabled: () => preloadConfig.current?.enabled() ?? false,
-      preloadEffect: () => preloadConfig.current!.preloadEffect()
-    }),
-    [router]
+  const preloader = useMemo(
+    () =>
+      makeBrowserRouterLinkPreloader({
+        runtime: router.runtime,
+        enabled: () => preloadConfig.current?.enabled() ?? false,
+        preloadEffect: () => preloadConfig.current!.preloadEffect(),
+      }),
+    [router],
   );
 
   useEffect(() => {
     preloader.bindPreloadIdentity(preloadIdentity);
   }, [preloadIdentity.key, preloadIdentity.enabled, preloader]);
-  useEffect(() => () => {
-    preloader.interrupt();
-  }, [preloader, router.runtime]);
+  useEffect(
+    () => () => {
+      preloader.interrupt();
+    },
+    [preloader, router.runtime],
+  );
 
   return createElement("a", {
     ...anchorProps,
@@ -110,7 +116,7 @@ export const RouterLink = <R extends AnyRoute>(
         preload: preloadOption !== false,
         canHandleRoute: router.canHandleRoute(routeValue),
         target: anchorProps.target,
-        download: anchorProps.download
+        download: anchorProps.download,
       });
       if (preloadDecision._tag === "Preload") {
         preloader.preload();
@@ -124,7 +130,7 @@ export const RouterLink = <R extends AnyRoute>(
         replace: replace === true,
         canHandleRoute: router.canHandleRoute(routeValue),
         target: anchorProps.target,
-        download: anchorProps.download
+        download: anchorProps.download,
       });
       if (clickDecision._tag === "Ignore") {
         return;
@@ -132,6 +138,6 @@ export const RouterLink = <R extends AnyRoute>(
 
       event.preventDefault();
       router.navigateHref(clickDecision.href, clickDecision.options);
-    }
+    },
   });
 };

@@ -1,6 +1,14 @@
 import { Deferred, Effect, Fiber, Stream } from "effect";
 import { describe, expect, it } from "vitest";
-import { EffectInputCallbackError, read, runWithScope, Signal, UiScope, UiScopeMissing, watch } from "../src/index.js";
+import {
+  EffectInputCallbackError,
+  read,
+  runWithScope,
+  Signal,
+  UiScope,
+  UiScopeMissing,
+  watch,
+} from "../src/index.js";
 
 describe("Signal", () => {
   it("tracks derived dependencies", () => {
@@ -143,7 +151,7 @@ describe("Signal", () => {
           }
           return value;
         },
-        () => undefined
+        () => undefined,
       );
     });
 
@@ -225,7 +233,7 @@ describe("Signal", () => {
           const fiber = yield* Signal.values(count).pipe(
             Stream.take(3),
             Stream.runCollect,
-            Effect.forkScoped({ startImmediately: true })
+            Effect.forkScoped({ startImmediately: true }),
           );
 
           yield* Effect.yieldNow;
@@ -234,8 +242,8 @@ describe("Signal", () => {
 
           const values = yield* Fiber.join(fiber);
           yield* Effect.sync(() => expect(values).toEqual([0, 1, 2]));
-        })
-      )
+        }),
+      ),
     );
   });
 
@@ -246,15 +254,15 @@ describe("Signal", () => {
           const settled = yield* Deferred.make<void>();
           const signal = yield* Signal.fromStreamEffect(
             Stream.make(1, 2).pipe(
-              Stream.tap((n) => (n === 2 ? Deferred.succeed(settled, undefined) : Effect.void))
+              Stream.tap((n) => (n === 2 ? Deferred.succeed(settled, undefined) : Effect.void)),
             ),
-            0
+            0,
           );
 
           yield* Deferred.await(settled);
           yield* Effect.sync(() => expect(read(signal)).toBe(2));
-        })
-      )
+        }),
+      ),
     ));
 
   it("requires a UI scope for the boundary stream helper", () => {

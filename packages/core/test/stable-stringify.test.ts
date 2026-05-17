@@ -4,7 +4,7 @@ import {
   StableStringifyEncodeFailure,
   StableStringifyInvalidDate,
   StableStringifyUnsupportedValue,
-  stableStringify
+  stableStringify,
 } from "../src/stable-stringify.js";
 
 describe("stableStringify", () => {
@@ -12,7 +12,7 @@ describe("stableStringify", () => {
     const shared = { z: 1, a: 2 };
 
     expect(stableStringify({ right: shared, left: shared })).toBe(
-      "{\"left\":{\"a\":2,\"z\":1},\"right\":{\"a\":2,\"z\":1}}"
+      '{"left":{"a":2,"z":1},"right":{"a":2,"z":1}}',
     );
   });
 
@@ -23,8 +23,8 @@ describe("stableStringify", () => {
       labels: new Set(["active", new Date("2024-01-01T00:00:00.000Z")]),
       meta: new Map<unknown, unknown>([
         ["count", 1],
-        [new Date("2024-01-03T00:00:00.000Z"), "date-key"]
-      ])
+        [new Date("2024-01-03T00:00:00.000Z"), "date-key"],
+      ]),
     });
     const second = stableStringify({
       created: new Date("2024-01-02T03:04:06.000Z"),
@@ -32,15 +32,15 @@ describe("stableStringify", () => {
       labels: new Set(["active", new Date("2024-01-01T00:00:01.000Z")]),
       meta: new Map<unknown, unknown>([
         ["count", 1],
-        [new Date("2024-01-04T00:00:00.000Z"), "date-key"]
-      ])
+        [new Date("2024-01-04T00:00:00.000Z"), "date-key"],
+      ]),
     });
 
     expect(first).not.toBe(second);
-    expect(first).toContain("\"$effectUiStableStringify\":\"Date\"");
-    expect(first).toContain("\"$effectUiStableStringify\":\"URL\"");
-    expect(first).toContain("\"$effectUiStableStringify\":\"Map\"");
-    expect(first).toContain("\"$effectUiStableStringify\":\"Set\"");
+    expect(first).toContain('"$effectUiStableStringify":"Date"');
+    expect(first).toContain('"$effectUiStableStringify":"URL"');
+    expect(first).toContain('"$effectUiStableStringify":"Map"');
+    expect(first).toContain('"$effectUiStableStringify":"Set"');
   });
 
   it("distinguishes undefined, sparse array holes, and marker-shaped plain objects", () => {
@@ -51,15 +51,15 @@ describe("stableStringify", () => {
 
     expect(withUndefined).not.toBe(withHole);
     expect(markerObject).not.toBe(realDate);
-    expect(markerObject).toContain("\"$effectUiStableStringify\":\"Object\"");
+    expect(markerObject).toContain('"$effectUiStableStringify":"Object"');
   });
 
   it("keeps binary values distinct", () => {
     expect(stableStringify(new Uint8Array([1, 2, 3]))).not.toBe(
-      stableStringify(new Uint8Array([1, 2, 4]))
+      stableStringify(new Uint8Array([1, 2, 4])),
     );
     expect(stableStringify(new DataView(new Uint8Array([1, 2, 3]).buffer))).toContain(
-      "\"$effectUiStableStringify\":\"DataView\""
+      '"$effectUiStableStringify":"DataView"',
     );
   });
 
@@ -75,7 +75,7 @@ describe("stableStringify", () => {
       expect(error).toMatchObject({
         _tag: "StableStringifyCircularData",
         path: "$.child.parent",
-        referencePath: "$"
+        referencePath: "$",
       });
     }
   });
@@ -92,7 +92,7 @@ describe("stableStringify", () => {
       enumerable: true,
       get: () => {
         throw getterCause;
-      }
+      },
     });
 
     const arrayWithThrowingIndex: unknown[] = [];
@@ -101,20 +101,23 @@ describe("stableStringify", () => {
       enumerable: true,
       get: () => {
         throw arrayCause;
-      }
+      },
     });
 
     const ownKeysCause = new Error("own keys failed");
-    const objectWithThrowingOwnKeys = new Proxy({}, {
-      ownKeys: () => {
-        throw ownKeysCause;
-      }
-    });
+    const objectWithThrowingOwnKeys = new Proxy(
+      {},
+      {
+        ownKeys: () => {
+          throw ownKeysCause;
+        },
+      },
+    );
 
     for (const [value, path, cause] of [
       [objectWithThrowingGetter, "$.boom", getterCause],
       [arrayWithThrowingIndex, "$[0]", arrayCause],
-      [objectWithThrowingOwnKeys, "$", ownKeysCause]
+      [objectWithThrowingOwnKeys, "$", ownKeysCause],
     ] as const) {
       try {
         stableStringify(value);
@@ -124,7 +127,7 @@ describe("stableStringify", () => {
         expect(error).toMatchObject({
           _tag: "StableStringifyEncodeFailure",
           path,
-          cause
+          cause,
         });
       }
     }

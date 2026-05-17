@@ -253,12 +253,12 @@ If an agent can safely add a full-stack feature, a human team can too.
 The end-state API should feel like this:
 
 ```ts
-export const ProjectId = Schema.String.pipe(Schema.brand("ProjectId"))
-export type ProjectId = typeof ProjectId.Type
+export const ProjectId = Schema.String.pipe(Schema.brand("ProjectId"));
+export type ProjectId = typeof ProjectId.Type;
 
 export const ProjectTag = Resource.tag<{ readonly id: ProjectId }>("Project", {
-  key: ({ id }) => id
-})
+  key: ({ id }) => id,
+});
 
 export const ProjectById = Resource.family({
   name: "Project.byId",
@@ -270,9 +270,9 @@ export const ProjectById = Resource.family({
   policy: {
     staleFor: "30 seconds",
     gcFor: "5 minutes",
-    retry: Schedule.exponential("100 millis").pipe(Schedule.take(3))
-  }
-})
+    retry: Schedule.exponential("100 millis").pipe(Schedule.take(3)),
+  },
+});
 
 export const RenameProject = Action.define({
   name: "Project.rename",
@@ -283,27 +283,25 @@ export const RenameProject = Action.define({
   invalidates: (project) => [ProjectTag({ id: project.id })],
   policy: {
     concurrency: "latest",
-    retry: Schedule.recurs(1)
-  }
-})
+    retry: Schedule.recurs(1),
+  },
+});
 ```
 
 Component code should stay compact:
 
 ```tsx
-const project = useResource(() => ProjectById(props.id))
-const rename = StartAction.use(RenameProject, { runtime })
+const project = useResource(() => ProjectById(props.id));
+const rename = StartAction.use(RenameProject, { runtime });
 
 return project.match({
   initial: () => <ProjectSkeleton />,
-  pending: (previous) => previous
-    ? <ProjectView project={previous} refreshing />
-    : <ProjectSkeleton />,
+  pending: (previous) =>
+    previous ? <ProjectView project={previous} refreshing /> : <ProjectSkeleton />,
   success: (value) => <ProjectForm project={value} action={rename} />,
-  failure: (error, previous) => previous
-    ? <ProjectView project={previous} error={error} />
-    : <ProjectError error={error} />
-})
+  failure: (error, previous) =>
+    previous ? <ProjectView project={previous} error={error} /> : <ProjectError error={error} />,
+});
 ```
 
 The power is not in ceremony. The power is that the compiler, runtime, server,

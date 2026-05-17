@@ -3,34 +3,27 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import {
-  createFileRouteManifest,
-  generateFileRouteManifestArtifact
-} from "../src/file-routes.js";
+import { createFileRouteManifest, generateFileRouteManifestArtifact } from "../src/file-routes.js";
 import {
   createFileRouteDefinitionsModule,
   FileRouteDefinitionsModuleInvalidExportName,
-  FileRouteDefinitionsModuleInvalidIdentifier
+  FileRouteDefinitionsModuleInvalidIdentifier,
 } from "../src/file-route-modules.js";
 import {
   fileRouteDefinitionsVirtualModuleId,
   loadStartVirtualModuleEffect,
-  resolveStartVirtualModuleId
+  resolveStartVirtualModuleId,
 } from "../src/start-virtual-modules.js";
 import {
   FileRouteDefinitionsFileWriteError,
-  writeFileRouteDefinitionsFileEffect
+  writeFileRouteDefinitionsFileEffect,
 } from "../src/generated-route-definitions.js";
 
 describe("file route definition module generation", () => {
   it("turns a validated file route manifest into typed route definitions", () => {
     const manifest = generateFileRouteManifestArtifact(
-      [
-        "src/routes/projects/$id.tsx",
-        "src/routes/index.tsx",
-        "src/routes/projects/new.tsx"
-      ],
-      { routeDirectory: "src/routes" }
+      ["src/routes/projects/$id.tsx", "src/routes/index.tsx", "src/routes/projects/new.tsx"],
+      { routeDirectory: "src/routes" },
     );
 
     const generated = createFileRouteDefinitionsModule(manifest);
@@ -354,77 +347,97 @@ describe("file route definition module generation", () => {
       /** Default generated route tree export for router-style imports. */
       export default routes;"
     `);
-    expect(generated).toContain([
-      'import { Route } from "@effect-ui/core";',
-      "",
-      'import { Route as route_root } from "./routes/index.js";',
-      'import { Route as route_projects_new } from "./routes/projects/new.js";',
-      'import { Route as route_projects_$id } from "./routes/projects/$id.js";',
-      "",
-      'const route_root_path: "/" = route_root.path;',
-      'const route_projects_new_path: "/projects/new" = route_projects_new.path;',
-      'const route_projects_$id_path: "/projects/:id" = route_projects_$id.path;',
-      "",
-      "export { route_root, route_projects_new, route_projects_$id };",
-      "",
-      "/** Ordered app-specific route definitions discovered from Start file routes. */",
-      "export const routes = [route_root, route_projects_new, route_projects_$id] as const;",
-      "/** Alias for `routes`, kept for router-style naming and generated-file ergonomics. */",
-      "export const routeTree = routes;",
-      "/** Map from generated route id to the exact route definition for that file route. */",
-      "export const routeById = {",
-      '  "route_root": route_root,',
-      '  "route_projects_new": route_projects_new,',
-      '  "route_projects_$id": route_projects_$id',
-      "} as const;",
-      "/** Map from route path pattern to the exact route definition for that file route. */",
-      "export const routeByPath = {",
-      '  "/": route_root,',
-	      '  "/projects/new": route_projects_new,',
-	      '  "/projects/:id": route_projects_$id',
-	      "} as const;",
-	      "/** Map from route path pattern to generated route id. */",
-	      "export const routeIdByPath = {",
-	      '  "/": "route_root",',
-	      '  "/projects/new": "route_projects_new",',
-	      '  "/projects/:id": "route_projects_$id"',
-	      "} as const;",
-	      "/** Builds a typed href for a generated route id. */",
-	      "export const hrefById = <Id extends RouteId>(",
-      "  id: Id,",
-      "  ...args: Route.HrefArgs<RouteById[Id]>",
-      "): string => Route.href(routeById[id], ...args);",
-      "/** Builds a typed href for a generated route path pattern. */",
-      "export const hrefByPath = <Path extends RoutePath>(",
-      "  path: Path,",
-      "  ...args: Route.HrefArgs<RouteByPath[Path]>",
-      "): string => Route.href(routeByPath[path], ...args);"
-    ].join("\n"));
+    expect(generated).toContain(
+      [
+        'import { Route } from "@effect-ui/core";',
+        "",
+        'import { Route as route_root } from "./routes/index.js";',
+        'import { Route as route_projects_new } from "./routes/projects/new.js";',
+        'import { Route as route_projects_$id } from "./routes/projects/$id.js";',
+        "",
+        'const route_root_path: "/" = route_root.path;',
+        'const route_projects_new_path: "/projects/new" = route_projects_new.path;',
+        'const route_projects_$id_path: "/projects/:id" = route_projects_$id.path;',
+        "",
+        "export { route_root, route_projects_new, route_projects_$id };",
+        "",
+        "/** Ordered app-specific route definitions discovered from Start file routes. */",
+        "export const routes = [route_root, route_projects_new, route_projects_$id] as const;",
+        "/** Alias for `routes`, kept for router-style naming and generated-file ergonomics. */",
+        "export const routeTree = routes;",
+        "/** Map from generated route id to the exact route definition for that file route. */",
+        "export const routeById = {",
+        '  "route_root": route_root,',
+        '  "route_projects_new": route_projects_new,',
+        '  "route_projects_$id": route_projects_$id',
+        "} as const;",
+        "/** Map from route path pattern to the exact route definition for that file route. */",
+        "export const routeByPath = {",
+        '  "/": route_root,',
+        '  "/projects/new": route_projects_new,',
+        '  "/projects/:id": route_projects_$id',
+        "} as const;",
+        "/** Map from route path pattern to generated route id. */",
+        "export const routeIdByPath = {",
+        '  "/": "route_root",',
+        '  "/projects/new": "route_projects_new",',
+        '  "/projects/:id": "route_projects_$id"',
+        "} as const;",
+        "/** Builds a typed href for a generated route id. */",
+        "export const hrefById = <Id extends RouteId>(",
+        "  id: Id,",
+        "  ...args: Route.HrefArgs<RouteById[Id]>",
+        "): string => Route.href(routeById[id], ...args);",
+        "/** Builds a typed href for a generated route path pattern. */",
+        "export const hrefByPath = <Path extends RoutePath>(",
+        "  path: Path,",
+        "  ...args: Route.HrefArgs<RouteByPath[Path]>",
+        "): string => Route.href(routeByPath[path], ...args);",
+      ].join("\n"),
+    );
     expect(generated).toContain("export const fileRouteModules = ");
     expect(generated).toContain('"kind": "Route"');
     expect(generated).toContain("export const fileRouteMetadata = ");
-	    expect(generated).toContain("export type FileRouteMetadata = typeof fileRouteMetadata;");
-	    expect(generated).toContain("export type FileRouteId = keyof RouteById;");
-	    expect(generated).toContain("export type RouteByPath = typeof routeByPath;");
-	    expect(generated).toContain("export type RouteIdByPath = typeof routeIdByPath;");
-	    expect(generated).toContain("export type FileRoutePath = keyof RouteByPath;");
-	    expect(generated).toContain("export type FileRouteByPath = RouteByPath;");
-	    expect(generated).toContain("export const fileRouteLayoutsById = ");
-	    expect(generated).toContain("export const fileRouteErrorBoundaryById = ");
-	    expect(generated).toContain("export const fileRouteMetadataById = ");
-	    expect(generated).toContain("export const layoutsByPath = <Path extends RoutePath>(");
-	    expect(generated).toContain("export const errorBoundaryByPath = <Path extends RoutePath>(");
-	    expect(generated).toContain("export const metadataByPath = <Path extends RoutePath>(");
-	    expect(generated).toContain("export type FileRouteParamsById = { readonly [Id in FileRouteId]: Route.Params<RouteById[Id]> };");
-	    expect(generated).toContain("export type FileRouteHrefOptions<Id extends FileRouteId> = FileRouteHrefOptionsById[Id];");
-	    expect(generated).toContain("export type FileRouteHrefArgs<Id extends FileRouteId> = FileRouteHrefArgsById[Id];");
-	    expect(generated).toContain("export type FileRouteHrefOptionsByPath = { readonly [Path in keyof FileRouteByPath]: Route.HrefOptions<FileRouteByPath[Path]> };");
-	    expect(generated).toContain("export type FileRouteLayouts<Id extends FileRouteId> = FileRouteLayoutsById[Id];");
-	    expect(generated).toContain("export type FileRouteErrorBoundary<Id extends FileRouteId> = Id extends keyof FileRouteErrorBoundaryById ? FileRouteErrorBoundaryById[Id] : undefined;");
-	    expect(generated).toContain("export type FileRouteMetadataModules<Id extends FileRouteId> = FileRouteMetadataById[Id];");
-	    expect(generated).toContain("export type Href<Id extends RouteId> = FileRouteHrefOptions<Id>;");
-    expect(generated).toContain("export type HrefArgs<Id extends RouteId> = FileRouteHrefArgs<Id>;");
-    expect(generated).toContain("export type Match<Path extends RoutePath> = FileRouteMatch<Path>;");
+    expect(generated).toContain("export type FileRouteMetadata = typeof fileRouteMetadata;");
+    expect(generated).toContain("export type FileRouteId = keyof RouteById;");
+    expect(generated).toContain("export type RouteByPath = typeof routeByPath;");
+    expect(generated).toContain("export type RouteIdByPath = typeof routeIdByPath;");
+    expect(generated).toContain("export type FileRoutePath = keyof RouteByPath;");
+    expect(generated).toContain("export type FileRouteByPath = RouteByPath;");
+    expect(generated).toContain("export const fileRouteLayoutsById = ");
+    expect(generated).toContain("export const fileRouteErrorBoundaryById = ");
+    expect(generated).toContain("export const fileRouteMetadataById = ");
+    expect(generated).toContain("export const layoutsByPath = <Path extends RoutePath>(");
+    expect(generated).toContain("export const errorBoundaryByPath = <Path extends RoutePath>(");
+    expect(generated).toContain("export const metadataByPath = <Path extends RoutePath>(");
+    expect(generated).toContain(
+      "export type FileRouteParamsById = { readonly [Id in FileRouteId]: Route.Params<RouteById[Id]> };",
+    );
+    expect(generated).toContain(
+      "export type FileRouteHrefOptions<Id extends FileRouteId> = FileRouteHrefOptionsById[Id];",
+    );
+    expect(generated).toContain(
+      "export type FileRouteHrefArgs<Id extends FileRouteId> = FileRouteHrefArgsById[Id];",
+    );
+    expect(generated).toContain(
+      "export type FileRouteHrefOptionsByPath = { readonly [Path in keyof FileRouteByPath]: Route.HrefOptions<FileRouteByPath[Path]> };",
+    );
+    expect(generated).toContain(
+      "export type FileRouteLayouts<Id extends FileRouteId> = FileRouteLayoutsById[Id];",
+    );
+    expect(generated).toContain(
+      "export type FileRouteErrorBoundary<Id extends FileRouteId> = Id extends keyof FileRouteErrorBoundaryById ? FileRouteErrorBoundaryById[Id] : undefined;",
+    );
+    expect(generated).toContain(
+      "export type FileRouteMetadataModules<Id extends FileRouteId> = FileRouteMetadataById[Id];",
+    );
+    expect(generated).toContain("export type Href<Id extends RouteId> = FileRouteHrefOptions<Id>;");
+    expect(generated).toContain(
+      "export type HrefArgs<Id extends RouteId> = FileRouteHrefArgs<Id>;",
+    );
+    expect(generated).toContain(
+      "export type Match<Path extends RoutePath> = FileRouteMatch<Path>;",
+    );
     expect(generated).toContain("export default routes;");
   });
 
@@ -438,9 +451,9 @@ describe("file route definition module generation", () => {
         "src/routes/projects/_layout.tsx",
         "src/routes/projects/error.tsx",
         "src/routes/projects/metadata.ts",
-        "src/routes/projects/$id.tsx"
+        "src/routes/projects/$id.tsx",
       ],
-      { routeDirectory: "src/routes" }
+      { routeDirectory: "src/routes" },
     );
     const generated = createFileRouteDefinitionsModule(manifest);
 
@@ -915,17 +928,14 @@ describe("file route definition module generation", () => {
 
   it("emits route module imports relative to a custom generated file", () => {
     const manifest = generateFileRouteManifestArtifact(
-      [
-        "src/routes/projects/$id.ts",
-        "src/routes/index.ts"
-      ],
-      { routeDirectory: "src/routes" }
+      ["src/routes/projects/$id.ts", "src/routes/index.ts"],
+      { routeDirectory: "src/routes" },
     );
 
     expect(
       createFileRouteDefinitionsModule(manifest, {
-        generatedFile: "src/generated/routeTree.gen.ts"
-      })
+        generatedFile: "src/generated/routeTree.gen.ts",
+      }),
     ).toContain('import { Route as route_projects_$id } from "../routes/projects/$id.js";');
   });
 
@@ -935,9 +945,9 @@ describe("file route definition module generation", () => {
         "src/routes/(admin)/_layout.tsx",
         "src/routes/(admin)/dashboard.tsx",
         "src/routes/(marketing)/_layout.tsx",
-        "src/routes/(marketing)/about.tsx"
+        "src/routes/(marketing)/about.tsx",
       ],
-      { routeDirectory: "src/routes" }
+      { routeDirectory: "src/routes" },
     );
     const generated = createFileRouteDefinitionsModule(manifest);
 
@@ -959,22 +969,22 @@ describe("file route definition module generation", () => {
             filePath: "src/routes/index.tsx",
             routePath: "/",
             segments: [],
-            params: []
-          }
-        ])
-      )
+            params: [],
+          },
+        ]),
+      ),
     ).toThrow(FileRouteDefinitionsModuleInvalidIdentifier);
   });
 
   it("rejects invalid route module export names", () => {
     const manifest = generateFileRouteManifestArtifact(["src/routes/index.ts"], {
-      routeDirectory: "src/routes"
+      routeDirectory: "src/routes",
     });
 
     expect(() =>
       createFileRouteDefinitionsModule(manifest, {
-        routeModuleExportName: "not-valid"
-      })
+        routeModuleExportName: "not-valid",
+      }),
     ).toThrow(FileRouteDefinitionsModuleInvalidExportName);
   });
 
@@ -982,7 +992,7 @@ describe("file route definition module generation", () => {
     const root = mkdtempSync(join(tmpdir(), "effect-ui-routes-"));
     try {
       const manifest = generateFileRouteManifestArtifact(["src/routes/index.tsx"], {
-        routeDirectory: "src/routes"
+        routeDirectory: "src/routes",
       });
       const blockingPath = join(root, "blocked");
       writeFileSync(blockingPath, "not a directory");
@@ -990,16 +1000,16 @@ describe("file route definition module generation", () => {
       const error = await Effect.runPromise(
         Effect.flip(
           writeFileRouteDefinitionsFileEffect(root, manifest, {
-            outputFile: "blocked/routeTree.gen.ts"
-          })
-        )
+            outputFile: "blocked/routeTree.gen.ts",
+          }),
+        ),
       );
 
       expect(error).toBeInstanceOf(FileRouteDefinitionsFileWriteError);
       expect(error).toMatchObject({
         _tag: "FileRouteDefinitionsFileWriteError",
         operation: "create-directory",
-        path: blockingPath
+        path: blockingPath,
       });
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -1020,21 +1030,21 @@ describe("file route definition module generation", () => {
             routePath: "/bad",
             segments: [],
             params: [],
-            exportName: "Route"
-          }
+            exportName: "Route",
+          },
         ],
-        { routeDirectory: "src/routes" }
+        { routeDirectory: "src/routes" },
       );
 
       const error = await Effect.runPromise(
-        Effect.flip(writeFileRouteDefinitionsFileEffect(root, manifest))
+        Effect.flip(writeFileRouteDefinitionsFileEffect(root, manifest)),
       );
 
       expect(error).toBeInstanceOf(FileRouteDefinitionsModuleInvalidIdentifier);
       expect(error).toMatchObject({
         _tag: "FileRouteDefinitionsModuleInvalidIdentifier",
         routeId: "not-valid",
-        routePath: "/bad"
+        routePath: "/bad",
       });
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -1053,10 +1063,10 @@ describe("file route definition module generation", () => {
           routePath: "/bad",
           segments: [],
           params: [],
-          exportName: "Route"
-        }
+          exportName: "Route",
+        },
       ],
-      { routeDirectory: "src/routes" }
+      { routeDirectory: "src/routes" },
     );
     const resolvedId = resolveStartVirtualModuleId(fileRouteDefinitionsVirtualModuleId);
     if (resolvedId === null) {
@@ -1066,16 +1076,16 @@ describe("file route definition module generation", () => {
     const error = await Effect.runPromise(
       Effect.flip(
         loadStartVirtualModuleEffect(resolvedId, {
-          fileRouteManifest: manifest
-        })
-      )
+          fileRouteManifest: manifest,
+        }),
+      ),
     );
 
     expect(error).toBeInstanceOf(FileRouteDefinitionsModuleInvalidIdentifier);
     expect(error).toMatchObject({
       _tag: "FileRouteDefinitionsModuleInvalidIdentifier",
       routeId: "not-valid",
-      routePath: "/bad"
+      routePath: "/bad",
     });
   });
 });

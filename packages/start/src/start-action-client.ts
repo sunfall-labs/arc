@@ -11,14 +11,14 @@ import {
   type ActionDefinition,
   type AnyEffectUiRuntime,
   type EffectUiRuntime,
-  type ReadableSignal
+  type ReadableSignal,
 } from "@effect-ui/core";
 import { Effect, Fiber } from "effect";
 import type { StartHydrationPayload } from "./hydration.js";
 import { executeStartClientTransportEffect } from "./start-client-transport.js";
 import {
   applyStartActionInvalidationEffect,
-  applyStartActionResponseEffect
+  applyStartActionResponseEffect,
 } from "./start-action-response-application.js";
 import { resolveStartActionEndpoint } from "./start-transport-endpoints.js";
 import {
@@ -27,7 +27,7 @@ import {
   type StartActionDefinition,
   type StartActionForm,
   type StartActionFormOptions,
-  type StartActionRequest
+  type StartActionRequest,
 } from "./start-action-request-codec.js";
 import {
   decodeStartActionResponseEffect,
@@ -36,15 +36,18 @@ import {
   type ActionDefinitionOutputValue,
   type StartActionInvalidationPlan,
   type StartActionResponseBody,
-  type StartActionResultFor
+  type StartActionResultFor,
 } from "./start-action-response-codec.js";
 import {
   type ActionDefinitionInputValue,
-  type StartActionClientOptions
+  type StartActionClientOptions,
 } from "./start-transport-protocol.js";
 
 interface SubmittedStartAction<D extends StartActionDefinition> {
-  readonly result: StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>;
+  readonly result: StartActionResultFor<
+    ActionDefinitionOutputValue<D>,
+    ActionDefinitionErrorValue<D>
+  >;
   readonly response: Extract<
     StartActionResponseBody,
     { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }
@@ -59,11 +62,7 @@ type StartActionResponseRuntime<RuntimeError> =
   | EffectUiRuntime<any, RuntimeError>
   | AnyEffectUiRuntime<RuntimeError>;
 
-type StartActionClientOptionsWithRuntime<
-  FetchError,
-  FetchRequirements,
-  RuntimeError
-> =
+type StartActionClientOptionsWithRuntime<FetchError, FetchRequirements, RuntimeError> =
   StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> &
     (
       | { readonly runtime: StartActionTransportRuntime<FetchRequirements, RuntimeError> }
@@ -73,18 +72,20 @@ type StartActionClientOptionsWithRuntime<
         }
     );
 
-type StartActionSubmitResult<D extends StartActionDefinition> =
-  StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>;
+type StartActionSubmitResult<D extends StartActionDefinition> = StartActionResultFor<
+  ActionDefinitionOutputValue<D>,
+  ActionDefinitionErrorValue<D>
+>;
 
 const submitStartActionTransportEffect = <
   D extends StartActionDefinition,
   FetchError = never,
   FetchRequirements = never,
-  RuntimeError = never
+  RuntimeError = never,
 >(
   definition: D,
   input: ActionDefinitionInputValue<D>,
-  options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> = {}
+  options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> = {},
 ): Effect.Effect<SubmittedStartAction<D>, Server.ClientError | RuntimeError, FetchRequirements> => {
   const transportRuntime = options.transportRuntime ?? options.runtime;
   const workflow = Effect.gen(function* () {
@@ -96,20 +97,24 @@ const submitStartActionTransportEffect = <
       endpoint: resolveStartActionEndpoint(options),
       request,
       init: {
-        redirect: "manual"
+        redirect: "manual",
       },
-      parseResponse: parseStartActionResponse
+      parseResponse: parseStartActionResponse,
     });
 
     const result = yield* decodeStartActionResponseEffect(definition, actionResponse);
     return {
       result,
-      response: actionResponse
+      response: actionResponse,
     };
   });
 
   return transportRuntime
-    ? transportRuntime.provide(workflow) as Effect.Effect<SubmittedStartAction<D>, Server.ClientError | RuntimeError, FetchRequirements>
+    ? (transportRuntime.provide(workflow) as Effect.Effect<
+        SubmittedStartAction<D>,
+        Server.ClientError | RuntimeError,
+        FetchRequirements
+      >)
     : workflow;
 };
 
@@ -133,43 +138,32 @@ export function submitStartActionEffect<
   D extends StartActionDefinition,
   FetchError = never,
   FetchRequirements = never,
-  RuntimeError = never
+  RuntimeError = never,
 >(
   definition: D,
   input: ActionDefinitionInputValue<D>,
-  options: StartActionClientOptionsWithRuntime<FetchError, FetchRequirements, RuntimeError>
-): Effect.Effect<
-  StartActionSubmitResult<D>,
-  Server.ClientError | RuntimeError
->;
+  options: StartActionClientOptionsWithRuntime<FetchError, FetchRequirements, RuntimeError>,
+): Effect.Effect<StartActionSubmitResult<D>, Server.ClientError | RuntimeError>;
 export function submitStartActionEffect<
   D extends StartActionDefinition,
   FetchError = never,
   FetchRequirements = never,
-  RuntimeError = never
+  RuntimeError = never,
 >(
   definition: D,
   input: ActionDefinitionInputValue<D>,
-  options?: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError>
-): Effect.Effect<
-  StartActionSubmitResult<D>,
-  Server.ClientError | RuntimeError,
-  FetchRequirements
->;
+  options?: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError>,
+): Effect.Effect<StartActionSubmitResult<D>, Server.ClientError | RuntimeError, FetchRequirements>;
 export function submitStartActionEffect<
   D extends StartActionDefinition,
   FetchError = never,
   FetchRequirements = never,
-  RuntimeError = never
+  RuntimeError = never,
 >(
   definition: D,
   input: ActionDefinitionInputValue<D>,
-  options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> = {}
-): Effect.Effect<
-  StartActionSubmitResult<D>,
-  Server.ClientError | RuntimeError,
-  FetchRequirements
-> {
+  options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> = {},
+): Effect.Effect<StartActionSubmitResult<D>, Server.ClientError | RuntimeError, FetchRequirements> {
   return Effect.gen(function* () {
     const submitted = yield* submitStartActionTransportEffect(definition, input, options);
     yield* applyStartActionResponseEffect(submitted.response, options);
@@ -180,29 +174,40 @@ export function submitStartActionEffect<
 /** Stateful client helpers for Start actions. */
 export namespace StartAction {
   /** Typed result emitted by a Start action definition. */
-  export type Result<D extends StartActionDefinition> =
-    StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>;
+  export type Result<D extends StartActionDefinition> = StartActionResultFor<
+    ActionDefinitionOutputValue<D>,
+    ActionDefinitionErrorValue<D>
+  >;
 
   /** Signal state used by a Start action client instance. */
-  export type State<D extends StartActionDefinition, RuntimeError = never> =
-    ActionSubmissionState<
-      ActionDefinitionInputValue<D>,
-      Result<D>,
-      Server.ClientError | RuntimeError,
-      StartActionInvalidationPlan
-    >;
+  export type State<D extends StartActionDefinition, RuntimeError = never> = ActionSubmissionState<
+    ActionDefinitionInputValue<D>,
+    Result<D>,
+    Server.ClientError | RuntimeError,
+    StartActionInvalidationPlan
+  >;
 
   /** Progressive POST form description for a Start action definition. */
-  export type Form<D extends StartActionDefinition> = StartActionForm;
+  export type Form<_D extends StartActionDefinition> = StartActionForm;
 
   /** Client-side action instance with state, metadata, and submissions. */
-  export interface Instance<D extends StartActionDefinition, RuntimeError = never, Requirements = never> {
+  export interface Instance<
+    D extends StartActionDefinition,
+    RuntimeError = never,
+    Requirements = never,
+  > {
     readonly definition: D;
     readonly state: ReadableSignal<State<D, RuntimeError>>;
     readonly invalidation: ReadableSignal<StartActionInvalidationPlan | undefined>;
     readonly hydration: ReadableSignal<StartHydrationPayload | undefined>;
     /** Submit through the action transport and update instance signals. */
-    submitEffect(input: ActionDefinitionInputValue<D>): Effect.Effect<Result<D>, Server.ClientError | RuntimeError | ActionInterrupted, Requirements>;
+    submitEffect(
+      input: ActionDefinitionInputValue<D>,
+    ): Effect.Effect<
+      Result<D>,
+      Server.ClientError | RuntimeError | ActionInterrupted,
+      Requirements
+    >;
     /** Reset state and clear response metadata. */
     resetEffect(): Effect.Effect<void>;
     /** Interrupt an in-flight submission, then reset synchronously. */
@@ -216,7 +221,7 @@ export namespace StartAction {
    */
   export const form = <I, A, E, R>(
     definition: ActionDefinition<I, A, E, R>,
-    options: StartActionFormOptions<I> = {}
+    options: StartActionFormOptions<I> = {},
   ): StartActionForm => startActionForm(definition, options);
 
   /**
@@ -235,28 +240,28 @@ export namespace StartAction {
     D extends StartActionDefinition,
     FetchError = never,
     FetchRequirements = never,
-    RuntimeError = never
+    RuntimeError = never,
   >(
     definition: D,
-    options: StartActionClientOptionsWithRuntime<FetchError, FetchRequirements, RuntimeError>
+    options: StartActionClientOptionsWithRuntime<FetchError, FetchRequirements, RuntimeError>,
   ): Instance<D, RuntimeError>;
   export function use<
     D extends StartActionDefinition,
     FetchError = never,
     FetchRequirements = never,
-    RuntimeError = never
+    RuntimeError = never,
   >(
     definition: D,
-    options?: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError>
+    options?: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError>,
   ): Instance<D, RuntimeError, FetchRequirements>;
   export function use<
     D extends StartActionDefinition,
     FetchError = never,
     FetchRequirements = never,
-    RuntimeError = never
+    RuntimeError = never,
   >(
     definition: D,
-    options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> = {}
+    options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> = {},
   ): Instance<D, RuntimeError, FetchRequirements> {
     const ambientRuntime = getCurrentRuntime() as AnyEffectUiRuntime<RuntimeError> | undefined;
     const responseRuntime = options.responseRuntime ?? options.runtime ?? ambientRuntime;
@@ -270,13 +275,17 @@ export namespace StartAction {
       StartActionInvalidationPlan
     >({
       actionName: definition.name,
-      concurrency: definition.policy?.concurrency
+      concurrency: definition.policy?.concurrency,
     });
 
     const runWorkflow = (
       input: ActionDefinitionInputValue<D>,
-      submission: ActionSubmissionRun<Result<D>, Server.ClientError | RuntimeError>
-    ): Effect.Effect<Result<D>, Server.ClientError | RuntimeError | ActionInterrupted, FetchRequirements> =>
+      submission: ActionSubmissionRun<Result<D>, Server.ClientError | RuntimeError>,
+    ): Effect.Effect<
+      Result<D>,
+      Server.ClientError | RuntimeError | ActionInterrupted,
+      FetchRequirements
+    > =>
       Effect.gen(function* () {
         yield* submissions.pendingEffect(submission, input);
         yield* Effect.sync(() => {
@@ -287,7 +296,7 @@ export namespace StartAction {
 
         const submitted = yield* submitStartActionTransportEffect(definition, input, {
           ...options,
-          ...(transportRuntime === undefined ? {} : { transportRuntime })
+          ...(transportRuntime === undefined ? {} : { transportRuntime }),
         });
         yield* submissions.interruptStaleEffect(submission);
 
@@ -295,15 +304,15 @@ export namespace StartAction {
         const acceptsStateUpdate = submissions.acceptsStateUpdate(submission);
         const responseOptions = {
           ...options,
-          ...(responseRuntime === undefined ? {} : { responseRuntime })
+          ...(responseRuntime === undefined ? {} : { responseRuntime }),
         };
         if (acceptsStateUpdate) {
           yield* applyStartActionResponseEffect(submitted.response, {
-            ...responseOptions
+            ...responseOptions,
           });
         } else {
           yield* applyStartActionInvalidationEffect(submitted.response, {
-            ...responseOptions
+            ...responseOptions,
           });
         }
 
@@ -316,23 +325,34 @@ export namespace StartAction {
 
         return value;
       }).pipe(
-        Effect.catch((error: Server.ClientError | RuntimeError | ActionInterrupted): Effect.Effect<never, Server.ClientError | RuntimeError | ActionInterrupted> => {
-          if (error instanceof ActionInterrupted) {
-            return Effect.fail(error);
-          }
+        Effect.catch(
+          (
+            error: Server.ClientError | RuntimeError | ActionInterrupted,
+          ): Effect.Effect<never, Server.ClientError | RuntimeError | ActionInterrupted> => {
+            if (error instanceof ActionInterrupted) {
+              return Effect.fail(error);
+            }
 
-          return submissions.failureEffect(submission, input, error).pipe(
-            Effect.andThen(Effect.fail(error))
-          );
-        })
+            return submissions
+              .failureEffect(submission, input, error)
+              .pipe(Effect.andThen(Effect.fail(error)));
+          },
+        ),
       );
 
     const submitEffect = (
-      input: ActionDefinitionInputValue<D>
-    ): Effect.Effect<Result<D>, Server.ClientError | RuntimeError | ActionInterrupted, FetchRequirements> =>
+      input: ActionDefinitionInputValue<D>,
+    ): Effect.Effect<
+      Result<D>,
+      Server.ClientError | RuntimeError | ActionInterrupted,
+      FetchRequirements
+    > =>
       Effect.suspend(() => {
         return Effect.withFiber((fiber) => {
-          const submissionFiber = fiber as ActionSubmissionFiber<Result<D>, Server.ClientError | RuntimeError>;
+          const submissionFiber = fiber as ActionSubmissionFiber<
+            Result<D>,
+            Server.ClientError | RuntimeError
+          >;
 
           return submissions.beginEffect(submissionFiber).pipe(
             Effect.flatMap((submission) => {
@@ -347,7 +367,7 @@ export namespace StartAction {
 
                 return yield* runWorkflow(input, submission);
               }).pipe(Effect.ensuring(submissions.clearCurrentEffect(submission.clearToken)));
-            })
+            }),
           );
         });
       });
@@ -357,8 +377,7 @@ export namespace StartAction {
       hydration.set(undefined);
       return interruptActiveSubmissions;
     };
-    const resetEffect = (): Effect.Effect<void> =>
-      Effect.suspend(() => reset());
+    const resetEffect = (): Effect.Effect<void> => Effect.suspend(() => reset());
 
     return {
       definition,
@@ -369,7 +388,7 @@ export namespace StartAction {
       resetEffect,
       reset: () => {
         void resetRuntime.runFork(reset().pipe(Effect.catchCause(() => Effect.void)));
-      }
+      },
     };
   }
 }

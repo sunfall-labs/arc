@@ -9,7 +9,7 @@ import {
   read,
   RuntimeTypeId,
   runWithRuntime,
-  type AnyEffectUiRuntime
+  type AnyEffectUiRuntime,
 } from "../src/index.js";
 
 interface CounterApi {
@@ -25,8 +25,8 @@ describe("Program", () => {
         const loaded = yield* Deferred.make<void>();
         const runtime = makeRuntime(
           Layer.succeed(CounterApi)({
-            load: Effect.succeed(3)
-          })
+            load: Effect.succeed(3),
+          }),
         );
         type Model = { readonly count: number; readonly loading: boolean };
         type Message =
@@ -47,23 +47,23 @@ describe("Program", () => {
                     Program.command(
                       CounterApi.use((api) =>
                         api.load.pipe(
-                          Effect.map((amount) => ({ _tag: "Loaded", amount }) as const)
-                        )
-                      )
-                    )
+                          Effect.map((amount) => ({ _tag: "Loaded", amount }) as const),
+                        ),
+                      ),
+                    ),
                   );
                 case "Loaded":
                   return Program.next(
                     {
                       count: model.count + message.amount,
-                      loading: false
+                      loading: false,
                     },
-                    Program.effect(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid))
+                    Program.effect(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid)),
                   );
               }
-            }
+            },
           }),
-          { runtime }
+          { runtime },
         );
 
         yield* program.dispatchEffect({ _tag: "Increment" });
@@ -75,7 +75,7 @@ describe("Program", () => {
         expect(read(program.model)).toEqual({ count: 4, loading: false });
         yield* program.disposeEffect;
         yield* runtime.disposeEffect;
-      })
+      }),
     ));
 
   it("routes fire-and-forget dispatch through the owning Runtime Spine", () =>
@@ -94,13 +94,15 @@ describe("Program", () => {
             return baseRuntime.runFork(effect, options);
           },
           runSync: baseRuntime.runSync,
-          disposeEffect: baseRuntime.disposeEffect
+          disposeEffect: baseRuntime.disposeEffect,
         };
         const program = runWithRuntime(runtime, () =>
-          Program.start(Program.define<number, "increment">({
-            initial: 0,
-            update: (model) => model + 1
-          }))
+          Program.start(
+            Program.define<number, "increment">({
+              initial: 0,
+              update: (model) => model + 1,
+            }),
+          ),
         );
 
         program.dispatch("increment");
@@ -111,18 +113,19 @@ describe("Program", () => {
 
         yield* program.disposeEffect;
         yield* runtime.disposeEffect;
-      })
+      }),
     ));
 
   it("reports update failures without replacing the current model", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         type Message = "increment" | "fail";
-        const program = Program.start(Program.define<number, Message, string>({
-          initial: 0,
-          update: (model, message) =>
-            message === "fail" ? Effect.fail("boom") : model + 1
-        }));
+        const program = Program.start(
+          Program.define<number, Message, string>({
+            initial: 0,
+            update: (model, message) => (message === "fail" ? Effect.fail("boom") : model + 1),
+          }),
+        );
 
         yield* program.dispatchEffect("increment");
         const failure = yield* Effect.flip(program.dispatchEffect("fail"));
@@ -132,23 +135,25 @@ describe("Program", () => {
           _tag: "ProgramFailure",
           phase: "Update",
           message: "fail",
-          error: "boom"
+          error: "boom",
         });
         expect(read(program.failures)).toEqual([failure]);
         program.clearFailures();
         expect(read(program.failures)).toEqual([]);
 
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("reports erased Promise-shaped update returns as typed failures", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const program = Program.start(Program.define<number, "promise">({
-          initial: 0,
-          update: () => Promise.resolve(1) as never
-        }));
+        const program = Program.start(
+          Program.define<number, "promise">({
+            initial: 0,
+            update: () => Promise.resolve(1) as never,
+          }),
+        );
 
         const failure = yield* Effect.flip(program.dispatchEffect("promise"));
 
@@ -157,22 +162,26 @@ describe("Program", () => {
           _tag: "ProgramFailure",
           phase: "Update",
           message: "promise",
-          error: expect.any(EffectInputCallbackError)
+          error: expect.any(EffectInputCallbackError),
         });
-        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(
+          EffectInputPromiseRejected,
+        );
         expect(read(program.failures)).toEqual([failure]);
 
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("reports erased Promise-shaped Program.next models as typed failures", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const program = Program.start(Program.define<number, "promise-step">({
-          initial: 0,
-          update: () => Program.next(Promise.resolve(1) as never)
-        }));
+        const program = Program.start(
+          Program.define<number, "promise-step">({
+            initial: 0,
+            update: () => Program.next(Promise.resolve(1) as never),
+          }),
+        );
 
         const failure = yield* Effect.flip(program.dispatchEffect("promise-step"));
 
@@ -181,22 +190,26 @@ describe("Program", () => {
           _tag: "ProgramFailure",
           phase: "Update",
           message: "promise-step",
-          error: expect.any(EffectInputCallbackError)
+          error: expect.any(EffectInputCallbackError),
         });
-        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(
+          EffectInputPromiseRejected,
+        );
         expect(read(program.failures)).toEqual([failure]);
 
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("reports erased Effect-shaped Program.next models as typed failures", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const program = Program.start(Program.define<number, "effect-step">({
-          initial: 0,
-          update: () => Program.next(Effect.succeed(1) as never)
-        }));
+        const program = Program.start(
+          Program.define<number, "effect-step">({
+            initial: 0,
+            update: () => Program.next(Effect.succeed(1) as never),
+          }),
+        );
 
         const failure = yield* Effect.flip(program.dispatchEffect("effect-step"));
 
@@ -205,46 +218,55 @@ describe("Program", () => {
           _tag: "ProgramFailure",
           phase: "Update",
           message: "effect-step",
-          error: expect.any(EffectInputCallbackError)
+          error: expect.any(EffectInputCallbackError),
         });
         expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
 
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("rejects erased Promise-shaped initial models before starting a Program", () => {
     expect(() =>
-      Program.start(Program.define<number, "noop">({
-        initial: Promise.resolve(0) as never,
-        update: (model) => model
-      }))
+      Program.start(
+        Program.define<number, "noop">({
+          initial: Promise.resolve(0) as never,
+          update: (model) => model,
+        }),
+      ),
     ).toThrow(EffectInputCallbackError);
   });
 
   it("rejects erased Effect-shaped initial models before starting a Program", () => {
     expect(() =>
-      Program.start(Program.define<number, "noop">({
-        initial: Effect.succeed(0) as never,
-        update: (model) => model
-      }))
+      Program.start(
+        Program.define<number, "noop">({
+          initial: Effect.succeed(0) as never,
+          update: (model) => model,
+        }),
+      ),
     ).toThrow(EffectInputCallbackError);
   });
 
   it("rejects erased Promise-shaped story initial and reset models", () => {
     expect(() =>
-      Program.story(Program.define<number, "noop">({
-        initial: 0,
-        update: (model) => model
-      }), {
-        initial: Promise.resolve(0) as never
-      })
+      Program.story(
+        Program.define<number, "noop">({
+          initial: 0,
+          update: (model) => model,
+        }),
+        {
+          initial: Promise.resolve(0) as never,
+        },
+      ),
     ).toThrow(EffectInputCallbackError);
 
-    const story = Program.story(Program.define<number, "noop">({
-      initial: 0,
-      update: (model) => model
-    }));
+    const story = Program.story(
+      Program.define<number, "noop">({
+        initial: 0,
+        update: (model) => model,
+      }),
+    );
 
     expect(() => story.reset(Promise.resolve(1) as never)).toThrow(EffectInputCallbackError);
     expect(() => story.reset(Effect.succeed(1) as never)).toThrow(EffectInputCallbackError);
@@ -253,90 +275,100 @@ describe("Program", () => {
   it("reports erased Promise-shaped dispatch messages as typed failures", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const program = Program.start(Program.define<number, "increment">({
-          initial: 0,
-          update: (model) => model + 1
-        }));
+        const program = Program.start(
+          Program.define<number, "increment">({
+            initial: 0,
+            update: (model) => model + 1,
+          }),
+        );
 
         const failure = yield* Effect.flip(
-          program.dispatchEffect(Promise.resolve("increment") as never)
+          program.dispatchEffect(Promise.resolve("increment") as never),
         );
 
         expect(read(program.model)).toBe(0);
         expect(failure).toMatchObject({
           _tag: "ProgramFailure",
           phase: "Update",
-          error: expect.any(EffectInputCallbackError)
+          error: expect.any(EffectInputCallbackError),
         });
-        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(
+          EffectInputPromiseRejected,
+        );
         expect(read(program.failures)).toEqual([failure]);
 
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("reports erased undefined dispatch messages as typed failures", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const program = Program.start(Program.define<number, "increment">({
-          initial: 0,
-          update: (model) => model + 1
-        }));
-
-        const failure = yield* Effect.flip(
-          program.dispatchEffect(undefined as never)
+        const program = Program.start(
+          Program.define<number, "increment">({
+            initial: 0,
+            update: (model) => model + 1,
+          }),
         );
+
+        const failure = yield* Effect.flip(program.dispatchEffect(undefined as never));
 
         expect(read(program.model)).toBe(0);
         expect(failure).toMatchObject({
           _tag: "ProgramFailure",
           phase: "Update",
-          error: expect.any(EffectInputCallbackError)
+          error: expect.any(EffectInputCallbackError),
         });
         expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
         expect(read(program.failures)).toEqual([failure]);
 
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("reports erased Effect-shaped dispatch messages as typed failures", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const program = Program.start(Program.define<number, "increment">({
-          initial: 0,
-          update: (model) => model + 1
-        }));
+        const program = Program.start(
+          Program.define<number, "increment">({
+            initial: 0,
+            update: (model) => model + 1,
+          }),
+        );
 
         const failure = yield* Effect.flip(
-          program.dispatchEffect(Effect.succeed("increment") as never)
+          program.dispatchEffect(Effect.succeed("increment") as never),
         );
 
         expect(read(program.model)).toBe(0);
         expect(failure).toMatchObject({
           _tag: "ProgramFailure",
           phase: "Update",
-          error: expect.any(EffectInputCallbackError)
+          error: expect.any(EffectInputCallbackError),
         });
         expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
 
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("reports erased Promise-shaped command messages without enqueueing them", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const program = Program.start(Program.define<number, "load" | "loaded">({
-          initial: 0,
-          update: (model, message) =>
-            message === "load"
-              ? Program.next(
-                  model,
-                  Program.command<"load" | "loaded">(Effect.succeed(Promise.resolve("loaded") as never))
-                )
-              : model + 1
-        }));
+        const program = Program.start(
+          Program.define<number, "load" | "loaded">({
+            initial: 0,
+            update: (model, message) =>
+              message === "load"
+                ? Program.next(
+                    model,
+                    Program.command<"load" | "loaded">(
+                      Effect.succeed(Promise.resolve("loaded") as never),
+                    ),
+                  )
+                : model + 1,
+          }),
+        );
 
         yield* program.dispatchEffect("load");
         yield* Effect.sleep("0 millis");
@@ -347,27 +379,33 @@ describe("Program", () => {
           _tag: "ProgramFailure",
           phase: "Command",
           message: "load",
-          error: expect.any(EffectInputCallbackError)
+          error: expect.any(EffectInputCallbackError),
         });
-        expect((failure?.error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+        expect((failure!.error as EffectInputCallbackError).cause).toBeInstanceOf(
+          EffectInputPromiseRejected,
+        );
 
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("reports erased Effect-shaped command messages without enqueueing them", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const program = Program.start(Program.define<number, "load" | "loaded">({
-          initial: 0,
-          update: (model, message) =>
-            message === "load"
-              ? Program.next(
-                  model,
-                  Program.command<"load" | "loaded">(Effect.succeed(Effect.succeed("loaded") as never))
-                )
-              : model + 1
-        }));
+        const program = Program.start(
+          Program.define<number, "load" | "loaded">({
+            initial: 0,
+            update: (model, message) =>
+              message === "load"
+                ? Program.next(
+                    model,
+                    Program.command<"load" | "loaded">(
+                      Effect.succeed(Effect.succeed("loaded") as never),
+                    ),
+                  )
+                : model + 1,
+          }),
+        );
 
         yield* program.dispatchEffect("load");
         yield* Effect.sleep("0 millis");
@@ -378,24 +416,26 @@ describe("Program", () => {
           _tag: "ProgramFailure",
           phase: "Command",
           message: "load",
-          error: expect.any(EffectInputCallbackError)
+          error: expect.any(EffectInputCallbackError),
         });
-        expect((failure?.error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
+        expect((failure!.error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
 
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("records command failure source messages in failures and timeline", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const program = Program.start(Program.define<number, "load">({
-          initial: 0,
-          update: (model, message) =>
-            message === "load"
-              ? Program.next(model, Program.command<"load", string>(Effect.fail("offline")))
-              : model
-        }));
+        const program = Program.start(
+          Program.define<number, "load">({
+            initial: 0,
+            update: (model, message) =>
+              message === "load"
+                ? Program.next(model, Program.command<"load", string>(Effect.fail("offline")))
+                : model,
+          }),
+        );
 
         yield* program.dispatchEffect("load");
         yield* Effect.sleep("0 millis");
@@ -405,33 +445,35 @@ describe("Program", () => {
           _tag: "ProgramFailure",
           phase: "Command",
           message: "load",
-          error: "offline"
+          error: "offline",
         });
         const commandFailure = read(program.timeline).find(
-          (event) => event._tag === "CommandFailed"
+          (event) => event._tag === "CommandFailed",
         );
         expect(commandFailure).toMatchObject({
           _tag: "CommandFailed",
           source: "load",
           failure: {
             message: "load",
-            error: "offline"
-          }
+            error: "offline",
+          },
         });
 
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("reports erased Promise-shaped subscription messages without enqueueing them", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const program = Program.start(Program.define<number, "increment">({
-          initial: 0,
-          update: (model) => model + 1,
-          subscriptions: () =>
-            Program.subscription(Stream.succeed(Promise.resolve("increment") as never))
-        }));
+        const program = Program.start(
+          Program.define<number, "increment">({
+            initial: 0,
+            update: (model) => model + 1,
+            subscriptions: () =>
+              Program.subscription(Stream.succeed(Promise.resolve("increment") as never)),
+          }),
+        );
 
         yield* Effect.sleep("0 millis");
 
@@ -440,23 +482,27 @@ describe("Program", () => {
         expect(failure).toMatchObject({
           _tag: "ProgramFailure",
           phase: "Subscription",
-          error: expect.any(EffectInputCallbackError)
+          error: expect.any(EffectInputCallbackError),
         });
-        expect((failure?.error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+        expect((failure!.error as EffectInputCallbackError).cause).toBeInstanceOf(
+          EffectInputPromiseRejected,
+        );
 
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("reports erased Effect-shaped subscription messages without enqueueing them", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const program = Program.start(Program.define<number, "increment">({
-          initial: 0,
-          update: (model) => model + 1,
-          subscriptions: () =>
-            Program.subscription(Stream.succeed(Effect.succeed("increment") as never))
-        }));
+        const program = Program.start(
+          Program.define<number, "increment">({
+            initial: 0,
+            update: (model) => model + 1,
+            subscriptions: () =>
+              Program.subscription(Stream.succeed(Effect.succeed("increment") as never)),
+          }),
+        );
 
         yield* Effect.sleep("0 millis");
 
@@ -465,23 +511,25 @@ describe("Program", () => {
         expect(failure).toMatchObject({
           _tag: "ProgramFailure",
           phase: "Subscription",
-          error: expect.any(EffectInputCallbackError)
+          error: expect.any(EffectInputCallbackError),
         });
-        expect((failure?.error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
+        expect((failure!.error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
 
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("reports erased Promise-shaped story command messages as typed failures", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const story = Program.story(Program.define<number, "increment">({
-          initial: 0,
-          update: (model) => model + 1
-        }));
+        const story = Program.story(
+          Program.define<number, "increment">({
+            initial: 0,
+            update: (model) => model + 1,
+          }),
+        );
         const command = Program.command<"increment">(
-          Effect.succeed(Promise.resolve("increment") as never)
+          Effect.succeed(Promise.resolve("increment") as never),
         );
 
         const failure = yield* Effect.flip(story.run(command));
@@ -490,10 +538,12 @@ describe("Program", () => {
         expect(failure).toMatchObject({
           _tag: "ProgramFailure",
           phase: "Command",
-          error: expect.any(EffectInputCallbackError)
+          error: expect.any(EffectInputCallbackError),
         });
-        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
-      })
+        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(
+          EffectInputPromiseRejected,
+        );
+      }),
     ));
 
   it("reports runtime provision failures as typed dispatch failures", () =>
@@ -504,14 +554,14 @@ describe("Program", () => {
         }
 
         const runtime = makeRuntime<never, RuntimeUnavailable>(
-          Layer.effectDiscard(Effect.fail({ _tag: "RuntimeUnavailable" } as const))
+          Layer.effectDiscard(Effect.fail({ _tag: "RuntimeUnavailable" } as const)),
         );
         const program = Program.start<number, "increment", never, never, RuntimeUnavailable>(
           Program.define({
             initial: 0,
-            update: (model) => model + 1
+            update: (model) => model + 1,
           }),
-          { runtime }
+          { runtime },
         );
 
         const failure = yield* Effect.flip(program.dispatchEffect("increment"));
@@ -521,13 +571,13 @@ describe("Program", () => {
           _tag: "ProgramFailure",
           phase: "Update",
           message: "increment",
-          error: { _tag: "RuntimeUnavailable" }
+          error: { _tag: "RuntimeUnavailable" },
         });
         expect(read(program.failures)).toEqual([failure]);
 
         yield* program.disposeEffect;
         yield* Effect.ignore(runtime.disposeEffect);
-      })
+      }),
     ));
 
   it("records a bounded runtime timeline for messages and commands", () =>
@@ -539,26 +589,26 @@ describe("Program", () => {
           | { readonly _tag: "Load" }
           | { readonly _tag: "Loaded"; readonly amount: number };
 
-        const program = Program.start(Program.define<Model, Message>({
-          name: "Counter.timeline",
-          timeline: { limit: 4 },
-          initial: { count: 0, loading: false },
-          update: (model, message) => {
-            switch (message._tag) {
-              case "Load":
-                return Program.next(
-                  { ...model, loading: true },
-                  Program.command(
-                    Effect.succeed({ _tag: "Loaded", amount: 2 } as const)
-                  )
-                );
-              case "Loaded":
-                return Deferred.succeed(loaded, undefined).pipe(
-                  Effect.as({ count: model.count + message.amount, loading: false })
-                );
-            }
-          }
-        }));
+        const program = Program.start(
+          Program.define<Model, Message>({
+            name: "Counter.timeline",
+            timeline: { limit: 4 },
+            initial: { count: 0, loading: false },
+            update: (model, message) => {
+              switch (message._tag) {
+                case "Load":
+                  return Program.next(
+                    { ...model, loading: true },
+                    Program.command(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
+                  );
+                case "Loaded":
+                  return Deferred.succeed(loaded, undefined).pipe(
+                    Effect.as({ count: model.count + message.amount, loading: false }),
+                  );
+              }
+            },
+          }),
+        );
 
         yield* program.dispatchEffect({ _tag: "Load" });
         yield* Deferred.await(loaded);
@@ -569,32 +619,34 @@ describe("Program", () => {
           "Message",
           "CommandStarted",
           "CommandCompleted",
-          "Message"
+          "Message",
         ]);
         expect(timeline[0]).toMatchObject({
           _tag: "Message",
           program: "Counter.timeline",
-          commandCount: 1
+          commandCount: 1,
         });
         expect(timeline[2]).toMatchObject({
           _tag: "CommandCompleted",
-          emitted: { _tag: "Loaded", amount: 2 }
+          emitted: { _tag: "Loaded", amount: 2 },
         });
 
         program.clearTimeline();
         expect(read(program.timeline)).toEqual([]);
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("omits runtime timeline events when retention is disabled", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const program = Program.start(Program.define<number, "increment">({
-          timeline: false,
-          initial: 0,
-          update: (model) => model + 1
-        }));
+        const program = Program.start(
+          Program.define<number, "increment">({
+            timeline: false,
+            initial: 0,
+            update: (model) => model + 1,
+          }),
+        );
 
         yield* program.dispatchEffect("increment");
 
@@ -602,7 +654,7 @@ describe("Program", () => {
         expect(read(program.timeline)).toEqual([]);
         yield* program.disposeEffect;
         expect(read(program.timeline)).toEqual([]);
-      })
+      }),
     ));
 
   it("steps story messages and resolves commands explicitly", () =>
@@ -613,25 +665,25 @@ describe("Program", () => {
           | { readonly _tag: "Load" }
           | { readonly _tag: "Loaded"; readonly amount: number };
 
-        const story = Program.story(Program.define<Model, Message>({
-          initial: { count: 0, loading: false },
-          update: (model, message) => {
-            switch (message._tag) {
-              case "Load":
-                return Program.next(
-                  { ...model, loading: true },
-                  Program.command(
-                    Effect.succeed({ _tag: "Loaded", amount: 2 } as const)
-                  )
-                );
-              case "Loaded":
-                return {
-                  count: model.count + message.amount,
-                  loading: false
-                };
-            }
-          }
-        }));
+        const story = Program.story(
+          Program.define<Model, Message>({
+            initial: { count: 0, loading: false },
+            update: (model, message) => {
+              switch (message._tag) {
+                case "Load":
+                  return Program.next(
+                    { ...model, loading: true },
+                    Program.command(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
+                  );
+                case "Loaded":
+                  return {
+                    count: model.count + message.amount,
+                    loading: false,
+                  };
+              }
+            },
+          }),
+        );
 
         const load = yield* story.send({ _tag: "Load" });
         expect(read(story.model)).toEqual({ count: 0, loading: true });
@@ -653,17 +705,18 @@ describe("Program", () => {
         story.reset();
         expect(read(story.model)).toEqual({ count: 0, loading: false });
         expect(read(story.history)).toEqual([]);
-      })
+      }),
     ));
 
   it("keeps story history unchanged when updates fail", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const story = Program.story(Program.define<number, "ok" | "fail", string>({
-          initial: 0,
-          update: (model, message) =>
-            message === "fail" ? Effect.fail("boom") : model + 1
-        }));
+        const story = Program.story(
+          Program.define<number, "ok" | "fail", string>({
+            initial: 0,
+            update: (model, message) => (message === "fail" ? Effect.fail("boom") : model + 1),
+          }),
+        );
 
         const failure = yield* Effect.flip(story.send("fail"));
 
@@ -671,11 +724,11 @@ describe("Program", () => {
           _tag: "ProgramFailure",
           phase: "Update",
           message: "fail",
-          error: "boom"
+          error: "boom",
         });
         expect(read(story.model)).toBe(0);
         expect(read(story.history)).toEqual([]);
-      })
+      }),
     ));
 
   it("feeds subscriptions into the message loop and interrupts stale subscriptions on model changes", () =>
@@ -686,33 +739,33 @@ describe("Program", () => {
         type Model = { readonly ticks: number };
         type Message = { readonly _tag: "Tick" };
 
-        const program = Program.start(Program.define<Model, Message>({
-          initial: { ticks: 0 },
-          update: (model) =>
-            Deferred.succeed(ticked, undefined).pipe(
-              Effect.as({ ticks: model.ticks + 1 })
-            ),
-          subscriptions: (model) =>
-            model.ticks === 0
-              ? [
-                  Stream.succeed<Message>({ _tag: "Tick" }),
-                  Program.subscription(
-                    Stream.fromEffect(
-                      Effect.never.pipe(
-                        Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))
-                      )
-                    )
-                  )
-                ]
-              : undefined
-        }));
+        const program = Program.start(
+          Program.define<Model, Message>({
+            initial: { ticks: 0 },
+            update: (model) =>
+              Deferred.succeed(ticked, undefined).pipe(Effect.as({ ticks: model.ticks + 1 })),
+            subscriptions: (model) =>
+              model.ticks === 0
+                ? [
+                    Stream.succeed<Message>({ _tag: "Tick" }),
+                    Program.subscription(
+                      Stream.fromEffect(
+                        Effect.never.pipe(
+                          Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined)),
+                        ),
+                      ),
+                    ),
+                  ]
+                : undefined,
+          }),
+        );
 
         yield* Deferred.await(ticked);
         yield* Deferred.await(interrupted);
 
         expect(read(program.model)).toEqual({ ticks: 1 });
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("swallows subscription finalizer defects during disposal", () =>
@@ -720,50 +773,56 @@ describe("Program", () => {
       Effect.gen(function* () {
         const started = yield* Deferred.make<void>();
         type Message = { readonly _tag: "Never" };
-        const program = Program.start(Program.define<number, Message>({
-          initial: 0,
-          update: (model) => model,
-          subscriptions: () =>
-            Program.subscription(
-              Stream.fromEffect(
-                Deferred.succeed(started, undefined).pipe(
-                  Effect.flatMap(() => Effect.never),
-                Effect.onInterrupt(() => Effect.die("subscription finalizer defect"))
-                )
-              )
-            )
-        }));
+        const program = Program.start(
+          Program.define<number, Message>({
+            initial: 0,
+            update: (model) => model,
+            subscriptions: () =>
+              Program.subscription(
+                Stream.fromEffect(
+                  Deferred.succeed(started, undefined).pipe(
+                    Effect.flatMap(() => Effect.never),
+                    Effect.onInterrupt(() => Effect.die("subscription finalizer defect")),
+                  ),
+                ),
+              ),
+          }),
+        );
 
         yield* Deferred.await(started);
         yield* program.disposeEffect;
 
         expect(read(program.timeline).some((event) => event._tag === "Disposed")).toBe(true);
-      })
+      }),
     ));
 
   it("fails dispatchEffect when disposal races an in-flight update before commit", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const started = yield* Deferred.make<void>();
-        const program = Program.start(Program.define<number, "block">({
-          initial: 0,
-          update: () =>
-            Deferred.succeed(started, undefined).pipe(
-              Effect.flatMap(() => Effect.never)
-            )
-        }));
+        const program = Program.start(
+          Program.define<number, "block">({
+            initial: 0,
+            update: () =>
+              Deferred.succeed(started, undefined).pipe(Effect.flatMap(() => Effect.never)),
+          }),
+        );
 
         const result = yield* Effect.all(
           [
             program.dispatchEffect("block").pipe(Effect.exit),
             Effect.gen(function* () {
-              const startedOption = yield* Deferred.await(started).pipe(Effect.timeoutOption("1 second"));
+              const startedOption = yield* Deferred.await(started).pipe(
+                Effect.timeoutOption("1 second"),
+              );
               expect(Option.isSome(startedOption)).toBe(true);
-              const disposedOption = yield* program.disposeEffect.pipe(Effect.timeoutOption("1 second"));
+              const disposedOption = yield* program.disposeEffect.pipe(
+                Effect.timeoutOption("1 second"),
+              );
               expect(Option.isSome(disposedOption)).toBe(true);
-            })
+            }),
           ] as const,
-          { concurrency: "unbounded" }
+          { concurrency: "unbounded" },
         ).pipe(Effect.timeoutOption("2 seconds"));
 
         expect(Option.isSome(result)).toBe(true);
@@ -774,22 +833,24 @@ describe("Program", () => {
             expect(failure).toMatchObject({
               _tag: "ProgramFailure",
               phase: "Update",
-              message: "block"
+              message: "block",
             });
             expect(failure?.error).toBeInstanceOf(ProgramDisposed);
           }
         }
         expect(read(program.model)).toBe(0);
-      })
+      }),
     ));
 
   it("acknowledges dispatchEffect when disposal happens from a model subscriber after commit", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const program = Program.start(Program.define<number, "commit">({
-          initial: 0,
-          update: (model) => model + 1
-        }));
+        const program = Program.start(
+          Program.define<number, "commit">({
+            initial: 0,
+            update: (model) => model + 1,
+          }),
+        );
 
         const unsubscribe = program.model.subscribe(() => {
           if (read(program.model) === 1) {
@@ -802,7 +863,7 @@ describe("Program", () => {
 
         expect(Exit.isSuccess(exit)).toBe(true);
         expect(read(program.model)).toBe(1);
-      })
+      }),
     ));
 
   it("completes queued dispatch acknowledgements during disposal", () =>
@@ -810,16 +871,18 @@ describe("Program", () => {
       Effect.gen(function* () {
         const firstStarted = yield* Deferred.make<void>();
         const releaseFirst = yield* Deferred.make<void>();
-        const program = Program.start(Program.define<number, "first" | "second">({
-          initial: 0,
-          update: (model, message) =>
-            message === "first"
-              ? Deferred.succeed(firstStarted, undefined).pipe(
-                  Effect.flatMap(() => Deferred.await(releaseFirst)),
-                  Effect.as(model + 1)
-                )
-              : model + 100
-        }));
+        const program = Program.start(
+          Program.define<number, "first" | "second">({
+            initial: 0,
+            update: (model, message) =>
+              message === "first"
+                ? Deferred.succeed(firstStarted, undefined).pipe(
+                    Effect.flatMap(() => Deferred.await(releaseFirst)),
+                    Effect.as(model + 1),
+                  )
+                : model + 100,
+          }),
+        );
 
         const result = yield* Effect.all(
           [
@@ -829,14 +892,18 @@ describe("Program", () => {
               return yield* program.dispatchEffect("second").pipe(Effect.exit);
             }),
             Effect.gen(function* () {
-              const firstStartedOption = yield* Deferred.await(firstStarted).pipe(Effect.timeoutOption("1 second"));
+              const firstStartedOption = yield* Deferred.await(firstStarted).pipe(
+                Effect.timeoutOption("1 second"),
+              );
               expect(Option.isSome(firstStartedOption)).toBe(true);
               yield* Effect.sleep("10 millis");
-              const disposedOption = yield* program.disposeEffect.pipe(Effect.timeoutOption("1 second"));
+              const disposedOption = yield* program.disposeEffect.pipe(
+                Effect.timeoutOption("1 second"),
+              );
               expect(Option.isSome(disposedOption)).toBe(true);
-            })
+            }),
           ] as const,
-          { concurrency: "unbounded" }
+          { concurrency: "unbounded" },
         ).pipe(Effect.timeoutOption("2 seconds"));
 
         expect(Option.isSome(result)).toBe(true);
@@ -848,7 +915,7 @@ describe("Program", () => {
               const failure = exit.cause.reasons.find(Cause.isFailReason)?.error;
               expect(failure).toMatchObject({
                 _tag: "ProgramFailure",
-                phase: "Update"
+                phase: "Update",
               });
               expect(failure?.error).toBeInstanceOf(ProgramDisposed);
             }
@@ -858,7 +925,7 @@ describe("Program", () => {
         yield* Deferred.succeed(releaseFirst, undefined).pipe(Effect.ignore);
         yield* Effect.sleep("10 millis");
         expect(read(program.model)).toBe(0);
-      })
+      }),
     ));
 
   it("restarts subscriptions only from committed model changes", () =>
@@ -870,22 +937,23 @@ describe("Program", () => {
         type Model = { readonly count: number };
         type Message = "same" | "change";
 
-        const program = Program.start(Program.define<Model, Message>({
-          initial: { count: 0 },
-          update: (model, message) =>
-            message === "same" ? model : { count: model.count + 1 },
-          subscriptions: (model) =>
-            Effect.gen(function* () {
-              startedModels.push(model.count);
-              if (startedModels.length === 1) {
-                yield* Deferred.succeed(initialStarted, undefined);
-              }
-              if (startedModels.length === 2) {
-                yield* Deferred.succeed(changedStarted, undefined);
-              }
-              return Stream.never;
-            })
-        }));
+        const program = Program.start(
+          Program.define<Model, Message>({
+            initial: { count: 0 },
+            update: (model, message) => (message === "same" ? model : { count: model.count + 1 }),
+            subscriptions: (model) =>
+              Effect.gen(function* () {
+                startedModels.push(model.count);
+                if (startedModels.length === 1) {
+                  yield* Deferred.succeed(initialStarted, undefined);
+                }
+                if (startedModels.length === 2) {
+                  yield* Deferred.succeed(changedStarted, undefined);
+                }
+                return Stream.never;
+              }),
+          }),
+        );
 
         yield* Deferred.await(initialStarted);
         yield* program.dispatchEffect("same");
@@ -897,9 +965,11 @@ describe("Program", () => {
         yield* Deferred.await(changedStarted);
 
         expect(startedModels).toEqual([0, 1]);
-        expect(read(program.timeline).filter((event) => event._tag === "SubscriptionStarted")).toHaveLength(2);
+        expect(
+          read(program.timeline).filter((event) => event._tag === "SubscriptionStarted"),
+        ).toHaveLength(2);
         yield* program.disposeEffect;
-      })
+      }),
     ));
 
   it("drops stale subscription emissions after restart", () =>
@@ -910,34 +980,34 @@ describe("Program", () => {
         const newSubscriptionReady = yield* Deferred.make<void>();
         let emitOldMessage: (() => boolean) | undefined;
         type Model = { readonly version: number };
-        type Message =
-          | { readonly _tag: "Advance" }
-          | { readonly _tag: "Stale" };
+        type Message = { readonly _tag: "Advance" } | { readonly _tag: "Stale" };
 
-        const program = Program.start(Program.define<Model, Message>({
-          initial: { version: 0 },
-          update: (model, message) =>
-            message._tag === "Advance"
-              ? { version: model.version + 1 }
-              : { version: model.version + 100 },
-          subscriptions: (model) =>
-            model.version === 0
-              ? Stream.callback<Message>((queue) =>
-                  Effect.uninterruptible(
-                    Effect.gen(function* () {
-                      yield* Effect.sync(() => {
-                        emitOldMessage = () => Queue.offerUnsafe(queue, { _tag: "Stale" });
-                      });
-                      yield* Deferred.succeed(oldSubscriptionReady, undefined);
-                      yield* Deferred.await(releaseOldSubscription);
-                    })
+        const program = Program.start(
+          Program.define<Model, Message>({
+            initial: { version: 0 },
+            update: (model, message) =>
+              message._tag === "Advance"
+                ? { version: model.version + 1 }
+                : { version: model.version + 100 },
+            subscriptions: (model) =>
+              model.version === 0
+                ? Stream.callback<Message>((queue) =>
+                    Effect.uninterruptible(
+                      Effect.gen(function* () {
+                        yield* Effect.sync(() => {
+                          emitOldMessage = () => Queue.offerUnsafe(queue, { _tag: "Stale" });
+                        });
+                        yield* Deferred.succeed(oldSubscriptionReady, undefined);
+                        yield* Deferred.await(releaseOldSubscription);
+                      }),
+                    ),
                   )
-                )
-              : Effect.gen(function* () {
-                  yield* Deferred.succeed(newSubscriptionReady, undefined);
-                  return Stream.never;
-                })
-        }));
+                : Effect.gen(function* () {
+                    yield* Deferred.succeed(newSubscriptionReady, undefined);
+                    return Stream.never;
+                  }),
+          }),
+        );
 
         yield* Deferred.await(oldSubscriptionReady);
         yield* program.dispatchEffect({ _tag: "Advance" });
@@ -949,14 +1019,12 @@ describe("Program", () => {
         expect(read(program.model)).toEqual({ version: 1 });
         expect(
           read(program.timeline).filter(
-            (event) =>
-              event._tag === "SubscriptionEmitted" &&
-              event.message._tag === "Stale"
-          )
+            (event) => event._tag === "SubscriptionEmitted" && event.message._tag === "Stale",
+          ),
         ).toEqual([]);
 
         yield* Deferred.succeed(releaseOldSubscription, undefined).pipe(Effect.ignore);
         yield* program.disposeEffect;
-      })
+      }),
     ));
 });

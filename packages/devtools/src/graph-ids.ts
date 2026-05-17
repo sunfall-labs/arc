@@ -5,7 +5,7 @@ import type {
   DevtoolsSummaryInvalidationCause,
   DevtoolsSummaryInvalidationTarget,
   DevtoolsSummaryRequestTrace,
-  DevtoolsSummaryRuntimeEvent
+  DevtoolsSummaryRuntimeEvent,
 } from "./devtools-contract.js";
 
 export const devtoolsActionNodeId = (name: string): string => `action:${name}`;
@@ -24,12 +24,12 @@ export const devtoolsMissingSchemaNodeId = (schema: DevtoolsStartAppGraphMissing
   `missing-schema:${schema.kind}:${schema.name}:${schema.input ? "input" : "no-input"}:${schema.output ? "output" : "no-output"}:${schema.error ? "error" : "no-error"}`;
 
 export const devtoolsMissingSchemaPanelItemId = (
-  schema: Pick<DevtoolsStartAppGraphMissingSchema, "kind" | "name">
+  schema: Pick<DevtoolsStartAppGraphMissingSchema, "kind" | "name">,
 ): string => `missing-schema:${schema.kind}:${schema.name}`;
 
 export const devtoolsModuleNodeId = (
   kind: "server-only" | "browser-client" | "route" | DevtoolsStartAppGraphModuleKind,
-  path: string
+  path: string,
 ): string => `module:${kind}:${path}`;
 
 export const devtoolsResourceFamilyNodeId = (name: string): string => `resource-family:${name}`;
@@ -37,11 +37,11 @@ export const devtoolsResourceFamilyNodeId = (name: string): string => `resource-
 export const devtoolsResourceNodeId = (key: string): string => `resource:${key}`;
 
 export const devtoolsRequestTraceNodeId = (
-  trace: Pick<DevtoolsSummaryRequestTrace, "id">
+  trace: Pick<DevtoolsSummaryRequestTrace, "id">,
 ): string => `request-trace:${trace.id}`;
 
 export const devtoolsRequestPanelItemId = (
-  trace: Pick<DevtoolsSummaryRequestTrace, "id">
+  trace: Pick<DevtoolsSummaryRequestTrace, "id">,
 ): string => `request:${trace.id}`;
 
 export const devtoolsRouteNodeId = (path: string): string => `route:${path}`;
@@ -69,35 +69,33 @@ export const devtoolsUnknownRoutePreloadResourcesPanelItemId = (routeId: string)
   `unknown-preload-resources:${routeId}`;
 
 export const devtoolsRuntimeEventNodeId = (
-  event: Pick<DevtoolsSummaryRuntimeEvent, "sequence" | "_tag">
+  event: Pick<DevtoolsSummaryRuntimeEvent, "sequence" | "_tag">,
 ): string => `runtime-event:${event.sequence}:${event._tag}`;
 
 export const devtoolsRuntimeEventSummaryId = (
   sequence: number,
-  tag: DevtoolsSummaryRuntimeEvent["_tag"]
+  tag: DevtoolsSummaryRuntimeEvent["_tag"],
 ): string => `runtime-event:${sequence}:${tag}`;
 
 export const devtoolsInvalidationTargetNodeId = (
-  target: DevtoolsSummaryInvalidationTarget | DevtoolsSummaryInvalidationCause
-): string => target._tag === "Tag"
-  ? devtoolsResourceTagNodeId(target.key)
-  : devtoolsResourceNodeId(target.key);
+  target: DevtoolsSummaryInvalidationTarget | DevtoolsSummaryInvalidationCause,
+): string =>
+  target._tag === "Tag"
+    ? devtoolsResourceTagNodeId(target.key)
+    : devtoolsResourceNodeId(target.key);
 
 export const devtoolsRuntimeTargetLabel = (
-  target: NonNullable<DevtoolsSummaryRuntimeEvent["target"]>
+  target: NonNullable<DevtoolsSummaryRuntimeEvent["target"]>,
 ): string =>
   target.kind === "Collection" && target.id.startsWith("collection:")
     ? target.id.slice("collection:".length)
     : target.kind === "Program" && target.id.startsWith("program:")
       ? target.id.slice("program:".length)
-    : target.kind === "RequestTrace" && target.id.startsWith("request-trace:")
-      ? target.id.slice("request-trace:".length)
-      : target.id;
+      : target.kind === "RequestTrace" && target.id.startsWith("request-trace:")
+        ? target.id.slice("request-trace:".length)
+        : target.id;
 
-const framedGraphId = (
-  tag: string,
-  parts: ReadonlyArray<string>
-): string =>
+const framedGraphId = (tag: string, parts: ReadonlyArray<string>): string =>
   `${tag}[${parts.map((part) => `${part.length}:${part}`).join("|")}]`;
 
 export const devtoolsCausalEdgeId = (
@@ -105,6 +103,5 @@ export const devtoolsCausalEdgeId = (
   source: string,
   target: string,
   label: string | null,
-  ordinal: number
-): string =>
-  framedGraphId("edge", [kind, source, target, label ?? "", String(ordinal)]);
+  ordinal: number,
+): string => framedGraphId("edge", [kind, source, target, label ?? "", String(ordinal)]);

@@ -7,16 +7,22 @@ exports. It supports the release-engineering charter workstream.
 
 ## Current Sweep Results
 
-- Package manifests now include publish-readiness metadata while remaining
-  private until the actual npm publication decision:
+- Framework package manifests now include public alpha publish-readiness
+  metadata:
   - `description` summarizes each package's public role for registry and
     generated starter surfaces.
-  - `license: "UNLICENSED"` avoids implying a public license while the
-    workspace remains private and no root LICENSE file exists.
+  - `license: "MIT"` matches the root MIT license grant.
+  - `author: "Andrew Lee"` records the current package author consistently
+    across the root workspace, framework packages, examples, and starters.
+  - `publishConfig.access: "public"` makes the scoped framework packages ready
+    for public npm publication.
   - `main` and `types` point at the root built entrypoint for older tooling.
   - `files: ["dist"]` limits publication payloads to build output.
   - `sideEffects: false` documents that framework package modules are intended
     to be tree-shakable.
+- The root workspace and copyable example/starter manifests remain
+  `private: true` so workspace orchestration and source fixtures are not
+  accidentally published.
 - Package TypeScript build info now writes to package-local `.tsbuildinfo`
   files instead of `dist/.tsbuildinfo`, so publishable `dist` payloads do not
   include compiler cache files.
@@ -51,11 +57,13 @@ exports. It supports the release-engineering charter workstream.
   generated project-console starters are the standalone copyable paths; the
   devtools panel and extension are workspace examples. Root `pnpm verify`
   includes this gate.
-- Review155 tightened the same Effect-backed dry-run gate so it also enforces
-  documented release metadata: every target remains `private` and
-  `UNLICENSED`, every target has a non-empty `files` allowlist, dist packages
-  carry descriptions, `sideEffects: false`, `main`/`types` entries under
-  `./dist/`, and source packages that require copy hygiene list `.gitignore`.
+- Review155 tightened the same Effect-backed dry-run gate so it also enforced
+  documented release metadata. The current gate keeps that coverage while
+  splitting publication policy by payload: framework dist packages must be
+  publishable with public scoped-package access, every target is MIT licensed,
+  every target has a non-empty `files` allowlist, dist packages carry
+  descriptions, `sideEffects: false`, `main`/`types` entries under `./dist/`,
+  and source/example packages stay `private: true` with required copy hygiene.
 - Review156 tightened source-package payload validation again: devtools panel,
   devtools extension, project console, basic starter, and React starter dry-runs
   now require their concrete copyable source files and directories instead of
@@ -103,8 +111,11 @@ exports. It supports the release-engineering charter workstream.
   - `pnpm-lock.yaml`
 - Description sweep:
   - `rg -n '"description"' packages/*/package.json`
-- License sweep:
-  - `rg -n '"license": "UNLICENSED"' package.json packages/*/package.json examples/*/package.json`
+- License and author sweep:
+  - `rg -n '"license": "MIT"|"author": "Andrew Lee"' package.json packages/*/package.json examples/*/package.json`
+  - `test -f LICENSE`
+- Framework public package sweep:
+  - `rg -n '"private": true|"publishConfig"|"access": "public"' package.json packages/*/package.json examples/*/package.json`
 - `pnpm install --lockfile-only --offline` completed successfully after the
   manifest change.
 - `pnpm install --lockfile-only --offline` completed successfully after adding
@@ -120,7 +131,7 @@ exports. It supports the release-engineering charter workstream.
 - `pnpm build` and `pnpm typecheck` passed after moving package
   `.tsbuildinfo` outputs out of `dist`.
 - Individual package dry-run packs passed after refreshing workspace links,
-  after adding package descriptions, and after adding `UNLICENSED` metadata:
+  after adding package descriptions, and after adding MIT license metadata:
   - `pnpm --filter @effect-ui/core pack --dry-run`
   - `pnpm --filter @effect-ui/db pack --dry-run`
   - `pnpm --filter @effect-ui/devtools pack --dry-run`
@@ -209,22 +220,35 @@ exports. It supports the release-engineering charter workstream.
   devtools-panel verify, devtools-extension verify, basic starter verify,
   project-console starter packaging, project-console typecheck, 4
   project-console test files / 23 tests, project-console build, and leak scan.
-- `pnpm build` passed after adding `UNLICENSED` metadata to the workspace,
+- `pnpm build` passed after adding MIT license metadata to the workspace,
   framework packages, examples, and starter manifests.
-- `pnpm verify` passed after adding `UNLICENSED` metadata: 9 package builds,
+- `pnpm verify` passed after adding MIT license metadata: 9 package builds,
   workspace typecheck, type tests, 38 root test files / 320 tests,
   devtools-panel verify, devtools-extension verify with 1 extension test file /
   6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `LICENSE` now contains the root MIT license text, package-local `LICENSE`
+  files carry the same text for publishable package tarballs, and package
+  manifests now carry `license: "MIT"` plus `author: "Andrew Lee"` consistently.
+- Focused MIT metadata verification passed:
+  - `pnpm verify:package-payload-policy`
+  - `pnpm build`
+  - `pnpm example:pack-dry-run`
+  - `pnpm typecheck`
+  - `pnpm audit:public-api`
+- Public package manifest readiness now removes `private: true` from the 11
+  framework package manifests, adds `publishConfig.access: "public"` to those
+  publishable scoped packages, and keeps root/example/starter manifests private.
 
 ## Follow-Up
 
 - Re-run this audit after adding a new package export path, adapter, or runtime
   dependency.
-- If packages become public on npm, flip `private`, choose the public license
-  and repository metadata, and revisit whether framework package dependencies
-  should be direct dependencies or peer dependencies.
+- Before actual npm publication, add final repository/homepage/bugs metadata
+  once the public remote is selected, choose real package versions, and revisit
+  whether framework package dependencies should be direct dependencies or peer
+  dependencies.
 - Use package-local dry-run pack checks for publication rehearsal; recursive
   workspace pack is not the release signal while workspace protocol replacement
   is still a pnpm publication concern.

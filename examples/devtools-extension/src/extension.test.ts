@@ -8,36 +8,36 @@ import {
   renderDevtoolsPanelsHtml,
   type DevtoolsPanelMount,
   type DevtoolsPanelUiInput,
-  type DevtoolsStartAppGraphDiagnostics
+  type DevtoolsStartAppGraphDiagnostics,
 } from "@effect-ui/devtools";
 import {
   effectUiDevtoolsPanelPage,
   effectUiDevtoolsPanelTitle,
-  registerEffectUiDevtoolsPanel
+  registerEffectUiDevtoolsPanel,
 } from "./devtools.js";
 import { sampleDevtoolsPanels } from "./sample.js";
 import {
   devtoolsExtensionTransportErrorPanels,
   pollInspectedWindowEffect,
-  updateFromInspectedWindowEffect
+  updateFromInspectedWindowEffect,
 } from "./panel-runtime.js";
 import {
   DevtoolsExtensionTransportError,
   effectUiDevtoolsBridgeExpression,
   readInspectedWindowDevtoolsPayloadEffect,
-  type ChromeInspectedWindowApi
+  type ChromeInspectedWindowApi,
 } from "./transport.js";
 
 describe("devtools extension example", () => {
   it("declares a browser devtools extension manifest", () => {
     const manifest = JSON.parse(
-      readFileSync(new URL("../public/manifest.json", import.meta.url), "utf8")
+      readFileSync(new URL("../public/manifest.json", import.meta.url), "utf8"),
     );
 
     expect(manifest).toMatchObject({
       manifest_version: 3,
       name: "Effect UI Devtools",
-      devtools_page: "devtools.html"
+      devtools_page: "devtools.html",
     });
   });
 
@@ -48,9 +48,9 @@ describe("devtools extension example", () => {
         panels: {
           create: (...args) => {
             created.push(args);
-          }
-        }
-      }
+          },
+        },
+      },
     });
 
     expect(registered).toBe(true);
@@ -62,7 +62,7 @@ describe("devtools extension example", () => {
     const html = renderDevtoolsPanelsHtml({
       panels: sampleDevtoolsPanels(),
       selectedPanelId: "requests",
-      title: "Effect UI Devtools Extension"
+      title: "Effect UI Devtools Extension",
     });
 
     expect(html).toContain("Effect UI Devtools Extension");
@@ -86,11 +86,11 @@ describe("devtools extension example", () => {
             callback({
               panels,
               selectedPanelId: "resources",
-              title: "Smoke Effect UI"
+              title: "Smoke Effect UI",
             });
-          }
-        }
-      }
+          },
+        },
+      },
     };
 
     const previousWindow = globalThis.window;
@@ -108,7 +108,9 @@ describe("devtools extension example", () => {
       expect(evaluatedExpressions[0]).toBe(effectUiDevtoolsBridgeExpression);
       expect(root.innerHTML).toContain("Smoke Effect UI");
       expect(root.innerHTML).toContain("Project.byId:atlas");
-      expect(root.querySelector("[data-effect-ui-devtools-panel-target=\"resources\"]")).not.toBeNull();
+      expect(
+        root.querySelector('[data-effect-ui-devtools-panel-target="resources"]'),
+      ).not.toBeNull();
       await Effect.runPromise(Fiber.interrupt(entrypoint.devtoolsExtensionPanelBootFiber));
       expect(root.innerHTML).toBe("");
     } finally {
@@ -135,25 +137,25 @@ describe("devtools extension example", () => {
             callback({
               panels,
               selectedPanelId: "resources",
-              title: "Live Effect UI"
+              title: "Live Effect UI",
             });
-          }
-        }
-      }
+          },
+        },
+      },
     };
 
-    const payload = await Effect.runPromise(
-      readInspectedWindowDevtoolsPayloadEffect(api)
-    );
+    const payload = await Effect.runPromise(readInspectedWindowDevtoolsPayloadEffect(api));
 
     expect(evaluatedExpressions).toEqual([effectUiDevtoolsBridgeExpression]);
     expect(payload).toEqual({
       panels,
       selectedPanelId: "resources",
-      title: "Live Effect UI"
+      title: "Live Effect UI",
     });
     expect(normalizeEffectUiDevtoolsBridgePayload(null)).toBeUndefined();
-    expect(normalizeEffectUiDevtoolsBridgePayload({ panels: { version: 2, panels: [] } })).toBeUndefined();
+    expect(
+      normalizeEffectUiDevtoolsBridgePayload({ panels: { version: 2, panels: [] } }),
+    ).toBeUndefined();
     expect(
       normalizeEffectUiDevtoolsBridgePayload({
         panels: {
@@ -165,37 +167,40 @@ describe("devtools extension example", () => {
               summary: "Bad",
               severity: "ok",
               metrics: [],
-              items: []
-            }
-          ]
-        }
-      })
+              items: [],
+            },
+          ],
+        },
+      }),
     ).toBeUndefined();
     const duplicateItemPanels = {
       ...panels,
       panels: panels.panels.map((panel) =>
         panel.id === "requests"
-          ? { ...panel, items: [panel.items[0]!, { ...panel.items[0]!, label: "Duplicate request" }] }
-          : panel
-      )
+          ? {
+              ...panel,
+              items: [panel.items[0]!, { ...panel.items[0]!, label: "Duplicate request" }],
+            }
+          : panel,
+      ),
     };
     expect(normalizeEffectUiDevtoolsBridgePayload({ panels: duplicateItemPanels })).toBeUndefined();
     expect(
       normalizeEffectUiDevtoolsBridgePayload({
         panels,
-        selectedPanelId: "not-a-panel"
-      })
+        selectedPanelId: "not-a-panel",
+      }),
     ).toEqual({ panels });
   });
 
   it("normalizes bridge payloads generated from huge app graph route module arrays", () => {
     const panels = describeDevtoolsPanels({
-      appGraph: appGraphDiagnosticsWithRoutes(1_001)
+      appGraph: appGraphDiagnosticsWithRoutes(1_001),
     });
     const payload = normalizeEffectUiDevtoolsBridgePayload({
       panels,
       selectedPanelId: "app-graph",
-      title: "Live Effect UI"
+      title: "Live Effect UI",
     });
 
     const appGraphPanel = payload?.panels.panels.find((panel) => panel.id === "app-graph");
@@ -203,7 +208,7 @@ describe("devtools extension example", () => {
     expect(appGraphPanel?.items).toHaveLength(1_000);
     expect(appGraphPanel?.items[998]).toMatchObject({
       id: "route:route_extension_998_$id",
-      label: "/extension/998/:id"
+      label: "/extension/998/:id",
     });
     expect(appGraphPanel?.items[999]).toMatchObject({
       id: "__effect-ui-devtools-overflow:app-graph",
@@ -212,8 +217,8 @@ describe("devtools extension example", () => {
       data: {
         total: 1_001,
         shown: 999,
-        hidden: 2
-      }
+        hidden: 2,
+      },
     });
   });
 
@@ -225,32 +230,29 @@ describe("devtools extension example", () => {
       update: (input?: DevtoolsPanelUiInput) => {
         updates.push(input);
       },
-      unmount: () => undefined
+      unmount: () => undefined,
     };
 
     await Effect.runPromise(
-      updateFromInspectedWindowEffect(
-        mount,
-        {
-          devtools: {
-            inspectedWindow: {
-              eval: (_expression, callback) => {
-                callback({
-                  panels,
-                  title: "Live Effect UI"
-                });
-              }
-            }
-          }
-        }
-      )
+      updateFromInspectedWindowEffect(mount, {
+        devtools: {
+          inspectedWindow: {
+            eval: (_expression, callback) => {
+              callback({
+                panels,
+                title: "Live Effect UI",
+              });
+            },
+          },
+        },
+      }),
     );
 
     expect(updates).toEqual([
       {
         panels,
-        title: "Live Effect UI"
-      }
+        title: "Live Effect UI",
+      },
     ]);
     expect(Object.prototype.hasOwnProperty.call(updates[0] ?? {}, "selectedPanelId")).toBe(false);
   });
@@ -264,7 +266,7 @@ describe("devtools extension example", () => {
       update: (input?: DevtoolsPanelUiInput) => {
         updates.push(input);
       },
-      unmount: () => undefined
+      unmount: () => undefined,
     };
     const api: ChromeInspectedWindowApi = {
       devtools: {
@@ -274,11 +276,11 @@ describe("devtools extension example", () => {
             callback({
               panels,
               selectedPanelId: "resources",
-              title: "Live Effect UI"
+              title: "Live Effect UI",
             });
-          }
-        }
-      }
+          },
+        },
+      },
     };
 
     await Effect.runPromise(
@@ -295,8 +297,8 @@ describe("devtools extension example", () => {
             expect(evaluatedExpressions.length).toBeGreaterThanOrEqual(2);
             expect(updates.length).toBeGreaterThanOrEqual(2);
           });
-        })
-      )
+        }),
+      ),
     );
   });
 
@@ -309,47 +311,44 @@ describe("devtools extension example", () => {
       update: (input?: DevtoolsPanelUiInput) => {
         updates.push(input);
       },
-      unmount: () => undefined
+      unmount: () => undefined,
     };
 
     await Effect.runPromise(
-      updateFromInspectedWindowEffect(
-        mount,
-        {
-          devtools: {
-            inspectedWindow: {
-              eval: (_expression, callback) => {
-                callback({
-                  panels: {
-                    version: 1,
-                    panels: panels.panels.map((panel) =>
-                      panel.id === "resources"
-                        ? {
-                            ...panel,
-                            title: longString,
-                            summary: longString,
-                            metrics: [{ label: longString, value: longString }],
-                            items: [
-                              {
-                                id: "resource:long",
-                                label: longString,
-                                severity: "ok",
-                                detail: longString,
-                                data: { value: longString }
-                              }
-                            ]
-                          }
-                        : panel
-                    )
-                  },
-                  selectedPanelId: "resources",
-                  title: longString
-                });
-              }
-            }
-          }
-        }
-      )
+      updateFromInspectedWindowEffect(mount, {
+        devtools: {
+          inspectedWindow: {
+            eval: (_expression, callback) => {
+              callback({
+                panels: {
+                  version: 1,
+                  panels: panels.panels.map((panel) =>
+                    panel.id === "resources"
+                      ? {
+                          ...panel,
+                          title: longString,
+                          summary: longString,
+                          metrics: [{ label: longString, value: longString }],
+                          items: [
+                            {
+                              id: "resource:long",
+                              label: longString,
+                              severity: "ok",
+                              detail: longString,
+                              data: { value: longString },
+                            },
+                          ],
+                        }
+                      : panel,
+                  ),
+                },
+                selectedPanelId: "resources",
+                title: longString,
+              });
+            },
+          },
+        },
+      }),
     );
 
     const boundedLongString = longString.slice(0, 1_000);
@@ -361,24 +360,24 @@ describe("devtools extension example", () => {
       metrics: [
         {
           label: boundedLongString,
-          value: boundedLongString
-        }
+          value: boundedLongString,
+        },
       ],
       items: [
         expect.objectContaining({
           label: boundedLongString,
           detail: boundedLongString,
           data: {
-            value: boundedLongString
-          }
-        })
-      ]
+            value: boundedLongString,
+          },
+        }),
+      ],
     });
   });
 
   it("returns no live payload when the inspected-window bridge is unavailable", async () => {
     await expect(
-      Effect.runPromise(readInspectedWindowDevtoolsPayloadEffect(undefined))
+      Effect.runPromise(readInspectedWindowDevtoolsPayloadEffect(undefined)),
     ).resolves.toBeUndefined();
   });
 
@@ -391,23 +390,25 @@ describe("devtools extension example", () => {
       update: (input?: DevtoolsPanelUiInput) => {
         updates.push(input);
       },
-      unmount: () => undefined
+      unmount: () => undefined,
     };
     const api: ChromeInspectedWindowApi = {
       devtools: {
         inspectedWindow: {
           eval: (_expression, callback) => {
             reads++;
-            callback(reads === 1
-              ? {
-                  panels: livePanels,
-                  selectedPanelId: "resources",
-                  title: "Live Effect UI"
-                }
-              : null);
-          }
-        }
-      }
+            callback(
+              reads === 1
+                ? {
+                    panels: livePanels,
+                    selectedPanelId: "resources",
+                    title: "Live Effect UI",
+                  }
+                : null,
+            );
+          },
+        },
+      },
     };
 
     await Effect.runPromise(updateFromInspectedWindowEffect(mount, api));
@@ -416,11 +417,11 @@ describe("devtools extension example", () => {
     expect(updates[0]).toMatchObject({
       panels: livePanels,
       selectedPanelId: "resources",
-      title: "Live Effect UI"
+      title: "Live Effect UI",
     });
     expect(updates[1]).toMatchObject({
       selectedPanelId: "diagnostics",
-      title: "Effect UI Devtools Extension"
+      title: "Effect UI Devtools Extension",
     });
     const update = updates[1];
     if (update?.panels === undefined) {
@@ -429,7 +430,7 @@ describe("devtools extension example", () => {
     const html = renderDevtoolsPanelsHtml({
       panels: update.panels,
       selectedPanelId: update.selectedPanelId ?? "diagnostics",
-      title: update.title ?? "Effect UI Devtools Extension"
+      title: update.title ?? "Effect UI Devtools Extension",
     });
     expect(html).toContain("Inspected-window bridge unavailable");
     expect(html).toContain("__EFFECT_UI_DEVTOOLS__");
@@ -445,11 +446,11 @@ describe("devtools extension example", () => {
             inspectedWindow: {
               eval: (_expression, callback) => {
                 callback({ panels: { version: 2, panels: [] } });
-              }
-            }
-          }
-        })
-      )
+              },
+            },
+          },
+        }),
+      ),
     );
 
     expect(error).toBeInstanceOf(DevtoolsExtensionTransportError);
@@ -461,15 +462,15 @@ describe("devtools extension example", () => {
         contract: {
           _tag: "DevtoolsPanelContractError",
           reason: "InvalidVersion",
-          path: "version"
+          path: "version",
         },
         payload: {
           panels: {
-            version: 2
-          }
-        }
+            version: 2,
+          },
+        },
       },
-      guidance: expect.stringContaining("DevtoolsPanels bridge contract")
+      guidance: expect.stringContaining("DevtoolsPanels bridge contract"),
     });
   });
 
@@ -496,20 +497,20 @@ describe("devtools extension example", () => {
                                   id: "request:cycle",
                                   label: "Cycle",
                                   severity: "ok",
-                                  data: cyclicData
-                                }
-                              ]
+                                  data: cyclicData,
+                                },
+                              ],
                             }
-                          : panel
-                      )
-                    }
+                          : panel,
+                      ),
+                    },
                   });
                 });
-              }
-            }
-          }
-        })
-      )
+              },
+            },
+          },
+        }),
+      ),
     );
 
     expect(error).toBeInstanceOf(DevtoolsExtensionTransportError);
@@ -517,7 +518,7 @@ describe("devtools extension example", () => {
       _tag: "DevtoolsExtensionTransportError",
       operation: "read-inspected-window",
       reason: "InvalidPayload",
-      guidance: expect.stringContaining("DevtoolsPanels bridge contract")
+      guidance: expect.stringContaining("DevtoolsPanels bridge contract"),
     });
   });
 
@@ -530,13 +531,13 @@ describe("devtools extension example", () => {
               eval: (_expression, callback) => {
                 callback(undefined, {
                   isException: true,
-                  description: "bridge unavailable"
+                  description: "bridge unavailable",
                 });
-              }
-            }
-          }
-        })
-      )
+              },
+            },
+          },
+        }),
+      ),
     );
 
     expect(error).toBeInstanceOf(DevtoolsExtensionTransportError);
@@ -545,9 +546,9 @@ describe("devtools extension example", () => {
       operation: "read-inspected-window",
       reason: "EvaluationFailure",
       error: {
-        description: "bridge unavailable"
+        description: "bridge unavailable",
       },
-      guidance: expect.stringContaining("__EFFECT_UI_DEVTOOLS__")
+      guidance: expect.stringContaining("__EFFECT_UI_DEVTOOLS__"),
     });
   });
 
@@ -558,31 +559,28 @@ describe("devtools extension example", () => {
       update: (input?: DevtoolsPanelUiInput) => {
         updates.push(input);
       },
-      unmount: () => undefined
+      unmount: () => undefined,
     };
 
     await Effect.runPromise(
-      updateFromInspectedWindowEffect(
-        mount,
-        {
-          devtools: {
-            inspectedWindow: {
-              eval: (_expression, callback) => {
-                callback(undefined, {
-                  isException: true,
-                  description: "bridge unavailable"
-                });
-              }
-            }
-          }
-        }
-      )
+      updateFromInspectedWindowEffect(mount, {
+        devtools: {
+          inspectedWindow: {
+            eval: (_expression, callback) => {
+              callback(undefined, {
+                isException: true,
+                description: "bridge unavailable",
+              });
+            },
+          },
+        },
+      }),
     );
 
     expect(updates).toHaveLength(1);
     expect(updates[0]).toMatchObject({
       selectedPanelId: "diagnostics",
-      title: "Effect UI Devtools Extension"
+      title: "Effect UI Devtools Extension",
     });
     const update = updates[0];
     if (update?.panels === undefined) {
@@ -591,7 +589,7 @@ describe("devtools extension example", () => {
     const html = renderDevtoolsPanelsHtml({
       panels: update.panels,
       selectedPanelId: update.selectedPanelId ?? "diagnostics",
-      title: update.title ?? "Effect UI Devtools Extension"
+      title: update.title ?? "Effect UI Devtools Extension",
     });
 
     expect(html).toContain("Inspected-window bridge unavailable");
@@ -606,8 +604,8 @@ describe("devtools extension example", () => {
       new DevtoolsExtensionTransportError({
         operation: "read-inspected-window",
         error: { description: "not installed" },
-        guidance: "Install the bridge."
-      })
+        guidance: "Install the bridge.",
+      }),
     );
 
     expect(panels.panels.find((panel) => panel.id === "diagnostics")).toMatchObject({
@@ -621,29 +619,32 @@ describe("devtools extension example", () => {
             operation: "read-inspected-window",
             description: "not installed",
             error: {
-              description: "not installed"
-            }
-          })
-        })
-      ])
+              description: "not installed",
+            },
+          }),
+        }),
+      ]),
     });
   });
 
   it("guards inspected-window error descriptions while building diagnostics panels", () => {
-    const error = new Proxy({}, {
-      get: (_target, property) => {
-        if (property === "description") {
-          throw "description trap failed";
-        }
-        return undefined;
-      }
-    });
+    const error = new Proxy(
+      {},
+      {
+        get: (_target, property) => {
+          if (property === "description") {
+            throw "description trap failed";
+          }
+          return undefined;
+        },
+      },
+    );
     const panels = devtoolsExtensionTransportErrorPanels(
       new DevtoolsExtensionTransportError({
         operation: "read-inspected-window",
         error,
-        guidance: "Install the bridge."
-      })
+        guidance: "Install the bridge.",
+      }),
     );
 
     expect(panels.panels.find((panel) => panel.id === "diagnostics")).toMatchObject({
@@ -651,10 +652,10 @@ describe("devtools extension example", () => {
         expect.objectContaining({
           id: "extension-transport-error",
           data: expect.objectContaining({
-            description: "Unknown inspected-window eval failure."
-          })
-        })
-      ]
+            description: "Unknown inspected-window eval failure.",
+          }),
+        }),
+      ],
     });
   });
 
@@ -663,8 +664,8 @@ describe("devtools extension example", () => {
       new DevtoolsExtensionTransportError({
         operation: "read-inspected-window",
         error: { panels: { version: 2, panels: [] } },
-        guidance: "Install the bridge."
-      })
+        guidance: "Install the bridge.",
+      }),
     );
 
     expect(panels.panels.find((panel) => panel.id === "diagnostics")).toMatchObject({
@@ -677,12 +678,12 @@ describe("devtools extension example", () => {
             error: {
               panels: {
                 version: 2,
-                panels: []
-              }
-            }
-          })
-        })
-      ])
+                panels: [],
+              },
+            },
+          }),
+        }),
+      ]),
     });
   });
 
@@ -693,7 +694,7 @@ describe("devtools extension example", () => {
       update: (input?: DevtoolsPanelUiInput) => {
         updates.push(input);
       },
-      unmount: () => undefined
+      unmount: () => undefined,
     };
 
     await Effect.runPromise(
@@ -704,18 +705,18 @@ describe("devtools extension example", () => {
             inspectedWindow: {
               eval: () => {
                 // Simulates a broken inspected-window adapter that never invokes Chrome's callback.
-              }
-            }
-          }
+              },
+            },
+          },
         },
-        { timeoutMillis: 5 }
-      )
+        { timeoutMillis: 5 },
+      ),
     );
 
     expect(updates).toHaveLength(1);
     expect(updates[0]).toMatchObject({
       selectedPanelId: "diagnostics",
-      title: "Effect UI Devtools Extension"
+      title: "Effect UI Devtools Extension",
     });
     const update = updates[0];
     if (update?.panels === undefined) {
@@ -724,7 +725,7 @@ describe("devtools extension example", () => {
     const html = renderDevtoolsPanelsHtml({
       panels: update.panels,
       selectedPanelId: update.selectedPanelId ?? "diagnostics",
-      title: update.title ?? "Effect UI Devtools Extension"
+      title: update.title ?? "Effect UI Devtools Extension",
     });
 
     expect(html).toContain("Inspected-window bridge unavailable");
@@ -742,11 +743,11 @@ describe("devtools extension example", () => {
             inspectedWindow: {
               eval: () => {
                 throw thrown;
-              }
-            }
-          }
-        })
-      )
+              },
+            },
+          },
+        }),
+      ),
     );
 
     expect(error).toBeInstanceOf(DevtoolsExtensionTransportError);
@@ -755,14 +756,12 @@ describe("devtools extension example", () => {
       operation: "read-inspected-window",
       reason: "EvaluationFailure",
       error: thrown,
-      guidance: expect.stringContaining("__EFFECT_UI_DEVTOOLS__")
+      guidance: expect.stringContaining("__EFFECT_UI_DEVTOOLS__"),
     });
   });
 });
 
-const appGraphDiagnosticsWithRoutes = (
-  routeCount: number
-): DevtoolsStartAppGraphDiagnostics => ({
+const appGraphDiagnosticsWithRoutes = (routeCount: number): DevtoolsStartAppGraphDiagnostics => ({
   version: 1,
   routeCount,
   serverFunctionCount: 0,
@@ -778,21 +777,21 @@ const appGraphDiagnosticsWithRoutes = (
     params: [
       {
         name: "id",
-        optional: false
-      }
+        optional: false,
+      },
     ],
     paramsSchema: "present",
     searchSchema: "absent",
     preload: "present",
     preloadResources: {
       status: "declared",
-      families: []
+      families: [],
     },
     preloadCollections: {
       status: "declared",
-      collections: []
+      collections: [],
     },
-    component: "present"
+    component: "present",
   })),
   serverFunctionModules: [],
   actionModules: [],
@@ -808,17 +807,17 @@ const appGraphDiagnosticsWithRoutes = (
       total: 0,
       input: 0,
       output: 0,
-      error: 0
+      error: 0,
     },
     actions: {
       total: 0,
       input: 0,
       output: 0,
-      error: 0
-    }
+      error: 0,
+    },
   },
   missingSchemas: [],
   unknownActionBehavior: [],
   unknownRoutePreloadResources: [],
-  unknownRoutePreloadCollections: []
+  unknownRoutePreloadCollections: [],
 });

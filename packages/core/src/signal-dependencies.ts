@@ -14,7 +14,7 @@ export const trackSignalDependency = (source: Subscribable): void => {
 
 export const withSignalDependencyObserver = <A>(
   observer: SignalDependencyObserver,
-  f: () => A
+  f: () => A,
 ): A => {
   const previous = currentObserver;
   currentObserver = observer;
@@ -43,7 +43,7 @@ export interface SignalDependencyTracker {
 export const makeSignalDependencyTracker = <A>(
   evaluate: () => A,
   onValue: (value: A) => void,
-  onFailure?: (cause: unknown) => void
+  onFailure?: (cause: unknown) => void,
 ): SignalDependencyTracker => {
   let dependencies = new Map<Subscribable, () => void>();
   let disposed = false;
@@ -77,16 +77,19 @@ export const makeSignalDependencyTracker = <A>(
 
     let value: A;
     try {
-      value = withSignalDependencyObserver({
-        depend: (source) => {
-          if (nextDependencies.has(source)) {
-            return;
-          }
+      value = withSignalDependencyObserver(
+        {
+          depend: (source) => {
+            if (nextDependencies.has(source)) {
+              return;
+            }
 
-          const existing = dependencies.get(source);
-          nextDependencies.set(source, existing ?? source.subscribe(run));
-        }
-      }, evaluate);
+            const existing = dependencies.get(source);
+            nextDependencies.set(source, existing ?? source.subscribe(run));
+          },
+        },
+        evaluate,
+      );
     } catch (cause) {
       try {
         for (const [source, cleanup] of nextDependencies) {
@@ -129,6 +132,6 @@ export const makeSignalDependencyTracker = <A>(
     dispose: () => {
       disposed = true;
       clearDependencies();
-    }
+    },
   };
 };

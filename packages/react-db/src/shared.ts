@@ -1,4 +1,9 @@
-import { invokeEffectInput, runWithRuntime, type AnyEffectUiRuntime, type EffectInput } from "@effect-ui/core";
+import {
+  invokeEffectInput,
+  runWithRuntime,
+  type AnyEffectUiRuntime,
+  type EffectInput,
+} from "@effect-ui/core";
 import {
   bindCollectionRuntimeEffect,
   collectionStateError,
@@ -6,7 +11,7 @@ import {
   makeCollectionReactivePreloadController,
   sameCollectionReactiveSources,
   subscribeCollectionReactiveSource,
-  type AnyCollection
+  type AnyCollection,
 } from "@effect-ui/db";
 import { useRuntime } from "@effect-ui/react";
 import { Effect } from "effect";
@@ -35,9 +40,7 @@ export interface ReactDbReactiveBindingOptions<E, R = never, ER = never> {
   readonly onPreloadFailure?: ((error: E | ER) => EffectInput<void, unknown>) | undefined;
 }
 
-const useStableSources = (
-  sources: ReadonlyArray<AnyCollection>
-): ReadonlyArray<AnyCollection> => {
+const useStableSources = (sources: ReadonlyArray<AnyCollection>): ReadonlyArray<AnyCollection> => {
   const stableSources = useRef<ReadonlyArray<AnyCollection>>(sources);
   if (!sameCollectionReactiveSources(stableSources.current, sources)) {
     stableSources.current = sources;
@@ -47,7 +50,7 @@ const useStableSources = (
 
 const useReactiveTick = (
   runtime: AnyEffectUiRuntime<unknown>,
-  sources: ReadonlyArray<AnyCollection> | (() => ReadonlyArray<AnyCollection>)
+  sources: ReadonlyArray<AnyCollection> | (() => ReadonlyArray<AnyCollection>),
 ): number => {
   const version = useRef(0);
   const listeners = useRef(new Set<() => void>());
@@ -67,7 +70,9 @@ const useReactiveTick = (
   }, []);
 
   useEffect(() => {
-    const cleanups = currentSources.map((source) => subscribeCollectionReactiveSource(runtime, source, notify));
+    const cleanups = currentSources.map((source) =>
+      subscribeCollectionReactiveSource(runtime, source, notify),
+    );
     notify();
     return () => {
       for (const cleanup of cleanups) {
@@ -87,7 +92,7 @@ const useReactiveTick = (
  * describe their domain-specific accessors.
  */
 export const useReactDbReactiveBinding = <E, R = never, ER = never>(
-  options: ReactDbReactiveBindingOptions<E, R, ER>
+  options: ReactDbReactiveBindingOptions<E, R, ER>,
 ): ReactDbReactiveBinding<E, ER> => {
   const contextRuntime = useRuntime<ER>();
   const runtime = options.runtime ?? contextRuntime;
@@ -97,23 +102,28 @@ export const useReactDbReactiveBinding = <E, R = never, ER = never>(
   const preloadEffect = options.preloadEffect;
 
   const tick = useReactiveTick(runtime, options.sources);
-  const preloadController = useMemo(() =>
-    makeCollectionReactivePreloadController<E, ER>({
-      runtime,
-      onSuccess: () => setPreloadFailure(undefined),
-      onFailure: (error) =>
-        Effect.sync(() => setPreloadFailure(error)).pipe(
-          Effect.andThen(
-            preloadFailureObserver.current === undefined
-              ? Effect.void
-              : invokeEffectInput("ReactDbReactiveBinding.onPreloadFailure", preloadFailureObserver.current, error).pipe(
-                  Effect.catchCause(() => Effect.void),
-                  Effect.asVoid
-                )
-          )
-        )
-    }),
-    [runtime]
+  const preloadController = useMemo(
+    () =>
+      makeCollectionReactivePreloadController<E, ER>({
+        runtime,
+        onSuccess: () => setPreloadFailure(undefined),
+        onFailure: (error) =>
+          Effect.sync(() => setPreloadFailure(error)).pipe(
+            Effect.andThen(
+              preloadFailureObserver.current === undefined
+                ? Effect.void
+                : invokeEffectInput(
+                    "ReactDbReactiveBinding.onPreloadFailure",
+                    preloadFailureObserver.current,
+                    error,
+                  ).pipe(
+                    Effect.catchCause(() => Effect.void),
+                    Effect.asVoid,
+                  ),
+            ),
+          ),
+      }),
+    [runtime],
   );
 
   useEffect(() => {
@@ -121,14 +131,17 @@ export const useReactDbReactiveBinding = <E, R = never, ER = never>(
     return preloadController.interrupt;
   }, [preloadController, options.preload, preloadEffect]);
 
-  return useMemo(() => ({
-    runtime,
-    preloadFailure,
-    read: <A>(read: () => A): A => {
-      void tick;
-      return runWithRuntime(runtime, read);
-    },
-    bindEffect: <A, Error, Requirements>(effect: Effect.Effect<A, Error, Requirements>) =>
-      bindCollectionRuntimeEffect(runtime, effect)
-  }), [runtime, preloadFailure, tick]);
+  return useMemo(
+    () => ({
+      runtime,
+      preloadFailure,
+      read: <A>(read: () => A): A => {
+        void tick;
+        return runWithRuntime(runtime, read);
+      },
+      bindEffect: <A, Error, Requirements>(effect: Effect.Effect<A, Error, Requirements>) =>
+        bindCollectionRuntimeEffect(runtime, effect),
+    }),
+    [runtime, preloadFailure, tick],
+  );
 };

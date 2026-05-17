@@ -2,8 +2,8 @@
   "name": "@effect-ui/starter-basic",
   "version": "0.0.0-alpha.0",
   "private": true,
-  "license": "UNLICENSED",
-  "type": "module",
+  "license": "MIT",
+  "author": "Andrew Lee",
   "files": [
     ".gitignore",
     "README.md",
@@ -13,6 +13,7 @@
     "tsconfig.json",
     "vite.config.ts"
   ],
+  "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsrx-tsc -p tsconfig.json --noEmit && vite build",
@@ -20,13 +21,6 @@
     "test": "vitest run src/*.test.ts",
     "leak-scan": "node scripts/leak-scan.mjs",
     "verify": "pnpm typecheck && pnpm test && pnpm build && pnpm leak-scan"
-  },
-  "effectUiLeakScan": {
-    "dist": "dist",
-    "patterns": [
-      "starter\\.server",
-      "/src/starter\\.server\\.ts"
-    ]
   },
   "dependencies": {
     "@effect-ui/core": "workspace:*",
@@ -42,5 +36,12 @@
     "typescript": "^5.9.3",
     "vite": "^8.0.12",
     "vitest": "^4.1.6"
+  },
+  "effectUiLeakScan": {
+    "dist": "dist",
+    "patterns": [
+      "starter\\.server",
+      "/src/starter\\.server\\.ts"
+    ]
   }
 }

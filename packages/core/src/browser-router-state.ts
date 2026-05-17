@@ -9,7 +9,7 @@ export type BrowserRouterPath<Routes extends readonly AnyBrowserRoute[]> = Route
 /** Route definition selected from a Browser Router route list by path. */
 export type BrowserRouterRouteForPath<
   Routes extends readonly AnyBrowserRoute[],
-  Path extends BrowserRouterPath<Routes>
+  Path extends BrowserRouterPath<Routes>,
 > = Extract<Routes[number], { readonly path: Path }>;
 
 /**
@@ -21,7 +21,7 @@ export type BrowserRouterRouteForPath<
  */
 export type BrowserRouterState<
   Routes extends readonly AnyBrowserRoute[] = readonly AnyBrowserRoute[],
-  ER = never
+  ER = never,
 > =
   | { readonly _tag: "Pending"; readonly href: string; readonly match: Route.Match<Routes[number]> }
   | { readonly _tag: "Ready"; readonly href: string; readonly match: Route.Match<Routes[number]> }
@@ -35,7 +35,7 @@ export type BrowserRouterState<
   | { readonly _tag: "NotFound"; readonly href: string };
 
 export const routeStateMatch = <Routes extends readonly AnyBrowserRoute[], ER>(
-  state: BrowserRouterState<Routes, ER>
+  state: BrowserRouterState<Routes, ER>,
 ): Route.Match<Routes[number]> | undefined =>
   state._tag === "Ready" || state._tag === "Pending" || state._tag === "Failure"
     ? state.match
@@ -47,7 +47,7 @@ const firstFailure = <E>(cause: Cause.Cause<E>): E | undefined =>
 export const browserRouterFailureState = <Routes extends readonly AnyBrowserRoute[], ER>(
   href: string,
   cause: Cause.Cause<Route.NavigationError | ER>,
-  match?: Route.Match<Routes[number]>
+  match?: Route.Match<Routes[number]>,
 ): Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }> => {
   const error = firstFailure(cause);
   return {
@@ -55,6 +55,6 @@ export const browserRouterFailureState = <Routes extends readonly AnyBrowserRout
     href,
     ...(match === undefined ? {} : { match }),
     cause,
-    ...(error === undefined ? {} : { error })
+    ...(error === undefined ? {} : { error }),
   };
 };

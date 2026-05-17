@@ -5,14 +5,10 @@ import {
   dequeuePendingMutation,
   enqueuePendingMutation,
   recordPendingMutationAttempt,
-  createCollectionTransaction
+  createCollectionTransaction,
 } from "./collection-mutation-queue.js";
-import {
-  persistCollectionForReasonEffect
-} from "./collection-persistence.js";
-import {
-  ingestCollectionMutationRowsEffect
-} from "./collection-row-ingress.js";
+import { persistCollectionForReasonEffect } from "./collection-persistence.js";
+import { ingestCollectionMutationRowsEffect } from "./collection-row-ingress.js";
 import {
   applyOptimisticTransaction,
   bumpCollectionState,
@@ -24,28 +20,25 @@ import {
   type CollectionState,
   type PendingMutationAttempt,
   type PendingMutationEntry,
-  type StoredRow
+  type StoredRow,
 } from "./collection-state.js";
 import {
   restoreCollectionStateSnapshot,
   snapshotCollectionState,
-  withCollectionDurableCommitPermit
+  withCollectionDurableCommitPermit,
 } from "./collection-write-commit.js";
 import {
   cloneFrozenCollectionTransaction,
   cloneFrozenCollectionValue,
-  collectionValueChanges
+  collectionValueChanges,
 } from "./collection-value-detachment.js";
 import {
   applyCollectionUpdateEffect,
   collectionCallbackEffect,
   collectionStateEffect,
-  ensureCollectionRowKey
+  ensureCollectionRowKey,
 } from "./collection-projection-callback-policy.js";
-import {
-  collectionStoreEffect,
-  type RuntimeCollectionStore
-} from "./runtime-collection-store.js";
+import { collectionStoreEffect, type RuntimeCollectionStore } from "./runtime-collection-store.js";
 import { withCollectionPolicyRetry } from "./collection-policy.js";
 import type {
   CollectionDefinition,
@@ -55,27 +48,26 @@ import type {
   CollectionRuntimeError,
   CollectionStoreEvent,
   CollectionTransaction,
-  CollectionUpdate
+  CollectionUpdate,
 } from "./collection-contract.js";
 
 const toArray = <A>(input: A | ReadonlyArray<A>): ReadonlyArray<A> =>
-  Array.isArray(input) ? input as ReadonlyArray<A> : [input as A];
+  Array.isArray(input) ? (input as ReadonlyArray<A>) : [input as A];
 
 const publishStoreEvent = (
   store: RuntimeCollectionStore,
-  event: CollectionStoreEvent
-): Effect.Effect<void> =>
-  store.publish(event);
+  event: CollectionStoreEvent,
+): Effect.Effect<void> => store.publish(event);
 
 const persistMutationEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  store: RuntimeCollectionStore
+  store: RuntimeCollectionStore,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   persistCollectionForReasonEffect(definition, store, collectionStoreEffect, "mutation");
 
 const collectionMutationHandlerEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  transaction: CollectionTransaction<A, K>
+  transaction: CollectionTransaction<A, K>,
 ): Effect.Effect<void, E | EffectInputCallbackError, R> =>
   Effect.gen(function* () {
     const inserts: Array<A> = [];
@@ -93,37 +85,47 @@ const collectionMutationHandlerEffect = <A extends object, K extends CollectionK
           inserts.push(cloneFrozenCollectionValue(mutation.value));
           break;
         case "Update":
-          updates.push(cloneFrozenCollectionValue({
-            key: mutation.key,
-            previous: mutation.previous,
-            value: mutation.value,
-            changes: mutation.changes
-          }));
+          updates.push(
+            cloneFrozenCollectionValue({
+              key: mutation.key,
+              previous: mutation.previous,
+              value: mutation.value,
+              changes: mutation.changes,
+            }),
+          );
           break;
         case "Delete":
-          deletes.push(cloneFrozenCollectionValue({ key: mutation.key, previous: mutation.previous }));
+          deletes.push(
+            cloneFrozenCollectionValue({ key: mutation.key, previous: mutation.previous }),
+          );
           break;
       }
     }
 
     const context: CollectionMutationContext<A, K> = cloneFrozenCollectionValue({
-      transaction: cloneFrozenCollectionTransaction(transaction)
+      transaction: cloneFrozenCollectionTransaction(transaction),
     });
     if (inserts.length > 0 && definition.options.onInsert) {
-      yield* collectionCallbackEffect(() => definition.options.onInsert!(Object.freeze(inserts), context));
+      yield* collectionCallbackEffect(() =>
+        definition.options.onInsert!(Object.freeze(inserts), context),
+      );
     }
     if (updates.length > 0 && definition.options.onUpdate) {
-      yield* collectionCallbackEffect(() => definition.options.onUpdate!(Object.freeze(updates), context));
+      yield* collectionCallbackEffect(() =>
+        definition.options.onUpdate!(Object.freeze(updates), context),
+      );
     }
     if (deletes.length > 0 && definition.options.onDelete) {
-      yield* collectionCallbackEffect(() => definition.options.onDelete!(Object.freeze(deletes), context));
+      yield* collectionCallbackEffect(() =>
+        definition.options.onDelete!(Object.freeze(deletes), context),
+      );
     }
   });
 
 const completePendingMutationAttempt = <A extends object, K extends CollectionKey, E>(
   pending: PendingMutationEntry<A, K>,
   attempt: PendingMutationAttempt<A, K>,
-  exit: Exit.Exit<CollectionTransaction<A, K>, CollectionRuntimeError<E>>
+  exit: Exit.Exit<CollectionTransaction<A, K>, CollectionRuntimeError<E>>,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     if (pending.activeAttempt?.id === attempt.id) {
@@ -131,7 +133,7 @@ const completePendingMutationAttempt = <A extends object, K extends CollectionKe
     }
     yield* Deferred.done(
       attempt.deferred as Deferred.Deferred<CollectionTransaction<A, K>, CollectionRuntimeError<E>>,
-      exit
+      exit,
     ).pipe(Effect.asVoid);
   });
 
@@ -139,13 +141,13 @@ const publishMutationDequeued = <A extends object, K extends CollectionKey, E, R
   definition: CollectionDefinition<A, K, E, R>,
   state: CollectionState<A, K, E>,
   store: RuntimeCollectionStore,
-  transaction: CollectionTransaction<A, K>
+  transaction: CollectionTransaction<A, K>,
 ): Effect.Effect<void> =>
   publishStoreEvent(store, {
     _tag: "CollectionMutationDequeued",
     collection: definition.name,
     transaction: transaction.id,
-    pending: state.pendingMutations.size
+    pending: state.pendingMutations.size,
   });
 
 const rollbackPendingMutation = <A extends object, K extends CollectionKey, E, R>(
@@ -154,7 +156,7 @@ const rollbackPendingMutation = <A extends object, K extends CollectionKey, E, R
   store: RuntimeCollectionStore,
   pending: PendingMutationEntry<A, K>,
   mutation: CollectionTransaction<A, K>,
-  error: E | EffectInputCallbackError
+  error: E | EffectInputCallbackError,
 ): Effect.Effect<never, CollectionRuntimeError<E>, R> =>
   withCollectionDurableCommitPermit(
     state,
@@ -164,7 +166,9 @@ const rollbackPendingMutation = <A extends object, K extends CollectionKey, E, R
           restoreStoredRows(state, pending.rollbackRows);
         }
         dequeuePendingMutation(state, mutation.id);
-        const persistExit = yield* restore(persistMutationEffect(definition, store)).pipe(Effect.exit);
+        const persistExit = yield* restore(persistMutationEffect(definition, store)).pipe(
+          Effect.exit,
+        );
         if (Exit.isFailure(persistExit)) {
           return yield* Effect.failCause(persistExit.cause);
         }
@@ -173,20 +177,18 @@ const rollbackPendingMutation = <A extends object, K extends CollectionKey, E, R
           _tag: "CollectionMutateRolledBack",
           collection: definition.name,
           transaction: mutation.id,
-          error
+          error,
         });
-      })
-    )
-  ).pipe(
-    Effect.flatMap(() => Effect.fail(error as CollectionRuntimeError<E>))
-  );
+      }),
+    ),
+  ).pipe(Effect.flatMap(() => Effect.fail(error as CollectionRuntimeError<E>)));
 
 const commitPendingMutation = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   state: CollectionState<A, K, E>,
   store: RuntimeCollectionStore,
   pending: PendingMutationEntry<A, K>,
-  mutation: CollectionTransaction<A, K>
+  mutation: CollectionTransaction<A, K>,
 ): Effect.Effect<CollectionTransaction<A, K>, CollectionRuntimeError<E>, R> =>
   withCollectionDurableCommitPermit(
     state,
@@ -196,7 +198,9 @@ const commitPendingMutation = <A extends object, K extends CollectionKey, E, R>(
           markStoredRowsSynced(state, Array.from(pending.rollbackRows.keys()));
         }
         dequeuePendingMutation(state, mutation.id);
-        const persistExit = yield* restore(persistMutationEffect(definition, store)).pipe(Effect.exit);
+        const persistExit = yield* restore(persistMutationEffect(definition, store)).pipe(
+          Effect.exit,
+        );
         if (Exit.isFailure(persistExit)) {
           return yield* Effect.failCause(persistExit.cause);
         }
@@ -205,11 +209,11 @@ const commitPendingMutation = <A extends object, K extends CollectionKey, E, R>(
           _tag: "CollectionMutateCommitted",
           collection: definition.name,
           transaction: mutation.id,
-          mutations: mutation.mutations.length
+          mutations: mutation.mutations.length,
         });
         return mutation;
-      })
-    )
+      }),
+    ),
   );
 
 const runPendingMutation = <A extends object, K extends CollectionKey, E, R>(
@@ -217,19 +221,22 @@ const runPendingMutation = <A extends object, K extends CollectionKey, E, R>(
   state: CollectionState<A, K, E>,
   store: RuntimeCollectionStore,
   pending: PendingMutationEntry<A, K>,
-  handler: Effect.Effect<void, E | EffectInputCallbackError, R>
+  handler: Effect.Effect<void, E | EffectInputCallbackError, R>,
 ): Effect.Effect<CollectionTransaction<A, K>, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
     const active = pending.activeAttempt as PendingMutationAttempt<A, K> | undefined;
     if (active) {
       return yield* Deferred.await(
-        active.deferred as Deferred.Deferred<CollectionTransaction<A, K>, CollectionRuntimeError<E>>
+        active.deferred as Deferred.Deferred<
+          CollectionTransaction<A, K>,
+          CollectionRuntimeError<E>
+        >,
       );
     }
 
     const attempt: PendingMutationAttempt<A, K> = {
       id: ++state.nextMutationAttemptId,
-      deferred: yield* Deferred.make<CollectionTransaction<A, K>, CollectionRuntimeError<E>>()
+      deferred: yield* Deferred.make<CollectionTransaction<A, K>, CollectionRuntimeError<E>>(),
     };
     pending.activeAttempt = attempt;
     const runOwnerMutation = Effect.gen(function* () {
@@ -239,7 +246,7 @@ const runPendingMutation = <A extends object, K extends CollectionKey, E, R>(
         _tag: "CollectionMutateStarted",
         collection: definition.name,
         transaction: mutation.id,
-        mutations: mutation.mutations.length
+        mutations: mutation.mutations.length,
       });
 
       const exit = yield* Effect.exit(
@@ -247,10 +254,9 @@ const runPendingMutation = <A extends object, K extends CollectionKey, E, R>(
           Effect.matchEffect({
             onFailure: (error: E | EffectInputCallbackError) =>
               rollbackPendingMutation(definition, state, store, pending, mutation, error),
-            onSuccess: () =>
-              commitPendingMutation(definition, state, store, pending, mutation)
-          })
-        )
+            onSuccess: () => commitPendingMutation(definition, state, store, pending, mutation),
+          }),
+        ),
       );
       yield* completePendingMutationAttempt(pending, attempt, exit);
       return yield* exit;
@@ -262,10 +268,10 @@ const runPendingMutation = <A extends object, K extends CollectionKey, E, R>(
           ? completePendingMutationAttempt(
               pending,
               attempt,
-              exit as Exit.Exit<CollectionTransaction<A, K>, CollectionRuntimeError<E>>
+              exit as Exit.Exit<CollectionTransaction<A, K>, CollectionRuntimeError<E>>,
             )
-          : Effect.void
-      )
+          : Effect.void,
+      ),
     );
   });
 
@@ -273,7 +279,7 @@ const runCollectionMutationTransactionEffect = <A extends object, K extends Coll
   definition: CollectionDefinition<A, K, E, R>,
   mutation: CollectionTransaction<A, K>,
   snapshots: ReadonlyMap<K, StoredRow<A, K> | undefined>,
-  handler: Effect.Effect<void, E | EffectInputCallbackError, R>
+  handler: Effect.Effect<void, E | EffectInputCallbackError, R>,
 ): Effect.Effect<CollectionTransaction<A, K>, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
     const store = yield* collectionStoreEffect;
@@ -286,7 +292,9 @@ const runCollectionMutationTransactionEffect = <A extends object, K extends Coll
           const createdAt = yield* Clock.currentTimeMillis;
           applyOptimisticTransaction(state, mutation, snapshots);
           const pending = enqueuePendingMutation(state, mutation, snapshots, createdAt);
-          const persistExit = yield* restore(persistMutationEffect(definition, store)).pipe(Effect.exit);
+          const persistExit = yield* restore(persistMutationEffect(definition, store)).pipe(
+            Effect.exit,
+          );
           if (Exit.isFailure(persistExit)) {
             restoreCollectionStateSnapshot(state, previousState);
             return yield* Effect.failCause(persistExit.cause);
@@ -296,11 +304,11 @@ const runCollectionMutationTransactionEffect = <A extends object, K extends Coll
             collection: definition.name,
             transaction: mutation.id,
             mutations: mutation.mutations.length,
-            pending: state.pendingMutations.size
+            pending: state.pendingMutations.size,
           });
           return pending;
-        })
-      )
+        }),
+      ),
     );
     return yield* runPendingMutation(definition, state, store, pending, handler);
   });
@@ -312,8 +320,13 @@ const runCollectionMutationTransactionEffect = <A extends object, K extends Coll
  * retry policy, optimistic commit/rollback, lifecycle events, and mutation
  * persistence so `Collection.define` can stay a small public facade.
  */
-export const flushCollectionPendingMutationsEffect = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>
+export const flushCollectionPendingMutationsEffect = <
+  A extends object,
+  K extends CollectionKey,
+  E,
+  R,
+>(
+  definition: CollectionDefinition<A, K, E, R>,
 ): Effect.Effect<ReadonlyArray<CollectionTransaction<A, K>>, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
     const store = yield* collectionStoreEffect;
@@ -327,7 +340,13 @@ export const flushCollectionPendingMutationsEffect = <A extends object, K extend
       }
 
       const handler = collectionMutationHandlerEffect(definition, pending.transaction);
-      const transaction = yield* runPendingMutation<A, K, E, R>(definition, state, store, pending, handler);
+      const transaction = yield* runPendingMutation<A, K, E, R>(
+        definition,
+        state,
+        store,
+        pending,
+        handler,
+      );
       flushed.push(transaction);
     }
 
@@ -337,7 +356,7 @@ export const flushCollectionPendingMutationsEffect = <A extends object, K extend
 /** Optimistically insert rows and run the insert mutation workflow. */
 export const insertCollectionMutationEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  input: A | ReadonlyArray<A>
+  input: A | ReadonlyArray<A>,
 ): Effect.Effect<CollectionTransaction<A, K>, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
     const store = yield* collectionStoreEffect;
@@ -346,7 +365,7 @@ export const insertCollectionMutationEffect = <A extends object, K extends Colle
       operation: "mutation",
       path: `$.collections[${definition.name}].mutations`,
       synced: false,
-      origin: "local"
+      origin: "local",
     });
     if (rows.length === 0) {
       return createCollectionTransaction(state, definition.name, []);
@@ -361,21 +380,30 @@ export const insertCollectionMutationEffect = <A extends object, K extends Colle
       mutations.push(
         previous
           ? { _tag: "Insert", key: row.key, value: row.value, previous: previous.value }
-          : { _tag: "Insert", key: row.key, value: row.value }
+          : { _tag: "Insert", key: row.key, value: row.value },
       );
     }
 
     const transaction = createCollectionTransaction(state, definition.name, mutations);
     const handler = collectionMutationHandlerEffect(definition, transaction);
-    return yield* runCollectionMutationTransactionEffect(definition, transaction, snapshots, handler);
+    return yield* runCollectionMutationTransactionEffect(
+      definition,
+      transaction,
+      snapshots,
+      handler,
+    );
   });
 
 /** Optimistically update one row and run the update mutation workflow. */
 export const updateCollectionMutationEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   key: K,
-  update: CollectionUpdate<A>
-): Effect.Effect<CollectionTransaction<A, K>, CollectionRuntimeError<E> | CollectionRowNotFound | CollectionRowKeyChanged, R> =>
+  update: CollectionUpdate<A>,
+): Effect.Effect<
+  CollectionTransaction<A, K>,
+  CollectionRuntimeError<E> | CollectionRowNotFound | CollectionRowKeyChanged,
+  R
+> =>
   Effect.gen(function* () {
     const store = yield* collectionStoreEffect;
     const state = yield* collectionStateEffect(definition, store);
@@ -390,29 +418,40 @@ export const updateCollectionMutationEffect = <A extends object, K extends Colle
       operation: "mutation",
       path: `$.collections[${definition.name}].mutations`,
       synced: false,
-      origin: "local"
+      origin: "local",
     });
     const next = rows[0] as StoredRow<A, K>;
     yield* ensureCollectionRowKey(definition, key, next.key);
     const changes = collectionValueChanges(previous.value, next.value);
 
     const snapshots = new Map<K, StoredRow<A, K> | undefined>([[key, previous]]);
-    const transaction = createCollectionTransaction(state, definition.name, [{
-      _tag: "Update",
-      key,
-      previous: previous.value,
-      value: next.value,
-      changes
-    }]);
+    const transaction = createCollectionTransaction(state, definition.name, [
+      {
+        _tag: "Update",
+        key,
+        previous: previous.value,
+        value: next.value,
+        changes,
+      },
+    ]);
     const handler = collectionMutationHandlerEffect(definition, transaction);
-    return yield* runCollectionMutationTransactionEffect(definition, transaction, snapshots, handler);
+    return yield* runCollectionMutationTransactionEffect(
+      definition,
+      transaction,
+      snapshots,
+      handler,
+    );
   });
 
 /** Optimistically delete one row and run the delete mutation workflow. */
 export const deleteCollectionMutationEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  key: K
-): Effect.Effect<CollectionTransaction<A, K>, CollectionRuntimeError<E> | CollectionRowNotFound, R> =>
+  key: K,
+): Effect.Effect<
+  CollectionTransaction<A, K>,
+  CollectionRuntimeError<E> | CollectionRowNotFound,
+  R
+> =>
   Effect.gen(function* () {
     const store = yield* collectionStoreEffect;
     const state = yield* collectionStateEffect(definition, store);
@@ -423,11 +462,18 @@ export const deleteCollectionMutationEffect = <A extends object, K extends Colle
 
     const previous = cloneStoredRow(row);
     const snapshots = new Map<K, StoredRow<A, K> | undefined>([[key, previous]]);
-    const transaction = createCollectionTransaction(state, definition.name, [{
-      _tag: "Delete",
-      key,
-      previous: previous.value
-    }]);
+    const transaction = createCollectionTransaction(state, definition.name, [
+      {
+        _tag: "Delete",
+        key,
+        previous: previous.value,
+      },
+    ]);
     const handler = collectionMutationHandlerEffect(definition, transaction);
-    return yield* runCollectionMutationTransactionEffect(definition, transaction, snapshots, handler);
+    return yield* runCollectionMutationTransactionEffect(
+      definition,
+      transaction,
+      snapshots,
+      handler,
+    );
   });

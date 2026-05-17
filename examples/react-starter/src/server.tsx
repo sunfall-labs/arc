@@ -2,7 +2,7 @@ import { RuntimeProvider } from "@effect-ui/react";
 import {
   createStartStreamedHtmlResponseEffect,
   createRequestHandler,
-  htmlChunk
+  htmlChunk,
 } from "@effect-ui/start";
 import { Effect, Stream } from "effect";
 import { renderToString } from "react-dom/server";
@@ -33,7 +33,7 @@ export const handleRequest = createRequestHandler(app, {
       const body = renderToString(
         <RuntimeProvider runtime={runtime}>
           <App />
-        </RuntimeProvider>
+        </RuntimeProvider>,
       );
 
       return yield* createStartStreamedHtmlResponseEffect({
@@ -42,10 +42,10 @@ export const handleRequest = createRequestHandler(app, {
         hydrationPlan,
         tail: htmlChunk(shellClose(hydrationRootScript)),
         headers: {
-          "x-effect-ui-starter": "react"
-        }
+          "x-effect-ui-starter": "react",
+        },
       });
-    })
+    }),
 });
 
 export default handleRequest;

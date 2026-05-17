@@ -6,7 +6,12 @@ import { Context, Deferred, Effect, Fiber, Layer } from "effect";
 import { act, createElement, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { describe, expect, it } from "vitest";
-import { useCollection, useLiveQuery, type CollectionHandle, type LiveQueryHandle } from "../src/index.js";
+import {
+  useCollection,
+  useLiveQuery,
+  type CollectionHandle,
+  type LiveQueryHandle,
+} from "../src/index.js";
 import { useReactDbReactiveBinding } from "../src/shared.js";
 
 interface Project {
@@ -23,16 +28,16 @@ const installDom = (): (() => void) => {
     "navigator",
     "HTMLElement",
     "Node",
-    "IS_REACT_ACT_ENVIRONMENT"
+    "IS_REACT_ACT_ENVIRONMENT",
   ] as const;
   const previous = new Map<PropertyKey, PropertyDescriptor | undefined>(
-    keys.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)])
+    keys.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]),
   );
   const setGlobal = (key: PropertyKey, value: unknown): void => {
     Object.defineProperty(globalThis, key, {
       configurable: true,
       writable: true,
-      value
+      value,
     });
   };
 
@@ -56,9 +61,7 @@ const installDom = (): (() => void) => {
   };
 };
 
-const withReactRoot = async (
-  f: (root: Root) => Promise<void> | void
-): Promise<void> => {
+const withReactRoot = async (f: (root: Root) => Promise<void> | void): Promise<void> => {
   const cleanupDom = installDom();
   const container = document.createElement("div");
   document.body.appendChild(container);
@@ -93,14 +96,12 @@ const makeDelayedCleanupRuntime = () => {
     ...runtime,
     runFork: ((
       effect: Effect.Effect<unknown, unknown, unknown>,
-      options?: Parameters<typeof runtime.runFork>[1]
+      options?: Parameters<typeof runtime.runFork>[1],
     ) =>
       runtime.runFork(
-        (delayForks
-          ? Effect.sleep("100 millis").pipe(Effect.andThen(effect))
-          : effect) as never,
-        options
-      )) as typeof runtime.runFork
+        (delayForks ? Effect.sleep("100 millis").pipe(Effect.andThen(effect)) : effect) as never,
+        options,
+      )) as typeof runtime.runFork,
   };
 
   return {
@@ -108,7 +109,7 @@ const makeDelayedCleanupRuntime = () => {
     delayForks: () => {
       delayForks = true;
     },
-    disposeEffect: runtime.disposeEffect
+    disposeEffect: runtime.disposeEffect,
   };
 };
 
@@ -121,11 +122,15 @@ describe("react-db", () => {
 
   interface ProjectMutationApi {
     readonly insert: (projects: ReadonlyArray<Project>) => Effect.Effect<void>;
-    readonly update: (projects: ReadonlyArray<{ readonly key: string; readonly value: Project }>) => Effect.Effect<void>;
+    readonly update: (
+      projects: ReadonlyArray<{ readonly key: string; readonly value: Project }>,
+    ) => Effect.Effect<void>;
     readonly delete: (projects: ReadonlyArray<{ readonly key: string }>) => Effect.Effect<void>;
   }
 
-  const ProjectMutationApi = Context.Service<ProjectMutationApi>("@effect-ui/react-db/test/ProjectMutationApi");
+  const ProjectMutationApi = Context.Service<ProjectMutationApi>(
+    "@effect-ui/react-db/test/ProjectMutationApi",
+  );
 
   it("adapts collections and live queries to React values", async () => {
     let projects: CollectionHandle<Project, string> | undefined;
@@ -134,23 +139,24 @@ describe("react-db", () => {
       name: "ReactDb.projects",
       getKey: (project) => project.id,
       indexes: {
-        active: (project) => project.active
+        active: (project) => project.active,
       },
       initialData: [
         { id: "atlas", name: "Atlas", active: true },
-        { id: "lumen", name: "Lumen", active: false }
-      ]
+        { id: "lumen", name: "Lumen", active: false },
+      ],
     });
 
     function Capture() {
       projects = useCollection(Projects, { preload: false });
-      activeNames = useLiveQuery((query) =>
-        query
-          .from({ project: Projects })
-          .where(({ project }) => project.active)
-          .select(({ project }) => project.name)
-          .orderBy(({ project }) => project.name),
-        { preload: false }
+      activeNames = useLiveQuery(
+        (query) =>
+          query
+            .from({ project: Projects })
+            .where(({ project }) => project.active)
+            .select(({ project }) => project.name)
+            .orderBy(({ project }) => project.name),
+        { preload: false },
       );
       return null;
     }
@@ -172,7 +178,10 @@ describe("react-db", () => {
       });
       await flushReact();
 
-      expect(projects!.index("active", true).map((project) => project.id)).toEqual(["atlas", "lumen"]);
+      expect(projects!.index("active", true).map((project) => project.id)).toEqual([
+        "atlas",
+        "lumen",
+      ]);
       expect(activeNames!.data).toEqual(["Atlas", "Lumen"]);
     });
   });
@@ -190,19 +199,19 @@ describe("react-db", () => {
           activeSubscriptions--;
           unsubscribe();
         };
-      }
+      },
     });
 
     const Projects = Collection.define<Project>({
       name: "ReactDb.cleanup.projects",
       getKey: (project) => project.id,
       indexes: {
-        active: (project) => project.active
+        active: (project) => project.active,
       },
       initialData: [
         { id: "atlas", name: "Atlas", active: true },
-        { id: "lumen", name: "Lumen", active: false }
-      ]
+        { id: "lumen", name: "Lumen", active: false },
+      ],
     });
 
     const version = trackSignalSubscriptions(Projects.version());
@@ -216,12 +225,13 @@ describe("react-db", () => {
 
     function Capture() {
       useCollection(Projects, { preload: false });
-      useLiveQuery((query) =>
-        query
-          .from({ project: Projects })
-          .where(({ project }) => project.active)
-          .select(({ project }) => project.name),
-        { preload: false }
+      useLiveQuery(
+        (query) =>
+          query
+            .from({ project: Projects })
+            .where(({ project }) => project.active)
+            .select(({ project }) => project.name),
+        { preload: false },
       );
       return null;
     }
@@ -251,7 +261,7 @@ describe("react-db", () => {
     const Projects = Collection.define<Project, string, typeof failure>({
       name: "ReactDb.preload-failure.projects",
       getKey: (project) => project.id,
-      load: () => Effect.fail(failure)
+      load: () => Effect.fail(failure),
     });
 
     function Capture() {
@@ -259,19 +269,20 @@ describe("react-db", () => {
         onPreloadFailure: (error) =>
           Effect.sync(() => {
             observedCollectionFailures.push(error);
-          }).pipe(Effect.andThen(Effect.fail("collection observer failed")))
+          }).pipe(Effect.andThen(Effect.fail("collection observer failed"))),
       });
-      activeNames = useLiveQuery((query) =>
-        query
-          .from({ project: Projects })
-          .where(({ project }) => project.active)
-          .select(({ project }) => project.name),
+      activeNames = useLiveQuery(
+        (query) =>
+          query
+            .from({ project: Projects })
+            .where(({ project }) => project.active)
+            .select(({ project }) => project.name),
         {
           onPreloadFailure: (error) =>
             Effect.sync(() => {
               observedLiveFailures.push(error);
-            }).pipe(Effect.andThen(Effect.fail("live query observer failed")))
-        }
+            }).pipe(Effect.andThen(Effect.fail("live query observer failed"))),
+        },
       );
       return null;
     }
@@ -306,18 +317,20 @@ describe("react-db", () => {
         }),
       refetch: () =>
         Effect.succeed<ReadonlyArray<Project>>([
-          { id: "atlas", name: "Atlas Fresh", active: true }
-        ])
+          { id: "atlas", name: "Atlas Fresh", active: true },
+        ]),
     });
 
     await withReactRoot(async (root) => {
       await act(async () => {
-        root.render(createElement(() => {
-          projects = useCollection(Projects, {
-            onPreloadFailure: (error) => observedFailures.push(error)
-          });
-          return null;
-        }));
+        root.render(
+          createElement(() => {
+            projects = useCollection(Projects, {
+              onPreloadFailure: (error) => observedFailures.push(error),
+            });
+            return null;
+          }),
+        );
       });
       await flushReact();
       await Effect.runPromise(Deferred.await(staleStarted));
@@ -350,7 +363,7 @@ describe("react-db", () => {
         runtime: delayed.runtime,
         sources: [],
         preloadEffect: props.preloadEffect,
-        onPreloadFailure: (error) => observedFailures.push(error)
+        onPreloadFailure: (error) => observedFailures.push(error),
       });
       preloadFailure = binding.preloadFailure;
       return null;
@@ -359,11 +372,13 @@ describe("react-db", () => {
     try {
       await withReactRoot(async (root) => {
         await act(async () => {
-          root.render(createElement(Capture, {
-            preloadEffect: Deferred.await(staleRelease).pipe(
-              Effect.andThen(Effect.fail(staleFailure))
-            )
-          }));
+          root.render(
+            createElement(Capture, {
+              preloadEffect: Deferred.await(staleRelease).pipe(
+                Effect.andThen(Effect.fail(staleFailure)),
+              ),
+            }),
+          );
         });
         await flushReact();
 
@@ -392,10 +407,8 @@ describe("react-db", () => {
       useReactDbReactiveBinding<typeof staleFailure>({
         runtime: delayed.runtime,
         sources: [],
-        preloadEffect: Deferred.await(staleRelease).pipe(
-          Effect.andThen(Effect.fail(staleFailure))
-        ),
-        onPreloadFailure: (error) => observedFailures.push(error)
+        preloadEffect: Deferred.await(staleRelease).pipe(Effect.andThen(Effect.fail(staleFailure))),
+        onPreloadFailure: (error) => observedFailures.push(error),
       });
       return null;
     }
@@ -422,10 +435,12 @@ describe("react-db", () => {
   });
 
   it("binds returned collection and live-query Effects to the React runtime", async () => {
-    let handles: {
-      readonly projects: CollectionHandle<Project, string>;
-      readonly names: LiveQueryHandle<string>;
-    } | undefined;
+    let handles:
+      | {
+          readonly projects: CollectionHandle<Project, string>;
+          readonly names: LiveQueryHandle<string>;
+        }
+      | undefined;
     let loads = 0;
     const runtime = makeRuntime(
       Layer.succeed(ProjectApi)({
@@ -434,27 +449,28 @@ describe("react-db", () => {
             loads++;
             return [
               { id: "atlas", name: "Atlas", active: true },
-              { id: "lumen", name: "Lumen", active: true }
+              { id: "lumen", name: "Lumen", active: true },
             ];
-          })
-      })
+          }),
+      }),
     );
     const Projects = Collection.define<Project, string, never, ProjectApi>({
       name: "ReactDb.runtime-bound-effects.projects",
       getKey: (project) => project.id,
-      load: () => ProjectApi.use((api) => api.list())
+      load: () => ProjectApi.use((api) => api.list()),
     });
 
     function Capture() {
       handles = {
         projects: useCollection(Projects, { preload: false }),
-        names: useLiveQuery((query) =>
-          query
-            .from({ project: Projects })
-            .select(({ project }) => project.name)
-            .orderBy(({ project }) => project.name),
-          { preload: false }
-        )
+        names: useLiveQuery(
+          (query) =>
+            query
+              .from({ project: Projects })
+              .select(({ project }) => project.name)
+              .orderBy(({ project }) => project.name),
+          { preload: false },
+        ),
       };
       return null;
     }
@@ -462,13 +478,7 @@ describe("react-db", () => {
     try {
       await withReactRoot(async (root) => {
         await act(async () => {
-          root.render(
-            createElement(
-              RuntimeProvider,
-              { runtime },
-              createElement(Capture)
-            )
-          );
+          root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
         });
 
         await act(async () => {
@@ -503,18 +513,16 @@ describe("react-db", () => {
         delete: (deleted) =>
           Effect.sync(() => {
             calls.push(`delete:${deleted.map((project) => project.key).join(",")}`);
-          })
-      })
+          }),
+      }),
     );
     const Projects = Collection.define<Project, string, never, ProjectMutationApi>({
       name: "ReactDb.collection-adapter.projects",
       getKey: (project) => project.id,
-      initialData: [
-        { id: "atlas", name: "Atlas", active: true }
-      ],
+      initialData: [{ id: "atlas", name: "Atlas", active: true }],
       onInsert: (inserted) => ProjectMutationApi.use((api) => api.insert(inserted)),
       onUpdate: (updated) => ProjectMutationApi.use((api) => api.update(updated)),
-      onDelete: (deleted) => ProjectMutationApi.use((api) => api.delete(deleted))
+      onDelete: (deleted) => ProjectMutationApi.use((api) => api.delete(deleted)),
     });
 
     function Capture() {
@@ -525,21 +533,17 @@ describe("react-db", () => {
     try {
       await withReactRoot(async (root) => {
         await act(async () => {
-          root.render(
-            createElement(
-              RuntimeProvider,
-              { runtime },
-              createElement(Capture)
-            )
-          );
+          root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
         });
 
         const insert = await act(async () => {
-          const fiber = Effect.runFork(projects!.insertEffect({
-            id: "lumen",
-            name: "Lumen",
-            active: false
-          }));
+          const fiber = Effect.runFork(
+            projects!.insertEffect({
+              id: "lumen",
+              name: "Lumen",
+              active: false,
+            }),
+          );
           await Effect.runPromise(Effect.sleep(0));
           return fiber;
         });
@@ -558,10 +562,14 @@ describe("react-db", () => {
         await act(async () => {
           await Effect.runPromise(projects!.updateEffect("atlas", { name: "Atlas Prime" }));
           await Effect.runPromise(projects!.deleteEffect("lumen"));
-          await Effect.runPromise(projects!.writeInsertEffect({ id: "orion", name: "Orion", active: true }));
+          await Effect.runPromise(
+            projects!.writeInsertEffect({ id: "orion", name: "Orion", active: true }),
+          );
           await Effect.runPromise(projects!.writeUpdateEffect("orion", { active: false }));
           await Effect.runPromise(projects!.writeDeleteEffect("orion"));
-          await expect(Effect.runPromise(projects!.flushPendingMutationsEffect())).resolves.toEqual([]);
+          await expect(Effect.runPromise(projects!.flushPendingMutationsEffect())).resolves.toEqual(
+            [],
+          );
         });
         await flushReact();
 
@@ -581,15 +589,12 @@ describe("react-db", () => {
     let notifications = 0;
     const Projects = Collection.define<Project>({
       name: "ReactDb.live-query-collection-runtime.projects",
-      getKey: (project) => project.id
+      getKey: (project) => project.id,
     });
     const ProjectCards = Collection.liveQuery<Project, string>({
       name: "ReactDb.live-query-collection-runtime.cards",
       getKey: (project) => project.id,
-      query: (query) =>
-        query
-          .from({ project: Projects })
-          .select(({ project }) => project)
+      query: (query) => query.from({ project: Projects }).select(({ project }) => project),
     });
     const trackSignalNotifications = <A>(signal: ReadableSignal<A>): ReadableSignal<A> => ({
       ...signal,
@@ -598,7 +603,7 @@ describe("react-db", () => {
         signal.subscribe(() => {
           notifications++;
           listener();
-        })
+        }),
     });
     const originalVersion = ProjectCards.version;
     const originalState = ProjectCards.state;
@@ -611,25 +616,29 @@ describe("react-db", () => {
     }
 
     try {
-      await Effect.runPromise(firstRuntime.provide(Projects.writeInsertEffect({
-        id: "atlas",
-        name: "Atlas",
-        active: true
-      })));
-      await Effect.runPromise(secondRuntime.provide(Projects.writeInsertEffect({
-        id: "lumen",
-        name: "Lumen",
-        active: true
-      })));
+      await Effect.runPromise(
+        firstRuntime.provide(
+          Projects.writeInsertEffect({
+            id: "atlas",
+            name: "Atlas",
+            active: true,
+          }),
+        ),
+      );
+      await Effect.runPromise(
+        secondRuntime.provide(
+          Projects.writeInsertEffect({
+            id: "lumen",
+            name: "Lumen",
+            active: true,
+          }),
+        ),
+      );
 
       await withReactRoot(async (root) => {
         await act(async () => {
           root.render(
-            createElement(
-              RuntimeProvider,
-              { runtime: firstRuntime },
-              createElement(Capture)
-            )
+            createElement(RuntimeProvider, { runtime: firstRuntime }, createElement(Capture)),
           );
         });
         await flushReact();
@@ -638,9 +647,9 @@ describe("react-db", () => {
         notifications = 0;
 
         await act(async () => {
-          await Effect.runPromise(secondRuntime.provide(
-            Projects.writeUpdateEffect("lumen", { name: "Lumen Prime" })
-          ));
+          await Effect.runPromise(
+            secondRuntime.provide(Projects.writeUpdateEffect("lumen", { name: "Lumen Prime" })),
+          );
         });
         await flushReact();
 
@@ -648,9 +657,9 @@ describe("react-db", () => {
         expect(cards!.rows.map((project) => project.name)).toEqual(["Atlas"]);
 
         await act(async () => {
-          await Effect.runPromise(firstRuntime.provide(
-            Projects.writeUpdateEffect("atlas", { name: "Atlas Prime" })
-          ));
+          await Effect.runPromise(
+            firstRuntime.provide(Projects.writeUpdateEffect("atlas", { name: "Atlas Prime" })),
+          );
         });
         await flushReact();
 
@@ -671,23 +680,24 @@ describe("react-db", () => {
       getKey: (project) => project.id,
       initialData: [
         { id: "atlas", name: "Atlas", active: true },
-        { id: "lumen", name: "Lumen", active: false }
-      ]
+        { id: "lumen", name: "Lumen", active: false },
+      ],
     });
 
     function Capture() {
       const [onlyActive, set] = useState(true);
       setOnlyActive = set;
-      activeNames = useLiveQuery((query) =>
-        query
-          .from({ project: Projects })
-          .where(({ project }) => !onlyActive || project.active)
-          .select(({ project }) => project.name)
-          .orderBy(({ project }) => project.name),
+      activeNames = useLiveQuery(
+        (query) =>
+          query
+            .from({ project: Projects })
+            .where(({ project }) => !onlyActive || project.active)
+            .select(({ project }) => project.name)
+            .orderBy(({ project }) => project.name),
         {
           preload: false,
-          deps: [onlyActive]
-        }
+          deps: [onlyActive],
+        },
       );
       return null;
     }
@@ -721,7 +731,7 @@ describe("react-db", () => {
         Effect.sync(() => {
           activeLoads++;
           return [{ id: "atlas", name: "Atlas", active: true }];
-        })
+        }),
     });
     const ArchivedProjects = Collection.define<Project>({
       name: "ReactDb.live-query-dynamic-preload.archived",
@@ -730,20 +740,21 @@ describe("react-db", () => {
         Effect.sync(() => {
           archiveLoads++;
           return [{ id: "lumen", name: "Lumen", active: false }];
-        })
+        }),
     });
 
     function Capture() {
       const [archive, setArchive] = useState(false);
       selectArchive = setArchive;
-      names = useLiveQuery((query) => {
-        const source = archive ? ArchivedProjects : ActiveProjects;
-        return query
-          .from({ project: source })
-          .select(({ project }) => project.name);
-      }, {
-        deps: [archive]
-      });
+      names = useLiveQuery(
+        (query) => {
+          const source = archive ? ArchivedProjects : ActiveProjects;
+          return query.from({ project: source }).select(({ project }) => project.name);
+        },
+        {
+          deps: [archive],
+        },
+      );
       return null;
     }
 

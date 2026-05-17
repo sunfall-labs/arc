@@ -17,7 +17,6 @@ import {
   type ActionState,
   type ActionInstance,
   type ActionResultInvalidationRequirements,
-  type AnyEffectUiRuntime,
   type EffectInput,
   type EffectInputCallbackError,
   type EffectUiRuntime,
@@ -33,16 +32,10 @@ import {
   type ResourceInvalidationPlan,
   type ResourceRef,
   type ResourceStore,
-  type ResourceState
+  type ResourceState,
 } from "@effect-ui/core";
 import { Effect, Fiber, Stream } from "effect";
-import {
-  createMemo,
-  createRenderEffect,
-  createSignal,
-  onCleanup,
-  type Accessor
-} from "solid-js";
+import { createRenderEffect, createSignal, onCleanup, type Accessor } from "solid-js";
 import { createComponentScope, useRuntime } from "./runtime.js";
 
 type ResourceInput<I, A, E, R = unknown> = ResourceUiInput<I, A, E, R>;
@@ -105,10 +98,7 @@ export interface ResourceHandle<I, A, E, R = unknown, ER = never> {
 
 /** Runs an Effect through the nearest Solid runtime and ties the fiber to component cleanup. */
 export interface RuntimeEffectRunner<ER = never> {
-  <A, E, R>(
-    effect: Effect.Effect<A, E, R>,
-    options?: ForkScopedOptions
-  ): Fiber.Fiber<A, E | ER>;
+  <A, E, R>(effect: Effect.Effect<A, E, R>, options?: ForkScopedOptions): Fiber.Fiber<A, E | ER>;
 }
 
 /** Solid-facing handle for an Effect UI Program. */
@@ -132,11 +122,12 @@ export interface ProgramHandle<Model, Message, E = never, DispatchE = E> {
   clearTimeline(): void;
 }
 
-type SolidActionInvalidationRequirements<A, R> =
-  R | ActionResultInvalidationRequirements<A>;
+type SolidActionInvalidationRequirements<A, R> = R | ActionResultInvalidationRequirements<A>;
 
-type SolidActionRemainingRequirements<A, R> =
-  Exclude<SolidActionInvalidationRequirements<A, R>, R | ResourceStore>;
+type SolidActionRemainingRequirements<A, R> = Exclude<
+  SolidActionInvalidationRequirements<A, R>,
+  R | ResourceStore
+>;
 
 type SolidActionInstance<I, A, E, R, ER> = ActionInstance<
   I,
@@ -160,14 +151,18 @@ export interface ActionHandle<I, A, E = never, R = never, ER = never> {
   /** Action definition used to create this instance. */
   readonly definition: Action.Definition<I, A, E, R>;
   /** Current action submission state as a Solid accessor. */
-  readonly state: Accessor<ActionState<
-    I,
-    A,
-    E | ER | EffectInputCallbackError,
-    ResourceInvalidationPlan<SolidActionInvalidationRequirements<A, R>>
-  >>;
+  readonly state: Accessor<
+    ActionState<
+      I,
+      A,
+      E | ER | EffectInputCallbackError,
+      ResourceInvalidationPlan<SolidActionInvalidationRequirements<A, R>>
+    >
+  >;
   /** Latest successful invalidation plan as a Solid accessor. */
-  readonly invalidationPlan: Accessor<ResourceInvalidationPlan<SolidActionInvalidationRequirements<A, R>> | undefined>;
+  readonly invalidationPlan: Accessor<
+    ResourceInvalidationPlan<SolidActionInvalidationRequirements<A, R>> | undefined
+  >;
   /** Runs the action workflow as an Effect bound to the nearest Solid runtime. */
   readonly submitEffect: SolidActionInstance<I, A, E, R, ER>["submitEffect"];
   /** Resets the action state as an Effect. */
@@ -195,17 +190,15 @@ export const useSignal = <A>(signal: ReadableSignal<A>): Accessor<A> => {
 /** Subscribes to an Effect stream through a Solid accessor. */
 export const useStream = <A, R = never, ER = never>(
   stream: Stream.Stream<A, never, R>,
-  initial: A
+  initial: A,
 ): Accessor<A> => {
   const runtime = useRuntime<ER>();
   return createComponentScope((scope) => {
     const signal = Signal.make(initial);
     scope.fork(
       runtime.provide(
-        stream.pipe(
-          Stream.runForEach((value) => Effect.sync(() => signal.set(value)))
-        )
-      )
+        stream.pipe(Stream.runForEach((value) => Effect.sync(() => signal.set(value)))),
+      ),
     );
     return useSignal(signal);
   });
@@ -220,12 +213,13 @@ export const useStream = <A, R = never, ER = never>(
  */
 export const useRuntimeEffect = <ER = never>(): RuntimeEffectRunner<ER> => {
   const runtime = useRuntime<ER>();
-  return createComponentScope((scope) =>
-    (<A, E, R>(
-      effect: Effect.Effect<A, E, R>,
-      options?: ForkScopedOptions
-    ): Fiber.Fiber<A, E | ER> =>
-      scope.fork(runtime.provide(effect), options)) as RuntimeEffectRunner<ER>
+  return createComponentScope(
+    (scope) =>
+      (<A, E, R>(
+        effect: Effect.Effect<A, E, R>,
+        options?: ForkScopedOptions,
+      ): Fiber.Fiber<A, E | ER> =>
+        scope.fork(runtime.provide(effect), options)) as RuntimeEffectRunner<ER>,
   );
 };
 
@@ -234,15 +228,15 @@ export const useRuntimeEffect = <ER = never>(): RuntimeEffectRunner<ER> => {
  * Solid accessors.
  */
 export const useProgram = <Model, Message, E = never, R = never, ER = never>(
-  definition: Program.Definition<Model, Message, E, R>
+  definition: Program.Definition<Model, Message, E, R>,
 ): ProgramHandle<Model, Message, Program.RuntimeError<E, ER>, Program.DispatchError<E, ER>> => {
   const runtime = useRuntime<ER>();
   const instance = createComponentScope(() =>
     runWithRuntime(runtime, () =>
       Program.start<Model, Message, E, R, ER>(definition, {
-        runtime: runtime as unknown as EffectUiRuntime<R, ER>
-      })
-    )
+        runtime: runtime as unknown as EffectUiRuntime<R, ER>,
+      }),
+    ),
   );
   const model = useSignal(instance.model);
   const failures = useSignal(instance.failures);
@@ -257,13 +251,13 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
     dispatch: instance.dispatch,
     dispatchEffect: instance.dispatchEffect,
     clearFailures: instance.clearFailures,
-    clearTimeline: instance.clearTimeline
+    clearTimeline: instance.clearTimeline,
   };
 };
 
 const createResourceBinding = <I, A, E, R = unknown, ER = never>(
   ref: ResourceInput<I, A, E, R>,
-  options: UseResourceOptions<E, ER> = {}
+  options: UseResourceOptions<E, ER> = {},
 ): ResourceBinding<I, A, E, R, ER> => {
   const runtime = useRuntime<ER>();
   const getRef = resourceUiRefAccessor(ref);
@@ -271,10 +265,14 @@ const createResourceBinding = <I, A, E, R = unknown, ER = never>(
     runtime,
     onPreloadFailureChange: (failure) => {
       setPreloadFailure(() => failure);
-    }
+    },
   });
-  const [stateSignal, setState] = createSignal<ResourceState<A, Resource.LoadError<E>>>(resourceResult(getRef()).get());
-  const [preloadFailure, setPreloadFailure] = createSignal<ResourceUiPreloadFailure<I, A, E, R, ER> | undefined>(undefined);
+  const [stateSignal, setState] = createSignal<ResourceState<A, Resource.LoadError<E>>>(
+    resourceResult(getRef()).get(),
+  );
+  const [preloadFailure, setPreloadFailure] = createSignal<
+    ResourceUiPreloadFailure<I, A, E, R, ER> | undefined
+  >(undefined);
   let currentRef: ResourceRef<I, A, E, R> | undefined;
   let latestOnPreloadFailure = options.onPreloadFailure;
   let unsubscribe: (() => void) | undefined;
@@ -309,7 +307,7 @@ const createResourceBinding = <I, A, E, R = unknown, ER = never>(
 
     controller.startInitialPreload(nextRef, {
       ...(preload === undefined ? {} : { preload }),
-      onPreloadFailure: (error) => latestOnPreloadFailure?.(error)
+      onPreloadFailure: (error) => latestOnPreloadFailure?.(error),
     });
     return nextRef;
   };
@@ -335,14 +333,14 @@ const createResourceBinding = <I, A, E, R = unknown, ER = never>(
       const failure = preloadFailure();
       return resourceUiPreloadFailureFor(failure, ref);
     },
-    controller
+    controller,
   };
 };
 
 /** Returns the reactive `ResourceState` for a resource ref or ref accessor. */
 export const useResourceResult = <I, A, E, R = unknown, ER = never>(
   ref: ResourceInput<I, A, E, R>,
-  options?: UseResourceOptions<E, ER>
+  options?: UseResourceOptions<E, ER>,
 ): Accessor<ResourceState<A, Resource.LoadError<E>>> => {
   return createResourceBinding(ref, options).state;
 };
@@ -355,7 +353,7 @@ export const useResourceResult = <I, A, E, R = unknown, ER = never>(
  */
 export const useResourceValue = <I, A, E, R = unknown, ER = never>(
   ref: ResourceInput<I, A, E, R>,
-  options?: UseResourceOptions<E, ER>
+  options?: UseResourceOptions<E, ER>,
 ): Accessor<A | undefined> => {
   const state = useResourceResult(ref, options);
   return () => Resource.value(state());
@@ -369,7 +367,7 @@ export const useResourceValue = <I, A, E, R = unknown, ER = never>(
  */
 export const useResourceError = <I, A, E, R = unknown, ER = never>(
   ref: ResourceInput<I, A, E, R>,
-  options?: UseResourceOptions<E, ER>
+  options?: UseResourceOptions<E, ER>,
 ): Accessor<Resource.LoadError<E> | undefined> => {
   const state = useResourceResult(ref, options);
   return () => Resource.error(state());
@@ -395,7 +393,7 @@ export const useResourceError = <I, A, E, R = unknown, ER = never>(
  */
 export const useResource = <I, A, E, R = unknown, ER = never>(
   ref: ResourceInput<I, A, E, R>,
-  options?: UseResourceOptions<E, ER>
+  options?: UseResourceOptions<E, ER>,
 ): ResourceHandle<I, A, E, R, ER> => {
   const getRef = resourceUiRefAccessor(ref);
   const binding = createResourceBinding<I, A, E, R, ER>(getRef, options);
@@ -420,7 +418,7 @@ export const useResource = <I, A, E, R = unknown, ER = never>(
     preloadFailure: binding.preloadFailure,
     refreshEffect: () => binding.controller.refreshEffect(getRef()),
     prefetchEffect: () => binding.controller.prefetchEffect(getRef()),
-    match: (cases) => resourceUiMatchState(state(), cases)
+    match: (cases) => resourceUiMatchState(state(), cases),
   };
 };
 
@@ -432,12 +430,16 @@ export const useResource = <I, A, E, R = unknown, ER = never>(
  * `Resource.prefetchEffect(...)` in the active runtime and throw the Promise
  * Solid Suspense expects at this UI Adapter seam.
  */
-export const useResourceSuspense = <I, A, E, R = unknown>(ref: ResourceInput<I, A, E, R>): Accessor<A> => {
+export const useResourceSuspense = <I, A, E, R = unknown>(
+  ref: ResourceInput<I, A, E, R>,
+): Accessor<A> => {
   const runtime = useRuntime();
   const getRef = resourceUiRefAccessor(ref);
   const state = useResourceResult(getRef);
   return createComponentScope((scope) => {
-    const preloadController = makeResourceUiSuspensePreloadController<I, A, E, R, unknown, unknown>(runtime);
+    const preloadController = makeResourceUiSuspensePreloadController<I, A, E, R, unknown, unknown>(
+      runtime,
+    );
     scope.addFinalizer(() => {
       preloadController.dispose();
     });
@@ -460,7 +462,7 @@ export const useResourceSuspense = <I, A, E, R = unknown>(ref: ResourceInput<I, 
 
       throw preloadController.hostToken(currentRef, {
         fork: (effect) => scope.fork(runtime.provide(effect)),
-        toHostToken: (fiber) => Effect.runPromise(Fiber.join(fiber))
+        toHostToken: (fiber) => Effect.runPromise(Fiber.join(fiber)),
       });
     };
   });
@@ -475,7 +477,7 @@ export const useResourceSuspense = <I, A, E, R = unknown>(ref: ResourceInput<I, 
  * reflected in the hook type.
  */
 export const useAction = <I, A, E, R, ER = never>(
-  definition: Action.Definition<I, A, E, R>
+  definition: Action.Definition<I, A, E, R>,
 ): ActionHandle<I, A, E, R, ER> => {
   const runtime = useRuntime() as EffectUiRuntime<R, ER>;
   const instance = Action.use(definition, { runtime });
@@ -493,6 +495,6 @@ export const useAction = <I, A, E, R, ER = never>(
     invalidationPlan,
     submitEffect: instance.submitEffect,
     resetEffect: instance.resetEffect,
-    reset: instance.reset
+    reset: instance.reset,
   };
 };

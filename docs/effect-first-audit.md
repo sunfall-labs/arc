@@ -11,15 +11,23 @@ interruption.
 
 ## Classification
 
-| Class | Rule | Examples |
-| --- | --- | --- |
-| Host boundary | Promise is acceptable because the platform API requires it. | Web Stream `pull`/`cancel`, Vite callback launchers, browser callbacks, React/Solid Suspense, test assertions over platform `Response` methods. |
-| Host runner | Convert an Effect to a Promise only at the final host/test edge. | `Effect.runPromise(runtime.provide(handler(request)))`, `Effect.runPromise(Resource.prefetchEffect(ref))`. |
-| Public API | Return Effects for async work; callers choose where to run them. | `Resource.prefetchEffect(...)`, `action.submitEffect(...)`, `createRequestHandler(...)`. |
-| Internal follow-up | Convert to Effect unless there is a concrete host-boundary reason. | Promise state machines, `.then(...)` lifecycle sequencing, unstructured async helpers. |
+| Class              | Rule                                                               | Examples                                                                                                                                        |
+| ------------------ | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Host boundary      | Promise is acceptable because the platform API requires it.        | Web Stream `pull`/`cancel`, Vite callback launchers, browser callbacks, React/Solid Suspense, test assertions over platform `Response` methods. |
+| Host runner        | Convert an Effect to a Promise only at the final host/test edge.   | `Effect.runPromise(runtime.provide(handler(request)))`, `Effect.runPromise(Resource.prefetchEffect(ref))`.                                      |
+| Public API         | Return Effects for async work; callers choose where to run them.   | `Resource.prefetchEffect(...)`, `action.submitEffect(...)`, `createRequestHandler(...)`.                                                        |
+| Internal follow-up | Convert to Effect unless there is a concrete host-boundary reason. | Promise state machines, `.then(...)` lifecycle sequencing, unstructured async helpers.                                                          |
 
 ## Current Sweep Results
 
+- Review490 Effect-First Lazy Route Components And Formatter-Tolerant Public
+  API Inventory keeps the dirty-lane follow-up Effect-first: Core
+  `Route.lazyComponent(...)` now accepts an Effect loader, exposes
+  `preloadEffect()`, caches the detached load fiber, and throws tagged
+  pending/failure values from `Route.readComponent(...)`. React and Solid own
+  the only new `Effect.runPromise(...)` calls at explicit lazy route component
+  Suspense token Adapter seams. The Effect-first audit over 445 physical and
+  virtual files is green.
 - Review247 Scope Cleanup Capture And Namespace Public Pins keeps the
   post-Review246 fixes Effect-first: UI scope and Action reset host-cleanup
   seams capture current owners synchronously and return Effects for awaitable
@@ -814,7 +822,7 @@ interruption.
   scan.
 - `pnpm --filter @effect-ui/start typecheck` and
   `pnpm exec vitest run packages/start/test/start.test.ts -t "Start diagnostics
-  CLI"` passed after the CLI Effect runner sweep.
+CLI"` passed after the CLI Effect runner sweep.
 - `pnpm exec vitest run packages/start/test/start.test.ts`, `pnpm typecheck`,
   and full `pnpm verify` passed after the CLI Effect runner sweep.
 - `pnpm --filter @effect-ui/start typecheck`,
@@ -825,7 +833,7 @@ interruption.
   into Effect programs.
 - `pnpm --filter @effect-ui/start typecheck`,
   `pnpm exec vitest run packages/start/test/start.test.ts -t "diagnostics
-  through Vite"`, and `pnpm exec vitest run packages/start/test/start.test.ts`
+through Vite"`, and `pnpm exec vitest run packages/start/test/start.test.ts`
   passed after moving the Vite diagnostics loader lifecycle under Effect.
 - Full `pnpm verify` passed after moving the Vite diagnostics loader lifecycle
   under Effect.
@@ -835,7 +843,7 @@ interruption.
   path-existence adapter with an Effect program.
 - `pnpm --filter @effect-ui/start typecheck`,
   `pnpm exec vitest run packages/start/test/start.test.ts -t "Vite dev
-  middleware"`, and `pnpm exec vitest run packages/start/test/start.test.ts`
+middleware"`, and `pnpm exec vitest run packages/start/test/start.test.ts`
   passed after moving the Vite dev middleware body into an Effect program.
 - Full `pnpm verify` passed after moving the Vite dev middleware body into an
   Effect program.
@@ -887,7 +895,7 @@ interruption.
   starter packaging, project-console typecheck, 4 project-console test files /
   23 tests, project-console build, and leak scan.
 - `pnpm --filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/start
-  typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`,
+typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`,
   and
   `pnpm exec vitest run packages/core/test/server.test.ts packages/core/test/form.test.ts packages/core/test/runtime.test.ts packages/core/test/route-server.test.ts packages/start/test/start.test.ts packages/start/test/rpc.test.ts packages/start/test/adapters.test.ts packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
   passed after the broad sharp-cast cleanup: 9 files, 135 tests.

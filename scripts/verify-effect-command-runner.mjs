@@ -6,14 +6,15 @@ import {
   scriptCommandErrorMessage,
   scriptCommandErrorRepair,
   scriptCommandKillProcessBestEffortEffect,
-  scriptCommandProcessExistsEffect
+  scriptCommandProcessExistsEffect,
 } from "./effect-command-runner.mjs";
 import { runScriptMainEffect } from "./effect-main-runner.mjs";
 
-class EffectCommandRunnerSelfTestError extends Data.TaggedError("EffectCommandRunnerSelfTestError") {}
+class EffectCommandRunnerSelfTestError extends Data.TaggedError(
+  "EffectCommandRunnerSelfTestError",
+) {}
 
-const fail = (message, cause) =>
-  new EffectCommandRunnerSelfTestError({ message, cause });
+const fail = (message, cause) => new EffectCommandRunnerSelfTestError({ message, cause });
 
 const assert = (condition, message, cause) =>
   condition ? Effect.void : Effect.fail(fail(message, cause));
@@ -31,10 +32,12 @@ const successCaptureSelfTest = Effect.gen(function* () {
 });
 
 const nonzeroExitSelfTest = Effect.gen(function* () {
-  const error = yield* Effect.flip(runScriptCommandEffect(process.execPath, [
-    "-e",
-    "process.stdout.write('out'); process.stderr.write('err'); process.exit(7)",
-  ]));
+  const error = yield* Effect.flip(
+    runScriptCommandEffect(process.execPath, [
+      "-e",
+      "process.stdout.write('out'); process.stderr.write('err'); process.exit(7)",
+    ]),
+  );
 
   yield* assert(error.code === 7, "nonzero command should expose its exit code.", error);
   yield* assert(error.stdout === "out", "nonzero command should preserve stdout.", error);
@@ -50,7 +53,11 @@ const spawnFailureSelfTest = Effect.gen(function* () {
   const missingCommand = `effect-ui-missing-command-${process.pid}`;
   const error = yield* Effect.flip(runScriptCommandEffect(missingCommand, []));
 
-  yield* assert(error.code === undefined, "spawn failure should not pretend to be a process exit.", error);
+  yield* assert(
+    error.code === undefined,
+    "spawn failure should not pretend to be a process exit.",
+    error,
+  );
   yield* assert(
     error.commandText === missingCommand + " ",
     "spawn failure should expose command text.",
@@ -65,8 +72,7 @@ const waitForChunkEffect = (read, predicate) =>
     }
   }).pipe(Effect.timeout("2 seconds"));
 
-const parsePidFromFirstLine = (text) =>
-  Number(text.split(/\r?\n/, 1)[0]);
+const parsePidFromFirstLine = (text) => Number(text.split(/\r?\n/, 1)[0]);
 
 const parsePidLine = (text, prefix) => {
   const line = text.split(/\r?\n/).find((entry) => entry.startsWith(prefix));
@@ -75,27 +81,43 @@ const parsePidLine = (text, prefix) => {
 
 const signalExitStatusSelfTest = Effect.gen(function* () {
   let stdout = "";
-  const fiber = Effect.runFork(runScriptCommandEffect(process.execPath, [
-    "-e",
-    [
-      "process.stdout.write(String(process.pid) + '\\n');",
-      "setInterval(() => {}, 1000)"
-    ].join("")
-  ], {
-    onStdoutChunk: (chunk) => {
-      stdout += chunk;
-    }
-  }));
+  const fiber = Effect.runFork(
+    runScriptCommandEffect(
+      process.execPath,
+      [
+        "-e",
+        ["process.stdout.write(String(process.pid) + '\\n');", "setInterval(() => {}, 1000)"].join(
+          "",
+        ),
+      ],
+      {
+        onStdoutChunk: (chunk) => {
+          stdout += chunk;
+        },
+      },
+    ),
+  );
 
-  yield* waitForChunkEffect(() => stdout, (text) => text.includes("\n"));
+  yield* waitForChunkEffect(
+    () => stdout,
+    (text) => text.includes("\n"),
+  );
   const pid = parsePidFromFirstLine(stdout);
-  yield* assert(Number.isInteger(pid) && pid > 0, "signal self-test should capture a child pid.", stdout);
+  yield* assert(
+    Number.isInteger(pid) && pid > 0,
+    "signal self-test should capture a child pid.",
+    stdout,
+  );
   yield* Effect.sync(() => {
     process.kill(pid, "SIGTERM");
   });
   const error = yield* Effect.flip(Fiber.join(fiber).pipe(Effect.timeout("3 seconds")));
 
-  yield* assert(error.signal === "SIGTERM", "signal-killed command should expose its signal.", error);
+  yield* assert(
+    error.signal === "SIGTERM",
+    "signal-killed command should expose its signal.",
+    error,
+  );
 });
 
 const signalErrorFormattingSelfTest = Effect.gen(function* () {
@@ -104,63 +126,72 @@ const signalErrorFormattingSelfTest = Effect.gen(function* () {
     code: undefined,
     signal: "SIGTERM",
     stdout: "",
-    stderr: "terminated"
+    stderr: "terminated",
   };
   const spawnError = {
     commandText: "missing-command ",
     code: undefined,
     signal: undefined,
     stdout: "",
-    stderr: ""
+    stderr: "",
   };
 
   yield* assert(
     scriptCommandErrorMessage("signal formatting self-test", signaledError) ===
       "Command failed while running signal formatting self-test.",
     "signal-killed commands should format as process failures, not spawn failures.",
-    signaledError
+    signaledError,
   );
   yield* assert(
     scriptCommandErrorRepair(signaledError, "spawn repair").includes("Signal: SIGTERM"),
     "signal-killed command repairs should preserve signal semantics.",
-    signaledError
+    signaledError,
   );
   yield* assert(
     scriptCommandErrorMessage("spawn formatting self-test", spawnError) ===
       "Failed to run spawn formatting self-test.",
     "spawn failures should keep spawn-specific formatting.",
-    spawnError
+    spawnError,
   );
   yield* assert(
     scriptCommandErrorRepair(spawnError, "spawn repair") === "spawn repair",
     "spawn failure repairs should keep caller-provided spawn guidance.",
-    spawnError
+    spawnError,
   );
 });
 
 const processTreeInterruptionSelfTest = Effect.gen(function* () {
   let stdout = "";
   let grandchildPid;
-  const fiber = Effect.runFork(runScriptCommandEffect(process.execPath, [
-    "-e",
-    [
-      "const { spawn } = require('node:child_process');",
-      "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: ['ignore', 'ignore', 'ignore'] });",
-      "process.stdout.write(String(child.pid) + '\\n');",
-      "setInterval(() => {}, 1000)"
-    ].join("")
-  ], {
-    onStdoutChunk: (chunk) => {
-      stdout += chunk;
-    }
-  }));
+  const fiber = Effect.runFork(
+    runScriptCommandEffect(
+      process.execPath,
+      [
+        "-e",
+        [
+          "const { spawn } = require('node:child_process');",
+          "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: ['ignore', 'ignore', 'ignore'] });",
+          "process.stdout.write(String(child.pid) + '\\n');",
+          "setInterval(() => {}, 1000)",
+        ].join(""),
+      ],
+      {
+        onStdoutChunk: (chunk) => {
+          stdout += chunk;
+        },
+      },
+    ),
+  );
 
-  yield* waitForChunkEffect(() => stdout, (text) => text.includes("\n"));
+  yield* waitForChunkEffect(
+    () => stdout,
+    (text) => text.includes("\n"),
+  );
   grandchildPid = parsePidFromFirstLine(stdout);
   yield* assert(
     Number.isInteger(grandchildPid) && grandchildPid > 0,
     "process-tree self-test should capture a grandchild pid.",
-    stdout
+    stdout,
   );
 
   yield* Fiber.interrupt(fiber).pipe(Effect.timeout("3 seconds"));
@@ -170,7 +201,7 @@ const processTreeInterruptionSelfTest = Effect.gen(function* () {
     }
   }).pipe(
     Effect.timeout("3 seconds"),
-    Effect.ensuring(scriptCommandKillProcessBestEffortEffect(grandchildPid))
+    Effect.ensuring(scriptCommandKillProcessBestEffortEffect(grandchildPid)),
   );
 });
 
@@ -188,44 +219,46 @@ const parentSignalMainRunnerSelfTest = Effect.gen(function* () {
     "  \"process.stdout.write('grandchild:' + process.pid + '\\\\n'); setInterval(() => {}, 1000)\"",
     "], {",
     "  onStdoutChunk: (chunk) => process.stdout.write(chunk)",
-    "}));"
+    "}));",
   ].join("\n");
-  const fiber = Effect.runFork(runScriptCommandEffect(process.execPath, [
-    "--input-type=module",
-    "-e",
-    parentScript
-  ], {
-    onStdoutChunk: (chunk) => {
-      stdout += chunk;
-    }
-  }));
+  const fiber = Effect.runFork(
+    runScriptCommandEffect(process.execPath, ["--input-type=module", "-e", parentScript], {
+      onStdoutChunk: (chunk) => {
+        stdout += chunk;
+      },
+    }),
+  );
 
   yield* waitForChunkEffect(
     () => stdout,
     (text) =>
       Number.isInteger(parsePidLine(text, "parent:")) &&
-      Number.isInteger(parsePidLine(text, "grandchild:"))
+      Number.isInteger(parsePidLine(text, "grandchild:")),
   );
   const parentPid = parsePidLine(stdout, "parent:");
   const grandchildPid = parsePidLine(stdout, "grandchild:");
   yield* assert(
     parentPid !== undefined && parentPid > 0 && grandchildPid !== undefined && grandchildPid > 0,
     "main-runner signal self-test should capture parent and grandchild pids.",
-    stdout
+    stdout,
   );
 
   yield* Effect.sync(() => {
     process.kill(parentPid, "SIGTERM");
   });
   const error = yield* Effect.flip(Fiber.join(fiber).pipe(Effect.timeout("3 seconds")));
-  yield* assert(error.code === 143, "signalled script main should exit with SIGTERM status.", error);
+  yield* assert(
+    error.code === 143,
+    "signalled script main should exit with SIGTERM status.",
+    error,
+  );
   yield* Effect.gen(function* () {
     while (yield* scriptCommandProcessExistsEffect(grandchildPid)) {
       yield* Effect.sleep("10 millis");
     }
   }).pipe(
     Effect.timeout("3 seconds"),
-    Effect.ensuring(scriptCommandKillProcessBestEffortEffect(grandchildPid))
+    Effect.ensuring(scriptCommandKillProcessBestEffortEffect(grandchildPid)),
   );
 });
 
@@ -236,13 +269,11 @@ const mainRunnerPreservesReportedExitCodeSelfTest = Effect.gen(function* () {
     `import { runScriptMainEffect } from ${JSON.stringify(runnerUrl)};`,
     "runScriptMainEffect(Effect.sync(() => {",
     "  process.exitCode = 9;",
-    "}));"
+    "}));",
   ].join("\n");
-  const error = yield* Effect.flip(runScriptCommandEffect(process.execPath, [
-    "--input-type=module",
-    "-e",
-    parentScript
-  ]));
+  const error = yield* Effect.flip(
+    runScriptCommandEffect(process.execPath, ["--input-type=module", "-e", parentScript]),
+  );
 
   yield* assert(
     error.code === 9,
@@ -252,36 +283,45 @@ const mainRunnerPreservesReportedExitCodeSelfTest = Effect.gen(function* () {
 });
 
 const interruptionSelfTest = Effect.gen(function* () {
-  const fiber = Effect.runFork(runScriptCommandEffect(process.execPath, [
-    "-e",
-    "setInterval(() => {}, 1000)",
-  ]));
+  const fiber = Effect.runFork(
+    runScriptCommandEffect(process.execPath, ["-e", "setInterval(() => {}, 1000)"]),
+  );
 
   yield* Effect.sleep("50 millis");
   yield* Fiber.interrupt(fiber).pipe(Effect.timeout("3 seconds"));
   const exit = yield* Fiber.await(fiber);
-  yield* assert(exit._tag === "Failure", "interrupted command fiber should fail instead of succeeding.", exit);
+  yield* assert(
+    exit._tag === "Failure",
+    "interrupted command fiber should fail instead of succeeding.",
+    exit,
+  );
 });
 
 const interruptionWithActiveCollectorsSelfTest = Effect.gen(function* () {
   let stdout = "";
   let stderr = "";
-  const fiber = Effect.runFork(runScriptCommandEffect(process.execPath, [
-    "-e",
-    [
-      "setInterval(() => {",
-      "  process.stdout.write('out\\n');",
-      "  process.stderr.write('err\\n');",
-      "}, 5)"
-    ].join("")
-  ], {
-    onStdoutChunk: (chunk) => {
-      stdout += chunk;
-    },
-    onStderrChunk: (chunk) => {
-      stderr += chunk;
-    },
-  }));
+  const fiber = Effect.runFork(
+    runScriptCommandEffect(
+      process.execPath,
+      [
+        "-e",
+        [
+          "setInterval(() => {",
+          "  process.stdout.write('out\\n');",
+          "  process.stderr.write('err\\n');",
+          "}, 5)",
+        ].join(""),
+      ],
+      {
+        onStdoutChunk: (chunk) => {
+          stdout += chunk;
+        },
+        onStderrChunk: (chunk) => {
+          stderr += chunk;
+        },
+      },
+    ),
+  );
 
   yield* Effect.gen(function* () {
     while (!stdout.includes("out") || !stderr.includes("err")) {
@@ -290,19 +330,29 @@ const interruptionWithActiveCollectorsSelfTest = Effect.gen(function* () {
   }).pipe(Effect.timeout("2 seconds"));
   yield* Fiber.interrupt(fiber).pipe(Effect.timeout("3 seconds"));
   const exit = yield* Fiber.await(fiber);
-  yield* assert(exit._tag === "Failure", "interrupted noisy command fiber should fail instead of succeeding.", exit);
+  yield* assert(
+    exit._tag === "Failure",
+    "interrupted noisy command fiber should fail instead of succeeding.",
+    exit,
+  );
 });
 
 const forceKillSelfTest = Effect.gen(function* () {
   let stderr = "";
-  const fiber = Effect.runFork(runScriptCommandEffect(process.execPath, [
-    "-e",
-    "process.on('SIGTERM', () => {}); process.stderr.write('ready\\n'); setInterval(() => {}, 1000)",
-  ], {
-    onStderrChunk: (chunk) => {
-      stderr += chunk;
-    },
-  }));
+  const fiber = Effect.runFork(
+    runScriptCommandEffect(
+      process.execPath,
+      [
+        "-e",
+        "process.on('SIGTERM', () => {}); process.stderr.write('ready\\n'); setInterval(() => {}, 1000)",
+      ],
+      {
+        onStderrChunk: (chunk) => {
+          stderr += chunk;
+        },
+      },
+    ),
+  );
 
   yield* Effect.gen(function* () {
     while (!stderr.includes("ready")) {
@@ -311,7 +361,11 @@ const forceKillSelfTest = Effect.gen(function* () {
   }).pipe(Effect.timeout("2 seconds"));
   yield* Fiber.interrupt(fiber).pipe(Effect.timeout("3 seconds"));
   const exit = yield* Fiber.await(fiber);
-  yield* assert(exit._tag === "Failure", "force-killed command fiber should fail instead of succeeding.", exit);
+  yield* assert(
+    exit._tag === "Failure",
+    "force-killed command fiber should fail instead of succeeding.",
+    exit,
+  );
 });
 
 const selfTest = Effect.gen(function* () {
@@ -337,7 +391,7 @@ runScriptMainEffect(
       Effect.sync(() => {
         console.error(cause);
         process.exitCode = 1;
-      })
-    )
-  )
+      }),
+    ),
+  ),
 );

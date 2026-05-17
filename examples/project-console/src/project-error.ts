@@ -20,7 +20,7 @@ const unwrapResourceFailure = (error: unknown): unknown => {
 /** Decodes class instances and plain transport objects into the ProjectError contract. */
 export const normalizeProjectError = (error: unknown): ProjectError | undefined => {
   const decoded = Effect.runSyncExit(
-    Schema.decodeUnknownEffect(ProjectErrorSchema)(unwrapResourceFailure(error))
+    Schema.decodeUnknownEffect(ProjectErrorSchema)(unwrapResourceFailure(error)),
   );
 
   return Exit.isSuccess(decoded) ? decoded.value : undefined;

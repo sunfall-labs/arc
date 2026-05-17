@@ -12,7 +12,7 @@ import {
   Signal,
   UiScope,
   UiScopeDisposed,
-  watch
+  watch,
 } from "../src/index.js";
 
 describe("UiScope", () => {
@@ -29,7 +29,7 @@ describe("UiScope", () => {
       Effect.gen(function* () {
         yield* scope.disposeEffect();
         expect(events).toEqual(["second", "first"]);
-      })
+      }),
     );
   });
 
@@ -47,7 +47,7 @@ describe("UiScope", () => {
       Effect.gen(function* () {
         yield* scope.disposeEffect();
         expect(events).toEqual(["third", "first"]);
-      })
+      }),
     );
   });
 
@@ -67,7 +67,7 @@ describe("UiScope", () => {
       Effect.gen(function* () {
         yield* scope.disposeEffect();
         expect(events).toEqual(["cleanup"]);
-      })
+      }),
     );
   });
 
@@ -81,7 +81,7 @@ describe("UiScope", () => {
           events.push("start");
           yield* Effect.sleep("10 millis");
           events.push("done");
-        })
+        }),
       );
     });
 
@@ -89,7 +89,7 @@ describe("UiScope", () => {
       Effect.gen(function* () {
         yield* scope.disposeEffect();
         expect(events).toEqual(["start", "done"]);
-      })
+      }),
     );
   });
 
@@ -103,8 +103,8 @@ describe("UiScope", () => {
           Effect.never,
           Effect.sync(() => {
             interrupted = true;
-          })
-        )
+          }),
+        ),
       );
     });
 
@@ -112,7 +112,7 @@ describe("UiScope", () => {
       Effect.gen(function* () {
         yield* scope.disposeEffect();
         expect(interrupted).toBe(true);
-      })
+      }),
     );
   });
 
@@ -124,7 +124,7 @@ describe("UiScope", () => {
     runWithScope(scope, () => {
       watch(
         () => read(count),
-        (value) => Effect.sync(() => values.push(value))
+        (value) => Effect.sync(() => values.push(value)),
       );
     });
 
@@ -139,7 +139,7 @@ describe("UiScope", () => {
         yield* Effect.sleep("10 millis");
 
         expect(values).toEqual([0, 1]);
-      })
+      }),
     );
   });
 
@@ -153,9 +153,9 @@ describe("UiScope", () => {
           () => read(count),
           () => {
             throw new Error("watch failed");
-          }
+          },
         );
-      })
+      }),
     ).not.toThrow();
 
     expect(() => Signal.set(count, 1)).not.toThrow();
@@ -169,13 +169,15 @@ describe("UiScope", () => {
       runLateFinalizer: (effect) => {
         events.push("runner");
         lateFinalizer = Effect.runPromise(effect);
-      }
+      },
     });
 
     await Effect.runPromise(scope.disposeEffect());
-    scope.addFinalizer(() => Effect.sync(() => {
-      events.push("late");
-    }));
+    scope.addFinalizer(() =>
+      Effect.sync(() => {
+        events.push("late");
+      }),
+    );
 
     await lateFinalizer;
     expect(events).toEqual(["runner", "late"]);
@@ -187,18 +189,22 @@ describe("UiScope", () => {
     const scope = new UiScope({
       runLateFinalizer: (effect) => {
         lateFinalizer = effect;
-      }
+      },
     });
 
-    scope.addFinalizer(() => Effect.sync(() => {
-      events.push("captured");
-    }));
+    scope.addFinalizer(() =>
+      Effect.sync(() => {
+        events.push("captured");
+      }),
+    );
 
     const cleanup = scope.captureDisposeEffect();
     expect(() => scope.fork(Effect.never)).toThrow(UiScopeDisposed);
-    scope.addFinalizer(() => Effect.sync(() => {
-      events.push("late");
-    }));
+    scope.addFinalizer(() =>
+      Effect.sync(() => {
+        events.push("late");
+      }),
+    );
 
     expect(events).toEqual([]);
     await Effect.runPromise(cleanup);
@@ -218,7 +224,7 @@ describe("UiScope", () => {
         const scope = new UiScope({
           runLateFinalizer: (effect) => {
             lateFinalizer = effect;
-          }
+          },
         });
 
         yield* scope.disposeEffect();
@@ -229,7 +235,7 @@ describe("UiScope", () => {
         }
         const exit = yield* Effect.exit(lateFinalizer);
         expect(exit._tag).toBe("Success");
-      })
+      }),
     ));
 
   it("creates Runtime Spine-bound scopes for adapter-owned UI lifetimes", () =>
@@ -245,13 +251,13 @@ describe("UiScope", () => {
           scope.addFinalizer(() =>
             Effect.sync(() => {
               events.push("late");
-            })
+            }),
           );
           yield* Effect.sleep("10 millis");
 
           expect(events).toEqual(["late"]);
-        })
-      )
+        }),
+      ),
     ));
 
   it("creates Runtime Spine-bound scope frames for adapter render lifetimes", () =>
@@ -265,9 +271,11 @@ describe("UiScope", () => {
 
           const value = frame.run(() => {
             expect(getCurrentScope()).toBe(frame.scope);
-            onScopeDispose(() => Effect.sync(() => {
-              events.push("dispose");
-            }));
+            onScopeDispose(() =>
+              Effect.sync(() => {
+                events.push("dispose");
+              }),
+            );
             return "rendered";
           });
 
@@ -276,13 +284,13 @@ describe("UiScope", () => {
           frame.scope.addFinalizer(() =>
             Effect.sync(() => {
               events.push("late");
-            })
+            }),
           );
           yield* Effect.sleep("10 millis");
 
           expect(events).toEqual(["dispose", "late"]);
-        })
-      )
+        }),
+      ),
     ));
 
   it("frame dispose closes the scope synchronously before queued cleanup runs", () =>
@@ -296,19 +304,21 @@ describe("UiScope", () => {
             ...baseRuntime,
             runFork: <A, E, R>(
               effect: Effect.Effect<A, E, R>,
-              options?: Effect.RunOptions
+              options?: Effect.RunOptions,
             ): Fiber.Fiber<A, E> => {
               queuedDisposals.push(effect as Effect.Effect<void>);
               return baseRuntime.runFork(Effect.never as Effect.Effect<A, E, never>, options);
-            }
+            },
           };
           const frame = makeRuntimeUiScopeFrame(runtime);
           const events: Array<string> = [];
 
           frame.run(() => {
-            onScopeDispose(() => Effect.sync(() => {
-              events.push("dispose");
-            }));
+            onScopeDispose(() =>
+              Effect.sync(() => {
+                events.push("dispose");
+              }),
+            );
           });
 
           frame.dispose();
@@ -318,7 +328,7 @@ describe("UiScope", () => {
 
           yield* queuedDisposals[0]!;
           expect(events).toEqual(["dispose"]);
-        })
-      )
+        }),
+      ),
     ));
 });

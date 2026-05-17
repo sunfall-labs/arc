@@ -16,7 +16,7 @@ export const invalidStartRequestHandlerReturnMessage =
 
 /** Cause used when an untyped request handler returns something other than an Effect. */
 export class StartRequestHandlerInvalidReturn extends Data.TaggedError(
-  "StartRequestHandlerInvalidReturn"
+  "StartRequestHandlerInvalidReturn",
 )<{
   readonly message: string;
   readonly received: unknown;
@@ -24,21 +24,19 @@ export class StartRequestHandlerInvalidReturn extends Data.TaggedError(
 
 export const makeStartRequestHandlerError = (
   request: Request,
-  cause: unknown
+  cause: unknown,
 ): StartRequestHandlerError =>
   new StartRequestHandlerError({
     operation: "handle-request",
     request: {
       method: request.method,
-      url: request.url
+      url: request.url,
     },
-    cause
+    cause,
   });
 
 export const normalizeStartRequestHandlerError = (
   request: Request,
-  cause: unknown
+  cause: unknown,
 ): StartRequestHandlerError =>
-  cause instanceof StartRequestHandlerError
-    ? cause
-    : makeStartRequestHandlerError(request, cause);
+  cause instanceof StartRequestHandlerError ? cause : makeStartRequestHandlerError(request, cause);

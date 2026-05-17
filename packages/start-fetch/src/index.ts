@@ -16,5 +16,5 @@ export {
   /** Runtime-required compatibility options for serviceful Fetch host entrypoints. */
   type StartFetchPromiseHandlerRuntimeOptions,
   /** Compatibility handler type for Fetch hosts that require Promise-shaped entrypoints. */
-  type StartFetchPromiseHandler
+  type StartFetchPromiseHandler,
 } from "@effect-ui/start/fetch-adapter";

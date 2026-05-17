@@ -11,27 +11,21 @@ import {
   type FormFieldErrors,
   type ResourceInvalidationCause,
   type ResourceInvalidationPlan,
-  type ResourceSnapshotCodecError
+  type ResourceSnapshotCodecError,
 } from "@effect-ui/core";
 import { Cause, Effect, Exit, Schema } from "effect";
-import {
-  createStartHydrationPayload,
-  type StartHydrationPayload
-} from "./hydration.js";
+import { createStartHydrationPayload, type StartHydrationPayload } from "./hydration.js";
 import {
   hasContentType,
   negotiateAcceptedMediaType,
   startHtmlMediaType,
   startJsonMediaType,
   validateStartActionResponseEffect,
-  type StartTransportRequestError
+  type StartTransportRequestError,
 } from "./rpc.js";
 import { readStartTransportResponseTextEffect } from "./start-transport-body.js";
 import { type StartActionDefinition } from "./start-action-request-codec.js";
-import {
-  decodeWithSchema,
-  encodeWithSchema
-} from "./start-schema-codec.js";
+import { decodeWithSchema, encodeWithSchema } from "./start-schema-codec.js";
 
 /**
  * Serializable invalidation target emitted by a Start action response.
@@ -110,7 +104,12 @@ export type StartActionResponseBody =
   | { readonly _tag: "Defect"; readonly defect: unknown };
 
 /** Decoded client result for a Start action submission. */
-export type StartActionResult<A, Values extends object = Record<string, unknown>, ValidationError = never, E = never> =
+export type StartActionResult<
+  A,
+  Values extends object = Record<string, unknown>,
+  ValidationError = never,
+  E = never,
+> =
   | ({ readonly _tag: "Success"; readonly value: A } & StartActionResponseMeta)
   | ({
       readonly _tag: "ValidationFailure";
@@ -127,35 +126,46 @@ export type StartActionResult<A, Values extends object = Record<string, unknown>
     } & StartActionResponseMeta)
   | ({ readonly _tag: "Failure"; readonly error: E } & StartActionResponseMeta);
 
-type StartActionOutputSuccess<A> =
-  [Extract<A, { readonly _tag: "Success"; readonly value: unknown }>] extends [never]
-    ? A
-    : Extract<A, { readonly _tag: "Success"; readonly value: unknown }> extends { readonly value: infer Success }
+type StartActionOutputSuccess<A> = [
+  Extract<A, { readonly _tag: "Success"; readonly value: unknown }>,
+] extends [never]
+  ? A
+  : Extract<A, { readonly _tag: "Success"; readonly value: unknown }> extends {
+        readonly value: infer Success;
+      }
     ? Success
     : A;
 
-type StartActionOutputValues<A> =
-  [Extract<A, { readonly _tag: "ValidationFailure"; readonly fieldErrors: unknown }>] extends [never]
-    ? Record<string, unknown>
-    : Extract<A, { readonly _tag: "ValidationFailure"; readonly fieldErrors: unknown }> extends {
-    readonly fieldErrors: FormFieldErrors<infer Values, infer _Error>;
-  }
+type StartActionOutputValues<A> = [
+  Extract<A, { readonly _tag: "ValidationFailure"; readonly fieldErrors: unknown }>,
+] extends [never]
+  ? Record<string, unknown>
+  : Extract<A, { readonly _tag: "ValidationFailure"; readonly fieldErrors: unknown }> extends {
+        readonly fieldErrors: FormFieldErrors<infer Values, infer _Error>;
+      }
     ? Values
     : Record<string, unknown>;
 
-type StartActionOutputValidationError<A> =
-  [Extract<A, { readonly _tag: "ValidationFailure"; readonly formErrors: readonly unknown[] }>] extends [never]
-    ? never
-    : Extract<A, { readonly _tag: "ValidationFailure"; readonly formErrors: readonly unknown[] }> extends {
-    readonly formErrors: readonly (infer ValidationError)[];
-  }
+type StartActionOutputValidationError<A> = [
+  Extract<A, { readonly _tag: "ValidationFailure"; readonly formErrors: readonly unknown[] }>,
+] extends [never]
+  ? never
+  : Extract<
+        A,
+        { readonly _tag: "ValidationFailure"; readonly formErrors: readonly unknown[] }
+      > extends {
+        readonly formErrors: readonly (infer ValidationError)[];
+      }
     ? ValidationError
     : never;
 
-type StartActionOutputFailure<A, E> =
-  [Extract<A, { readonly _tag: "Failure"; readonly error: unknown }>] extends [never]
-    ? E
-    : Extract<A, { readonly _tag: "Failure"; readonly error: unknown }> extends { readonly error: infer Failure }
+type StartActionOutputFailure<A, E> = [
+  Extract<A, { readonly _tag: "Failure"; readonly error: unknown }>,
+] extends [never]
+  ? E
+  : Extract<A, { readonly _tag: "Failure"; readonly error: unknown }> extends {
+        readonly error: infer Failure;
+      }
     ? E | Failure
     : E;
 
@@ -168,24 +178,23 @@ export type ActionDefinitionErrorValue<D> =
   D extends ActionDefinition<infer _I, infer _A, infer E, infer _R> ? E : never;
 
 /** Infers the typed Start action client result from an action output and error. */
-export type StartActionResultFor<A, E = never> =
-  StartActionResult<
-    StartActionOutputSuccess<A>,
-    StartActionOutputValues<A>,
-    StartActionOutputValidationError<A>,
-    StartActionOutputFailure<A, E>
-  >;
+export type StartActionResultFor<A, E = never> = StartActionResult<
+  StartActionOutputSuccess<A>,
+  StartActionOutputValues<A>,
+  StartActionOutputValidationError<A>,
+  StartActionOutputFailure<A, E>
+>;
 
 const startActionDefectBody = (
-  cause: unknown
+  cause: unknown,
 ): Extract<StartActionResponseBody, { readonly _tag: "Defect" }> => ({
   _tag: "Defect",
-  defect: Server.serializeDefect(cause)
+  defect: Server.serializeDefect(cause),
 });
 
 const actionJson = (body: StartActionResponseBody, status = 200): Response => {
   const headers = {
-    "content-type": startJsonMediaType
+    "content-type": startJsonMediaType,
   };
 
   try {
@@ -193,16 +202,16 @@ const actionJson = (body: StartActionResponseBody, status = 200): Response => {
   } catch (cause) {
     return new Response(JSON.stringify(startActionDefectBody(cause)), {
       status: 500,
-      headers
+      headers,
     });
   }
 };
 
 const actionServerErrorBody = (
-  error: ServerRpcProtocolError | ServerFunctionNotFound
+  error: ServerRpcProtocolError | ServerFunctionNotFound,
 ): Extract<StartActionResponseBody, { readonly _tag: "ServerError" }> => ({
   _tag: "ServerError",
-  error: Server.serializeServerError(error)
+  error: Server.serializeServerError(error),
 });
 
 export const actionRuntimeFailureResponse = (error: unknown): Response =>
@@ -210,12 +219,12 @@ export const actionRuntimeFailureResponse = (error: unknown): Response =>
 
 export const actionProtocolFailureResponse = (
   error: ServerRpcProtocolError,
-  status = 400
+  status = 400,
 ): Response => actionJson(actionServerErrorBody(error), status);
 
 const withTransportRequestErrorHeaders = (
   response: Response,
-  error: StartTransportRequestError
+  error: StartTransportRequestError,
 ): Response => {
   if (error.allow) {
     response.headers.set("allow", error.allow);
@@ -224,12 +233,9 @@ const withTransportRequestErrorHeaders = (
 };
 
 export const actionTransportRequestFailureResponse = (
-  error: StartTransportRequestError
+  error: StartTransportRequestError,
 ): Response =>
-  withTransportRequestErrorHeaders(
-    actionProtocolFailureResponse(error.error, error.status),
-    error
-  );
+  withTransportRequestErrorHeaders(actionProtocolFailureResponse(error.error, error.status), error);
 
 export const actionFunctionNotFoundResponse = (actionName: string): Response =>
   actionJson(actionServerErrorBody(new ServerFunctionNotFound({ functionName: actionName })), 404);
@@ -245,14 +251,14 @@ const firstDefect = <E>(cause: Cause.Cause<E>): unknown | undefined => {
 };
 
 const describeStartActionInvalidationTarget = (
-  target: ResourceInvalidationPlan<any>["targets"][number]
+  target: ResourceInvalidationPlan<any>["targets"][number],
 ): StartActionInvalidationTarget | undefined => {
   if (isResourceRef(target)) {
     return {
       _tag: "Ref",
       key: target.key,
       family: target.family.options.name,
-      input: target.input
+      input: target.input,
     };
   }
 
@@ -260,7 +266,7 @@ const describeStartActionInvalidationTarget = (
     return {
       _tag: "Tag",
       key: target.key,
-      name: target.name
+      name: target.name,
     };
   }
 
@@ -268,23 +274,23 @@ const describeStartActionInvalidationTarget = (
 };
 
 const describeStartActionInvalidationCause = (
-  cause: ResourceInvalidationCause
+  cause: ResourceInvalidationCause,
 ): StartActionInvalidationCause =>
   cause._tag === "Ref"
     ? {
         _tag: "Ref",
         key: cause.ref.key,
-        family: cause.ref.family.options.name
+        family: cause.ref.family.options.name,
       }
     : {
         _tag: "Tag",
         key: cause.tag.key,
-        name: cause.tag.name
+        name: cause.tag.name,
       };
 
 /** Converts a runtime invalidation plan into the serializable action payload. */
 export const describeStartActionInvalidationPlan = (
-  plan: ResourceInvalidationPlan<any>
+  plan: ResourceInvalidationPlan<any>,
 ): StartActionInvalidationPlan => ({
   targets: plan.targets.flatMap((target) => {
     const described = describeStartActionInvalidationTarget(target);
@@ -294,64 +300,61 @@ export const describeStartActionInvalidationPlan = (
     ref: {
       key: entry.ref.key,
       family: entry.ref.family.options.name,
-      input: entry.ref.input
+      input: entry.ref.input,
     },
-    causes: entry.causes.map(describeStartActionInvalidationCause)
-  }))
+    causes: entry.causes.map(describeStartActionInvalidationCause),
+  })),
 });
 
 export const actionResponseMetaEffect = (
-  plan: ResourceInvalidationPlan<any> | undefined
+  plan: ResourceInvalidationPlan<any> | undefined,
 ): Effect.Effect<StartActionResponseMeta, ResourceSnapshotCodecError> =>
   plan === undefined
     ? Effect.succeed({})
     : Effect.gen(function* () {
-        const resources = yield* Resource.hydrationPayloadEffect(plan.entries.map((entry) => entry.ref));
+        const resources = yield* Resource.hydrationPayloadEffect(
+          plan.entries.map((entry) => entry.ref),
+        );
         const hydration = createStartHydrationPayload(resources);
         return {
           invalidation: describeStartActionInvalidationPlan(plan),
-          ...(hydration.resources.length === 0 &&
-            (hydration.collections?.length ?? 0) === 0
+          ...(hydration.resources.length === 0 && (hydration.collections?.length ?? 0) === 0
             ? {}
-            : { hydration })
+            : { hydration }),
         };
       });
 
 export const actionResponseMode = (request: Request): "json" | "redirect" =>
   hasContentType(request.headers, [startJsonMediaType]) ||
-    negotiateAcceptedMediaType(request.headers, [startHtmlMediaType, startJsonMediaType]) === startJsonMediaType
+  negotiateAcceptedMediaType(request.headers, [startHtmlMediaType, startJsonMediaType]) ===
+    startJsonMediaType
     ? "json"
     : "redirect";
 
 const encodeActionResultEffect = (
   action: StartActionDefinition,
-  result: unknown
-): Effect.Effect<unknown, Schema.SchemaError> =>
-  encodeWithSchema(action.output, result);
+  result: unknown,
+): Effect.Effect<unknown, Schema.SchemaError> => encodeWithSchema(action.output, result);
 
 const encodedActionResultOrSelf = (
   action: StartActionDefinition,
-  result: unknown
+  result: unknown,
 ): Effect.Effect<unknown> =>
-  Effect.map(
-    Effect.exit(encodeActionResultEffect(action, result)),
-    (exit) => Exit.isSuccess(exit) ? exit.value : result
+  Effect.map(Effect.exit(encodeActionResultEffect(action, result)), (exit) =>
+    Exit.isSuccess(exit) ? exit.value : result,
   );
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
-const hasOwn = (
-  value: Record<string, unknown>,
-  key: string
-): boolean =>
+const hasOwn = (value: Record<string, unknown>, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
 
 const actionResultResponseEffect = (
   action: StartActionDefinition,
   result: unknown,
   meta: StartActionResponseMeta = {},
-  mode: "json" | "redirect" = "redirect"
+  mode: "json" | "redirect" = "redirect",
 ): Effect.Effect<Response, never> => {
   const actionResult = ActionResult.is(result) ? result : undefined;
 
@@ -364,8 +367,8 @@ const actionResultResponseEffect = (
           status: actionResult.status,
           ...(actionResult.headers === undefined ? {} : { headers: actionResult.headers }),
           ...(actionResult.replace === undefined ? {} : { replace: actionResult.replace }),
-          ...meta
-        })
+          ...meta,
+        }),
       );
     }
 
@@ -374,51 +377,45 @@ const actionResultResponseEffect = (
         status: actionResult.status,
         headers: {
           location: actionResult.location,
-          ...(actionResult.headers ?? {})
-        }
-      })
+          ...actionResult.headers,
+        },
+      }),
     );
   }
 
   if (actionResult && ActionResult.isValidationFailure(actionResult)) {
-    return Effect.map(
-      encodedActionResultOrSelf(action, result),
-      (encoded) => {
-        const source = (isRecord(encoded) && encoded._tag === "ValidationFailure"
-          ? encoded
-          : actionResult) as {
-            readonly fieldErrors?: unknown;
-            readonly formErrors?: unknown;
-            readonly cause?: unknown;
-          };
-        return actionJson(
-          {
-            _tag: "ValidationFailure",
-            fieldErrors: source.fieldErrors,
-            formErrors: Array.isArray(source.formErrors) ? source.formErrors : [],
-            ...(source.cause === undefined ? {} : { cause: Server.serializeDefect(source.cause) }),
-            ...meta
-          },
-          422
-        );
-      }
-    );
+    return Effect.map(encodedActionResultOrSelf(action, result), (encoded) => {
+      const source = (
+        isRecord(encoded) && encoded._tag === "ValidationFailure" ? encoded : actionResult
+      ) as {
+        readonly fieldErrors?: unknown;
+        readonly formErrors?: unknown;
+        readonly cause?: unknown;
+      };
+      return actionJson(
+        {
+          _tag: "ValidationFailure",
+          fieldErrors: source.fieldErrors,
+          formErrors: Array.isArray(source.formErrors) ? source.formErrors : [],
+          ...(source.cause === undefined ? {} : { cause: Server.serializeDefect(source.cause) }),
+          ...meta,
+        },
+        422,
+      );
+    });
   }
 
   if (actionResult && ActionResult.isFailure(actionResult)) {
-    return Effect.map(
-      encodedActionResultOrSelf(action, result),
-      (encoded) => {
-        const source = (isRecord(encoded) && encoded._tag === "Failure"
-          ? encoded
-          : actionResult) as { readonly error?: unknown };
-        return actionJson({
-          _tag: "Failure",
-          error: source.error,
-          ...meta
-        });
-      }
-    );
+    return Effect.map(encodedActionResultOrSelf(action, result), (encoded) => {
+      const source = (isRecord(encoded) && encoded._tag === "Failure" ? encoded : actionResult) as {
+        readonly error?: unknown;
+      };
+      return actionJson({
+        _tag: "Failure",
+        error: source.error,
+        ...meta,
+      });
+    });
   }
 
   if (actionResult && ActionResult.isSuccess(actionResult)) {
@@ -433,7 +430,7 @@ const actionResultResponseEffect = (
         return actionJson({
           _tag: "Success",
           value: encodedResult.value.value,
-          ...meta
+          ...meta,
         });
       }
 
@@ -442,16 +439,16 @@ const actionResultResponseEffect = (
         return actionJson({
           _tag: "Success",
           value: encodedValue.value,
-          ...meta
+          ...meta,
         });
       }
 
       return actionJson(
         {
           _tag: "Defect",
-          defect: Server.serializeDefect(Cause.pretty(encodedValue.cause))
+          defect: Server.serializeDefect(Cause.pretty(encodedValue.cause)),
         },
-        500
+        500,
       );
     });
   }
@@ -462,16 +459,16 @@ const actionResultResponseEffect = (
       return actionJson({
         _tag: "Success",
         value: encoded.value,
-        ...meta
+        ...meta,
       });
     }
 
     return actionJson(
       {
         _tag: "Defect",
-        defect: Server.serializeDefect(Cause.pretty(encoded.cause))
+        defect: Server.serializeDefect(Cause.pretty(encoded.cause)),
       },
-      500
+      500,
     );
   });
 };
@@ -480,7 +477,7 @@ export const actionExitResponseEffect = <ActionError>(
   action: StartActionDefinition,
   exit: Exit.Exit<unknown, ActionError>,
   meta: StartActionResponseMeta = {},
-  mode: "json" | "redirect" = "redirect"
+  mode: "json" | "redirect" = "redirect",
 ): Effect.Effect<Response, never> => {
   if (Exit.isSuccess(exit)) {
     return actionResultResponseEffect(action, exit.value, meta, mode);
@@ -493,9 +490,9 @@ export const actionExitResponseEffect = <ActionError>(
         actionProtocolFailureResponse(
           new ServerRpcProtocolError({
             message: failure.message,
-            payload: Server.serializeDefect(failure)
-          })
-        )
+            payload: Server.serializeDefect(failure),
+          }),
+        ),
       );
     }
 
@@ -505,16 +502,16 @@ export const actionExitResponseEffect = <ActionError>(
         return actionJson({
           _tag: "Failure",
           error: encoded.value,
-          ...meta
+          ...meta,
         });
       }
 
       return actionJson(
         {
           _tag: "Defect",
-          defect: Server.serializeDefect(Cause.pretty(encoded.cause))
+          defect: Server.serializeDefect(Cause.pretty(encoded.cause)),
         },
-        500
+        500,
       );
     });
   }
@@ -526,11 +523,11 @@ export const actionExitResponseEffect = <ActionError>(
           _tag: "Defect",
           defect: {
             _tag: "Interrupted",
-            message: "The action fiber was interrupted."
-          }
+            message: "The action fiber was interrupted.",
+          },
         },
-        499
-      )
+        499,
+      ),
     );
   }
 
@@ -538,16 +535,15 @@ export const actionExitResponseEffect = <ActionError>(
     actionJson(
       {
         _tag: "Defect",
-        defect: Server.serializeDefect(firstDefect(exit.cause) ?? Cause.pretty(exit.cause))
+        defect: Server.serializeDefect(firstDefect(exit.cause) ?? Cause.pretty(exit.cause)),
       },
-      500
-    )
+      500,
+    ),
   );
 };
 
 const isStringRecord = (value: unknown): value is Record<string, string> =>
-  isRecord(value) &&
-  Object.values(value).every((entry) => typeof entry === "string");
+  isRecord(value) && Object.values(value).every((entry) => typeof entry === "string");
 
 const isStartActionResponseBody = (value: unknown): value is StartActionResponseBody => {
   if (!isRecord(value) || !isStartActionResponseMeta(value)) {
@@ -558,13 +554,14 @@ const isStartActionResponseBody = (value: unknown): value is StartActionResponse
     case "Success":
       return hasOwn(value, "value");
     case "ValidationFailure":
-      return hasOwn(value, "fieldErrors") &&
-        Array.isArray(value.formErrors);
+      return hasOwn(value, "fieldErrors") && Array.isArray(value.formErrors);
     case "Redirect":
-      return typeof value.location === "string" &&
+      return (
+        typeof value.location === "string" &&
         Number.isInteger(value.status) &&
         (value.headers === undefined || isStringRecord(value.headers)) &&
-        (value.replace === undefined || typeof value.replace === "boolean");
+        (value.replace === undefined || typeof value.replace === "boolean")
+      );
     case "Failure":
     case "ServerError":
       return hasOwn(value, "error");
@@ -575,20 +572,20 @@ const isStartActionResponseBody = (value: unknown): value is StartActionResponse
   }
 };
 
-const isStartActionInvalidationTarget = (value: unknown): value is StartActionInvalidationTarget => {
+const isStartActionInvalidationTarget = (
+  value: unknown,
+): value is StartActionInvalidationTarget => {
   if (!isRecord(value)) {
     return false;
   }
 
   if (value._tag === "Ref") {
-    return typeof value.key === "string" &&
-      typeof value.family === "string" &&
-      hasOwn(value, "input");
+    return (
+      typeof value.key === "string" && typeof value.family === "string" && hasOwn(value, "input")
+    );
   }
 
-  return value._tag === "Tag" &&
-    typeof value.key === "string" &&
-    typeof value.name === "string";
+  return value._tag === "Tag" && typeof value.key === "string" && typeof value.name === "string";
 };
 
 const isStartActionInvalidationCause = (value: unknown): value is StartActionInvalidationCause => {
@@ -597,13 +594,10 @@ const isStartActionInvalidationCause = (value: unknown): value is StartActionInv
   }
 
   if (value._tag === "Ref") {
-    return typeof value.key === "string" &&
-      typeof value.family === "string";
+    return typeof value.key === "string" && typeof value.family === "string";
   }
 
-  return value._tag === "Tag" &&
-    typeof value.key === "string" &&
-    typeof value.name === "string";
+  return value._tag === "Tag" && typeof value.key === "string" && typeof value.name === "string";
 };
 
 const isStartActionInvalidationPlan = (value: unknown): value is StartActionInvalidationPlan => {
@@ -611,16 +605,19 @@ const isStartActionInvalidationPlan = (value: unknown): value is StartActionInva
     return false;
   }
 
-  return value.targets.every(isStartActionInvalidationTarget) &&
-    value.entries.every((entry) =>
-      isRecord(entry) &&
-      isRecord(entry.ref) &&
-      typeof entry.ref.key === "string" &&
-      typeof entry.ref.family === "string" &&
-      hasOwn(entry.ref, "input") &&
-      Array.isArray(entry.causes) &&
-      entry.causes.every(isStartActionInvalidationCause)
-    );
+  return (
+    value.targets.every(isStartActionInvalidationTarget) &&
+    value.entries.every(
+      (entry) =>
+        isRecord(entry) &&
+        isRecord(entry.ref) &&
+        typeof entry.ref.key === "string" &&
+        typeof entry.ref.family === "string" &&
+        hasOwn(entry.ref, "input") &&
+        Array.isArray(entry.causes) &&
+        entry.causes.every(isStartActionInvalidationCause),
+    )
+  );
 };
 
 const isStartHydrationPayload = (value: unknown): value is StartHydrationPayload =>
@@ -633,13 +630,13 @@ const isStartActionResponseMeta = (value: Record<string, unknown>): boolean =>
   (value.hydration === undefined || isStartHydrationPayload(value.hydration));
 
 export const parseStartActionResponse = (
-  response: Response
+  response: Response,
 ): Effect.Effect<StartActionResponseBody, ServerTransportError> =>
   Effect.gen(function* () {
     yield* validateStartActionResponseEffect(response);
     const text = yield* readStartTransportResponseTextEffect(
       response,
-      "Could not read the action response body."
+      "Could not read the action response body.",
     );
     const payload = yield* Effect.try({
       try: () => JSON.parse(text) as unknown,
@@ -649,49 +646,53 @@ export const parseStartActionResponse = (
           status: response.status,
           message: "Action response was not valid JSON.",
           cause,
-          payload: text
-        })
+          payload: text,
+        }),
     });
     if (!isStartActionResponseBody(payload)) {
       return yield* new ServerTransportError({
         reason: "InvalidResponse",
         status: response.status,
         message: "Action response did not match the Effect UI Start action protocol.",
-        payload
+        payload,
       });
     }
 
     return payload;
   });
 
-const startActionResponseMeta = (
-  body: StartActionResponseBody
-): StartActionResponseMeta => ({
-  ...("invalidation" in body && body.invalidation !== undefined ? { invalidation: body.invalidation } : {}),
-  ...("hydration" in body && body.hydration !== undefined ? { hydration: body.hydration } : {})
+const startActionResponseMeta = (body: StartActionResponseBody): StartActionResponseMeta => ({
+  ...("invalidation" in body && body.invalidation !== undefined
+    ? { invalidation: body.invalidation }
+    : {}),
+  ...("hydration" in body && body.hydration !== undefined ? { hydration: body.hydration } : {}),
 });
 
 const hasActionResultTag = (
-  value: unknown
-): value is Extract<StartActionResponseBody, { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }> =>
+  value: unknown,
+): value is Extract<
+  StartActionResponseBody,
+  { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }
+> =>
   isRecord(value) &&
-  (
-    value._tag === "Success" ||
+  (value._tag === "Success" ||
     value._tag === "ValidationFailure" ||
     value._tag === "Redirect" ||
-    value._tag === "Failure"
-  );
+    value._tag === "Failure");
 
 const normalizeDecodedActionResult = (
-  decoded: Extract<StartActionResponseBody, { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }>,
-  meta: StartActionResponseMeta
+  decoded: Extract<
+    StartActionResponseBody,
+    { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }
+  >,
+  meta: StartActionResponseMeta,
 ): StartActionResult<unknown, Record<string, unknown>, unknown, unknown> => {
   switch (decoded._tag) {
     case "Success":
       return {
         _tag: "Success",
         value: decoded.value,
-        ...meta
+        ...meta,
       };
     case "ValidationFailure":
       return {
@@ -699,7 +700,7 @@ const normalizeDecodedActionResult = (
         fieldErrors: decoded.fieldErrors as FormFieldErrors<Record<string, unknown>, unknown>,
         formErrors: decoded.formErrors,
         ...(decoded.cause === undefined ? {} : { cause: decoded.cause }),
-        ...meta
+        ...meta,
       };
     case "Redirect":
       return {
@@ -708,21 +709,24 @@ const normalizeDecodedActionResult = (
         status: decoded.status,
         ...(decoded.headers === undefined ? {} : { headers: decoded.headers }),
         ...(decoded.replace === undefined ? {} : { replace: decoded.replace }),
-        ...meta
+        ...meta,
       };
     case "Failure":
       return {
         _tag: "Failure",
         error: decoded.error,
-        ...meta
+        ...meta,
       };
   }
 };
 
 const decodeActionOutputResultEffect = (
   definition: StartActionDefinition,
-  body: Extract<StartActionResponseBody, { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }>,
-  meta: StartActionResponseMeta
+  body: Extract<
+    StartActionResponseBody,
+    { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }
+  >,
+  meta: StartActionResponseMeta,
 ): Effect.Effect<
   StartActionResult<unknown, Record<string, unknown>, unknown, unknown>,
   Schema.SchemaError
@@ -738,13 +742,13 @@ const decodeActionOutputResultEffect = (
         return {
           _tag: "Success",
           value: yield* decodeWithSchema(definition.output, body.value),
-          ...meta
+          ...meta,
         };
       case "Failure":
         return {
           _tag: "Failure",
           error: yield* decodeWithSchema(definition.error, body.error),
-          ...meta
+          ...meta,
         };
       case "ValidationFailure":
         return normalizeDecodedActionResult(body, meta);
@@ -755,15 +759,19 @@ const decodeActionOutputResultEffect = (
 
 export const decodeStartActionResponseEffect = <D extends StartActionDefinition>(
   definition: D,
-  body: Extract<StartActionResponseBody, { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }>
+  body: Extract<
+    StartActionResponseBody,
+    { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }
+  >,
 ): Effect.Effect<
   StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>,
   Schema.SchemaError
 > =>
   Effect.map(
     decodeActionOutputResultEffect(definition, body, startActionResponseMeta(body)),
-    (decoded) => decoded as StartActionResultFor<
-      ActionDefinitionOutputValue<D>,
-      ActionDefinitionErrorValue<D>
-    >
+    (decoded) =>
+      decoded as StartActionResultFor<
+        ActionDefinitionOutputValue<D>,
+        ActionDefinitionErrorValue<D>
+      >,
   );

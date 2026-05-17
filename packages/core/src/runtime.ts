@@ -1,4 +1,14 @@
-import { Cause, Context, Data, Effect, Exit, Fiber, Layer, ManagedRuntime, Redactable } from "effect";
+import {
+  Cause,
+  Context,
+  Data,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  ManagedRuntime,
+  Redactable,
+} from "effect";
 import {
   disposeResourceStoreEffect,
   makeMutableResourceStore,
@@ -6,20 +16,26 @@ import {
   ResourceStore,
   unsafeMutableResourceStore,
   type MutableResourceStore,
-  type ResourceStore as ResourceStoreState
+  type ResourceStore as ResourceStoreState,
 } from "./resource-store.js";
 
 /** Runtime Spine brand used to distinguish Effect UI runtimes at host seams. */
-export const RuntimeTypeId: unique symbol = Symbol.for("@effect-ui/core/Runtime") as typeof RuntimeTypeId;
+export const RuntimeTypeId: unique symbol = Symbol.for(
+  "@effect-ui/core/Runtime",
+) as typeof RuntimeTypeId;
 
 type RuntimeManagedBoundary<ER> = ManagedRuntime.ManagedRuntime<any, ER>;
 type CurrentRuntimeBoundary = AnyEffectUiRuntime<any>;
 type RuntimeProvidedRequirements<R> = R | ResourceStoreState;
-type RuntimeRemainingRequirements<RIn, RProvided> = Exclude<RIn, RuntimeProvidedRequirements<RProvided>>;
-type RuntimeReadyEffect<A, E, RIn, RProvided> =
-  [RuntimeRemainingRequirements<RIn, RProvided>] extends [never]
-    ? Effect.Effect<A, E, RIn>
-    : never;
+type RuntimeRemainingRequirements<RIn, RProvided> = Exclude<
+  RIn,
+  RuntimeProvidedRequirements<RProvided>
+>;
+type RuntimeReadyEffect<A, E, RIn, RProvided> = [
+  RuntimeRemainingRequirements<RIn, RProvided>,
+] extends [never]
+  ? Effect.Effect<A, E, RIn>
+  : never;
 
 /** Error raised when runtime disposal fails while closing owned runtime state. */
 export class RuntimeDisposeError extends Data.TaggedError("RuntimeDisposeError")<{
@@ -45,12 +61,12 @@ export interface AnyEffectUiRuntime<ER = unknown> {
   /** Provides the runtime's erased service set at a host or ambient seam. */
   provide<A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>,
-    options?: RuntimeProvideOptions
+    options?: RuntimeProvideOptions,
   ): Effect.Effect<A, E | ER>;
   /** Forks an Effect at a host or ambient seam where service typing is erased. */
   runFork<A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>,
-    options?: Effect.RunOptions
+    options?: Effect.RunOptions,
   ): Fiber.Fiber<A, E | ER>;
   /** Runs a synchronous Effect at a host or ambient seam where service typing is erased. */
   runSync<A, E, RIn>(effect: Effect.Effect<A, E, RIn>): A;
@@ -77,12 +93,12 @@ export interface EffectUiRuntime<R = never, ER = never> {
    */
   provide<A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>,
-    options?: RuntimeProvideOptions
+    options?: RuntimeProvideOptions,
   ): Effect.Effect<A, E | ER, RuntimeRemainingRequirements<RIn, R>>;
   /** Forks an Effect whose service requirements are satisfied by this runtime. */
   runFork<A, E, RIn>(
     effect: RuntimeReadyEffect<A, E, RIn, R>,
-    options?: Effect.RunOptions
+    options?: Effect.RunOptions,
   ): Fiber.Fiber<A, E | ER>;
   /** Runs a synchronous Effect whose service requirements are satisfied by this runtime. */
   runSync<A, E, RIn>(effect: RuntimeReadyEffect<A, E, RIn, R>): A;
@@ -114,48 +130,52 @@ export const isEffectUiRuntime = (value: unknown): value is AnyEffectUiRuntime<n
   value !== null &&
   (value as { [RuntimeTypeId]?: unknown })[RuntimeTypeId] === RuntimeTypeId;
 
-const AmbientRuntime = Context.Reference<CurrentRuntimeBoundary | undefined>("@effect-ui/core/AmbientRuntime", {
-  defaultValue: () => undefined
-});
+const AmbientRuntime = Context.Reference<CurrentRuntimeBoundary | undefined>(
+  "@effect-ui/core/AmbientRuntime",
+  {
+    defaultValue: () => undefined,
+  },
+);
 
 const currentFiberContextProbe: Redactable.Redactable = {
-  [Redactable.symbolRedactable]: (context) => context
+  [Redactable.symbolRedactable]: (context) => context,
 };
 
 const currentFiberRuntime = (): CurrentRuntimeBoundary | undefined =>
   Context.getReferenceUnsafe(
     Redactable.getRedacted(currentFiberContextProbe) as Context.Context<never>,
-    AmbientRuntime
+    AmbientRuntime,
   );
 
 const runtimeDisposeError = (
   phase: RuntimeDisposeError["phase"],
-  cause: Cause.Cause<unknown>
+  cause: Cause.Cause<unknown>,
 ): RuntimeDisposeError =>
   new RuntimeDisposeError({
     phase,
     cause,
-    guidance: phase === "resource-store"
-      ? "Runtime Resource Store disposal failed. Inspect `cause` for the ResourceStoreDisposeError and the failing module finalizer."
-      : "Managed runtime disposal failed. Inspect `cause` for the underlying finalizer defect."
+    guidance:
+      phase === "resource-store"
+        ? "Runtime Resource Store disposal failed. Inspect `cause` for the ResourceStoreDisposeError and the failing module finalizer."
+        : "Managed runtime disposal failed. Inspect `cause` for the underlying finalizer defect.",
   });
 
-const mapRuntimeDisposeCause = (
-  phase: RuntimeDisposeError["phase"]
-) => (cause: Cause.Cause<unknown>): Effect.Effect<never, RuntimeDisposeError> =>
-  Effect.fail(runtimeDisposeError(phase, cause));
+const mapRuntimeDisposeCause =
+  (phase: RuntimeDisposeError["phase"]) =>
+  (cause: Cause.Cause<unknown>): Effect.Effect<never, RuntimeDisposeError> =>
+    Effect.fail(runtimeDisposeError(phase, cause));
 
 const fromManagedRuntime = <R, ER>(
   managed: ManagedRuntime.ManagedRuntime<R, ER>,
   resourceStore: MutableResourceStore = makeMutableResourceStore(),
-  options: { readonly disposeManaged: boolean } = { disposeManaged: true }
+  options: { readonly disposeManaged: boolean } = { disposeManaged: true },
 ): EffectUiRuntime<R, ER> => {
   const managedRuntime: RuntimeManagedBoundary<ER> = managed;
   let runtime: EffectUiRuntime<R, ER>;
 
   const provideStore = <A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>,
-    store: ResourceStoreState = resourceStore
+    store: ResourceStoreState = resourceStore,
   ): Effect.Effect<A, E, Exclude<RIn, ResourceStoreState>> =>
     Effect.provideService(effect, ResourceStore, store);
 
@@ -172,45 +192,41 @@ const fromManagedRuntime = <R, ER>(
       provide: (effect, options) =>
         provideRuntimeServices(effect, {
           ...options,
-          resourceStore: options?.resourceStore ?? store
+          resourceStore: options?.resourceStore ?? store,
         }) as Effect.Effect<any, any>,
       runFork: (effect, options) =>
         managedRuntime.runFork(
           provideRuntimeServices(effect, { resourceStore: store }) as Effect.Effect<any, any>,
-          options
+          options,
         ),
       runSync: (effect) =>
         runWithRuntime(scopedRuntime, () =>
           managedRuntime.runSync(
-            provideRuntimeServices(effect, { resourceStore: store }) as Effect.Effect<any, any>
-          )
+            provideRuntimeServices(effect, { resourceStore: store }) as Effect.Effect<any, any>,
+          ),
         ),
-      disposeEffect
+      disposeEffect,
     };
     return scopedRuntime;
   };
 
-  const provideManagedServices = <A, E, RIn>(
-    effect: Effect.Effect<A, E, RIn>
-  ): Effect.Effect<A, E, unknown> =>
-    provideStore(effect);
-
   const provideRuntimeServices = <A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>,
-    provideOptions?: RuntimeProvideOptions
+    provideOptions?: RuntimeProvideOptions,
   ): Effect.Effect<A, E | ER, RuntimeRemainingRequirements<RIn, R>> =>
     Effect.suspend(() => {
-      const store = provideOptions?.resourceStore === undefined
-        ? resourceStore
-        : unsafeMutableResourceStore(provideOptions.resourceStore);
+      const store =
+        provideOptions?.resourceStore === undefined
+          ? resourceStore
+          : unsafeMutableResourceStore(provideOptions.resourceStore);
       const ambientRuntime = runtimeForResourceStore(store);
       return Effect.flatMap(managedRuntime.contextEffect, (context) =>
         Effect.provideService(
           provideStore(Effect.provideContext(effect, context), store),
           AmbientRuntime,
-          ambientRuntime
-        )
-      )
+          ambientRuntime,
+        ),
+      );
     }) as Effect.Effect<A, E | ER, RuntimeRemainingRequirements<RIn, R>>;
 
   const disposeStore = disposeResourceStoreEffect(resourceStore);
@@ -232,17 +248,12 @@ const fromManagedRuntime = <R, ER>(
     resourceStore,
     provide: provideRuntimeServices,
     runFork: (effect, options) =>
-      managedRuntime.runFork(
-        provideRuntimeServices(effect) as Effect.Effect<any, any>,
-        options
-      ),
+      managedRuntime.runFork(provideRuntimeServices(effect) as Effect.Effect<any, any>, options),
     runSync: (effect) =>
       runWithRuntime(runtime, () =>
-        managedRuntime.runSync(
-          provideRuntimeServices(effect) as Effect.Effect<any, any>
-        )
+        managedRuntime.runSync(provideRuntimeServices(effect) as Effect.Effect<any, any>),
       ),
-    disposeEffect
+    disposeEffect,
   };
 
   return runtime;
@@ -261,7 +272,7 @@ const fromManagedRuntime = <R, ER>(
  * ```
  */
 export const makeRuntime = <R = never, ER = never>(
-  source?: RuntimeSource<R, ER>
+  source?: RuntimeSource<R, ER>,
 ): EffectUiRuntime<R, ER> => {
   if (isEffectUiRuntime(source)) {
     return source as EffectUiRuntime<R, ER>;
@@ -272,7 +283,7 @@ export const makeRuntime = <R = never, ER = never>(
   }
 
   return fromManagedRuntime(
-    ManagedRuntime.make((source ?? Layer.empty) as Layer.Layer<R, ER, never>)
+    ManagedRuntime.make((source ?? Layer.empty) as Layer.Layer<R, ER, never>),
   );
 };
 
@@ -286,11 +297,15 @@ export const makeRuntime = <R = never, ER = never>(
  */
 export const withResourceStore = <R, ER>(
   runtime: EffectUiRuntime<R, ER>,
-  resourceStore: ResourceStoreState = makeResourceStore()
+  resourceStore: ResourceStoreState = makeResourceStore(),
 ): EffectUiRuntime<R, ER> =>
-  fromManagedRuntime(runtime.managed as ManagedRuntime.ManagedRuntime<R, ER>, unsafeMutableResourceStore(resourceStore), {
-    disposeManaged: false
-  });
+  fromManagedRuntime(
+    runtime.managed as ManagedRuntime.ManagedRuntime<R, ER>,
+    unsafeMutableResourceStore(resourceStore),
+    {
+      disposeManaged: false,
+    },
+  );
 
 /** Default runtime used by ambient helpers when an app has not supplied one. */
 export const defaultRuntime: EffectUiRuntime<never, never> = makeRuntime(Layer.empty);
@@ -317,7 +332,7 @@ export const currentOrDefaultRuntime = (): CurrentRuntimeBoundary =>
  */
 export const runWithRuntime = <A, R, ER>(
   runtime: EffectUiRuntime<R, ER> | AnyEffectUiRuntime<ER>,
-  f: () => A
+  f: () => A,
 ): A => {
   const previous = currentRuntime;
   currentRuntime = runtime as AnyEffectUiRuntime<any>;
@@ -336,6 +351,5 @@ export const runWithRuntime = <A, R, ER>(
  */
 export const runFork = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
-  options?: Effect.RunOptions
-): Fiber.Fiber<A, E> =>
-  currentOrDefaultRuntime().runFork(effect, options) as Fiber.Fiber<A, E>;
+  options?: Effect.RunOptions,
+): Fiber.Fiber<A, E> => currentOrDefaultRuntime().runFork(effect, options) as Fiber.Fiber<A, E>;

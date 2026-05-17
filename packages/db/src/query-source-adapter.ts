@@ -1,14 +1,11 @@
 import type { ReadableSignal } from "@effect-ui/core";
 import type { Effect } from "effect";
-import {
-  collectionIndexJoinKeys,
-  collectionIndexes
-} from "./collection-index-materialization.js";
+import { collectionIndexJoinKeys, collectionIndexes } from "./collection-index-materialization.js";
 import type {
   AnyCollection,
   CollectionIndexValue,
   CollectionLoadState,
-  CollectionRow
+  CollectionRow,
 } from "./collection-contract.js";
 
 export type QuerySourceRow = CollectionRow<any, any>;
@@ -34,7 +31,7 @@ export interface QueryCollectionSourceAdapter {
 }
 
 export const makeQuerySourceAdapter = (
-  collection: AnyCollection
+  collection: AnyCollection,
 ): QueryCollectionSourceAdapter => ({
   collection,
   name: collection.name,
@@ -42,10 +39,8 @@ export const makeQuerySourceAdapter = (
   rowCount: () => collection.rows().length,
   hasIndex: (index) => collectionIndexes(collection.options).has(index),
   indexRows: (index, value) => collection.index(index, value),
-  indexJoinKeys: (index, row) =>
-    collectionIndexJoinKeys(collection, index, row),
+  indexJoinKeys: (index, row) => collectionIndexJoinKeys(collection, index, row),
   version: () => collection.version(),
   state: () => collection.state(),
-  preloadEffect: (force) =>
-    force ? collection.refetchEffect() : collection.preloadEffect()
+  preloadEffect: (force) => (force ? collection.refetchEffect() : collection.preloadEffect()),
 });

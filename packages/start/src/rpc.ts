@@ -91,8 +91,7 @@ const mediaTypeMatches = (accepted: string, offered: string): boolean => {
   const [acceptedType, acceptedSubtype] = accepted.split("/");
   const [offeredType, offeredSubtype] = offered.split("/");
   return (
-    acceptedType === offeredType &&
-    (acceptedSubtype === "*" || acceptedSubtype === offeredSubtype)
+    acceptedType === offeredType && (acceptedSubtype === "*" || acceptedSubtype === offeredSubtype)
   );
 };
 
@@ -113,22 +112,18 @@ const acceptedMediaRanges = (accept: string): readonly AcceptedMediaRange[] =>
       return {
         media: media.toLowerCase(),
         q: q ? Number(q.slice(2)) : 1,
-        order
+        order,
       };
     })
     .filter(({ media, q }) => media.includes("/") && Number.isFinite(q) && q > 0);
 
 const mediaTypeSpecificity = (accepted: string): number =>
-  accepted === "*/*"
-    ? 0
-    : accepted.endsWith("/*")
-      ? 1
-      : 2;
+  accepted === "*/*" ? 0 : accepted.endsWith("/*") ? 1 : 2;
 
 /** Negotiates the best offered media type from Accept quality, specificity, and header order. */
 export const negotiateAcceptedMediaType = (
   headers: Headers,
-  mediaTypes: readonly string[]
+  mediaTypes: readonly string[],
 ): string | undefined => {
   const accept = nonEmptySafeHeaderValue(headers.get("accept"));
   if (!accept) {
@@ -136,13 +131,15 @@ export const negotiateAcceptedMediaType = (
   }
 
   const accepted = acceptedMediaRanges(accept);
-  let best: {
-    readonly mediaType: string;
-    readonly q: number;
-    readonly specificity: number;
-    readonly order: number;
-    readonly offeredIndex: number;
-  } | undefined;
+  let best:
+    | {
+        readonly mediaType: string;
+        readonly q: number;
+        readonly specificity: number;
+        readonly order: number;
+        readonly offeredIndex: number;
+      }
+    | undefined;
 
   mediaTypes.forEach((mediaType, offeredIndex) => {
     for (const candidate of accepted) {
@@ -155,19 +152,19 @@ export const negotiateAcceptedMediaType = (
         q: candidate.q,
         specificity: mediaTypeSpecificity(candidate.media),
         order: candidate.order,
-        offeredIndex
+        offeredIndex,
       };
       if (
         best === undefined ||
         match.q > best.q ||
         (match.q === best.q && match.specificity > best.specificity) ||
-        (match.q === best.q && match.specificity === best.specificity && match.order < best.order) ||
-        (
-          match.q === best.q &&
+        (match.q === best.q &&
+          match.specificity === best.specificity &&
+          match.order < best.order) ||
+        (match.q === best.q &&
           match.specificity === best.specificity &&
           match.order === best.order &&
-          match.offeredIndex < best.offeredIndex
-        )
+          match.offeredIndex < best.offeredIndex)
       ) {
         best = match;
       }
@@ -178,19 +175,13 @@ export const negotiateAcceptedMediaType = (
 };
 
 /** Checks whether request Accept headers allow at least one offered media type. */
-export const acceptsMediaType = (
-  headers: Headers,
-  mediaTypes: readonly string[]
-): boolean => {
+export const acceptsMediaType = (headers: Headers, mediaTypes: readonly string[]): boolean => {
   const accept = nonEmptySafeHeaderValue(headers.get("accept"));
   return !accept || negotiateAcceptedMediaType(headers, mediaTypes) !== undefined;
 };
 
 /** Checks whether request Content-Type exactly matches one supported media type. */
-export const hasContentType = (
-  headers: Headers,
-  mediaTypes: readonly string[]
-): boolean => {
+export const hasContentType = (headers: Headers, mediaTypes: readonly string[]): boolean => {
   const contentType = mediaTypeOf(headers.get("content-type"));
   return contentType !== undefined && mediaTypes.includes(contentType);
 };
@@ -206,14 +197,13 @@ export const makeStartRequestId = (): string =>
   `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 
 /** Effect wrapper around `makeStartRequestId`. */
-export const makeStartRequestIdEffect: Effect.Effect<string> =
-  Effect.sync(makeStartRequestId);
+export const makeStartRequestIdEffect: Effect.Effect<string> = Effect.sync(makeStartRequestId);
 
 /** Captures sanitized request diagnostics and request id propagation data. */
 export const startTransportDiagnosticsEffect = (
   kind: StartTransportKind,
   request: Request,
-  options: StartTransportDiagnosticsOptions = {}
+  options: StartTransportDiagnosticsOptions = {},
 ): Effect.Effect<StartTransportDiagnostics> =>
   Effect.gen(function* () {
     const url = new URL(request.url);
@@ -234,7 +224,7 @@ export const startTransportDiagnosticsEffect = (
       ...(baggage === undefined ? {} : { baggage }),
       ...(accept === undefined ? {} : { accept }),
       ...(contentType === undefined ? {} : { contentType }),
-      protocolVersion: startTransportProtocolVersion
+      protocolVersion: startTransportProtocolVersion,
     };
   });
 
@@ -242,17 +232,17 @@ export const startTransportDiagnosticsEffect = (
 export const startTransportEndpointEnvelopeEffect = (
   kind: StartTransportKind,
   request: Request,
-  options: StartTransportDiagnosticsOptions = {}
+  options: StartTransportDiagnosticsOptions = {},
 ): Effect.Effect<StartTransportEndpointEnvelope> =>
   Effect.map(startTransportDiagnosticsEffect(kind, request, options), (diagnostics) => ({
     kind,
     requestId: diagnostics.requestId,
-    diagnostics
+    diagnostics,
   }));
 
 /** Builds request headers with optional request id and trace propagation values. */
 export const startTransportRequestHeaders = (
-  options: StartTransportRequestHeadersOptions = {}
+  options: StartTransportRequestHeadersOptions = {},
 ): Headers => {
   const headers = new Headers(options.headers);
   const requestId = nonEmptySafeHeaderValue(options.requestId);
@@ -275,7 +265,7 @@ export const startTransportRequestHeaders = (
 /** Builds response headers carrying Start transport diagnostics. */
 export const startTransportResponseHeaders = (
   diagnostics: StartTransportDiagnostics,
-  headers: HeadersInit = {}
+  headers: HeadersInit = {},
 ): Headers => {
   const next = new Headers(headers);
   next.set(startRequestIdHeader, diagnostics.requestId);
@@ -295,19 +285,19 @@ export const startTransportResponseHeaders = (
 /** Clones a response while applying Start transport diagnostics headers. */
 export const withStartTransportDiagnostics = (
   response: Response,
-  diagnostics: StartTransportDiagnostics
+  diagnostics: StartTransportDiagnostics,
 ): Response =>
   new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
-    headers: startTransportResponseHeaders(diagnostics, response.headers)
+    headers: startTransportResponseHeaders(diagnostics, response.headers),
   });
 
 /** Validates Accept headers and returns a typed 406 transport request error on mismatch. */
 export const validateStartTransportAcceptEffect = (
   kind: StartTransportKind,
   request: Request,
-  mediaTypes: readonly string[]
+  mediaTypes: readonly string[],
 ): Effect.Effect<void, StartTransportRequestError> =>
   acceptsMediaType(request.headers, mediaTypes)
     ? Effect.void
@@ -319,17 +309,17 @@ export const validateStartTransportAcceptEffect = (
           error: new ServerRpcProtocolError({
             message: `Expected accept header to allow ${expectedMediaTypes(mediaTypes)}.`,
             payload: {
-              accept: request.headers.get("accept")
-            }
-          })
-        })
+              accept: request.headers.get("accept"),
+            },
+          }),
+        }),
       );
 
 /** Validates Content-Type headers and returns a typed 415 transport request error on mismatch. */
 export const validateStartTransportContentTypeEffect = (
   kind: StartTransportKind,
   request: Request,
-  mediaTypes: readonly string[]
+  mediaTypes: readonly string[],
 ): Effect.Effect<void, StartTransportRequestError> =>
   hasContentType(request.headers, mediaTypes)
     ? Effect.void
@@ -341,17 +331,17 @@ export const validateStartTransportContentTypeEffect = (
           error: new ServerRpcProtocolError({
             message: `Expected content-type ${expectedMediaTypes(mediaTypes)}.`,
             payload: {
-              contentType: request.headers.get("content-type")
-            }
-          })
-        })
+              contentType: request.headers.get("content-type"),
+            },
+          }),
+        }),
       );
 
 /** Validates HTTP method and returns a typed 405 transport request error on mismatch. */
 export const validateStartTransportMethodEffect = (
   kind: StartTransportKind,
   request: Request,
-  method: string
+  method: string,
 ): Effect.Effect<void, StartTransportRequestError> =>
   request.method === method
     ? Effect.void
@@ -361,14 +351,14 @@ export const validateStartTransportMethodEffect = (
           status: 405,
           allow: method,
           error: new ServerRpcProtocolError({
-            message: `${kind === "rpc" ? "Server functions" : "Actions"} require ${method} requests, received ${request.method}.`
-          })
-        })
+            message: `${kind === "rpc" ? "Server functions" : "Actions"} require ${method} requests, received ${request.method}.`,
+          }),
+        }),
       );
 
 /** Validates a server-function RPC request. */
 export const validateStartRpcRequestEffect = (
-  request: Request
+  request: Request,
 ): Effect.Effect<void, StartTransportRequestError> =>
   Effect.gen(function* () {
     yield* validateStartTransportMethodEffect("rpc", request, "POST");
@@ -378,21 +368,24 @@ export const validateStartRpcRequestEffect = (
 
 /** Validates an action transport request, including progressive form media types. */
 export const validateStartActionRequestEffect = (
-  request: Request
+  request: Request,
 ): Effect.Effect<void, StartTransportRequestError> =>
   Effect.gen(function* () {
     yield* validateStartTransportMethodEffect("action", request, "POST");
-    yield* validateStartTransportAcceptEffect("action", request, [startJsonMediaType, startHtmlMediaType]);
+    yield* validateStartTransportAcceptEffect("action", request, [
+      startJsonMediaType,
+      startHtmlMediaType,
+    ]);
     yield* validateStartTransportContentTypeEffect("action", request, [
       startJsonMediaType,
       startFormUrlEncodedMediaType,
-      startMultipartFormDataMediaType
+      startMultipartFormDataMediaType,
     ]);
   });
 
 const validateStartJsonResponseEffect = (
   response: Response,
-  message: string
+  message: string,
 ): Effect.Effect<void, ServerTransportError> =>
   hasContentType(response.headers, [startJsonMediaType])
     ? Effect.void
@@ -402,25 +395,25 @@ const validateStartJsonResponseEffect = (
           status: response.status,
           message,
           payload: {
-            contentType: response.headers.get("content-type")
-          }
-        })
+            contentType: response.headers.get("content-type"),
+          },
+        }),
       );
 
 /** Validates that an RPC response uses the JSON transport media type. */
 export const validateStartRpcResponseEffect = (
-  response: Response
+  response: Response,
 ): Effect.Effect<void, ServerTransportError> =>
   validateStartJsonResponseEffect(
     response,
-    "Server function response content-type was not application/json."
+    "Server function response content-type was not application/json.",
   );
 
 /** Validates that a Start action response uses the JSON transport media type. */
 export const validateStartActionResponseEffect = (
-  response: Response
+  response: Response,
 ): Effect.Effect<void, ServerTransportError> =>
   validateStartJsonResponseEffect(
     response,
-    "Start action response content-type was not application/json."
+    "Start action response content-type was not application/json.",
   );

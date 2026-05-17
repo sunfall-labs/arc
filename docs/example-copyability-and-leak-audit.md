@@ -102,7 +102,7 @@ copied as starters and whether browser/server boundaries remain explicit.
   16 package targets: 11 framework packages with dist-only payloads plus the
   five source-only packages.
 - `find .test-dist/starters -maxdepth 2 \( -name node_modules -o -name dist
-  -o -name pnpm-lock.yaml -o -name .test-dist \) -print` returned no output,
+-o -name pnpm-lock.yaml -o -name .test-dist \) -print` returned no output,
   and `find .test-dist/starters -maxdepth 2 -name .gitignore -print` listed all
   three generated starters.
 

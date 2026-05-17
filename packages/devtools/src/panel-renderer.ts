@@ -8,7 +8,7 @@ import type {
   DevtoolsPanelMountOptions,
   DevtoolsPanelUiInput,
   DevtoolsPanels,
-  DevtoolsSerializableValue
+  DevtoolsSerializableValue,
 } from "./devtools-contract.js";
 import { isDevtoolsPanelId, isDevtoolsPanelOverflowItem } from "./panel-contract.js";
 
@@ -178,7 +178,7 @@ const escapeHtml = (value: string): string =>
         return "&lt;";
       case ">":
         return "&gt;";
-      case "\"":
+      case '"':
         return "&quot;";
       default:
         return "&#39;";
@@ -220,7 +220,7 @@ const itemHtml = (item: DevtoolsPanelItem): string => `
 const limitPanelItems = (
   panelId: DevtoolsPanelId,
   items: ReadonlyArray<DevtoolsPanelItem>,
-  maxItems: number
+  maxItems: number,
 ): ReadonlyArray<DevtoolsPanelItem> => {
   if (maxItems < 0 || items.length <= maxItems) {
     return items;
@@ -250,7 +250,7 @@ const limitPanelItems = (
 const panelHtml = (
   panel: DevtoolsPanel,
   selectedPanelId: DevtoolsPanelId | undefined,
-  maxItems: number
+  maxItems: number,
 ): string => {
   const visible = panel.id === selectedPanelId;
   const items = limitPanelItems(panel.id, panel.items, maxItems);
@@ -279,7 +279,7 @@ const resolveMaxPanelItems = (value: number | undefined): number => {
 
 const resolveSelectedPanelId = (
   panels: DevtoolsPanels,
-  requested: DevtoolsPanelId | undefined
+  requested: DevtoolsPanelId | undefined,
 ): DevtoolsPanelId | undefined => {
   if (requested !== undefined && panels.panels.some((panel) => panel.id === requested)) {
     return requested;
@@ -289,7 +289,7 @@ const resolveSelectedPanelId = (
 
 export const renderDevtoolsPanelsHtmlWithResolver = (
   input: DevtoolsPanelUiInput,
-  resolvePanels: DevtoolsPanelsResolver
+  resolvePanels: DevtoolsPanelsResolver,
 ): string => {
   const panels = resolvePanels(input);
   const selectedPanelId = resolveSelectedPanelId(panels, input.selectedPanelId);
@@ -304,7 +304,9 @@ export const renderDevtoolsPanelsHtmlWithResolver = (
     <span class="effect-ui-devtools__version">panel contract v${panels.version}</span>
   </header>
   <nav class="effect-ui-devtools__tabs" aria-label="Effect UI devtools panels">
-    ${panels.panels.map((panel) => `
+    ${panels.panels
+      .map(
+        (panel) => `
       <button
         type="button"
         class="effect-ui-devtools__tab"
@@ -314,7 +316,9 @@ export const renderDevtoolsPanelsHtmlWithResolver = (
         <span>${escapeHtml(panel.title)}</span>
         <span class="effect-ui-devtools__severity">${escapeHtml(panel.severity)}</span>
       </button>
-    `).join("")}
+    `,
+      )
+      .join("")}
   </nav>
   <div class="effect-ui-devtools__body">
     ${panels.panels.map((panel) => panelHtml(panel, selectedPanelId, maxItems)).join("")}
@@ -324,7 +328,7 @@ export const renderDevtoolsPanelsHtmlWithResolver = (
 
 export const mountDevtoolsPanelsWithResolver = (
   options: DevtoolsPanelMountOptions,
-  resolvePanels: DevtoolsPanelsResolver
+  resolvePanels: DevtoolsPanelsResolver,
 ): DevtoolsPanelMount => {
   const { root, ...initialInput } = options;
   let input: DevtoolsPanelUiInput = initialInput;
@@ -337,7 +341,7 @@ export const mountDevtoolsPanelsWithResolver = (
   const selectPanel = (panelId: DevtoolsPanelId): void => {
     input = {
       ...input,
-      selectedPanelId: panelId
+      selectedPanelId: panelId,
     };
     render();
   };
@@ -370,7 +374,7 @@ export const mountDevtoolsPanelsWithResolver = (
       }
       input = {
         ...input,
-        ...nextInput
+        ...nextInput,
       };
       render();
     },
@@ -381,17 +385,18 @@ export const mountDevtoolsPanelsWithResolver = (
       mounted = false;
       root.removeEventListener("click", onClick);
       root.innerHTML = "";
-    }
+    },
   };
 };
 
 export const mountDevtoolsPanelsEffectWithResolver = (
   options: DevtoolsPanelMountOptions,
-  resolvePanels: DevtoolsPanelsResolver
+  resolvePanels: DevtoolsPanelsResolver,
 ): Effect.Effect<DevtoolsPanelMount, never, Scope.Scope> =>
   Effect.acquireRelease(
     Effect.sync(() => mountDevtoolsPanelsWithResolver(options, resolvePanels)),
-    (mount) => Effect.sync(() => {
-      mount.unmount();
-    })
+    (mount) =>
+      Effect.sync(() => {
+        mount.unmount();
+      }),
   );

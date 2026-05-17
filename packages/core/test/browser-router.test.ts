@@ -19,11 +19,12 @@ import {
   makeWindowBrowserHistoryAdapter,
   opensOutsideRouter,
   route,
+  Route,
   type BrowserHistoryWindow,
   type BrowserHistoryAdapter,
   RouteNavigationError,
   RouterRouteNotRegistered,
-  RoutePreloadError
+  RoutePreloadError,
 } from "../src/index.js";
 
 describe("browser router kernel", () => {
@@ -39,125 +40,161 @@ describe("browser router kernel", () => {
       metaKey: false,
       altKey: false,
       ctrlKey: false,
-      shiftKey: false
+      shiftKey: false,
     } as const;
 
     expect(isPlainLeftClick(plainClick)).toBe(true);
-    expect(isPlainLeftClick({
-      button: 0,
-      metaKey: true,
-      altKey: false,
-      ctrlKey: false,
-      shiftKey: false
-    })).toBe(false);
+    expect(
+      isPlainLeftClick({
+        button: 0,
+        metaKey: true,
+        altKey: false,
+        ctrlKey: false,
+        shiftKey: false,
+      }),
+    ).toBe(false);
     expect(opensOutsideRouter("_blank", undefined)).toBe(true);
     expect(opensOutsideRouter("_self", undefined)).toBe(false);
     expect(opensOutsideRouter(undefined, false)).toBe(false);
     expect(opensOutsideRouter(undefined, null)).toBe(false);
     expect(opensOutsideRouter(undefined, "")).toBe(true);
     expect(opensOutsideRouter(undefined, true)).toBe(true);
-    expect(browserRouterLinkPreloadDecision({
-      defaultPrevented: false,
-      preload: true,
-      canHandleRoute: true
-    })).toEqual({ _tag: "Preload" });
-    expect(browserRouterLinkPreloadDecision({
-      defaultPrevented: false,
-      preload: false,
-      canHandleRoute: true
-    })).toEqual({ _tag: "Ignore", reason: "preload-disabled" });
-    expect(browserRouterLinkPreloadDecision({
-      defaultPrevented: true,
-      preload: true,
-      canHandleRoute: true
-    })).toEqual({ _tag: "Ignore", reason: "default-prevented" });
-    expect(browserRouterLinkPreloadDecision({
-      defaultPrevented: false,
-      preload: true,
-      canHandleRoute: true,
-      target: "_blank"
-    })).toEqual({ _tag: "Ignore", reason: "browser-handled" });
-    expect(browserRouterLinkPreloadDecision({
-      defaultPrevented: false,
-      preload: true,
-      canHandleRoute: false
-    })).toEqual({ _tag: "Ignore", reason: "outside-router" });
-    expect(browserRouterLinkPreloadIdentity({
-      href: "/projects/atlas",
-      preload: true,
-      canHandleRoute: true
-    })).toEqual({
+    expect(
+      browserRouterLinkPreloadDecision({
+        defaultPrevented: false,
+        preload: true,
+        canHandleRoute: true,
+      }),
+    ).toEqual({ _tag: "Preload" });
+    expect(
+      browserRouterLinkPreloadDecision({
+        defaultPrevented: false,
+        preload: false,
+        canHandleRoute: true,
+      }),
+    ).toEqual({ _tag: "Ignore", reason: "preload-disabled" });
+    expect(
+      browserRouterLinkPreloadDecision({
+        defaultPrevented: true,
+        preload: true,
+        canHandleRoute: true,
+      }),
+    ).toEqual({ _tag: "Ignore", reason: "default-prevented" });
+    expect(
+      browserRouterLinkPreloadDecision({
+        defaultPrevented: false,
+        preload: true,
+        canHandleRoute: true,
+        target: "_blank",
+      }),
+    ).toEqual({ _tag: "Ignore", reason: "browser-handled" });
+    expect(
+      browserRouterLinkPreloadDecision({
+        defaultPrevented: false,
+        preload: true,
+        canHandleRoute: false,
+      }),
+    ).toEqual({ _tag: "Ignore", reason: "outside-router" });
+    expect(
+      browserRouterLinkPreloadIdentity({
+        href: "/projects/atlas",
+        preload: true,
+        canHandleRoute: true,
+      }),
+    ).toEqual({
       key: "/projects/atlas\u0000true\u0000true\u0000\u0000",
-      enabled: true
+      enabled: true,
     });
-    expect(browserRouterLinkPreloadIdentity({
-      href: "/projects/atlas",
-      preload: true,
-      canHandleRoute: true,
-      download: false
-    })).toEqual({
+    expect(
+      browserRouterLinkPreloadIdentity({
+        href: "/projects/atlas",
+        preload: true,
+        canHandleRoute: true,
+        download: false,
+      }),
+    ).toEqual({
       key: "/projects/atlas\u0000true\u0000true\u0000\u0000",
-      enabled: true
+      enabled: true,
     });
-    expect(browserRouterLinkPreloadIdentity({
-      href: "/projects/atlas",
-      preload: true,
-      canHandleRoute: true,
-      target: "_blank"
-    })).toEqual({
+    expect(
+      browserRouterLinkPreloadIdentity({
+        href: "/projects/atlas",
+        preload: true,
+        canHandleRoute: true,
+        target: "_blank",
+      }),
+    ).toEqual({
       key: "/projects/atlas\u0000true\u0000true\u0000_blank\u0000",
-      enabled: false
+      enabled: false,
     });
-    expect(browserRouterLinkClickDecision({
-      event: plainClick,
-      href: "/projects/atlas",
-      canHandleRoute: true
-    })).toEqual({ _tag: "Navigate", href: "/projects/atlas" });
-    expect(browserRouterLinkClickDecision({
-      event: plainClick,
-      href: "/projects/atlas",
-      replace: true,
-      canHandleRoute: true
-    })).toEqual({ _tag: "Navigate", href: "/projects/atlas", options: { replace: true } });
-    expect(browserRouterLinkClickDecision({
-      event: { ...plainClick, defaultPrevented: true },
-      href: "/projects/atlas",
-      canHandleRoute: true
-    })).toEqual({ _tag: "Ignore", reason: "default-prevented" });
-    expect(browserRouterLinkClickDecision({
-      event: { ...plainClick, metaKey: true },
-      href: "/projects/atlas",
-      canHandleRoute: true
-    })).toEqual({ _tag: "Ignore", reason: "non-plain-click" });
-    expect(browserRouterLinkClickDecision({
-      event: plainClick,
-      href: "/projects/atlas",
-      canHandleRoute: true,
-      download: false
-    })).toEqual({ _tag: "Navigate", href: "/projects/atlas" });
-    expect(browserRouterLinkClickDecision({
-      event: plainClick,
-      href: "/projects/atlas",
-      canHandleRoute: true,
-      download: null
-    })).toEqual({ _tag: "Navigate", href: "/projects/atlas" });
-    expect(browserRouterLinkClickDecision({
-      event: plainClick,
-      href: "/projects/atlas",
-      canHandleRoute: true,
-      download: ""
-    })).toEqual({ _tag: "Ignore", reason: "browser-handled" });
-    expect(browserRouterLinkClickDecision({
-      event: plainClick,
-      href: "/projects/atlas",
-      canHandleRoute: true,
-      download: true
-    })).toEqual({ _tag: "Ignore", reason: "browser-handled" });
-    expect(browserRouterLinkClickDecision({
-      event: plainClick,
-      href: "/projects/atlas",
-      canHandleRoute: false
-    })).toEqual({ _tag: "Ignore", reason: "outside-router" });
+    expect(
+      browserRouterLinkClickDecision({
+        event: plainClick,
+        href: "/projects/atlas",
+        canHandleRoute: true,
+      }),
+    ).toEqual({ _tag: "Navigate", href: "/projects/atlas" });
+    expect(
+      browserRouterLinkClickDecision({
+        event: plainClick,
+        href: "/projects/atlas",
+        replace: true,
+        canHandleRoute: true,
+      }),
+    ).toEqual({ _tag: "Navigate", href: "/projects/atlas", options: { replace: true } });
+    expect(
+      browserRouterLinkClickDecision({
+        event: { ...plainClick, defaultPrevented: true },
+        href: "/projects/atlas",
+        canHandleRoute: true,
+      }),
+    ).toEqual({ _tag: "Ignore", reason: "default-prevented" });
+    expect(
+      browserRouterLinkClickDecision({
+        event: { ...plainClick, metaKey: true },
+        href: "/projects/atlas",
+        canHandleRoute: true,
+      }),
+    ).toEqual({ _tag: "Ignore", reason: "non-plain-click" });
+    expect(
+      browserRouterLinkClickDecision({
+        event: plainClick,
+        href: "/projects/atlas",
+        canHandleRoute: true,
+        download: false,
+      }),
+    ).toEqual({ _tag: "Navigate", href: "/projects/atlas" });
+    expect(
+      browserRouterLinkClickDecision({
+        event: plainClick,
+        href: "/projects/atlas",
+        canHandleRoute: true,
+        download: null,
+      }),
+    ).toEqual({ _tag: "Navigate", href: "/projects/atlas" });
+    expect(
+      browserRouterLinkClickDecision({
+        event: plainClick,
+        href: "/projects/atlas",
+        canHandleRoute: true,
+        download: "",
+      }),
+    ).toEqual({ _tag: "Ignore", reason: "browser-handled" });
+    expect(
+      browserRouterLinkClickDecision({
+        event: plainClick,
+        href: "/projects/atlas",
+        canHandleRoute: true,
+        download: true,
+      }),
+    ).toEqual({ _tag: "Ignore", reason: "browser-handled" });
+    expect(
+      browserRouterLinkClickDecision({
+        event: plainClick,
+        href: "/projects/atlas",
+        canHandleRoute: false,
+      }),
+    ).toEqual({ _tag: "Ignore", reason: "outside-router" });
   });
 
   it("shares route render decisions across framework adapters", () => {
@@ -174,69 +211,104 @@ describe("browser router kernel", () => {
     const ready = {
       _tag: "Ready",
       href: "/render-projects/atlas",
-      match: projectMatch
+      match: projectMatch,
     } as const;
     const readyDecision = browserRouteRenderDecision(ready);
 
     expect(browserRouteRenderKey(ready)).toBe("Ready:/render-projects/atlas:/render-projects/:id");
-    expect(browserRouteRenderIdentity({
-      state: ready,
-      renderers: {},
-      defaults: {
-        pending: () => undefined,
-        failure: () => undefined,
-        notFound: () => undefined
-      }
-    })).toBe(browserRouteRenderIdentity({
-      state: ready,
-      renderers: {},
-      defaults: {
-        pending: () => undefined,
-        failure: () => undefined,
-        notFound: () => undefined
-      }
-    }));
+    expect(
+      browserRouteRenderIdentity({
+        state: ready,
+        renderers: {},
+        defaults: {
+          pending: () => undefined,
+          failure: () => undefined,
+          notFound: () => undefined,
+        },
+      }),
+    ).toBe(
+      browserRouteRenderIdentity({
+        state: ready,
+        renderers: {},
+        defaults: {
+          pending: () => undefined,
+          failure: () => undefined,
+          notFound: () => undefined,
+        },
+      }),
+    );
     expect(readyDecision).toMatchObject({
       _tag: "Ready",
       component,
       props: {
         params: { id: "atlas" },
-        search: {}
-      }
+        search: {},
+      },
     });
 
     const emptyDecision = browserRouteRenderDecision({
       _tag: "Ready",
       href: "/empty-render-route",
-      match: emptyMatch
+      match: emptyMatch,
     });
     expect(emptyDecision).toMatchObject({ _tag: "Empty" });
 
     const notFound = {
       _tag: "NotFound",
-      href: "/missing"
+      href: "/missing",
     } as const;
     const notFoundRenderer = () => undefined;
     const nextNotFoundRenderer = () => undefined;
     expect(browserRouteRenderDecision(notFound)).toMatchObject({ _tag: "NotFound" });
-    expect(browserRouteRenderIdentity({
-      state: notFound,
-      renderers: { notFound: notFoundRenderer },
-      defaults: {
-        pending: () => undefined,
-        failure: () => undefined,
-        notFound: () => undefined
-      }
-    })).not.toBe(browserRouteRenderIdentity({
-      state: notFound,
-      renderers: { notFound: nextNotFoundRenderer },
-      defaults: {
-        pending: () => undefined,
-        failure: () => undefined,
-        notFound: () => undefined
-      }
-    }));
+    expect(
+      browserRouteRenderIdentity({
+        state: notFound,
+        renderers: { notFound: notFoundRenderer },
+        defaults: {
+          pending: () => undefined,
+          failure: () => undefined,
+          notFound: () => undefined,
+        },
+      }),
+    ).not.toBe(
+      browserRouteRenderIdentity({
+        state: notFound,
+        renderers: { notFound: nextNotFoundRenderer },
+        defaults: {
+          pending: () => undefined,
+          failure: () => undefined,
+          notFound: () => undefined,
+        },
+      }),
+    );
   });
+
+  it("preloads lazy route component chunks with route preload work", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const component = () => undefined;
+        let imports = 0;
+        const lazyComponent = Route.lazyComponent(
+          Effect.sync(() => {
+            imports++;
+            return { default: component };
+          }),
+        );
+        const Project = route("/lazy-components/:id", {
+          component: lazyComponent,
+        });
+        const router = createBrowserRouterKernel([Project] as const, {
+          runtime: makeRuntime(),
+          initialHref: "/lazy-components/atlas",
+        });
+
+        yield* router.preloadEffect(Project, { params: { id: "atlas" } });
+        yield* router.preloadEffect(Project, { params: { id: "atlas" } });
+
+        expect(imports).toBe(1);
+        expect(Route.readComponent(lazyComponent)).toBe(component);
+      }),
+    ));
 
   it("shares initial matched state policy across framework adapters", () => {
     const Project = route("/initial-projects/:id");
@@ -244,22 +316,28 @@ describe("browser router kernel", () => {
     const match = Project.match("/initial-projects/atlas");
     expect(match).toBeDefined();
 
-    expect(browserRouterInitialMatchedState({
-      href: "/initial-projects/atlas",
-      match: match!,
-      host: "server"
-    })).toMatchObject({ _tag: "Ready" });
-    expect(browserRouterInitialMatchedState({
-      href: "/initial-projects/atlas",
-      match: match!,
-      host: "browser",
-      hydrating: true
-    })).toMatchObject({ _tag: "Ready" });
-    expect(browserRouterInitialMatchedState<typeof routes>({
-      href: "/initial-projects/atlas",
-      match: match!,
-      host: "browser"
-    })).toMatchObject({ _tag: "Pending" });
+    expect(
+      browserRouterInitialMatchedState({
+        href: "/initial-projects/atlas",
+        match: match!,
+        host: "server",
+      }),
+    ).toMatchObject({ _tag: "Ready" });
+    expect(
+      browserRouterInitialMatchedState({
+        href: "/initial-projects/atlas",
+        match: match!,
+        host: "browser",
+        hydrating: true,
+      }),
+    ).toMatchObject({ _tag: "Ready" });
+    expect(
+      browserRouterInitialMatchedState<typeof routes>({
+        href: "/initial-projects/atlas",
+        match: match!,
+        host: "browser",
+      }),
+    ).toMatchObject({ _tag: "Pending" });
   });
 
   it("shares router link hover preload interruption across framework adapters", () =>
@@ -281,11 +359,13 @@ describe("browser router kernel", () => {
                 starts.push(current);
               }).pipe(
                 Effect.andThen(Effect.never),
-                Effect.ensuring(Effect.sync(() => {
-                  finalizers.push(current);
-                }))
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    finalizers.push(current);
+                  }),
+                ),
               );
-            }
+            },
           });
 
           preloader.preload();
@@ -296,7 +376,7 @@ describe("browser router kernel", () => {
             vi.waitFor(() => {
               expect(starts).toEqual([1, 2]);
               expect(finalizers).toEqual([1]);
-            })
+            }),
           );
 
           enabled = false;
@@ -305,8 +385,8 @@ describe("browser router kernel", () => {
 
           yield* preloader.interruptEffect();
           expect(finalizers).toEqual([1, 2]);
-        })
-      )
+        }),
+      ),
     ));
 
   it("captures router link hover preload owners before queued sync interruptions execute", () =>
@@ -321,7 +401,7 @@ describe("browser router kernel", () => {
             ...baseRuntime,
             runFork: <A, E, R>(
               effect: Effect.Effect<A, E, R>,
-              options?: Effect.RunOptions
+              options?: Effect.RunOptions,
             ): Fiber.Fiber<A, E> => {
               if (queueNextInterrupt) {
                 queueNextInterrupt = false;
@@ -329,7 +409,7 @@ describe("browser router kernel", () => {
                 return baseRuntime.runFork(Effect.never as Effect.Effect<A, E, never>, options);
               }
               return baseRuntime.runFork(effect as Effect.Effect<A, E, never>, options);
-            }
+            },
           };
           const starts: Array<number> = [];
           const finalizers: Array<number> = [];
@@ -343,11 +423,13 @@ describe("browser router kernel", () => {
                 starts.push(current);
               }).pipe(
                 Effect.andThen(Effect.never),
-                Effect.ensuring(Effect.sync(() => {
-                  finalizers.push(current);
-                }))
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    finalizers.push(current);
+                  }),
+                ),
               );
-            }
+            },
           });
 
           preloader.preload();
@@ -363,8 +445,8 @@ describe("browser router kernel", () => {
 
           yield* preloader.interruptEffect();
           expect(finalizers).toEqual([1, 2]);
-        })
-      )
+        }),
+      ),
     ));
 
   it("swallows router link hover preload defects", () =>
@@ -380,12 +462,12 @@ describe("browser router kernel", () => {
               const fiber = baseRuntime.runFork(effect, options);
               preloadFiber = fiber as Fiber.Fiber<void, unknown>;
               return fiber;
-            }
+            },
           };
           const preloader = makeBrowserRouterLinkPreloader({
             runtime,
             enabled: () => true,
-            preloadEffect: () => Effect.die("link preload defect")
+            preloadEffect: () => Effect.die("link preload defect"),
           });
 
           preloader.preload();
@@ -395,8 +477,8 @@ describe("browser router kernel", () => {
           }
           const exit = yield* Effect.exit(Fiber.join(preloadFiber));
           expect(exit._tag).toBe("Success");
-        })
-      )
+        }),
+      ),
     ));
 
   it("interrupts router link hover preloads when the target changes", () =>
@@ -417,11 +499,13 @@ describe("browser router kernel", () => {
                 starts.push(current);
               }).pipe(
                 Effect.andThen(Effect.never),
-                Effect.ensuring(Effect.sync(() => {
-                  finalizers.push(current);
-                }))
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    finalizers.push(current);
+                  }),
+                ),
               );
-            }
+            },
           });
 
           preloader.bindPreloadIdentity({ key: "/projects/atlas", enabled: true });
@@ -433,7 +517,7 @@ describe("browser router kernel", () => {
             vi.waitFor(() => {
               expect(starts).toEqual([1]);
               expect(finalizers).toEqual([1]);
-            })
+            }),
           );
 
           preloader.preload();
@@ -441,8 +525,8 @@ describe("browser router kernel", () => {
           preloader.bindPreloadIdentity({ key: "/projects/curie", enabled: true });
           yield* Effect.sleep("20 millis");
           expect(finalizers).toEqual([1]);
-        })
-      )
+        }),
+      ),
     ));
 
   it("interrupts router link hover preloads when preload identity becomes disabled", () =>
@@ -463,11 +547,13 @@ describe("browser router kernel", () => {
                 starts.push(current);
               }).pipe(
                 Effect.andThen(Effect.never),
-                Effect.ensuring(Effect.sync(() => {
-                  finalizers.push(current);
-                }))
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    finalizers.push(current);
+                  }),
+                ),
               );
-            }
+            },
           });
 
           preloader.bindPreloadIdentity({ key: "/projects/atlas|preload", enabled: true });
@@ -480,8 +566,8 @@ describe("browser router kernel", () => {
           preloader.preload();
           yield* Effect.sleep("20 millis");
           expect(starts).toEqual([1]);
-        })
-      )
+        }),
+      ),
     ));
 
   it("centralizes browser history adapter commit and popstate policy", () => {
@@ -501,7 +587,7 @@ describe("browser router kernel", () => {
         },
         get search() {
           return search();
-        }
+        },
       },
       history: {
         pushState: (_data, _unused, url) => {
@@ -511,14 +597,14 @@ describe("browser router kernel", () => {
         replaceState: (_data, _unused, url) => {
           href = String(url);
           replaces.push(href);
-        }
+        },
       },
       addEventListener: (_type, listener) => {
         listeners.add(listener);
       },
       removeEventListener: (_type, listener) => {
         listeners.delete(listener);
-      }
+      },
     };
     const history = makeWindowBrowserHistoryAdapter(() => windowLike);
     const externalHrefs: string[] = [];
@@ -576,12 +662,12 @@ describe("browser router kernel", () => {
                 if (attempts === 1) {
                   return yield* Effect.fail("offline");
                 }
-              })
+              }),
           });
           const history = makeMemoryBrowserHistoryAdapter({ initialHref: "/memory-retry" });
           const router = createBrowserRouterHostController([Project] as const, {
             history,
-            runtime
+            runtime,
           });
           yield* Effect.addFinalizer(() => router.disposeEffect());
 
@@ -590,10 +676,10 @@ describe("browser router kernel", () => {
             vi.waitFor(() => {
               expect(router.state.get()).toMatchObject({
                 _tag: "Failure",
-                href: "/memory-retry"
+                href: "/memory-retry",
               });
               expect(attempts).toBe(1);
-            })
+            }),
           );
 
           router.navigateHref("/memory-retry");
@@ -601,14 +687,14 @@ describe("browser router kernel", () => {
             vi.waitFor(() => {
               expect(router.state.get()).toMatchObject({
                 _tag: "Ready",
-                href: "/memory-retry"
+                href: "/memory-retry",
               });
               expect(attempts).toBe(2);
-            })
+            }),
           );
           expect(history.entries()).toEqual(["/memory-retry"]);
-        })
-      )
+        }),
+      ),
     ));
 
   it("centralizes host controller start, navigation, replace, and disposal policy", () =>
@@ -642,7 +728,7 @@ describe("browser router kernel", () => {
                 entries.push(href);
               }
               return href;
-            }
+            },
           };
           const externalNavigate = (nextHref: string): void => {
             href = nextHref;
@@ -652,7 +738,7 @@ describe("browser router kernel", () => {
 
           const router = createBrowserRouterHostController([Project] as const, {
             history,
-            runtime
+            runtime,
           });
           const stop = router.start();
           const secondStop = router.start();
@@ -664,25 +750,29 @@ describe("browser router kernel", () => {
           router.navigate(Project, { params: { id: "lumen" } });
           expect(entries).toEqual(["/host-projects/atlas", "/host-projects/lumen"]);
           expect(router.state.get()).toMatchObject({
-            href: "/host-projects/lumen"
+            href: "/host-projects/lumen",
           });
 
-          router.navigateByPath("/host-projects/:id", { params: { id: "orion" } }, { replace: true });
+          router.navigateByPath(
+            "/host-projects/:id",
+            { params: { id: "orion" } },
+            { replace: true },
+          );
           expect(entries).toEqual(["/host-projects/atlas", "/host-projects/orion"]);
 
           externalNavigate("/host-projects/vega");
           expect(router.state.get()).toMatchObject({
-            href: "/host-projects/vega"
+            href: "/host-projects/vega",
           });
 
           stop();
           expect(stops).toBe(1);
           externalNavigate("/host-projects/ignored");
           expect(router.state.get()).toMatchObject({
-            href: "/host-projects/vega"
+            href: "/host-projects/vega",
           });
-        })
-      )
+        }),
+      ),
     ));
 
   it("preloads shadowed hrefs with the same route match as navigation", () =>
@@ -697,18 +787,18 @@ describe("browser router kernel", () => {
             preload: ({ params }) =>
               Effect.sync(() => {
                 preloaded.push(`project:${params.id}`);
-              })
+              }),
           });
           const ProjectSettings = route("/projects/settings", {
             preload: () =>
               Effect.sync(() => {
                 preloaded.push("settings");
-              })
+              }),
           });
           const routes = [Project, ProjectSettings] as const;
           const router = createBrowserRouterKernel(routes, {
             initialHref: "/missing",
-            runtime
+            runtime,
           });
           yield* Effect.addFinalizer(() => router.disposeEffect());
 
@@ -720,14 +810,14 @@ describe("browser router kernel", () => {
             vi.waitFor(() => {
               expect(router.state.get()).toMatchObject({
                 _tag: "Ready",
-                href: "/projects/settings"
+                href: "/projects/settings",
               });
-            })
+            }),
           );
           expect(router.matchByPath("/projects/settings")?.route).toBe(ProjectSettings);
           expect(preloaded).toEqual(["settings", "settings"]);
-        })
-      )
+        }),
+      ),
     ));
 
   it("retries the current href preload when navigating to the same href", () =>
@@ -745,11 +835,11 @@ describe("browser router kernel", () => {
                 if (attempts === 1) {
                   return yield* Effect.fail("offline");
                 }
-              })
+              }),
           });
           const router = createBrowserRouterKernel([Project] as const, {
             initialHref: "/retry-projects/atlas",
-            runtime
+            runtime,
           });
           yield* Effect.addFinalizer(() => router.disposeEffect());
 
@@ -758,10 +848,10 @@ describe("browser router kernel", () => {
             vi.waitFor(() => {
               expect(router.state.get()).toMatchObject({
                 _tag: "Failure",
-                href: "/retry-projects/atlas"
+                href: "/retry-projects/atlas",
               });
               expect(attempts).toBe(1);
-            })
+            }),
           );
 
           router.navigateHref("/retry-projects/atlas");
@@ -769,13 +859,13 @@ describe("browser router kernel", () => {
             vi.waitFor(() => {
               expect(router.state.get()).toMatchObject({
                 _tag: "Ready",
-                href: "/retry-projects/atlas"
+                href: "/retry-projects/atlas",
               });
               expect(attempts).toBe(2);
-            })
+            }),
           );
-        })
-      )
+        }),
+      ),
     ));
 
   it("interrupts stale navigation preloads", () =>
@@ -793,15 +883,17 @@ describe("browser router kernel", () => {
                 starts++;
               }).pipe(
                 Effect.andThen(Effect.never),
-                Effect.ensuring(Effect.sync(() => {
-                  finalizers++;
-                }))
-              )
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    finalizers++;
+                  }),
+                ),
+              ),
           });
           const Fast = route("/fast");
           const router = createBrowserRouterKernel([Slow, Fast] as const, {
             initialHref: "/missing",
-            runtime
+            runtime,
           });
           yield* Effect.addFinalizer(() => router.disposeEffect());
 
@@ -813,12 +905,12 @@ describe("browser router kernel", () => {
               expect(finalizers).toBe(1);
               expect(router.state.get()).toMatchObject({
                 _tag: "Ready",
-                href: "/fast"
+                href: "/fast",
               });
-            })
+            }),
           );
-        })
-      )
+        }),
+      ),
     ));
 
   it("captures navigation preload owners before queued sync disposal executes", () =>
@@ -833,7 +925,7 @@ describe("browser router kernel", () => {
             ...baseRuntime,
             runFork: <A, E, R>(
               effect: Effect.Effect<A, E, R>,
-              options?: Effect.RunOptions
+              options?: Effect.RunOptions,
             ): Fiber.Fiber<A, E> => {
               if (queueNextDisposal) {
                 queueNextDisposal = false;
@@ -841,7 +933,7 @@ describe("browser router kernel", () => {
                 return baseRuntime.runFork(Effect.never as Effect.Effect<A, E, never>, options);
               }
               return baseRuntime.runFork(effect as Effect.Effect<A, E, never>, options);
-            }
+            },
           };
           const starts: Array<string> = [];
           const finalizers: Array<string> = [];
@@ -851,10 +943,12 @@ describe("browser router kernel", () => {
                 starts.push("slow");
               }).pipe(
                 Effect.andThen(Effect.never),
-                Effect.ensuring(Effect.sync(() => {
-                  finalizers.push("slow");
-                }))
-              )
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    finalizers.push("slow");
+                  }),
+                ),
+              ),
           });
           const Next = route("/queued-owner-next", {
             preload: () =>
@@ -862,14 +956,16 @@ describe("browser router kernel", () => {
                 starts.push("next");
               }).pipe(
                 Effect.andThen(Effect.never),
-                Effect.ensuring(Effect.sync(() => {
-                  finalizers.push("next");
-                }))
-              )
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    finalizers.push("next");
+                  }),
+                ),
+              ),
           });
           const router = createBrowserRouterKernel([Slow, Next] as const, {
             initialHref: "/missing",
-            runtime
+            runtime,
           });
           yield* Effect.addFinalizer(() => router.disposeEffect());
 
@@ -886,8 +982,8 @@ describe("browser router kernel", () => {
 
           yield* router.disposeEffect();
           expect(finalizers).toEqual(["slow", "next"]);
-        })
-      )
+        }),
+      ),
     ));
 
   it("outside-route navigate interrupts active navigation preload", () =>
@@ -906,15 +1002,17 @@ describe("browser router kernel", () => {
                 starts++;
               }).pipe(
                 Effect.andThen(Deferred.await(release)),
-                Effect.ensuring(Effect.sync(() => {
-                  finalizers++;
-                }))
-              )
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    finalizers++;
+                  }),
+                ),
+              ),
           });
           const Outside = route("/outside-route-target");
           const router = createBrowserRouterKernel([Slow] as const, {
             initialHref: "/missing",
-            runtime
+            runtime,
           });
           yield* Effect.addFinalizer(() => router.disposeEffect());
 
@@ -930,16 +1028,18 @@ describe("browser router kernel", () => {
               expect(state._tag).toBe("Failure");
               if (state._tag === "Failure") {
                 expect(state.error).toBeInstanceOf(RouteNavigationError);
-                expect((state.error as RouteNavigationError).cause).toBeInstanceOf(RouterRouteNotRegistered);
+                expect((state.error as RouteNavigationError).cause).toBeInstanceOf(
+                  RouterRouteNotRegistered,
+                );
               }
-            })
+            }),
           );
 
           yield* Deferred.succeed(release, undefined);
           yield* Effect.sleep("20 millis");
           expect(router.state.get()._tag).toBe("Failure");
-        })
-      )
+        }),
+      ),
     ));
 
   it("outside-path navigate interrupts active navigation preload", () =>
@@ -958,14 +1058,16 @@ describe("browser router kernel", () => {
                 starts++;
               }).pipe(
                 Effect.andThen(Deferred.await(release)),
-                Effect.ensuring(Effect.sync(() => {
-                  finalizers++;
-                }))
-              )
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    finalizers++;
+                  }),
+                ),
+              ),
           });
           const router = createBrowserRouterKernel([Slow] as const, {
             initialHref: "/missing",
-            runtime
+            runtime,
           });
           yield* Effect.addFinalizer(() => router.disposeEffect());
 
@@ -981,16 +1083,18 @@ describe("browser router kernel", () => {
               expect(state._tag).toBe("Failure");
               if (state._tag === "Failure") {
                 expect(state.error).toBeInstanceOf(RouteNavigationError);
-                expect((state.error as RouteNavigationError).cause).toBeInstanceOf(RouterRouteNotRegistered);
+                expect((state.error as RouteNavigationError).cause).toBeInstanceOf(
+                  RouterRouteNotRegistered,
+                );
               }
-            })
+            }),
           );
 
           yield* Deferred.succeed(release, undefined);
           yield* Effect.sleep("20 millis");
           expect(router.state.get()._tag).toBe("Failure");
-        })
-      )
+        }),
+      ),
     ));
 
   it("disposeEffect interrupts current navigation preload before completing", () =>
@@ -1008,14 +1112,16 @@ describe("browser router kernel", () => {
                 starts++;
               }).pipe(
                 Effect.andThen(Effect.never),
-                Effect.ensuring(Effect.sync(() => {
-                  finalizers++;
-                }))
-              )
+                Effect.ensuring(
+                  Effect.sync(() => {
+                    finalizers++;
+                  }),
+                ),
+              ),
           });
           const router = createBrowserRouterKernel([Slow] as const, {
             initialHref: "/missing",
-            runtime
+            runtime,
           });
           yield* Effect.addFinalizer(() => router.disposeEffect());
 
@@ -1024,8 +1130,8 @@ describe("browser router kernel", () => {
 
           yield* router.disposeEffect();
           expect(finalizers).toBe(1);
-        })
-      )
+        }),
+      ),
     ));
 
   it("rejects routes outside router.routes before running preload", () =>
@@ -1041,17 +1147,17 @@ describe("browser router kernel", () => {
             preload: ({ params }) =>
               Effect.sync(() => {
                 preloaded.push(params.id);
-              })
+              }),
           });
           const router = createBrowserRouterKernel([Project] as const, {
             initialHref: "/missing",
-            runtime
+            runtime,
           });
           yield* Effect.addFinalizer(() => router.disposeEffect());
 
           const preloadExit = yield* Effect.exit(
             // @ts-expect-error outside route intentionally violates the configured router tuple
-            router.preloadEffect(Outside, { params: { id: "atlas" } })
+            router.preloadEffect(Outside, { params: { id: "atlas" } }),
           );
           expect(preloaded).toEqual([]);
           expect(preloadExit._tag).toBe("Failure");
@@ -1068,10 +1174,12 @@ describe("browser router kernel", () => {
           expect(state._tag).toBe("Failure");
           if (state._tag === "Failure") {
             expect(state.error).toBeInstanceOf(RouteNavigationError);
-            expect((state.error as RouteNavigationError).cause).toBeInstanceOf(RouterRouteNotRegistered);
+            expect((state.error as RouteNavigationError).cause).toBeInstanceOf(
+              RouterRouteNotRegistered,
+            );
           }
-        })
-      )
+        }),
+      ),
     ));
 
   it("keeps typed preload failures in router state", () =>
@@ -1082,11 +1190,11 @@ describe("browser router kernel", () => {
           yield* Effect.addFinalizer(() => runtime.disposeEffect);
 
           const Project = route("/failure-projects/:id", {
-            preload: () => Effect.fail("missing-project")
+            preload: () => Effect.fail("missing-project"),
           });
           const router = createBrowserRouterKernel([Project] as const, {
             initialHref: "/failure-projects/atlas",
-            runtime
+            runtime,
           });
           yield* Effect.addFinalizer(() => router.disposeEffect());
 
@@ -1100,14 +1208,14 @@ describe("browser router kernel", () => {
                 expect(state.error).toMatchObject({
                   path: "/failure-projects/:id",
                   href: "/failure-projects/atlas",
-                  cause: "missing-project"
+                  cause: "missing-project",
                 });
                 expect(state.cause.reasons.find(Cause.isFailReason)?.error).toBe(state.error);
               }
-            })
+            }),
           );
-        })
-      )
+        }),
+      ),
     ));
 
   it("keeps erased Promise-shaped preload failures in router state", () =>
@@ -1118,11 +1226,11 @@ describe("browser router kernel", () => {
           yield* Effect.addFinalizer(() => runtime.disposeEffect);
 
           const Project = route("/promise-failure-projects/:id", {
-            preload: () => Promise.resolve(undefined) as never
+            preload: () => Promise.resolve(undefined) as never,
           });
           const router = createBrowserRouterKernel([Project] as const, {
             initialHref: "/promise-failure-projects/atlas",
-            runtime
+            runtime,
           });
           yield* Effect.addFinalizer(() => router.disposeEffect());
 
@@ -1133,15 +1241,17 @@ describe("browser router kernel", () => {
               expect(state._tag).toBe("Failure");
               if (state._tag === "Failure") {
                 expect(state.error).toBeInstanceOf(RoutePreloadError);
-                expect((state.error as RoutePreloadError).cause).toBeInstanceOf(EffectInputCallbackError);
-                expect(((state.error as RoutePreloadError).cause as EffectInputCallbackError).cause).toBeInstanceOf(
-                  EffectInputPromiseRejected
+                expect((state.error as RoutePreloadError).cause).toBeInstanceOf(
+                  EffectInputCallbackError,
                 );
+                expect(
+                  ((state.error as RoutePreloadError).cause as EffectInputCallbackError).cause,
+                ).toBeInstanceOf(EffectInputPromiseRejected);
               }
-            })
+            }),
           );
-        })
-      )
+        }),
+      ),
     ));
 
   it("binds public preloadByPathEffect to the router runtime", () =>
@@ -1154,29 +1264,31 @@ describe("browser router kernel", () => {
               preload: (id) =>
                 Effect.sync(() => {
                   preloaded.push(id);
-                })
-            })
+                }),
+            }),
           );
           yield* Effect.addFinalizer(() => runtime.disposeEffect);
 
           const Project = route("/path-projects/:id", {
-            preload: ({ params }) => ProjectApi.use((api) => api.preload(params.id))
+            preload: ({ params }) => ProjectApi.use((api) => api.preload(params.id)),
           });
           const router = createBrowserRouterKernel([Project] as const, {
             initialHref: "/missing",
-            runtime
+            runtime,
           });
           yield* Effect.addFinalizer(() => router.disposeEffect());
 
-          expect(router.hrefByPath("/path-projects/:id", {
-            params: { id: "atlas" }
-          })).toBe("/path-projects/atlas");
+          expect(
+            router.hrefByPath("/path-projects/:id", {
+              params: { id: "atlas" },
+            }),
+          ).toBe("/path-projects/atlas");
           yield* router.preloadByPathEffect("/path-projects/:id", {
-            params: { id: "atlas" }
+            params: { id: "atlas" },
           });
 
           expect(preloaded).toEqual(["atlas"]);
-        })
-      )
+        }),
+      ),
     ));
 });

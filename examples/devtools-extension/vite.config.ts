@@ -8,14 +8,14 @@ export default defineConfig({
     rollupOptions: {
       input: {
         devtools: fromHere("devtools.html"),
-        panel: fromHere("panel.html")
-      }
-    }
+        panel: fromHere("panel.html"),
+      },
+    },
   },
   resolve: {
     alias: [
       { find: "@effect-ui/core", replacement: fromRoot("packages/core/src/index.ts") },
-      { find: "@effect-ui/devtools", replacement: fromRoot("packages/devtools/src/index.ts") }
-    ]
-  }
+      { find: "@effect-ui/devtools", replacement: fromRoot("packages/devtools/src/index.ts") },
+    ],
+  },
 });

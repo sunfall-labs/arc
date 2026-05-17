@@ -5,21 +5,21 @@ import {
   type EffectInput,
   type RejectPromiseLikeValue,
   type ServerClientError,
-  type ServerFunction
+  type ServerFunction,
 } from "@effect-ui/core";
 import { Data, Effect } from "effect";
 import type {
   CollectionIndexRecord,
   CollectionKey,
   CollectionOptions,
-  CollectionPolicy
+  CollectionPolicy,
 } from "./collection-contract.js";
 import {
   collectionSyncOptions,
   type CollectionSyncAdapter,
   type CollectionSyncDeletePayload,
   type CollectionSyncInsertPayload,
-  type CollectionSyncUpdatePayload
+  type CollectionSyncUpdatePayload,
 } from "./sync-adapter.js";
 
 /**
@@ -28,8 +28,11 @@ import {
  * Use Effect-first callbacks or `ServerFunction`s so transport failures remain
  * typed in the collection error channel.
  */
-export type ServerCollectionResult<A, E = never, R = never> =
-  EffectInput<A & RejectPromiseLikeValue<A>, E, R>;
+export type ServerCollectionResult<A, E = never, R = never> = EffectInput<
+  A & RejectPromiseLikeValue<A>,
+  E,
+  R
+>;
 
 /**
  * Server-backed operation used by `serverCollectionSyncAdapter`.
@@ -42,16 +45,22 @@ export type ServerCollectionOperation<I, A, E = never, R = never> =
   | ((input: I) => ServerCollectionResult<A, E, R>);
 
 /** Insert payload accepted by a server-backed collection operation. */
-export type ServerCollectionInsertPayload<A extends object, K extends CollectionKey> =
-  CollectionSyncInsertPayload<A, K>;
+export type ServerCollectionInsertPayload<
+  A extends object,
+  K extends CollectionKey,
+> = CollectionSyncInsertPayload<A, K>;
 
 /** Update payload accepted by a server-backed collection operation. */
-export type ServerCollectionUpdatePayload<A extends object, K extends CollectionKey> =
-  CollectionSyncUpdatePayload<A, K>;
+export type ServerCollectionUpdatePayload<
+  A extends object,
+  K extends CollectionKey,
+> = CollectionSyncUpdatePayload<A, K>;
 
 /** Delete payload accepted by a server-backed collection operation. */
-export type ServerCollectionDeletePayload<A extends object, K extends CollectionKey> =
-  CollectionSyncDeletePayload<A, K>;
+export type ServerCollectionDeletePayload<
+  A extends object,
+  K extends CollectionKey,
+> = CollectionSyncDeletePayload<A, K>;
 
 type ServerCollectionIdentity =
   | {
@@ -74,7 +83,7 @@ export type ServerCollectionOptions<
   A extends object,
   K extends CollectionKey = string,
   E = never,
-  R = never
+  R = never,
 > = ServerCollectionIdentity & {
   readonly input?: unknown;
   readonly output?: unknown;
@@ -93,48 +102,39 @@ export type ServerCollectionOptions<
  * Error thrown when server collection options omit both `name` and `id`.
  */
 export class ServerCollectionMissingIdentity extends Data.TaggedError(
-  "ServerCollectionMissingIdentity"
+  "ServerCollectionMissingIdentity",
 )<{
   readonly guidance: string;
 }> {}
 
 const isServerCollectionFunction = <I, A, E, R>(
-  operation: ServerCollectionOperation<I, A, E, R>
-): operation is ServerFunction<I, A, E, R> =>
-  isServerFunction(operation);
+  operation: ServerCollectionOperation<I, A, E, R>,
+): operation is ServerFunction<I, A, E, R> => isServerFunction(operation);
 
 const runOperation = <I, A, E, R>(
   operation: () => ServerCollectionOperation<I, A, E, R>,
   callback: () => ServerCollectionResult<A, E, R>,
-  input: I
+  input: I,
 ): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R> =>
   Effect.suspend(() => {
     const current = operation();
     if (isServerCollectionFunction(current)) {
       return invokeEffectInput<[], A, E | ServerClientError, R>(
         "Collection.server.operation",
-        () => current.effect(input) as never
+        () => current.effect(input) as never,
       );
     }
 
-    return invokeEffectInput<[], A, E, R>(
-      "Collection.server.operation",
-      callback as never
-    );
+    return invokeEffectInput<[], A, E, R>("Collection.server.operation", callback as never);
   });
 
-const serverCollectionName = <
-  A extends object,
-  K extends CollectionKey,
-  E,
-  R
->(
-  options: ServerCollectionOptions<A, K, E, R>
+const serverCollectionName = <A extends object, K extends CollectionKey, E, R>(
+  options: ServerCollectionOptions<A, K, E, R>,
 ): string => {
   const name = options.name ?? options.id;
   if (name === undefined) {
     throw new ServerCollectionMissingIdentity({
-      guidance: "Pass a stable name or id so the collection can be keyed, synced, and traced."
+      guidance: "Pass a stable name or id so the collection can be keyed, synced, and traced.",
     });
   }
   return name;
@@ -150,36 +150,61 @@ export const serverCollectionSyncAdapter = <
   A extends object,
   K extends CollectionKey = string,
   E = never,
-  R = never
+  R = never,
 >(
-  options: ServerCollectionOptions<A, K, E, R>
+  options: ServerCollectionOptions<A, K, E, R>,
 ): CollectionSyncAdapter<A, K, E | EffectInputCallbackError | ServerClientError, R> => ({
   name: serverCollectionName(options),
   ...(options.load === undefined
     ? {}
     : {
-        load: () => runOperation(() => options.load!, () => options.load!(undefined), undefined)
+        load: () =>
+          runOperation(
+            () => options.load!,
+            () => options.load!(undefined),
+            undefined,
+          ),
       }),
   ...(options.refetch === undefined
     ? {}
     : {
-        refetch: () => runOperation(() => options.refetch!, () => options.refetch!(undefined), undefined)
+        refetch: () =>
+          runOperation(
+            () => options.refetch!,
+            () => options.refetch!(undefined),
+            undefined,
+          ),
       }),
   ...(options.insert === undefined
     ? {}
     : {
-        insert: (payload) => runOperation(() => options.insert!, () => options.insert!(payload), payload)
+        insert: (payload) =>
+          runOperation(
+            () => options.insert!,
+            () => options.insert!(payload),
+            payload,
+          ),
       }),
   ...(options.update === undefined
     ? {}
     : {
-        update: (payload) => runOperation(() => options.update!, () => options.update!(payload), payload)
+        update: (payload) =>
+          runOperation(
+            () => options.update!,
+            () => options.update!(payload),
+            payload,
+          ),
       }),
   ...(options.delete === undefined
     ? {}
     : {
-        delete: (payload) => runOperation(() => options.delete!, () => options.delete!(payload), payload)
-      })
+        delete: (payload) =>
+          runOperation(
+            () => options.delete!,
+            () => options.delete!(payload),
+            payload,
+          ),
+      }),
 });
 
 /**
@@ -200,9 +225,9 @@ export const serverCollectionOptions = <
   A extends object,
   K extends CollectionKey = string,
   E = never,
-  R = never
+  R = never,
 >(
-  options: ServerCollectionOptions<A, K, E, R>
+  options: ServerCollectionOptions<A, K, E, R>,
 ): CollectionOptions<A, K, E | EffectInputCallbackError | ServerClientError, R> =>
   collectionSyncOptions({
     name: serverCollectionName(options),
@@ -212,5 +237,5 @@ export const serverCollectionOptions = <
     ...(options.output === undefined ? {} : { output: options.output }),
     ...(options.policy === undefined ? {} : { policy: options.policy }),
     ...(options.indexes === undefined ? {} : { indexes: options.indexes }),
-    ...(options.initialData === undefined ? {} : { initialData: options.initialData })
+    ...(options.initialData === undefined ? {} : { initialData: options.initialData }),
   });

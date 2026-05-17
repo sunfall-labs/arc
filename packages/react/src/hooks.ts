@@ -34,8 +34,7 @@ import {
   type ResourceRef,
   type ResourceState,
   type ResourceStore,
-  type UiScope,
-  type WritableSignal
+  type WritableSignal,
 } from "@effect-ui/core";
 import { Effect, Fiber, Stream } from "effect";
 import {
@@ -45,7 +44,7 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore
+  useSyncExternalStore,
 } from "react";
 import { useComponentScope, useRuntime } from "./runtime.js";
 
@@ -109,10 +108,7 @@ export interface ResourceHandle<I, A, E, R = unknown, ER = never> {
 
 /** Runs an Effect through the nearest React runtime and ties the fiber to component cleanup. */
 export interface RuntimeEffectRunner<ER = never> {
-  <A, E, R>(
-    effect: Effect.Effect<A, E, R>,
-    options?: ForkScopedOptions
-  ): Fiber.Fiber<A, E | ER>;
+  <A, E, R>(effect: Effect.Effect<A, E, R>, options?: ForkScopedOptions): Fiber.Fiber<A, E | ER>;
 }
 
 /** React-facing handle for an Effect UI Program. */
@@ -136,11 +132,12 @@ export interface ProgramHandle<Model, Message, E = never, DispatchE = E> {
   clearTimeline(): void;
 }
 
-type ReactActionInvalidationRequirements<A, R> =
-  R | ActionResultInvalidationRequirements<A>;
+type ReactActionInvalidationRequirements<A, R> = R | ActionResultInvalidationRequirements<A>;
 
-type ReactActionRemainingRequirements<A, R> =
-  Exclude<ReactActionInvalidationRequirements<A, R>, R | ResourceStore>;
+type ReactActionRemainingRequirements<A, R> = Exclude<
+  ReactActionInvalidationRequirements<A, R>,
+  R | ResourceStore
+>;
 
 type ReactActionInstance<I, A, E, R, ER> = ActionInstance<
   I,
@@ -172,7 +169,9 @@ export interface ActionHandle<I, A, E = never, R = never, ER = never> {
     ResourceInvalidationPlan<ReactActionInvalidationRequirements<A, R>>
   >;
   /** Latest successful invalidation plan as a React value. */
-  readonly invalidationPlan: ResourceInvalidationPlan<ReactActionInvalidationRequirements<A, R>> | undefined;
+  readonly invalidationPlan:
+    | ResourceInvalidationPlan<ReactActionInvalidationRequirements<A, R>>
+    | undefined;
   /** Runs the action workflow as an Effect bound to the nearest React runtime. */
   readonly submitEffect: ReactActionInstance<I, A, E, R, ER>["submitEffect"];
   /** Resets the action state as an Effect. */
@@ -183,7 +182,9 @@ export interface ActionHandle<I, A, E = never, R = never, ER = never> {
 
 type ReactProgramRuntimeError<E, ER> = Program.RuntimeError<E, ER>;
 interface ProgramBinding<Model, Message, RuntimeError> {
-  current: Program.Instance<Model, Message, RuntimeError, RuntimeError | Program.Disposed> | undefined;
+  current:
+    | Program.Instance<Model, Message, RuntimeError, RuntimeError | Program.Disposed>
+    | undefined;
   readonly model: WritableSignal<Model>;
   readonly failures: WritableSignal<ReadonlyArray<ProgramFailure<Message, RuntimeError>>>;
   readonly timeline: WritableSignal<ReadonlyArray<ProgramEvent<Model, Message, RuntimeError>>>;
@@ -206,7 +207,7 @@ export const useSignal = <A>(signal: ReadableSignal<A>): A => {
 /** Subscribes to an Effect stream through a React value. */
 export const useStream = <A, R = never, ER = never>(
   stream: Stream.Stream<A, never, R>,
-  initial: A
+  initial: A,
 ): A => {
   const runtime = useRuntime<ER>();
   const scope = useComponentScope();
@@ -215,10 +216,8 @@ export const useStream = <A, R = never, ER = never>(
   useEffect(() => {
     const fiber = scope.fork(
       runtime.provide(
-        stream.pipe(
-          Stream.runForEach((value) => Effect.sync(() => signal.set(value)))
-        )
-      )
+        stream.pipe(Stream.runForEach((value) => Effect.sync(() => signal.set(value)))),
+      ),
     );
 
     return () => {
@@ -243,30 +242,32 @@ export const useRuntimeEffect = <ER = never>(): RuntimeEffectRunner<ER> => {
   return useCallback(
     (<A, E, R>(
       effect: Effect.Effect<A, E, R>,
-      options?: ForkScopedOptions
+      options?: ForkScopedOptions,
     ): Fiber.Fiber<A, E | ER> =>
       scope.fork(runtime.provide(effect), options)) as RuntimeEffectRunner<ER>,
-    [runtime, scope]
+    [runtime, scope],
   );
 };
 
 const makeProgramBinding = <Model, Message, RuntimeError>(
-  initial: Model
+  initial: Model,
 ): ProgramBinding<Model, Message, RuntimeError> => {
   const binding = {
     current: undefined,
     model: Signal.make(initial),
     failures: Signal.make<ReadonlyArray<ProgramFailure<Message, RuntimeError>>>([]),
-    timeline: Signal.make<ReadonlyArray<ProgramEvent<Model, Message, RuntimeError>>>([])
+    timeline: Signal.make<ReadonlyArray<ProgramEvent<Model, Message, RuntimeError>>>([]),
   } as ProgramBinding<Model, Message, RuntimeError>;
 
-  const disposedDispatchFailure = (message: Message): ProgramFailure<Message, RuntimeError | Program.Disposed> => ({
+  const disposedDispatchFailure = (
+    message: Message,
+  ): ProgramFailure<Message, RuntimeError | Program.Disposed> => ({
     _tag: "ProgramFailure",
     phase: "Update",
     message,
     error: new ProgramDisposed({
-      reason: "Program was disposed before the message update was applied."
-    })
+      reason: "Program was disposed before the message update was applied.",
+    }),
   });
 
   const disposeCurrentEffect: Effect.Effect<void> = Effect.suspend(() => {
@@ -284,8 +285,10 @@ const makeProgramBinding = <Model, Message, RuntimeError>(
       binding.current?.dispatch(message);
     },
     dispatchEffect: (message) =>
-      Effect.suspend(() =>
-        binding.current?.dispatchEffect(message) ?? Effect.fail(disposedDispatchFailure(message as Message))
+      Effect.suspend(
+        () =>
+          binding.current?.dispatchEffect(message) ??
+          Effect.fail(disposedDispatchFailure(message as Message)),
       ),
     clearFailures: () => {
       binding.failures.set([]);
@@ -295,7 +298,7 @@ const makeProgramBinding = <Model, Message, RuntimeError>(
       binding.timeline.set([]);
       binding.current?.clearTimeline();
     },
-    disposeEffect: disposeCurrentEffect
+    disposeEffect: disposeCurrentEffect,
   };
 
   return binding;
@@ -306,23 +309,23 @@ const makeProgramBinding = <Model, Message, RuntimeError>(
  * React values.
  */
 export const useProgram = <Model, Message, E = never, R = never, ER = never>(
-  definition: Program.Definition<Model, Message, E, R>
+  definition: Program.Definition<Model, Message, E, R>,
 ): ProgramHandle<Model, Message, Program.RuntimeError<E, ER>, Program.DispatchError<E, ER>> => {
   const runtime = useRuntime<ER>();
   const scope = useComponentScope();
   type RuntimeError = ReactProgramRuntimeError<E, ER>;
   const binding = useMemo(
     () => makeProgramBinding<Model, Message, RuntimeError>(definition.initial as Model),
-    [definition, runtime, scope]
+    [definition, runtime, scope],
   );
 
   useLayoutEffect(() => {
     const started = runWithRuntime(runtime, () =>
       runWithScope(scope, () =>
         Program.start<Model, Message, E, R, ER>(definition, {
-          runtime: runtime as unknown as EffectUiRuntime<R, ER>
-        })
-      )
+          runtime: runtime as unknown as EffectUiRuntime<R, ER>,
+        }),
+      ),
     );
     binding.current = started;
 
@@ -362,17 +365,19 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
     dispatch: instance.dispatch,
     dispatchEffect: instance.dispatchEffect,
     clearFailures: instance.clearFailures,
-    clearTimeline: instance.clearTimeline
+    clearTimeline: instance.clearTimeline,
   };
 };
 
 const useResourceBinding = <I, A, E, R = unknown, ER = never>(
   ref: ResourceInput<I, A, E, R>,
-  options: UseResourceOptions<E, ER> = {}
+  options: UseResourceOptions<E, ER> = {},
 ): ResourceBinding<I, A, E, R, ER> => {
   const runtime = useRuntime<ER>();
   const currentRef = resourceUiRefValue(ref);
-  const [preloadFailure, setPreloadFailure] = useState<ResourceUiPreloadFailure<I, A, E, R, ER> | undefined>(undefined);
+  const [preloadFailure, setPreloadFailure] = useState<
+    ResourceUiPreloadFailure<I, A, E, R, ER> | undefined
+  >(undefined);
   const preloadFailureObserver = useRef(options.onPreloadFailure);
   preloadFailureObserver.current = options.onPreloadFailure;
   const notifyLatestPreloadFailure = useCallback(
@@ -380,19 +385,19 @@ const useResourceBinding = <I, A, E, R = unknown, ER = never>(
       preloadFailureObserver.current === undefined
         ? undefined
         : preloadFailureObserver.current(error),
-    []
+    [],
   );
   const controller = useMemo(
     () =>
       makeResourceUiBindingController<I, A, E, R, ER>({
         runtime,
-        onPreloadFailureChange: setPreloadFailure
+        onPreloadFailureChange: setPreloadFailure,
       }),
-    [runtime]
+    [runtime],
   );
   const result = useMemo(
     () => controller.result(currentRef),
-    [controller, currentRef.family, currentRef.key]
+    [controller, currentRef.family, currentRef.key],
   );
   const state = useSignal(result);
 
@@ -405,24 +410,31 @@ const useResourceBinding = <I, A, E, R = unknown, ER = never>(
   useEffect(() => {
     controller.startInitialPreload(currentRef, {
       ...(options.preload === undefined ? {} : { preload: options.preload }),
-      onPreloadFailure: notifyLatestPreloadFailure
+      onPreloadFailure: notifyLatestPreloadFailure,
     });
     return () => {
       controller.interruptPreload();
     };
-  }, [controller, result, currentRef.family, currentRef.key, options.preload, notifyLatestPreloadFailure]);
+  }, [
+    controller,
+    result,
+    currentRef.family,
+    currentRef.key,
+    options.preload,
+    notifyLatestPreloadFailure,
+  ]);
 
   return {
     state,
     preloadFailure: resourceUiPreloadFailureFor(preloadFailure, currentRef),
-    controller
+    controller,
   };
 };
 
 /** Returns the reactive `ResourceState` for a resource ref or ref function. */
 export const useResourceResult = <I, A, E, R = unknown, ER = never>(
   ref: ResourceInput<I, A, E, R>,
-  options?: UseResourceOptions<E, ER>
+  options?: UseResourceOptions<E, ER>,
 ): ResourceState<A, Resource.LoadError<E>> => {
   return useResourceBinding(ref, options).state;
 };
@@ -430,7 +442,7 @@ export const useResourceResult = <I, A, E, R = unknown, ER = never>(
 /** Returns the latest successful value for a resource, if one exists. */
 export const useResourceValue = <I, A, E, R = unknown, ER = never>(
   ref: ResourceInput<I, A, E, R>,
-  options?: UseResourceOptions<E, ER>
+  options?: UseResourceOptions<E, ER>,
 ): A | undefined => {
   const state = useResourceResult(ref, options);
   return Resource.value(state);
@@ -439,7 +451,7 @@ export const useResourceValue = <I, A, E, R = unknown, ER = never>(
 /** Returns the latest resource error, if the resource is failed. */
 export const useResourceError = <I, A, E, R = unknown, ER = never>(
   ref: ResourceInput<I, A, E, R>,
-  options?: UseResourceOptions<E, ER>
+  options?: UseResourceOptions<E, ER>,
 ): Resource.LoadError<E> | undefined => {
   const state = useResourceResult(ref, options);
   return Resource.error(state);
@@ -454,7 +466,7 @@ export const useResourceError = <I, A, E, R = unknown, ER = never>(
  */
 export const useResource = <I, A, E, R = unknown, ER = never>(
   ref: ResourceInput<I, A, E, R>,
-  options?: UseResourceOptions<E, ER>
+  options?: UseResourceOptions<E, ER>,
 ): ResourceHandle<I, A, E, R, ER> => {
   const currentRef = resourceUiRefValue(ref);
   const binding = useResourceBinding<I, A, E, R, ER>(currentRef, options);
@@ -476,7 +488,7 @@ export const useResource = <I, A, E, R = unknown, ER = never>(
     preloadFailure: binding.preloadFailure,
     refreshEffect: () => binding.controller.refreshEffect(currentRef),
     prefetchEffect: () => binding.controller.prefetchEffect(currentRef),
-    match: (cases) => resourceUiMatchState(state, cases)
+    match: (cases) => resourceUiMatchState(state, cases),
   };
 };
 
@@ -488,15 +500,13 @@ export const useResource = <I, A, E, R = unknown, ER = never>(
  * reads start `Resource.prefetchEffect(...)` in the active runtime and throw
  * the Promise React Suspense expects at this UI Adapter seam.
  */
-export const useResourceSuspense = <I, A, E, R = unknown>(
-  ref: ResourceInput<I, A, E, R>
-): A => {
+export const useResourceSuspense = <I, A, E, R = unknown>(ref: ResourceInput<I, A, E, R>): A => {
   const runtime = useRuntime();
   const currentRef = resourceUiRefValue(ref);
   const state = useResourceResult(currentRef);
   const preloadController = useMemo(
     () => makeResourceUiSuspensePreloadController<I, A, E, R, unknown, unknown>(runtime),
-    [runtime]
+    [runtime],
   );
 
   useEffect(() => {
@@ -507,7 +517,7 @@ export const useResourceSuspense = <I, A, E, R = unknown>(
 
   const suspensePreload = (nextRef: ResourceRef<I, A, E, R>) => {
     return preloadController.hostToken(nextRef, {
-      toHostToken: (fiber) => Effect.runPromise(Fiber.join(fiber))
+      toHostToken: (fiber) => Effect.runPromise(Fiber.join(fiber)),
     });
   };
 
@@ -538,14 +548,17 @@ export const useResourceSuspense = <I, A, E, R = unknown>(
  * reflected in the hook type.
  */
 export const useAction = <I, A, E, R, ER = never>(
-  definition: Action.Definition<I, A, E, R>
+  definition: Action.Definition<I, A, E, R>,
 ): ActionHandle<I, A, E, R, ER> => {
   const runtime = useRuntime<ER>() as EffectUiRuntime<R, ER>;
-  const instanceRef = useRef<{
-    readonly definition: Action.Definition<I, A, E, R>;
-    readonly runtime: EffectUiRuntime<R, ER>;
-    readonly instance: ReactActionInstance<I, A, E, R, ER>;
-  } | undefined>(undefined);
+  const instanceRef = useRef<
+    | {
+        readonly definition: Action.Definition<I, A, E, R>;
+        readonly runtime: EffectUiRuntime<R, ER>;
+        readonly instance: ReactActionInstance<I, A, E, R, ER>;
+      }
+    | undefined
+  >(undefined);
 
   if (
     instanceRef.current === undefined ||
@@ -555,7 +568,7 @@ export const useAction = <I, A, E, R, ER = never>(
     instanceRef.current = {
       definition,
       runtime,
-      instance: Action.use(definition, { runtime })
+      instance: Action.use(definition, { runtime }),
     };
   }
 
@@ -577,8 +590,8 @@ export const useAction = <I, A, E, R, ER = never>(
       invalidationPlan,
       submitEffect: instance.submitEffect,
       resetEffect: instance.resetEffect,
-      reset: instance.reset
+      reset: instance.reset,
     }),
-    [instance, state, invalidationPlan]
+    [instance, state, invalidationPlan],
   );
 };

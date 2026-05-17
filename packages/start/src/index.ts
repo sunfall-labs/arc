@@ -1,7 +1,7 @@
 export {
   startRequestCountMetric,
   startRequestDurationMetric,
-  startRequestStatusMetric
+  startRequestStatusMetric,
 } from "./request-trace.js";
 
 export * from "./hydration.js";
@@ -14,6 +14,7 @@ export * from "./app-graph.js";
 export * from "./agent-graph.js";
 export * from "./effect-rpc-compat.js";
 export * from "./diagnostics-report.js";
+export * from "./static-export.js";
 export * from "./file-route-modules.js";
 export * from "./file-route.js";
 
@@ -47,7 +48,7 @@ export {
   /** Shared options for request preload and client hydration collections. */
   type StartCollectionHydrationOptions,
   /** Options passed to request preload before SSR rendering. */
-  type PreloadRequestOptions
+  type PreloadRequestOptions,
 } from "./hydration.js";
 
 export {
@@ -83,7 +84,7 @@ export {
   type FileRouteModuleKind,
   type FileRouteParam,
   type FileRouteRouteMetadata,
-  type FileRouteSegment
+  type FileRouteSegment,
 } from "./file-routes.js";
 
 export {
@@ -96,7 +97,7 @@ export {
   createServerHandlerEffect,
   createServerRpcResponseEffect,
   preloadRequest,
-  preloadRequestEffect
+  preloadRequestEffect,
 } from "./start-request-handler.js";
 export type {
   CreateRequestHandlerOptions,
@@ -104,14 +105,14 @@ export type {
   StartPreloadResult,
   StartRenderContext,
   StartRequestHandler,
-  StartRequestHandlerEffect
+  StartRequestHandlerEffect,
 } from "./start-request-handler.js";
 
 export type {
   ServerRpcClientOptions,
   StartFetch,
   StartFetchInit,
-  StartFetchInput
+  StartFetchInput,
 } from "./start-fetch.js";
 
 export type {
@@ -135,7 +136,7 @@ export type {
   StartRequestTraceStreamState,
   StartRequestTraceTeardown,
   StartRequestTraceTeardownSnapshot,
-  StartRequestTraceTransport
+  StartRequestTraceTransport,
 } from "./request-trace.js";
 
 export {
@@ -152,7 +153,7 @@ export {
   type StartActionForm,
   type StartActionFormField,
   type StartActionFormOptions,
-  type StartActionRequest
+  type StartActionRequest,
 } from "./start-action-request-codec.js";
 
 export {
@@ -170,19 +171,12 @@ export {
   type StartActionResponseBody,
   type StartActionResponseMeta,
   type StartActionResult,
-  type StartActionResultFor
+  type StartActionResultFor,
 } from "./start-transport-protocol.js";
 
-export {
-  StartAction,
-  submitStartActionEffect
-} from "./start-action-client.js";
+export { StartAction, submitStartActionEffect } from "./start-action-client.js";
 
-export {
-  BrowserRpcLive,
-  makeRpcClient,
-  makeRpcClientLayer
-} from "./start-rpc-client.js";
+export { BrowserRpcLive, makeRpcClient, makeRpcClientLayer } from "./start-rpc-client.js";
 
 export {
   acceptsMediaType,
@@ -220,7 +214,7 @@ export {
   type StartTransportDiagnosticsOptions,
   type StartTransportEndpointEnvelope,
   type StartTransportKind,
-  type StartTransportRequestHeadersOptions
+  type StartTransportRequestHeadersOptions,
 } from "./rpc.js";
 
 export {
@@ -248,7 +242,7 @@ export {
   type StartTransportEndpointManifestSource,
   type StartTransportEndpointOverrides,
   type StartTransportEndpoints,
-  type StartTransportEndpointSource
+  type StartTransportEndpointSource,
 } from "./start-transport-endpoints.js";
 
 export {
@@ -263,5 +257,5 @@ export {
   ServerFunctionNotFound,
   ServerRpcProtocolError,
   ServerTransportError,
-  Signal
+  Signal,
 } from "@effect-ui/core";

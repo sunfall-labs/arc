@@ -1,13 +1,12 @@
 import {
   type ActionInstance,
   type ActionSubmissionState,
-  type ActionState,
   type ProgramEvent,
   type ProgramInstance,
   type ReadableSignal,
   type ResourceInvalidationPlan,
   type ResourceStoreEvent,
-  type Route
+  type Route,
 } from "@effect-ui/core";
 import { Data, type Effect, type Fiber, type Scope } from "effect";
 
@@ -137,7 +136,7 @@ export interface DevtoolsStartActionInstance<
   I = unknown,
   A = unknown,
   E = unknown,
-  P = DevtoolsInvalidationPlan
+  P = DevtoolsInvalidationPlan,
 > {
   readonly definition: {
     readonly name: string;
@@ -148,17 +147,67 @@ export interface DevtoolsStartActionInstance<
 
 /** Collection event DTO mirrored from the DB Collection Store for Devtools panels. */
 export type DevtoolsCollectionStoreEvent =
-  | { readonly _tag: "CollectionLoaded"; readonly collection: string; readonly count: number; readonly updatedAt: number }
+  | {
+      readonly _tag: "CollectionLoaded";
+      readonly collection: string;
+      readonly count: number;
+      readonly updatedAt: number;
+    }
   | { readonly _tag: "CollectionLoadFailure"; readonly collection: string; readonly error: unknown }
-  | { readonly _tag: "CollectionHydrated"; readonly collection: string; readonly count: number; readonly updatedAt: number }
-  | { readonly _tag: "CollectionPersisted"; readonly collection: string; readonly key: string; readonly count: number }
-  | { readonly _tag: "CollectionRestored"; readonly collection: string; readonly key: string; readonly count: number }
-  | { readonly _tag: "CollectionMutationQueued"; readonly collection: string; readonly transaction: string; readonly mutations: number; readonly pending: number }
-  | { readonly _tag: "CollectionMutateStarted"; readonly collection: string; readonly transaction: string; readonly mutations: number }
-  | { readonly _tag: "CollectionMutationDequeued"; readonly collection: string; readonly transaction: string; readonly pending: number }
-  | { readonly _tag: "CollectionMutateCommitted"; readonly collection: string; readonly transaction: string; readonly mutations: number }
-  | { readonly _tag: "CollectionMutateRolledBack"; readonly collection: string; readonly transaction: string; readonly error: unknown }
-  | { readonly _tag: "CollectionChangeFeedFailure"; readonly collection: string; readonly error: unknown }
+  | {
+      readonly _tag: "CollectionHydrated";
+      readonly collection: string;
+      readonly count: number;
+      readonly updatedAt: number;
+    }
+  | {
+      readonly _tag: "CollectionPersisted";
+      readonly collection: string;
+      readonly key: string;
+      readonly count: number;
+    }
+  | {
+      readonly _tag: "CollectionRestored";
+      readonly collection: string;
+      readonly key: string;
+      readonly count: number;
+    }
+  | {
+      readonly _tag: "CollectionMutationQueued";
+      readonly collection: string;
+      readonly transaction: string;
+      readonly mutations: number;
+      readonly pending: number;
+    }
+  | {
+      readonly _tag: "CollectionMutateStarted";
+      readonly collection: string;
+      readonly transaction: string;
+      readonly mutations: number;
+    }
+  | {
+      readonly _tag: "CollectionMutationDequeued";
+      readonly collection: string;
+      readonly transaction: string;
+      readonly pending: number;
+    }
+  | {
+      readonly _tag: "CollectionMutateCommitted";
+      readonly collection: string;
+      readonly transaction: string;
+      readonly mutations: number;
+    }
+  | {
+      readonly _tag: "CollectionMutateRolledBack";
+      readonly collection: string;
+      readonly transaction: string;
+      readonly error: unknown;
+    }
+  | {
+      readonly _tag: "CollectionChangeFeedFailure";
+      readonly collection: string;
+      readonly error: unknown;
+    }
   | { readonly _tag: "CollectionWritten"; readonly collection: string; readonly mutations: number };
 
 /** Typed Program timeline event detached into Devtools runtime history. */
@@ -183,7 +232,7 @@ export type DevtoolsRequestTraceFiberStatus = "running" | "done" | "interrupted"
 
 /** Typed error thrown when callers provide both live and serialized invalidation plans. */
 export class DevtoolsActionInvalidationPlanConflict extends Data.TaggedError(
-  "DevtoolsActionInvalidationPlanConflict"
+  "DevtoolsActionInvalidationPlanConflict",
 )<{
   readonly guidance: string;
 }> {}
@@ -445,7 +494,9 @@ export interface DevtoolsStore {
   /** Store the latest static Start app-graph diagnostics used by summaries and panels. */
   readonly setAppGraphDiagnostics: (appGraph: DevtoolsStartAppGraphDiagnostics) => void;
   /** Effect variant of `setAppGraphDiagnostics(...)`. */
-  readonly setAppGraphDiagnosticsEffect: (appGraph: DevtoolsStartAppGraphDiagnostics) => Effect.Effect<void>;
+  readonly setAppGraphDiagnosticsEffect: (
+    appGraph: DevtoolsStartAppGraphDiagnostics,
+  ) => Effect.Effect<void>;
   /** Remove stored app-graph diagnostics without clearing runtime facts. */
   readonly clearAppGraphDiagnostics: () => void;
   /** Effect variant of `clearAppGraphDiagnostics(...)`. */
@@ -457,28 +508,32 @@ export interface DevtoolsStore {
   /** Retain an already-serialized invalidation plan, returning its retained index. */
   readonly recordSerializedInvalidation: (plan: DevtoolsInvalidationPlan) => number;
   /** Effect variant of `recordSerializedInvalidation(...)`. */
-  readonly recordSerializedInvalidationEffect: (plan: DevtoolsInvalidationPlan) => Effect.Effect<number>;
+  readonly recordSerializedInvalidationEffect: (
+    plan: DevtoolsInvalidationPlan,
+  ) => Effect.Effect<number>;
   readonly recordActionState: (
     action: string,
     state: string,
-    actionOptions?: DevtoolsRecordActionStateOptions
+    actionOptions?: DevtoolsRecordActionStateOptions,
   ) => void;
   readonly recordActionStateEffect: (
     action: string,
     state: string,
-    actionOptions?: DevtoolsRecordActionStateOptions
+    actionOptions?: DevtoolsRecordActionStateOptions,
   ) => Effect.Effect<void, DevtoolsActionInvalidationPlanConflict>;
   readonly recordAction: <I, A, E, R>(action: ActionInstance<I, A, E, R>) => void;
-  readonly recordActionEffect: <I, A, E, R>(action: ActionInstance<I, A, E, R>) => Effect.Effect<void>;
+  readonly recordActionEffect: <I, A, E, R>(
+    action: ActionInstance<I, A, E, R>,
+  ) => Effect.Effect<void>;
   readonly trackActionEffect: <I, A, E, R>(
-    action: ActionInstance<I, A, E, R>
+    action: ActionInstance<I, A, E, R>,
   ) => Effect.Effect<void, never, Scope.Scope>;
   readonly recordStartAction: <I, A, E, P>(action: DevtoolsStartActionInstance<I, A, E, P>) => void;
   readonly recordStartActionEffect: <I, A, E, P>(
-    action: DevtoolsStartActionInstance<I, A, E, P>
+    action: DevtoolsStartActionInstance<I, A, E, P>,
   ) => Effect.Effect<void>;
   readonly trackStartActionEffect: <I, A, E, P>(
-    action: DevtoolsStartActionInstance<I, A, E, P>
+    action: DevtoolsStartActionInstance<I, A, E, P>,
   ) => Effect.Effect<void, never, Scope.Scope>;
   readonly recordRoutePlan: (plan: Route.NavigationPlan) => number;
   /** Effect variant of `recordRoutePlan(...)`. */
@@ -494,15 +549,17 @@ export interface DevtoolsStore {
   /** Record a DB Collection Store event as a runtime event. */
   readonly recordCollectionEvent: (event: DevtoolsCollectionStoreEvent) => void;
   /** Effect variant of `recordCollectionEvent(...)`. */
-  readonly recordCollectionEventEffect: (event: DevtoolsCollectionStoreEvent) => Effect.Effect<void>;
+  readonly recordCollectionEventEffect: (
+    event: DevtoolsCollectionStoreEvent,
+  ) => Effect.Effect<void>;
   /** Record one Core Program timeline event as a runtime event. */
   readonly recordProgramEvent: <Model, Message, E>(event: ProgramEvent<Model, Message, E>) => void;
   /** Effect variant of `recordProgramEvent(...)`. */
   readonly recordProgramEventEffect: <Model, Message, E>(
-    event: ProgramEvent<Model, Message, E>
+    event: ProgramEvent<Model, Message, E>,
   ) => Effect.Effect<void>;
   readonly trackProgramEffect: <Model, Message, E>(
-    program: ProgramInstance<Model, Message, E>
+    program: ProgramInstance<Model, Message, E>,
   ) => Effect.Effect<void, never, Scope.Scope>;
   /** Record a prebuilt runtime event, assigning sequence and serialization bounds. */
   readonly recordRuntimeEvent: (event: DevtoolsRuntimeEvent) => void;
@@ -791,9 +848,9 @@ export interface DevtoolsSummaryResourceRef {
 
 /** Resource or tag target selected by an invalidation plan. */
 export type DevtoolsSummaryInvalidationTarget =
-  | DevtoolsSummaryResourceRef & {
+  | (DevtoolsSummaryResourceRef & {
       readonly _tag: "Ref";
-    }
+    })
   | {
       readonly _tag: "Tag";
       readonly key: string;
@@ -846,7 +903,9 @@ export interface DevtoolsSummaryResource {
   readonly family: string | null;
   readonly input: DevtoolsSerializableValue | null;
   readonly state: string | null;
-  readonly sources: ReadonlyArray<"Invalidation" | "RequestTrace" | "RoutePlan" | "RuntimeEvent" | "Snapshot">;
+  readonly sources: ReadonlyArray<
+    "Invalidation" | "RequestTrace" | "RoutePlan" | "RuntimeEvent" | "Snapshot"
+  >;
   readonly routeHrefs: ReadonlyArray<string>;
   readonly invalidationIndexes: ReadonlyArray<number>;
 }

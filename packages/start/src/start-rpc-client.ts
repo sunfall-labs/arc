@@ -2,7 +2,7 @@ import {
   Server,
   ServerClient,
   type AnyEffectUiRuntime,
-  type EffectUiRuntime
+  type EffectUiRuntime,
 } from "@effect-ui/core";
 import { Effect, Layer } from "effect";
 import { type ServerRpcClientOptions } from "./start-fetch.js";
@@ -14,31 +14,34 @@ type ServerRpcTransportRuntime<FetchRequirements> =
   | EffectUiRuntime<FetchRequirements, never>
   | AnyEffectUiRuntime<never>;
 
-type ServerRpcRuntimeFreeOptions<FetchError = never> =
-  ServerRpcClientOptions<FetchError, never, never> & {
-    readonly transportRuntime?: undefined;
-  };
+type ServerRpcRuntimeFreeOptions<FetchError = never> = ServerRpcClientOptions<
+  FetchError,
+  never,
+  never
+> & {
+  readonly transportRuntime?: undefined;
+};
 
-type ServerRpcRuntimeBackedOptions<FetchError, FetchRequirements> =
-  ServerRpcClientOptions<FetchError, FetchRequirements, never> & {
-    readonly transportRuntime: ServerRpcTransportRuntime<FetchRequirements>;
-  };
+type ServerRpcRuntimeBackedOptions<FetchError, FetchRequirements> = ServerRpcClientOptions<
+  FetchError,
+  FetchRequirements,
+  never
+> & {
+  readonly transportRuntime: ServerRpcTransportRuntime<FetchRequirements>;
+};
 
-const makeRpcClientFromOptions = <
-  FetchError = never,
-  FetchRequirements = never
->(
-  options: ServerRpcClientOptions<FetchError, FetchRequirements, never> = {}
+const makeRpcClientFromOptions = <FetchError = never, FetchRequirements = never>(
+  options: ServerRpcClientOptions<FetchError, FetchRequirements, never> = {},
 ): ServerClient => ({
   call: <I, A, E, R>(
     fn: Server.Fn<I, A, E, R>,
-    input: I
+    input: I,
   ): Effect.Effect<A, E | Server.ClientError, R> => {
     const workflow = Effect.gen(function* () {
       const encodedInput = yield* Server.encodeInput(fn, input);
       const request: Server.RpcRequest = {
         name: fn.name,
-        input: encodedInput
+        input: encodedInput,
       };
       const { body: rpcResponse } = yield* executeStartClientTransportEffect({
         kind: "rpc",
@@ -46,7 +49,7 @@ const makeRpcClientFromOptions = <
         ...(options.headers === undefined ? {} : { headers: options.headers }),
         endpoint: resolveStartRpcEndpoint(options),
         request,
-        parseResponse: parseRpcResponse
+        parseResponse: parseRpcResponse,
       });
 
       switch (rpcResponse._tag) {
@@ -60,7 +63,7 @@ const makeRpcClientFromOptions = <
     return (options.transportRuntime
       ? options.transportRuntime.provide(workflow)
       : workflow) as unknown as Effect.Effect<A, E | Server.ClientError, R>;
-  }
+  },
 });
 
 /**
@@ -70,38 +73,26 @@ const makeRpcClientFromOptions = <
  * function Effect is run.
  */
 export function makeRpcClient<FetchError = never>(
-  options?: ServerRpcRuntimeFreeOptions<FetchError>
+  options?: ServerRpcRuntimeFreeOptions<FetchError>,
 ): ServerClient;
-export function makeRpcClient<
-  FetchError = never,
-  FetchRequirements = never
->(
-  options: ServerRpcRuntimeBackedOptions<FetchError, FetchRequirements>
+export function makeRpcClient<FetchError = never, FetchRequirements = never>(
+  options: ServerRpcRuntimeBackedOptions<FetchError, FetchRequirements>,
 ): ServerClient;
-export function makeRpcClient<
-  FetchError = never,
-  FetchRequirements = never
->(
-  options: ServerRpcClientOptions<FetchError, FetchRequirements, never> = {}
+export function makeRpcClient<FetchError = never, FetchRequirements = never>(
+  options: ServerRpcClientOptions<FetchError, FetchRequirements, never> = {},
 ): ServerClient {
   return makeRpcClientFromOptions(options);
 }
 
 /** Layer that provides a Start RPC-backed `ServerClient`. */
 export function makeRpcClientLayer<FetchError = never>(
-  options?: ServerRpcRuntimeFreeOptions<FetchError>
+  options?: ServerRpcRuntimeFreeOptions<FetchError>,
 ): Layer.Layer<ServerClient>;
-export function makeRpcClientLayer<
-  FetchError = never,
-  FetchRequirements = never
->(
-  options: ServerRpcRuntimeBackedOptions<FetchError, FetchRequirements>
+export function makeRpcClientLayer<FetchError = never, FetchRequirements = never>(
+  options: ServerRpcRuntimeBackedOptions<FetchError, FetchRequirements>,
 ): Layer.Layer<ServerClient>;
-export function makeRpcClientLayer<
-  FetchError = never,
-  FetchRequirements = never
->(
-  options: ServerRpcClientOptions<FetchError, FetchRequirements, never> = {}
+export function makeRpcClientLayer<FetchError = never, FetchRequirements = never>(
+  options: ServerRpcClientOptions<FetchError, FetchRequirements, never> = {},
 ): Layer.Layer<ServerClient> {
   return Layer.succeed(ServerClient)(makeRpcClientFromOptions(options));
 }

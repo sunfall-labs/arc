@@ -14,51 +14,60 @@ import {
   type StartDiagnosticsCliOptions,
   type StartDiagnosticsCliResult,
   type StartGraphCliOptions,
-  type StartImpactCliOptions
+  type StartImpactCliOptions,
 } from "@effect-ui/start/cli";
 
 const cliIo: StartDiagnosticsCliIo = {
   stdout: (line) => {
     void line;
   },
-  stderr: (line) => Effect.sync(() => {
-    void line;
-  }),
-  loadDiagnosticsEffect: () => Effect.die("unused")
+  stderr: (line) =>
+    Effect.sync(() => {
+      void line;
+    }),
+  loadDiagnosticsEffect: () => Effect.die("unused"),
 };
 declare const diagnosticsLoaderHostWork: ReturnType<typeof fetch>;
 const promiseStartDiagnosticsCliLoaderIo: StartDiagnosticsCliIo = {
   // @ts-expect-error diagnostics CLI loaders must return Effect, not host Promise work
-  loadDiagnosticsEffect: () => diagnosticsLoaderHostWork
+  loadDiagnosticsEffect: () => diagnosticsLoaderHostWork,
 };
 const parsedStartCliCommand: StartCliCommand = parseStartDiagnosticsCliArgs(["--help"]);
 const parsedStartCliCommandEffect: Effect.Effect<StartCliCommand, StartDiagnosticsCliUsageError> =
   parseStartDiagnosticsCliArgsEffect(["graph", "--query=/projects/:id"]);
-const startDiagnosticsCliResultEffect: Effect.Effect<StartDiagnosticsCliResult, StartDiagnosticsCliWriteError> =
-  runStartDiagnosticsCliEffect(["--help"], cliIo);
-const startDiagnosticsCliResultAliasEffect: Effect.Effect<StartDiagnosticsCliResult, StartDiagnosticsCliWriteError> =
-  runStartDiagnosticsCli(["--help"], cliIo);
-const startDiagnosticsCliMainEffect: Effect.Effect<void> =
-  runStartDiagnosticsCliMainEffect(["--help"], cliIo);
-const startDiagnosticsCliMainAliasEffect: Effect.Effect<void> =
-  runStartDiagnosticsCliMain(["--help"], cliIo);
+const startDiagnosticsCliResultEffect: Effect.Effect<
+  StartDiagnosticsCliResult,
+  StartDiagnosticsCliWriteError
+> = runStartDiagnosticsCliEffect(["--help"], cliIo);
+const startDiagnosticsCliResultAliasEffect: Effect.Effect<
+  StartDiagnosticsCliResult,
+  StartDiagnosticsCliWriteError
+> = runStartDiagnosticsCli(["--help"], cliIo);
+const startDiagnosticsCliMainEffect: Effect.Effect<void> = runStartDiagnosticsCliMainEffect(
+  ["--help"],
+  cliIo,
+);
+const startDiagnosticsCliMainAliasEffect: Effect.Effect<void> = runStartDiagnosticsCliMain(
+  ["--help"],
+  cliIo,
+);
 const startDiagnosticsCliWriteError = new StartDiagnosticsCliWriteError({
   stream: "stdout",
   cause: "boom",
-  guidance: "test"
+  guidance: "test",
 });
 const startDiagnosticsCliOptions: StartDiagnosticsCliOptions = {
   json: false,
-  pretty: true
+  pretty: true,
 };
 const startGraphCliOptions: StartGraphCliOptions = {
   ...startDiagnosticsCliOptions,
   verbose: true,
-  query: { kind: "route", text: "/projects/:id" }
+  query: { kind: "route", text: "/projects/:id" },
 };
 const startImpactCliOptions: StartImpactCliOptions = {
   ...startDiagnosticsCliOptions,
-  query: { text: "--route=/projects/:id" }
+  query: { text: "--route=/projects/:id" },
 };
 const startDiagnosticsCliUsageText: string = startDiagnosticsCliUsage;
 

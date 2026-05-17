@@ -4,21 +4,27 @@ import type {
   EffectInputCallbackError,
   EffectInputError,
   EffectInputRequirements,
-  PlainValue
+  PlainValue,
 } from "./effect-like.js";
 import type { ReadableSignal } from "./signal.js";
 
 /** Runtime marker for values created by `Program.next(...)` or `Program.commands(...)`. */
-export const ProgramStepTypeId: unique symbol = Symbol.for("@effect-ui/core/ProgramStep") as typeof ProgramStepTypeId;
+export const ProgramStepTypeId: unique symbol = Symbol.for(
+  "@effect-ui/core/ProgramStep",
+) as typeof ProgramStepTypeId;
 /** Runtime marker for Effect-backed Program commands. */
-export const ProgramCommandTypeId: unique symbol = Symbol.for("@effect-ui/core/ProgramCommand") as typeof ProgramCommandTypeId;
+export const ProgramCommandTypeId: unique symbol = Symbol.for(
+  "@effect-ui/core/ProgramCommand",
+) as typeof ProgramCommandTypeId;
 /** Runtime marker for Stream-backed Program subscriptions. */
-export const ProgramSubscriptionTypeId: unique symbol = Symbol.for("@effect-ui/core/ProgramSubscription") as typeof ProgramSubscriptionTypeId;
+export const ProgramSubscriptionTypeId: unique symbol = Symbol.for(
+  "@effect-ui/core/ProgramSubscription",
+) as typeof ProgramSubscriptionTypeId;
 
 /** Runtime phase that produced a Program failure or timeline event. */
 export type ProgramPhase = "Update" | "Command" | "Subscription";
 
-type IsAny<T> = 0 extends (1 & T) ? true : false;
+type IsAny<T> = 0 extends 1 & T ? true : false;
 type ProgramUnknownMessageValue = Exclude<PlainValue<unknown>, undefined>;
 type NonUndefinedProgramMessage<Message> =
   IsAny<Message> extends true
@@ -27,7 +33,9 @@ type NonUndefinedProgramMessage<Message> =
       ? ProgramUnknownMessageValue
       : [Message] extends [void]
         ? never
-        : undefined extends Message ? never : PlainValue<Message>;
+        : undefined extends Message
+          ? never
+          : PlainValue<Message>;
 
 /**
  * Plain Program message value.
@@ -113,10 +121,10 @@ export interface ProgramDefinition<Model, Message, E = never, R = never> {
   readonly initial: ProgramModelValue<Model>;
   readonly update: (
     model: Model,
-    message: ProgramMessageValue<Message>
+    message: ProgramMessageValue<Message>,
   ) => EffectInput<ProgramUpdate<Model, Message, E, R>, E, R>;
   readonly subscriptions?: (
-    model: Model
+    model: Model,
   ) => EffectInput<ProgramSubscriptionInput<Message, E, R>, E, R>;
   /** Bounded runtime event retention. Set to `false` to disable timeline storage. */
   readonly timeline?: false | ProgramTimelineOptions;
@@ -239,19 +247,25 @@ export interface ProgramStory<Model, Message, E = never, R = never> {
   /** Applied transitions, including returned commands that have not run implicitly. */
   readonly history: ReadableSignal<ReadonlyArray<ProgramStoryEntry<Model, Message, E, R>>>;
   /** Applies one message through `update` and records the resulting transition. */
-  send(message: ProgramMessageValue<Message>): Effect.Effect<
+  send(
+    message: ProgramMessageValue<Message>,
+  ): Effect.Effect<
     ProgramStoryEntry<Model, Message, E, R>,
     ProgramFailure<Message, ProgramRuntimeError<E>>,
     R
   >;
   /** Runs one command without applying its emitted message. */
-  run(command: ProgramCommand<Message, E, R>): Effect.Effect<
+  run(
+    command: ProgramCommand<Message, E, R>,
+  ): Effect.Effect<
     ProgramMessageValue<Message> | void,
     ProgramFailure<Message, ProgramRuntimeError<E>>,
     R
   >;
   /** Runs one command and applies its emitted message when it produces one. */
-  resolve(command: ProgramCommand<Message, E, R>): Effect.Effect<
+  resolve(
+    command: ProgramCommand<Message, E, R>,
+  ): Effect.Effect<
     ProgramStoryEntry<Model, Message, E, R> | undefined,
     ProgramFailure<Message, ProgramRuntimeError<E>>,
     R
@@ -283,7 +297,9 @@ export interface ProgramInstance<Model, Message, E = never, DispatchE = E> {
    * If disposal happens before the update commits, the Effect fails with a
    * `ProgramFailure` whose error is `ProgramDisposed`.
    */
-  dispatchEffect(message: ProgramMessageValue<Message>): Effect.Effect<void, ProgramFailure<Message, DispatchE>>;
+  dispatchEffect(
+    message: ProgramMessageValue<Message>,
+  ): Effect.Effect<void, ProgramFailure<Message, DispatchE>>;
   /** Clears accumulated failures. */
   clearFailures(): void;
   /** Clears retained timeline events without changing model or failures. */

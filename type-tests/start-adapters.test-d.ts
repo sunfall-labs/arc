@@ -17,7 +17,7 @@ import {
   type StartNodeHandlerEffect,
   type StartNodeServerHandler,
   type StartNodeServerHandlerOptions,
-  type StartNodeServerHandlerRuntimeOptions
+  type StartNodeServerHandlerRuntimeOptions,
 } from "@effect-ui/start/adapters";
 import type { EffectUiRuntime } from "@effect-ui/core";
 import type { StartRequestHandlerEffect } from "@effect-ui/start";
@@ -32,7 +32,7 @@ const startAdapterExports: Array<unknown> = [
   StartNodeAdapterError,
   StartRequestHandlerError,
   toFetchHandlerEffect,
-  writeNodeResponseEffect
+  writeNodeResponseEffect,
 ];
 type AdapterHandlers =
   | StartFetchHandlerEffect
@@ -53,7 +53,9 @@ interface RootFetchAdapterTestService {
 }
 
 declare const scopeOnlyHandler: StartRequestHandlerEffect<Scope.Scope>;
-declare const servicefulHandler: StartRequestHandlerEffect<Scope.Scope | RootFetchAdapterTestService>;
+declare const servicefulHandler: StartRequestHandlerEffect<
+  Scope.Scope | RootFetchAdapterTestService
+>;
 declare const serviceRuntime: EffectUiRuntime<RootFetchAdapterTestService>;
 
 const rootFetchPromiseHandler: StartFetchPromiseHandler = createFetchHandler(scopeOnlyHandler);
@@ -63,24 +65,26 @@ const rootFetchPromiseOptions: StartFetchPromiseHandlerOptions = {};
 const rootFetchRuntimeOptions: StartFetchPromiseHandlerRuntimeOptions<
   Scope.Scope | RootFetchAdapterTestService
 > = {
-  runtime: serviceRuntime
+  runtime: serviceRuntime,
 };
 const rootServicefulFetchPromiseHandler: StartFetchPromiseHandler = createFetchHandler(
   servicefulHandler,
-  rootFetchRuntimeOptions
+  rootFetchRuntimeOptions,
 );
-const servicefulFetchEffectHandler: StartFetchHandlerEffect<Scope.Scope | RootFetchAdapterTestService> =
-  toFetchHandlerEffect(servicefulHandler);
+const servicefulFetchEffectHandler: StartFetchHandlerEffect<
+  Scope.Scope | RootFetchAdapterTestService
+> = toFetchHandlerEffect(servicefulHandler);
 const rootNodeEffectHandler: StartNodeHandlerEffect<Scope.Scope> =
   createNodeHandlerEffect(scopeOnlyHandler);
-const servicefulNodeEffectHandler: StartNodeHandlerEffect<Scope.Scope | RootFetchAdapterTestService> =
-  createNodeHandlerEffect(servicefulHandler);
+const servicefulNodeEffectHandler: StartNodeHandlerEffect<
+  Scope.Scope | RootFetchAdapterTestService
+> = createNodeHandlerEffect(servicefulHandler);
 const rootNodeServerHandler: StartNodeServerHandler = createNodeServerHandler(scopeOnlyHandler);
 const servicefulNodeServerHandler: StartNodeServerHandler = createNodeServerHandler(
   servicefulHandler,
   {
-    runtime: serviceRuntime
-  }
+    runtime: serviceRuntime,
+  },
 );
 // @ts-expect-error serviceful Fetch Promise facades must receive a runtime for non-Scope requirements.
 createFetchHandler(servicefulHandler, rootFetchPromiseOptions);

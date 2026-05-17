@@ -6,18 +6,14 @@ import {
   type EffectInput,
   type EffectUiRuntime,
   type ResourceStoreDiagnosticsSnapshot,
-  type Route
+  type Route,
 } from "@effect-ui/core";
 import type { AnyCollection } from "@effect-ui/db";
 import { Cause, Clock, Duration, Effect, Exit, Metric, Redacted } from "effect";
-import {
-  makeStartRequestIdEffect,
-  startRequestIdHeader,
-  startTraceparentHeader
-} from "./rpc.js";
+import { makeStartRequestIdEffect, startRequestIdHeader, startTraceparentHeader } from "./rpc.js";
 import {
   resolveStartTransportEndpoints,
-  type StartTransportEndpointSource
+  type StartTransportEndpointSource,
 } from "./start-transport-endpoints.js";
 
 /** Request transport classification used by Start request traces and metrics. */
@@ -284,38 +280,38 @@ export interface StartCollectionPreloadTraceInput {
 }
 
 /** Best-effort request diagnostics hook. Failures from the hook are ignored. */
-export type StartRequestTraceHandler = (trace: StartRequestTrace) => EffectInput<void, never, never>;
+export type StartRequestTraceHandler = (
+  trace: StartRequestTrace,
+) => EffectInput<void, never, never>;
 
 /** Invokes Start best-effort EffectInput callbacks without leaking callback defects. */
 export const invokeStartEffectInputCallbackEffect = <Input>(
   callback: ((input: Input) => EffectInput<void, never, never>) | undefined,
-  input: Input
+  input: Input,
 ): Effect.Effect<void> =>
   callback === undefined
     ? Effect.void
-    : Effect.suspend(() => toEffect(callback(input))).pipe(
-        Effect.catchCause(() => Effect.void)
-      );
+    : Effect.suspend(() => toEffect(callback(input))).pipe(Effect.catchCause(() => Effect.void));
 
 /** Effect Metric counter for total Start requests by transport, method, and path. */
 export const startRequestCountMetric = Metric.counter("effect_ui_start_requests_total", {
   description: "Total Start requests handled by transport, method, and path.",
-  incremental: true
+  incremental: true,
 });
 
 /** Effect Metric timer for Start request duration by transport, method, and path. */
 export const startRequestDurationMetric = Metric.timer("effect_ui_start_request_duration", {
-  description: "Start request handler duration by transport, method, and path."
+  description: "Start request handler duration by transport, method, and path.",
 });
 
 /** Effect Metric frequency for Start request outcomes by transport, method, path, and status. */
 export const startRequestStatusMetric = Metric.frequency("effect_ui_start_request_status", {
-  description: "Start request outcomes by transport, method, path, and status."
+  description: "Start request outcomes by transport, method, path, and status.",
 });
 
 export const startRequestTraceTransport = (
   request: Request,
-  endpoints?: StartTransportEndpointSource
+  endpoints?: StartTransportEndpointSource,
 ): StartRequestTraceTransport => {
   const pathname = new URL(request.url).pathname;
   const resolved = resolveStartTransportEndpoints(endpoints);
@@ -326,8 +322,7 @@ export const startRequestTraceTransport = (
       : "ssr";
 };
 
-const redactedTraceValue = (value: string): string =>
-  String(Redacted.make(value));
+const redactedTraceValue = (value: string): string => String(Redacted.make(value));
 
 const sensitiveTraceHeaderNames = new Set([
   "authorization",
@@ -335,13 +330,11 @@ const sensitiveTraceHeaderNames = new Set([
   "proxy-authorization",
   "set-cookie",
   "x-api-key",
-  "x-auth-token"
+  "x-auth-token",
 ]);
 
 const traceHeaderValue = (name: string, value: string): string =>
-  sensitiveTraceHeaderNames.has(name.toLowerCase())
-    ? redactedTraceValue(value)
-    : value;
+  sensitiveTraceHeaderNames.has(name.toLowerCase()) ? redactedTraceValue(value) : value;
 
 const traceHeaders = (headers: Headers): ReadonlyArray<StartRequestTraceHeader> => {
   const out: StartRequestTraceHeader[] = [];
@@ -376,8 +369,8 @@ const traceCookies = (headers: Headers): ReadonlyArray<StartRequestTraceCookie> 
         ? [
             {
               name: decodeTraceCookiePart(rawName),
-              value: redactedTraceValue(decodeTraceCookiePart(rawValue.join("=")))
-            }
+              value: redactedTraceValue(decodeTraceCookiePart(rawValue.join("="))),
+            },
           ]
         : [];
     })
@@ -401,13 +394,13 @@ const traceResponse = (response: Response): StartRequestTraceResponse => {
     status: response.status,
     ...(response.statusText === "" ? {} : { statusText: response.statusText }),
     ...(headers.length === 0 ? {} : { headers }),
-    ...(setCookieCount === 0 ? {} : { setCookieCount })
+    ...(setCookieCount === 0 ? {} : { setCookieCount }),
   };
 };
 
 const traceRequest = (
   request: Request,
-  facts: StartRequestTraceFacts
+  facts: StartRequestTraceFacts,
 ): StartRequestTraceRequest => {
   const url = new URL(request.url);
   const headers = traceHeaders(request.headers);
@@ -421,50 +414,47 @@ const traceRequest = (
     path: url.pathname,
     transport: facts.transport,
     ...(headers.length === 0 ? {} : { headers }),
-    ...(cookies.length === 0 ? {} : { cookies })
+    ...(cookies.length === 0 ? {} : { cookies }),
   };
 };
 
-const requestPath = (request: Request): string =>
-  new URL(request.url).pathname;
+const requestPath = (request: Request): string => new URL(request.url).pathname;
 
 const requestMetricAttributes = (
   request: Request,
-  facts: StartRequestTraceFacts
+  facts: StartRequestTraceFacts,
 ): Record<string, string> => ({
   transport: facts.transport,
   method: request.method,
-  path: requestPath(request)
+  path: requestPath(request),
 });
 
 const requestLogAnnotations = (
   request: Request,
-  facts: StartRequestTraceFacts
+  facts: StartRequestTraceFacts,
 ): Record<string, string> => ({
   "effect-ui.request.id": facts.requestId,
   "effect-ui.request.transport": facts.transport,
   "http.request.method": request.method,
-  "url.path": requestPath(request)
+  "url.path": requestPath(request),
 });
 
 const requestSpanAttributes = (
   request: Request,
-  facts: StartRequestTraceFacts
+  facts: StartRequestTraceFacts,
 ): Record<string, unknown> => {
   const traceparent = request.headers.get(startTraceparentHeader)?.trim() || undefined;
   return {
     ...requestLogAnnotations(request, facts),
-    ...(traceparent === undefined ? {} : { traceparent })
+    ...(traceparent === undefined ? {} : { traceparent }),
   };
 };
 
 export const startRequestFinalStatus = (
   facts: StartRequestTraceFacts,
-  status: StartRequestTraceStatus
+  status: StartRequestTraceStatus,
 ): StartRequestTraceStatus =>
-  facts.failureKind === undefined || status === "cancelled"
-    ? status
-    : "failure";
+  facts.failureKind === undefined || status === "cancelled" ? status : "failure";
 
 export const finalizeStartRequestMetricsEffect = (
   request: Request,
@@ -472,21 +462,21 @@ export const finalizeStartRequestMetricsEffect = (
   options: {
     readonly status: StartRequestTraceStatus;
     readonly completedAt: number;
-  }
+  },
 ): Effect.Effect<void> => {
   const attributes = requestMetricAttributes(request, facts);
   const status = startRequestFinalStatus(facts, options.status);
   return Effect.gen(function* () {
     yield* Metric.update(
       Metric.withAttributes(startRequestDurationMetric, attributes),
-      Duration.millis(Math.max(0, options.completedAt - facts.startedAt))
+      Duration.millis(Math.max(0, options.completedAt - facts.startedAt)),
     );
     yield* Metric.update(
       Metric.withAttributes(startRequestStatusMetric, {
         ...attributes,
-        status
+        status,
       }),
-      status
+      status,
     );
   });
 };
@@ -494,7 +484,7 @@ export const finalizeStartRequestMetricsEffect = (
 export const withStartRequestObservability = <A, E, R>(
   request: Request,
   facts: StartRequestTraceFacts,
-  effect: Effect.Effect<A, E, R>
+  effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E, R> => {
   const attributes = requestMetricAttributes(request, facts);
   const observed = Effect.gen(function* () {
@@ -510,51 +500,53 @@ export const withStartRequestObservability = <A, E, R>(
     Effect.annotateLogs(requestLogAnnotations(request, facts)),
     Effect.withSpan("effect-ui.start.request", {
       kind: "server",
-      attributes: requestSpanAttributes(request, facts)
-    })
+      attributes: requestSpanAttributes(request, facts),
+    }),
   );
 };
 
 export const withStartRpcObservability = <A, E, R>(
   name: string,
-  effect: Effect.Effect<A, E, R>
+  effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E, R> =>
   effect.pipe(
     Effect.annotateLogs("effect-ui.rpc.name", name),
     Effect.withSpan("effect-ui.start.rpc", {
       kind: "server",
       attributes: {
-        "effect-ui.rpc.name": name
-      }
-    })
+        "effect-ui.rpc.name": name,
+      },
+    }),
   );
 
 export const withStartActionObservability = <A, E, R>(
   name: string,
-  effect: Effect.Effect<A, E, R>
+  effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E, R> =>
   effect.pipe(
     Effect.annotateLogs("effect-ui.action.name", name),
     Effect.withSpan("effect-ui.start.action", {
       kind: "server",
       attributes: {
-        "effect-ui.action.name": name
-      }
-    })
+        "effect-ui.action.name": name,
+      },
+    }),
   );
 
 const traceResourceRefs = (
-  refs: ReadonlyArray<{ readonly key: string; readonly family: { readonly options: { readonly name: string } }; readonly input: unknown }>
+  refs: ReadonlyArray<{
+    readonly key: string;
+    readonly family: { readonly options: { readonly name: string } };
+    readonly input: unknown;
+  }>,
 ): ReadonlyArray<StartRequestTraceResource> =>
   refs.map((ref) => ({
     key: ref.key,
     family: ref.family.options.name,
-    input: ref.input
+    input: ref.input,
   }));
 
-export const traceRoutePlan = (
-  plan: Route.NavigationPlan
-): StartRequestTraceRoutePlan => ({
+export const traceRoutePlan = (plan: Route.NavigationPlan): StartRequestTraceRoutePlan => ({
   _tag: plan._tag,
   href: plan.href,
   match: plan.match
@@ -562,23 +554,21 @@ export const traceRoutePlan = (
         path: plan.match.route.path,
         href: plan.match.href,
         params: plan.match.params,
-        search: plan.match.search
+        search: plan.match.search,
       }
     : undefined,
   resources: traceResourceRefs(plan.refs).map((resource) => ({
     key: resource.key,
     family: resource.family,
-    input: resource.input
+    input: resource.input,
   })),
   hydration: {
     resourceCount: plan.resources.resources.length,
-    resourceKeys: plan.resources.resources.map((resource) => resource.key)
-  }
+    resourceKeys: plan.resources.resources.map((resource) => resource.key),
+  },
 });
 
-const uniqueCollections = (
-  collections: Iterable<AnyCollection>
-): ReadonlyArray<AnyCollection> => {
+const uniqueCollections = (collections: Iterable<AnyCollection>): ReadonlyArray<AnyCollection> => {
   const names = new Set<string>();
   const out: Array<AnyCollection> = [];
   for (const collection of collections) {
@@ -592,7 +582,7 @@ const uniqueCollections = (
 
 const collectionTraceState = <RuntimeServices, RuntimeError>(
   runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
-  collection: AnyCollection
+  collection: AnyCollection,
 ): string | undefined => {
   try {
     return runWithRuntime(runtime, () => collection.state().get()._tag);
@@ -603,47 +593,47 @@ const collectionTraceState = <RuntimeServices, RuntimeError>(
 
 export const traceCollectionPreload = <RuntimeServices, RuntimeError>(
   runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
-  collectionPreload: StartCollectionPreloadTraceInput
+  collectionPreload: StartCollectionPreloadTraceInput,
 ): ReadonlyArray<StartRequestTraceCollection> =>
   uniqueCollections([
     ...collectionPreload.routeTouchedCollections,
     ...collectionPreload.routeDeclaredCollections,
     ...collectionPreload.registeredCollections,
-    ...collectionPreload.dehydratedCollections
+    ...collectionPreload.dehydratedCollections,
   ])
     .map((collection) => {
       const state = collectionTraceState(runtime, collection);
       return {
         name: collection.name,
-        ...(state === undefined ? {} : { state })
+        ...(state === undefined ? {} : { state }),
       };
     })
     .sort((left, right) => left.name.localeCompare(right.name));
 
 export const startRequestTraceFactsEffect = (
   request: Request,
-  endpoints?: StartTransportEndpointSource
+  endpoints?: StartTransportEndpointSource,
 ): Effect.Effect<StartRequestTraceFacts> =>
   Effect.gen(function* () {
     const incomingRequestId = request.headers.get(startRequestIdHeader)?.trim();
     const startedAt = yield* Clock.currentTimeMillis;
     return {
-      requestId: incomingRequestId && !/[\r\n]/.test(incomingRequestId)
-        ? incomingRequestId
-        : yield* makeStartRequestIdEffect,
+      requestId:
+        incomingRequestId && !/[\r\n]/.test(incomingRequestId)
+          ? incomingRequestId
+          : yield* makeStartRequestIdEffect,
       transport: startRequestTraceTransport(request, endpoints),
       startedAt,
       collections: [],
       serverFunctions: [],
-      actions: []
+      actions: [],
     };
   });
 
 export const emitStartRequestTraceEffect = (
   handler: StartRequestTraceHandler | undefined,
-  trace: StartRequestTrace
-): Effect.Effect<void> =>
-  invokeStartEffectInputCallbackEffect(handler, trace);
+  trace: StartRequestTrace,
+): Effect.Effect<void> => invokeStartEffectInputCallbackEffect(handler, trace);
 
 export const buildStartRequestTrace = (
   request: Request,
@@ -653,14 +643,15 @@ export const buildStartRequestTrace = (
     readonly response?: Response;
     readonly teardown: StartRequestTraceTeardown;
     readonly stream?: StartRequestTraceStream;
-  }
+  },
 ): StartRequestTrace => {
   const traceStatus = startRequestFinalStatus(facts, status);
-  const fiberStatus: StartRequestTraceFiberStatus = traceStatus === "success"
-    ? "done"
-    : traceStatus === "cancelled" || facts.failureKind === "interruption"
-      ? "interrupted"
-      : "failed";
+  const fiberStatus: StartRequestTraceFiberStatus =
+    traceStatus === "success"
+      ? "done"
+      : traceStatus === "cancelled" || facts.failureKind === "interruption"
+        ? "interrupted"
+        : "failed";
 
   return {
     request: traceRequest(request, facts),
@@ -674,23 +665,22 @@ export const buildStartRequestTrace = (
     fibers: [
       {
         name: "request-runtime",
-        status: fiberStatus
-      }
+        status: fiberStatus,
+      },
     ],
     streams: options.stream === undefined ? [] : [options.stream],
     status: traceStatus,
     ...(facts.failureKind === undefined ? {} : { failureKind: facts.failureKind }),
-    teardown: options.teardown
+    teardown: options.teardown,
   };
 };
 
 export const requestRuntimeTeardownSnapshot = <RuntimeServices, RuntimeError>(
-  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>
-): StartRequestTraceTeardownSnapshot =>
-  runtime.resourceStore.diagnostics.snapshotUnsafe();
+  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
+): StartRequestTraceTeardownSnapshot => runtime.resourceStore.diagnostics.snapshotUnsafe();
 
 export const requestRuntimeDisposeTraceEffect = <RuntimeServices, RuntimeError>(
-  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>
+  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
 ): Effect.Effect<{
   readonly runtimeDisposed: boolean;
   readonly beforeDispose: StartRequestTraceTeardownSnapshot;
@@ -710,7 +700,7 @@ export const requestRuntimeDisposeTraceEffect = <RuntimeServices, RuntimeError>(
       completedAt,
       ...(Exit.isSuccess(disposeExit)
         ? {}
-        : { cleanupFailure: startRequestTraceCleanupFailure(disposeExit.cause) })
+        : { cleanupFailure: startRequestTraceCleanupFailure(disposeExit.cause) }),
     };
   });
 
@@ -729,27 +719,27 @@ const cleanupFailureMessage = (cause: Cause.Cause<unknown>): string | undefined 
 };
 
 const startRequestTraceCleanupFailure = <E>(
-  cause: Cause.Cause<E>
+  cause: Cause.Cause<E>,
 ): StartRequestTraceCleanupFailure => {
   const failureMessage = cleanupFailureMessage(cause as Cause.Cause<unknown>);
   if (failureMessage !== undefined) {
     return {
       _tag: "Failure",
-      message: failureMessage
+      message: failureMessage,
     };
   }
 
   if (cause.reasons.some(Cause.isInterruptReason)) {
     return {
       _tag: "Interruption",
-      message: "Runtime cleanup was interrupted."
+      message: "Runtime cleanup was interrupted.",
     };
   }
 
   const defect = cause.reasons.find(Cause.isDieReason)?.defect;
   return {
     _tag: "Defect",
-    message: defect instanceof Error ? defect.message : String(Cause.squash(cause))
+    message: defect instanceof Error ? defect.message : String(Cause.squash(cause)),
   };
 };
 
@@ -762,7 +752,7 @@ export const startRequestTraceTeardown = (
     readonly beforeDispose: StartRequestTraceTeardownSnapshot;
     readonly afterDispose: StartRequestTraceTeardownSnapshot;
     readonly cleanupFailure?: StartRequestTraceCleanupFailure;
-  }
+  },
 ): StartRequestTraceTeardown => ({
   runtimeDisposed: options.runtimeDisposed,
   reason: options.reason,
@@ -772,5 +762,5 @@ export const startRequestTraceTeardown = (
   durationMillis: Math.max(0, options.completedAt - facts.startedAt),
   beforeDispose: options.beforeDispose,
   afterDispose: options.afterDispose,
-  ...(options.cleanupFailure === undefined ? {} : { cleanupFailure: options.cleanupFailure })
+  ...(options.cleanupFailure === undefined ? {} : { cleanupFailure: options.cleanupFailure }),
 });

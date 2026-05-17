@@ -267,11 +267,11 @@ This is the highest-leverage remaining win condition.
 Progress:
 
 - [x] Devtools-side `DevtoolsRequestTrace` data model, store recording, summary,
-  and causal graph integration.
+      and causal graph integration.
 - [x] Start request-runtime emission hook for SSR, server RPC, Start actions,
-  and response stream close.
+      and response stream close.
 - [x] Start request-runtime trace assertions for stream cancellation and request
-  failure paths.
+      failure paths.
 - [x] Richer teardown details beyond runtime disposal, stream state, and reason.
   - Evidence: request traces now include start/completion timestamps, duration,
     and before/after Resource Store teardown snapshots.

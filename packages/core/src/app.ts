@@ -3,7 +3,7 @@ import {
   makeCoreDefinitionRegistry,
   snapshotCoreDefinitionRegistry,
   type CoreDefinitionRegistry,
-  type CoreDefinitionRegistryInput
+  type CoreDefinitionRegistryInput,
 } from "./definition-registry.js";
 import type { RouteDefinition } from "./route.js";
 import { makeRuntime, type EffectUiRuntime, type RuntimeSource } from "./runtime.js";
@@ -14,44 +14,54 @@ type AnyActionDefinition =
   | ActionDefinition<any, any, any, any>;
 type AnyServerFunction = ServerFunction<any, any, any, any>;
 
-type IsAny<T> = 0 extends (1 & T) ? true : false;
+type IsAny<T> = 0 extends 1 & T ? true : false;
 
 type DefinitionIterableValue<Definitions> =
-  Definitions extends ReadonlyMap<any, infer Definition> ? Definition
-    : Definitions extends Iterable<infer Definition> ? Definition
+  Definitions extends ReadonlyMap<any, infer Definition>
+    ? Definition
+    : Definitions extends Iterable<infer Definition>
+      ? Definition
       : never;
 
 type RegistryInputActions<Input> = Input extends { readonly actions?: infer Actions }
   ? DefinitionIterableValue<NonNullable<Actions>>
   : never;
 
-type RegistryInputServerFunctions<Input> = Input extends { readonly serverFunctions?: infer ServerFunctions }
+type RegistryInputServerFunctions<Input> = Input extends {
+  readonly serverFunctions?: infer ServerFunctions;
+}
   ? DefinitionIterableValue<NonNullable<ServerFunctions>>
   : never;
 
 export type ActionDefinitionRequirements<Definition> =
   Definition extends ActionDefinition<any, any, any, infer Requirements>
-    ? IsAny<Requirements> extends true ? never : Requirements
+    ? IsAny<Requirements> extends true
+      ? never
+      : Requirements
     : never;
 
 export type ServerFunctionRequirements<Definition> =
   Definition extends ServerFunction<any, any, any, infer Requirements>
-    ? IsAny<Requirements> extends true ? never : Requirements
+    ? IsAny<Requirements> extends true
+      ? never
+      : Requirements
     : never;
 
 export type AppDefinitionRegistry<
   Actions extends AnyActionDefinition = AnyActionDefinition,
-  ServerFunctions extends AnyServerFunction = AnyServerFunction
+  ServerFunctions extends AnyServerFunction = AnyServerFunction,
 > = CoreDefinitionRegistry<Actions, ServerFunctions>;
 
 export type AppDefinitionRegistryInput<
   Actions extends AnyActionDefinition = AnyActionDefinition,
-  ServerFunctions extends AnyServerFunction = AnyServerFunction
+  ServerFunctions extends AnyServerFunction = AnyServerFunction,
 > = CoreDefinitionRegistryInput<Actions, ServerFunctions>;
 
 export type AppDefinitionRegistryFromInput<Input> = AppDefinitionRegistry<
   RegistryInputActions<Input> extends AnyActionDefinition ? RegistryInputActions<Input> : never,
-  RegistryInputServerFunctions<Input> extends AnyServerFunction ? RegistryInputServerFunctions<Input> : never
+  RegistryInputServerFunctions<Input> extends AnyServerFunction
+    ? RegistryInputServerFunctions<Input>
+    : never
 >;
 
 export type AppDefinitionRegistryActionDefinitions<Registry> =
@@ -60,11 +70,13 @@ export type AppDefinitionRegistryActionDefinitions<Registry> =
 export type AppDefinitionRegistryServerFunctions<Registry> =
   Registry extends CoreDefinitionRegistry<any, infer ServerFunctions> ? ServerFunctions : never;
 
-export type AppDefinitionRegistryActionRequirements<Registry> =
-  ActionDefinitionRequirements<AppDefinitionRegistryActionDefinitions<Registry>>;
+export type AppDefinitionRegistryActionRequirements<Registry> = ActionDefinitionRequirements<
+  AppDefinitionRegistryActionDefinitions<Registry>
+>;
 
-export type AppDefinitionRegistryServerFunctionRequirements<Registry> =
-  ServerFunctionRequirements<AppDefinitionRegistryServerFunctions<Registry>>;
+export type AppDefinitionRegistryServerFunctionRequirements<Registry> = ServerFunctionRequirements<
+  AppDefinitionRegistryServerFunctions<Registry>
+>;
 
 export type AppDefinitionRegistryRequirements<Registry> =
   | AppDefinitionRegistryActionRequirements<Registry>
@@ -82,7 +94,7 @@ export interface AppDefinition<
   Client,
   ServerServices = never,
   ServerError = never,
-  Registry extends AppDefinitionRegistry = AppDefinitionRegistry
+  Registry extends AppDefinitionRegistry = AppDefinitionRegistry,
 > {
   readonly routes: Routes;
   readonly client: Client;
@@ -112,7 +124,7 @@ export const defineApp = <
   Client,
   ServerServices = never,
   ServerError = never,
-  const RegistryInput extends AppDefinitionRegistryInput = AppDefinitionRegistryInput<never, never>
+  const RegistryInput extends AppDefinitionRegistryInput = AppDefinitionRegistryInput<never, never>,
 >(config: {
   readonly routes: Routes;
   readonly client: Client;
@@ -133,21 +145,24 @@ export const defineApp = <
   AppDefinitionRegistryFromInput<RegistryInput>
 > => {
   const runtime = makeRuntime(config.server);
-  const registry = config.registry === undefined
-    ? snapshotCoreDefinitionRegistry() as unknown as AppDefinitionRegistryFromInput<RegistryInput>
-    : makeCoreDefinitionRegistry(config.registry) as AppDefinitionRegistryFromInput<RegistryInput>;
+  const registry =
+    config.registry === undefined
+      ? (snapshotCoreDefinitionRegistry() as unknown as AppDefinitionRegistryFromInput<RegistryInput>)
+      : (makeCoreDefinitionRegistry(
+          config.registry,
+        ) as AppDefinitionRegistryFromInput<RegistryInput>);
   const base = {
     routes: config.routes,
     client: config.client,
     runtime,
     registry,
-    fullStack: config.server !== undefined
+    fullStack: config.server !== undefined,
   };
 
   return config.server === undefined
     ? base
     : {
         ...base,
-        server: config.server
+        server: config.server,
       };
 };

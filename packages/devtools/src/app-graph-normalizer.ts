@@ -7,60 +7,61 @@ import type {
   DevtoolsStartAppGraphRoutePreloadCollections,
   DevtoolsStartAppGraphUnknownActionBehaviorEntry,
   DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry,
-  DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry
+  DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry,
 } from "./devtools-contract.js";
 
 const copyStringArray = (values: readonly string[]): readonly string[] => [...values];
 
 const missingWireSchemas = (
-  wire: Pick<DevtoolsStartAppGraphActionDiagnostics["wire"], "inputSchema" | "outputSchema" | "errorSchema">
+  wire: Pick<
+    DevtoolsStartAppGraphActionDiagnostics["wire"],
+    "inputSchema" | "outputSchema" | "errorSchema"
+  >,
 ): readonly ("input" | "output" | "error")[] => [
-  ...(wire.inputSchema ? [] as const : ["input"] as const),
-  ...(wire.outputSchema ? [] as const : ["output"] as const),
-  ...(wire.errorSchema ? [] as const : ["error"] as const)
+  ...(wire.inputSchema ? ([] as const) : (["input"] as const)),
+  ...(wire.outputSchema ? ([] as const) : (["output"] as const)),
+  ...(wire.errorSchema ? ([] as const) : (["error"] as const)),
 ];
 
 const defaultRoutePreloadCollections = (): DevtoolsStartAppGraphRoutePreloadCollections => ({
   status: "unknown",
-  collections: []
+  collections: [],
 });
 
 const hasRouteModulePreloadCollections = (
-  routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics
-): boolean =>
-  Object.prototype.hasOwnProperty.call(routeModule, "preloadCollections");
+  routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics,
+): boolean => Object.prototype.hasOwnProperty.call(routeModule, "preloadCollections");
 
 const routeModuleIdentity = (
-  routeModule: Pick<DevtoolsStartAppGraphRouteModuleDiagnostics, "routeId" | "moduleId">
-): string =>
-  `${routeModule.routeId}\u0000${routeModule.moduleId}`;
+  routeModule: Pick<DevtoolsStartAppGraphRouteModuleDiagnostics, "routeId" | "moduleId">,
+): string => `${routeModule.routeId}\u0000${routeModule.moduleId}`;
 
 /** Normalizes route-module collection preload diagnostics for legacy app graph DTOs. */
 export const normalizeRouteModulePreloadCollections = (
-  routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics
+  routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics,
 ): DevtoolsStartAppGraphRoutePreloadCollections => {
   const preloadCollections =
     (routeModule as { readonly preloadCollections?: DevtoolsStartAppGraphRoutePreloadCollections })
       .preloadCollections ?? defaultRoutePreloadCollections();
   return {
     status: preloadCollections.status,
-    collections: [...preloadCollections.collections]
+    collections: [...preloadCollections.collections],
   };
 };
 
 const copyAppGraphSchemaCoverage = (
   modules: readonly {
     readonly wire: DevtoolsStartAppGraphActionDiagnostics["wire"];
-  }[]
+  }[],
 ): DevtoolsStartAppGraphDiagnostics["schemaCoverage"]["serverFunctions"] => ({
   total: modules.length,
   input: modules.filter((module) => module.wire.inputSchema).length,
   output: modules.filter((module) => module.wire.outputSchema).length,
-  error: modules.filter((module) => module.wire.errorSchema).length
+  error: modules.filter((module) => module.wire.errorSchema).length,
 });
 
 const copyAppGraphWireDiagnostics = (
-  wire: DevtoolsStartAppGraphActionDiagnostics["wire"]
+  wire: DevtoolsStartAppGraphActionDiagnostics["wire"],
 ): DevtoolsStartAppGraphActionDiagnostics["wire"] => {
   const missing = missingWireSchemas(wire);
   return {
@@ -68,16 +69,16 @@ const copyAppGraphWireDiagnostics = (
     outputSchema: wire.outputSchema,
     errorSchema: wire.errorSchema,
     complete: missing.length === 0,
-    missing
+    missing,
   };
 };
 
 const normalizeAppGraphRouteModule = (
-  routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics
+  routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics,
 ): DevtoolsStartAppGraphRouteModuleDiagnostics => {
   const params = routeModule.params.map((param) => ({
     name: param.name,
-    optional: param.optional
+    optional: param.optional,
   }));
 
   return {
@@ -93,36 +94,36 @@ const normalizeAppGraphRouteModule = (
     preload: routeModule.preload,
     preloadResources: {
       status: routeModule.preloadResources.status,
-      families: [...routeModule.preloadResources.families]
+      families: [...routeModule.preloadResources.families],
     },
     preloadCollections: normalizeRouteModulePreloadCollections(routeModule),
-    component: routeModule.component
+    component: routeModule.component,
   };
 };
 
 const copyAppGraphServerFunction = (
-  serverFunction: DevtoolsStartAppGraphDiagnostics["serverFunctionModules"][number]
+  serverFunction: DevtoolsStartAppGraphDiagnostics["serverFunctionModules"][number],
 ): DevtoolsStartAppGraphDiagnostics["serverFunctionModules"][number] => ({
   id: serverFunction.id,
   name: serverFunction.name,
   server: { ...serverFunction.server },
   client: { ...serverFunction.client },
-  wire: copyAppGraphWireDiagnostics(serverFunction.wire)
+  wire: copyAppGraphWireDiagnostics(serverFunction.wire),
 });
 
 const copyAppGraphAction = (
-  action: DevtoolsStartAppGraphActionDiagnostics
+  action: DevtoolsStartAppGraphActionDiagnostics,
 ): DevtoolsStartAppGraphActionDiagnostics => ({
   id: action.id,
   name: action.name,
   server: { ...action.server },
   client: { ...action.client },
   wire: copyAppGraphWireDiagnostics(action.wire),
-  behavior: { ...action.behavior }
+  behavior: { ...action.behavior },
 });
 
 const copyAppGraphResourceFamily = (
-  family: DevtoolsStartAppGraphDiagnostics["resourceFamilies"][number]
+  family: DevtoolsStartAppGraphDiagnostics["resourceFamilies"][number],
 ): DevtoolsStartAppGraphDiagnostics["resourceFamilies"][number] => ({
   name: family.name,
   inputSchema: family.inputSchema,
@@ -132,12 +133,12 @@ const copyAppGraphResourceFamily = (
   policy: {
     ...(family.policy.staleFor === undefined ? {} : { staleFor: family.policy.staleFor }),
     ...(family.policy.gcFor === undefined ? {} : { gcFor: family.policy.gcFor }),
-    retry: family.policy.retry
-  }
+    retry: family.policy.retry,
+  },
 });
 
 const normalizeAppGraphCollection = (
-  collection: DevtoolsStartAppGraphCollectionDiagnostics
+  collection: DevtoolsStartAppGraphCollectionDiagnostics,
 ): DevtoolsStartAppGraphCollectionDiagnostics => ({
   name: collection.name,
   readOnly: collection.readOnly === true,
@@ -149,38 +150,41 @@ const normalizeAppGraphCollection = (
     : {
         indexes: collection.indexes.map((index) => ({
           name: index.name,
-          unique: index.unique
-        }))
+          unique: index.unique,
+        })),
       }),
   load: collection.load,
   handlers: { ...collection.handlers },
   policy: { ...collection.policy },
   ...(collection.sync === undefined ? {} : { sync: { ...collection.sync } }),
-  persistence: { ...collection.persistence }
+  persistence: { ...collection.persistence },
 });
 
 /** Returns detached collection-definition diagnostics with legacy defaults filled in. */
 export const normalizeAppGraphCollectionDefinitions = (
-  appGraph: DevtoolsStartAppGraphDiagnostics
+  appGraph: DevtoolsStartAppGraphDiagnostics,
 ): readonly DevtoolsStartAppGraphCollectionDiagnostics[] =>
-  ((appGraph as {
-    readonly collectionDefinitions?: readonly DevtoolsStartAppGraphCollectionDiagnostics[];
-  }).collectionDefinitions ?? []).map(normalizeAppGraphCollection);
+  (
+    (
+      appGraph as {
+        readonly collectionDefinitions?: readonly DevtoolsStartAppGraphCollectionDiagnostics[];
+      }
+    ).collectionDefinitions ?? []
+  ).map(normalizeAppGraphCollection);
 
 /** Derives unknown route collection-preload diagnostics from normalized route modules. */
 export const normalizeAppGraphUnknownRoutePreloadCollections = (
   appGraph: DevtoolsStartAppGraphDiagnostics,
   routeModulesWithPreloadCollections: ReadonlySet<string> = new Set(
-    appGraph.routeModules
-      .filter(hasRouteModulePreloadCollections)
-      .map(routeModuleIdentity)
-  )
+    appGraph.routeModules.filter(hasRouteModulePreloadCollections).map(routeModuleIdentity),
+  ),
 ): readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[] => {
   return appGraph.routeModules
-    .filter((routeModule) =>
-      routeModulesWithPreloadCollections.has(routeModuleIdentity(routeModule)) &&
-      routeModule.preload === "present" &&
-      routeModule.preloadCollections.status === "unknown"
+    .filter(
+      (routeModule) =>
+        routeModulesWithPreloadCollections.has(routeModuleIdentity(routeModule)) &&
+        routeModule.preload === "present" &&
+        routeModule.preloadCollections.status === "unknown",
     )
     .map((routeModule) => ({
       kind: "route" as const,
@@ -191,18 +195,18 @@ export const normalizeAppGraphUnknownRoutePreloadCollections = (
       preload: routeModule.preload,
       preloadCollections: {
         status: routeModule.preloadCollections.status,
-        collections: [...routeModule.preloadCollections.collections]
-      }
+        collections: [...routeModule.preloadCollections.collections],
+      },
     }));
 };
 
 const normalizeAppGraphUnknownRoutePreloadResources = (
-  appGraph: DevtoolsStartAppGraphDiagnostics
+  appGraph: DevtoolsStartAppGraphDiagnostics,
 ): readonly DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry[] =>
   appGraph.routeModules
-    .filter((routeModule) =>
-      routeModule.preload === "present" &&
-      routeModule.preloadResources.status === "unknown"
+    .filter(
+      (routeModule) =>
+        routeModule.preload === "present" && routeModule.preloadResources.status === "unknown",
     )
     .map((routeModule) => ({
       kind: "route" as const,
@@ -213,19 +217,20 @@ const normalizeAppGraphUnknownRoutePreloadResources = (
       preload: routeModule.preload,
       preloadResources: {
         status: routeModule.preloadResources.status,
-        families: [...routeModule.preloadResources.families]
-      }
+        families: [...routeModule.preloadResources.families],
+      },
     }));
 
 const normalizeAppGraphUnknownActionBehavior = (
-  actions: readonly DevtoolsStartAppGraphActionDiagnostics[]
+  actions: readonly DevtoolsStartAppGraphActionDiagnostics[],
 ): readonly DevtoolsStartAppGraphUnknownActionBehaviorEntry[] =>
   actions
-    .filter((action) =>
-      action.behavior.invalidates === "unknown" ||
-      action.behavior.optimistic === "unknown" ||
-      action.behavior.retry === "unknown" ||
-      action.behavior.concurrency === "unknown"
+    .filter(
+      (action) =>
+        action.behavior.invalidates === "unknown" ||
+        action.behavior.optimistic === "unknown" ||
+        action.behavior.retry === "unknown" ||
+        action.behavior.concurrency === "unknown",
     )
     .map((action) => ({
       kind: "action" as const,
@@ -233,35 +238,39 @@ const normalizeAppGraphUnknownActionBehavior = (
       invalidates: action.behavior.invalidates,
       optimistic: action.behavior.optimistic,
       retry: action.behavior.retry,
-      concurrency: action.behavior.concurrency
+      concurrency: action.behavior.concurrency,
     }));
 
 const missingSchemasForModules = (
   serverFunctions: readonly DevtoolsStartAppGraphDiagnostics["serverFunctionModules"][number][],
-  actions: readonly DevtoolsStartAppGraphActionDiagnostics[]
+  actions: readonly DevtoolsStartAppGraphActionDiagnostics[],
 ): readonly DevtoolsStartAppGraphMissingSchema[] => [
   ...serverFunctions.flatMap((serverFunction): readonly DevtoolsStartAppGraphMissingSchema[] =>
     serverFunction.wire.complete
       ? []
-      : [{
-          kind: "serverFunction" as const,
-          name: serverFunction.name,
-          input: serverFunction.wire.inputSchema,
-          output: serverFunction.wire.outputSchema,
-          error: serverFunction.wire.errorSchema
-        }]
+      : [
+          {
+            kind: "serverFunction" as const,
+            name: serverFunction.name,
+            input: serverFunction.wire.inputSchema,
+            output: serverFunction.wire.outputSchema,
+            error: serverFunction.wire.errorSchema,
+          },
+        ],
   ),
   ...actions.flatMap((action): readonly DevtoolsStartAppGraphMissingSchema[] =>
     action.wire.complete
       ? []
-      : [{
-          kind: "action" as const,
-          name: action.name,
-          input: action.wire.inputSchema,
-          output: action.wire.outputSchema,
-          error: action.wire.errorSchema
-        }]
-  )
+      : [
+          {
+            kind: "action" as const,
+            name: action.name,
+            input: action.wire.inputSchema,
+            output: action.wire.outputSchema,
+            error: action.wire.errorSchema,
+          },
+        ],
+  ),
 ];
 
 /**
@@ -283,22 +292,26 @@ export interface NormalizeDevtoolsAppGraphDiagnosticsOptions {
 /** Normalizes legacy Start app graph diagnostics and returns a detached structured copy. */
 export const normalizeDevtoolsAppGraphDiagnostics = (
   appGraph: DevtoolsStartAppGraphDiagnostics,
-  options: NormalizeDevtoolsAppGraphDiagnosticsOptions = {}
+  options: NormalizeDevtoolsAppGraphDiagnosticsOptions = {},
 ): DevtoolsStartAppGraphDiagnostics => {
   const routeModulesWithPreloadCollections = new Set(
-    appGraph.routeModules
-      .filter(hasRouteModulePreloadCollections)
-      .map(routeModuleIdentity)
+    appGraph.routeModules.filter(hasRouteModulePreloadCollections).map(routeModuleIdentity),
   );
   const routeModules = appGraph.routeModules.map(normalizeAppGraphRouteModule);
   const serverFunctionModules = appGraph.serverFunctionModules.map(copyAppGraphServerFunction);
   const actionModules = appGraph.actionModules.map(copyAppGraphAction);
-  const suppliedUnknownRoutePreloadCollections = (appGraph as {
-    readonly unknownRoutePreloadCollections?: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[];
-  }).unknownRoutePreloadCollections ?? [];
-  const suppliedUnknownRoutePreloadResources = (appGraph as {
-    readonly unknownRoutePreloadResources?: readonly DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry[];
-  }).unknownRoutePreloadResources ?? [];
+  const suppliedUnknownRoutePreloadCollections =
+    (
+      appGraph as {
+        readonly unknownRoutePreloadCollections?: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[];
+      }
+    ).unknownRoutePreloadCollections ?? [];
+  const suppliedUnknownRoutePreloadResources =
+    (
+      appGraph as {
+        readonly unknownRoutePreloadResources?: readonly DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry[];
+      }
+    ).unknownRoutePreloadResources ?? [];
   const normalizedAppGraph = {
     version: appGraph.version,
     routeCount: routeModules.length,
@@ -311,7 +324,7 @@ export const normalizeDevtoolsAppGraphDiagnostics = (
     resourceFamilies: appGraph.resourceFamilies.map(copyAppGraphResourceFamily),
     resourceTags: appGraph.resourceTags.map((tag) => ({
       name: tag.name,
-      keyed: tag.keyed
+      keyed: tag.keyed,
     })),
     collectionDefinitions: normalizeAppGraphCollectionDefinitions(appGraph),
     serverOnlyModules: copyStringArray(appGraph.serverOnlyModules),
@@ -320,12 +333,12 @@ export const normalizeDevtoolsAppGraphDiagnostics = (
     actionPath: appGraph.actionPath,
     schemaCoverage: {
       serverFunctions: copyAppGraphSchemaCoverage(serverFunctionModules),
-      actions: copyAppGraphSchemaCoverage(actionModules)
+      actions: copyAppGraphSchemaCoverage(actionModules),
     },
     missingSchemas: missingSchemasForModules(serverFunctionModules, actionModules),
     unknownActionBehavior: normalizeAppGraphUnknownActionBehavior(actionModules),
     unknownRoutePreloadResources: suppliedUnknownRoutePreloadResources,
-    unknownRoutePreloadCollections: suppliedUnknownRoutePreloadCollections
+    unknownRoutePreloadCollections: suppliedUnknownRoutePreloadCollections,
   };
 
   return {
@@ -340,8 +353,8 @@ export const normalizeDevtoolsAppGraphDiagnostics = (
           preload: entry.preload,
           preloadResources: {
             status: entry.preloadResources.status,
-            families: [...entry.preloadResources.families]
-          }
+            families: [...entry.preloadResources.families],
+          },
         }))
       : normalizeAppGraphUnknownRoutePreloadResources(normalizedAppGraph),
     unknownRoutePreloadCollections: options.preserveDerivedPreloadFacts
@@ -354,12 +367,12 @@ export const normalizeDevtoolsAppGraphDiagnostics = (
           preload: entry.preload,
           preloadCollections: {
             status: entry.preloadCollections.status,
-            collections: [...entry.preloadCollections.collections]
-          }
+            collections: [...entry.preloadCollections.collections],
+          },
         }))
       : normalizeAppGraphUnknownRoutePreloadCollections(
           normalizedAppGraph,
-          routeModulesWithPreloadCollections
-        )
+          routeModulesWithPreloadCollections,
+        ),
   };
 };

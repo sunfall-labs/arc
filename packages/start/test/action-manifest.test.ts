@@ -14,7 +14,7 @@ import {
   isBrowserSafeActionClientReference,
   makeActionManifest,
   serializeActionManifest,
-  stableActionId
+  stableActionId,
 } from "../src/action-manifest.js";
 
 describe("action manifest", () => {
@@ -29,7 +29,7 @@ describe("action manifest", () => {
     invalidates: true,
     optimistic: true,
     retry: false,
-    concurrency: "exhaust" as const
+    concurrency: "exhaust" as const,
   };
   const SubmitProjectName = {
     name: "Project.name.submit",
@@ -43,7 +43,7 @@ describe("action manifest", () => {
     invalidates: true,
     optimistic: false,
     retry: true,
-    concurrency: "latest" as const
+    concurrency: "latest" as const,
   };
 
   it("builds deterministic branded ids and serialized output", () => {
@@ -56,30 +56,30 @@ describe("action manifest", () => {
           expect(serializeActionManifest(first)).toBe(serializeActionManifest(second));
           expect(first.entries.map((entry) => entry.name)).toEqual([
             "Project.name.submit",
-            "Project.rename"
+            "Project.rename",
           ]);
           expect(first.entries.map((entry) => entry.id)).toEqual(
-            first.entries.map((entry) => stableActionId(entry.name))
+            first.entries.map((entry) => stableActionId(entry.name)),
           );
           expect(first.entries[0]).toMatchObject({
             server: {
               module: "/src/project/domain.ts",
-              moduleKind: "shared"
+              moduleKind: "shared",
             },
             wire: {
               inputSchema: true,
               outputSchema: true,
-              errorSchema: true
+              errorSchema: true,
             },
             behavior: {
               invalidates: "present",
               optimistic: "absent",
               retry: "present",
-              concurrency: "latest"
-            }
+              concurrency: "latest",
+            },
           });
         });
-      })
+      }),
     );
   });
 
@@ -87,30 +87,30 @@ describe("action manifest", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const manifest = yield* makeActionManifest([SubmitProjectName, RenameProject], {
-          actionPath: "/__effect-ui/test-action"
+          actionPath: "/__effect-ui/test-action",
         });
         const roundTrip = yield* deserializeActionManifest(serializeActionManifest(manifest));
 
         yield* Effect.sync(() => expect(roundTrip).toEqual(manifest));
-      })
+      }),
     );
   });
 
   it("normalizes source action endpoint paths", () => {
     return Effect.runPromise(
       makeActionManifest([RenameProject], {
-        actionPath: " /__effect-ui/custom-action "
+        actionPath: " /__effect-ui/custom-action ",
       }).pipe(
         Effect.tap((manifest) =>
           Effect.sync(() => {
             expect(manifest.actionPath).toBe("/__effect-ui/custom-action");
             expect(manifest.entries[0]?.client).toMatchObject({
-              actionPath: "/__effect-ui/custom-action"
+              actionPath: "/__effect-ui/custom-action",
             });
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -118,9 +118,9 @@ describe("action manifest", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const exits = yield* Effect.all(
-          ["", "   ", "action", "https://example.com/action", "/__effect-ui/action\r\nx"].map((actionPath) =>
-            Effect.exit(makeActionManifest([RenameProject], { actionPath }))
-          )
+          ["", "   ", "action", "https://example.com/action", "/__effect-ui/action\r\nx"].map(
+            (actionPath) => Effect.exit(makeActionManifest([RenameProject], { actionPath })),
+          ),
         );
 
         yield* Effect.sync(() => {
@@ -128,7 +128,7 @@ describe("action manifest", () => {
             expect(firstFailure(exit)).toBeInstanceOf(ActionManifestInvalidEndpointPath);
           }
         });
-      })
+      }),
     );
   });
 
@@ -136,7 +136,7 @@ describe("action manifest", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const manifest = yield* makeActionManifest([RenameProject], {
-          actionPath: "/__effect-ui/action"
+          actionPath: "/__effect-ui/action",
         });
         const serialized = JSON.parse(serializeActionManifest(manifest)) as {
           actionPath: string;
@@ -149,10 +149,10 @@ describe("action manifest", () => {
         yield* Effect.sync(() => {
           expect(decoded.actionPath).toBe("/__effect-ui/serialized-action");
           expect(decoded.entries[0]?.client).toMatchObject({
-            actionPath: "/__effect-ui/serialized-action"
+            actionPath: "/__effect-ui/serialized-action",
           });
         });
-      })
+      }),
     );
   });
 
@@ -177,14 +177,14 @@ describe("action manifest", () => {
           },
           (value: SerializedActionManifest) => {
             value.entries[0]!.client.actionPath = "action";
-          }
+          },
         ];
         const exits = yield* Effect.all(
           cases.map((mutate) => {
             const decoded = JSON.parse(serialized) as SerializedActionManifest;
             mutate(decoded);
             return Effect.exit(deserializeActionManifest(JSON.stringify(decoded)));
-          })
+          }),
         );
 
         yield* Effect.sync(() => {
@@ -192,7 +192,7 @@ describe("action manifest", () => {
             expect(firstFailure(exit)).toBeInstanceOf(ActionManifestParseError);
           }
         });
-      })
+      }),
     );
   });
 
@@ -215,17 +215,17 @@ describe("action manifest", () => {
         clientKindMismatch.entries[0]!.client.moduleKind = "contract";
 
         const invalidServerKind = yield* Effect.exit(
-          deserializeActionManifest(JSON.stringify(serverKindMismatch))
+          deserializeActionManifest(JSON.stringify(serverKindMismatch)),
         );
         const invalidClientKind = yield* Effect.exit(
-          deserializeActionManifest(JSON.stringify(clientKindMismatch))
+          deserializeActionManifest(JSON.stringify(clientKindMismatch)),
         );
 
         yield* Effect.sync(() => {
           expect(firstFailure(invalidServerKind)).toBeInstanceOf(ActionManifestParseError);
           expect(firstFailure(invalidClientKind)).toBeInstanceOf(ActionManifestParseError);
         });
-      })
+      }),
     );
   });
 
@@ -245,30 +245,30 @@ describe("action manifest", () => {
                   server: {
                     module: "/src/project/domain.ts",
                     exportName: "RenameProject",
-                    moduleKind: "shared"
+                    moduleKind: "shared",
                   },
                   client: {
                     _tag: "Post",
                     id: stableActionId("Project.other"),
                     name: "Project.rename",
-                    actionPath: "/__effect-ui/action"
+                    actionPath: "/__effect-ui/action",
                   },
                   wire: {
                     inputSchema: true,
                     outputSchema: true,
-                    errorSchema: false
-                  }
-                }
-              ]
-            })
-          )
+                    errorSchema: false,
+                  },
+                },
+              ],
+            }),
+          ),
         );
 
         yield* Effect.sync(() => {
           expect(firstFailure(invalidJson)).toBeInstanceOf(ActionManifestParseError);
           expect(firstFailure(invalidIdentity)).toBeInstanceOf(ActionManifestParseError);
         });
-      })
+      }),
     );
   });
 
@@ -302,14 +302,14 @@ describe("action manifest", () => {
           },
           (value: SerializedActionManifest) => {
             value.entries[0]!.client.exportName = "   ";
-          }
+          },
         ];
         const exits = yield* Effect.all(
           cases.map((mutate) => {
             const decoded = JSON.parse(serialized) as SerializedActionManifest;
             mutate(decoded);
             return Effect.exit(deserializeActionManifest(JSON.stringify(decoded)));
-          })
+          }),
         );
 
         yield* Effect.sync(() => {
@@ -317,7 +317,7 @@ describe("action manifest", () => {
             expect(firstFailure(exit)).toBeInstanceOf(ActionManifestParseError);
           }
         });
-      })
+      }),
     );
   });
 
@@ -326,15 +326,15 @@ describe("action manifest", () => {
       name: "Project.save.manifest",
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({ ok: Schema.Boolean }),
-      run: () => ({ ok: true })
+      run: () => ({ ok: true }),
     });
 
     return Effect.runPromise(
       makeActionManifest([
         actionManifestDefinition(Save, {
           module: "/src/project/domain.ts",
-          exportName: "Save"
-        })
+          exportName: "Save",
+        }),
       ]).pipe(
         Effect.tap((manifest) =>
           Effect.sync(() =>
@@ -343,19 +343,19 @@ describe("action manifest", () => {
               wire: {
                 inputSchema: true,
                 outputSchema: true,
-                errorSchema: false
+                errorSchema: false,
               },
               behavior: {
                 invalidates: "absent",
                 optimistic: "absent",
                 retry: "absent",
-                concurrency: "latest"
-              }
-            })
-          )
+                concurrency: "latest",
+              },
+            }),
+          ),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -367,9 +367,9 @@ describe("action manifest", () => {
             RenameProject,
             {
               ...RenameProject,
-              module: "/src/other/domain.ts"
-            }
-          ])
+              module: "/src/other/domain.ts",
+            },
+          ]),
         );
         const duplicateExport = yield* Effect.exit(
           makeActionManifest([
@@ -377,16 +377,16 @@ describe("action manifest", () => {
             {
               ...SubmitProjectName,
               module: RenameProject.module,
-              exportName: RenameProject.exportName
-            }
-          ])
+              exportName: RenameProject.exportName,
+            },
+          ]),
         );
 
         yield* Effect.sync(() => {
           expect(firstFailure(duplicateName)).toBeInstanceOf(ActionManifestDuplicateName);
           expect(firstFailure(duplicateExport)).toBeInstanceOf(ActionManifestDuplicateExport);
         });
-      })
+      }),
     );
   });
 
@@ -401,10 +401,10 @@ describe("action manifest", () => {
             expect(reference?._tag).toBe("Import");
             expect(reference ? isBrowserSafeActionClientReference(reference) : false).toBe(true);
             expect(JSON.stringify(reference)).not.toContain(".server");
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -416,15 +416,17 @@ describe("action manifest", () => {
             name: "Project.delete",
             module: "/src/project/domain.ts",
             exportName: "DeleteProject",
-            clientModule: "/src/project/domain.server.ts"
-          }
-        ])
+            clientModule: "/src/project/domain.server.ts",
+          },
+        ]),
       ).pipe(
         Effect.tap((exit) =>
-          Effect.sync(() => expect(firstFailure(exit)).toBeInstanceOf(ActionManifestUnsafeClientReference))
+          Effect.sync(() =>
+            expect(firstFailure(exit)).toBeInstanceOf(ActionManifestUnsafeClientReference),
+          ),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -435,30 +437,30 @@ describe("action manifest", () => {
           makeActionManifest([
             {
               ...RenameProject,
-              clientModule: ""
-            }
-          ])
+              clientModule: "",
+            },
+          ]),
         );
         const emptyClientExport = yield* Effect.exit(
           makeActionManifest([
             {
               ...RenameProject,
-              clientExportName: ""
-            }
-          ])
+              clientExportName: "",
+            },
+          ]),
         );
 
         yield* Effect.sync(() => {
           expect(firstFailure(emptyClientModule)).toBeInstanceOf(ActionManifestInvalidEntry);
           expect(firstFailure(emptyClientModule)).toMatchObject({
-            reason: "MissingModule"
+            reason: "MissingModule",
           });
           expect(firstFailure(emptyClientExport)).toBeInstanceOf(ActionManifestInvalidEntry);
           expect(firstFailure(emptyClientExport)).toMatchObject({
-            reason: "MissingExportName"
+            reason: "MissingExportName",
           });
         });
-      })
+      }),
     );
   });
 
@@ -471,8 +473,8 @@ describe("action manifest", () => {
             { ...RenameProject, module: "   " },
             { ...RenameProject, exportName: "   " },
             { ...RenameProject, clientModule: "   " },
-            { ...RenameProject, clientExportName: "   " }
-          ].map((definition) => Effect.exit(makeActionManifest([definition])))
+            { ...RenameProject, clientExportName: "   " },
+          ].map((definition) => Effect.exit(makeActionManifest([definition]))),
         );
 
         yield* Effect.sync(() => {
@@ -480,7 +482,7 @@ describe("action manifest", () => {
             expect(firstFailure(exit)).toBeInstanceOf(ActionManifestInvalidEntry);
           }
         });
-      })
+      }),
     );
   });
 });

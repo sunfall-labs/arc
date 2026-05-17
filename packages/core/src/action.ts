@@ -3,47 +3,46 @@ import type { ActionResultInvalidationRequirements } from "./action-result.js";
 import {
   ActionInterrupted,
   makeActionSubmissionController,
-  type ActionSubmissionState
+  type ActionSubmissionState,
 } from "./action-submission.js";
-import {
-  type ActionOptimisticTransaction,
-  type ActionRollback
-} from "./action-optimistic.js";
+import { type ActionOptimisticTransaction, type ActionRollback } from "./action-optimistic.js";
 import {
   invalidationsFor,
   invalidationsForEffect,
-  makeActionExecutionWorkflow
+  makeActionExecutionWorkflow,
 } from "./action-execution-workflow.js";
 import {
   actionDefinitionRegistry,
   clearActionDefinitionRegistryUnsafe,
   coreDefinitionRegistryDiagnostics,
   getActionDefinition,
-  registerActionDefinition
+  registerActionDefinition,
 } from "./definition-registry.js";
 import type {
   EffectInput,
   EffectInputError,
   EffectInputRequirements,
   EffectInputValue,
-  EnsureEffectInput
+  EnsureEffectInput,
 } from "./effect-like.js";
-import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
+import { EffectInputCallbackError } from "./effect-like.js";
 import { Resource, type ResourceInvalidation, type ResourceInvalidationPlan } from "./resource.js";
 import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
-import { currentOrDefaultRuntime, getCurrentRuntime, type AnyEffectUiRuntime, type EffectUiRuntime } from "./runtime.js";
+import { currentOrDefaultRuntime, getCurrentRuntime, type EffectUiRuntime } from "./runtime.js";
 import type { ReadableSignal } from "./signal.js";
 
 /** Expert-public structural marker used to recognize Action Definitions. */
-export const ActionTypeId: unique symbol = Symbol.for("@effect-ui/core/Action") as typeof ActionTypeId;
+export const ActionTypeId: unique symbol = Symbol.for(
+  "@effect-ui/core/Action",
+) as typeof ActionTypeId;
 
 /** State machine for one action instance. */
-export type ActionState<
+export type ActionState<I, A, E = never, P = ResourceInvalidationPlan> = ActionSubmissionState<
   I,
   A,
-  E = never,
-  P = ResourceInvalidationPlan
-> = ActionSubmissionState<I, A, E, P>;
+  E,
+  P
+>;
 
 /**
  * Submission concurrency mode for one stateful Action Instance.
@@ -98,13 +97,10 @@ export interface ActionDefinition<I, A, E = never, R = never> {
   /** Applies an optimistic patch and returns the rollback Effect. */
   readonly optimistic?: (
     input: I,
-    transaction: ActionOptimisticTransaction
+    transaction: ActionOptimisticTransaction,
   ) => Effect.Effect<ActionRollback<R>, EffectInputCallbackError, R>;
   /** Computes resource invalidations after a successful action value. */
-  readonly invalidates?: (
-    value: A,
-    input: I
-  ) => ReadonlyArray<ResourceInvalidation<R>>;
+  readonly invalidates?: (value: A, input: I) => ReadonlyArray<ResourceInvalidation<R>>;
 }
 
 /**
@@ -135,13 +131,10 @@ export interface ActionOptions<I, A, E = never, R = never> {
   /** Applies an optimistic patch and returns the rollback Effect. */
   readonly optimistic?: (
     input: I,
-    transaction: ActionOptimisticTransaction
+    transaction: ActionOptimisticTransaction,
   ) => Effect.Effect<ActionRollback<R>, EffectInputCallbackError, R>;
   /** Computes resource invalidations after a successful action value. */
-  readonly invalidates?: (
-    value: A,
-    input: I
-  ) => ReadonlyArray<ResourceInvalidation<R>>;
+  readonly invalidates?: (value: A, input: I) => ReadonlyArray<ResourceInvalidation<R>>;
 }
 
 /**
@@ -156,13 +149,20 @@ export interface ActionInstance<
   R = never,
   DefinitionError = E,
   DefinitionRequirements = R,
-  InvalidationRequirements = DefinitionRequirements | ActionResultInvalidationRequirements<A>
+  InvalidationRequirements = DefinitionRequirements | ActionResultInvalidationRequirements<A>,
 > {
   readonly definition: ActionDefinition<I, A, DefinitionError, DefinitionRequirements>;
   readonly state: ReadableSignal<
-    ActionState<I, A, E | EffectInputCallbackError, ResourceInvalidationPlan<InvalidationRequirements>>
+    ActionState<
+      I,
+      A,
+      E | EffectInputCallbackError,
+      ResourceInvalidationPlan<InvalidationRequirements>
+    >
   >;
-  readonly invalidationPlan: ReadableSignal<ResourceInvalidationPlan<InvalidationRequirements> | undefined>;
+  readonly invalidationPlan: ReadableSignal<
+    ResourceInvalidationPlan<InvalidationRequirements> | undefined
+  >;
   /** Runs the action workflow as an Effect, preserving typed errors and requirements. */
   submitEffect(input: I): Effect.Effect<A, E | EffectInputCallbackError | ActionInterrupted, R>;
   /** Resets visible action state as an Effect. */
@@ -177,10 +177,7 @@ export interface ActionUseOptions<R = never, ER = never> {
   readonly runtime?: EffectUiRuntime<R, ER>;
 }
 
-export type {
-  ActionOptimisticTransaction,
-  ActionRollback
-} from "./action-optimistic.js";
+export type { ActionOptimisticTransaction, ActionRollback } from "./action-optimistic.js";
 
 export {
   ActionInterrupted,
@@ -190,13 +187,15 @@ export {
   type ActionSubmissionDecision,
   type ActionSubmissionFiber,
   type ActionSubmissionRun,
-  type ActionSubmissionState
+  type ActionSubmissionState,
 } from "./action-submission.js";
 
 type AnyActionDefinition = ActionDefinition<any, any, any, any>;
 type ActionRuntimeProvidedRequirements<R> = R | ResourceStoreState;
-type ActionRuntimeRemainingRequirements<RIn, RProvided> =
-  Exclude<RIn, ActionRuntimeProvidedRequirements<RProvided>>;
+type ActionRuntimeRemainingRequirements<RIn, RProvided> = Exclude<
+  RIn,
+  ActionRuntimeProvidedRequirements<RProvided>
+>;
 type CheckedActionRun<I, Definition> = Definition extends {
   readonly run: (input: I) => infer Out;
 }
@@ -204,7 +203,7 @@ type CheckedActionRun<I, Definition> = Definition extends {
   : never;
 
 type RejectPromiseEffectInput<Out> = EnsureEffectInput<Out> extends never ? never : unknown;
-type IsAny<T> = 0 extends (1 & T) ? true : false;
+type IsAny<T> = 0 extends 1 & T ? true : false;
 type NormalizeRequirements<R> = IsAny<R> extends true ? never : R;
 
 type ActionInvalidatesRequirements<Definition> = Definition extends {
@@ -223,13 +222,15 @@ type ActionInferredRequirements<Out, Definition, InvalidationRequirements = neve
   | ActionInvalidatesRequirements<Definition>
   | ActionResultInvalidationRequirements<EffectInputValue<Out>>;
 
-type ActionDefinitionCommonOptions<I, A, E, R, InvalidationRequirements = never> =
-  Omit<ActionOptions<I, A, E, R>, "input" | "output" | "run" | "invalidates"> & {
-    readonly invalidates?: (
-      value: A,
-      input: I
-    ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
-  };
+type ActionDefinitionCommonOptions<I, A, E, R, InvalidationRequirements = never> = Omit<
+  ActionOptions<I, A, E, R>,
+  "input" | "output" | "run" | "invalidates"
+> & {
+  readonly invalidates?: (
+    value: A,
+    input: I,
+  ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
+};
 
 /** Returns true when a value is an Effect UI Action Definition. */
 export const isActionDefinition = (value: unknown): value is ActionDefinition<unknown, unknown> =>
@@ -248,7 +249,7 @@ export namespace Action {
     E = never,
     R = never,
     DefinitionError = E,
-    DefinitionRequirements = R
+    DefinitionRequirements = R,
   > = ActionInstance<I, A, E, R, DefinitionError, DefinitionRequirements>;
   /** Public namespace alias for Action submission state. */
   export type State<I, A, E = never> = ActionState<I, A, E>;
@@ -264,7 +265,7 @@ export namespace Action {
   export const planInvalidation = <I, A, E, R>(
     definition: ActionDefinition<I, A, E, R>,
     value: A,
-    input: I
+    input: I,
   ): ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>> =>
     Resource.planInvalidation(invalidationsFor(definition, value, input));
 
@@ -272,14 +273,14 @@ export namespace Action {
   export const planInvalidationEffect = <I, A, E, R>(
     definition: ActionDefinition<I, A, E, R>,
     value: A,
-    input: I
+    input: I,
   ): Effect.Effect<
     ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>>,
     EffectInputCallbackError
   > =>
     Effect.flatMap(
       invalidationsForEffect(definition, value, input),
-      Resource.planInvalidationEffect
+      Resource.planInvalidationEffect,
     );
 
   /**
@@ -302,7 +303,7 @@ export namespace Action {
     const Input extends Schema.Top,
     const Output extends Schema.Top,
     Out extends EffectInput<Schema.Schema.Type<Output>, any, any>,
-    InvalidationRequirements = never
+    InvalidationRequirements = never,
   >(
     definition: ActionDefinitionCommonOptions<
       Schema.Schema.Type<Input>,
@@ -314,7 +315,7 @@ export namespace Action {
       readonly input: Input;
       readonly output: Output;
       readonly run: (input: Schema.Schema.Type<Input>) => EnsureEffectInput<Out>;
-    } & RejectPromiseEffectInput<Out>
+    } & RejectPromiseEffectInput<Out>,
   ): ActionDefinition<
     Schema.Schema.Type<Input>,
     EffectInputValue<Out>,
@@ -324,7 +325,7 @@ export namespace Action {
   export function define<
     const Input extends Schema.Top,
     Run extends (input: Schema.Schema.Type<Input>) => unknown,
-    InvalidationRequirements = never
+    InvalidationRequirements = never,
   >(
     definition: Omit<
       ActionOptions<
@@ -337,12 +338,13 @@ export namespace Action {
     > & {
       readonly input: Input;
       readonly output?: never;
-      readonly run: Run & ((input: Schema.Schema.Type<Input>) => EnsureEffectInput<ReturnType<Run>>);
+      readonly run: Run &
+        ((input: Schema.Schema.Type<Input>) => EnsureEffectInput<ReturnType<Run>>);
       readonly invalidates?: (
         value: EffectInputValue<ReturnType<Run>>,
-        input: Schema.Schema.Type<Input>
+        input: Schema.Schema.Type<Input>,
       ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
-    } & RejectPromiseEffectInput<ReturnType<Run>>
+    } & RejectPromiseEffectInput<ReturnType<Run>>,
   ): ActionDefinition<
     Schema.Schema.Type<Input>,
     EffectInputValue<ReturnType<Run>>,
@@ -353,15 +355,10 @@ export namespace Action {
     I,
     const Output extends Schema.Top,
     Out extends EffectInput<Schema.Schema.Type<Output>, any, any>,
-    InvalidationRequirements = never
+    InvalidationRequirements = never,
   >(
     definition: Omit<
-      ActionOptions<
-        I,
-        EffectInputValue<Out>,
-        EffectInputError<Out>,
-        EffectInputRequirements<Out>
-      >,
+      ActionOptions<I, EffectInputValue<Out>, EffectInputError<Out>, EffectInputRequirements<Out>>,
       "input" | "output" | "run" | "invalidates"
     > & {
       readonly input?: never;
@@ -369,9 +366,9 @@ export namespace Action {
       readonly run: (input: I) => EnsureEffectInput<Out>;
       readonly invalidates?: (
         value: EffectInputValue<Out>,
-        input: I
+        input: I,
       ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
-    } & RejectPromiseEffectInput<Out>
+    } & RejectPromiseEffectInput<Out>,
   ): ActionDefinition<
     I,
     EffectInputValue<Out>,
@@ -388,31 +385,32 @@ export namespace Action {
       readonly run: (input: I) => EffectInput<A, E, R>;
       readonly optimistic?: (
         input: I,
-        transaction: ActionOptimisticTransaction
+        transaction: ActionOptimisticTransaction,
       ) => Effect.Effect<ActionRollback<R>, EffectInputCallbackError, R>;
       readonly invalidates?: (
         value: A,
-        input: I
+        input: I,
       ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
     } = Omit<ActionOptions<I, A, E, R>, "run" | "optimistic" | "invalidates"> & {
       readonly run: (input: I) => EffectInput<A, E, R>;
       readonly optimistic?: (
         input: I,
-        transaction: ActionOptimisticTransaction
+        transaction: ActionOptimisticTransaction,
       ) => Effect.Effect<ActionRollback<R>, EffectInputCallbackError, R>;
       readonly invalidates?: (
         value: A,
-        input: I
+        input: I,
       ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
-    }
+    },
   >(
-    definition: Definition & CheckedActionRun<I, Definition>
-  ): ActionDefinition<I, A, E, R | NormalizeRequirements<InvalidationRequirements> | ActionResultInvalidationRequirements<A>>;
-  export function define<
+    definition: Definition & CheckedActionRun<I, Definition>,
+  ): ActionDefinition<
     I,
-    Run extends (input: I) => unknown,
-    InvalidationRequirements = never
-  >(
+    A,
+    E,
+    R | NormalizeRequirements<InvalidationRequirements> | ActionResultInvalidationRequirements<A>
+  >;
+  export function define<I, Run extends (input: I) => unknown, InvalidationRequirements = never>(
     definition: Omit<
       ActionOptions<
         I,
@@ -426,23 +424,21 @@ export namespace Action {
       readonly run: Run & ((input: I) => EnsureEffectInput<ReturnType<Run>>);
       readonly invalidates?: (
         value: EffectInputValue<ReturnType<Run>>,
-        input: I
+        input: I,
       ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
-    } & RejectPromiseEffectInput<ReturnType<Run>>
+    } & RejectPromiseEffectInput<ReturnType<Run>>,
   ): ActionDefinition<
     I,
     EffectInputValue<ReturnType<Run>>,
     EffectInputError<ReturnType<Run>>,
     ActionInferredRequirements<ReturnType<Run>, never, InvalidationRequirements>
   >;
-  export function define(
-    definition: unknown
-  ): any {
+  export function define(definition: unknown): any {
     const options = definition as Omit<ActionOptions<any, any, any, any>, "run" | "optimistic"> & {
       readonly run: (input: any) => EffectInput<any, any, any>;
       readonly optimistic?: (
         input: any,
-        transaction: ActionOptimisticTransaction
+        transaction: ActionOptimisticTransaction,
       ) => Effect.Effect<ActionRollback<any>, EffectInputCallbackError, any>;
     };
     const { run, optimistic, ...rest } = options;
@@ -453,9 +449,9 @@ export namespace Action {
       ...(optimistic === undefined
         ? {}
         : {
-            optimistic
+            optimistic,
           }),
-      [ActionTypeId]: ActionTypeId
+      [ActionTypeId]: ActionTypeId,
     };
 
     registerActionDefinition(action);
@@ -489,11 +485,19 @@ export namespace Action {
    * The returned instance submits through submitEffect.
    */
   export function use<I, A, E = never, R = never>(
-    definition: ActionDefinition<I, A, E, R>
-  ): ActionInstance<I, A, E, R | ActionResultInvalidationRequirements<A>, E, R, R | ActionResultInvalidationRequirements<A>>;
+    definition: ActionDefinition<I, A, E, R>,
+  ): ActionInstance<
+    I,
+    A,
+    E,
+    R | ActionResultInvalidationRequirements<A>,
+    E,
+    R,
+    R | ActionResultInvalidationRequirements<A>
+  >;
   export function use<I, A, E = never, R = never, RRuntime = never, ER = never>(
     definition: ActionDefinition<I, A, E, R>,
-    options: { readonly runtime: EffectUiRuntime<RRuntime, ER> }
+    options: { readonly runtime: EffectUiRuntime<RRuntime, ER> },
   ): ActionInstance<
     I,
     A,
@@ -505,7 +509,7 @@ export namespace Action {
   >;
   export function use<I, A, E = never, R = never, RRuntime = never, ER = never>(
     definition: ActionDefinition<I, A, E, R>,
-    options: ActionUseOptions<RRuntime, ER> = {}
+    options: ActionUseOptions<RRuntime, ER> = {},
   ): ActionInstance<
     I,
     A,
@@ -517,7 +521,8 @@ export namespace Action {
   > {
     const ambientRuntime = getCurrentRuntime();
     const runtime = options.runtime ?? ambientRuntime ?? currentOrDefaultRuntime();
-    const shouldRunOnCapturedRuntime = options.runtime !== undefined || ambientRuntime !== undefined;
+    const shouldRunOnCapturedRuntime =
+      options.runtime !== undefined || ambientRuntime !== undefined;
     const submissions = makeActionSubmissionController<
       I,
       A,
@@ -526,22 +531,28 @@ export namespace Action {
     >(
       definition.policy?.concurrency === undefined
         ? { actionName: definition.name }
-        : { actionName: definition.name, concurrency: definition.policy.concurrency }
+        : { actionName: definition.name, concurrency: definition.policy.concurrency },
     );
 
     const runAtActionBoundary = <Value, Error, Requirements>(
-      effect: Effect.Effect<Value, Error, Requirements>
+      effect: Effect.Effect<Value, Error, Requirements>,
     ): Effect.Effect<Value, Error | ER, Requirements> =>
       shouldRunOnCapturedRuntime
-        ? (runtime as unknown as EffectUiRuntime<RRuntime, ER>).provide(effect) as Effect.Effect<Value, Error | ER, Requirements>
+        ? ((runtime as unknown as EffectUiRuntime<RRuntime, ER>).provide(effect) as Effect.Effect<
+            Value,
+            Error | ER,
+            Requirements
+          >)
         : effect;
 
     const workflow = makeActionExecutionWorkflow({
       definition,
       submissions,
-      runAtActionBoundary
+      runAtActionBoundary,
     });
-    const submitEffect = workflow.submitEffect as (input: I) => Effect.Effect<
+    const submitEffect = workflow.submitEffect as (
+      input: I,
+    ) => Effect.Effect<
       A,
       E | ER | EffectInputCallbackError | ActionInterrupted,
       ActionRuntimeRemainingRequirements<R | ActionResultInvalidationRequirements<A>, RRuntime>
@@ -554,8 +565,10 @@ export namespace Action {
       submitEffect,
       resetEffect: workflow.resetEffect,
       reset: () => {
-        void runtime.runFork(workflow.captureResetEffect().pipe(Effect.catchCause(() => Effect.void)));
-      }
+        void runtime.runFork(
+          workflow.captureResetEffect().pipe(Effect.catchCause(() => Effect.void)),
+        );
+      },
     };
   }
 }

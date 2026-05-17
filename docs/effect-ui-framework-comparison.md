@@ -15,15 +15,15 @@ That is the core difference.
 
 ## The Short Version
 
-| What teams reach for | What it does well | Effect UI's bet |
-| --- | --- | --- |
-| React / Solid | Component model and reactive UI | Keep fine-grained UI ergonomics, but attach async work to Effect scopes and runtime ownership. |
-| Next / Remix | Full-stack routes, forms, server work | Keep progressive enhancement, but make server contracts, schemas, request runtimes, and manifests explicit. |
-| TanStack Start / Router | Typed routes and full-stack wiring | Add Schema-branded params, request-local Effect runtimes, app graph diagnostics, and stricter build gates. |
-| TanStack Query | Async reads, retries, invalidation | Replace cache keys with typed resources, semantic tags, Effect `Schedule`, hydration, and public lifecycle events. |
-| TanStack DB | Normalized local data and live queries | Keep collections and live queries, but make row state runtime-local and integrate persistence, sync, SSR, and devtools facts. |
-| Relay | Data graph discipline | Aim for graph-level discipline without requiring a GraphQL-only architecture. |
-| Jotai / state libraries | Small local reactive state | Keep local signals, but connect streams, scopes, resources, actions, and tests through one runtime spine. |
+| What teams reach for    | What it does well                      | Effect UI's bet                                                                                                               |
+| ----------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| React / Solid           | Component model and reactive UI        | Keep fine-grained UI ergonomics, but attach async work to Effect scopes and runtime ownership.                                |
+| Next / Remix            | Full-stack routes, forms, server work  | Keep progressive enhancement, but make server contracts, schemas, request runtimes, and manifests explicit.                   |
+| TanStack Start / Router | Typed routes and full-stack wiring     | Add Schema-branded params, request-local Effect runtimes, app graph diagnostics, and stricter build gates.                    |
+| TanStack Query          | Async reads, retries, invalidation     | Replace cache keys with typed resources, semantic tags, Effect `Schedule`, hydration, and public lifecycle events.            |
+| TanStack DB             | Normalized local data and live queries | Keep collections and live queries, but make row state runtime-local and integrate persistence, sync, SSR, and devtools facts. |
+| Relay                   | Data graph discipline                  | Aim for graph-level discipline without requiring a GraphQL-only architecture.                                                 |
+| Jotai / state libraries | Small local reactive state             | Keep local signals, but connect streams, scopes, resources, actions, and tests through one runtime spine.                     |
 
 ## Compared With TanStack Query
 
@@ -33,15 +33,15 @@ to coordinate cache keys by convention:
 ```ts
 const project = useQuery({
   queryKey: ["project", id],
-  queryFn: () => fetchProject(id)
-})
+  queryFn: () => fetchProject(id),
+});
 
 const rename = useMutation({
   mutationFn: renameProject,
   onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ["project", id] })
-  }
-})
+    queryClient.invalidateQueries({ queryKey: ["project", id] });
+  },
+});
 ```
 
 Effect UI wants the same workflow to be a domain graph instead of a string-key
@@ -49,24 +49,24 @@ agreement:
 
 ```ts
 export const ProjectTag = Resource.tag<{ readonly id: ProjectId }>("Project", {
-  key: ({ id }) => id
-})
+  key: ({ id }) => id,
+});
 
 export const ProjectById = Resource.family<ProjectId, Project, ProjectError, ProjectApi>({
   name: "Project.byId",
   input: ProjectId,
   output: ProjectSchema,
   load: (id) => ProjectApi.use((api) => api.get(id)),
-  provides: (project) => [ProjectTag({ id: project.id })]
-})
+  provides: (project) => [ProjectTag({ id: project.id })],
+});
 
 export const RenameProject = Action.define({
   name: "Project.rename",
   input: RenameProjectInput,
   output: ProjectSchema,
   run: (input) => ProjectApi.use((api) => api.rename(input)),
-  invalidates: (project) => [ProjectTag({ id: project.id })]
-})
+  invalidates: (project) => [ProjectTag({ id: project.id })],
+});
 ```
 
 The difference is not just syntax. The resource owns schemas, retry policy,
@@ -81,15 +81,15 @@ handlers and form actions are direct, and that is a good thing.
 
 ```ts
 export async function action({ request }: ActionFunctionArgs) {
-  const form = await request.formData()
-  const name = String(form.get("name"))
+  const form = await request.formData();
+  const name = String(form.get("name"));
 
   if (name.length < 3) {
-    return json({ fieldErrors: { name: "Too short" } }, { status: 422 })
+    return json({ fieldErrors: { name: "Too short" } }, { status: 422 });
   }
 
-  await renameProject(name)
-  return redirect("/projects")
+  await renameProject(name);
+  return redirect("/projects");
 }
 ```
 
@@ -103,15 +103,13 @@ export const SubmitProjectName = Action.define({
   output: ProjectNameSubmissionResultSchema,
   run: (input) => ProjectApi.use((api) => api.submitName(input)),
   invalidates: (result, input) =>
-    result._tag === "ValidationFailure"
-      ? []
-      : projectResourceInvalidations(input.id)
-})
+    result._tag === "ValidationFailure" ? [] : projectResourceInvalidations(input.id),
+});
 
 export const projectNameActionTarget = (input: {
-  readonly id: ProjectId
-  readonly redirectTo?: ProjectReturnTo
-}) => startActionForm(SubmitProjectName, { input })
+  readonly id: ProjectId;
+  readonly redirectTo?: ProjectReturnTo;
+}) => startActionForm(SubmitProjectName, { input });
 ```
 
 With JavaScript, a component can submit through the Start action client. Without
@@ -125,18 +123,16 @@ Typed routers help catch bad links. Effect UI leans into that, but keeps schemas
 and generated route facts close to the app graph:
 
 ```ts
-const RouteBuilder = defineFileRoute("/projects/:id")
+const RouteBuilder = defineFileRoute("/projects/:id");
 
 export const Route = RouteBuilder.preload({
   params: Schema.Struct({ id: ProjectId }),
   search: Schema.Struct({
-    tab: Schema.optional(Schema.Literals(["overview", "activity"]))
+    tab: Schema.optional(Schema.Literals(["overview", "activity"])),
   }),
-  resources: ({ resource }) => [
-    resource(ProjectById, ({ params }) => params.id)
-  ],
-  collections: [ProjectSummaries]
-}).route()
+  resources: ({ resource }) => [resource(ProjectById, ({ params }) => params.id)],
+  collections: [ProjectSummaries],
+}).route();
 ```
 
 The generated route file exposes maps such as `routeById`, `routeByPath`,
@@ -155,26 +151,30 @@ queries. Effect UI's DB layer heads in the same direction, but plugs row state
 into the active Effect UI runtime/resource store:
 
 ```ts
-export const ProjectSummaries = Collection.define(Collection.serverOptions({
-  id: "Projects.collection",
-  output: ProjectSummarySchema,
-  getKey: (project) => project.id,
-  indexes: {
-    status: (project) => project.status,
-    owner: (project) => project.owner
-  },
-  load: () => ProjectApi.use((api) => api.list()),
-  update: ({ updates }) =>
-    Effect.forEach(updates, (update) =>
-      ProjectApi.use((api) =>
-        api.rename({
-          id: update.key,
-          name: String(update.changes.name)
-        })
-      ).pipe(Effect.asVoid),
-      { discard: true }
-    )
-}))
+export const ProjectSummaries = Collection.define(
+  Collection.serverOptions({
+    id: "Projects.collection",
+    output: ProjectSummarySchema,
+    getKey: (project) => project.id,
+    indexes: {
+      status: (project) => project.status,
+      owner: (project) => project.owner,
+    },
+    load: () => ProjectApi.use((api) => api.list()),
+    update: ({ updates }) =>
+      Effect.forEach(
+        updates,
+        (update) =>
+          ProjectApi.use((api) =>
+            api.rename({
+              id: update.key,
+              name: String(update.changes.name),
+            }),
+          ).pipe(Effect.asVoid),
+        { discard: true },
+      ),
+  }),
+);
 ```
 
 Collections can expose secondary indexes, pending optimistic mutation queues,
@@ -207,8 +207,8 @@ Small state tools are pleasant because they make local state feel lightweight.
 Effect UI keeps that part simple:
 
 ```ts
-const search = Signal.make("")
-const normalized = Signal.derive(() => read(search).trim().toLowerCase())
+const search = Signal.make("");
+const normalized = Signal.derive(() => read(search).trim().toLowerCase());
 ```
 
 The difference appears when state meets async work. A signal can stream values,
@@ -233,27 +233,28 @@ const ProjectProgram = Program.define({
           { ...model, loading: true },
           Program.command(
             ProjectApi.use((api) =>
-              Effect.map(api.get(message.id), (project) => ({ _tag: "Loaded", project }))
-            )
-          )
-        )
+              Effect.map(api.get(message.id), (project) => ({ _tag: "Loaded", project })),
+            ),
+          ),
+        );
       case "Loaded":
-        return { selected: message.project, loading: false }
+        return { selected: message.project, loading: false };
     }
   },
-  subscriptions: (model) =>
-    model.selected ? ProjectEvents.changes(model.selected.id) : undefined
-})
+  subscriptions: (model) => (model.selected ? ProjectEvents.changes(model.selected.id) : undefined),
+});
 ```
 
 The Solid adapter is intentionally small:
 
 ```tsx
-const program = useProgram(ProjectProgram)
+const program = useProgram(ProjectProgram);
 
-return <button onClick={() => program.dispatch({ _tag: "Load", id })}>
-  {program.model().loading ? "Loading" : "Open"}
-</button>
+return (
+  <button onClick={() => program.dispatch({ _tag: "Load", id })}>
+    {program.model().loading ? "Loading" : "Open"}
+  </button>
+);
 ```
 
 So the public shape is Foldkit-simple, but commands can require app services,
@@ -263,12 +264,12 @@ the active UI scope/runtime rather than becoming a separate frontend runtime.
 The test shape now follows the same model:
 
 ```ts
-const story = Program.story(ProjectProgram)
-const load = yield* story.send({ _tag: "Load", id: "atlas" })
+const story = Program.story(ProjectProgram);
+const load = yield * story.send({ _tag: "Load", id: "atlas" });
 
-expect(load.commands).toHaveLength(1)
-yield* story.resolve(load.commands[0]!)
-expect(read(story.model).selected?.id).toBe("atlas")
+expect(load.commands).toHaveLength(1);
+yield * story.resolve(load.commands[0]!);
+expect(read(story.model).selected?.id).toBe("atlas");
 ```
 
 That keeps Foldkit's "story test" clarity while preserving Effect services and
@@ -278,7 +279,7 @@ runtime.
 At runtime, the same Program exposes an inspectable timeline:
 
 ```ts
-program.timeline().map((event) => event._tag)
+program.timeline().map((event) => event._tag);
 // ["Message", "CommandStarted", "CommandCompleted", "Message"]
 ```
 
@@ -287,7 +288,7 @@ devtools can watch the Program think without reaching into private state.
 Devtools does that through the public Effect API:
 
 ```ts
-yield* store.trackProgramEffect(program)
+yield * store.trackProgramEffect(program);
 ```
 
 Those rows go through the same bounded/redacted Devtools serialization contract
@@ -300,21 +301,21 @@ the Solid target through TSRX today, rather than pretending it needs a custom UI
 compiler first.
 
 ```tsx
-const project = useResource(ProjectById(props.id))
-const rename = useAction(RenameProject)
-const renameState = useSignal(rename.state)
-const runtime = useRuntime()
+const project = useResource(ProjectById(props.id));
+const rename = useAction(RenameProject);
+const renameState = useSignal(rename.state);
+const runtime = useRuntime();
 
 return (
   <form
     onSubmit={(event) => {
-      event.preventDefault()
-      void runtime.runFork(rename.submitEffect({ id: props.id, name: nextName() }))
+      event.preventDefault();
+      void runtime.runFork(rename.submitEffect({ id: props.id, name: nextName() }));
     }}
   >
     <button disabled={renameState()._tag === "Pending"}>Save</button>
   </form>
-)
+);
 ```
 
 Solid gives compact UI updates. Effect UI adds the runtime spine around those

@@ -6,7 +6,7 @@ import type {
   CollectionOrigin,
   CollectionRow,
   CollectionTransaction,
-  CollectionUpdate
+  CollectionUpdate,
 } from "./collection-contract.js";
 
 export interface CollectionExecutableValuePath {
@@ -20,14 +20,9 @@ export class CollectionValueReadError extends Data.TaggedError("CollectionValueR
 }> {}
 
 const collectionValuePathSegment = (key: string): string =>
-  /^[A-Za-z_$][\w$]*$/.test(key)
-    ? `.${key}`
-    : `[${JSON.stringify(key)}]`;
+  /^[A-Za-z_$][\w$]*$/.test(key) ? `.${key}` : `[${JSON.stringify(key)}]`;
 
-const readCollectionValue = <A>(
-  path: string,
-  evaluate: () => A
-): A => {
+const readCollectionValue = <A>(path: string, evaluate: () => A): A => {
   try {
     return evaluate();
   } catch (cause) {
@@ -41,7 +36,7 @@ const isEffectLikeCollectionValue = (value: unknown): boolean =>
 export const collectionExecutableValuePath = (
   value: unknown,
   path = "$",
-  active = new WeakSet<object>()
+  active = new WeakSet<object>(),
 ): CollectionExecutableValuePath | undefined => {
   if (isPromiseLikeValue(value)) {
     return { path, reason: "PromiseLikeValue" };
@@ -73,7 +68,7 @@ export const collectionExecutableValuePath = (
         const found = collectionExecutableValuePath(
           readCollectionValue(entryPath, () => value[index]),
           entryPath,
-          active
+          active,
         );
         if (found !== undefined) {
           return found;
@@ -108,7 +103,11 @@ export const collectionExecutableValuePath = (
       return undefined;
     }
     for (const [key, entry] of readCollectionValue(path, () => Object.entries(value))) {
-      const found = collectionExecutableValuePath(entry, `${path}${collectionValuePathSegment(key)}`, active);
+      const found = collectionExecutableValuePath(
+        entry,
+        `${path}${collectionValuePathSegment(key)}`,
+        active,
+      );
       if (found !== undefined) {
         return found;
       }
@@ -122,7 +121,7 @@ export const collectionExecutableValuePath = (
 export const cloneCollectionValue = <A>(
   value: A,
   seen = new WeakMap<object, unknown>(),
-  path = "$"
+  path = "$",
 ): A => {
   if (typeof value !== "object" || value === null) {
     return value;
@@ -146,11 +145,13 @@ export const cloneCollectionValue = <A>(
     seen.set(value, output);
     for (let index = 0; index < value.length; index++) {
       const entryPath = `${path}[${index}]`;
-      output.push(cloneCollectionValue(
-        readCollectionValue(entryPath, () => value[index]),
-        seen,
-        entryPath
-      ));
+      output.push(
+        cloneCollectionValue(
+          readCollectionValue(entryPath, () => value[index]),
+          seen,
+          entryPath,
+        ),
+      );
     }
     return output as A;
   }
@@ -162,7 +163,7 @@ export const cloneCollectionValue = <A>(
     for (const [key, entry] of readCollectionValue(path, () => Array.from(value))) {
       output.set(
         cloneCollectionValue(key, seen, `${path}.<key:${index}>`),
-        cloneCollectionValue(entry, seen, `${path}.<value:${index}>`)
+        cloneCollectionValue(entry, seen, `${path}.<value:${index}>`),
       );
       index++;
     }
@@ -191,9 +192,9 @@ export const cloneCollectionValue = <A>(
     const copiedBytes = new Uint8Array(bytes);
     const buffer = copiedBytes.buffer.slice(
       copiedBytes.byteOffset,
-      copiedBytes.byteOffset + copiedBytes.byteLength
+      copiedBytes.byteOffset + copiedBytes.byteLength,
     );
-    const constructor = value.constructor as { new(buffer: ArrayBuffer): A };
+    const constructor = value.constructor as { new (buffer: ArrayBuffer): A };
     return new constructor(buffer);
   }
 
@@ -248,7 +249,7 @@ export const cloneFrozenCollectionValue = <A>(value: A): A =>
   freezeCollectionValue(cloneCollectionValue(value));
 
 export const cloneCollectionMutation = <A extends object, K extends CollectionKey>(
-  mutation: CollectionMutation<A, K>
+  mutation: CollectionMutation<A, K>,
 ): CollectionMutation<A, K> => {
   switch (mutation._tag) {
     case "Insert":
@@ -256,13 +257,13 @@ export const cloneCollectionMutation = <A extends object, K extends CollectionKe
         ? {
             _tag: "Insert",
             key: mutation.key,
-            value: cloneCollectionValue(mutation.value)
+            value: cloneCollectionValue(mutation.value),
           }
         : {
             _tag: "Insert",
             key: mutation.key,
             value: cloneCollectionValue(mutation.value),
-            previous: cloneCollectionValue(mutation.previous)
+            previous: cloneCollectionValue(mutation.previous),
           };
     case "Update":
       return {
@@ -270,27 +271,27 @@ export const cloneCollectionMutation = <A extends object, K extends CollectionKe
         key: mutation.key,
         previous: cloneCollectionValue(mutation.previous),
         value: cloneCollectionValue(mutation.value),
-        changes: cloneCollectionValue(mutation.changes)
+        changes: cloneCollectionValue(mutation.changes),
       };
     case "Delete":
       return {
         _tag: "Delete",
         key: mutation.key,
-        previous: cloneCollectionValue(mutation.previous)
+        previous: cloneCollectionValue(mutation.previous),
       };
   }
 };
 
 export const cloneCollectionTransaction = <A extends object, K extends CollectionKey>(
-  transaction: CollectionTransaction<A, K>
+  transaction: CollectionTransaction<A, K>,
 ): CollectionTransaction<A, K> => ({
   id: transaction.id,
   collection: transaction.collection,
-  mutations: transaction.mutations.map(cloneCollectionMutation)
+  mutations: transaction.mutations.map(cloneCollectionMutation),
 });
 
 export const cloneFrozenCollectionTransaction = <A extends object, K extends CollectionKey>(
-  transaction: CollectionTransaction<A, K>
+  transaction: CollectionTransaction<A, K>,
 ): CollectionTransaction<A, K> =>
   cloneFrozenCollectionValue(cloneCollectionTransaction(transaction));
 
@@ -305,7 +306,7 @@ export const detachCollectionRow = <A extends object, K extends CollectionKey>(o
     $key: options.key,
     $collection: options.collection,
     $synced: options.synced,
-    $origin: options.origin
+    $origin: options.origin,
   }) as CollectionRow<A, K>;
 
 export const collectionValueChanges = <A extends object>(previous: A, value: A): Partial<A> => {
@@ -318,7 +319,10 @@ export const collectionValueChanges = <A extends object>(previous: A, value: A):
   return changes;
 };
 
-export const applyCollectionUpdate = <A extends object>(previous: A, update: CollectionUpdate<A>): {
+export const applyCollectionUpdate = <A extends object>(
+  previous: A,
+  update: CollectionUpdate<A>,
+): {
   readonly value: A;
   readonly changes: Partial<A>;
 } => {
@@ -328,12 +332,12 @@ export const applyCollectionUpdate = <A extends object>(previous: A, update: Col
     const value = cloneCollectionValue(result === undefined ? draft : result);
     return {
       value,
-      changes: collectionValueChanges(previous, value)
+      changes: collectionValueChanges(previous, value),
     };
   }
 
   return {
     value: cloneCollectionValue({ ...previous, ...update }),
-    changes: cloneCollectionValue(update)
+    changes: cloneCollectionValue(update),
   };
 };

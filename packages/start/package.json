@@ -2,18 +2,18 @@
   "name": "@effect-ui/start",
   "version": "0.0.0-alpha.0",
   "description": "Effect UI full-stack Start layer for SSR, hydration, transports, diagnostics, and app graphs.",
-  "license": "UNLICENSED",
-  "type": "module",
-  "private": true,
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
-  "sideEffects": false,
+  "license": "MIT",
+  "author": "Andrew Lee",
   "bin": {
     "effect-ui-start": "./dist/cli.js"
   },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -47,6 +47,9 @@
       "types": "./dist/virtual.d.ts",
       "default": "./dist/virtual.js"
     }
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "build": "rm -rf dist .tsbuildinfo && tsgo -p tsconfig.json && cp src/virtual-modules.d.ts dist/virtual.d.ts && rm -f dist/virtual.d.ts.map && chmod +x dist/cli.js",

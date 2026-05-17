@@ -1,4 +1,17 @@
-import { Clock, Deferred, Effect, Exit, Fiber, Layer, Option, PubSub, Request, RequestResolver, Schedule, Schema } from "effect";
+import {
+  Clock,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Option,
+  PubSub,
+  Request,
+  RequestResolver,
+  Schedule,
+  Schema,
+} from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {
   EffectInputPromiseRejected,
@@ -11,7 +24,7 @@ import {
   ResourcePending,
   ResourceSnapshotCodecError,
   runWithRuntime,
-  validateResourceHydrationSnapshots
+  validateResourceHydrationSnapshots,
 } from "../src/index.js";
 import { parseDuration } from "../src/resource-duration.js";
 import { unsafeMutableResourceStore } from "../src/resource-store.js";
@@ -27,7 +40,7 @@ describe("Resource", () => {
     const load = vi.fn((id: string) => Effect.succeed({ id, name: "Ada" }));
     const User = Resource.family({
       name: "User.byId",
-      load
+      load,
     });
 
     const ref = User("1");
@@ -43,7 +56,7 @@ describe("Resource", () => {
     const domainEffect = Effect.succeed(42);
     const Computation = Resource.family<string, Effect.Effect<number>>({
       name: "Computation.effect-valued",
-      load: () => Effect.succeed(domainEffect)
+      load: () => Effect.succeed(domainEffect),
     });
 
     const value = await Effect.runPromise(Resource.prefetchEffect(Computation("answer")));
@@ -55,37 +68,35 @@ describe("Resource", () => {
   it("encodes common built-ins in default resource keys", () => {
     const AnyInput = Resource.family<unknown, string>({
       name: "ResourceKey.codec-builtins",
-      load: () => "ok"
+      load: () => "ok",
     });
 
     const dateRef = AnyInput(new Date("2024-01-02T03:04:05.000Z"));
     const urlRef = AnyInput(new URL("https://example.com/projects?tab=activity"));
-    const mapRef = AnyInput(new Map([
-      ["created", new Date("2024-01-02T03:04:05.000Z")],
-      ["url", new URL("https://example.com/projects?tab=activity")]
-    ]));
+    const mapRef = AnyInput(
+      new Map([
+        ["created", new Date("2024-01-02T03:04:05.000Z")],
+        ["url", new URL("https://example.com/projects?tab=activity")],
+      ]),
+    );
     const setRef = AnyInput(new Set(["atlas", new Date("2024-01-02T03:04:05.000Z")]));
     const nestedRef = AnyInput({
       filters: new Map([
         ["ids", new Set(["atlas", "kepler"])],
-        ["created", new Date("2024-01-02T03:04:05.000Z")]
-      ])
+        ["created", new Date("2024-01-02T03:04:05.000Z")],
+      ]),
     });
 
-    expect(new Set([
-      AnyInput({}).key,
-      dateRef.key,
-      urlRef.key,
-      mapRef.key,
-      setRef.key,
-      nestedRef.key
-    ]).size).toBe(6);
-    expect(dateRef.key).toContain("\"Date\"");
-    expect(urlRef.key).toContain("\"URL\"");
-    expect(mapRef.key).toContain("\"Map\"");
-    expect(setRef.key).toContain("\"Set\"");
-    expect(nestedRef.key).toContain("\"Map\"");
-    expect(nestedRef.key).toContain("\"Set\"");
+    expect(
+      new Set([AnyInput({}).key, dateRef.key, urlRef.key, mapRef.key, setRef.key, nestedRef.key])
+        .size,
+    ).toBe(6);
+    expect(dateRef.key).toContain('"Date"');
+    expect(urlRef.key).toContain('"URL"');
+    expect(mapRef.key).toContain('"Map"');
+    expect(setRef.key).toContain('"Set"');
+    expect(nestedRef.key).toContain('"Map"');
+    expect(nestedRef.key).toContain('"Set"');
   });
 
   it("fails default resource keys for circular and unsupported objects", () => {
@@ -97,7 +108,7 @@ describe("Resource", () => {
 
     const AnyInput = Resource.family<unknown, string>({
       name: "ResourceKey.codec-failures",
-      load: () => "ok"
+      load: () => "ok",
     });
     const circular: { self?: unknown } = {};
     circular.self = circular;
@@ -115,7 +126,7 @@ describe("Resource", () => {
         name: "ResourceKey.codec-failures",
         path: "$.self",
         reason: "CircularReference",
-        referencePath: "$"
+        referencePath: "$",
       });
       expect((error as ResourceKeyError).guidance).toContain("key");
     }
@@ -129,7 +140,7 @@ describe("Resource", () => {
         operation: "Resource.family.ref",
         name: "ResourceKey.codec-failures",
         path: "$",
-        reason: "UnsupportedObject"
+        reason: "UnsupportedObject",
       });
       expect((error as ResourceKeyError).guidance).toContain("key");
     }
@@ -139,10 +150,10 @@ describe("Resource", () => {
     const Project = Resource.family<string, string>({
       name: "ResourceKey.promise-family-key",
       key: () => Promise.resolve("atlas") as never,
-      load: () => "ok"
+      load: () => "ok",
     });
     const ProjectTag = Resource.tag<string>("ResourceKey.promise-tag-key", {
-      key: () => Promise.resolve("atlas") as never
+      key: () => Promise.resolve("atlas") as never,
     });
 
     expect(() => Project("atlas")).toThrow(ResourceKeyError);
@@ -157,7 +168,7 @@ describe("Resource", () => {
         operation: "Resource.family.ref",
         name: "ResourceKey.promise-family-key",
         reason: "PromiseLikeKey",
-        cause: expect.any(EffectInputPromiseRejected)
+        cause: expect.any(EffectInputPromiseRejected),
       });
       expect(String((error as ResourceKeyError).cause)).not.toContain("[object Promise]");
     }
@@ -171,7 +182,7 @@ describe("Resource", () => {
         operation: "Resource.tag",
         name: "ResourceKey.promise-tag-key",
         reason: "PromiseLikeKey",
-        cause: expect.any(EffectInputPromiseRejected)
+        cause: expect.any(EffectInputPromiseRejected),
       });
     }
   });
@@ -180,18 +191,18 @@ describe("Resource", () => {
     const EffectKeyProject = Resource.family<string, string>({
       name: "ResourceKey.effect-family-key",
       key: () => Effect.succeed("atlas") as never,
-      load: () => "ok"
+      load: () => "ok",
     });
     const NumericKeyProject = Resource.family<string, string>({
       name: "ResourceKey.numeric-family-key",
       key: () => 42 as never,
-      load: () => "ok"
+      load: () => "ok",
     });
     const EffectKeyTag = Resource.tag<string>("ResourceKey.effect-tag-key", {
-      key: () => Effect.succeed("atlas") as never
+      key: () => Effect.succeed("atlas") as never,
     });
     const ObjectKeyTag = Resource.tag<string>("ResourceKey.object-tag-key", {
-      key: () => ({ id: "atlas" }) as never
+      key: () => ({ id: "atlas" }) as never,
     });
 
     expect(() => EffectKeyProject("atlas")).toThrow(ResourceKeyError);
@@ -207,7 +218,7 @@ describe("Resource", () => {
         _tag: "ResourceKeyError",
         operation: "Resource.family.ref",
         name: "ResourceKey.effect-family-key",
-        reason: "EffectLikeKey"
+        reason: "EffectLikeKey",
       });
     }
 
@@ -219,14 +230,14 @@ describe("Resource", () => {
         _tag: "ResourceKeyError",
         operation: "Resource.family.ref",
         name: "ResourceKey.numeric-family-key",
-        reason: "NonStringKey"
+        reason: "NonStringKey",
       });
     }
   });
 
   it("exposes resource family and tag diagnostics", () => {
     const ProjectTag = Resource.tag<{ readonly id: string }>("Project.diagnostics-tag", {
-      key: ({ id }) => id
+      key: ({ id }) => id,
     });
     Resource.tag("Project.diagnostics-all");
     Resource.family({
@@ -238,8 +249,8 @@ describe("Resource", () => {
       policy: {
         staleFor: "20 seconds",
         gcFor: "5 minutes",
-        retry: Schedule.recurs(1)
-      }
+        retry: Schedule.recurs(1),
+      },
     });
 
     const diagnostics = Resource.diagnostics();
@@ -255,22 +266,22 @@ describe("Resource", () => {
           policy: {
             staleFor: "20 seconds",
             gcFor: "5 minutes",
-            retry: true
-          }
-        }
-      ])
+            retry: true,
+          },
+        },
+      ]),
     );
     expect(diagnostics.tags).toEqual(
       expect.arrayContaining([
         {
           name: "Project.diagnostics-all",
-          keyed: false
+          keyed: false,
         },
         {
           name: "Project.diagnostics-tag",
-          keyed: true
-        }
-      ])
+          keyed: true,
+        },
+      ]),
     );
   });
 
@@ -278,22 +289,24 @@ describe("Resource", () => {
     const load = vi.fn(() => Effect.succeed(1));
     const Count = Resource.family({
       name: "Count",
-      load
+      load,
     });
     const ref = Count(undefined);
 
     await Effect.runPromise(
-      Effect.all([
-        Resource.prefetchEffect(ref),
-        Resource.prefetchEffect(ref)
-      ], { concurrency: "unbounded" })
+      Effect.all([Resource.prefetchEffect(ref), Resource.prefetchEffect(ref)], {
+        concurrency: "unbounded",
+      }),
     );
 
     expect(load).toHaveBeenCalledTimes(1);
   });
 
   it("backs resource families with Effect RequestResolver batches", () => {
-    interface GetUserRequest extends Request.Request<{ readonly id: string; readonly name: string }> {
+    interface GetUserRequest extends Request.Request<{
+      readonly id: string;
+      readonly name: string;
+    }> {
       readonly _tag: "GetUserRequest";
       readonly id: string;
     }
@@ -306,34 +319,33 @@ describe("Resource", () => {
           entry.completeUnsafe(
             Exit.succeed({
               id: entry.request.id,
-              name: entry.request.id.toUpperCase()
-            })
+              name: entry.request.id.toUpperCase(),
+            }),
           );
         }
-      })
+      }),
     );
     const User = Resource.requestFamily({
       name: "User.request-resolver",
       request: (id: string) => GetUserRequest({ id }),
-      resolver
+      resolver,
     });
 
     return Effect.runPromise(
-      Effect.all([
-        Resource.prefetchEffect(User("ada")),
-        Resource.prefetchEffect(User("grace"))
-      ], { concurrency: "unbounded" }).pipe(
+      Effect.all([Resource.prefetchEffect(User("ada")), Resource.prefetchEffect(User("grace"))], {
+        concurrency: "unbounded",
+      }).pipe(
         Effect.tap((values) =>
           Effect.sync(() => {
             expect(values).toEqual([
               { id: "ada", name: "ADA" },
-              { id: "grace", name: "GRACE" }
+              { id: "grace", name: "GRACE" },
             ]);
             expect(batches).toEqual([["ada", "grace"]]);
             expect(read(User("ada"))).toEqual({ id: "ada", name: "ADA" });
-          })
-        )
-      )
+          }),
+        ),
+      ),
     );
   });
 
@@ -341,7 +353,7 @@ describe("Resource", () => {
     let count = 0;
     const Count = Resource.family({
       name: "Count.effect-cache",
-      load: () => Effect.sync(() => ++count)
+      load: () => Effect.sync(() => ++count),
     });
     const ref = Count(undefined);
 
@@ -361,7 +373,7 @@ describe("Resource", () => {
     let count = 0;
     const Count = Resource.family({
       name: "Count.runtime-store",
-      load: () => Effect.sync(() => ++count)
+      load: () => Effect.sync(() => ++count),
     });
     const ref = Count(undefined);
 
@@ -385,7 +397,7 @@ describe("Resource", () => {
     let count = 0;
     const Count = Resource.family({
       name: "Count.delete-subscriber-reset",
-      load: () => Effect.sync(() => ++count)
+      load: () => Effect.sync(() => ++count),
     });
     const ref = Count(undefined);
     const result = Resource.result(ref);
@@ -393,39 +405,41 @@ describe("Resource", () => {
     await Effect.runPromise(Resource.prefetchEffect(ref));
     expect(result.get()).toMatchObject({
       _tag: "Success",
-      value: 1
+      value: 1,
     });
 
     await Effect.runPromise(Resource.deleteEffect(ref));
 
     expect(result.get()).toEqual({
       _tag: "Initial",
-      waiting: false
+      waiting: false,
     });
 
     await Effect.runPromise(Resource.prefetchEffect(ref));
 
     expect(result.get()).toMatchObject({
       _tag: "Success",
-      value: 2
+      value: 2,
     });
   });
 
   it("records semantic tags and invalidates matching resource refs", async () => {
     const ProjectTag = Resource.tag<{ readonly id: string }>("Project.resource-test", {
-      key: ({ id }) => id
+      key: ({ id }) => id,
     });
     let project = { id: "atlas", name: "Atlas" };
     const load = vi.fn((id: string) => Effect.succeed({ ...project, id }));
     const Project = Resource.family({
       name: "Project.tag-resource-test",
       load,
-      provides: (value) => [ProjectTag({ id: value.id })]
+      provides: (value) => [ProjectTag({ id: value.id })],
     });
     const ref = Project("atlas");
 
     await Effect.runPromise(Resource.prefetchEffect(ref));
-    expect(Resource.refsForTag(ProjectTag({ id: "atlas" })).map((tagRef) => tagRef.key)).toContain(ref.key);
+    expect(Resource.refsForTag(ProjectTag({ id: "atlas" })).map((tagRef) => tagRef.key)).toContain(
+      ref.key,
+    );
 
     project = { id: "atlas", name: "Renamed" };
     await Effect.runPromise(Resource.invalidateEffect(ProjectTag({ id: "atlas" })));
@@ -437,7 +451,7 @@ describe("Resource", () => {
   it("keeps unkeyed and keyed resource tags with colliding public keys separate", async () => {
     const UnkeyedTag = Resource.tag("Project.collision:atlas");
     const KeyedTag = Resource.tag<string>("Project.collision", {
-      key: (id) => id
+      key: (id) => id,
     });
     let unkeyedValue = 1;
     let keyedValue = 1;
@@ -446,12 +460,12 @@ describe("Resource", () => {
     const Unkeyed = Resource.family({
       name: "Project.unkeyed-collision",
       load: loadUnkeyed,
-      provides: () => [UnkeyedTag]
+      provides: () => [UnkeyedTag],
     });
     const Keyed = Resource.family({
       name: "Project.keyed-collision",
       load: loadKeyed,
-      provides: () => [KeyedTag("atlas")]
+      provides: () => [KeyedTag("atlas")],
     });
     const unkeyedRef = Unkeyed(undefined);
     const keyedRef = Keyed(undefined);
@@ -483,14 +497,16 @@ describe("Resource", () => {
     const Project = Resource.family({
       name: "Project.runtime-store-tag",
       load: (id: string) => Effect.succeed({ id }),
-      provides: () => [ProjectTag]
+      provides: () => [ProjectTag],
     });
     const ref = Project("atlas");
 
     try {
       await Effect.runPromise(first.provide(Resource.prefetchEffect(ref)));
 
-      expect(runWithRuntime(first, () => Resource.refsForTag(ProjectTag).map((tagRef) => tagRef.key))).toEqual([ref.key]);
+      expect(
+        runWithRuntime(first, () => Resource.refsForTag(ProjectTag).map((tagRef) => tagRef.key)),
+      ).toEqual([ref.key]);
       expect(runWithRuntime(second, () => Resource.refsForTag(ProjectTag))).toEqual([]);
     } finally {
       await Effect.runPromise(first.disposeEffect);
@@ -502,7 +518,7 @@ describe("Resource", () => {
     const load = vi.fn(() => Effect.succeed("loaded"));
     const Count = Resource.family({
       name: "Count.status.initial",
-      load
+      load,
     });
     const ref = Count(undefined);
 
@@ -533,7 +549,7 @@ describe("Resource", () => {
       gcInMillis: undefined,
       value: undefined,
       previous: undefined,
-      error: undefined
+      error: undefined,
     });
     expect(load).not.toHaveBeenCalled();
   });
@@ -543,13 +559,11 @@ describe("Resource", () => {
     try {
       const User = Resource.family({
         name: "User.status-absent",
-        load: (id: string) => Effect.succeed({ id })
+        load: (id: string) => Effect.succeed({ id }),
       });
       const ref = User("atlas");
 
-      const status = await Effect.runPromise(
-        runtime.provide(Resource.statusEffect(ref))
-      );
+      const status = await Effect.runPromise(runtime.provide(Resource.statusEffect(ref)));
 
       expect(status._tag).toBe("Initial");
       const store = unsafeMutableResourceStore(runtime.resourceStore);
@@ -566,7 +580,7 @@ describe("Resource", () => {
     try {
       const User = Resource.family({
         name: "User.read-absent",
-        load: (id: string) => Effect.succeed({ id })
+        load: (id: string) => Effect.succeed({ id }),
       });
       const ref = User("atlas");
 
@@ -589,8 +603,8 @@ describe("Resource", () => {
         load: () => Effect.succeed(1),
         policy: {
           staleFor: 100,
-          gcFor: 500
-        }
+          gcFor: 500,
+        },
       });
       const ref = Count(undefined);
 
@@ -608,7 +622,7 @@ describe("Resource", () => {
         gcAt: 1_500,
         ageMillis: 0,
         staleInMillis: 100,
-        gcInMillis: 500
+        gcInMillis: 500,
       });
 
       vi.setSystemTime(1_151);
@@ -619,7 +633,7 @@ describe("Resource", () => {
         isGcExpired: false,
         ageMillis: 151,
         staleInMillis: 0,
-        gcInMillis: 349
+        gcInMillis: 349,
       });
     } finally {
       vi.useRealTimers();
@@ -633,7 +647,7 @@ describe("Resource", () => {
       currentTimeMillis: Effect.sync(() => now),
       currentTimeNanosUnsafe: () => BigInt(Math.trunc(now)) * 1_000_000n,
       currentTimeNanos: Effect.sync(() => BigInt(Math.trunc(now)) * 1_000_000n),
-      sleep: () => Effect.never
+      sleep: () => Effect.never,
     };
     const runtime = makeRuntime(Layer.succeed(Clock.Clock)(testClock));
     const Count = Resource.family({
@@ -641,8 +655,8 @@ describe("Resource", () => {
       load: () => Effect.succeed(1),
       policy: {
         staleFor: 100,
-        gcFor: 500
-      }
+        gcFor: 500,
+      },
     });
     const ref = Count(undefined);
 
@@ -659,30 +673,32 @@ describe("Resource", () => {
         isGcExpired: false,
         ageMillis: 0,
         staleInMillis: 100,
-        gcInMillis: 500
+        gcInMillis: 500,
       });
       expect(syncStatus).toMatchObject({
         isStale: effectStatus.isStale,
         isGcExpired: effectStatus.isGcExpired,
-        ageMillis: effectStatus.ageMillis
+        ageMillis: effectStatus.ageMillis,
       });
       expect(runWithRuntime(runtime, () => read(ref))).toBe(1);
 
       now += 151;
 
       const staleSyncStatus = runWithRuntime(runtime, () => Resource.status(ref));
-      const staleEffectStatus = await Effect.runPromise(runtime.provide(Resource.statusEffect(ref)));
+      const staleEffectStatus = await Effect.runPromise(
+        runtime.provide(Resource.statusEffect(ref)),
+      );
       expect(staleSyncStatus).toMatchObject({
         isStale: true,
         isGcExpired: false,
         ageMillis: 151,
         staleInMillis: 0,
-        gcInMillis: 349
+        gcInMillis: 349,
       });
       expect(staleSyncStatus).toMatchObject({
         isStale: staleEffectStatus.isStale,
         isGcExpired: staleEffectStatus.isGcExpired,
-        ageMillis: staleEffectStatus.ageMillis
+        ageMillis: staleEffectStatus.ageMillis,
       });
       expect(runWithRuntime(runtime, () => read(ref))).toBe(1);
     } finally {
@@ -697,7 +713,7 @@ describe("Resource", () => {
       currentTimeMillis: Effect.sync(() => now),
       currentTimeNanosUnsafe: () => BigInt(Math.trunc(now)) * 1_000_000n,
       currentTimeNanos: Effect.sync(() => BigInt(Math.trunc(now)) * 1_000_000n),
-      sleep: () => Effect.never
+      sleep: () => Effect.never,
     };
     const runtime = makeRuntime(Layer.succeed(Clock.Clock)(testClock));
     const secondStarted = Effect.runSync(Deferred.make<void>());
@@ -715,8 +731,8 @@ describe("Resource", () => {
           return loads;
         }),
       policy: {
-        gcFor: 100
-      }
+        gcFor: 100,
+      },
     });
     const ref = Count(undefined);
 
@@ -731,7 +747,7 @@ describe("Resource", () => {
       expect(pending).toMatchObject({
         _tag: "Pending",
         previous: 1,
-        isRefreshing: true
+        isRefreshing: true,
       });
 
       await Effect.runPromise(runtime.provide(Deferred.succeed(releaseSecond, undefined)));
@@ -747,7 +763,7 @@ describe("Resource", () => {
     const second = makeRuntime();
     const Count = Resource.family({
       name: "Count.status.effect",
-      load: () => Effect.succeed(1)
+      load: () => Effect.succeed(1),
     });
     const ref = Count(undefined);
 
@@ -760,12 +776,12 @@ describe("Resource", () => {
       expect(firstStatus).toMatchObject({
         _tag: "Success",
         value: 1,
-        hasValue: true
+        hasValue: true,
       });
       expect(secondStatus).toMatchObject({
         _tag: "Initial",
         value: undefined,
-        hasValue: false
+        hasValue: false,
       });
     } finally {
       await Effect.runPromise(first.disposeEffect);
@@ -778,7 +794,7 @@ describe("Resource", () => {
     const second = makeRuntime();
     const Count = Resource.family({
       name: "Count.read.effect-runtime",
-      load: () => Effect.succeed(1)
+      load: () => Effect.succeed(1),
     });
     const ref = Count(undefined);
 
@@ -786,10 +802,14 @@ describe("Resource", () => {
       await Effect.runPromise(first.provide(Resource.prefetchEffect(ref)));
 
       await expect(Effect.runPromise(first.provide(Resource.readEffect(ref)))).resolves.toBe(1);
-      await expect(Effect.runPromise(second.provide(Resource.readEffect(ref)))).rejects.toBeInstanceOf(ResourcePending);
-      await expect(Effect.runPromise(second.provide(Resource.statusEffect(ref)))).resolves.toMatchObject({
+      await expect(
+        Effect.runPromise(second.provide(Resource.readEffect(ref))),
+      ).rejects.toBeInstanceOf(ResourcePending);
+      await expect(
+        Effect.runPromise(second.provide(Resource.statusEffect(ref))),
+      ).resolves.toMatchObject({
         _tag: "Initial",
-        value: undefined
+        value: undefined,
       });
     } finally {
       await Effect.runPromise(first.disposeEffect);
@@ -809,7 +829,7 @@ describe("Resource", () => {
             yield* Deferred.await(gate);
           }
           return count;
-        })
+        }),
     });
     const ref = Count(undefined);
 
@@ -824,7 +844,7 @@ describe("Resource", () => {
       hasPrevious: true,
       isFetching: true,
       isLoading: false,
-      isRefreshing: true
+      isRefreshing: true,
     });
 
     await Effect.runPromise(Deferred.succeed(gate, undefined));
@@ -832,7 +852,7 @@ describe("Resource", () => {
     expect(Resource.status(ref)).toMatchObject({
       _tag: "Success",
       value: 2,
-      isRefreshing: false
+      isRefreshing: false,
     });
   });
 
@@ -852,7 +872,7 @@ describe("Resource", () => {
             return yield* Effect.fail(new Error("refresh failed"));
           }
           return undefined;
-        })
+        }),
     });
     const ref = MaybeValue(undefined);
 
@@ -867,7 +887,7 @@ describe("Resource", () => {
       hasValue: true,
       hasPrevious: true,
       isLoading: false,
-      isRefreshing: true
+      isRefreshing: true,
     });
     expect("previous" in pending.state).toBe(true);
     expect(read(ref)).toBeUndefined();
@@ -882,7 +902,7 @@ describe("Resource", () => {
       value: undefined,
       previous: undefined,
       hasValue: true,
-      hasPrevious: true
+      hasPrevious: true,
     });
     expect("previous" in failed.state).toBe(true);
 
@@ -908,7 +928,7 @@ describe("Resource", () => {
           yield* Deferred.succeed(started, undefined);
           yield* Deferred.await(gate);
           return loads;
-        })
+        }),
     });
     const ref = Count(undefined);
 
@@ -919,15 +939,14 @@ describe("Resource", () => {
     expect(loads).toBe(1);
 
     await Effect.runPromise(Deferred.succeed(gate, undefined));
-    await expect(Effect.runPromise(
-      Effect.all([
-        Fiber.join(first),
-        Fiber.join(second)
-      ], { concurrency: "unbounded" })
-    )).resolves.toEqual([1, 1]);
+    await expect(
+      Effect.runPromise(
+        Effect.all([Fiber.join(first), Fiber.join(second)], { concurrency: "unbounded" }),
+      ),
+    ).resolves.toEqual([1, 1]);
     expect(Resource.status(ref)).toMatchObject({
       _tag: "Success",
-      value: 1
+      value: 1,
     });
   });
 
@@ -943,7 +962,7 @@ describe("Resource", () => {
           yield* Deferred.succeed(started, undefined);
           yield* Deferred.await(gate);
           return loads;
-        })
+        }),
     });
     const ref = Count(undefined);
 
@@ -959,7 +978,7 @@ describe("Resource", () => {
     expect(loads).toBe(1);
     expect(Resource.status(ref)).toMatchObject({
       _tag: "Success",
-      value: 1
+      value: 1,
     });
   });
 
@@ -981,7 +1000,7 @@ describe("Resource", () => {
           }
           return captured;
         }),
-      provides: () => [CountTag]
+      provides: () => [CountTag],
     });
     const ref = Count(undefined);
 
@@ -1009,9 +1028,9 @@ describe("Resource", () => {
             Effect.never,
             Effect.sync(() => {
               interrupted = true;
-            })
+            }),
           );
-        })
+        }),
     });
     const ref = Count(undefined);
 
@@ -1026,12 +1045,12 @@ describe("Resource", () => {
 
   it("explains invalidation plans with direct refs and tag causes", async () => {
     const ProjectTag = Resource.tag<{ readonly id: string }>("Project.plan-resource-test", {
-      key: ({ id }) => id
+      key: ({ id }) => id,
     });
     const Project = Resource.family({
       name: "Project.invalidation-plan-resource-test",
       load: (id: string) => Effect.succeed({ id }),
-      provides: (value) => [ProjectTag({ id: value.id })]
+      provides: (value) => [ProjectTag({ id: value.id })],
     });
     const ref = Project("atlas");
 
@@ -1048,29 +1067,35 @@ describe("Resource", () => {
     expect(plan.entries[0]?.ref.key).toBe(ref.key);
     expect(Object.isFrozen(plan.entries[0]?.causes)).toBe(true);
     expect(plan.entries[0]?.causes.map((cause) => cause._tag)).toEqual(["Ref", "Tag"]);
-    expect(() => (plan.targets as Resource.Invalidation[]).push(ProjectTag({ id: "later" }))).toThrow(TypeError);
+    expect(() =>
+      (plan.targets as Resource.Invalidation[]).push(ProjectTag({ id: "later" })),
+    ).toThrow(TypeError);
   });
 
   it("keeps the tag index aligned when a resource provides different tags after refresh", async () => {
     const SlugTag = Resource.tag<{ readonly slug: string }>("Project.slug-resource-test", {
-      key: ({ slug }) => slug
+      key: ({ slug }) => slug,
     });
     let slug = "draft";
     const Project = Resource.family({
       name: "Project.dynamic-tags-resource-test",
       load: () => Effect.succeed({ id: "atlas", slug }),
-      provides: (value) => [SlugTag({ slug: value.slug })]
+      provides: (value) => [SlugTag({ slug: value.slug })],
     });
     const ref = Project(undefined);
 
     await Effect.runPromise(Resource.prefetchEffect(ref));
-    expect(Resource.refsForTag(SlugTag({ slug: "draft" })).map((tagRef) => tagRef.key)).toEqual([ref.key]);
+    expect(Resource.refsForTag(SlugTag({ slug: "draft" })).map((tagRef) => tagRef.key)).toEqual([
+      ref.key,
+    ]);
 
     slug = "published";
     await Effect.runPromise(Resource.refreshEffect(ref));
 
     expect(Resource.refsForTag(SlugTag({ slug: "draft" }))).toEqual([]);
-    expect(Resource.refsForTag(SlugTag({ slug: "published" })).map((tagRef) => tagRef.key)).toEqual([ref.key]);
+    expect(Resource.refsForTag(SlugTag({ slug: "published" })).map((tagRef) => tagRef.key)).toEqual(
+      [ref.key],
+    );
   });
 
   it("expires resource entries with gcFor", async () => {
@@ -1081,8 +1106,8 @@ describe("Resource", () => {
         name: "Count.gc",
         load: () => Effect.sync(() => ++count),
         policy: {
-          gcFor: 10
-        }
+          gcFor: 10,
+        },
       });
       const ref = Count(undefined);
 
@@ -1103,7 +1128,7 @@ describe("Resource", () => {
     let count = 0;
     const Count = Resource.family({
       name: "Count.delete-effect",
-      load: () => Effect.sync(() => ++count)
+      load: () => Effect.sync(() => ++count),
     });
     const ref = Count(undefined);
 
@@ -1116,8 +1141,8 @@ describe("Resource", () => {
           const subscription = yield* Resource.subscribeEventsEffect();
           yield* Resource.deleteEffect(ref);
           return yield* PubSub.take(subscription);
-        })
-      )
+        }),
+      ),
     );
 
     expect(() => read(ref)).toThrow(ResourcePending);
@@ -1127,7 +1152,7 @@ describe("Resource", () => {
     expect(deleted).toMatchObject({
       _tag: "ResourceDeleted",
       name: "Count.delete-effect",
-      key: ref.key
+      key: ref.key,
     });
   });
 
@@ -1139,8 +1164,8 @@ describe("Resource", () => {
         name: "Count.input-lifetime",
         load: (id: string) => Effect.succeed(id),
         policy: {
-          gcFor: 10
-        }
+          gcFor: 10,
+        },
       });
       const deleted = Count("deleted");
       const collected = Count("collected");
@@ -1165,22 +1190,24 @@ describe("Resource", () => {
     const runtime = makeRuntime();
     const Count = Resource.family({
       name: "Count.events",
-      load: () => Effect.succeed(1)
+      load: () => Effect.succeed(1),
     });
     const ref = Count(undefined);
 
     try {
-      const events = await Effect.runPromise(runtime.provide(
-        Effect.scoped(
-          Effect.gen(function* () {
-            const subscription = yield* Resource.subscribeEventsEffect();
-            yield* Resource.prefetchEffect(ref);
-            const pending = yield* PubSub.take(subscription);
-            const success = yield* PubSub.take(subscription);
-            return [pending, success] as const;
-          })
-        )
-      ));
+      const events = await Effect.runPromise(
+        runtime.provide(
+          Effect.scoped(
+            Effect.gen(function* () {
+              const subscription = yield* Resource.subscribeEventsEffect();
+              yield* Resource.prefetchEffect(ref);
+              const pending = yield* PubSub.take(subscription);
+              const success = yield* PubSub.take(subscription);
+              return [pending, success] as const;
+            }),
+          ),
+        ),
+      );
 
       expect(events.map((event) => event._tag)).toEqual(["ResourcePending", "ResourceSuccess"]);
       expect(events.map((event) => event.key)).toEqual([ref.key, ref.key]);
@@ -1200,32 +1227,34 @@ describe("Resource", () => {
           value++;
           return value;
         }),
-      provides: () => [CountTag]
+      provides: () => [CountTag],
     });
     const ref = Count(undefined);
 
     try {
-      const events = await Effect.runPromise(runtime.provide(
-        Effect.scoped(
-          Effect.gen(function* () {
-            const subscription = yield* Resource.subscribeEventsEffect();
-            yield* Resource.prefetchEffect(ref);
-            yield* PubSub.take(subscription);
-            yield* PubSub.take(subscription);
+      const events = await Effect.runPromise(
+        runtime.provide(
+          Effect.scoped(
+            Effect.gen(function* () {
+              const subscription = yield* Resource.subscribeEventsEffect();
+              yield* Resource.prefetchEffect(ref);
+              yield* PubSub.take(subscription);
+              yield* PubSub.take(subscription);
 
-            yield* Resource.invalidateEffect(CountTag);
-            const invalidated = yield* PubSub.take(subscription);
-            const pending = yield* PubSub.take(subscription);
-            const success = yield* PubSub.take(subscription);
-            return [invalidated, pending, success] as const;
-          })
-        )
-      ));
+              yield* Resource.invalidateEffect(CountTag);
+              const invalidated = yield* PubSub.take(subscription);
+              const pending = yield* PubSub.take(subscription);
+              const success = yield* PubSub.take(subscription);
+              return [invalidated, pending, success] as const;
+            }),
+          ),
+        ),
+      );
 
       expect(events.map((event) => event._tag)).toEqual([
         "ResourceInvalidated",
         "ResourcePending",
-        "ResourceSuccess"
+        "ResourceSuccess",
       ]);
       expect(events[0]).toEqual({
         _tag: "ResourceInvalidated",
@@ -1235,9 +1264,9 @@ describe("Resource", () => {
           {
             _tag: "Tag",
             key: "Count.invalidation-events",
-            name: "Count.invalidation-events"
-          }
-        ]
+            name: "Count.invalidation-events",
+          },
+        ],
       });
       expect(value).toBe(2);
     } finally {
@@ -1248,12 +1277,12 @@ describe("Resource", () => {
   it("exposes native Effect prefetch", async () => {
     const User = Resource.family({
       name: "User.effect",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const ref = User("effect");
 
     await expect(Effect.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({
-      id: "effect"
+      id: "effect",
     });
     expect(read(ref)).toEqual({ id: "effect" });
   });
@@ -1271,13 +1300,13 @@ describe("Resource", () => {
           return { id: "retry" };
         }),
       policy: {
-        retry: Schedule.recurs(2)
-      }
+        retry: Schedule.recurs(2),
+      },
     });
     const ref = User(undefined);
 
     await expect(Effect.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({
-      id: "retry"
+      id: "retry",
     });
     expect(attempts).toBe(3);
     expect(read(ref)).toEqual({ id: "retry" });
@@ -1292,15 +1321,15 @@ describe("Resource", () => {
         throw new Error("loader exploded");
       },
       policy: {
-        retry: Schedule.recurs(2)
-      }
+        retry: Schedule.recurs(2),
+      },
     });
     const ref = User("1");
 
     await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.load(User.retry.sync-loader-throw)",
-      cause: expect.any(Error)
+      cause: expect.any(Error),
     });
     expect(attempts).toBe(1);
   });
@@ -1310,14 +1339,14 @@ describe("Resource", () => {
       name: "User.sync-loader-throw",
       load: (_id: string) => {
         throw new Error("loader exploded");
-      }
+      },
     });
     const ref = User("1");
 
     await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.load(User.sync-loader-throw)",
-      cause: expect.any(Error)
+      cause: expect.any(Error),
     });
 
     expect(() => read(ref)).toThrow(ResourceFailure);
@@ -1326,23 +1355,23 @@ describe("Resource", () => {
       expect.fail("expected failure");
     } catch (error) {
       expect(error).toBeInstanceOf(ResourceFailure);
-      expect((error as ResourceFailure<string, unknown, EffectInputCallbackError>).error).toBeInstanceOf(
-        EffectInputCallbackError
-      );
+      expect(
+        (error as ResourceFailure<string, unknown, EffectInputCallbackError>).error,
+      ).toBeInstanceOf(EffectInputCallbackError);
     }
   });
 
   it("captures erased Promise-shaped resource loader returns as failures instead of leaving pending state", async () => {
     const User = Resource.family({
       name: "User.promise-loader-erased",
-      load: (_id: string) => Promise.resolve({ id: "promise" }) as never
+      load: (_id: string) => Promise.resolve({ id: "promise" }) as never,
     });
     const ref = User("1");
 
     await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.load(User.promise-loader-erased)",
-      cause: expect.any(EffectInputPromiseRejected)
+      cause: expect.any(EffectInputPromiseRejected),
     });
 
     expect(() => read(ref)).toThrow(ResourceFailure);
@@ -1350,7 +1379,7 @@ describe("Resource", () => {
     expect(status).toMatchObject({
       _tag: "Failure",
       isFailure: true,
-      isPending: false
+      isPending: false,
     });
     expect(status.error).toBeInstanceOf(EffectInputCallbackError);
   });
@@ -1361,14 +1390,14 @@ describe("Resource", () => {
       load: (id: string) => Effect.succeed({ id }),
       provides: () => {
         throw new Error("provides exploded");
-      }
+      },
     });
     const ref = User("1");
 
     await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.provides(User.sync-provides-throw)",
-      cause: expect.any(Error)
+      cause: expect.any(Error),
     });
 
     const status = Resource.status(ref);
@@ -1380,14 +1409,14 @@ describe("Resource", () => {
     const User = Resource.family({
       name: "User.promise-provides-erased",
       load: (id: string) => Effect.succeed({ id }),
-      provides: () => Promise.resolve([]) as never
+      provides: () => Promise.resolve([]) as never,
     });
     const ref = User("1");
 
     await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.provides(User.promise-provides-erased)",
-      cause: expect.any(EffectInputPromiseRejected)
+      cause: expect.any(EffectInputPromiseRejected),
     });
 
     const status = Resource.status(ref);
@@ -1400,14 +1429,14 @@ describe("Resource", () => {
     const User = Resource.family({
       name: "User.provides-entry-promise",
       load: (id: string) => Effect.succeed({ id }),
-      provides: () => [Promise.resolve(UserTag) as never]
+      provides: () => [Promise.resolve(UserTag) as never],
     });
     const ref = User("1");
 
     await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.provides(User.provides-entry-promise)[0]",
-      cause: expect.any(EffectInputPromiseRejected)
+      cause: expect.any(EffectInputPromiseRejected),
     });
 
     const status = Resource.status(ref);
@@ -1420,14 +1449,14 @@ describe("Resource", () => {
     const User = Resource.family({
       name: "User.provides-entry-effect",
       load: (id: string) => Effect.succeed({ id }),
-      provides: () => [Effect.succeed(UserTag) as never]
+      provides: () => [Effect.succeed(UserTag) as never],
     });
     const ref = User("1");
 
     await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.provides(User.provides-entry-effect)[0]",
-      cause: expect.any(TypeError)
+      cause: expect.any(TypeError),
     });
 
     const status = Resource.status(ref);
@@ -1437,7 +1466,7 @@ describe("Resource", () => {
 
   it("keeps previous resource value and tag facts when provides fails during refresh", async () => {
     const UserTag = Resource.tag<{ readonly id: string }>("User.provides-refresh-atomicity", {
-      key: ({ id }) => id
+      key: ({ id }) => id,
     });
     let current = { id: "old" };
     const User = Resource.family({
@@ -1448,7 +1477,7 @@ describe("Resource", () => {
           throw new Error("provides exploded");
         }
         return [UserTag({ id: user.id })];
-      }
+      },
     });
     const ref = User(undefined);
 
@@ -1456,14 +1485,16 @@ describe("Resource", () => {
     current = { id: "new" };
     await expect(Effect.runPromise(Resource.refreshEffect(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
-      operation: "Resource.provides(User.provides-refresh-atomicity)"
+      operation: "Resource.provides(User.provides-refresh-atomicity)",
     });
 
     expect(Resource.status(ref)).toMatchObject({
       _tag: "Failure",
-      previous: { id: "old" }
+      previous: { id: "old" },
     });
-    expect(Resource.planInvalidation(UserTag({ id: "old" })).entries.map((entry) => entry.ref.key)).toEqual([ref.key]);
+    expect(
+      Resource.planInvalidation(UserTag({ id: "old" })).entries.map((entry) => entry.ref.key),
+    ).toEqual([ref.key]);
     expect(Resource.planInvalidation(UserTag({ id: "new" })).entries).toEqual([]);
   });
 
@@ -1471,10 +1502,7 @@ describe("Resource", () => {
     let shouldFail = false;
     const Item = Resource.family({
       name: "Item",
-      load: () =>
-        shouldFail
-          ? Effect.fail(new Error("nope"))
-          : Effect.succeed("ok")
+      load: () => (shouldFail ? Effect.fail(new Error("nope")) : Effect.succeed("ok")),
     });
     const ref = Item(undefined);
 
@@ -1495,7 +1523,7 @@ describe("Resource", () => {
     const load = vi.fn((id: string) => Effect.succeed({ id, name: "Loaded" }));
     const User = Resource.family({
       name: "User.hydrate",
-      load
+      load,
     });
     const ref = User("1");
 
@@ -1509,14 +1537,17 @@ describe("Resource", () => {
             _tag: "Success",
             waiting: false,
             value: { id: "1", name: "Hydrated" },
-            updatedAt: Date.now()
-          }
-        }
-      ]
+            updatedAt: Date.now(),
+          },
+        },
+      ],
     });
 
     expect(read(ref)).toEqual({ id: "1", name: "Hydrated" });
-    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({ id: "1", name: "Hydrated" });
+    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({
+      id: "1",
+      name: "Hydrated",
+    });
     expect(load).not.toHaveBeenCalled();
   });
 
@@ -1528,7 +1559,7 @@ describe("Resource", () => {
       load,
       provides: () => {
         throw thrown;
-      }
+      },
     });
     const ref = User("1");
 
@@ -1544,22 +1575,22 @@ describe("Resource", () => {
                 _tag: "Success",
                 waiting: false,
                 value: { id: "1", name: "Hydrated" },
-                updatedAt: Date.now()
-              }
-            }
-          ]
-        })
-      )
+                updatedAt: Date.now(),
+              },
+            },
+          ],
+        }),
+      ),
     ).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.provides(User.hydrate-provides-throw)",
-      cause: thrown
+      cause: thrown,
     });
 
     expect(() => read(ref)).toThrow(ResourcePending);
     await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
-      operation: "Resource.provides(User.hydrate-provides-throw)"
+      operation: "Resource.provides(User.hydrate-provides-throw)",
     });
     expect(load).toHaveBeenCalledTimes(1);
   });
@@ -1575,16 +1606,16 @@ describe("Resource", () => {
               input: "1",
               state: {
                 _tag: "Pending",
-                waiting: true
-              }
-            } as never
-          ]
-        })
-      )
+                waiting: true,
+              },
+            } as never,
+          ],
+        }),
+      ),
     ).rejects.toMatchObject({
       _tag: "ResourceSnapshotCodecError",
       operation: "hydrate",
-      path: "$.resources[0].state._tag"
+      path: "$.resources[0].state._tag",
     });
   });
 
@@ -1598,20 +1629,16 @@ describe("Resource", () => {
           _tag: "Success",
           waiting: false,
           value: { id: "1" },
-          updatedAt: Date.now()
-        }
-      }
+          updatedAt: Date.now(),
+        },
+      },
     ] as never;
 
-    await expect(
-      Effect.runPromise(
-        Resource.hydrateEffect(legacySnapshots)
-      )
-    ).rejects.toMatchObject({
+    await expect(Effect.runPromise(Resource.hydrateEffect(legacySnapshots))).rejects.toMatchObject({
       _tag: "ResourceSnapshotCodecError",
       operation: "hydrate",
       path: "$",
-      reason: "Expected a resource hydration payload."
+      reason: "Expected a resource hydration payload.",
     });
 
     expect(() => Resource.hydrate(legacySnapshots)).toThrow(ResourceSnapshotCodecError);
@@ -1623,7 +1650,7 @@ describe("Resource", () => {
         _tag: "ResourceSnapshotCodecError",
         operation: "hydrate",
         path: "$",
-        reason: "Expected a resource hydration payload."
+        reason: "Expected a resource hydration payload.",
       });
     }
   });
@@ -1637,20 +1664,20 @@ describe("Resource", () => {
         _tag: "Success" as const,
         waiting: false as const,
         value: { id: "1" },
-        updatedAt: Date.now()
-      }
+        updatedAt: Date.now(),
+      },
     };
 
     await expect(
       Effect.runPromise(
         Resource.hydrateEffect({
-          resources: [snapshot, snapshot]
-        })
-      )
+          resources: [snapshot, snapshot],
+        }),
+      ),
     ).rejects.toMatchObject({
       _tag: "ResourceSnapshotCodecError",
       operation: "hydrate",
-      path: "$.resources[1].key"
+      path: "$.resources[1].key",
     });
   });
 
@@ -1658,7 +1685,7 @@ describe("Resource", () => {
     const runtime = makeRuntime();
     const User = Resource.family({
       name: "User.duplicate-payload",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const ref = User("1");
 
@@ -1666,7 +1693,7 @@ describe("Resource", () => {
       await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
 
       expect(() => runWithRuntime(runtime, () => Resource.hydrationPayload([ref, ref]))).toThrow(
-        ResourceSnapshotCodecError
+        ResourceSnapshotCodecError,
       );
       try {
         runWithRuntime(runtime, () => Resource.hydrationPayload([ref, ref]));
@@ -1675,17 +1702,17 @@ describe("Resource", () => {
         expect(error).toMatchObject({
           _tag: "ResourceSnapshotCodecError",
           operation: "snapshot",
-          path: "$.resources[1].key"
+          path: "$.resources[1].key",
         });
       }
 
       const failure = await Effect.runPromise(
-        runtime.provide(Resource.hydrationPayloadEffect([ref, ref]).pipe(Effect.flip))
+        runtime.provide(Resource.hydrationPayloadEffect([ref, ref]).pipe(Effect.flip)),
       );
       expect(failure).toBeInstanceOf(ResourceSnapshotCodecError);
       expect(failure).toMatchObject({
         operation: "snapshot",
-        path: "$.resources[1].key"
+        path: "$.resources[1].key",
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
@@ -1701,8 +1728,8 @@ describe("Resource", () => {
         _tag: "Success" as const,
         waiting: false as const,
         value: { id: "first" },
-        updatedAt: 1
-      }
+        updatedAt: 1,
+      },
     };
     const second = {
       name: "User.snapshot",
@@ -1712,12 +1739,14 @@ describe("Resource", () => {
         _tag: "Success" as const,
         waiting: false as const,
         value: { id: "second" },
-        updatedAt: 1
-      }
+        updatedAt: 1,
+      },
     };
 
     expect(validateResourceHydrationSnapshots([first, second])).toHaveLength(2);
-    expect(() => validateResourceHydrationSnapshots([first, first])).toThrow(ResourceSnapshotCodecError);
+    expect(() => validateResourceHydrationSnapshots([first, first])).toThrow(
+      ResourceSnapshotCodecError,
+    );
   });
 
   it("fails hydration when a snapshot family is not registered", async () => {
@@ -1733,17 +1762,17 @@ describe("Resource", () => {
                 _tag: "Success",
                 waiting: false,
                 value: { id: "1" },
-                updatedAt: Date.now()
-              }
-            }
-          ]
-        })
-      )
+                updatedAt: Date.now(),
+              },
+            },
+          ],
+        }),
+      ),
     ).rejects.toMatchObject({
       _tag: "ResourceHydrationApplyError",
       reason: "MissingFamily",
       name: "User.missing-hydration-family",
-      key: "User.missing-hydration-family:1"
+      key: "User.missing-hydration-family:1",
     });
   });
 
@@ -1751,7 +1780,7 @@ describe("Resource", () => {
     const User = Resource.family({
       name: "User.hydration-key-mismatch",
       load: (input: { readonly id: string }) => Effect.succeed(input),
-      key: (input) => input.id
+      key: (input) => input.id,
     });
 
     await expect(
@@ -1766,18 +1795,18 @@ describe("Resource", () => {
                 _tag: "Success",
                 waiting: false,
                 value: { id: "1" },
-                updatedAt: Date.now()
-              }
-            }
-          ]
-        })
-      )
+                updatedAt: Date.now(),
+              },
+            },
+          ],
+        }),
+      ),
     ).rejects.toMatchObject({
       _tag: "ResourceHydrationApplyError",
       reason: "KeyMismatch",
       name: "User.hydration-key-mismatch",
       key: "User.hydration-key-mismatch:wrong",
-      expectedKey: User({ id: "1" }).key
+      expectedKey: User({ id: "1" }).key,
     });
   });
 
@@ -1785,41 +1814,44 @@ describe("Resource", () => {
     const User = Resource.family({
       name: "User.hydration-explicit-skip",
       load: (input: { readonly id: string }) => Effect.succeed(input),
-      key: (input) => input.id
+      key: (input) => input.id,
     });
 
     await expect(
       Effect.runPromise(
-        Resource.hydrateEffect({
-          resources: [
-            {
-              name: "User.hydration-explicit-skip-missing",
-              key: "User.hydration-explicit-skip-missing:1",
-              input: { id: "1" },
-              state: {
-                _tag: "Success",
-                waiting: false,
-                value: { id: "1" },
-                updatedAt: Date.now()
-              }
-            },
-            {
-              name: "User.hydration-explicit-skip",
-              key: "User.hydration-explicit-skip:wrong",
-              input: { id: "1" },
-              state: {
-                _tag: "Success",
-                waiting: false,
-                value: { id: "1" },
-                updatedAt: Date.now()
-              }
-            }
-          ]
-        }, {
-          missingFamily: "skip",
-          keyMismatch: "skip"
-        })
-      )
+        Resource.hydrateEffect(
+          {
+            resources: [
+              {
+                name: "User.hydration-explicit-skip-missing",
+                key: "User.hydration-explicit-skip-missing:1",
+                input: { id: "1" },
+                state: {
+                  _tag: "Success",
+                  waiting: false,
+                  value: { id: "1" },
+                  updatedAt: Date.now(),
+                },
+              },
+              {
+                name: "User.hydration-explicit-skip",
+                key: "User.hydration-explicit-skip:wrong",
+                input: { id: "1" },
+                state: {
+                  _tag: "Success",
+                  waiting: false,
+                  value: { id: "1" },
+                  updatedAt: Date.now(),
+                },
+              },
+            ],
+          },
+          {
+            missingFamily: "skip",
+            keyMismatch: "skip",
+          },
+        ),
+      ),
     ).resolves.toBeUndefined();
 
     expect(() => read(User({ id: "1" }))).toThrow(ResourcePending);
@@ -1831,7 +1863,7 @@ describe("Resource", () => {
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({ id: Schema.String, name: Schema.String }),
       load: (input: { readonly id: string }) => Effect.succeed({ id: input.id, name: "Loaded" }),
-      key: (input) => input.id
+      key: (input) => input.id,
     });
     const ref = User({ id: "1" });
 
@@ -1846,11 +1878,11 @@ describe("Resource", () => {
               _tag: "Success",
               waiting: false,
               value: { id: "1", name: "Hydrated", extra: "ignored" },
-              updatedAt: Date.now()
-            }
-          }
-        ]
-      })
+              updatedAt: Date.now(),
+            },
+          },
+        ],
+      }),
     );
 
     expect(read(ref)).toEqual({ id: "1", name: "Hydrated" });
@@ -1862,7 +1894,7 @@ describe("Resource", () => {
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({ id: Schema.String, name: Schema.String }),
       load: (input: { readonly id: string }) => Effect.succeed({ id: input.id, name: "Loaded" }),
-      key: (input) => input.id
+      key: (input) => input.id,
     });
     const ref = User({ id: "1" });
 
@@ -1878,88 +1910,92 @@ describe("Resource", () => {
                 _tag: "Success",
                 waiting: false,
                 value: { id: "1" },
-                updatedAt: Date.now()
-              }
-            }
-          ]
-        })
-      )
+                updatedAt: Date.now(),
+              },
+            },
+          ],
+        }),
+      ),
     ).rejects.toMatchObject({
       _tag: "ResourceSnapshotCodecError",
       operation: "hydrate",
-      path: "$.resources[0].state.value"
+      path: "$.resources[0].state.value",
     });
   });
 
   it("does not partially commit multi-resource hydration when a later snapshot fails", async () => {
     const runtime = makeRuntime();
     const firstLoad = vi.fn((input: { readonly id: string }) =>
-      Effect.succeed({ id: input.id, name: "Loaded" })
+      Effect.succeed({ id: input.id, name: "Loaded" }),
     );
     const First = Resource.family({
       name: "User.hydration-atomic-first",
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({ id: Schema.String, name: Schema.String }),
       load: firstLoad,
-      key: (input) => input.id
+      key: (input) => input.id,
     });
     const Second = Resource.family({
       name: "User.hydration-atomic-second",
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({ id: Schema.String, name: Schema.String }),
       load: (input: { readonly id: string }) => Effect.succeed({ id: input.id, name: "Loaded" }),
-      key: (input) => input.id
+      key: (input) => input.id,
     });
     const firstRef = First({ id: "1" });
     const secondRef = Second({ id: "2" });
 
     try {
-      const result = await Effect.runPromise(runtime.provide(
-        Effect.scoped(
-          Effect.gen(function* () {
-            const subscription = yield* Resource.subscribeEventsEffect();
-            const exit = yield* Effect.exit(
-              Resource.hydrateEffect({
-                resources: [
-                  {
-                    name: "User.hydration-atomic-first",
-                    key: firstRef.key,
-                    input: { id: "1" },
-                    state: {
-                      _tag: "Success",
-                      waiting: false,
-                      value: { id: "1", name: "Hydrated" },
-                      updatedAt: Date.now()
-                    }
-                  },
-                  {
-                    name: "User.hydration-atomic-second",
-                    key: secondRef.key,
-                    input: { id: "2" },
-                    state: {
-                      _tag: "Success",
-                      waiting: false,
-                      value: { id: "2" },
-                      updatedAt: Date.now()
-                    }
-                  }
-                ]
-              })
-            );
-            const event = yield* PubSub.take(subscription).pipe(
-              Effect.timeoutOption("20 millis")
-            );
-            return { exit, event };
-          })
-        )
-      ));
+      const result = await Effect.runPromise(
+        runtime.provide(
+          Effect.scoped(
+            Effect.gen(function* () {
+              const subscription = yield* Resource.subscribeEventsEffect();
+              const exit = yield* Effect.exit(
+                Resource.hydrateEffect({
+                  resources: [
+                    {
+                      name: "User.hydration-atomic-first",
+                      key: firstRef.key,
+                      input: { id: "1" },
+                      state: {
+                        _tag: "Success",
+                        waiting: false,
+                        value: { id: "1", name: "Hydrated" },
+                        updatedAt: Date.now(),
+                      },
+                    },
+                    {
+                      name: "User.hydration-atomic-second",
+                      key: secondRef.key,
+                      input: { id: "2" },
+                      state: {
+                        _tag: "Success",
+                        waiting: false,
+                        value: { id: "2" },
+                        updatedAt: Date.now(),
+                      },
+                    },
+                  ],
+                }),
+              );
+              const event = yield* PubSub.take(subscription).pipe(
+                Effect.timeoutOption("20 millis"),
+              );
+              return { exit, event };
+            }),
+          ),
+        ),
+      );
 
       expect(Exit.isFailure(result.exit)).toBe(true);
       expect(Option.isNone(result.event)).toBe(true);
       expect(() => runWithRuntime(runtime, () => read(firstRef))).toThrow(ResourcePending);
-      await expect(Effect.runPromise(runtime.provide(Resource.prefetchEffect(firstRef)))).resolves.toEqual({
+      await expect(
+        Effect.runPromise(runtime.provide(Resource.prefetchEffect(firstRef))),
+      ).resolves.toEqual({
         id: "1",
-        name: "Loaded"
+        name: "Loaded",
       });
       expect(firstLoad).toHaveBeenCalledTimes(1);
     } finally {
@@ -1973,23 +2009,23 @@ describe("Resource", () => {
       load: (input: { readonly id: string }) =>
         Effect.succeed({
           id: input.id,
-          profile: { name: "Loaded" }
-        })
+          profile: { name: "Loaded" },
+        }),
     });
     const ref = User({ id: "1" });
 
     await Effect.runPromise(Resource.prefetchEffect(ref));
     const dehydrated = Resource.dehydrate([ref]);
-    (dehydrated[0]?.state.value as { profile: { name: string } }).profile.name = "Mutated";
+    (dehydrated[0]!.state.value as { profile: { name: string } }).profile.name = "Mutated";
 
     expect(read(ref)).toEqual({
       id: "1",
-      profile: { name: "Loaded" }
+      profile: { name: "Loaded" },
     });
 
     const hydratedValue = {
       id: "1",
-      profile: { name: "Hydrated" }
+      profile: { name: "Hydrated" },
     };
     await Effect.runPromise(
       Resource.hydrateEffect({
@@ -2002,17 +2038,17 @@ describe("Resource", () => {
               _tag: "Success",
               waiting: false,
               value: hydratedValue,
-              updatedAt: Date.now()
-            }
-          }
-        ]
-      })
+              updatedAt: Date.now(),
+            },
+          },
+        ],
+      }),
     );
     hydratedValue.profile.name = "Mutated";
 
     expect(read(ref)).toEqual({
       id: "1",
-      profile: { name: "Hydrated" }
+      profile: { name: "Hydrated" },
     });
   });
 
@@ -2022,9 +2058,9 @@ describe("Resource", () => {
       name: "Counter.snapshot-schema-encode",
       input: Schema.NumberFromString,
       output: Schema.Struct({
-        count: Schema.NumberFromString
+        count: Schema.NumberFromString,
       }),
-      load: (count: number) => Effect.succeed({ count })
+      load: (count: number) => Effect.succeed({ count }),
     });
     const ref = Counter(42);
 
@@ -2032,16 +2068,18 @@ describe("Resource", () => {
       await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
 
       const syncSnapshot = runWithRuntime(runtime, () => Resource.dehydrate([ref]));
-      const effectSnapshot = await Effect.runPromise(runtime.provide(Resource.dehydrateEffect([ref])));
+      const effectSnapshot = await Effect.runPromise(
+        runtime.provide(Resource.dehydrateEffect([ref])),
+      );
       const syncPayload = runWithRuntime(runtime, () => Resource.hydrationPayload([ref]));
 
       expect(syncSnapshot[0]).toMatchObject({
         input: "42",
         state: {
           value: {
-            count: "42"
-          }
-        }
+            count: "42",
+          },
+        },
       });
       expect(effectSnapshot).toEqual(syncSnapshot);
       expect(syncPayload.resources).toEqual(syncSnapshot);
@@ -2051,8 +2089,10 @@ describe("Resource", () => {
       const hydrated = makeRuntime();
       try {
         await Effect.runPromise(hydrated.provide(Resource.hydrateEffect(decoded)));
-        await expect(Effect.runPromise(hydrated.provide(Resource.readEffect(ref)))).resolves.toEqual({
-          count: 42
+        await expect(
+          Effect.runPromise(hydrated.provide(Resource.readEffect(ref))),
+        ).resolves.toEqual({
+          count: 42,
         });
       } finally {
         await Effect.runPromise(hydrated.disposeEffect);
@@ -2067,13 +2107,11 @@ describe("Resource", () => {
     try {
       const User = Resource.family({
         name: "User.dehydrate-absent",
-        load: (id: string) => Effect.succeed({ id })
+        load: (id: string) => Effect.succeed({ id }),
       });
       const ref = User("atlas");
 
-      const snapshot = await Effect.runPromise(
-        runtime.provide(Resource.dehydrateEffect([ref]))
-      );
+      const snapshot = await Effect.runPromise(runtime.provide(Resource.dehydrateEffect([ref])));
 
       expect(snapshot).toEqual([]);
       const store = unsafeMutableResourceStore(runtime.resourceStore);
@@ -2098,22 +2136,22 @@ describe("Resource", () => {
                 throw new ResourceSnapshotCodecError({
                   operation: "snapshot",
                   path: "$.boom",
-                  reason: "boom"
+                  reason: "boom",
                 });
-              }
-            }) as { readonly id: string; readonly boom: string }
-          )
+              },
+            }) as { readonly id: string; readonly boom: string },
+          ),
       });
       const ref = Broken("atlas");
       await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
 
       const failure = await Effect.runPromise(
-        runtime.provide(Resource.dehydrateEffect([ref]).pipe(Effect.flip))
+        runtime.provide(Resource.dehydrateEffect([ref]).pipe(Effect.flip)),
       );
 
       expect(failure).toBeInstanceOf(ResourceSnapshotCodecError);
       expect(failure).toMatchObject({
-        operation: "snapshot"
+        operation: "snapshot",
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
@@ -2131,31 +2169,29 @@ describe("Resource", () => {
             _tag: "Success",
             waiting: false,
             value: { id: "1" },
-            updatedAt: 1
-          }
-        }
-      ]
+            updatedAt: 1,
+          },
+        },
+      ],
     };
 
     const encoded = await Effect.runPromise(Resource.encodeHydrationPayloadEffect(payload));
     const decoded = await Effect.runPromise(Resource.decodeHydrationPayloadEffect(encoded));
 
     expect(decoded).toEqual(payload);
-    await expect(Effect.runPromise(Resource.decodeHydrationPayloadEffect("{"))).rejects.toBeInstanceOf(
-      ResourceSnapshotCodecError
-    );
+    await expect(
+      Effect.runPromise(Resource.decodeHydrationPayloadEffect("{")),
+    ).rejects.toBeInstanceOf(ResourceSnapshotCodecError);
   });
 
   it("collects resources touched during Effect preload", async () => {
     const Project = Resource.family({
       name: "Project.collect",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const ref = Project("atlas");
 
-    const collected = await Effect.runPromise(
-      Resource.collectEffect(Resource.prefetchEffect(ref))
-    );
+    const collected = await Effect.runPromise(Resource.collectEffect(Resource.prefetchEffect(ref)));
     const snapshot = Resource.dehydrate(collected.refs);
 
     expect(collected.value).toEqual({ id: "atlas" });
@@ -2169,23 +2205,21 @@ describe("Resource", () => {
           _tag: "Success",
           waiting: false,
           value: { id: "atlas" },
-          updatedAt: expect.any(Number)
-        }
-      }
+          updatedAt: expect.any(Number),
+        },
+      },
     ]);
   });
 
   it("collects resources touched during Effect reads", async () => {
     const Project = Resource.family({
       name: "Project.collect-read",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const ref = Project("atlas");
 
     await Effect.runPromise(Resource.prefetchEffect(ref));
-    const collected = await Effect.runPromise(
-      Resource.collectEffect(Resource.readEffect(ref))
-    );
+    const collected = await Effect.runPromise(Resource.collectEffect(Resource.readEffect(ref)));
 
     expect(collected.value).toEqual({ id: "atlas" });
     expect(collected.refs.map((touched) => touched.key)).toEqual([ref.key]);

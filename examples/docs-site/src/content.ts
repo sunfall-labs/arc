@@ -1,0 +1,85 @@
+import { Capability, Resource, Server } from "@effect-ui/core";
+import { Effect, Schema } from "effect";
+import {
+  getRecipe,
+  listRecipeSummaries,
+  RecipeSchema,
+  RecipeSlug,
+  RecipeSummarySchema,
+  type Recipe,
+  type RecipeContentError,
+  type RecipeSlug as RecipeSlugType,
+  type RecipeSummary,
+} from "./content.contract.js";
+
+export {
+  RecipeCategory,
+  RecipeContentErrorSchema,
+  RecipeMarkdownParseError,
+  RecipeFrontmatterDecodeError,
+  RecipeNotFound,
+  RecipeRouteParams,
+  RecipeSchema,
+  RecipeSlug,
+  RecipeSummarySchema,
+  makeRecipeSlug,
+} from "./content.contract.js";
+
+export type { Recipe, RecipeBlock, RecipeContentError, RecipeSummary } from "./content.contract.js";
+
+export interface DocsContentApi {
+  readonly listRecipes: () => Effect.Effect<
+    RecipeSummary[],
+    RecipeContentError | Server.ClientError
+  >;
+  readonly getRecipe: (
+    slug: RecipeSlugType,
+  ) => Effect.Effect<Recipe, RecipeContentError | Server.ClientError>;
+}
+
+export const DocsContentApi = Capability.define<DocsContentApi>(
+  "@effect-ui/example-docs-site/DocsContentApi",
+);
+
+export const DocsContentApiLive = DocsContentApi.layer({
+  listRecipes: () => listRecipeSummaries.effect("all"),
+  getRecipe: (slug) => getRecipe.effect({ slug }),
+});
+
+export const RecipesTag = Resource.tag("Docs.recipes");
+export const RecipeTag = Resource.tag<{ readonly slug: RecipeSlugType }>("Docs.recipe", {
+  key: ({ slug }) => slug,
+});
+
+export const RecipeIndex = Resource.family({
+  name: "Docs.recipes",
+  input: Schema.Literal("all"),
+  output: Schema.Array(RecipeSummarySchema),
+  load: () => DocsContentApi.use((api) => api.listRecipes()),
+  provides: () => [RecipesTag],
+  policy: {
+    staleFor: "1 minute",
+    gcFor: "10 minutes",
+  },
+});
+
+export const RecipeBySlug = Resource.family({
+  name: "Docs.recipe",
+  input: RecipeSlug,
+  output: RecipeSchema,
+  load: (slug) => DocsContentApi.use((api) => api.getRecipe(slug)),
+  provides: (recipe) => [RecipeTag({ slug: recipe.slug })],
+  policy: {
+    staleFor: "1 minute",
+    gcFor: "10 minutes",
+  },
+});
+
+export const RecipeIndexRef = RecipeIndex("all");
+
+export const preloadRecipeIndexEffect = Resource.prefetchEffect(RecipeIndexRef);
+
+export const recipeInvalidations = (slug: RecipeSlugType): readonly Resource.Invalidation[] => [
+  RecipesTag,
+  RecipeTag({ slug }),
+];

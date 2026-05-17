@@ -47,6 +47,24 @@ actions, local-first collections, mocks, and diagnostics. Use the basic starter
 when you need the smallest copyable app shell, and use the React starter when
 you need the shadcn/Base UI ecosystem path.
 
+The docs site example lives at
+[`examples/docs-site`](../examples/docs-site). It dogfoods the framework as a
+cookbook: Markdown recipes are loaded through Start server functions, exposed
+through a `DocsContentApi` Capability, read through typed Resources, declared by
+file-route preload, SSR-rendered, and hydrated before the UI mounts.
+
+Run it locally:
+
+```sh
+pnpm docs-site:dev
+```
+
+Verify it:
+
+```sh
+pnpm docs-site:verify
+```
+
 See [Solid and React adapters](adapter-differences.md) for the renderer-level
 API differences.
 

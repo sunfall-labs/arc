@@ -6,13 +6,13 @@ export const ProjectHealth = Schema.Literals(["green", "amber", "red"]);
 export const ProjectTab = Schema.Literals(["overview", "activity", "settings"]);
 export const ProjectId = Schema.String.pipe(
   Schema.check(Schema.isPattern(/^[a-z0-9-]+$/)),
-  Schema.brand("ProjectId")
+  Schema.brand("ProjectId"),
 );
 export const ProjectReturnTo = Schema.String.pipe(
   Schema.check(
-    Schema.isPattern(/^\/projects\/[a-z0-9-]+(?:\?tab=(?:overview|activity|settings))?$/)
+    Schema.isPattern(/^\/projects\/[a-z0-9-]+(?:\?tab=(?:overview|activity|settings))?$/),
   ),
-  Schema.brand("ProjectReturnTo")
+  Schema.brand("ProjectReturnTo"),
 );
 
 export type ProjectStatus = "tracking" | "watch" | "blocked";
@@ -21,8 +21,7 @@ export type ProjectTab = "overview" | "activity" | "settings";
 export type ProjectId = typeof ProjectId.Type;
 export type ProjectReturnTo = typeof ProjectReturnTo.Type;
 
-export const makeProjectId = (id: string): ProjectId =>
-  Schema.decodeUnknownSync(ProjectId)(id);
+export const makeProjectId = (id: string): ProjectId => Schema.decodeUnknownSync(ProjectId)(id);
 
 export const makeProjectReturnTo = (href: string): ProjectReturnTo =>
   Schema.decodeUnknownSync(ProjectReturnTo)(href);
@@ -45,23 +44,26 @@ export interface Project extends ProjectSummary {
 }
 
 export const ProjectRouteParams = Schema.Struct({
-  id: ProjectId
+  id: ProjectId,
 });
 
 export const ProjectRouteSearch = Schema.Struct({
-  tab: Schema.optional(ProjectTab)
+  tab: Schema.optional(ProjectTab),
 });
 
 export type ProjectRouteParams = typeof ProjectRouteParams.Type;
 export type ProjectRouteSearch = typeof ProjectRouteSearch.Type;
 
 export class ProjectNotFound extends Schema.TaggedErrorClass<ProjectNotFound>()("ProjectNotFound", {
-  id: ProjectId
+  id: ProjectId,
 }) {}
 
-export class InvalidProjectName extends Schema.TaggedErrorClass<InvalidProjectName>()("InvalidProjectName", {
-  name: Schema.String
-}) {}
+export class InvalidProjectName extends Schema.TaggedErrorClass<InvalidProjectName>()(
+  "InvalidProjectName",
+  {
+    name: Schema.String,
+  },
+) {}
 
 export type ProjectError = ProjectNotFound | InvalidProjectName;
 export type ProjectRemoteError = ProjectError | Server.ClientError;
@@ -75,7 +77,7 @@ export const ProjectSummarySchema = Schema.Struct({
   status: ProjectStatus,
   health: ProjectHealth,
   progress: Schema.Number,
-  spend: Schema.Number
+  spend: Schema.Number,
 });
 
 export const ProjectSchema = Schema.Struct({
@@ -89,22 +91,22 @@ export const ProjectSchema = Schema.Struct({
   goal: Schema.String,
   nextMilestone: Schema.String,
   updatedAt: Schema.String,
-  risks: Schema.Array(Schema.String)
+  risks: Schema.Array(Schema.String),
 });
 
 export const RenameProjectInput = Schema.Struct({
   id: ProjectId,
-  name: Schema.String
+  name: Schema.String,
 });
 
 export const SubmitProjectNameInput = Schema.Struct({
   id: ProjectId,
   name: Schema.String,
-  redirectTo: Schema.optional(ProjectReturnTo)
+  redirectTo: Schema.optional(ProjectReturnTo),
 });
 
 export const AdvanceProjectInput = Schema.Struct({
-  id: ProjectId
+  id: ProjectId,
 });
 
 export type SubmitProjectNameInput = typeof SubmitProjectNameInput.Type;
@@ -117,35 +119,42 @@ export type ProjectNameSubmissionResult = ActionResult<
 
 export const ProjectNameSubmissionResultSchema = Schema.TaggedUnion({
   Success: {
-    value: ProjectSchema
+    value: ProjectSchema,
   },
   ValidationFailure: {
     fieldErrors: Schema.Struct({
-      name: Schema.optional(Schema.Array(Schema.String))
+      name: Schema.optional(Schema.Array(Schema.String)),
     }),
     formErrors: Schema.Array(Schema.String),
-    cause: Schema.optional(Schema.Unknown)
+    cause: Schema.optional(Schema.Unknown),
   },
   Redirect: {
     location: Schema.String,
     status: Schema.Number,
-    replace: Schema.optional(Schema.Boolean)
+    replace: Schema.optional(Schema.Boolean),
   },
   Failure: {
-    error: ProjectErrorSchema
-  }
+    error: ProjectErrorSchema,
+  },
 });
 
-export const ListProjectsContract = Server.contract<"all", ProjectSummary[], never>("Project.list", {
-  input: Schema.Literal("all"),
-  output: Schema.Array(ProjectSummarySchema),
-  error: Schema.Never
-});
+export const ListProjectsContract = Server.contract<"all", ProjectSummary[], never>(
+  "Project.list",
+  {
+    input: Schema.Literal("all"),
+    output: Schema.Array(ProjectSummarySchema),
+    error: Schema.Never,
+  },
+);
 
-export const GetProjectContract = Server.contract<{ readonly id: ProjectId }, Project, ProjectError>("Project.get", {
+export const GetProjectContract = Server.contract<
+  { readonly id: ProjectId },
+  Project,
+  ProjectError
+>("Project.get", {
   input: Schema.Struct({ id: ProjectId }),
   output: ProjectSchema,
-  error: ProjectErrorSchema
+  error: ProjectErrorSchema,
 });
 
 export const RenameProjectContract = Server.contract<
@@ -155,7 +164,7 @@ export const RenameProjectContract = Server.contract<
 >("Project.rename", {
   input: RenameProjectInput,
   output: ProjectSchema,
-  error: ProjectErrorSchema
+  error: ProjectErrorSchema,
 });
 
 export const SubmitProjectNameContract = Server.contract<
@@ -165,13 +174,17 @@ export const SubmitProjectNameContract = Server.contract<
 >("Project.name.submit", {
   input: SubmitProjectNameInput,
   output: ProjectNameSubmissionResultSchema,
-  error: Schema.Never
+  error: Schema.Never,
 });
 
-export const AdvanceProjectContract = Server.contract<{ readonly id: ProjectId }, Project, ProjectError>("Project.advance", {
+export const AdvanceProjectContract = Server.contract<
+  { readonly id: ProjectId },
+  Project,
+  ProjectError
+>("Project.advance", {
   input: AdvanceProjectInput,
   output: ProjectSchema,
-  error: ProjectErrorSchema
+  error: ProjectErrorSchema,
 });
 
 export const listProjects = Server.client(ListProjectsContract);

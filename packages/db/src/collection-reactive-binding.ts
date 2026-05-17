@@ -1,4 +1,9 @@
-import { invokeEffectInput, runWithRuntime, type AnyEffectUiRuntime, type EffectInput } from "@effect-ui/core";
+import {
+  invokeEffectInput,
+  runWithRuntime,
+  type AnyEffectUiRuntime,
+  type EffectInput,
+} from "@effect-ui/core";
 import { Effect, Fiber } from "effect";
 import type { AnyCollection, CollectionLoadState } from "./collection-contract.js";
 import { Query, type LiveQuery, type LiveQueryState, type QueryFactory } from "./query-builder.js";
@@ -10,7 +15,7 @@ import { Query, type LiveQuery, type LiveQueryState, type QueryFactory } from ".
 export const subscribeCollectionReactiveSource = (
   runtime: AnyEffectUiRuntime<unknown>,
   collection: AnyCollection,
-  notify: () => void
+  notify: () => void,
 ): (() => void) =>
   runWithRuntime(runtime, () => {
     const version = collection.version();
@@ -26,14 +31,13 @@ export const subscribeCollectionReactiveSource = (
 /** Provides the runtime and scopes a collection/live-query Effect. */
 export const bindCollectionRuntimeEffect = <A, E, R, ER = never>(
   runtime: AnyEffectUiRuntime<ER>,
-  effect: Effect.Effect<A, E, R>
-): Effect.Effect<A, E | ER> =>
-  Effect.scoped(runtime.provide(effect));
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E | ER> => Effect.scoped(runtime.provide(effect));
 
 /** Returns true when two collection source lists have the same identity order. */
 export const sameCollectionReactiveSources = (
   left: ReadonlyArray<AnyCollection>,
-  right: ReadonlyArray<AnyCollection>
+  right: ReadonlyArray<AnyCollection>,
 ): boolean =>
   left.length === right.length && left.every((source, index) => Object.is(source, right[index]));
 
@@ -46,9 +50,7 @@ export const liveQueryStateError = <T, E>(state: LiveQueryState<T, E>): E | unde
   state._tag === "Failure" ? state.error : undefined;
 
 /** Query factory or prebuilt LiveQuery accepted by framework live-query adapters. */
-export type CollectionReactiveLiveQueryInput<T, E, R> =
-  | QueryFactory<T, E, R>
-  | LiveQuery<T, E, R>;
+export type CollectionReactiveLiveQueryInput<T, E, R> = QueryFactory<T, E, R> | LiveQuery<T, E, R>;
 
 /** Memoized live-query selection state shared by framework adapters. */
 export interface CollectionReactiveLiveQuerySelection<T, E, R, Runtime> {
@@ -65,7 +67,9 @@ export const collectionReactiveDepsValue = (deps: unknown): unknown =>
 /** Returns true when two framework live-query dependency values are equal. */
 export const sameCollectionReactiveDeps = (left: unknown, right: unknown): boolean => {
   if (Array.isArray(left) && Array.isArray(right)) {
-    return left.length === right.length && left.every((value, index) => Object.is(value, right[index]));
+    return (
+      left.length === right.length && left.every((value, index) => Object.is(value, right[index]))
+    );
   }
   return Object.is(left, right);
 };
@@ -75,11 +79,16 @@ export const snapshotCollectionReactiveDeps = (value: unknown): unknown =>
   Array.isArray(value) ? [...value] : value;
 
 /** Selects or recreates a runtime-bound LiveQuery for framework adapters. */
-export const selectCollectionReactiveLiveQuery = <T, E, R, Runtime extends AnyEffectUiRuntime<unknown>>(
+export const selectCollectionReactiveLiveQuery = <
+  T,
+  E,
+  R,
+  Runtime extends AnyEffectUiRuntime<unknown>,
+>(
   runtime: Runtime,
   input: CollectionReactiveLiveQueryInput<T, E, R>,
   deps: unknown,
-  previous: CollectionReactiveLiveQuerySelection<T, E, R, Runtime> | undefined
+  previous: CollectionReactiveLiveQuerySelection<T, E, R, Runtime> | undefined,
 ): CollectionReactiveLiveQuerySelection<T, E, R, Runtime> => {
   const stableLiveQueryInput = typeof input === "function" ? undefined : input;
   if (
@@ -96,15 +105,13 @@ export const selectCollectionReactiveLiveQuery = <T, E, R, Runtime extends AnyEf
     stableLiveQueryInput,
     deps: snapshotCollectionReactiveDeps(deps),
     live: runWithRuntime(runtime, () =>
-      typeof input === "function"
-        ? Query.live<T, E, R>(input)
-        : input
-    )
+      typeof input === "function" ? Query.live<T, E, R>(input) : input,
+    ),
   };
 };
 
 /** Controls mount-time preload fibers for framework collection adapters. */
-export interface CollectionReactivePreloadController<E, ER = never> {
+export interface CollectionReactivePreloadController<E, _ER = never> {
   /** Starts a new preload when enabled, interrupting any previous one first. */
   start(preloadEffect: Effect.Effect<void, E, unknown> | undefined, enabled: boolean): void;
   /** Interrupts the current preload fiber and retires its generation as an Effect. */
@@ -142,7 +149,7 @@ export interface CollectionReactivePreloadControllerOptions<E, ER = never> {
  * cannot overwrite newer UI state after a source refresh or unmount.
  */
 export const makeCollectionReactivePreloadController = <E, ER = never>(
-  options: CollectionReactivePreloadControllerOptions<E, ER>
+  options: CollectionReactivePreloadControllerOptions<E, ER>,
 ): CollectionReactivePreloadController<E, ER> => {
   let preloadFiber: Fiber.Fiber<void, unknown> | undefined;
   let preloadGeneration = 0;
@@ -154,25 +161,26 @@ export const makeCollectionReactivePreloadController = <E, ER = never>(
     return fiber;
   };
 
-  const interruptEffect = (): Effect.Effect<void> => Effect.suspend(() => {
-    const fiber = retireCurrentPreload();
-    return fiber === undefined
-      ? Effect.void
-      : Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void));
-  });
+  const interruptEffect = (): Effect.Effect<void> =>
+    Effect.suspend(() => {
+      const fiber = retireCurrentPreload();
+      return fiber === undefined
+        ? Effect.void
+        : Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void));
+    });
 
   const interrupt = (): void => {
     const fiber = retireCurrentPreload();
     if (fiber !== undefined) {
       void options.runtime.runFork(
-        Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void))
+        Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void)),
       );
     }
   };
 
   const start = (
     preloadEffect: Effect.Effect<void, E, unknown> | undefined,
-    enabled: boolean
+    enabled: boolean,
   ): void => {
     interrupt();
     if (!enabled || preloadEffect === undefined) {
@@ -187,20 +195,24 @@ export const makeCollectionReactivePreloadController = <E, ER = never>(
           isCurrentGeneration()
             ? invokeEffectInput("CollectionReactivePreload.onSuccess", options.onSuccess).pipe(
                 Effect.catchCause(() => Effect.void),
-                Effect.asVoid
+                Effect.asVoid,
               )
-            : Effect.void
+            : Effect.void,
         ),
         Effect.catch((error) =>
           isCurrentGeneration()
-            ? invokeEffectInput("CollectionReactivePreload.onFailure", options.onFailure, error).pipe(
+            ? invokeEffectInput(
+                "CollectionReactivePreload.onFailure",
+                options.onFailure,
+                error,
+              ).pipe(
                 Effect.catchCause(() => Effect.void),
-                Effect.asVoid
+                Effect.asVoid,
               )
-            : Effect.void
+            : Effect.void,
         ),
-        Effect.catchCause(() => Effect.void)
-      )
+        Effect.catchCause(() => Effect.void),
+      ),
     );
   };
 

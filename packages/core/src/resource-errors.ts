@@ -14,7 +14,7 @@ export class ResourceFailure<
   A = unknown,
   E = never,
   R = unknown,
-  RefError = E
+  RefError = E,
 > extends Data.TaggedError("ResourceFailure")<{
   /** Resource ref that was read synchronously. */
   readonly ref: ResourceRef<I, A, RefError, R>;
@@ -33,7 +33,12 @@ export class ResourceFailure<
  * Solid Suspense own the host Promise seam and can use `previous`, `state`, and
  * `guidance` to choose their display or repair behavior.
  */
-export class ResourcePending<I = unknown, A = unknown, E = never, R = unknown> extends Data.TaggedError("ResourcePending")<{
+export class ResourcePending<
+  I = unknown,
+  A = unknown,
+  E = never,
+  R = unknown,
+> extends Data.TaggedError("ResourcePending")<{
   /** Resource ref that needs preloading before a synchronous read can succeed. */
   readonly ref: ResourceRef<I, A, E, R>;
   /** Cache state that made the read unavailable. */

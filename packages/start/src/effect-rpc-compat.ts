@@ -6,7 +6,7 @@ import {
   startRequestIdHeader,
   startTransportKindHeader,
   startTransportProtocolHeader,
-  startTransportProtocolVersion
+  startTransportProtocolVersion,
 } from "./rpc.js";
 import type { ServerFunctionManifest } from "./server-function-manifest.js";
 
@@ -94,12 +94,12 @@ const schemaOrUnknown = (schema: unknown): Schema.Top =>
  * Schema.Unknown so the descriptor preserves today's permissive wire behavior.
  */
 export const serverFunctionToEffectRpc = (
-  fn: ServerFunction<any, any, any, any>
+  fn: ServerFunction<any, any, any, any>,
 ): Rpc.AnyWithProps =>
   Rpc.make(fn.name, {
     payload: schemaOrUnknown(fn.input),
     success: schemaOrUnknown(fn.output),
-    error: schemaOrUnknown(fn.error)
+    error: schemaOrUnknown(fn.error),
   });
 
 /**
@@ -109,7 +109,7 @@ export const serverFunctionToEffectRpc = (
  * Start's fetch-based RPC endpoint.
  */
 export const makeStartEffectRpcGroup = (
-  functions: Iterable<ServerFunction<any, any, any, any>>
+  functions: Iterable<ServerFunction<any, any, any, any>>,
 ): RpcGroup.RpcGroup<Rpc.AnyWithProps> =>
   RpcGroup.make(...Array.from(functions, serverFunctionToEffectRpc));
 
@@ -120,7 +120,7 @@ export const makeStartEffectRpcGroup = (
  * every server-function procedure.
  */
 export const startEffectRpcEndpointDescriptor = (
-  manifest: ServerFunctionManifest
+  manifest: ServerFunctionManifest,
 ): StartEffectRpcEndpointDescriptor => ({
   method: "POST",
   path: manifest.rpcPath,
@@ -130,8 +130,8 @@ export const startEffectRpcEndpointDescriptor = (
   headers: {
     requestId: startRequestIdHeader,
     transportKind: startTransportKindHeader,
-    protocolVersion: startTransportProtocolHeader
-  }
+    protocolVersion: startTransportProtocolHeader,
+  },
 });
 
 /**
@@ -141,7 +141,7 @@ export const startEffectRpcEndpointDescriptor = (
  * pretending we can reconstruct schema objects from production manifests.
  */
 export const makeStartEffectRpcCompatibilityArtifact = (
-  manifest: ServerFunctionManifest
+  manifest: ServerFunctionManifest,
 ): StartEffectRpcCompatibilityArtifact => ({
   version: 1,
   primitive: "effect/unstable/rpc",
@@ -156,19 +156,19 @@ export const makeStartEffectRpcCompatibilityArtifact = (
     schemas: {
       payload: entry.wire.inputSchema,
       success: entry.wire.outputSchema,
-      error: entry.wire.errorSchema
-    }
+      error: entry.wire.errorSchema,
+    },
   })),
   adoption: {
     supported: [
       "Server function names map directly to Effect Rpc tags.",
       "Live Server.fn contracts can produce Rpc descriptors and an RpcGroup.",
-      "The Start endpoint already matches a single POST JSON RPC boundary."
+      "The Start endpoint already matches a single POST JSON RPC boundary.",
     ],
     blocked: [
       "Production manifests only contain schema presence booleans, not schema values.",
       "Start RPC response tags do not match Effect RpcSerialization envelopes.",
-      "Effect RpcServer/Http protocols are unstable, so serving traffic remains on the existing transport."
-    ]
-  }
+      "Effect RpcServer/Http protocols are unstable, so serving traffic remains on the existing transport.",
+    ],
+  },
 });

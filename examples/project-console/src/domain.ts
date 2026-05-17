@@ -20,7 +20,7 @@ import {
   type ProjectReturnTo,
   type ProjectRemoteError,
   type ProjectRouteParams as ProjectRouteParamsType,
-  type ProjectSummary
+  type ProjectSummary,
 } from "./domain.contract.js";
 
 export {
@@ -49,20 +49,20 @@ export {
   type ProjectRemoteError,
   type ProjectStatus,
   type ProjectTab,
-  type ProjectSummary
+  type ProjectSummary,
 } from "./domain.contract.js";
 
 export {
   ProjectRouteParams as ProjectRouteParamsSchema,
   ProjectRouteSearch as ProjectRouteSearchSchema,
   type ProjectRouteParams,
-  type ProjectRouteSearch
+  type ProjectRouteSearch,
 } from "./domain.contract.js";
 
 export {
   formatProjectError,
   isInvalidProjectName,
-  normalizeProjectError
+  normalizeProjectError,
 } from "./project-error.js";
 
 export interface PresenceEvent {
@@ -74,17 +74,23 @@ export interface PresenceEvent {
 export interface ProjectApi {
   readonly list: () => Effect.Effect<ProjectSummary[], Server.ClientError>;
   readonly get: (id: ProjectIdType) => Effect.Effect<Project, ProjectRemoteError>;
-  readonly rename: (input: typeof RenameProjectInput.Type) => Effect.Effect<Project, ProjectRemoteError>;
+  readonly rename: (
+    input: typeof RenameProjectInput.Type,
+  ) => Effect.Effect<Project, ProjectRemoteError>;
   readonly submitName: (
-    input: typeof SubmitProjectNameInput.Type
+    input: typeof SubmitProjectNameInput.Type,
   ) => Effect.Effect<ProjectNameSubmissionResult, Server.ClientError>;
-  readonly advance: (input: typeof AdvanceProjectInput.Type) => Effect.Effect<Project, ProjectRemoteError>;
+  readonly advance: (
+    input: typeof AdvanceProjectInput.Type,
+  ) => Effect.Effect<Project, ProjectRemoteError>;
 }
 
-export const ProjectApi = Capability.define<ProjectApi>("@effect-ui/example-project-console/ProjectApi");
+export const ProjectApi = Capability.define<ProjectApi>(
+  "@effect-ui/example-project-console/ProjectApi",
+);
 
 export const normalizeProjectNameSubmissionResult = (
-  result: ProjectNameSubmissionResult
+  result: ProjectNameSubmissionResult,
 ): ProjectNameSubmissionResult => {
   switch (result._tag) {
     case "Success":
@@ -93,12 +99,12 @@ export const normalizeProjectNameSubmissionResult = (
       return ActionResult.validation<typeof SubmitProjectNameInput.Type, string>({
         fieldErrors: result.fieldErrors,
         formErrors: result.formErrors,
-        cause: result.cause
+        cause: result.cause,
       });
     case "Redirect":
       return ActionResult.redirect(result.location, {
         status: result.status,
-        ...(result.replace === undefined ? {} : { replace: result.replace })
+        ...(result.replace === undefined ? {} : { replace: result.replace }),
       });
     case "Failure":
       return ActionResult.failure(result.error);
@@ -110,21 +116,18 @@ export const ProjectApiLive = ProjectApi.layer({
   get: (id) => getProject.effect({ id }),
   rename: renameProject.effect,
   submitName: (input) =>
-    submitProjectName.effect(input).pipe(
-      Effect.map(normalizeProjectNameSubmissionResult)
-    ),
-  advance: advanceProject.effect
+    submitProjectName.effect(input).pipe(Effect.map(normalizeProjectNameSubmissionResult)),
+  advance: advanceProject.effect,
 });
 
 export const ProjectsTag = Resource.tag("Projects");
 export const ProjectTag = Resource.tag<{ readonly id: ProjectIdType }>("Project", {
-  key: ({ id }) => id
+  key: ({ id }) => id,
 });
 
-export const projectResourceInvalidations = (id: ProjectIdType): readonly Resource.Invalidation[] => [
-  ProjectsTag,
-  ProjectTag({ id })
-];
+export const projectResourceInvalidations = (
+  id: ProjectIdType,
+): readonly Resource.Invalidation[] => [ProjectsTag, ProjectTag({ id })];
 
 export const ProjectList = Resource.family({
   name: "Projects.list",
@@ -135,8 +138,8 @@ export const ProjectList = Resource.family({
   policy: {
     staleFor: "20 seconds",
     gcFor: "5 minutes",
-    retry: Schedule.exponential("50 millis").pipe(Schedule.take(2))
-  }
+    retry: Schedule.exponential("50 millis").pipe(Schedule.take(2)),
+  },
 });
 
 export const ProjectById = Resource.family({
@@ -148,20 +151,22 @@ export const ProjectById = Resource.family({
   policy: {
     staleFor: "20 seconds",
     gcFor: "5 minutes",
-    retry: Schedule.exponential("50 millis").pipe(Schedule.take(2))
-  }
+    retry: Schedule.exponential("50 millis").pipe(Schedule.take(2)),
+  },
 });
 
 export const ProjectsRef = ProjectList("all");
 
 export const preloadProjectsEffect = Resource.prefetchEffect(ProjectsRef);
 
-export const preloadProjectRouteEffect = (params: ProjectRouteParamsType): Effect.Effect<void, ProjectRemoteError, ProjectApi> =>
+export const preloadProjectRouteEffect = (
+  params: ProjectRouteParamsType,
+): Effect.Effect<void, ProjectRemoteError, ProjectApi> =>
   Effect.asVoid(
     Effect.all([
       Resource.prefetchEffect(ProjectsRef),
-      Resource.prefetchEffect(ProjectById(params.id))
-    ])
+      Resource.prefetchEffect(ProjectById(params.id)),
+    ]),
   );
 
 export const RenameProject = Action.define({
@@ -170,10 +175,10 @@ export const RenameProject = Action.define({
   output: ProjectSchema,
   policy: {
     concurrency: "latest",
-    retry: Schedule.recurs(1)
+    retry: Schedule.recurs(1),
   },
   run: (input) => ProjectApi.use((api) => api.rename(input)),
-  invalidates: (project) => projectResourceInvalidations(project.id)
+  invalidates: (project) => projectResourceInvalidations(project.id),
 });
 
 export const SubmitProjectName = Action.define({
@@ -183,13 +188,13 @@ export const SubmitProjectName = Action.define({
   error: Schema.Unknown,
   policy: {
     concurrency: "latest",
-    retry: Schedule.recurs(1)
+    retry: Schedule.recurs(1),
   },
   run: (input) => ProjectApi.use((api) => api.submitName(input)),
   invalidates: (result, input) =>
     result._tag === "ValidationFailure" || result._tag === "Failure"
       ? []
-      : projectResourceInvalidations(input.id)
+      : projectResourceInvalidations(input.id),
 });
 
 export const AdvanceProject = Action.define({
@@ -197,27 +202,24 @@ export const AdvanceProject = Action.define({
   input: AdvanceProjectInput,
   output: ProjectSchema,
   policy: {
-    concurrency: "exhaust"
+    concurrency: "exhaust",
   },
   run: (input) => ProjectApi.use((api) => api.advance(input)),
-  invalidates: (project) => projectResourceInvalidations(project.id)
+  invalidates: (project) => projectResourceInvalidations(project.id),
 });
 
 export const projectNameActionTarget = (input: {
   readonly id: ProjectIdType;
   readonly redirectTo?: ProjectReturnTo;
-}): StartActionForm =>
-  StartAction.form(SubmitProjectName, { input });
+}): StartActionForm => StartAction.form(SubmitProjectName, { input });
 
 export const projectSearch = Signal.make("");
 
 const presenceEvent = (tick: number): PresenceEvent => ({
   activeUsers: 4 + (tick % 4),
   build: tick % 6 === 0 ? "queued" : tick % 3 === 0 ? "running" : "passed",
-  latency: 28 + ((tick * 7) % 23)
+  latency: 28 + ((tick * 7) % 23),
 });
 
 export const makePresenceStream = (): Stream.Stream<PresenceEvent> =>
-  Stream.tick("2400 millis").pipe(
-    Stream.map((_, tick) => presenceEvent(tick))
-  );
+  Stream.tick("2400 millis").pipe(Stream.map((_, tick) => presenceEvent(tick)));

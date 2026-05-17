@@ -5,18 +5,18 @@ import type { ReadableSignal } from "./signal.js";
 import {
   makeWindowBrowserHistoryAdapter,
   type BrowserHistoryAdapter,
-  type BrowserNavigateOptions
+  type BrowserNavigateOptions,
 } from "./browser-router-history-adapter.js";
 import {
   createBrowserRouterKernel,
   type BrowserNavigateArgs,
-  type BrowserRouterKernelOptions
+  type BrowserRouterKernelOptions,
 } from "./browser-router-kernel.js";
 import type {
   AnyBrowserRoute,
   BrowserRouterPath,
   BrowserRouterRouteForPath,
-  BrowserRouterState
+  BrowserRouterState,
 } from "./browser-router-state.js";
 
 /**
@@ -29,7 +29,7 @@ import type {
  */
 export interface BrowserRouterHostControllerOptions<
   Routes extends readonly AnyBrowserRoute[],
-  ER
+  ER,
 > extends Omit<BrowserRouterKernelOptions<Routes, ER>, "initialHref"> {
   /** Host history Adapter. Defaults to `window.history` when a browser is available. */
   readonly history?: BrowserHistoryAdapter;
@@ -47,7 +47,7 @@ export interface BrowserRouterHostControllerOptions<
  */
 export interface BrowserRouterHostController<
   Routes extends readonly AnyBrowserRoute[] = readonly AnyBrowserRoute[],
-  ER = never
+  ER = never,
 > {
   readonly routes: Routes;
   readonly runtime: AnyEffectUiRuntime<ER>;
@@ -65,17 +65,14 @@ export interface BrowserRouterHostController<
     path: Path,
     ...args: Route.HrefArgs<BrowserRouterRouteForPath<Routes, Path>>
   ): string;
-  navigate<R extends Routes[number]>(
-    definition: R,
-    ...args: BrowserNavigateArgs<R>
-  ): void;
+  navigate<R extends Routes[number]>(definition: R, ...args: BrowserNavigateArgs<R>): void;
   navigateByPath<Path extends BrowserRouterPath<Routes>>(
     path: Path,
     ...args: BrowserNavigateArgs<BrowserRouterRouteForPath<Routes, Path>>
   ): void;
   navigateHref(href: string, options?: BrowserNavigateOptions): void;
   matchByPath<Path extends BrowserRouterPath<Routes>>(
-    path: Path
+    path: Path,
   ): Route.Match<BrowserRouterRouteForPath<Routes, Path>> | undefined;
   preloadEffect<R extends Routes[number]>(
     definition: R,
@@ -96,10 +93,10 @@ export interface BrowserRouterHostController<
  */
 export const createBrowserRouterHostController = <
   const Routes extends readonly AnyBrowserRoute[],
-  ER = never
+  ER = never,
 >(
   routes: Routes,
-  options: BrowserRouterHostControllerOptions<Routes, ER>
+  options: BrowserRouterHostControllerOptions<Routes, ER>,
 ): BrowserRouterHostController<Routes, ER> => {
   const { runtime } = options;
   const history = options.history ?? makeWindowBrowserHistoryAdapter();
@@ -107,7 +104,9 @@ export const createBrowserRouterHostController = <
   const kernelOptions: BrowserRouterKernelOptions<Routes, ER> = {
     runtime,
     initialHref,
-    ...(options.initialMatchedState === undefined ? {} : { initialMatchedState: options.initialMatchedState })
+    ...(options.initialMatchedState === undefined
+      ? {}
+      : { initialMatchedState: options.initialMatchedState }),
   };
   const kernel = createBrowserRouterKernel(routes, kernelOptions);
   let started = false;
@@ -159,7 +158,7 @@ export const createBrowserRouterHostController = <
     },
     matchByPath: kernel.matchByPath,
     preloadEffect: kernel.preloadEffect,
-    preloadByPathEffect: kernel.preloadByPathEffect
+    preloadByPathEffect: kernel.preloadByPathEffect,
   };
 
   return controller;

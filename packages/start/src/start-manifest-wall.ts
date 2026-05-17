@@ -11,7 +11,7 @@ import {
   type StartAppGraphActionBehaviorPolicy,
   type StartAppGraphMissingWireSchemas as StartAppGraphMissingWireSchemasError,
   type StartAppGraphUnknownActionBehavior as StartAppGraphUnknownActionBehaviorError,
-  type StartAppGraphWireSchemaPolicy
+  type StartAppGraphWireSchemaPolicy,
 } from "./app-graph.js";
 import {
   actionManifestDefinition,
@@ -20,7 +20,7 @@ import {
   type ActionManifest,
   type ActionManifestDefinition,
   type ActionManifestError,
-  type ActionManifestSource
+  type ActionManifestSource,
 } from "./action-manifest.js";
 import {
   createFileRouteManifest,
@@ -32,12 +32,10 @@ import {
   type FileRouteManifestEntry,
   type FileRouteManifestError,
   type FileRouteManifestModule,
-  type FileRouteManifestOptions
+  type FileRouteManifestOptions,
 } from "./file-routes.js";
 import type { GeneratedFileRouteDefinitionsModuleOptions } from "./file-route-modules.js";
-import type {
-  StartAppGraphDiagnosticsPolicy
-} from "./start-app-graph-diagnostics-policy.js";
+import type { StartAppGraphDiagnosticsPolicy } from "./start-app-graph-diagnostics-policy.js";
 import type { StartHostForkRunnerOptions } from "./start-host-runtime-runner.js";
 import {
   makeServerFunctionManifest,
@@ -46,25 +44,25 @@ import {
   type ServerFunctionManifest,
   type ServerFunctionManifestDefinition,
   type ServerFunctionManifestError,
-  type ServerFunctionManifestSource
+  type ServerFunctionManifestSource,
 } from "./server-function-manifest.js";
 import type { StartNodeRequestOptions } from "./node-web-exchange.js";
 import {
   resolveStartTransportEndpointsEffect,
   type StartTransportEndpointConflictError,
-  type StartTransportEndpointPathError
+  type StartTransportEndpointPathError,
 } from "./start-transport-endpoints.js";
 
 /** Options for generated file-route definition modules written by the plugin. */
-export interface FileRouteGenerationOptions
-  extends GeneratedFileRouteDefinitionsModuleOptions {
+export interface FileRouteGenerationOptions extends GeneratedFileRouteDefinitionsModuleOptions {
   /** Generated route definition path. String values must stay inside the Vite root; `false` disables writes. */
   readonly outputFile?: string | false;
 }
 
 /** Vite dev SSR host runtime options for serviceful server-entry handlers. */
-export interface StartViteDevSsrOptions<RuntimeError = never>
-  extends StartHostForkRunnerOptions<RuntimeError> {}
+export interface StartViteDevSsrOptions<
+  RuntimeError = never,
+> extends StartHostForkRunnerOptions<RuntimeError> {}
 
 type AnyActionDefinition = ActionDefinition<any, any, any, any>;
 
@@ -96,6 +94,12 @@ export interface EffectUiStartOptions {
   readonly fileRouteOptions?: FileRouteManifestOptions;
   /** Controls generated route definition file output. */
   readonly fileRouteGeneration?: FileRouteGenerationOptions;
+  /**
+   * Automatically lazy-load imported file-route components in browser builds.
+   *
+   * Enabled by default. Set to `false` to keep browser route modules fully eager.
+   */
+  readonly autoCodeSplitting?: boolean;
   /** Server entry module loaded by Vite dev SSR. */
   readonly serverEntry?: string;
   /** Named handler export to load from the server entry. */
@@ -149,9 +153,7 @@ export interface FileRouteDiscoveryPlan {
   readonly generatedDefinitionsFile?: string;
 }
 
-export class FileRouteDiscoveryError extends Data.TaggedError(
-  "FileRouteDiscoveryError"
-)<{
+export class FileRouteDiscoveryError extends Data.TaggedError("FileRouteDiscoveryError")<{
   readonly directory: string;
   readonly cause: unknown;
 }> {}
@@ -167,7 +169,7 @@ export type StartAppGraphError =
 export type StartManifestDirectReferenceKind = "serverFunctions" | "actions";
 
 export class StartManifestDirectReferenceError extends Data.TaggedError(
-  "StartManifestDirectReferenceError"
+  "StartManifestDirectReferenceError",
 )<{
   readonly kind: StartManifestDirectReferenceKind;
   readonly count: number;
@@ -193,16 +195,14 @@ export const defaultFileRouteGeneratedFile = "src/routeTree.gen.ts";
 export const defaultStartBuildWireSchemaPolicy: Required<StartAppGraphWireSchemaPolicy> = {
   requireInput: true,
   requireOutput: true,
-  requireError: false
+  requireError: false,
 };
 /** Default Start build policy used by the Vite plugin and manifest helpers. */
 export const defaultStartBuildPolicy: StartBuildPolicy = {
-  wireSchemas: defaultStartBuildWireSchemaPolicy
+  wireSchemas: defaultStartBuildWireSchemaPolicy,
 };
 
-const directReferenceGuidance = (
-  kind: StartManifestDirectReferenceKind
-): string =>
+const directReferenceGuidance = (kind: StartManifestDirectReferenceKind): string =>
   kind === "serverFunctions"
     ? "Direct `serverFunctions` arrays only carry wire names, not implementation export names. Use `serverFunctionSources` with explicit `module` and `exportName`, or provide `serverFunctionManifest` entries."
     : "Direct `actions` arrays only carry wire names, not implementation export names. Use `actionSources` with explicit `module` and `exportName`, or provide `actionManifest` entries.";
@@ -210,25 +210,19 @@ const directReferenceGuidance = (
 const directReferenceError = (
   kind: StartManifestDirectReferenceKind,
   count: number,
-  serverEntry: string
+  serverEntry: string,
 ): StartManifestDirectReferenceError =>
   new StartManifestDirectReferenceError({
     kind,
     count,
     serverEntry,
-    guidance: directReferenceGuidance(kind)
+    guidance: directReferenceGuidance(kind),
   });
 
 const normalizeDiscoveredFileRoutePath = (path: string): string =>
-  path
-    .replace(/\\/g, "/")
-    .replace(/\/+/g, "/")
-    .replace(/\/$/, "");
+  path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
 
-const isRouteFileName = (
-  fileName: string,
-  extensions: readonly string[]
-): boolean =>
+const isRouteFileName = (fileName: string, extensions: readonly string[]): boolean =>
   !fileName.endsWith(".d.ts") &&
   !fileName.endsWith(".d.mts") &&
   !fileName.endsWith(".d.cts") &&
@@ -236,22 +230,20 @@ const isRouteFileName = (
 
 export const absoluteFileRouteGeneratedFile = (
   root: string,
-  options: FileRouteGenerationOptions = {}
+  options: FileRouteGenerationOptions = {},
 ): string | undefined => {
   if (options.outputFile === false) {
     return undefined;
   }
 
   const outputFile = options.outputFile ?? defaultFileRouteGeneratedFile;
-  return isAbsolute(outputFile)
-    ? outputFile
-    : resolvePath(root, outputFile);
+  return isAbsolute(outputFile) ? outputFile : resolvePath(root, outputFile);
 };
 
 export const isGeneratedFileRouteDefinitionsOutputFile = (
   root: string,
   options: EffectUiStartOptions,
-  filePath: string
+  filePath: string,
 ): boolean => {
   const generated = absoluteFileRouteGeneratedFile(root, options.fileRouteGeneration);
   if (generated === undefined) {
@@ -259,48 +251,49 @@ export const isGeneratedFileRouteDefinitionsOutputFile = (
   }
 
   const absolutePath = isAbsolute(filePath) ? filePath : resolvePath(root, filePath);
-  return normalizeDiscoveredFileRoutePath(absolutePath) === normalizeDiscoveredFileRoutePath(generated);
+  return (
+    normalizeDiscoveredFileRoutePath(absolutePath) === normalizeDiscoveredFileRoutePath(generated)
+  );
 };
 
 export const absoluteFileRouteDirectory = (
   root: string,
-  routeDirectory: string = defaultFileRouteDirectory
-): string =>
-  isAbsolute(routeDirectory)
-    ? routeDirectory
-    : resolvePath(root, routeDirectory);
+  routeDirectory: string = defaultFileRouteDirectory,
+): string => (isAbsolute(routeDirectory) ? routeDirectory : resolvePath(root, routeDirectory));
 
 /** Builds the shared file-route discovery policy for directory scans and Vite hot updates. */
 export const fileRouteDiscoveryPlan = (
-  options: FileRouteDiscoveryOptions = {}
+  options: FileRouteDiscoveryOptions = {},
 ): FileRouteDiscoveryPlan => {
   const root = resolvePath(options.root ?? process.cwd());
   const routeDirectory = options.routeDirectory ?? defaultFileRouteDirectory;
-  const generatedDefinitionsFile = absoluteFileRouteGeneratedFile(root, options.fileRouteGeneration);
+  const generatedDefinitionsFile = absoluteFileRouteGeneratedFile(
+    root,
+    options.fileRouteGeneration,
+  );
   return {
     root,
     routeDirectory,
     directory: absoluteFileRouteDirectory(root, routeDirectory),
     extensions: options.extensions ?? defaultFileRouteExtensions,
-    ...(generatedDefinitionsFile === undefined ? {} : { generatedDefinitionsFile })
+    ...(generatedDefinitionsFile === undefined ? {} : { generatedDefinitionsFile }),
   };
 };
 
 /** Checks whether the discovery plan's route directory currently exists. */
-export const fileRouteDiscoveryDirectoryExists = (
-  plan: FileRouteDiscoveryPlan
-): boolean =>
+export const fileRouteDiscoveryDirectoryExists = (plan: FileRouteDiscoveryPlan): boolean =>
   existsSync(plan.directory);
 
 /** Returns true when a host file path is a discoverable route module. */
 export const isFileRouteDiscoveryFile = (
   plan: FileRouteDiscoveryPlan,
-  filePath: string
+  filePath: string,
 ): boolean => {
   const absolutePath = isAbsolute(filePath) ? filePath : resolvePath(plan.root, filePath);
   if (
     plan.generatedDefinitionsFile !== undefined &&
-    normalizeDiscoveredFileRoutePath(absolutePath) === normalizeDiscoveredFileRoutePath(plan.generatedDefinitionsFile)
+    normalizeDiscoveredFileRoutePath(absolutePath) ===
+      normalizeDiscoveredFileRoutePath(plan.generatedDefinitionsFile)
   ) {
     return false;
   }
@@ -318,19 +311,12 @@ export const isFileRouteDiscoveryFile = (
 };
 
 /** Converts an absolute route module path to the manifest path for a discovery plan. */
-export const discoveredFileRoutePath = (
-  plan: FileRouteDiscoveryPlan,
-  filePath: string
-): string =>
+export const discoveredFileRoutePath = (plan: FileRouteDiscoveryPlan, filePath: string): string =>
   normalizeDiscoveredFileRoutePath(
-    isAbsolute(plan.routeDirectory)
-      ? filePath
-      : relativePath(plan.root, filePath)
+    isAbsolute(plan.routeDirectory) ? filePath : relativePath(plan.root, filePath),
   );
 
-const discoverFileRoutesSync = (
-  options: FileRouteDiscoveryOptions = {}
-): readonly string[] => {
+const discoverFileRoutesSync = (options: FileRouteDiscoveryOptions = {}): readonly string[] => {
   const plan = fileRouteDiscoveryPlan(options);
 
   if (!fileRouteDiscoveryDirectoryExists(plan)) {
@@ -359,29 +345,24 @@ const discoverFileRoutesSync = (
 
 /** Recursively discovers route module files under the configured route directory. */
 export const discoverFileRoutesEffect = (
-  options: FileRouteDiscoveryOptions = {}
+  options: FileRouteDiscoveryOptions = {},
 ): Effect.Effect<readonly string[], FileRouteDiscoveryError> => {
   const plan = fileRouteDiscoveryPlan(options);
 
   return Effect.try({
     try: () => discoverFileRoutesSync(options),
-    catch: (cause) => new FileRouteDiscoveryError({ directory: plan.directory, cause })
+    catch: (cause) => new FileRouteDiscoveryError({ directory: plan.directory, cause }),
   });
 };
 
 /** Synchronous facade for Vite hooks and other sync host boundaries. */
-export const discoverFileRoutes = (
-  options: FileRouteDiscoveryOptions = {}
-): readonly string[] =>
+export const discoverFileRoutes = (options: FileRouteDiscoveryOptions = {}): readonly string[] =>
   Effect.runSync(discoverFileRoutesEffect(options));
 
 const serverFunctionDefinitionsFromOptionsEffect = (
   options: EffectUiStartOptions,
-  serverEntry: string
-): Effect.Effect<
-  Iterable<ServerFunctionManifestDefinition>,
-  StartManifestDirectReferenceError
-> => {
+  serverEntry: string,
+): Effect.Effect<Iterable<ServerFunctionManifestDefinition>, StartManifestDirectReferenceError> => {
   if (options.serverFunctionManifest) {
     return Effect.succeed(options.serverFunctionManifest);
   }
@@ -389,8 +370,8 @@ const serverFunctionDefinitionsFromOptionsEffect = (
   if (options.serverFunctionSources) {
     return Effect.succeed(
       Array.from(options.serverFunctionSources, (source) =>
-        serverFunctionManifestDefinition(source.fn, source)
-      )
+        serverFunctionManifestDefinition(source.fn, source),
+      ),
     );
   }
 
@@ -402,11 +383,8 @@ const serverFunctionDefinitionsFromOptionsEffect = (
 
 const actionDefinitionsFromOptionsEffect = (
   options: EffectUiStartOptions,
-  serverEntry: string
-): Effect.Effect<
-  Iterable<ActionManifestDefinition>,
-  StartManifestDirectReferenceError
-> => {
+  serverEntry: string,
+): Effect.Effect<Iterable<ActionManifestDefinition>, StartManifestDirectReferenceError> => {
   if (options.actionManifest) {
     return Effect.succeed(options.actionManifest);
   }
@@ -414,8 +392,8 @@ const actionDefinitionsFromOptionsEffect = (
   if (options.actionSources) {
     return Effect.succeed(
       Array.from(options.actionSources, (source) =>
-        actionManifestDefinition(source.action, source)
-      )
+        actionManifestDefinition(source.action, source),
+      ),
     );
   }
 
@@ -427,7 +405,7 @@ const actionDefinitionsFromOptionsEffect = (
 
 /** Builds the server-function manifest from plugin options. */
 export const makeStartServerFunctionManifestEffect = (
-  options: EffectUiStartOptions = {}
+  options: EffectUiStartOptions = {},
 ): Effect.Effect<
   ServerFunctionManifest,
   ServerFunctionManifestError | StartManifestDirectReferenceError
@@ -437,43 +415,34 @@ export const makeStartServerFunctionManifestEffect = (
     const definitions = yield* serverFunctionDefinitionsFromOptionsEffect(options, serverEntry);
     return yield* makeServerFunctionManifest(
       definitions,
-      options.rpcPath === undefined ? {} : { rpcPath: options.rpcPath }
+      options.rpcPath === undefined ? {} : { rpcPath: options.rpcPath },
     );
   });
 };
 
 /** Synchronously serializes the Start server-function manifest. */
-export const serializeStartServerFunctionManifest = (
-  options: EffectUiStartOptions = {}
-): string =>
+export const serializeStartServerFunctionManifest = (options: EffectUiStartOptions = {}): string =>
   Effect.runSync(
-    Effect.map(makeStartServerFunctionManifestEffect(options), serializeServerFunctionManifest)
+    Effect.map(makeStartServerFunctionManifestEffect(options), serializeServerFunctionManifest),
   );
 
 /** Builds the Start action manifest from plugin options. */
 export const makeStartActionManifestEffect = (
-  options: EffectUiStartOptions = {}
-): Effect.Effect<
-  ActionManifest,
-  ActionManifestError | StartManifestDirectReferenceError
-> => {
+  options: EffectUiStartOptions = {},
+): Effect.Effect<ActionManifest, ActionManifestError | StartManifestDirectReferenceError> => {
   const serverEntry = options.serverEntry ?? defaultServerEntry;
   return Effect.gen(function* () {
     const definitions = yield* actionDefinitionsFromOptionsEffect(options, serverEntry);
     return yield* makeActionManifest(
       definitions,
-      options.actionPath === undefined ? {} : { actionPath: options.actionPath }
+      options.actionPath === undefined ? {} : { actionPath: options.actionPath },
     );
   });
 };
 
 /** Synchronously serializes the Start action manifest. */
-export const serializeStartActionManifest = (
-  options: EffectUiStartOptions = {}
-): string =>
-  Effect.runSync(
-    Effect.map(makeStartActionManifestEffect(options), serializeActionManifest)
-  );
+export const serializeStartActionManifest = (options: EffectUiStartOptions = {}): string =>
+  Effect.runSync(Effect.map(makeStartActionManifestEffect(options), serializeActionManifest));
 
 const isFileRouteManifest = (value: unknown): value is FileRouteManifest =>
   typeof value === "object" &&
@@ -481,13 +450,11 @@ const isFileRouteManifest = (value: unknown): value is FileRouteManifest =>
   (value as { readonly version?: unknown }).version === 1 &&
   Array.isArray((value as { readonly entries?: unknown }).entries);
 
-const materializeIterableOption = <A>(
-  value: Iterable<A> | undefined
-): readonly A[] | undefined =>
+const materializeIterableOption = <A>(value: Iterable<A> | undefined): readonly A[] | undefined =>
   value === undefined ? undefined : Array.from(value);
 
 const normalizeFileRouteManifestOption = (
-  manifest: EffectUiStartOptions["fileRouteManifest"]
+  manifest: EffectUiStartOptions["fileRouteManifest"],
 ): EffectUiStartOptions["fileRouteManifest"] => {
   if (manifest === undefined) {
     return undefined;
@@ -498,7 +465,7 @@ const normalizeFileRouteManifestOption = (
     return {
       ...manifest,
       entries: Array.from(manifest.entries),
-      modules: modules === undefined ? [] : Array.from(modules)
+      modules: modules === undefined ? [] : Array.from(modules),
     };
   }
 
@@ -507,7 +474,7 @@ const normalizeFileRouteManifestOption = (
 
 /** Materializes caller-supplied manifest Iterables once at the Vite/plugin seam. */
 export const normalizeStartManifestIterableOptions = (
-  options: EffectUiStartOptions = {}
+  options: EffectUiStartOptions = {},
 ): EffectUiStartOptions => {
   const serverFunctionManifest = materializeIterableOption(options.serverFunctionManifest);
   const serverFunctionSources = materializeIterableOption(options.serverFunctionSources);
@@ -523,13 +490,11 @@ export const normalizeStartManifestIterableOptions = (
     ...(actionManifest === undefined ? {} : { actionManifest }),
     ...(actionSources === undefined ? {} : { actionSources }),
     ...(fileRoutes === undefined ? {} : { fileRoutes }),
-    ...(fileRouteManifest === undefined ? {} : { fileRouteManifest })
+    ...(fileRouteManifest === undefined ? {} : { fileRouteManifest }),
   };
 };
 
-const withDefaultFileRouteDirectory = (
-  options: EffectUiStartOptions
-): EffectUiStartOptions => {
+const withDefaultFileRouteDirectory = (options: EffectUiStartOptions): EffectUiStartOptions => {
   if (
     options.fileRouteOptions?.routeDirectory !== undefined ||
     (options.fileRouteManifest !== undefined && isFileRouteManifest(options.fileRouteManifest))
@@ -541,20 +506,19 @@ const withDefaultFileRouteDirectory = (
     ...options,
     fileRouteOptions: {
       ...options.fileRouteOptions,
-      routeDirectory: defaultFileRouteDirectory
-    }
+      routeDirectory: defaultFileRouteDirectory,
+    },
   };
 };
 
 export const withDiscoveredFileRoutes = (
   options: EffectUiStartOptions,
-  root: string
-): EffectUiStartOptions =>
-  Effect.runSync(withDiscoveredFileRoutesEffect(options, root));
+  root: string,
+): EffectUiStartOptions => Effect.runSync(withDiscoveredFileRoutesEffect(options, root));
 
 export const withDiscoveredFileRoutesEffect = (
   options: EffectUiStartOptions,
-  root: string
+  root: string,
 ): Effect.Effect<EffectUiStartOptions, FileRouteDiscoveryError> => {
   const next = withDefaultFileRouteDirectory(options);
   if (next.fileRouteManifest !== undefined || next.fileRoutes !== undefined) {
@@ -572,18 +536,18 @@ export const withDiscoveredFileRoutesEffect = (
         : { extensions: fileRouteOptions.extensions }),
       ...(next.fileRouteGeneration === undefined
         ? {}
-        : { fileRouteGeneration: next.fileRouteGeneration })
+        : { fileRouteGeneration: next.fileRouteGeneration }),
     }),
     (fileRoutes) => ({
       ...next,
-      fileRoutes
-    })
+      fileRoutes,
+    }),
   );
 };
 
 /** Builds or validates the Start file-route manifest from plugin options. */
 export const makeStartFileRouteManifestEffect = (
-  options: EffectUiStartOptions = {}
+  options: EffectUiStartOptions = {},
 ): Effect.Effect<FileRouteManifest, FileRouteManifestError> => {
   const manifest = options.fileRouteManifest;
   if (manifest) {
@@ -592,22 +556,23 @@ export const makeStartFileRouteManifestEffect = (
       : options.fileRouteOptions?.routeDirectory;
     const fileRouteOptions = {
       ...options.fileRouteOptions,
-      ...(routeDirectory === undefined ? {} : { routeDirectory })
+      ...(routeDirectory === undefined ? {} : { routeDirectory }),
     };
     const entries = isFileRouteManifest(manifest) ? manifest.entries : manifest;
-    const modules = isFileRouteManifest(manifest) && Array.isArray(manifest.modules)
-      ? manifest.modules
-      : undefined;
+    const modules =
+      isFileRouteManifest(manifest) && Array.isArray(manifest.modules)
+        ? manifest.modules
+        : undefined;
 
     return Effect.map(validateFileRouteManifestEffect(entries, modules), (entries) =>
-      createFileRouteManifest(entries, fileRouteOptions, modules ?? [])
+      createFileRouteManifest(entries, fileRouteOptions, modules ?? []),
     );
   }
 
   if (options.fileRoutes) {
     return generateValidatedFileRouteManifestArtifactEffect(
       options.fileRoutes,
-      options.fileRouteOptions
+      options.fileRouteOptions,
     );
   }
 
@@ -615,35 +580,31 @@ export const makeStartFileRouteManifestEffect = (
 };
 
 /** Synchronously serializes the Start file-route manifest. */
-export const serializeStartFileRouteManifest = (
-  options: EffectUiStartOptions = {}
-): string =>
-  Effect.runSync(
-    Effect.map(makeStartFileRouteManifestEffect(options), serializeFileRouteManifest)
-  );
+export const serializeStartFileRouteManifest = (options: EffectUiStartOptions = {}): string =>
+  Effect.runSync(Effect.map(makeStartFileRouteManifestEffect(options), serializeFileRouteManifest));
 
 /** Combines route, server-function, and action manifests into a Start app graph. */
 export const makeStartAppGraphEffect = (
-  options: EffectUiStartOptions = {}
+  options: EffectUiStartOptions = {},
 ): Effect.Effect<StartAppGraph, StartAppGraphError> =>
   Effect.gen(function* () {
     const serverFunctions = yield* makeStartServerFunctionManifestEffect(options);
     const actions = yield* makeStartActionManifestEffect(options);
     yield* resolveStartTransportEndpointsEffect({
       serverFunctionManifest: serverFunctions,
-      actionManifest: actions
+      actionManifest: actions,
     });
     const routes = yield* makeStartFileRouteManifestEffect(options);
 
     return createStartAppGraph({
       routes,
       serverFunctions,
-      actions
+      actions,
     });
   });
 
 export const normalizeStartBuildPolicy = (
-  policy: EffectUiStartOptions["buildPolicy"]
+  policy: EffectUiStartOptions["buildPolicy"],
 ): StartBuildPolicy | undefined => {
   if (policy === undefined || policy === false) {
     return undefined;
@@ -655,14 +616,14 @@ export const normalizeStartBuildPolicy = (
 /** Applies static build policies to a Start app graph. */
 export const validateStartBuildPolicyEffect = (
   graph: StartAppGraph,
-  policy: StartBuildPolicy = defaultStartBuildPolicy
+  policy: StartBuildPolicy = defaultStartBuildPolicy,
 ): Effect.Effect<void, StartBuildPolicyError> =>
   Effect.gen(function* () {
     const wireSchemas = policy.wireSchemas;
     if (wireSchemas !== false) {
       yield* validateStartAppGraphWireSchemasEffect(
         graph,
-        wireSchemas ?? defaultStartBuildWireSchemaPolicy
+        wireSchemas ?? defaultStartBuildWireSchemaPolicy,
       );
     }
 
@@ -670,12 +631,11 @@ export const validateStartBuildPolicyEffect = (
     if (actionBehavior !== undefined && actionBehavior !== false) {
       yield* validateStartAppGraphActionBehaviorEffect(graph, actionBehavior);
     }
-
   });
 
 /** Builds the app graph and applies any enabled build policy. */
 export const makeStartBuildAppGraphEffect = (
-  options: EffectUiStartOptions = {}
+  options: EffectUiStartOptions = {},
 ): Effect.Effect<StartAppGraph, StartAppGraphError | StartBuildPolicyError> =>
   Effect.gen(function* () {
     const graph = yield* makeStartAppGraphEffect(options);
@@ -688,25 +648,21 @@ export const makeStartBuildAppGraphEffect = (
   });
 
 /** Synchronously serializes the policy-checked Start app graph. */
-export const serializeStartAppGraph = (
-  options: EffectUiStartOptions = {}
-): string =>
-  Effect.runSync(
-    Effect.map(makeStartBuildAppGraphEffect(options), serializeStartAppGraphArtifact)
-  );
+export const serializeStartAppGraph = (options: EffectUiStartOptions = {}): string =>
+  Effect.runSync(Effect.map(makeStartBuildAppGraphEffect(options), serializeStartAppGraphArtifact));
 
 /** Creates the production define values for a policy-checked Start app graph. */
 export const createStartManifestWallDefineValues = (
-  graph: StartAppGraph
+  graph: StartAppGraph,
 ): StartManifestWallDefineValues => ({
   __EFFECT_UI_SERVER_FUNCTIONS__: serializeServerFunctionManifest(graph.serverFunctions),
   __EFFECT_UI_ACTIONS__: serializeActionManifest(graph.actions),
   __EFFECT_UI_FILE_ROUTES__: serializeFileRouteManifest(graph.routes),
-  __EFFECT_UI_APP_GRAPH__: serializeStartAppGraphArtifact(graph)
+  __EFFECT_UI_APP_GRAPH__: serializeStartAppGraphArtifact(graph),
 });
 
 /** Builds the production define values from plugin options. */
 export const makeStartManifestWallDefineValuesEffect = (
-  options: EffectUiStartOptions = {}
+  options: EffectUiStartOptions = {},
 ): Effect.Effect<StartManifestWallDefineValues, StartAppGraphError | StartBuildPolicyError> =>
   Effect.map(makeStartBuildAppGraphEffect(options), createStartManifestWallDefineValues);

@@ -31,14 +31,14 @@ export const effectUiTsrx = (options: EffectUiTsrxOptions = {}): PluginOption[] 
         return noDiscovery
           ? {
               optimizeDeps: {
-                noDiscovery: true
-              }
+                noDiscovery: true,
+              },
             }
           : {};
-      }
+      },
     },
     tsrxSolid(options.tsrx),
-    solid(options.solid)
+    solid(options.solid),
   ];
 };
 

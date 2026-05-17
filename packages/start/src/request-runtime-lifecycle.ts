@@ -2,12 +2,12 @@ import {
   applyResponseContextEffect,
   type EffectInputCallbackError,
   type EffectUiRuntime,
-  type ResponseContext
+  type ResponseContext,
 } from "@effect-ui/core";
 import { Cause, Effect, Exit } from "effect";
 import {
   completeRequestRuntimeWithResponse,
-  type RequestRuntimeFinalizeState
+  type RequestRuntimeFinalizeState,
 } from "./request-runtime-response.js";
 import {
   buildStartRequestTrace,
@@ -18,7 +18,7 @@ import {
   withStartRequestObservability,
   type StartRequestTraceFacts,
   type StartRequestTraceFailureKind,
-  type StartRequestTraceHandler
+  type StartRequestTraceHandler,
 } from "./request-trace.js";
 
 export interface RequestRuntimeLifecycleOptions<E, R, RuntimeServices, RuntimeError> {
@@ -35,30 +35,33 @@ const emitRequestRuntimeFailureTraceEffect = <RuntimeServices, RuntimeError>(
     RequestRuntimeLifecycleOptions<unknown, unknown, RuntimeServices, RuntimeError>,
     "request" | "runtime" | "traceFacts" | "onRequestTrace"
   >,
-  interrupted: boolean
+  interrupted: boolean,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     const teardown = yield* requestRuntimeDisposeTraceEffect(options.runtime);
     yield* finalizeStartRequestMetricsEffect(options.request, options.traceFacts, {
       status: interrupted ? "cancelled" : "failure",
-      completedAt: teardown.completedAt
+      completedAt: teardown.completedAt,
     });
     if (options.onRequestTrace !== undefined) {
       yield* emitStartRequestTraceEffect(
         options.onRequestTrace,
-        buildStartRequestTrace(options.request, options.traceFacts, interrupted ? "cancelled" : "failure", {
-          teardown: startRequestTraceTeardown(options.traceFacts, {
-            reason: interrupted ? "interruption" : "request-failure",
-            ...teardown
-          })
-        })
+        buildStartRequestTrace(
+          options.request,
+          options.traceFacts,
+          interrupted ? "cancelled" : "failure",
+          {
+            teardown: startRequestTraceTeardown(options.traceFacts, {
+              reason: interrupted ? "interruption" : "request-failure",
+              ...teardown,
+            }),
+          },
+        ),
       );
     }
   });
 
-const requestRuntimeFailureKind = (
-  cause: Cause.Cause<unknown>
-): StartRequestTraceFailureKind =>
+const requestRuntimeFailureKind = (cause: Cause.Cause<unknown>): StartRequestTraceFailureKind =>
   cause.reasons.some(Cause.isInterruptReason)
     ? "interruption"
     : cause.reasons.some(Cause.isDieReason)
@@ -70,37 +73,38 @@ const requestRuntimeFinalizeOptions = <RuntimeServices, RuntimeError>(
     RequestRuntimeLifecycleOptions<unknown, unknown, RuntimeServices, RuntimeError>,
     "request" | "traceFacts" | "onRequestTrace"
   >,
-  response: Response
-) =>
-  ({
-    onFinalize: (state: RequestRuntimeFinalizeState) =>
-      Effect.gen(function* () {
-        yield* finalizeStartRequestMetricsEffect(options.request, options.traceFacts, {
-          status: state.status,
-          completedAt: state.completedAt
-        });
-        if (state.failureKind !== undefined) {
-          options.traceFacts.failureKind = state.failureKind;
-        }
-        if (options.onRequestTrace !== undefined) {
-          yield* emitStartRequestTraceEffect(
-            options.onRequestTrace,
-            buildStartRequestTrace(options.request, options.traceFacts, state.status, {
-              response,
-              teardown: startRequestTraceTeardown(options.traceFacts, {
-                reason: state.teardownReason,
-                runtimeDisposed: state.runtimeDisposed,
-                beforeDispose: state.beforeDispose,
-                afterDispose: state.afterDispose,
-                completedAt: state.completedAt,
-                ...(state.cleanupFailure === undefined ? {} : { cleanupFailure: state.cleanupFailure })
-              }),
-              ...(state.stream === undefined ? {} : { stream: state.stream })
-            })
-          );
-        }
-      })
-  });
+  response: Response,
+) => ({
+  onFinalize: (state: RequestRuntimeFinalizeState) =>
+    Effect.gen(function* () {
+      yield* finalizeStartRequestMetricsEffect(options.request, options.traceFacts, {
+        status: state.status,
+        completedAt: state.completedAt,
+      });
+      if (state.failureKind !== undefined) {
+        options.traceFacts.failureKind = state.failureKind;
+      }
+      if (options.onRequestTrace !== undefined) {
+        yield* emitStartRequestTraceEffect(
+          options.onRequestTrace,
+          buildStartRequestTrace(options.request, options.traceFacts, state.status, {
+            response,
+            teardown: startRequestTraceTeardown(options.traceFacts, {
+              reason: state.teardownReason,
+              runtimeDisposed: state.runtimeDisposed,
+              beforeDispose: state.beforeDispose,
+              afterDispose: state.afterDispose,
+              completedAt: state.completedAt,
+              ...(state.cleanupFailure === undefined
+                ? {}
+                : { cleanupFailure: state.cleanupFailure }),
+            }),
+            ...(state.stream === undefined ? {} : { stream: state.stream }),
+          }),
+        );
+      }
+    }),
+});
 
 /**
  * Runs a selected Start response Effect through Request Runtime lifecycle.
@@ -111,7 +115,7 @@ const requestRuntimeFinalizeOptions = <RuntimeServices, RuntimeError>(
  * response finalization.
  */
 export const runRequestRuntimeLifecycleEffect = <E, R, RuntimeServices, RuntimeError>(
-  options: RequestRuntimeLifecycleOptions<E, R, RuntimeServices, RuntimeError>
+  options: RequestRuntimeLifecycleOptions<E, R, RuntimeServices, RuntimeError>,
 ): Effect.Effect<Response, E | EffectInputCallbackError, R> =>
   withStartRequestObservability(
     options.request,
@@ -119,8 +123,8 @@ export const runRequestRuntimeLifecycleEffect = <E, R, RuntimeServices, RuntimeE
     Effect.gen(function* () {
       const responseExit = yield* Effect.exit(
         Effect.flatMap(options.responseEffect, (response) =>
-          applyResponseContextEffect(options.responseContext, response)
-        )
+          applyResponseContextEffect(options.responseContext, response),
+        ),
       );
 
       if (Exit.isFailure(responseExit)) {
@@ -135,7 +139,7 @@ export const runRequestRuntimeLifecycleEffect = <E, R, RuntimeServices, RuntimeE
       return yield* completeRequestRuntimeWithResponse(
         options.runtime,
         response,
-        requestRuntimeFinalizeOptions(options, response)
+        requestRuntimeFinalizeOptions(options, response),
       );
-    })
+    }),
   );

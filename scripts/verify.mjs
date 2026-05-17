@@ -2,17 +2,7 @@
 
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  Console,
-  Data,
-  Effect,
-  FileSystem,
-  Layer,
-  Option,
-  Path,
-  Stdio,
-  Terminal
-} from "effect";
+import { Console, Data, Effect, FileSystem, Layer, Option, Path, Stdio, Terminal } from "effect";
 import { CliError, Command, Flag } from "effect/unstable/cli";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import { runScriptCommandEffect } from "./effect-command-runner.mjs";
@@ -46,11 +36,11 @@ const noopConsole = {
   timeEnd: () => undefined,
   timeLog: () => undefined,
   trace: () => undefined,
-  warn: () => undefined
+  warn: () => undefined,
 };
 
 const formatConsoleArgs = (args) =>
-  args.map((arg) => typeof arg === "string" ? arg : String(arg)).join(" ");
+  args.map((arg) => (typeof arg === "string" ? arg : String(arg))).join(" ");
 
 const verifyCliConsole = {
   ...noopConsole,
@@ -59,37 +49,43 @@ const verifyCliConsole = {
   },
   log: (...args) => {
     process.stdout.write(`${formatConsoleArgs(args)}\n`);
-  }
+  },
 };
 
 const verifyCliEnvironmentLayer = Layer.mergeAll(
   FileSystem.layerNoop({}),
   Path.layer,
   Stdio.layerTest({}),
-  Layer.succeed(Terminal.Terminal)(Terminal.make({
-    columns: Effect.succeed(80),
-    readInput: Effect.die("verify CLI does not read interactive input"),
-    readLine: Effect.fail(new Terminal.QuitError()),
-    display: () => Effect.void
-  })),
-  Layer.succeed(ChildProcessSpawner.ChildProcessSpawner)(ChildProcessSpawner.make(() =>
-    Effect.die("verify CLI parser does not spawn child processes")
-  ))
+  Layer.succeed(Terminal.Terminal)(
+    Terminal.make({
+      columns: Effect.succeed(80),
+      readInput: Effect.die("verify CLI does not read interactive input"),
+      readLine: Effect.fail(new Terminal.QuitError()),
+      display: () => Effect.void,
+    }),
+  ),
+  Layer.succeed(ChildProcessSpawner.ChildProcessSpawner)(
+    ChildProcessSpawner.make(() => Effect.die("verify CLI parser does not spawn child processes")),
+  ),
 );
 
 const parsePositiveConcurrencyEffect = (raw, source) => {
   if (raw === undefined || raw.trim() === "") {
-    return Effect.fail(new VerifyCommandError({
-      message: `${source} must be a positive integer.`
-    }));
+    return Effect.fail(
+      new VerifyCommandError({
+        message: `${source} must be a positive integer.`,
+      }),
+    );
   }
 
   const parsed = Number(raw);
   return Number.isInteger(parsed) && parsed > 0
     ? Effect.succeed(parsed)
-    : Effect.fail(new VerifyCommandError({
-        message: `${source} must be a positive integer, got ${JSON.stringify(raw)}.`
-      }));
+    : Effect.fail(
+        new VerifyCommandError({
+          message: `${source} must be a positive integer, got ${JSON.stringify(raw)}.`,
+        }),
+      );
 };
 
 const laneConcurrencyFromCliEffect = (concurrencyOption, env = process.env) => {
@@ -136,7 +132,7 @@ const run = (label, args, options = {}) =>
     const commandText = `${pnpmCommand} ${args.join(" ")}`;
     const output = {
       stdout: { buffer: "" },
-      stderr: { buffer: "" }
+      stderr: { buffer: "" },
     };
     const flushOutput = () => {
       flushPrefixedChunk(label, (text) => process.stdout.write(text), output.stdout);
@@ -148,28 +144,31 @@ const run = (label, args, options = {}) =>
       cwd: workspaceRoot,
       env: {
         ...process.env,
-        ...options.env
+        ...options.env,
       },
       onStdoutChunk: (chunk) =>
         writePrefixedChunk(label, (text) => process.stdout.write(text), output.stdout, chunk),
       onStderrChunk: (chunk) =>
-        writePrefixedChunk(label, (text) => process.stderr.write(text), output.stderr, chunk)
+        writePrefixedChunk(label, (text) => process.stderr.write(text), output.stderr, chunk),
     }).pipe(
       Effect.catch((error) =>
         Effect.gen(function* () {
           yield* Effect.sync(flushOutput);
-          return yield* Effect.fail(new VerifyCommandError({
-            label,
-            command: commandText,
-            message: error.signal !== null && error.signal !== undefined
-              ? `${label} failed with signal ${error.signal}.`
-              : error.code === undefined
-                ? `Failed to start ${label}.`
-                : `${label} failed with exit code ${error.code}.`,
-            cause: error.cause
-          }));
-        })
-      )
+          return yield* Effect.fail(
+            new VerifyCommandError({
+              label,
+              command: commandText,
+              message:
+                error.signal !== null && error.signal !== undefined
+                  ? `${label} failed with signal ${error.signal}.`
+                  : error.code === undefined
+                    ? `Failed to start ${label}.`
+                    : `${label} failed with exit code ${error.code}.`,
+              cause: error.cause,
+            }),
+          );
+        }),
+      ),
     );
     flushOutput();
     console.log(`✓ ${label} (${formatDuration(startedAt)})`);
@@ -188,32 +187,43 @@ const packageStarters = Effect.gen(function* () {
   yield* run("starter package generation", ["starter:package"], {
     env: {
       EFFECT_UI_VERIFY_FAST_STARTERS: "1",
-      EFFECT_UI_VERIFY_PREBUILT_PACKAGES: "1"
-    }
+      EFFECT_UI_VERIFY_PREBUILT_PACKAGES: "1",
+    },
   });
   yield* run("package dry runs", ["example:pack-dry-run"]);
 });
 
-const verifyEffect = (laneConcurrency) => Effect.gen(function* () {
-  console.log(`Effect UI verify running with lane concurrency ${laneConcurrency}.`);
+const verifyEffect = (laneConcurrency) =>
+  Effect.gen(function* () {
+    console.log(`Effect UI verify running with lane concurrency ${laneConcurrency}.`);
 
-  yield* run("package builds", ["build"]);
+    yield* run("package builds", ["build"]);
 
-  yield* runAll("source static gates", [
-    run("workspace typecheck", ["typecheck"]),
-    run("public API audit", ["audit:public-api"]),
-    run("Effect command runner policy", ["verify:command-runner"]),
-    run("package payload policy", ["verify:package-payload-policy"]),
-    run("Effect-first audit", ["audit:effect-first"])
-  ], laneConcurrency);
+    yield* runAll(
+      "source static gates",
+      [
+        run("workspace format check", ["format:check"]),
+        run("workspace lint", ["lint"]),
+        run("workspace typecheck", ["typecheck"]),
+        run("public API audit", ["audit:public-api"]),
+        run("Effect command runner policy", ["verify:command-runner"]),
+        run("package payload policy", ["verify:package-payload-policy"]),
+        run("Effect-first audit", ["audit:effect-first"]),
+      ],
+      laneConcurrency,
+    );
 
-  yield* run("workspace tests", ["test"]);
+    yield* run("workspace tests", ["test"]);
 
-  const verifyPackageTargets = yield* workspaceVerifyPackageTargetsEffect(workspaceRoot);
-  yield* runAll("package verifies", verifyPackageTargets.map(verifyWorkspacePackage), laneConcurrency);
+    const verifyPackageTargets = yield* workspaceVerifyPackageTargetsEffect(workspaceRoot);
+    yield* runAll(
+      "package verifies",
+      verifyPackageTargets.map(verifyWorkspacePackage),
+      laneConcurrency,
+    );
 
-  yield* packageStarters;
-});
+    yield* packageStarters;
+  });
 
 const makeVerifyCommand = (env = process.env) =>
   Command.make(
@@ -222,38 +232,35 @@ const makeVerifyCommand = (env = process.env) =>
       concurrency: Flag.integer("concurrency").pipe(
         Flag.filter(
           (value) => value > 0,
-          (value) => `--concurrency must be a positive integer, got ${value}.`
+          (value) => `--concurrency must be a positive integer, got ${value}.`,
         ),
         Flag.withDescription("Number of package/example lanes to run in parallel. Defaults to 4."),
-        Flag.optional
-      )
+        Flag.optional,
+      ),
     },
     (config) =>
       Effect.gen(function* () {
         const laneConcurrency = yield* laneConcurrencyFromCliEffect(config.concurrency, env);
         yield* verifyEffect(laneConcurrency);
-      })
+      }),
   ).pipe(
     Command.withDescription("Run the full Effect UI verification plan."),
     Command.withExamples([
       {
         command: "node scripts/verify.mjs",
-        description: "Run the full verification plan with the default lane concurrency."
+        description: "Run the full verification plan with the default lane concurrency.",
       },
       {
         command: "node scripts/verify.mjs --concurrency 1",
-        description: "Run package and example lanes serially."
-      }
-    ])
+        description: "Run package and example lanes serially.",
+      },
+    ]),
   );
 
-const runVerifyCliCommandEffect = (
-  args = process.argv.slice(2),
-  env = process.env
-) =>
+const runVerifyCliCommandEffect = (args = process.argv.slice(2), env = process.env) =>
   Command.runWith(makeVerifyCommand(env), { version: verifyCliVersion })(args).pipe(
     Effect.provideService(Console.Console, verifyCliConsole),
-    Effect.provide(verifyCliEnvironmentLayer)
+    Effect.provide(verifyCliEnvironmentLayer),
   );
 
 const verifyMainFailureMessage = (cause) =>
@@ -263,14 +270,11 @@ const verifyMainFailureMessage = (cause) =>
       ? cause.message
       : String(cause);
 
-const runVerifyCliMainEffect = (
-  args = process.argv.slice(2),
-  env = process.env
-) =>
+const runVerifyCliMainEffect = (args = process.argv.slice(2), env = process.env) =>
   Effect.gen(function* () {
     const result = yield* runVerifyCliCommandEffect(args, env).pipe(
       Effect.map(() => ({ _tag: "Success" })),
-      Effect.catch((cause) => Effect.succeed({ _tag: "Failure", cause }))
+      Effect.catch((cause) => Effect.succeed({ _tag: "Failure", cause })),
     );
 
     if (result._tag === "Success") {

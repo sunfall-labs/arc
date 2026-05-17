@@ -42,28 +42,21 @@ export interface MemoryBrowserHistoryAdapter extends BrowserHistoryAdapter {
   entries(): ReadonlyArray<string>;
 }
 
-const browserHistoryWindowHref = (
-  windowLike: BrowserHistoryWindow,
-  fallback = "/"
-): string => {
+const browserHistoryWindowHref = (windowLike: BrowserHistoryWindow, fallback = "/"): string => {
   const href = `${windowLike.location.pathname}${windowLike.location.search}`;
   return href.length === 0 ? fallback : href;
 };
 
 const defaultBrowserHistoryWindow = (): BrowserHistoryWindow | undefined =>
-  typeof window === "undefined"
-    ? undefined
-    : window as unknown as BrowserHistoryWindow;
+  typeof window === "undefined" ? undefined : (window as unknown as BrowserHistoryWindow);
 
 /** Creates a Browser History Adapter backed by `window.history`. */
 export const makeWindowBrowserHistoryAdapter = (
-  getWindow: () => BrowserHistoryWindow | undefined = defaultBrowserHistoryWindow
+  getWindow: () => BrowserHistoryWindow | undefined = defaultBrowserHistoryWindow,
 ): BrowserHistoryAdapter => ({
   currentHref: (fallback = "/") => {
     const windowLike = getWindow();
-    return windowLike === undefined
-      ? fallback
-      : browserHistoryWindowHref(windowLike, fallback);
+    return windowLike === undefined ? fallback : browserHistoryWindowHref(windowLike, fallback);
   },
   listen: (onChange) => {
     const windowLike = getWindow();
@@ -97,12 +90,12 @@ export const makeWindowBrowserHistoryAdapter = (
     }
 
     return browserHistoryWindowHref(windowLike, href);
-  }
+  },
 });
 
 /** Creates an in-memory Browser History Adapter. */
 export const makeMemoryBrowserHistoryAdapter = (
-  options: { readonly initialHref?: string } = {}
+  options: { readonly initialHref?: string } = {},
 ): MemoryBrowserHistoryAdapter => {
   let href = options.initialHref ?? "/";
   const entries = [href];
@@ -139,6 +132,6 @@ export const makeMemoryBrowserHistoryAdapter = (
       entries.push(href);
       notify();
     },
-    entries: () => entries.slice()
+    entries: () => entries.slice(),
   };
 };

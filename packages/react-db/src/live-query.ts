@@ -3,9 +3,8 @@ import {
   selectCollectionReactiveLiveQuery,
   type CollectionReactiveLiveQueryInput,
   type CollectionReactiveLiveQuerySelection,
-  type LiveQuery,
   type LiveQueryState,
-  type QueryEvaluationError
+  type QueryEvaluationError,
 } from "@effect-ui/db";
 import type { EffectInput } from "@effect-ui/core";
 import { useRuntime } from "@effect-ui/react";
@@ -55,14 +54,21 @@ type LiveQueryInput<T, E, R> = CollectionReactiveLiveQueryInput<T, E, R>;
  */
 export const useLiveQuery = <T, E = never, R = never, ER = never>(
   input: LiveQueryInput<T, E, R>,
-  options: UseLiveQueryOptions<E, ER> = {}
+  options: UseLiveQueryOptions<E, ER> = {},
 ): LiveQueryHandle<T, E, ER> => {
   const runtime = useRuntime<ER>();
   const inputRef = useRef(input);
   inputRef.current = input;
   const deps = collectionReactiveDepsValue(options.deps);
-  const liveRef = useRef<CollectionReactiveLiveQuerySelection<T, E, R, typeof runtime> | undefined>(undefined);
-  liveRef.current = selectCollectionReactiveLiveQuery(runtime, inputRef.current, deps, liveRef.current);
+  const liveRef = useRef<CollectionReactiveLiveQuerySelection<T, E, R, typeof runtime> | undefined>(
+    undefined,
+  );
+  liveRef.current = selectCollectionReactiveLiveQuery(
+    runtime,
+    inputRef.current,
+    deps,
+    liveRef.current,
+  );
   const live = liveRef.current.live;
   const preloadEffect = useMemo(() => Effect.suspend(() => live.preloadEffect()), [live]);
   const binding = useReactDbReactiveBinding<E | QueryEvaluationError, R, ER>({
@@ -70,7 +76,7 @@ export const useLiveQuery = <T, E = never, R = never, ER = never>(
     sources: () => live.sources,
     preload: options.preload,
     preloadEffect,
-    onPreloadFailure: options.onPreloadFailure
+    onPreloadFailure: options.onPreloadFailure,
   });
 
   const data = binding.read(() => live.data.get());
@@ -83,6 +89,6 @@ export const useLiveQuery = <T, E = never, R = never, ER = never>(
     error: liveQueryStateError(state),
     preloadFailure: binding.preloadFailure,
     preloadEffect: () => binding.bindEffect(Effect.suspend(() => live.preloadEffect())),
-    refetchEffect: () => binding.bindEffect(Effect.suspend(() => live.refetchEffect()))
+    refetchEffect: () => binding.bindEffect(Effect.suspend(() => live.refetchEffect())),
   };
 };

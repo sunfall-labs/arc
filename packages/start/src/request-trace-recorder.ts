@@ -1,7 +1,4 @@
-import type {
-  EffectUiRuntime,
-  Route
-} from "@effect-ui/core";
+import type { EffectUiRuntime, Route } from "@effect-ui/core";
 import {
   traceCollectionPreload,
   traceRoutePlan,
@@ -9,12 +6,12 @@ import {
   type StartRequestTraceAction,
   type StartRequestTraceFacts,
   type StartRequestTraceFailureKind,
-  type StartRequestTraceServerFunction
+  type StartRequestTraceServerFunction,
 } from "./request-trace.js";
 
 export const recordStartRequestTraceFailure = (
   facts: StartRequestTraceFacts | undefined,
-  failureKind: StartRequestTraceFailureKind
+  failureKind: StartRequestTraceFailureKind,
 ): void => {
   if (facts) {
     facts.failureKind = failureKind;
@@ -23,7 +20,7 @@ export const recordStartRequestTraceFailure = (
 
 export const recordStartRequestTraceServerFunction = (
   facts: StartRequestTraceFacts | undefined,
-  entry: StartRequestTraceServerFunction
+  entry: StartRequestTraceServerFunction,
 ): void => {
   if (!facts) {
     return;
@@ -36,7 +33,7 @@ export const recordStartRequestTraceServerFunction = (
 
 export const recordStartRequestTraceAction = (
   facts: StartRequestTraceFacts | undefined,
-  entry: StartRequestTraceAction
+  entry: StartRequestTraceAction,
 ): void => {
   if (!facts) {
     return;
@@ -51,10 +48,8 @@ export const recordStartRequestTracePreload = <RuntimeServices, RuntimeError>(
   facts: StartRequestTraceFacts,
   runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
   routePlan: Route.NavigationPlan,
-  collectionPreload: StartCollectionPreloadTraceInput
+  collectionPreload: StartCollectionPreloadTraceInput,
 ): void => {
   facts.routePlan = traceRoutePlan(routePlan);
-  facts.collections = [
-    ...traceCollectionPreload(runtime, collectionPreload)
-  ];
+  facts.collections = [...traceCollectionPreload(runtime, collectionPreload)];
 };

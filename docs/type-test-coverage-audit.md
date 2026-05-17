@@ -200,6 +200,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   DB namespace-local error-channel pins, and direct Start Vite dev SSR
   middleware/helper imports so LSP-facing public concepts cannot drift behind
   root-only symbols.
+- Review490 Effect-First Lazy Route Components And Formatter-Tolerant Public
+  API Inventory updated Core route type tests so `Route.lazyComponent(...)`
+  accepts an Effect loader and exposes `preloadEffect()` instead of a
+  Promise-shaped preload Interface.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them

@@ -11,7 +11,7 @@ export interface NamedCoreDefinition {
  */
 export interface CoreDefinitionRegistry<
   ActionDefinition extends NamedCoreDefinition = NamedCoreDefinition,
-  ServerFunctionDefinition extends NamedCoreDefinition = NamedCoreDefinition
+  ServerFunctionDefinition extends NamedCoreDefinition = NamedCoreDefinition,
 > {
   readonly actions: ReadonlyMap<string, ActionDefinition>;
   readonly serverFunctions: ReadonlyMap<string, ServerFunctionDefinition>;
@@ -25,7 +25,7 @@ export interface CoreDefinitionRegistry<
  */
 export interface CoreDefinitionRegistryInput<
   ActionDefinition extends NamedCoreDefinition = NamedCoreDefinition,
-  ServerFunctionDefinition extends NamedCoreDefinition = NamedCoreDefinition
+  ServerFunctionDefinition extends NamedCoreDefinition = NamedCoreDefinition,
 > {
   readonly actions?: Iterable<ActionDefinition> | ReadonlyMap<string, ActionDefinition>;
   readonly serverFunctions?:
@@ -46,7 +46,9 @@ export interface CoreDefinitionRegistryAdapterOptions {
 export type CoreDefinitionRegistryKind = "action" | "serverFunction";
 
 /** Result of registering one named Action or Server function definition. */
-export interface CoreDefinitionRegistration<Definition extends NamedCoreDefinition = NamedCoreDefinition> {
+export interface CoreDefinitionRegistration<
+  Definition extends NamedCoreDefinition = NamedCoreDefinition,
+> {
   readonly kind: CoreDefinitionRegistryKind;
   readonly name: string;
   readonly definition: Definition;
@@ -79,10 +81,12 @@ export interface CoreDefinitionRegistryDiagnostics {
  */
 export interface CoreDefinitionRegistryAdapter<
   ActionDefinition extends NamedCoreDefinition = NamedCoreDefinition,
-  ServerFunctionDefinition extends NamedCoreDefinition = NamedCoreDefinition
+  ServerFunctionDefinition extends NamedCoreDefinition = NamedCoreDefinition,
 > {
   registerAction(definition: ActionDefinition): CoreDefinitionRegistration<ActionDefinition>;
-  registerServerFunction(definition: ServerFunctionDefinition): CoreDefinitionRegistration<ServerFunctionDefinition>;
+  registerServerFunction(
+    definition: ServerFunctionDefinition,
+  ): CoreDefinitionRegistration<ServerFunctionDefinition>;
   definitions(): CoreDefinitionRegistry<ActionDefinition, ServerFunctionDefinition>;
   diagnostics(): CoreDefinitionRegistryDiagnostics;
   clearActionsUnsafe(): void;
@@ -95,13 +99,13 @@ interface CoreDefinitionRegistryEntry<Definition extends NamedCoreDefinition> {
 }
 
 const isDefinitionMap = <Definition extends NamedCoreDefinition>(
-  definitions: Iterable<Definition> | ReadonlyMap<string, Definition>
+  definitions: Iterable<Definition> | ReadonlyMap<string, Definition>,
 ): definitions is ReadonlyMap<string, Definition> =>
   typeof (definitions as { entries?: unknown }).entries === "function" &&
   typeof (definitions as { get?: unknown }).get === "function";
 
 const definitionMap = <Definition extends NamedCoreDefinition>(
-  definitions: Iterable<Definition> | ReadonlyMap<string, Definition> | undefined
+  definitions: Iterable<Definition> | ReadonlyMap<string, Definition> | undefined,
 ): ReadonlyMap<string, Definition> => {
   const map = new Map<string, Definition>();
   if (definitions === undefined) {
@@ -128,12 +132,12 @@ const definitionMap = <Definition extends NamedCoreDefinition>(
 /** Builds an immutable registry from explicit action and server definitions. */
 export const makeCoreDefinitionRegistry = <
   ActionDefinition extends NamedCoreDefinition = NamedCoreDefinition,
-  ServerFunctionDefinition extends NamedCoreDefinition = NamedCoreDefinition
+  ServerFunctionDefinition extends NamedCoreDefinition = NamedCoreDefinition,
 >(
-  input: CoreDefinitionRegistryInput<ActionDefinition, ServerFunctionDefinition> = {}
+  input: CoreDefinitionRegistryInput<ActionDefinition, ServerFunctionDefinition> = {},
 ): CoreDefinitionRegistry<ActionDefinition, ServerFunctionDefinition> => ({
   actions: definitionMap(input.actions),
-  serverFunctions: definitionMap(input.serverFunctions)
+  serverFunctions: definitionMap(input.serverFunctions),
 });
 
 const sortedNames = (definitions: ReadonlyMap<string, NamedCoreDefinition>): readonly string[] =>
@@ -146,7 +150,7 @@ const makeRegistration = <Definition extends NamedCoreDefinition>(
   duplicates: Array<CoreDefinitionDuplicateDiagnostics>,
   duplicatePolicy: CoreDefinitionRegistryDuplicatePolicy,
   nextSequence: () => number,
-  definition: Definition
+  definition: Definition,
 ): CoreDefinitionRegistration<Definition> => {
   const existing = entries.get(definition.name);
 
@@ -157,7 +161,7 @@ const makeRegistration = <Definition extends NamedCoreDefinition>(
       definition,
       sequence: existing.sequence,
       duplicate: false,
-      retained: definition
+      retained: definition,
     };
   }
 
@@ -171,7 +175,7 @@ const makeRegistration = <Definition extends NamedCoreDefinition>(
       definition,
       sequence,
       duplicate: false,
-      retained: definition
+      retained: definition,
     };
   }
 
@@ -183,7 +187,7 @@ const makeRegistration = <Definition extends NamedCoreDefinition>(
       name: definition.name,
       policy: duplicatePolicy,
       retained: sequence,
-      discarded: existing.sequence
+      discarded: existing.sequence,
     });
     return {
       kind,
@@ -191,7 +195,7 @@ const makeRegistration = <Definition extends NamedCoreDefinition>(
       definition,
       sequence,
       duplicate: true,
-      retained: definition
+      retained: definition,
     };
   }
 
@@ -200,7 +204,7 @@ const makeRegistration = <Definition extends NamedCoreDefinition>(
     name: definition.name,
     policy: duplicatePolicy,
     retained: existing.sequence,
-    discarded: sequence
+    discarded: sequence,
   });
   return {
     kind,
@@ -208,22 +212,25 @@ const makeRegistration = <Definition extends NamedCoreDefinition>(
     definition,
     sequence,
     duplicate: true,
-    retained: existing.definition
+    retained: existing.definition,
   };
 };
 
 /** Creates a mutable Core Definition Registry Adapter with duplicate tracking. */
 export const makeCoreDefinitionRegistryAdapter = <
   ActionDefinition extends NamedCoreDefinition = NamedCoreDefinition,
-  ServerFunctionDefinition extends NamedCoreDefinition = NamedCoreDefinition
+  ServerFunctionDefinition extends NamedCoreDefinition = NamedCoreDefinition,
 >(
-  options: CoreDefinitionRegistryAdapterOptions = {}
+  options: CoreDefinitionRegistryAdapterOptions = {},
 ): CoreDefinitionRegistryAdapter<ActionDefinition, ServerFunctionDefinition> => {
   const duplicatePolicy = options.duplicates ?? "replace";
   const actions = new Map<string, ActionDefinition>();
   const actionEntries = new Map<string, CoreDefinitionRegistryEntry<ActionDefinition>>();
   const serverFunctions = new Map<string, ServerFunctionDefinition>();
-  const serverFunctionEntries = new Map<string, CoreDefinitionRegistryEntry<ServerFunctionDefinition>>();
+  const serverFunctionEntries = new Map<
+    string,
+    CoreDefinitionRegistryEntry<ServerFunctionDefinition>
+  >();
   const duplicates: Array<CoreDefinitionDuplicateDiagnostics> = [];
   let nextSequenceValue = 1;
   const nextSequence = (): number => nextSequenceValue++;
@@ -237,7 +244,7 @@ export const makeCoreDefinitionRegistryAdapter = <
         duplicates,
         duplicatePolicy,
         nextSequence,
-        definition
+        definition,
       ),
     registerServerFunction: (definition) =>
       makeRegistration(
@@ -247,22 +254,23 @@ export const makeCoreDefinitionRegistryAdapter = <
         duplicates,
         duplicatePolicy,
         nextSequence,
-        definition
+        definition,
       ),
     definitions: () => ({
       actions,
-      serverFunctions
+      serverFunctions,
     }),
     diagnostics: () => ({
       actions: sortedNames(actions),
       serverFunctions: sortedNames(serverFunctions),
       duplicates: duplicates
         .slice()
-        .sort((left, right) =>
-          left.kind.localeCompare(right.kind) ||
-          left.name.localeCompare(right.name) ||
-          left.discarded - right.discarded
-        )
+        .sort(
+          (left, right) =>
+            left.kind.localeCompare(right.kind) ||
+            left.name.localeCompare(right.name) ||
+            left.discarded - right.discarded,
+        ),
     }),
     clearActionsUnsafe: () => {
       actions.clear();
@@ -281,7 +289,7 @@ export const makeCoreDefinitionRegistryAdapter = <
           duplicates.splice(index, 1);
         }
       }
-    }
+    },
   };
 };
 
@@ -294,22 +302,20 @@ export const snapshotCoreDefinitionRegistry = (): CoreDefinitionRegistry =>
 
 /** Registers an Action definition in the process-wide registry. */
 export const registerActionDefinition = <Definition extends NamedCoreDefinition>(
-  definition: Definition
+  definition: Definition,
 ): void => {
   defaultCoreDefinitionRegistry.registerAction(definition);
 };
 
 /** Process-wide Action definitions keyed by action name. */
 export const actionDefinitionRegistry = <
-  Definition extends NamedCoreDefinition = NamedCoreDefinition
+  Definition extends NamedCoreDefinition = NamedCoreDefinition,
 >(): ReadonlyMap<string, Definition> =>
   defaultCoreDefinitionRegistry.definitions().actions as ReadonlyMap<string, Definition>;
 
 /** Looks up a process-wide Action definition by action name. */
-export const getActionDefinition = <
-  Definition extends NamedCoreDefinition = NamedCoreDefinition
->(
-  name: string
+export const getActionDefinition = <Definition extends NamedCoreDefinition = NamedCoreDefinition>(
+  name: string,
 ): Definition | undefined =>
   defaultCoreDefinitionRegistry.definitions().actions.get(name) as Definition | undefined;
 
@@ -325,22 +331,22 @@ export const clearActionDefinitionRegistryUnsafe = (): void => {
 
 /** Registers a Server function definition in the process-wide registry. */
 export const registerServerFunctionDefinition = <Definition extends NamedCoreDefinition>(
-  definition: Definition
+  definition: Definition,
 ): void => {
   defaultCoreDefinitionRegistry.registerServerFunction(definition);
 };
 
 /** Process-wide Server function definitions keyed by function name. */
 export const serverFunctionDefinitionRegistry = <
-  Definition extends NamedCoreDefinition = NamedCoreDefinition
+  Definition extends NamedCoreDefinition = NamedCoreDefinition,
 >(): ReadonlyMap<string, Definition> =>
   defaultCoreDefinitionRegistry.definitions().serverFunctions as ReadonlyMap<string, Definition>;
 
 /** Looks up a process-wide Server function definition by function name. */
 export const getServerFunctionDefinition = <
-  Definition extends NamedCoreDefinition = NamedCoreDefinition
+  Definition extends NamedCoreDefinition = NamedCoreDefinition,
 >(
-  name: string
+  name: string,
 ): Definition | undefined =>
   defaultCoreDefinitionRegistry.definitions().serverFunctions.get(name) as Definition | undefined;
 

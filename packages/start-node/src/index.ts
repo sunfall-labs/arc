@@ -38,5 +38,5 @@ export {
   /** Options for resolving Node request origins. */
   type StartNodeRequestOptions,
   /** Options for writing HEAD responses. */
-  type WriteNodeResponseOptions
+  type WriteNodeResponseOptions,
 } from "@effect-ui/start/node-adapter";

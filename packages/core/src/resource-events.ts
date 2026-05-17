@@ -1,28 +1,31 @@
 import { Effect } from "effect";
 import type { ResourceInvalidationCause } from "./resource.js";
-import type { ResourceStore, ResourceStoreEvent, ResourceStoreInvalidationCause } from "./resource-store.js";
+import type {
+  ResourceStore,
+  ResourceStoreEvent,
+  ResourceStoreInvalidationCause,
+} from "./resource-store.js";
 
 export const publishResourceStoreEvent = (
   store: ResourceStore,
-  event: ResourceStoreEvent
-): Effect.Effect<void> =>
-  store.eventBus.publishEffect(event);
+  event: ResourceStoreEvent,
+): Effect.Effect<void> => store.eventBus.publishEffect(event);
 
 export const describeResourceStoreInvalidationCause = (
-  cause: ResourceInvalidationCause
+  cause: ResourceInvalidationCause,
 ): ResourceStoreInvalidationCause => {
   switch (cause._tag) {
     case "Ref":
       return {
         _tag: "Ref",
         key: cause.ref.key,
-        family: cause.ref.family.options.name
+        family: cause.ref.family.options.name,
       };
     case "Tag":
       return {
         _tag: "Tag",
         key: cause.tag.key,
-        name: cause.tag.name
+        name: cause.tag.name,
       };
   }
 };

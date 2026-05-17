@@ -5,12 +5,13 @@ import {
   type AnyEffectUiRuntime,
   type EffectUiRuntime,
   type RuntimeDisposeError,
-  type RuntimeSource
+  type RuntimeSource,
 } from "./runtime.js";
 
 /** Disposal observer accepted by framework Runtime Provider adapters. */
-export type RuntimeProviderDisposeObserver =
-  (error: RuntimeDisposeError) => EffectInput<void, unknown>;
+export type RuntimeProviderDisposeObserver = (
+  error: RuntimeDisposeError,
+) => EffectInput<void, unknown>;
 
 /** Input owned by runtime-provider lifecycle normalization. */
 export interface RuntimeProviderLifecycleOptions<RuntimeServices = never, ER = never> {
@@ -30,16 +31,16 @@ export interface RuntimeProviderLifecycleEntry<ER = never> {
 
 /** Normalizes host-owned, source-owned, and default Runtime Provider inputs. */
 export const makeRuntimeProviderLifecycleEntry = <RuntimeServices = never, ER = never>(
-  options: RuntimeProviderLifecycleOptions<RuntimeServices, ER> = {}
+  options: RuntimeProviderLifecycleOptions<RuntimeServices, ER> = {},
 ): RuntimeProviderLifecycleEntry<ER> =>
   options.runtime === undefined
     ? {
         runtime: makeRuntime(options.source) as AnyEffectUiRuntime<ER>,
-        ownsRuntime: true
+        ownsRuntime: true,
       }
     : {
         runtime: options.runtime as AnyEffectUiRuntime<ER>,
-        ownsRuntime: false
+        ownsRuntime: false,
       };
 
 /** Options for disposing a normalized Runtime Provider lifecycle entry. */
@@ -60,11 +61,9 @@ export interface DisposeRuntimeProviderLifecycleOptions {
  * unmount.
  */
 export const disposeRuntimeProviderLifecycleEntryEffect = <ER>(
-  entry: RuntimeProviderLifecycleEntry<ER>
+  entry: RuntimeProviderLifecycleEntry<ER>,
 ): Effect.Effect<void, RuntimeDisposeError> =>
-  entry.ownsRuntime
-    ? entry.runtime.disposeEffect
-    : Effect.void;
+  entry.ownsRuntime ? entry.runtime.disposeEffect : Effect.void;
 
 /**
  * Disposes provider-owned runtimes and reports failures through an EffectInput observer.
@@ -75,7 +74,7 @@ export const disposeRuntimeProviderLifecycleEntryEffect = <ER>(
  */
 export const disposeRuntimeProviderLifecycleEffect = <ER>(
   entry: RuntimeProviderLifecycleEntry<ER>,
-  options: DisposeRuntimeProviderLifecycleOptions
+  options: DisposeRuntimeProviderLifecycleOptions,
 ): Effect.Effect<void> =>
   disposeRuntimeProviderLifecycleEntryEffect(entry).pipe(
     Effect.catch((error) =>
@@ -83,7 +82,7 @@ export const disposeRuntimeProviderLifecycleEffect = <ER>(
         ? Effect.void
         : invokeEffectInput(options.observerOperation, options.onDisposeFailure, error).pipe(
             Effect.catchCause(() => Effect.void),
-            Effect.asVoid
-          )
-      )
+            Effect.asVoid,
+          ),
+    ),
   );

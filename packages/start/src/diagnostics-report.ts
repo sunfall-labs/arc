@@ -6,11 +6,11 @@ export {
   type StartDiagnosticsReportInput,
   type StartDiagnosticsReportOwnerGroup,
   type StartDiagnosticsReportStatus,
-  type StartDiagnosticsReportSummary
+  type StartDiagnosticsReportSummary,
 } from "./start-diagnostics-contract.js";
 import type {
   StartDiagnosticsReport,
-  StartDiagnosticsReportSummary
+  StartDiagnosticsReportSummary,
 } from "./start-diagnostics-contract.js";
 
 const summaryLines = (summary: StartDiagnosticsReportSummary): readonly string[] => [
@@ -25,7 +25,7 @@ const summaryLines = (summary: StartDiagnosticsReportSummary): readonly string[]
   `unknown route preload resources: ${summary.unknownRoutePreloadResources}`,
   `unknown route preload collections: ${summary.unknownRoutePreloadCollections}`,
   `policy violations: ${summary.policyViolations}`,
-  `findings: ${summary.findingCount}`
+  `findings: ${summary.findingCount}`,
 ];
 
 /**
@@ -34,13 +34,11 @@ const summaryLines = (summary: StartDiagnosticsReportSummary): readonly string[]
  * Output is grouped by owner and includes issue/edit/detail lines so agents can
  * turn the report into a concrete repair checklist.
  */
-export const formatStartDiagnosticsReport = (
-  report: StartDiagnosticsReport
-): string => {
+export const formatStartDiagnosticsReport = (report: StartDiagnosticsReport): string => {
   const lines = [
     "Effect UI Start Diagnostics Report",
     `status: ${report.status}`,
-    ...summaryLines(report.summary)
+    ...summaryLines(report.summary),
   ];
 
   if (report.findings.length === 0) {

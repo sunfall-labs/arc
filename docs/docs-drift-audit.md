@@ -3,10 +3,10 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review247, the latest full
+and `docs/perfection-progress.md`. As of Review490, the latest full
 `pnpm verify` gate is the Review240 run with 53 root test files / 1170 tests,
-the Effect-first audit covers 415 files, and the active Thirty-Sweep clean
-counter is 0/30 until a fresh post-Review247 sweep reports no actionable
+the focused Effect-first audit covers 445 physical and virtual files, and the active Thirty-Sweep clean
+counter is 0/30 until a fresh post-Review490 sweep reports no actionable
 findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -23,71 +23,71 @@ registry-local dispatch/structured identity/LSP drift, Review 60 stream
 lifetimes/store-local reactivity/identity depth, Review 61 registry
 requirements/invalidation typing/bounded serialization, Review 62 request
 locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
-    error/atomic hydration/request fact, Review 64 store-owned load/manifest
-    wall/hydration preflight/runtime fact, Review 65 runtime-clock/endpoint
-    policy/snapshot canonicalization/bounded panel, Review 66 Resource
-    key/action codec/row ingress/app graph depth, Review 67 snapshot
-    encoding/client transport/materialization/devtools scale, Review 68
-    preload resolution/runtime coordination/graph-depth, Review 69
-    adapter boundary/typed runtime error/public seam, Review 70 route
-    render scope/hydration laziness/reactive source/audit-depth, Review 71
-    router-kernel/static-graph/public-store/reactive-lifetime, Review 72
-    adapter lifetime/mutation finalization/manifest, Review 73 runtime
-    locality/shared adapter policy, Review 74 read decision/hydration plan,
-    Review 75 history adapter/runtime scope/transport envelope, Review 76
-    runtime collection store, Review 77 collection write commit, Review 78
-    live query collection materialization, and Review 79 collection query
-    source adapter, Review 80 request runtime lifecycle, Review 81 resource UI
-    binding controller, Review 82 start host runtime runner, Review 83 start
-    node web exchange, Review 84 query execution plan, Review 85 solid route
-    render scope controller, Review 86 public API type-test manifest, Review 87
-    react route render scope controller, Review 88 public API source surface
-    coverage gate, Review 89 collection value detachment, Review 90 collection
-    index materialization, Review 91 start diagnostics CLI runner, Review
-    92 start action response application, Review 93 collection change feed
-    runtime, Review 94 browser router host controller, Review 95 core action
-    execution workflow, Review 96 devtools public contract, Review 97 devtools
-    public type-test ownership, Review 98 core resource-store test effect
-    boundary, Review 99 devtools serialization policy contract edge, Review
-    100 start default fetch abort signal, Review 101 start transport body
-    reader, Review 102 start diagnostics vite server lifetime, and Review 103
-    db sqlite statement contract ownership, Review 104 db persisted options
-    ownership, Review 105 start client transport status policy, Review 106
-    core resource UI binding runtime locality, Review 107 start diagnostics
-    CLI shared flags, Review 108 start diagnostics CLI query argument, Review
-    109 start diagnostics CLI runtime dispatch, Review 110 start diagnostics
-    CLI parser compatibility, and Review 111 query execution ordering parity
-    sweeps, Review 112 core action workflow resource runtime locality, Review
-    113 start action request codec module extraction, Review 114 start
-    diagnostics CLI query kind subcommands, Review 115 start vite diagnostics
-    loader module extraction, Review 116 db collection sync load policy module
-    extraction, Review 117 browser route render decision module extraction,
-    Review 118 devtools fact identity index helper extraction, Review 119
-    devtools runtime seam collapse, and Review 120 start action response codec
-    module extraction, Review 121 db collection mutation workflow extraction,
-    Review 122 browser router link decision extraction, Review 123 start
-    diagnostics CLI contract extraction, Review 124 core program runtime
-    timeline extraction, Review 125 core program runtime coordinator
-    extraction, Review 126 core program runtime lifecycle hardening, Review
-    127 start agent graph formatter and impact extraction, Review 128 db query
-    context identity extraction, the Start/docs portion of the Review 129 graph
-    vocabulary, diagnostics DTO, and LSP docs sweep, and Review 130 db
-    store-explicit collection snapshot Interface extraction, and Review 131
-    public hover completion, and Review 132 start diagnostics policy Module and
-    regression hooks, Review 133 app graph public hover and CLI vocabulary
-    seams, Review 134 runtime diagnostics policy and audit drift closure,
-    Review 135 store-explicit hydrate apply and strict diagnostics DTOs,
-    Review 136 exact Effect audit and public inventory drift, Review 137
-    bidirectional public source surface audit, Review 138 Effect audit wording
-    exactness, Review 139 endpoint runner, query seams, and audit anchors, and
-    Review 140 router history projection and Program runtime scheduling,
-    Review 141 Project Console runtime store and starter manifest gate, Review
-    142 runtime locality and verification pin closure, Review 143 stale
-    StartAction invalidation and audit guardrails, Review 144 collection
-    locality and router type pins, and Review 145 starter copyability/runtime
-    guardrails, Review 150 public adapter hovers and package payload gates,
-    and Review 151 Core state presence, source package gates, and DB/Start
-    seams.
+error/atomic hydration/request fact, Review 64 store-owned load/manifest
+wall/hydration preflight/runtime fact, Review 65 runtime-clock/endpoint
+policy/snapshot canonicalization/bounded panel, Review 66 Resource
+key/action codec/row ingress/app graph depth, Review 67 snapshot
+encoding/client transport/materialization/devtools scale, Review 68
+preload resolution/runtime coordination/graph-depth, Review 69
+adapter boundary/typed runtime error/public seam, Review 70 route
+render scope/hydration laziness/reactive source/audit-depth, Review 71
+router-kernel/static-graph/public-store/reactive-lifetime, Review 72
+adapter lifetime/mutation finalization/manifest, Review 73 runtime
+locality/shared adapter policy, Review 74 read decision/hydration plan,
+Review 75 history adapter/runtime scope/transport envelope, Review 76
+runtime collection store, Review 77 collection write commit, Review 78
+live query collection materialization, and Review 79 collection query
+source adapter, Review 80 request runtime lifecycle, Review 81 resource UI
+binding controller, Review 82 start host runtime runner, Review 83 start
+node web exchange, Review 84 query execution plan, Review 85 solid route
+render scope controller, Review 86 public API type-test manifest, Review 87
+react route render scope controller, Review 88 public API source surface
+coverage gate, Review 89 collection value detachment, Review 90 collection
+index materialization, Review 91 start diagnostics CLI runner, Review
+92 start action response application, Review 93 collection change feed
+runtime, Review 94 browser router host controller, Review 95 core action
+execution workflow, Review 96 devtools public contract, Review 97 devtools
+public type-test ownership, Review 98 core resource-store test effect
+boundary, Review 99 devtools serialization policy contract edge, Review
+100 start default fetch abort signal, Review 101 start transport body
+reader, Review 102 start diagnostics vite server lifetime, and Review 103
+db sqlite statement contract ownership, Review 104 db persisted options
+ownership, Review 105 start client transport status policy, Review 106
+core resource UI binding runtime locality, Review 107 start diagnostics
+CLI shared flags, Review 108 start diagnostics CLI query argument, Review
+109 start diagnostics CLI runtime dispatch, Review 110 start diagnostics
+CLI parser compatibility, and Review 111 query execution ordering parity
+sweeps, Review 112 core action workflow resource runtime locality, Review
+113 start action request codec module extraction, Review 114 start
+diagnostics CLI query kind subcommands, Review 115 start vite diagnostics
+loader module extraction, Review 116 db collection sync load policy module
+extraction, Review 117 browser route render decision module extraction,
+Review 118 devtools fact identity index helper extraction, Review 119
+devtools runtime seam collapse, and Review 120 start action response codec
+module extraction, Review 121 db collection mutation workflow extraction,
+Review 122 browser router link decision extraction, Review 123 start
+diagnostics CLI contract extraction, Review 124 core program runtime
+timeline extraction, Review 125 core program runtime coordinator
+extraction, Review 126 core program runtime lifecycle hardening, Review
+127 start agent graph formatter and impact extraction, Review 128 db query
+context identity extraction, the Start/docs portion of the Review 129 graph
+vocabulary, diagnostics DTO, and LSP docs sweep, and Review 130 db
+store-explicit collection snapshot Interface extraction, and Review 131
+public hover completion, and Review 132 start diagnostics policy Module and
+regression hooks, Review 133 app graph public hover and CLI vocabulary
+seams, Review 134 runtime diagnostics policy and audit drift closure,
+Review 135 store-explicit hydrate apply and strict diagnostics DTOs,
+Review 136 exact Effect audit and public inventory drift, Review 137
+bidirectional public source surface audit, Review 138 Effect audit wording
+exactness, Review 139 endpoint runner, query seams, and audit anchors, and
+Review 140 router history projection and Program runtime scheduling,
+Review 141 Project Console runtime store and starter manifest gate, Review
+142 runtime locality and verification pin closure, Review 143 stale
+StartAction invalidation and audit guardrails, Review 144 collection
+locality and router type pins, and Review 145 starter copyability/runtime
+guardrails, Review 150 public adapter hovers and package payload gates,
+and Review 151 Core state presence, source package gates, and DB/Start
+seams.
 
 ## Current Sweep Results
 
@@ -114,6 +114,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Review208 refreshed stale package-hygiene current-gate wording and corrected
   the Solid `ResourceMatch` docs so match callbacks use plain values instead of
   accessor calls.
+- Public release metadata refreshed README, package hygiene, release notes,
+  public API, deployment, and progress docs so framework packages are described
+  as publishable MIT packages while root/example/starter manifests remain
+  private source fixtures.
 - Clean Sweep 1 after Review208 found no actionable docs or evidence drift
   after targeted current-gate, clean-counter, Review208 file-list, package
   hygiene, and Solid adapter example checks.
@@ -241,6 +245,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   ledgers after the post-Review246 sweep found UI scope capture timing, Action
   reset naming, DB namespace error ownership, and Start dev SSR public pin
   gaps.
+- Review490 Effect-First Lazy Route Components And Formatter-Tolerant Public
+  API Inventory refreshed current ledgers after the dirty-lane follow-up found
+  Core lazy route Promise-shaped Interfaces and formatter-sensitive public API
+  inventory parsing.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above
@@ -331,7 +339,7 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   README after adding the inspected-window bridge and the public
   `installDevtoolsBridgeEffect(...)` app-side helper.
 - Updated package hygiene, public API inventory, release notes, and the progress
-  ledger after adding private `UNLICENSED` metadata across workspace manifests.
+  ledger after adding MIT license metadata across workspace manifests.
 - Updated sharp-edge audits after removing remaining `as any`, raw throw
   sentinels, and low-friction Promise-method test helpers.
 - Updated release and verification tracking after tightening runtime helper
@@ -765,7 +773,7 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 
 - Drift search:
   - `rg -n "not committed yet|not committed|future inspected|sample-data shell|browser extension.*future|live inspected app transport|remaining|Remaining|still open|future work|TODO|FIXME|Promise-first|315 tests|316 tests|319 tests" docs README.md examples -g '*.md'`
-  - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(|non-Effect|raw Error|TypeError|runtime-disposed marker|stream close paths|response stream-close|UNLICENSED|__EFFECT_UI_DEVTOOLS__" docs README.md examples -g '*.md'`
+  - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(|non-Effect|raw Error|TypeError|runtime-disposed marker|stream close paths|response stream-close|__EFFECT_UI_DEVTOOLS__" docs README.md examples -g '*.md'`
 - Updated files:
   - `README.md`
   - `docs/ultimate-goal-checklist.md`

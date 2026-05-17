@@ -47,14 +47,14 @@ request id when the same trace is observed twice.
 Every store read/write has an Effect form:
 
 ```ts
-const store = makeDevtoolsStore()
+const store = makeDevtoolsStore();
 
-yield* store.recordResourceEventEffect(event)
-yield* store.recordRequestTraceEffect(trace)
-const snapshot = yield* store.getSnapshotEffect()
-const summary = yield* store.getSummaryEffect()
-const graph = yield* store.getCausalGraphEffect()
-const panels = yield* store.getPanelsEffect()
+yield * store.recordResourceEventEffect(event);
+yield * store.recordRequestTraceEffect(trace);
+const snapshot = yield * store.getSnapshotEffect();
+const summary = yield * store.getSummaryEffect();
+const graph = yield * store.getCausalGraphEffect();
+const panels = yield * store.getPanelsEffect();
 ```
 
 Actions can be observed directly from their public instance. The observer is
@@ -62,7 +62,7 @@ scoped, records action state transitions as runtime events, and links successful
 states to the action's invalidation plan when one exists:
 
 ```ts
-yield* store.trackActionEffect(renameAction)
+yield * store.trackActionEffect(renameAction);
 ```
 
 Full-stack Start actions expose the same causal shape as serialized JSON
@@ -70,17 +70,18 @@ metadata. Adapters can record that metadata without importing Start into
 devtools:
 
 ```ts
-yield* store.recordActionStateEffect("Project.rename", "Success", {
-  input: { id: "atlas" },
-  serializedInvalidationPlan: startAction.invalidation.get()
-})
+yield *
+  store.recordActionStateEffect("Project.rename", "Success", {
+    input: { id: "atlas" },
+    serializedInvalidationPlan: startAction.invalidation.get(),
+  });
 ```
 
 For the common case, Start-shaped action instances are observable directly. The
 type is structural, so devtools stays independent of the full-stack package:
 
 ```ts
-yield* store.trackStartActionEffect(renameStartAction)
+yield * store.trackStartActionEffect(renameStartAction);
 ```
 
 Programs are observed from the public Program instance, not from private queues
@@ -89,7 +90,7 @@ each event through the bounded serialization and redaction policy before
 summaries, panels, bridges, or causal graphs inspect it:
 
 ```ts
-yield* store.trackProgramEffect(projectProgram)
+yield * store.trackProgramEffect(projectProgram);
 ```
 
 The default policy redacts common secret-shaped keys such as passwords, tokens,
@@ -99,9 +100,9 @@ application-specific keys at the store boundary:
 ```ts
 const store = makeDevtoolsStore({
   serializationPolicy: {
-    redactKeys: ["tenantSecret", /private/i]
-  }
-})
+    redactKeys: ["tenantSecret", /private/i],
+  },
+});
 ```
 
 Start request handlers can emit a structurally compatible request trace without
@@ -109,8 +110,8 @@ making `@effect-ui/start` depend on `@effect-ui/devtools`:
 
 ```ts
 const handler = createRequestHandler(app, {
-  onRequestTrace: (trace) => store.recordRequestTraceEffect(trace)
-})
+  onRequestTrace: (trace) => store.recordRequestTraceEffect(trace),
+});
 ```
 
 The plain methods remain for host adapters, but framework internals and tests
@@ -316,10 +317,10 @@ for a browser-embedded panel, documentation preview, or app shell:
 
 ```ts
 const html = renderDevtoolsPanelsHtml({
-  panels: yield* store.getPanelsEffect(),
+  panels: yield * store.getPanelsEffect(),
   selectedPanelId: "requests",
-  maxItemsPerPanel: 12
-})
+  maxItemsPerPanel: 12,
+});
 ```
 
 The renderer is dependency-light and escapes all panel text/data before writing
@@ -329,10 +330,11 @@ tests, and agent tools can rely on stable row identity. Browser hosts that want
 lifecycle ownership can mount the same contract through Effect:
 
 ```ts
-yield* mountDevtoolsPanelsEffect({
-  root: document.getElementById("effect-ui-devtools")!,
-  panels: yield* store.getPanelsEffect()
-})
+yield *
+  mountDevtoolsPanelsEffect({
+    root: document.getElementById("effect-ui-devtools")!,
+    panels: yield * store.getPanelsEffect(),
+  });
 ```
 
 The scoped mount clears the root and removes tab listeners when the Effect scope
@@ -343,11 +345,12 @@ Apps that want browser extensions to read the same panel payload can expose an
 inspected-window bridge through the devtools package:
 
 ```ts
-yield* installDevtoolsBridgeEffect(() => ({
-  panels: store.getPanels(),
-  selectedPanelId: "requests",
-  title: "Effect UI Devtools"
-}))
+yield *
+  installDevtoolsBridgeEffect(() => ({
+    panels: store.getPanels(),
+    selectedPanelId: "requests",
+    title: "Effect UI Devtools",
+  }));
 ```
 
 The scoped bridge restores any previous `globalThis.__EFFECT_UI_DEVTOOLS__`

@@ -1,13 +1,23 @@
 import { Context, Deferred, Effect, Exit, Fiber, Layer, Schedule } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { Action, EffectInputCallbackError, EffectInputPromiseRejected, makeActionSubmissionController, makeRuntime, read, Resource, runWithRuntime, Signal } from "../src/index.js";
+import {
+  Action,
+  EffectInputCallbackError,
+  EffectInputPromiseRejected,
+  makeActionSubmissionController,
+  makeRuntime,
+  read,
+  Resource,
+  runWithRuntime,
+  Signal,
+} from "../src/index.js";
 import { makeActionOptimisticTransactionRuntime } from "../src/action-optimistic.js";
 
 describe("Action", () => {
   it("tracks status transitions", async () => {
     const Rename = Action.define({
       name: "rename",
-      run: (name: string) => Effect.sleep("1 millis").pipe(Effect.as({ name }))
+      run: (name: string) => Effect.sleep("1 millis").pipe(Effect.as({ name })),
     });
     const action = Action.use(Rename);
 
@@ -18,23 +28,23 @@ describe("Action", () => {
 
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
-      value: { name: "Ada" }
+      value: { name: "Ada" },
     });
   });
 
   it("exposes native Effect submission", async () => {
     const Rename = Action.define({
       name: "rename.effect",
-      run: (name: string) => Effect.succeed({ name })
+      run: (name: string) => Effect.succeed({ name }),
     });
     const action = Action.use(Rename);
 
     await expect(Effect.runPromise(action.submitEffect("Grace"))).resolves.toEqual({
-      name: "Grace"
+      name: "Grace",
     });
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
-      value: { name: "Grace" }
+      value: { name: "Grace" },
     });
   });
 
@@ -42,7 +52,7 @@ describe("Action", () => {
     const domainEffect = Effect.succeed(42);
     const BuildComputation = Action.define<void, Effect.Effect<number>>({
       name: "computation.effect-valued",
-      run: () => Effect.succeed(domainEffect)
+      run: () => Effect.succeed(domainEffect),
     });
     const action = Action.use(BuildComputation);
 
@@ -63,21 +73,21 @@ describe("Action", () => {
               ? Deferred.await(release)
               : mode === "fail"
                 ? Effect.fail("failed" as const)
-                : Effect.void
+                : Effect.void,
         });
         const action = Action.use(Complete);
 
         yield* action.submitEffect("success");
 
-        const pendingFiber = yield* action.submitEffect("wait").pipe(
-          Effect.forkChild({ startImmediately: true })
-        );
+        const pendingFiber = yield* action
+          .submitEffect("wait")
+          .pipe(Effect.forkChild({ startImmediately: true }));
         yield* Effect.sync(() => {
           expect(action.state.get()).toEqual({
             _tag: "Pending",
             input: "wait",
             previous: undefined,
-            hasPrevious: true
+            hasPrevious: true,
           });
         });
         yield* Deferred.succeed(release, undefined);
@@ -91,10 +101,10 @@ describe("Action", () => {
             input: "fail",
             error: "failed",
             previous: undefined,
-            hasPrevious: true
+            hasPrevious: true,
           });
         });
-      })
+      }),
     ));
 
   it("captures synchronous run throws in the Effect error channel", async () => {
@@ -102,7 +112,7 @@ describe("Action", () => {
       name: "rename.sync-throw",
       run: () => {
         throw new Error("rename failed");
-      }
+      },
     });
     const action = Action.use(Rename);
 
@@ -114,7 +124,7 @@ describe("Action", () => {
       expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
       expect(action.state.get()).toMatchObject({
         _tag: "Failure",
-        input: "Ada"
+        input: "Ada",
       });
     }
   });
@@ -122,7 +132,7 @@ describe("Action", () => {
   it("captures erased Promise-shaped run returns as failures instead of leaving pending state", async () => {
     const Rename = Action.define<string, string>({
       name: "rename.promise-erased",
-      run: () => Promise.resolve("Ada") as never
+      run: () => Promise.resolve("Ada") as never,
     });
     const action = Action.use(Rename);
 
@@ -134,11 +144,11 @@ describe("Action", () => {
       expect(failure?.error).toMatchObject({
         _tag: "EffectInputCallbackError",
         operation: "Action.run(rename.promise-erased)",
-        cause: expect.any(EffectInputPromiseRejected)
+        cause: expect.any(EffectInputPromiseRejected),
       });
       expect(action.state.get()).toMatchObject({
         _tag: "Failure",
-        input: "Ada"
+        input: "Ada",
       });
     }
   });
@@ -150,7 +160,7 @@ describe("Action", () => {
       optimistic: () => {
         throw cause;
       },
-      run: (name) => Effect.succeed(name)
+      run: (name) => Effect.succeed(name),
     });
     const action = Action.use(Rename);
 
@@ -160,10 +170,10 @@ describe("Action", () => {
     if (exit._tag === "Failure") {
       const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
       expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
-      expect((failure?.error as EffectInputCallbackError).cause).toBe(cause);
+      expect((failure!.error as EffectInputCallbackError).cause).toBe(cause);
       expect(action.state.get()).toMatchObject({
         _tag: "Failure",
-        input: "Ada"
+        input: "Ada",
       });
     }
   });
@@ -172,7 +182,7 @@ describe("Action", () => {
     const Rename = Action.define<string, string>({
       name: "rename.optimistic-promise-erased",
       optimistic: () => Promise.resolve(Effect.void) as never,
-      run: (name) => Effect.succeed(name)
+      run: (name) => Effect.succeed(name),
     });
     const action = Action.use(Rename);
 
@@ -184,11 +194,11 @@ describe("Action", () => {
       expect(failure?.error).toMatchObject({
         _tag: "EffectInputCallbackError",
         operation: "Action.optimistic(rename.optimistic-promise-erased)",
-        cause: expect.any(EffectInputPromiseRejected)
+        cause: expect.any(EffectInputPromiseRejected),
       });
       expect(action.state.get()).toMatchObject({
         _tag: "Failure",
-        input: "Ada"
+        input: "Ada",
       });
     }
   });
@@ -205,7 +215,7 @@ describe("Action", () => {
           });
           return Effect.void;
         }),
-      run: (name) => Effect.succeed(name)
+      run: (name) => Effect.succeed(name),
     });
     const action = Action.use(Rename);
 
@@ -217,12 +227,12 @@ describe("Action", () => {
       expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
       expect(failure?.error).toMatchObject({
         operation: "Action.optimistic(rename.optimistic-signal-sync-throw).signal",
-        cause
+        cause,
       });
       expect(read(title)).toBe("Draft");
       expect(action.state.get()).toMatchObject({
         _tag: "Failure",
-        input: "Ada"
+        input: "Ada",
       });
     }
   });
@@ -236,7 +246,7 @@ describe("Action", () => {
           yield* transaction.signal(title, Promise.resolve("Ada") as never);
           return Effect.void;
         }),
-      run: (name) => Effect.succeed(name)
+      run: (name) => Effect.succeed(name),
     });
     const action = Action.use(Rename);
 
@@ -248,12 +258,12 @@ describe("Action", () => {
       expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
       expect(failure?.error).toMatchObject({
         operation: "Action.optimistic(rename.optimistic-signal-promise-value).signal",
-        cause: expect.any(EffectInputPromiseRejected)
+        cause: expect.any(EffectInputPromiseRejected),
       });
       expect(read(title)).toBe("Draft");
       expect(action.state.get()).toMatchObject({
         _tag: "Failure",
-        input: "Ada"
+        input: "Ada",
       });
     }
   });
@@ -267,7 +277,7 @@ describe("Action", () => {
           yield* transaction.signal(title, () => Promise.resolve("Ada") as never);
           return Effect.void;
         }),
-      run: (name) => Effect.succeed(name)
+      run: (name) => Effect.succeed(name),
     });
     const action = Action.use(Rename);
 
@@ -279,12 +289,12 @@ describe("Action", () => {
       expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
       expect(failure?.error).toMatchObject({
         operation: "Action.optimistic(rename.optimistic-signal-promise-updater).signal",
-        cause: expect.any(EffectInputPromiseRejected)
+        cause: expect.any(EffectInputPromiseRejected),
       });
       expect(read(title)).toBe("Draft");
       expect(action.state.get()).toMatchObject({
         _tag: "Failure",
-        input: "Ada"
+        input: "Ada",
       });
     }
   });
@@ -317,11 +327,11 @@ describe("Action", () => {
           expect(failure).toBeInstanceOf(EffectInputCallbackError);
           expect(failure).toMatchObject({
             operation: "Action.optimistic(rename.optimistic-rebase).signal",
-            cause
+            cause,
           });
           expect(read(title)).toBe("First:Second");
         });
-      })
+      }),
     ));
 
   it("keeps optimistic transaction finish atomic across multiple signals", () =>
@@ -360,12 +370,12 @@ describe("Action", () => {
           expect(failure).toBeInstanceOf(EffectInputCallbackError);
           expect(failure).toMatchObject({
             operation: "Action.optimistic(rename.optimistic-atomic).signal",
-            cause
+            cause,
           });
           expect(read(left)).toBe("left:base:second");
           expect(read(right)).toBe("right:base:second");
         });
-      })
+      }),
     ));
 
   it("captures synchronous invalidation callback throws in the Effect error channel", async () => {
@@ -375,7 +385,7 @@ describe("Action", () => {
       run: (name) => Effect.succeed(name),
       invalidates: () => {
         throw cause;
-      }
+      },
     });
     const action = Action.use(Rename);
 
@@ -385,10 +395,10 @@ describe("Action", () => {
     if (exit._tag === "Failure") {
       const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
       expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
-      expect((failure?.error as EffectInputCallbackError).cause).toBe(cause);
+      expect((failure!.error as EffectInputCallbackError).cause).toBe(cause);
       expect(action.state.get()).toMatchObject({
         _tag: "Failure",
-        input: "Ada"
+        input: "Ada",
       });
     }
   });
@@ -397,7 +407,7 @@ describe("Action", () => {
     const Rename = Action.define<string, string>({
       name: "rename.invalidates-promise-erased",
       run: (name) => Effect.succeed(name),
-      invalidates: () => Promise.resolve([]) as never
+      invalidates: () => Promise.resolve([]) as never,
     });
     const action = Action.use(Rename);
 
@@ -409,11 +419,11 @@ describe("Action", () => {
       expect(failure?.error).toMatchObject({
         _tag: "EffectInputCallbackError",
         operation: "Action.invalidates(rename.invalidates-promise-erased)",
-        cause: expect.any(EffectInputPromiseRejected)
+        cause: expect.any(EffectInputPromiseRejected),
       });
       expect(action.state.get()).toMatchObject({
         _tag: "Failure",
-        input: "Ada"
+        input: "Ada",
       });
     }
   });
@@ -425,7 +435,7 @@ describe("Action", () => {
       run: (name) => Effect.succeed(name),
       invalidates: () => {
         throw cause;
-      }
+      },
     });
 
     expect(() => Action.planInvalidation(Rename, "Ada", "Ada")).toThrow(EffectInputCallbackError);
@@ -436,7 +446,7 @@ describe("Action", () => {
       expect(error).toMatchObject({
         _tag: "EffectInputCallbackError",
         operation: "Action.invalidates(rename.invalidates-sync-plan-throw)",
-        cause
+        cause,
       });
     }
   });
@@ -445,7 +455,7 @@ describe("Action", () => {
     const Rename = Action.define<string, string>({
       name: "rename.invalidates-promise-plan-erased",
       run: (name) => Effect.succeed(name),
-      invalidates: () => Promise.resolve([]) as never
+      invalidates: () => Promise.resolve([]) as never,
     });
 
     expect(() => Action.planInvalidation(Rename, "Ada", "Ada")).toThrow(EffectInputCallbackError);
@@ -456,7 +466,7 @@ describe("Action", () => {
       expect(error).toMatchObject({
         _tag: "EffectInputCallbackError",
         operation: "Action.invalidates(rename.invalidates-promise-plan-erased)",
-        cause: expect.any(EffectInputPromiseRejected)
+        cause: expect.any(EffectInputPromiseRejected),
       });
     }
   });
@@ -464,13 +474,13 @@ describe("Action", () => {
   it("captures erased Promise-shaped invalidation entries in the Effect error channel", async () => {
     const Project = Resource.family({
       name: "Project.invalidates-entry-promise",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const ref = Project("atlas");
     const Rename = Action.define<string, string>({
       name: "rename.invalidates-entry-promise",
       run: (name) => Effect.succeed(name),
-      invalidates: () => [Promise.resolve(ref) as never]
+      invalidates: () => [Promise.resolve(ref) as never],
     });
     const action = Action.use(Rename);
 
@@ -482,11 +492,11 @@ describe("Action", () => {
       expect(failure?.error).toMatchObject({
         _tag: "EffectInputCallbackError",
         operation: "Action.invalidates(rename.invalidates-entry-promise)[0]",
-        cause: expect.any(EffectInputPromiseRejected)
+        cause: expect.any(EffectInputPromiseRejected),
       });
       expect(action.state.get()).toMatchObject({
         _tag: "Failure",
-        input: "Ada"
+        input: "Ada",
       });
     }
   });
@@ -494,12 +504,12 @@ describe("Action", () => {
   it("captures erased Effect-shaped invalidation entries from sync planning", () => {
     const Project = Resource.family({
       name: "Project.invalidates-entry-effect",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const Rename = Action.define<string, string>({
       name: "rename.invalidates-entry-effect",
       run: (name) => Effect.succeed(name),
-      invalidates: () => [Effect.succeed(Project("atlas")) as never]
+      invalidates: () => [Effect.succeed(Project("atlas")) as never],
     });
 
     expect(() => Action.planInvalidation(Rename, "Ada", "Ada")).toThrow(EffectInputCallbackError);
@@ -510,7 +520,7 @@ describe("Action", () => {
       expect(error).toMatchObject({
         _tag: "EffectInputCallbackError",
         operation: "Action.invalidates(rename.invalidates-entry-effect)[0]",
-        cause: expect.any(TypeError)
+        cause: expect.any(TypeError),
       });
     }
   });
@@ -520,18 +530,19 @@ describe("Action", () => {
     const load = vi.fn(() => Effect.succeed(value));
     const Count = Resource.family({
       name: "Count.invalidate",
-      load
+      load,
     });
     const ref = Count(undefined);
     await Effect.runPromise(Resource.prefetchEffect(ref));
 
     const Increment = Action.define({
       name: "increment",
-      run: () => Effect.sync(() => {
-        value++;
-        return value;
-      }),
-      invalidates: () => [ref]
+      run: () =>
+        Effect.sync(() => {
+          value++;
+          return value;
+        }),
+      invalidates: () => [ref],
     });
 
     await Effect.runPromise(Action.use(Increment).submitEffect(undefined));
@@ -547,18 +558,19 @@ describe("Action", () => {
     const Count = Resource.family({
       name: "Count.invalidate-tag",
       load,
-      provides: () => [CountTag]
+      provides: () => [CountTag],
     });
     const ref = Count(undefined);
     await Effect.runPromise(Resource.prefetchEffect(ref));
 
     const Increment = Action.define({
       name: "increment.tag",
-      run: () => Effect.sync(() => {
-        value++;
-        return value;
-      }),
-      invalidates: () => [CountTag]
+      run: () =>
+        Effect.sync(() => {
+          value++;
+          return value;
+        }),
+      invalidates: () => [CountTag],
     });
 
     await Effect.runPromise(Action.use(Increment).submitEffect(undefined));
@@ -573,7 +585,7 @@ describe("Action", () => {
     const load = vi.fn(() => Effect.succeed(value));
     const Count = Resource.family({
       name: "Count.runtime-action",
-      load
+      load,
     });
     const ref = Count(undefined);
 
@@ -582,14 +594,17 @@ describe("Action", () => {
 
       const Increment = Action.define({
         name: "increment.runtime-action",
-        run: () => Effect.sync(() => {
-          value++;
-          return value;
-        }),
-        invalidates: () => [ref]
+        run: () =>
+          Effect.sync(() => {
+            value++;
+            return value;
+          }),
+        invalidates: () => [ref],
       });
 
-      await Effect.runPromise(runtime.provide(Action.use(Increment, { runtime }).submitEffect(undefined)));
+      await Effect.runPromise(
+        runtime.provide(Action.use(Increment, { runtime }).submitEffect(undefined)),
+      );
 
       expect(runWithRuntime(runtime, () => read(ref))).toBe(1);
       expect(load).toHaveBeenCalledTimes(2);
@@ -609,8 +624,8 @@ describe("Action", () => {
     const CallerApi = Context.Service<CallerApi>("@effect-ui/core/test/ActionCallerApi");
     const runtime = makeRuntime(
       Layer.succeed(RuntimeApi)({
-        prefix: "runtime"
-      })
+        prefix: "runtime",
+      }),
     );
     const Join = Action.define<void, string, never, RuntimeApi | CallerApi>({
       name: "join.runtime-bound.remaining-service",
@@ -619,15 +634,13 @@ describe("Action", () => {
           const runtimeApi = yield* RuntimeApi;
           const callerApi = yield* CallerApi;
           return `${runtimeApi.prefix}:${callerApi.suffix}`;
-        })
+        }),
     });
 
     try {
       const action = Action.use(Join, { runtime });
       const value = await Effect.runPromise(
-        action.submitEffect(undefined).pipe(
-          Effect.provideService(CallerApi, { suffix: "caller" })
-        )
+        action.submitEffect(undefined).pipe(Effect.provideService(CallerApi, { suffix: "caller" })),
       );
 
       expect(value).toBe("runtime:caller");
@@ -640,14 +653,16 @@ describe("Action", () => {
     const runtime = makeRuntime(Layer.effectDiscard(Effect.fail("runtime unavailable")));
     const Save = Action.define<void, string>({
       name: "save.runtime-reset-local",
-      run: () => Effect.succeed("saved")
+      run: () => Effect.succeed("saved"),
     });
     const action = Action.use(Save, { runtime });
 
     try {
       await expect(Effect.runPromise(action.resetEffect())).resolves.toBeUndefined();
       expect(() => action.reset()).not.toThrow();
-      await expect(Effect.runPromise(Effect.flip(action.submitEffect(undefined)))).resolves.toBe("runtime unavailable");
+      await expect(Effect.runPromise(Effect.flip(action.submitEffect(undefined)))).resolves.toBe(
+        "runtime unavailable",
+      );
     } finally {
       await Effect.runPromise(Effect.ignore(runtime.disposeEffect));
     }
@@ -657,14 +672,14 @@ describe("Action", () => {
     const runtime = makeRuntime();
     const Save = Action.define<void, string>({
       name: "save.runtime-reset-disposed",
-      run: () => Effect.succeed("saved")
+      run: () => Effect.succeed("saved"),
     });
     const action = Action.use(Save, { runtime });
 
     await Effect.runPromise(action.submitEffect(undefined));
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
-      value: "saved"
+      value: "saved",
     });
 
     await Effect.runPromise(runtime.disposeEffect);
@@ -685,7 +700,7 @@ describe("Action", () => {
       ...baseRuntime,
       runFork: <A, E, R>(
         effect: Effect.Effect<A, E, R>,
-        options?: Effect.RunOptions
+        options?: Effect.RunOptions,
       ): Fiber.Fiber<A, E> => {
         if (queueNextReset) {
           queueNextReset = false;
@@ -693,7 +708,7 @@ describe("Action", () => {
           return baseRuntime.runFork(Effect.never as Effect.Effect<A, E, never>, options);
         }
         return baseRuntime.runFork(effect as Effect.Effect<A, E, never>, options);
-      }
+      },
     };
     const firstStarted = Effect.runSync(Deferred.make<void>());
     const firstInterrupted = Effect.runSync(Deferred.make<void>());
@@ -706,13 +721,13 @@ describe("Action", () => {
           ? Effect.gen(function* () {
               yield* Deferred.succeed(firstStarted, undefined);
               return yield* Effect.never.pipe(
-                Effect.onInterrupt(() => Deferred.succeed(firstInterrupted, undefined))
+                Effect.onInterrupt(() => Deferred.succeed(firstInterrupted, undefined)),
               );
             })
           : Effect.gen(function* () {
               yield* Deferred.succeed(secondStarted, undefined);
               return yield* Deferred.await(secondRelease).pipe(Effect.as(value));
-            })
+            }),
     });
     const action = Action.use(Save, { runtime });
 
@@ -721,7 +736,7 @@ describe("Action", () => {
       await Effect.runPromise(Deferred.await(firstStarted));
       expect(read(action.state)).toMatchObject({
         _tag: "Pending",
-        input: "first"
+        input: "first",
       });
 
       queueNextReset = true;
@@ -742,7 +757,7 @@ describe("Action", () => {
       expect(read(action.state)).toMatchObject({
         _tag: "Success",
         input: "second",
-        value: "second"
+        value: "second",
       });
     } finally {
       await Effect.runPromise(baseRuntime.disposeEffect);
@@ -751,14 +766,12 @@ describe("Action", () => {
 
   it("captureResetEffect resets eagerly and interrupts only captured submissions", async () => {
     const controller = makeActionSubmissionController<string, string, never>({
-      actionName: "capture-reset-low-level"
+      actionName: "capture-reset-low-level",
     });
     const firstInterrupted = Effect.runSync(Deferred.make<void>());
     const secondInterrupted = Effect.runSync(Deferred.make<void>());
     const firstFiber = Effect.runFork(
-      Effect.never.pipe(
-        Effect.onInterrupt(() => Deferred.succeed(firstInterrupted, undefined))
-      )
+      Effect.never.pipe(Effect.onInterrupt(() => Deferred.succeed(firstInterrupted, undefined))),
     );
     const firstSubmission = await Effect.runPromise(controller.beginEffect(firstFiber));
 
@@ -769,16 +782,14 @@ describe("Action", () => {
     await Effect.runPromise(controller.pendingEffect(firstSubmission, "first"));
     expect(read(controller.state)).toMatchObject({
       _tag: "Pending",
-      input: "first"
+      input: "first",
     });
 
     const cleanup = controller.captureResetEffect();
     expect(read(controller.state)).toEqual({ _tag: "Idle" });
 
     const secondFiber = Effect.runFork(
-      Effect.never.pipe(
-        Effect.onInterrupt(() => Deferred.succeed(secondInterrupted, undefined))
-      )
+      Effect.never.pipe(Effect.onInterrupt(() => Deferred.succeed(secondInterrupted, undefined))),
     );
     const secondSubmission = await Effect.runPromise(controller.beginEffect(secondFiber));
 
@@ -793,8 +804,8 @@ describe("Action", () => {
     const secondStatus = await Effect.runPromise(
       Effect.race(
         Deferred.await(secondInterrupted).pipe(Effect.as("interrupted" as const)),
-        Effect.sleep("10 millis").pipe(Effect.as("alive" as const))
-      )
+        Effect.sleep("10 millis").pipe(Effect.as("alive" as const)),
+      ),
     );
     expect(secondStatus).toBe("alive");
 
@@ -807,7 +818,7 @@ describe("Action", () => {
     const Count = Resource.family({
       name: "Count.action-plan",
       load: () => Effect.succeed(0),
-      provides: () => [CountTag]
+      provides: () => [CountTag],
     });
     const ref = Count(undefined);
     await Effect.runPromise(Resource.prefetchEffect(ref));
@@ -816,7 +827,7 @@ describe("Action", () => {
     const Increment = Action.define({
       name: "increment.plan",
       run: () => Effect.succeed(1),
-      invalidates: () => invalidationTargets
+      invalidates: () => invalidationTargets,
     });
     const action = Action.use(Increment);
 
@@ -829,28 +840,31 @@ describe("Action", () => {
     expect(plan?.entries.map((entry) => entry.ref.key)).toEqual([ref.key]);
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
-      invalidationPlan: plan
+      invalidationPlan: plan,
     });
-    expect(() => (plan?.targets as Resource.Invalidation[]).push(CountTag)).toThrow(TypeError);
+    expect(() => (plan!.targets as Resource.Invalidation[]).push(CountTag)).toThrow(TypeError);
   });
 
   it("keeps only the latest submission in state", async () => {
     const Finish = Action.define({
       name: "finish",
-      run: (value: string) => Effect.succeed(value)
+      run: (value: string) => Effect.succeed(value),
     });
     const action = Action.use(Finish);
 
     await Effect.runPromise(
-      Effect.all([
-        action.submitEffect("first").pipe(Effect.exit),
-        action.submitEffect("second").pipe(Effect.exit)
-      ], { concurrency: "unbounded" })
+      Effect.all(
+        [
+          action.submitEffect("first").pipe(Effect.exit),
+          action.submitEffect("second").pipe(Effect.exit),
+        ],
+        { concurrency: "unbounded" },
+      ),
     );
 
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
-      value: "second"
+      value: "second",
     });
   });
 
@@ -864,27 +878,27 @@ describe("Action", () => {
               Effect.never,
               Effect.sync(() => {
                 interrupted = true;
-              })
+              }),
             )
-          : Effect.succeed(value)
+          : Effect.succeed(value),
     });
     const action = Action.use(Finish);
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        const first = yield* action.submitEffect("first").pipe(
-          Effect.forkChild({ startImmediately: true })
-        );
+        const first = yield* action
+          .submitEffect("first")
+          .pipe(Effect.forkChild({ startImmediately: true }));
         yield* Effect.sleep("10 millis");
         yield* action.submitEffect("second");
         yield* Fiber.await(first);
-      })
+      }),
     );
 
     expect(interrupted).toBe(true);
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
-      value: "second"
+      value: "second",
     });
   });
 
@@ -898,9 +912,9 @@ describe("Action", () => {
               Effect.never,
               Effect.sync(() => {
                 interrupted = true;
-              })
+              }),
             )
-          : Effect.succeed(value)
+          : Effect.succeed(value),
     });
     const action = Action.use(Finish);
 
@@ -912,7 +926,7 @@ describe("Action", () => {
     expect(interrupted).toBe(true);
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
-      value: "second"
+      value: "second",
     });
   });
 
@@ -921,7 +935,7 @@ describe("Action", () => {
     const Finish = Action.define({
       name: "finish.retry",
       policy: {
-        retry: Schedule.recurs(2)
+        retry: Schedule.recurs(2),
       },
       run: () =>
         Effect.gen(function* () {
@@ -930,7 +944,7 @@ describe("Action", () => {
             return yield* Effect.fail("temporary");
           }
           return "done";
-        })
+        }),
     });
     const action = Action.use(Finish);
 
@@ -939,7 +953,7 @@ describe("Action", () => {
     expect(attempts).toBe(3);
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
-      value: "done"
+      value: "done",
     });
   });
 
@@ -952,7 +966,7 @@ describe("Action", () => {
           yield* transaction.signal(title, next);
           return Effect.void;
         }),
-      run: (next) => Effect.succeed(next)
+      run: (next) => Effect.succeed(next),
     });
     const action = Action.use(Rename);
 
@@ -962,7 +976,7 @@ describe("Action", () => {
     expect(read(title)).toBe("Published");
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
-      value: "Published"
+      value: "Published",
     });
   });
 
@@ -975,7 +989,7 @@ describe("Action", () => {
           yield* transaction.signal(selected, undefined);
           return Effect.void;
         }),
-      run: () => Effect.void
+      run: () => Effect.void,
     });
 
     await Effect.runPromise(Action.use(Clear).submitEffect(undefined));
@@ -990,7 +1004,7 @@ describe("Action", () => {
     const load = vi.fn(() => Effect.succeed(value));
     const Count = Resource.family({
       name: "Count.optimistic-commit-before-invalidation",
-      load
+      load,
     });
     const ref = Count(undefined);
     await Effect.runPromise(Resource.prefetchEffect(ref));
@@ -1013,12 +1027,14 @@ describe("Action", () => {
           shouldFailCommit = true;
           return value;
         }),
-      invalidates: () => [ref]
+      invalidates: () => [ref],
     });
 
-    await expect(Effect.runPromise(Action.use(Publish).submitEffect(undefined))).rejects.toMatchObject({
+    await expect(
+      Effect.runPromise(Action.use(Publish).submitEffect(undefined)),
+    ).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
-      operation: "Action.optimistic(publish.optimistic-commit-before-invalidation).signal"
+      operation: "Action.optimistic(publish.optimistic-commit-before-invalidation).signal",
     });
 
     expect(load).toHaveBeenCalledTimes(1);
@@ -1036,7 +1052,7 @@ describe("Action", () => {
           Signal.set(title, next);
           return Effect.sync(() => Signal.set(title, previous));
         }),
-      run: () => Effect.fail("boom")
+      run: () => Effect.fail("boom"),
     });
     const action = Action.use(Rename);
 
@@ -1046,7 +1062,7 @@ describe("Action", () => {
     expect(read(action.state)).toMatchObject({
       _tag: "Failure",
       error: "boom",
-      input: "Published"
+      input: "Published",
     });
   });
 
@@ -1063,7 +1079,7 @@ describe("Action", () => {
           }
           return Effect.void;
         }),
-      run: (next) => next === "Stale" ? Effect.never : Effect.succeed(next)
+      run: (next) => (next === "Stale" ? Effect.never : Effect.succeed(next)),
     });
     const action = Action.use(Rename);
 
@@ -1095,23 +1111,23 @@ describe("Action", () => {
           }
           return Effect.void;
         }),
-      run: (next) => Effect.succeed(next)
+      run: (next) => Effect.succeed(next),
     });
     const action = Action.use(Rename);
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const first = yield* action.submitEffect("Stale").pipe(
-          Effect.forkChild({ startImmediately: true })
-        );
+        const first = yield* action
+          .submitEffect("Stale")
+          .pipe(Effect.forkChild({ startImmediately: true }));
         yield* Deferred.await(firstOptimisticApplied);
         yield* Effect.sync(() => {
           expect(read(title)).toBe("Stale");
         });
 
-        const second = yield* action.submitEffect("Published").pipe(
-          Effect.forkChild({ startImmediately: true })
-        );
+        const second = yield* action
+          .submitEffect("Published")
+          .pipe(Effect.forkChild({ startImmediately: true }));
         const secondValue = yield* Fiber.join(second);
         yield* Fiber.await(first);
 
@@ -1120,10 +1136,10 @@ describe("Action", () => {
           expect(read(title)).toBe("Published");
           expect(read(action.state)).toMatchObject({
             _tag: "Success",
-            value: "Published"
+            value: "Published",
           });
         });
-      })
+      }),
     );
   });
 
@@ -1133,31 +1149,30 @@ describe("Action", () => {
     const Finish = Action.define({
       name: "finish.exhaust",
       policy: {
-        concurrency: "exhaust"
+        concurrency: "exhaust",
       },
       run: (value: string) =>
         Effect.gen(function* () {
           runs++;
           yield* Deferred.await(release);
           return value;
-        })
+        }),
     });
     const action = Action.use(Finish);
 
     const [first, second] = await Effect.runPromise(
       Effect.gen(function* () {
-        const first = yield* action.submitEffect("first").pipe(
-          Effect.forkChild({ startImmediately: true })
-        );
-        const second = yield* action.submitEffect("second").pipe(
-          Effect.forkChild({ startImmediately: true })
-        );
+        const first = yield* action
+          .submitEffect("first")
+          .pipe(Effect.forkChild({ startImmediately: true }));
+        const second = yield* action
+          .submitEffect("second")
+          .pipe(Effect.forkChild({ startImmediately: true }));
         yield* Deferred.succeed(release, undefined);
-        return yield* Effect.all([
-          Fiber.join(first),
-          Fiber.join(second)
-        ], { concurrency: "unbounded" });
-      })
+        return yield* Effect.all([Fiber.join(first), Fiber.join(second)], {
+          concurrency: "unbounded",
+        });
+      }),
     );
 
     expect(first).toBe("first");
@@ -1167,7 +1182,7 @@ describe("Action", () => {
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
       input: "first",
-      value: "first"
+      value: "first",
     });
   });
 
@@ -1177,14 +1192,14 @@ describe("Action", () => {
     const Finish = Action.define({
       name: "finish.effect-exhaust",
       policy: {
-        concurrency: "exhaust"
+        concurrency: "exhaust",
       },
       run: (value: string) =>
         Effect.gen(function* () {
           runs++;
           yield* Deferred.await(release);
           return value;
-        })
+        }),
     });
     const action = Action.use(Finish);
 
@@ -1199,7 +1214,7 @@ describe("Action", () => {
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
       input: "first",
-      value: "first"
+      value: "first",
     });
   });
 
@@ -1210,7 +1225,7 @@ describe("Action", () => {
     const Finish = Action.define({
       name: "finish.effect-exhaust-reset",
       policy: {
-        concurrency: "exhaust"
+        concurrency: "exhaust",
       },
       run: (value: string) =>
         Effect.gen(function* () {
@@ -1218,11 +1233,11 @@ describe("Action", () => {
           if (value === "first") {
             yield* Deferred.succeed(started, undefined);
             return yield* Effect.never.pipe(
-              Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))
+              Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined)),
             );
           }
           return value;
-        })
+        }),
     });
     const action = Action.use(Finish);
 
@@ -1238,7 +1253,7 @@ describe("Action", () => {
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
       input: "second",
-      value: "second"
+      value: "second",
     });
   });
 
@@ -1248,32 +1263,31 @@ describe("Action", () => {
     const Finish = Action.define({
       name: "finish.effect-event-exhaust",
       policy: {
-        concurrency: "exhaust"
+        concurrency: "exhaust",
       },
       run: (value: string) =>
         Effect.gen(function* () {
           runs++;
           yield* Deferred.await(release);
           return value;
-        })
+        }),
     });
     const action = Action.use(Finish);
 
     const [firstResult, secondResult] = await Effect.runPromise(
       Effect.gen(function* () {
-        const first = yield* action.submitEffect("first").pipe(
-          Effect.forkChild({ startImmediately: true })
-        );
+        const first = yield* action
+          .submitEffect("first")
+          .pipe(Effect.forkChild({ startImmediately: true }));
         yield* Effect.sleep("10 millis");
-        const second = yield* action.submitEffect("second").pipe(
-          Effect.forkChild({ startImmediately: true })
-        );
+        const second = yield* action
+          .submitEffect("second")
+          .pipe(Effect.forkChild({ startImmediately: true }));
         yield* Deferred.succeed(release, undefined);
-        return yield* Effect.all([
-          Fiber.join(first),
-          Fiber.join(second)
-        ], { concurrency: "unbounded" });
-      })
+        return yield* Effect.all([Fiber.join(first), Fiber.join(second)], {
+          concurrency: "unbounded",
+        });
+      }),
     );
 
     expect(firstResult).toBe("first");
@@ -1286,7 +1300,7 @@ describe("Action", () => {
     const Finish = Action.define({
       name: "finish.parallel",
       policy: {
-        concurrency: "parallel"
+        concurrency: "parallel",
       },
       run: (value: string) =>
         value === "first"
@@ -1294,27 +1308,25 @@ describe("Action", () => {
               Effect.sleep("20 millis").pipe(Effect.as(value)),
               Effect.sync(() => {
                 firstInterrupted = true;
-              })
+              }),
             )
-          : Effect.succeed(value)
+          : Effect.succeed(value),
     });
     const action = Action.use(Finish);
 
-    await expect(Effect.runPromise(
-      Effect.all([
-        action.submitEffect("first"),
-        action.submitEffect("second")
-      ], { concurrency: "unbounded" })
-    )).resolves.toEqual([
-      "first",
-      "second"
-    ]);
+    await expect(
+      Effect.runPromise(
+        Effect.all([action.submitEffect("first"), action.submitEffect("second")], {
+          concurrency: "unbounded",
+        }),
+      ),
+    ).resolves.toEqual(["first", "second"]);
 
     expect(firstInterrupted).toBe(false);
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
       input: "second",
-      value: "second"
+      value: "second",
     });
   });
 
@@ -1328,7 +1340,7 @@ describe("Action", () => {
     const Finish = Action.define<string, string>({
       name: "finish.parallel-reset",
       policy: {
-        concurrency: "parallel"
+        concurrency: "parallel",
       },
       run: (value) =>
         Effect.gen(function* () {
@@ -1336,11 +1348,11 @@ describe("Action", () => {
           return yield* Deferred.await(release).pipe(
             Effect.as(value),
             Effect.onInterrupt(() =>
-              Deferred.succeed(value === "first" ? firstInterrupted : secondInterrupted, undefined)
-            )
+              Deferred.succeed(value === "first" ? firstInterrupted : secondInterrupted, undefined),
+            ),
           );
         }),
-      invalidates
+      invalidates,
     });
     const action = Action.use(Finish);
 
@@ -1354,10 +1366,9 @@ describe("Action", () => {
     await Effect.runPromise(Deferred.await(secondInterrupted));
     await Effect.runPromise(Deferred.succeed(release, undefined));
 
-    const exits = await Effect.runPromise(Effect.all([
-      Fiber.await(first),
-      Fiber.await(second)
-    ], { concurrency: "unbounded" }));
+    const exits = await Effect.runPromise(
+      Effect.all([Fiber.await(first), Fiber.await(second)], { concurrency: "unbounded" }),
+    );
 
     expect(exits.every(Exit.isFailure)).toBe(true);
     expect(invalidates).not.toHaveBeenCalled();
@@ -1372,12 +1383,12 @@ describe("Action", () => {
     const First = Resource.family({
       name: "Action.parallel-plan.first",
       load: firstLoad,
-      provides: () => [FirstTag]
+      provides: () => [FirstTag],
     });
     const Second = Resource.family({
       name: "Action.parallel-plan.second",
       load: secondLoad,
-      provides: () => [SecondTag]
+      provides: () => [SecondTag],
     });
     const firstRef = First(undefined);
     const secondRef = Second(undefined);
@@ -1388,7 +1399,7 @@ describe("Action", () => {
     const Update = Action.define<string, string>({
       name: "update.parallel-plan",
       policy: {
-        concurrency: "parallel"
+        concurrency: "parallel",
       },
       run: (value) =>
         Effect.gen(function* () {
@@ -1401,7 +1412,7 @@ describe("Action", () => {
           }
           return value;
         }),
-      invalidates: (_value, input) => [input === "first" ? FirstTag : SecondTag]
+      invalidates: (_value, input) => [input === "first" ? FirstTag : SecondTag],
     });
     const action = Action.use(Update);
 
@@ -1410,13 +1421,13 @@ describe("Action", () => {
         yield* Resource.prefetchEffect(firstRef);
         yield* Resource.prefetchEffect(secondRef);
 
-        const first = yield* action.submitEffect("first").pipe(
-          Effect.forkChild({ startImmediately: true })
-        );
+        const first = yield* action
+          .submitEffect("first")
+          .pipe(Effect.forkChild({ startImmediately: true }));
         yield* Deferred.await(firstStarted);
-        const second = yield* action.submitEffect("second").pipe(
-          Effect.forkChild({ startImmediately: true })
-        );
+        const second = yield* action
+          .submitEffect("second")
+          .pipe(Effect.forkChild({ startImmediately: true }));
         yield* Deferred.await(secondStarted);
 
         yield* Deferred.succeed(secondRelease, undefined);
@@ -1437,10 +1448,10 @@ describe("Action", () => {
           expect(read(action.state)).toMatchObject({
             _tag: "Success",
             input: "second",
-            value: "second"
+            value: "second",
           });
         });
-      })
+      }),
     );
   });
 });

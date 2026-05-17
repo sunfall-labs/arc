@@ -11,22 +11,16 @@ interface FactTextState {
   truncated: boolean;
 }
 
-const appendFactTextPart = (
-  state: FactTextState,
-  part: string
-): void => {
+const appendFactTextPart = (state: FactTextState, part: string): void => {
   if (state.length >= maxFactTextLength) {
     state.truncated = true;
     return;
   }
 
-  const boundedPart = part.length > maxFactTextPartLength
-    ? part.slice(0, maxFactTextPartLength)
-    : part;
+  const boundedPart =
+    part.length > maxFactTextPartLength ? part.slice(0, maxFactTextPartLength) : part;
   const remaining = maxFactTextLength - state.length;
-  const text = boundedPart.length > remaining
-    ? boundedPart.slice(0, remaining)
-    : boundedPart;
+  const text = boundedPart.length > remaining ? boundedPart.slice(0, remaining) : boundedPart;
   if (text.length < boundedPart.length) {
     state.truncated = true;
   }
@@ -34,11 +28,7 @@ const appendFactTextPart = (
   state.length += text.length + 1;
 };
 
-const visitFactText = (
-  state: FactTextState,
-  value: unknown,
-  depth: number
-): void => {
+const visitFactText = (state: FactTextState, value: unknown, depth: number): void => {
   if (state.length >= maxFactTextLength) {
     state.truncated = true;
     return;
@@ -110,15 +100,13 @@ const visitFactText = (
   }
 };
 
-export const startAgentGraphFactText = (
-  value: unknown
-): string => {
+export const startAgentGraphFactText = (value: unknown): string => {
   const state: FactTextState = {
     seen: new WeakSet(),
     parts: [],
     entries: 0,
     length: 0,
-    truncated: false
+    truncated: false,
   };
   visitFactText(state, value, 0);
   if (state.truncated) {

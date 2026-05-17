@@ -4,7 +4,7 @@ import {
   FileRouteManifestDuplicateRoutePath,
   FileRouteManifestInvalidSegment,
   generateValidatedFileRouteManifestArtifactEffect,
-  generateValidatedFileRouteManifestEffect
+  generateValidatedFileRouteManifestEffect,
 } from "../src/file-routes.js";
 
 describe("validated file route manifest", () => {
@@ -12,45 +12,42 @@ describe("validated file route manifest", () => {
     return Effect.runPromise(
       Effect.exit(
         generateValidatedFileRouteManifestEffect(
-          [
-            "src/routes/(app)/index.tsx",
-            "src/routes/(marketing)/index.tsx"
-          ],
-          { routeDirectory: "src/routes" }
-        )
+          ["src/routes/(app)/index.tsx", "src/routes/(marketing)/index.tsx"],
+          { routeDirectory: "src/routes" },
+        ),
       ).pipe(
         Effect.tap((exit) =>
-          Effect.sync(() => expect(firstFailure(exit)).toBeInstanceOf(FileRouteManifestDuplicateRoutePath))
+          Effect.sync(() =>
+            expect(firstFailure(exit)).toBeInstanceOf(FileRouteManifestDuplicateRoutePath),
+          ),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
   it("rejects malformed dynamic route params", () => {
     return Effect.runPromise(
       Effect.exit(
-        generateValidatedFileRouteManifestEffect(
-          ["src/routes/projects/$123.tsx"],
-          { routeDirectory: "src/routes" }
-        )
+        generateValidatedFileRouteManifestEffect(["src/routes/projects/$123.tsx"], {
+          routeDirectory: "src/routes",
+        }),
       ).pipe(
         Effect.tap((exit) =>
-          Effect.sync(() => expect(firstFailure(exit)).toBeInstanceOf(FileRouteManifestInvalidSegment))
+          Effect.sync(() =>
+            expect(firstFailure(exit)).toBeInstanceOf(FileRouteManifestInvalidSegment),
+          ),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
   it("returns a validated manifest artifact", () => {
     return Effect.runPromise(
       generateValidatedFileRouteManifestArtifactEffect(
-        [
-          "src/routes/projects/$id.tsx",
-          "src/routes/index.tsx"
-        ],
-        { routeDirectory: "src/routes" }
+        ["src/routes/projects/$id.tsx", "src/routes/index.tsx"],
+        { routeDirectory: "src/routes" },
       ).pipe(
         Effect.tap((manifest) =>
           Effect.sync(() =>
@@ -60,18 +57,18 @@ describe("validated file route manifest", () => {
               entries: [
                 {
                   routeId: "route_root",
-                  routePath: "/"
+                  routePath: "/",
                 },
                 {
                   routeId: "route_projects_$id",
-                  routePath: "/projects/:id"
-                }
-              ]
-            })
-          )
+                  routePath: "/projects/:id",
+                },
+              ],
+            }),
+          ),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 });

@@ -5,15 +5,12 @@ import {
   startEndpointPathInvalidReason,
   validateStartEndpointPathEffect,
   type StartEndpointPathErrorInput,
-  type StartEndpointPathInvalidReason
+  type StartEndpointPathInvalidReason,
 } from "./start-transport-endpoints.js";
 
 export type StartManifestModuleKind = "server-only" | "contract" | "shared";
 
-export type StartManifestInvalidEntryReason =
-  | "MissingName"
-  | "MissingModule"
-  | "MissingExportName";
+export type StartManifestInvalidEntryReason = "MissingName" | "MissingModule" | "MissingExportName";
 
 export interface StartManifestDefinitionLike {
   readonly name: string;
@@ -64,8 +61,9 @@ export interface StartCallableManifestTransportClientInput<Id> {
   readonly transportPath: string;
 }
 
-export interface StartCallableManifestImportClientInput<Id>
-  extends StartCallableManifestTransportClientInput<Id> {
+export interface StartCallableManifestImportClientInput<
+  Id,
+> extends StartCallableManifestTransportClientInput<Id> {
   readonly module: string;
   readonly exportName: string;
   readonly moduleKind: Exclude<StartManifestModuleKind, "server-only">;
@@ -85,7 +83,7 @@ export interface AssembleCallableManifestEntryOptions<
   Client,
   Entry,
   InvalidEntryError,
-  UnsafeClientReferenceError
+  UnsafeClientReferenceError,
 > {
   readonly index: number;
   readonly transportPath: string;
@@ -104,12 +102,8 @@ export interface AssembleCallableManifestEntryOptions<
     readonly validated: StartManifestValidatedDefinition;
     readonly moduleKind: StartManifestModuleKind;
   }) => Server;
-  readonly transportClient: (
-    input: StartCallableManifestTransportClientInput<Id>
-  ) => Client;
-  readonly importClient: (
-    input: StartCallableManifestImportClientInput<Id>
-  ) => Client;
+  readonly transportClient: (input: StartCallableManifestTransportClientInput<Id>) => Client;
+  readonly importClient: (input: StartCallableManifestImportClientInput<Id>) => Client;
   readonly entry: (input: {
     readonly definition: Definition;
     readonly validated: StartManifestValidatedDefinition;
@@ -181,7 +175,7 @@ export interface DecodeSerializedCallableManifestOptions<Definition, Error> {
   readonly decodeEntry: (
     entry: unknown,
     index: number,
-    transportPath: string
+    transportPath: string,
   ) => Effect.Effect<Definition, Error>;
 }
 
@@ -190,7 +184,7 @@ export const compareString = (left: string, right: string): number =>
 
 export const compareManifestEntries = <Entry extends StartManifestEntryLike>(
   left: Entry,
-  right: Entry
+  right: Entry,
 ): number => {
   const name = compareString(left.name, right.name);
   return name === 0 ? compareString(left.server.module, right.server.module) : name;
@@ -202,13 +196,11 @@ export const isNonEmptyString = (value: unknown): value is string =>
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-export const startManifestEndpointPathGuidance =
-  startEndpointPathGuidance;
+export const startManifestEndpointPathGuidance = startEndpointPathGuidance;
 
 export const startManifestEndpointPathInvalidReason = (
-  value: unknown
-): StartManifestEndpointPathInvalidReason | undefined =>
-  startEndpointPathInvalidReason(value);
+  value: unknown,
+): StartManifestEndpointPathInvalidReason | undefined => startEndpointPathInvalidReason(value);
 
 export const normalizeManifestEndpointPath = (value: unknown): string | undefined => {
   return normalizeStartEndpointPath(value);
@@ -219,14 +211,11 @@ export const validateManifestEndpointPathEffect = <Error>(
   options: {
     readonly field: string;
     readonly invalidPath: (input: StartManifestEndpointPathErrorInput) => Error;
-  }
-): Effect.Effect<string, Error> =>
-  validateStartEndpointPathEffect(value, options);
+  },
+): Effect.Effect<string, Error> => validateStartEndpointPathEffect(value, options);
 
 export const normalizeManifestModuleId = (id: string): string =>
-  (id.trim().split(/[?#]/, 1)[0] ?? id.trim())
-    .replace(/\\/g, "/")
-    .replace(/\/+/g, "/");
+  (id.trim().split(/[?#]/, 1)[0] ?? id.trim()).replace(/\\/g, "/").replace(/\/+/g, "/");
 
 const startManifestServerOnlyModulePattern = /\.(server)\.(?:[cm]?[jt]sx?|tsrx)$/;
 const startManifestContractModulePattern = /\.(contract)\.(?:[cm]?[jt]sx?|tsrx)$/;
@@ -265,11 +254,8 @@ const slugName = (name: string, fallback: string): string => {
   return slug.length === 0 ? fallback : slug;
 };
 
-export const stableManifestEntryId = (
-  prefix: string,
-  fallbackSlug: string,
-  name: string
-): string => `${prefix}_${hashName(name)}_${slugName(name, fallbackSlug)}`;
+export const stableManifestEntryId = (prefix: string, fallbackSlug: string, name: string): string =>
+  `${prefix}_${hashName(name)}_${slugName(name, fallbackSlug)}`;
 
 export const validateManifestDefinition = <Definition extends StartManifestDefinitionLike, Error>(
   definition: Definition,
@@ -278,7 +264,7 @@ export const validateManifestDefinition = <Definition extends StartManifestDefin
     readonly index: number;
     readonly reason: StartManifestInvalidEntryReason;
     readonly entry: Definition;
-  }) => Error
+  }) => Error,
 ): Effect.Effect<StartManifestValidatedDefinition, Error> => {
   const name = definition.name.trim();
   if (!isNonEmptyString(name)) {
@@ -286,8 +272,8 @@ export const validateManifestDefinition = <Definition extends StartManifestDefin
       invalidEntry({
         index,
         reason: "MissingName",
-        entry: definition
-      })
+        entry: definition,
+      }),
     );
   }
 
@@ -297,8 +283,8 @@ export const validateManifestDefinition = <Definition extends StartManifestDefin
       invalidEntry({
         index,
         reason: "MissingModule",
-        entry: definition
-      })
+        entry: definition,
+      }),
     );
   }
 
@@ -308,28 +294,25 @@ export const validateManifestDefinition = <Definition extends StartManifestDefin
       invalidEntry({
         index,
         reason: "MissingExportName",
-        entry: definition
-      })
+        entry: definition,
+      }),
     );
   }
 
   return Effect.succeed({
     name,
     module,
-    exportName
+    exportName,
   });
 };
 
-export const validateManifestEntrySet = <
-  Entry extends StartManifestEntryLike,
-  Error
->(
+export const validateManifestEntrySet = <Entry extends StartManifestEntryLike, Error>(
   entries: readonly Entry[],
   errors: {
     readonly duplicateName: StartManifestEntrySetErrors<Entry>["duplicateName"];
     readonly duplicateId: StartManifestEntrySetErrors<Entry>["duplicateId"];
     readonly duplicateExport: StartManifestEntrySetErrors<Entry>["duplicateExport"];
-  }
+  },
 ): Effect.Effect<void, Error> =>
   Effect.gen(function* () {
     const byName = new Map<string, Entry>();
@@ -339,33 +322,39 @@ export const validateManifestEntrySet = <
     for (const entry of entries) {
       const existingName = byName.get(entry.name);
       if (existingName) {
-        return yield* Effect.fail(errors.duplicateName({
-          name: entry.name,
-          firstModule: existingName.server.module,
-          secondModule: entry.server.module
-        }) as Error);
+        return yield* Effect.fail(
+          errors.duplicateName({
+            name: entry.name,
+            firstModule: existingName.server.module,
+            secondModule: entry.server.module,
+          }) as Error,
+        );
       }
       byName.set(entry.name, entry);
 
       const existingId = byId.get(entry.id);
       if (existingId) {
-        return yield* Effect.fail(errors.duplicateId({
-          id: entry.id,
-          firstName: existingId.name,
-          secondName: entry.name
-        }) as Error);
+        return yield* Effect.fail(
+          errors.duplicateId({
+            id: entry.id,
+            firstName: existingId.name,
+            secondName: entry.name,
+          }) as Error,
+        );
       }
       byId.set(entry.id, entry);
 
       const exportKey = `${entry.server.module}#${entry.server.exportName}`;
       const existingExport = byServerExport.get(exportKey);
       if (existingExport) {
-        return yield* Effect.fail(errors.duplicateExport({
-          module: entry.server.module,
-          exportName: entry.server.exportName,
-          firstName: existingExport.name,
-          secondName: entry.name
-        }) as Error);
+        return yield* Effect.fail(
+          errors.duplicateExport({
+            module: entry.server.module,
+            exportName: entry.server.exportName,
+            firstName: existingExport.name,
+            secondName: entry.name,
+          }) as Error,
+        );
       }
       byServerExport.set(exportKey, entry);
     }
@@ -378,7 +367,7 @@ export const assembleCallableManifestEntry = <
   Client,
   Entry,
   InvalidEntryError,
-  UnsafeClientReferenceError
+  UnsafeClientReferenceError,
 >(
   definition: Definition,
   options: AssembleCallableManifestEntryOptions<
@@ -389,24 +378,24 @@ export const assembleCallableManifestEntry = <
     Entry,
     InvalidEntryError,
     UnsafeClientReferenceError
-  >
+  >,
 ): Effect.Effect<Entry, InvalidEntryError | UnsafeClientReferenceError> =>
   Effect.gen(function* () {
     const validated = yield* validateManifestDefinition(
       definition,
       options.index,
-      options.invalidEntry
+      options.invalidEntry,
     );
     const id = options.stableId(validated.name);
     const server = options.server({
       definition,
       validated,
-      moduleKind: classifyStartManifestModule(validated.module)
+      moduleKind: classifyStartManifestModule(validated.module),
     });
     const wire: StartCallableManifestWireContract = {
       inputSchema: definition.inputSchema ?? false,
       outputSchema: definition.outputSchema ?? false,
-      errorSchema: definition.errorSchema ?? false
+      errorSchema: definition.errorSchema ?? false,
     };
 
     if (definition.clientModule === undefined) {
@@ -419,9 +408,9 @@ export const assembleCallableManifestEntry = <
         client: options.transportClient({
           id,
           name: validated.name,
-          transportPath: options.transportPath
+          transportPath: options.transportPath,
         }),
-        wire
+        wire,
       });
     }
 
@@ -431,8 +420,8 @@ export const assembleCallableManifestEntry = <
         options.invalidEntry({
           index: options.index,
           reason: "MissingModule",
-          entry: definition
-        })
+          entry: definition,
+        }),
       );
     }
 
@@ -442,8 +431,8 @@ export const assembleCallableManifestEntry = <
         options.invalidEntry({
           index: options.index,
           reason: "MissingExportName",
-          entry: definition
-        })
+          entry: definition,
+        }),
       );
     }
 
@@ -452,8 +441,8 @@ export const assembleCallableManifestEntry = <
       return yield* Effect.fail(
         options.unsafeClientReference({
           name: validated.name,
-          clientModule
-        })
+          clientModule,
+        }),
       );
     }
 
@@ -469,31 +458,36 @@ export const assembleCallableManifestEntry = <
         transportPath: options.transportPath,
         module: clientModule,
         exportName: clientExportName,
-        moduleKind
+        moduleKind,
       }),
-      wire
+      wire,
     });
   });
 
 export const parseSerializedStartManifestJson = <Error>(
   serialized: string,
-  parseError: (cause: unknown) => Error
+  parseError: (cause: unknown) => Error,
 ): Effect.Effect<unknown, Error> =>
   Effect.try({
     try: () => JSON.parse(serialized) as unknown,
-    catch: parseError
+    catch: parseError,
   });
 
 export const decodeSerializedCallableManifestEntry = <Id, Error>(
   value: unknown,
   index: number,
-  options: DecodeSerializedCallableManifestEntryOptions<Id, Error>
+  options: DecodeSerializedCallableManifestEntryOptions<Id, Error>,
 ): Effect.Effect<DecodedSerializedCallableManifestEntry<Id>, Error> => {
-  if (!isRecord(value) || !isRecord(value.server) || !isRecord(value.wire) || !isRecord(value.client)) {
+  if (
+    !isRecord(value) ||
+    !isRecord(value.server) ||
+    !isRecord(value.wire) ||
+    !isRecord(value.client)
+  ) {
     return Effect.fail(
       options.parseError(
-        `Expected ${options.recordEntryLabel} ${index} to contain server, client, and wire records.`
-      )
+        `Expected ${options.recordEntryLabel} ${index} to contain server, client, and wire records.`,
+      ),
     );
   }
 
@@ -501,8 +495,10 @@ export const decodeSerializedCallableManifestEntry = <Id, Error>(
   const wire = value.wire;
   const client = value.client;
   const name = typeof value.name === "string" ? value.name.trim() : undefined;
-  const serverModule = typeof server.module === "string" ? normalizeManifestModuleId(server.module) : undefined;
-  const serverExportName = typeof server.exportName === "string" ? server.exportName.trim() : undefined;
+  const serverModule =
+    typeof server.module === "string" ? normalizeManifestModuleId(server.module) : undefined;
+  const serverExportName =
+    typeof server.exportName === "string" ? server.exportName.trim() : undefined;
   if (
     !isNonEmptyString(name) ||
     !isNonEmptyString(value.id) ||
@@ -515,8 +511,8 @@ export const decodeSerializedCallableManifestEntry = <Id, Error>(
   ) {
     return Effect.fail(
       options.parseError(
-        `${options.messageEntryLabel} ${index} has invalid server or wire fields.`
-      )
+        `${options.messageEntryLabel} ${index} has invalid server or wire fields.`,
+      ),
     );
   }
 
@@ -529,9 +525,7 @@ export const decodeSerializedCallableManifestEntry = <Id, Error>(
     clientTransportPath !== options.transportPath
   ) {
     return Effect.fail(
-      options.parseError(
-        `${options.messageEntryLabel} ${index} has an invalid client identity.`
-      )
+      options.parseError(`${options.messageEntryLabel} ${index} has an invalid client identity.`),
     );
   }
 
@@ -539,20 +533,21 @@ export const decodeSerializedCallableManifestEntry = <Id, Error>(
   if (server.moduleKind !== serverModuleKind) {
     return Effect.fail(
       options.parseError(
-        `${options.messageEntryLabel} ${index} has an invalid server module kind.`
-      )
+        `${options.messageEntryLabel} ${index} has an invalid server module kind.`,
+      ),
     );
   }
 
-  const clientModule = client._tag === "Import" && typeof client.module === "string"
-    ? normalizeManifestModuleId(client.module)
-    : undefined;
-  const clientExportName = client._tag === "Import" && typeof client.exportName === "string"
-    ? client.exportName.trim()
-    : undefined;
-  const clientModuleKind = clientModule === undefined
-    ? undefined
-    : classifyStartManifestModule(clientModule);
+  const clientModule =
+    client._tag === "Import" && typeof client.module === "string"
+      ? normalizeManifestModuleId(client.module)
+      : undefined;
+  const clientExportName =
+    client._tag === "Import" && typeof client.exportName === "string"
+      ? client.exportName.trim()
+      : undefined;
+  const clientModuleKind =
+    clientModule === undefined ? undefined : classifyStartManifestModule(clientModule);
   if (
     client._tag !== options.transportClientTag &&
     (client._tag !== "Import" ||
@@ -562,9 +557,7 @@ export const decodeSerializedCallableManifestEntry = <Id, Error>(
       client.moduleKind === "server-only")
   ) {
     return Effect.fail(
-      options.parseError(
-        `${options.messageEntryLabel} ${index} has an invalid client reference.`
-      )
+      options.parseError(`${options.messageEntryLabel} ${index} has an invalid client reference.`),
     );
   }
 
@@ -580,13 +573,13 @@ export const decodeSerializedCallableManifestEntry = <Id, Error>(
     ...(clientExportName === undefined ? {} : { clientExportName }),
     serverRecord: server,
     clientRecord: client,
-    wireRecord: wire
+    wireRecord: wire,
   });
 };
 
 export const decodeSerializedCallableManifest = <Definition, Error>(
   value: unknown,
-  options: DecodeSerializedCallableManifestOptions<Definition, Error>
+  options: DecodeSerializedCallableManifestOptions<Definition, Error>,
 ): Effect.Effect<
   {
     readonly path: string;
@@ -595,13 +588,9 @@ export const decodeSerializedCallableManifest = <Definition, Error>(
   Error
 > =>
   Effect.gen(function* () {
-    if (
-      !isRecord(value) ||
-      value.version !== 1 ||
-      !Array.isArray(value.entries)
-    ) {
+    if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.entries)) {
       return yield* Effect.fail(
-        options.parseError(`Expected a version 1 ${options.manifestName} manifest.`)
+        options.parseError(`Expected a version 1 ${options.manifestName} manifest.`),
       );
     }
 
@@ -609,15 +598,15 @@ export const decodeSerializedCallableManifest = <Definition, Error>(
       field: options.pathField,
       invalidPath: (input) =>
         options.parseError(
-          `${options.manifestName} manifest has invalid ${input.field}: ${input.guidance}`
-        )
+          `${options.manifestName} manifest has invalid ${input.field}: ${input.guidance}`,
+        ),
     });
     const definitions = yield* Effect.forEach(value.entries, (entry, index) =>
-      options.decodeEntry(entry, index, path)
+      options.decodeEntry(entry, index, path),
     );
 
     return {
       path,
-      definitions
+      definitions,
     };
   });

@@ -13,7 +13,7 @@ export const bootDevtoolsPanel = (root: HTMLElement) =>
     root,
     panels: sampleDevtoolsPanels(),
     selectedPanelId: "requests",
-    title: "Effect UI Devtools Panel"
+    title: "Effect UI Devtools Panel",
   }).fiber;
 
 const root = document.getElementById("devtools-root");
@@ -21,7 +21,7 @@ const root = document.getElementById("devtools-root");
 if (!root) {
   throw new DevtoolsRootMissing({
     id: "devtools-root",
-    guidance: "Add a devtools root element with id=\"devtools-root\" to the document shell."
+    guidance: 'Add a devtools root element with id="devtools-root" to the document shell.',
   });
 }
 
@@ -30,7 +30,7 @@ export const devtoolsPanelBoot = bootDevtoolsPanels({
   panels: sampleDevtoolsPanels(),
   selectedPanelId: "requests",
   title: "Effect UI Devtools Panel",
-  lifecycleWindow: window
+  lifecycleWindow: window,
 });
 export const devtoolsPanelBootFiber = devtoolsPanelBoot.fiber;
 export { interruptDevtoolsPanelBoot };

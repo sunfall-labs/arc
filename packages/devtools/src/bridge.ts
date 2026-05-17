@@ -22,9 +22,7 @@ export interface DevtoolsBridgePayload {
  * Use a plain payload for static snapshots, or a callback when the extension
  * should pull fresh panel data each time it inspects the bridge.
  */
-export type DevtoolsBridgeProvider =
-  | DevtoolsBridgePayload
-  | (() => DevtoolsBridgePayload);
+export type DevtoolsBridgeProvider = DevtoolsBridgePayload | (() => DevtoolsBridgePayload);
 
 /** Object that can hold the scoped Devtools bridge global. Defaults to `globalThis`. */
 export interface DevtoolsBridgeTarget {
@@ -51,7 +49,7 @@ const bridgeTargetStates = new WeakMap<DevtoolsBridgeTarget, DevtoolsBridgeTarge
 
 const restoreDevtoolsBridgeTarget = (
   target: DevtoolsBridgeTarget,
-  state: DevtoolsBridgeTargetState
+  state: DevtoolsBridgeTargetState,
 ): void => {
   const current = state.installs[state.installs.length - 1];
   if (current !== undefined) {
@@ -70,15 +68,12 @@ const restoreDevtoolsBridgeTarget = (
 /** Installs an app-side Devtools provider without coupling the app to an extension UI. */
 export const installDevtoolsBridge = (
   provider: DevtoolsBridgeProvider,
-  target: DevtoolsBridgeTarget = globalThis as DevtoolsBridgeTarget
+  target: DevtoolsBridgeTarget = globalThis as DevtoolsBridgeTarget,
 ): DevtoolsBridgeInstall => {
   const state = bridgeTargetStates.get(target) ?? {
-    hadPrevious: Object.prototype.hasOwnProperty.call(
-      target,
-      effectUiDevtoolsBridgeGlobal
-    ),
+    hadPrevious: Object.prototype.hasOwnProperty.call(target, effectUiDevtoolsBridgeGlobal),
     previous: target[effectUiDevtoolsBridgeGlobal],
-    installs: []
+    installs: [],
   };
   if (!bridgeTargetStates.has(target)) {
     bridgeTargetStates.set(target, state);
@@ -101,18 +96,19 @@ export const installDevtoolsBridge = (
         state.installs.splice(index, 1);
       }
       restoreDevtoolsBridgeTarget(target, state);
-    }
+    },
   };
 };
 
 /** Scoped Effect helper for installing and automatically uninstalling the bridge. */
 export const installDevtoolsBridgeEffect = (
   provider: DevtoolsBridgeProvider,
-  target?: DevtoolsBridgeTarget
+  target?: DevtoolsBridgeTarget,
 ): Effect.Effect<DevtoolsBridgeInstall, never, Scope.Scope> =>
   Effect.acquireRelease(
     Effect.sync(() => installDevtoolsBridge(provider, target)),
-    (bridge) => Effect.sync(() => {
-      bridge.uninstall();
-    })
+    (bridge) =>
+      Effect.sync(() => {
+        bridge.uninstall();
+      }),
   );

@@ -16,13 +16,14 @@ browser-extension boundary. It renders checked sample facts as a fallback, then
 polls the inspected page for live panel data through:
 
 ```ts
-import { installDevtoolsBridgeEffect } from "@effect-ui/devtools"
+import { installDevtoolsBridgeEffect } from "@effect-ui/devtools";
 
-yield* installDevtoolsBridgeEffect(() => ({
-  panels: store.getPanels(),
-  selectedPanelId: "requests",
-  title: "Effect UI Devtools"
-}))
+yield *
+  installDevtoolsBridgeEffect(() => ({
+    panels: store.getPanels(),
+    selectedPanelId: "requests",
+    title: "Effect UI Devtools",
+  }));
 ```
 
 The extension reads that value with `chrome.devtools.inspectedWindow.eval`,

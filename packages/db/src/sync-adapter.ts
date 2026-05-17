@@ -1,4 +1,9 @@
-import { EffectInputCallbackError, Resource, invokeEffectInput, type EffectInput } from "@effect-ui/core";
+import {
+  EffectInputCallbackError,
+  Resource,
+  invokeEffectInput,
+  type EffectInput,
+} from "@effect-ui/core";
 import { Effect } from "effect";
 import type {
   CollectionIndexRecord,
@@ -9,10 +14,13 @@ import type {
   CollectionPolicy,
   CollectionRuntimeError,
   CollectionTransaction,
-  CollectionWriteOptions
+  CollectionWriteOptions,
 } from "./collection-contract.js";
 import type { CollectionChangeFeedDispatchPolicy } from "./change-feed-dispatcher.js";
-import { cloneCollectionValue, collectionExecutableValuePath } from "./collection-value-detachment.js";
+import {
+  cloneCollectionValue,
+  collectionExecutableValuePath,
+} from "./collection-value-detachment.js";
 
 /**
  * Insert payload delivered to a collection sync adapter.
@@ -52,7 +60,12 @@ export interface CollectionSyncDeletePayload<A extends object, K extends Collect
  * Each callback may return a plain value or Effect. Errors become the
  * collection error channel `E`, and any required services become `R`.
  */
-export interface CollectionSyncAdapter<A extends object, K extends CollectionKey = string, E = never, R = never> {
+export interface CollectionSyncAdapter<
+  A extends object,
+  K extends CollectionKey = string,
+  E = never,
+  R = never,
+> {
   readonly name: string;
   readonly load?: () => EffectInput<ReadonlyArray<A>, E, R>;
   readonly refetch?: () => EffectInput<ReadonlyArray<A>, E, R>;
@@ -68,7 +81,7 @@ export interface CollectionSyncOptions<
   A extends object,
   K extends CollectionKey = string,
   E = never,
-  R = never
+  R = never,
 > {
   readonly name: string;
   readonly input?: unknown;
@@ -89,7 +102,7 @@ export interface CollectionResourceSyncAdapterOptions<
   A extends object,
   K extends CollectionKey = string,
   E = never,
-  R = never
+  R = never,
 > extends Pick<CollectionSyncAdapter<A, K, E, R>, "insert" | "update" | "delete"> {
   readonly name?: string;
   readonly ref: Resource.Ref<I, ReadonlyArray<A>, E, R>;
@@ -134,10 +147,12 @@ export interface CollectionQuerySyncInvalidateOptions {
  * Minimal query client interface used by `collectionQuerySyncAdapter`.
  */
 export interface CollectionQuerySyncClient<A extends object, E = never, R = never> {
-  readonly fetchQuery: (options: CollectionQuerySyncFetchOptions<A, E, R>) =>
-    EffectInput<ReadonlyArray<A>, E, R>;
-  readonly invalidateQueries?: (options: CollectionQuerySyncInvalidateOptions) =>
-    EffectInput<void, E, R>;
+  readonly fetchQuery: (
+    options: CollectionQuerySyncFetchOptions<A, E, R>,
+  ) => EffectInput<ReadonlyArray<A>, E, R>;
+  readonly invalidateQueries?: (
+    options: CollectionQuerySyncInvalidateOptions,
+  ) => EffectInput<void, E, R>;
 }
 
 /**
@@ -158,7 +173,7 @@ export interface CollectionQuerySyncAdapterOptions<
   A extends object,
   K extends CollectionKey = string,
   E = never,
-  R = never
+  R = never,
 > extends Pick<CollectionSyncAdapter<A, K, E, R>, "insert" | "update" | "delete"> {
   readonly name?: string;
   readonly queryKey: CollectionQuerySyncKey;
@@ -205,16 +220,16 @@ export interface CollectionChangeFeedContext<
   A extends object,
   K extends CollectionKey = string,
   E = never,
-  R = never
+  R = never,
 > {
   readonly collection: string;
   readonly emit: (
     changes: ReadonlyArray<CollectionChange<A, K>>,
-    options?: CollectionWriteOptions
+    options?: CollectionWriteOptions,
   ) => EffectInput<void, CollectionRuntimeError<E>, R>;
   readonly emitChanges: (
     changes: ReadonlyArray<CollectionChange<A, K>>,
-    options?: CollectionWriteOptions
+    options?: CollectionWriteOptions,
   ) => void;
 }
 
@@ -235,11 +250,11 @@ export interface CollectionChangeFeedAdapter<
   E = never,
   R = never,
   CollectionError = never,
-  CollectionRequirements = never
+  CollectionRequirements = never,
 > {
   readonly name: string;
   readonly subscribe: (
-    context: CollectionChangeFeedContext<A, K, CollectionError, CollectionRequirements>
+    context: CollectionChangeFeedContext<A, K, CollectionError, CollectionRequirements>,
   ) => EffectInput<CollectionChangeFeedSubscription<E, R>, E, R>;
 }
 
@@ -252,7 +267,7 @@ export interface CollectionChangeFeedSubscribeOptions {
 }
 
 const runSyncCallback = <A, E, R>(
-  callback: () => EffectInput<A, E, R>
+  callback: () => EffectInput<A, E, R>,
 ): Effect.Effect<A, E | EffectInputCallbackError, R> =>
   invokeEffectInput("collection sync adapter callback", callback);
 
@@ -272,13 +287,11 @@ const queryKeyNameFromInput = (queryKey: CollectionQuerySyncKey): string => {
 const querySyncKeyGuidance =
   "Collection query sync keys must be plain cache identity data. Move host Promise work into queryFn or sync adapter Effects, and do not store direct Effect values in query keys.";
 
-const querySyncKeyError = (
-  cause: unknown
-): EffectInputCallbackError =>
+const querySyncKeyError = (cause: unknown): EffectInputCallbackError =>
   new EffectInputCallbackError({
     operation: "Collection.querySync.queryKey",
     cause,
-    guidance: querySyncKeyGuidance
+    guidance: querySyncKeyGuidance,
   });
 
 const detachQuerySyncKey = (queryKey: CollectionQuerySyncKey): CollectionQuerySyncKey => {
@@ -287,7 +300,9 @@ const detachQuerySyncKey = (queryKey: CollectionQuerySyncKey): CollectionQuerySy
     const executable = collectionExecutableValuePath(input, "$.queryKey");
     if (executable !== undefined) {
       throw querySyncKeyError(
-        new TypeError(`Collection query sync key contains ${executable.reason} at ${executable.path}.`)
+        new TypeError(
+          `Collection query sync key contains ${executable.reason} at ${executable.path}.`,
+        ),
       );
     }
     return cloneCollectionValue(input) as CollectionQuerySyncKey;
@@ -318,13 +333,13 @@ const initialQuerySyncKeyState = (queryKey: CollectionQuerySyncKey): QuerySyncKe
     return {
       _tag: "Valid",
       queryKey: owned,
-      name: queryKeyName(owned)
+      name: queryKeyName(owned),
     };
   } catch (cause) {
     return {
       _tag: "Invalid",
       error: cause instanceof EffectInputCallbackError ? cause : querySyncKeyError(cause),
-      name
+      name,
     };
   }
 };
@@ -347,9 +362,9 @@ export const collectionSyncOptions = <
   A extends object,
   K extends CollectionKey = string,
   E = never,
-  R = never
+  R = never,
 >(
-  options: CollectionSyncOptions<A, K, E, R>
+  options: CollectionSyncOptions<A, K, E, R>,
 ): CollectionOptions<A, K, E | EffectInputCallbackError, R> => {
   const hasLoad = options.sync.load !== undefined || options.sync.refetch !== undefined;
   const hasRefetch = options.sync.refetch !== undefined;
@@ -359,10 +374,19 @@ export const collectionSyncOptions = <
     getKey: options.getKey,
     ...(options.input === undefined ? {} : { input: options.input }),
     ...(options.output === undefined ? {} : { output: options.output }),
-    ...(options.policy === undefined ? {} : { policy: options.policy as CollectionPolicy<E | EffectInputCallbackError> }),
-    ...(options.persistence === undefined ? {} : { persistence: options.persistence as CollectionPersistenceConfig<E | EffectInputCallbackError, R> }),
+    ...(options.policy === undefined
+      ? {}
+      : { policy: options.policy as CollectionPolicy<E | EffectInputCallbackError> }),
+    ...(options.persistence === undefined
+      ? {}
+      : {
+          persistence: options.persistence as CollectionPersistenceConfig<
+            E | EffectInputCallbackError,
+            R
+          >,
+        }),
     sync: {
-      adapter: options.sync.name
+      adapter: options.sync.name,
     },
     ...(options.indexes === undefined ? {} : { indexes: options.indexes }),
     ...(options.initialData === undefined ? {} : { initialData: options.initialData }),
@@ -370,10 +394,8 @@ export const collectionSyncOptions = <
       ? {
           load: () =>
             runSyncCallback(() =>
-              options.sync.load !== undefined
-                ? options.sync.load()
-                : options.sync.refetch!()
-            )
+              options.sync.load !== undefined ? options.sync.load() : options.sync.refetch!(),
+            ),
         }
       : {}),
     ...(hasRefetch ? { refetch: () => runSyncCallback(() => options.sync.refetch!()) } : {}),
@@ -381,29 +403,35 @@ export const collectionSyncOptions = <
       ? {}
       : {
           onInsert: (values, context) =>
-            runSyncCallback(() => options.sync.insert!({
-              values,
-              transaction: context.transaction
-            }))
+            runSyncCallback(() =>
+              options.sync.insert!({
+                values,
+                transaction: context.transaction,
+              }),
+            ),
         }),
     ...(options.sync.update === undefined
       ? {}
       : {
           onUpdate: (updates, context) =>
-            runSyncCallback(() => options.sync.update!({
-              updates,
-              transaction: context.transaction
-            }))
+            runSyncCallback(() =>
+              options.sync.update!({
+                updates,
+                transaction: context.transaction,
+              }),
+            ),
         }),
     ...(options.sync.delete === undefined
       ? {}
       : {
           onDelete: (deletes, context) =>
-            runSyncCallback(() => options.sync.delete!({
-              deletes,
-              transaction: context.transaction
-            }))
-        })
+            runSyncCallback(() =>
+              options.sync.delete!({
+                deletes,
+                transaction: context.transaction,
+              }),
+            ),
+        }),
   } satisfies CollectionOptions<A, K, E | EffectInputCallbackError, R>;
 };
 
@@ -419,16 +447,16 @@ export const collectionResourceSyncAdapter = <
   A extends object,
   K extends CollectionKey = string,
   E = never,
-  R = never
+  R = never,
 >(
-  options: CollectionResourceSyncAdapterOptions<I, A, K, E, R>
+  options: CollectionResourceSyncAdapterOptions<I, A, K, E, R>,
 ): CollectionSyncAdapter<A, K, Resource.LoadError<E>, R> => ({
   name: options.name ?? `resource:${options.ref.family.options.name}`,
   load: () => Resource.prefetchEffect(options.ref),
   refetch: () => Resource.refreshEffect(options.ref),
   ...(options.insert === undefined ? {} : { insert: options.insert }),
   ...(options.update === undefined ? {} : { update: options.update }),
-  ...(options.delete === undefined ? {} : { delete: options.delete })
+  ...(options.delete === undefined ? {} : { delete: options.delete }),
 });
 
 /**
@@ -441,9 +469,9 @@ export const collectionQuerySyncAdapter = <
   A extends object,
   K extends CollectionKey = string,
   E = never,
-  R = never
+  R = never,
 >(
-  options: CollectionQuerySyncAdapterOptions<A, K, E, R>
+  options: CollectionQuerySyncAdapterOptions<A, K, E, R>,
 ): CollectionSyncAdapter<A, K, E | EffectInputCallbackError, R> => {
   const queryKey = initialQuerySyncKeyState(options.queryKey);
   const queryKeyInput = (): CollectionQuerySyncKey => {
@@ -456,17 +484,17 @@ export const collectionQuerySyncAdapter = <
     Effect.try({
       try: queryKeyInput,
       catch: (cause) =>
-        cause instanceof EffectInputCallbackError
-          ? cause
-          : querySyncKeyError(cause)
+        cause instanceof EffectInputCallbackError ? cause : querySyncKeyError(cause),
     });
   const fetch = (): Effect.Effect<ReadonlyArray<A>, E | EffectInputCallbackError, R> =>
     Effect.gen(function* () {
       const input = yield* queryKeyInputEffect();
-      return yield* runSyncCallback(() => options.queryClient.fetchQuery({
-        queryKey: input,
-        queryFn: () => options.queryFn()
-      }));
+      return yield* runSyncCallback(() =>
+        options.queryClient.fetchQuery({
+          queryKey: input,
+          queryFn: () => options.queryFn(),
+        }),
+      );
     });
   const invalidate = (): Effect.Effect<void, E | EffectInputCallbackError, R> =>
     options.queryClient.invalidateQueries
@@ -493,36 +521,42 @@ export const collectionQuerySyncAdapter = <
     ...(options.insert === undefined
       ? {}
       : {
-          insert: (payload: CollectionSyncInsertPayload<A, K>): Effect.Effect<void, E | EffectInputCallbackError, R> =>
+          insert: (
+            payload: CollectionSyncInsertPayload<A, K>,
+          ): Effect.Effect<void, E | EffectInputCallbackError, R> =>
             Effect.gen(function* () {
               yield* runSyncCallback(() => options.insert!(payload));
               if (options.invalidateOnMutation !== false) {
                 yield* invalidateAfterMutation();
               }
-            })
+            }),
         }),
     ...(options.update === undefined
       ? {}
       : {
-          update: (payload: CollectionSyncUpdatePayload<A, K>): Effect.Effect<void, E | EffectInputCallbackError, R> =>
+          update: (
+            payload: CollectionSyncUpdatePayload<A, K>,
+          ): Effect.Effect<void, E | EffectInputCallbackError, R> =>
             Effect.gen(function* () {
               yield* runSyncCallback(() => options.update!(payload));
               if (options.invalidateOnMutation !== false) {
                 yield* invalidateAfterMutation();
               }
-            })
+            }),
         }),
     ...(options.delete === undefined
       ? {}
       : {
-          delete: (payload: CollectionSyncDeletePayload<A, K>): Effect.Effect<void, E | EffectInputCallbackError, R> =>
+          delete: (
+            payload: CollectionSyncDeletePayload<A, K>,
+          ): Effect.Effect<void, E | EffectInputCallbackError, R> =>
             Effect.gen(function* () {
               yield* runSyncCallback(() => options.delete!(payload));
               if (options.invalidateOnMutation !== false) {
                 yield* invalidateAfterMutation();
               }
-            })
-        })
+            }),
+        }),
   };
 };
 
@@ -530,38 +564,73 @@ export const collectionQuerySyncAdapter = <
  * Sync adapter namespace for collection transport helpers.
  */
 export namespace CollectionSync {
-  export type InsertPayload<A extends object, K extends CollectionKey> = CollectionSyncInsertPayload<A, K>;
-  export type UpdatePayload<A extends object, K extends CollectionKey> = CollectionSyncUpdatePayload<A, K>;
-  export type DeletePayload<A extends object, K extends CollectionKey> = CollectionSyncDeletePayload<A, K>;
-  export type Adapter<A extends object, K extends CollectionKey = string, E = never, R = never> =
-    CollectionSyncAdapter<A, K, E, R>;
-  export type Options<A extends object, K extends CollectionKey = string, E = never, R = never> =
-    CollectionSyncOptions<A, K, E, R>;
-  export type ResourceAdapterOptions<I, A extends object, K extends CollectionKey = string, E = never, R = never> =
-    CollectionResourceSyncAdapterOptions<I, A, K, E, R>;
+  export type InsertPayload<
+    A extends object,
+    K extends CollectionKey,
+  > = CollectionSyncInsertPayload<A, K>;
+  export type UpdatePayload<
+    A extends object,
+    K extends CollectionKey,
+  > = CollectionSyncUpdatePayload<A, K>;
+  export type DeletePayload<
+    A extends object,
+    K extends CollectionKey,
+  > = CollectionSyncDeletePayload<A, K>;
+  export type Adapter<
+    A extends object,
+    K extends CollectionKey = string,
+    E = never,
+    R = never,
+  > = CollectionSyncAdapter<A, K, E, R>;
+  export type Options<
+    A extends object,
+    K extends CollectionKey = string,
+    E = never,
+    R = never,
+  > = CollectionSyncOptions<A, K, E, R>;
+  export type ResourceAdapterOptions<
+    I,
+    A extends object,
+    K extends CollectionKey = string,
+    E = never,
+    R = never,
+  > = CollectionResourceSyncAdapterOptions<I, A, K, E, R>;
   export type QueryKeyPart = CollectionQuerySyncKeyPart;
   export type QueryKey = CollectionQuerySyncKey;
-  export type QueryFetchOptions<A extends object, E = never, R = never> =
-    CollectionQuerySyncFetchOptions<A, E, R>;
+  export type QueryFetchOptions<
+    A extends object,
+    E = never,
+    R = never,
+  > = CollectionQuerySyncFetchOptions<A, E, R>;
   export type QueryInvalidateOptions = CollectionQuerySyncInvalidateOptions;
-  export type QueryClient<A extends object, E = never, R = never> =
-    CollectionQuerySyncClient<A, E, R>;
-  export type QueryAdapterOptions<A extends object, K extends CollectionKey = string, E = never, R = never> =
-    CollectionQuerySyncAdapterOptions<A, K, E, R>;
+  export type QueryClient<A extends object, E = never, R = never> = CollectionQuerySyncClient<
+    A,
+    E,
+    R
+  >;
+  export type QueryAdapterOptions<
+    A extends object,
+    K extends CollectionKey = string,
+    E = never,
+    R = never,
+  > = CollectionQuerySyncAdapterOptions<A, K, E, R>;
   export type QueryMutationInvalidationPolicy = CollectionQuerySyncMutationInvalidationPolicy;
   export type ChangeFeedUnsubscribe<E = never, R = never> = CollectionChangeFeedUnsubscribe<E, R>;
   export type ChangeFeedSubscription<E = never, R = never> = CollectionChangeFeedSubscription<E, R>;
-  export type ChangeFeedContext<A extends object, K extends CollectionKey = string, E = never, R = never> =
-    CollectionChangeFeedContext<A, K, E, R>;
+  export type ChangeFeedContext<
+    A extends object,
+    K extends CollectionKey = string,
+    E = never,
+    R = never,
+  > = CollectionChangeFeedContext<A, K, E, R>;
   export type ChangeFeedAdapter<
     A extends object,
     K extends CollectionKey = string,
     E = never,
     R = never,
     CollectionError = never,
-    CollectionRequirements = never
-  > =
-    CollectionChangeFeedAdapter<A, K, E, R, CollectionError, CollectionRequirements>;
+    CollectionRequirements = never,
+  > = CollectionChangeFeedAdapter<A, K, E, R, CollectionError, CollectionRequirements>;
   export type ChangeFeedSubscribeOptions = CollectionChangeFeedSubscribeOptions;
 
   /** Convert a sync adapter into `Collection.define` options. */

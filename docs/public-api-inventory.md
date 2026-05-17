@@ -19,27 +19,27 @@ unless this document explicitly promotes them.
 
 ## Package Export Map
 
-| Package | Export | Source | Classification | Release decision |
-| --- | --- | --- | --- | --- |
-| `@effect-ui/core` | `.` | `packages/core/src/index.ts` | Public | Keep as the core application/runtime surface. |
-| `@effect-ui/start` | `.` | `packages/start/src/index.ts` | Public | Keep as the full-stack runtime surface. |
-| `@effect-ui/start` | `./vite` | `packages/start/src/vite.ts` | Public | Keep as the build-plugin and diagnostics runner surface. |
-| `@effect-ui/start` | `./diagnostics-report` | `packages/start/src/diagnostics-report.ts` | Public | Keep as CI/agent repair report surface. |
-| `@effect-ui/start` | `./cli` | `packages/start/src/cli.ts` | Expert public | Keep as the Effect-native diagnostics CLI runner surface for tests and embedding. |
-| `@effect-ui/start` | `./adapters` | `packages/start/src/adapters.ts` | Public | Keep as the compatibility facade for Node/fetch host integration. |
-| `@effect-ui/start` | `./fetch-adapter` | `packages/start/src/fetch-adapter.ts` | Expert public | Keep as the fetch-only host adapter surface for bundle-sensitive hosts. |
-| `@effect-ui/start` | `./node-adapter` | `packages/start/src/node-adapter.ts` | Expert public | Keep as the Node HTTP host adapter surface for server integrations. |
-| `@effect-ui/start` | `./virtual` | `packages/start/src/virtual-modules.d.ts` | Expert public | Keep as type-only virtual module declarations. |
-| `@effect-ui/start` | `effect-ui-start` bin | `packages/start/src/cli.ts` | Expert public | Keep for app graph diagnostics automation. |
-| `@effect-ui/start-node` | `.` | `packages/start-node/src/index.ts` | Public | Keep as the Node HTTP adapter facade. |
-| `@effect-ui/start-fetch` | `.` | `packages/start-fetch/src/index.ts` | Public | Keep as the generic Fetch-host adapter facade. |
-| `@effect-ui/db` | `.` | `packages/db/src/index.ts` | Public | Keep as the collection/live-query surface. |
-| `@effect-ui/devtools` | `.` | `packages/devtools/src/index.ts` | Public | Keep as the JSON-safe inspection contract. |
-| `@effect-ui/react` | `.` | `packages/react/src/index.ts` | Public | Keep as the React adapter surface. |
-| `@effect-ui/react-db` | `.` | `packages/react-db/src/index.ts` | Public | Keep as the React collection adapter surface. |
-| `@effect-ui/solid` | `.` | `packages/solid/src/index.ts` | Public | Keep as the Solid adapter surface. |
-| `@effect-ui/solid-db` | `.` | `packages/solid-db/src/index.ts` | Public | Keep as the Solid collection adapter surface. |
-| `@effect-ui/tsrx` | `.` | `packages/tsrx/src/index.ts` | Public | Keep as the Vite/TSRX preset. |
+| Package                  | Export                 | Source                                     | Classification | Release decision                                                                  |
+| ------------------------ | ---------------------- | ------------------------------------------ | -------------- | --------------------------------------------------------------------------------- |
+| `@effect-ui/core`        | `.`                    | `packages/core/src/index.ts`               | Public         | Keep as the core application/runtime surface.                                     |
+| `@effect-ui/start`       | `.`                    | `packages/start/src/index.ts`              | Public         | Keep as the full-stack runtime surface.                                           |
+| `@effect-ui/start`       | `./vite`               | `packages/start/src/vite.ts`               | Public         | Keep as the build-plugin and diagnostics runner surface.                          |
+| `@effect-ui/start`       | `./diagnostics-report` | `packages/start/src/diagnostics-report.ts` | Public         | Keep as CI/agent repair report surface.                                           |
+| `@effect-ui/start`       | `./cli`                | `packages/start/src/cli.ts`                | Expert public  | Keep as the Effect-native diagnostics CLI runner surface for tests and embedding. |
+| `@effect-ui/start`       | `./adapters`           | `packages/start/src/adapters.ts`           | Public         | Keep as the compatibility facade for Node/fetch host integration.                 |
+| `@effect-ui/start`       | `./fetch-adapter`      | `packages/start/src/fetch-adapter.ts`      | Expert public  | Keep as the fetch-only host adapter surface for bundle-sensitive hosts.           |
+| `@effect-ui/start`       | `./node-adapter`       | `packages/start/src/node-adapter.ts`       | Expert public  | Keep as the Node HTTP host adapter surface for server integrations.               |
+| `@effect-ui/start`       | `./virtual`            | `packages/start/src/virtual-modules.d.ts`  | Expert public  | Keep as type-only virtual module declarations.                                    |
+| `@effect-ui/start`       | `effect-ui-start` bin  | `packages/start/src/cli.ts`                | Expert public  | Keep for app graph diagnostics automation.                                        |
+| `@effect-ui/start-node`  | `.`                    | `packages/start-node/src/index.ts`         | Public         | Keep as the Node HTTP adapter facade.                                             |
+| `@effect-ui/start-fetch` | `.`                    | `packages/start-fetch/src/index.ts`        | Public         | Keep as the generic Fetch-host adapter facade.                                    |
+| `@effect-ui/db`          | `.`                    | `packages/db/src/index.ts`                 | Public         | Keep as the collection/live-query surface.                                        |
+| `@effect-ui/devtools`    | `.`                    | `packages/devtools/src/index.ts`           | Public         | Keep as the JSON-safe inspection contract.                                        |
+| `@effect-ui/react`       | `.`                    | `packages/react/src/index.ts`              | Public         | Keep as the React adapter surface.                                                |
+| `@effect-ui/react-db`    | `.`                    | `packages/react-db/src/index.ts`           | Public         | Keep as the React collection adapter surface.                                     |
+| `@effect-ui/solid`       | `.`                    | `packages/solid/src/index.ts`              | Public         | Keep as the Solid adapter surface.                                                |
+| `@effect-ui/solid-db`    | `.`                    | `packages/solid-db/src/index.ts`           | Public         | Keep as the Solid collection adapter surface.                                     |
+| `@effect-ui/tsrx`        | `.`                    | `packages/tsrx/src/index.ts`               | Public         | Keep as the Vite/TSRX preset.                                                     |
 
 ## Type-Test Coverage
 
@@ -208,6 +208,13 @@ Release decisions:
   `ResourceSnapshotCodecError` when touched resources cannot be serialized into
   hydration payloads. Solid and Start adapters may discharge service
   requirements only by running through a Runtime Spine.
+- `Route.lazyComponent(...)` is Effect-first: the chunk loader is an
+  `Effect`, the descriptor exposes `preloadEffect()`, and
+  `Route.readComponent(...)` reports lazy pending/failure through tagged values.
+  React and Solid are the only adapters that convert pending lazy route loads
+  into host Suspense Promise tokens. Lazy component load state is cached on the
+  descriptor because UI chunks are app-code assets rather than route
+  render-scope resources.
 - Route grammar parsing rejects invalid and duplicate path parameter names at
   the grammar seam, so match results cannot silently collapse repeated params.
 - `browser-router` is an expert-public Browser Router Kernel and Browser
@@ -370,7 +377,7 @@ The root export includes:
   `start-action-client`, `start-action-request-codec`,
   `start-collection-resolution`, `start-fetch`, `start-request-handler`,
   `start-rpc-client`, `start-transport-endpoints`,
-  `start-transport-protocol`, and `streaming`.
+  `start-transport-protocol`, `static-export`, and `streaming`.
 - hydration, streaming, server-function manifest, action manifest, app graph,
   agent graph, diagnostics report, file-route module helpers, and file-route
   definitions;
@@ -432,6 +439,13 @@ The root export includes:
   at the adapter seam.
 - transport APIs: RPC/action paths, request-id and trace headers, media-type
   helpers, and browser RPC/action clients;
+- static export helpers:
+  `normalizeStartStaticPath(...)`, `startStaticPageOutputPath(...)`,
+  `extractStartStaticHtmlLinks(...)`, and `StartStaticPathError`. These are
+  small build-time primitives for SSG recipes and adapters: they normalize
+  root-relative page paths, map pages to portable HTML output files, and crawl
+  internal anchor links without taking a dependency on a specific Vite or host
+  deployment package.
 - expert-public transport validators and endpoint builders:
   `validateStartRpcRequestEffect`, `validateStartRpcResponseEffect`,
   `validateStartActionRequestEffect`, `validateStartTransport*Effect`,
@@ -535,6 +549,7 @@ Subpath exports:
 - `./vite` owns `effectUiStart`, file route discovery, virtual module creation,
   build-policy validation, app graph diagnostics loading, and SSR dev handling.
   Manifest-pinned Source Surface Modules: `app-graph`,
+  `route-code-splitting`,
   `generated-route-definitions`, `start-app-graph-diagnostics-policy`,
   `start-manifest-wall`, `start-virtual-modules`, `start-vite-dev-ssr`, and
   `start-vite-diagnostics-loader`.
@@ -1386,11 +1401,12 @@ Release decisions:
 
 ## Cross-Package Release Notes
 
-- Every package is still marked `"private": true`; publication work must decide
-  which packages become public and whether names stay under `@effect-ui/*`.
-- Package manifests now include `description`, `license: "UNLICENSED"`, `main`,
-  `types`, `files`, and `sideEffects` metadata for publish readiness while
-  retaining `private: true`.
+- Framework packages under `packages/*` are configured as publishable public
+  scoped packages under `@effect-ui/*`; the workspace root and copyable
+  example/starter source packages remain `private: true`.
+- Framework package manifests now include `description`, `license: "MIT"`,
+  `author: "Andrew Lee"`, `publishConfig.access: "public"`, `main`, `types`,
+  `files`, and `sideEffects` metadata for publish readiness.
 - Current package manifests mostly expose one root path per package. This is a
   good default; avoid adding subpath exports unless they reduce build/runtime
   coupling.

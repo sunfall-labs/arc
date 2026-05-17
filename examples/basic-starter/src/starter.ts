@@ -3,7 +3,7 @@ import { Effect, Schema } from "effect";
 
 export const StarterWelcome = Schema.Struct({
   message: Schema.String,
-  updatedAt: Schema.Number
+  updatedAt: Schema.Number,
 });
 
 export type StarterWelcome = typeof StarterWelcome.Type;
@@ -15,8 +15,8 @@ export const WelcomeResource = Resource.family({
   load: (name) =>
     Effect.succeed({
       message: `Hello, ${name}.`,
-      updatedAt: 1
-    })
+      updatedAt: 1,
+    }),
 });
 
 export const WelcomeRef = WelcomeResource("Effect UI");

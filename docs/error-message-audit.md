@@ -71,7 +71,7 @@ that were still raw `Error` or `TypeError` throws.
   fetch invalid-return throw and audit self-test raw throws.
 - `pnpm --filter @effect-ui/start typecheck` and
   `pnpm exec vitest run packages/start/test/start.test.ts -t "Start diagnostics
-  CLI"` passed after the CLI usage-error sweep.
+CLI"` passed after the CLI usage-error sweep.
 - Full `pnpm verify` passed after the CLI usage-error sweep: 38 root test files
   / 315 tests plus devtools panel, devtools extension, starter, rich starter
   packaging, project-console build, and leak-scan gates.

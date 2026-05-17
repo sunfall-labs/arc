@@ -2,7 +2,7 @@ import { Data, Effect } from "effect";
 import {
   effectUiDevtoolsBridgeGlobal,
   resolveEffectUiDevtoolsBridgePayload,
-  type DevtoolsBridgePayload
+  type DevtoolsBridgePayload,
 } from "@effect-ui/devtools";
 
 export interface ChromeDevtoolsEvalException {
@@ -16,17 +16,14 @@ export interface ChromeInspectedWindowApi {
     readonly inspectedWindow?: {
       readonly eval: (
         expression: string,
-        callback: (
-          result: unknown,
-          exceptionInfo?: ChromeDevtoolsEvalException
-        ) => void
+        callback: (result: unknown, exceptionInfo?: ChromeDevtoolsEvalException) => void,
       ) => void;
     };
   };
 }
 
 export class DevtoolsExtensionTransportError extends Data.TaggedError(
-  "DevtoolsExtensionTransportError"
+  "DevtoolsExtensionTransportError",
 )<{
   readonly operation: "read-inspected-window";
   readonly reason?: "MissingBridge" | "EvaluationFailure" | "InvalidPayload" | "Timeout";
@@ -48,18 +45,15 @@ const normalizeTimeoutMillis = (value: number | undefined): number =>
 export const effectUiDevtoolsBridgeExpression = [
   "(() => {",
   `  const bridge = globalThis.${effectUiDevtoolsBridgeGlobal};`,
-  "  return typeof bridge === \"function\" ? bridge() : bridge ?? null;",
-  "})()"
+  '  return typeof bridge === "function" ? bridge() : bridge ?? null;',
+  "})()",
 ].join("\n");
 
 export const readInspectedWindowDevtoolsPayloadEffect = (
   api: ChromeInspectedWindowApi | undefined,
   expression = effectUiDevtoolsBridgeExpression,
-  options: InspectedWindowEvalOptions = {}
-): Effect.Effect<
-  DevtoolsBridgePayload | undefined,
-  DevtoolsExtensionTransportError
-> => {
+  options: InspectedWindowEvalOptions = {},
+): Effect.Effect<DevtoolsBridgePayload | undefined, DevtoolsExtensionTransportError> => {
   const evaluate = api?.devtools?.inspectedWindow?.eval;
   if (!evaluate) {
     return Effect.succeed(undefined);
@@ -78,7 +72,7 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
       }
     };
     const complete = (
-      effect: Effect.Effect<DevtoolsBridgePayload, DevtoolsExtensionTransportError>
+      effect: Effect.Effect<DevtoolsBridgePayload, DevtoolsExtensionTransportError>,
     ) => {
       if (completed) {
         return;
@@ -97,9 +91,9 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
             operation: "read-inspected-window",
             reason: "Timeout",
             error: { timeoutMillis },
-            guidance: `The inspected-window eval for globalThis.${effectUiDevtoolsBridgeGlobal} did not call back within ${timeoutMillis}ms.`
-          })
-        )
+            guidance: `The inspected-window eval for globalThis.${effectUiDevtoolsBridgeGlobal} did not call back within ${timeoutMillis}ms.`,
+          }),
+        ),
       );
     }, timeoutMillis);
     signal.addEventListener("abort", abort, { once: true });
@@ -114,9 +108,9 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
                   operation: "read-inspected-window",
                   reason: "EvaluationFailure",
                   error: exceptionInfo,
-                  guidance: `Expose globalThis.${effectUiDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`
-                })
-              )
+                  guidance: `Expose globalThis.${effectUiDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`,
+                }),
+              ),
             );
             return;
           }
@@ -128,9 +122,9 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
                   operation: "read-inspected-window",
                   reason: "MissingBridge",
                   error: result,
-                  guidance: `Expose globalThis.${effectUiDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`
-                })
-              )
+                  guidance: `Expose globalThis.${effectUiDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`,
+                }),
+              ),
             );
             return;
           }
@@ -144,11 +138,11 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
                   reason: "InvalidPayload",
                   error: {
                     contract: resolution.error,
-                    payload: result
+                    payload: result,
                   },
-                  guidance: `globalThis.${effectUiDevtoolsBridgeGlobal} returned a value that does not satisfy the DevtoolsPanels bridge contract.`
-                })
-              )
+                  guidance: `globalThis.${effectUiDevtoolsBridgeGlobal} returned a value that does not satisfy the DevtoolsPanels bridge contract.`,
+                }),
+              ),
             );
             return;
           }
@@ -161,9 +155,9 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
                 operation: "read-inspected-window",
                 reason: "EvaluationFailure",
                 error,
-                guidance: `Expose globalThis.${effectUiDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`
-              })
-            )
+                guidance: `Expose globalThis.${effectUiDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`,
+              }),
+            ),
           );
         }
       });
@@ -174,9 +168,9 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
             operation: "read-inspected-window",
             reason: "EvaluationFailure",
             error,
-            guidance: `Expose globalThis.${effectUiDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`
-          })
-        )
+            guidance: `Expose globalThis.${effectUiDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`,
+          }),
+        ),
       );
     }
     return Effect.sync(() => {

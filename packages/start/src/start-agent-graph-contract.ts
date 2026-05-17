@@ -1,20 +1,11 @@
-import type {
-  StartAppGraph,
-  StartAppGraphDiagnostics
-} from "./app-graph.js";
-import type {
-  StartAppGraphDiagnosticsPolicyViolation
-} from "./start-app-graph-diagnostics-policy.js";
+import type { StartAppGraph, StartAppGraphDiagnostics } from "./app-graph.js";
+import type { StartAppGraphDiagnosticsPolicyViolation } from "./start-app-graph-diagnostics-policy.js";
 import type {
   StartDiagnosticsReport,
-  StartDiagnosticsReportFinding
+  StartDiagnosticsReportFinding,
 } from "./diagnostics-report.js";
-import type {
-  StartAgentGraphQueryKind
-} from "./start-agent-graph-vocabulary.js";
-export type {
-  StartAgentGraphQueryKind
-} from "./start-agent-graph-vocabulary.js";
+import type { StartAgentGraphQueryKind } from "./start-agent-graph-vocabulary.js";
+export type { StartAgentGraphQueryKind } from "./start-agent-graph-vocabulary.js";
 
 /** Semantic node families shown in Start diagnostics graphs and impact briefs. */
 export type StartAgentGraphNodeKind =

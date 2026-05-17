@@ -7,7 +7,7 @@ import { Data, Effect } from "effect";
 import {
   runScriptCommandEffect,
   scriptCommandErrorMessage,
-  scriptCommandErrorRepair
+  scriptCommandErrorRepair,
 } from "./effect-command-runner.mjs";
 import { runScriptMainEffect } from "./effect-main-runner.mjs";
 import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
@@ -35,8 +35,7 @@ const useFastWorkspaceStarterVerify = process.env.EFFECT_UI_VERIFY_FAST_STARTERS
 
 class StarterPackageError extends Data.TaggedError("StarterPackageError") {}
 
-const fail = (message, repair, cause) =>
-  new StarterPackageError({ message, repair, cause });
+const fail = (message, repair, cause) => new StarterPackageError({ message, repair, cause });
 
 const fsEffect = (description, evaluate) =>
   Effect.tryPromise({
@@ -65,11 +64,11 @@ const commandEffect = (description, command, args, options = {}) =>
           scriptCommandErrorMessage(description, error),
           scriptCommandErrorRepair(
             error,
-            "Ensure pnpm is available on PATH and the generated starter has valid package metadata."
+            "Ensure pnpm is available on PATH and the generated starter has valid package metadata.",
           ),
           error,
-        )
-      )
+        ),
+      ),
     );
     console.log(`✓ ${description}`);
     return result;
@@ -115,34 +114,24 @@ const forbiddenGeneratedReadmeFragments = [
   "@latest",
   "dlx shadcn@latest",
 ];
-const forbiddenSourceReadmeFragments = [
-  "@latest",
-  "dlx shadcn@latest",
-];
+const forbiddenSourceReadmeFragments = ["@latest", "dlx shadcn@latest"];
 const toPosixPath = (filePath) => filePath.split(sep).join("/");
 
 const relativeTo = (from, to) => toPosixPath(relative(from, to));
 
 const hasForbiddenSegment = (relativePath, forbiddenSegments) =>
-  relativePath
-    .split("/")
-    .some((segment) => forbiddenSegments.has(segment));
+  relativePath.split("/").some((segment) => forbiddenSegments.has(segment));
 
 const shouldCopySourcePath = (sourceDir) => (from) => {
   const relativeFromSource = relative(sourceDir, from);
   if (relativeFromSource === "") {
     return true;
   }
-  return relativeFromSource
-    .split(sep)
-    .every((segment) => !forbiddenSourceSegments.has(segment));
+  return relativeFromSource.split(sep).every((segment) => !forbiddenSourceSegments.has(segment));
 };
 
 const isNodeNotFoundError = (cause) =>
-  cause &&
-  typeof cause === "object" &&
-  "code" in cause &&
-  cause.code === "ENOENT";
+  cause && typeof cause === "object" && "code" in cause && cause.code === "ENOENT";
 
 const pathExists = (filePath) =>
   Effect.tryPromise({
@@ -163,8 +152,7 @@ const pathExists = (filePath) =>
     ),
   );
 
-const verifyRunsLeakScan = (script) =>
-  /(?:^|&&|;)\s*pnpm\s+leak-scan(?:\s|$)/.test(script);
+const verifyRunsLeakScan = (script) => /(?:^|&&|;)\s*pnpm\s+leak-scan(?:\s|$)/.test(script);
 
 const assertStarterLeakScanParity = (starters) =>
   Effect.gen(function* () {
@@ -175,9 +163,8 @@ const assertStarterLeakScanParity = (starters) =>
     ];
     const rootSharedScripts = new Map();
     for (const artifact of starterSharedScriptArtifacts) {
-      const text = yield* fsEffect(
-        `read ${relative(workspaceRoot, artifact.sourcePath)}`,
-        () => readFile(artifact.sourcePath, "utf8"),
+      const text = yield* fsEffect(`read ${relative(workspaceRoot, artifact.sourcePath)}`, () =>
+        readFile(artifact.sourcePath, "utf8"),
       );
       rootSharedScripts.set(artifact.relativePath, {
         sourcePath: artifact.sourcePath,
@@ -203,10 +190,7 @@ const assertStarterLeakScanParity = (starters) =>
           ),
         );
       }
-      if (
-        typeof scripts.verify !== "string" ||
-        !verifyRunsLeakScan(scripts.verify)
-      ) {
+      if (typeof scripts.verify !== "string" || !verifyRunsLeakScan(scripts.verify)) {
         return yield* Effect.fail(
           fail(
             `${starter.displayName} package.json verify script must run pnpm leak-scan.`,
@@ -250,9 +234,8 @@ const assertStarterLeakScanParity = (starters) =>
             ),
           );
         }
-        const text = yield* fsEffect(
-          `read ${starter.displayName} ${relativePath}`,
-          () => readFile(filePath, "utf8"),
+        const text = yield* fsEffect(`read ${starter.displayName} ${relativePath}`, () =>
+          readFile(filePath, "utf8"),
         );
         sharedScripts.get(relativePath).push({ starter, text });
       }
@@ -266,7 +249,9 @@ const assertStarterLeakScanParity = (starters) =>
 
       const rootSharedScript = rootSharedScripts.get(relativePath);
       const expectedText = rootSharedScript?.text ?? baseline.text;
-      const divergent = [baseline, ...candidates].filter((candidate) => candidate.text !== expectedText);
+      const divergent = [baseline, ...candidates].filter(
+        (candidate) => candidate.text !== expectedText,
+      );
       if (divergent.length > 0) {
         return yield* Effect.fail(
           fail(
@@ -289,9 +274,8 @@ const collectFiles = (rootDir, options = {}) =>
     const files = [];
     const visit = (directory) =>
       Effect.gen(function* () {
-        const entries = yield* fsEffect(
-          `read ${relative(workspaceRoot, directory)}`,
-          () => readdir(directory, { withFileTypes: true }),
+        const entries = yield* fsEffect(`read ${relative(workspaceRoot, directory)}`, () =>
+          readdir(directory, { withFileTypes: true }),
         );
         for (const entry of entries) {
           const fullPath = resolve(directory, entry.name);
@@ -312,16 +296,15 @@ const collectFiles = (rootDir, options = {}) =>
 
 const readPackageJson = (packageJsonPath) =>
   Effect.gen(function* () {
-    const text = yield* fsEffect(
-      `read ${relative(workspaceRoot, packageJsonPath)}`,
-      () => readFile(packageJsonPath, "utf8"),
+    const text = yield* fsEffect(`read ${relative(workspaceRoot, packageJsonPath)}`, () =>
+      readFile(packageJsonPath, "utf8"),
     );
     return yield* parseJsonEffect(packageJsonPath, text);
   });
 
 const collectWorkspacePackages = collectWorkspacePackageManifests(workspaceRoot).pipe(
-  Effect.map((manifests) =>
-    new Map(manifests.map((manifest) => [manifest.packageJson.name, manifest]))
+  Effect.map(
+    (manifests) => new Map(manifests.map((manifest) => [manifest.packageJson.name, manifest])),
   ),
 );
 
@@ -334,7 +317,7 @@ const workspaceDependencyNames = (packageJson, includeDevDependencies) => {
   return sections.flatMap((section) =>
     Object.entries(section ?? {})
       .filter(([, version]) => typeof version === "string" && version.startsWith("workspace:"))
-      .map(([name]) => name)
+      .map(([name]) => name),
   );
 };
 
@@ -431,7 +414,7 @@ const rewriteDependencyMap = (dependencies, workspacePackages, toFileReference) 
         }
 
         return [name, toFileReference(workspacePackage)];
-      })
+      }),
     );
     return Object.fromEntries(entries);
   });
@@ -485,7 +468,10 @@ const workspacePackagePayloadTarget = (workspacePackage) =>
 const assertWorkspacePackageDistArtifacts = (workspacePackage, sourceDist) =>
   Effect.gen(function* () {
     const target = yield* workspacePackagePayloadTarget(workspacePackage);
-    const distFiles = (yield* collectFiles(sourceDist)).map((file) => `dist/${file}`);
+    const distFiles = [
+      "LICENSE",
+      ...(yield* collectFiles(sourceDist)).map((file) => `dist/${file}`),
+    ];
     const distPackagePayloadDrift = yield* validateDistPackagePayloadEffect({
       target,
       files: distFiles,
@@ -539,11 +525,11 @@ const ensureFreshWorkspacePackage = (builtPackageNames, workspacePackage) =>
       return;
     }
 
-    yield* commandEffect(
-      `${packageName} local package build`,
-      "pnpm",
-      ["--filter", packageName, "build"],
-    );
+    yield* commandEffect(`${packageName} local package build`, "pnpm", [
+      "--filter",
+      packageName,
+      "build",
+    ]);
     builtPackageNames.add(packageName);
   });
 
@@ -577,9 +563,11 @@ const writeLocalWorkspacePackage = (starter, workspacePackages, builtPackageName
       `create local package directory ${relative(workspaceRoot, localPackageDir)}`,
       () => mkdir(localPackageDir, { recursive: true }),
     );
-    yield* fsEffect(
-      `copy ${workspacePackage.packageJson.name} dist artifacts`,
-      () => cp(sourceDist, resolve(localPackageDir, "dist"), { recursive: true }),
+    yield* fsEffect(`copy ${workspacePackage.packageJson.name} dist artifacts`, () =>
+      cp(sourceDist, resolve(localPackageDir, "dist"), { recursive: true }),
+    );
+    yield* fsEffect(`copy ${workspacePackage.packageJson.name} license`, () =>
+      cp(resolve(workspacePackage.directory, "LICENSE"), resolve(localPackageDir, "LICENSE")),
     );
 
     const localPackageJson = yield* rewritePackageDependencies(
@@ -587,9 +575,8 @@ const writeLocalWorkspacePackage = (starter, workspacePackages, builtPackageName
       workspacePackages,
       (dependency) => `file:../${dependency.localDirectoryName}`,
     );
-    yield* fsEffect(
-      `write local ${workspacePackage.packageJson.name} package.json`,
-      () => writeFile(resolve(localPackageDir, "package.json"), stringifyJson(localPackageJson)),
+    yield* fsEffect(`write local ${workspacePackage.packageJson.name} package.json`, () =>
+      writeFile(resolve(localPackageDir, "package.json"), stringifyJson(localPackageJson)),
     );
     const localPackageFiles = yield* collectFiles(localPackageDir);
     yield* assertManifestTargetsInPayload(
@@ -614,7 +601,9 @@ const assertSameFileManifest = (starter, expected, actual) =>
             "Keep the copy filter and generated starter payload in sync.",
             missing.length > 0 ? `Missing: ${missing.join(", ")}` : undefined,
             extra.length > 0 ? `Extra: ${extra.join(", ")}` : undefined,
-          ].filter(Boolean).join(" "),
+          ]
+            .filter(Boolean)
+            .join(" "),
         ),
       );
     }
@@ -622,9 +611,10 @@ const assertSameFileManifest = (starter, expected, actual) =>
 
 const assertNoForbiddenGeneratedAppSegments = (starter, files) =>
   Effect.gen(function* () {
-    const forbidden = files.filter((file) =>
-      !file.startsWith(`${localPackagesDirectoryName}/`) &&
-      hasForbiddenSegment(file, forbiddenGeneratedAppSegments)
+    const forbidden = files.filter(
+      (file) =>
+        !file.startsWith(`${localPackagesDirectoryName}/`) &&
+        hasForbiddenSegment(file, forbiddenGeneratedAppSegments),
     );
     if (forbidden.length > 0) {
       return yield* Effect.fail(
@@ -694,13 +684,11 @@ const assertGeneratedStarterArtifactsMatchSource = (starter) =>
         changed.push(file);
         continue;
       }
-      const sourceText = yield* fsEffect(
-        `read source ${starter.displayName} ${file}`,
-        () => readFile(sourcePath, "utf8"),
+      const sourceText = yield* fsEffect(`read source ${starter.displayName} ${file}`, () =>
+        readFile(sourcePath, "utf8"),
       );
-      const generatedText = yield* fsEffect(
-        `read generated ${starter.displayName} ${file}`,
-        () => readFile(generatedPath, "utf8"),
+      const generatedText = yield* fsEffect(`read generated ${starter.displayName} ${file}`, () =>
+        readFile(generatedPath, "utf8"),
       );
       if (sourceText !== generatedText) {
         changed.push(file);
@@ -723,12 +711,11 @@ const assertGeneratedStarterArtifactsMatchSource = (starter) =>
 const assertStandaloneReadme = (starter) =>
   Effect.gen(function* () {
     const readmePath = resolve(starter.outputDir, "README.md");
-    const text = yield* fsEffect(
-      `read generated ${starter.displayName} README`,
-      () => readFile(readmePath, "utf8"),
+    const text = yield* fsEffect(`read generated ${starter.displayName} README`, () =>
+      readFile(readmePath, "utf8"),
     );
     const forbidden = forbiddenGeneratedReadmeFragments.filter((fragment) =>
-      text.includes(fragment)
+      text.includes(fragment),
     );
     if (forbidden.length > 0) {
       return yield* Effect.fail(
@@ -743,13 +730,10 @@ const assertStandaloneReadme = (starter) =>
 const assertCopyableSourceReadme = (starter) =>
   Effect.gen(function* () {
     const readmePath = resolve(starter.sourceDir, "README.md");
-    const text = yield* fsEffect(
-      `read source ${starter.displayName} README`,
-      () => readFile(readmePath, "utf8"),
+    const text = yield* fsEffect(`read source ${starter.displayName} README`, () =>
+      readFile(readmePath, "utf8"),
     );
-    const forbidden = forbiddenSourceReadmeFragments.filter((fragment) =>
-      text.includes(fragment)
-    );
+    const forbidden = forbiddenSourceReadmeFragments.filter((fragment) => text.includes(fragment));
     if (forbidden.length > 0) {
       return yield* Effect.fail(
         fail(
@@ -801,62 +785,64 @@ const assertGeneratedStarterPackageDryRun = (
     const files = pack.files
       .map((file) => file.path)
       .sort((left, right) => left.localeCompare(right));
-    const packedAppFiles = files.filter((file) =>
-      !file.startsWith(`${localPackagesDirectoryName}/`)
+    const packedAppFiles = files.filter(
+      (file) => !file.startsWith(`${localPackagesDirectoryName}/`),
     );
-    const forbidden = files.filter((file) =>
-      !file.startsWith(`${localPackagesDirectoryName}/`) &&
-      hasForbiddenSegment(file, forbiddenGeneratedAppSegments)
+    const forbidden = files.filter(
+      (file) =>
+        !file.startsWith(`${localPackagesDirectoryName}/`) &&
+        hasForbiddenSegment(file, forbiddenGeneratedAppSegments),
     );
-    const forbiddenLocalPackageFiles = files.filter((file) =>
-      file.startsWith(`${localPackagesDirectoryName}/`) &&
-      (
-        hasForbiddenSegment(file, forbiddenGeneratedLocalPackageSegments) ||
-        forbiddenGeneratedPackageFileNames.has(file.split("/").at(-1) ?? "") ||
-        file.endsWith(".tsbuildinfo")
-      )
+    const forbiddenLocalPackageFiles = files.filter(
+      (file) =>
+        file.startsWith(`${localPackagesDirectoryName}/`) &&
+        (hasForbiddenSegment(file, forbiddenGeneratedLocalPackageSegments) ||
+          forbiddenGeneratedPackageFileNames.has(file.split("/").at(-1) ?? "") ||
+          file.endsWith(".tsbuildinfo")),
     );
     const expectedLocalPackageDirectories = internalPackageNames
       .map(localPackageDirectoryName)
       .sort((left, right) => left.localeCompare(right));
-    const actualLocalPackageDirectories = [...new Set(
-      files
-        .filter((file) => file.startsWith(`${localPackagesDirectoryName}/`))
-        .map((file) => file.split("/")[1])
-        .filter((directory) => directory !== undefined)
-    )].sort((left, right) => left.localeCompare(right));
+    const actualLocalPackageDirectories = [
+      ...new Set(
+        files
+          .filter((file) => file.startsWith(`${localPackagesDirectoryName}/`))
+          .map((file) => file.split("/")[1])
+          .filter((directory) => directory !== undefined),
+      ),
+    ].sort((left, right) => left.localeCompare(right));
     const actualLocalPackageDirectorySet = new Set(actualLocalPackageDirectories);
-    const missingLocalPackages = expectedLocalPackageDirectories.filter((directory) =>
-      !actualLocalPackageDirectorySet.has(directory)
+    const missingLocalPackages = expectedLocalPackageDirectories.filter(
+      (directory) => !actualLocalPackageDirectorySet.has(directory),
     );
     const expectedLocalPackageDirectorySet = new Set(expectedLocalPackageDirectories);
-    const unexpectedLocalPackages = actualLocalPackageDirectories.filter((directory) =>
-      !expectedLocalPackageDirectorySet.has(directory)
+    const unexpectedLocalPackages = actualLocalPackageDirectories.filter(
+      (directory) => !expectedLocalPackageDirectorySet.has(directory),
     );
     const missingLocalPackageFiles = expectedLocalPackageDirectories.flatMap((directory) =>
       [
         `${localPackagesDirectoryName}/${directory}/package.json`,
+        `${localPackagesDirectoryName}/${directory}/LICENSE`,
         `${localPackagesDirectoryName}/${directory}/dist/index.js`,
         `${localPackagesDirectoryName}/${directory}/dist/index.d.ts`,
-      ].filter((file) => !files.includes(file))
+      ].filter((file) => !files.includes(file)),
     );
-    const referencedLocalPackageDirectories = localPackageReferences(packageJson)
-      .sort((left, right) => left.localeCompare(right));
+    const referencedLocalPackageDirectories = localPackageReferences(packageJson).sort(
+      (left, right) => left.localeCompare(right),
+    );
     const referencedLocalPackageDirectorySet = new Set(referencedLocalPackageDirectories);
-    const unreferencedLocalPackages = expectedLocalPackageDirectories.filter((directory) =>
-      !referencedLocalPackageDirectorySet.has(directory)
+    const unreferencedLocalPackages = expectedLocalPackageDirectories.filter(
+      (directory) => !referencedLocalPackageDirectorySet.has(directory),
     );
-    const unknownLocalPackageReferences = referencedLocalPackageDirectories.filter((directory) =>
-      !expectedLocalPackageDirectorySet.has(directory)
+    const unknownLocalPackageReferences = referencedLocalPackageDirectories.filter(
+      (directory) => !expectedLocalPackageDirectorySet.has(directory),
     );
     const verifiedAppFileSet = new Set(verifiedGeneratedAppFiles);
     const packedAppFileSet = new Set(packedAppFiles);
-    const missingPackedAppFiles = verifiedGeneratedAppFiles.filter((file) =>
-      !packedAppFileSet.has(file)
+    const missingPackedAppFiles = verifiedGeneratedAppFiles.filter(
+      (file) => !packedAppFileSet.has(file),
     );
-    const extraPackedAppFiles = packedAppFiles.filter((file) =>
-      !verifiedAppFileSet.has(file)
-    );
+    const extraPackedAppFiles = packedAppFiles.filter((file) => !verifiedAppFileSet.has(file));
     const localPackageManifestTargetFailures = [];
     for (const packageName of internalPackageNames) {
       const workspacePackage = workspacePackages.get(packageName);
@@ -891,9 +877,15 @@ const assertGeneratedStarterPackageDryRun = (
           `Generated ${starter.displayName} package dry-run has incomplete local file package adapters.`,
           [
             "Keep generated starter package payloads aligned with local file dependencies.",
-            missingLocalPackages.length > 0 ? `Missing: ${missingLocalPackages.join(", ")}` : undefined,
-            unexpectedLocalPackages.length > 0 ? `Unexpected: ${unexpectedLocalPackages.join(", ")}` : undefined,
-          ].filter(Boolean).join(" "),
+            missingLocalPackages.length > 0
+              ? `Missing: ${missingLocalPackages.join(", ")}`
+              : undefined,
+            unexpectedLocalPackages.length > 0
+              ? `Unexpected: ${unexpectedLocalPackages.join(", ")}`
+              : undefined,
+          ]
+            .filter(Boolean)
+            .join(" "),
         ),
       );
     }
@@ -911,9 +903,15 @@ const assertGeneratedStarterPackageDryRun = (
           `Generated ${starter.displayName} package.json local file references do not match the packaged adapters.`,
           [
             "Keep dependencies and pnpm overrides aligned with the generated local package payload.",
-            unreferencedLocalPackages.length > 0 ? `Unreferenced adapters: ${unreferencedLocalPackages.join(", ")}` : undefined,
-            unknownLocalPackageReferences.length > 0 ? `Unknown references: ${unknownLocalPackageReferences.join(", ")}` : undefined,
-          ].filter(Boolean).join(" "),
+            unreferencedLocalPackages.length > 0
+              ? `Unreferenced adapters: ${unreferencedLocalPackages.join(", ")}`
+              : undefined,
+            unknownLocalPackageReferences.length > 0
+              ? `Unknown references: ${unknownLocalPackageReferences.join(", ")}`
+              : undefined,
+          ]
+            .filter(Boolean)
+            .join(" "),
         ),
       );
     }
@@ -923,9 +921,15 @@ const assertGeneratedStarterPackageDryRun = (
           `Generated ${starter.displayName} package dry-run app file manifest does not match the verified generated app tree.`,
           [
             "Keep the generated starter tarball payload aligned with the post-verify app files.",
-            missingPackedAppFiles.length > 0 ? `Missing from tarball: ${missingPackedAppFiles.join(", ")}` : undefined,
-            extraPackedAppFiles.length > 0 ? `Extra in tarball: ${extraPackedAppFiles.join(", ")}` : undefined,
-          ].filter(Boolean).join(" "),
+            missingPackedAppFiles.length > 0
+              ? `Missing from tarball: ${missingPackedAppFiles.join(", ")}`
+              : undefined,
+            extraPackedAppFiles.length > 0
+              ? `Extra in tarball: ${extraPackedAppFiles.join(", ")}`
+              : undefined,
+          ]
+            .filter(Boolean)
+            .join(" "),
         ),
       );
     }
@@ -966,13 +970,12 @@ const localPackageReferencesFromMap = (dependencies) =>
       return value.startsWith(prefix) ? [value.slice(prefix.length)] : [];
     });
 
-const localPackageReferences = (packageJson) =>
-  [
-    ...localPackageReferencesFromMap(packageJson.dependencies),
-    ...localPackageReferencesFromMap(packageJson.peerDependencies),
-    ...localPackageReferencesFromMap(packageJson.devDependencies),
-    ...localPackageReferencesFromMap(packageJson.pnpm?.overrides),
-  ];
+const localPackageReferences = (packageJson) => [
+  ...localPackageReferencesFromMap(packageJson.dependencies),
+  ...localPackageReferencesFromMap(packageJson.peerDependencies),
+  ...localPackageReferencesFromMap(packageJson.devDependencies),
+  ...localPackageReferencesFromMap(packageJson.pnpm?.overrides),
+];
 
 const verifyStandaloneConfigs = (starter) =>
   Effect.gen(function* () {
@@ -993,9 +996,8 @@ const verifyStandaloneConfigs = (starter) =>
       );
     }
 
-    const tsConfigText = yield* fsEffect(
-      `read generated ${starter.displayName} tsconfig`,
-      () => readFile(resolve(starter.outputDir, "tsconfig.json"), "utf8"),
+    const tsConfigText = yield* fsEffect(`read generated ${starter.displayName} tsconfig`, () =>
+      readFile(resolve(starter.outputDir, "tsconfig.json"), "utf8"),
     );
     if (tsConfigText.includes("../../tsconfig.base.json")) {
       return yield* Effect.fail(
@@ -1009,21 +1011,17 @@ const verifyStandaloneConfigs = (starter) =>
 
 const cleanupGeneratedInstallArtifacts = (starter) =>
   Effect.gen(function* () {
-    yield* fsEffect(
-      `remove generated ${starter.displayName} install dependencies`,
-      () => rm(resolve(starter.outputDir, "node_modules"), { force: true, recursive: true }),
+    yield* fsEffect(`remove generated ${starter.displayName} install dependencies`, () =>
+      rm(resolve(starter.outputDir, "node_modules"), { force: true, recursive: true }),
     );
-    yield* fsEffect(
-      `remove generated ${starter.displayName} build output`,
-      () => rm(resolve(starter.outputDir, "dist"), { force: true, recursive: true }),
+    yield* fsEffect(`remove generated ${starter.displayName} build output`, () =>
+      rm(resolve(starter.outputDir, "dist"), { force: true, recursive: true }),
     );
-    yield* fsEffect(
-      `remove generated ${starter.displayName} test output`,
-      () => rm(resolve(starter.outputDir, ".test-dist"), { force: true, recursive: true }),
+    yield* fsEffect(`remove generated ${starter.displayName} test output`, () =>
+      rm(resolve(starter.outputDir, ".test-dist"), { force: true, recursive: true }),
     );
-    yield* fsEffect(
-      `remove generated ${starter.displayName} install lockfile`,
-      () => rm(resolve(starter.outputDir, localLockfileName), { force: true }),
+    yield* fsEffect(`remove generated ${starter.displayName} install lockfile`, () =>
+      rm(resolve(starter.outputDir, localLockfileName), { force: true }),
     );
   });
 
@@ -1109,9 +1107,8 @@ const rewriteStarterPackageJson = (starter, workspacePackages, packageJson, inte
       },
     };
 
-    yield* fsEffect(
-      `write generated ${starter.displayName} package.json`,
-      () => writeFile(packageJsonPath, stringifyJson(starterPackageJson)),
+    yield* fsEffect(`write generated ${starter.displayName} package.json`, () =>
+      writeFile(packageJsonPath, stringifyJson(starterPackageJson)),
     );
   });
 
@@ -1132,7 +1129,10 @@ const packageStarter = (workspacePackages, builtPackageNames, starter) =>
   Effect.gen(function* () {
     const sourcePackageJsonPath = resolve(starter.sourceDir, "package.json");
     const sourcePackageJson = yield* readPackageJson(sourcePackageJsonPath);
-    const internalPackageNames = yield* internalPackageClosure(sourcePackageJson, workspacePackages);
+    const internalPackageNames = yield* internalPackageClosure(
+      sourcePackageJson,
+      workspacePackages,
+    );
 
     yield* assertCopyableSourceReadme(starter);
     yield* fsEffect(`remove the previous generated ${starter.displayName}`, () =>
@@ -1155,16 +1155,17 @@ const packageStarter = (workspacePackages, builtPackageNames, starter) =>
     );
     yield* rewriteMonorepoConfig(starter);
     yield* Effect.forEach(internalPackageNames, (packageName) =>
-      writeLocalWorkspacePackage(starter, workspacePackages, builtPackageNames, packageName)
+      writeLocalWorkspacePackage(starter, workspacePackages, builtPackageNames, packageName),
     );
 
     const expectedFiles = yield* collectFiles(starter.sourceDir, {
       filter: shouldCopySourcePath(starter.sourceDir),
     });
-    const collectGeneratedAppFiles = () => collectFiles(starter.outputDir, {
-      filter: (filePath) =>
-        !relativeTo(starter.outputDir, filePath).startsWith(`${localPackagesDirectoryName}/`),
-    });
+    const collectGeneratedAppFiles = () =>
+      collectFiles(starter.outputDir, {
+        filter: (filePath) =>
+          !relativeTo(starter.outputDir, filePath).startsWith(`${localPackagesDirectoryName}/`),
+      });
     const generatedAppFiles = yield* collectGeneratedAppFiles();
 
     yield* assertSameFileManifest(starter, expectedFiles, generatedAppFiles);
@@ -1201,9 +1202,7 @@ const packageStarters = Effect.gen(function* () {
   yield* assertStarterLeakScanParity(starterDefinitions);
   const builtPackageNames = new Set();
   const starterConcurrency =
-    usePrebuiltWorkspacePackages && useFastWorkspaceStarterVerify
-      ? starterDefinitions.length
-      : 1;
+    usePrebuiltWorkspacePackages && useFastWorkspaceStarterVerify ? starterDefinitions.length : 1;
   const results = yield* Effect.forEach(
     starterDefinitions,
     (starter) => packageStarter(workspacePackages, builtPackageNames, starter),

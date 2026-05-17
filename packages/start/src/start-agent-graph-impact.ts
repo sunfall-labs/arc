@@ -8,11 +8,9 @@ import {
   formatWire,
   inlineList,
   recordString,
-  recordStringArray
+  recordStringArray,
 } from "./start-agent-graph-display.js";
-import {
-  queryStartAgentGraph
-} from "./start-agent-graph-query.js";
+import { queryStartAgentGraph } from "./start-agent-graph-query.js";
 import { startAgentGraphRelationKindForNode } from "./start-agent-graph-vocabulary.js";
 import { startDiagnosticsCliVerifyCommandsForQuery } from "./start-diagnostics-cli-contract.js";
 import type {
@@ -22,26 +20,24 @@ import type {
   StartAgentGraphImpactOptions,
   StartAgentGraphImpactRelation,
   StartAgentGraphNode,
-  StartAgentGraphQuery
+  StartAgentGraphQuery,
 } from "./start-agent-graph-contract.js";
 
 const relationFromNode = (
   node: StartAgentGraphNode,
-  reason: string
+  reason: string,
 ): StartAgentGraphImpactRelation => ({
   kind: startAgentGraphRelationKindForNode(node.kind),
   label: node.label,
   reason,
-  ...(node.owner === undefined ? {} : { owner: node.owner })
+  ...(node.owner === undefined ? {} : { owner: node.owner }),
 });
 
-const relationKey = (
-  relation: StartAgentGraphImpactRelation
-): string =>
+const relationKey = (relation: StartAgentGraphImpactRelation): string =>
   `${relation.kind}:${relation.label}:${relation.owner ?? ""}`;
 
 const dedupeRelations = (
-  relations: readonly StartAgentGraphImpactRelation[]
+  relations: readonly StartAgentGraphImpactRelation[],
 ): readonly StartAgentGraphImpactRelation[] => {
   const merged = new Map<
     string,
@@ -57,7 +53,7 @@ const dedupeRelations = (
     if (existing === undefined) {
       merged.set(key, {
         relation,
-        reasons: [relation.reason]
+        reasons: [relation.reason],
       });
     } else if (!existing.reasons.includes(relation.reason)) {
       existing.reasons.push(relation.reason);
@@ -66,13 +62,11 @@ const dedupeRelations = (
 
   return Array.from(merged.values()).map(({ relation, reasons }) => ({
     ...relation,
-    reason: reasons.join(", ")
+    reason: reasons.join(", "),
   }));
 };
 
-const dependencyReasonForEdge = (
-  edge: StartAgentGraphEdge
-): string => {
+const dependencyReasonForEdge = (edge: StartAgentGraphEdge): string => {
   switch (edge.kind) {
     case "ClientImports":
       return "client contract";
@@ -91,9 +85,7 @@ const dependencyReasonForEdge = (
   }
 };
 
-const incomingReasonForEdge = (
-  edge: StartAgentGraphEdge
-): string => {
+const incomingReasonForEdge = (edge: StartAgentGraphEdge): string => {
   switch (edge.kind) {
     case "ClientImports":
       return "imports this client contract";
@@ -112,14 +104,12 @@ const incomingReasonForEdge = (
   }
 };
 
-const graphNodeMap = (
-  graph: StartAgentGraph
-): ReadonlyMap<string, StartAgentGraphNode> =>
+const graphNodeMap = (graph: StartAgentGraph): ReadonlyMap<string, StartAgentGraphNode> =>
   new Map(graph.nodes.map((node) => [node.id, node]));
 
 const dependenciesForNode = (
   graph: StartAgentGraph,
-  node: StartAgentGraphNode
+  node: StartAgentGraphNode,
 ): readonly StartAgentGraphImpactRelation[] => {
   const nodes = graphNodeMap(graph);
   return dedupeRelations(
@@ -128,16 +118,12 @@ const dependenciesForNode = (
         return [];
       }
       const target = nodes.get(edge.to);
-      return target === undefined
-        ? []
-        : [relationFromNode(target, dependencyReasonForEdge(edge))];
-    })
+      return target === undefined ? [] : [relationFromNode(target, dependencyReasonForEdge(edge))];
+    }),
   );
 };
 
-const routesWithDeclaredPreloads = (
-  graph: StartAgentGraph
-): readonly StartAgentGraphNode[] =>
+const routesWithDeclaredPreloads = (graph: StartAgentGraph): readonly StartAgentGraphNode[] =>
   graph.nodes.filter((candidate) => {
     if (candidate.kind !== "Route") {
       return false;
@@ -152,7 +138,7 @@ const routesWithDeclaredPreloads = (
 
 const mayAffectForNode = (
   graph: StartAgentGraph,
-  node: StartAgentGraphNode
+  node: StartAgentGraphNode,
 ): readonly StartAgentGraphImpactRelation[] => {
   const nodes = graphNodeMap(graph);
   const incoming = graph.edges.flatMap((edge) => {
@@ -160,9 +146,7 @@ const mayAffectForNode = (
       return [];
     }
     const source = nodes.get(edge.from);
-    return source === undefined
-      ? []
-      : [relationFromNode(source, incomingReasonForEdge(edge))];
+    return source === undefined ? [] : [relationFromNode(source, incomingReasonForEdge(edge))];
   });
 
   if (
@@ -175,63 +159,52 @@ const mayAffectForNode = (
   return dedupeRelations([
     ...incoming,
     ...routesWithDeclaredPreloads(graph).map((route) =>
-      relationFromNode(route, "review invalidation against route preloads")
-    )
+      relationFromNode(route, "review invalidation against route preloads"),
+    ),
   ]);
 };
 
-const contractsForNode = (
-  node: StartAgentGraphNode
-): readonly string[] => {
+const contractsForNode = (node: StartAgentGraphNode): readonly string[] => {
   switch (node.kind) {
     case "Route":
-      return formatRouteSummary(node).map((line) => line.replace(/^([A-Z])/, (letter) =>
-        letter.toLowerCase()
-      ));
+      return formatRouteSummary(node).map((line) =>
+        line.replace(/^([A-Z])/, (letter) => letter.toLowerCase()),
+      );
     case "Action":
       return [
         `wire schemas: ${formatWire(factRecord(node, "wire"))}`,
-        `behavior: ${formatBehavior(factRecord(node, "behavior"))}`
+        `behavior: ${formatBehavior(factRecord(node, "behavior"))}`,
       ];
     case "ServerFunction":
       return [`wire schemas: ${formatWire(factRecord(node, "wire"))}`];
     case "Finding":
-      return formatFindingSummary(node).map((line) => line.replace(/^([A-Z])/, (letter) =>
-        letter.toLowerCase()
-      ));
+      return formatFindingSummary(node).map((line) =>
+        line.replace(/^([A-Z])/, (letter) => letter.toLowerCase()),
+      );
     case "ResourceFamily":
     case "ResourceTag":
     case "Collection": {
       const source = factString(node, "source");
-      return [
-        `name: ${node.label}`,
-        ...(source === undefined ? [] : [`source: ${source}`])
-      ];
+      return [`name: ${node.label}`, ...(source === undefined ? [] : [`source: ${source}`])];
     }
     default:
       return [`name: ${node.label}`];
   }
 };
 
-const missingWireFields = (
-  node: StartAgentGraphNode
-): readonly string[] => {
+const missingWireFields = (node: StartAgentGraphNode): readonly string[] => {
   const wire = factRecord(node, "wire");
   return recordStringArray(wire, "missing");
 };
 
-const unknownBehaviorFields = (
-  node: StartAgentGraphNode
-): readonly string[] => {
+const unknownBehaviorFields = (node: StartAgentGraphNode): readonly string[] => {
   const behavior = factRecord(node, "behavior");
-  return ["invalidates", "optimistic", "retry", "concurrency"].filter((field) =>
-    recordString(behavior, field) === "unknown"
+  return ["invalidates", "optimistic", "retry", "concurrency"].filter(
+    (field) => recordString(behavior, field) === "unknown",
   );
 };
 
-const warningLinesForNode = (
-  node: StartAgentGraphNode
-): readonly string[] => {
+const warningLinesForNode = (node: StartAgentGraphNode): readonly string[] => {
   const warnings: string[] = [];
   const missing = missingWireFields(node);
   if (missing.length > 0) {
@@ -266,9 +239,7 @@ const warningLinesForNode = (
     : warnings;
 };
 
-const editTargetForNode = (
-  node: StartAgentGraphNode
-): string | undefined =>
+const editTargetForNode = (node: StartAgentGraphNode): string | undefined =>
   node.owner ?? (node.kind === "Module" ? node.label : undefined);
 
 /**
@@ -280,7 +251,7 @@ const editTargetForNode = (
 export const createStartAgentGraphImpact = (
   graph: StartAgentGraph,
   query: StartAgentGraphQuery,
-  options: StartAgentGraphImpactOptions = {}
+  options: StartAgentGraphImpactOptions = {},
 ): StartAgentGraphImpact => {
   const result = queryStartAgentGraph(graph, query);
   return {
@@ -295,9 +266,9 @@ export const createStartAgentGraphImpact = (
         dependencies: dependenciesForNode(graph, node),
         mayAffect: mayAffectForNode(graph, node),
         warnings: warningLinesForNode(node),
-        verify: startDiagnosticsCliVerifyCommandsForQuery(query, options)
+        verify: startDiagnosticsCliVerifyCommandsForQuery(query, options),
       };
-    })
+    }),
   };
 };
 
@@ -305,6 +276,6 @@ export const createStartAgentGraphImpact = (
 export const createStartAgentGraphImpactEffect = (
   graph: StartAgentGraph,
   query: StartAgentGraphQuery,
-  options: StartAgentGraphImpactOptions = {}
+  options: StartAgentGraphImpactOptions = {},
 ): Effect.Effect<StartAgentGraphImpact> =>
   Effect.succeed(createStartAgentGraphImpact(graph, query, options));

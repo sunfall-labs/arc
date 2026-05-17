@@ -1,8 +1,4 @@
-import {
-  Effect,
-  PubSub,
-  Scope
-} from "effect";
+import { Effect, PubSub, Scope } from "effect";
 import type { AnyEffectUiRuntime, EffectInput, EffectInputCallbackError } from "@effect-ui/core";
 import {
   Collection,
@@ -96,7 +92,7 @@ import {
   type QueryEvaluationError,
   type SQLitePreparedStatementDatabase,
   type SQLitePersistenceRow,
-  type SQLiteStatementDatabase
+  type SQLiteStatementDatabase,
 } from "@effect-ui/db";
 // @ts-expect-error QueryBuilder construction is internal; use Query.from(...) and Query.Builder.
 import { QueryBuilder } from "@effect-ui/db";
@@ -121,8 +117,18 @@ interface DbAdapterService {
 
 declare const sqliteStatementDatabase: SQLiteStatementDatabase<SQLitePersistenceInvalidRow>;
 declare const sqlitePreparedStatementDatabase: SQLitePreparedStatementDatabase;
-declare const dbProjectsCollection: Collection.Definition<Project, string, "load", DbRuntimeService>;
-declare const dbLiveQueryCollectionOptions: CollectionLiveQueryOptions<Project, string, never, never>;
+declare const dbProjectsCollection: Collection.Definition<
+  Project,
+  string,
+  "load",
+  DbRuntimeService
+>;
+declare const dbLiveQueryCollectionOptions: CollectionLiveQueryOptions<
+  Project,
+  string,
+  never,
+  never
+>;
 const dbNamespaceLiveQueryOptions: Collection.LiveQueryOptions<Project, string, never, never> =
   dbLiveQueryCollectionOptions;
 const dbRootLiveQueryOptions: CollectionLiveQueryOptions<Project, string, never, never> =
@@ -131,25 +137,26 @@ void dbRootLiveQueryOptions;
 const dbStaticProjectsCollection = Collection.define<Project>({
   name: "type-tests/static-projects",
   getKey: (project) => project.id,
-  initialData: []
+  initialData: [],
 });
 declare const erasedCollection: AnyCollection;
 declare const erasedCollectionError: CollectionError<typeof erasedCollection>;
 declare const erasedCollectionRequirements: CollectionRequirements<typeof erasedCollection>;
 declare const servicefulErasedCollection: AnyCollection<"persist", DbAdapterService>;
-declare const servicefulErasedPersistence:
-  NonNullable<typeof servicefulErasedCollection.options.persistence>;
-declare const bareErasedPersistence:
-  NonNullable<typeof erasedCollection.options.persistence>;
+declare const servicefulErasedPersistence: NonNullable<
+  typeof servicefulErasedCollection.options.persistence
+>;
+declare const bareErasedPersistence: NonNullable<typeof erasedCollection.options.persistence>;
 declare const dbAdapterCleanupEffect: Effect.Effect<void, "unsubscribe", DbAdapterService>;
 const sqliteStorage = makeSQLitePersistenceStorage(
-  makeSQLiteStatementPersistenceDriver(sqliteStatementDatabase)
+  makeSQLiteStatementPersistenceDriver(sqliteStatementDatabase),
 );
 const sqlitePreparedAdapter = makeSQLitePreparedStatementDatabase(sqlitePreparedStatementDatabase);
 const sqliteMemoryStatementDatabase = makeSQLiteMemoryStatementDatabase();
-const sqliteNamespaceMemoryDatabase: SQLitePersistence.MemoryStatementDatabase = sqliteMemoryStatementDatabase;
+const sqliteNamespaceMemoryDatabase: SQLitePersistence.MemoryStatementDatabase =
+  sqliteMemoryStatementDatabase;
 const sqliteNamespaceStorage = SQLitePersistence.storage(
-  SQLitePersistence.statementDriver(sqliteNamespaceMemoryDatabase)
+  SQLitePersistence.statementDriver(sqliteNamespaceMemoryDatabase),
 );
 const persistedProjectOptions = persistedCollectionOptions<
   Project,
@@ -162,8 +169,8 @@ const persistedProjectOptions = persistedCollectionOptions<
   getKey: (project) => project.id,
   initialData: [],
   persistence: {
-    storage: sqliteNamespaceStorage
-  }
+    storage: sqliteNamespaceStorage,
+  },
 });
 const backgroundSyncEffect: Effect.Effect<CollectionBackgroundSyncResult, unknown> =
   backgroundSyncCollectionsPendingMutationsEffect([dbStaticProjectsCollection]);
@@ -171,7 +178,7 @@ const collectionMemoryStorage = Collection.memoryStorage();
 const collectionStorage = Collection.storage({
   getItem: () => null,
   setItem: () => undefined,
-  removeItem: () => undefined
+  removeItem: () => undefined,
 });
 const collectionPersistedProjectOptions = Collection.persistedOptions<
   Project,
@@ -184,16 +191,18 @@ const collectionPersistedProjectOptions = Collection.persistedOptions<
   getKey: (project) => project.id,
   initialData: [],
   persistence: {
-    storage: sqliteNamespaceStorage
-  }
+    storage: sqliteNamespaceStorage,
+  },
 });
-const collectionFlushEffect: Effect.Effect<ReadonlyArray<Collection.FlushAllPendingMutationsResult>, unknown> =
-  Collection.flushAllPendingMutationsEffect([dbStaticProjectsCollection]);
+const collectionFlushEffect: Effect.Effect<
+  ReadonlyArray<Collection.FlushAllPendingMutationsResult>,
+  unknown
+> = Collection.flushAllPendingMutationsEffect([dbStaticProjectsCollection]);
 const collectionBackgroundSyncEffect: Effect.Effect<Collection.BackgroundSyncResult, unknown> =
   Collection.backgroundSyncPendingMutationsEffect([dbStaticProjectsCollection]);
 const collectionSqliteMemoryDatabase = Collection.sqliteMemoryStatementDatabase();
 const collectionSqliteStorage = Collection.sqliteStorage(
-  Collection.sqliteStatementDriver(collectionSqliteMemoryDatabase)
+  Collection.sqliteStatementDriver(collectionSqliteMemoryDatabase),
 );
 const sqliteDefaultTable: "effect_ui_collection_persistence" = SQLITE_PERSISTENCE_DEFAULT_TABLE;
 const sqliteDefaultNamespace: "effect-ui:collections" = SQLITE_PERSISTENCE_DEFAULT_NAMESPACE;
@@ -203,7 +212,7 @@ const sqliteRow: SQLitePersistenceRow = {
   key: "projects",
   schemaVersion: 1,
   value: "{}",
-  updatedAt: 1
+  updatedAt: 1,
 };
 void sqliteDefaultTable;
 void sqliteDefaultNamespace;
@@ -216,8 +225,9 @@ const directQueryRoot: QueryRoot = publicQueryRoot;
 const publicQueryFactory: Query.Factory<Project, any, any> = (query) =>
   query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project);
 const directQueryFactory: QueryFactory<Project, any, any> = publicQueryFactory;
-const publicQueryBuilder: Query.Builder<any, Project, any, any> =
-  Query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project);
+const publicQueryBuilder: Query.Builder<any, Project, any, any> = Query.from({
+  project: dbStaticProjectsCollection,
+}).select(({ project }) => project);
 const publicQueryRows: ReadonlyArray<Project> = publicQueryBuilder.execute();
 // @ts-expect-error public Query.Builder does not expose execution-plan internals.
 publicQueryBuilder.sources;
@@ -234,10 +244,10 @@ const structuralQueryBuilder: Query.Builder<any, Project, any, any> = {
   orderBy: () => neverQueryBuilder,
   offset: () => neverQueryBuilder,
   limit: () => neverQueryBuilder,
-  execute: () => []
+  execute: () => [],
 };
 const publicLiveQuery = Query.live((query) =>
-  query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project)
+  query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project),
 );
 const publicQueryLive: Query.Live<Project, any, any> = publicLiveQuery;
 const directLiveQuery: LiveQuery<Project, any, any> = publicQueryLive;
@@ -248,18 +258,16 @@ const directQueryEvaluationError: QueryEvaluationError = publicQueryEvaluationEr
 const publicQueryEvaluationErrorInstance = new Query.EvaluationError({
   operation: "evaluate",
   message: "invalid query",
-  cause: "invalid query"
+  cause: "invalid query",
 });
-const directQueryEvaluationErrorInstance: QueryEvaluationError =
-  publicQueryEvaluationErrorInstance;
+const directQueryEvaluationErrorInstance: QueryEvaluationError = publicQueryEvaluationErrorInstance;
 const publicUnsupportedLiveQuery = new Query.UnsupportedLiveQuery({
-  reason: "Live queries with joins require at least one non-join source collection."
+  reason: "Live queries with joins require at least one non-join source collection.",
 });
 const directUnsupportedLiveQuery: UnsupportedLiveQuery = publicUnsupportedLiveQuery;
 const publicQueryPlanDiagnostics: Query.PlanDiagnostics = Query.diagnostics(publicQueryFactory);
 const directQueryPlanDiagnostics: QueryPlanDiagnostics = publicQueryPlanDiagnostics;
-const publicQueryPlanSource: Query.PlanSourceDiagnostics =
-  publicQueryPlanDiagnostics.sources[0]!;
+const publicQueryPlanSource: Query.PlanSourceDiagnostics = publicQueryPlanDiagnostics.sources[0]!;
 const directQueryPlanSource: QueryPlanSourceDiagnostics = publicQueryPlanSource;
 declare const publicQueryPlanJoin: Query.PlanJoinDiagnostics;
 const directQueryPlanJoin: QueryPlanJoinDiagnostics = publicQueryPlanJoin;
@@ -278,7 +286,7 @@ const publicQueryAggregate: Query.Aggregate<{ readonly project: Project }, numbe
 const directQueryAggregate: QueryAggregate<{ readonly project: Project }, number, number> =
   publicQueryAggregate;
 const publicQueryAggregates = {
-  count: Query.count(({ project }: { readonly project: Project }) => project.id)
+  count: Query.count(({ project }: { readonly project: Project }) => project.id),
 } satisfies Query.Aggregates<{ readonly project: Project }>;
 const directQueryAggregateRecord: QueryAggregateRecord<{ readonly project: Project }> =
   publicQueryAggregates;
@@ -316,17 +324,21 @@ publicQueryRoot.from({ project: dbStaticProjectsCollection });
 const collectionReactivePreloadController = makeCollectionReactivePreloadController({
   runtime: null as unknown as AnyEffectUiRuntime<never>,
   onSuccess: () => Effect.void,
-  onFailure: () => Effect.void
+  onFailure: () => Effect.void,
 });
 const collectionReactivePreloadInterruptEffect: Effect.Effect<void> =
   collectionReactivePreloadController.interruptEffect();
 // @ts-expect-error public LiveQuery handles do not expose their internal builder.
 publicLiveQuery.builder;
-const directLiveQueryCollection = makeLiveQueryCollection<Project, string, unknown>({
-  name: "type-tests/direct-live-query-projects",
-  getKey: (project) => project.id,
-  query: (query) => query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project)
-}, makeCollectionDefinitionRegistry());
+const directLiveQueryCollection = makeLiveQueryCollection<Project, string, unknown>(
+  {
+    name: "type-tests/direct-live-query-projects",
+    getKey: (project) => project.id,
+    query: (query) =>
+      query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project),
+  },
+  makeCollectionDefinitionRegistry(),
+);
 const isolatedCollectionRegistry = makeCollectionDefinitionRegistry();
 const defaultCollectionRegistry = defaultCollectionDefinitionRegistry;
 const collectionTypeId: typeof CollectionTypeId = CollectionTypeId;
@@ -342,7 +354,7 @@ const queryPredicatePins: ReadonlyArray<boolean> = [
   includes(["atlas"], "atlas"),
   and(true, true),
   or(false, true),
-  not(false)
+  not(false),
 ];
 const publicQueryPredicatePins: ReadonlyArray<boolean> = [
   Query.eq("atlas", "atlas"),
@@ -354,90 +366,89 @@ const publicQueryPredicatePins: ReadonlyArray<boolean> = [
   Query.includes(["atlas"], "atlas"),
   Query.and(true, true),
   Query.or(false, true),
-  Query.not(false)
+  Query.not(false),
 ];
 const unknownCollectionIndex = new UnknownCollectionIndex({
   collection: "projects",
-  index: "byStatus"
+  index: "byStatus",
 });
 const unsupportedLiveQuery = new UnsupportedLiveQuery({
-  reason: "Live queries with joins require at least one non-join source collection."
+  reason: "Live queries with joins require at least one non-join source collection.",
 });
 const collectionRowKeyChanged = new CollectionRowKeyChanged({
   collection: "projects",
   key: "atlas",
   nextKey: "zephyr",
-  guidance: "keep keys stable"
+  guidance: "keep keys stable",
 });
 const collectionRowNotFound = new CollectionRowNotFound({
   collection: "projects",
-  key: "missing"
+  key: "missing",
 });
 const readonlyCollectionMutation = new ReadonlyCollectionMutation({
   collection: "derived-projects",
-  operation: "insert"
+  operation: "insert",
 });
 const collectionSnapshotCodecError = new CollectionSnapshotCodecError({
   operation: "decode",
   path: "$.collections",
-  reason: "invalid"
+  reason: "invalid",
 });
 const collectionUnknownIndexFromNamespace = new Collection.UnknownIndex({
   collection: "projects",
-  index: "byStatus"
+  index: "byStatus",
 });
-const directUnknownCollectionIndex: UnknownCollectionIndex =
-  collectionUnknownIndexFromNamespace;
+const directUnknownCollectionIndex: UnknownCollectionIndex = collectionUnknownIndexFromNamespace;
 const collectionRowKeyChangedFromNamespace = new Collection.RowKeyChanged({
   collection: "projects",
   key: "atlas",
   nextKey: "zephyr",
-  guidance: "keep keys stable"
+  guidance: "keep keys stable",
 });
-const directCollectionRowKeyChanged: CollectionRowKeyChanged =
-  collectionRowKeyChangedFromNamespace;
+const directCollectionRowKeyChanged: CollectionRowKeyChanged = collectionRowKeyChangedFromNamespace;
 const collectionRowNotFoundFromNamespace = new Collection.RowNotFound({
   collection: "projects",
-  key: "missing"
+  key: "missing",
 });
-const directCollectionRowNotFound: CollectionRowNotFound =
-  collectionRowNotFoundFromNamespace;
+const directCollectionRowNotFound: CollectionRowNotFound = collectionRowNotFoundFromNamespace;
 const readonlyCollectionMutationFromNamespace = new Collection.ReadonlyMutation({
   collection: "derived-projects",
-  operation: "insert"
+  operation: "insert",
 });
 const directReadonlyCollectionMutation: ReadonlyCollectionMutation =
   readonlyCollectionMutationFromNamespace;
 const collectionSnapshotCodecErrorFromNamespace = new Collection.SnapshotCodecError({
   operation: "decode",
   path: "$.collections",
-  reason: "invalid"
+  reason: "invalid",
 });
 const directCollectionSnapshotCodecError: CollectionSnapshotCodecError =
   collectionSnapshotCodecErrorFromNamespace;
 declare const publicCollectionStorageError: Collection.StorageError;
-const directCollectionStorageError: CollectionStorageError =
-  publicCollectionStorageError;
+const directCollectionStorageError: CollectionStorageError = publicCollectionStorageError;
 const serverOptions = serverCollectionOptions<Project>({
   name: "projects",
-  getKey: (project) => project.id
+  getKey: (project) => project.id,
 });
 const serverSync = serverCollectionSyncAdapter<Project>({
   name: "projects",
-  getKey: (project) => project.id
+  getKey: (project) => project.id,
 });
 const collectionCurrentStore: Collection.Store = Collection.currentStore();
 const collectionStoreEffect: Effect.Effect<Collection.Store> = Collection.storeEffect();
 const collectionStoreDiagnosticsSnapshot: Collection.StoreDiagnosticsSnapshot =
   collectionCurrentStore.diagnostics.snapshot();
-const collectionEventsEffect: Effect.Effect<PubSub.Subscription<Collection.StoreEvent>, never, Scope.Scope> =
-  Collection.subscribeEventsEffect();
+const collectionEventsEffect: Effect.Effect<
+  PubSub.Subscription<Collection.StoreEvent>,
+  never,
+  Scope.Scope
+> = Collection.subscribeEventsEffect();
 const collectionHydrationValidationEffect: Effect.Effect<
   void,
   Collection.SnapshotCodecError | EffectInputCallbackError
 > = Collection.validateHydrationPayloadEffect(
   [dbStaticProjectsCollection],
-  Collection.dehydrate([dbStaticProjectsCollection])
+  Collection.dehydrate([dbStaticProjectsCollection]),
 );
 // @ts-expect-error public Collection.Store is diagnostics/events-only; runtime disposal is internal.
 collectionCurrentStore.disposeEffect;
@@ -539,7 +550,7 @@ const dbExports: Array<unknown> = [
   serverSync,
   collectionCurrentStore,
   collectionStoreEffect,
-  collectionEventsEffect
+  collectionEventsEffect,
 ];
 type DbErrors =
   | CollectionStorageError
@@ -564,12 +575,9 @@ const collectionQuerySyncKeyPart: Collection.QuerySyncKeyPart = {
   cursor: "after",
   page: 2,
   staleAt: new Date(0),
-  flags: [true, null]
+  flags: [true, null],
 };
-const collectionQuerySyncKey: Collection.QuerySyncKey = [
-  "projects",
-  collectionQuerySyncKeyPart
-];
+const collectionQuerySyncKey: Collection.QuerySyncKey = ["projects", collectionQuerySyncKeyPart];
 type DbServerPins =
   | ServerCollectionOptions<Project>
   | ServerCollectionOperation<void, ReadonlyArray<Project>>
@@ -581,9 +589,20 @@ type DbFlushPins =
   | FlushCollectionPendingMutationsResult
   | CollectionBackgroundSyncResult
   | Collection.FlushAllPendingMutationsError<readonly [typeof dbProjectsCollection], "skip-error">
-  | Collection.FlushAllPendingMutationsRequirements<readonly [typeof dbProjectsCollection], DbSkipService>
-  | Collection.BackgroundSyncError<readonly [typeof dbProjectsCollection], "adapter-error", "skip-error">
-  | Collection.BackgroundSyncRequirements<readonly [typeof dbProjectsCollection], DbAdapterService, DbSkipService>;
+  | Collection.FlushAllPendingMutationsRequirements<
+      readonly [typeof dbProjectsCollection],
+      DbSkipService
+    >
+  | Collection.BackgroundSyncError<
+      readonly [typeof dbProjectsCollection],
+      "adapter-error",
+      "skip-error"
+    >
+  | Collection.BackgroundSyncRequirements<
+      readonly [typeof dbProjectsCollection],
+      DbAdapterService,
+      DbSkipService
+    >;
 declare const collectionFlushError: Collection.FlushAllPendingMutationsError<
   readonly [typeof dbProjectsCollection],
   "skip-error"
@@ -602,8 +621,10 @@ declare const collectionBackgroundSyncRequirements: Collection.BackgroundSyncReq
   DbAdapterService,
   DbSkipService
 >;
-const collectionFlushErrorPin: Collection.RuntimeError<"load"> | "skip-error" | EffectInputCallbackError =
-  collectionFlushError;
+const collectionFlushErrorPin:
+  | Collection.RuntimeError<"load">
+  | "skip-error"
+  | EffectInputCallbackError = collectionFlushError;
 const collectionFlushRequirementsPin: DbRuntimeService | DbSkipService =
   collectionFlushRequirements;
 const collectionBackgroundSyncErrorPin:
@@ -613,9 +634,12 @@ const collectionBackgroundSyncErrorPin:
   | EffectInputCallbackError = collectionBackgroundSyncError;
 const collectionBackgroundSyncRequirementsPin: DbRuntimeService | DbAdapterService | DbSkipService =
   collectionBackgroundSyncRequirements;
-const concreteCollectionErrorPin: "load" = null as never as CollectionError<typeof dbProjectsCollection>;
-const concreteCollectionRequirementsPin: DbRuntimeService =
-  null as never as CollectionRequirements<typeof dbProjectsCollection>;
+const concreteCollectionErrorPin: "load" = null as never as CollectionError<
+  typeof dbProjectsCollection
+>;
+const concreteCollectionRequirementsPin: DbRuntimeService = null as never as CollectionRequirements<
+  typeof dbProjectsCollection
+>;
 const servicefulErasedPersistencePin: Collection.PersistenceConfig<"persist", DbAdapterService> =
   servicefulErasedPersistence;
 const servicefulErasedPersistenceRead: EffectInput<string | null, "persist", DbAdapterService> =
@@ -626,8 +650,10 @@ const bareErasedPersistencePin: Collection.PersistenceConfig<unknown, unknown> =
 const erasedCollectionErrorString: string = erasedCollectionError;
 // @ts-expect-error erased collection requirements default to unknown, not an arbitrary service.
 const erasedCollectionRequirementsService: DbRuntimeService = erasedCollectionRequirements;
-const changeFeedUnsubscribeWithServices: Collection.ChangeFeedUnsubscribe<"unsubscribe", DbAdapterService> = () =>
-  dbAdapterCleanupEffect;
+const changeFeedUnsubscribeWithServices: Collection.ChangeFeedUnsubscribe<
+  "unsubscribe",
+  DbAdapterService
+> = () => dbAdapterCleanupEffect;
 const servicefulChangeFeedAdapter: Collection.ChangeFeedAdapter<
   Project,
   string,
@@ -638,8 +664,8 @@ const servicefulChangeFeedAdapter: Collection.ChangeFeedAdapter<
 > = {
   name: "projects-serviceful-feed",
   subscribe: () => ({
-    unsubscribe: changeFeedUnsubscribeWithServices
-  })
+    unsubscribe: changeFeedUnsubscribeWithServices,
+  }),
 };
 // Adapter lifecycle channels stay visible for subscription setup; unsubscribe
 // failures use the same adapter channel for failure publication but are

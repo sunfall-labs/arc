@@ -1,8 +1,5 @@
 import { Data, Effect } from "effect";
-import {
-  serverActionPath,
-  serverRpcPath
-} from "./rpc.js";
+import { serverActionPath, serverRpcPath } from "./rpc.js";
 
 /** Reasons a Start transport endpoint path can be rejected. */
 export type StartEndpointPathInvalidReason =
@@ -46,7 +43,7 @@ const urlSchemePattern = /^[A-Za-z][A-Za-z0-9+.-]*:/;
 
 /** Classifies why a candidate Start transport endpoint path is invalid. */
 export const startEndpointPathInvalidReason = (
-  value: unknown
+  value: unknown,
 ): StartEndpointPathInvalidReason | undefined => {
   if (typeof value !== "string") {
     return "NotString";
@@ -80,7 +77,7 @@ export const validateStartEndpointPathEffect = <Error>(
   options: {
     readonly field: string;
     readonly invalidPath: (input: StartEndpointPathErrorInput) => Error;
-  }
+  },
 ): Effect.Effect<string, Error> => {
   const normalized = normalizeStartEndpointPath(value);
   if (normalized !== undefined) {
@@ -92,19 +89,19 @@ export const validateStartEndpointPathEffect = <Error>(
       field: options.field,
       value,
       reason: startEndpointPathInvalidReason(value) ?? "NotOriginForm",
-      guidance: startEndpointPathGuidance
-    })
+      guidance: startEndpointPathGuidance,
+    }),
   );
 };
 
 /** Error raised when a Start transport endpoint path is not origin-form. */
 export class StartTransportEndpointPathError extends Data.TaggedError(
-  "StartTransportEndpointPathError"
+  "StartTransportEndpointPathError",
 )<StartEndpointPathErrorInput> {}
 
 /** Error raised when RPC and action transports resolve to the same path. */
 export class StartTransportEndpointConflictError extends Data.TaggedError(
-  "StartTransportEndpointConflictError"
+  "StartTransportEndpointConflictError",
 )<StartEndpointConflictErrorInput> {}
 
 /** Runtime endpoint paths used by Start RPC and action transports. */
@@ -164,17 +161,16 @@ export interface StartActionEndpointSource extends StartTransportEndpointSource 
 /** Default Start transport paths. Constants should stay at this default seam. */
 export const defaultStartTransportEndpoints: StartTransportEndpoints = {
   rpcPath: serverRpcPath,
-  actionPath: serverActionPath
+  actionPath: serverActionPath,
 };
 
 const startTransportEndpointPathError = (
-  input: StartEndpointPathErrorInput
-): StartTransportEndpointPathError =>
-  new StartTransportEndpointPathError(input);
+  input: StartEndpointPathErrorInput,
+): StartTransportEndpointPathError => new StartTransportEndpointPathError(input);
 
 const endpointPath = (
   value: string | undefined,
-  field: keyof StartTransportEndpoints
+  field: keyof StartTransportEndpoints,
 ): string | undefined => {
   if (value === undefined) {
     return undefined;
@@ -189,7 +185,7 @@ const endpointPath = (
     field,
     value,
     reason: startEndpointPathInvalidReason(value) ?? "NotOriginForm",
-    guidance: startEndpointPathGuidance
+    guidance: startEndpointPathGuidance,
   });
 };
 
@@ -199,7 +195,7 @@ const adapterTarget = (value: string | undefined): string | undefined => {
 };
 
 const validateStartTransportEndpointConflict = (
-  endpoints: StartTransportEndpoints
+  endpoints: StartTransportEndpoints,
 ): StartTransportEndpoints => {
   if (endpoints.rpcPath !== endpoints.actionPath) {
     return endpoints;
@@ -208,13 +204,13 @@ const validateStartTransportEndpointConflict = (
   throw new StartTransportEndpointConflictError({
     rpcPath: endpoints.rpcPath,
     actionPath: endpoints.actionPath,
-    guidance: startEndpointConflictGuidance
+    guidance: startEndpointConflictGuidance,
   });
 };
 
 /** Resolves Start transport endpoint paths from explicit options, manifests, or defaults. */
 export const resolveStartTransportEndpoints = (
-  source: StartTransportEndpointSource = {}
+  source: StartTransportEndpointSource = {},
 ): StartTransportEndpoints =>
   validateStartTransportEndpointConflict({
     rpcPath:
@@ -228,12 +224,12 @@ export const resolveStartTransportEndpoints = (
       endpointPath(source.actionPath, "actionPath") ??
       endpointPath(source.actionManifest?.actionPath, "actionPath") ??
       endpointPath(source.appGraph?.actions?.actionPath, "actionPath") ??
-      defaultStartTransportEndpoints.actionPath
+      defaultStartTransportEndpoints.actionPath,
   });
 
 /** Effect-native endpoint resolver for CLI, diagnostics, and handler seams. */
 export const resolveStartTransportEndpointsEffect = (
-  source: StartTransportEndpointSource = {}
+  source: StartTransportEndpointSource = {},
 ): Effect.Effect<
   StartTransportEndpoints,
   StartTransportEndpointPathError | StartTransportEndpointConflictError
@@ -253,17 +249,13 @@ export const resolveStartTransportEndpointsEffect = (
   });
 
 /** Resolves the RPC endpoint used by Start server-function clients. */
-export const resolveStartRpcEndpoint = (
-  source: StartRpcEndpointSource = {}
-): string | URL =>
+export const resolveStartRpcEndpoint = (source: StartRpcEndpointSource = {}): string | URL =>
   source.endpoint ??
   endpointPath(source.manifest?.rpcPath, "rpcPath") ??
   resolveStartTransportEndpoints(source).rpcPath;
 
 /** Resolves the action endpoint used by Start action clients and progressive forms. */
-export const resolveStartActionEndpoint = (
-  source: StartActionEndpointSource = {}
-): string | URL =>
+export const resolveStartActionEndpoint = (source: StartActionEndpointSource = {}): string | URL =>
   source.endpoint ??
   adapterTarget(source.action) ??
   endpointPath(source.manifest?.actionPath, "actionPath") ??
@@ -272,13 +264,11 @@ export const resolveStartActionEndpoint = (
 /** True when a request targets the configured Start server-function RPC endpoint. */
 export const isStartRpcEndpointRequest = (
   request: Request,
-  source: StartTransportEndpointSource = {}
-): boolean =>
-  new URL(request.url).pathname === resolveStartTransportEndpoints(source).rpcPath;
+  source: StartTransportEndpointSource = {},
+): boolean => new URL(request.url).pathname === resolveStartTransportEndpoints(source).rpcPath;
 
 /** True when a request targets the configured Start action endpoint. */
 export const isStartActionEndpointRequest = (
   request: Request,
-  source: StartTransportEndpointSource = {}
-): boolean =>
-  new URL(request.url).pathname === resolveStartTransportEndpoints(source).actionPath;
+  source: StartTransportEndpointSource = {},
+): boolean => new URL(request.url).pathname === resolveStartTransportEndpoints(source).actionPath;

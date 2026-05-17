@@ -12,7 +12,7 @@ import {
   normalizeStartManifestIterableOptions,
   normalizeStartBuildPolicy,
   withDiscoveredFileRoutes,
-  type EffectUiStartOptions
+  type EffectUiStartOptions,
 } from "./start-manifest-wall.js";
 import {
   appGraphRuntimeDiagnosticsVirtualModuleId,
@@ -20,29 +20,31 @@ import {
   fileRouteDefinitionsVirtualModuleId,
   fileRouteManifestVirtualModuleId,
   loadStartVirtualModuleEffect,
-  resolveStartVirtualModuleId
+  resolveStartVirtualModuleId,
 } from "./start-virtual-modules.js";
 import {
   runStartViteDiagnosticsGateEffect,
-  startDiagnosticsInlineConfig
+  startDiagnosticsInlineConfig,
 } from "./start-vite-diagnostics-loader.js";
 import {
   shouldWriteFileRouteDefinitionsFile,
   writeFileRouteDefinitionsFile,
-  type FileRouteDefinitionsFileWriteResult
+  type FileRouteDefinitionsFileWriteResult,
 } from "./generated-route-definitions.js";
 import {
   handleSsrDevMiddlewareEffect,
   startDevServerFromVite,
   type StartDevMiddlewareNext,
-  type StartViteDevServer
+  type StartViteDevServer,
 } from "./start-vite-dev-ssr.js";
-import {
-  forkStartHostEffect,
-  runStartHostPromise
-} from "./start-host-runtime-runner.js";
+import { forkStartHostEffect, runStartHostPromise } from "./start-host-runtime-runner.js";
 import { isStartManifestServerOnlyModule } from "./manifest-entry-core.js";
 import { effectUiStartPluginName } from "./start-vite-plugin-names.js";
+import {
+  loadStartRouteComponentSplitModule,
+  resolveStartRouteComponentSplitModuleId,
+  transformStartRouteAutoCodeSplitting,
+} from "./route-code-splitting.js";
 
 export {
   defaultFileRouteDirectory,
@@ -63,7 +65,7 @@ export {
   serializeStartFileRouteManifest,
   serializeStartServerFunctionManifest,
   StartManifestDirectReferenceError,
-  validateStartBuildPolicyEffect
+  validateStartBuildPolicyEffect,
 } from "./start-manifest-wall.js";
 export type {
   EffectUiStartOptions,
@@ -73,7 +75,7 @@ export type {
   StartBuildPolicy,
   StartBuildPolicyError,
   StartViteDevSsrOptions,
-  StartManifestDirectReferenceKind
+  StartManifestDirectReferenceKind,
 } from "./start-manifest-wall.js";
 export {
   actionManifestVirtualModuleId,
@@ -87,28 +89,28 @@ export {
   appGraphRuntimeDiagnosticsVirtualModuleId,
   fileRouteDefinitionsVirtualModuleId,
   fileRouteManifestVirtualModuleId,
-  serverFunctionManifestVirtualModuleId
+  serverFunctionManifestVirtualModuleId,
 } from "./start-virtual-modules.js";
 export {
   FileRouteDefinitionsOutputPathError,
   FileRouteDefinitionsFileWriteError,
   writeFileRouteDefinitionsFileEffect,
-  writeFileRouteDefinitionsFile
+  writeFileRouteDefinitionsFile,
 } from "./generated-route-definitions.js";
 export type {
   FileRouteDefinitionsFileWriteFailure,
-  FileRouteDefinitionsFileWriteResult
+  FileRouteDefinitionsFileWriteResult,
 } from "./generated-route-definitions.js";
 export {
   StartAppGraphMissingWireSchemas,
-  StartAppGraphUnknownActionBehavior
+  StartAppGraphUnknownActionBehavior,
 } from "./app-graph.js";
 export {
   StartAppGraphUnknownRoutePreloadCollections,
   StartAppGraphUnknownRoutePreloadResources,
   validateStartAppGraphDiagnosticsPolicyEffect,
   validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect,
-  validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect
+  validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect,
 } from "./start-app-graph-diagnostics-policy.js";
 export {
   StartDevServerError,
@@ -120,7 +122,7 @@ export {
   resolveStartHandler,
   resolveStartHandlerEffect,
   shouldHandleSsrRequest,
-  startDevServerFromVite
+  startDevServerFromVite,
 } from "./start-vite-dev-ssr.js";
 export type {
   HandleSsrDevMiddlewareOptions,
@@ -129,18 +131,25 @@ export type {
   StartDevServer,
   StartSsrHandlerModule,
   StartSsrRequestHandler,
-  StartViteDevServer
+  StartViteDevServer,
 } from "./start-vite-dev-ssr.js";
+export {
+  loadStartRouteComponentSplitModule,
+  resolveStartRouteComponentSplitModuleId,
+  startRouteComponentSplitVirtualModuleId,
+  transformStartRouteAutoCodeSplitting,
+} from "./route-code-splitting.js";
+export type { StartRouteAutoCodeSplittingOptions } from "./route-code-splitting.js";
 export {
   loadStartAppGraphDiagnostics,
   loadStartAppGraphDiagnosticsEffect,
   runStartViteDiagnosticsGateEffect,
-  StartAppGraphDiagnosticsRunnerError
+  StartAppGraphDiagnosticsRunnerError,
 } from "./start-vite-diagnostics-loader.js";
 export type {
   LoadedStartAppGraphDiagnostics,
   LoadStartAppGraphDiagnosticsOptions,
-  StartAppGraphDiagnosticsLoadError
+  StartAppGraphDiagnosticsLoadError,
 } from "./start-vite-diagnostics-loader.js";
 
 /** Vite resolved config fields used by the Start plugin. */
@@ -161,8 +170,8 @@ export interface EffectUiStartPlugin {
   readonly transform: (
     code: string,
     id: string,
-    options?: { readonly ssr?: boolean }
-  ) => null;
+    options?: { readonly ssr?: boolean },
+  ) => string | null;
   readonly configureServer: (
     server: StartViteDevServer & {
       readonly middlewares: {
@@ -170,11 +179,11 @@ export interface EffectUiStartPlugin {
           handler: (
             request: IncomingMessage,
             response: ServerResponse,
-            next: StartDevMiddlewareNext
-          ) => void
+            next: StartDevMiddlewareNext,
+          ) => void,
         ) => void;
       };
-    }
+    },
   ) => () => void;
   readonly handleHotUpdate?: (context: {
     readonly file: string;
@@ -229,9 +238,9 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
 
   const shouldRunDiagnosticsGate = (): boolean => {
     const policy = normalizeStartBuildPolicy(normalizedOptions.buildPolicy);
-    return viteCommand === "build" &&
-      policy?.diagnostics !== undefined &&
-      policy.diagnostics !== false;
+    return (
+      viteCommand === "build" && policy?.diagnostics !== undefined && policy.diagnostics !== false
+    );
   };
 
   const runCurrentDiagnosticsGate = (): Promise<void> =>
@@ -241,8 +250,8 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
         configFile: false,
         ...(viteMode === undefined ? {} : { mode: viteMode }),
         start: currentOptions(),
-        vite: startDiagnosticsInlineConfig(viteUserConfig, viteRoot, viteMode)
-      })
+        vite: startDiagnosticsInlineConfig(viteUserConfig, viteRoot, viteMode),
+      }),
     );
 
   const writeCurrentFileRouteDefinitions = (): FileRouteDefinitionsFileWriteResult | undefined => {
@@ -254,14 +263,14 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
     return writeFileRouteDefinitionsFile(
       viteRoot,
       Effect.runSync(makeStartFileRouteManifestEffect(activeOptions)),
-      activeOptions.fileRouteGeneration
+      activeOptions.fileRouteGeneration,
     );
   };
   const fileRouteVirtualModuleIds = [
     fileRouteManifestVirtualModuleId,
     fileRouteDefinitionsVirtualModuleId,
     appGraphVirtualModuleId,
-    appGraphRuntimeDiagnosticsVirtualModuleId
+    appGraphRuntimeDiagnosticsVirtualModuleId,
   ] as const;
   const invalidateFileRouteVirtualModules = (server: {
     readonly moduleGraph: {
@@ -282,18 +291,21 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
   };
   const isFileRouteUpdate = (file: string): boolean => {
     const activeOptions = currentOptions();
-    return isFileRouteDiscoveryFile(fileRouteDiscoveryPlan({
-      root: viteRoot,
-      ...(activeOptions.fileRouteOptions?.routeDirectory === undefined
-        ? {}
-        : { routeDirectory: activeOptions.fileRouteOptions.routeDirectory }),
-      ...(activeOptions.fileRouteOptions?.extensions === undefined
-        ? {}
-        : { extensions: activeOptions.fileRouteOptions.extensions }),
-      ...(activeOptions.fileRouteGeneration === undefined
-        ? {}
-        : { fileRouteGeneration: activeOptions.fileRouteGeneration })
-    }), file);
+    return isFileRouteDiscoveryFile(
+      fileRouteDiscoveryPlan({
+        root: viteRoot,
+        ...(activeOptions.fileRouteOptions?.routeDirectory === undefined
+          ? {}
+          : { routeDirectory: activeOptions.fileRouteOptions.routeDirectory }),
+        ...(activeOptions.fileRouteOptions?.extensions === undefined
+          ? {}
+          : { extensions: activeOptions.fileRouteOptions.extensions }),
+        ...(activeOptions.fileRouteGeneration === undefined
+          ? {}
+          : { fileRouteGeneration: activeOptions.fileRouteGeneration }),
+      }),
+      file,
+    );
   };
   const refreshFileRouteArtifacts = (server?: {
     readonly moduleGraph: {
@@ -317,7 +329,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
 
       return {
         appType: "custom",
-        define: createStartManifestWallDefineValues(graph)
+        define: createStartManifestWallDefineValues(graph),
       };
     },
     configResolved(config) {
@@ -333,15 +345,23 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
       }
     },
     resolveId(id) {
-      return resolveStartVirtualModuleId(id);
+      return resolveStartRouteComponentSplitModuleId(id) ?? resolveStartVirtualModuleId(id);
     },
     load(id) {
+      const splitModule = loadStartRouteComponentSplitModule(id);
+      if (splitModule !== null) {
+        return splitModule;
+      }
       const activeOptions = currentOptions();
       return Effect.runSync(loadStartVirtualModuleEffect(id, activeOptions));
     },
-    transform(_code, id, options) {
+    transform(code, id, options) {
       if (isServerOnlyModule(id) && !options?.ssr) {
         throw new StartServerOnlyModuleError({ id });
+      }
+      const activeOptions = currentOptions();
+      if (!options?.ssr && activeOptions.autoCodeSplitting !== false && isFileRouteUpdate(id)) {
+        return transformStartRouteAutoCodeSplitting(code, id, { root: viteRoot });
       }
       return null;
     },
@@ -354,31 +374,21 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
 
           try {
             forkStartHostEffect(
-              handleSsrDevMiddlewareEffect(
-                startServer,
-                request,
-                response,
-                next,
-                {
-                  serverEntry,
-                  ...(activeOptions.rpcPath === undefined
-                    ? {}
-                    : { rpcPath: activeOptions.rpcPath }),
-                  ...(activeOptions.actionPath === undefined
-                    ? {}
-                    : { actionPath: activeOptions.actionPath }),
-                  ...(normalizedOptions.handlerExport === undefined
-                    ? {}
-                    : { handlerExport: normalizedOptions.handlerExport }),
-                  ...(devSsr?.runOptions === undefined
-                    ? {}
-                    : { runOptions: devSsr.runOptions }),
-                  nodeRequest: {
-                    ...normalizedOptions.nodeRequest
-                  }
-                }
-              ),
-              devSsr
+              handleSsrDevMiddlewareEffect(startServer, request, response, next, {
+                serverEntry,
+                ...(activeOptions.rpcPath === undefined ? {} : { rpcPath: activeOptions.rpcPath }),
+                ...(activeOptions.actionPath === undefined
+                  ? {}
+                  : { actionPath: activeOptions.actionPath }),
+                ...(normalizedOptions.handlerExport === undefined
+                  ? {}
+                  : { handlerExport: normalizedOptions.handlerExport }),
+                ...(devSsr?.runOptions === undefined ? {} : { runOptions: devSsr.runOptions }),
+                nodeRequest: {
+                  ...normalizedOptions.nodeRequest,
+                },
+              }),
+              devSsr,
             );
           } catch (error) {
             try {
@@ -399,7 +409,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
       if (isFileRouteUpdate(context.file)) {
         refreshFileRouteArtifacts(context.server);
       }
-    }
+    },
   };
 };
 

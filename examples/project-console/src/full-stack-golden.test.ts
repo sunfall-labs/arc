@@ -1,11 +1,20 @@
-import { defineApp, RequestContext, Resource, ResponseContext, route, Server, type AnyEffectUiRuntime, type EffectUiRuntime } from "@effect-ui/core";
+import {
+  defineApp,
+  RequestContext,
+  Resource,
+  ResponseContext,
+  route,
+  Server,
+  type AnyEffectUiRuntime,
+  type EffectUiRuntime,
+} from "@effect-ui/core";
 import { Collection } from "@effect-ui/db";
 import {
   createRequestHandler,
   serverActionPath,
   startActionForm,
   streamHydrationAttribute,
-  type StartHydrationChunk
+  type StartHydrationChunk,
 } from "@effect-ui/start";
 import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
@@ -15,7 +24,7 @@ import {
   ProjectById,
   ProjectSchema,
   ProjectsRef,
-  SubmitProjectName
+  SubmitProjectName,
 } from "./domain.js";
 import { handleRequest, serverApp } from "./server.js";
 
@@ -28,34 +37,38 @@ const streamHydrationChunksFrom = (html: string): ReadonlyArray<StartHydrationCh
 
 const runInRuntime = <A, E, R, RuntimeServices, RuntimeError>(
   runtime: EffectUiRuntime<RuntimeServices, RuntimeError> | AnyEffectUiRuntime<RuntimeError>,
-  effect: Effect.Effect<A, E, R>
+  effect: Effect.Effect<A, E, R>,
 ): Promise<A> =>
   Effect.runPromise((runtime as unknown as AnyEffectUiRuntime<RuntimeError>).provide(effect));
 
 const postActionForm = async (
   form: ReturnType<typeof startActionForm>,
-  body: URLSearchParams
+  body: URLSearchParams,
 ): Promise<Response> =>
-  runInRuntime(serverApp.runtime,
+  runInRuntime(
+    serverApp.runtime,
     handleRequest(
       new Request(`https://example.com${serverActionPath}`, {
         method: form.method.toUpperCase(),
         headers: { "content-type": "application/x-www-form-urlencoded" },
-        body
-      })
-    )
+        body,
+      }),
+    ),
   );
 
 describe("project console full-stack golden path", () => {
   it("renders route data, serializes route preload resources, and observes updated data after a Start form action", async () => {
     const projectId = makeProjectId("meridian");
-    const response = await runInRuntime(serverApp.runtime,
-      handleRequest(new Request("https://example.com/projects/meridian?tab=activity"))
+    const response = await runInRuntime(
+      serverApp.runtime,
+      handleRequest(new Request("https://example.com/projects/meridian?tab=activity")),
     );
     const html = await response.text();
     const chunks = streamHydrationChunksFrom(html);
     const resources = chunks.flatMap((chunk) => chunk.payload.resources);
-    const projectResource = resources.find((resource) => resource.key === ProjectById(projectId).key);
+    const projectResource = resources.find(
+      (resource) => resource.key === ProjectById(projectId).key,
+    );
 
     expect(response.status).toBe(200);
     expect(response.headers.get("x-effect-ui-render")).toBe("streaming");
@@ -64,7 +77,7 @@ describe("project console full-stack golden path", () => {
     expect(html).toContain("Dehydrate report cache into the first SSR payload.");
     expect(html).toContain("Projects.collection");
     expect(resources.map((resource) => resource.key)).toEqual(
-      expect.arrayContaining([ProjectsRef.key, ProjectById(projectId).key])
+      expect.arrayContaining([ProjectsRef.key, ProjectById(projectId).key]),
     );
     expect(projectResource).toMatchObject({
       name: "Project.byId",
@@ -73,42 +86,41 @@ describe("project console full-stack golden path", () => {
         _tag: "Success",
         value: {
           id: "meridian",
-          name: "Meridian Analytics"
-        }
-      }
+          name: "Meridian Analytics",
+        },
+      },
     });
     await expect(
       Effect.runPromise(
         Schema.decodeUnknownEffect(ProjectSchema)(
-          projectResource?.state._tag === "Success" ? projectResource.state.value : undefined
-        )
-      )
+          projectResource?.state._tag === "Success" ? projectResource.state.value : undefined,
+        ),
+      ),
     ).resolves.toMatchObject({
       id: projectId,
-      name: "Meridian Analytics"
+      name: "Meridian Analytics",
     });
 
     const form = startActionForm(SubmitProjectName, {
       input: {
         id: projectId,
-        redirectTo: makeProjectReturnTo("/projects/meridian?tab=activity")
-      }
+        redirectTo: makeProjectReturnTo("/projects/meridian?tab=activity"),
+      },
     });
-    const body = new URLSearchParams(
-      form.hiddenFields.map((field) => [field.name, field.value])
-    );
+    const body = new URLSearchParams(form.hiddenFields.map((field) => [field.name, field.value]));
     body.set("name", "Meridian Golden Path");
 
     const actionResponse = await postActionForm(form, body);
-    const followUp = await runInRuntime(serverApp.runtime,
-      handleRequest(new Request("https://example.com/projects/meridian?tab=activity"))
+    const followUp = await runInRuntime(
+      serverApp.runtime,
+      handleRequest(new Request("https://example.com/projects/meridian?tab=activity")),
     );
     const followUpHtml = await followUp.text();
     const followUpResources = streamHydrationChunksFrom(followUpHtml).flatMap(
-      (chunk) => chunk.payload.resources
+      (chunk) => chunk.payload.resources,
     );
     const updatedProjectResource = followUpResources.find(
-      (resource) => resource.key === ProjectById(projectId).key
+      (resource) => resource.key === ProjectById(projectId).key,
     );
 
     expect(actionResponse.status).toBe(303);
@@ -120,9 +132,9 @@ describe("project console full-stack golden path", () => {
         _tag: "Success",
         value: {
           id: "meridian",
-          name: "Meridian Golden Path"
-        }
-      }
+          name: "Meridian Golden Path",
+        },
+      },
     });
   });
 
@@ -135,8 +147,8 @@ describe("project console full-stack golden path", () => {
       output: Schema.Struct({
         id: Schema.String,
         name: Schema.String,
-        requestPath: Schema.String
-      })
+        requestPath: Schema.String,
+      }),
     });
     const boundaryProject = Server.client(BoundaryProject);
     Server.implement(BoundaryProject, ({ id }) =>
@@ -146,17 +158,19 @@ describe("project console full-stack golden path", () => {
         const path = new URL(request.url).pathname;
         yield* response.setStatus(207, "Multi-Status");
         yield* response.setHeader("x-effect-ui-golden-runtime", path);
-        yield* response.setCookie("golden-project", id, {
-          httpOnly: true,
-          path: "/",
-          sameSite: "Lax"
-        }).pipe(Effect.orDie);
+        yield* response
+          .setCookie("golden-project", id, {
+            httpOnly: true,
+            path: "/",
+            sameSite: "Lax",
+          })
+          .pipe(Effect.orDie);
         return {
           id,
           name: `Boundary ${id}`,
-          requestPath: path
+          requestPath: path,
         };
-      })
+      }),
     );
 
     interface BoundaryProject {
@@ -171,18 +185,20 @@ describe("project console full-stack golden path", () => {
       output: Schema.Struct({
         id: Schema.String,
         name: Schema.String,
-        requestPath: Schema.String
+        requestPath: Schema.String,
       }),
-      load: (id) => boundaryProject.effect({ id })
+      load: (id) => boundaryProject.effect({ id }),
     });
     const BoundaryCollection = Collection.define({
       name: "ProjectConsoleGolden.boundary.collection",
-      output: Schema.Array(Schema.Struct({
-        id: Schema.String,
-        name: Schema.String
-      })),
+      output: Schema.Array(
+        Schema.Struct({
+          id: Schema.String,
+          name: Schema.String,
+        }),
+      ),
       getKey: (project) => project.id,
-      load: () => Effect.succeed([{ id: "atlas", name: "Collected Atlas" }])
+      load: () => Effect.succeed([{ id: "atlas", name: "Collected Atlas" }]),
     });
     const BoundaryRoute = route("/golden/:id", {
       params: Schema.Struct({ id: Schema.String }),
@@ -190,13 +206,13 @@ describe("project console full-stack golden path", () => {
         Effect.asVoid(
           Effect.all([
             Resource.prefetchEffect(BoundaryResource(params.id)),
-            BoundaryCollection.preloadEffect()
-          ])
-        )
+            BoundaryCollection.preloadEffect(),
+          ]),
+        ),
     });
     const boundaryApp = defineApp({
       routes: [BoundaryRoute] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(boundaryApp, {
       render: ({ collections, legacyHydrationScript, match }) => {
@@ -208,13 +224,14 @@ describe("project console full-stack golden path", () => {
           `<main>${project.name}:${project.requestPath}</main>`,
           `<aside>${collection?.name}:${collection?.rows[0]?.value.name}</aside>`,
           legacyHydrationScript,
-          "</body></html>"
+          "</body></html>",
         ].join("");
-      }
+      },
     });
 
-    const response = await runInRuntime(boundaryApp.runtime,
-      handler(new Request("https://example.com/golden/atlas"))
+    const response = await runInRuntime(
+      boundaryApp.runtime,
+      handler(new Request("https://example.com/golden/atlas")),
     );
     const html = await response.text();
 
@@ -222,10 +239,12 @@ describe("project console full-stack golden path", () => {
     expect(response.statusText).toBe("Multi-Status");
     expect(response.headers.get("x-effect-ui-golden-runtime")).toBe("/golden/atlas");
     expect(response.headers.getSetCookie()).toEqual([
-      "golden-project=atlas; Path=/; HttpOnly; SameSite=Lax"
+      "golden-project=atlas; Path=/; HttpOnly; SameSite=Lax",
     ]);
     expect(html).toContain("<main>Boundary atlas:/golden/atlas</main>");
-    expect(html).toContain("<aside>ProjectConsoleGolden.boundary.collection:Collected Atlas</aside>");
+    expect(html).toContain(
+      "<aside>ProjectConsoleGolden.boundary.collection:Collected Atlas</aside>",
+    );
     expect(html).toContain("ProjectConsoleGolden.boundary.resource");
     expect(html).toContain("ProjectConsoleGolden.boundary.collection");
   });

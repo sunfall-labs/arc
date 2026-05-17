@@ -7,7 +7,7 @@ import {
   type CollectionHandle,
   type LiveQueryHandle,
   type UseCollectionOptions,
-  type UseLiveQueryOptions
+  type UseLiveQueryOptions,
 } from "@effect-ui/react-db";
 
 interface ReactDbProject {
@@ -25,53 +25,50 @@ declare const reactDbProjects: CollectionHandle<
   "load",
   ReactDbRuntimeError
 >;
-declare const reactDbLiveProjects: LiveQueryHandle<
-  ReactDbProject,
-  "query",
-  ReactDbRuntimeError
->;
+declare const reactDbLiveProjects: LiveQueryHandle<ReactDbProject, "query", ReactDbRuntimeError>;
 declare const reactDbPreloadObserverPromise: Promise<void>;
 
 const reactDbExports: Array<unknown> = [Collection, Query, useCollection, useLiveQuery];
 type Handles = CollectionHandle<any, any> | LiveQueryHandle<any, any>;
-type Options = UseCollectionOptions<"load", ReactDbRuntimeError> | UseLiveQueryOptions<"query", ReactDbRuntimeError>;
+type Options =
+  | UseCollectionOptions<"load", ReactDbRuntimeError>
+  | UseLiveQueryOptions<"query", ReactDbRuntimeError>;
 type Namespaces =
   | Collection.Key
   | Collection.RowNotFound
   | Collection.RowKeyChanged
   | Query.Builder<any, any>;
 const reactDbCollectionOptions: UseCollectionOptions<"load", ReactDbRuntimeError> = {
-  onPreloadFailure: () => Effect.void
+  onPreloadFailure: () => Effect.void,
 };
 const reactDbLiveQueryOptions: UseLiveQueryOptions<"query", ReactDbRuntimeError> = {
   deps: ["status"],
-  onPreloadFailure: () => Effect.void
+  onPreloadFailure: () => Effect.void,
 };
 const reactDbBadCollectionOptions: UseCollectionOptions<"load", ReactDbRuntimeError> = {
   // @ts-expect-error React DB preload observers must return void or Effect, not Promise
-  onPreloadFailure: () => reactDbPreloadObserverPromise
+  onPreloadFailure: () => reactDbPreloadObserverPromise,
 };
 const reactDbBadLiveQueryOptions: UseLiveQueryOptions<"query", ReactDbRuntimeError> = {
   // @ts-expect-error React DB live-query preload observers must return void or Effect, not Promise
-  onPreloadFailure: () => reactDbPreloadObserverPromise
+  onPreloadFailure: () => reactDbPreloadObserverPromise,
 };
 const reactDbPendingMutations: ReadonlyArray<Collection.PendingMutation<ReactDbProject, string>> =
   reactDbProjects.pendingMutations;
-const reactDbPreload: Effect.Effect<
-  void,
-  Collection.RuntimeError<"load"> | ReactDbRuntimeError
-> = reactDbProjects.preloadEffect();
-const reactDbRefetch: Effect.Effect<
-  void,
-  Collection.RuntimeError<"load"> | ReactDbRuntimeError
-> = reactDbProjects.refetchEffect();
+const reactDbPreload: Effect.Effect<void, Collection.RuntimeError<"load"> | ReactDbRuntimeError> =
+  reactDbProjects.preloadEffect();
+const reactDbRefetch: Effect.Effect<void, Collection.RuntimeError<"load"> | ReactDbRuntimeError> =
+  reactDbProjects.refetchEffect();
 const reactDbInsert: Effect.Effect<
   Collection.Transaction<ReactDbProject, string>,
   Collection.RuntimeError<"load"> | ReactDbRuntimeError
 > = reactDbProjects.insertEffect({ id: "atlas", name: "Atlas" });
 const reactDbUpdate: Effect.Effect<
   Collection.Transaction<ReactDbProject, string>,
-  Collection.RuntimeError<"load"> | Collection.RowNotFound | Collection.RowKeyChanged | ReactDbRuntimeError
+  | Collection.RuntimeError<"load">
+  | Collection.RowNotFound
+  | Collection.RowKeyChanged
+  | ReactDbRuntimeError
 > = reactDbProjects.updateEffect("atlas", { name: "Atlas Prime" });
 const reactDbDelete: Effect.Effect<
   Collection.Transaction<ReactDbProject, string>,
@@ -83,7 +80,10 @@ const reactDbWriteInsert: Effect.Effect<
 > = reactDbProjects.writeInsertEffect({ id: "atlas", name: "Atlas" });
 const reactDbWriteUpdate: Effect.Effect<
   void,
-  Collection.RuntimeError<"load"> | Collection.RowNotFound | Collection.RowKeyChanged | ReactDbRuntimeError
+  | Collection.RuntimeError<"load">
+  | Collection.RowNotFound
+  | Collection.RowKeyChanged
+  | ReactDbRuntimeError
 > = reactDbProjects.writeUpdateEffect("atlas", { name: "Atlas Prime" });
 const reactDbWriteDelete: Effect.Effect<
   void,

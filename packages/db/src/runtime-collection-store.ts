@@ -1,20 +1,16 @@
 import {
   currentOrDefaultRuntime,
   ResourceStore,
-  type ResourceStore as ResourceStoreState
+  type ResourceStore as ResourceStoreState,
 } from "@effect-ui/core";
 import { Effect, Option, PubSub, Scope } from "effect";
-import {
-  CollectionStoreTypeId
-} from "./collection-ids.js";
+import { CollectionStoreTypeId } from "./collection-ids.js";
 import {
   bumpCollectionState,
   makeCollectionState,
-  type CollectionState
+  type CollectionState,
 } from "./collection-state.js";
-import {
-  ingestCollectionOutputRowsSync
-} from "./collection-row-ingress.js";
+import { ingestCollectionOutputRowsSync } from "./collection-row-ingress.js";
 import type {
   AnyCollection,
   CollectionDefinition,
@@ -22,7 +18,7 @@ import type {
   CollectionRuntimeError,
   CollectionStore,
   CollectionStoreDiagnosticsSnapshot,
-  CollectionStoreEvent
+  CollectionStoreEvent,
 } from "./collection-contract.js";
 
 const initialDataPath = (definition: AnyCollection): string =>
@@ -31,13 +27,12 @@ const initialDataPath = (definition: AnyCollection): string =>
 type AnyCollectionState = CollectionState<any, any, any>;
 
 const stateForDefinition = <A extends object, K extends CollectionKey, E>(
-  state: AnyCollectionState
-): CollectionState<A, K, E> =>
-  state as CollectionState<A, K, E>;
+  state: AnyCollectionState,
+): CollectionState<A, K, E> => state as CollectionState<A, K, E>;
 
 const initializeCollectionState = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  state: CollectionState<A, K, E>
+  state: CollectionState<A, K, E>,
 ): void => {
   if (state.initialized) {
     return;
@@ -54,7 +49,7 @@ const initializeCollectionState = <A extends object, K extends CollectionKey, E,
       operation: "load",
       path: initialDataPath(definition),
       synced: true,
-      origin: "remote"
+      origin: "remote",
     });
     for (const row of rows) {
       state.rows.set(row.key, row);
@@ -68,7 +63,7 @@ const initializeCollectionState = <A extends object, K extends CollectionKey, E,
     state.loadState.set({
       _tag: "Failure",
       waiting: false,
-      error: state.initialDataError
+      error: state.initialDataError,
     });
   }
 };
@@ -89,17 +84,15 @@ export class RuntimeCollectionStore implements CollectionStore {
   readonly disposeEffect = PubSub.shutdown(this.#events);
   readonly diagnostics = {
     snapshot: (): CollectionStoreDiagnosticsSnapshot => this.diagnosticsSnapshot(),
-    snapshotEffect: Effect.sync(() => this.diagnosticsSnapshot())
+    snapshotEffect: Effect.sync(() => this.diagnosticsSnapshot()),
   };
 
-  state(
-    definition: AnyCollection
-  ): CollectionState<any, any, any>;
+  state(definition: AnyCollection): CollectionState<any, any, any>;
   state<A extends object, K extends CollectionKey, E, R>(
-    definition: CollectionDefinition<A, K, E, R>
+    definition: CollectionDefinition<A, K, E, R>,
   ): CollectionState<A, K, E>;
   state<A extends object, K extends CollectionKey, E, R>(
-    definition: CollectionDefinition<A, K, E, R>
+    definition: CollectionDefinition<A, K, E, R>,
   ): CollectionState<A, K, E> {
     const existing = this.#states.get(definition);
     if (existing) {
@@ -150,7 +143,7 @@ export class RuntimeCollectionStore implements CollectionStore {
       activeMutationCount,
       optimisticRowCount,
       loadingCount,
-      failureCount
+      failureCount,
     };
   }
 
@@ -158,7 +151,11 @@ export class RuntimeCollectionStore implements CollectionStore {
     return PubSub.publish(this.#events, event).pipe(Effect.asVoid);
   }
 
-  subscribeEventsEffect(): Effect.Effect<PubSub.Subscription<CollectionStoreEvent>, never, Scope.Scope> {
+  subscribeEventsEffect(): Effect.Effect<
+    PubSub.Subscription<CollectionStoreEvent>,
+    never,
+    Scope.Scope
+  > {
     return PubSub.subscribe(this.#events);
   }
 }
@@ -183,15 +180,16 @@ export const storeFor = (resourceStore: ResourceStoreState): RuntimeCollectionSt
 export const defaultRuntimeCollectionStore = (): RuntimeCollectionStore =>
   storeFor(currentOrDefaultRuntime().resourceStore);
 
-const resourceStoreEffect: Effect.Effect<ResourceStoreState> =
-  Effect.gen(function* () {
-    const store = yield* Effect.serviceOption(ResourceStore);
-    return Option.isSome(store) ? store.value : currentOrDefaultRuntime().resourceStore;
-  });
+const resourceStoreEffect: Effect.Effect<ResourceStoreState> = Effect.gen(function* () {
+  const store = yield* Effect.serviceOption(ResourceStore);
+  return Option.isSome(store) ? store.value : currentOrDefaultRuntime().resourceStore;
+});
 
 /** Access the active Runtime Collection Store from inside Effect. */
-export const collectionStoreEffect: Effect.Effect<RuntimeCollectionStore> =
-  Effect.map(resourceStoreEffect, storeFor);
+export const collectionStoreEffect: Effect.Effect<RuntimeCollectionStore> = Effect.map(
+  resourceStoreEffect,
+  storeFor,
+);
 
 let currentCollectionStoreOverride: RuntimeCollectionStore | undefined;
 
@@ -199,10 +197,7 @@ let currentCollectionStoreOverride: RuntimeCollectionStore | undefined;
 export const currentCollectionStore = (): CollectionStore =>
   currentCollectionStoreOverride ?? defaultRuntimeCollectionStore();
 
-export const runWithCollectionStore = <A>(
-  store: RuntimeCollectionStore,
-  evaluate: () => A
-): A => {
+export const runWithCollectionStore = <A>(store: RuntimeCollectionStore, evaluate: () => A): A => {
   const previous = currentCollectionStoreOverride;
   currentCollectionStoreOverride = store;
   try {
@@ -213,5 +208,8 @@ export const runWithCollectionStore = <A>(
 };
 
 /** Subscribe to active Runtime Collection Store events inside a Scope. */
-export const subscribeCollectionEventsEffect = (): Effect.Effect<PubSub.Subscription<CollectionStoreEvent>, never, Scope.Scope> =>
-  Effect.flatMap(collectionStoreEffect, (store) => store.subscribeEventsEffect());
+export const subscribeCollectionEventsEffect = (): Effect.Effect<
+  PubSub.Subscription<CollectionStoreEvent>,
+  never,
+  Scope.Scope
+> => Effect.flatMap(collectionStoreEffect, (store) => store.subscribeEventsEffect());

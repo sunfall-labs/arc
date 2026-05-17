@@ -3,20 +3,20 @@ import { Effect } from "effect";
 import type {
   CollectionDefinition,
   CollectionKey,
-  CollectionOrigin
+  CollectionOrigin,
 } from "./collection-contract.js";
 import type { StoredRow } from "./collection-state.js";
 import {
   CollectionValueReadError,
   cloneCollectionValue,
-  collectionExecutableValuePath
+  collectionExecutableValuePath,
 } from "./collection-value-detachment.js";
 import {
   CollectionSnapshotCodecError,
   decodeCollectionOutputValuesEffect,
   decodeCollectionOutputValuesSync,
   validateCollectionKey,
-  type CollectionSnapshotCodecOperation
+  type CollectionSnapshotCodecOperation,
 } from "./collection-snapshot-codec.js";
 
 interface CollectionRowIngressOptions {
@@ -30,19 +30,19 @@ const collectionIngressCallbackError = (
   definition: { readonly name: string },
   operation: CollectionSnapshotCodecOperation,
   path: string,
-  cause: unknown
+  cause: unknown,
 ): EffectInputCallbackError =>
   new EffectInputCallbackError({
     operation: `Collection.getKey(${definition.name})`,
     cause,
-    guidance: `Collection row ingress getKey callbacks must be synchronous, pure, and total. The failing ${operation} value was at ${path}.`
+    guidance: `Collection row ingress getKey callbacks must be synchronous, pure, and total. The failing ${operation} value was at ${path}.`,
   });
 
 const collectionIngressKey = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   value: A,
   operation: CollectionSnapshotCodecOperation,
-  path: string
+  path: string,
 ): K => {
   try {
     return validateCollectionKey(definition.getKey(value), operation, path);
@@ -58,20 +58,20 @@ const collectionIngressKeyEffect = <A extends object, K extends CollectionKey, E
   definition: CollectionDefinition<A, K, E, R>,
   value: A,
   operation: CollectionSnapshotCodecOperation,
-  path: string
+  path: string,
 ): Effect.Effect<K, CollectionSnapshotCodecError | EffectInputCallbackError> =>
   Effect.try({
     try: () => collectionIngressKey(definition, value, operation, path),
     catch: (cause) =>
       cause instanceof CollectionSnapshotCodecError || cause instanceof EffectInputCallbackError
         ? cause
-        : collectionIngressCallbackError(definition, operation, path, cause)
+        : collectionIngressCallbackError(definition, operation, path, cause),
   });
 
 const validateCollectionPlainRowValue = (
   value: unknown,
   operation: CollectionSnapshotCodecOperation,
-  path: string
+  path: string,
 ): void => {
   try {
     const executable = collectionExecutableValuePath(value, path);
@@ -79,7 +79,7 @@ const validateCollectionPlainRowValue = (
       throw new CollectionSnapshotCodecError({
         operation,
         path: executable.path,
-        reason: executable.reason
+        reason: executable.reason,
       });
     }
   } catch (cause) {
@@ -92,33 +92,33 @@ const validateCollectionPlainRowValue = (
 
 const collectionRowValueReadError = (
   operation: CollectionSnapshotCodecOperation,
-  cause: unknown
+  cause: unknown,
 ): EffectInputCallbackError => {
   const path = cause instanceof CollectionValueReadError ? cause.path : "$";
   return new EffectInputCallbackError({
     operation: `Collection.rowValue.${operation}`,
     cause,
-    guidance: `Collection row values must be plain readable data before ${operation}. Reading row data at ${path} failed; move host getters/proxies behind collection load or mutation Effects.`
+    guidance: `Collection row values must be plain readable data before ${operation}. Reading row data at ${path} failed; move host getters/proxies behind collection load or mutation Effects.`,
   });
 };
 
 const validateCollectionPlainRowValueEffect = (
   value: unknown,
   operation: CollectionSnapshotCodecOperation,
-  path: string
+  path: string,
 ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
   Effect.try({
     try: () => validateCollectionPlainRowValue(value, operation, path),
     catch: (cause) =>
       cause instanceof CollectionSnapshotCodecError || cause instanceof EffectInputCallbackError
         ? cause
-        : collectionRowValueReadError(operation, cause)
+        : collectionRowValueReadError(operation, cause),
   });
 
 const cloneCollectionRowValue = <A>(
   value: A,
   operation: CollectionSnapshotCodecOperation,
-  path: string
+  path: string,
 ): A => {
   try {
     return cloneCollectionValue(value, undefined, path);
@@ -130,21 +130,24 @@ const cloneCollectionRowValue = <A>(
 const cloneCollectionRowValueEffect = <A>(
   value: A,
   operation: CollectionSnapshotCodecOperation,
-  path: string
+  path: string,
 ): Effect.Effect<A, EffectInputCallbackError> =>
   Effect.try({
     try: () => cloneCollectionRowValue(value, operation, path),
     catch: (cause) =>
       cause instanceof EffectInputCallbackError
         ? cause
-        : collectionRowValueReadError(operation, cause)
+        : collectionRowValueReadError(operation, cause),
   });
 
 const storedRowsFromDecodedValuesEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   values: ReadonlyArray<A>,
-  options: CollectionRowIngressOptions
-): Effect.Effect<ReadonlyArray<StoredRow<A, K>>, CollectionSnapshotCodecError | EffectInputCallbackError> =>
+  options: CollectionRowIngressOptions,
+): Effect.Effect<
+  ReadonlyArray<StoredRow<A, K>>,
+  CollectionSnapshotCodecError | EffectInputCallbackError
+> =>
   Effect.gen(function* () {
     const rows: Array<StoredRow<A, K>> = [];
     for (const [index, decoded] of values.entries()) {
@@ -155,13 +158,13 @@ const storedRowsFromDecodedValuesEffect = <A extends object, K extends Collectio
         definition,
         value,
         options.operation,
-        `${options.path}[${index}].key`
+        `${options.path}[${index}].key`,
       );
       rows.push({
         key,
         value,
         synced: options.synced,
-        origin: options.origin
+        origin: options.origin,
       });
     }
     return rows;
@@ -170,7 +173,7 @@ const storedRowsFromDecodedValuesEffect = <A extends object, K extends Collectio
 const storedRowsFromDecodedValuesSync = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   values: ReadonlyArray<A>,
-  options: CollectionRowIngressOptions
+  options: CollectionRowIngressOptions,
 ): ReadonlyArray<StoredRow<A, K>> => {
   const rows: Array<StoredRow<A, K>> = [];
   for (const [index, decoded] of values.entries()) {
@@ -181,13 +184,13 @@ const storedRowsFromDecodedValuesSync = <A extends object, K extends CollectionK
       definition,
       value,
       options.operation,
-      `${options.path}[${index}].key`
+      `${options.path}[${index}].key`,
     );
     rows.push({
       key,
       value,
       synced: options.synced,
-      origin: options.origin
+      origin: options.origin,
     });
   }
   return rows;
@@ -197,59 +200,65 @@ const decodeCollectionInputValuesEffect = <A extends object, K extends Collectio
   definition: CollectionDefinition<A, K, E, R>,
   values: ReadonlyArray<A>,
   operation: CollectionSnapshotCodecOperation,
-  path: string
+  path: string,
 ): Effect.Effect<ReadonlyArray<A>, CollectionSnapshotCodecError> =>
-  decodeCollectionOutputValuesEffect(
-    definition.options.input,
-    values,
-    operation,
-    path
-  );
+  decodeCollectionOutputValuesEffect(definition.options.input, values, operation, path);
 
 const decodeCollectionMutationValuesEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   values: ReadonlyArray<A>,
   operation: CollectionSnapshotCodecOperation,
-  path: string
+  path: string,
 ): Effect.Effect<ReadonlyArray<A>, CollectionSnapshotCodecError> =>
   Effect.flatMap(
     decodeCollectionInputValuesEffect(definition, values, operation, `${path}.input`),
     (decodedInput) =>
-      decodeCollectionOutputValuesEffect(
-        definition.options.output,
-        decodedInput,
-        operation,
-        path
-      )
+      decodeCollectionOutputValuesEffect(definition.options.output, decodedInput, operation, path),
   );
 
 export const ingestCollectionOutputRowsEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   values: ReadonlyArray<A>,
-  options: CollectionRowIngressOptions
-): Effect.Effect<ReadonlyArray<StoredRow<A, K>>, CollectionSnapshotCodecError | EffectInputCallbackError> =>
+  options: CollectionRowIngressOptions,
+): Effect.Effect<
+  ReadonlyArray<StoredRow<A, K>>,
+  CollectionSnapshotCodecError | EffectInputCallbackError
+> =>
   Effect.flatMap(
-    decodeCollectionOutputValuesEffect(definition.options.output, values, options.operation, options.path),
-    (decoded) => storedRowsFromDecodedValuesEffect(definition, decoded, options)
+    decodeCollectionOutputValuesEffect(
+      definition.options.output,
+      values,
+      options.operation,
+      options.path,
+    ),
+    (decoded) => storedRowsFromDecodedValuesEffect(definition, decoded, options),
   );
 
 export const ingestCollectionMutationRowsEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   values: ReadonlyArray<A>,
-  options: CollectionRowIngressOptions
-): Effect.Effect<ReadonlyArray<StoredRow<A, K>>, CollectionSnapshotCodecError | EffectInputCallbackError> =>
+  options: CollectionRowIngressOptions,
+): Effect.Effect<
+  ReadonlyArray<StoredRow<A, K>>,
+  CollectionSnapshotCodecError | EffectInputCallbackError
+> =>
   Effect.flatMap(
     decodeCollectionMutationValuesEffect(definition, values, options.operation, options.path),
-    (decoded) => storedRowsFromDecodedValuesEffect(definition, decoded, options)
+    (decoded) => storedRowsFromDecodedValuesEffect(definition, decoded, options),
   );
 
 export const ingestCollectionOutputRowsSync = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   values: ReadonlyArray<A>,
-  options: CollectionRowIngressOptions
+  options: CollectionRowIngressOptions,
 ): ReadonlyArray<StoredRow<A, K>> =>
   storedRowsFromDecodedValuesSync(
     definition,
-    decodeCollectionOutputValuesSync(definition.options.output, values, options.operation, options.path),
-    options
+    decodeCollectionOutputValuesSync(
+      definition.options.output,
+      values,
+      options.operation,
+      options.path,
+    ),
+    options,
   );

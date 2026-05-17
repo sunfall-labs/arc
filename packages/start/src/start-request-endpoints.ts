@@ -13,27 +13,21 @@ import {
   type ActionDefinitionRequirements,
   type EffectUiRuntime,
   type Route,
-  type ResponseContext
+  type ResponseContext,
 } from "@effect-ui/core";
 import { Cause, Effect, Exit, type Scope } from "effect";
-import {
-  validateStartActionRequestEffect,
-  validateStartRpcRequestEffect
-} from "./rpc.js";
-import {
-  makeRequestRuntime,
-  type RequestRuntimeRemainingRequirements
-} from "./request-runtime.js";
+import { validateStartActionRequestEffect, validateStartRpcRequestEffect } from "./rpc.js";
+import { makeRequestRuntime, type RequestRuntimeRemainingRequirements } from "./request-runtime.js";
 import {
   withStartActionObservability,
   withStartRpcObservability,
   type StartRequestTraceFacts,
-  type StartRequestTraceFailureKind
+  type StartRequestTraceFailureKind,
 } from "./request-trace.js";
 import {
   recordStartRequestTraceAction,
   recordStartRequestTraceFailure,
-  recordStartRequestTraceServerFunction
+  recordStartRequestTraceServerFunction,
 } from "./request-trace-recorder.js";
 import {
   actionExitResponseEffect,
@@ -42,7 +36,7 @@ import {
   actionResponseMetaEffect,
   actionResponseMode,
   actionRuntimeFailureResponse,
-  actionTransportRequestFailureResponse
+  actionTransportRequestFailureResponse,
 } from "./start-action-response-codec.js";
 import {
   actionFailureKindEffect,
@@ -54,44 +48,41 @@ import {
   readJsonEffect,
   rpcFailureKindEffect,
   rpcRuntimeFailureResponse,
-  rpcTransportRequestFailureResponse
+  rpcTransportRequestFailureResponse,
 } from "./start-transport-protocol.js";
 import type { StartActionSource } from "./start-transport-protocol.js";
 import {
   readStartActionRequestEffect,
-  type StartActionDefinition
+  type StartActionDefinition,
 } from "./start-action-request-codec.js";
 import { runStartTransportEndpointEffect } from "./start-transport-endpoint-runner.js";
 
 const actionResponseTraceFailureKind = (
   failureKind: StartRequestTraceFailureKind | undefined,
-  response: Response
+  response: Response,
 ): StartRequestTraceFailureKind | undefined =>
-  failureKind === "interruption"
-    ? failureKind
-    : response.status >= 500
-      ? "defect"
-      : failureKind;
+  failureKind === "interruption" ? failureKind : response.status >= 500 ? "defect" : failureKind;
 
 export const createServerRpcResponseEffectWithRuntime = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   Client,
   ServerServices,
   ServerError,
-  Registry extends AppDefinitionRegistry
+  Registry extends AppDefinitionRegistry,
 >(
   app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
   request: Request,
   runtime: EffectUiRuntime<ServerServices, ServerError>,
   responseContext: ResponseContext = makeResponseContext(),
-  traceFacts?: StartRequestTraceFacts
+  traceFacts?: StartRequestTraceFacts,
 ): Effect.Effect<
   Response,
   never,
-  Scope.Scope | RequestRuntimeRemainingRequirements<
-    AppDefinitionRegistryServerFunctionRequirements<Registry>,
-    ServerServices
-  >
+  | Scope.Scope
+  | RequestRuntimeRemainingRequirements<
+      AppDefinitionRegistryServerFunctionRequirements<Registry>,
+      ServerServices
+    >
 > => {
   return runStartTransportEndpointEffect({
     request,
@@ -111,8 +102,8 @@ export const createServerRpcResponseEffectWithRuntime = <
               Effect.sync(() => {
                 recordStartRequestTraceFailure(traceFacts, "protocol");
                 return protocolFailureResponse(error);
-              })
-            )
+              }),
+            ),
           );
           if (payload instanceof Response) {
             return payload;
@@ -125,11 +116,11 @@ export const createServerRpcResponseEffectWithRuntime = <
                 return protocolFailureResponse(
                   new ServerRpcProtocolError({
                     message: error.message,
-                    payload: Server.serializeDefect(error)
-                  })
+                    payload: Server.serializeDefect(error),
+                  }),
                 );
-              })
-            )
+              }),
+            ),
           );
           if (decoded instanceof Response) {
             return decoded;
@@ -140,13 +131,13 @@ export const createServerRpcResponseEffectWithRuntime = <
             recordStartRequestTraceServerFunction(traceFacts, {
               name: decoded.name,
               status: "failure",
-              failureKind: "protocol"
+              failureKind: "protocol",
             });
             return functionNotFoundResponse(decoded.name);
           }
 
           const exit = yield* Effect.exit(
-            withStartRpcObservability(decoded.name, fn.invoke(decoded.input))
+            withStartRpcObservability(decoded.name, fn.invoke(decoded.input)),
           );
           const failureKind = Exit.isSuccess(exit)
             ? undefined
@@ -154,18 +145,19 @@ export const createServerRpcResponseEffectWithRuntime = <
           recordStartRequestTraceServerFunction(traceFacts, {
             name: decoded.name,
             status: Exit.isSuccess(exit) ? "success" : "failure",
-            ...(failureKind === undefined ? {} : { failureKind })
+            ...(failureKind === undefined ? {} : { failureKind }),
           });
           return yield* exitToRpcResponse(fn, exit);
-        })
-    }
+        }),
+    },
   }) as Effect.Effect<
     Response,
     never,
-    Scope.Scope | RequestRuntimeRemainingRequirements<
-      AppDefinitionRegistryServerFunctionRequirements<Registry>,
-      ServerServices
-    >
+    | Scope.Scope
+    | RequestRuntimeRemainingRequirements<
+        AppDefinitionRegistryServerFunctionRequirements<Registry>,
+        ServerServices
+      >
   >;
 };
 
@@ -180,33 +172,35 @@ export const createServerRpcResponseEffect = <
   Client,
   ServerServices,
   ServerError,
-  Registry extends AppDefinitionRegistry
+  Registry extends AppDefinitionRegistry,
 >(
   app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
-  request: Request
+  request: Request,
 ): Effect.Effect<
   Response,
   EffectInputCallbackError,
-  Scope.Scope | RequestRuntimeRemainingRequirements<
-    AppDefinitionRegistryServerFunctionRequirements<Registry>,
-    ServerServices
-  >
+  | Scope.Scope
+  | RequestRuntimeRemainingRequirements<
+      AppDefinitionRegistryServerFunctionRequirements<Registry>,
+      ServerServices
+    >
 > => {
   const runtime = makeRequestRuntime(app);
   const responseContext = makeResponseContext();
   return Effect.ensuring(
     Effect.flatMap(
       createServerRpcResponseEffectWithRuntime(app, request, runtime, responseContext),
-      (response) => applyResponseContextEffect(responseContext, response)
+      (response) => applyResponseContextEffect(responseContext, response),
     ),
-    runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void))
+    runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
   ) as Effect.Effect<
     Response,
     EffectInputCallbackError,
-    Scope.Scope | RequestRuntimeRemainingRequirements<
-      AppDefinitionRegistryServerFunctionRequirements<Registry>,
-      ServerServices
-    >
+    | Scope.Scope
+    | RequestRuntimeRemainingRequirements<
+        AppDefinitionRegistryServerFunctionRequirements<Registry>,
+        ServerServices
+      >
   >;
 };
 
@@ -216,21 +210,22 @@ export const createServerActionResponseEffectWithRuntime = <
   ServerServices,
   ServerError,
   Registry extends AppDefinitionRegistry,
-  Actions extends StartActionDefinition = never
+  Actions extends StartActionDefinition = never,
 >(
   app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
   request: Request,
   runtime: EffectUiRuntime<ServerServices, ServerError>,
   actions?: StartActionSource<Actions>,
   responseContext: ResponseContext = makeResponseContext(),
-  traceFacts?: StartRequestTraceFacts
+  traceFacts?: StartRequestTraceFacts,
 ): Effect.Effect<
   Response,
   never,
-  Scope.Scope | RequestRuntimeRemainingRequirements<
-    AppDefinitionRegistryActionRequirements<Registry> | ActionDefinitionRequirements<Actions>,
-    ServerServices
-  >
+  | Scope.Scope
+  | RequestRuntimeRemainingRequirements<
+      AppDefinitionRegistryActionRequirements<Registry> | ActionDefinitionRequirements<Actions>,
+      ServerServices
+    >
 > => {
   return runStartTransportEndpointEffect({
     request,
@@ -250,8 +245,8 @@ export const createServerActionResponseEffectWithRuntime = <
               Effect.sync(() => {
                 recordStartRequestTraceFailure(traceFacts, "protocol");
                 return actionProtocolFailureResponse(error);
-              })
-            )
+              }),
+            ),
           );
           if (decoded instanceof Response) {
             return decoded;
@@ -259,14 +254,14 @@ export const createServerActionResponseEffectWithRuntime = <
 
           const actionMap = yield* Effect.try({
             try: () => makeActionMap(actions, app.registry),
-            catch: (error) => error
+            catch: (error) => error,
           }).pipe(
             Effect.catch((error) =>
               Effect.sync(() => {
                 recordStartRequestTraceFailure(traceFacts, "defect");
                 return actionRuntimeFailureResponse(error);
-              })
-            )
+              }),
+            ),
           );
           if (actionMap instanceof Response) {
             return actionMap;
@@ -277,7 +272,7 @@ export const createServerActionResponseEffectWithRuntime = <
             recordStartRequestTraceAction(traceFacts, {
               name: decoded.name,
               state: "Failure",
-              failureKind: "protocol"
+              failureKind: "protocol",
             });
             return actionFunctionNotFoundResponse(decoded.name);
           }
@@ -289,36 +284,37 @@ export const createServerActionResponseEffectWithRuntime = <
                 return actionProtocolFailureResponse(
                   new ServerRpcProtocolError({
                     message: error.message,
-                    payload: Server.serializeDefect(error)
-                  })
+                    payload: Server.serializeDefect(error),
+                  }),
                 );
-              })
-            )
+              }),
+            ),
           );
           if (input instanceof Response) {
             recordStartRequestTraceAction(traceFacts, {
               name: action.name,
               state: "Failure",
-              failureKind: "validation"
+              failureKind: "validation",
             });
             return input;
           }
 
           const instance = Action.use(action as unknown as ActionDefinition<any, any, never, any>);
           const exit = yield* Effect.exit(
-            withStartActionObservability(action.name, instance.submitEffect(input))
+            withStartActionObservability(action.name, instance.submitEffect(input)),
           );
           const failureKind = yield* actionFailureKindEffect(action, exit);
-          const metaExit = yield* Effect.exit(actionResponseMetaEffect(instance.invalidationPlan.get()));
+          const metaExit = yield* Effect.exit(
+            actionResponseMetaEffect(instance.invalidationPlan.get()),
+          );
           if (Exit.isFailure(metaExit)) {
             const metaInterrupted = metaExit.cause.reasons.some(Cause.isInterruptReason);
-            const metaFailureKind = failureKind === "interruption" || metaInterrupted
-              ? "interruption"
-              : "defect";
+            const metaFailureKind =
+              failureKind === "interruption" || metaInterrupted ? "interruption" : "defect";
             recordStartRequestTraceAction(traceFacts, {
               name: action.name,
               state: "Failure",
-              failureKind: metaFailureKind
+              failureKind: metaFailureKind,
             });
             if (failureKind === "interruption") {
               return yield* actionExitResponseEffect(action, exit, {}, actionResponseMode(request));
@@ -328,23 +324,29 @@ export const createServerActionResponseEffectWithRuntime = <
             }
             return actionRuntimeFailureResponse(Cause.squash(metaExit.cause));
           }
-          const response = yield* actionExitResponseEffect(action, exit, metaExit.value, actionResponseMode(request));
+          const response = yield* actionExitResponseEffect(
+            action,
+            exit,
+            metaExit.value,
+            actionResponseMode(request),
+          );
           const responseFailureKind = actionResponseTraceFailureKind(failureKind, response);
           recordStartRequestTraceAction(traceFacts, {
             name: action.name,
             state: responseFailureKind === undefined ? "Success" : "Failure",
-            ...(responseFailureKind === undefined ? {} : { failureKind: responseFailureKind })
+            ...(responseFailureKind === undefined ? {} : { failureKind: responseFailureKind }),
           });
           return response;
-        })
-    }
+        }),
+    },
   }) as Effect.Effect<
     Response,
     never,
-    Scope.Scope | RequestRuntimeRemainingRequirements<
-      AppDefinitionRegistryActionRequirements<Registry> | ActionDefinitionRequirements<Actions>,
-      ServerServices
-    >
+    | Scope.Scope
+    | RequestRuntimeRemainingRequirements<
+        AppDefinitionRegistryActionRequirements<Registry> | ActionDefinitionRequirements<Actions>,
+        ServerServices
+      >
   >;
 };
 
@@ -361,33 +363,35 @@ export const createServerActionResponseEffect = <
   ServerServices,
   ServerError,
   Registry extends AppDefinitionRegistry,
-  Actions extends StartActionDefinition = never
+  Actions extends StartActionDefinition = never,
 >(
   app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
   request: Request,
-  actions?: Iterable<Actions>
+  actions?: Iterable<Actions>,
 ): Effect.Effect<
   Response,
   EffectInputCallbackError,
-  Scope.Scope | RequestRuntimeRemainingRequirements<
-    AppDefinitionRegistryActionRequirements<Registry> | ActionDefinitionRequirements<Actions>,
-    ServerServices
-  >
+  | Scope.Scope
+  | RequestRuntimeRemainingRequirements<
+      AppDefinitionRegistryActionRequirements<Registry> | ActionDefinitionRequirements<Actions>,
+      ServerServices
+    >
 > => {
   const runtime = makeRequestRuntime(app);
   const responseContext = makeResponseContext();
   return Effect.ensuring(
     Effect.flatMap(
       createServerActionResponseEffectWithRuntime(app, request, runtime, actions, responseContext),
-      (response) => applyResponseContextEffect(responseContext, response)
+      (response) => applyResponseContextEffect(responseContext, response),
     ),
-    runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void))
+    runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
   ) as Effect.Effect<
     Response,
     EffectInputCallbackError,
-    Scope.Scope | RequestRuntimeRemainingRequirements<
-      AppDefinitionRegistryActionRequirements<Registry> | ActionDefinitionRequirements<Actions>,
-      ServerServices
-    >
+    | Scope.Scope
+    | RequestRuntimeRemainingRequirements<
+        AppDefinitionRegistryActionRequirements<Registry> | ActionDefinitionRequirements<Actions>,
+        ServerServices
+      >
   >;
 };

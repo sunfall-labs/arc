@@ -1,7 +1,4 @@
-import effectUiTsrxDefault, {
-  effectUiTsrx,
-  type EffectUiTsrxOptions
-} from "@effect-ui/tsrx";
+import effectUiTsrxDefault, { effectUiTsrx, type EffectUiTsrxOptions } from "@effect-ui/tsrx";
 
 const tsrxExports: Array<unknown> = [effectUiTsrxDefault, effectUiTsrx];
 type TsrxOptions = EffectUiTsrxOptions;

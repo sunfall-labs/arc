@@ -15,7 +15,7 @@ import {
   useStream,
   useRouter,
   useRuntimeEffect,
-  watch
+  watch,
 } from "@effect-ui/solid";
 import { Form, type EffectUiRuntime } from "@effect-ui/core";
 import type { CollectionRow } from "@effect-ui/db";
@@ -42,7 +42,7 @@ import {
   type ProjectId,
   type ProjectTab,
   type ProjectStatus,
-  type ProjectSummary
+  type ProjectSummary,
 } from "./domain.js";
 import { HomeRoute, ProjectRoute, ProjectsRoute, app } from "./app-definition.js";
 import { ProjectSummaries } from "./project-collections.js";
@@ -54,15 +54,14 @@ const ProjectsUiRoute = Route.withComponent(ProjectsRoute, ProjectIndexRouteView
 const ProjectUiRoute = Route.withComponent(ProjectRoute, ProjectRouteView);
 const routes = [HomeUiRoute, ProjectsUiRoute, ProjectUiRoute] as const;
 type AppRoutes = typeof routes;
-type ProjectConsoleRuntime<RuntimeServices = ProjectApi> =
-  [ProjectApi] extends [RuntimeServices]
-    ? EffectUiRuntime<RuntimeServices, never>
-    : never;
+type ProjectConsoleRuntime<RuntimeServices = ProjectApi> = [ProjectApi] extends [RuntimeServices]
+  ? EffectUiRuntime<RuntimeServices, never>
+  : never;
 type ProjectSummaryRow = CollectionRow<ProjectSummary, ProjectId>;
 type ProjectNameSubmissionClientResult = StartAction.Result<typeof SubmitProjectName>;
 
 const ProjectNameFormInput = Schema.Struct({
-  name: Schema.String
+  name: Schema.String,
 });
 
 const projectHref = (id: ProjectId, tab?: ProjectTab): string =>
@@ -78,7 +77,7 @@ export interface AppProps<RuntimeServices = ProjectApi> {
 const initialPresence: PresenceEvent = {
   activeUsers: 4,
   build: "queued",
-  latency: 32
+  latency: 32,
 };
 
 const statusLabel = (status: ProjectStatus): string => {
@@ -137,10 +136,14 @@ const SaveIcon = () => (
 );
 
 export default function App<RuntimeServices = ProjectApi>(props: AppProps<RuntimeServices> = {}) {
-  const runtime = (props.runtime ?? app.runtime) as EffectUiRuntime<ProjectApi | RuntimeServices, never>;
-  const routerProps = props.initialHref === undefined
-    ? { routes, runtime }
-    : { routes, initialHref: props.initialHref, runtime };
+  const runtime = (props.runtime ?? app.runtime) as EffectUiRuntime<
+    ProjectApi | RuntimeServices,
+    never
+  >;
+  const routerProps =
+    props.initialHref === undefined
+      ? { routes, runtime }
+      : { routes, initialHref: props.initialHref, runtime };
 
   return (
     <RouterProvider {...routerProps}>
@@ -150,7 +153,7 @@ export default function App<RuntimeServices = ProjectApi>(props: AppProps<Runtim
 }
 
 const projectIdFromMatch = (
-  match: Route.Match<AppRoutes[number]> | undefined
+  match: Route.Match<AppRoutes[number]> | undefined,
 ): ProjectId | undefined =>
   isRoutePathMatch("/projects/:id", match) ? match.params.id : undefined;
 
@@ -189,7 +192,7 @@ function AppShell() {
       const id = projectIdFromMatch(router.match());
       Signal.set(
         title,
-        id ? `${id} · Effect UI Project Console` : "Projects · Effect UI Project Console"
+        id ? `${id} · Effect UI Project Console` : "Projects · Effect UI Project Console",
       );
     });
 
@@ -199,7 +202,7 @@ function AppShell() {
         (nextTitle) =>
           Effect.sync(() => {
             document.title = nextTitle;
-          })
+          }),
       );
     }
 
@@ -209,7 +212,7 @@ function AppShell() {
         Effect.gen(function* () {
           yield* Resource.invalidateEffect(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef);
           yield* ProjectSummaries.refetchEffect();
-        }).pipe(Effect.catchCause(() => Effect.void))
+        }).pipe(Effect.catchCause(() => Effect.void)),
       );
     };
 
@@ -272,7 +275,10 @@ function ProjectListPane(props: { readonly selectedId: ProjectId | undefined }) 
   );
 }
 
-function ProjectRows(props: { readonly selectedId: ProjectId | undefined; readonly search: string }) {
+function ProjectRows(props: {
+  readonly selectedId: ProjectId | undefined;
+  readonly search: string;
+}) {
   const projects = useCollection(ProjectSummaries, { preload: false });
   const filteredProjects = (currentProjects: ReadonlyArray<ProjectSummaryRow>) => {
     const query = props.search.trim().toLowerCase();
@@ -282,8 +288,8 @@ function ProjectRows(props: { readonly selectedId: ProjectId | undefined; readon
 
     return currentProjects.filter((project) =>
       [project.name, project.owner, project.status].some((part) =>
-        part.toLowerCase().includes(query)
-      )
+        part.toLowerCase().includes(query),
+      ),
     );
   };
   const renderRows = (items: ReadonlyArray<ProjectSummaryRow>) => {
@@ -313,25 +319,25 @@ function ProjectRows(props: { readonly selectedId: ProjectId | undefined; readon
         }
 
         if (state._tag === "Pending") {
-          return rows.length > 0
-            ? (
-                <>
-                  {renderRows(rows)}
-                  <p class="inlineStatus">Refreshing projects</p>
-                </>
-              )
-            : <ProjectListSkeleton />;
+          return rows.length > 0 ? (
+            <>
+              {renderRows(rows)}
+              <p class="inlineStatus">Refreshing projects</p>
+            </>
+          ) : (
+            <ProjectListSkeleton />
+          );
         }
 
         if (state._tag === "Failure") {
-          return rows.length > 0
-            ? (
-                <>
-                  {renderRows(rows)}
-                  <InlineFailure error={state.error} />
-                </>
-              )
-            : <InlineFailure error={state.error} />;
+          return rows.length > 0 ? (
+            <>
+              {renderRows(rows)}
+              <InlineFailure error={state.error} />
+            </>
+          ) : (
+            <InlineFailure error={state.error} />
+          );
         }
 
         return renderRows(rows);
@@ -340,10 +346,7 @@ function ProjectRows(props: { readonly selectedId: ProjectId | undefined; readon
   );
 }
 
-function ProjectRow(props: {
-  readonly project: ProjectSummaryRow;
-  readonly selected: boolean;
-}) {
+function ProjectRow(props: { readonly project: ProjectSummaryRow; readonly selected: boolean }) {
   return (
     <RouterLink
       route={ProjectUiRoute}
@@ -378,7 +381,7 @@ function ProjectDetail(props: { readonly id: ProjectId; readonly tab: ProjectTab
     <>
       {project.match({
         initial: () => <ProjectSkeleton />,
-        pending: (previous) => previous ? renderProject(previous, true) : <ProjectSkeleton />,
+        pending: (previous) => (previous ? renderProject(previous, true) : <ProjectSkeleton />),
         success: (value) => renderProject(value, false),
         failure: (error, previous) =>
           previous ? (
@@ -388,7 +391,7 @@ function ProjectDetail(props: { readonly id: ProjectId; readonly tab: ProjectTab
             </>
           ) : (
             <FailureView error={error} />
-          )
+          ),
       })}
     </>
   );
@@ -428,7 +431,7 @@ function ProjectTabs(props: { readonly project: Project; readonly selected: Proj
   const tabs: ReadonlyArray<{ readonly id: ProjectTab; readonly label: string }> = [
     { id: "overview", label: "Overview" },
     { id: "activity", label: "Activity" },
-    { id: "settings", label: "Settings" }
+    { id: "settings", label: "Settings" },
   ];
 
   return (
@@ -461,8 +464,13 @@ function ProjectTabPanel(props: { readonly project: Project; readonly tab: Proje
       <section class="activityPanel">
         <h3>Recent activity</h3>
         <p>Route preload refreshed this project at {props.project.updatedAt}.</p>
-        <p>{props.project.owner} is clearing the next milestone: {props.project.nextMilestone}</p>
-        <p>Health moved to {healthLabel(props.project.health)} with {props.project.progress}% progress.</p>
+        <p>
+          {props.project.owner} is clearing the next milestone: {props.project.nextMilestone}
+        </p>
+        <p>
+          Health moved to {healthLabel(props.project.health)} with {props.project.progress}%
+          progress.
+        </p>
       </section>
     );
   }
@@ -482,9 +490,7 @@ function ProjectTabPanel(props: { readonly project: Project; readonly tab: Proje
 
       <aside class="riskPanel" aria-label="Current risks">
         <h3>Risk register</h3>
-        <For each={props.project.risks}>
-          {(risk) => <p>{risk}</p>}
-        </For>
+        <For each={props.project.risks}>{(risk) => <p>{risk}</p>}</For>
       </aside>
     </section>
   );
@@ -510,146 +516,154 @@ type ProjectActionsMessage =
 const projectActionsInitial = (project: Project): ProjectActionsModel => ({
   project,
   renamePending: false,
-  advancePending: false
+  advancePending: false,
 });
 
-const renameValidationMessage = (
-  result: ProjectNameSubmissionClientResult
-): string | undefined =>
+const renameValidationMessage = (result: ProjectNameSubmissionClientResult): string | undefined =>
   result._tag === "ValidationFailure"
-    ? result.fieldErrors.name?.[0] ?? result.formErrors[0]
+    ? (result.fieldErrors.name?.[0] ?? result.formErrors[0])
     : undefined;
 
 const useProjectActionsProgram = (project: () => Project) => {
   const router = useRouter<AppRoutes>();
   const rename = StartAction.use(SubmitProjectName);
   const advance = useAction(AdvanceProject);
-  const actions = useProgram(Program.define<ProjectActionsModel, ProjectActionsMessage>({
-    initial: projectActionsInitial(project()),
-    update: (model, message) => {
-      switch (message._tag) {
-        case "ProjectChanged":
-          return message.project.id === model.project.id
-            ? { ...model, project: message.project }
-            : projectActionsInitial(message.project);
-        case "SubmitRename":
-          if (model.renamePending) {
-            return model;
-          }
+  const actions = useProgram(
+    Program.define<ProjectActionsModel, ProjectActionsMessage>({
+      initial: projectActionsInitial(project()),
+      update: (model, message) => {
+        switch (message._tag) {
+          case "ProjectChanged":
+            return message.project.id === model.project.id
+              ? { ...model, project: message.project }
+              : projectActionsInitial(message.project);
+          case "SubmitRename":
+            if (model.renamePending) {
+              return model;
+            }
 
-          return Program.next(
-            {
-              project: model.project,
-              renamePending: true,
-              advancePending: model.advancePending
-            },
-            Program.command<ProjectActionsMessage>(
-              Form.decodeFormDataEffect(ProjectNameFormInput, message.formData, {
-                omitFields: [startActionNameField, startActionInputField]
-              }).pipe(
-                Effect.flatMap(({ name }) =>
-                  rename.submitEffect({
-                    id: model.project.id,
-                    name,
-                    redirectTo: makeProjectReturnTo(projectHref(model.project.id, "activity"))
-                  })
+            return Program.next(
+              {
+                project: model.project,
+                renamePending: true,
+                advancePending: model.advancePending,
+              },
+              Program.command<ProjectActionsMessage>(
+                Form.decodeFormDataEffect(ProjectNameFormInput, message.formData, {
+                  omitFields: [startActionNameField, startActionInputField],
+                }).pipe(
+                  Effect.flatMap(({ name }) =>
+                    rename.submitEffect({
+                      id: model.project.id,
+                      name,
+                      redirectTo: makeProjectReturnTo(projectHref(model.project.id, "activity")),
+                    }),
+                  ),
+                  Effect.match({
+                    onFailure: (error): ProjectActionsMessage => ({ _tag: "RenameFailed", error }),
+                    onSuccess: (result): ProjectActionsMessage => ({
+                      _tag: "RenameFinished",
+                      result,
+                    }),
+                  }),
                 ),
-                Effect.match({
-                  onFailure: (error): ProjectActionsMessage => ({ _tag: "RenameFailed", error }),
-                  onSuccess: (result): ProjectActionsMessage => ({ _tag: "RenameFinished", result })
-                })
-              )
-            )
-          );
-        case "RenameFinished": {
-          const result = message.result;
-          switch (result._tag) {
-            case "Success":
-              return {
-                project: result.value,
-                renamePending: false,
-                advancePending: model.advancePending
-              };
-            case "ValidationFailure":
-              const validation = renameValidationMessage(result);
-              return validation === undefined ? {
-                project: model.project,
-                renamePending: false,
-                advancePending: model.advancePending
-              } : {
-                project: model.project,
-                renamePending: false,
-                advancePending: model.advancePending,
-                validation
-              };
-            case "Failure":
-              return {
-                project: model.project,
-                renamePending: false,
-                advancePending: model.advancePending,
-                error: result.error
-              };
-            case "Redirect":
-              return Program.next(
-                {
+              ),
+            );
+          case "RenameFinished": {
+            const result = message.result;
+            switch (result._tag) {
+              case "Success":
+                return {
+                  project: result.value,
+                  renamePending: false,
+                  advancePending: model.advancePending,
+                };
+              case "ValidationFailure":
+                const validation = renameValidationMessage(result);
+                return validation === undefined
+                  ? {
+                      project: model.project,
+                      renamePending: false,
+                      advancePending: model.advancePending,
+                    }
+                  : {
+                      project: model.project,
+                      renamePending: false,
+                      advancePending: model.advancePending,
+                      validation,
+                    };
+              case "Failure":
+                return {
                   project: model.project,
                   renamePending: false,
-                  advancePending: model.advancePending
-                },
-                Program.effect(
-                  Effect.sync(() =>
-                    router.navigateHref(
-                      result.location,
-                      result.replace === undefined ? undefined : { replace: result.replace }
-                    )
-                  )
-                )
-              );
+                  advancePending: model.advancePending,
+                  error: result.error,
+                };
+              case "Redirect":
+                return Program.next(
+                  {
+                    project: model.project,
+                    renamePending: false,
+                    advancePending: model.advancePending,
+                  },
+                  Program.effect(
+                    Effect.sync(() =>
+                      router.navigateHref(
+                        result.location,
+                        result.replace === undefined ? undefined : { replace: result.replace },
+                      ),
+                    ),
+                  ),
+                );
+            }
           }
-        }
-        case "RenameFailed":
-          return {
-            project: model.project,
-            renamePending: false,
-            advancePending: model.advancePending,
-            error: message.error
-          };
-        case "Advance":
-          if (model.advancePending) {
-            return model;
-          }
+          case "RenameFailed":
+            return {
+              project: model.project,
+              renamePending: false,
+              advancePending: model.advancePending,
+              error: message.error,
+            };
+          case "Advance":
+            if (model.advancePending) {
+              return model;
+            }
 
-          return Program.next(
-            {
+            return Program.next(
+              {
+                project: model.project,
+                renamePending: model.renamePending,
+                advancePending: true,
+              },
+              Program.command<ProjectActionsMessage>(
+                advance.submitEffect({ id: model.project.id }).pipe(
+                  Effect.match({
+                    onFailure: (error): ProjectActionsMessage => ({ _tag: "AdvanceFailed", error }),
+                    onSuccess: (project): ProjectActionsMessage => ({
+                      _tag: "AdvanceFinished",
+                      project,
+                    }),
+                  }),
+                ),
+              ),
+            );
+          case "AdvanceFinished":
+            return {
+              project: message.project,
+              renamePending: model.renamePending,
+              advancePending: false,
+            };
+          case "AdvanceFailed":
+            return {
               project: model.project,
               renamePending: model.renamePending,
-              advancePending: true
-            },
-            Program.command<ProjectActionsMessage>(
-              advance.submitEffect({ id: model.project.id }).pipe(
-                Effect.match({
-                  onFailure: (error): ProjectActionsMessage => ({ _tag: "AdvanceFailed", error }),
-                  onSuccess: (project): ProjectActionsMessage => ({ _tag: "AdvanceFinished", project })
-                })
-              )
-            )
-          );
-        case "AdvanceFinished":
-          return {
-            project: message.project,
-            renamePending: model.renamePending,
-            advancePending: false
-          };
-        case "AdvanceFailed":
-          return {
-            project: model.project,
-            renamePending: model.renamePending,
-            advancePending: false,
-            error: message.error
-          };
-      }
-    }
-  }));
+              advancePending: false,
+              error: message.error,
+            };
+        }
+      },
+    }),
+  );
 
   createEffect(() => {
     actions.dispatch({ _tag: "ProjectChanged", project: project() });
@@ -665,7 +679,7 @@ function ProjectActions(props: { readonly project: Project }) {
   const renameForm = () =>
     projectNameActionTarget({
       id: model().project.id,
-      redirectTo: makeProjectReturnTo(projectHref(model().project.id, "activity"))
+      redirectTo: makeProjectReturnTo(projectHref(model().project.id, "activity")),
     });
 
   return (
@@ -678,7 +692,7 @@ function ProjectActions(props: { readonly project: Project }) {
           event.preventDefault();
           actions.dispatch({
             _tag: "SubmitRename",
-            formData: new FormData(event.currentTarget)
+            formData: new FormData(event.currentTarget),
           });
         }}
       >
@@ -710,19 +724,23 @@ function ProjectActions(props: { readonly project: Project }) {
         {model().advancePending ? "Advancing" : "Advance"}
       </button>
 
-      <ActionMessage
-        validation={model().validation}
-        error={model().error}
-      />
+      <ActionMessage validation={model().validation} error={model().error} />
     </div>
   );
 }
 
-function ActionMessage(props: { readonly validation: string | undefined; readonly error: unknown }) {
+function ActionMessage(props: {
+  readonly validation: string | undefined;
+  readonly error: unknown;
+}) {
   return (
     <>
       <Show when={props.validation}>
-        {(message) => <p id="project-name-error" class="formError">{message()}</p>}
+        {(message) => (
+          <p id="project-name-error" class="formError">
+            {message()}
+          </p>
+        )}
       </Show>
       <Show when={props.error}>
         {(error) => <p class="formError">{formatProjectError(error())}</p>}

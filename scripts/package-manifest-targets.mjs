@@ -23,7 +23,7 @@ const collectExportTargets = (value, context) => {
       collectExportTargets(entry, {
         ...context,
         field: `${context.field}[${index}]`,
-      })
+      }),
     );
   }
   if (typeof value !== "object" || value === null) {
@@ -33,7 +33,7 @@ const collectExportTargets = (value, context) => {
     collectExportTargets(entry, {
       ...context,
       field: `${context.field}.${key}`,
-    })
+    }),
   );
 };
 
@@ -81,17 +81,16 @@ export const manifestTargetValidationFailures = ({
   payloadLabel,
 }) => {
   const fileSet = new Set(files);
-  return packageManifestTargets(packageJson)
-    .flatMap((target) => {
-      if (target.invalidTarget !== undefined) {
-        return [
-          `${payloadLabel ?? packageName} manifest field ${target.field} points at invalid package-local target ${target.invalidTarget}; use a ./-prefixed file target.`
+  return packageManifestTargets(packageJson).flatMap((target) => {
+    if (target.invalidTarget !== undefined) {
+      return [
+        `${payloadLabel ?? packageName} manifest field ${target.field} points at invalid package-local target ${target.invalidTarget}; use a ./-prefixed file target.`,
+      ];
+    }
+    return fileSet.has(target.target)
+      ? []
+      : [
+          `${payloadLabel ?? packageName} manifest field ${target.field} points at missing payload file ${target.target}`,
         ];
-      }
-      return fileSet.has(target.target)
-        ? []
-        : [
-            `${payloadLabel ?? packageName} manifest field ${target.field} points at missing payload file ${target.target}`
-          ];
-    });
+  });
 };

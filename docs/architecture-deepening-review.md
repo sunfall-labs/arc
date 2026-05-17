@@ -11,12 +11,12 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review247 Scope Cleanup Capture
-And Namespace Public Pins, the fresh post-Review246 sweep that made UI scope
-and Action reset capture seams explicit, moved React/Solid cleanup callers to
-sync host conveniences, added Collection and Query namespace-owned error
-constructors, and pinned the Vite dev SSR Adapter Interface for LSP/type-test
-ownership. The newest full verification checkpoint remains Review240.
+The newest focused review is Review490 Effect-First Lazy Route Components And
+Formatter-Tolerant Public API Inventory, the dirty-lane follow-up that removed
+Promise-shaped lazy route component Interfaces from Core, moved route lazy
+Suspense token conversion into the React/Solid host Adapter seams, and made
+the public API inventory parser tolerate formatter-aligned Markdown tables.
+The newest full verification checkpoint remains Review240.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -53,8 +53,9 @@ and the fresh post-Review242 sweep found Review243 work,
 and the fresh post-Review243 sweep found Review244 work,
 and the fresh post-Review244 sweep found Review245 work,
 and the fresh post-Review245 sweep found Review246 work,
-and the fresh post-Review246 sweep found Review247 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review247
+and the fresh post-Review246 sweep found Review247 work, and the dirty-lane
+follow-up found Review490 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review490
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -66,7 +67,8 @@ Review226, Review227, Review228, Review229, Review230, Review231, and
 Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
 Review235 work, Review236 work, Review237 work, Review238 work, Review239
 work, Review240 work, Review241 work, Review242 work, Review243 work,
-Review244 work, Review245 work, Review246 work, and Review247 work.
+Review244 work, Review245 work, Review246 work, Review247 work, and Review490
+work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -170,7 +172,77 @@ and the fresh post-Review245 sweep found Review246 Effect cleanup capture and
 Vite middleware lifecycle work,
 and the fresh post-Review246 sweep found Review247 Scope cleanup capture and
 namespace public pin work,
+and the dirty-lane follow-up found Review490 lazy route Effect Interface and
+formatter-tolerant inventory work,
 so the counter remains 0/30.
+
+## Review 490: Effect-First Lazy Route Components And Formatter-Tolerant Public API Inventory
+
+Review490 fixes the actionable findings found while making the post-Review247
+dirty lane coherent.
+
+1. Route Lazy Component Effect Interface
+   - Status: fixed.
+   - Files: `packages/core/src/route.ts`,
+     `packages/core/test/browser-router.test.ts`,
+     `packages/react/src/route-render-scope.ts`,
+     `packages/react/test/router.test.ts`,
+     `packages/solid/src/route-render-scope.ts`,
+     `packages/solid/test/router.test.ts`,
+     `packages/start/src/route-code-splitting.ts`,
+     `packages/start/test/route-code-splitting.test.ts`,
+     `type-tests/core.test-d.ts`, and `CONTEXT.md`.
+   - Problem: `Route.lazyComponent(...)` accepted a Promise-returning importer
+     and exposed `preload(): Promise<Component>`, so the Core Route Module
+     leaked a host Promise Interface even though route preload and router
+     lifetimes are otherwise Effect-first.
+   - Solution: make `Route.lazyComponent(...)` accept an Effect loader, expose
+     `preloadEffect()`, cache the detached load fiber in the descriptor, and
+     have `Route.readComponent(...)` throw tagged pending/failure values.
+     React and Solid translate only the tagged pending value into the host
+     Suspense Promise token at their Adapter seams, Solid preserves its
+     `createComponent(...)` hydration Adapter, and Start auto code splitting
+     emits `Effect.tryPromise(...)` loaders instead of Promise thunks.
+   - Benefits: the Route Module regains Depth because lazy chunk loading,
+     in-flight reuse, and failure caching sit behind an Effect Interface.
+     Locality improves because Promise mechanics are isolated to the framework
+     Suspense Adapters, matching the Resource read boundary pattern.
+
+2. Formatter-Tolerant Public API Inventory Parser
+   - Status: fixed.
+   - Files: `scripts/audit-public-api-inventory.mjs` and
+     `docs/public-api-inventory.md`.
+   - Problem: the package export-map audit parsed Markdown table rows with
+     single-space assumptions. The new formatter aligned table cells, so the
+     audit reported every package export as missing even though the inventory
+     rows were present.
+   - Solution: make the Package Export Map parser consume arbitrary cell
+     spacing while preserving the same package/export/source validation.
+   - Benefits: the public API inventory audit now protects the Interface
+     contract instead of depending on hand-authored Markdown whitespace, so
+     formatter tooling can run without weakening package-surface Locality.
+
+3. Package Tarball License Payloads
+   - Status: fixed.
+   - Files: `LICENSE`, `packages/*/LICENSE`,
+     `scripts/package-payload-policy.mjs`,
+     `scripts/verify-package-payload-policy.mjs`, and
+     `docs/package-hygiene-audit.md`.
+   - Problem: package manifests declared MIT, but publishable package tarballs
+     did not include the license text because each subpackage only packed its
+     `dist` payload and package manifest.
+   - Solution: add package-local MIT `LICENSE` files and make the payload
+     policy require a packaged license that matches the workspace license.
+   - Benefits: release metadata and package payload checks now share one
+     package hygiene Interface, so tarball contents cannot drift from manifest
+     license claims.
+
+Focused verification for this pass: `pnpm --filter @effect-ui/core build`,
+`pnpm typecheck:types`, `pnpm audit:effect-first`, `pnpm audit:public-api`,
+`pnpm exec vitest run packages/core/test/browser-router.test.ts
+packages/react/test/router.test.ts packages/solid/test/router.test.ts`, focused
+Start route code-splitting tests, `pnpm verify:package-payload-policy`,
+`pnpm example:pack-dry-run`, and `pnpm typecheck` passed.
 
 ## Review 247: Scope Cleanup Capture And Namespace Public Pins
 
@@ -2858,23 +2930,23 @@ four review lanes.
 1. Core/React/Solid Runtime And Adapter Lane
    - Status: clean.
    - Evidence: `pnpm typecheck:types`, `pnpm --filter @effect-ui/core
-     typecheck`, `pnpm --filter @effect-ui/react typecheck`, `pnpm --filter
-     @effect-ui/solid typecheck`, `pnpm audit:effect-first`, `pnpm
-     audit:public-api`, and focused Core/React/Solid runtime/hook tests passed
+typecheck`, `pnpm --filter @effect-ui/react typecheck`, `pnpm --filter
+@effect-ui/solid typecheck`, `pnpm audit:effect-first`, `pnpm
+audit:public-api`, and focused Core/React/Solid runtime/hook tests passed
      after inspecting RuntimeProvider disposal observers, `EffectInput`
      Promise rejection, Solid match docs, and public adapter type tests.
 
 2. DB And Public API Lane
    - Status: clean.
    - Evidence: `pnpm audit:public-api`, `pnpm audit:effect-first`, `pnpm
-     typecheck:types`, `pnpm typecheck`, DB-family package typechecks, and
+typecheck:types`, `pnpm typecheck`, DB-family package typechecks, and
      focused DB/React-DB/Solid-DB tests passed after inspecting DB surfaces,
      public API inventory/policy, and focused type-test pins.
 
 3. Start, Devtools, Scripts, And Package Lane
    - Status: clean.
    - Evidence: `node scripts/verify-package-dry-runs.mjs`, `node
-     scripts/audit-effect-first.mjs`, `pnpm typecheck:types`, targeted Start
+scripts/audit-effect-first.mjs`, `pnpm typecheck:types`, targeted Start
      tests, direct `packages/start/dist/cli.js --version`, Node fallback CLI
      invocation, and executable-mode checks passed after inspecting the
      Review208 direct-bin rehearsal, package dry-run gates, Effect command
@@ -2885,7 +2957,7 @@ four review lanes.
    - Evidence: targeted current-gate and clean-counter greps, Review208
      file-list checks, package-hygiene claim checks, Solid adapter example
      checks, `pnpm audit:effect-first`, `pnpm audit:public-api`, `pnpm
-     typecheck:types`, and `git diff --check` passed.
+typecheck:types`, and `git diff --check` passed.
 
 At the Clean Sweep 1 checkpoint, the Thirty-Sweep clean counter reached 1/30.
 Clean Sweep 2 later found Review209 work and the post-Review209 sweep found
@@ -3570,7 +3642,7 @@ found Vite dev SSR, diagnostics close, and CLI bin host-seam gaps.
      `state`/`match` with Solid `Accessor`s. Future Core controller additions
      could drift without a Solid type-level parity failure.
    - Fix: Solid `BrowserRouter` now extends an `Omit<BrowserRouterHostController,
-     "state" | "match" | "start" | "dispose">` projection and redefines only the
+"state" | "match" | "start" | "dispose">` projection and redefines only the
      Solid reactive members. Public type tests assert the Solid router satisfies
      the projected Core controller shape while `state()` and `match()` remain
      Solid accessors.
@@ -7263,7 +7335,7 @@ full verification are green. Fresh post-fix sweeps still found actionable work,
 so the clean-sweep counter has not started.
 
 - Runtime Store override locality: `EffectUiRuntime.provide(..., {
-  resourceStore })` now installs an ambient runtime Adapter whose
+resourceStore })` now installs an ambient runtime Adapter whose
   `resourceStore`, nested `provide(...)`, `runFork(...)`, and `runSync(...)`
   preserve the override. A Core regression prefetches a Resource into an
   override store and proves `Resource.read(...)` inside the same provided Effect
@@ -11858,7 +11930,7 @@ source-only Promise-method and non-Effect `.catch(...)` greps were clean. Full
      the DB Collection and Query Interfaces even though the runtime behavior
      normalizes output-schema failures to `CollectionSnapshotCodecError`.
    - Fix: restored `CollectionRuntimeError<E>` to `E |
-     CollectionSnapshotCodecError`, normalized the snapshot codec Effect error
+CollectionSnapshotCodecError`, normalized the snapshot codec Effect error
      mapping, aligned Solid DB collection state/error accessors with
      `CollectionRuntimeError<E>`, and updated the regression test to assert the
      normalized codec error and `reason` text.
@@ -12706,7 +12778,7 @@ Promise-method grep, and immutable flag audit passed after verification.
      second runtime's first preload call the refetch Adapter.
    - Fix: added `CollectionOptions.refetch` and moved the `load` versus
      `refetch` decision into Collection Runtime. First preload uses `load ??
-     refetch`; forced refetch uses `refetch ?? load`. The sync Adapter now maps
+refetch`; forced refetch uses `refetch ?? load`. The sync Adapter now maps
      callbacks independently and owns no runtime state. Added a two-runtime
      regression proving first preload remains store-local.
    - Benefits: Collection Sync Adapter stays a translation Interface, while
@@ -13414,12 +13486,12 @@ that the clean-sweep counter can start.
 Evidence:
 
 - Focused regression suite passed: `pnpm exec vitest run
-  packages/core/test/definition-registry.test.ts packages/solid/test/router.test.ts
-  packages/solid/test/hooks.test.ts packages/db/test/live-query-collection.test.ts
-  packages/db/test/sync-adapter.test.ts packages/db/test/sqlite-persistence.test.ts
-  packages/start/test/start.test.ts packages/devtools/test/devtools.test.ts
-  examples/devtools-extension/src/extension.test.ts
-  packages/start/test/file-route-modules.test.ts` passed: 10 files / 190 tests.
+packages/core/test/definition-registry.test.ts packages/solid/test/router.test.ts
+packages/solid/test/hooks.test.ts packages/db/test/live-query-collection.test.ts
+packages/db/test/sync-adapter.test.ts packages/db/test/sqlite-persistence.test.ts
+packages/start/test/start.test.ts packages/devtools/test/devtools.test.ts
+examples/devtools-extension/src/extension.test.ts
+packages/start/test/file-route-modules.test.ts` passed: 10 files / 190 tests.
 - `pnpm typecheck` passed.
 - Full `pnpm verify` passed: 9 package builds, workspace typecheck, type tests,
   Effect-first source audit, 45 root test files / 502 tests, devtools-panel
@@ -13560,17 +13632,17 @@ Evidence:
 - `pnpm typecheck` passed.
 - Focused regressions passed:
   `pnpm exec vitest run packages/core/test/action.test.ts
-  packages/db/test/live-query-collection.test.ts
-  packages/db/test/collection-registry.test.ts
-  packages/db/test/sqlite-persistence.test.ts packages/start/test/start.test.ts
-  packages/start/test/file-route-modules.test.ts
-  packages/devtools/test/devtools.test.ts` passed: 7 files / 185 tests.
+packages/db/test/live-query-collection.test.ts
+packages/db/test/collection-registry.test.ts
+packages/db/test/sqlite-persistence.test.ts packages/start/test/start.test.ts
+packages/start/test/file-route-modules.test.ts
+packages/devtools/test/devtools.test.ts` passed: 7 files / 185 tests.
 - Solid-focused regressions passed:
   `pnpm exec vitest run packages/solid/test/router.test.ts
-  packages/solid-db/test/solid-db.test.ts` passed: 2 files / 16 tests.
+packages/solid-db/test/solid-db.test.ts` passed: 2 files / 16 tests.
 - Core server/action regressions passed:
   `pnpm exec vitest run packages/core/test/server.test.ts
-  packages/core/test/action.test.ts` passed: 2 files / 34 tests.
+packages/core/test/action.test.ts` passed: 2 files / 34 tests.
 - Full `pnpm verify` passed: 9 package builds, workspace typecheck, type
   tests, Effect-first source audit, 45 root test files / 511 tests,
   devtools-panel verify with 1 panel test, devtools-extension verify with 1
@@ -13718,11 +13790,11 @@ Known follow-ups:
 Evidence:
 
 - `pnpm --filter @effect-ui/solid typecheck`, `pnpm --filter
-  @effect-ui/solid-db typecheck`, `pnpm typecheck:types`, and `pnpm vitest run
-  packages/solid/test/router.test.ts packages/solid-db/test/solid-db.test.ts`
+@effect-ui/solid-db typecheck`, `pnpm typecheck:types`, and `pnpm vitest run
+packages/solid/test/router.test.ts packages/solid-db/test/solid-db.test.ts`
   passed: 2 files / 19 tests.
 - `pnpm --filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/db
-  typecheck`, `pnpm --filter @effect-ui/devtools typecheck`, focused Core/DB
+typecheck`, `pnpm --filter @effect-ui/devtools typecheck`, focused Core/DB
   and Devtools regressions, `pnpm --filter @effect-ui/start typecheck`,
   `pnpm vitest run packages/start/test/start.test.ts`,
   `pnpm devtools-extension:typecheck`, and `pnpm devtools-extension:test`

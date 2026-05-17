@@ -18,17 +18,20 @@ export function HomePage() {
             <Badge variant="secondary">shadcn CLI</Badge>
           </div>
           {welcome.match({
-            initial: () => <h1 className="text-4xl font-semibold tracking-normal">Loading starter resource</h1>,
-            pending: () => <h1 className="text-4xl font-semibold tracking-normal">Loading starter resource</h1>,
+            initial: () => (
+              <h1 className="text-4xl font-semibold tracking-normal">Loading starter resource</h1>
+            ),
+            pending: () => (
+              <h1 className="text-4xl font-semibold tracking-normal">Loading starter resource</h1>
+            ),
             success: (value) => (
               <>
                 <h1 className="max-w-3xl text-4xl font-semibold tracking-normal text-foreground sm:text-5xl">
                   {value.message}
                 </h1>
                 <p className="max-w-2xl text-base leading-7 text-muted-foreground">
-                  React adapter, route-owned Resource preload, SSR hydration,
-                  Tailwind v4, and a shadcn-compatible component layout are
-                  wired together in one small starter.
+                  React adapter, route-owned Resource preload, SSR hydration, Tailwind v4, and a
+                  shadcn-compatible component layout are wired together in one small starter.
                 </p>
                 <div className="flex flex-wrap gap-3">
                   <Button>React adapter ready</Button>
@@ -41,7 +44,7 @@ export function HomePage() {
             ),
             failure: () => (
               <h1 className="text-4xl font-semibold tracking-normal">Starter resource failed</h1>
-            )
+            ),
           })}
         </div>
       </section>

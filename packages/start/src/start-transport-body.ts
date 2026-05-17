@@ -1,8 +1,4 @@
-import {
-  Server,
-  ServerRpcProtocolError,
-  ServerTransportError
-} from "@effect-ui/core";
+import { Server, ServerRpcProtocolError, ServerTransportError } from "@effect-ui/core";
 import { Effect } from "effect";
 
 /** Body-like source that can be consumed once as JSON by the Start transport. */
@@ -12,28 +8,24 @@ export type StartTransportJsonBodySource = Pick<Body, "json">;
 export type StartTransportFormDataBodySource = Pick<Body, "formData">;
 
 /** Response-like source that can be consumed once as text by the Start transport. */
-export type StartTransportTextBodySource =
-  Pick<Body, "text"> & { readonly status: number };
+export type StartTransportTextBodySource = Pick<Body, "text"> & { readonly status: number };
 
-const protocolBodyReadError = (
-  message: string,
-  cause: unknown
-): ServerRpcProtocolError =>
+const protocolBodyReadError = (message: string, cause: unknown): ServerRpcProtocolError =>
   new ServerRpcProtocolError({
     message,
-    payload: Server.serializeDefect(cause)
+    payload: Server.serializeDefect(cause),
   });
 
 const transportBodyReadError = (
   response: StartTransportTextBodySource,
   message: string,
-  cause: unknown
+  cause: unknown,
 ): ServerTransportError =>
   new ServerTransportError({
     reason: "InvalidResponse",
     status: response.status,
     message,
-    cause
+    cause,
   });
 
 /**
@@ -45,11 +37,11 @@ const transportBodyReadError = (
  */
 export const readStartTransportJsonBodyEffect = (
   body: StartTransportJsonBodySource,
-  message: string
+  message: string,
 ): Effect.Effect<unknown, ServerRpcProtocolError> =>
   Effect.tryPromise({
     try: () => body.json(),
-    catch: (cause) => protocolBodyReadError(message, cause)
+    catch: (cause) => protocolBodyReadError(message, cause),
   });
 
 /**
@@ -60,11 +52,11 @@ export const readStartTransportJsonBodyEffect = (
  */
 export const readStartTransportFormDataBodyEffect = (
   body: StartTransportFormDataBodySource,
-  message: string
+  message: string,
 ): Effect.Effect<FormData, ServerRpcProtocolError> =>
   Effect.tryPromise({
     try: () => body.formData(),
-    catch: (cause) => protocolBodyReadError(message, cause)
+    catch: (cause) => protocolBodyReadError(message, cause),
   });
 
 /**
@@ -76,9 +68,9 @@ export const readStartTransportFormDataBodyEffect = (
  */
 export const readStartTransportResponseTextEffect = (
   response: StartTransportTextBodySource,
-  message: string
+  message: string,
 ): Effect.Effect<string, ServerTransportError> =>
   Effect.tryPromise({
     try: () => response.text(),
-    catch: (cause) => transportBodyReadError(response, message, cause)
+    catch: (cause) => transportBodyReadError(response, message, cause),
   });

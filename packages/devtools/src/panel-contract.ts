@@ -9,7 +9,7 @@ import type {
   DevtoolsPanelsInput,
   DevtoolsPanelSeverity,
   DevtoolsPanelUiInput,
-  DevtoolsSerializableValue
+  DevtoolsSerializableValue,
 } from "./devtools-contract.js";
 
 /** Stable ids for the public Devtools panel contract. */
@@ -22,7 +22,7 @@ export const devtoolsPanelIds: readonly DevtoolsPanelId[] = [
   "collections",
   "requests",
   "diagnostics",
-  "causal-graph"
+  "causal-graph",
 ];
 
 /** Stable severities accepted by Devtools panels and panel items. */
@@ -30,7 +30,7 @@ export const devtoolsPanelSeverities: readonly DevtoolsPanelSeverity[] = [
   "ok",
   "info",
   "warning",
-  "error"
+  "error",
 ];
 
 const devtoolsPanelIdSet: ReadonlySet<string> = new Set(devtoolsPanelIds);
@@ -48,9 +48,7 @@ export type DevtoolsPanelContractErrorReason =
   | "InvalidBridgePayload";
 
 /** Typed error for malformed public Devtools panel contract payloads. */
-export class DevtoolsPanelContractError extends Data.TaggedError(
-  "DevtoolsPanelContractError"
-)<{
+export class DevtoolsPanelContractError extends Data.TaggedError("DevtoolsPanelContractError")<{
   readonly reason: DevtoolsPanelContractErrorReason;
   readonly path: string;
   readonly message: string;
@@ -102,10 +100,7 @@ interface PanelArrayWindow {
   readonly hidden: number;
 }
 
-const readProperty = (
-  value: Record<string, unknown>,
-  key: string
-): unknown | UnsafeProperty => {
+const readProperty = (value: Record<string, unknown>, key: string): unknown | UnsafeProperty => {
   try {
     return value[key];
   } catch {
@@ -115,7 +110,7 @@ const readProperty = (
 
 const readArrayValues = (
   value: unknown,
-  maxEntries = maxPanelArrayEntries
+  maxEntries = maxPanelArrayEntries,
 ): ReadonlyArray<unknown> | undefined => {
   if (!Array.isArray(value)) {
     return undefined;
@@ -139,7 +134,7 @@ const readArrayValues = (
 
 const readPanelArrayWindow = (
   value: unknown,
-  maxEntries = maxPanelArrayEntries
+  maxEntries = maxPanelArrayEntries,
 ): PanelArrayWindow | undefined => {
   if (!Array.isArray(value)) {
     return undefined;
@@ -159,7 +154,7 @@ const readPanelArrayWindow = (
     return {
       values,
       total: length,
-      hidden: length - windowSize
+      hidden: length - windowSize,
     };
   } catch {
     return undefined;
@@ -188,26 +183,19 @@ export const isDevtoolsPanelSeverity = (value: unknown): value is DevtoolsPanelS
   typeof value === "string" && devtoolsPanelSeveritySet.has(value);
 
 const truncatePanelString = (value: string): string =>
-  value.length <= maxPanelStringLength
-    ? value
-    : value.slice(0, maxPanelStringLength);
+  value.length <= maxPanelStringLength ? value : value.slice(0, maxPanelStringLength);
 
 const normalizePanelString = (value: unknown): string | undefined =>
-  typeof value === "string"
-    ? truncatePanelString(value)
-    : undefined;
+  typeof value === "string" ? truncatePanelString(value) : undefined;
 
 const isBoundedPanelIdentifier = (value: unknown): value is string =>
   typeof value === "string" && value.length <= maxPanelStringLength;
 
 const normalizeDevtoolsSerializableValue = (
   value: unknown,
-  state: SerializableNormalizationState = { seen: new WeakSet(), depth: 0 }
+  state: SerializableNormalizationState = { seen: new WeakSet(), depth: 0 },
 ): DevtoolsSerializableValue | undefined => {
-  if (
-    value === null ||
-    typeof value === "boolean"
-  ) {
+  if (value === null || typeof value === "boolean") {
     return value;
   }
 
@@ -235,7 +223,7 @@ const normalizeDevtoolsSerializableValue = (
       for (const item of arrayValues) {
         const normalized = normalizeDevtoolsSerializableValue(item, {
           seen: state.seen,
-          depth: state.depth + 1
+          depth: state.depth + 1,
         });
         if (normalized === undefined) {
           return undefined;
@@ -271,7 +259,7 @@ const normalizeDevtoolsSerializableValue = (
       }
       const normalized = normalizeDevtoolsSerializableValue(property, {
         seen: state.seen,
-        depth: state.depth + 1
+        depth: state.depth + 1,
       });
       if (normalized === undefined) {
         return undefined;
@@ -297,27 +285,30 @@ const normalizeDevtoolsPanelMetric = (value: unknown): DevtoolsPanelMetric | und
   const metricValue = readProperty(value, "value");
   const unit = readProperty(value, "unit");
   const normalizedLabel = normalizePanelString(label);
-  const normalizedMetricValue = typeof metricValue === "string"
-    ? normalizePanelString(metricValue)
-    : typeof metricValue === "number" && Number.isFinite(metricValue)
-      ? metricValue
-      : undefined;
+  const normalizedMetricValue =
+    typeof metricValue === "string"
+      ? normalizePanelString(metricValue)
+      : typeof metricValue === "number" && Number.isFinite(metricValue)
+        ? metricValue
+        : undefined;
   const normalizedUnit = unit === undefined ? undefined : normalizePanelString(unit);
-  if (!(
-    label !== unsafeProperty &&
-    metricValue !== unsafeProperty &&
-    unit !== unsafeProperty &&
-    normalizedLabel !== undefined &&
-    normalizedMetricValue !== undefined &&
-    (unit === undefined || normalizedUnit !== undefined)
-  )) {
+  if (
+    !(
+      label !== unsafeProperty &&
+      metricValue !== unsafeProperty &&
+      unit !== unsafeProperty &&
+      normalizedLabel !== undefined &&
+      normalizedMetricValue !== undefined &&
+      (unit === undefined || normalizedUnit !== undefined)
+    )
+  ) {
     return undefined;
   }
 
   return {
     label: normalizedLabel,
     value: normalizedMetricValue,
-    ...(normalizedUnit === undefined ? {} : { unit: normalizedUnit })
+    ...(normalizedUnit === undefined ? {} : { unit: normalizedUnit }),
   };
 };
 
@@ -338,24 +329,25 @@ const normalizeDevtoolsPanelItem = (value: unknown): DevtoolsPanelItem | undefin
   const data = readProperty(value, "data");
   const normalizedLabel = normalizePanelString(label);
   const normalizedDetail = detail === undefined ? undefined : normalizePanelString(detail);
-  if (!(
-    id !== unsafeProperty &&
-    label !== unsafeProperty &&
-    severity !== unsafeProperty &&
-    detail !== unsafeProperty &&
-    metrics !== unsafeProperty &&
-    data !== unsafeProperty &&
-    isBoundedPanelIdentifier(id) &&
-    normalizedLabel !== undefined &&
-    isDevtoolsPanelSeverity(severity) &&
-    (detail === undefined || normalizedDetail !== undefined)
-  )) {
+  if (
+    !(
+      id !== unsafeProperty &&
+      label !== unsafeProperty &&
+      severity !== unsafeProperty &&
+      detail !== unsafeProperty &&
+      metrics !== unsafeProperty &&
+      data !== unsafeProperty &&
+      isBoundedPanelIdentifier(id) &&
+      normalizedLabel !== undefined &&
+      isDevtoolsPanelSeverity(severity) &&
+      (detail === undefined || normalizedDetail !== undefined)
+    )
+  ) {
     return undefined;
   }
 
-  const normalizedMetrics = metrics === undefined
-    ? undefined
-    : readArrayValues(metrics)?.map(normalizeDevtoolsPanelMetric);
+  const normalizedMetrics =
+    metrics === undefined ? undefined : readArrayValues(metrics)?.map(normalizeDevtoolsPanelMetric);
   if (metrics !== undefined && normalizedMetrics === undefined) {
     return undefined;
   }
@@ -363,9 +355,7 @@ const normalizeDevtoolsPanelItem = (value: unknown): DevtoolsPanelItem | undefin
     return undefined;
   }
 
-  const normalizedData = data === undefined
-    ? undefined
-    : normalizeDevtoolsSerializableValue(data);
+  const normalizedData = data === undefined ? undefined : normalizeDevtoolsSerializableValue(data);
   if (data !== undefined && normalizedData === undefined) {
     return undefined;
   }
@@ -378,7 +368,7 @@ const normalizeDevtoolsPanelItem = (value: unknown): DevtoolsPanelItem | undefin
     ...(normalizedMetrics === undefined
       ? {}
       : { metrics: normalizedMetrics as ReadonlyArray<DevtoolsPanelMetric> }),
-    ...(normalizedData === undefined ? {} : { data: normalizedData })
+    ...(normalizedData === undefined ? {} : { data: normalizedData }),
   };
 };
 
@@ -389,10 +379,7 @@ export const isDevtoolsPanelItem = (value: unknown): value is DevtoolsPanelItem 
 const panelOverflowItemIdPrefix = (panelId: DevtoolsPanelId): string =>
   `__effect-ui-devtools-overflow:${panelId}`;
 
-const panelOverflowItemId = (
-  panelId: DevtoolsPanelId,
-  usedIds: ReadonlySet<string>
-): string => {
+const panelOverflowItemId = (panelId: DevtoolsPanelId, usedIds: ReadonlySet<string>): string => {
   const base = panelOverflowItemIdPrefix(panelId);
   if (!usedIds.has(base)) {
     return base;
@@ -409,7 +396,7 @@ const panelOverflowItem = (
   panelId: DevtoolsPanelId,
   usedIds: ReadonlySet<string>,
   total: number,
-  shown: number
+  shown: number,
 ): DevtoolsPanelItem => {
   const hidden = total - shown;
   return {
@@ -420,20 +407,20 @@ const panelOverflowItem = (
     metrics: [
       { label: "shown", value: shown },
       { label: "hidden", value: hidden },
-      { label: "total", value: total }
+      { label: "total", value: total },
     ],
     data: {
       total,
       shown,
-      hidden
-    }
+      hidden,
+    },
   };
 };
 
 /** Returns true when a panel row is the contract-generated overflow marker. */
 export const isDevtoolsPanelOverflowItem = (
   panelId: DevtoolsPanelId,
-  item: DevtoolsPanelItem
+  item: DevtoolsPanelItem,
 ): boolean => {
   const prefix = panelOverflowItemIdPrefix(panelId);
   return item.id === prefix || item.id.startsWith(`${prefix}:`);
@@ -452,18 +439,20 @@ const normalizeDevtoolsPanel = (value: unknown): DevtoolsPanel | undefined => {
   const items = readProperty(value, "items");
   const normalizedTitle = normalizePanelString(title);
   const normalizedSummary = normalizePanelString(summary);
-  if (!(
-    id !== unsafeProperty &&
-    title !== unsafeProperty &&
-    summary !== unsafeProperty &&
-    severity !== unsafeProperty &&
-    metrics !== unsafeProperty &&
-    items !== unsafeProperty &&
-    isDevtoolsPanelId(id) &&
-    normalizedTitle !== undefined &&
-    normalizedSummary !== undefined &&
-    isDevtoolsPanelSeverity(severity)
-  )) {
+  if (
+    !(
+      id !== unsafeProperty &&
+      title !== unsafeProperty &&
+      summary !== unsafeProperty &&
+      severity !== unsafeProperty &&
+      metrics !== unsafeProperty &&
+      items !== unsafeProperty &&
+      isDevtoolsPanelId(id) &&
+      normalizedTitle !== undefined &&
+      normalizedSummary !== undefined &&
+      isDevtoolsPanelSeverity(severity)
+    )
+  ) {
     return undefined;
   }
 
@@ -489,7 +478,7 @@ const normalizeDevtoolsPanel = (value: unknown): DevtoolsPanel | undefined => {
     itemIds.add(item.id);
   }
   const panelItems: Array<DevtoolsPanelItem> = [
-    ...(normalizedItems as ReadonlyArray<DevtoolsPanelItem>)
+    ...(normalizedItems as ReadonlyArray<DevtoolsPanelItem>),
   ];
   if (itemWindow.hidden > 0) {
     panelItems.push(panelOverflowItem(id, itemIds, itemWindow.total, panelItems.length));
@@ -501,7 +490,7 @@ const normalizeDevtoolsPanel = (value: unknown): DevtoolsPanel | undefined => {
     summary: normalizedSummary,
     severity,
     metrics: normalizedMetrics as ReadonlyArray<DevtoolsPanelMetric>,
-    items: panelItems
+    items: panelItems,
   };
 };
 
@@ -517,19 +506,12 @@ export const normalizeDevtoolsPanels = (value: unknown): DevtoolsPanels | undefi
 
   const version = readProperty(value, "version");
   const panels = readProperty(value, "panels");
-  if (!(
-    version !== unsafeProperty &&
-    panels !== unsafeProperty &&
-    version === 1
-  )) {
+  if (!(version !== unsafeProperty && panels !== unsafeProperty && version === 1)) {
     return undefined;
   }
 
   const normalizedPanels = readArrayValues(panels)?.map(normalizeDevtoolsPanel);
-  if (
-    normalizedPanels === undefined ||
-    normalizedPanels.some((panel) => panel === undefined)
-  ) {
+  if (normalizedPanels === undefined || normalizedPanels.some((panel) => panel === undefined)) {
     return undefined;
   }
 
@@ -547,7 +529,7 @@ export const normalizeDevtoolsPanels = (value: unknown): DevtoolsPanels | undefi
 
   return {
     version: 1,
-    panels: devtoolsPanelIds.map((id) => panelById.get(id)!)
+    panels: devtoolsPanelIds.map((id) => panelById.get(id)!),
   };
 };
 
@@ -560,54 +542,52 @@ const contractError = (options: {
   readonly path: string;
   readonly message: string;
   readonly value?: unknown;
-}): DevtoolsPanelContractError =>
-  new DevtoolsPanelContractError(options);
+}): DevtoolsPanelContractError => new DevtoolsPanelContractError(options);
 
 const devtoolsPanelContractDiagnosticsPanels = (
-  error: DevtoolsPanelContractError
+  error: DevtoolsPanelContractError,
 ): DevtoolsPanels => ({
   version: 1,
-  panels: devtoolsPanelIds.map((id): DevtoolsPanel =>
-    id === "diagnostics"
-      ? {
-          id,
-          title: "Diagnostics",
-          summary: "Panel contract error",
-          severity: "error",
-          metrics: [
-            { label: "contract", value: "invalid" }
-          ],
-          items: [
-            {
-              id: "panel-contract-error",
-              label: "Invalid Devtools panel contract",
-              severity: "error",
-              detail: error.message,
-              data: {
-                reason: error.reason,
-                path: error.path,
-                message: error.message
-              }
-            }
-          ]
-        }
-      : {
-          id,
-          title: id
-            .split("-")
-            .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
-            .join(" "),
-          summary: "Suppressed while panel contract diagnostics are shown",
-          severity: "info",
-          metrics: [],
-          items: []
-        }
-  )
+  panels: devtoolsPanelIds.map(
+    (id): DevtoolsPanel =>
+      id === "diagnostics"
+        ? {
+            id,
+            title: "Diagnostics",
+            summary: "Panel contract error",
+            severity: "error",
+            metrics: [{ label: "contract", value: "invalid" }],
+            items: [
+              {
+                id: "panel-contract-error",
+                label: "Invalid Devtools panel contract",
+                severity: "error",
+                detail: error.message,
+                data: {
+                  reason: error.reason,
+                  path: error.path,
+                  message: error.message,
+                },
+              },
+            ],
+          }
+        : {
+            id,
+            title: id
+              .split("-")
+              .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+              .join(" "),
+            summary: "Suppressed while panel contract diagnostics are shown",
+            severity: "info",
+            metrics: [],
+            items: [],
+          },
+  ),
 });
 
 const diagnosePanelItemIds = (
   panel: Record<string, unknown>,
-  panelIndex: number
+  panelIndex: number,
 ): DevtoolsPanelContractError | undefined => {
   const panelId = readProperty(panel, "id");
   const items = readProperty(panel, "items");
@@ -631,7 +611,7 @@ const diagnosePanelItemIds = (
         reason: "DuplicatePanelItem",
         path: `panels[${panelIndex}].items[${index}].id`,
         message: `Duplicate panel item id "${itemId}" in panel "${String(panelId)}".`,
-        value: item
+        value: item,
       });
     }
     ids.add(itemId);
@@ -645,7 +625,7 @@ const diagnoseDevtoolsPanels = (value: unknown): DevtoolsPanelContractError => {
       reason: "InvalidType",
       path: "$",
       message: "DevtoolsPanels contract must be an object.",
-      value
+      value,
     });
   }
 
@@ -655,7 +635,7 @@ const diagnoseDevtoolsPanels = (value: unknown): DevtoolsPanelContractError => {
       reason: "InvalidVersion",
       path: "version",
       message: "DevtoolsPanels contract version must be 1.",
-      value: version
+      value: version,
     });
   }
 
@@ -666,7 +646,7 @@ const diagnoseDevtoolsPanels = (value: unknown): DevtoolsPanelContractError => {
       reason: "InvalidPanels",
       path: "panels",
       message: "DevtoolsPanels.panels must be a bounded array.",
-      value: panels
+      value: panels,
     });
   }
 
@@ -678,7 +658,7 @@ const diagnoseDevtoolsPanels = (value: unknown): DevtoolsPanelContractError => {
         reason: "MalformedPanel",
         path: `panels[${index}]`,
         message: `Panel at index ${index} must be an object.`,
-        value: panel
+        value: panel,
       });
     }
     const id = readProperty(panel, "id");
@@ -688,7 +668,7 @@ const diagnoseDevtoolsPanels = (value: unknown): DevtoolsPanelContractError => {
           reason: "DuplicatePanel",
           path: `panels[${index}].id`,
           message: `Duplicate panel id "${id}".`,
-          value: panel
+          value: panel,
         });
       }
       ids.add(id);
@@ -705,7 +685,7 @@ const diagnoseDevtoolsPanels = (value: unknown): DevtoolsPanelContractError => {
         reason: "MissingPanel",
         path: "panels",
         message: `Missing required panel "${id}".`,
-        value: panels
+        value: panels,
       });
     }
   }
@@ -714,19 +694,17 @@ const diagnoseDevtoolsPanels = (value: unknown): DevtoolsPanelContractError => {
     reason: "MalformedPanel",
     path: "panels",
     message: "DevtoolsPanels payload does not satisfy the public panel contract.",
-    value
+    value,
   });
 };
 
 /** Returns normalized panels or a diagnostics panel carrying the typed contract error. */
-export const resolveDevtoolsPanelContract = (
-  value: unknown
-): DevtoolsPanelContractResolution => {
+export const resolveDevtoolsPanelContract = (value: unknown): DevtoolsPanelContractResolution => {
   const normalized = normalizeDevtoolsPanels(value);
   if (normalized !== undefined) {
     return {
       _tag: "Valid",
-      panels: normalized
+      panels: normalized,
     };
   }
 
@@ -734,14 +712,14 @@ export const resolveDevtoolsPanelContract = (
   return {
     _tag: "Invalid",
     error,
-    panels: devtoolsPanelContractDiagnosticsPanels(error)
+    panels: devtoolsPanelContractDiagnosticsPanels(error),
   };
 };
 
 /** Resolves explicit panel UI input or derives panels from summary inputs. */
 export const resolveDevtoolsPanelsInput = (
   input: DevtoolsPanelUiInput,
-  describePanels: (input: DevtoolsPanelsInput) => DevtoolsPanels
+  describePanels: (input: DevtoolsPanelsInput) => DevtoolsPanels,
 ): DevtoolsPanels =>
   input.panels === undefined
     ? describePanels(input)
@@ -754,7 +732,7 @@ export const resolveDevtoolsPanelsInput = (
  * so an extension can still render the valid panel model.
  */
 export const normalizeEffectUiDevtoolsBridgePayload = (
-  value: unknown
+  value: unknown,
 ): DevtoolsBridgePayload | undefined => {
   if (!isRecord(value)) {
     return undefined;
@@ -771,28 +749,26 @@ export const normalizeEffectUiDevtoolsBridgePayload = (
   const normalizedTitle = normalizePanelString(title);
   return {
     panels: normalizedPanels,
-    ...(isDevtoolsPanelId(selectedPanelId)
-      ? { selectedPanelId }
-      : {}),
-    ...(normalizedTitle === undefined ? {} : { title: normalizedTitle })
+    ...(isDevtoolsPanelId(selectedPanelId) ? { selectedPanelId } : {}),
+    ...(normalizedTitle === undefined ? {} : { title: normalizedTitle }),
   };
 };
 
 /** Resolves an inspected-window bridge value with typed panel-contract diagnostics on failure. */
 export const resolveEffectUiDevtoolsBridgePayload = (
-  value: unknown
+  value: unknown,
 ): DevtoolsBridgePayloadContractResolution => {
   if (!isRecord(value)) {
     const error = contractError({
       reason: "InvalidBridgePayload",
       path: "$",
       message: "Devtools bridge payload must be an object.",
-      value
+      value,
     });
     return {
       _tag: "Invalid",
       error,
-      panels: devtoolsPanelContractDiagnosticsPanels(error)
+      panels: devtoolsPanelContractDiagnosticsPanels(error),
     };
   }
 
@@ -809,10 +785,8 @@ export const resolveEffectUiDevtoolsBridgePayload = (
     _tag: "Valid",
     payload: {
       panels: resolution.panels,
-      ...(isDevtoolsPanelId(selectedPanelId)
-        ? { selectedPanelId }
-        : {}),
-      ...(normalizedTitle === undefined ? {} : { title: normalizedTitle })
-    }
+      ...(isDevtoolsPanelId(selectedPanelId) ? { selectedPanelId } : {}),
+      ...(normalizedTitle === undefined ? {} : { title: normalizedTitle }),
+    },
   };
 };

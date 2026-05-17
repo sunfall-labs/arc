@@ -1,10 +1,10 @@
-import {
-  EffectInputCallbackError,
-  runFork,
-  type EffectInput
-} from "@effect-ui/core";
+import { EffectInputCallbackError, runFork, type EffectInput } from "@effect-ui/core";
 import { Effect, Option, Scope } from "effect";
-import { CollectionRowKeyChanged, CollectionRowNotFound, ReadonlyCollectionMutation } from "./collection-errors.js";
+import {
+  CollectionRowKeyChanged,
+  CollectionRowNotFound,
+  ReadonlyCollectionMutation,
+} from "./collection-errors.js";
 import { CollectionTypeId } from "./collection-ids.js";
 import { CollectionPreloadCollector } from "./collection-preload.js";
 import {
@@ -13,29 +13,26 @@ import {
   deleteCollectionBaseRow,
   rebaseCollectionBaseRows,
   type CollectionState,
-  type StoredRow
+  type StoredRow,
 } from "./collection-state.js";
 import { rowsByCollectionIndex } from "./collection-index-materialization.js";
 import type { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
 import { subscribeCollectionChangeFeedRuntimeEffect } from "./collection-change-feed-runtime.js";
 import {
   ingestCollectionMutationRowsEffect,
-  ingestCollectionOutputRowsEffect
+  ingestCollectionOutputRowsEffect,
 } from "./collection-row-ingress.js";
-import {
-  pendingMutationSnapshots
-} from "./collection-mutation-queue.js";
+import { pendingMutationSnapshots } from "./collection-mutation-queue.js";
 import {
   applyCollectionUpdateEffect,
-  collectionProjectionEffect,
   collectionStateEffect,
-  ensureCollectionRowKey
+  ensureCollectionRowKey,
 } from "./collection-projection-callback-policy.js";
 import {
   deleteCollectionMutationEffect,
   flushCollectionPendingMutationsEffect,
   insertCollectionMutationEffect,
-  updateCollectionMutationEffect
+  updateCollectionMutationEffect,
 } from "./collection-mutation-workflow.js";
 import {
   collectionPersistenceKey,
@@ -48,22 +45,18 @@ import {
   persistCollectionForReasonEffect,
   restoreCollectionEffect as restoreCollectionWithStoreEffect,
   snapshotCollection as snapshotCollectionWithStore,
-  snapshotCollectionEffect as snapshotCollectionWithStoreEffect
+  snapshotCollectionEffect as snapshotCollectionWithStoreEffect,
 } from "./collection-persistence.js";
 import type {
   CollectionChangeFeedAdapter,
-  CollectionChangeFeedSubscribeOptions
+  CollectionChangeFeedSubscribeOptions,
 } from "./sync-adapter.js";
-import {
-  commitCollectionWriteEffect
-} from "./collection-write-commit.js";
+import { commitCollectionWriteEffect } from "./collection-write-commit.js";
 import { runCollectionSyncLoadPolicyEffect } from "./collection-sync-load-policy.js";
 import {
   collectionStoreEffect,
   currentCollectionStore,
-  runWithCollectionStore,
-  subscribeCollectionEventsEffect,
-  type RuntimeCollectionStore
+  type RuntimeCollectionStore,
 } from "./runtime-collection-store.js";
 import type {
   AnyCollection,
@@ -82,7 +75,7 @@ import type {
   CollectionSnapshot,
   CollectionStoreEvent,
   CollectionUpdate,
-  CollectionWriteOptions
+  CollectionWriteOptions,
 } from "./collection-contract.js";
 
 export {
@@ -91,12 +84,10 @@ export {
   runWithCollectionStore,
   storeFor,
   subscribeCollectionEventsEffect,
-  type RuntimeCollectionStore
+  type RuntimeCollectionStore,
 } from "./runtime-collection-store.js";
 
-export const recordCollectionPreload = (
-  definition: AnyCollection
-): Effect.Effect<void> =>
+export const recordCollectionPreload = (definition: AnyCollection): Effect.Effect<void> =>
   Effect.gen(function* () {
     const collector = yield* Effect.serviceOption(CollectionPreloadCollector);
     if (Option.isSome(collector)) {
@@ -106,16 +97,15 @@ export const recordCollectionPreload = (
 
 const publishStoreEvent = (
   store: RuntimeCollectionStore,
-  event: CollectionStoreEvent
-): Effect.Effect<void> =>
-  store.publish(event);
+  event: CollectionStoreEvent,
+): Effect.Effect<void> => store.publish(event);
 
 const toArray = <A>(input: A | ReadonlyArray<A>): ReadonlyArray<A> =>
-  Array.isArray(input) ? input as ReadonlyArray<A> : [input as A];
+  Array.isArray(input) ? (input as ReadonlyArray<A>) : [input as A];
 
 const collectionState = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  store: RuntimeCollectionStore = currentCollectionStore() as RuntimeCollectionStore
+  store: RuntimeCollectionStore = currentCollectionStore() as RuntimeCollectionStore,
 ): CollectionState<A, K, E> => {
   return store.state(definition);
 };
@@ -123,7 +113,7 @@ const collectionState = <A extends object, K extends CollectionKey, E, R>(
 const rowsByIndex = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   index: string,
-  value: CollectionIndexValue
+  value: CollectionIndexValue,
 ): ReadonlyArray<CollectionRow<A, K>> => {
   const state = collectionState(definition);
   return rowsByCollectionIndex(definition, state, index, value);
@@ -131,7 +121,7 @@ const rowsByIndex = <A extends object, K extends CollectionKey, E, R>(
 
 const collectionPendingMutations = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  store: RuntimeCollectionStore = currentCollectionStore() as RuntimeCollectionStore
+  store: RuntimeCollectionStore = currentCollectionStore() as RuntimeCollectionStore,
 ): ReadonlyArray<CollectionPendingMutation<A, K>> => {
   const state = collectionState(definition, store);
   state.version.get();
@@ -139,40 +129,41 @@ const collectionPendingMutations = <A extends object, K extends CollectionKey, E
 };
 
 const collectionPendingMutationsEffect = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>
+  definition: CollectionDefinition<A, K, E, R>,
 ): Effect.Effect<ReadonlyArray<CollectionPendingMutation<A, K>>> =>
   Effect.map(collectionStoreEffect, (store) => collectionPendingMutations(definition, store));
 
 const snapshotCollection = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   store: RuntimeCollectionStore = currentCollectionStore() as RuntimeCollectionStore,
-  updatedAt = Date.now()
-): CollectionSnapshot<A, K> =>
-  snapshotCollectionWithStore(definition, store, updatedAt);
+  updatedAt = Date.now(),
+): CollectionSnapshot<A, K> => snapshotCollectionWithStore(definition, store, updatedAt);
 
 const snapshotCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>
-): Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError | EffectInputCallbackError> =>
-  snapshotCollectionWithStoreEffect(definition, collectionStoreEffect);
+  definition: CollectionDefinition<A, K, E, R>,
+): Effect.Effect<
+  CollectionSnapshot<A, K>,
+  CollectionSnapshotCodecError | EffectInputCallbackError
+> => snapshotCollectionWithStoreEffect(definition, collectionStoreEffect);
 
 const hydrateCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   snapshot: CollectionSnapshot<A, K>,
   options: CollectionHydrateOptions = {},
-  store?: RuntimeCollectionStore
+  store?: RuntimeCollectionStore,
 ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
   hydrateCollectionWithStoreEffect(definition, snapshot, options, collectionStoreEffect, store);
 
 export const persistenceKey = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  options: CollectionPersistOptions = {}
+  options: CollectionPersistOptions = {},
 ): string => collectionPersistenceKey(definition, options);
 
 const persistCollectionEffect = <A extends object, K extends CollectionKey, E, R, PE, PR>(
   definition: CollectionDefinition<A, K, E, R>,
   storage: CollectionPersistenceStorage<PE, PR>,
   options: CollectionPersistOptions = {},
-  store?: RuntimeCollectionStore
+  store?: RuntimeCollectionStore,
 ): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR> =>
   persistCollectionWithStoreEffect(definition, storage, options, collectionStoreEffect, store);
 
@@ -180,39 +171,40 @@ const restoreCollectionEffect = <A extends object, K extends CollectionKey, E, R
   definition: CollectionDefinition<A, K, E, R>,
   storage: CollectionPersistenceStorage<PE, PR>,
   options: CollectionPersistOptions & CollectionHydrateOptions = {},
-  store?: RuntimeCollectionStore
+  store?: RuntimeCollectionStore,
 ): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR> =>
   restoreCollectionWithStoreEffect(definition, storage, options, collectionStoreEffect, store);
 
 const persistForReasonEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   store: RuntimeCollectionStore,
-  reason: "load" | "mutation" | "write"
+  reason: "load" | "mutation" | "write",
 ): Effect.Effect<void, E | CollectionSnapshotCodecError | EffectInputCallbackError, R> =>
   persistCollectionForReasonEffect(definition, store, collectionStoreEffect, reason);
 
 export const dehydrateCollections = (
   collections: Iterable<AnyCollection>,
-  store: RuntimeCollectionStore = currentCollectionStore() as RuntimeCollectionStore
-): CollectionHydrationPayload =>
-  dehydrateCollectionsWithStore(collections, store);
+  store: RuntimeCollectionStore = currentCollectionStore() as RuntimeCollectionStore,
+): CollectionHydrationPayload => dehydrateCollectionsWithStore(collections, store);
 
 export const dehydrateCollectionsEffect = (
-  collections: Iterable<AnyCollection>
-): Effect.Effect<CollectionHydrationPayload, CollectionSnapshotCodecError | EffectInputCallbackError> =>
-  dehydrateCollectionsWithStoreEffect(collections, collectionStoreEffect);
+  collections: Iterable<AnyCollection>,
+): Effect.Effect<
+  CollectionHydrationPayload,
+  CollectionSnapshotCodecError | EffectInputCallbackError
+> => dehydrateCollectionsWithStoreEffect(collections, collectionStoreEffect);
 
 export const hydrateCollectionsEffect = (
   collections: Iterable<AnyCollection>,
   payload: CollectionHydrationPayload,
-  options: CollectionHydrateOptions = {}
+  options: CollectionHydrateOptions = {},
 ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
   hydrateCollectionsWithStoreEffect(collections, payload, options, collectionStoreEffect);
 
 export const validateCollectionsHydrationEffect = (
   collections: Iterable<AnyCollection>,
   payload: CollectionHydrationPayload,
-  options: CollectionHydrateOptions = {}
+  options: CollectionHydrateOptions = {},
 ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
   validateCollectionsHydrationWithStoreEffect(collections, payload, options, collectionStoreEffect);
 
@@ -222,18 +214,20 @@ export const subscribeCollectionChangesEffect = <
   E,
   R,
   FeedError = never,
-  FeedRequirements = never
+  FeedRequirements = never,
 >(
   definition: CollectionDefinition<A, K, E, R>,
   adapter: CollectionChangeFeedAdapter<A, K, FeedError, FeedRequirements, E, R>,
-  options: CollectionChangeFeedSubscribeOptions = {}
+  options: CollectionChangeFeedSubscribeOptions = {},
 ): Effect.Effect<void, CollectionRuntimeError<E> | FeedError, R | FeedRequirements | Scope.Scope> =>
   Effect.gen(function* () {
     if (definition.readOnly === true) {
-      return yield* Effect.fail(new ReadonlyCollectionMutation({
-        collection: definition.name,
-        operation: "subscribeChangesEffect"
-      }) as CollectionRuntimeError<E>);
+      return yield* Effect.fail(
+        new ReadonlyCollectionMutation({
+          collection: definition.name,
+          operation: "subscribeChangesEffect",
+        }) as CollectionRuntimeError<E>,
+      );
     }
 
     const dbStore = yield* collectionStoreEffect;
@@ -247,15 +241,15 @@ export const subscribeCollectionChangesEffect = <
         publishStoreEvent(dbStore, {
           _tag: "CollectionChangeFeedFailure",
           collection: definition.name,
-          error
-        })
+          error,
+        }),
     });
   }).pipe(Effect.asVoid);
 
 const writeRows = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   input: A | ReadonlyArray<A>,
-  options: CollectionWriteOptions = {}
+  options: CollectionWriteOptions = {},
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
     const values = toArray(input);
@@ -269,7 +263,7 @@ const writeRows = <A extends object, K extends CollectionKey, E, R>(
       operation: "write",
       path: `$.collections[${definition.name}].rows`,
       synced: options.synced ?? true,
-      origin: options.origin ?? "remote"
+      origin: options.origin ?? "remote",
     });
 
     yield* commitCollectionWriteEffect({
@@ -284,7 +278,7 @@ const writeRows = <A extends object, K extends CollectionKey, E, R>(
         rebaseCollectionBaseRows(state, rebaseKeys);
       },
       persistEffect: persistForReasonEffect(definition, dbStore, "write"),
-      publishEffect: (event) => publishStoreEvent(dbStore, event)
+      publishEffect: (event) => publishStoreEvent(dbStore, event),
     });
   });
 
@@ -292,8 +286,12 @@ const writeUpdateRow = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   key: K,
   changes: Partial<A>,
-  options: CollectionWriteOptions = {}
-): Effect.Effect<void, CollectionRuntimeError<E> | CollectionRowNotFound | CollectionRowKeyChanged, R> =>
+  options: CollectionWriteOptions = {},
+): Effect.Effect<
+  void,
+  CollectionRuntimeError<E> | CollectionRowNotFound | CollectionRowKeyChanged,
+  R
+> =>
   Effect.gen(function* () {
     const dbStore = yield* collectionStoreEffect;
     const state = yield* collectionStateEffect(definition, dbStore);
@@ -307,7 +305,7 @@ const writeUpdateRow = <A extends object, K extends CollectionKey, E, R>(
       operation: "write",
       path: `$.collections[${definition.name}].rows`,
       synced: options.synced ?? true,
-      origin: options.origin ?? "remote"
+      origin: options.origin ?? "remote",
     });
     const next = rows[0] as StoredRow<A, K>;
     yield* ensureCollectionRowKey(definition, key, next.key);
@@ -322,13 +320,13 @@ const writeUpdateRow = <A extends object, K extends CollectionKey, E, R>(
         rebaseCollectionBaseRows(state, rebaseKeys);
       },
       persistEffect: persistForReasonEffect(definition, dbStore, "write"),
-      publishEffect: (event) => publishStoreEvent(dbStore, event)
+      publishEffect: (event) => publishStoreEvent(dbStore, event),
     });
   });
 
 const writeDeleteRow = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  key: K
+  key: K,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
     const dbStore = yield* collectionStoreEffect;
@@ -349,7 +347,7 @@ const writeDeleteRow = <A extends object, K extends CollectionKey, E, R>(
         rebaseCollectionBaseRows(state, rebaseKeys);
       },
       persistEffect: persistForReasonEffect(definition, dbStore, "write"),
-      publishEffect: (event) => publishStoreEvent(dbStore, event)
+      publishEffect: (event) => publishStoreEvent(dbStore, event),
     });
   });
 
@@ -357,14 +355,16 @@ const applyCollectionChangesWithStoreEffect = <A extends object, K extends Colle
   definition: CollectionDefinition<A, K, E, R>,
   dbStore: RuntimeCollectionStore,
   changes: ReadonlyArray<CollectionChange<A, K>>,
-  options: CollectionWriteOptions = {}
+  options: CollectionWriteOptions = {},
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
     if (definition.readOnly === true) {
-      return yield* Effect.fail(new ReadonlyCollectionMutation({
-        collection: definition.name,
-        operation: "applyChangesEffect"
-      }) as CollectionRuntimeError<E>);
+      return yield* Effect.fail(
+        new ReadonlyCollectionMutation({
+          collection: definition.name,
+          operation: "applyChangesEffect",
+        }) as CollectionRuntimeError<E>,
+      );
     }
 
     if (changes.length === 0) {
@@ -390,7 +390,7 @@ const applyCollectionChangesWithStoreEffect = <A extends object, K extends Colle
       operation: "write",
       path: `$.collections[${definition.name}].changes`,
       synced: options.synced ?? true,
-      origin: options.origin ?? "remote"
+      origin: options.origin ?? "remote",
     });
 
     yield* commitCollectionWriteEffect({
@@ -410,30 +410,30 @@ const applyCollectionChangesWithStoreEffect = <A extends object, K extends Colle
         rebaseCollectionBaseRows(state, rebaseKeys);
       },
       persistEffect: persistForReasonEffect(definition, dbStore, "write"),
-      publishEffect: (event) => publishStoreEvent(dbStore, event)
+      publishEffect: (event) => publishStoreEvent(dbStore, event),
     });
   });
 
 export const applyCollectionChangesEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   changes: ReadonlyArray<CollectionChange<A, K>>,
-  options: CollectionWriteOptions = {}
+  options: CollectionWriteOptions = {},
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.flatMap(collectionStoreEffect, (dbStore) =>
-    applyCollectionChangesWithStoreEffect(definition, dbStore, changes, options)
+    applyCollectionChangesWithStoreEffect(definition, dbStore, changes, options),
   );
 
 export const defineCollection = <
   A extends object,
   K extends CollectionKey = string,
   E = never,
-  R = never
+  R = never,
 >(
   options: Omit<CollectionOptions<A, K, E, R>, "load" | "refetch"> & {
     readonly load?: () => EffectInput<ReadonlyArray<A>, E, R>;
     readonly refetch?: () => EffectInput<ReadonlyArray<A>, E, R>;
   },
-  register: (name: string, definition: AnyCollection) => void
+  register: (name: string, definition: AnyCollection) => void,
 ): CollectionDefinition<A, K, E, R> => {
   let definition: CollectionDefinition<A, K, E, R>;
   definition = {
@@ -454,8 +454,7 @@ export const defineCollection = <
       state.version.get();
       return Array.from(state.rows.values(), (row) => augmentCollectionRow(definition, row));
     },
-    index: (index: string, value: CollectionIndexValue) =>
-      rowsByIndex(definition, index, value),
+    index: (index: string, value: CollectionIndexValue) => rowsByIndex(definition, index, value),
     firstByIndex: (index: string, value: CollectionIndexValue) =>
       rowsByIndex(definition, index, value)[0],
     preloadEffect: () =>
@@ -473,25 +472,26 @@ export const defineCollection = <
     flushPendingMutationsEffect: () => flushCollectionPendingMutationsEffect(definition),
     snapshotEffect: () => snapshotCollectionEffect(definition),
     snapshot: () => snapshotCollection(definition),
-    hydrateEffect: (snapshot: CollectionSnapshot<A, K>, hydrateOptions?: CollectionHydrateOptions) =>
-      hydrateCollectionEffect(definition, snapshot, hydrateOptions),
+    hydrateEffect: (
+      snapshot: CollectionSnapshot<A, K>,
+      hydrateOptions?: CollectionHydrateOptions,
+    ) => hydrateCollectionEffect(definition, snapshot, hydrateOptions),
     hydrate: (snapshot: CollectionSnapshot<A, K>, hydrateOptions?: CollectionHydrateOptions) => {
       void runFork(hydrateCollectionEffect(definition, snapshot, hydrateOptions));
     },
     persistEffect: <PE = never, PR = never>(
       storage: CollectionPersistenceStorage<PE, PR>,
-      persistOptions?: CollectionPersistOptions
+      persistOptions?: CollectionPersistOptions,
     ) => persistCollectionEffect(definition, storage, persistOptions),
     restoreEffect: <PE = never, PR = never>(
       storage: CollectionPersistenceStorage<PE, PR>,
-      restoreOptions?: CollectionPersistOptions & CollectionHydrateOptions
+      restoreOptions?: CollectionPersistOptions & CollectionHydrateOptions,
     ) => restoreCollectionEffect(definition, storage, restoreOptions),
     insertEffect: (input: A | ReadonlyArray<A>) =>
       insertCollectionMutationEffect(definition, input),
     updateEffect: (key: K, update: CollectionUpdate<A>) =>
       updateCollectionMutationEffect(definition, key, update),
-    deleteEffect: (key: K) =>
-      deleteCollectionMutationEffect(definition, key),
+    deleteEffect: (key: K) => deleteCollectionMutationEffect(definition, key),
     writeInsertEffect: (input: A | ReadonlyArray<A>, writeOptions?: CollectionWriteOptions) =>
       writeRows(definition, input, writeOptions),
     writeInsert: (input: A | ReadonlyArray<A>, writeOptions?: CollectionWriteOptions) => {
@@ -505,7 +505,7 @@ export const defineCollection = <
     writeDeleteEffect: (key: K) => writeDeleteRow(definition, key),
     writeDelete: (key: K) => {
       void runFork(writeDeleteRow(definition, key));
-    }
+    },
   } satisfies CollectionDefinition<A, K, E, R>;
 
   register(options.name, definition as AnyCollection);

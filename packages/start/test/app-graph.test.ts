@@ -24,7 +24,7 @@ import {
   validateStartAppGraphDiagnosticsPolicyEffect,
   validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect,
   validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect,
-  validateStartAppGraphWireSchemasEffect
+  validateStartAppGraphWireSchemasEffect,
 } from "../src/app-graph.js";
 import {
   createStartAgentGraphImpact,
@@ -32,19 +32,20 @@ import {
   formatStartAgentGraph,
   formatStartAgentGraphImpact,
   queryStartAgentGraph,
-  queryStartAgentGraphEffect
+  queryStartAgentGraphEffect,
 } from "../src/agent-graph.js";
 import type {
   StartAgentGraph,
   StartAgentGraphNodeKind,
-  StartAgentGraphQueryKind
+  StartAgentGraphQueryKind,
 } from "../src/start-agent-graph-contract.js";
-import {
-  startAgentGraphQueryKinds
-} from "../src/start-agent-graph-vocabulary.js";
+import { startAgentGraphQueryKinds } from "../src/start-agent-graph-vocabulary.js";
 import { startDiagnosticsCliVerifyCommandsForQuery } from "../src/start-diagnostics-cli-contract.js";
 import { makeActionManifest } from "../src/action-manifest.js";
-import { FileRouteManifestParseError, generateFileRouteManifestArtifact } from "../src/file-routes.js";
+import {
+  FileRouteManifestParseError,
+  generateFileRouteManifestArtifact,
+} from "../src/file-routes.js";
 import { makeServerFunctionManifest } from "../src/server-function-manifest.js";
 import { StartTransportEndpointConflictError } from "../src/start-transport-endpoints.js";
 
@@ -62,35 +63,35 @@ describe("Start app graph", () => {
               entries: [
                 {
                   routeId: "route_root",
-                  routePath: "/"
+                  routePath: "/",
                 },
                 {
                   routeId: "route_projects_$id",
-                  routePath: "/projects/:id"
-                }
-              ]
+                  routePath: "/projects/:id",
+                },
+              ],
             },
             serverFunctions: {
               version: 1,
               entries: [
                 {
                   id: "sf_hvaqa4_project-load",
-                  name: "Project.load"
-                }
-              ]
+                  name: "Project.load",
+                },
+              ],
             },
             actions: {
               version: 1,
               entries: [
                 {
                   id: "act_lgpr76_project-rename",
-                  name: "Project.rename"
-                }
-              ]
-            }
-          })
+                  name: "Project.rename",
+                },
+              ],
+            },
+          }),
         );
-      })
+      }),
     );
   });
 
@@ -103,7 +104,7 @@ describe("Start app graph", () => {
         yield* Effect.sync(() => {
           expect(roundTrip).toEqual(graph);
         });
-      })
+      }),
     );
   });
 
@@ -133,13 +134,13 @@ describe("Start app graph", () => {
                 preload: "unknown",
                 preloadResources: {
                   status: "unknown",
-                  families: []
+                  families: [],
                 },
                 preloadCollections: {
                   status: "unknown",
-                  collections: []
+                  collections: [],
                 },
-                component: "unknown"
+                component: "unknown",
               },
               {
                 routeId: "route_projects_$id",
@@ -151,22 +152,22 @@ describe("Start app graph", () => {
                 params: [
                   {
                     name: "id",
-                    optional: false
-                  }
+                    optional: false,
+                  },
                 ],
                 paramsSchema: "unknown",
                 searchSchema: "unknown",
                 preload: "unknown",
                 preloadResources: {
                   status: "unknown",
-                  families: []
+                  families: [],
                 },
                 preloadCollections: {
                   status: "unknown",
-                  collections: []
+                  collections: [],
                 },
-                component: "unknown"
-              }
+                component: "unknown",
+              },
             ],
             serverFunctionModules: [
               {
@@ -176,23 +177,23 @@ describe("Start app graph", () => {
                   module: "/src/project/project.server.ts",
                   exportName: "loadProject",
                   moduleKind: "server-only",
-                  hasHandler: true
+                  hasHandler: true,
                 },
                 client: {
                   _tag: "Import",
                   rpcPath: "/__effect-ui/rpc",
                   module: "/src/project/project.contract.ts",
                   exportName: "loadProject",
-                  moduleKind: "contract"
+                  moduleKind: "contract",
                 },
                 wire: {
                   inputSchema: true,
                   outputSchema: true,
                   errorSchema: false,
                   complete: false,
-                  missing: ["error"]
-                }
-              }
+                  missing: ["error"],
+                },
+              },
             ],
             actionModules: [
               {
@@ -201,29 +202,29 @@ describe("Start app graph", () => {
                 server: {
                   module: "/src/project/project.actions.ts",
                   exportName: "RenameProject",
-                  moduleKind: "shared"
+                  moduleKind: "shared",
                 },
                 client: {
                   _tag: "Import",
                   actionPath: "/__effect-ui/action",
                   module: "/src/project/project.actions.ts",
                   exportName: "RenameProject",
-                  moduleKind: "shared"
+                  moduleKind: "shared",
                 },
                 wire: {
                   inputSchema: true,
                   outputSchema: true,
                   errorSchema: false,
                   complete: false,
-                  missing: ["error"]
+                  missing: ["error"],
                 },
                 behavior: {
                   invalidates: "present",
                   optimistic: "absent",
                   retry: "present",
-                  concurrency: "latest"
-                }
-              }
+                  concurrency: "latest",
+                },
+              },
             ],
             resourceFamilies: [],
             resourceTags: [],
@@ -231,7 +232,7 @@ describe("Start app graph", () => {
             serverOnlyModules: ["/src/project/project.server.ts"],
             browserClientModules: [
               "/src/project/project.actions.ts",
-              "/src/project/project.contract.ts"
+              "/src/project/project.contract.ts",
             ],
             rpcPath: "/__effect-ui/rpc",
             actionPath: "/__effect-ui/action",
@@ -240,14 +241,14 @@ describe("Start app graph", () => {
                 total: 1,
                 input: 1,
                 output: 1,
-                error: 0
+                error: 0,
               },
               actions: {
                 total: 1,
                 input: 1,
                 output: 1,
-                error: 0
-              }
+                error: 0,
+              },
             },
             missingSchemas: [
               {
@@ -255,19 +256,19 @@ describe("Start app graph", () => {
                 name: "Project.load",
                 input: true,
                 output: true,
-                error: false
+                error: false,
               },
               {
                 kind: "action",
                 name: "Project.rename",
                 input: true,
                 output: true,
-                error: false
-              }
+                error: false,
+              },
             ],
             unknownActionBehavior: [],
             unknownRoutePreloadResources: [],
-            unknownRoutePreloadCollections: []
+            unknownRoutePreloadCollections: [],
           });
         });
 
@@ -275,7 +276,7 @@ describe("Start app graph", () => {
         yield* Effect.sync(() => {
           expect(description).toEqual(describeStartAppGraph(graph));
         });
-      })
+      }),
     );
   });
 
@@ -286,16 +287,16 @@ describe("Start app graph", () => {
         const diagnostics = describeStartAppGraph(graph);
         const decoded = yield* decodeStartAppGraphDiagnosticsDtoEffect({
           diagnostics,
-          diagnosticsPolicyViolations: []
+          diagnosticsPolicyViolations: [],
         });
         const invalidDiagnosticsExit = yield* Effect.exit(
           decodeStartAppGraphDiagnosticsDtoEffect({
             diagnostics: {
               ...diagnostics,
-              routeModules: [{}]
+              routeModules: [{}],
             },
-            diagnosticsPolicyViolations: []
-          })
+            diagnosticsPolicyViolations: [],
+          }),
         );
         const invalidRegistryExits = yield* Effect.all([
           Effect.exit(
@@ -305,12 +306,12 @@ describe("Start app graph", () => {
                 resourceFamilies: [
                   {
                     name: "Project.Resource",
-                    inputSchema: true
-                  }
-                ]
+                    inputSchema: true,
+                  },
+                ],
               },
-              diagnosticsPolicyViolations: []
-            })
+              diagnosticsPolicyViolations: [],
+            }),
           ),
           Effect.exit(
             decodeStartAppGraphDiagnosticsDtoEffect({
@@ -319,12 +320,12 @@ describe("Start app graph", () => {
                 resourceTags: [
                   {
                     name: "Project.Tag",
-                    keyed: "yes"
-                  }
-                ]
+                    keyed: "yes",
+                  },
+                ],
               },
-              diagnosticsPolicyViolations: []
-            })
+              diagnosticsPolicyViolations: [],
+            }),
           ),
           Effect.exit(
             decodeStartAppGraphDiagnosticsDtoEffect({
@@ -341,17 +342,17 @@ describe("Start app graph", () => {
                     handlers: {
                       insert: false,
                       update: false,
-                      delete: false
+                      delete: false,
                     },
                     policy: {
-                      retry: false
-                    }
-                  }
-                ]
+                      retry: false,
+                    },
+                  },
+                ],
               },
-              diagnosticsPolicyViolations: []
-            })
-          )
+              diagnosticsPolicyViolations: [],
+            }),
+          ),
         ]);
         const invalidPolicyExit = yield* Effect.exit(
           decodeStartAppGraphDiagnosticsDtoEffect({
@@ -360,30 +361,30 @@ describe("Start app graph", () => {
               {
                 _tag: "UnknownRoutePreloadResources",
                 message: "Routes with preload must declare preloadResources.",
-                routes: [{}]
-              }
-            ]
-          })
+                routes: [{}],
+              },
+            ],
+          }),
         );
         const invalidEndpointExit = yield* Effect.exit(
           decodeStartAppGraphDiagnosticsDtoEffect({
             diagnostics: {
               ...diagnostics,
               rpcPath: "/same",
-              actionPath: "/same"
+              actionPath: "/same",
             },
-            diagnosticsPolicyViolations: []
-          })
+            diagnosticsPolicyViolations: [],
+          }),
         );
         const invalidSemanticExits = yield* Effect.all([
           Effect.exit(
             decodeStartAppGraphDiagnosticsDtoEffect({
               diagnostics: {
                 ...diagnostics,
-                routeCount: diagnostics.routeCount + 1
+                routeCount: diagnostics.routeCount + 1,
               },
-              diagnosticsPolicyViolations: []
-            })
+              diagnosticsPolicyViolations: [],
+            }),
           ),
           Effect.exit(
             decodeStartAppGraphDiagnosticsDtoEffect({
@@ -392,13 +393,13 @@ describe("Start app graph", () => {
                 routeModules: [
                   {
                     ...diagnostics.routeModules[0]!,
-                    pathParamCount: 99
+                    pathParamCount: 99,
                   },
-                  ...diagnostics.routeModules.slice(1)
-                ]
+                  ...diagnostics.routeModules.slice(1),
+                ],
               },
-              diagnosticsPolicyViolations: []
-            })
+              diagnosticsPolicyViolations: [],
+            }),
           ),
           Effect.exit(
             decodeStartAppGraphDiagnosticsDtoEffect({
@@ -408,13 +409,13 @@ describe("Start app graph", () => {
                   ...diagnostics.schemaCoverage,
                   serverFunctions: {
                     ...diagnostics.schemaCoverage.serverFunctions,
-                    input: diagnostics.schemaCoverage.serverFunctions.total + 1
-                  }
-                }
+                    input: diagnostics.schemaCoverage.serverFunctions.total + 1,
+                  },
+                },
               },
-              diagnosticsPolicyViolations: []
-            })
-          )
+              diagnosticsPolicyViolations: [],
+            }),
+          ),
         ]);
         const invalidEnumExits = yield* Effect.all([
           Effect.exit(
@@ -426,13 +427,13 @@ describe("Start app graph", () => {
                     ...diagnostics.routeModules[0]!,
                     preloadResources: {
                       status: "maybe",
-                      families: []
-                    }
-                  }
-                ]
+                      families: [],
+                    },
+                  },
+                ],
               },
-              diagnosticsPolicyViolations: []
-            })
+              diagnosticsPolicyViolations: [],
+            }),
           ),
           Effect.exit(
             decodeStartAppGraphDiagnosticsDtoEffect({
@@ -443,13 +444,13 @@ describe("Start app graph", () => {
                     ...diagnostics.routeModules[0]!,
                     preloadCollections: {
                       status: "maybe",
-                      collections: []
-                    }
-                  }
-                ]
+                      collections: [],
+                    },
+                  },
+                ],
               },
-              diagnosticsPolicyViolations: []
-            })
+              diagnosticsPolicyViolations: [],
+            }),
           ),
           Effect.exit(
             decodeStartAppGraphDiagnosticsDtoEffect({
@@ -462,13 +463,13 @@ describe("Start app graph", () => {
                       invalidates: "maybe",
                       optimistic: "unknown",
                       retry: "unknown",
-                      concurrency: "unknown"
-                    }
-                  }
-                ]
+                      concurrency: "unknown",
+                    },
+                  },
+                ],
               },
-              diagnosticsPolicyViolations: []
-            })
+              diagnosticsPolicyViolations: [],
+            }),
           ),
           Effect.exit(
             decodeStartAppGraphDiagnosticsDtoEffect({
@@ -481,46 +482,38 @@ describe("Start app graph", () => {
                     invalidates: "unknown",
                     optimistic: "unknown",
                     retry: "unknown",
-                    concurrency: "maybe"
-                  }
-                ]
+                    concurrency: "maybe",
+                  },
+                ],
               },
-              diagnosticsPolicyViolations: []
-            })
-          )
+              diagnosticsPolicyViolations: [],
+            }),
+          ),
         ]);
 
         yield* Effect.sync(() => {
           expect(decoded).toEqual({
             diagnostics,
-            diagnosticsPolicyViolations: []
+            diagnosticsPolicyViolations: [],
           });
           expect(firstFailure(invalidDiagnosticsExit)).toBeInstanceOf(
-            StartAppGraphDiagnosticsDtoError
+            StartAppGraphDiagnosticsDtoError,
           );
           for (const exit of invalidRegistryExits) {
-            expect(firstFailure(exit)).toBeInstanceOf(
-              StartAppGraphDiagnosticsDtoError
-            );
+            expect(firstFailure(exit)).toBeInstanceOf(StartAppGraphDiagnosticsDtoError);
           }
-          expect(firstFailure(invalidPolicyExit)).toBeInstanceOf(
-            StartAppGraphDiagnosticsDtoError
-          );
+          expect(firstFailure(invalidPolicyExit)).toBeInstanceOf(StartAppGraphDiagnosticsDtoError);
           expect(firstFailure(invalidEndpointExit)).toBeInstanceOf(
-            StartAppGraphDiagnosticsDtoError
+            StartAppGraphDiagnosticsDtoError,
           );
           for (const exit of invalidSemanticExits) {
-            expect(firstFailure(exit)).toBeInstanceOf(
-              StartAppGraphDiagnosticsDtoError
-            );
+            expect(firstFailure(exit)).toBeInstanceOf(StartAppGraphDiagnosticsDtoError);
           }
           for (const exit of invalidEnumExits) {
-            expect(firstFailure(exit)).toBeInstanceOf(
-              StartAppGraphDiagnosticsDtoError
-            );
+            expect(firstFailure(exit)).toBeInstanceOf(StartAppGraphDiagnosticsDtoError);
           }
         });
-      })
+      }),
     );
   });
 
@@ -532,7 +525,7 @@ describe("Start app graph", () => {
         yield* validateStartAppGraphWireSchemasEffect(graph);
 
         const exit = yield* Effect.exit(
-          validateStartAppGraphWireSchemasEffect(graph, { requireError: true })
+          validateStartAppGraphWireSchemasEffect(graph, { requireError: true }),
         );
 
         yield* Effect.sync(() => {
@@ -542,17 +535,17 @@ describe("Start app graph", () => {
               {
                 kind: "serverFunction",
                 name: "Project.load",
-                error: false
+                error: false,
               },
               {
                 kind: "action",
                 name: "Project.rename",
-                error: false
-              }
-            ]
+                error: false,
+              },
+            ],
           });
         });
-      })
+      }),
     );
   });
 
@@ -560,12 +553,10 @@ describe("Start app graph", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const graph = yield* makeGraphEffect({
-          actionBehavior: "unknown"
+          actionBehavior: "unknown",
         });
 
-        const exit = yield* Effect.exit(
-          validateStartAppGraphActionBehaviorEffect(graph)
-        );
+        const exit = yield* Effect.exit(validateStartAppGraphActionBehaviorEffect(graph));
 
         yield* Effect.sync(() => {
           expect(firstFailure(exit)).toBeInstanceOf(StartAppGraphUnknownActionBehavior);
@@ -575,12 +566,12 @@ describe("Start app graph", () => {
                 kind: "action",
                 name: "Project.rename",
                 invalidates: "unknown",
-                concurrency: "unknown"
-              }
-            ]
+                concurrency: "unknown",
+              },
+            ],
           });
         });
-      })
+      }),
     );
   });
 
@@ -596,17 +587,17 @@ describe("Start app graph", () => {
                 preload: "present" as const,
                 preloadResources: {
                   status: "unknown" as const,
-                  families: []
-                }
+                  families: [],
+                },
               }
-            : routeModule
+            : routeModule,
         );
         const withUnknownPreloadResources = {
           ...diagnostics,
           routeModules,
           unknownRoutePreloadResources: unknownRoutePreloadResourcesForDiagnostics({
-            routeModules
-          })
+            routeModules,
+          }),
         };
         const withDeclaredPreloadResources = {
           ...withUnknownPreloadResources,
@@ -616,23 +607,21 @@ describe("Start app graph", () => {
                   ...routeModule,
                   preloadResources: {
                     status: "declared" as const,
-                    families: ["Project.byId"]
-                  }
+                    families: ["Project.byId"],
+                  },
                 }
-              : routeModule
-          )
+              : routeModule,
+          ),
         };
         const declaredDiagnostics = {
           ...withDeclaredPreloadResources,
           unknownRoutePreloadResources: unknownRoutePreloadResourcesForDiagnostics({
-            routeModules: withDeclaredPreloadResources.routeModules
-          })
+            routeModules: withDeclaredPreloadResources.routeModules,
+          }),
         };
 
         const exit = yield* Effect.exit(
-          validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect(
-            withUnknownPreloadResources
-          )
+          validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect(withUnknownPreloadResources),
         );
 
         yield* Effect.sync(() => {
@@ -644,25 +633,25 @@ describe("Start app graph", () => {
                 routePath: "/projects/:id",
                 preload: "present",
                 preloadResources: {
-                  status: "unknown"
-                }
-              }
-            ]
+                  status: "unknown",
+                },
+              },
+            ],
           });
         });
 
         yield* validateStartAppGraphDiagnosticsPolicyEffect(declaredDiagnostics, {
           routePreloadResources: {
-            requireDeclaredForPreload: true
-          }
+            requireDeclaredForPreload: true,
+          },
         });
 
         const policyExit = yield* Effect.exit(
           validateStartAppGraphDiagnosticsPolicyExceptionEffect(withUnknownPreloadResources, {
             routePreloadResources: {
-              requireDeclaredForPreload: true
-            }
-          })
+              requireDeclaredForPreload: true,
+            },
+          }),
         );
         const failure = firstFailure(policyExit);
         expect(failure).toMatchObject({
@@ -670,11 +659,11 @@ describe("Start app graph", () => {
           diagnostics: withUnknownPreloadResources,
           violations: [
             expect.objectContaining({
-              _tag: "UnknownRoutePreloadResources"
-            })
-          ]
+              _tag: "UnknownRoutePreloadResources",
+            }),
+          ],
         });
-      })
+      }),
     );
   });
 
@@ -690,17 +679,17 @@ describe("Start app graph", () => {
                 preload: "present" as const,
                 preloadCollections: {
                   status: "unknown" as const,
-                  collections: []
-                }
+                  collections: [],
+                },
               }
-            : routeModule
+            : routeModule,
         );
         const withUnknownPreloadCollections = {
           ...diagnostics,
           routeModules,
           unknownRoutePreloadCollections: unknownRoutePreloadCollectionsForDiagnostics({
-            routeModules
-          })
+            routeModules,
+          }),
         };
         const withDeclaredPreloadCollections = {
           ...withUnknownPreloadCollections,
@@ -710,23 +699,23 @@ describe("Start app graph", () => {
                   ...routeModule,
                   preloadCollections: {
                     status: "declared" as const,
-                    collections: ["Projects.collection"]
-                  }
+                    collections: ["Projects.collection"],
+                  },
                 }
-              : routeModule
-          )
+              : routeModule,
+          ),
         };
         const declaredDiagnostics = {
           ...withDeclaredPreloadCollections,
           unknownRoutePreloadCollections: unknownRoutePreloadCollectionsForDiagnostics({
-            routeModules: withDeclaredPreloadCollections.routeModules
-          })
+            routeModules: withDeclaredPreloadCollections.routeModules,
+          }),
         };
 
         const exit = yield* Effect.exit(
           validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect(
-            withUnknownPreloadCollections
-          )
+            withUnknownPreloadCollections,
+          ),
         );
 
         yield* Effect.sync(() => {
@@ -738,19 +727,19 @@ describe("Start app graph", () => {
                 routePath: "/projects/:id",
                 preload: "present",
                 preloadCollections: {
-                  status: "unknown"
-                }
-              }
-            ]
+                  status: "unknown",
+                },
+              },
+            ],
           });
         });
 
         yield* validateStartAppGraphDiagnosticsPolicyEffect(declaredDiagnostics, {
           routePreloadCollections: {
-            requireDeclaredForPreload: true
-          }
+            requireDeclaredForPreload: true,
+          },
         });
-      })
+      }),
     );
   });
 
@@ -766,59 +755,52 @@ describe("Start app graph", () => {
                 preload: "present" as const,
                 preloadResources: {
                   status: "unknown" as const,
-                  families: []
+                  families: [],
                 },
                 preloadCollections: {
                   status: "unknown" as const,
-                  collections: []
-                }
+                  collections: [],
+                },
               }
-            : routeModule
+            : routeModule,
         );
         const withUnknownPreloads = {
           ...diagnostics,
           routeModules,
           unknownRoutePreloadResources: unknownRoutePreloadResourcesForDiagnostics({
-            routeModules
+            routeModules,
           }),
           unknownRoutePreloadCollections: unknownRoutePreloadCollectionsForDiagnostics({
-            routeModules
-          })
+            routeModules,
+          }),
         };
 
         expect(withUnknownPreloads.unknownRoutePreloadResources).toHaveLength(1);
         expect(withUnknownPreloads.unknownRoutePreloadCollections).toHaveLength(1);
-        expect(collectStartAppGraphDiagnosticsPolicyViolations(
-          withUnknownPreloads,
-          false
-        )).toEqual([]);
-        expect(collectStartAppGraphDiagnosticsPolicyViolations(
-          withUnknownPreloads,
-          null
-        )).toEqual([]);
-        expect(collectStartAppGraphDiagnosticsPolicyViolations(
-          withUnknownPreloads,
-          {
+        expect(collectStartAppGraphDiagnosticsPolicyViolations(withUnknownPreloads, false)).toEqual(
+          [],
+        );
+        expect(collectStartAppGraphDiagnosticsPolicyViolations(withUnknownPreloads, null)).toEqual(
+          [],
+        );
+        expect(
+          collectStartAppGraphDiagnosticsPolicyViolations(withUnknownPreloads, {
             routePreloadResources: false,
-            routePreloadCollections: false
-          }
-        )).toEqual([]);
-        expect(collectStartAppGraphDiagnosticsPolicyViolations(
-          withUnknownPreloads,
-          {
+            routePreloadCollections: false,
+          }),
+        ).toEqual([]);
+        expect(
+          collectStartAppGraphDiagnosticsPolicyViolations(withUnknownPreloads, {
             routePreloadResources: {
-              requireDeclaredForPreload: false
+              requireDeclaredForPreload: false,
             },
             routePreloadCollections: {
-              requireDeclaredForPreload: false
-            }
-          }
-        )).toEqual([]);
-        yield* validateStartAppGraphDiagnosticsPolicyExceptionEffect(
-          withUnknownPreloads,
-          false
-        );
-      })
+              requireDeclaredForPreload: false,
+            },
+          }),
+        ).toEqual([]);
+        yield* validateStartAppGraphDiagnosticsPolicyExceptionEffect(withUnknownPreloads, false);
+      }),
     );
   });
 
@@ -829,35 +811,38 @@ describe("Start app graph", () => {
         const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {
           routeModules: graph.routes.entries.map((entry) => ({
             entry,
-            route: entry.routePath === "/"
-              ? {
-                  options: {
-                    params: {},
-                    preload: () => undefined
+            route:
+              entry.routePath === "/"
+                ? {
+                    options: {
+                      params: {},
+                      preload: () => undefined,
+                    },
                   }
-                }
-              : {
-                  options: {}
-                },
-            preloadResources: entry.routePath === "/"
-              ? {
-                  status: "declared" as const,
-                  families: ["Project.byId"]
-                }
-              : {
-                  status: "none" as const,
-                  families: []
-                },
-            preloadCollections: entry.routePath === "/"
-              ? {
-                  status: "unknown" as const,
-                  collections: []
-                }
-              : {
-                  status: "none" as const,
-                  collections: []
-                }
-          }))
+                : {
+                    options: {},
+                  },
+            preloadResources:
+              entry.routePath === "/"
+                ? {
+                    status: "declared" as const,
+                    families: ["Project.byId"],
+                  }
+                : {
+                    status: "none" as const,
+                    families: [],
+                  },
+            preloadCollections:
+              entry.routePath === "/"
+                ? {
+                    status: "unknown" as const,
+                    collections: [],
+                  }
+                : {
+                    status: "none" as const,
+                    collections: [],
+                  },
+          })),
         });
 
         yield* Effect.sync(() => {
@@ -868,35 +853,35 @@ describe("Start app graph", () => {
             preload: "present",
             preloadResources: {
               status: "declared",
-              families: ["Project.byId"]
+              families: ["Project.byId"],
             },
             preloadCollections: {
-              status: "unknown"
+              status: "unknown",
             },
-            component: "absent"
+            component: "absent",
           });
           expect(diagnostics.unknownRoutePreloadResources).toEqual([]);
           expect(diagnostics.unknownRoutePreloadCollections).toEqual([
             expect.objectContaining({
               routePath: "/",
-              preload: "present"
-            })
+              preload: "present",
+            }),
           ]);
           expect(() =>
             enforceStartAppGraphDiagnosticsPolicy(diagnostics, {
               routePreloadCollections: {
-                requireDeclaredForPreload: true
-              }
-            })
+                requireDeclaredForPreload: true,
+              },
+            }),
           ).toThrowError(
-            "Effect UI app graph diagnostics policy failed: Routes with preload must declare preloadCollections. / (src/routes/index.tsx)"
+            "Effect UI app graph diagnostics policy failed: Routes with preload must declare preloadCollections. / (src/routes/index.tsx)",
           );
 
           try {
             enforceStartAppGraphDiagnosticsPolicy(diagnostics, {
               routePreloadCollections: {
-                requireDeclaredForPreload: true
-              }
+                requireDeclaredForPreload: true,
+              },
             });
           } catch (error) {
             expect(error).toBeInstanceOf(StartAppGraphDiagnosticsPolicyException);
@@ -905,13 +890,13 @@ describe("Start app graph", () => {
               diagnostics,
               violations: [
                 expect.objectContaining({
-                  _tag: "UnknownRoutePreloadCollections"
-                })
-              ]
+                  _tag: "UnknownRoutePreloadCollections",
+                }),
+              ],
             });
           }
         });
-      })
+      }),
     );
   });
 
@@ -919,8 +904,8 @@ describe("Start app graph", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const graph = yield* makeGraphEffect();
-        const projectEntry = graph.routes.entries.find((entry) =>
-          entry.routePath === "/projects/:id"
+        const projectEntry = graph.routes.entries.find(
+          (entry) => entry.routePath === "/projects/:id",
         );
 
         if (projectEntry === undefined) {
@@ -935,47 +920,53 @@ describe("Start app graph", () => {
                 options: {
                   params: {},
                   preload: () => undefined,
-                  component: () => null
-                }
+                  component: () => null,
+                },
               },
               preloadResources: {
                 status: "declared" as const,
-                families: ["Project.byId"]
+                families: ["Project.byId"],
               },
               preloadCollections: {
                 status: "none" as const,
-                collections: []
-              }
-            }
-          ]
+                collections: [],
+              },
+            },
+          ],
         });
 
         yield* Effect.sync(() => {
           expect(diagnostics.routeModules).toHaveLength(2);
           expect(diagnostics.routeModules.map((routeModule) => routeModule.routePath)).toEqual([
             "/",
-            "/projects/:id"
+            "/projects/:id",
           ]);
-          expect(diagnostics.routeModules.find((routeModule) => routeModule.routePath === "/")).toMatchObject({
+          expect(
+            diagnostics.routeModules.find((routeModule) => routeModule.routePath === "/"),
+          ).toMatchObject({
             routePath: "/",
             paramsSchema: "unknown",
             preload: "unknown",
             preloadResources: {
-              status: "unknown"
-            }
+              status: "unknown",
+            },
           });
-          expect(diagnostics.routeModules.find((routeModule) => routeModule.routePath === "/projects/:id")).toMatchObject({
+          expect(
+            diagnostics.routeModules.find(
+              (routeModule) => routeModule.routePath === "/projects/:id",
+            ),
+          ).toMatchObject({
             routePath: "/projects/:id",
             paramsSchema: "present",
             preload: "present",
             preloadResources: {
               status: "declared",
-              families: ["Project.byId"]
+              families: ["Project.byId"],
             },
-            component: "present"
+            component: "present",
           });
         });
-      })
+      }),
     );
   });
 
@@ -983,8 +974,8 @@ describe("Start app graph", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const graph = yield* makeGraphEffect();
-        const projectEntry = graph.routes.entries.find((entry) =>
-          entry.routePath === "/projects/:id"
+        const projectEntry = graph.routes.entries.find(
+          (entry) => entry.routePath === "/projects/:id",
         );
 
         if (projectEntry === undefined) {
@@ -999,64 +990,64 @@ describe("Start app graph", () => {
                 options: {
                   params: {},
                   preload: () => undefined,
-                  component: () => null
-                }
+                  component: () => null,
+                },
               },
               preloadResources: {
                 status: "declared" as const,
-                families: ["Project.byId"]
+                families: ["Project.byId"],
               },
               preloadCollections: {
                 status: "declared" as const,
-                collections: ["ProjectRows"]
-              }
-            }
-          ]
+                collections: ["ProjectRows"],
+              },
+            },
+          ],
         });
         const agentGraph = createStartAgentGraph({ graph, diagnostics });
         const projectRoute = queryStartAgentGraph(agentGraph, {
           kind: "route",
-          text: "/projects/:id"
+          text: "/projects/:id",
         });
         const renameAction = queryStartAgentGraph(agentGraph, {
           kind: "action",
-          text: "Project.rename"
+          text: "Project.rename",
         });
 
         yield* Effect.sync(() => {
           expect(agentGraph.selfReview).toMatchObject({
             status: "needs-attention",
             policyClean: true,
-            routePreloadsDeclared: true
+            routePreloadsDeclared: true,
           });
           expect(projectRoute.nodes).toEqual([
             expect.objectContaining({
               id: "route:route_projects_$id",
               kind: "Route",
-              status: "known"
-            })
+              status: "known",
+            }),
           ]);
           expect(projectRoute.edges).toEqual(
             expect.arrayContaining([
               expect.objectContaining({
                 kind: "PreloadsResourceFamily",
-                to: "resource-family:Project.byId"
+                to: "resource-family:Project.byId",
               }),
               expect.objectContaining({
                 kind: "PreloadsCollection",
-                to: "collection:ProjectRows"
-              })
-            ])
+                to: "collection:ProjectRows",
+              }),
+            ]),
           );
           expect(renameAction.nodes).toEqual([
             expect.objectContaining({
               id: "action:Project.rename",
               kind: "Action",
-              status: "needs-attention"
-            })
+              status: "needs-attention",
+            }),
           ]);
         });
-      })
+      }),
     );
   });
 
@@ -1064,8 +1055,8 @@ describe("Start app graph", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const graph = yield* makeGraphEffect();
-        const projectEntry = graph.routes.entries.find((entry) =>
-          entry.routePath === "/projects/:id"
+        const projectEntry = graph.routes.entries.find(
+          (entry) => entry.routePath === "/projects/:id",
         );
 
         if (projectEntry === undefined) {
@@ -1080,18 +1071,18 @@ describe("Start app graph", () => {
                 options: {
                   params: {},
                   preload: () => undefined,
-                  component: () => null
-                }
+                  component: () => null,
+                },
               },
               preloadResources: {
                 status: "declared" as const,
-                families: ["Project.byId"]
+                families: ["Project.byId"],
               },
               preloadCollections: {
                 status: "declared" as const,
-                collections: ["ProjectRows"]
-              }
-            }
+                collections: ["ProjectRows"],
+              },
+            },
           ],
           resourceFamilies: [
             {
@@ -1101,9 +1092,9 @@ describe("Start app graph", () => {
               errorSchema: false,
               providesTags: true,
               policy: {
-                retry: false
-              }
-            }
+                retry: false,
+              },
+            },
           ],
           collectionDefinitions: [
             {
@@ -1115,17 +1106,17 @@ describe("Start app graph", () => {
               indexes: [
                 {
                   name: "byProjectId",
-                  unique: false
-                }
+                  unique: false,
+                },
               ],
               load: false,
               handlers: {
                 insert: false,
                 update: false,
-                delete: false
+                delete: false,
               },
               policy: {
-                retry: false
+                retry: false,
               },
               persistence: {
                 enabled: false,
@@ -1134,18 +1125,18 @@ describe("Start app graph", () => {
                 loadAfterRestore: false,
                 persistOnLoad: false,
                 persistOnMutation: false,
-                persistOnWrite: false
-              }
-            }
-          ]
+                persistOnWrite: false,
+              },
+            },
+          ],
         });
         const agentGraph = createStartAgentGraph({ graph, diagnostics });
         const factRecord = (
           kind: StartAgentGraphNodeKind,
-          label: string
+          label: string,
         ): Record<string, unknown> => {
-          const node = agentGraph.nodes.find((candidate) =>
-            candidate.kind === kind && candidate.label === label
+          const node = agentGraph.nodes.find(
+            (candidate) => candidate.kind === kind && candidate.label === label,
           );
           if (node === undefined) {
             throw new Error(`Expected ${kind} node ${label}.`);
@@ -1157,20 +1148,17 @@ describe("Start app graph", () => {
         const serverFunctionFacts = factRecord("ServerFunction", "Project.load");
         const resourceFacts = factRecord("ResourceFamily", "Project.byId");
         const collectionFacts = factRecord("Collection", "ProjectRows");
-        const findingFacts = factRecord(
-          "Finding",
-          "wire-schema: serverFunction: Project.load"
-        );
+        const findingFacts = factRecord("Finding", "wire-schema: serverFunction: Project.load");
 
         (routeFacts.params as Record<string, unknown>[])[0]!.name = "mutated";
         ((routeFacts.preloadResources as Record<string, unknown>).families as string[]).push(
-          "Mutated.family"
+          "Mutated.family",
         );
         (actionFacts.wire as Record<string, unknown>).missing = ["mutated"];
         (actionFacts.behavior as Record<string, unknown>).retry = "unknown";
         (serverFunctionFacts.wire as Record<string, unknown>).missing = ["mutated"];
         (resourceFacts.policy as Record<string, unknown>).retry = true;
-        ((collectionFacts.indexes as Record<string, unknown>[])[0]!).name = "mutated";
+        (collectionFacts.indexes as Record<string, unknown>[])[0]!.name = "mutated";
         (collectionFacts.handlers as Record<string, unknown>).insert = true;
         (findingFacts.details as string[])[0] = "mutated detail";
         findingFacts.issue = "mutated issue";
@@ -1178,90 +1166,86 @@ describe("Start app graph", () => {
         const nextGraph = createStartAgentGraph({ graph, diagnostics });
         const nextRoute = queryStartAgentGraph(nextGraph, {
           kind: "route",
-          text: "/projects/:id"
+          text: "/projects/:id",
         }).nodes[0];
         const nextFinding = queryStartAgentGraph(nextGraph, {
           kind: "finding",
-          text: "serverFunction: Project.load"
+          text: "serverFunction: Project.load",
         }).nodes[0];
         const nextImpact = createStartAgentGraphImpact(nextGraph, {
           kind: "action",
-          text: "Project.rename"
+          text: "Project.rename",
         });
 
         yield* Effect.sync(() => {
-          expect(diagnostics.routeModules.find((route) =>
-            route.routeId === "route_projects_$id"
-          )).toMatchObject({
+          expect(
+            diagnostics.routeModules.find((route) => route.routeId === "route_projects_$id"),
+          ).toMatchObject({
             params: [
               {
                 name: "id",
-                optional: false
-              }
+                optional: false,
+              },
             ],
             preloadResources: {
               status: "declared",
-              families: ["Project.byId"]
-            }
+              families: ["Project.byId"],
+            },
           });
           expect(diagnostics.actionModules[0]).toMatchObject({
             wire: {
-              missing: ["error"]
+              missing: ["error"],
             },
             behavior: {
-              retry: "present"
-            }
+              retry: "present",
+            },
           });
           expect(diagnostics.serverFunctionModules[0]).toMatchObject({
             wire: {
-              missing: ["error"]
-            }
+              missing: ["error"],
+            },
           });
           expect(diagnostics.resourceFamilies[0]?.policy.retry).toBe(false);
           expect(diagnostics.collectionDefinitions[0]).toMatchObject({
             indexes: [
               {
-                name: "byProjectId"
-              }
+                name: "byProjectId",
+              },
             ],
             handlers: {
-              insert: false
-            }
+              insert: false,
+            },
           });
 
           expect(nextRoute?.facts).toMatchObject({
             params: [
               {
-                name: "id"
-              }
+                name: "id",
+              },
             ],
             preloadResources: {
-              families: ["Project.byId"]
-            }
+              families: ["Project.byId"],
+            },
           });
           expect(nextFinding?.facts).toMatchObject({
             issue: "serverFunction: Project.load is missing `error` wire schema.",
-            details: [
-              "input schema: present",
-              "output schema: present",
-              "error schema: missing"
-            ]
+            details: ["input schema: present", "output schema: present", "error schema: missing"],
           });
           expect(nextImpact.items[0]).toMatchObject({
             contracts: [
               "wire schemas: input present, output present, error missing",
-              "behavior: invalidates present, optimistic absent, retry present, concurrency latest"
+              "behavior: invalidates present, optimistic absent, retry present, concurrency latest",
             ],
-            warnings: ["missing wire schema: error"]
+            warnings: ["missing wire schema: error"],
           });
         });
-      })
+      }),
     );
   });
 
   it("queries agent graph nodes whose facts contain BigInt and circular values", async () => {
     const circularFacts: Record<string, unknown> = {
-      reason: "cycle"
+      reason: "cycle",
     };
     circularFacts.self = circularFacts;
 
@@ -1276,7 +1260,7 @@ describe("Start app graph", () => {
         resourceFamilies: 0,
         resourceTags: 0,
         collections: 0,
-        findings: 0
+        findings: 0,
       },
       selfReview: {
         status: "pass",
@@ -1284,7 +1268,7 @@ describe("Start app graph", () => {
         wireComplete: true,
         actionBehaviorKnown: true,
         routePreloadsDeclared: true,
-        findingCount: 0
+        findingCount: 0,
       },
       nodes: [
         {
@@ -1294,8 +1278,8 @@ describe("Start app graph", () => {
           status: "known",
           owner: "src/project/actions.ts",
           facts: {
-            submittedAt: 1n
-          }
+            submittedAt: 1n,
+          },
         },
         {
           id: "route:route_circular",
@@ -1303,23 +1287,23 @@ describe("Start app graph", () => {
           label: "Circular Route",
           status: "known",
           owner: "src/routes/circular.tsx",
-          facts: circularFacts
-        }
+          facts: circularFacts,
+        },
       ],
       edges: [],
-      findings: []
+      findings: [],
     };
 
     const byId = queryStartAgentGraph(graph, {
-      text: "action:Project.bigint"
+      text: "action:Project.bigint",
     });
     const byOwner = queryStartAgentGraph(graph, {
-      text: "src/project/actions.ts"
+      text: "src/project/actions.ts",
     });
     const byLabel = await Effect.runPromise(
       queryStartAgentGraphEffect(graph, {
-        text: "Circular Route"
-      })
+        text: "Circular Route",
+      }),
     );
 
     expect(byId.nodes.map((node) => node.id)).toEqual(["action:Project.bigint"]);
@@ -1331,18 +1315,18 @@ describe("Start app graph", () => {
 
   it("queries and formats agent graph nodes with hostile fact objects", () => {
     const hostileFacts: Record<string, unknown> = {
-      safe: "hostile"
+      safe: "hostile",
     };
     Object.defineProperty(hostileFacts, "boom", {
       enumerable: true,
       get() {
         throw new Error("fact boom");
-      }
+      },
     });
     Object.defineProperty(hostileFacts, Symbol.toStringTag, {
       get() {
         throw new Error("tag boom");
-      }
+      },
     });
 
     const graph: StartAgentGraph = {
@@ -1356,7 +1340,7 @@ describe("Start app graph", () => {
         resourceFamilies: 0,
         resourceTags: 0,
         collections: 0,
-        findings: 0
+        findings: 0,
       },
       selfReview: {
         status: "pass",
@@ -1364,7 +1348,7 @@ describe("Start app graph", () => {
         wireComplete: true,
         actionBehaviorKnown: true,
         routePreloadsDeclared: true,
-        findingCount: 0
+        findingCount: 0,
       },
       nodes: [
         {
@@ -1373,15 +1357,15 @@ describe("Start app graph", () => {
           label: "Hostile Route",
           status: "known",
           owner: "src/routes/hostile.tsx",
-          facts: hostileFacts
-        }
+          facts: hostileFacts,
+        },
       ],
       edges: [],
-      findings: []
+      findings: [],
     };
 
     const byLabel = queryStartAgentGraph(graph, {
-      text: "Hostile Route"
+      text: "Hostile Route",
     });
     const verbose = formatStartAgentGraph(graph, { verbose: true });
 
@@ -1394,8 +1378,8 @@ describe("Start app graph", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const graph = yield* makeGraphEffect();
-        const projectEntry = graph.routes.entries.find((entry) =>
-          entry.routePath === "/projects/:id"
+        const projectEntry = graph.routes.entries.find(
+          (entry) => entry.routePath === "/projects/:id",
         );
 
         if (projectEntry === undefined) {
@@ -1410,25 +1394,25 @@ describe("Start app graph", () => {
                 options: {
                   params: {},
                   preload: () => undefined,
-                  component: () => null
-                }
+                  component: () => null,
+                },
               },
               preloadResources: {
                 status: "declared" as const,
-                families: ["Project.byId"]
+                families: ["Project.byId"],
               },
               preloadCollections: {
                 status: "declared" as const,
-                collections: ["ProjectRows"]
-              }
-            }
-          ]
+                collections: ["ProjectRows"],
+              },
+            },
+          ],
         });
         const agentGraph = createStartAgentGraph({ graph, diagnostics });
         const impact = createStartAgentGraphImpact(
           agentGraph,
           { kind: "route", text: "/projects/:id" },
-          { root: "examples/project-console" }
+          { root: "examples/project-console" },
         );
         const text = formatStartAgentGraphImpact(impact);
 
@@ -1438,24 +1422,24 @@ describe("Start app graph", () => {
             editTarget: "src/routes/projects/$id.tsx",
             contracts: expect.arrayContaining([
               "params: id",
-              "preloads: resources Project.byId; collections ProjectRows"
+              "preloads: resources Project.byId; collections ProjectRows",
             ]),
             dependencies: expect.arrayContaining([
               expect.objectContaining({
                 kind: "resource",
                 label: "Project.byId",
-                reason: "preloaded resource"
+                reason: "preloaded resource",
               }),
               expect.objectContaining({
                 kind: "collection",
                 label: "ProjectRows",
-                reason: "preloaded collection"
-              })
+                reason: "preloaded collection",
+              }),
             ]),
             verify: [
               "effect-ui-start diagnostics --root=examples/project-console",
-              "effect-ui-start graph --root=examples/project-console route /projects/:id"
-            ]
+              "effect-ui-start graph --root=examples/project-console route /projects/:id",
+            ],
           });
           expect(text).toContain("Impact: route /projects/:id");
           expect(text).toContain("Contracts");
@@ -1464,7 +1448,7 @@ describe("Start app graph", () => {
           expect(text).toContain("- effect-ui-start diagnostics --root=examples/project-console");
           expect(text).not.toContain("route:route_projects_$id");
         });
-      })
+      }),
     );
   });
 
@@ -1472,8 +1456,8 @@ describe("Start app graph", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const graph = yield* makeGraphEffect();
-        const projectEntry = graph.routes.entries.find((entry) =>
-          entry.routePath === "/projects/:id"
+        const projectEntry = graph.routes.entries.find(
+          (entry) => entry.routePath === "/projects/:id",
         );
 
         if (projectEntry === undefined) {
@@ -1488,18 +1472,18 @@ describe("Start app graph", () => {
                 options: {
                   params: {},
                   preload: () => undefined,
-                  component: () => null
-                }
+                  component: () => null,
+                },
               },
               preloadResources: {
                 status: "declared" as const,
-                families: ["Project.byId"]
+                families: ["Project.byId"],
               },
               preloadCollections: {
                 status: "declared" as const,
-                collections: ["ProjectRows"]
-              }
-            }
+                collections: ["ProjectRows"],
+              },
+            },
           ],
           resourceFamilies: [
             {
@@ -1509,15 +1493,15 @@ describe("Start app graph", () => {
               errorSchema: false,
               providesTags: true,
               policy: {
-                retry: false
-              }
-            }
+                retry: false,
+              },
+            },
           ],
           resourceTags: [
             {
               name: "Project.updated",
-              keyed: true
-            }
+              keyed: true,
+            },
           ],
           collectionDefinitions: [
             {
@@ -1531,10 +1515,10 @@ describe("Start app graph", () => {
               handlers: {
                 insert: false,
                 update: false,
-                delete: false
+                delete: false,
               },
               policy: {
-                retry: false
+                retry: false,
               },
               persistence: {
                 enabled: false,
@@ -1543,10 +1527,10 @@ describe("Start app graph", () => {
                 loadAfterRestore: false,
                 persistOnLoad: false,
                 persistOnMutation: false,
-                persistOnWrite: false
-              }
-            }
-          ]
+                persistOnWrite: false,
+              },
+            },
+          ],
         });
         const agentGraph = createStartAgentGraph({ graph, diagnostics });
         const expectedNodeKind = {
@@ -1559,7 +1543,7 @@ describe("Start app graph", () => {
           resource: "ResourceFamily",
           "resource-tag": "ResourceTag",
           route: "Route",
-          "server-function": "ServerFunction"
+          "server-function": "ServerFunction",
         } satisfies Record<StartAgentGraphQueryKind, StartAgentGraphNodeKind | undefined>;
         const queryText = {
           action: "Project.rename",
@@ -1571,13 +1555,13 @@ describe("Start app graph", () => {
           resource: "Project.byId",
           "resource-tag": "Project.updated",
           route: "/projects/:id",
-          "server-function": "Project.load"
+          "server-function": "Project.load",
         } satisfies Record<StartAgentGraphQueryKind, string>;
         const root = "examples/project-console";
 
         yield* Effect.sync(() => {
           expect(new Set(startAgentGraphQueryKinds)).toEqual(
-            new Set(Object.keys(expectedNodeKind))
+            new Set(Object.keys(expectedNodeKind)),
           );
 
           for (const kind of startAgentGraphQueryKinds) {
@@ -1589,7 +1573,7 @@ describe("Start app graph", () => {
             expect(result.nodes.length).toBeGreaterThan(0);
             expect(impact.matches).toBe(result.nodes.length);
             expect(impact.items[0]?.verify).toEqual(
-              startDiagnosticsCliVerifyCommandsForQuery(query, { root })
+              startDiagnosticsCliVerifyCommandsForQuery(query, { root }),
             );
             if (expected === undefined) {
               expect(new Set(result.nodes.map((node) => node.kind)).size).toBeGreaterThan(1);
@@ -1598,35 +1582,35 @@ describe("Start app graph", () => {
             }
           }
         });
-      })
+      }),
     );
   });
 
   it("shares shell-safe Start CLI verify commands with impact reports", () => {
-    expect(startDiagnosticsCliVerifyCommandsForQuery(
-      { kind: "route", text: "/project spaces/:id" },
-      { root: "examples/project console" }
-    )).toEqual([
+    expect(
+      startDiagnosticsCliVerifyCommandsForQuery(
+        { kind: "route", text: "/project spaces/:id" },
+        { root: "examples/project console" },
+      ),
+    ).toEqual([
       "effect-ui-start diagnostics --root='examples/project console'",
-      "effect-ui-start graph --root='examples/project console' route '/project spaces/:id'"
+      "effect-ui-start graph --root='examples/project console' route '/project spaces/:id'",
     ]);
   });
 
   it("rejects malformed graph payloads before tooling consumes them", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
-        const invalidJson = yield* Effect.exit(
-          deserializeStartAppGraph("{not-json")
-        );
+        const invalidJson = yield* Effect.exit(deserializeStartAppGraph("{not-json"));
         const invalidVersion = yield* Effect.exit(
-          deserializeStartAppGraph(JSON.stringify({ version: 2 }))
+          deserializeStartAppGraph(JSON.stringify({ version: 2 })),
         );
 
         yield* Effect.sync(() => {
           expect(firstFailure(invalidJson)).toBeInstanceOf(StartAppGraphParseError);
           expect(firstFailure(invalidVersion)).toBeInstanceOf(StartAppGraphParseError);
         });
-      })
+      }),
     );
   });
 
@@ -1634,19 +1618,19 @@ describe("Start app graph", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const routes = generateFileRouteManifestArtifact([], {
-          routeDirectory: "src/routes"
+          routeDirectory: "src/routes",
         });
         const serverFunctions = yield* makeServerFunctionManifest([], {
-          rpcPath: "/same"
+          rpcPath: "/same",
         });
         const actions = yield* makeActionManifest([], {
-          actionPath: "/same"
+          actionPath: "/same",
         });
         const serialized = JSON.stringify({
           version: 1,
           routes,
           serverFunctions,
-          actions
+          actions,
         });
         const deserialized = yield* Effect.exit(deserializeStartAppGraph(serialized));
 
@@ -1655,12 +1639,12 @@ describe("Start app graph", () => {
             createStartAppGraph({
               routes,
               serverFunctions,
-              actions
-            })
+              actions,
+            }),
           ).toThrow(StartTransportEndpointConflictError);
           expect(firstFailure(deserialized)).toBeInstanceOf(StartTransportEndpointConflictError);
         });
-      })
+      }),
     );
   });
 
@@ -1675,14 +1659,12 @@ describe("Start app graph", () => {
         };
         corrupted.routes.entries[0].routeId = "route_wrong";
 
-        const exit = yield* Effect.exit(
-          deserializeStartAppGraph(JSON.stringify(corrupted))
-        );
+        const exit = yield* Effect.exit(deserializeStartAppGraph(JSON.stringify(corrupted)));
 
         yield* Effect.sync(() => {
           expect(firstFailure(exit)).toBeInstanceOf(FileRouteManifestParseError);
         });
-      })
+      }),
     );
   });
 
@@ -1695,7 +1677,9 @@ describe("Start app graph", () => {
             readonly modules: Array<{ routePath: string }>;
           };
         };
-        const routeModule = corrupted.routes.modules.find((module) => module.routePath === "/projects/:id");
+        const routeModule = corrupted.routes.modules.find(
+          (module) => module.routePath === "/projects/:id",
+        );
 
         if (!routeModule) {
           throw new Error("Expected generated route module.");
@@ -1703,28 +1687,23 @@ describe("Start app graph", () => {
 
         routeModule.routePath = "/projects/wrong";
 
-        const exit = yield* Effect.exit(
-          deserializeStartAppGraph(JSON.stringify(corrupted))
-        );
+        const exit = yield* Effect.exit(deserializeStartAppGraph(JSON.stringify(corrupted)));
 
         yield* Effect.sync(() => {
           expect(firstFailure(exit)).toBeInstanceOf(FileRouteManifestParseError);
         });
-      })
+      }),
     );
   });
 });
 
 const makeGraphEffect = (
-  options: { readonly actionBehavior?: "known" | "unknown" } = {}
+  options: { readonly actionBehavior?: "known" | "unknown" } = {},
 ): Effect.Effect<ReturnType<typeof createStartAppGraph>, never, never> =>
   Effect.gen(function* () {
     const routes = generateFileRouteManifestArtifact(
-      [
-        "src/routes/projects/$id.tsx",
-        "src/routes/index.tsx"
-      ],
-      { routeDirectory: "src/routes" }
+      ["src/routes/projects/$id.tsx", "src/routes/index.tsx"],
+      { routeDirectory: "src/routes" },
     );
     const serverFunctions = yield* makeServerFunctionManifest([
       {
@@ -1734,8 +1713,8 @@ const makeGraphEffect = (
         clientModule: "/src/project/project.contract.ts",
         clientExportName: "loadProject",
         inputSchema: true,
-        outputSchema: true
-      }
+        outputSchema: true,
+      },
     ]);
     const actions = yield* makeActionManifest([
       {
@@ -1752,15 +1731,15 @@ const makeGraphEffect = (
               invalidates: true,
               optimistic: false,
               retry: true,
-              concurrency: "latest" as const
-            })
-      }
+              concurrency: "latest" as const,
+            }),
+      },
     ]);
 
     return createStartAppGraph({
       routes,
       serverFunctions,
-      actions
+      actions,
     });
   });
 

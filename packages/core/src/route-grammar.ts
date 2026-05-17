@@ -1,13 +1,9 @@
 import { Data } from "effect";
 
-type RouteParamTokenBase<S extends string> = S extends `${infer Base}.${string}`
-  ? Base
-  : S;
+type RouteParamTokenBase<S extends string> = S extends `${infer Base}.${string}` ? Base : S;
 
 export type StripRouteParamName<S extends string> =
-  RouteParamTokenBase<S> extends `${infer Name}?`
-    ? Name
-    : RouteParamTokenBase<S>;
+  RouteParamTokenBase<S> extends `${infer Name}?` ? Name : RouteParamTokenBase<S>;
 
 type IsOptionalRouteParamToken<S extends string> =
   RouteParamTokenBase<S> extends `${string}?` ? true : false;
@@ -21,9 +17,13 @@ export type RoutePathParamNames<Path extends string> =
 
 export type OptionalRoutePathParamNames<Path extends string> =
   Path extends `${string}:${infer Param}/${infer Rest}`
-    ? (IsOptionalRouteParamToken<Param> extends true ? StripRouteParamName<Param> : never) | OptionalRoutePathParamNames<`/${Rest}`>
+    ?
+        | (IsOptionalRouteParamToken<Param> extends true ? StripRouteParamName<Param> : never)
+        | OptionalRoutePathParamNames<`/${Rest}`>
     : Path extends `${string}:${infer Param}`
-      ? IsOptionalRouteParamToken<Param> extends true ? StripRouteParamName<Param> : never
+      ? IsOptionalRouteParamToken<Param> extends true
+        ? StripRouteParamName<Param>
+        : never
       : never;
 
 export type RequiredRoutePathParamNames<Path extends string> = Exclude<
@@ -39,8 +39,9 @@ export type RequiredRoutePathParamNames<Path extends string> = Exclude<
  */
 export type ParamsForPath<Path extends string> = [RoutePathParamNames<Path>] extends [never]
   ? Record<string, never>
-  : { readonly [K in RequiredRoutePathParamNames<Path>]: string } &
-    { readonly [K in OptionalRoutePathParamNames<Path>]?: string };
+  : { readonly [K in RequiredRoutePathParamNames<Path>]: string } & {
+      readonly [K in OptionalRoutePathParamNames<Path>]?: string;
+    };
 
 /** A parsed segment in the shared Effect UI route path grammar. */
 export type RoutePathSegment =
@@ -96,8 +97,7 @@ const compareString = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;
 
 /** Returns true when a value is a valid route param identifier. */
-export const isRouteParamName = (value: string): boolean =>
-  /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
+export const isRouteParamName = (value: string): boolean => /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
 
 /** Parses and validates a `/:param` route path into normalized grammar segments. */
 export const parseRoutePathSegments = (path: string): readonly RoutePathSegment[] => {
@@ -106,7 +106,7 @@ export const parseRoutePathSegments = (path: string): readonly RoutePathSegment[
     if (!part.startsWith(":")) {
       return {
         _tag: "Static",
-        value: part
+        value: part,
       };
     }
 
@@ -116,7 +116,7 @@ export const parseRoutePathSegments = (path: string): readonly RoutePathSegment[
       throw new InvalidRouteParam({
         route: path,
         segment: part,
-        param: name
+        param: name,
       });
     }
     if (params.has(name)) {
@@ -127,7 +127,7 @@ export const parseRoutePathSegments = (path: string): readonly RoutePathSegment[
     return {
       _tag: "Dynamic",
       name,
-      optional: isOptionalRouteParamToken(token)
+      optional: isOptionalRouteParamToken(token),
     };
   });
 };
@@ -142,24 +142,24 @@ export const routePathFromSegments = (segments: readonly RoutePathSegment[]): st
     .map((segment) =>
       segment._tag === "Static"
         ? `/${segment.value}`
-        : `/:${segment.name}${segment.optional ? "?" : ""}`
+        : `/:${segment.name}${segment.optional ? "?" : ""}`,
     )
     .join("");
 };
 
 /** Extracts dynamic param metadata from parsed route grammar segments. */
 export const routeParamsFromSegments = (
-  segments: readonly RoutePathSegment[]
+  segments: readonly RoutePathSegment[],
 ): readonly RoutePathParam[] =>
   segments.flatMap((segment) =>
     segment._tag === "Dynamic"
       ? [
           {
             name: segment.name,
-            optional: segment.optional
-          }
+            optional: segment.optional,
+          },
         ]
-      : []
+      : [],
   );
 
 /** Stable identifier slug for generated route maps and file-route artifacts. */
@@ -168,7 +168,7 @@ export const routePathSlug = (routePath: string): string => {
     .map((segment) =>
       segment._tag === "Static"
         ? segment.value
-        : `$${segment.name}${segment.optional ? "_optional" : ""}`
+        : `$${segment.name}${segment.optional ? "_optional" : ""}`,
     )
     .join("_")
     .replace(/[^A-Za-z0-9_$]+/g, "_")
@@ -180,7 +180,7 @@ export const routePathSlug = (routePath: string): string => {
 /** Compares route segments with static segments before dynamic segments. */
 export const compareRoutePathSegment = (
   left: RoutePathSegment | undefined,
-  right: RoutePathSegment | undefined
+  right: RoutePathSegment | undefined,
 ): number => {
   if (!left && !right) {
     return 0;
@@ -211,7 +211,7 @@ export const compareRoutePathSegment = (
 };
 
 const routePathSpecificity = (
-  segments: readonly RoutePathSegment[]
+  segments: readonly RoutePathSegment[],
 ): {
   readonly staticCount: number;
   readonly requiredDynamicCount: number;
@@ -234,7 +234,7 @@ const routePathSpecificity = (
   return {
     staticCount,
     requiredDynamicCount,
-    optionalDynamicCount
+    optionalDynamicCount,
   };
 };
 
@@ -244,7 +244,7 @@ const routePathSpecificity = (
  */
 export const compareRoutePathSpecificity = (
   left: readonly RoutePathSegment[],
-  right: readonly RoutePathSegment[]
+  right: readonly RoutePathSegment[],
 ): number => {
   const length = Math.min(left.length, right.length);
 
@@ -286,7 +286,7 @@ export const compareRoutePathSpecificity = (
 /** Returns true when two route grammar segments describe the same path part. */
 export const routePathSegmentsEqual = (
   left: RoutePathSegment,
-  right: RoutePathSegment
+  right: RoutePathSegment,
 ): boolean => {
   if (left._tag !== right._tag) {
     return false;
@@ -294,16 +294,18 @@ export const routePathSegmentsEqual = (
   if (left._tag === "Static" && right._tag === "Static") {
     return left.value === right.value;
   }
-  return left._tag === "Dynamic" &&
+  return (
+    left._tag === "Dynamic" &&
     right._tag === "Dynamic" &&
     left.name === right.name &&
-    left.optional === right.optional;
+    left.optional === right.optional
+  );
 };
 
 /** Returns true when one segment list is a route-grammar prefix of another. */
 export const isRoutePathSegmentPrefix = (
   prefix: readonly RoutePathSegment[],
-  value: readonly RoutePathSegment[]
+  value: readonly RoutePathSegment[],
 ): boolean =>
   prefix.length <= value.length &&
   prefix.every((segment, index) => {
@@ -314,7 +316,7 @@ export const isRoutePathSegmentPrefix = (
 /** Matches a pathname against a route pattern and returns decoded params. */
 export const matchRoutePath = (
   pattern: string,
-  pathname: string
+  pathname: string,
 ): Record<string, string> | undefined => {
   const patternParts = parseRoutePathSegments(pattern);
   const currentParts = splitPath(pathname);
@@ -322,7 +324,7 @@ export const matchRoutePath = (
   const match = (
     patternIndex: number,
     currentIndex: number,
-    params: Record<string, string>
+    params: Record<string, string>,
   ): Record<string, string> | undefined => {
     if (patternIndex === patternParts.length) {
       return currentIndex === currentParts.length ? params : undefined;
@@ -344,16 +346,14 @@ export const matchRoutePath = (
     if (currentPart !== undefined) {
       const consumed = match(patternIndex + 1, currentIndex + 1, {
         ...params,
-        [patternPart.name]: decodeURIComponent(currentPart)
+        [patternPart.name]: decodeURIComponent(currentPart),
       });
       if (consumed) {
         return consumed;
       }
     }
 
-    return patternPart.optional
-      ? match(patternIndex + 1, currentIndex, params)
-      : undefined;
+    return patternPart.optional ? match(patternIndex + 1, currentIndex, params) : undefined;
   };
 
   return match(0, 0, {});

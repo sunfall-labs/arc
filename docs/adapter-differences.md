@@ -33,7 +33,7 @@ return project.match({
   initial: () => <p>Loading</p>,
   pending: (previous) => <p>{previous?.name ?? "Loading"}</p>,
   success: (value) => <h1>{value.name}</h1>,
-  failure: (error) => <p>{String(error)}</p>
+  failure: (error) => <p>{String(error)}</p>,
 });
 ```
 
@@ -52,7 +52,7 @@ Effects returned by the handles are already bound to the nearest React runtime:
 ```tsx
 const refresh = useRuntimeEffect();
 
-<button onClick={() => refresh(project.refreshEffect())}>Refresh</button>
+<button onClick={() => refresh(project.refreshEffect())}>Refresh</button>;
 ```
 
 ## Solid Accessors
@@ -67,7 +67,7 @@ return project.match({
   initial: () => <p>Loading</p>,
   pending: (previous) => <p>{previous?.name ?? "Loading"}</p>,
   success: (value) => <h1>{value.name}</h1>,
-  failure: (error) => <p>{String(error)}</p>
+  failure: (error) => <p>{String(error)}</p>,
 });
 ```
 

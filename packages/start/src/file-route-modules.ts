@@ -3,7 +3,7 @@ import {
   describeFileRouteManifest,
   type FileRouteManifest,
   type FileRouteManifestEntry,
-  type FileRouteManifestModule
+  type FileRouteManifestModule,
 } from "./file-routes.js";
 
 /** Options that control how generated file-route definitions import route modules. */
@@ -33,15 +33,14 @@ export interface FileRouteCompanionModuleReference {
 }
 
 /** Options for the complete generated route definitions module artifact. */
-export interface GeneratedFileRouteDefinitionsModuleOptions
-  extends FileRouteDefinitionsModuleOptions {
+export interface GeneratedFileRouteDefinitionsModuleOptions extends FileRouteDefinitionsModuleOptions {
   /** Header emitted before generated TypeScript. */
   readonly header?: string;
 }
 
 /** Error raised when a route id cannot become a valid generated TypeScript identifier. */
 export class FileRouteDefinitionsModuleInvalidIdentifier extends Data.TaggedError(
-  "FileRouteDefinitionsModuleInvalidIdentifier"
+  "FileRouteDefinitionsModuleInvalidIdentifier",
 )<{
   readonly routeId: string;
   readonly routePath: string;
@@ -49,7 +48,7 @@ export class FileRouteDefinitionsModuleInvalidIdentifier extends Data.TaggedErro
 
 /** Error raised when the configured route module export name is not a valid identifier. */
 export class FileRouteDefinitionsModuleInvalidExportName extends Data.TaggedError(
-  "FileRouteDefinitionsModuleInvalidExportName"
+  "FileRouteDefinitionsModuleInvalidExportName",
 )<{
   readonly exportName: string;
 }> {}
@@ -61,7 +60,7 @@ export type FileRouteDefinitionsModuleError =
 
 /** Runtime guard for generated route definitions module failures. */
 export const isFileRouteDefinitionsModuleError = (
-  cause: unknown
+  cause: unknown,
 ): cause is FileRouteDefinitionsModuleError =>
   cause instanceof FileRouteDefinitionsModuleInvalidIdentifier ||
   cause instanceof FileRouteDefinitionsModuleInvalidExportName;
@@ -78,7 +77,7 @@ const asRouteIdentifier = (entry: FileRouteManifestEntry): string => {
   if (!identifierPattern.test(routeId)) {
     throw new FileRouteDefinitionsModuleInvalidIdentifier({
       routeId,
-      routePath: entry.routePath
+      routePath: entry.routePath,
     });
   }
   return routeId;
@@ -95,9 +94,7 @@ const identifierSegment = (value: string): string => {
   return /^[A-Za-z_$]/.test(segment) ? segment : `_${segment}`;
 };
 
-const companionModuleIdentifierPrefix = (
-  module: FileRouteManifestModule
-): string => {
+const companionModuleIdentifierPrefix = (module: FileRouteManifestModule): string => {
   switch (module.kind) {
     case "Layout":
       return "layout";
@@ -112,7 +109,7 @@ const companionModuleIdentifierPrefix = (
 
 const asCompanionModuleIdentifier = (
   module: FileRouteManifestModule,
-  sourceScoped: boolean = false
+  sourceScoped: boolean = false,
 ): string => {
   const routeId = String(module.routeId);
   const identifier = sourceScoped
@@ -121,7 +118,7 @@ const asCompanionModuleIdentifier = (
   if (!identifierPattern.test(identifier)) {
     throw new FileRouteDefinitionsModuleInvalidIdentifier({
       routeId,
-      routePath: module.routePath
+      routePath: module.routePath,
     });
   }
   return identifier;
@@ -130,10 +127,7 @@ const asCompanionModuleIdentifier = (
 const stringLiteral = (value: string): string => JSON.stringify(value);
 
 const normalizePath = (path: string): string =>
-  path
-    .replace(/\\/g, "/")
-    .replace(/\/+/g, "/")
-    .replace(/\/$/, "");
+  path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
 
 const stripLeadingCurrentDirectory = (path: string): string =>
   path.startsWith("./") ? path.slice(2) : path;
@@ -202,41 +196,35 @@ const runtimeModulePath = (moduleId: string): string => {
   }
 };
 
-const relativeImportSpecifier = (
-  moduleId: string,
-  generatedFile: string
-): string => {
+const relativeImportSpecifier = (moduleId: string, generatedFile: string): string => {
   const source = runtimeModulePath(moduleId);
   const fromDirectory = dirnamePath(stripLeadingCurrentDirectory(normalizePath(generatedFile)));
   const target = stripLeadingCurrentDirectory(source);
-  const specifier = isAbsolutePath(fromDirectory) === isAbsolutePath(target)
-    ? relativePath(fromDirectory, target)
-    : relativePath(fromDirectory.replace(/^\/+/, ""), target.replace(/^\/+/, ""));
+  const specifier =
+    isAbsolutePath(fromDirectory) === isAbsolutePath(target)
+      ? relativePath(fromDirectory, target)
+      : relativePath(fromDirectory.replace(/^\/+/, ""), target.replace(/^\/+/, ""));
 
   return withRelativePrefix(normalizePath(specifier));
 };
 
 const rootAbsoluteImportSpecifier = (moduleId: string): string => {
   const source = runtimeModulePath(moduleId);
-  return source.startsWith("/")
-    ? source
-    : `/${stripLeadingCurrentDirectory(source)}`;
+  return source.startsWith("/") ? source : `/${stripLeadingCurrentDirectory(source)}`;
 };
 
 const routeModuleImportSpecifier = (
   entry: Pick<FileRouteManifestEntry | FileRouteManifestModule, "moduleId">,
-  options: FileRouteDefinitionsModuleOptions
+  options: FileRouteDefinitionsModuleOptions,
 ): string =>
   options.importMode === "rootAbsolute"
     ? rootAbsoluteImportSpecifier(entry.moduleId)
     : relativeImportSpecifier(
         entry.moduleId,
-        options.generatedFile ?? defaultGeneratedFileRouteDefinitionsFile
+        options.generatedFile ?? defaultGeneratedFileRouteDefinitionsFile,
       );
 
-const routeModuleExportName = (
-  options: FileRouteDefinitionsModuleOptions
-): string => {
+const routeModuleExportName = (options: FileRouteDefinitionsModuleOptions): string => {
   const exportName = options.routeModuleExportName ?? defaultRouteModuleExportName;
   if (!identifierPattern.test(exportName)) {
     throw new FileRouteDefinitionsModuleInvalidExportName({ exportName });
@@ -247,37 +235,39 @@ const routeModuleExportName = (
 /** Creates generated import references for every route entry in a manifest. */
 export const createFileRouteModuleReferences = (
   manifest: FileRouteManifest,
-  options: FileRouteDefinitionsModuleOptions = {}
+  options: FileRouteDefinitionsModuleOptions = {},
 ): readonly FileRouteModuleReference[] => {
   const importName = routeModuleExportName(options);
   return Array.from(manifest.entries, (entry) => ({
     entry,
     importName,
     identifier: asRouteIdentifier(entry),
-    importSpecifier: routeModuleImportSpecifier(entry, options)
+    importSpecifier: routeModuleImportSpecifier(entry, options),
   }));
 };
 
 const uniqueCompanionModules = (
-  manifest: FileRouteManifest
+  manifest: FileRouteManifest,
 ): readonly FileRouteManifestModule[] => {
   const metadata = describeFileRouteManifest(manifest);
   const referencedModuleIds = new Set(
-    metadata.flatMap((entry) => [
-      ...entry.layouts,
-      ...(entry.errorBoundary === undefined ? [] : [entry.errorBoundary]),
-      ...entry.metadataModules
-    ]).map((module) => module.moduleId)
+    metadata
+      .flatMap((entry) => [
+        ...entry.layouts,
+        ...(entry.errorBoundary === undefined ? [] : [entry.errorBoundary]),
+        ...entry.metadataModules,
+      ])
+      .map((module) => module.moduleId),
   );
-  return manifest.modules.filter((module) =>
-    module.kind !== "Route" && referencedModuleIds.has(module.moduleId)
+  return manifest.modules.filter(
+    (module) => module.kind !== "Route" && referencedModuleIds.has(module.moduleId),
   );
 };
 
 /** Creates generated import references for layout, error boundary, and metadata modules. */
 export const createFileRouteCompanionModuleReferences = (
   manifest: FileRouteManifest,
-  options: FileRouteDefinitionsModuleOptions = {}
+  options: FileRouteDefinitionsModuleOptions = {},
 ): readonly FileRouteCompanionModuleReference[] => {
   const modules = uniqueCompanionModules(manifest);
   const baseCounts = new Map<string, number>();
@@ -288,15 +278,18 @@ export const createFileRouteCompanionModuleReferences = (
   return modules.map((module) => {
     if (!identifierPattern.test(module.exportName)) {
       throw new FileRouteDefinitionsModuleInvalidExportName({
-        exportName: module.exportName
+        exportName: module.exportName,
       });
     }
 
     return {
       module,
       importName: module.exportName,
-      identifier: asCompanionModuleIdentifier(module, (baseCounts.get(asCompanionModuleIdentifier(module)) ?? 0) > 1),
-      importSpecifier: routeModuleImportSpecifier(module, options)
+      identifier: asCompanionModuleIdentifier(
+        module,
+        (baseCounts.get(asCompanionModuleIdentifier(module)) ?? 0) > 1,
+      ),
+      importSpecifier: routeModuleImportSpecifier(module, options),
     };
   });
 };
@@ -304,31 +297,34 @@ export const createFileRouteCompanionModuleReferences = (
 /** Creates the TypeScript source for a route tree module from a file-route manifest. */
 export const createFileRouteDefinitionsModule = (
   manifest: FileRouteManifest,
-  options: FileRouteDefinitionsModuleOptions = {}
+  options: FileRouteDefinitionsModuleOptions = {},
 ): string => {
   const references = createFileRouteModuleReferences(manifest, options);
   const companionReferences = createFileRouteCompanionModuleReferences(manifest, options);
   const companionReferenceByModuleId = new Map(
-    companionReferences.map((reference) => [reference.module.moduleId, reference])
+    companionReferences.map((reference) => [reference.module.moduleId, reference]),
   );
-  const routeImports = references.map(({ importName, identifier, importSpecifier }) =>
-    `import { ${importName} as ${identifier} } from ${stringLiteral(importSpecifier)};`
+  const routeImports = references.map(
+    ({ importName, identifier, importSpecifier }) =>
+      `import { ${importName} as ${identifier} } from ${stringLiteral(importSpecifier)};`,
   );
-  const companionImports = companionReferences.map(({ importName, identifier, importSpecifier }) =>
-    `import { ${importName} as ${identifier} } from ${stringLiteral(importSpecifier)};`
+  const companionImports = companionReferences.map(
+    ({ importName, identifier, importSpecifier }) =>
+      `import { ${importName} as ${identifier} } from ${stringLiteral(importSpecifier)};`,
   );
-  const routePathChecks = references.map(({ entry, identifier }) =>
-    `const ${identifier}_path: ${stringLiteral(entry.routePath)} = ${identifier}.path;`
+  const routePathChecks = references.map(
+    ({ entry, identifier }) =>
+      `const ${identifier}_path: ${stringLiteral(entry.routePath)} = ${identifier}.path;`,
   );
   const routeIdentifiers = references.map(({ identifier }) => identifier);
-  const routeByIdEntries = references.map(({ identifier }) =>
-    `  ${stringLiteral(identifier)}: ${identifier}`
+  const routeByIdEntries = references.map(
+    ({ identifier }) => `  ${stringLiteral(identifier)}: ${identifier}`,
   );
-  const routeByPathEntries = references.map(({ entry, identifier }) =>
-    `  ${stringLiteral(entry.routePath)}: ${identifier}`
+  const routeByPathEntries = references.map(
+    ({ entry, identifier }) => `  ${stringLiteral(entry.routePath)}: ${identifier}`,
   );
-  const routeIdByPathEntries = references.map(({ entry, identifier }) =>
-    `  ${stringLiteral(entry.routePath)}: ${stringLiteral(identifier)}`
+  const routeIdByPathEntries = references.map(
+    ({ entry, identifier }) => `  ${stringLiteral(entry.routePath)}: ${stringLiteral(identifier)}`,
   );
   const routeModules = JSON.stringify(manifest.modules, null, 2);
   const describedRouteMetadata = describeFileRouteManifest(manifest);
@@ -338,23 +334,25 @@ export const createFileRouteDefinitionsModule = (
     if (!reference) {
       throw new FileRouteDefinitionsModuleInvalidIdentifier({
         routeId: String(module.routeId),
-        routePath: module.routePath
+        routePath: module.routePath,
       });
     }
     return reference.identifier;
   };
-  const layoutEntries = describedRouteMetadata.map((entry) =>
-    `  ${stringLiteral(String(entry.routeId))}: [${entry.layouts.map(identifierForCompanionModule).join(", ")}]`
+  const layoutEntries = describedRouteMetadata.map(
+    (entry) =>
+      `  ${stringLiteral(String(entry.routeId))}: [${entry.layouts.map(identifierForCompanionModule).join(", ")}]`,
   );
   const errorBoundaryEntries = describedRouteMetadata.flatMap((entry) =>
     entry.errorBoundary === undefined
       ? []
       : [
-          `  ${stringLiteral(String(entry.routeId))}: ${identifierForCompanionModule(entry.errorBoundary)}`
-        ]
+          `  ${stringLiteral(String(entry.routeId))}: ${identifierForCompanionModule(entry.errorBoundary)}`,
+        ],
   );
-  const metadataEntries = describedRouteMetadata.map((entry) =>
-    `  ${stringLiteral(String(entry.routeId))}: [${entry.metadataModules.map(identifierForCompanionModule).join(", ")}]`
+  const metadataEntries = describedRouteMetadata.map(
+    (entry) =>
+      `  ${stringLiteral(String(entry.routeId))}: [${entry.metadataModules.map(identifierForCompanionModule).join(", ")}]`,
   );
 
   return [
@@ -365,9 +363,7 @@ export const createFileRouteDefinitionsModule = (
     ...(routeImports.length + companionImports.length > 0 ? [""] : []),
     ...routePathChecks,
     ...(routePathChecks.length > 0 ? [""] : []),
-    ...(routeIdentifiers.length > 0
-      ? [`export { ${routeIdentifiers.join(", ")} };`, ""]
-      : []),
+    ...(routeIdentifiers.length > 0 ? [`export { ${routeIdentifiers.join(", ")} };`, ""] : []),
     "/** Ordered app-specific route definitions discovered from Start file routes. */",
     `export const routes = [${routeIdentifiers.join(", ")}] as const;`,
     "/** Alias for `routes`, kept for router-style naming and generated-file ergonomics. */",
@@ -524,20 +520,15 @@ export const createFileRouteDefinitionsModule = (
     "/** Static parent/layout/error/metadata relationships for generated routes. */",
     "export type FileRouteMetadata = typeof fileRouteMetadata;",
     "/** Default generated route tree export for router-style imports. */",
-    "export default routes;"
+    "export default routes;",
   ].join("\n");
 };
 
 /** Creates the full generated route definitions module including the configured header. */
 export const createGeneratedFileRouteDefinitionsModule = (
   manifest: FileRouteManifest,
-  options: GeneratedFileRouteDefinitionsModuleOptions = {}
+  options: GeneratedFileRouteDefinitionsModuleOptions = {},
 ): string => {
   const header = options.header ?? defaultGeneratedFileRouteDefinitionsHeader;
-  return [
-    header,
-    "",
-    createFileRouteDefinitionsModule(manifest, options),
-    ""
-  ].join("\n");
+  return [header, "", createFileRouteDefinitionsModule(manifest, options), ""].join("\n");
 };

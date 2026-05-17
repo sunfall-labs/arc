@@ -8,7 +8,7 @@ import {
   type BrowserHistoryAdapter,
   type BrowserRouterHostController,
   type BrowserRouterState,
-  type EffectUiRuntime
+  type EffectUiRuntime,
 } from "@effect-ui/core";
 import { Data } from "effect";
 import {
@@ -22,12 +22,12 @@ import {
   sharedConfig,
   useContext,
   type Accessor,
-  type JSX
+  type JSX,
 } from "solid-js";
 import { createComponent, isServer } from "solid-js/web";
 import {
   makeSolidRouteRenderScopeController,
-  type SolidRouteOutletRenderers
+  type SolidRouteOutletRenderers,
 } from "./route-render-scope.js";
 import { RuntimeContext, useRuntime } from "./runtime.js";
 
@@ -37,18 +37,19 @@ type RouterRuntimeServices<Runtime> =
 type RouterRuntime<
   Routes extends readonly AnyRoute[],
   ER,
-  Runtime extends EffectUiRuntime<any, ER>
-> =
-  [Exclude<Route.PreloadRequirements<Routes[number]>, RouterRuntimeServices<Runtime>>] extends [never]
-    ? Runtime
-    : never;
+  Runtime extends EffectUiRuntime<any, ER>,
+> = [Exclude<Route.PreloadRequirements<Routes[number]>, RouterRuntimeServices<Runtime>>] extends [
+  never,
+]
+  ? Runtime
+  : never;
 
 export type {
   BrowserNavigateArgs,
   BrowserNavigateOptions,
   BrowserRouterPath,
   BrowserRouterRouteForPath,
-  BrowserRouterState
+  BrowserRouterState,
 } from "@effect-ui/core";
 
 interface BrowserRouterOptionsBase {
@@ -63,42 +64,48 @@ interface BrowserRouterOptionsBase {
 type BrowserRouterRuntimeOptions<
   Routes extends readonly AnyRoute[] = readonly AnyRoute[],
   ER = never,
-  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>
-> =
-  [Route.PreloadRequirements<Routes[number]>] extends [never]
-    ? {
-        /** Runtime used for route preload Effects and route component scopes. */
-        readonly runtime?: RouterRuntime<Routes, ER, Runtime>;
-      }
-    : {
-        /** Runtime used for route preload Effects and route component scopes. */
-        readonly runtime: RouterRuntime<Routes, ER, Runtime>;
-      };
+  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<
+    Route.PreloadRequirements<Routes[number]>,
+    ER
+  >,
+> = [Route.PreloadRequirements<Routes[number]>] extends [never]
+  ? {
+      /** Runtime used for route preload Effects and route component scopes. */
+      readonly runtime?: RouterRuntime<Routes, ER, Runtime>;
+    }
+  : {
+      /** Runtime used for route preload Effects and route component scopes. */
+      readonly runtime: RouterRuntime<Routes, ER, Runtime>;
+    };
 
 /** Options for creating a Solid browser router. */
 export type BrowserRouterOptions<
   Routes extends readonly AnyRoute[] = readonly AnyRoute[],
   ER = never,
-  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>
+  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<
+    Route.PreloadRequirements<Routes[number]>,
+    ER
+  >,
 > = BrowserRouterOptionsBase & BrowserRouterRuntimeOptions<Routes, ER, Runtime>;
 
 type BrowserRouterOptionsArgs<
   Routes extends readonly AnyRoute[],
   ER,
-  Runtime extends EffectUiRuntime<any, ER>
-> =
-  [Route.PreloadRequirements<Routes[number]>] extends [never]
-    ? [options?: BrowserRouterOptions<Routes, ER, Runtime>]
-    : [options: BrowserRouterOptions<Routes, ER, Runtime>];
+  Runtime extends EffectUiRuntime<any, ER>,
+> = [Route.PreloadRequirements<Routes[number]>] extends [never]
+  ? [options?: BrowserRouterOptions<Routes, ER, Runtime>]
+  : [options: BrowserRouterOptions<Routes, ER, Runtime>];
 
-type SolidBrowserRouterHostController<
-  Routes extends readonly AnyRoute[],
-  ER
-> = Omit<BrowserRouterHostController<Routes, ER>, "state" | "match" | "start" | "dispose" | "disposeEffect">;
+type SolidBrowserRouterHostController<Routes extends readonly AnyRoute[], ER> = Omit<
+  BrowserRouterHostController<Routes, ER>,
+  "state" | "match" | "start" | "dispose" | "disposeEffect"
+>;
 
 /** Solid browser router backed by Effect UI route definitions and preload. */
-export interface BrowserRouter<Routes extends readonly AnyRoute[] = readonly AnyRoute[], ER = never>
-  extends SolidBrowserRouterHostController<Routes, ER> {
+export interface BrowserRouter<
+  Routes extends readonly AnyRoute[] = readonly AnyRoute[],
+  ER = never,
+> extends SolidBrowserRouterHostController<Routes, ER> {
   /** Reactive router state: pending, ready, failure, or not found. */
   readonly state: Accessor<BrowserRouterState<Routes, ER>>;
   /** Current ready route match, or undefined outside a ready state. */
@@ -106,49 +113,58 @@ export interface BrowserRouter<Routes extends readonly AnyRoute[] = readonly Any
 }
 
 /** Props for `RouterProvider`, including route definitions and render fallbacks. */
-type RouterOutletRoutes<RoutesOrError> =
-  [RoutesOrError] extends [readonly AnyRoute[]] ? RoutesOrError : readonly AnyRoute[];
-type RouterOutletError<RoutesOrError, ER> =
-  [RoutesOrError] extends [readonly AnyRoute[]] ? ER : RoutesOrError;
-type RouterOutletState<RoutesOrError, ER> =
-  BrowserRouterState<RouterOutletRoutes<RoutesOrError>, RouterOutletError<RoutesOrError, ER>>;
+type RouterOutletRoutes<RoutesOrError> = [RoutesOrError] extends [readonly AnyRoute[]]
+  ? RoutesOrError
+  : readonly AnyRoute[];
+type RouterOutletError<RoutesOrError, ER> = [RoutesOrError] extends [readonly AnyRoute[]]
+  ? ER
+  : RoutesOrError;
+type RouterOutletState<RoutesOrError, ER> = BrowserRouterState<
+  RouterOutletRoutes<RoutesOrError>,
+  RouterOutletError<RoutesOrError, ER>
+>;
 type TypedRouterOutletProps<Routes extends readonly AnyRoute[], ER> = {
-  readonly pending?: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Pending" }>) => JSX.Element;
-  readonly failure?: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }>) => JSX.Element;
-  readonly notFound?: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "NotFound" }>) => JSX.Element;
+  readonly pending?: (
+    state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Pending" }>,
+  ) => JSX.Element;
+  readonly failure?: (
+    state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }>,
+  ) => JSX.Element;
+  readonly notFound?: (
+    state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "NotFound" }>,
+  ) => JSX.Element;
 };
 
 type RouterProviderRuntimeProps<
   Routes extends readonly AnyRoute[],
   ER,
-  Runtime extends EffectUiRuntime<any, ER>
-> =
-  [Route.PreloadRequirements<Routes[number]>] extends [never]
-    ? { readonly runtime?: RouterRuntime<Routes, ER, Runtime> }
-    : { readonly runtime: RouterRuntime<Routes, ER, Runtime> };
+  Runtime extends EffectUiRuntime<any, ER>,
+> = [Route.PreloadRequirements<Routes[number]>] extends [never]
+  ? { readonly runtime?: RouterRuntime<Routes, ER, Runtime> }
+  : { readonly runtime: RouterRuntime<Routes, ER, Runtime> };
 
 /** Props for `RouterProvider`, including route definitions, history, and render fallbacks. */
 export type RouterProviderProps<
   Routes extends readonly AnyRoute[],
   ER = never,
-  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>
+  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<
+    Route.PreloadRequirements<Routes[number]>,
+    ER
+  >,
 > = RouterOutletProps<Routes, ER> &
   RouterProviderRuntimeProps<Routes, ER, Runtime> & {
-  /** Route definitions available to the provider. */
-  readonly routes: Routes;
-  /** Initial URL used for tests or SSR hydration. */
-  readonly initialHref?: string;
-  /** True when the initial browser render hydrates existing server-rendered DOM. */
-  readonly hydrating?: boolean;
-  /** Host history Adapter. Defaults to `window.history` when a browser is available. */
-  readonly history?: BrowserHistoryAdapter;
-  readonly children?: JSX.Element;
-};
+    /** Route definitions available to the provider. */
+    readonly routes: Routes;
+    /** Initial URL used for tests or SSR hydration. */
+    readonly initialHref?: string;
+    /** True when the initial browser render hydrates existing server-rendered DOM. */
+    readonly hydrating?: boolean;
+    /** Host history Adapter. Defaults to `window.history` when a browser is available. */
+    readonly history?: BrowserHistoryAdapter;
+    readonly children?: JSX.Element;
+  };
 
-interface RouterProviderEntry<
-  Routes extends readonly AnyRoute[],
-  ER
-> {
+interface RouterProviderEntry<Routes extends readonly AnyRoute[], ER> {
   readonly routes: Routes;
   readonly runtime: AnyEffectUiRuntime<ER>;
   readonly routerRuntime: EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>;
@@ -164,25 +180,30 @@ interface RouterProviderEntry<
  * shape as `router.state()`, including `Cause<Route.NavigationError | ER>`.
  */
 export interface RouterOutletProps<RoutesOrError = readonly AnyRoute[], ER = never> {
-  readonly pending?: (state: Extract<RouterOutletState<RoutesOrError, ER>, { readonly _tag: "Pending" }>) => JSX.Element;
-  readonly failure?: (state: Extract<RouterOutletState<RoutesOrError, ER>, { readonly _tag: "Failure" }>) => JSX.Element;
-  readonly notFound?: (state: Extract<RouterOutletState<RoutesOrError, ER>, { readonly _tag: "NotFound" }>) => JSX.Element;
+  readonly pending?: (
+    state: Extract<RouterOutletState<RoutesOrError, ER>, { readonly _tag: "Pending" }>,
+  ) => JSX.Element;
+  readonly failure?: (
+    state: Extract<RouterOutletState<RoutesOrError, ER>, { readonly _tag: "Failure" }>,
+  ) => JSX.Element;
+  readonly notFound?: (
+    state: Extract<RouterOutletState<RoutesOrError, ER>, { readonly _tag: "NotFound" }>,
+  ) => JSX.Element;
 }
 
 const canUseBrowser = (): boolean => !isServer && typeof window !== "undefined";
 
-const isHydratingExistingDom = (): boolean =>
-  canUseBrowser() && sharedConfig.context != null;
+const isHydratingExistingDom = (): boolean => canUseBrowser() && sharedConfig.context != null;
 
 const RouterContext = createContext<BrowserRouter<readonly AnyRoute[], unknown>>();
 
 const routerOutletRenderers = <Routes extends readonly AnyRoute[], ER>(
-  props: TypedRouterOutletProps<Routes, ER>
+  props: TypedRouterOutletProps<Routes, ER>,
 ): SolidRouteOutletRenderers<Routes, ER> => {
   const renderers = {
     ...(props.pending === undefined ? {} : { pending: props.pending }),
     ...(props.failure === undefined ? {} : { failure: props.failure }),
-    ...(props.notFound === undefined ? {} : { notFound: props.notFound })
+    ...(props.notFound === undefined ? {} : { notFound: props.notFound }),
   };
   return renderers;
 };
@@ -207,7 +228,10 @@ export { RouterRouteNotRegistered } from "@effect-ui/core";
 export const createBrowserRouter = <
   const Routes extends readonly AnyRoute[],
   ER = never,
-  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>
+  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<
+    Route.PreloadRequirements<Routes[number]>,
+    ER
+  >,
 >(
   routes: Routes,
   ...args: BrowserRouterOptionsArgs<Routes, ER, Runtime>
@@ -225,14 +249,12 @@ export const createBrowserRouter = <
         href,
         match,
         host: canUseBrowser() ? "browser" : "server",
-        hydrating: options.hydrating ?? isHydratingExistingDom()
-      })
+        hydrating: options.hydrating ?? isHydratingExistingDom(),
+      }),
   });
-  const [state, setState] = createSignal<BrowserRouterState<Routes, ER>>(
-    controller.state.get()
-  );
+  const [state, setState] = createSignal<BrowserRouterState<Routes, ER>>(controller.state.get());
   const [match, setMatch] = createSignal<Route.Match<Routes[number]> | undefined>(
-    controller.match.get()
+    controller.match.get(),
   );
   const unsubscribeState = controller.state.subscribe(() => {
     setState(() => controller.state.get());
@@ -240,9 +262,7 @@ export const createBrowserRouter = <
   const unsubscribeMatch = controller.match.subscribe(() => {
     setMatch(() => controller.match.get());
   });
-  const stopController = canUseBrowser()
-    ? controller.start()
-    : controller.dispose;
+  const stopController = canUseBrowser() ? controller.start() : controller.dispose;
 
   onCleanup(() => {
     stopController();
@@ -263,7 +283,7 @@ export const createBrowserRouter = <
     navigateHref: controller.navigateHref,
     matchByPath: controller.matchByPath,
     preloadEffect: controller.preloadEffect,
-    preloadByPathEffect: controller.preloadByPathEffect
+    preloadByPathEffect: controller.preloadByPathEffect,
   };
 
   return router;
@@ -272,7 +292,7 @@ export const createBrowserRouter = <
 /** Reads the current router from `RouterProvider`. */
 export const useRouter = <
   Routes extends readonly AnyRoute[] = readonly AnyRoute[],
-  ER = never
+  ER = never,
 >(): BrowserRouter<Routes, ER> => {
   const router = useContext(RouterContext);
   if (!router) {
@@ -284,7 +304,7 @@ export const useRouter = <
 
 /** Renders the matched route component and owns its route `UiScope`. */
 export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
-  props: RouterOutletProps<RoutesOrError, ER>
+  props: RouterOutletProps<RoutesOrError, ER>,
 ): JSX.Element => {
   type Routes = RouterOutletRoutes<RoutesOrError>;
   type Error = RouterOutletError<RoutesOrError, ER>;
@@ -299,18 +319,18 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
   const routeRenderScope = makeSolidRouteRenderScopeController({
     initialInput: {
       state: router.state(),
-      renderers: renderers()
+      renderers: renderers(),
     },
     runtime,
     setNode,
     setRenderError,
-    setRenderSuspension
+    setRenderSuspension,
   });
 
   createRenderEffect(() => {
     routeRenderScope.update({
       state: router.state(),
-      renderers: renderers()
+      renderers: renderers(),
     });
   });
 
@@ -349,22 +369,28 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
 export const RouterProvider = <
   const Routes extends readonly AnyRoute[],
   ER = never,
-  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>
+  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<
+    Route.PreloadRequirements<Routes[number]>,
+    ER
+  >,
 >(
-  props: RouterProviderProps<Routes, ER, Runtime>
+  props: RouterProviderProps<Routes, ER, Runtime>,
 ): JSX.Element => {
   const contextRuntime = useRuntime<ER>();
   const entry = createMemo<RouterProviderEntry<Routes, ER>>(() => {
-    const runtime = ("runtime" in props && props.runtime !== undefined
-      ? props.runtime
-      : contextRuntime) as AnyEffectUiRuntime<ER>;
+    const runtime = (
+      "runtime" in props && props.runtime !== undefined ? props.runtime : contextRuntime
+    ) as AnyEffectUiRuntime<ER>;
     return {
       routes: props.routes,
       runtime,
-      routerRuntime: runtime as unknown as EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>,
+      routerRuntime: runtime as unknown as EffectUiRuntime<
+        Route.PreloadRequirements<Routes[number]>,
+        ER
+      >,
       ...(props.history === undefined ? {} : { history: props.history }),
       ...(props.initialHref === undefined ? {} : { initialHref: props.initialHref }),
-      ...(props.hydrating === undefined ? {} : { hydrating: props.hydrating })
+      ...(props.hydrating === undefined ? {} : { hydrating: props.hydrating }),
     };
   });
   const [view, setView] = createSignal<JSX.Element>();
@@ -376,7 +402,7 @@ export const RouterProvider = <
       disposeEntry = dispose;
       const next = createComponent(RouterProviderInstance, {
         entry: current,
-        props
+        props,
       });
       setView(() => next);
     });
@@ -400,38 +426,38 @@ export const RouterProvider = <
 const RouterProviderInstance = <
   const Routes extends readonly AnyRoute[],
   ER = never,
-  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>
->(
-  instanceProps: {
-    readonly entry: RouterProviderEntry<Routes, ER>;
-    readonly props: RouterProviderProps<Routes, ER, Runtime>;
-  }
-): JSX.Element => {
+  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<
+    Route.PreloadRequirements<Routes[number]>,
+    ER
+  >,
+>(instanceProps: {
+  readonly entry: RouterProviderEntry<Routes, ER>;
+  readonly props: RouterProviderProps<Routes, ER, Runtime>;
+}): JSX.Element => {
   const { entry, props } = instanceProps;
-  const router = createBrowserRouter<Routes, ER>(
-    entry.routes,
-    {
-      runtime: entry.routerRuntime,
-      ...(entry.history === undefined ? {} : { history: entry.history }),
-      ...(entry.initialHref === undefined ? {} : { initialHref: entry.initialHref }),
-      ...(entry.hydrating === undefined ? {} : { hydrating: entry.hydrating })
-    }
-  );
+  const router = createBrowserRouter<Routes, ER>(entry.routes, {
+    runtime: entry.routerRuntime,
+    ...(entry.history === undefined ? {} : { history: entry.history }),
+    ...(entry.initialHref === undefined ? {} : { initialHref: entry.initialHref }),
+    ...(entry.hydrating === undefined ? {} : { hydrating: entry.hydrating }),
+  });
   return createComponent(RuntimeContext.Provider, {
     value: entry.runtime as AnyEffectUiRuntime<never>,
     get children() {
       return createComponent(RouterContext.Provider, {
         value: router as unknown as BrowserRouter<readonly AnyRoute[], unknown>,
         get children() {
-          return runWithRuntime(entry.runtime, () =>
-            props.children ??
-            createComponent(
-              RouterOutlet as (props: RouterOutletProps<Routes, ER>) => JSX.Element,
-              props as RouterOutletProps<Routes, ER>
-            )
+          return runWithRuntime(
+            entry.runtime,
+            () =>
+              props.children ??
+              createComponent(
+                RouterOutlet as (props: RouterOutletProps<Routes, ER>) => JSX.Element,
+                props as RouterOutletProps<Routes, ER>,
+              ),
           );
-        }
+        },
       });
-    }
+    },
   });
 };

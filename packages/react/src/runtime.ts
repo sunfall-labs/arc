@@ -15,7 +15,7 @@ import {
   type RuntimeUiScopeFrame,
   type UiScopeOptions,
   UiScope,
-  UiScopeDisposed
+  UiScopeDisposed,
 } from "@effect-ui/core";
 import { Effect, Fiber, Layer, ManagedRuntime, Scope } from "effect";
 import {
@@ -25,7 +25,7 @@ import {
   useEffect,
   useLayoutEffect,
   useRef,
-  type ReactNode
+  type ReactNode,
 } from "react";
 
 /** React context carrying the active Effect UI Runtime Spine. */
@@ -36,17 +36,25 @@ interface RuntimeProviderChildren {
   readonly children?: ReactNode;
 }
 
-interface RuntimeProviderRuntimeProps<RuntimeServices = never, ER = never> extends RuntimeProviderChildren {
+interface RuntimeProviderRuntimeProps<
+  RuntimeServices = never,
+  ER = never,
+> extends RuntimeProviderChildren {
   /** Existing host-owned runtime. The provider exposes it and does not dispose it. */
   readonly runtime: EffectUiRuntime<RuntimeServices, ER> | AnyEffectUiRuntime<ER>;
   readonly source?: never;
   readonly onDisposeFailure?: never;
 }
 
-interface RuntimeProviderSourceProps<RuntimeServices = never, ER = never> extends RuntimeProviderChildren {
+interface RuntimeProviderSourceProps<
+  RuntimeServices = never,
+  ER = never,
+> extends RuntimeProviderChildren {
   readonly runtime?: never;
   /** Runtime source owned by this React provider and disposed with its component. */
-  readonly source: ManagedRuntime.ManagedRuntime<RuntimeServices, ER> | Layer.Layer<RuntimeServices, ER, never>;
+  readonly source:
+    | ManagedRuntime.ManagedRuntime<RuntimeServices, ER>
+    | Layer.Layer<RuntimeServices, ER, never>;
   /**
    * Observes failures from provider-owned runtime disposal.
    *
@@ -114,7 +122,7 @@ class ReactCommitUiScope extends UiScope {
       this.committedRenderFinalizers.splice(
         0,
         this.committedRenderFinalizers.length,
-        ...this.pendingRenderFinalizers
+        ...this.pendingRenderFinalizers,
       );
       this.pendingRenderFinalizers = undefined;
     }
@@ -161,22 +169,28 @@ class ReactCommitUiScope extends UiScope {
     }
   }
 
+  private drainCommittedRenderFinalizers(): Array<() => EffectInput<void>> {
+    return this.committedRenderFinalizers.splice(0).reverse();
+  }
+
+  private runCommittedRenderFinalizersEffect(): Effect.Effect<void> {
+    const drainFinalizers = () => this.drainCommittedRenderFinalizers();
+    return Effect.gen(function* () {
+      const finalizers = yield* Effect.sync(drainFinalizers);
+      for (const finalizer of finalizers) {
+        yield* invokeEffectInput("ReactRouteRenderScope.finalizer", finalizer).pipe(
+          Effect.catchCause(() => Effect.void),
+        );
+      }
+    });
+  }
+
   private installRenderFinalizerGroup(): void {
     if (this.renderFinalizerGroupInstalled) {
       return;
     }
     this.renderFinalizerGroupInstalled = true;
-    const scope = this;
-    super.addFinalizer(() =>
-      Effect.gen(function* () {
-        const finalizers = scope.committedRenderFinalizers.splice(0).reverse();
-        for (const finalizer of finalizers) {
-          yield* invokeEffectInput("ReactRouteRenderScope.finalizer", finalizer).pipe(
-            Effect.catchCause(() => Effect.void)
-          );
-        }
-      })
-    );
+    super.addFinalizer(() => this.runCommittedRenderFinalizersEffect());
   }
 
   override addFinalizer(finalizer: () => EffectInput<void>): void {
@@ -190,10 +204,7 @@ class ReactCommitUiScope extends UiScope {
     }
 
     if (!this.committed && this.preCommitFinalizers === "buffer") {
-      this.pendingRenderFinalizers = [
-        ...(this.pendingRenderFinalizers ?? []),
-        finalizer
-      ];
+      this.pendingRenderFinalizers = [...(this.pendingRenderFinalizers ?? []), finalizer];
       return;
     }
 
@@ -203,7 +214,7 @@ class ReactCommitUiScope extends UiScope {
 
   override fork<A, E>(
     effect: Effect.Effect<A, E, Scope.Scope>,
-    options?: ForkScopedOptions
+    options?: ForkScopedOptions,
   ): Fiber.Fiber<A, E> {
     if (this.inRenderPass) {
       throw new UiScopeDisposed({ operation: "React.useComponentScope.fork" });
@@ -228,13 +239,15 @@ export interface ReactRuntimeUiScopeFrameOptions {
 /** Creates a React-aware Runtime UI Scope Frame with commit-gated scoped work. */
 export const makeReactRuntimeUiScopeFrame = <ER>(
   runtime: AnyEffectUiRuntime<ER>,
-  options: ReactRuntimeUiScopeFrameOptions = {}
+  options: ReactRuntimeUiScopeFrameOptions = {},
 ): ReactRuntimeUiScopeFrame<ER> => {
   const scope = new ReactCommitUiScope({
-    ...(options.preCommitFinalizers === undefined ? {} : { preCommitFinalizers: options.preCommitFinalizers }),
+    ...(options.preCommitFinalizers === undefined
+      ? {}
+      : { preCommitFinalizers: options.preCommitFinalizers }),
     runLateFinalizer: (effect) => {
       void runtime.runFork(effect);
-    }
+    },
   });
 
   return {
@@ -246,13 +259,12 @@ export const makeReactRuntimeUiScopeFrame = <ER>(
     commit: () => {
       scope.commit();
     },
-    run: (f) =>
-      scope.runRenderPass(() =>
-        runWithRuntime(runtime, () => runWithScope(scope, f))
-      ),
+    run: (f) => scope.runRenderPass(() => runWithRuntime(runtime, () => runWithScope(scope, f))),
     captureDisposeEffect: () => {
       scope.discardPreCommitFinalizers();
-      return runtime.provide(scope.captureDisposeEffect()).pipe(Effect.catchCause(() => Effect.void));
+      return runtime
+        .provide(scope.captureDisposeEffect())
+        .pipe(Effect.catchCause(() => Effect.void));
     },
     disposeEffect: () => {
       return Effect.suspend(() => {
@@ -263,9 +275,9 @@ export const makeReactRuntimeUiScopeFrame = <ER>(
     dispose: () => {
       scope.discardPreCommitFinalizers();
       void runtime.runFork(
-        runtime.provide(scope.captureDisposeEffect()).pipe(Effect.catchCause(() => Effect.void))
+        runtime.provide(scope.captureDisposeEffect()).pipe(Effect.catchCause(() => Effect.void)),
       );
-    }
+    },
   };
 };
 
@@ -276,12 +288,15 @@ export const makeReactRuntimeUiScopeFrame = <ER>(
  * to let the provider create and dispose a runtime with the React component.
  */
 export const RuntimeProvider = <RuntimeServices = never, ER = never>(
-  props: RuntimeProviderProps<RuntimeServices, ER>
+  props: RuntimeProviderProps<RuntimeServices, ER>,
 ): ReactNode => {
-  const ownedRuntimeRef = useRef<{
-    readonly source: RuntimeProviderSourceProps<RuntimeServices, ER>["source"] | undefined;
-    readonly entry: RuntimeProviderLifecycleEntry<ER>;
-  } | undefined>(undefined);
+  const ownedRuntimeRef = useRef<
+    | {
+        readonly source: RuntimeProviderSourceProps<RuntimeServices, ER>["source"] | undefined;
+        readonly entry: RuntimeProviderLifecycleEntry<ER>;
+      }
+    | undefined
+  >(undefined);
   const ownsRuntime = props.runtime === undefined;
 
   if (ownsRuntime) {
@@ -289,16 +304,17 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
     if (ownedRuntimeRef.current === undefined || ownedRuntimeRef.current.source !== source) {
       ownedRuntimeRef.current = {
         source,
-        entry: makeRuntimeProviderLifecycleEntry({ source })
+        entry: makeRuntimeProviderLifecycleEntry({ source }),
       };
     }
   } else {
     ownedRuntimeRef.current = undefined;
   }
 
-  const entry = props.runtime === undefined
-    ? ownedRuntimeRef.current!.entry
-    : makeRuntimeProviderLifecycleEntry({ runtime: props.runtime });
+  const entry =
+    props.runtime === undefined
+      ? ownedRuntimeRef.current!.entry
+      : makeRuntimeProviderLifecycleEntry({ runtime: props.runtime });
   const runtime = entry.runtime;
   const onDisposeFailureRef = useRef(props.onDisposeFailure);
   onDisposeFailureRef.current = props.onDisposeFailure;
@@ -322,8 +338,8 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
         void Effect.runFork(
           disposeRuntimeProviderLifecycleEffect(cleanupEntry, {
             observerOperation: "ReactRuntimeProvider.onDisposeFailure",
-            onDisposeFailure: onDisposeFailureRef.current
-          })
+            onDisposeFailure: onDisposeFailureRef.current,
+          }),
         );
       });
     };
@@ -331,7 +347,7 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
 
   return createElement(RuntimeContext.Provider, {
     value: runtime as AnyEffectUiRuntime<never>,
-    children: props.children
+    children: props.children,
   });
 };
 
@@ -344,15 +360,18 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
  */
 export const useComponentScope = (): UiScope => {
   const runtime = useRuntime();
-  const scopeRef = useRef<{
-    readonly runtime: AnyEffectUiRuntime<unknown>;
-    readonly frame: ReactRuntimeUiScopeFrame<unknown>;
-  } | undefined>(undefined);
+  const scopeRef = useRef<
+    | {
+        readonly runtime: AnyEffectUiRuntime<unknown>;
+        readonly frame: ReactRuntimeUiScopeFrame<unknown>;
+      }
+    | undefined
+  >(undefined);
 
   if (scopeRef.current === undefined || scopeRef.current.runtime !== runtime) {
     scopeRef.current = {
       runtime,
-      frame: makeReactRuntimeUiScopeFrame(runtime)
+      frame: makeReactRuntimeUiScopeFrame(runtime),
     };
   }
 

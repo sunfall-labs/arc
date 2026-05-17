@@ -2,7 +2,7 @@ import { Effect, Fiber, Runtime } from "effect";
 
 const signalExitCodes = {
   SIGINT: 130,
-  SIGTERM: 143
+  SIGTERM: 143,
 };
 
 const setProcessExitCode = (code) => {
@@ -41,9 +41,7 @@ export const runScriptMainEffect = (effect, options = {}) => {
     fiber.addObserver((exit) => {
       cleanupHandlers();
       teardown(exit, (code) => {
-        onExit(interruptSignal === undefined
-          ? code
-          : signalExitCodes[interruptSignal] ?? code);
+        onExit(interruptSignal === undefined ? code : (signalExitCodes[interruptSignal] ?? code));
       });
     });
   });

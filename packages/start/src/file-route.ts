@@ -7,7 +7,7 @@ import {
   type EnsureEffectInput,
   type ParamsForPath,
   type Route,
-  type RouteOptionsInput
+  type RouteOptionsInput,
 } from "@effect-ui/core";
 import { Collection, type AnyCollection } from "@effect-ui/db";
 import { Data, Effect } from "effect";
@@ -20,15 +20,13 @@ type CheckedFileRoutePreload<Options> = Options extends {
 
 type SchemaType<S> = S extends { readonly Type: infer A } ? A : unknown;
 
-type FileRouteOptionsParams<Options, Fallback> =
-  Options extends { readonly params: infer Schema }
-    ? SchemaType<Schema>
-    : Fallback;
+type FileRouteOptionsParams<Options, Fallback> = Options extends { readonly params: infer Schema }
+  ? SchemaType<Schema>
+  : Fallback;
 
-type FileRouteOptionsSearch<Options, Fallback> =
-  Options extends { readonly search: infer Schema }
-    ? SchemaType<Schema>
-    : Fallback;
+type FileRouteOptionsSearch<Options, Fallback> = Options extends { readonly search: infer Schema }
+  ? SchemaType<Schema>
+  : Fallback;
 
 type FileRouteContext<Path extends string, Params, Search> = Route.Context<
   Route.Definition<Path, Params, Search, any>
@@ -45,25 +43,33 @@ type ResourceRefFactory = ((input: any) => unknown) & {
 type ResourceInput<F extends ResourceRefFactory> = Parameters<F>[0];
 
 type ResourceRefFromFactory<F extends ResourceRefFactory> =
-  ReturnType<F> extends Resource.Ref<any, any, any, any>
-    ? ReturnType<F>
-    : never;
+  ReturnType<F> extends Resource.Ref<any, any, any, any> ? ReturnType<F> : never;
 
 type ResourceRefRequirements<Ref> = Ref extends Resource.AnyRef<infer R> ? R : never;
 
-type ResourcePreloadRequirements<Resources> =
-  Resources extends readonly FileRoutePreloadResource<any, infer Ref, any, any>[]
-    ? ResourceRefRequirements<Ref>
-    : never;
+type ResourcePreloadRequirements<Resources> = Resources extends readonly FileRoutePreloadResource<
+  any,
+  infer Ref,
+  any,
+  any
+>[]
+  ? ResourceRefRequirements<Ref>
+  : never;
 
 type CollectionPreloadRequirements<Collections> =
   Collections extends readonly (infer CollectionInput)[]
-    ? CollectionInput extends AnyCollection<any, infer R> ? R : never
+    ? CollectionInput extends AnyCollection<any, infer R>
+      ? R
+      : never
     : never;
 
 type FileRoutePreloadRequirements<Options> =
-  ResourcePreloadRequirements<Options extends { readonly resources: infer Resources } ? Resources : never> |
-  CollectionPreloadRequirements<Options extends { readonly collections: infer Collections } ? Collections : never>;
+  | ResourcePreloadRequirements<
+      Options extends { readonly resources: infer Resources } ? Resources : never
+    >
+  | CollectionPreloadRequirements<
+      Options extends { readonly collections: infer Collections } ? Collections : never
+    >;
 
 /**
  * Route options accepted by `defineFileRoute(path).preload(...).route(...)`.
@@ -81,10 +87,10 @@ type FileRoutePreloadDefinition<Path extends string, Params, Search, Requirement
   readonly preloadResources: readonly Route.PreloadResourceInput[];
   readonly preloadCollections: readonly Route.PreloadCollectionInput[];
   readonly preload: (
-    context: FileRouteContext<Path, Params, Search>
+    context: FileRouteContext<Path, Params, Search>,
   ) => Effect.Effect<void, never, Requirements>;
   readonly route: <const Options extends FileRoutePreloadRouteOptions = {}>(
-    options?: Options
+    options?: Options,
   ) => Route.Definition<Path, Params, Search, Requirements>;
 };
 
@@ -93,7 +99,7 @@ export interface FileRoutePreloadResource<
   Path extends string = string,
   Ref extends Resource.AnyRef<any> = Resource.AnyRef<any>,
   Params = unknown,
-  Search = unknown
+  Search = unknown,
 > {
   readonly family: Route.PreloadResourceInput;
   readonly refs: (context: FileRouteContext<Path, Params, Search>) => readonly Ref[];
@@ -103,21 +109,25 @@ export interface FileRoutePreloadResource<
 export interface FileRoutePreloadOptions<
   Path extends string = string,
   Params = unknown,
-  Search = unknown
+  Search = unknown,
 > {
   /** Resource selectors to declare in metadata and prefetch during route preload. */
-  readonly resources?: readonly FileRoutePreloadResource<Path, Resource.AnyRef<any>, Params, Search>[];
+  readonly resources?: readonly FileRoutePreloadResource<
+    Path,
+    Resource.AnyRef<any>,
+    Params,
+    Search
+  >[];
   /** Concrete collections or stable collection names to declare in route preload metadata. */
   readonly collections?: readonly Route.PreloadCollectionInput[];
 }
 
-type FileRouteResourceHelper<Path extends string, Params, Search> =
-  <const Family extends ResourceRefFactory>(
-    family: Family,
-    input: (
-      context: FileRouteContext<Path, Params, Search>
-    ) => ResourceInput<Family>
-  ) => FileRoutePreloadResource<Path, ResourceRefFromFactory<Family>, Params, Search>;
+type FileRouteResourceHelper<Path extends string, Params, Search> = <
+  const Family extends ResourceRefFactory,
+>(
+  family: Family,
+  input: (context: FileRouteContext<Path, Params, Search>) => ResourceInput<Family>,
+) => FileRoutePreloadResource<Path, ResourceRefFromFactory<Family>, Params, Search>;
 
 /** Error raised by the file-route preload helper before core wraps it as a route preload failure. */
 export class FileRoutePreloadError extends Data.TaggedError("FileRoutePreloadError")<{
@@ -131,9 +141,8 @@ const fileRoutePreloadError = (
   path: string,
   operation: FileRoutePreloadError["operation"],
   cause: unknown,
-  guidance: string
-): FileRoutePreloadError =>
-  new FileRoutePreloadError({ path, operation, cause, guidance });
+  guidance: string,
+): FileRoutePreloadError => new FileRoutePreloadError({ path, operation, cause, guidance });
 
 const fileRouteResourceSelectorGuidance =
   "File route resource selectors must return an array of Resource refs synchronously. Move async work into the resource loader with Effect.tryPromise(...).";
@@ -141,7 +150,7 @@ const fileRouteResourceSelectorGuidance =
 const resourcePreloadEffect = <Path extends string>(
   path: Path,
   resource: FileRoutePreloadResource<Path, Resource.AnyRef<any>, unknown, unknown>,
-  context: FileRouteContext<Path, unknown, unknown>
+  context: FileRouteContext<Path, unknown, unknown>,
 ): Effect.Effect<void, unknown, unknown> =>
   Effect.flatMap(
     Effect.try({
@@ -152,7 +161,7 @@ const resourcePreloadEffect = <Path extends string>(
             path,
             "resource-selector",
             refs,
-            fileRouteResourceSelectorGuidance
+            fileRouteResourceSelectorGuidance,
           );
         }
         if (!Array.isArray(refs)) {
@@ -160,7 +169,7 @@ const resourcePreloadEffect = <Path extends string>(
             path,
             "resource-selector",
             new TypeError("File route resource selectors must return an array of Resource refs."),
-            fileRouteResourceSelectorGuidance
+            fileRouteResourceSelectorGuidance,
           );
         }
         return refs;
@@ -172,17 +181,16 @@ const resourcePreloadEffect = <Path extends string>(
               path,
               "resource-selector",
               cause,
-              fileRouteResourceSelectorGuidance
-            )
+              fileRouteResourceSelectorGuidance,
+            ),
     }),
-    (refs) =>
-      Effect.all(refs.map((ref) => Resource.prefetchEffect(ref))).pipe(Effect.asVoid)
+    (refs) => Effect.all(refs.map((ref) => Resource.prefetchEffect(ref))).pipe(Effect.asVoid),
   );
 
 const customPreloadEffect = <Path extends string>(
   path: Path,
   preload: (context: FileRouteContext<Path, unknown, unknown>) => unknown,
-  context: FileRouteContext<Path, unknown, unknown>
+  context: FileRouteContext<Path, unknown, unknown>,
 ): Effect.Effect<void, unknown, unknown> =>
   Effect.flatMap(
     Effect.try({
@@ -192,8 +200,8 @@ const customPreloadEffect = <Path extends string>(
           path,
           "custom-preload",
           cause,
-          "File route preload callbacks must return a value or Effect. Synchronous throws are reported through RoutePreloadError."
-        )
+          "File route preload callbacks must return a value or Effect. Synchronous throws are reported through RoutePreloadError.",
+        ),
     }),
     (input) => {
       if (isPromiseLikeValue(input)) {
@@ -202,19 +210,19 @@ const customPreloadEffect = <Path extends string>(
             path,
             "custom-preload",
             undefined,
-            "File route preload callbacks must return an Effect, not a Promise. Wrap host Promise work with Effect.tryPromise(...) at the preload Adapter seam."
-          )
+            "File route preload callbacks must return an Effect, not a Promise. Wrap host Promise work with Effect.tryPromise(...) at the preload Adapter seam.",
+          ),
         );
       }
 
       return toEffect(input as never).pipe(Effect.asVoid);
-    }
+    },
   );
 
 /** Builder returned from `defineFileRoute(path)` with preload ergonomics helpers. */
 export interface DefineFileRouteBuilder<Path extends string> {
   <const Options extends RouteOptionsInput>(
-    options: Options & CheckedFileRoutePreload<Options>
+    options: Options & CheckedFileRoutePreload<Options>,
   ): Route.Definition<
     Path,
     FileRouteOptionsParams<Options, ParamsForPath<Path>>,
@@ -233,9 +241,14 @@ export interface DefineFileRouteBuilder<Path extends string> {
   readonly resource: <const Family extends ResourceRefFactory>(
     family: Family,
     input: (
-      context: FileRouteContext<Path, ParamsForPath<Path>, Record<string, never>>
-    ) => ResourceInput<Family>
-  ) => FileRoutePreloadResource<Path, ResourceRefFromFactory<Family>, ParamsForPath<Path>, Record<string, never>>;
+      context: FileRouteContext<Path, ParamsForPath<Path>, Record<string, never>>,
+    ) => ResourceInput<Family>,
+  ) => FileRoutePreloadResource<
+    Path,
+    ResourceRefFromFactory<Family>,
+    ParamsForPath<Path>,
+    Record<string, never>
+  >;
   /**
    * Attaches declared resources/collections and optional custom Effect preload.
    *
@@ -245,8 +258,15 @@ export interface DefineFileRouteBuilder<Path extends string> {
    */
   readonly preload: {
     <
-      const Resources extends readonly FileRoutePreloadResource<Path, Resource.AnyRef<any>, ParamsForPath<Path>, Record<string, never>>[] | undefined = undefined,
-      const Collections extends readonly Route.PreloadCollectionInput[] | undefined = undefined
+      const Resources extends
+        | readonly FileRoutePreloadResource<
+            Path,
+            Resource.AnyRef<any>,
+            ParamsForPath<Path>,
+            Record<string, never>
+          >[]
+        | undefined = undefined,
+      const Collections extends readonly Route.PreloadCollectionInput[] | undefined = undefined,
     >(options: {
       readonly resources?: Resources;
       readonly collections?: Collections;
@@ -257,34 +277,45 @@ export interface DefineFileRouteBuilder<Path extends string> {
       ResourcePreloadRequirements<Resources> | CollectionPreloadRequirements<Collections>
     >;
     <
-      const Resources extends readonly FileRoutePreloadResource<Path, Resource.AnyRef<any>, ParamsForPath<Path>, Record<string, never>>[] | undefined = undefined,
+      const Resources extends
+        | readonly FileRoutePreloadResource<
+            Path,
+            Resource.AnyRef<any>,
+            ParamsForPath<Path>,
+            Record<string, never>
+          >[]
+        | undefined = undefined,
       const Collections extends readonly Route.PreloadCollectionInput[] | undefined = undefined,
-      Out = unknown
+      Out = unknown,
     >(
       options: {
         readonly resources?: Resources;
         readonly collections?: Collections;
       },
-      preload: (context: FileRouteContext<Path, ParamsForPath<Path>, Record<string, never>>) => EnsureEffectInput<Out>
+      preload: (
+        context: FileRouteContext<Path, ParamsForPath<Path>, Record<string, never>>,
+      ) => EnsureEffectInput<Out>,
     ): FileRoutePreloadDefinition<
       Path,
       ParamsForPath<Path>,
       Record<string, never>,
-      ResourcePreloadRequirements<Resources> |
-      CollectionPreloadRequirements<Collections> |
-      EffectInputRequirements<Out>
+      | ResourcePreloadRequirements<Resources>
+      | CollectionPreloadRequirements<Collections>
+      | EffectInputRequirements<Out>
     >;
     <
       const ParamsSchema extends NonNullable<RouteOptionsInput["params"]>,
       const SearchSchema extends NonNullable<RouteOptionsInput["search"]>,
-      const Resources extends readonly FileRoutePreloadResource<
-        Path,
-        Resource.AnyRef<any>,
-        SchemaType<ParamsSchema>,
-        SchemaType<SearchSchema>
-      >[] | undefined = undefined,
+      const Resources extends
+        | readonly FileRoutePreloadResource<
+            Path,
+            Resource.AnyRef<any>,
+            SchemaType<ParamsSchema>,
+            SchemaType<SearchSchema>
+          >[]
+        | undefined = undefined,
       const Collections extends readonly Route.PreloadCollectionInput[] | undefined = undefined,
-      Out = unknown
+      Out = unknown,
     >(
       options: {
         readonly params: ParamsSchema;
@@ -299,12 +330,8 @@ export interface DefineFileRouteBuilder<Path extends string> {
         readonly collections?: Collections;
       },
       preload?: (
-        context: FileRouteContext<
-          Path,
-          SchemaType<ParamsSchema>,
-          SchemaType<SearchSchema>
-        >
-      ) => EnsureEffectInput<Out>
+        context: FileRouteContext<Path, SchemaType<ParamsSchema>, SchemaType<SearchSchema>>,
+      ) => EnsureEffectInput<Out>,
     ): {
       readonly params: ParamsSchema;
       readonly search: SearchSchema;
@@ -312,20 +339,22 @@ export interface DefineFileRouteBuilder<Path extends string> {
       Path,
       SchemaType<ParamsSchema>,
       SchemaType<SearchSchema>,
-      ResourcePreloadRequirements<Resources> |
-      CollectionPreloadRequirements<Collections> |
-      EffectInputRequirements<Out>
+      | ResourcePreloadRequirements<Resources>
+      | CollectionPreloadRequirements<Collections>
+      | EffectInputRequirements<Out>
     >;
     <
       const ParamsSchema extends NonNullable<RouteOptionsInput["params"]>,
-      const Resources extends readonly FileRoutePreloadResource<
-        Path,
-        Resource.AnyRef<any>,
-        SchemaType<ParamsSchema>,
-        Record<string, never>
-      >[] | undefined = undefined,
+      const Resources extends
+        | readonly FileRoutePreloadResource<
+            Path,
+            Resource.AnyRef<any>,
+            SchemaType<ParamsSchema>,
+            Record<string, never>
+          >[]
+        | undefined = undefined,
       const Collections extends readonly Route.PreloadCollectionInput[] | undefined = undefined,
-      Out = unknown
+      Out = unknown,
     >(
       options: {
         readonly params: ParamsSchema;
@@ -339,37 +368,31 @@ export interface DefineFileRouteBuilder<Path extends string> {
         readonly collections?: Collections;
       },
       preload?: (
-        context: FileRouteContext<
-          Path,
-          SchemaType<ParamsSchema>,
-          Record<string, never>
-        >
-      ) => EnsureEffectInput<Out>
+        context: FileRouteContext<Path, SchemaType<ParamsSchema>, Record<string, never>>,
+      ) => EnsureEffectInput<Out>,
     ): {
       readonly params: ParamsSchema;
     } & FileRoutePreloadDefinition<
       Path,
       SchemaType<ParamsSchema>,
       Record<string, never>,
-      ResourcePreloadRequirements<Resources> |
-      CollectionPreloadRequirements<Collections> |
-      EffectInputRequirements<Out>
+      | ResourcePreloadRequirements<Resources>
+      | CollectionPreloadRequirements<Collections>
+      | EffectInputRequirements<Out>
     >;
   };
 }
 
 const makeDefineFileRouteBuilder = <const Path extends string>(
-  path: Path
+  path: Path,
 ): DefineFileRouteBuilder<Path> => {
   const builder = (<const Options extends RouteOptionsInput>(
-    options: Options & CheckedFileRoutePreload<Options>
+    options: Options & CheckedFileRoutePreload<Options>,
   ) => route<Path, Options>(path, options)) as DefineFileRouteBuilder<Path>;
 
   const makeResource = <const Family extends ResourceRefFactory>(
     family: Family,
-    input: (
-      context: FileRouteContext<Path, unknown, unknown>
-    ) => ResourceInput<Family>
+    input: (context: FileRouteContext<Path, unknown, unknown>) => ResourceInput<Family>,
   ): FileRoutePreloadResource<Path, ResourceRefFromFactory<Family>, unknown, unknown> => ({
     family: { name: family.family.options.name },
     refs: (context) => {
@@ -379,24 +402,27 @@ const makeDefineFileRouteBuilder = <const Path extends string>(
           path,
           "resource-selector",
           undefined,
-          "File route resource selectors must return resource input synchronously, not a Promise. Move async work into the resource loader with Effect.tryPromise(...)."
+          "File route resource selectors must return resource input synchronously, not a Promise. Move async work into the resource loader with Effect.tryPromise(...).",
         );
       }
 
       return [family(selectedInput) as ResourceRefFromFactory<Family>];
-    }
+    },
   });
 
   Object.defineProperties(builder, {
     resource: {
       enumerable: true,
-      value: makeResource
+      value: makeResource,
     },
     preload: {
       enumerable: true,
-      value: <const Options extends FileRoutePreloadOptions<Path, unknown, unknown> & Record<string, unknown>>(
+      value: <
+        const Options extends FileRoutePreloadOptions<Path, unknown, unknown> &
+          Record<string, unknown>,
+      >(
         options: Options,
-        preload?: (context: FileRouteContext<Path, unknown, unknown>) => unknown
+        preload?: (context: FileRouteContext<Path, unknown, unknown>) => unknown,
       ) => {
         const {
           resources: resourceInput,
@@ -405,13 +431,20 @@ const makeDefineFileRouteBuilder = <const Path extends string>(
         } = options as Options & {
           readonly resources?:
             | readonly FileRoutePreloadResource<Path, Resource.AnyRef<any>, unknown, unknown>[]
-            | ((helpers: { readonly resource: typeof makeResource }) =>
-              readonly FileRoutePreloadResource<Path, Resource.AnyRef<any>, unknown, unknown>[]);
+            | ((helpers: {
+                readonly resource: typeof makeResource;
+              }) => readonly FileRoutePreloadResource<
+                Path,
+                Resource.AnyRef<any>,
+                unknown,
+                unknown
+              >[]);
           readonly collections?: readonly Route.PreloadCollectionInput[];
         };
-        const resources = typeof resourceInput === "function"
-          ? resourceInput({ resource: makeResource })
-          : resourceInput;
+        const resources =
+          typeof resourceInput === "function"
+            ? resourceInput({ resource: makeResource })
+            : resourceInput;
 
         const definition = {
           ...routeOptions,
@@ -436,22 +469,22 @@ const makeDefineFileRouteBuilder = <const Path extends string>(
               never,
               FileRoutePreloadRequirements<Options>
             >;
-          }
+          },
         };
         Object.defineProperty(definition, "route", {
           enumerable: false,
           value: <const RouteOptions extends FileRoutePreloadRouteOptions = {}>(
-            routeDefinitionOptions: RouteOptions = {} as RouteOptions
+            routeDefinitionOptions: RouteOptions = {} as RouteOptions,
           ) =>
             route(path, {
               ...definition,
-              ...routeDefinitionOptions
-            } as RouteOptionsInput)
+              ...routeDefinitionOptions,
+            } as RouteOptionsInput),
         });
 
         return definition;
-      }
-    }
+      },
+    },
   });
 
   return builder;
@@ -498,30 +531,29 @@ export interface FileRouteMetadataDefinition<Options = unknown> {
  * });
  * ```
  */
-export const defineFileRoute =
-  <const Path extends string>(path: Path) =>
-    makeDefineFileRouteBuilder(path);
+export const defineFileRoute = <const Path extends string>(path: Path) =>
+  makeDefineFileRouteBuilder(path);
 
 /** Defines a file-route layout module. */
 export const defineFileRouteLayout = <const Options>(
-  options: Options
+  options: Options,
 ): FileRouteLayoutDefinition<Options> => ({
   _tag: "FileRouteLayout",
-  options
+  options,
 });
 
 /** Defines a file-route error boundary module. */
 export const defineFileRouteErrorBoundary = <const Options>(
-  options: Options
+  options: Options,
 ): FileRouteErrorBoundaryDefinition<Options> => ({
   _tag: "FileRouteErrorBoundary",
-  options
+  options,
 });
 
 /** Defines metadata attached to a file-route module. */
 export const defineFileRouteMetadata = <const Options>(
-  options: Options
+  options: Options,
 ): FileRouteMetadataDefinition<Options> => ({
   _tag: "FileRouteMetadata",
-  options
+  options,
 });

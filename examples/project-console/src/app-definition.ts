@@ -9,22 +9,20 @@ export const ProjectRoute = routeById.route_projects_$id;
 export const projectConsoleAppBaseOptions = {
   routes: routeTree,
   client: { name: "BrowserLive" },
-  server: ProjectApiLive
+  server: ProjectApiLive,
 } as const;
 
 export const projectConsoleEmptyRegistry = {
   actions: [],
-  serverFunctions: []
+  serverFunctions: [],
 } as const;
 
-export const createProjectConsoleApp = <
-  const RegistryInput extends AppDefinitionRegistryInput
->(
-  registry: RegistryInput
+export const createProjectConsoleApp = <const RegistryInput extends AppDefinitionRegistryInput>(
+  registry: RegistryInput,
 ) =>
   defineApp({
     ...projectConsoleAppBaseOptions,
-    registry
+    registry,
   });
 
 export const app = createProjectConsoleApp(projectConsoleEmptyRegistry);

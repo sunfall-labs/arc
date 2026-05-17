@@ -1,9 +1,31 @@
-import { Action, makeRuntime, onDispose, Program, Resource, ResourceFailure, ResourcePending, ResourceStoreDisposeError, RuntimeDisposeError, runWithRuntime } from "@effect-ui/core";
+import {
+  Action,
+  makeRuntime,
+  onDispose,
+  Program,
+  Resource,
+  ResourceFailure,
+  ResourcePending,
+  ResourceStoreDisposeError,
+  RuntimeDisposeError,
+  runWithRuntime,
+} from "@effect-ui/core";
 import { Cause, Context, Deferred, Effect, Fiber, Layer, Stream } from "effect";
 import { createRoot, createSignal } from "solid-js";
 import { createComponent } from "solid-js/web";
 import { describe, expect, it, vi } from "vitest";
-import { createComponentScope, RuntimeProvider, useAction, useProgram, useResource, useResourceSuspense, useRuntime, useRuntimeEffect, useSignal, useStream } from "../src/index.js";
+import {
+  createComponentScope,
+  RuntimeProvider,
+  useAction,
+  useProgram,
+  useResource,
+  useResourceSuspense,
+  useRuntime,
+  useRuntimeEffect,
+  useSignal,
+  useStream,
+} from "../src/index.js";
 
 interface Project {
   readonly id: string;
@@ -20,8 +42,8 @@ const suppressHostThenableFailure = (value: unknown): void => {
   void Effect.runPromise(
     Effect.tryPromise({
       try: () => value as PromiseLike<unknown>,
-      catch: () => undefined
-    }).pipe(Effect.catchCause(() => Effect.void))
+      catch: () => undefined,
+    }).pipe(Effect.catchCause(() => Effect.void)),
   );
 };
 
@@ -35,12 +57,12 @@ describe("solid hooks", () => {
           Effect.sync(() => {
             loads++;
             return { id, name: id === "atlas" ? "Atlas" : id };
-          })
-      })
+          }),
+      }),
     );
     const ProjectById = Resource.family<string, Project, never, ProjectApi>({
       name: "SolidHooks.runtime-bound-resource",
-      load: (id) => ProjectApi.use((api) => api.get(id))
+      load: (id) => ProjectApi.use((api) => api.get(id)),
     });
 
     return Effect.runPromise(
@@ -49,7 +71,7 @@ describe("solid hooks", () => {
           createRoot((rootDispose) => {
             dispose = rootDispose;
             return useResource(ProjectById("atlas"));
-          })
+          }),
         );
 
         const prefetched = yield* project.prefetchEffect();
@@ -60,8 +82,8 @@ describe("solid hooks", () => {
         expect(loads).toBe(2);
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -78,7 +100,7 @@ describe("solid hooks", () => {
         Effect.sync(() => {
           loads++;
           return { id, name: `Atlas ${loads}` };
-        })
+        }),
     });
     const ref = ProjectById("atlas");
 
@@ -91,7 +113,7 @@ describe("solid hooks", () => {
             state = project.state;
             value = project.value;
             prefetchEffect = project.prefetchEffect;
-          })
+          }),
         );
 
         expect(state?.()._tag).toBe("Initial");
@@ -107,8 +129,8 @@ describe("solid hooks", () => {
         expect(loads).toBe(2);
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -121,8 +143,8 @@ describe("solid hooks", () => {
       name: "SolidHooks.resource-mounted-gc-retention",
       load: (id) => Effect.succeed({ id, name: "Atlas" }),
       policy: {
-        gcFor: 10
-      }
+        gcFor: 10,
+      },
     });
     const ref = ProjectById("atlas");
 
@@ -134,7 +156,7 @@ describe("solid hooks", () => {
           dispose = rootDispose;
           const project = useResource(ref, { preload: false });
           value = project.value;
-        })
+        }),
       );
 
       expect(value?.()).toEqual({ id: "atlas", name: "Atlas" });
@@ -142,14 +164,18 @@ describe("solid hooks", () => {
       await vi.advanceTimersByTimeAsync(11);
 
       expect(value?.()).toEqual({ id: "atlas", name: "Atlas" });
-      expect((await Effect.runPromise(runtime.provide(Resource.statusEffect(ref))))._tag).toBe("Success");
+      expect((await Effect.runPromise(runtime.provide(Resource.statusEffect(ref))))._tag).toBe(
+        "Success",
+      );
 
       dispose?.();
       dispose = undefined;
       await vi.advanceTimersByTimeAsync(0);
       await vi.advanceTimersByTimeAsync(11);
 
-      expect((await Effect.runPromise(runtime.provide(Resource.statusEffect(ref))))._tag).toBe("Initial");
+      expect((await Effect.runPromise(runtime.provide(Resource.statusEffect(ref))))._tag).toBe(
+        "Initial",
+      );
     } finally {
       dispose?.();
       vi.useRealTimers();
@@ -164,7 +190,7 @@ describe("solid hooks", () => {
     let observed: typeof failure | undefined;
     const ProjectById = Resource.family<string, Project, typeof failure>({
       name: "SolidHooks.resource-preload-failure",
-      load: () => Effect.fail(failure)
+      load: () => Effect.fail(failure),
     });
 
     return Effect.runPromise(
@@ -175,9 +201,9 @@ describe("solid hooks", () => {
             return useResource(ProjectById("atlas"), {
               onPreloadFailure: (error) => {
                 observed = error;
-              }
+              },
             });
-          })
+          }),
         );
 
         yield* Effect.sleep("20 millis");
@@ -186,8 +212,8 @@ describe("solid hooks", () => {
         expect(observed).toBe(failure);
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -198,10 +224,7 @@ describe("solid hooks", () => {
     const failure = { _tag: "SolidHooksPreloadFailedForRef" } as const;
     const ProjectById = Resource.family<string, Project, typeof failure>({
       name: "SolidHooks.resource-preload-failure-keyed",
-      load: (id) =>
-        id === "fail"
-          ? Effect.fail(failure)
-          : Effect.succeed({ id, name: "Atlas" })
+      load: (id) => (id === "fail" ? Effect.fail(failure) : Effect.succeed({ id, name: "Atlas" })),
     });
 
     return Effect.runPromise(
@@ -214,7 +237,7 @@ describe("solid hooks", () => {
             const [projectId, setId] = createSignal("fail");
             setProjectId = setId;
             return useResource(() => ProjectById(projectId()));
-          })
+          }),
         );
 
         yield* Effect.sleep("20 millis");
@@ -228,8 +251,8 @@ describe("solid hooks", () => {
         expect(project.preloadFailure()).toBeUndefined();
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -240,10 +263,7 @@ describe("solid hooks", () => {
     const started = Effect.runSync(Deferred.make<void>());
     const ProjectById = Resource.family<string, Project>({
       name: "SolidHooks.resource-preload-reactive-enable",
-      load: (id) =>
-        Deferred.succeed(started, undefined).pipe(
-          Effect.as({ id, name: "Atlas" })
-        )
+      load: (id) => Deferred.succeed(started, undefined).pipe(Effect.as({ id, name: "Atlas" })),
     });
 
     return Effect.runPromise(
@@ -256,9 +276,9 @@ describe("solid hooks", () => {
             return useResource(ProjectById("atlas"), {
               get preload() {
                 return preload();
-              }
+              },
             });
-          })
+          }),
         );
 
         yield* Effect.sleep("20 millis");
@@ -267,11 +287,13 @@ describe("solid hooks", () => {
         setPreload?.(true);
         project.state();
         yield* Deferred.await(started);
-        yield* Effect.promise(() => vi.waitFor(() => expect(project.value()).toEqual({ id: "atlas", name: "Atlas" })));
+        yield* Effect.promise(() =>
+          vi.waitFor(() => expect(project.value()).toEqual({ id: "atlas", name: "Atlas" })),
+        );
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -289,8 +311,8 @@ describe("solid hooks", () => {
           () =>
             Effect.sync(() => {
               releases++;
-            })
-        ).pipe(Effect.andThen(Effect.never))
+            }),
+        ).pipe(Effect.andThen(Effect.never)),
     });
 
     return Effect.runPromise(
@@ -303,9 +325,9 @@ describe("solid hooks", () => {
             return useResource(ProjectById("atlas"), {
               get preload() {
                 return preload();
-              }
+              },
             });
-          })
+          }),
         );
 
         yield* Deferred.await(started);
@@ -314,8 +336,8 @@ describe("solid hooks", () => {
         yield* Effect.promise(() => vi.waitFor(() => expect(releases).toBe(1)));
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -328,7 +350,7 @@ describe("solid hooks", () => {
     const observed: string[] = [];
     const ProjectById = Resource.family<string, Project, typeof failure>({
       name: "SolidHooks.resource-preload-reactive-observer",
-      load: () => Deferred.await(release).pipe(Effect.andThen(Effect.fail(failure)))
+      load: () => Deferred.await(release).pipe(Effect.andThen(Effect.fail(failure))),
     });
 
     return Effect.runPromise(
@@ -344,22 +366,24 @@ describe("solid hooks", () => {
                 return () => {
                   observed.push(name);
                 };
-              }
+              },
             });
-          })
+          }),
         );
 
         yield* Effect.sleep("20 millis");
         setObserverName?.("second");
         project.state();
         yield* Deferred.succeed(release, undefined);
-        yield* Effect.promise(() => vi.waitFor(() => expect(project.preloadFailure()).toBe(failure)));
+        yield* Effect.promise(() =>
+          vi.waitFor(() => expect(project.preloadFailure()).toBe(failure)),
+        );
 
         expect(observed).toEqual(["second"]);
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -368,7 +392,7 @@ describe("solid hooks", () => {
     const runtime = makeRuntime();
     const ProjectById = Resource.family<string, Project>({
       name: "SolidHooks.runtime-bound-suspense",
-      load: (id) => Effect.succeed({ id, name: "Atlas" })
+      load: (id) => Effect.succeed({ id, name: "Atlas" }),
     });
 
     return Effect.runPromise(
@@ -380,14 +404,14 @@ describe("solid hooks", () => {
             dispose = rootDispose;
             const readProject = useResourceSuspense(ProjectById("atlas"));
             return readProject();
-          })
+          }),
         );
 
         expect(value).toEqual({ id: "atlas", name: "Atlas" });
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -397,10 +421,7 @@ describe("solid hooks", () => {
     const runtime = makeRuntime();
     const ProjectById = Resource.family<string, Project, string>({
       name: "SolidHooks.suspense-stale-failure",
-      load: (id) =>
-        fail
-          ? Effect.fail("offline")
-          : Effect.succeed({ id, name: "Atlas" })
+      load: (id) => (fail ? Effect.fail("offline") : Effect.succeed({ id, name: "Atlas" })),
     });
     const ref = ProjectById("atlas");
 
@@ -412,7 +433,7 @@ describe("solid hooks", () => {
           createRoot((rootDispose) => {
             dispose = rootDispose;
             return useResourceSuspense(ref);
-          })
+          }),
         );
 
         expect(readProject()).toEqual({ id: "atlas", name: "Atlas" });
@@ -427,13 +448,13 @@ describe("solid hooks", () => {
           expect(error).toBeInstanceOf(ResourceFailure);
           expect(error).toMatchObject({
             error: "offline",
-            previous: { id: "atlas", name: "Atlas" }
+            previous: { id: "atlas", name: "Atlas" },
           });
         }
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -453,8 +474,8 @@ describe("solid hooks", () => {
               return yield* Effect.never;
             }).pipe(
               Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined)),
-              Effect.as({ id, name: "Atlas" })
-            )
+              Effect.as({ id, name: "Atlas" }),
+            ),
         });
 
         runWithRuntime(runtime, () =>
@@ -467,7 +488,7 @@ describe("solid hooks", () => {
               thrown = error;
               suppressHostThenableFailure(error);
             }
-          })
+          }),
         );
 
         expect(thrown).toBeInstanceOf(Promise);
@@ -476,13 +497,13 @@ describe("solid hooks", () => {
         const interruptedBeforeRuntimeDispose = yield* Deferred.await(interrupted).pipe(
           Effect.as(true),
           Effect.timeout("200 millis"),
-          Effect.catch(() => Effect.succeed(false))
+          Effect.catch(() => Effect.succeed(false)),
         );
 
         expect(interruptedBeforeRuntimeDispose).toBe(false);
         yield* runtime.disposeEffect;
         yield* Deferred.await(interrupted);
-      })
+      }),
     ));
 
   it("detaches stale suspense preload work when the ref changes to a loaded resource", () =>
@@ -503,9 +524,9 @@ describe("solid hooks", () => {
                   return yield* Effect.never;
                 }).pipe(
                   Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined)),
-                  Effect.as({ id, name: "Slow" })
+                  Effect.as({ id, name: "Slow" }),
                 )
-              : Effect.succeed({ id, name: "Fast" })
+              : Effect.succeed({ id, name: "Fast" }),
         });
 
         yield* runtime.provide(Resource.prefetchEffect(ProjectById("fast")));
@@ -521,7 +542,7 @@ describe("solid hooks", () => {
             } catch (error) {
               suppressHostThenableFailure(error);
             }
-          })
+          }),
         );
 
         yield* Deferred.await(started);
@@ -530,14 +551,14 @@ describe("solid hooks", () => {
         const interruptedBeforeRuntimeDispose = yield* Deferred.await(interrupted).pipe(
           Effect.as(true),
           Effect.timeout("200 millis"),
-          Effect.catch(() => Effect.succeed(false))
+          Effect.catch(() => Effect.succeed(false)),
         );
 
         expect(interruptedBeforeRuntimeDispose).toBe(false);
         dispose?.();
         yield* runtime.disposeEffect;
         yield* Deferred.await(interrupted);
-      })
+      }),
     ));
 
   it("creates an owned runtime for default RuntimeProvider instances", () =>
@@ -548,7 +569,7 @@ describe("solid hooks", () => {
         let secondRuntime: ReturnType<typeof useRuntime> | undefined;
         const ProjectById = Resource.family<string, Project>({
           name: "SolidHooks.default-provider-runtime",
-          load: (id) => Effect.succeed({ id, name: "Atlas" })
+          load: (id) => Effect.succeed({ id, name: "Atlas" }),
         });
         const ref = ProjectById("atlas");
 
@@ -558,13 +579,13 @@ describe("solid hooks", () => {
             get children() {
               firstRuntime = useRuntime();
               return undefined;
-            }
+            },
           });
           createComponent(RuntimeProvider, {
             get children() {
               secondRuntime = useRuntime();
               return undefined;
-            }
+            },
           });
         });
 
@@ -577,7 +598,7 @@ describe("solid hooks", () => {
         expect(runWithRuntime(firstRuntime!, () => Resource.status(ref)._tag)).toBe("Success");
         expect(runWithRuntime(secondRuntime!, () => Resource.status(ref)._tag)).toBe("Initial");
         dispose?.();
-      })
+      }),
     ));
 
   it("reports provider-owned Solid runtime disposal failures to Effect observers", () =>
@@ -592,11 +613,14 @@ describe("solid hooks", () => {
             onDisposeFailure: (error) => Deferred.succeed(observed, error),
             get children() {
               const runtime = useRuntime();
-              runtime.resourceStore.moduleRegistry.register(Symbol("solid-provider-dispose-failure"), {
-                disposeEffect: Effect.fail("solid dispose failed")
-              });
+              runtime.resourceStore.moduleRegistry.register(
+                Symbol("solid-provider-dispose-failure"),
+                {
+                  disposeEffect: Effect.fail("solid dispose failed"),
+                },
+              );
               return undefined;
-            }
+            },
           });
         });
 
@@ -608,10 +632,12 @@ describe("solid hooks", () => {
           const storeError = error.cause.reasons.find(Cause.isFailReason)?.error;
           expect(storeError).toBeInstanceOf(ResourceStoreDisposeError);
           if (storeError instanceof ResourceStoreDisposeError) {
-            expect(storeError.cause.reasons.find(Cause.isFailReason)?.error).toBe("solid dispose failed");
+            expect(storeError.cause.reasons.find(Cause.isFailReason)?.error).toBe(
+              "solid dispose failed",
+            );
           }
         }
-      })
+      }),
     ));
 
   it("binds service-backed streams to the Solid runtime", () =>
@@ -621,36 +647,38 @@ describe("solid hooks", () => {
         const emitted = yield* Deferred.make<void>();
         const runtime = makeRuntime(
           Layer.succeed(ProjectApi)({
-            get: (id) => Effect.succeed({ id, name: "Atlas" })
-          })
+            get: (id) => Effect.succeed({ id, name: "Atlas" }),
+          }),
         );
 
         const name = runWithRuntime(runtime, () =>
           createRoot((rootDispose) => {
             dispose = rootDispose;
             return useStream(
-              Stream.fromEffect(ProjectApi.use((api) => api.get("atlas")).pipe(
-                Effect.map((project) => project.name),
-                Effect.tap(() => Deferred.succeed(emitted, undefined))
-              )),
-              "loading"
+              Stream.fromEffect(
+                ProjectApi.use((api) => api.get("atlas")).pipe(
+                  Effect.map((project) => project.name),
+                  Effect.tap(() => Deferred.succeed(emitted, undefined)),
+                ),
+              ),
+              "loading",
             );
-          })
+          }),
         );
 
         yield* Deferred.await(emitted);
         expect(name()).toBe("Atlas");
         dispose?.();
         yield* runtime.disposeEffect;
-      })
+      }),
     ));
 
   it("forks fire-and-forget Effects with the Solid runtime", async () => {
     let dispose: (() => void) | undefined;
     const runtime = makeRuntime(
       Layer.succeed(ProjectApi)({
-        get: (id) => Effect.succeed({ id, name: "Atlas" })
-      })
+        get: (id) => Effect.succeed({ id, name: "Atlas" }),
+      }),
     );
 
     await Effect.runPromise(
@@ -660,15 +688,15 @@ describe("solid hooks", () => {
             dispose = rootDispose;
             const runEffect = useRuntimeEffect();
             return runEffect(ProjectApi.use((api) => api.get("atlas")));
-          })
+          }),
         );
         const project = yield* Fiber.join(fiber);
 
         expect(project).toEqual({ id: "atlas", name: "Atlas" });
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -676,12 +704,21 @@ describe("solid hooks", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         let dispose: (() => void) | undefined;
-        let program: ReturnType<typeof useProgram<{ readonly name: string }, { readonly _tag: "Load" } | { readonly _tag: "Loaded"; readonly project: Project }, never, ProjectApi>> | undefined;
+        let program:
+          | ReturnType<
+              typeof useProgram<
+                { readonly name: string },
+                { readonly _tag: "Load" } | { readonly _tag: "Loaded"; readonly project: Project },
+                never,
+                ProjectApi
+              >
+            >
+          | undefined;
         const loaded = yield* Deferred.make<void>();
         const runtime = makeRuntime(
           Layer.succeed(ProjectApi)({
-            get: (id) => Effect.succeed({ id, name: "Atlas" })
-          })
+            get: (id) => Effect.succeed({ id, name: "Atlas" }),
+          }),
         );
         const definition = Program.define<
           { readonly name: string },
@@ -697,26 +734,26 @@ describe("solid hooks", () => {
                   model,
                   Program.command(
                     ProjectApi.use((api) =>
-                      api.get("atlas").pipe(
-                        Effect.map((project) => ({ _tag: "Loaded", project }) as const)
-                      )
-                    )
-                  )
+                      api
+                        .get("atlas")
+                        .pipe(Effect.map((project) => ({ _tag: "Loaded", project }) as const)),
+                    ),
+                  ),
                 );
               case "Loaded":
                 return Program.next(
                   { name: message.project.name },
-                  Program.effect(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid))
+                  Program.effect(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid)),
                 );
             }
-          }
+          },
         });
 
         runWithRuntime(runtime, () =>
           createRoot((rootDispose) => {
             dispose = rootDispose;
             program = useProgram(definition);
-          })
+          }),
         );
 
         expect(program?.model()).toEqual({ name: "idle" });
@@ -730,7 +767,7 @@ describe("solid hooks", () => {
 
         dispose?.();
         yield* runtime.disposeEffect;
-      })
+      }),
     ));
 
   it("resets active Solid action submissions on owner cleanup", () =>
@@ -747,16 +784,14 @@ describe("solid hooks", () => {
             Effect.gen(function* () {
               yield* Deferred.succeed(started, undefined);
               yield* Effect.never;
-            }).pipe(
-              Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))
-            )
+            }).pipe(Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))),
         });
 
         runWithRuntime(runtime, () =>
           createRoot((rootDispose) => {
             dispose = rootDispose;
             action = useAction(Save);
-          })
+          }),
         );
 
         runtime.runFork(action!.submitEffect(undefined).pipe(Effect.exit));
@@ -764,49 +799,45 @@ describe("solid hooks", () => {
         dispose?.();
         yield* Deferred.await(interrupted);
         yield* runtime.disposeEffect;
-      })
+      }),
     ));
 
-  it("bridges Solid action state through accessors", () =>
-    {
-      const runtime = makeRuntime();
-      let dispose: (() => void) | undefined;
-      let action: ReturnType<typeof useAction<string, string, never, never>> | undefined;
-      const release = Effect.runSync(Deferred.make<void>());
-      const Save = Action.define<string, string>({
-        name: "SolidHooks.action-accessor-state",
-        run: (input) =>
-          Deferred.await(release).pipe(
-            Effect.as(`saved:${input}`)
-          )
-      });
-      return Effect.runPromise(
-        Effect.gen(function* () {
-          runWithRuntime(runtime, () =>
-            createRoot((rootDispose) => {
-              dispose = rootDispose;
-              action = useAction(Save);
-            })
-          );
-
-          yield* Effect.sleep(0);
-          expect(action?.state()._tag).toBe("Idle");
-
-          const fiber = runtime.runFork(action!.submitEffect("atlas"));
-          yield* Effect.sleep(0);
-          expect(action?.state()._tag).toBe("Pending");
-          yield* Deferred.succeed(release, undefined);
-          const saved = yield* Fiber.join(fiber);
-
-          expect(saved).toBe("saved:atlas");
-          expect(action?.state()._tag).toBe("Success");
-          expect(action?.instance.state.get()._tag).toBe("Success");
-        }).pipe(
-          Effect.ensuring(Effect.sync(() => dispose?.())),
-          Effect.ensuring(runtime.disposeEffect)
-        )
-      );
+  it("bridges Solid action state through accessors", () => {
+    const runtime = makeRuntime();
+    let dispose: (() => void) | undefined;
+    let action: ReturnType<typeof useAction<string, string, never, never>> | undefined;
+    const release = Effect.runSync(Deferred.make<void>());
+    const Save = Action.define<string, string>({
+      name: "SolidHooks.action-accessor-state",
+      run: (input) => Deferred.await(release).pipe(Effect.as(`saved:${input}`)),
     });
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        runWithRuntime(runtime, () =>
+          createRoot((rootDispose) => {
+            dispose = rootDispose;
+            action = useAction(Save);
+          }),
+        );
+
+        yield* Effect.sleep(0);
+        expect(action?.state()._tag).toBe("Idle");
+
+        const fiber = runtime.runFork(action!.submitEffect("atlas"));
+        yield* Effect.sleep(0);
+        expect(action?.state()._tag).toBe("Pending");
+        yield* Deferred.succeed(release, undefined);
+        const saved = yield* Fiber.join(fiber);
+
+        expect(saved).toBe("saved:atlas");
+        expect(action?.state()._tag).toBe("Success");
+        expect(action?.instance.state.get()._tag).toBe("Success");
+      }).pipe(
+        Effect.ensuring(Effect.sync(() => dispose?.())),
+        Effect.ensuring(runtime.disposeEffect),
+      ),
+    );
+  });
 
   it("interrupts useRuntimeEffect fibers on component cleanup", async () => {
     let dispose: (() => void) | undefined;
@@ -825,11 +856,9 @@ describe("solid hooks", () => {
               Effect.gen(function* () {
                 yield* Deferred.succeed(started, undefined);
                 yield* Effect.never;
-              }).pipe(
-                Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))
-              )
+              }).pipe(Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))),
             );
-          })
+          }),
         );
 
         yield* Deferred.await(started);
@@ -837,8 +866,8 @@ describe("solid hooks", () => {
         yield* Deferred.await(interrupted);
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -852,7 +881,7 @@ describe("solid hooks", () => {
         Effect.sync(() => {
           loads++;
           return { id, name: "Atlas" };
-        })
+        }),
     });
     const ref = ProjectById("atlas");
 
@@ -867,7 +896,7 @@ describe("solid hooks", () => {
             createComponentScope(() => {
               onDispose(() => Resource.deleteEffect(ref));
             });
-          })
+          }),
         );
 
         dispose?.();
@@ -878,8 +907,8 @@ describe("solid hooks", () => {
         expect(loads).toBe(2);
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -889,7 +918,7 @@ describe("solid hooks", () => {
     const runtime = makeRuntime();
     const ProjectById = Resource.family<string, Project>({
       name: "SolidHooks.resource-delete-state",
-      load: (id) => Effect.succeed({ id, name: "Atlas" })
+      load: (id) => Effect.succeed({ id, name: "Atlas" }),
     });
     const ref = ProjectById("atlas");
 
@@ -900,7 +929,7 @@ describe("solid hooks", () => {
           createRoot((rootDispose) => {
             dispose = rootDispose;
             state = useSignal(Resource.result(ref));
-          })
+          }),
         );
         expect(state?.()._tag).toBe("Success");
 
@@ -908,9 +937,8 @@ describe("solid hooks", () => {
         expect(state?.()._tag).toBe("Initial");
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
-
 });

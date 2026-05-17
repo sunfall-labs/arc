@@ -5,7 +5,7 @@ import type {
   StartAppGraphRouteDiagnostics,
   StartAppGraphResourceFamilyDiagnostics,
   StartAppGraphResourceTagDiagnostics,
-  StartAppGraphServerFunctionDiagnostics
+  StartAppGraphServerFunctionDiagnostics,
 } from "./app-graph.js";
 import { createStartDiagnosticsReport } from "./diagnostics-report.js";
 import type {
@@ -14,7 +14,7 @@ import type {
   StartAgentGraphEdgeKind,
   StartAgentGraphInput,
   StartAgentGraphNode,
-  StartAgentGraphNodeStatus
+  StartAgentGraphNodeStatus,
 } from "./start-agent-graph-contract.js";
 export type {
   StartAgentGraph,
@@ -34,75 +34,53 @@ export type {
   StartAgentGraphQueryKind,
   StartAgentGraphQueryResult,
   StartAgentGraphSelfReview,
-  StartAgentGraphSummary
+  StartAgentGraphSummary,
 } from "./start-agent-graph-contract.js";
 export {
   formatStartAgentGraph,
-  formatStartAgentGraphImpact
+  formatStartAgentGraphImpact,
 } from "./start-agent-graph-formatter.js";
 export {
   createStartAgentGraphImpact,
-  createStartAgentGraphImpactEffect
+  createStartAgentGraphImpactEffect,
 } from "./start-agent-graph-impact.js";
-export {
-  queryStartAgentGraph,
-  queryStartAgentGraphEffect
-} from "./start-agent-graph-query.js";
+export { queryStartAgentGraph, queryStartAgentGraphEffect } from "./start-agent-graph-query.js";
 
 const nodeId = (kind: string, key: string): string => `${kind}:${key}`;
 
-const edgeId = (
-  kind: StartAgentGraphEdgeKind,
-  from: string,
-  to: string,
-  ordinal: number
-): string => `${kind}:${ordinal}:${from}->${to}`;
+const edgeId = (kind: StartAgentGraphEdgeKind, from: string, to: string, ordinal: number): string =>
+  `${kind}:${ordinal}:${from}->${to}`;
 
-const addNode = (
-  nodes: Map<string, StartAgentGraphNode>,
-  node: StartAgentGraphNode
-): void => {
+const addNode = (nodes: Map<string, StartAgentGraphNode>, node: StartAgentGraphNode): void => {
   nodes.set(node.id, node);
 };
 
-const addEdge = (
-  edges: StartAgentGraphEdge[],
-  edge: Omit<StartAgentGraphEdge, "id">
-): void => {
+const addEdge = (edges: StartAgentGraphEdge[], edge: Omit<StartAgentGraphEdge, "id">): void => {
   edges.push({
     ...edge,
-    id: edgeId(edge.kind, edge.from, edge.to, edges.length + 1)
+    id: edgeId(edge.kind, edge.from, edge.to, edges.length + 1),
   });
 };
 
-const statusFromBoolean = (
-  needsAttention: boolean
-): StartAgentGraphNodeStatus =>
+const statusFromBoolean = (needsAttention: boolean): StartAgentGraphNodeStatus =>
   needsAttention ? "needs-attention" : "known";
 
-const actionNeedsAttention = (
-  action: StartAppGraphActionDiagnostics
-): boolean =>
+const actionNeedsAttention = (action: StartAppGraphActionDiagnostics): boolean =>
   !action.wire.complete ||
   action.behavior.invalidates === "unknown" ||
   action.behavior.optimistic === "unknown" ||
   action.behavior.retry === "unknown" ||
   action.behavior.concurrency === "unknown";
 
-const routeNeedsAttention = (
-  route: StartAppGraphRouteDiagnostics
-): boolean =>
+const routeNeedsAttention = (route: StartAppGraphRouteDiagnostics): boolean =>
   route.preload === "present" &&
-  (
-    route.preloadResources.status === "unknown" ||
-    route.preloadCollections.status === "unknown"
-  );
+  (route.preloadResources.status === "unknown" || route.preloadCollections.status === "unknown");
 
 type StartAgentGraphFactRecord = Readonly<Record<string, unknown>>;
 
 const detachFactValue = (
   value: unknown,
-  seen: WeakMap<object, unknown> = new WeakMap()
+  seen: WeakMap<object, unknown> = new WeakMap(),
 ): unknown => {
   if (Array.isArray(value)) {
     const existing = seen.get(value);
@@ -135,115 +113,109 @@ const detachFactValue = (
 };
 
 const startAgentGraphFacts = (
-  facts: Readonly<Record<string, unknown>>
-): StartAgentGraphFactRecord =>
-  detachFactValue(facts) as StartAgentGraphFactRecord;
+  facts: Readonly<Record<string, unknown>>,
+): StartAgentGraphFactRecord => detachFactValue(facts) as StartAgentGraphFactRecord;
 
-const routeFacts = (
-  route: StartAppGraphRouteDiagnostics
-): StartAgentGraphFactRecord => startAgentGraphFacts({
-  routeId: route.routeId,
-  routePath: route.routePath,
-  moduleId: route.moduleId,
-  filePath: route.filePath,
-  params: route.params,
-  paramsSchema: route.paramsSchema,
-  searchSchema: route.searchSchema,
-  preload: route.preload,
-  preloadResources: route.preloadResources,
-  preloadCollections: route.preloadCollections,
-  component: route.component
-});
+const routeFacts = (route: StartAppGraphRouteDiagnostics): StartAgentGraphFactRecord =>
+  startAgentGraphFacts({
+    routeId: route.routeId,
+    routePath: route.routePath,
+    moduleId: route.moduleId,
+    filePath: route.filePath,
+    params: route.params,
+    paramsSchema: route.paramsSchema,
+    searchSchema: route.searchSchema,
+    preload: route.preload,
+    preloadResources: route.preloadResources,
+    preloadCollections: route.preloadCollections,
+    component: route.component,
+  });
 
 const serverFunctionFacts = (
-  serverFunction: StartAppGraphServerFunctionDiagnostics
-): StartAgentGraphFactRecord => startAgentGraphFacts({
-  id: serverFunction.id,
-  name: serverFunction.name,
-  server: serverFunction.server,
-  client: serverFunction.client,
-  wire: serverFunction.wire
-});
+  serverFunction: StartAppGraphServerFunctionDiagnostics,
+): StartAgentGraphFactRecord =>
+  startAgentGraphFacts({
+    id: serverFunction.id,
+    name: serverFunction.name,
+    server: serverFunction.server,
+    client: serverFunction.client,
+    wire: serverFunction.wire,
+  });
 
-const actionFacts = (
-  action: StartAppGraphActionDiagnostics
-): StartAgentGraphFactRecord => startAgentGraphFacts({
-  id: action.id,
-  name: action.name,
-  server: action.server,
-  client: action.client,
-  wire: action.wire,
-  behavior: action.behavior
-});
+const actionFacts = (action: StartAppGraphActionDiagnostics): StartAgentGraphFactRecord =>
+  startAgentGraphFacts({
+    id: action.id,
+    name: action.name,
+    server: action.server,
+    client: action.client,
+    wire: action.wire,
+    behavior: action.behavior,
+  });
 
 const resourceFamilyFacts = (
-  family: StartAppGraphResourceFamilyDiagnostics
-): StartAgentGraphFactRecord => startAgentGraphFacts({
-  name: family.name,
-  inputSchema: family.inputSchema,
-  outputSchema: family.outputSchema,
-  errorSchema: family.errorSchema,
-  providesTags: family.providesTags,
-  policy: family.policy
-});
+  family: StartAppGraphResourceFamilyDiagnostics,
+): StartAgentGraphFactRecord =>
+  startAgentGraphFacts({
+    name: family.name,
+    inputSchema: family.inputSchema,
+    outputSchema: family.outputSchema,
+    errorSchema: family.errorSchema,
+    providesTags: family.providesTags,
+    policy: family.policy,
+  });
 
-const resourceTagFacts = (
-  tag: StartAppGraphResourceTagDiagnostics
-): StartAgentGraphFactRecord => startAgentGraphFacts({
-  name: tag.name,
-  keyed: tag.keyed
-});
+const resourceTagFacts = (tag: StartAppGraphResourceTagDiagnostics): StartAgentGraphFactRecord =>
+  startAgentGraphFacts({
+    name: tag.name,
+    keyed: tag.keyed,
+  });
 
 const collectionFacts = (
-  collection: StartAppGraphCollectionDiagnostics
-): StartAgentGraphFactRecord => startAgentGraphFacts({
-  name: collection.name,
-  readOnly: collection.readOnly,
-  inputSchema: collection.inputSchema,
-  outputSchema: collection.outputSchema,
-  initialData: collection.initialData,
-  indexes: collection.indexes,
-  load: collection.load,
-  handlers: collection.handlers,
-  policy: collection.policy,
-  ...(collection.sync === undefined ? {} : { sync: collection.sync }),
-  persistence: collection.persistence
-});
+  collection: StartAppGraphCollectionDiagnostics,
+): StartAgentGraphFactRecord =>
+  startAgentGraphFacts({
+    name: collection.name,
+    readOnly: collection.readOnly,
+    inputSchema: collection.inputSchema,
+    outputSchema: collection.outputSchema,
+    initialData: collection.initialData,
+    indexes: collection.indexes,
+    load: collection.load,
+    handlers: collection.handlers,
+    policy: collection.policy,
+    ...(collection.sync === undefined ? {} : { sync: collection.sync }),
+    persistence: collection.persistence,
+  });
 
 const findingFacts = (
-  finding: ReturnType<typeof createStartDiagnosticsReport>["findings"][number]
-): StartAgentGraphFactRecord => startAgentGraphFacts({
-  kind: finding.kind,
-  owner: finding.owner,
-  subject: finding.subject,
-  issue: finding.issue,
-  edit: finding.edit,
-  details: finding.details
-});
+  finding: ReturnType<typeof createStartDiagnosticsReport>["findings"][number],
+): StartAgentGraphFactRecord =>
+  startAgentGraphFacts({
+    kind: finding.kind,
+    owner: finding.owner,
+    subject: finding.subject,
+    issue: finding.issue,
+    edit: finding.edit,
+    details: finding.details,
+  });
 
-const moduleNode = (
-  module: string
-): StartAgentGraphNode => ({
+const moduleNode = (module: string): StartAgentGraphNode => ({
   id: nodeId("module", module),
   kind: "Module",
   label: module,
   status: "known",
-  facts: startAgentGraphFacts({ module })
+  facts: startAgentGraphFacts({ module }),
 });
 
-const endpointNode = (
-  kind: "rpc" | "action",
-  path: string
-): StartAgentGraphNode => ({
+const endpointNode = (kind: "rpc" | "action", path: string): StartAgentGraphNode => ({
   id: nodeId("endpoint", kind),
   kind: "Endpoint",
   label: `${kind} ${path}`,
   status: "known",
-  facts: startAgentGraphFacts({ kind, path })
+  facts: startAgentGraphFacts({ kind, path }),
 });
 
-const ownerModule = (owner: string): string =>
-  owner.split("#", 1)[0] ?? owner;
+const ownerModule = (owner: string): string => owner.split("#", 1)[0] ?? owner;
 
 /**
  * Projects Start app graph diagnostics into an agent-readable graph.
@@ -252,9 +224,7 @@ const ownerModule = (owner: string): string =>
  * collections, modules, and diagnostics findings so CLI and repair agents can
  * query ownership and impact without parsing raw manifests.
  */
-export const createStartAgentGraph = (
-  input: StartAgentGraphInput
-): StartAgentGraph => {
+export const createStartAgentGraph = (input: StartAgentGraphInput): StartAgentGraph => {
   const diagnostics = input.diagnostics;
   const report = createStartDiagnosticsReport(input);
   const nodes = new Map<string, StartAgentGraphNode>();
@@ -273,7 +243,7 @@ export const createStartAgentGraph = (
       label: route.routePath,
       status: statusFromBoolean(routeNeedsAttention(route)),
       owner: route.filePath,
-      facts: routeFacts(route)
+      facts: routeFacts(route),
     });
     const moduleId = nodeId("module", route.moduleId);
     addNode(nodes, moduleNode(route.moduleId));
@@ -281,7 +251,7 @@ export const createStartAgentGraph = (
       kind: "ImplementedBy",
       from: routeNodeId,
       to: moduleId,
-      label: "implemented by route module"
+      label: "implemented by route module",
     });
 
     if (route.preloadResources.status === "declared") {
@@ -295,15 +265,15 @@ export const createStartAgentGraph = (
             status: "known",
             facts: startAgentGraphFacts({
               name: family,
-              source: "route preload declaration"
-            })
+              source: "route preload declaration",
+            }),
           });
         }
         addEdge(edges, {
           kind: "PreloadsResourceFamily",
           from: routeNodeId,
           to: familyId,
-          label: "preloads resource family"
+          label: "preloads resource family",
         });
       }
     }
@@ -319,15 +289,15 @@ export const createStartAgentGraph = (
             status: "known",
             facts: startAgentGraphFacts({
               name: collection,
-              source: "route preload declaration"
-            })
+              source: "route preload declaration",
+            }),
           });
         }
         addEdge(edges, {
           kind: "PreloadsCollection",
           from: routeNodeId,
           to: collectionId,
-          label: "preloads collection"
+          label: "preloads collection",
         });
       }
     }
@@ -341,7 +311,7 @@ export const createStartAgentGraph = (
       label: serverFunction.name,
       status: statusFromBoolean(!serverFunction.wire.complete),
       owner: `${serverFunction.server.module}#${serverFunction.server.exportName}`,
-      facts: serverFunctionFacts(serverFunction)
+      facts: serverFunctionFacts(serverFunction),
     });
     const serverModuleId = nodeId("module", serverFunction.server.module);
     addNode(nodes, moduleNode(serverFunction.server.module));
@@ -349,13 +319,13 @@ export const createStartAgentGraph = (
       kind: "ServerImports",
       from: serverFunctionNodeId,
       to: serverModuleId,
-      label: "server implementation module"
+      label: "server implementation module",
     });
     addEdge(edges, {
       kind: "ExposesEndpoint",
       from: serverFunctionNodeId,
       to: rpcEndpoint.id,
-      label: "exposes RPC endpoint"
+      label: "exposes RPC endpoint",
     });
     if (serverFunction.client._tag === "Import") {
       const clientModuleId = nodeId("module", serverFunction.client.module);
@@ -364,7 +334,7 @@ export const createStartAgentGraph = (
         kind: "ClientImports",
         from: serverFunctionNodeId,
         to: clientModuleId,
-        label: "client contract module"
+        label: "client contract module",
       });
     }
   }
@@ -377,7 +347,7 @@ export const createStartAgentGraph = (
       label: action.name,
       status: statusFromBoolean(actionNeedsAttention(action)),
       owner: `${action.server.module}#${action.server.exportName}`,
-      facts: actionFacts(action)
+      facts: actionFacts(action),
     });
     const serverModuleId = nodeId("module", action.server.module);
     addNode(nodes, moduleNode(action.server.module));
@@ -385,13 +355,13 @@ export const createStartAgentGraph = (
       kind: "ServerImports",
       from: actionNodeId,
       to: serverModuleId,
-      label: "server action module"
+      label: "server action module",
     });
     addEdge(edges, {
       kind: "ExposesEndpoint",
       from: actionNodeId,
       to: actionEndpoint.id,
-      label: "exposes action endpoint"
+      label: "exposes action endpoint",
     });
     if (action.client._tag === "Import") {
       const clientModuleId = nodeId("module", action.client.module);
@@ -400,7 +370,7 @@ export const createStartAgentGraph = (
         kind: "ClientImports",
         from: actionNodeId,
         to: clientModuleId,
-        label: "client action module"
+        label: "client action module",
       });
     }
   }
@@ -411,7 +381,7 @@ export const createStartAgentGraph = (
       kind: "ResourceFamily",
       label: family.name,
       status: "known",
-      facts: resourceFamilyFacts(family)
+      facts: resourceFamilyFacts(family),
     });
   }
 
@@ -421,7 +391,7 @@ export const createStartAgentGraph = (
       kind: "ResourceTag",
       label: tag.name,
       status: "known",
-      facts: resourceTagFacts(tag)
+      facts: resourceTagFacts(tag),
     });
   }
 
@@ -431,7 +401,7 @@ export const createStartAgentGraph = (
       kind: "Collection",
       label: collection.name,
       status: "known",
-      facts: collectionFacts(collection)
+      facts: collectionFacts(collection),
     });
   }
 
@@ -443,7 +413,7 @@ export const createStartAgentGraph = (
       label: `${finding.kind}: ${finding.subject}`,
       status: "needs-attention",
       owner: finding.owner,
-      facts: findingFacts(finding)
+      facts: findingFacts(finding),
     });
     const moduleId = nodeId("module", ownerModule(finding.owner));
     if (!nodes.has(moduleId)) {
@@ -453,16 +423,16 @@ export const createStartAgentGraph = (
       kind: "ReportsOn",
       from: findingNodeId,
       to: moduleId,
-      label: "reports on owner"
+      label: "reports on owner",
     });
   });
 
-  const nodeList = Array.from(nodes.values())
-    .sort((left, right) =>
+  const nodeList = Array.from(nodes.values()).sort(
+    (left, right) =>
       left.kind.localeCompare(right.kind) ||
       left.label.localeCompare(right.label) ||
-      left.id.localeCompare(right.id)
-    );
+      left.id.localeCompare(right.id),
+  );
   const findings = report.findings;
 
   return {
@@ -476,7 +446,7 @@ export const createStartAgentGraph = (
       resourceFamilies: diagnostics.resourceFamilies.length,
       resourceTags: diagnostics.resourceTags.length,
       collections: diagnostics.collectionDefinitions.length,
-      findings: findings.length
+      findings: findings.length,
     },
     selfReview: {
       status: report.status,
@@ -486,16 +456,15 @@ export const createStartAgentGraph = (
       routePreloadsDeclared:
         diagnostics.unknownRoutePreloadResources.length === 0 &&
         diagnostics.unknownRoutePreloadCollections.length === 0,
-      findingCount: findings.length
+      findingCount: findings.length,
     },
     nodes: nodeList,
     edges,
-    findings
+    findings,
   };
 };
 
 /** Effect wrapper for `createStartAgentGraph(...)`. */
 export const createStartAgentGraphEffect = (
-  input: StartAgentGraphInput
-): Effect.Effect<StartAgentGraph> =>
-  Effect.succeed(createStartAgentGraph(input));
+  input: StartAgentGraphInput,
+): Effect.Effect<StartAgentGraph> => Effect.succeed(createStartAgentGraph(input));

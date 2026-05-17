@@ -2,16 +2,16 @@ import "@effect-ui/start/virtual";
 
 import serverFunctionManifest, {
   entries as serverFunctionEntries,
-  type ServerFunctionManifestEntry
+  type ServerFunctionManifestEntry,
 } from "virtual:effect-ui/server-functions";
 import actionManifest, {
   entries as actionEntries,
-  type ActionManifestEntry
+  type ActionManifestEntry,
 } from "virtual:effect-ui/actions";
 import fileRouteManifest, {
   entries as fileRouteEntries,
   modules as fileRouteModules,
-  type FileRouteManifestEntry
+  type FileRouteManifestEntry,
 } from "virtual:effect-ui/file-routes";
 import routeTree, {
   errorBoundaryById,
@@ -71,16 +71,16 @@ import routeTree, {
   type RoutePath,
   type RouteTree,
   type SearchById,
-  type SearchByPath
+  type SearchByPath,
 } from "virtual:effect-ui/routes";
 import appGraph, {
   diagnostics as appGraphDiagnostics,
   diagnosticsPolicyViolations as appGraphDiagnosticsPolicyViolations,
-  type StartAppGraphDiagnostics
+  type StartAppGraphDiagnostics,
 } from "virtual:effect-ui/app-graph";
 import runtimeDiagnosticsGraph, {
   diagnostics as runtimeDiagnostics,
-  diagnosticsPolicyViolations as runtimeDiagnosticsPolicyViolations
+  diagnosticsPolicyViolations as runtimeDiagnosticsPolicyViolations,
 } from "virtual:effect-ui/app-graph/runtime-diagnostics";
 
 const virtualModuleValues: Array<unknown> = [
@@ -115,7 +115,7 @@ const virtualModuleValues: Array<unknown> = [
   appGraphDiagnosticsPolicyViolations,
   runtimeDiagnosticsGraph,
   runtimeDiagnostics,
-  runtimeDiagnosticsPolicyViolations
+  runtimeDiagnosticsPolicyViolations,
 ];
 type VirtualManifestEntries =
   | ServerFunctionManifestEntry

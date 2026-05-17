@@ -7,11 +7,9 @@ export {
   createEffectRuntime,
   useComponentScope,
   useRuntime,
-  useScoped
+  useScoped,
 } from "./runtime.js";
-export type {
-  RuntimeProviderProps
-} from "./runtime.js";
+export type { RuntimeProviderProps } from "./runtime.js";
 
 export {
   Action,
@@ -23,5 +21,5 @@ export {
   Route,
   Signal,
   UiScope,
-  watch
+  watch,
 } from "@effect-ui/core";

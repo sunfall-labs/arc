@@ -12,7 +12,7 @@ import {
   validateManifestEndpointPathEffect,
   validateManifestEntrySet,
   type StartManifestEndpointPathErrorInput,
-  type StartManifestModuleKind
+  type StartManifestModuleKind,
 } from "./manifest-entry-core.js";
 import { defaultStartTransportEndpoints } from "./start-transport-endpoints.js";
 
@@ -148,18 +148,14 @@ export interface ActionManifest {
 }
 
 /** Validation error for a raw action manifest definition with missing identity fields. */
-export class ActionManifestInvalidEntry extends Data.TaggedError(
-  "ActionManifestInvalidEntry"
-)<{
+export class ActionManifestInvalidEntry extends Data.TaggedError("ActionManifestInvalidEntry")<{
   readonly index: number;
   readonly reason: "MissingName" | "MissingModule" | "MissingExportName";
   readonly entry: unknown;
 }> {}
 
 /** Error raised when two action definitions use the same public action name. */
-export class ActionManifestDuplicateName extends Data.TaggedError(
-  "ActionManifestDuplicateName"
-)<{
+export class ActionManifestDuplicateName extends Data.TaggedError("ActionManifestDuplicateName")<{
   readonly name: string;
   readonly firstModule: string;
   readonly secondModule: string;
@@ -167,7 +163,7 @@ export class ActionManifestDuplicateName extends Data.TaggedError(
 
 /** Error raised when two action definitions point at the same module export. */
 export class ActionManifestDuplicateExport extends Data.TaggedError(
-  "ActionManifestDuplicateExport"
+  "ActionManifestDuplicateExport",
 )<{
   readonly module: string;
   readonly exportName: string;
@@ -176,9 +172,7 @@ export class ActionManifestDuplicateExport extends Data.TaggedError(
 }> {}
 
 /** Error raised when two action names produce the same stable generated id. */
-export class ActionManifestDuplicateId extends Data.TaggedError(
-  "ActionManifestDuplicateId"
-)<{
+export class ActionManifestDuplicateId extends Data.TaggedError("ActionManifestDuplicateId")<{
   readonly id: ActionId;
   readonly firstName: string;
   readonly secondName: string;
@@ -186,7 +180,7 @@ export class ActionManifestDuplicateId extends Data.TaggedError(
 
 /** Error raised when an action declares a browser import from a server-only module. */
 export class ActionManifestUnsafeClientReference extends Data.TaggedError(
-  "ActionManifestUnsafeClientReference"
+  "ActionManifestUnsafeClientReference",
 )<{
   readonly name: string;
   readonly clientModule: string;
@@ -194,7 +188,7 @@ export class ActionManifestUnsafeClientReference extends Data.TaggedError(
 
 /** Error raised when the action transport endpoint is not an origin-form path. */
 export class ActionManifestInvalidEndpointPath extends Data.TaggedError(
-  "ActionManifestInvalidEndpointPath"
+  "ActionManifestInvalidEndpointPath",
 )<{
   readonly field: "actionPath";
   readonly value: unknown;
@@ -203,9 +197,7 @@ export class ActionManifestInvalidEndpointPath extends Data.TaggedError(
 }> {}
 
 /** Error raised while decoding a serialized action manifest artifact. */
-export class ActionManifestParseError extends Data.TaggedError(
-  "ActionManifestParseError"
-)<{
+export class ActionManifestParseError extends Data.TaggedError("ActionManifestParseError")<{
   readonly message: string;
   readonly cause?: unknown;
 }> {}
@@ -219,10 +211,8 @@ export type ActionManifestError =
   | ActionManifestUnsafeClientReference
   | ActionManifestInvalidEndpointPath;
 
-const compareEntries = (
-  left: ActionManifestEntry,
-  right: ActionManifestEntry
-): number => compareManifestEntries(left, right);
+const compareEntries = (left: ActionManifestEntry, right: ActionManifestEntry): number =>
+  compareManifestEntries(left, right);
 
 /** Build the deterministic branded id used for one action manifest entry. */
 export const stableActionId = (name: string): ActionId =>
@@ -231,13 +221,13 @@ export const stableActionId = (name: string): ActionId =>
 /** Convert a registered Action plus module metadata into a raw manifest definition. */
 export const actionManifestDefinition = (
   action: AnyActionDefinition,
-  source: Omit<ActionManifestSource, "action">
+  source: Omit<ActionManifestSource, "action">,
 ): ActionManifestDefinition => {
   const behavior = {
     invalidates: action.invalidates !== undefined,
     optimistic: action.optimistic !== undefined,
     retry: action.policy?.retry !== undefined,
-    concurrency: action.policy?.concurrency ?? "latest"
+    concurrency: action.policy?.concurrency ?? "latest",
   } satisfies Pick<
     ActionManifestDefinition,
     "invalidates" | "optimistic" | "retry" | "concurrency"
@@ -250,7 +240,7 @@ export const actionManifestDefinition = (
           inputSchema: Schema.isSchema(action.input),
           outputSchema: Schema.isSchema(action.output),
           errorSchema: Schema.isSchema(action.error),
-          ...behavior
+          ...behavior,
         }
       : {
           name: action.name,
@@ -259,7 +249,7 @@ export const actionManifestDefinition = (
           inputSchema: Schema.isSchema(action.input),
           outputSchema: Schema.isSchema(action.output),
           errorSchema: Schema.isSchema(action.error),
-          ...behavior
+          ...behavior,
         };
 
   if (source.clientModule === undefined) {
@@ -269,54 +259,52 @@ export const actionManifestDefinition = (
   return source.clientExportName === undefined
     ? {
         ...base,
-        clientModule: source.clientModule
+        clientModule: source.clientModule,
       }
     : {
         ...base,
         clientModule: source.clientModule,
-        clientExportName: source.clientExportName
+        clientExportName: source.clientExportName,
       };
 };
 
 const sortActionEntries = (
-  entries: readonly ActionManifestEntry[]
+  entries: readonly ActionManifestEntry[],
 ): readonly ActionManifestEntry[] => [...entries].sort(compareEntries);
 
 const behaviorPresence = (value: boolean | undefined): ActionBehaviorPresence =>
   value === undefined ? "unknown" : value ? "present" : "absent";
 
-const behaviorFromDefinition = (
-  definition: ActionManifestDefinition
-): ActionBehaviorMetadata => ({
+const behaviorFromDefinition = (definition: ActionManifestDefinition): ActionBehaviorMetadata => ({
   invalidates: behaviorPresence(definition.invalidates),
   optimistic: behaviorPresence(definition.optimistic),
   retry: behaviorPresence(definition.retry),
-  concurrency: definition.concurrency ?? "unknown"
+  concurrency: definition.concurrency ?? "unknown",
 });
 
 const actionManifestInvalidEndpointPath = (
-  input: StartManifestEndpointPathErrorInput
+  input: StartManifestEndpointPathErrorInput,
 ): ActionManifestInvalidEndpointPath =>
   new ActionManifestInvalidEndpointPath({
     field: "actionPath",
     value: input.value,
     reason: input.reason,
-    guidance: input.guidance
+    guidance: input.guidance,
   });
 
 const normalizeActionManifestPathEffect = (
-  actionPath: string | undefined
+  actionPath: string | undefined,
 ): Effect.Effect<string, ActionManifestInvalidEndpointPath> =>
   validateManifestEndpointPathEffect(actionPath ?? defaultStartTransportEndpoints.actionPath, {
     field: "actionPath",
-    invalidPath: actionManifestInvalidEndpointPath
+    invalidPath: actionManifestInvalidEndpointPath,
   });
 
 /** Validate one raw action definition and convert it into a manifest entry. */
 export const makeActionManifestEntry = (
   definition: ActionManifestDefinition,
   options: ActionManifestOptions = {},
-  index = 0
+  index = 0,
 ): Effect.Effect<
   ActionManifestEntry,
   | ActionManifestInvalidEntry
@@ -333,13 +321,13 @@ export const makeActionManifestEntry = (
       server: ({ validated, moduleKind }): ActionServerReference => ({
         module: validated.module,
         exportName: validated.exportName,
-        moduleKind
+        moduleKind,
       }),
       transportClient: ({ id, name, transportPath }): ActionClientReference => ({
         _tag: "Post",
         id,
         name,
-        actionPath: transportPath
+        actionPath: transportPath,
       }),
       importClient: ({
         id,
@@ -347,7 +335,7 @@ export const makeActionManifestEntry = (
         transportPath,
         module,
         exportName,
-        moduleKind
+        moduleKind,
       }): ActionClientReference => ({
         _tag: "Import",
         id,
@@ -355,7 +343,7 @@ export const makeActionManifestEntry = (
         actionPath: transportPath,
         module,
         exportName,
-        moduleKind
+        moduleKind,
       }),
       entry: ({ definition, id, name, server, client, wire }): ActionManifestEntry => ({
         id,
@@ -363,15 +351,15 @@ export const makeActionManifestEntry = (
         server,
         client,
         wire,
-        behavior: behaviorFromDefinition(definition)
-      })
-    })
+        behavior: behaviorFromDefinition(definition),
+      }),
+    }),
   );
 
 /** Build and validate a complete action manifest from raw definitions. */
 export const makeActionManifest = (
   definitions: Iterable<ActionManifestDefinition>,
-  options: ActionManifestOptions = {}
+  options: ActionManifestOptions = {},
 ): Effect.Effect<ActionManifest, ActionManifestError> =>
   Effect.gen(function* () {
     const entries: ActionManifestEntry[] = [];
@@ -385,32 +373,31 @@ export const makeActionManifest = (
     yield* validateManifestEntrySet<ActionManifestEntry, ActionManifestError>(entries, {
       duplicateName: (input) => new ActionManifestDuplicateName(input),
       duplicateId: (input) => new ActionManifestDuplicateId(input),
-      duplicateExport: (input) => new ActionManifestDuplicateExport(input)
+      duplicateExport: (input) => new ActionManifestDuplicateExport(input),
     });
 
     return {
       version: 1 as const,
       actionPath,
-      entries: sortActionEntries(entries)
+      entries: sortActionEntries(entries),
     };
   });
 
 /** Return the client reference entries generated from an action manifest. */
 export const clientReferencesForActionManifest = (
-  manifest: ActionManifest
+  manifest: ActionManifest,
 ): readonly ActionClientReference[] => manifest.entries.map((entry) => entry.client);
 
 /** Check whether an action client reference can be imported in browser code. */
-export const isBrowserSafeActionClientReference = (
-  reference: ActionClientReference
-): boolean => reference._tag === "Post" || !isStartManifestServerOnlyModule(reference.module);
+export const isBrowserSafeActionClientReference = (reference: ActionClientReference): boolean =>
+  reference._tag === "Post" || !isStartManifestServerOnlyModule(reference.module);
 
 /** Serialize an action manifest into the virtual-module JSON payload. */
 export const serializeActionManifest = (manifest: ActionManifest): string =>
   JSON.stringify({
     version: 1,
     actionPath: manifest.actionPath,
-    entries: sortActionEntries(manifest.entries)
+    entries: sortActionEntries(manifest.entries),
   });
 
 const isBehaviorPresence = (value: unknown): value is ActionBehaviorPresence =>
@@ -421,13 +408,15 @@ const isManifestConcurrency = (value: unknown): value is ActionManifestConcurren
 
 const behaviorPresenceToDefinition = (
   field: ActionBehaviorPresence,
-  name: "invalidates" | "optimistic" | "retry"
+  name: "invalidates" | "optimistic" | "retry",
 ): Pick<ActionManifestDefinition, typeof name> =>
-  field === "unknown" ? {} : { [name]: field === "present" } as Pick<ActionManifestDefinition, typeof name>;
+  field === "unknown"
+    ? {}
+    : ({ [name]: field === "present" } as Pick<ActionManifestDefinition, typeof name>);
 
 const decodeSerializedBehavior = (
   value: unknown,
-  index: number
+  index: number,
 ): Effect.Effect<
   Pick<ActionManifestDefinition, "invalidates" | "optimistic" | "retry" | "concurrency">,
   ActionManifestParseError
@@ -445,8 +434,8 @@ const decodeSerializedBehavior = (
   ) {
     return Effect.fail(
       new ActionManifestParseError({
-        message: `Action manifest entry ${index} has invalid behavior metadata.`
-      })
+        message: `Action manifest entry ${index} has invalid behavior metadata.`,
+      }),
     );
   }
 
@@ -454,14 +443,14 @@ const decodeSerializedBehavior = (
     ...behaviorPresenceToDefinition(value.invalidates, "invalidates"),
     ...behaviorPresenceToDefinition(value.optimistic, "optimistic"),
     ...behaviorPresenceToDefinition(value.retry, "retry"),
-    ...(value.concurrency === "unknown" ? {} : { concurrency: value.concurrency })
+    ...(value.concurrency === "unknown" ? {} : { concurrency: value.concurrency }),
   });
 };
 
 const decodeSerializedEntry = (
   value: unknown,
   index: number,
-  actionPath: string
+  actionPath: string,
 ): Effect.Effect<ActionManifestDefinition, ActionManifestParseError> =>
   Effect.gen(function* () {
     const decoded = yield* decodeSerializedCallableManifestEntry(value, index, {
@@ -471,11 +460,11 @@ const decodeSerializedEntry = (
       stableId: stableActionId,
       recordEntryLabel: "action manifest entry",
       messageEntryLabel: "Action manifest entry",
-      parseError: (message) => new ActionManifestParseError({ message })
+      parseError: (message) => new ActionManifestParseError({ message }),
     });
     const behavior = yield* decodeSerializedBehavior(
       isRecord(value) ? value.behavior : undefined,
-      index
+      index,
     );
     const base = {
       name: decoded.name,
@@ -484,7 +473,7 @@ const decodeSerializedEntry = (
       inputSchema: decoded.inputSchema,
       outputSchema: decoded.outputSchema,
       errorSchema: decoded.errorSchema,
-      ...behavior
+      ...behavior,
     };
 
     if (decoded.clientModule === undefined || decoded.clientExportName === undefined) {
@@ -494,12 +483,12 @@ const decodeSerializedEntry = (
     return {
       ...base,
       clientModule: decoded.clientModule,
-      clientExportName: decoded.clientExportName
+      clientExportName: decoded.clientExportName,
     };
   });
 
 const decodeSerializedManifest = (
-  value: unknown
+  value: unknown,
 ): Effect.Effect<
   {
     readonly actionPath: string;
@@ -512,29 +501,31 @@ const decodeSerializedManifest = (
       pathField: "actionPath",
       manifestName: "action",
       parseError: (message) => new ActionManifestParseError({ message }),
-      decodeEntry: decodeSerializedEntry
+      decodeEntry: decodeSerializedEntry,
     }),
     ({ path, definitions }) => ({
       actionPath: path,
-      definitions
-    })
+      definitions,
+    }),
   );
 
 /** Decode and validate a serialized action manifest artifact. */
 export const deserializeActionManifest = (
   serialized: string,
-  options: ActionManifestOptions = {}
+  options: ActionManifestOptions = {},
 ): Effect.Effect<ActionManifest, ActionManifestParseError | ActionManifestError> =>
-  parseSerializedStartManifestJson(serialized, (cause) =>
+  parseSerializedStartManifestJson(
+    serialized,
+    (cause) =>
       new ActionManifestParseError({
         message: "Action manifest is not valid JSON.",
-        cause
-      })
+        cause,
+      }),
   ).pipe(
     Effect.flatMap(decodeSerializedManifest),
     Effect.flatMap(({ definitions, actionPath }) =>
       makeActionManifest(definitions, {
-        actionPath: options.actionPath ?? actionPath
-      })
-    )
+        actionPath: options.actionPath ?? actionPath,
+      }),
+    ),
   );

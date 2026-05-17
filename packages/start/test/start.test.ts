@@ -1,12 +1,55 @@
-import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Metric, Schema, Scope, Stream } from "effect";
+import {
+  Cause,
+  Context,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Metric,
+  Schema,
+  Scope,
+  Stream,
+} from "effect";
 import { EventEmitter } from "node:events";
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
-import { Action, ActionResult, defaultRuntime, defineApp, EffectInputCallbackError, EffectInputPromiseRejected, makeRuntime, read, Resource, ResourceFamily, ResourceTypeId, RequestContext, ResponseContext, route, Route, RoutePreloadError, runWithRuntime, Server, ServerClient, ServerTransportError, type EffectUiRuntime, type ResourceRef } from "@effect-ui/core";
+import {
+  Action,
+  ActionResult,
+  defaultRuntime,
+  defineApp,
+  EffectInputCallbackError,
+  EffectInputPromiseRejected,
+  makeRuntime,
+  read,
+  Resource,
+  ResourceFamily,
+  ResourceTypeId,
+  RequestContext,
+  ResponseContext,
+  route,
+  Route,
+  RoutePreloadError,
+  runWithRuntime,
+  Server,
+  ServerClient,
+  ServerTransportError,
+  type EffectUiRuntime,
+  type ResourceRef,
+} from "@effect-ui/core";
 import { Collection, CollectionSnapshotCodecError } from "@effect-ui/db";
 import type { DevtoolsRequestTrace } from "@effect-ui/devtools";
 import {
@@ -61,44 +104,30 @@ import {
   resolveStartActionEndpoint,
   resolveStartRpcEndpoint,
   resolveStartTransportEndpoints,
-  defineFileRoute
+  defineFileRoute,
 } from "../src/index.js";
 import {
   createStartDiagnosticsReport,
-  formatStartDiagnosticsReport
+  formatStartDiagnosticsReport,
 } from "../src/diagnostics-report.js";
-import {
-  completeRequestRuntimeWithResponse,
-  makeRequestRuntime
-} from "../src/request-runtime.js";
-import {
-  buildStartRequestTrace,
-  requestRuntimeTeardownSnapshot
-} from "../src/request-trace.js";
+import { completeRequestRuntimeWithResponse, makeRequestRuntime } from "../src/request-runtime.js";
+import { buildStartRequestTrace, requestRuntimeTeardownSnapshot } from "../src/request-trace.js";
 import {
   effectUiStartVirtualModules,
   loadStartAppGraphDiagnosticsFromServerEffect,
   loadStartAppGraphDiagnosticsWithOwnedServerEffect,
-  loadStartAppGraphDiagnosticsWithServerEffect
+  loadStartAppGraphDiagnosticsWithServerEffect,
 } from "../src/start-vite-diagnostics-loader.js";
 import {
   parseStartDiagnosticsCliArgs,
   runStartDiagnosticsCli,
   runStartDiagnosticsCliEffect,
-  runStartDiagnosticsCliMainEffect
+  runStartDiagnosticsCliMainEffect,
 } from "../src/cli.js";
-import type {
-  StartAgentGraphQueryKind
-} from "../src/start-agent-graph-contract.js";
-import {
-  startAgentGraphQueryKinds
-} from "../src/start-agent-graph-vocabulary.js";
-import {
-  startDiagnosticsCliVerifyCommandsForQuery
-} from "../src/start-diagnostics-cli-contract.js";
-import {
-  describeStartAppGraph
-} from "../src/app-graph.js";
+import type { StartAgentGraphQueryKind } from "../src/start-agent-graph-contract.js";
+import { startAgentGraphQueryKinds } from "../src/start-agent-graph-vocabulary.js";
+import { startDiagnosticsCliVerifyCommandsForQuery } from "../src/start-diagnostics-cli-contract.js";
+import { describeStartAppGraph } from "../src/app-graph.js";
 import {
   actionManifestVirtualModuleId,
   appGraphRuntimeDiagnosticsVirtualModuleId,
@@ -135,7 +164,7 @@ import {
   StartManifestDirectReferenceError,
   StartServerOnlyModuleError,
   validateStartBuildPolicyEffect,
-  shouldHandleSsrRequest
+  shouldHandleSsrRequest,
 } from "../src/vite.js";
 
 const scriptText = (script: string): string =>
@@ -143,9 +172,8 @@ const scriptText = (script: string): string =>
 
 const runInRuntime = <A, E, R, RuntimeError>(
   runtime: EffectUiRuntime<unknown, RuntimeError>,
-  effect: Effect.Effect<A, E, R>
-): Promise<A> =>
-  Effect.runPromise(runtime.provide(effect));
+  effect: Effect.Effect<A, E, R>,
+): Promise<A> => Effect.runPromise(runtime.provide(effect));
 
 const startAgentGraphCliQueryTextByKind = {
   action: "Project.rename",
@@ -157,7 +185,7 @@ const startAgentGraphCliQueryTextByKind = {
   resource: "Project.byId",
   "resource-tag": "Project.updated",
   route: "/projects/:id",
-  "server-function": "Project.load"
+  "server-function": "Project.load",
 } satisfies Record<StartAgentGraphQueryKind, string>;
 
 const shellSplit = (command: string): readonly string[] => {
@@ -216,7 +244,7 @@ const shellSplitStartCliArgs = (command: string): readonly string[] => {
 
 const makeStreamHydrationElement = (script: string, sequence: number) => {
   const attributes = new Map<string, string>([
-    [streamHydrationSequenceAttribute, String(sequence)]
+    [streamHydrationSequenceAttribute, String(sequence)],
   ]);
 
   return {
@@ -224,12 +252,11 @@ const makeStreamHydrationElement = (script: string, sequence: number) => {
     getAttribute: (name: string) => attributes.get(name) ?? null,
     setAttribute: (name: string, value: string) => {
       attributes.set(name, value);
-    }
+    },
   };
 };
 
-const workspacePackageAlias = (path: string): string =>
-  join(process.cwd(), path);
+const workspacePackageAlias = (path: string): string => join(process.cwd(), path);
 
 const sourceFiles = (directory: URL): readonly URL[] =>
   readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -237,9 +264,7 @@ const sourceFiles = (directory: URL): readonly URL[] =>
     if (entry.isDirectory()) {
       return sourceFiles(child);
     }
-    return /\.[cm]?tsx?$/.test(entry.name) && !entry.name.endsWith(".d.ts")
-      ? [child]
-      : [];
+    return /\.[cm]?tsx?$/.test(entry.name) && !entry.name.endsWith(".d.ts") ? [child] : [];
   });
 
 const startDiagnosticsRunnerViteConfig = () => ({
@@ -248,10 +273,16 @@ const startDiagnosticsRunnerViteConfig = () => ({
       { find: "effect", replacement: workspacePackageAlias("node_modules/effect/dist/index.js") },
       { find: "@effect-ui/core", replacement: workspacePackageAlias("packages/core/src/index.ts") },
       { find: "@effect-ui/db", replacement: workspacePackageAlias("packages/db/src/index.ts") },
-      { find: "@effect-ui/start", replacement: workspacePackageAlias("packages/start/src/index.ts") },
-      { find: "@effect-ui/start/vite", replacement: workspacePackageAlias("packages/start/src/vite.ts") }
-    ]
-  }
+      {
+        find: "@effect-ui/start",
+        replacement: workspacePackageAlias("packages/start/src/index.ts"),
+      },
+      {
+        find: "@effect-ui/start/vite",
+        replacement: workspacePackageAlias("packages/start/src/vite.ts"),
+      },
+    ],
+  },
 });
 
 const oneShotIterable = <A>(values: readonly A[]) => {
@@ -265,21 +296,21 @@ const oneShotIterable = <A>(values: readonly A[]) => {
       }
       consumed = true;
       yield* values;
-    }
+    },
   };
 
   return {
     iterable,
     get iteratorCalls() {
       return iteratorCalls;
-    }
+    },
   };
 };
 
 describe("Effect UI Start", () => {
   it("defines file routes with the same typed href contract as core routes", () => {
     const ProjectRoute = defineFileRoute("/projects/:id")({
-      params: Schema.Struct({ id: Schema.String })
+      params: Schema.Struct({ id: Schema.String }),
     });
 
     expect(Route.href(ProjectRoute, { params: { id: "atlas" } })).toBe("/projects/atlas");
@@ -289,13 +320,13 @@ describe("Effect UI Start", () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       onRequestTrace: () => {
         throw new Error("trace callback failed");
       },
-      render: () => new Response(null, { status: 204 })
+      render: () => new Response(null, { status: 204 }),
     });
 
     const response = await Effect.runPromise(handler(new Request("https://example.com/")));
@@ -307,7 +338,7 @@ describe("Effect UI Start", () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home] as const,
-      client: {}
+      client: {},
     });
     const runtime = makeRequestRuntime(app);
 
@@ -315,8 +346,8 @@ describe("Effect UI Start", () => {
       completeRequestRuntimeWithResponse(runtime, new Response(null, { status: 204 }), {
         onFinalize: () => {
           throw new Error("finalizer callback failed");
-        }
-      })
+        },
+      }),
     );
 
     expect(response.status).toBe(204);
@@ -326,7 +357,7 @@ describe("Effect UI Start", () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home] as const,
-      client: {}
+      client: {},
     });
     const runtime = makeRequestRuntime(app);
     const response = await Effect.runPromise(
@@ -337,15 +368,15 @@ describe("Effect UI Start", () => {
             start(controller) {
               controller.enqueue(new TextEncoder().encode("stream body"));
               controller.close();
-            }
-          })
+            },
+          }),
         ),
         {
           onStreamFinalize: () => {
             throw new Error("stream finalizer callback failed");
-          }
-        }
-      )
+          },
+        },
+      ),
     );
 
     await expect(response.text()).resolves.toBe("stream body");
@@ -354,25 +385,25 @@ describe("Effect UI Start", () => {
   it("preloads matched route resources into a hydration payload", async () => {
     const Project = Resource.family({
       name: "Start.Project.byId",
-      load: (id: string) => Effect.succeed({ id, name: "Atlas" })
+      load: (id: string) => Effect.succeed({ id, name: "Atlas" }),
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id))
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     const result = await Effect.runPromise(
-      preloadRequest(app, new Request("https://example.com/projects/atlas"))
+      preloadRequest(app, new Request("https://example.com/projects/atlas")),
     );
 
     expect(result.match?.params.id).toBe("atlas");
     expect(result.routePlan).toMatchObject({
       _tag: "Matched",
-      href: "/projects/atlas"
+      href: "/projects/atlas",
     });
     expect(result.routePlan.refs.map((ref) => ref.key)).toEqual([Project("atlas").key]);
     expect(result.resources.resources).toHaveLength(1);
@@ -381,23 +412,23 @@ describe("Effect UI Start", () => {
       input: "atlas",
       state: {
         _tag: "Success",
-        value: { id: "atlas", name: "Atlas" }
-      }
+        value: { id: "atlas", name: "Atlas" },
+      },
     });
   });
 
   it("passes legacy hydration scripts and the streaming plan to custom renderers", async () => {
     const Project = Resource.family({
       name: "Start.Project.render",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id))
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
     let renderPlanResourceNames: readonly string[] = [];
     let renderPlanRootResourceCount = -1;
@@ -406,22 +437,22 @@ describe("Effect UI Start", () => {
       render: ({ match, legacyHydrationScript, hydrationRootScript, hydrationPlan }) => {
         renderPlanRootResourceCount = hydrationPlan.root.payload.resources.length;
         renderPlanResourceNames = hydrationPlan.streamedResourceChunks.flatMap((chunk) =>
-          chunk.resources.map((resource) => resource.name)
+          chunk.resources.map((resource) => resource.name),
         );
         renderRootScript = hydrationRootScript;
         return `<html><body><main>${match?.href}</main>${legacyHydrationScript}</body></html>`;
-      }
+      },
     });
 
     const response = await Effect.runPromise(
-      handler(new Request("https://example.com/projects/kepler"))
+      handler(new Request("https://example.com/projects/kepler")),
     );
     const html = await response.text();
 
     expect(response.headers.get("content-type")).toBe("text/html");
     expect(html).toContain("<main>/projects/kepler</main>");
     expect(html).toContain("Start.Project.render");
-    expect(html).toContain("id=\"__EFFECT_UI_HYDRATION__\"");
+    expect(html).toContain('id="__EFFECT_UI_HYDRATION__"');
     expect(renderPlanRootResourceCount).toBe(0);
     expect(renderPlanResourceNames).toEqual(["Start.Project.render"]);
     expect(renderRootScript).not.toContain("Start.Project.render");
@@ -430,15 +461,15 @@ describe("Effect UI Start", () => {
   it("lets streamed renderers use the plan-derived root script without duplicating resource hydration", async () => {
     const Project = Resource.family({
       name: "Start.Project.stream-render",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id))
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       render: ({ hydrationRootScript, hydrationPlan }) => {
@@ -446,45 +477,45 @@ describe("Effect UI Start", () => {
           .map((chunk, index) => createStreamHydrationScript(chunk, index))
           .join("");
         return `<html><body>${hydrationRootScript}${streamedScripts}</body></html>`;
-      }
+      },
     });
 
     const response = await Effect.runPromise(
-      handler(new Request("https://example.com/projects/atlas"))
+      handler(new Request("https://example.com/projects/atlas")),
     );
     const html = await response.text();
 
     expect(html.match(/"name":"Start\.Project\.stream-render"/g)).toHaveLength(1);
-    expect(html).toContain("id=\"__EFFECT_UI_HYDRATION__\"");
+    expect(html).toContain('id="__EFFECT_UI_HYDRATION__"');
     expect(html).toContain("data-effect-ui-hydration-chunk");
   });
 
   it("does not serialize the full legacy hydration script for streamed renderers that do not read it", async () => {
     const Project = Resource.family({
       name: "Start.Project.lazy-legacy-script",
-      load: (id: string) => Effect.succeed({ id, count: 1n })
+      load: (id: string) => Effect.succeed({ id, count: 1n }),
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id))
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       render: ({ hydrationRootScript }) =>
-        `<html><body>${hydrationRootScript}<main>stream shell</main></body></html>`
+        `<html><body>${hydrationRootScript}<main>stream shell</main></body></html>`,
     });
 
     const response = await Effect.runPromise(
-      handler(new Request("https://example.com/projects/atlas"))
+      handler(new Request("https://example.com/projects/atlas")),
     );
     const html = await response.text();
 
     expect(response.status).toBe(200);
     expect(html).toContain("<main>stream shell</main>");
-    expect(html).toContain("id=\"__EFFECT_UI_HYDRATION__\"");
+    expect(html).toContain('id="__EFFECT_UI_HYDRATION__"');
     expect(html).not.toContain("Start.Project.lazy-legacy-script");
   });
 
@@ -497,10 +528,10 @@ describe("Effect UI Start", () => {
           input: "atlas",
           state: {
             _tag: "Success",
-            value: { id: "atlas", name: "Atlas" }
-          }
-        }
-      ]
+            value: { id: "atlas", name: "Atlas" },
+          },
+        },
+      ],
     };
     const collections = {
       collections: [
@@ -511,30 +542,30 @@ describe("Effect UI Start", () => {
               key: "atlas",
               value: { id: "atlas", name: "Atlas" },
               synced: true,
-              origin: "remote"
-            }
+              origin: "remote",
+            },
           ],
-          pendingMutations: []
-        }
-      ]
+          pendingMutations: [],
+        },
+      ],
     };
 
     const plan = await Effect.runPromise(
-      createStartRenderHydrationPlanEffect({ resources, collections })
+      createStartRenderHydrationPlanEffect({ resources, collections }),
     );
     const rootPairs = new Set(
-      plan.root.payload.resources.map((resource) => `${resource.name}:${resource.key}`)
+      plan.root.payload.resources.map((resource) => `${resource.name}:${resource.key}`),
     );
     const streamedPairs = plan.streamedResourceChunks.flatMap((chunk) =>
-      chunk.resources.map((resource) => `${resource.name}:${resource.key}`)
+      chunk.resources.map((resource) => `${resource.name}:${resource.key}`),
     );
 
     expect(plan.root.payload.resources).toEqual([]);
     expect(plan.root.payload.collections?.map((collection) => collection.name)).toEqual([
-      "Start.Collection.render-plan"
+      "Start.Collection.render-plan",
     ]);
     expect(plan.legacy.payload.resources.map((resource) => resource.name)).toEqual([
-      "Start.Project.render-plan"
+      "Start.Project.render-plan",
     ]);
     expect(plan.legacy.script).toContain("Start.Project.render-plan");
     expect(plan.root.script).toContain("__EFFECT_UI_HYDRATION__");
@@ -555,13 +586,13 @@ describe("Effect UI Start", () => {
               input: "atlas",
               state: {
                 _tag: "Success",
-                value: { id: "atlas", count: 1n }
-              }
-            }
-          ]
+                value: { id: "atlas", count: 1n },
+              },
+            },
+          ],
         },
-        collections: { collections: [] }
-      })
+        collections: { collections: [] },
+      }),
     );
 
     expect(plan.root.script).toContain("__EFFECT_UI_HYDRATION__");
@@ -579,19 +610,19 @@ describe("Effect UI Start", () => {
               key: "bigint",
               value: { count: 1n },
               synced: true,
-              origin: "remote"
-            }
+              origin: "remote",
+            },
           ],
-          pendingMutations: []
-        }
-      ]
+          pendingMutations: [],
+        },
+      ],
     };
 
     const exit = await Effect.runPromiseExit(
       createStartRenderHydrationPlanEffect({
         resources: { resources: [] },
-        collections
-      })
+        collections,
+      }),
     );
     const failure = Exit.isFailure(exit)
       ? exit.cause.reasons.find(Cause.isFailReason)?.error
@@ -604,22 +635,22 @@ describe("Effect UI Start", () => {
     const traces: DevtoolsRequestTrace[] = [];
     const Project = Resource.family({
       name: "Start.Project.trace",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id))
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       onRequestTrace: (trace) =>
         Effect.sync(() => {
           traces.push(trace);
         }),
-      render: ({ match }) => `<html><body><main>${match?.href}</main></body></html>`
+      render: ({ match }) => `<html><body><main>${match?.href}</main></body></html>`,
     });
 
     const response = await Effect.runPromise(
@@ -629,10 +660,10 @@ describe("Effect UI Start", () => {
             "x-effect-ui-request-id": "req-ssr-atlas",
             authorization: "Bearer top-secret",
             cookie: "session=s3cr3t",
-            "x-api-key": "key-secret"
-          }
-        })
-      )
+            "x-api-key": "key-secret",
+          },
+        }),
+      ),
     );
 
     expect(traces).toEqual([]);
@@ -649,17 +680,17 @@ describe("Effect UI Start", () => {
             { name: "authorization", value: "<redacted>" },
             { name: "cookie", value: "<redacted>" },
             { name: "x-api-key", value: "<redacted>" },
-            { name: "x-effect-ui-request-id", value: "req-ssr-atlas" }
+            { name: "x-effect-ui-request-id", value: "req-ssr-atlas" },
           ]),
           cookies: [
             {
               name: "session",
-              value: "<redacted>"
-            }
-          ]
+              value: "<redacted>",
+            },
+          ],
         }),
         response: expect.objectContaining({
-          status: 200
+          status: 200,
         }),
         services: ["RequestContext", "ResponseContext"],
         routePlan: expect.objectContaining({
@@ -669,20 +700,20 @@ describe("Effect UI Start", () => {
             {
               key: Project("atlas").key,
               family: "Start.Project.trace",
-              input: "atlas"
-            }
+              input: "atlas",
+            },
           ],
           hydration: {
             resourceCount: 1,
-            resourceKeys: [Project("atlas").key]
-          }
+            resourceKeys: [Project("atlas").key],
+          },
         }),
         resources: [
           {
             key: Project("atlas").key,
             family: "Start.Project.trace",
-            input: "atlas"
-          }
+            input: "atlas",
+          },
         ],
         collections: [],
         serverFunctions: [],
@@ -690,14 +721,14 @@ describe("Effect UI Start", () => {
         fibers: [
           {
             name: "request-runtime",
-            status: "done"
-          }
+            status: "done",
+          },
         ],
         streams: [
           expect.objectContaining({
             name: "response",
-            state: "closed"
-          })
+            state: "closed",
+          }),
         ],
         status: "success",
         teardown: expect.objectContaining({
@@ -710,13 +741,13 @@ describe("Effect UI Start", () => {
             fiberCount: expect.any(Number),
             familyCount: expect.any(Number),
             moduleCount: expect.any(Number),
-            tagCount: expect.any(Number)
+            tagCount: expect.any(Number),
           }),
           afterDispose: expect.objectContaining({
-            fiberCount: 0
-          })
-        })
-      })
+            fiberCount: 0,
+          }),
+        }),
+      }),
     ]);
     expect(JSON.stringify(traces[0])).not.toContain("top-secret");
     expect(JSON.stringify(traces[0])).not.toContain("s3cr3t");
@@ -727,29 +758,34 @@ describe("Effect UI Start", () => {
     let loads = 0;
     const Project = Resource.family({
       name: "Start.Project.request-store",
-      load: (id: string) => Effect.sync(() => ({
-        id,
-        sequence: ++loads
-      }))
+      load: (id: string) =>
+        Effect.sync(() => ({
+          id,
+          sequence: ++loads,
+        })),
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id))
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       render: ({ match }) => {
         const id = match?.params.id ?? "missing";
         const project = Resource.read(Project(id));
         return `<html><body><main>${project.id}:${project.sequence}</main></body></html>`;
-      }
+      },
     });
 
-    const first = await Effect.runPromise(handler(new Request("https://example.com/projects/atlas")));
-    const second = await Effect.runPromise(handler(new Request("https://example.com/projects/atlas")));
+    const first = await Effect.runPromise(
+      handler(new Request("https://example.com/projects/atlas")),
+    );
+    const second = await Effect.runPromise(
+      handler(new Request("https://example.com/projects/atlas")),
+    );
 
     await expect(first.text()).resolves.toContain("atlas:1");
     await expect(second.text()).resolves.toContain("atlas:2");
@@ -762,7 +798,7 @@ describe("Effect UI Start", () => {
       { readonly id: string; readonly path: string }
     >("Start.Project.request-local-server-client", {
       input: Schema.Struct({ id: Schema.String }),
-      output: Schema.Struct({ id: Schema.String, path: Schema.String })
+      output: Schema.Struct({ id: Schema.String, path: Schema.String }),
     });
     const lookupProject = Server.client(LookupProject);
     const calls: Array<string> = [];
@@ -774,34 +810,34 @@ describe("Effect UI Start", () => {
             yield* response.setStatus(209);
             yield* response.setHeader("x-effect-ui-local-server-client", "yes");
             return { id, path: request.url.pathname };
-          })
-        )
-      )
+          }),
+        ),
+      ),
     );
     const ambientClient: ServerClient = {
       call: () =>
         Effect.fail(
           new ServerTransportError({
             reason: "Network",
-            message: "ambient ServerClient should not handle request-runtime calls"
-          })
-        )
+            message: "ambient ServerClient should not handle request-runtime calls",
+          }),
+        ),
     };
     const ProjectRoute = route("/local-server-client/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => lookupProject.effect({ id: params.id })
+      preload: ({ params }) => lookupProject.effect({ id: params.id }),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
       client: {},
-      server: Layer.succeed(ServerClient)(ambientClient)
+      server: Layer.succeed(ServerClient)(ambientClient),
     });
     const handler = createRequestHandler(app, {
-      render: ({ match }) => `<html><body><main>${match?.params.id}</main></body></html>`
+      render: ({ match }) => `<html><body><main>${match?.params.id}</main></body></html>`,
     });
 
     const response = await Effect.runPromise(
-      handler(new Request("https://example.com/local-server-client/atlas"))
+      handler(new Request("https://example.com/local-server-client/atlas")),
     );
 
     expect(calls).toEqual(["atlas:/local-server-client/atlas"]);
@@ -812,9 +848,13 @@ describe("Effect UI Start", () => {
 
   it("dehydrates DB collections from the SSR request runtime", async () => {
     const traces: DevtoolsRequestTrace[] = [];
-    const Projects = Collection.define<{ readonly id: string; readonly name: string; readonly sequence: number }>({
+    const Projects = Collection.define<{
+      readonly id: string;
+      readonly name: string;
+      readonly sequence: number;
+    }>({
       name: "Start.Collection.request-store",
-      getKey: (project) => project.id
+      getKey: (project) => project.id,
     });
     let sequence = 0;
     const ProjectRoute = route("/projects/:id", {
@@ -823,12 +863,12 @@ describe("Effect UI Start", () => {
         Projects.writeInsertEffect({
           id: params.id,
           name: `Project ${params.id}`,
-          sequence: ++sequence
-        })
+          sequence: ++sequence,
+        }),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       collections: [Projects],
@@ -839,23 +879,27 @@ describe("Effect UI Start", () => {
       render: ({ collections, legacyHydrationScript }) => {
         const project = Projects.rows()[0];
         return `<html><body><main>${project?.id}:${project?.sequence}</main><aside>${collections.collections[0]?.rows.length}</aside>${legacyHydrationScript}</body></html>`;
-      }
+      },
     });
 
-    const first = await Effect.runPromise(handler(new Request("https://example.com/projects/atlas")));
-    const second = await Effect.runPromise(handler(new Request("https://example.com/projects/atlas")));
+    const first = await Effect.runPromise(
+      handler(new Request("https://example.com/projects/atlas")),
+    );
+    const second = await Effect.runPromise(
+      handler(new Request("https://example.com/projects/atlas")),
+    );
     const firstHtml = await first.text();
     const secondHtml = await second.text();
 
     expect(firstHtml).toContain("<main>atlas:1</main>");
     expect(firstHtml).toContain("<aside>1</aside>");
     expect(firstHtml).toContain("Start.Collection.request-store");
-    expect(firstHtml).toContain("\"collections\"");
+    expect(firstHtml).toContain('"collections"');
     expect(traces[0]?.collections).toEqual([
       {
         name: "Start.Collection.request-store",
-        state: "Initial"
-      }
+        state: "Initial",
+      },
     ]);
     expect(traces[0]?.collections[0]).not.toHaveProperty("eventCount");
     expect(secondHtml).toContain("<main>atlas:2</main>");
@@ -871,60 +915,60 @@ describe("Effect UI Start", () => {
         Effect.sync(() => {
           projectLoads += 1;
           return [{ id: "atlas", name: "Atlas" }];
-        })
+        }),
     });
-    const Tasks = Collection.define<{ readonly id: string; readonly title: string }>({
+    const _Tasks = Collection.define<{ readonly id: string; readonly title: string }>({
       name: "Start.Collection.route-touched.tasks",
       getKey: (task) => task.id,
       load: () =>
         Effect.sync(() => {
           taskLoads += 1;
           return [{ id: "ship", title: "Ship it" }];
-        })
+        }),
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: () => Projects.preloadEffect()
+      preload: () => Projects.preloadEffect(),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     const result = await Effect.runPromise(
-      preloadRequest(app, new Request("https://example.com/projects/atlas"))
+      preloadRequest(app, new Request("https://example.com/projects/atlas")),
     );
 
     expect(projectLoads).toBe(1);
     expect(taskLoads).toBe(0);
-    expect(result.collectionPreload.routeTouchedCollections.map((collection) => collection.name)).toEqual([
-      "Start.Collection.route-touched.projects"
-    ]);
+    expect(
+      result.collectionPreload.routeTouchedCollections.map((collection) => collection.name),
+    ).toEqual(["Start.Collection.route-touched.projects"]);
     expect(result.collectionPreload.registeredCollections).toEqual([]);
-    expect(result.collectionPreload.dehydratedCollections.map((collection) => collection.name)).toEqual([
-      "Start.Collection.route-touched.projects"
-    ]);
+    expect(
+      result.collectionPreload.dehydratedCollections.map((collection) => collection.name),
+    ).toEqual(["Start.Collection.route-touched.projects"]);
     expect(result.collections.collections.map((snapshot) => snapshot.name)).toEqual([
-      "Start.Collection.route-touched.projects"
+      "Start.Collection.route-touched.projects",
     ]);
     expect(result.hydration.collections?.map((snapshot) => snapshot.name)).toEqual([
-      "Start.Collection.route-touched.projects"
+      "Start.Collection.route-touched.projects",
     ]);
     expect(result.collections.collections[0]?.rows).toEqual([
       {
         key: "atlas",
         value: { id: "atlas", name: "Atlas" },
         synced: true,
-        origin: "remote"
-      }
+        origin: "remote",
+      },
     ]);
 
     const handler = createRequestHandler(app, {
       render: ({ collectionPreload, collections, legacyHydrationScript }) =>
-        `<html><body><main>${collectionPreload.routeTouchedCollections.map((collection) => collection.name).join(",")}</main><aside>${collections.collections.length}</aside>${legacyHydrationScript}</body></html>`
+        `<html><body><main>${collectionPreload.routeTouchedCollections.map((collection) => collection.name).join(",")}</main><aside>${collections.collections.length}</aside>${legacyHydrationScript}</body></html>`,
     });
     const response = await Effect.runPromise(
-      handler(new Request("https://example.com/projects/atlas"))
+      handler(new Request("https://example.com/projects/atlas")),
     );
     const html = await response.text();
 
@@ -932,7 +976,7 @@ describe("Effect UI Start", () => {
     expect(taskLoads).toBe(0);
     expect(html).toContain("<main>Start.Collection.route-touched.projects</main>");
     expect(html).toContain("<aside>1</aside>");
-    expect(html).toContain("\"Start.Collection.route-touched.projects\"");
+    expect(html).toContain('"Start.Collection.route-touched.projects"');
     expect(html).not.toContain("Start.Collection.route-touched.tasks");
   });
 
@@ -945,87 +989,96 @@ describe("Effect UI Start", () => {
         Effect.sync(() => {
           projectLoads += 1;
           return [{ id: "atlas", name: "Atlas" }];
-        })
+        }),
     });
     const ProjectRoute = route("/nested-collector-projects", {
-      preload: () =>
-        Collection.collectEffect(Projects.preloadEffect()).pipe(Effect.asVoid)
+      preload: () => Collection.collectEffect(Projects.preloadEffect()).pipe(Effect.asVoid),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     const result = await Effect.runPromise(
-      preloadRequest(app, new Request("https://example.com/nested-collector-projects"))
+      preloadRequest(app, new Request("https://example.com/nested-collector-projects")),
     );
 
     expect(projectLoads).toBe(1);
-    expect(result.collectionPreload.routeTouchedCollections.map((collection) => collection.name)).toEqual([
-      "Start.Collection.route-nested-collector.projects"
-    ]);
+    expect(
+      result.collectionPreload.routeTouchedCollections.map((collection) => collection.name),
+    ).toEqual(["Start.Collection.route-nested-collector.projects"]);
     expect(result.collections.collections.map((snapshot) => snapshot.name)).toEqual([
-      "Start.Collection.route-nested-collector.projects"
+      "Start.Collection.route-nested-collector.projects",
     ]);
     expect(result.hydration.collections?.map((snapshot) => snapshot.name)).toEqual([
-      "Start.Collection.route-nested-collector.projects"
+      "Start.Collection.route-nested-collector.projects",
     ]);
   });
 
   it("excludes route-touched live query collections from hydration payloads", async () => {
-    const Projects = Collection.define<{ readonly id: string; readonly name: string; readonly progress: number }>({
+    const Projects = Collection.define<{
+      readonly id: string;
+      readonly name: string;
+      readonly progress: number;
+    }>({
       name: "Start.Collection.live-query-source.projects",
       getKey: (project) => project.id,
-      load: () => Effect.succeed([{ id: "atlas", name: "Atlas", progress: 72 }])
+      load: () => Effect.succeed([{ id: "atlas", name: "Atlas", progress: 72 }]),
     });
-    const ProjectCards = Collection.liveQuery<{ readonly id: string; readonly name: string }, string>({
+    const ProjectCards = Collection.liveQuery<
+      { readonly id: string; readonly name: string },
+      string
+    >({
       name: "Start.Collection.live-query-derived.cards",
       getKey: (project) => project.id,
       query: (query) =>
-        query
-          .from({ project: Projects })
-          .select(({ project }) => ({
-            id: project.id,
-            name: project.name
-          }))
+        query.from({ project: Projects }).select(({ project }) => ({
+          id: project.id,
+          name: project.name,
+        })),
     });
     const ProjectRoute = route("/live-query-projects", {
-      preload: () => ProjectCards.preloadEffect()
+      preload: () => ProjectCards.preloadEffect(),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     const result = await Effect.runPromise(
-      preloadRequest(app, new Request("https://example.com/live-query-projects"))
+      preloadRequest(app, new Request("https://example.com/live-query-projects")),
     );
 
-    expect(result.collectionPreload.routeTouchedCollections.map((collection) => collection.name)).toEqual([
-      "Start.Collection.live-query-source.projects"
-    ]);
-    expect(result.collectionPreload.routeTouchedCollections.some((collection) => collection.name === ProjectCards.name))
-      .toBe(false);
-    expect(result.collectionPreload.dehydratedCollections.map((collection) => collection.name)).toEqual([
-      "Start.Collection.live-query-source.projects"
-    ]);
+    expect(
+      result.collectionPreload.routeTouchedCollections.map((collection) => collection.name),
+    ).toEqual(["Start.Collection.live-query-source.projects"]);
+    expect(
+      result.collectionPreload.routeTouchedCollections.some(
+        (collection) => collection.name === ProjectCards.name,
+      ),
+    ).toBe(false);
+    expect(
+      result.collectionPreload.dehydratedCollections.map((collection) => collection.name),
+    ).toEqual(["Start.Collection.live-query-source.projects"]);
     expect(result.hydration.collections?.map((snapshot) => snapshot.name)).toEqual([
-      "Start.Collection.live-query-source.projects"
+      "Start.Collection.live-query-source.projects",
     ]);
-    expect(result.hydration.collections?.some((snapshot) => snapshot.name === ProjectCards.name)).toBe(false);
+    expect(
+      result.hydration.collections?.some((snapshot) => snapshot.name === ProjectCards.name),
+    ).toBe(false);
 
     const clientRuntime = makeRuntime();
     try {
       await Effect.runPromise(
         clientRuntime.provide(
           hydrateStartPayloadEffect(result.hydration, {
-            collections: [Projects, ProjectCards]
-          })
-        )
+            collections: [Projects, ProjectCards],
+          }),
+        ),
       );
-      expect(runWithRuntime(clientRuntime, () => ProjectCards.rows().map((project) => project.name))).toEqual([
-        "Atlas"
-      ]);
+      expect(
+        runWithRuntime(clientRuntime, () => ProjectCards.rows().map((project) => project.name)),
+      ).toEqual(["Atlas"]);
     } finally {
       await Effect.runPromise(clientRuntime.disposeEffect);
     }
@@ -1040,51 +1093,51 @@ describe("Effect UI Start", () => {
         Effect.sync(() => {
           projectLoads += 1;
           return [{ id: "atlas", name: "Atlas" }];
-        })
+        }),
     });
     const ProjectRoute = route("/declared-projects", {
-      preloadCollections: [Projects]
+      preloadCollections: [Projects],
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     const result = await Effect.runPromise(
-      preloadRequest(app, new Request("https://example.com/declared-projects"))
+      preloadRequest(app, new Request("https://example.com/declared-projects")),
     );
 
     expect(projectLoads).toBe(1);
     expect(result.collectionPreload.routeTouchedCollections).toEqual([]);
-    expect(result.collectionPreload.routeDeclaredCollections.map((collection) => collection.name)).toEqual([
-      "Start.Collection.route-declared.projects"
-    ]);
+    expect(
+      result.collectionPreload.routeDeclaredCollections.map((collection) => collection.name),
+    ).toEqual(["Start.Collection.route-declared.projects"]);
     expect(result.collectionPreload.registeredCollections).toEqual([]);
-    expect(result.collectionPreload.dehydratedCollections.map((collection) => collection.name)).toEqual([
-      "Start.Collection.route-declared.projects"
-    ]);
+    expect(
+      result.collectionPreload.dehydratedCollections.map((collection) => collection.name),
+    ).toEqual(["Start.Collection.route-declared.projects"]);
     expect(result.collections.collections[0]?.rows).toEqual([
       {
         key: "atlas",
         value: { id: "atlas", name: "Atlas" },
         synced: true,
-        origin: "remote"
-      }
+        origin: "remote",
+      },
     ]);
 
     const handler = createRequestHandler(app, {
       render: ({ collectionPreload, collections, legacyHydrationScript }) =>
-        `<html><body><main>${collectionPreload.routeDeclaredCollections.map((collection) => collection.name).join(",")}</main><aside>${collections.collections.length}</aside>${legacyHydrationScript}</body></html>`
+        `<html><body><main>${collectionPreload.routeDeclaredCollections.map((collection) => collection.name).join(",")}</main><aside>${collections.collections.length}</aside>${legacyHydrationScript}</body></html>`,
     });
     const response = await Effect.runPromise(
-      handler(new Request("https://example.com/declared-projects"))
+      handler(new Request("https://example.com/declared-projects")),
     );
     const html = await response.text();
 
     expect(projectLoads).toBe(2);
     expect(html).toContain("<main>Start.Collection.route-declared.projects</main>");
     expect(html).toContain("<aside>1</aside>");
-    expect(html).toContain("\"Start.Collection.route-declared.projects\"");
+    expect(html).toContain('"Start.Collection.route-declared.projects"');
   });
 
   it("defines file route preload metadata and work from the preload helper", async () => {
@@ -1097,7 +1150,7 @@ describe("Effect UI Start", () => {
         Effect.sync(() => {
           resourceLoads += 1;
           return { id, name: "Atlas" };
-        })
+        }),
     });
     const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
       name: "Start.FileRoutePreloadHelper.projects",
@@ -1106,50 +1159,48 @@ describe("Effect UI Start", () => {
         Effect.sync(() => {
           collectionLoads += 1;
           return [{ id: "atlas", name: "Atlas" }];
-        })
-	    });
-	    const ProjectRouteBuilder = defineFileRoute("/file-helper-projects/:id");
-	    const preload = ProjectRouteBuilder.preload(
-	      {
-	        params: Schema.Struct({ id: Schema.String }),
-	        resources: ({ resource }) => [
-	          resource(ProjectById, ({ params }) => params.id)
-	        ],
-	        collections: [Projects]
-	      },
-	      ({ params }) =>
-	        Effect.sync(() => {
-	          if (params.id === "atlas") {
-	            extraPreloads += 1;
-	          }
-	        })
-	    );
-	    const ProjectRoute = preload.route();
+        }),
+    });
+    const ProjectRouteBuilder = defineFileRoute("/file-helper-projects/:id");
+    const preload = ProjectRouteBuilder.preload(
+      {
+        params: Schema.Struct({ id: Schema.String }),
+        resources: ({ resource }) => [resource(ProjectById, ({ params }) => params.id)],
+        collections: [Projects],
+      },
+      ({ params }) =>
+        Effect.sync(() => {
+          if (params.id === "atlas") {
+            extraPreloads += 1;
+          }
+        }),
+    );
+    const ProjectRoute = preload.route();
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     expect(Object.keys(preload)).not.toContain("route");
 
     expect(Route.describePreloadResources(ProjectRoute)).toEqual({
       status: "declared",
-      families: ["Start.FileRoutePreloadHelper.projectById"]
+      families: ["Start.FileRoutePreloadHelper.projectById"],
     });
     expect(Route.describePreloadCollections(ProjectRoute)).toEqual({
       status: "declared",
-      collections: ["Start.FileRoutePreloadHelper.projects"]
+      collections: ["Start.FileRoutePreloadHelper.projects"],
     });
 
     const result = await Effect.runPromise(
-      preloadRequest(app, new Request("https://example.com/file-helper-projects/atlas"))
+      preloadRequest(app, new Request("https://example.com/file-helper-projects/atlas")),
     );
 
     expect(resourceLoads).toBe(1);
     expect(collectionLoads).toBe(1);
     expect(extraPreloads).toBe(1);
     expect(result.resources.resources.map((resource) => resource.name)).toEqual([
-      "Start.FileRoutePreloadHelper.projectById"
+      "Start.FileRoutePreloadHelper.projectById",
     ]);
     expect(result.collectionPreload.routeDeclaredCollections).toEqual([Projects]);
   });
@@ -1163,49 +1214,48 @@ describe("Effect UI Start", () => {
         Effect.sync(() => {
           collectionLoads += 1;
           return [{ id: "atlas", name: "Atlas" }];
-        })
+        }),
     });
     const ProjectRouteBuilder = defineFileRoute("/file-helper-named-projects");
     const preload = ProjectRouteBuilder.preload({
-      collections: [Projects.name]
+      collections: [Projects.name],
     });
     const ProjectRoute = preload.route();
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     expect(Route.describePreloadCollections(ProjectRoute)).toEqual({
       status: "declared",
-      collections: [Projects.name]
+      collections: [Projects.name],
     });
 
     const result = await Effect.runPromise(
       preloadRequest(app, new Request("https://example.com/file-helper-named-projects"), {
-        collectionRegistry: Collection.defaultRegistry
-      })
+        collectionRegistry: Collection.defaultRegistry,
+      }),
     );
 
     expect(collectionLoads).toBe(1);
     expect(result.collectionPreload.routeDeclaredCollections).toEqual([Projects]);
-    expect(result.collections.collections.map((collection) => collection.name)).toEqual([Projects.name]);
+    expect(result.collections.collections.map((collection) => collection.name)).toEqual([
+      Projects.name,
+    ]);
   });
 
   it("rejects Promise-shaped file route preload helper work as typed preload failure", async () => {
     const ProjectRouteBuilder = defineFileRoute("/file-helper-promise");
     const ProjectRoute = ProjectRouteBuilder({
-      ...ProjectRouteBuilder.preload(
-        {},
-        (() => Effect.runPromise(Effect.void)) as never
-      )
+      ...ProjectRouteBuilder.preload({}, (() => Effect.runPromise(Effect.void)) as never),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     const failure = await Effect.runPromise(
-      Effect.flip(preloadRequest(app, new Request("https://example.com/file-helper-promise")))
+      Effect.flip(preloadRequest(app, new Request("https://example.com/file-helper-promise"))),
     );
 
     expect(failure).toBeInstanceOf(StartPreloadError);
@@ -1215,7 +1265,7 @@ describe("Effect UI Start", () => {
     expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
     expect(routeFailure.cause).toMatchObject({
       operation: "custom-preload",
-      path: "/file-helper-promise"
+      path: "/file-helper-promise",
     });
     expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
   });
@@ -1225,21 +1275,20 @@ describe("Effect UI Start", () => {
     const throwingThen = Object.defineProperty({}, "then", {
       get: () => {
         throw new Error("then getter failed");
-      }
+      },
     });
     const ProjectRoute = ProjectRouteBuilder({
-      ...ProjectRouteBuilder.preload(
-        {},
-        (() => throwingThen) as never
-      )
+      ...ProjectRouteBuilder.preload({}, (() => throwingThen) as never),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     const failure = await Effect.runPromise(
-      Effect.flip(preloadRequest(app, new Request("https://example.com/file-helper-throwing-then")))
+      Effect.flip(
+        preloadRequest(app, new Request("https://example.com/file-helper-throwing-then")),
+      ),
     );
 
     expect(failure).toBeInstanceOf(StartPreloadError);
@@ -1249,7 +1298,7 @@ describe("Effect UI Start", () => {
     expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
     expect(routeFailure.cause).toMatchObject({
       operation: "custom-preload",
-      path: "/file-helper-throwing-then"
+      path: "/file-helper-throwing-then",
     });
     expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
   });
@@ -1257,26 +1306,26 @@ describe("Effect UI Start", () => {
   it("rejects Promise-shaped file route resource selector output as typed preload failure", async () => {
     const ProjectById = Resource.family<string, { readonly id: string }>({
       name: "Start.FileRoutePreloadHelper.promise-selector.projectById",
-      load: (id) => Effect.succeed({ id })
+      load: (id) => Effect.succeed({ id }),
     });
     const ProjectRouteBuilder = defineFileRoute("/file-helper-promise-selector");
     const ProjectRoute = ProjectRouteBuilder({
       ...ProjectRouteBuilder.preload({
         resources: [
-          ProjectRouteBuilder.resource(
-            ProjectById,
-            (() => Effect.runPromise(Effect.succeed("atlas"))) as never
-          )
-        ]
-      })
+          ProjectRouteBuilder.resource(ProjectById, (() =>
+            Effect.runPromise(Effect.succeed("atlas"))) as never),
+        ],
+      }),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     const failure = await Effect.runPromise(
-      Effect.flip(preloadRequest(app, new Request("https://example.com/file-helper-promise-selector")))
+      Effect.flip(
+        preloadRequest(app, new Request("https://example.com/file-helper-promise-selector")),
+      ),
     );
 
     expect(failure).toBeInstanceOf(StartPreloadError);
@@ -1286,7 +1335,7 @@ describe("Effect UI Start", () => {
     expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
     expect(routeFailure.cause).toMatchObject({
       operation: "resource-selector",
-      path: "/file-helper-promise-selector"
+      path: "/file-helper-promise-selector",
     });
     expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
   });
@@ -1294,31 +1343,28 @@ describe("Effect UI Start", () => {
   it("rejects file route resource selector output with throwing then getters as typed preload failure", async () => {
     const ProjectById = Resource.family<string, { readonly id: string }>({
       name: "Start.FileRoutePreloadHelper.throwing-then-selector.projectById",
-      load: (id) => Effect.succeed({ id })
+      load: (id) => Effect.succeed({ id }),
     });
     const throwingThen = Object.defineProperty({}, "then", {
       get: () => {
         throw new Error("then getter failed");
-      }
+      },
     });
     const ProjectRouteBuilder = defineFileRoute("/file-helper-throwing-then-selector");
     const ProjectRoute = ProjectRouteBuilder({
       ...ProjectRouteBuilder.preload({
-        resources: [
-          ProjectRouteBuilder.resource(
-            ProjectById,
-            (() => throwingThen) as never
-          )
-        ]
-      })
+        resources: [ProjectRouteBuilder.resource(ProjectById, (() => throwingThen) as never)],
+      }),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     const failure = await Effect.runPromise(
-      Effect.flip(preloadRequest(app, new Request("https://example.com/file-helper-throwing-then-selector")))
+      Effect.flip(
+        preloadRequest(app, new Request("https://example.com/file-helper-throwing-then-selector")),
+      ),
     );
 
     expect(failure).toBeInstanceOf(StartPreloadError);
@@ -1328,7 +1374,7 @@ describe("Effect UI Start", () => {
     expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
     expect(routeFailure.cause).toMatchObject({
       operation: "resource-selector",
-      path: "/file-helper-throwing-then-selector"
+      path: "/file-helper-throwing-then-selector",
     });
     expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
   });
@@ -1336,25 +1382,27 @@ describe("Effect UI Start", () => {
   it("rejects public file route resource refs returning Promise-shaped work as typed preload failure", async () => {
     const ProjectById = Resource.family<string, { readonly id: string }>({
       name: "Start.FileRoutePreloadHelper.promise-resource-refs.projectById",
-      load: (id) => Effect.succeed({ id })
+      load: (id) => Effect.succeed({ id }),
     });
     const ProjectRouteBuilder = defineFileRoute("/file-helper-promise-resource-refs");
     const resource: FileRoutePreloadResource<"/file-helper-promise-resource-refs"> = {
       family: { name: ProjectById.family.options.name },
-      refs: (() => Effect.runPromise(Effect.succeed([ProjectById("atlas")]))) as never
+      refs: (() => Effect.runPromise(Effect.succeed([ProjectById("atlas")]))) as never,
     };
     const ProjectRoute = ProjectRouteBuilder({
       ...ProjectRouteBuilder.preload({
-        resources: [resource]
-      })
+        resources: [resource],
+      }),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     const failure = await Effect.runPromise(
-      Effect.flip(preloadRequest(app, new Request("https://example.com/file-helper-promise-resource-refs")))
+      Effect.flip(
+        preloadRequest(app, new Request("https://example.com/file-helper-promise-resource-refs")),
+      ),
     );
 
     expect(failure).toBeInstanceOf(StartPreloadError);
@@ -1364,7 +1412,7 @@ describe("Effect UI Start", () => {
     expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
     expect(routeFailure.cause).toMatchObject({
       operation: "resource-selector",
-      path: "/file-helper-promise-resource-refs"
+      path: "/file-helper-promise-resource-refs",
     });
     expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
   });
@@ -1372,25 +1420,27 @@ describe("Effect UI Start", () => {
   it("rejects public file route resource refs returning malformed data as typed preload failure", async () => {
     const ProjectById = Resource.family<string, { readonly id: string }>({
       name: "Start.FileRoutePreloadHelper.malformed-resource-refs.projectById",
-      load: (id) => Effect.succeed({ id })
+      load: (id) => Effect.succeed({ id }),
     });
     const ProjectRouteBuilder = defineFileRoute("/file-helper-malformed-resource-refs");
     const resource: FileRoutePreloadResource<"/file-helper-malformed-resource-refs"> = {
       family: { name: ProjectById.family.options.name },
-      refs: (() => ({ key: ProjectById("atlas").key })) as never
+      refs: (() => ({ key: ProjectById("atlas").key })) as never,
     };
     const ProjectRoute = ProjectRouteBuilder({
       ...ProjectRouteBuilder.preload({
-        resources: [resource]
-      })
+        resources: [resource],
+      }),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     const failure = await Effect.runPromise(
-      Effect.flip(preloadRequest(app, new Request("https://example.com/file-helper-malformed-resource-refs")))
+      Effect.flip(
+        preloadRequest(app, new Request("https://example.com/file-helper-malformed-resource-refs")),
+      ),
     );
 
     expect(failure).toBeInstanceOf(StartPreloadError);
@@ -1401,7 +1451,7 @@ describe("Effect UI Start", () => {
     expect(routeFailure.cause).toMatchObject({
       operation: "resource-selector",
       path: "/file-helper-malformed-resource-refs",
-      cause: expect.any(TypeError)
+      cause: expect.any(TypeError),
     });
   });
 
@@ -1409,7 +1459,7 @@ describe("Effect UI Start", () => {
     const thrown = new Error("bad resource selector");
     const ProjectById = Resource.family<string, { readonly id: string }>({
       name: "Start.FileRoutePreloadHelper.selector-error.projectById",
-      load: (id) => Effect.succeed({ id })
+      load: (id) => Effect.succeed({ id }),
     });
     const ProjectRouteBuilder = defineFileRoute("/file-helper-selector-error/:id");
     const ProjectRoute = ProjectRouteBuilder({
@@ -1417,17 +1467,19 @@ describe("Effect UI Start", () => {
         resources: [
           ProjectRouteBuilder.resource(ProjectById, () => {
             throw thrown;
-          })
-        ]
-      })
+          }),
+        ],
+      }),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     const failure = await Effect.runPromise(
-      Effect.flip(preloadRequest(app, new Request("https://example.com/file-helper-selector-error/atlas")))
+      Effect.flip(
+        preloadRequest(app, new Request("https://example.com/file-helper-selector-error/atlas")),
+      ),
     );
 
     expect(failure).toBeInstanceOf(StartPreloadError);
@@ -1438,36 +1490,39 @@ describe("Effect UI Start", () => {
     expect(routeFailure.cause).toMatchObject({
       operation: "resource-selector",
       path: "/file-helper-selector-error/:id",
-      cause: thrown
+      cause: thrown,
     });
   });
 
   it("resolves route-declared collections from registered request collections before the default registry", async () => {
     let projectLoads = 0;
     const registry = Collection.makeRegistry();
-    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
-      name: "Start.Collection.route-declared.isolated-projects",
-      getKey: (project) => project.id,
-      load: () =>
-        Effect.sync(() => {
-          projectLoads += 1;
-          return [{ id: "atlas", name: "Atlas" }];
-        })
-    }, registry);
+    const Projects = Collection.define<{ readonly id: string; readonly name: string }>(
+      {
+        name: "Start.Collection.route-declared.isolated-projects",
+        getKey: (project) => project.id,
+        load: () =>
+          Effect.sync(() => {
+            projectLoads += 1;
+            return [{ id: "atlas", name: "Atlas" }];
+          }),
+      },
+      registry,
+    );
     const ProjectRoute = route("/isolated-declared-projects", {
-      preloadCollections: [Projects]
+      preloadCollections: [Projects],
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     expect(Collection.definitions().has(Projects.name)).toBe(false);
 
     const result = await Effect.runPromise(
       preloadRequest(app, new Request("https://example.com/isolated-declared-projects"), {
-        collections: [Projects]
-      })
+        collections: [Projects],
+      }),
     );
 
     expect(projectLoads).toBe(1);
@@ -1478,8 +1533,8 @@ describe("Effect UI Start", () => {
         key: "atlas",
         value: { id: "atlas", name: "Atlas" },
         synced: true,
-        origin: "remote"
-      }
+        origin: "remote",
+      },
     ]);
   });
 
@@ -1492,35 +1547,35 @@ describe("Effect UI Start", () => {
         Effect.sync(() => {
           projectLoads += 1;
           return [{ id: "atlas", name: "Atlas" }];
-        })
+        }),
     });
     const ProjectRoute = route("/default-string-declared-projects", {
-      preloadCollections: [Projects.name]
+      preloadCollections: [Projects.name],
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     expect(Collection.definitions().get(Projects.name)).toBe(Projects);
 
     const error = await Effect.runPromise(
       Effect.flip(
-        preloadRequest(app, new Request("https://example.com/default-string-declared-projects"))
-      )
+        preloadRequest(app, new Request("https://example.com/default-string-declared-projects")),
+      ),
     );
 
     expect(error).toBeInstanceOf(StartPreloadError);
     expect(error).toMatchObject({
       operation: "declared-collection-resolution",
-      collectionName: Projects.name
+      collectionName: Projects.name,
     });
     expect(projectLoads).toBe(0);
 
     const result = await Effect.runPromise(
       preloadRequest(app, new Request("https://example.com/default-string-declared-projects"), {
-        collectionRegistry: Collection.defaultRegistry
-      })
+        collectionRegistry: Collection.defaultRegistry,
+      }),
     );
 
     expect(projectLoads).toBe(1);
@@ -1533,33 +1588,33 @@ describe("Effect UI Start", () => {
     const PrimaryProjects = Collection.define<{ readonly id: string; readonly name: string }>({
       name,
       getKey: (project) => project.id,
-      load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }])
+      load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
     });
     const ShadowProjects = Collection.define<{ readonly slug: string; readonly title: string }>({
       name,
       getKey: (project) => project.slug,
-      load: () => Effect.succeed([{ slug: "shadow", title: "Shadow" }])
+      load: () => Effect.succeed([{ slug: "shadow", title: "Shadow" }]),
     });
     const ProjectRoute = route("/duplicate-direct-declared-projects", {
-      preloadCollections: [name]
+      preloadCollections: [name],
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
 
     const error = await Effect.runPromise(
       Effect.flip(
         preloadRequest(app, new Request("https://example.com/duplicate-direct-declared-projects"), {
-          collections: [PrimaryProjects, ShadowProjects]
-        })
-      )
+          collections: [PrimaryProjects, ShadowProjects],
+        }),
+      ),
     );
 
     expect(error).toBeInstanceOf(StartPreloadError);
     expect(error).toMatchObject({
       operation: "declared-collection-resolution",
-      collectionName: name
+      collectionName: name,
     });
     expect(error.cause).toBeInstanceOf(StartCollectionDuplicateName);
   });
@@ -1570,35 +1625,35 @@ describe("Effect UI Start", () => {
     }
     const Projects = Context.Service<Projects>("@effect-ui/start/test/Projects");
     const ProjectsLive = Layer.succeed(Projects)({
-      get: (id) => Effect.succeed({ id, name: "Layered Atlas" })
+      get: (id) => Effect.succeed({ id, name: "Layered Atlas" }),
     });
     const Project = Resource.family({
       name: "Start.Project.layered",
-      load: (id: string) => Projects.use((projects) => projects.get(id))
+      load: (id: string) => Projects.use((projects) => projects.get(id)),
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id))
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
       client: {},
-      server: ProjectsLive
+      server: ProjectsLive,
     });
 
     const result = await Effect.runPromise(
-      preloadRequestEffect(app, new Request("https://example.com/projects/atlas"))
+      preloadRequestEffect(app, new Request("https://example.com/projects/atlas")),
     );
     const response = await Effect.runPromise(
       createRequestHandlerEffect(app, {
         render: ({ resources }) =>
-          Effect.succeed(`<html><body>${resources.resources[0]?.state.value.name}</body></html>`)
-      })(new Request("https://example.com/projects/atlas"))
+          Effect.succeed(`<html><body>${resources.resources[0]?.state.value.name}</body></html>`),
+      })(new Request("https://example.com/projects/atlas")),
     );
 
     expect(result.resources.resources[0]?.state.value).toEqual({
       id: "atlas",
-      name: "Layered Atlas"
+      name: "Layered Atlas",
     });
     await expect(response.text()).resolves.toContain("Layered Atlas");
   });
@@ -1607,7 +1662,7 @@ describe("Effect UI Start", () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home] as const,
-      client: {}
+      client: {},
     });
     let interrupted = false;
     let fiberCount: (() => number) | undefined;
@@ -1618,9 +1673,9 @@ describe("Effect UI Start", () => {
             Effect.ensuring(
               Effect.sync(() => {
                 interrupted = true;
-              })
+              }),
             ),
-            Effect.forkDetach({ startImmediately: true })
+            Effect.forkDetach({ startImmediately: true }),
           );
           runtime.resourceStore.fiberRegistry.track(fiber as Fiber.Fiber<unknown, never>);
           fiberCount = () => runtime.resourceStore.fiberRegistry.size();
@@ -1632,15 +1687,15 @@ describe("Effect UI Start", () => {
                 controller.enqueue(encoder.encode("<html>"));
                 controller.enqueue(encoder.encode("streamed"));
                 controller.close();
-              }
+              },
             }),
             {
               headers: {
-                "content-type": "text/html"
-              }
-            }
+                "content-type": "text/html",
+              },
+            },
           );
-        })
+        }),
     });
 
     const response = await Effect.runPromise(handler(new Request("https://example.com/")));
@@ -1658,7 +1713,7 @@ describe("Effect UI Start", () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home] as const,
-      client: {}
+      client: {},
     });
     let cancelled: unknown;
     const handler = createRequestHandler(app, {
@@ -1674,29 +1729,29 @@ describe("Effect UI Start", () => {
             },
             cancel(reason) {
               cancelled = reason;
-            }
+            },
           }),
           {
             headers: {
-              "content-type": "text/html"
-            }
-          }
-        )
+              "content-type": "text/html",
+            },
+          },
+        ),
     });
 
     const response = await Effect.runPromise(
       handler(
         new Request("https://example.com/", {
           headers: {
-            "x-effect-ui-request-id": "req-cancel"
-          }
-        })
-      )
+            "x-effect-ui-request-id": "req-cancel",
+          },
+        }),
+      ),
     );
     const reader = response.body!.getReader();
 
     await expect(reader.read()).resolves.toMatchObject({
-      done: false
+      done: false,
     });
     await reader.cancel("client-disconnect");
 
@@ -1705,33 +1760,33 @@ describe("Effect UI Start", () => {
       expect.objectContaining({
         request: expect.objectContaining({
           id: "req-cancel",
-          transport: "ssr"
+          transport: "ssr",
         }),
         status: "cancelled",
         streams: [
           expect.objectContaining({
             name: "response",
-            state: "cancelled"
-          })
+            state: "cancelled",
+          }),
         ],
         fibers: [
           {
             name: "request-runtime",
-            status: "interrupted"
-          }
+            status: "interrupted",
+          },
         ],
         teardown: expect.objectContaining({
           runtimeDisposed: true,
           reason: "client-disconnect",
           durationMillis: expect.any(Number),
           beforeDispose: expect.objectContaining({
-            fiberCount: expect.any(Number)
+            fiberCount: expect.any(Number),
           }),
           afterDispose: expect.objectContaining({
-            fiberCount: 0
-          })
-        })
-      })
+            fiberCount: 0,
+          }),
+        }),
+      }),
     ]);
   });
 
@@ -1740,7 +1795,7 @@ describe("Effect UI Start", () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       onRequestTrace: (trace) =>
@@ -1750,18 +1805,18 @@ describe("Effect UI Start", () => {
       render: () =>
         createHtmlResponseEffect({
           shell: "<html>",
-          chunks: Stream.fail("render chunk failed")
-        })
+          chunks: Stream.fail("render chunk failed"),
+        }),
     });
 
     const response = await Effect.runPromise(
       handler(
         new Request("https://example.com/", {
           headers: {
-            "x-effect-ui-request-id": "req-stream-failure"
-          }
-        })
-      )
+            "x-effect-ui-request-id": "req-stream-failure",
+          },
+        }),
+      ),
     );
     await expect(response.text()).rejects.toBeDefined();
 
@@ -1769,7 +1824,7 @@ describe("Effect UI Start", () => {
       expect.objectContaining({
         request: expect.objectContaining({
           id: "req-stream-failure",
-          transport: "ssr"
+          transport: "ssr",
         }),
         status: "failure",
         failureKind: "domain",
@@ -1777,20 +1832,20 @@ describe("Effect UI Start", () => {
           expect.objectContaining({
             name: "response",
             state: "errored",
-            failurePhase: "Chunk"
-          })
+            failurePhase: "Chunk",
+          }),
         ],
         fibers: [
           {
             name: "request-runtime",
-            status: "failed"
-          }
+            status: "failed",
+          },
         ],
         teardown: expect.objectContaining({
           runtimeDisposed: true,
-          reason: "stream-error"
-        })
-      })
+          reason: "stream-error",
+        }),
+      }),
     ]);
   });
 
@@ -1798,21 +1853,21 @@ describe("Effect UI Start", () => {
     const ObservedRoute = route("/observed-metrics", {});
     const app = defineApp({
       routes: [ObservedRoute] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
-      render: ({ match }) => `<main>${match?.href}</main>`
+      render: ({ match }) => `<main>${match?.href}</main>`,
     });
     const attributes = {
       transport: "ssr",
       method: "GET",
-      path: "/observed-metrics"
+      path: "/observed-metrics",
     };
     const requestCount = Metric.withAttributes(startRequestCountMetric, attributes);
     const requestDuration = Metric.withAttributes(startRequestDurationMetric, attributes);
     const requestStatus = Metric.withAttributes(startRequestStatusMetric, {
       ...attributes,
-      status: "success"
+      status: "success",
     });
 
     return Effect.runPromise(
@@ -1834,35 +1889,38 @@ describe("Effect UI Start", () => {
           expect(afterDuration.count).toBe(beforeDuration.count + 1);
           expect(afterStatus.occurrences.get("success")).toBe(beforeSuccessCount + 1);
         });
-      })
+      }),
     );
   });
 
   it("finalizes RPC failure request metrics from the request runtime finalization event", () => {
-    const FailsDomain = Server.contract<{ readonly value: string }, string, string>("Start.metrics.rpc.failure", {
-      input: Schema.Struct({ value: Schema.String }),
-      output: Schema.String,
-      error: Schema.String
-    });
+    const FailsDomain = Server.contract<{ readonly value: string }, string, string>(
+      "Start.metrics.rpc.failure",
+      {
+        input: Schema.Struct({ value: Schema.String }),
+        output: Schema.String,
+        error: Schema.String,
+      },
+    );
     Server.implement(FailsDomain, () => Effect.fail("metrics-domain-failed"));
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app);
     const attributes = {
       transport: "rpc",
       method: "POST",
-      path: serverRpcPath
+      path: serverRpcPath,
     };
     const requestDuration = Metric.withAttributes(startRequestDurationMetric, attributes);
     const requestSuccessStatus = Metric.withAttributes(startRequestStatusMetric, {
       ...attributes,
-      status: "success"
+      status: "success",
     });
     const requestFailureStatus = Metric.withAttributes(startRequestStatusMetric, {
       ...attributes,
-      status: "failure"
+      status: "failure",
     });
 
     return Effect.runPromise(
@@ -1879,9 +1937,9 @@ describe("Effect UI Start", () => {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               name: FailsDomain.name,
-              input: { value: "atlas" }
-            })
-          })
+              input: { value: "atlas" },
+            }),
+          }),
         );
         const body = yield* Effect.tryPromise(() => response.json());
         const afterDuration = yield* Metric.value(requestDuration);
@@ -1891,17 +1949,13 @@ describe("Effect UI Start", () => {
         yield* Effect.sync(() => {
           expect(body).toEqual({
             _tag: "Failure",
-            error: "metrics-domain-failed"
+            error: "metrics-domain-failed",
           });
           expect(afterDuration.count).toBe(beforeDuration.count + 1);
-          expect(afterSuccess.occurrences.get("success") ?? 0).toBe(
-            beforeSuccessCount
-          );
-          expect(afterFailure.occurrences.get("failure")).toBe(
-            beforeFailureCount + 1
-          );
+          expect(afterSuccess.occurrences.get("success") ?? 0).toBe(beforeSuccessCount);
+          expect(afterFailure.occurrences.get("failure")).toBe(beforeFailureCount + 1);
         });
-      })
+      }),
     );
   });
 
@@ -1909,7 +1963,7 @@ describe("Effect UI Start", () => {
     const CancelRoute = route("/metrics-cancel", {});
     const app = defineApp({
       routes: [CancelRoute] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       render: () =>
@@ -1917,25 +1971,25 @@ describe("Effect UI Start", () => {
           new ReadableStream<Uint8Array>({
             pull(controller) {
               controller.enqueue(new TextEncoder().encode("chunk"));
-            }
+            },
           }),
           {
             headers: {
-              "content-type": "text/html"
-            }
-          }
-        )
+              "content-type": "text/html",
+            },
+          },
+        ),
     });
     const attributes = {
       transport: "ssr",
       method: "GET",
-      path: "/metrics-cancel"
+      path: "/metrics-cancel",
     };
     const requestCount = Metric.withAttributes(startRequestCountMetric, attributes);
     const requestDuration = Metric.withAttributes(startRequestDurationMetric, attributes);
     const requestCancelledStatus = Metric.withAttributes(startRequestStatusMetric, {
       ...attributes,
-      status: "cancelled"
+      status: "cancelled",
     });
 
     return Effect.runPromise(
@@ -1961,11 +2015,9 @@ describe("Effect UI Start", () => {
           expect(midDuration.count).toBe(beforeDuration.count);
           expect(midCancelledCount).toBe(beforeCancelledCount);
           expect(afterDuration.count).toBe(beforeDuration.count + 1);
-          expect(afterCancelled.occurrences.get("cancelled")).toBe(
-            beforeCancelledCount + 1
-          );
+          expect(afterCancelled.occurrences.get("cancelled")).toBe(beforeCancelledCount + 1);
         });
-      })
+      }),
     );
   });
 
@@ -1974,14 +2026,14 @@ describe("Effect UI Start", () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       onRequestTrace: (trace) =>
         Effect.sync(() => {
           traces.push(trace);
         }),
-      render: () => Effect.fail("render-failed")
+      render: () => Effect.fail("render-failed"),
     });
 
     await expect(
@@ -1989,21 +2041,21 @@ describe("Effect UI Start", () => {
         handler(
           new Request("https://example.com/", {
             headers: {
-              "x-effect-ui-request-id": "req-failure"
-            }
-          })
-        )
-      )
+              "x-effect-ui-request-id": "req-failure",
+            },
+          }),
+        ),
+      ),
     ).rejects.toMatchObject({
       _tag: "StartRequestHandlerError",
-      cause: "render-failed"
+      cause: "render-failed",
     });
 
     expect(traces).toEqual([
       expect.objectContaining({
         request: expect.objectContaining({
           id: "req-failure",
-          transport: "ssr"
+          transport: "ssr",
         }),
         status: "failure",
         failureKind: "domain",
@@ -2011,21 +2063,21 @@ describe("Effect UI Start", () => {
         fibers: [
           {
             name: "request-runtime",
-            status: "failed"
-          }
+            status: "failed",
+          },
         ],
         teardown: expect.objectContaining({
           runtimeDisposed: true,
           reason: "request-failure",
           durationMillis: expect.any(Number),
           beforeDispose: expect.objectContaining({
-            fiberCount: expect.any(Number)
+            fiberCount: expect.any(Number),
           }),
           afterDispose: expect.objectContaining({
-            fiberCount: 0
-          })
-        })
-      })
+            fiberCount: 0,
+          }),
+        }),
+      }),
     ]);
   });
 
@@ -2034,7 +2086,7 @@ describe("Effect UI Start", () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       onRequestTrace: (trace) =>
@@ -2044,10 +2096,10 @@ describe("Effect UI Start", () => {
       render: ({ runtime }) =>
         Effect.gen(function* () {
           runtime.resourceStore.moduleRegistry.register(Symbol("cleanup-failure"), {
-            disposeEffect: Effect.fail("cleanup-failed")
+            disposeEffect: Effect.fail("cleanup-failed"),
           });
           return yield* Effect.fail("render-failed");
-        })
+        }),
     });
 
     await expect(
@@ -2055,30 +2107,30 @@ describe("Effect UI Start", () => {
         handler(
           new Request("https://example.com/", {
             headers: {
-              "x-effect-ui-request-id": "req-cleanup-failure"
-            }
-          })
-        )
-      )
+              "x-effect-ui-request-id": "req-cleanup-failure",
+            },
+          }),
+        ),
+      ),
     ).rejects.toMatchObject({
       _tag: "StartRequestHandlerError",
-      cause: "render-failed"
+      cause: "render-failed",
     });
 
     expect(traces).toEqual([
       expect.objectContaining({
         request: expect.objectContaining({
-          id: "req-cleanup-failure"
+          id: "req-cleanup-failure",
         }),
         status: "failure",
         teardown: expect.objectContaining({
           runtimeDisposed: false,
           cleanupFailure: expect.objectContaining({
             _tag: "Failure",
-            message: "cleanup-failed"
-          })
-        })
-      })
+            message: "cleanup-failed",
+          }),
+        }),
+      }),
     ]);
   });
 
@@ -2087,24 +2139,24 @@ describe("Effect UI Start", () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       onRequestTrace: (trace) =>
         Effect.sync(() => {
           traces.push(trace);
         }),
-      render: () => Effect.interrupt
+      render: () => Effect.interrupt,
     });
 
     const exit = await Effect.runPromiseExit(
       handler(
         new Request("https://example.com/", {
           headers: {
-            "x-effect-ui-request-id": "req-interrupted"
-          }
-        })
-      )
+            "x-effect-ui-request-id": "req-interrupted",
+          },
+        }),
+      ),
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
@@ -2112,7 +2164,7 @@ describe("Effect UI Start", () => {
       expect.objectContaining({
         request: expect.objectContaining({
           id: "req-interrupted",
-          transport: "ssr"
+          transport: "ssr",
         }),
         status: "cancelled",
         failureKind: "interruption",
@@ -2120,17 +2172,17 @@ describe("Effect UI Start", () => {
         fibers: [
           {
             name: "request-runtime",
-            status: "interrupted"
-          }
+            status: "interrupted",
+          },
         ],
         teardown: expect.objectContaining({
           runtimeDisposed: true,
           reason: "interruption",
           afterDispose: expect.objectContaining({
-            fiberCount: 0
-          })
-        })
-      })
+            fiberCount: 0,
+          }),
+        }),
+      }),
     ]);
   });
 
@@ -2138,8 +2190,8 @@ describe("Effect UI Start", () => {
     const trace = buildStartRequestTrace(
       new Request("https://example.com/", {
         headers: {
-          cookie: "%E0%A4%A=secret"
-        }
+          cookie: "%E0%A4%A=secret",
+        },
       }),
       {
         requestId: "req-malformed-cookie",
@@ -2147,21 +2199,21 @@ describe("Effect UI Start", () => {
         startedAt: 0,
         collections: [],
         serverFunctions: [],
-        actions: []
+        actions: [],
       },
       "failure",
       {
         teardown: {
-          runtimeDisposed: true
-        }
-      }
+          runtimeDisposed: true,
+        },
+      },
     );
 
     expect(trace.request.cookies).toEqual([
       {
         name: "%E0%A4%A",
-        value: "<redacted>"
-      }
+        value: "<redacted>",
+      },
     ]);
     expect(trace.status).toBe("failure");
   });
@@ -2169,12 +2221,12 @@ describe("Effect UI Start", () => {
   it("projects trace Set-Cookie counts as zero when the host omits getSetCookie", () => {
     const response = new Response("ok", {
       headers: {
-        "set-cookie": "session=abc"
-      }
+        "set-cookie": "session=abc",
+      },
     });
     Object.defineProperty(response.headers, "getSetCookie", {
       configurable: true,
-      value: undefined
+      value: undefined,
     });
     const trace = buildStartRequestTrace(
       new Request("https://example.com/"),
@@ -2184,15 +2236,15 @@ describe("Effect UI Start", () => {
         startedAt: 0,
         collections: [],
         serverFunctions: [],
-        actions: []
+        actions: [],
       },
       "success",
       {
         response,
         teardown: {
-          runtimeDisposed: true
-        }
-      }
+          runtimeDisposed: true,
+        },
+      },
     );
 
     expect(trace.response?.setCookieCount).toBeUndefined();
@@ -2207,7 +2259,7 @@ describe("Effect UI Start", () => {
         fiberCount: 0,
         familyCount: 0,
         moduleCount: 1,
-        tagCount: 0
+        tagCount: 0,
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
@@ -2226,11 +2278,13 @@ describe("Effect UI Start", () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app);
 
-    await expect(Effect.runPromise(handler(new Request("https://example.com/")))).resolves.toBeInstanceOf(Response);
+    await expect(
+      Effect.runPromise(handler(new Request("https://example.com/"))),
+    ).resolves.toBeInstanceOf(Response);
   });
 
   it("reports synchronous render callback throws through the Start request Effect error", async () => {
@@ -2238,21 +2292,21 @@ describe("Effect UI Start", () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandlerEffect(app, {
       render: () => {
         throw thrown;
-      }
+      },
     });
 
     const failure = await Effect.runPromise(
-      Effect.flip(handler(new Request("https://example.com/")))
+      Effect.flip(handler(new Request("https://example.com/"))),
     );
 
     expect(failure).toMatchObject({
       _tag: "StartRequestHandlerError",
-      operation: "handle-request"
+      operation: "handle-request",
     });
     expect(failure.cause).toBeInstanceOf(EffectInputCallbackError);
     expect((failure.cause as EffectInputCallbackError).operation).toBe("Start.render");
@@ -2263,7 +2317,7 @@ describe("Effect UI Start", () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       render: () =>
@@ -2274,11 +2328,11 @@ describe("Effect UI Start", () => {
             yield* response.setCookie("theme", "dark", {
               path: "/",
               secure: true,
-              sameSite: "None"
+              sameSite: "None",
             });
             return "<html><body>context</body></html>";
-          })
-        )
+          }),
+        ),
     });
 
     const response = await Effect.runPromise(handler(new Request("https://example.com/")));
@@ -2286,9 +2340,7 @@ describe("Effect UI Start", () => {
     expect(response.status).toBe(202);
     expect(response.headers.get("x-effect-ui-render-context")).toBe("yes");
     expect(response.headers.get("content-type")).toBe("text/html");
-    expect(response.headers.getSetCookie()).toEqual([
-      "theme=dark; Path=/; Secure; SameSite=None"
-    ]);
+    expect(response.headers.getSetCookie()).toEqual(["theme=dark; Path=/; Secure; SameSite=None"]);
     await expect(response.text()).resolves.toContain("context");
   });
 
@@ -2297,7 +2349,7 @@ describe("Effect UI Start", () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       onRequestTrace: (trace) =>
@@ -2309,12 +2361,12 @@ describe("Effect UI Start", () => {
           Effect.gen(function* () {
             yield* response.setStatus(99);
             return "<html><body>invalid status</body></html>";
-          })
-        )
+          }),
+        ),
     });
 
     const failure = await Effect.runPromise(
-      Effect.flip(handler(new Request("https://example.com/invalid-status")))
+      Effect.flip(handler(new Request("https://example.com/invalid-status"))),
     );
 
     expect(failure).toMatchObject({
@@ -2322,8 +2374,8 @@ describe("Effect UI Start", () => {
       operation: "handle-request",
       request: {
         method: "GET",
-        url: "https://example.com/invalid-status"
-      }
+        url: "https://example.com/invalid-status",
+      },
     });
     expect(failure.cause).toBeInstanceOf(EffectInputCallbackError);
     expect((failure.cause as EffectInputCallbackError).operation).toBe("ResponseContext.apply");
@@ -2334,55 +2386,60 @@ describe("Effect UI Start", () => {
           runtimeDisposed: true,
           reason: "request-failure",
           afterDispose: expect.objectContaining({
-            fiberCount: 0
-          })
-        })
-      })
+            fiberCount: 0,
+          }),
+        }),
+      }),
     ]);
   });
 
   it("runs returned Start render effects with the request runtime as ambient", async () => {
     const Project = Resource.family<string, { readonly id: string; readonly name: string }>({
       name: "Start.render.ambient.project",
-      load: (id) => Effect.succeed({ id, name: `Project ${id}` })
+      load: (id) => Effect.succeed({ id, name: `Project ${id}` }),
     });
     const ProjectRoute = route("/projects/:id", {
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id))
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       render: () =>
         Effect.sync(() => {
           const project = Resource.read(Project("atlas"));
           return `<html><body>${project.name}</body></html>`;
-        })
+        }),
     });
 
-    const response = await Effect.runPromise(handler(new Request("https://example.com/projects/atlas")));
+    const response = await Effect.runPromise(
+      handler(new Request("https://example.com/projects/atlas")),
+    );
 
     await expect(response.text()).resolves.toContain("Project atlas");
   });
 
   it("serves server functions over the Start RPC endpoint", async () => {
-    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Start.echo.rpc", {
-      input: Schema.Struct({ value: Schema.String }),
-      output: Schema.Struct({ value: Schema.String })
-    });
+    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
+      "Start.echo.rpc",
+      {
+        input: Schema.Struct({ value: Schema.String }),
+        output: Schema.Struct({ value: Schema.String }),
+      },
+    );
     const echo = Server.implement(Echo, ({ value }) =>
       ResponseContext.use((response) =>
         Effect.gen(function* () {
           yield* response.setHeader("x-effect-ui-rpc-context", "yes");
           yield* response.setCookie("rpc", value, { path: "/rpc" });
           return { value: value.toUpperCase() };
-        })
-      )
+        }),
+      ),
     );
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const response = await Effect.runPromise(
       createServerRpcResponseEffect(
@@ -2392,15 +2449,15 @@ describe("Effect UI Start", () => {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             name: echo.name,
-            input: { value: "ada" }
-          })
-        })
-      )
+            input: { value: "ada" },
+          }),
+        }),
+      ),
     );
 
     await expect(response.json()).resolves.toEqual({
       _tag: "Success",
-      value: { value: "ADA" }
+      value: { value: "ADA" },
     });
     expect(response.headers.get("x-effect-ui-rpc-context")).toBe("yes");
     expect(response.headers.getSetCookie()).toEqual(["rpc=ada; Path=/rpc"]);
@@ -2411,8 +2468,8 @@ describe("Effect UI Start", () => {
       "Start.echo.transport-diagnostics",
       {
         input: Schema.Struct({ value: Schema.String }),
-        output: Schema.Struct({ value: Schema.String })
-      }
+        output: Schema.Struct({ value: Schema.String }),
+      },
     );
     const spoofRpc = Server.implement(SpoofRpc, ({ value }) =>
       ResponseContext.use((response) =>
@@ -2421,8 +2478,8 @@ describe("Effect UI Start", () => {
           yield* response.setHeader(startTransportKindHeader, "spoofed-rpc");
           yield* response.setHeader(startTransportProtocolHeader, "spoofed-rpc");
           return { value: value.toUpperCase() };
-        })
-      )
+        }),
+      ),
     );
     const SpoofAction = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.action.transport-diagnostics",
@@ -2435,12 +2492,12 @@ describe("Effect UI Start", () => {
             yield* response.setHeader(startTransportKindHeader, "spoofed-action");
             yield* response.setHeader(startTransportProtocolHeader, "spoofed-action");
             return { value: value.toUpperCase() };
-          })
-        )
+          }),
+        ),
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
 
     const rpcResponse = await Effect.runPromise(
@@ -2450,14 +2507,14 @@ describe("Effect UI Start", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            [startRequestIdHeader]: "req-rpc-authoritative"
+            [startRequestIdHeader]: "req-rpc-authoritative",
           },
           body: JSON.stringify({
             name: spoofRpc.name,
-            input: { value: "ada" }
-          })
-        })
-      )
+            input: { value: "ada" },
+          }),
+        }),
+      ),
     );
     const actionResponse = await Effect.runPromise(
       createServerActionResponseEffect(
@@ -2466,32 +2523,36 @@ describe("Effect UI Start", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            [startRequestIdHeader]: "req-action-authoritative"
+            [startRequestIdHeader]: "req-action-authoritative",
           },
           body: JSON.stringify({
             name: SpoofAction.name,
-            input: { value: "grace" }
-          })
+            input: { value: "grace" },
+          }),
         }),
-        [SpoofAction]
-      )
+        [SpoofAction],
+      ),
     );
 
     await expect(rpcResponse.json()).resolves.toEqual({
       _tag: "Success",
-      value: { value: "ADA" }
+      value: { value: "ADA" },
     });
     expect(rpcResponse.headers.get(startRequestIdHeader)).toBe("req-rpc-authoritative");
     expect(rpcResponse.headers.get(startTransportKindHeader)).toBe("rpc");
-    expect(rpcResponse.headers.get(startTransportProtocolHeader)).toBe(startTransportProtocolVersion);
+    expect(rpcResponse.headers.get(startTransportProtocolHeader)).toBe(
+      startTransportProtocolVersion,
+    );
 
     await expect(actionResponse.json()).resolves.toEqual({
       _tag: "Success",
-      value: { value: "GRACE" }
+      value: { value: "GRACE" },
     });
     expect(actionResponse.headers.get(startRequestIdHeader)).toBe("req-action-authoritative");
     expect(actionResponse.headers.get(startTransportKindHeader)).toBe("action");
-    expect(actionResponse.headers.get(startTransportProtocolHeader)).toBe(startTransportProtocolVersion);
+    expect(actionResponse.headers.get(startTransportProtocolHeader)).toBe(
+      startTransportProtocolVersion,
+    );
   });
 
   it("maps non-JSON-safe RPC and action response bodies to defect responses", async () => {
@@ -2499,11 +2560,11 @@ describe("Effect UI Start", () => {
     const bigRpc = Server.implement(BigRpc, () => Effect.succeed(1n));
     const BigAction = Action.define<null, bigint>({
       name: "Start.bigint.action",
-      run: () => Effect.succeed(1n)
+      run: () => Effect.succeed(1n),
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const rpcResponse = await Effect.runPromise(
       createServerRpcResponseEffect(
@@ -2513,10 +2574,10 @@ describe("Effect UI Start", () => {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             name: bigRpc.name,
-            input: null
-          })
-        })
-      )
+            input: null,
+          }),
+        }),
+      ),
     );
     const actionResponse = await Effect.runPromise(
       createServerActionResponseEffect(
@@ -2526,46 +2587,51 @@ describe("Effect UI Start", () => {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             name: BigAction.name,
-            input: null
-          })
+            input: null,
+          }),
         }),
-        [BigAction]
-      )
+        [BigAction],
+      ),
     );
 
     expect(rpcResponse.status).toBe(500);
     await expect(rpcResponse.json()).resolves.toMatchObject({
-      _tag: "Defect"
+      _tag: "Defect",
     });
     expect(actionResponse.status).toBe(500);
     await expect(actionResponse.json()).resolves.toMatchObject({
-      _tag: "Defect"
+      _tag: "Defect",
     });
   });
 
   it("emits request traces for RPC and Start action transports", async () => {
     const traces: DevtoolsRequestTrace[] = [];
-    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Start.echo.trace", {
-      input: Schema.Struct({ value: Schema.String }),
-      output: Schema.Struct({ value: Schema.String })
-    });
-    const echo = Server.implement(Echo, ({ value }) => Effect.succeed({ value: value.toUpperCase() }));
+    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
+      "Start.echo.trace",
+      {
+        input: Schema.Struct({ value: Schema.String }),
+        output: Schema.Struct({ value: Schema.String }),
+      },
+    );
+    const echo = Server.implement(Echo, ({ value }) =>
+      Effect.succeed({ value: value.toUpperCase() }),
+    );
     const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.action.trace.ping",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value: value.toUpperCase() })
+      run: ({ value }) => Effect.succeed({ value: value.toUpperCase() }),
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       actions: [Ping],
       onRequestTrace: (trace) =>
         Effect.sync(() => {
           traces.push(trace);
-        })
+        }),
     });
 
     const rpcResponse = await Effect.runPromise(
@@ -2574,18 +2640,18 @@ describe("Effect UI Start", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            "x-effect-ui-request-id": "req-rpc-trace"
+            "x-effect-ui-request-id": "req-rpc-trace",
           },
           body: JSON.stringify({
             name: echo.name,
-            input: { value: "ada" }
-          })
-        })
-      )
+            input: { value: "ada" },
+          }),
+        }),
+      ),
     );
     await expect(rpcResponse.json()).resolves.toEqual({
       _tag: "Success",
-      value: { value: "ADA" }
+      value: { value: "ADA" },
     });
     expect(rpcResponse.headers.get(startRequestIdHeader)).toBe("req-rpc-trace");
 
@@ -2595,18 +2661,18 @@ describe("Effect UI Start", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            "x-effect-ui-request-id": "req-action-trace"
+            "x-effect-ui-request-id": "req-action-trace",
           },
           body: JSON.stringify({
             name: Ping.name,
-            input: { value: "pong" }
-          })
-        })
-      )
+            input: { value: "pong" },
+          }),
+        }),
+      ),
     );
     await expect(actionResponse.json()).resolves.toEqual({
       _tag: "Success",
-      value: { value: "PONG" }
+      value: { value: "PONG" },
     });
     expect(actionResponse.headers.get(startRequestIdHeader)).toBe("req-action-trace");
 
@@ -2615,51 +2681,54 @@ describe("Effect UI Start", () => {
         request: expect.objectContaining({
           id: "req-rpc-trace",
           transport: "rpc",
-          path: serverRpcPath
+          path: serverRpcPath,
         }),
         serverFunctions: [
           {
             name: echo.name,
-            status: "success"
-          }
+            status: "success",
+          },
         ],
         actions: [],
-        status: "success"
+        status: "success",
       }),
       expect.objectContaining({
         request: expect.objectContaining({
           id: "req-action-trace",
           transport: "action",
-          path: serverActionPath
+          path: serverActionPath,
         }),
         serverFunctions: [],
         actions: [
           {
             name: Ping.name,
-            state: "Success"
-          }
+            state: "Success",
+          },
         ],
-        status: "success"
-      })
+        status: "success",
+      }),
     ]);
   });
 
   it("uses one generated request id for transport diagnostics and request traces", async () => {
     const traces: DevtoolsRequestTrace[] = [];
-    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Start.echo.trace.generated-id", {
-      input: Schema.Struct({ value: Schema.String }),
-      output: Schema.Struct({ value: Schema.String })
-    });
+    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
+      "Start.echo.trace.generated-id",
+      {
+        input: Schema.Struct({ value: Schema.String }),
+        output: Schema.Struct({ value: Schema.String }),
+      },
+    );
     const echo = Server.implement(Echo, ({ value }) => Effect.succeed({ value }));
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       onRequestTrace: (trace) =>
         Effect.sync(() => {
           traces.push(trace);
-        })
+        }),
     });
 
     const response = await Effect.runPromise(
@@ -2667,18 +2736,18 @@ describe("Effect UI Start", () => {
         new Request(`https://example.com${serverRpcPath}`, {
           method: "POST",
           headers: {
-            "content-type": "application/json"
+            "content-type": "application/json",
           },
           body: JSON.stringify({
             name: echo.name,
-            input: { value: "ada" }
-          })
-        })
-      )
+            input: { value: "ada" },
+          }),
+        }),
+      ),
     );
     await expect(response.json()).resolves.toEqual({
       _tag: "Success",
-      value: { value: "ada" }
+      value: { value: "ada" },
     });
 
     expect(traces).toHaveLength(1);
@@ -2688,24 +2757,27 @@ describe("Effect UI Start", () => {
   it("uses manifest transport endpoint paths for handler routing, traces, and clients", async () => {
     const endpoints = {
       serverFunctions: { rpcPath: "/custom/start-rpc" },
-      actions: { actionPath: "/custom/start-action" }
+      actions: { actionPath: "/custom/start-action" },
     } as const;
     const traces: DevtoolsRequestTrace[] = [];
-    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Start.echo.custom-endpoint", {
-      input: Schema.Struct({ value: Schema.String }),
-      output: Schema.Struct({ value: Schema.String })
-    });
+    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
+      "Start.echo.custom-endpoint",
+      {
+        input: Schema.Struct({ value: Schema.String }),
+        output: Schema.Struct({ value: Schema.String }),
+      },
+    );
     const echo = Server.client(Echo);
     Server.implement(Echo, ({ value }) => Effect.succeed({ value: `rpc:${value}` }));
     const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.action.custom-endpoint",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value: `action:${value}` })
+      run: ({ value }) => Effect.succeed({ value: `action:${value}` }),
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       actions: [Ping],
@@ -2713,91 +2785,94 @@ describe("Effect UI Start", () => {
       onRequestTrace: (trace) =>
         Effect.sync(() => {
           traces.push(trace);
-        })
+        }),
     });
     const fetcher: StartFetch = (input, init) => {
-      const url = input instanceof Request
-        ? input.url
-        : new URL(String(input), "https://example.com").href;
+      const url =
+        input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
       return handler(new Request(url, init));
     };
     const rpcRuntime = Layer.succeed(ServerClient)(
       makeRpcClient({
         fetch: fetcher,
-        serverFunctionManifest: endpoints.serverFunctions
-      })
+        serverFunctionManifest: endpoints.serverFunctions,
+      }),
     );
 
     await expect(
-      Effect.runPromise(Effect.provide(echo.effect({ value: "atlas" }), rpcRuntime))
+      Effect.runPromise(Effect.provide(echo.effect({ value: "atlas" }), rpcRuntime)),
     ).resolves.toEqual({ value: "rpc:atlas" });
 
     await expect(
       Effect.runPromise(
-        submitStartActionEffect(Ping, { value: "submit" }, {
-          fetch: fetcher,
-          actionManifest: endpoints.actions
-        })
-      )
+        submitStartActionEffect(
+          Ping,
+          { value: "submit" },
+          {
+            fetch: fetcher,
+            actionManifest: endpoints.actions,
+          },
+        ),
+      ),
     ).resolves.toMatchObject({
       _tag: "Success",
-      value: { value: "action:submit" }
+      value: { value: "action:submit" },
     });
 
     const startPing = StartAction.use(Ping, {
       fetch: fetcher,
-      actionManifest: endpoints.actions
+      actionManifest: endpoints.actions,
     });
     await expect(
-      Effect.runPromise(startPing.submitEffect({ value: "stateful" }))
+      Effect.runPromise(startPing.submitEffect({ value: "stateful" })),
     ).resolves.toMatchObject({
       _tag: "Success",
-      value: { value: "action:stateful" }
+      value: { value: "action:stateful" },
     });
 
     expect(StartAction.form(Ping, { actionManifest: endpoints.actions }).action).toBe(
-      endpoints.actions.actionPath
+      endpoints.actions.actionPath,
     );
     expect(traces).toEqual([
       expect.objectContaining({
         request: expect.objectContaining({
           transport: "rpc",
-          path: endpoints.serverFunctions.rpcPath
+          path: endpoints.serverFunctions.rpcPath,
         }),
         serverFunctions: [
           {
             name: Echo.name,
-            status: "success"
-          }
+            status: "success",
+          },
         ],
-        status: "success"
+        status: "success",
       }),
       expect.objectContaining({
         request: expect.objectContaining({
           transport: "action",
-          path: endpoints.actions.actionPath
+          path: endpoints.actions.actionPath,
         }),
         actions: [
           {
             name: Ping.name,
-            state: "Success"
-          }
+            state: "Success",
+          },
         ],
-        status: "success"
+        status: "success",
       }),
       expect.objectContaining({
         request: expect.objectContaining({
           transport: "action",
-          path: endpoints.actions.actionPath
+          path: endpoints.actions.actionPath,
         }),
         actions: [
           {
             name: Ping.name,
-            state: "Success"
-          }
+            state: "Success",
+          },
         ],
-        status: "success"
-      })
+        status: "success",
+      }),
     ]);
   });
 
@@ -2806,11 +2881,11 @@ describe("Effect UI Start", () => {
       name: "Start.action.endpoint-policy",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value })
+      run: ({ value }) => Effect.succeed({ value }),
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const calls: string[] = [];
     const fetcher: StartFetch = (input) => {
@@ -2819,31 +2894,33 @@ describe("Effect UI Start", () => {
         new Response(
           JSON.stringify({
             _tag: "Success",
-            value: { value: "ok" }
+            value: { value: "ok" },
           }),
           {
-            headers: { "content-type": "application/json" }
-          }
-        )
+            headers: { "content-type": "application/json" },
+          },
+        ),
       );
     };
 
-    expect(() => resolveStartTransportEndpoints({ rpcPath: "rpc" })).toThrow(StartTransportEndpointPathError);
-    expect(() => resolveStartTransportEndpoints({ actionPath: "https://example.com/action" })).toThrow(
-      StartTransportEndpointPathError
+    expect(() => resolveStartTransportEndpoints({ rpcPath: "rpc" })).toThrow(
+      StartTransportEndpointPathError,
     );
+    expect(() =>
+      resolveStartTransportEndpoints({ actionPath: "https://example.com/action" }),
+    ).toThrow(StartTransportEndpointPathError);
     expect(() => resolveStartTransportEndpoints({ rpcPath: "/same", actionPath: "/same" })).toThrow(
-      StartTransportEndpointConflictError
+      StartTransportEndpointConflictError,
     );
     const invalidPathHandlerExit = await Effect.runPromiseExit(
       createRequestHandlerEffect(app, { rpcPath: "/__effect-ui/rpc\nx" })(
-        new Request("https://example.com/")
-      )
+        new Request("https://example.com/"),
+      ),
     );
     const collidingHandlerExit = await Effect.runPromiseExit(
       createRequestHandlerEffect(app, { rpcPath: "/same", actionPath: "/same" })(
-        new Request("https://example.com/")
-      )
+        new Request("https://example.com/"),
+      ),
     );
     const invalidPathHandlerFailure = Exit.isFailure(invalidPathHandlerExit)
       ? firstFailure(invalidPathHandlerExit.cause)
@@ -2853,48 +2930,52 @@ describe("Effect UI Start", () => {
       : undefined;
 
     expect(invalidPathHandlerFailure).toBeInstanceOf(StartRequestHandlerError);
-    expect((invalidPathHandlerFailure as StartRequestHandlerError | undefined)?.cause).toBeInstanceOf(
-      StartTransportEndpointPathError
-    );
+    expect(
+      (invalidPathHandlerFailure as StartRequestHandlerError | undefined)?.cause,
+    ).toBeInstanceOf(StartTransportEndpointPathError);
     expect(collidingHandlerFailure).toBeInstanceOf(StartRequestHandlerError);
     expect((collidingHandlerFailure as StartRequestHandlerError | undefined)?.cause).toBeInstanceOf(
-      StartTransportEndpointConflictError
+      StartTransportEndpointConflictError,
     );
     expect(() =>
       shouldHandleSsrRequest(
         { method: "POST", url: "/__effect-ui/rpc", headers: {} },
-        { rpcPath: "https://example.com/rpc" }
-      )
+        { rpcPath: "https://example.com/rpc" },
+      ),
     ).toThrow(StartTransportEndpointPathError);
     expect(() =>
       shouldHandleSsrRequest(
         { method: "POST", url: "/same", headers: {} },
-        { rpcPath: "/same", actionPath: "/same" }
-      )
+        { rpcPath: "/same", actionPath: "/same" },
+      ),
     ).toThrow(StartTransportEndpointConflictError);
     expect(resolveStartRpcEndpoint({ endpoint: "https://api.example.test/rpc" })).toBe(
-      "https://api.example.test/rpc"
+      "https://api.example.test/rpc",
     );
     expect(resolveStartActionEndpoint({ action: "https://forms.example.test/action" })).toBe(
-      "https://forms.example.test/action"
+      "https://forms.example.test/action",
     );
     expect(() => StartAction.form(Ping, { actionPath: "https://example.com/action" })).toThrow(
-      StartTransportEndpointPathError
+      StartTransportEndpointPathError,
     );
     expect(StartAction.form(Ping, { action: "https://forms.example.test/action" }).action).toBe(
-      "https://forms.example.test/action"
+      "https://forms.example.test/action",
     );
 
     await expect(
       Effect.runPromise(
-        submitStartActionEffect(Ping, { value: "ok" }, {
-          fetch: fetcher,
-          endpoint: "https://api.example.test/action"
-        })
-      )
+        submitStartActionEffect(
+          Ping,
+          { value: "ok" },
+          {
+            fetch: fetcher,
+            endpoint: "https://api.example.test/action",
+          },
+        ),
+      ),
     ).resolves.toMatchObject({
       _tag: "Success",
-      value: { value: "ok" }
+      value: { value: "ok" },
     });
     expect(calls).toEqual(["https://api.example.test/action"]);
   });
@@ -2903,8 +2984,8 @@ describe("Effect UI Start", () => {
     const graphExit = await Effect.runPromiseExit(
       makeStartBuildAppGraphEffect({
         rpcPath: "/same",
-        actionPath: "/same"
-      })
+        actionPath: "/same",
+      }),
     );
     const graphFailure = Exit.isFailure(graphExit) ? firstFailure(graphExit.cause) : undefined;
 
@@ -2915,43 +2996,48 @@ describe("Effect UI Start", () => {
         configFile: false,
         start: {
           rpcPath: "/same",
-          actionPath: "/same"
+          actionPath: "/same",
         },
         vite: {
-          configFile: false
-        }
-      })
+          configFile: false,
+        },
+      }),
     );
-    const diagnosticsFailure = Exit.isFailure(diagnosticsExit) ? firstFailure(diagnosticsExit.cause) : undefined;
+    const diagnosticsFailure = Exit.isFailure(diagnosticsExit)
+      ? firstFailure(diagnosticsExit.cause)
+      : undefined;
 
     expect(diagnosticsFailure).toBeInstanceOf(StartTransportEndpointConflictError);
   });
 
   it("classifies RPC and Start action request trace failures by layer", async () => {
     const traces: DevtoolsRequestTrace[] = [];
-    const FailsDomain = Server.contract<{ readonly value: string }, string, string>("Start.trace.failure.domain", {
-      input: Schema.Struct({ value: Schema.String }),
-      output: Schema.String,
-      error: Schema.String
-    });
+    const FailsDomain = Server.contract<{ readonly value: string }, string, string>(
+      "Start.trace.failure.domain",
+      {
+        input: Schema.Struct({ value: Schema.String }),
+        output: Schema.String,
+        error: Schema.String,
+      },
+    );
     const failsDomain = Server.implement(FailsDomain, () => Effect.fail("domain-failed"));
     const ActionFailsDomain = Action.define<{ readonly value: string }, string, string>({
       name: "Start.trace.action.failure.domain",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.String,
       error: Schema.String,
-      run: () => Effect.fail("action-domain-failed")
+      run: () => Effect.fail("action-domain-failed"),
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       actions: [ActionFailsDomain],
       onRequestTrace: (trace) =>
         Effect.sync(() => {
           traces.push(trace);
-        })
+        }),
     });
     const rpcRequest = (id: string, body: unknown, init: RequestInit = {}) =>
       new Request(`https://example.com${serverRpcPath}`, {
@@ -2959,45 +3045,51 @@ describe("Effect UI Start", () => {
         headers: {
           "content-type": "application/json",
           "x-effect-ui-request-id": id,
-          ...init.headers
+          ...init.headers,
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
       });
     const actionRequest = (id: string, body: unknown) =>
       new Request(`https://example.com${serverActionPath}`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-effect-ui-request-id": id
+          "x-effect-ui-request-id": id,
         },
-        body: JSON.stringify(body)
+        body: JSON.stringify(body),
       });
 
     const rpcDomain = await Effect.runPromise(
-      handler(rpcRequest("req-rpc-domain-failure", {
-        name: failsDomain.name,
-        input: { value: "ada" }
-      }))
+      handler(
+        rpcRequest("req-rpc-domain-failure", {
+          name: failsDomain.name,
+          input: { value: "ada" },
+        }),
+      ),
     );
     await expect(rpcDomain.json()).resolves.toEqual({
       _tag: "Failure",
-      error: "domain-failed"
+      error: "domain-failed",
     });
 
     const rpcValidation = await Effect.runPromise(
-      handler(rpcRequest("req-rpc-validation-failure", {
-        name: failsDomain.name,
-        input: { value: 1 }
-      }))
+      handler(
+        rpcRequest("req-rpc-validation-failure", {
+          name: failsDomain.name,
+          input: { value: 1 },
+        }),
+      ),
     );
     expect(rpcValidation.status).toBe(400);
     await rpcValidation.text();
 
     const rpcProtocol = await Effect.runPromise(
-      handler(rpcRequest("req-rpc-protocol-failure", {
-        name: "Start.trace.missing",
-        input: {}
-      }))
+      handler(
+        rpcRequest("req-rpc-protocol-failure", {
+          name: "Start.trace.missing",
+          input: {},
+        }),
+      ),
     );
     expect(rpcProtocol.status).toBe(404);
     await rpcProtocol.text();
@@ -3007,30 +3099,34 @@ describe("Effect UI Start", () => {
         new Request(`https://example.com${serverRpcPath}`, {
           method: "GET",
           headers: {
-            "x-effect-ui-request-id": "req-rpc-transport-failure"
-          }
-        })
-      )
+            "x-effect-ui-request-id": "req-rpc-transport-failure",
+          },
+        }),
+      ),
     );
     expect(rpcTransport.status).toBe(405);
     await rpcTransport.text();
 
     const actionDomain = await Effect.runPromise(
-      handler(actionRequest("req-action-domain-failure", {
-        name: ActionFailsDomain.name,
-        input: { value: "ada" }
-      }))
+      handler(
+        actionRequest("req-action-domain-failure", {
+          name: ActionFailsDomain.name,
+          input: { value: "ada" },
+        }),
+      ),
     );
     await expect(actionDomain.json()).resolves.toEqual({
       _tag: "Failure",
-      error: "action-domain-failed"
+      error: "action-domain-failed",
     });
 
     const actionValidation = await Effect.runPromise(
-      handler(actionRequest("req-action-validation-failure", {
-        name: ActionFailsDomain.name,
-        input: { value: 1 }
-      }))
+      handler(
+        actionRequest("req-action-validation-failure", {
+          name: ActionFailsDomain.name,
+          input: { value: 1 },
+        }),
+      ),
     );
     expect(actionValidation.status).toBe(400);
     await actionValidation.text();
@@ -3044,9 +3140,9 @@ describe("Effect UI Start", () => {
           {
             name: failsDomain.name,
             status: "failure",
-            failureKind: "domain"
-          }
-        ]
+            failureKind: "domain",
+          },
+        ],
       }),
       expect.objectContaining({
         request: expect.objectContaining({ id: "req-rpc-validation-failure", transport: "rpc" }),
@@ -3056,9 +3152,9 @@ describe("Effect UI Start", () => {
           {
             name: failsDomain.name,
             status: "failure",
-            failureKind: "validation"
-          }
-        ]
+            failureKind: "validation",
+          },
+        ],
       }),
       expect.objectContaining({
         request: expect.objectContaining({ id: "req-rpc-protocol-failure", transport: "rpc" }),
@@ -3068,15 +3164,15 @@ describe("Effect UI Start", () => {
           {
             name: "Start.trace.missing",
             status: "failure",
-            failureKind: "protocol"
-          }
-        ]
+            failureKind: "protocol",
+          },
+        ],
       }),
       expect.objectContaining({
         request: expect.objectContaining({ id: "req-rpc-transport-failure", transport: "rpc" }),
         status: "failure",
         failureKind: "transport",
-        serverFunctions: []
+        serverFunctions: [],
       }),
       expect.objectContaining({
         request: expect.objectContaining({ id: "req-action-domain-failure", transport: "action" }),
@@ -3086,22 +3182,25 @@ describe("Effect UI Start", () => {
           {
             name: ActionFailsDomain.name,
             state: "Failure",
-            failureKind: "domain"
-          }
-        ]
+            failureKind: "domain",
+          },
+        ],
       }),
       expect.objectContaining({
-        request: expect.objectContaining({ id: "req-action-validation-failure", transport: "action" }),
+        request: expect.objectContaining({
+          id: "req-action-validation-failure",
+          transport: "action",
+        }),
         status: "failure",
         failureKind: "validation",
         actions: [
           {
             name: ActionFailsDomain.name,
             state: "Failure",
-            failureKind: "validation"
-          }
-        ]
-      })
+            failureKind: "validation",
+          },
+        ],
+      }),
     ]);
   });
 
@@ -3109,7 +3208,7 @@ describe("Effect UI Start", () => {
     const traces: DevtoolsRequestTrace[] = [];
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
-      name: Schema.String
+      name: Schema.String,
     });
     const Project = Resource.family({
       name: "Start.trace.action.meta-defect.Project",
@@ -3118,8 +3217,8 @@ describe("Effect UI Start", () => {
       load: (id) =>
         Effect.succeed({
           id,
-          name: 1
-        } as unknown as typeof ProjectSchema.Type)
+          name: 1,
+        } as unknown as typeof ProjectSchema.Type),
     });
     const BadOutput = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.trace.action.output-defect",
@@ -3127,8 +3226,8 @@ describe("Effect UI Start", () => {
       output: Schema.Struct({ value: Schema.String }),
       run: () =>
         Effect.succeed({
-          value: 1
-        } as unknown as { readonly value: string })
+          value: 1,
+        } as unknown as { readonly value: string }),
     });
     const BadMeta = Action.define<{ readonly id: string }, { readonly ok: boolean }>({
       name: "Start.trace.action.meta-defect",
@@ -3139,43 +3238,43 @@ describe("Effect UI Start", () => {
           yield* Resource.prefetchEffect(Project(id));
           return { ok: true };
         }),
-      invalidates: (_result, input) => [Project(input.id)]
+      invalidates: (_result, input) => [Project(input.id)],
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       actions: [BadOutput, BadMeta],
       onRequestTrace: (trace) =>
         Effect.sync(() => {
           traces.push(trace);
-        })
+        }),
     });
     const actionRequest = (id: string, name: string, input: unknown) =>
       new Request(`https://example.com${serverActionPath}`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-effect-ui-request-id": id
+          "x-effect-ui-request-id": id,
         },
-        body: JSON.stringify({ name, input })
+        body: JSON.stringify({ name, input }),
       });
 
     const outputResponse = await Effect.runPromise(
-      handler(actionRequest("req-action-output-defect", BadOutput.name, { value: "ok" }))
+      handler(actionRequest("req-action-output-defect", BadOutput.name, { value: "ok" })),
     );
     expect(outputResponse.status).toBe(500);
     await expect(outputResponse.json()).resolves.toMatchObject({
-      _tag: "Defect"
+      _tag: "Defect",
     });
 
     const metaResponse = await Effect.runPromise(
-      handler(actionRequest("req-action-meta-defect", BadMeta.name, { id: "atlas" }))
+      handler(actionRequest("req-action-meta-defect", BadMeta.name, { id: "atlas" })),
     );
     expect(metaResponse.status).toBe(500);
     await expect(metaResponse.json()).resolves.toMatchObject({
-      _tag: "Defect"
+      _tag: "Defect",
     });
 
     expect(traces).toEqual([
@@ -3187,9 +3286,9 @@ describe("Effect UI Start", () => {
           {
             name: BadOutput.name,
             state: "Failure",
-            failureKind: "defect"
-          }
-        ]
+            failureKind: "defect",
+          },
+        ],
       }),
       expect.objectContaining({
         request: expect.objectContaining({ id: "req-action-meta-defect", transport: "action" }),
@@ -3199,42 +3298,44 @@ describe("Effect UI Start", () => {
           {
             name: BadMeta.name,
             state: "Failure",
-            failureKind: "defect"
-          }
-        ]
-      })
+            failureKind: "defect",
+          },
+        ],
+      }),
     ]);
   });
 
   it("lets browser runtimes call server functions through ServerClient", async () => {
-    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Start.echo.remote", {
-      input: Schema.Struct({ value: Schema.String }),
-      output: Schema.Struct({ value: Schema.String })
-    });
+    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
+      "Start.echo.remote",
+      {
+        input: Schema.Struct({ value: Schema.String }),
+        output: Schema.Struct({ value: Schema.String }),
+      },
+    );
     const echo = Server.client(Echo);
     Server.implement(Echo, ({ value }) => Effect.succeed({ value: `server:${value}` }));
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app);
-    const fetcher: StartFetch = (input, init) =>
-      handler(new Request(input, init));
+    const fetcher: StartFetch = (input, init) => handler(new Request(input, init));
     const runtime = Layer.succeed(ServerClient)(
       makeRpcClient({
         endpoint: `https://example.com${serverRpcPath}`,
-        fetch: fetcher
-      })
+        fetch: fetcher,
+      }),
     );
 
     await expect(
-      Effect.runPromise(Effect.provide(echo.effect({ value: "atlas" }), runtime))
+      Effect.runPromise(Effect.provide(echo.effect({ value: "atlas" }), runtime)),
     ).resolves.toEqual({ value: "server:atlas" });
   });
 
   it("round-trips schema-encoded server function failures", async () => {
     const ExampleError = Schema.TaggedStruct("ExampleError", {
-      message: Schema.String
+      message: Schema.String,
     });
     type ExampleErrorType = {
       readonly _tag: "ExampleError";
@@ -3243,38 +3344,37 @@ describe("Effect UI Start", () => {
     const Fail = Server.contract<string, string, ExampleErrorType>("Start.fail.remote", {
       input: Schema.String,
       output: Schema.String,
-      error: ExampleError
+      error: ExampleError,
     });
     const fail = Server.client(Fail);
-    Server.implement(Fail, () => Effect.fail({ _tag: "ExampleError" as const, message: "not today" }));
+    Server.implement(Fail, () =>
+      Effect.fail({ _tag: "ExampleError" as const, message: "not today" }),
+    );
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app);
-    const fetcher: StartFetch = (input, init) =>
-      handler(new Request(input, init));
+    const fetcher: StartFetch = (input, init) => handler(new Request(input, init));
     const runtime = Layer.succeed(ServerClient)(
       makeRpcClient({
         endpoint: `https://example.com${serverRpcPath}`,
-        fetch: fetcher
-      })
+        fetch: fetcher,
+      }),
     );
-    const exit = await Effect.runPromise(
-      Effect.exit(Effect.provide(fail.effect("x"), runtime))
-    );
+    const exit = await Effect.runPromise(Effect.exit(Effect.provide(fail.effect("x"), runtime)));
 
     expect(Exit.isFailure(exit)).toBe(true);
     expect(Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined).toEqual({
       _tag: "ExampleError",
-      message: "not today"
+      message: "not today",
     });
   });
 
   it("runs Start actions from JSON and form posts in the request runtime", async () => {
     const SubmitNameInput = Schema.Struct({
       name: Schema.String,
-      redirectTo: Schema.optional(Schema.String)
+      redirectTo: Schema.optional(Schema.String),
     });
     type SubmitNameInput = typeof SubmitNameInput.Type;
     type SubmitNameResult = ActionResult<
@@ -3285,23 +3385,23 @@ describe("Effect UI Start", () => {
     >;
     const SubmitNameResult = Schema.TaggedUnion({
       Success: {
-        value: Schema.Struct({ name: Schema.String })
+        value: Schema.Struct({ name: Schema.String }),
       },
       ValidationFailure: {
         fieldErrors: Schema.Struct({
-          name: Schema.optional(Schema.Array(Schema.String))
+          name: Schema.optional(Schema.Array(Schema.String)),
         }),
         formErrors: Schema.Array(Schema.String),
-        cause: Schema.optional(Schema.Unknown)
+        cause: Schema.optional(Schema.Unknown),
       },
       Redirect: {
         location: Schema.String,
         status: Schema.Number,
-        replace: Schema.optional(Schema.Boolean)
+        replace: Schema.optional(Schema.Boolean),
       },
       Failure: {
-        error: Schema.String
-      }
+        error: Schema.String,
+      },
     });
     interface Names {
       readonly submit: (input: SubmitNameInput) => Effect.Effect<SubmitNameResult>;
@@ -3315,9 +3415,9 @@ describe("Effect UI Start", () => {
           if (name.length < 3) {
             return ActionResult.validation<SubmitNameInput, string>({
               fieldErrors: {
-                name: ["Use at least three characters."]
+                name: ["Use at least three characters."],
               },
-              formErrors: []
+              formErrors: [],
             });
           }
 
@@ -3325,21 +3425,21 @@ describe("Effect UI Start", () => {
           return input.redirectTo
             ? ActionResult.redirect(input.redirectTo, { status: 303, replace: true })
             : ActionResult.success({ name });
-        })
+        }),
     });
     const SubmitName = Action.define<SubmitNameInput, SubmitNameResult, never, Names>({
       name: "Start.action.submitName",
       input: SubmitNameInput,
       output: SubmitNameResult,
-      run: (input) => Names.use((names) => names.submit(input))
+      run: (input) => Names.use((names) => names.submit(input)),
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
       client: {},
-      server: NamesLive
+      server: NamesLive,
     });
     const handler = createRequestHandler(app, {
-      actions: [SubmitName]
+      actions: [SubmitName],
     });
 
     const validation = await Effect.runPromise(
@@ -3350,19 +3450,19 @@ describe("Effect UI Start", () => {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             name: SubmitName.name,
-            input: { name: "Al" }
-          })
+            input: { name: "Al" },
+          }),
         }),
-        [SubmitName]
-      )
+        [SubmitName],
+      ),
     );
     const form = startActionForm(SubmitName, {
       input: {
-        redirectTo: "/projects/atlas?tab=activity"
-      }
+        redirectTo: "/projects/atlas?tab=activity",
+      },
     });
     const formBody = new URLSearchParams(
-      form.hiddenFields.map((field) => [field.name, field.value])
+      form.hiddenFields.map((field) => [field.name, field.value]),
     );
     formBody.set("name", "Atlas Forms");
     const redirect = await Effect.runPromise(
@@ -3370,17 +3470,17 @@ describe("Effect UI Start", () => {
         new Request(`https://example.com${form.action}`, {
           method: form.method.toUpperCase(),
           headers: { "content-type": "application/x-www-form-urlencoded" },
-          body: formBody
-        })
-      )
+          body: formBody,
+        }),
+      ),
     );
 
     expect(validation.status).toBe(422);
     await expect(validation.json()).resolves.toMatchObject({
       _tag: "ValidationFailure",
       fieldErrors: {
-        name: ["Use at least three characters."]
-      }
+        name: ["Use at least three characters."],
+      },
     });
     expect(redirect.status).toBe(303);
     expect(redirect.headers.get("location")).toBe("/projects/atlas?tab=activity");
@@ -3390,23 +3490,21 @@ describe("Effect UI Start", () => {
   it("uses the same schema action request codec for JSON submits and progressive form defaults", async () => {
     const EncodedInput = Schema.Struct({
       id: Schema.String.pipe(Schema.brand("StartActionCodecProjectId")),
-      count: Schema.NumberFromString
+      count: Schema.NumberFromString,
     });
     type EncodedInput = typeof EncodedInput.Type;
     const Submit = Action.define<EncodedInput, { readonly ok: boolean }>({
       name: "Start.action.codec.shared",
       input: EncodedInput,
       output: Schema.Struct({ ok: Schema.Boolean }),
-      run: () => Effect.succeed({ ok: true })
+      run: () => Effect.succeed({ ok: true }),
     });
     const input: EncodedInput = {
       id: "atlas" as EncodedInput["id"],
-      count: 7
+      count: 7,
     };
 
-    const jsonRequest = await Effect.runPromise(
-      encodeStartActionRequestEffect(Submit, input)
-    );
+    const jsonRequest = await Effect.runPromise(encodeStartActionRequestEffect(Submit, input));
     const form = startActionForm(Submit, { input });
     const formInput = form.hiddenFields.find((field) => field.name === startActionInputField);
 
@@ -3414,8 +3512,8 @@ describe("Effect UI Start", () => {
       name: Submit.name,
       input: {
         id: "atlas",
-        count: "7"
-      }
+        count: "7",
+      },
     });
     expect(JSON.parse(formInput?.value ?? "{}")).toEqual(jsonRequest.input);
   });
@@ -3424,34 +3522,36 @@ describe("Effect UI Start", () => {
     const Submit = Action.define<Record<string, unknown>, { readonly ok: boolean }>({
       name: "Start.action.codec.form-failure",
       output: Schema.Struct({ ok: Schema.Boolean }),
-      run: () => Effect.succeed({ ok: true })
+      run: () => Effect.succeed({ ok: true }),
     });
     const circular: Record<string, unknown> = {};
     circular.self = circular;
 
     expect(() => startActionForm(Submit, { input: circular })).toThrow(StartActionFormEncodeError);
-    expect(() => startActionForm(Submit, { input: { count: 1n } })).toThrow(StartActionFormEncodeError);
+    expect(() => startActionForm(Submit, { input: { count: 1n } })).toThrow(
+      StartActionFormEncodeError,
+    );
   });
 
   it("returns typed JSON redirects for form actions that explicitly accept JSON", async () => {
     const SubmitResult = Schema.TaggedUnion({
       Success: {
-        value: Schema.Struct({ ok: Schema.Boolean })
+        value: Schema.Struct({ ok: Schema.Boolean }),
       },
       ValidationFailure: {
         fieldErrors: Schema.Struct({
-          redirectTo: Schema.optional(Schema.Array(Schema.String))
+          redirectTo: Schema.optional(Schema.Array(Schema.String)),
         }),
-        formErrors: Schema.Array(Schema.String)
+        formErrors: Schema.Array(Schema.String),
       },
       Redirect: {
         location: Schema.String,
         status: Schema.Number,
-        replace: Schema.optional(Schema.Boolean)
+        replace: Schema.optional(Schema.Boolean),
       },
       Failure: {
-        error: Schema.String
-      }
+        error: Schema.String,
+      },
     });
     const Submit = Action.define<
       { readonly redirectTo: string },
@@ -3460,15 +3560,16 @@ describe("Effect UI Start", () => {
       name: "Start.action.form.accept-json",
       input: Schema.Struct({ redirectTo: Schema.String }),
       output: SubmitResult,
-      run: ({ redirectTo }) => Effect.succeed(ActionResult.redirect(redirectTo, { status: 303, replace: true }))
+      run: ({ redirectTo }) =>
+        Effect.succeed(ActionResult.redirect(redirectTo, { status: 303, replace: true })),
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const form = startActionForm(Submit, { input: { redirectTo: "/projects/json" } });
     const formBody = new URLSearchParams(
-      form.hiddenFields.map((field) => [field.name, field.value])
+      form.hiddenFields.map((field) => [field.name, field.value]),
     );
     const response = await Effect.runPromise(
       createRequestHandler(app, { actions: [Submit] })(
@@ -3476,11 +3577,11 @@ describe("Effect UI Start", () => {
           method: form.method.toUpperCase(),
           headers: {
             "content-type": "application/x-www-form-urlencoded",
-            accept: "application/json"
+            accept: "application/json",
           },
-          body: formBody
-        })
-      )
+          body: formBody,
+        }),
+      ),
     );
 
     expect(response.status).toBe(200);
@@ -3488,29 +3589,29 @@ describe("Effect UI Start", () => {
       _tag: "Redirect",
       location: "/projects/json",
       status: 303,
-      replace: true
+      replace: true,
     });
   });
 
   it("honors Accept quality when choosing form action redirect responses", async () => {
     const SubmitResult = Schema.TaggedUnion({
       Success: {
-        value: Schema.Struct({ ok: Schema.Boolean })
+        value: Schema.Struct({ ok: Schema.Boolean }),
       },
       ValidationFailure: {
         fieldErrors: Schema.Struct({
-          redirectTo: Schema.optional(Schema.Array(Schema.String))
+          redirectTo: Schema.optional(Schema.Array(Schema.String)),
         }),
-        formErrors: Schema.Array(Schema.String)
+        formErrors: Schema.Array(Schema.String),
       },
       Redirect: {
         location: Schema.String,
         status: Schema.Number,
-        replace: Schema.optional(Schema.Boolean)
+        replace: Schema.optional(Schema.Boolean),
       },
       Failure: {
-        error: Schema.String
-      }
+        error: Schema.String,
+      },
     });
     const Submit = Action.define<
       { readonly redirectTo: string },
@@ -3519,15 +3620,15 @@ describe("Effect UI Start", () => {
       name: "Start.action.form.accept-quality",
       input: Schema.Struct({ redirectTo: Schema.String }),
       output: SubmitResult,
-      run: ({ redirectTo }) => Effect.succeed(ActionResult.redirect(redirectTo, { status: 303 }))
+      run: ({ redirectTo }) => Effect.succeed(ActionResult.redirect(redirectTo, { status: 303 })),
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const form = startActionForm(Submit, { input: { redirectTo: "/projects/html" } });
     const formBody = new URLSearchParams(
-      form.hiddenFields.map((field) => [field.name, field.value])
+      form.hiddenFields.map((field) => [field.name, field.value]),
     );
     const response = await Effect.runPromise(
       createRequestHandler(app, { actions: [Submit] })(
@@ -3535,11 +3636,11 @@ describe("Effect UI Start", () => {
           method: form.method.toUpperCase(),
           headers: {
             "content-type": "application/x-www-form-urlencoded",
-            accept: "text/html, application/json;q=0.1"
+            accept: "text/html, application/json;q=0.1",
           },
-          body: formBody
-        })
-      )
+          body: formBody,
+        }),
+      ),
     );
 
     expect(response.status).toBe(303);
@@ -3551,11 +3652,11 @@ describe("Effect UI Start", () => {
       name: "Start.action.registry.ping",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value: value.toUpperCase() })
+      run: ({ value }) => Effect.succeed({ value: value.toUpperCase() }),
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const response = await Effect.runPromise(
       createRequestHandler(app)(
@@ -3564,15 +3665,15 @@ describe("Effect UI Start", () => {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             name: Ping.name,
-            input: { value: "registry" }
-          })
-        })
-      )
+            input: { value: "registry" },
+          }),
+        }),
+      ),
     );
 
     await expect(response.json()).resolves.toEqual({
       _tag: "Success",
-      value: { value: "REGISTRY" }
+      value: { value: "REGISTRY" },
     });
   });
 
@@ -3581,15 +3682,15 @@ describe("Effect UI Start", () => {
       name: "Start.action.explicit-one-shot",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value: value.toUpperCase() })
+      run: ({ value }) => Effect.succeed({ value: value.toUpperCase() }),
     });
     const explicitActions = oneShotIterable([Ping]);
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
-      actions: explicitActions.iterable
+      actions: explicitActions.iterable,
     });
     const submit = (value: string) =>
       Effect.runPromise(
@@ -3599,10 +3700,10 @@ describe("Effect UI Start", () => {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               name: Ping.name,
-              input: { value }
-            })
-          })
-        )
+              input: { value },
+            }),
+          }),
+        ),
       );
 
     const first = await submit("first");
@@ -3611,11 +3712,11 @@ describe("Effect UI Start", () => {
     expect(explicitActions.iteratorCalls).toBe(1);
     await expect(first.json()).resolves.toEqual({
       _tag: "Success",
-      value: { value: "FIRST" }
+      value: { value: "FIRST" },
     });
     await expect(second.json()).resolves.toEqual({
       _tag: "Success",
-      value: { value: "SECOND" }
+      value: { value: "SECOND" },
     });
   });
 
@@ -3624,41 +3725,46 @@ describe("Effect UI Start", () => {
       name: "Start.action.explicit-duplicate",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value: `first:${value}` })
+      run: ({ value }) => Effect.succeed({ value: `first:${value}` }),
     });
     const Second = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.action.explicit-duplicate",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value: `second:${value}` })
+      run: ({ value }) => Effect.succeed({ value: `second:${value}` }),
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
 
     expect(() =>
       createRequestHandler(app, {
-        actions: [First, Second]
-      })
+        actions: [First, Second],
+      }),
     ).toThrow(StartActionDuplicateName);
   });
 
   it("uses the app registry snapshot for RPC and action dispatch", () => {
-    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Start.registry.snapshot.echo", {
-      input: Schema.Struct({ value: Schema.String }),
-      output: Schema.Struct({ value: Schema.String })
-    });
-    const echo = Server.implement(Echo, ({ value }) => Effect.succeed({ value: value.toUpperCase() }));
+    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
+      "Start.registry.snapshot.echo",
+      {
+        input: Schema.Struct({ value: Schema.String }),
+        output: Schema.Struct({ value: Schema.String }),
+      },
+    );
+    const echo = Server.implement(Echo, ({ value }) =>
+      Effect.succeed({ value: value.toUpperCase() }),
+    );
     const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.registry.snapshot.ping",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value: value.toUpperCase() })
+      run: ({ value }) => Effect.succeed({ value: value.toUpperCase() }),
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
 
     return Effect.runPromise(
@@ -3672,9 +3778,9 @@ describe("Effect UI Start", () => {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               name: echo.name,
-              input: { value: "snapshot" }
-            })
-          })
+              input: { value: "snapshot" },
+            }),
+          }),
         );
         const action = yield* handler(
           new Request(`https://example.com${serverActionPath}`, {
@@ -3682,44 +3788,49 @@ describe("Effect UI Start", () => {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               name: Ping.name,
-              input: { value: "snapshot" }
-            })
-          })
+              input: { value: "snapshot" },
+            }),
+          }),
         );
 
         const rpcBody = yield* Effect.tryPromise(() => rpc.json());
         const actionBody = yield* Effect.tryPromise(() => action.json());
         expect(rpcBody).toEqual({
           _tag: "Success",
-          value: { value: "SNAPSHOT" }
+          value: { value: "SNAPSHOT" },
         });
         expect(actionBody).toEqual({
           _tag: "Success",
-          value: { value: "SNAPSHOT" }
+          value: { value: "SNAPSHOT" },
         });
-      })
+      }),
     );
   });
 
   it("dispatches RPC and actions from an explicit app-local registry", () => {
-    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Start.registry.local.echo", {
-      input: Schema.Struct({ value: Schema.String }),
-      output: Schema.Struct({ value: Schema.String })
-    });
-    const localEcho = Server.implement(Echo, ({ value }) => Effect.succeed({ value: `local:${value}` }));
+    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
+      "Start.registry.local.echo",
+      {
+        input: Schema.Struct({ value: Schema.String }),
+        output: Schema.Struct({ value: Schema.String }),
+      },
+    );
+    const localEcho = Server.implement(Echo, ({ value }) =>
+      Effect.succeed({ value: `local:${value}` }),
+    );
     const LocalPing = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.registry.local.ping",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value: `local:${value}` })
+      run: ({ value }) => Effect.succeed({ value: `local:${value}` }),
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
       client: {},
       registry: {
         actions: [LocalPing],
-        serverFunctions: [localEcho]
-      }
+        serverFunctions: [localEcho],
+      },
     });
 
     Server.implement(Echo, ({ value }) => Effect.succeed({ value: `global:${value}` }));
@@ -3727,7 +3838,7 @@ describe("Effect UI Start", () => {
       name: LocalPing.name,
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value: `global:${value}` })
+      run: ({ value }) => Effect.succeed({ value: `global:${value}` }),
     });
 
     return Effect.runPromise(
@@ -3739,9 +3850,9 @@ describe("Effect UI Start", () => {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               name: localEcho.name,
-              input: { value: "registry" }
-            })
-          })
+              input: { value: "registry" },
+            }),
+          }),
         );
         const action = yield* handler(
           new Request(`https://example.com${serverActionPath}`, {
@@ -3749,39 +3860,39 @@ describe("Effect UI Start", () => {
             headers: { "content-type": "application/json" },
             body: JSON.stringify({
               name: LocalPing.name,
-              input: { value: "registry" }
-            })
-          })
+              input: { value: "registry" },
+            }),
+          }),
         );
 
         const rpcBody = yield* Effect.tryPromise(() => rpc.json());
         const actionBody = yield* Effect.tryPromise(() => action.json());
         expect(rpcBody).toEqual({
           _tag: "Success",
-          value: { value: "local:registry" }
+          value: { value: "local:registry" },
         });
         expect(actionBody).toEqual({
           _tag: "Success",
-          value: { value: "local:registry" }
+          value: { value: "local:registry" },
         });
-      })
+      }),
     );
   });
 
   it("returns action invalidation hydration to JSON clients", async () => {
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
-      name: Schema.String
+      name: Schema.String,
     });
     let project = {
       id: "atlas",
-      name: "Initial"
+      name: "Initial",
     };
     const Project = Resource.family({
       name: "Start.action.Project.hydration",
       input: Schema.String,
       output: ProjectSchema,
-      load: () => Effect.succeed(project)
+      load: () => Effect.succeed(project),
     });
     const RenameProject = Action.define<
       { readonly id: string; readonly name: string },
@@ -3795,21 +3906,20 @@ describe("Effect UI Start", () => {
           project = { id, name };
           return project;
         }),
-      invalidates: (_project, input) => [Project(input.id)]
+      invalidates: (_project, input) => [Project(input.id)],
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
-      actions: [RenameProject]
+      actions: [RenameProject],
     });
     const clientRuntime = makeRuntime();
     const ref = Project("atlas");
     const fetcher: StartFetch = (input, init) => {
-      const url = input instanceof Request
-        ? input.url
-        : new URL(String(input), "https://example.com").href;
+      const url =
+        input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
       return handler(new Request(url, init));
     };
 
@@ -3822,16 +3932,16 @@ describe("Effect UI Start", () => {
           { id: "atlas", name: "Renamed From Server" },
           {
             fetch: fetcher,
-            runtime: clientRuntime
-          }
-        )
+            runtime: clientRuntime,
+          },
+        ),
       );
 
       expect(result).toMatchObject({
         _tag: "Success",
         value: {
           id: "atlas",
-          name: "Renamed From Server"
+          name: "Renamed From Server",
         },
         invalidation: {
           entries: [
@@ -3839,10 +3949,10 @@ describe("Effect UI Start", () => {
               ref: {
                 key: ref.key,
                 family: "Start.action.Project.hydration",
-                input: "atlas"
-              }
-            }
-          ]
+                input: "atlas",
+              },
+            },
+          ],
         },
         hydration: {
           resources: [
@@ -3851,30 +3961,32 @@ describe("Effect UI Start", () => {
               state: {
                 value: {
                   id: "atlas",
-                  name: "Renamed From Server"
-                }
-              }
-            }
-          ]
-        }
+                  name: "Renamed From Server",
+                },
+              },
+            },
+          ],
+        },
       });
       expect(runWithRuntime(clientRuntime, () => Resource.status(ref).value)).toEqual({
         id: "atlas",
-        name: "Renamed From Server"
+        name: "Renamed From Server",
       });
 
       const action = StartAction.use(RenameProject, {
         fetch: fetcher,
-        runtime: clientRuntime
+        runtime: clientRuntime,
       });
       await expect(
-        Effect.runPromise(action.submitEffect({ id: "atlas", name: "Renamed Through StartAction" }))
+        Effect.runPromise(
+          action.submitEffect({ id: "atlas", name: "Renamed Through StartAction" }),
+        ),
       ).resolves.toMatchObject({
         _tag: "Success",
         value: {
           id: "atlas",
-          name: "Renamed Through StartAction"
-        }
+          name: "Renamed Through StartAction",
+        },
       });
       expect(action.invalidation.get()).toMatchObject({
         entries: [
@@ -3882,10 +3994,10 @@ describe("Effect UI Start", () => {
             ref: {
               key: ref.key,
               family: "Start.action.Project.hydration",
-              input: "atlas"
-            }
-          }
-        ]
+              input: "atlas",
+            },
+          },
+        ],
       });
       expect(action.hydration.get()).toMatchObject({
         resources: [
@@ -3894,15 +4006,15 @@ describe("Effect UI Start", () => {
             state: {
               value: {
                 id: "atlas",
-                name: "Renamed Through StartAction"
-              }
-            }
-          }
-        ]
+                name: "Renamed Through StartAction",
+              },
+            },
+          },
+        ],
       });
       expect(runWithRuntime(clientRuntime, () => Resource.status(ref).value)).toEqual({
         id: "atlas",
-        name: "Renamed Through StartAction"
+        name: "Renamed Through StartAction",
       });
     } finally {
       await Effect.runPromise(clientRuntime.disposeEffect);
@@ -3912,7 +4024,7 @@ describe("Effect UI Start", () => {
   it("does not suppress invalidations for a different hydrated resource family", async () => {
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
-      name: Schema.String
+      name: Schema.String,
     });
     class FamilyLocalKeyResource<A> extends ResourceFamily<string, A> {
       override ref(input: string): ResourceRef<string, A> {
@@ -3920,35 +4032,32 @@ describe("Effect UI Start", () => {
           [ResourceTypeId]: ResourceTypeId,
           family: this,
           input,
-          key: input
+          key: input,
         };
       }
     }
 
     let invalidatedProject = {
       id: "atlas",
-      name: "Invalidation Initial"
+      name: "Invalidation Initial",
     };
     const HydratedProject = new FamilyLocalKeyResource<typeof ProjectSchema.Type>({
       name: "Start.action.Project.identity-hydrated",
       input: Schema.String,
       output: ProjectSchema,
-      load: (id: string) => Effect.succeed({ id, name: "Hydrated Initial" })
+      load: (id: string) => Effect.succeed({ id, name: "Hydrated Initial" }),
     });
     const InvalidatedProject = new FamilyLocalKeyResource<typeof ProjectSchema.Type>({
       name: "Start.action.Project.identity-invalidated",
       input: Schema.String,
       output: ProjectSchema,
-      load: () => Effect.succeed(invalidatedProject)
+      load: () => Effect.succeed(invalidatedProject),
     });
-    const TouchProject = Action.define<
-      { readonly id: string },
-      { readonly ok: boolean }
-    >({
+    const TouchProject = Action.define<{ readonly id: string }, { readonly ok: boolean }>({
       name: "Start.action.project.identity-refresh",
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({ ok: Schema.Boolean }),
-      run: () => Effect.succeed({ ok: true })
+      run: () => Effect.succeed({ ok: true }),
     });
     const clientRuntime = makeRuntime();
     const hydratedRef = HydratedProject.ref("atlas");
@@ -3969,10 +4078,10 @@ describe("Effect UI Start", () => {
                     _tag: "Success",
                     waiting: false,
                     value: { id: "atlas", name: "Hydrated By Action" },
-                    updatedAt: 1
-                  }
-                }
-              ]
+                    updatedAt: 1,
+                  },
+                },
+              ],
             },
             invalidation: {
               targets: [
@@ -3980,14 +4089,14 @@ describe("Effect UI Start", () => {
                   _tag: "Ref",
                   key: invalidatedRef.key,
                   family: InvalidatedProject.options.name,
-                  input: "atlas"
-                }
+                  input: "atlas",
+                },
               ],
-              entries: []
-            }
+              entries: [],
+            },
           }),
-          { headers: { "content-type": "application/json" } }
-        )
+          { headers: { "content-type": "application/json" } },
+        ),
       );
 
     try {
@@ -3995,7 +4104,7 @@ describe("Effect UI Start", () => {
       await runInRuntime(clientRuntime, Resource.prefetchEffect(invalidatedRef));
       invalidatedProject = {
         id: "atlas",
-        name: "Invalidated By Action"
+        name: "Invalidated By Action",
       };
 
       await expect(
@@ -4005,26 +4114,26 @@ describe("Effect UI Start", () => {
             { id: "atlas" },
             {
               fetch: fetcher,
-              runtime: clientRuntime
-            }
-          )
-        )
+              runtime: clientRuntime,
+            },
+          ),
+        ),
       ).resolves.toMatchObject({
         _tag: "Success",
         value: {
-          ok: true
-        }
+          ok: true,
+        },
       });
 
       expect(hydratedRef.key).toBe(invalidatedRef.key);
       expect(HydratedProject.options.name).not.toBe(InvalidatedProject.options.name);
       expect(runWithRuntime(clientRuntime, () => Resource.status(hydratedRef).value)).toEqual({
         id: "atlas",
-        name: "Hydrated By Action"
+        name: "Hydrated By Action",
       });
       expect(runWithRuntime(clientRuntime, () => Resource.status(invalidatedRef).value)).toEqual({
         id: "atlas",
-        name: "Invalidated By Action"
+        name: "Invalidated By Action",
       });
     } finally {
       await Effect.runPromise(clientRuntime.disposeEffect);
@@ -4034,17 +4143,17 @@ describe("Effect UI Start", () => {
   it("applies uncaptured StartAction response metadata to the caller runtime", async () => {
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
-      name: Schema.String
+      name: Schema.String,
     });
     let project = {
       id: "atlas",
-      name: "Initial"
+      name: "Initial",
     };
     const Project = Resource.family({
       name: "Start.action.client.caller-runtime",
       input: Schema.String,
       output: ProjectSchema,
-      load: () => Effect.succeed(project)
+      load: () => Effect.succeed(project),
     });
     const RenameProject = Action.define<
       { readonly id: string; readonly name: string },
@@ -4058,21 +4167,20 @@ describe("Effect UI Start", () => {
           project = { id, name };
           return project;
         }),
-      invalidates: (_project, input) => [Project(input.id)]
+      invalidates: (_project, input) => [Project(input.id)],
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
-      actions: [RenameProject]
+      actions: [RenameProject],
     });
     const runtime = makeRuntime();
     const ref = Project("atlas");
     const fetcher: StartFetch = (input, init) => {
-      const url = input instanceof Request
-        ? input.url
-        : new URL(String(input), "https://example.com").href;
+      const url =
+        input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
       return handler(new Request(url, init));
     };
     const action = StartAction.use(RenameProject, { fetch: fetcher });
@@ -4082,18 +4190,18 @@ describe("Effect UI Start", () => {
       expect(runWithRuntime(defaultRuntime, () => Resource.status(ref)._tag)).toBe("Initial");
 
       await expect(
-        runInRuntime(runtime, action.submitEffect({ id: "atlas", name: "Caller Runtime" }))
+        runInRuntime(runtime, action.submitEffect({ id: "atlas", name: "Caller Runtime" })),
       ).resolves.toMatchObject({
         _tag: "Success",
         value: {
           id: "atlas",
-          name: "Caller Runtime"
-        }
+          name: "Caller Runtime",
+        },
       });
 
       expect(runWithRuntime(runtime, () => Resource.status(ref).value)).toEqual({
         id: "atlas",
-        name: "Caller Runtime"
+        name: "Caller Runtime",
       });
       expect(runWithRuntime(defaultRuntime, () => Resource.status(ref)._tag)).toBe("Initial");
     } finally {
@@ -4104,7 +4212,7 @@ describe("Effect UI Start", () => {
   it("decodes Start action client success values with the action output schema", async () => {
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
-      name: Schema.String
+      name: Schema.String,
     });
     const RenameProject = Action.define<
       { readonly id: string; readonly name: string },
@@ -4113,7 +4221,7 @@ describe("Effect UI Start", () => {
       name: "Start.action.client.decode",
       input: Schema.Struct({ id: Schema.String, name: Schema.String }),
       output: ProjectSchema,
-      run: ({ id, name }) => Effect.succeed({ id, name })
+      run: ({ id, name }) => Effect.succeed({ id, name }),
     });
     const badFetch: StartFetch = () =>
       Effect.succeed(
@@ -4122,24 +4230,22 @@ describe("Effect UI Start", () => {
             _tag: "Success",
             value: {
               id: 123,
-              name: "Bad Wire Value"
-            }
+              name: "Bad Wire Value",
+            },
           }),
           {
-            headers: { "content-type": "application/json" }
-          }
-        )
+            headers: { "content-type": "application/json" },
+          },
+        ),
       );
 
     const exit = await Effect.runPromiseExit(
-      submitStartActionEffect(
-        RenameProject,
-        { id: "atlas", name: "Atlas" },
-        { fetch: badFetch }
-      )
+      submitStartActionEffect(RenameProject, { id: "atlas", name: "Atlas" }, { fetch: badFetch }),
     );
 
-    expect(Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined).toBeInstanceOf(Schema.SchemaError);
+    expect(Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined).toBeInstanceOf(
+      Schema.SchemaError,
+    );
   });
 
   it("rejects successful Start action bodies carried by failing HTTP statuses", async () => {
@@ -4147,24 +4253,24 @@ describe("Effect UI Start", () => {
       name: "Start.action.client.success-bad-status",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value })
+      run: ({ value }) => Effect.succeed({ value }),
     });
     const fetcher: StartFetch = () =>
       Effect.succeed(
         new Response(
           JSON.stringify({
             _tag: "Success",
-            value: { value: "ok" }
+            value: { value: "ok" },
           }),
           {
             status: 500,
-            headers: { "content-type": "application/json" }
-          }
-        )
+            headers: { "content-type": "application/json" },
+          },
+        ),
       );
 
     const exit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, { fetch: fetcher })
+      submitStartActionEffect(Ping, { value: "ok" }, { fetch: fetcher }),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -4173,8 +4279,8 @@ describe("Effect UI Start", () => {
       reason: "BadStatus",
       status: 500,
       payload: {
-        _tag: "Success"
-      }
+        _tag: "Success",
+      },
     });
   });
 
@@ -4187,54 +4293,53 @@ describe("Effect UI Start", () => {
     >;
     const PingResult = Schema.TaggedUnion({
       Success: {
-        value: Schema.Struct({ value: Schema.String })
+        value: Schema.Struct({ value: Schema.String }),
       },
       ValidationFailure: {
         fieldErrors: Schema.Struct({
-          value: Schema.optional(Schema.Array(Schema.String))
+          value: Schema.optional(Schema.Array(Schema.String)),
         }),
         formErrors: Schema.Array(Schema.String),
-        cause: Schema.optional(Schema.Unknown)
+        cause: Schema.optional(Schema.Unknown),
       },
       Redirect: {
         location: Schema.String,
         status: Schema.Number,
-        replace: Schema.optional(Schema.Boolean)
+        replace: Schema.optional(Schema.Boolean),
       },
       Failure: {
-        error: Schema.String
-      }
+        error: Schema.String,
+      },
     });
-    const Ping = Action.define<
-      { readonly value: string },
-      PingResult
-    >({
+    const Ping = Action.define<{ readonly value: string }, PingResult>({
       name: "Start.action.client.validation-status",
       input: Schema.Struct({ value: Schema.String }),
       output: PingResult,
-      run: ({ value }) => Effect.succeed(ActionResult.success({ value }))
+      run: ({ value }) => Effect.succeed(ActionResult.success({ value })),
     });
     const validationBody = {
       _tag: "ValidationFailure" as const,
       fieldErrors: {
-        value: ["Too short."]
+        value: ["Too short."],
       },
       formErrors: [],
-      cause: undefined
+      cause: undefined,
     };
-    const validationWithStatus = (status: number): StartFetch => () =>
-      Effect.succeed(
-        new Response(JSON.stringify(validationBody), {
-          status,
-          headers: { "content-type": "application/json" }
-        })
-      );
+    const validationWithStatus =
+      (status: number): StartFetch =>
+      () =>
+        Effect.succeed(
+          new Response(JSON.stringify(validationBody), {
+            status,
+            headers: { "content-type": "application/json" },
+          }),
+        );
 
     const badExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "x" }, { fetch: validationWithStatus(200) })
+      submitStartActionEffect(Ping, { value: "x" }, { fetch: validationWithStatus(200) }),
     );
     const ok = await Effect.runPromise(
-      submitStartActionEffect(Ping, { value: "x" }, { fetch: validationWithStatus(422) })
+      submitStartActionEffect(Ping, { value: "x" }, { fetch: validationWithStatus(422) }),
     );
     const failure = Exit.isFailure(badExit) ? firstFailure(badExit.cause) : undefined;
 
@@ -4243,14 +4348,14 @@ describe("Effect UI Start", () => {
       reason: "BadStatus",
       status: 200,
       payload: {
-        _tag: "ValidationFailure"
-      }
+        _tag: "ValidationFailure",
+      },
     });
     expect(ok).toMatchObject({
       _tag: "ValidationFailure",
       fieldErrors: {
-        value: ["Too short."]
-      }
+        value: ["Too short."],
+      },
     });
   });
 
@@ -4259,7 +4364,7 @@ describe("Effect UI Start", () => {
       name: "Start.action.client.malformed-meta",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value })
+      run: ({ value }) => Effect.succeed({ value }),
     });
     const malformedInvalidation: StartFetch = () =>
       Effect.succeed(
@@ -4269,11 +4374,11 @@ describe("Effect UI Start", () => {
             value: { value: "ok" },
             invalidation: {
               targets: {},
-              entries: []
-            }
+              entries: [],
+            },
           }),
-          { headers: { "content-type": "application/json" } }
-        )
+          { headers: { "content-type": "application/json" } },
+        ),
       );
     const malformedHydration: StartFetch = () =>
       Effect.succeed(
@@ -4282,20 +4387,20 @@ describe("Effect UI Start", () => {
             _tag: "Success",
             value: { value: "ok" },
             hydration: {
-              resources: {}
-            }
+              resources: {},
+            },
           }),
-          { headers: { "content-type": "application/json" } }
-        )
+          { headers: { "content-type": "application/json" } },
+        ),
       );
     const missingSuccessValue: StartFetch = () =>
       Effect.succeed(
         new Response(
           JSON.stringify({
-            _tag: "Success"
+            _tag: "Success",
           }),
-          { headers: { "content-type": "application/json" } }
-        )
+          { headers: { "content-type": "application/json" } },
+        ),
       );
     const missingRefInput: StartFetch = () =>
       Effect.succeed(
@@ -4304,43 +4409,52 @@ describe("Effect UI Start", () => {
             _tag: "Success",
             value: { value: "ok" },
             invalidation: {
-              targets: [{
-                _tag: "Ref",
-                key: "Project:atlas",
-                family: "Project"
-              }],
-              entries: [{
-                ref: {
+              targets: [
+                {
+                  _tag: "Ref",
                   key: "Project:atlas",
-                  family: "Project"
+                  family: "Project",
                 },
-                causes: []
-              }]
-            }
+              ],
+              entries: [
+                {
+                  ref: {
+                    key: "Project:atlas",
+                    family: "Project",
+                  },
+                  causes: [],
+                },
+              ],
+            },
           }),
-          { headers: { "content-type": "application/json" } }
-        )
+          { headers: { "content-type": "application/json" } },
+        ),
       );
 
     const invalidationExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, { fetch: malformedInvalidation })
+      submitStartActionEffect(Ping, { value: "ok" }, { fetch: malformedInvalidation }),
     );
     const hydrationExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, { fetch: malformedHydration })
+      submitStartActionEffect(Ping, { value: "ok" }, { fetch: malformedHydration }),
     );
     const missingSuccessValueExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, { fetch: missingSuccessValue })
+      submitStartActionEffect(Ping, { value: "ok" }, { fetch: missingSuccessValue }),
     );
     const missingRefInputExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, { fetch: missingRefInput })
+      submitStartActionEffect(Ping, { value: "ok" }, { fetch: missingRefInput }),
     );
 
-    for (const exit of [invalidationExit, hydrationExit, missingSuccessValueExit, missingRefInputExit]) {
+    for (const exit of [
+      invalidationExit,
+      hydrationExit,
+      missingSuccessValueExit,
+      missingRefInputExit,
+    ]) {
       const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
       expect(failure).toBeInstanceOf(ServerTransportError);
       expect(failure).toMatchObject({
         reason: "InvalidResponse",
-        message: "Action response did not match the Effect UI Start action protocol."
+        message: "Action response did not match the Effect UI Start action protocol.",
       });
     }
   });
@@ -4348,131 +4462,171 @@ describe("Effect UI Start", () => {
   it("rejects semantically invalid Start action invalidation metadata", async () => {
     const Project = Resource.family({
       name: "Start.action.client.semantic-ref",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const validRef = Project("valid");
     const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.action.client.semantic-meta",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value })
+      run: ({ value }) => Effect.succeed({ value }),
     });
-    const responseWithInvalidation = (invalidation: unknown): StartFetch => () =>
-      Effect.succeed(
-        new Response(
-          JSON.stringify({
-            _tag: "Success",
-            value: { value: "ok" },
-            invalidation
-          }),
-          { headers: { "content-type": "application/json" } }
-        )
-      );
+    const responseWithInvalidation =
+      (invalidation: unknown): StartFetch =>
+      () =>
+        Effect.succeed(
+          new Response(
+            JSON.stringify({
+              _tag: "Success",
+              value: { value: "ok" },
+              invalidation,
+            }),
+            { headers: { "content-type": "application/json" } },
+          ),
+        );
     const responseWithTarget = (target: unknown): StartFetch =>
       responseWithInvalidation({
         targets: [target],
-        entries: []
+        entries: [],
       });
 
     const unknownFamilyExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, {
-        fetch: responseWithTarget({
-          _tag: "Ref",
-          key: "missing",
-          family: "Start.action.client.missing-family",
-          input: "valid"
-        })
-      })
+      submitStartActionEffect(
+        Ping,
+        { value: "ok" },
+        {
+          fetch: responseWithTarget({
+            _tag: "Ref",
+            key: "missing",
+            family: "Start.action.client.missing-family",
+            input: "valid",
+          }),
+        },
+      ),
     );
     const keyMismatchExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, {
-        fetch: responseWithTarget({
-          _tag: "Ref",
-          key: validRef.key,
-          family: "Start.action.client.semantic-ref",
-          input: "different"
-        })
-      })
-    );
-    const entryMismatchExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, {
-        fetch: responseWithInvalidation({
-          targets: [{
+      submitStartActionEffect(
+        Ping,
+        { value: "ok" },
+        {
+          fetch: responseWithTarget({
             _tag: "Ref",
             key: validRef.key,
             family: "Start.action.client.semantic-ref",
-            input: "valid"
-          }],
-          entries: [{
-            ref: {
-              key: validRef.key,
-              family: "Start.action.client.semantic-ref",
-              input: "different"
-            },
-            causes: []
-          }]
-        })
-      })
+            input: "different",
+          }),
+        },
+      ),
+    );
+    const entryMismatchExit = await Effect.runPromiseExit(
+      submitStartActionEffect(
+        Ping,
+        { value: "ok" },
+        {
+          fetch: responseWithInvalidation({
+            targets: [
+              {
+                _tag: "Ref",
+                key: validRef.key,
+                family: "Start.action.client.semantic-ref",
+                input: "valid",
+              },
+            ],
+            entries: [
+              {
+                ref: {
+                  key: validRef.key,
+                  family: "Start.action.client.semantic-ref",
+                  input: "different",
+                },
+                causes: [],
+              },
+            ],
+          }),
+        },
+      ),
     );
     const malformedTagTargetExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, {
-        fetch: responseWithTarget({
-          _tag: "Tag",
-          key: "Start.action.client.semantic-tag-wrong:valid",
-          name: "Start.action.client.semantic-tag"
-        })
-      })
+      submitStartActionEffect(
+        Ping,
+        { value: "ok" },
+        {
+          fetch: responseWithTarget({
+            _tag: "Tag",
+            key: "Start.action.client.semantic-tag-wrong:valid",
+            name: "Start.action.client.semantic-tag",
+          }),
+        },
+      ),
     );
     const malformedTagCauseExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, {
-        fetch: responseWithInvalidation({
-          targets: [],
-          entries: [{
-            ref: {
-              key: validRef.key,
-              family: "Start.action.client.semantic-ref",
-              input: "valid"
-            },
-            causes: [{
-              _tag: "Tag",
-              key: "Start.action.client.semantic-tag-wrong:valid",
-              name: "Start.action.client.semantic-tag"
-            }]
-          }]
-        })
-      })
+      submitStartActionEffect(
+        Ping,
+        { value: "ok" },
+        {
+          fetch: responseWithInvalidation({
+            targets: [],
+            entries: [
+              {
+                ref: {
+                  key: validRef.key,
+                  family: "Start.action.client.semantic-ref",
+                  input: "valid",
+                },
+                causes: [
+                  {
+                    _tag: "Tag",
+                    key: "Start.action.client.semantic-tag-wrong:valid",
+                    name: "Start.action.client.semantic-tag",
+                  },
+                ],
+              },
+            ],
+          }),
+        },
+      ),
     );
 
-    const unknownFamily = Exit.isFailure(unknownFamilyExit) ? firstFailure(unknownFamilyExit.cause) : undefined;
-    const keyMismatch = Exit.isFailure(keyMismatchExit) ? firstFailure(keyMismatchExit.cause) : undefined;
-    const entryMismatch = Exit.isFailure(entryMismatchExit) ? firstFailure(entryMismatchExit.cause) : undefined;
-    const malformedTagTarget = Exit.isFailure(malformedTagTargetExit) ? firstFailure(malformedTagTargetExit.cause) : undefined;
-    const malformedTagCause = Exit.isFailure(malformedTagCauseExit) ? firstFailure(malformedTagCauseExit.cause) : undefined;
+    const unknownFamily = Exit.isFailure(unknownFamilyExit)
+      ? firstFailure(unknownFamilyExit.cause)
+      : undefined;
+    const keyMismatch = Exit.isFailure(keyMismatchExit)
+      ? firstFailure(keyMismatchExit.cause)
+      : undefined;
+    const entryMismatch = Exit.isFailure(entryMismatchExit)
+      ? firstFailure(entryMismatchExit.cause)
+      : undefined;
+    const malformedTagTarget = Exit.isFailure(malformedTagTargetExit)
+      ? firstFailure(malformedTagTargetExit.cause)
+      : undefined;
+    const malformedTagCause = Exit.isFailure(malformedTagCauseExit)
+      ? firstFailure(malformedTagCauseExit.cause)
+      : undefined;
 
     expect(unknownFamily).toBeInstanceOf(ServerTransportError);
     expect(unknownFamily).toMatchObject({
       reason: "InvalidResponse",
-      message: "Start action invalidation metadata referenced an unknown Resource family."
+      message: "Start action invalidation metadata referenced an unknown Resource family.",
     });
     expect(keyMismatch).toBeInstanceOf(ServerTransportError);
     expect(keyMismatch).toMatchObject({
       reason: "InvalidResponse",
-      message: "Start action invalidation metadata did not match the Resource input."
+      message: "Start action invalidation metadata did not match the Resource input.",
     });
     expect(entryMismatch).toBeInstanceOf(ServerTransportError);
     expect(entryMismatch).toMatchObject({
       reason: "InvalidResponse",
-      message: "Start action invalidation metadata did not match the Resource input."
+      message: "Start action invalidation metadata did not match the Resource input.",
     });
     expect(malformedTagTarget).toBeInstanceOf(ServerTransportError);
     expect(malformedTagTarget).toMatchObject({
       reason: "InvalidResponse",
-      message: "Start action invalidation metadata did not match the Resource tag key."
+      message: "Start action invalidation metadata did not match the Resource tag key.",
     });
     expect(malformedTagCause).toBeInstanceOf(ServerTransportError);
     expect(malformedTagCause).toMatchObject({
       reason: "InvalidResponse",
-      message: "Start action invalidation metadata did not match the Resource tag key."
+      message: "Start action invalidation metadata did not match the Resource tag key.",
     });
   });
 
@@ -4482,14 +4636,14 @@ describe("Effect UI Start", () => {
     const load = () => Effect.succeed(count);
     const Count = Resource.family({
       name: "Start.action.client.runtime-local-ref",
-      load: (_input: null) => load()
+      load: (_input: null) => load(),
     });
     const ref = Count(null);
     const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.action.client.runtime-local-ref",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value })
+      run: ({ value }) => Effect.succeed({ value }),
     });
     const definitions = Resource.definitions() as Map<string, unknown>;
     const globalDefinition = definitions.get("Start.action.client.runtime-local-ref");
@@ -4500,17 +4654,19 @@ describe("Effect UI Start", () => {
             _tag: "Success",
             value: { value: "ok" },
             invalidation: {
-              targets: [{
-                _tag: "Ref",
-                key: ref.key,
-                family: "Start.action.client.runtime-local-ref",
-                input: null
-              }],
-              entries: []
-            }
+              targets: [
+                {
+                  _tag: "Ref",
+                  key: ref.key,
+                  family: "Start.action.client.runtime-local-ref",
+                  input: null,
+                },
+              ],
+              entries: [],
+            },
           }),
-          { headers: { "content-type": "application/json" } }
-        )
+          { headers: { "content-type": "application/json" } },
+        ),
       );
 
     try {
@@ -4519,10 +4675,12 @@ describe("Effect UI Start", () => {
       count = 1;
 
       await expect(
-        Effect.runPromise(submitStartActionEffect(Ping, { value: "ok" }, { fetch: fetcher, runtime }))
+        Effect.runPromise(
+          submitStartActionEffect(Ping, { value: "ok" }, { fetch: fetcher, runtime }),
+        ),
       ).resolves.toMatchObject({
         _tag: "Success",
-        value: { value: "ok" }
+        value: { value: "ok" },
       });
 
       expect(runWithRuntime(runtime, () => read(ref))).toBe(1);
@@ -4538,21 +4696,21 @@ describe("Effect UI Start", () => {
     interface TransportToken {
       readonly token: string;
     }
-    const TransportToken = Context.Service<TransportToken>("@effect-ui/start/test/ActionTransportToken");
+    const TransportToken = Context.Service<TransportToken>(
+      "@effect-ui/start/test/ActionTransportToken",
+    );
     const Project = Resource.family({
       name: "Start.action.client.response-runtime",
-      load: (_id: string) => Effect.succeed({ id: "atlas", name: "Initial" })
+      load: (_id: string) => Effect.succeed({ id: "atlas", name: "Initial" }),
     });
     const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.action.client.response-runtime",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value })
+      run: ({ value }) => Effect.succeed({ value }),
     });
     const appRuntime = makeRuntime();
-    const transportRuntime = makeRuntime(
-      Layer.succeed(TransportToken)({ token: "transport-ok" })
-    );
+    const transportRuntime = makeRuntime(Layer.succeed(TransportToken)({ token: "transport-ok" }));
     const ref = Project("atlas");
     const fetcher: StartFetch<never, TransportToken> = () =>
       TransportToken.use(({ token }) =>
@@ -4571,15 +4729,15 @@ describe("Effect UI Start", () => {
                       _tag: "Success",
                       waiting: false,
                       value: { id: "atlas", name: "Hydrated In App Runtime" },
-                      updatedAt: 1
-                    }
-                  }
-                ]
-              }
+                      updatedAt: 1,
+                    },
+                  },
+                ],
+              },
             }),
-            { headers: { "content-type": "application/json" } }
-          )
-        )
+            { headers: { "content-type": "application/json" } },
+          ),
+        ),
       );
 
     try {
@@ -4588,24 +4746,28 @@ describe("Effect UI Start", () => {
 
       await expect(
         Effect.runPromise(
-          submitStartActionEffect(Ping, { value: "submit" }, {
-            fetch: fetcher,
-            responseRuntime: appRuntime,
-            transportRuntime
-          })
-        )
+          submitStartActionEffect(
+            Ping,
+            { value: "submit" },
+            {
+              fetch: fetcher,
+              responseRuntime: appRuntime,
+              transportRuntime,
+            },
+          ),
+        ),
       ).resolves.toMatchObject({
         _tag: "Success",
-        value: { value: "transport-ok" }
+        value: { value: "transport-ok" },
       });
 
       expect(runWithRuntime(appRuntime, () => Resource.status(ref).value)).toEqual({
         id: "atlas",
-        name: "Hydrated In App Runtime"
+        name: "Hydrated In App Runtime",
       });
       expect(runWithRuntime(transportRuntime, () => Resource.status(ref).value)).toEqual({
         id: "atlas",
-        name: "Initial"
+        name: "Initial",
       });
     } finally {
       await Effect.runPromise(appRuntime.disposeEffect);
@@ -4618,7 +4780,7 @@ describe("Effect UI Start", () => {
       name: "Start.action.client.bad-hydration-meta",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value })
+      run: ({ value }) => Effect.succeed({ value }),
     });
     const fetcher: StartFetch = () =>
       Effect.succeed(
@@ -4627,22 +4789,22 @@ describe("Effect UI Start", () => {
             _tag: "Success",
             value: { value: "ok" },
             hydration: {
-              resources: [{ name: 1 }]
-            }
+              resources: [{ name: 1 }],
+            },
           }),
-          { headers: { "content-type": "application/json" } }
-        )
+          { headers: { "content-type": "application/json" } },
+        ),
       );
 
     const exit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, { fetch: fetcher })
+      submitStartActionEffect(Ping, { value: "ok" }, { fetch: fetcher }),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
     expect(failure).toBeInstanceOf(ServerTransportError);
     expect(failure).toMatchObject({
       reason: "InvalidResponse",
-      message: "Start action response metadata could not be applied."
+      message: "Start action response metadata could not be applied.",
     });
   });
 
@@ -4651,7 +4813,7 @@ describe("Effect UI Start", () => {
       name: "Start.action.client.transport-setup-throw",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value })
+      run: ({ value }) => Effect.succeed({ value }),
     });
     const headerCause = new Error("headers failed");
     const fetchCause = new Error("fetcher failed");
@@ -4663,9 +4825,9 @@ describe("Effect UI Start", () => {
         {
           headers: () => {
             throw headerCause;
-          }
-        }
-      )
+          },
+        },
+      ),
     );
     const fetchExit = await Effect.runPromiseExit(
       submitStartActionEffect(
@@ -4674,9 +4836,9 @@ describe("Effect UI Start", () => {
         {
           fetch: () => {
             throw fetchCause;
-          }
-        }
-      )
+          },
+        },
+      ),
     );
     const headerFailure = Exit.isFailure(headerExit) ? firstFailure(headerExit.cause) : undefined;
     const fetchFailure = Exit.isFailure(fetchExit) ? firstFailure(fetchExit.cause) : undefined;
@@ -4685,13 +4847,13 @@ describe("Effect UI Start", () => {
     expect(headerFailure).toMatchObject({
       reason: "Network",
       message: "Could not construct Start transport headers.",
-      cause: headerCause
+      cause: headerCause,
     });
     expect(fetchFailure).toBeInstanceOf(ServerTransportError);
     expect(fetchFailure).toMatchObject({
       reason: "Network",
       message: "Start action request failed.",
-      cause: fetchCause
+      cause: fetchCause,
     });
   });
 
@@ -4700,7 +4862,7 @@ describe("Effect UI Start", () => {
       name: "Start.action.client.promise-headers",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value })
+      run: ({ value }) => Effect.succeed({ value }),
     });
 
     const exit = await Effect.runPromiseExit(
@@ -4708,9 +4870,9 @@ describe("Effect UI Start", () => {
         Ping,
         { value: "ok" },
         {
-          headers: (() => Promise.resolve({ authorization: "Bearer token" })) as never
-        }
-      )
+          headers: (() => Promise.resolve({ authorization: "Bearer token" })) as never,
+        },
+      ),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -4718,28 +4880,28 @@ describe("Effect UI Start", () => {
     expect(failure).toMatchObject({
       reason: "Network",
       message: "Could not construct Start transport headers.",
-      cause: expect.any(EffectInputPromiseRejected)
+      cause: expect.any(EffectInputPromiseRejected),
     });
   });
 
   it("replays semantic action tag invalidations on JSON clients", async () => {
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
-      name: Schema.String
+      name: Schema.String,
     });
     const ProjectTag = Resource.tag<{ readonly id: string }>("Start.action.Project.tag", {
-      key: ({ id }) => id
+      key: ({ id }) => id,
     });
     let project = {
       id: "atlas",
-      name: "Initial"
+      name: "Initial",
     };
     const Project = Resource.family({
       name: "Start.action.Project.tagged",
       input: Schema.String,
       output: ProjectSchema,
       load: () => Effect.succeed(project),
-      provides: (value) => [ProjectTag({ id: value.id })]
+      provides: (value) => [ProjectTag({ id: value.id })],
     });
     const RenameProject = Action.define<
       { readonly id: string; readonly name: string },
@@ -4753,21 +4915,20 @@ describe("Effect UI Start", () => {
           project = { id, name };
           return project;
         }),
-      invalidates: (_project, input) => [ProjectTag({ id: input.id })]
+      invalidates: (_project, input) => [ProjectTag({ id: input.id })],
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
-      actions: [RenameProject]
+      actions: [RenameProject],
     });
     const clientRuntime = makeRuntime();
     const ref = Project("atlas");
     const fetcher: StartFetch = (input, init) => {
-      const url = input instanceof Request
-        ? input.url
-        : new URL(String(input), "https://example.com").href;
+      const url =
+        input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
       return handler(new Request(url, init));
     };
 
@@ -4780,9 +4941,9 @@ describe("Effect UI Start", () => {
           { id: "atlas", name: "Renamed Through Tag" },
           {
             fetch: fetcher,
-            runtime: clientRuntime
-          }
-        )
+            runtime: clientRuntime,
+          },
+        ),
       );
 
       expect(result).toMatchObject({
@@ -4792,16 +4953,16 @@ describe("Effect UI Start", () => {
             {
               _tag: "Tag",
               key: "Start.action.Project.tag:atlas",
-              name: "Start.action.Project.tag"
-            }
+              name: "Start.action.Project.tag",
+            },
           ],
-          entries: []
-        }
+          entries: [],
+        },
       });
       expect(result.hydration).toBeUndefined();
       expect(runWithRuntime(clientRuntime, () => Resource.status(ref).value)).toEqual({
         id: "atlas",
-        name: "Renamed Through Tag"
+        name: "Renamed Through Tag",
       });
     } finally {
       await Effect.runPromise(clientRuntime.disposeEffect);
@@ -4811,17 +4972,17 @@ describe("Effect UI Start", () => {
   it("replays direct action ref invalidations on JSON clients", async () => {
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
-      name: Schema.String
+      name: Schema.String,
     });
     let project = {
       id: "atlas",
-      name: "Initial"
+      name: "Initial",
     };
     const Project = Resource.family({
       name: "Start.action.Project.ref",
       input: Schema.String,
       output: ProjectSchema,
-      load: () => Effect.succeed(project)
+      load: () => Effect.succeed(project),
     });
     const RenameProject = Action.define<
       { readonly id: string; readonly name: string },
@@ -4835,30 +4996,31 @@ describe("Effect UI Start", () => {
           project = { id, name };
           return project;
         }),
-      invalidates: (_project, input) => [Project(input.id)]
+      invalidates: (_project, input) => [Project(input.id)],
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
-      actions: [RenameProject]
+      actions: [RenameProject],
     });
     const clientRuntime = makeRuntime();
     const ref = Project("atlas");
     const fetcher: StartFetch = (input, init) =>
       Effect.gen(function* () {
-        const url = input instanceof Request
-          ? input.url
-          : new URL(String(input), "https://example.com").href;
+        const url =
+          input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
         const response = yield* handler(new Request(url, init));
-        const body = yield* Effect.tryPromise(() => response.json() as Promise<Record<string, unknown>>);
+        const body = yield* Effect.tryPromise(
+          () => response.json() as Promise<Record<string, unknown>>,
+        );
         delete body.hydration;
         return new Response(JSON.stringify(body), {
           status: response.status,
           headers: {
-            "content-type": response.headers.get("content-type") ?? "application/json"
-          }
+            "content-type": response.headers.get("content-type") ?? "application/json",
+          },
         });
       });
 
@@ -4871,9 +5033,9 @@ describe("Effect UI Start", () => {
           { id: "atlas", name: "Renamed Through Ref" },
           {
             fetch: fetcher,
-            runtime: clientRuntime
-          }
-        )
+            runtime: clientRuntime,
+          },
+        ),
       );
 
       expect(result).toMatchObject({
@@ -4884,15 +5046,15 @@ describe("Effect UI Start", () => {
               _tag: "Ref",
               key: ref.key,
               family: "Start.action.Project.ref",
-              input: "atlas"
-            }
-          ]
-        }
+              input: "atlas",
+            },
+          ],
+        },
       });
       expect(result.hydration).toBeUndefined();
       expect(runWithRuntime(clientRuntime, () => Resource.status(ref).value)).toEqual({
         id: "atlas",
-        name: "Renamed Through Ref"
+        name: "Renamed Through Ref",
       });
     } finally {
       await Effect.runPromise(clientRuntime.disposeEffect);
@@ -4904,20 +5066,19 @@ describe("Effect UI Start", () => {
       name: "Start.action.client.ping",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value: value.toUpperCase() })
+      run: ({ value }) => Effect.succeed({ value: value.toUpperCase() }),
     });
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
-      actions: [Ping]
+      actions: [Ping],
     });
     const runtime = makeRuntime();
     const fetcher: StartFetch = (input, init) => {
-      const url = input instanceof Request
-        ? input.url
-        : new URL(String(input), "https://example.com").href;
+      const url =
+        input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
       return handler(new Request(url, init));
     };
     const action = StartAction.use(Ping, { fetch: fetcher, runtime });
@@ -4927,19 +5088,19 @@ describe("Effect UI Start", () => {
       const submission = Effect.runFork(action.submitEffect({ value: "transport" }));
       expect(action.state.get()).toMatchObject({
         _tag: "Pending",
-        input: { value: "transport" }
+        input: { value: "transport" },
       });
 
       await expect(Effect.runPromise(Fiber.join(submission))).resolves.toMatchObject({
         _tag: "Success",
-        value: { value: "TRANSPORT" }
+        value: { value: "TRANSPORT" },
       });
       expect(action.state.get()).toMatchObject({
         _tag: "Success",
         value: {
           _tag: "Success",
-          value: { value: "TRANSPORT" }
-        }
+          value: { value: "TRANSPORT" },
+        },
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
@@ -4954,9 +5115,9 @@ describe("Effect UI Start", () => {
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
       policy: {
-        concurrency: "exhaust"
+        concurrency: "exhaust",
       },
-      run: ({ value }) => Effect.succeed({ value })
+      run: ({ value }) => Effect.succeed({ value }),
     });
     const fetcher: StartFetch = () =>
       Effect.gen(function* () {
@@ -4965,13 +5126,13 @@ describe("Effect UI Start", () => {
         return new Response(
           JSON.stringify({
             _tag: "Success",
-            value: { value: `response-${requestNumber}` }
+            value: { value: `response-${requestNumber}` },
           }),
           {
             headers: {
-              "content-type": "application/json"
-            }
-          }
+              "content-type": "application/json",
+            },
+          },
         );
       });
     const runtime = makeRuntime();
@@ -4985,16 +5146,16 @@ describe("Effect UI Start", () => {
 
       await expect(runInRuntime(runtime, Fiber.join(first))).resolves.toMatchObject({
         _tag: "Success",
-        value: { value: "response-1" }
+        value: { value: "response-1" },
       });
       await expect(runInRuntime(runtime, Fiber.join(second))).resolves.toMatchObject({
         _tag: "Success",
-        value: { value: "response-1" }
+        value: { value: "response-1" },
       });
       expect(requests).toBe(1);
       expect(action.state.get()).toMatchObject({
         _tag: "Success",
-        input: { value: "first" }
+        input: { value: "first" },
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
@@ -5004,38 +5165,35 @@ describe("Effect UI Start", () => {
   it("does not hydrate stale StartAction submissions", async () => {
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
-      name: Schema.String
+      name: Schema.String,
     });
     const ResultSchema = Schema.Struct({
-      name: Schema.String
+      name: Schema.String,
     });
     let invalidatedProject = {
       id: "atlas",
-      name: "Invalidation Initial"
+      name: "Invalidation Initial",
     };
     const Project = Resource.family({
       name: "Start.action.Project.stale-hydration",
       input: Schema.String,
       output: ProjectSchema,
-      load: () => Effect.succeed({ id: "atlas", name: "Initial" })
+      load: () => Effect.succeed({ id: "atlas", name: "Initial" }),
     });
     const InvalidatedProject = Resource.family({
       name: "Start.action.Project.stale-invalidation",
       input: Schema.String,
       output: ProjectSchema,
-      load: () => Effect.succeed(invalidatedProject)
+      load: () => Effect.succeed(invalidatedProject),
     });
-    const RenameProject = Action.define<
-      { readonly name: string },
-      typeof ResultSchema.Type
-    >({
+    const RenameProject = Action.define<{ readonly name: string }, typeof ResultSchema.Type>({
       name: "Start.action.client.stale-hydration",
       input: Schema.Struct({ name: Schema.String }),
       output: ResultSchema,
       policy: {
-        concurrency: "parallel"
+        concurrency: "parallel",
       },
-      run: ({ name }) => Effect.succeed({ name })
+      run: ({ name }) => Effect.succeed({ name }),
     });
     const runtime = makeRuntime();
     const ref = Project("atlas");
@@ -5046,7 +5204,7 @@ describe("Effect UI Start", () => {
     const responseFor = (
       name: string,
       updatedAt: number,
-      options: { readonly invalidateProject?: boolean } = {}
+      options: { readonly invalidateProject?: boolean } = {},
     ): Response =>
       new Response(
         JSON.stringify({
@@ -5062,10 +5220,10 @@ describe("Effect UI Start", () => {
                   _tag: "Success",
                   waiting: false,
                   value: { id: "atlas", name },
-                  updatedAt
-                }
-              }
-            ]
+                  updatedAt,
+                },
+              },
+            ],
           },
           ...(options.invalidateProject
             ? {
@@ -5075,32 +5233,32 @@ describe("Effect UI Start", () => {
                       _tag: "Ref",
                       key: invalidatedRef.key,
                       family: "Start.action.Project.stale-invalidation",
-                      input: "atlas"
-                    }
+                      input: "atlas",
+                    },
                   ],
                   entries: [
                     {
                       ref: {
                         key: invalidatedRef.key,
                         family: "Start.action.Project.stale-invalidation",
-                        input: "atlas"
+                        input: "atlas",
                       },
                       causes: [
                         {
                           _tag: "Ref",
                           key: invalidatedRef.key,
-                          family: "Start.action.Project.stale-invalidation"
-                        }
-                      ]
-                    }
-                  ]
-                }
+                          family: "Start.action.Project.stale-invalidation",
+                        },
+                      ],
+                    },
+                  ],
+                },
               }
-            : {})
+            : {}),
         }),
         {
-          headers: { "content-type": "application/json" }
-        }
+          headers: { "content-type": "application/json" },
+        },
       );
     const fetcher: StartFetch = () =>
       Effect.gen(function* () {
@@ -5126,37 +5284,37 @@ describe("Effect UI Start", () => {
       Effect.runSync(Deferred.succeed(secondRelease, undefined));
       await expect(runInRuntime(runtime, Fiber.join(second))).resolves.toMatchObject({
         _tag: "Success",
-        value: { name: "Second" }
+        value: { name: "Second" },
       });
       expect(runWithRuntime(runtime, () => Resource.status(ref).value)).toEqual({
         id: "atlas",
-        name: "Second"
+        name: "Second",
       });
       expect(runWithRuntime(runtime, () => Resource.status(invalidatedRef).value)).toEqual({
         id: "atlas",
-        name: "Invalidation Initial"
+        name: "Invalidation Initial",
       });
 
       invalidatedProject = {
         id: "atlas",
-        name: "Invalidated By First"
+        name: "Invalidated By First",
       };
       Effect.runSync(Deferred.succeed(firstRelease, undefined));
       await expect(runInRuntime(runtime, Fiber.join(first))).resolves.toMatchObject({
         _tag: "Success",
-        value: { name: "First" }
+        value: { name: "First" },
       });
       expect(runWithRuntime(runtime, () => Resource.status(ref).value)).toEqual({
         id: "atlas",
-        name: "Second"
+        name: "Second",
       });
       expect(runWithRuntime(runtime, () => Resource.status(invalidatedRef).value)).toEqual({
         id: "atlas",
-        name: "Invalidated By First"
+        name: "Invalidated By First",
       });
       expect(action.state.get()).toMatchObject({
         _tag: "Success",
-        input: { name: "Second" }
+        input: { name: "Second" },
       });
     } finally {
       Effect.runSync(Deferred.succeed(firstRelease, undefined));
@@ -5168,7 +5326,7 @@ describe("Effect UI Start", () => {
   it("hydrates from a document script", () => {
     const User = Resource.family({
       name: "Start.User.document",
-      load: (id: string) => Effect.succeed({ id, name: "Loaded" })
+      load: (id: string) => Effect.succeed({ id, name: "Loaded" }),
     });
     const ref = User("1");
     const payload = {
@@ -5181,19 +5339,19 @@ describe("Effect UI Start", () => {
             _tag: "Success" as const,
             waiting: false as const,
             value: { id: "1", name: "Hydrated" },
-            updatedAt: Date.now()
-          }
-        }
-      ]
+            updatedAt: Date.now(),
+          },
+        },
+      ],
     };
     const script = createHydrationScript(payload);
     const document = {
       getElementById: (id: string) =>
         id === "__EFFECT_UI_HYDRATION__"
           ? {
-              textContent: script.replace(/^<script[^>]*>/, "").replace("</script>", "")
+              textContent: script.replace(/^<script[^>]*>/, "").replace("</script>", ""),
             }
-          : null
+          : null,
     };
 
     hydrateFromDocument(document as Pick<Document, "getElementById">);
@@ -5204,7 +5362,7 @@ describe("Effect UI Start", () => {
   it("hydrates DB collections from a document script", () => {
     const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
       name: "Start.Collection.document",
-      getKey: (project) => project.id
+      getKey: (project) => project.id,
     });
     const payload = {
       resources: [],
@@ -5216,39 +5374,39 @@ describe("Effect UI Start", () => {
               key: "atlas",
               value: { id: "atlas", name: "Hydrated Atlas" },
               synced: true,
-              origin: "remote" as const
-            }
+              origin: "remote" as const,
+            },
           ],
           pendingMutations: [],
-          updatedAt: Date.now()
-        }
-      ]
+          updatedAt: Date.now(),
+        },
+      ],
     };
     const script = createHydrationScript(payload);
     const document = {
       getElementById: (id: string) =>
         id === "__EFFECT_UI_HYDRATION__"
           ? {
-              textContent: script.replace(/^<script[^>]*>/, "").replace("</script>", "")
+              textContent: script.replace(/^<script[^>]*>/, "").replace("</script>", ""),
             }
-          : null
+          : null,
     };
 
     hydrateFromDocument(document as Pick<Document, "getElementById">, "__EFFECT_UI_HYDRATION__", {
-      collections: [Projects]
+      collections: [Projects],
     });
 
     expect(Projects.get("atlas")).toMatchObject({
       id: "atlas",
       name: "Hydrated Atlas",
-      $synced: true
+      $synced: true,
     });
   });
 
   it("resolves Start hydration collections from a registry when concrete collections are not supplied", async () => {
     const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
       name: "Start.Collection.registry-hydration",
-      getKey: (project) => project.id
+      getKey: (project) => project.id,
     });
 
     await Effect.runPromise(
@@ -5263,31 +5421,31 @@ describe("Effect UI Start", () => {
                   key: "atlas",
                   value: { id: "atlas", name: "Registry Atlas" },
                   synced: true,
-                  origin: "remote" as const
-                }
+                  origin: "remote" as const,
+                },
               ],
               pendingMutations: [],
-              updatedAt: Date.now()
-            }
-          ]
+              updatedAt: Date.now(),
+            },
+          ],
         },
         {
-          collectionRegistry: Collection.defaultRegistry
-        }
-      )
+          collectionRegistry: Collection.defaultRegistry,
+        },
+      ),
     );
 
     expect(Projects.get("atlas")).toMatchObject({
       id: "atlas",
       name: "Registry Atlas",
-      $synced: true
+      $synced: true,
     });
   });
 
   it("surfaces collection snapshot codec failures from Start hydration effects", async () => {
     const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
       name: "Start.Collection.invalid-hydration",
-      getKey: (project) => project.id
+      getKey: (project) => project.id,
     });
 
     const exit = await Effect.runPromiseExit(
@@ -5299,14 +5457,14 @@ describe("Effect UI Start", () => {
               name: "Start.Collection.invalid-hydration",
               rows: "not-rows",
               pendingMutations: [],
-              updatedAt: 1
-            } as never
-          ]
+              updatedAt: 1,
+            } as never,
+          ],
         },
         {
-          collections: [Projects]
-        }
-      )
+          collections: [Projects],
+        },
+      ),
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
@@ -5323,21 +5481,21 @@ describe("Effect UI Start", () => {
               name: "Start.Collection.missing-hydration-definition",
               rows: [],
               pendingMutations: [],
-              updatedAt: 1
-            }
-          ]
+              updatedAt: 1,
+            },
+          ],
         },
         {
-          collectionRegistry: Collection.makeRegistry()
-        }
-      )
+          collectionRegistry: Collection.makeRegistry(),
+        },
+      ),
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
     expect(firstFailure(exit.cause)).toMatchObject({
       _tag: "CollectionSnapshotCodecError",
       operation: "hydrate",
-      path: "$.collections[0].name"
+      path: "$.collections[0].name",
     });
   });
 
@@ -5345,11 +5503,11 @@ describe("Effect UI Start", () => {
     const name = "Start.Collection.duplicate-hydration-definition";
     const PrimaryProjects = Collection.define<{ readonly id: string; readonly name: string }>({
       name,
-      getKey: (project) => project.id
+      getKey: (project) => project.id,
     });
     const ShadowProjects = Collection.define<{ readonly slug: string; readonly title: string }>({
       name,
-      getKey: (project) => project.slug
+      getKey: (project) => project.slug,
     });
 
     const exit = await Effect.runPromiseExit(
@@ -5361,21 +5519,21 @@ describe("Effect UI Start", () => {
               name,
               rows: [],
               pendingMutations: [],
-              updatedAt: 1
-            }
-          ]
+              updatedAt: 1,
+            },
+          ],
         },
         {
-          collections: [PrimaryProjects, ShadowProjects]
-        }
-      )
+          collections: [PrimaryProjects, ShadowProjects],
+        },
+      ),
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
     expect(firstFailure(exit.cause)).toMatchObject({
       _tag: "CollectionSnapshotCodecError",
       operation: "hydrate",
-      path: "$.collections"
+      path: "$.collections",
     });
   });
 
@@ -5384,11 +5542,11 @@ describe("Effect UI Start", () => {
     try {
       const User = Resource.family({
         name: "Start.User.invalid-collection-hydration",
-        load: (id: string) => Effect.succeed({ id, name: "Loaded" })
+        load: (id: string) => Effect.succeed({ id, name: "Loaded" }),
       });
       const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
         name: "Start.Collection.invalid-after-resource",
-        getKey: (project) => project.id
+        getKey: (project) => project.id,
       });
       const ref = User("1");
       const exit = await Effect.runPromiseExit(
@@ -5404,24 +5562,24 @@ describe("Effect UI Start", () => {
                     _tag: "Success" as const,
                     waiting: false as const,
                     value: { id: "1", name: "Hydrated" },
-                    updatedAt: 1
-                  }
-                }
+                    updatedAt: 1,
+                  },
+                },
               ],
               collections: [
                 {
                   name: "Start.Collection.invalid-after-resource",
                   rows: "not-rows",
                   pendingMutations: [],
-                  updatedAt: 1
-                } as never
-              ]
+                  updatedAt: 1,
+                } as never,
+              ],
             },
             {
-              collections: [Projects]
-            }
-          )
-        )
+              collections: [Projects],
+            },
+          ),
+        ),
       );
 
       expect(Exit.isFailure(exit)).toBe(true);
@@ -5435,14 +5593,12 @@ describe("Effect UI Start", () => {
   it("surfaces malformed document hydration JSON through the Effect error channel", async () => {
     const document = {
       getElementById: (id: string) =>
-        id === "__EFFECT_UI_HYDRATION__"
-          ? { textContent: "{" }
-          : null,
-      querySelectorAll: () => []
+        id === "__EFFECT_UI_HYDRATION__" ? { textContent: "{" } : null,
+      querySelectorAll: () => [],
     };
 
     const exit = await Effect.runPromiseExit(
-      hydrateFromDocumentEffect(document as Parameters<typeof hydrateFromDocumentEffect>[0])
+      hydrateFromDocumentEffect(document as Parameters<typeof hydrateFromDocumentEffect>[0]),
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
@@ -5455,11 +5611,11 @@ describe("Effect UI Start", () => {
         id === "__EFFECT_UI_HYDRATION__"
           ? { textContent: JSON.stringify({ resources: [], collections: "not-array" }) }
           : null,
-      querySelectorAll: () => []
+      querySelectorAll: () => [],
     };
 
     const exit = await Effect.runPromiseExit(
-      hydrateFromDocumentEffect(document as Parameters<typeof hydrateFromDocumentEffect>[0])
+      hydrateFromDocumentEffect(document as Parameters<typeof hydrateFromDocumentEffect>[0]),
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
@@ -5469,14 +5625,12 @@ describe("Effect UI Start", () => {
   it("surfaces empty document hydration scripts as malformed JSON", async () => {
     const document = {
       getElementById: (id: string) =>
-        id === "__EFFECT_UI_HYDRATION__"
-          ? { textContent: "" }
-          : null,
-      querySelectorAll: () => []
+        id === "__EFFECT_UI_HYDRATION__" ? { textContent: "" } : null,
+      querySelectorAll: () => [],
     };
 
     const exit = await Effect.runPromiseExit(
-      hydrateFromDocumentEffect(document as Parameters<typeof hydrateFromDocumentEffect>[0])
+      hydrateFromDocumentEffect(document as Parameters<typeof hydrateFromDocumentEffect>[0]),
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
@@ -5485,7 +5639,7 @@ describe("Effect UI Start", () => {
 
   it("surfaces hydration script serialization failures through the Effect error channel", async () => {
     const payload: { readonly resources: ReadonlyArray<never>; self?: unknown } = {
-      resources: []
+      resources: [],
     };
     payload.self = payload;
 
@@ -5497,14 +5651,14 @@ describe("Effect UI Start", () => {
     expect(failure).toMatchObject({
       operation: "root-payload",
       value: payload,
-      guidance: expect.stringContaining("JSON-serializable")
+      guidance: expect.stringContaining("JSON-serializable"),
     });
     expect(failure?.cause).toBeInstanceOf(TypeError);
   });
 
   it("escapes custom hydration script ids as HTML attributes", async () => {
     const script = await Effect.runPromise(
-      createHydrationScriptEffect({ resources: [] }, `root"<&`)
+      createHydrationScriptEffect({ resources: [] }, `root"<&`),
     );
 
     expect(script).toContain(`id="root&quot;&lt;&amp;"`);
@@ -5514,7 +5668,7 @@ describe("Effect UI Start", () => {
 
   it("throws hydration script serialization failures from the sync facade", () => {
     const payload: { readonly resources: ReadonlyArray<never>; self?: unknown } = {
-      resources: []
+      resources: [],
     };
     payload.self = payload;
 
@@ -5526,7 +5680,7 @@ describe("Effect UI Start", () => {
       expect(error).toMatchObject({
         operation: "root-payload",
         value: payload,
-        guidance: expect.stringContaining("JSON-serializable")
+        guidance: expect.stringContaining("JSON-serializable"),
       });
       expect((error as StartHydrationPayloadSerializeError).cause).toBeInstanceOf(TypeError);
     }
@@ -5535,16 +5689,15 @@ describe("Effect UI Start", () => {
   it("surfaces malformed streamed hydration JSON through the Effect error channel", async () => {
     const element = {
       textContent: "{",
-      getAttribute: (name: string) =>
-        name === streamHydrationSequenceAttribute ? "2" : null
+      getAttribute: (name: string) => (name === streamHydrationSequenceAttribute ? "2" : null),
     };
     const document = {
       querySelectorAll: (selector: string) =>
-        selector === `[${streamHydrationAttribute}]` ? [element] : []
+        selector === `[${streamHydrationAttribute}]` ? [element] : [],
     };
 
     const exit = await Effect.runPromiseExit(
-      hydrateStartHydrationChunksFromDocumentEffect(document)
+      hydrateStartHydrationChunksFromDocumentEffect(document),
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
@@ -5557,18 +5710,17 @@ describe("Effect UI Start", () => {
         _tag: "StartHydrationChunk",
         version: 1,
         sequence: 0,
-        payload: { resources: [], collections: "not-array" }
+        payload: { resources: [], collections: "not-array" },
       }),
-      getAttribute: (name: string) =>
-        name === streamHydrationSequenceAttribute ? "0" : null
+      getAttribute: (name: string) => (name === streamHydrationSequenceAttribute ? "0" : null),
     };
     const document = {
       querySelectorAll: (selector: string) =>
-        selector === `[${streamHydrationAttribute}]` ? [element] : []
+        selector === `[${streamHydrationAttribute}]` ? [element] : [],
     };
 
     const exit = await Effect.runPromiseExit(
-      hydrateStartHydrationChunksFromDocumentEffect(document)
+      hydrateStartHydrationChunksFromDocumentEffect(document),
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
@@ -5578,16 +5730,15 @@ describe("Effect UI Start", () => {
   it("surfaces empty streamed hydration chunks as malformed JSON", async () => {
     const element = {
       textContent: "",
-      getAttribute: (name: string) =>
-        name === streamHydrationSequenceAttribute ? "2" : null
+      getAttribute: (name: string) => (name === streamHydrationSequenceAttribute ? "2" : null),
     };
     const document = {
       querySelectorAll: (selector: string) =>
-        selector === `[${streamHydrationAttribute}]` ? [element] : []
+        selector === `[${streamHydrationAttribute}]` ? [element] : [],
     };
 
     const exit = await Effect.runPromiseExit(
-      hydrateStartHydrationChunksFromDocumentEffect(document)
+      hydrateStartHydrationChunksFromDocumentEffect(document),
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
@@ -5599,11 +5750,11 @@ describe("Effect UI Start", () => {
     try {
       const User = Resource.family({
         name: "Start.User.document-explicit-runtime",
-        load: (id: string) => Effect.succeed({ id, name: "Loaded" })
+        load: (id: string) => Effect.succeed({ id, name: "Loaded" }),
       });
       const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
         name: "Start.Collection.document-explicit-runtime",
-        getKey: (project) => project.id
+        getKey: (project) => project.id,
       });
       const ref = User("1");
       const payload = {
@@ -5616,9 +5767,9 @@ describe("Effect UI Start", () => {
               _tag: "Success" as const,
               waiting: false as const,
               value: { id: "1", name: "Runtime Hydrated" },
-              updatedAt: 1
-            }
-          }
+              updatedAt: 1,
+            },
+          },
         ],
         collections: [
           {
@@ -5628,39 +5779,39 @@ describe("Effect UI Start", () => {
                 key: "atlas",
                 value: { id: "atlas", name: "Runtime Atlas" },
                 synced: true,
-                origin: "remote" as const
-              }
+                origin: "remote" as const,
+              },
             ],
             pendingMutations: [],
-            updatedAt: 1
-          }
-        ]
+            updatedAt: 1,
+          },
+        ],
       };
       const script = createHydrationScript(payload);
       const document = {
         getElementById: (id: string) =>
           id === "__EFFECT_UI_HYDRATION__"
             ? {
-                textContent: script.replace(/^<script[^>]*>/, "").replace("</script>", "")
+                textContent: script.replace(/^<script[^>]*>/, "").replace("</script>", ""),
               }
-            : null
+            : null,
       };
 
       hydrateFromDocument(document as Pick<Document, "getElementById">, "__EFFECT_UI_HYDRATION__", {
         collections: [Projects],
-        runtime
+        runtime,
       });
 
       expect(Resource.status(ref)._tag).toBe("Initial");
       expect(Projects.get("atlas")).toBeUndefined();
       expect(runWithRuntime(runtime, () => Resource.read(ref))).toEqual({
         id: "1",
-        name: "Runtime Hydrated"
+        name: "Runtime Hydrated",
       });
       expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
         id: "atlas",
         name: "Runtime Atlas",
-        $synced: true
+        $synced: true,
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
@@ -5673,10 +5824,11 @@ describe("Effect UI Start", () => {
       let loads = 0;
       const User = Resource.family({
         name: "Start.User.document-idempotent-runtime",
-        load: (id: string) => Effect.sync(() => {
-          loads += 1;
-          return { id, name: "Loaded" };
-        })
+        load: (id: string) =>
+          Effect.sync(() => {
+            loads += 1;
+            return { id, name: "Loaded" };
+          }),
       });
       const ref = User("1");
       const payload = {
@@ -5689,45 +5841,40 @@ describe("Effect UI Start", () => {
               _tag: "Success" as const,
               waiting: false as const,
               value: { id: "1", name: "Hydrated" },
-              updatedAt: 1
-            }
-          }
-        ]
+              updatedAt: 1,
+            },
+          },
+        ],
       };
       const mainText = scriptText(createHydrationScript(payload));
-      const streamElement = makeStreamHydrationElement(
-        createStreamHydrationScript(payload, 0),
-        0
-      );
+      const streamElement = makeStreamHydrationElement(createStreamHydrationScript(payload, 0), 0);
       const document = {
         getElementById: (id: string) =>
-          id === "__EFFECT_UI_HYDRATION__"
-            ? { textContent: mainText }
-            : null,
+          id === "__EFFECT_UI_HYDRATION__" ? { textContent: mainText } : null,
         querySelectorAll: (selector: string) =>
-          selector === `[${streamHydrationAttribute}]` ? [streamElement] : []
+          selector === `[${streamHydrationAttribute}]` ? [streamElement] : [],
       };
 
       hydrateFromDocument(
         document as Parameters<typeof hydrateFromDocument>[0],
         "__EFFECT_UI_HYDRATION__",
-        { runtime }
+        { runtime },
       );
       hydrateFromDocument(
         document as Parameters<typeof hydrateFromDocument>[0],
         "__EFFECT_UI_HYDRATION__",
-        { runtime }
+        { runtime },
       );
 
       expect(streamElement.getAttribute(streamHydrationConsumedAttribute)).toBe("true");
       expect(Resource.status(ref)._tag).toBe("Initial");
       expect(runWithRuntime(runtime, () => Resource.read(ref))).toEqual({
         id: "1",
-        name: "Hydrated"
+        name: "Hydrated",
       });
       await expect(runInRuntime(runtime, Resource.prefetchEffect(ref))).resolves.toEqual({
         id: "1",
-        name: "Hydrated"
+        name: "Hydrated",
       });
       expect(loads).toBe(0);
     } finally {
@@ -5740,7 +5887,7 @@ describe("Effect UI Start", () => {
     try {
       const User = Resource.family({
         name: "Start.User.document-return-merged",
-        load: (id: string) => Effect.succeed({ id, name: "Loaded" })
+        load: (id: string) => Effect.succeed({ id, name: "Loaded" }),
       });
       const rootRef = User("root");
       const streamRef = User("stream");
@@ -5754,10 +5901,10 @@ describe("Effect UI Start", () => {
               _tag: "Success" as const,
               waiting: false as const,
               value: { id: "root", name: "Root" },
-              updatedAt: 1
-            }
-          }
-        ]
+              updatedAt: 1,
+            },
+          },
+        ],
       };
       const streamPayload = {
         resources: [
@@ -5769,14 +5916,14 @@ describe("Effect UI Start", () => {
               _tag: "Success" as const,
               waiting: false as const,
               value: { id: "stream", name: "Stream" },
-              updatedAt: 2
-            }
-          }
-        ]
+              updatedAt: 2,
+            },
+          },
+        ],
       };
       const streamElement = makeStreamHydrationElement(
         createStreamHydrationScript(streamPayload, 1),
-        1
+        1,
       );
       const document = {
         getElementById: (id: string) =>
@@ -5784,29 +5931,29 @@ describe("Effect UI Start", () => {
             ? { textContent: scriptText(createHydrationScript(rootPayload)) }
             : null,
         querySelectorAll: (selector: string) =>
-          selector === `[${streamHydrationAttribute}]` ? [streamElement] : []
+          selector === `[${streamHydrationAttribute}]` ? [streamElement] : [],
       };
 
       const hydrated = await runInRuntime(
         runtime,
         hydrateFromDocumentEffect(
           document as Parameters<typeof hydrateFromDocumentEffect>[0],
-          "__EFFECT_UI_HYDRATION__"
-        )
+          "__EFFECT_UI_HYDRATION__",
+        ),
       );
 
       expect(hydrated?.resources.map((resource) => resource.key)).toEqual([
         rootRef.key,
-        streamRef.key
+        streamRef.key,
       ]);
       expect(streamElement.getAttribute(streamHydrationConsumedAttribute)).toBe("true");
       expect(runWithRuntime(runtime, () => Resource.read(rootRef))).toEqual({
         id: "root",
-        name: "Root"
+        name: "Root",
       });
       expect(runWithRuntime(runtime, () => Resource.read(streamRef))).toEqual({
         id: "stream",
-        name: "Stream"
+        name: "Stream",
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
@@ -5818,7 +5965,7 @@ describe("Effect UI Start", () => {
     try {
       const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
         name: "Start.Collection.streamed-sequence",
-        getKey: (project) => project.id
+        getKey: (project) => project.id,
       });
       const atlasPayload = {
         resources: [],
@@ -5830,13 +5977,13 @@ describe("Effect UI Start", () => {
                 key: "atlas",
                 value: { id: "atlas", name: "Atlas" },
                 synced: true,
-                origin: "remote" as const
-              }
+                origin: "remote" as const,
+              },
             ],
             pendingMutations: [],
-            updatedAt: 1
-          }
-        ]
+            updatedAt: 1,
+          },
+        ],
       };
       const keplerPayload = {
         resources: [],
@@ -5848,45 +5995,49 @@ describe("Effect UI Start", () => {
                 key: "kepler",
                 value: { id: "kepler", name: "Kepler" },
                 synced: true,
-                origin: "remote" as const
-              }
+                origin: "remote" as const,
+              },
             ],
             pendingMutations: [],
-            updatedAt: 2
-          }
-        ]
+            updatedAt: 2,
+          },
+        ],
       };
       const streamElements = [
         makeStreamHydrationElement(createStreamHydrationScript(keplerPayload, 1), 1),
-        makeStreamHydrationElement(createStreamHydrationScript(atlasPayload, 0), 0)
+        makeStreamHydrationElement(createStreamHydrationScript(atlasPayload, 0), 0),
       ];
       const document = {
         getElementById: () => null,
         querySelectorAll: (selector: string) =>
-          selector === `[${streamHydrationAttribute}]` ? streamElements : []
+          selector === `[${streamHydrationAttribute}]` ? streamElements : [],
       };
 
-      const hydrated = await runInRuntime(runtime,
+      const hydrated = await runInRuntime(
+        runtime,
         hydrateStartHydrationChunksFromDocumentEffect(document, {
-          collections: [Projects]
-        })
+          collections: [Projects],
+        }),
       );
-      const secondHydration = await runInRuntime(runtime,
+      const secondHydration = await runInRuntime(
+        runtime,
         hydrateStartHydrationChunksFromDocumentEffect(document, {
-          collections: [Projects]
-        })
+          collections: [Projects],
+        }),
       );
 
-      expect(
-        hydrated.map((chunk) => chunk.payload.collections?.[0]?.rows[0]?.key)
-      ).toEqual(["atlas", "kepler"]);
+      expect(hydrated.map((chunk) => chunk.payload.collections?.[0]?.rows[0]?.key)).toEqual([
+        "atlas",
+        "kepler",
+      ]);
       expect(secondHydration).toEqual([]);
       expect(
-        streamElements.map((element) => element.getAttribute(streamHydrationConsumedAttribute))
+        streamElements.map((element) => element.getAttribute(streamHydrationConsumedAttribute)),
       ).toEqual(["true", "true"]);
-      expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual(
-        ["atlas", "kepler"]
-      );
+      expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual([
+        "atlas",
+        "kepler",
+      ]);
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
     }
@@ -5900,9 +6051,9 @@ describe("Effect UI Start", () => {
         input: Schema.String,
         output: Schema.Struct({
           id: Schema.String,
-          name: Schema.String
+          name: Schema.String,
         }),
-        load: (id: string) => Effect.succeed({ id, name: "Loaded" })
+        load: (id: string) => Effect.succeed({ id, name: "Loaded" }),
       });
       const validRef = User("valid");
       const invalidRef = User("invalid");
@@ -5916,10 +6067,10 @@ describe("Effect UI Start", () => {
               _tag: "Success" as const,
               waiting: false as const,
               value: { id: "valid", name: "Valid" },
-              updatedAt: 1
-            }
-          }
-        ]
+              updatedAt: 1,
+            },
+          },
+        ],
       };
       const invalidChunk = {
         _tag: "StartHydrationChunk",
@@ -5935,39 +6086,39 @@ describe("Effect UI Start", () => {
                 _tag: "Success",
                 waiting: false,
                 value: { id: "invalid" },
-                updatedAt: 2
-              }
-            }
-          ]
-        }
+                updatedAt: 2,
+              },
+            },
+          ],
+        },
       };
       const streamElements = [
         makeStreamHydrationElement(createStreamHydrationScript(validPayload, 0), 0),
-        makeStreamHydrationElement(JSON.stringify(invalidChunk), 1)
+        makeStreamHydrationElement(JSON.stringify(invalidChunk), 1),
       ];
       const document = {
         querySelectorAll: (selector: string) =>
-          selector === `[${streamHydrationAttribute}]` ? streamElements : []
+          selector === `[${streamHydrationAttribute}]` ? streamElements : [],
       };
 
       const exit = await Effect.runPromiseExit(
-        runtime.provide(hydrateStartHydrationChunksFromDocumentEffect(document))
+        runtime.provide(hydrateStartHydrationChunksFromDocumentEffect(document)),
       );
 
       expect(Exit.isFailure(exit)).toBe(true);
       if (Exit.isFailure(exit)) {
         const error = exit.cause.reasons.find(Cause.isFailReason)?.error;
         expect(error).toMatchObject({
-          _tag: "ResourceSnapshotCodecError"
+          _tag: "ResourceSnapshotCodecError",
         });
       }
       expect(runWithRuntime(runtime, () => Resource.read(validRef))).toEqual({
         id: "valid",
-        name: "Valid"
+        name: "Valid",
       });
       expect(runWithRuntime(runtime, () => Resource.status(invalidRef)._tag)).toBe("Initial");
       expect(
-        streamElements.map((element) => element.getAttribute(streamHydrationConsumedAttribute))
+        streamElements.map((element) => element.getAttribute(streamHydrationConsumedAttribute)),
       ).toEqual([null, null]);
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
@@ -5978,24 +6129,21 @@ describe("Effect UI Start", () => {
     const runtime = makeRuntime();
     try {
       const payload = {
-        resources: []
+        resources: [],
       };
-      const streamElement = makeStreamHydrationElement(
-        createStreamHydrationScript(payload, 0),
-        0
-      );
+      const streamElement = makeStreamHydrationElement(createStreamHydrationScript(payload, 0), 0);
       const document = {
         querySelectorAll: (selector: string) =>
-          selector === `[${streamHydrationAttribute}]` ? [streamElement] : []
+          selector === `[${streamHydrationAttribute}]` ? [streamElement] : [],
       };
 
       const first = hydrateStartHydrationChunksFromDocument(document, {
         markConsumed: false,
-        runtime
+        runtime,
       });
       const second = hydrateStartHydrationChunksFromDocument(document, {
         markConsumed: false,
-        runtime
+        runtime,
       });
 
       expect(first).toHaveLength(1);
@@ -6009,16 +6157,15 @@ describe("Effect UI Start", () => {
   it("rejects malformed streamed hydration chunks with typed repair guidance", () => {
     const element = {
       textContent: JSON.stringify({ resources: "invalid" }),
-      getAttribute: (name: string) =>
-        name === streamHydrationSequenceAttribute ? "4" : null
+      getAttribute: (name: string) => (name === streamHydrationSequenceAttribute ? "4" : null),
     };
     const document = {
       querySelectorAll: (selector: string) =>
-        selector === `[${streamHydrationAttribute}]` ? [element] : []
+        selector === `[${streamHydrationAttribute}]` ? [element] : [],
     };
 
     expect(() => hydrateStartHydrationChunksFromDocument(document)).toThrow(
-      StartHydrationChunkParseError
+      StartHydrationChunkParseError,
     );
 
     try {
@@ -6026,23 +6173,22 @@ describe("Effect UI Start", () => {
     } catch (error) {
       expect(error).toMatchObject({
         sequence: 4,
-        value: { resources: "invalid" }
+        value: { resources: "invalid" },
       });
     }
   });
 
   it("reads legacy streamed root payloads as ordered chunks through the sync facade", () => {
     const payload = {
-      resources: []
+      resources: [],
     };
     const element = {
       textContent: JSON.stringify(payload),
-      getAttribute: (name: string) =>
-        name === streamHydrationSequenceAttribute ? "7" : null
+      getAttribute: (name: string) => (name === streamHydrationSequenceAttribute ? "7" : null),
     };
     const document = {
       querySelectorAll: (selector: string) =>
-        selector === `[${streamHydrationAttribute}]` ? [element] : []
+        selector === `[${streamHydrationAttribute}]` ? [element] : [],
     };
 
     expect(readStartHydrationChunks(document)).toEqual([
@@ -6050,24 +6196,23 @@ describe("Effect UI Start", () => {
         _tag: "StartHydrationChunk",
         version: 1,
         sequence: 7,
-        payload
-      }
+        payload,
+      },
     ]);
   });
 
   it("surfaces streamed hydration chunk parse failures from Effect helpers", async () => {
     const element = {
       textContent: "{",
-      getAttribute: (name: string) =>
-        name === streamHydrationSequenceAttribute ? "2" : null
+      getAttribute: (name: string) => (name === streamHydrationSequenceAttribute ? "2" : null),
     };
     const document = {
       querySelectorAll: (selector: string) =>
-        selector === `[${streamHydrationAttribute}]` ? [element] : []
+        selector === `[${streamHydrationAttribute}]` ? [element] : [],
     };
 
     const exit = await Effect.runPromiseExit(
-      hydrateStartHydrationChunksFromDocumentEffect(document)
+      hydrateStartHydrationChunksFromDocumentEffect(document),
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
@@ -6076,7 +6221,7 @@ describe("Effect UI Start", () => {
       expect(error).toBeInstanceOf(StartHydrationChunkParseError);
       expect(error).toMatchObject({
         sequence: 2,
-        value: "{"
+        value: "{",
       });
     }
   });
@@ -6087,12 +6232,12 @@ describe("Effect UI Start", () => {
         id === "__EFFECT_UI_HYDRATION__"
           ? { textContent: JSON.stringify({ resources: "invalid" }) }
           : null,
-      querySelectorAll: () => []
+      querySelectorAll: () => [],
     };
 
-    expect(() => hydrateFromDocument(document as Parameters<typeof hydrateFromDocument>[0])).toThrow(
-      StartHydrationPayloadParseError
-    );
+    expect(() =>
+      hydrateFromDocument(document as Parameters<typeof hydrateFromDocument>[0]),
+    ).toThrow(StartHydrationPayloadParseError);
   });
 
   it("filters dev SSR requests to document navigations", () => {
@@ -6100,117 +6245,117 @@ describe("Effect UI Start", () => {
       shouldHandleSsrRequest({
         method: "GET",
         url: "/projects/atlas",
-        headers: { accept: "text/html" }
-      })
+        headers: { accept: "text/html" },
+      }),
     ).toBe(true);
     expect(
       shouldHandleSsrRequest({
         method: "HEAD",
         url: "/projects/atlas",
-        headers: { accept: "*/*" }
-      })
+        headers: { accept: "*/*" },
+      }),
     ).toBe(true);
     expect(
       shouldHandleSsrRequest({
         method: "GET",
         url: "/users/alice@example.com",
-        headers: { accept: "text/html" }
-      })
+        headers: { accept: "text/html" },
+      }),
     ).toBe(true);
     expect(
       shouldHandleSsrRequest({
         method: "GET",
         url: "/releases/1.0",
-        headers: { accept: "text/html" }
-      })
+        headers: { accept: "text/html" },
+      }),
     ).toBe(true);
     expect(
       shouldHandleSsrRequest({
         method: "GET",
         url: "/projects/foo.json",
-        headers: { accept: "text/html" }
-      })
+        headers: { accept: "text/html" },
+      }),
     ).toBe(true);
     expect(
       shouldHandleSsrRequest({
         method: "GET",
         url: "/projects/atlas",
-        headers: { accept: "text/html;q=0,application/json" }
-      })
+        headers: { accept: "text/html;q=0,application/json" },
+      }),
     ).toBe(false);
     expect(
       shouldHandleSsrRequest({
         method: "GET",
         url: "/src/main.tsx",
-        headers: { accept: "text/html" }
-      })
+        headers: { accept: "text/html" },
+      }),
     ).toBe(false);
     expect(
       shouldHandleSsrRequest({
         method: "GET",
         url: "/assets/app.js",
-        headers: { accept: "application/javascript" }
-      })
+        headers: { accept: "application/javascript" },
+      }),
     ).toBe(false);
     expect(
       shouldHandleSsrRequest({
         method: "POST",
         url: "/projects/atlas",
-        headers: { accept: "text/html" }
-      })
+        headers: { accept: "text/html" },
+      }),
     ).toBe(false);
     expect(
       shouldHandleSsrRequest({
         method: "POST",
         url: "/__effect-ui/rpc",
-        headers: { accept: "application/json" }
-      })
+        headers: { accept: "application/json" },
+      }),
     ).toBe(true);
     expect(
       shouldHandleSsrRequest({
         method: "POST",
         url: "/__effect-ui/action",
-        headers: { accept: "text/html" }
-      })
+        headers: { accept: "text/html" },
+      }),
     ).toBe(true);
     expect(
       shouldHandleSsrRequest(
         {
           method: "POST",
           url: "/__effect-ui/rpc",
-          headers: { accept: "application/json" }
+          headers: { accept: "application/json" },
         },
         {
           rpcPath: "/custom/start-rpc",
-          actionPath: "/custom/start-action"
-        }
-      )
+          actionPath: "/custom/start-action",
+        },
+      ),
     ).toBe(false);
     expect(
       shouldHandleSsrRequest(
         {
           method: "POST",
           url: "/custom/start-rpc",
-          headers: { accept: "application/json" }
+          headers: { accept: "application/json" },
         },
         {
           rpcPath: "/custom/start-rpc",
-          actionPath: "/custom/start-action"
-        }
-      )
+          actionPath: "/custom/start-action",
+        },
+      ),
     ).toBe(true);
     expect(
       shouldHandleSsrRequest(
         {
           method: "POST",
           url: "/custom/start-action",
-          headers: { accept: "text/html" }
+          headers: { accept: "text/html" },
         },
         {
           rpcPath: "/custom/start-rpc",
-          actionPath: "/custom/start-action"
-        }
-      )
+          actionPath: "/custom/start-action",
+        },
+      ),
     ).toBe(true);
   });
 
@@ -6221,24 +6366,24 @@ describe("Effect UI Start", () => {
     expect(isServerOnlyModule("/src/domain.server.tsrx")).toBe(true);
     expect(isServerOnlyModule("/src/domain.contract.ts")).toBe(false);
     expect(isServerOnlyModule("/src/domain.contract.tsrx")).toBe(false);
-    expect(() =>
-      plugin.transform("", "/src/domain.server.ts", {})
-    ).toThrow(StartServerOnlyModuleError);
-    expect(() =>
-      plugin.transform("", "/src/domain.server.tsrx", {})
-    ).toThrow(StartServerOnlyModuleError);
+    expect(() => plugin.transform("", "/src/domain.server.ts", {})).toThrow(
+      StartServerOnlyModuleError,
+    );
+    expect(() => plugin.transform("", "/src/domain.server.tsrx", {})).toThrow(
+      StartServerOnlyModuleError,
+    );
     expect(plugin.transform("", "/src/domain.server.ts", { ssr: true })).toBeNull();
   });
 
   it("rejects direct server function arrays instead of inferring export names from wire names", async () => {
     const getProject = Server.fn<string, string>("Start.Project.get-by-id", {
-      handler: (id) => Effect.succeed(id)
+      handler: (id) => Effect.succeed(id),
     });
     const exit = await Effect.runPromiseExit(
       makeStartServerFunctionManifestEffect({
         serverEntry: "/src/project.server.ts",
-        serverFunctions: [getProject]
-      })
+        serverFunctions: [getProject],
+      }),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -6246,22 +6391,24 @@ describe("Effect UI Start", () => {
     expect(failure).toMatchObject({
       kind: "serverFunctions",
       count: 1,
-      serverEntry: "/src/project.server.ts"
+      serverEntry: "/src/project.server.ts",
     });
-    expect((failure as StartManifestDirectReferenceError).guidance).toContain("serverFunctionSources");
+    expect((failure as StartManifestDirectReferenceError).guidance).toContain(
+      "serverFunctionSources",
+    );
     expect((failure as StartManifestDirectReferenceError).guidance).toContain("exportName");
   });
 
   it("rejects direct action arrays instead of inferring export names from wire names", async () => {
     const RenameProject = Action.define<string, string>({
       name: "Start.Project.rename-from-form",
-      run: (name) => Effect.succeed(name)
+      run: (name) => Effect.succeed(name),
     });
     const exit = await Effect.runPromiseExit(
       makeStartActionManifestEffect({
         serverEntry: "/src/project.actions.ts",
-        actions: [RenameProject]
-      })
+        actions: [RenameProject],
+      }),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -6269,7 +6416,7 @@ describe("Effect UI Start", () => {
     expect(failure).toMatchObject({
       kind: "actions",
       count: 1,
-      serverEntry: "/src/project.actions.ts"
+      serverEntry: "/src/project.actions.ts",
     });
     expect((failure as StartManifestDirectReferenceError).guidance).toContain("actionSources");
     expect((failure as StartManifestDirectReferenceError).guidance).toContain("exportName");
@@ -6285,9 +6432,9 @@ describe("Effect UI Start", () => {
           clientModule: "/src/project/project.contract.tsrx",
           clientExportName: "getProject",
           inputSchema: true,
-          outputSchema: true
-        }
-      ]
+          outputSchema: true,
+        },
+      ],
     });
     const plugin = effectUiStart({
       serverFunctionManifest: [
@@ -6298,9 +6445,9 @@ describe("Effect UI Start", () => {
           clientModule: "/src/project/project.contract.tsrx",
           clientExportName: "getProject",
           inputSchema: true,
-          outputSchema: true
-        }
-      ]
+          outputSchema: true,
+        },
+      ],
     });
     const config = plugin.config();
     const resolved = plugin.resolveId(serverFunctionManifestVirtualModuleId);
@@ -6312,20 +6459,20 @@ describe("Effect UI Start", () => {
         {
           name: "Start.Project.manifest",
           server: {
-            moduleKind: "server-only"
+            moduleKind: "server-only",
           },
           client: {
             _tag: "Import",
             module: "/src/project/project.contract.tsrx",
-            moduleKind: "contract"
-          }
-        }
-      ]
+            moduleKind: "contract",
+          },
+        },
+      ],
     });
     expect(config).toMatchObject({
       define: {
-        __EFFECT_UI_SERVER_FUNCTIONS__: manifest
-      }
+        __EFFECT_UI_SERVER_FUNCTIONS__: manifest,
+      },
     });
     expect(resolved).toBe(`\0${serverFunctionManifestVirtualModuleId}`);
     expect(String(loaded)).toContain("export const manifest = ");
@@ -6343,9 +6490,9 @@ describe("Effect UI Start", () => {
           clientModule: "/src/project/domain.ts",
           clientExportName: "RenameProject",
           inputSchema: true,
-          outputSchema: true
-        }
-      ]
+          outputSchema: true,
+        },
+      ],
     });
     const plugin = effectUiStart({
       actionManifest: [
@@ -6356,9 +6503,9 @@ describe("Effect UI Start", () => {
           clientModule: "/src/project/domain.ts",
           clientExportName: "RenameProject",
           inputSchema: true,
-          outputSchema: true
-        }
-      ]
+          outputSchema: true,
+        },
+      ],
     });
     const config = plugin.config();
     const resolved = plugin.resolveId(actionManifestVirtualModuleId);
@@ -6371,20 +6518,20 @@ describe("Effect UI Start", () => {
         {
           name: "Start.Project.renameAction",
           server: {
-            moduleKind: "shared"
+            moduleKind: "shared",
           },
           client: {
             _tag: "Import",
             module: "/src/project/domain.ts",
-            moduleKind: "shared"
-          }
-        }
-      ]
+            moduleKind: "shared",
+          },
+        },
+      ],
     });
     expect(config).toMatchObject({
       define: {
-        __EFFECT_UI_ACTIONS__: manifest
-      }
+        __EFFECT_UI_ACTIONS__: manifest,
+      },
     });
     expect(resolved).toBe(`\0${actionManifestVirtualModuleId}`);
     expect(String(loaded)).toContain("export const manifest = ");
@@ -6394,13 +6541,10 @@ describe("Effect UI Start", () => {
 
   it("emits and loads a production-shaped file route manifest from the Vite preset", async () => {
     const options = {
-      fileRoutes: [
-        "src/routes/projects/$id.tsx",
-        "src/routes/index.tsx"
-      ],
+      fileRoutes: ["src/routes/projects/$id.tsx", "src/routes/index.tsx"],
       fileRouteOptions: {
-        routeDirectory: "src/routes"
-      }
+        routeDirectory: "src/routes",
+      },
     };
     const manifest = serializeStartFileRouteManifest(options);
     const plugin = effectUiStart(options);
@@ -6415,19 +6559,19 @@ describe("Effect UI Start", () => {
         {
           routeId: "route_root",
           routePath: "/",
-          moduleId: "src/routes/index.tsx"
+          moduleId: "src/routes/index.tsx",
         },
         {
           routeId: "route_projects_$id",
           routePath: "/projects/:id",
-          moduleId: "src/routes/projects/$id.tsx"
-        }
-      ]
+          moduleId: "src/routes/projects/$id.tsx",
+        },
+      ],
     });
     expect(config).toMatchObject({
       define: {
-        __EFFECT_UI_FILE_ROUTES__: manifest
-      }
+        __EFFECT_UI_FILE_ROUTES__: manifest,
+      },
     });
     expect(resolved).toBe(`\0${fileRouteManifestVirtualModuleId}`);
     expect(String(loaded)).toContain("export const manifest = ");
@@ -6437,61 +6581,58 @@ describe("Effect UI Start", () => {
   it("accepts iterable file route manifest entries without requiring explicit modules", async () => {
     const source = await Effect.runPromise(
       makeStartFileRouteManifestEffect({
-        fileRoutes: [
-          "src/routes/projects/$id.tsx",
-          "src/routes/index.tsx"
-        ],
+        fileRoutes: ["src/routes/projects/$id.tsx", "src/routes/index.tsx"],
         fileRouteOptions: {
-          routeDirectory: "src/routes"
-        }
-      })
+          routeDirectory: "src/routes",
+        },
+      }),
     );
     const entries = oneShotIterable(source.entries);
     const manifest = await Effect.runPromise(
       makeStartFileRouteManifestEffect({
         fileRouteManifest: entries.iterable,
         fileRouteOptions: {
-          routeDirectory: "src/routes"
-        }
-      })
+          routeDirectory: "src/routes",
+        },
+      }),
     );
 
     expect(entries.iteratorCalls).toBe(1);
-    expect(manifest.entries.map((entry) => entry.routePath)).toEqual([
-      "/",
-      "/projects/:id"
-    ]);
+    expect(manifest.entries.map((entry) => entry.routePath)).toEqual(["/", "/projects/:id"]);
     expect(manifest.modules).toEqual([
       expect.objectContaining({
         kind: "Route",
-        moduleId: "src/routes/index.tsx"
+        moduleId: "src/routes/index.tsx",
       }),
       expect.objectContaining({
         kind: "Route",
-        moduleId: "src/routes/projects/$id.tsx"
-      })
+        moduleId: "src/routes/projects/$id.tsx",
+      }),
     ]);
   });
 
   it("loads typed file route definitions from the Vite preset", async () => {
     const plugin = effectUiStart({
-      fileRoutes: [
-        "src/routes/projects/$id.tsx",
-        "src/routes/index.tsx"
-      ],
+      fileRoutes: ["src/routes/projects/$id.tsx", "src/routes/index.tsx"],
       fileRouteOptions: {
-        routeDirectory: "src/routes"
-      }
+        routeDirectory: "src/routes",
+      },
     });
     const resolved = plugin.resolveId(fileRouteDefinitionsVirtualModuleId);
     const loaded = resolved === null ? undefined : plugin.load(resolved);
 
     expect(resolved).toBe(`\0${fileRouteDefinitionsVirtualModuleId}`);
     expect(String(loaded)).toContain('import { Route as route_root } from "/src/routes/index.js";');
-    expect(String(loaded)).toContain('import { Route as route_projects_$id } from "/src/routes/projects/$id.js";');
-    expect(String(loaded)).toContain('const route_projects_$id_path: "/projects/:id" = route_projects_$id.path;');
+    expect(String(loaded)).toContain(
+      'import { Route as route_projects_$id } from "/src/routes/projects/$id.js";',
+    );
+    expect(String(loaded)).toContain(
+      'const route_projects_$id_path: "/projects/:id" = route_projects_$id.path;',
+    );
     expect(String(loaded)).toContain("export { route_root, route_projects_$id };");
-    expect(String(loaded)).toContain("export const routes = [route_root, route_projects_$id] as const;");
+    expect(String(loaded)).toContain(
+      "export const routes = [route_root, route_projects_$id] as const;",
+    );
     expect(String(loaded)).toContain("export const routeTree = routes;");
     expect(String(loaded)).toContain("export default routes;");
   });
@@ -6517,12 +6658,12 @@ describe("Effect UI Start", () => {
       expect(discoverFileRoutes({ root })).toEqual([
         "src/routes/index.tsx",
         "src/routes/projects/$id.tsx",
-        "src/routes/projects/_layout.tsx"
+        "src/routes/projects/_layout.tsx",
       ]);
       expect(config).toMatchObject({
         define: {
-          __EFFECT_UI_FILE_ROUTES__: expect.any(String)
-        }
+          __EFFECT_UI_FILE_ROUTES__: expect.any(String),
+        },
       });
       const serializedFileRoutes = config.define?.__EFFECT_UI_FILE_ROUTES__;
       expect(typeof serializedFileRoutes).toBe("string");
@@ -6533,14 +6674,14 @@ describe("Effect UI Start", () => {
           {
             routeId: "route_root",
             routePath: "/",
-            moduleId: "src/routes/index.tsx"
+            moduleId: "src/routes/index.tsx",
           },
           {
             routeId: "route_projects_$id",
             routePath: "/projects/:id",
-            moduleId: "src/routes/projects/$id.tsx"
-          }
-        ]
+            moduleId: "src/routes/projects/$id.tsx",
+          },
+        ],
       });
       expect(String(loaded)).toContain("src/routes/projects/$id.tsx");
     } finally {
@@ -6565,14 +6706,24 @@ describe("Effect UI Start", () => {
       expect(generated).toContain("This file is generated by @effect-ui/start. Do not edit.");
       expect(generated).toContain('import { Route } from "@effect-ui/core";');
       expect(generated).toContain('import { Route as route_root } from "./routes/index.js";');
-      expect(generated).toContain('import { Route as route_projects_$id } from "./routes/projects/$id.js";');
-      expect(generated).toContain('const route_projects_$id_path: "/projects/:id" = route_projects_$id.path;');
+      expect(generated).toContain(
+        'import { Route as route_projects_$id } from "./routes/projects/$id.js";',
+      );
+      expect(generated).toContain(
+        'const route_projects_$id_path: "/projects/:id" = route_projects_$id.path;',
+      );
       expect(generated).toContain("export const routeTree = routes;");
       expect(generated).toContain('  "/projects/:id": route_projects_$id');
-      expect(generated).toContain("export type FileRouteHrefOptionsById = { readonly [Id in FileRouteId]: Route.HrefOptions<RouteById[Id]> };");
+      expect(generated).toContain(
+        "export type FileRouteHrefOptionsById = { readonly [Id in FileRouteId]: Route.HrefOptions<RouteById[Id]> };",
+      );
       expect(generated).toContain("export const hrefByPath = <Path extends RoutePath>(");
-      expect(generated).toContain("export type Href<Id extends RouteId> = FileRouteHrefOptions<Id>;");
-      expect(generated).toContain("export type Match<Path extends RoutePath> = FileRouteMatch<Path>;");
+      expect(generated).toContain(
+        "export type Href<Id extends RouteId> = FileRouteHrefOptions<Id>;",
+      );
+      expect(generated).toContain(
+        "export type Match<Path extends RoutePath> = FileRouteMatch<Path>;",
+      );
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -6587,8 +6738,8 @@ describe("Effect UI Start", () => {
 
       const plugin = effectUiStart({
         fileRouteGeneration: {
-          outputFile: "src/routes/routeTree.gen.ts"
-        }
+          outputFile: "src/routes/routeTree.gen.ts",
+        },
       });
       plugin.configResolved({ root, command: "serve" });
 
@@ -6601,8 +6752,8 @@ describe("Effect UI Start", () => {
       expect(manifest.entries).toEqual([
         expect.objectContaining({
           routeId: "route_root",
-          moduleId: "src/routes/index.tsx"
-        })
+          moduleId: "src/routes/index.tsx",
+        }),
       ]);
       expect(JSON.stringify(manifest)).not.toContain("routeTree.gen");
 
@@ -6619,9 +6770,9 @@ describe("Effect UI Start", () => {
             getModuleById: (id) => ({ id }),
             invalidateModule: (module) => {
               invalidated.push(module as { readonly id: string });
-            }
-          }
-        }
+            },
+          },
+        },
       });
       expect(invalidated).toEqual([]);
     } finally {
@@ -6640,15 +6791,19 @@ describe("Effect UI Start", () => {
       plugin.configResolved({ root, command: "serve" });
 
       const generatedPath = join(root, defaultFileRouteGeneratedFile);
-      expect(readFileSync(generatedPath, "utf8")).not.toContain('import { Route as route_projects_$id }');
+      expect(readFileSync(generatedPath, "utf8")).not.toContain(
+        "import { Route as route_projects_$id }",
+      );
 
       const virtualIds = [
         fileRouteManifestVirtualModuleId,
         fileRouteDefinitionsVirtualModuleId,
         appGraphVirtualModuleId,
-        appGraphRuntimeDiagnosticsVirtualModuleId
+        appGraphRuntimeDiagnosticsVirtualModuleId,
       ];
-      const resolvedIds = virtualIds.map((id) => plugin.resolveId(id)).filter((id): id is string => id !== null);
+      const resolvedIds = virtualIds
+        .map((id) => plugin.resolveId(id))
+        .filter((id): id is string => id !== null);
       const modules = new Map(resolvedIds.map((id) => [id, { id }]));
       const invalidated: Array<{ readonly id: string }> = [];
 
@@ -6661,13 +6816,15 @@ describe("Effect UI Start", () => {
             getModuleById: (id) => modules.get(id),
             invalidateModule: (module) => {
               invalidated.push(module as { readonly id: string });
-            }
-          }
-        }
+            },
+          },
+        },
       });
 
       const generated = readFileSync(generatedPath, "utf8");
-      expect(generated).toContain('import { Route as route_projects_$id } from "./routes/projects/$id.js";');
+      expect(generated).toContain(
+        'import { Route as route_projects_$id } from "./routes/projects/$id.js";',
+      );
       expect(generated).toContain('  "/projects/:id": route_projects_$id');
       expect(invalidated.map((module) => module.id)).toEqual(resolvedIds);
 
@@ -6685,13 +6842,13 @@ describe("Effect UI Start", () => {
             getModuleById: (id) => modules.get(id),
             invalidateModule: (module) => {
               invalidated.push(module as { readonly id: string });
-            }
-          }
-        }
+            },
+          },
+        },
       });
 
       const regenerated = readFileSync(generatedPath, "utf8");
-      expect(regenerated).not.toContain('import { Route as route_projects_$id }');
+      expect(regenerated).not.toContain("import { Route as route_projects_$id }");
       expect(regenerated).not.toContain('  "/projects/:id": route_projects_$id');
       expect(invalidated.map((module) => module.id)).toEqual(resolvedIds);
     } finally {
@@ -6708,8 +6865,8 @@ describe("Effect UI Start", () => {
 
       const plugin = effectUiStart({
         fileRouteGeneration: {
-          outputFile: false
-        }
+          outputFile: false,
+        },
       });
       plugin.configResolved({ root });
 
@@ -6728,8 +6885,8 @@ describe("Effect UI Start", () => {
 
       const plugin = effectUiStart({
         fileRouteGeneration: {
-          outputFile: "../routeTree.gen.ts"
-        }
+          outputFile: "../routeTree.gen.ts",
+        },
       });
 
       expect(() => plugin.configResolved({ root })).toThrow(FileRouteDefinitionsOutputPathError);
@@ -6748,8 +6905,8 @@ describe("Effect UI Start", () => {
           module: "/src/project/project.server.ts",
           exportName: "getProject",
           inputSchema: true,
-          outputSchema: true
-        }
+          outputSchema: true,
+        },
       ],
       actionManifest: [
         {
@@ -6757,16 +6914,13 @@ describe("Effect UI Start", () => {
           module: "/src/project/project.actions.ts",
           exportName: "RenameProject",
           inputSchema: true,
-          outputSchema: true
-        }
+          outputSchema: true,
+        },
       ],
-      fileRoutes: [
-        "src/routes/projects/$id.tsx",
-        "src/routes/index.tsx"
-      ],
+      fileRoutes: ["src/routes/projects/$id.tsx", "src/routes/index.tsx"],
       fileRouteOptions: {
-        routeDirectory: "src/routes"
-      }
+        routeDirectory: "src/routes",
+      },
     };
     const graph = serializeStartAppGraph(options);
     const plugin = effectUiStart(options);
@@ -6779,32 +6933,32 @@ describe("Effect UI Start", () => {
       routes: {
         entries: [
           {
-            routePath: "/"
+            routePath: "/",
           },
           {
-            routePath: "/projects/:id"
-          }
-        ]
+            routePath: "/projects/:id",
+          },
+        ],
       },
       serverFunctions: {
         entries: [
           {
-            name: "Start.Project.appGraph"
-          }
-        ]
+            name: "Start.Project.appGraph",
+          },
+        ],
       },
       actions: {
         entries: [
           {
-            name: "Start.Project.appGraph.rename"
-          }
-        ]
-      }
+            name: "Start.Project.appGraph.rename",
+          },
+        ],
+      },
     });
     expect(config).toMatchObject({
       define: {
-        __EFFECT_UI_APP_GRAPH__: graph
-      }
+        __EFFECT_UI_APP_GRAPH__: graph,
+      },
     });
     expect(resolved).toBe(`\0${appGraphVirtualModuleId}`);
     expect(String(loaded)).toMatchInlineSnapshot(`
@@ -6824,12 +6978,20 @@ describe("Effect UI Start", () => {
     expect(String(loaded)).not.toContain("validateStartAppGraphDiagnosticsPolicyExceptionEffect");
     expect(String(loaded)).not.toContain('import { Effect } from "effect";');
     expect(String(loaded)).toContain("export const diagnosticsPolicyViolations = [];");
-    expect(String(loaded)).not.toContain('import { Route as route_root } from "/src/routes/index.js";');
-    expect(String(loaded)).not.toContain('import { Route as route_projects_$id } from "/src/routes/projects/$id.js";');
+    expect(String(loaded)).not.toContain(
+      'import { Route as route_root } from "/src/routes/index.js";',
+    );
+    expect(String(loaded)).not.toContain(
+      'import { Route as route_projects_$id } from "/src/routes/projects/$id.js";',
+    );
     expect(String(loaded)).not.toContain("const resourceDiagnostics = Resource.diagnostics();");
     expect(String(loaded)).not.toContain("const routeModuleCandidates = [");
-    expect(String(loaded)).not.toContain("preloadResources: Route.describePreloadResources(route_projects_$id)");
-    expect(String(loaded)).not.toContain("preloadCollections: Route.describePreloadCollections(route_projects_$id)");
+    expect(String(loaded)).not.toContain(
+      "preloadResources: Route.describePreloadResources(route_projects_$id)",
+    );
+    expect(String(loaded)).not.toContain(
+      "preloadCollections: Route.describePreloadCollections(route_projects_$id)",
+    );
     expect(String(loaded)).not.toContain("routeModulePresence");
     expect(String(loaded)).toContain("export const routes = graph.routes;");
     expect(String(loaded)).toContain("Start.Project.appGraph.rename");
@@ -6837,37 +6999,34 @@ describe("Effect UI Start", () => {
 
   it("normalizes one-shot manifest iterables once for Vite config and virtual module loads", () => {
     const getProject = Server.fn<string, string>("Start.Project.one-shot-manifest", {
-      handler: (id) => Effect.succeed(id)
+      handler: (id) => Effect.succeed(id),
     });
     const RenameProject = Action.define<string, string>({
       name: "Start.Project.one-shot-manifest.rename",
-      run: (name) => Effect.succeed(name)
+      run: (name) => Effect.succeed(name),
     });
-    const fileRoutes = oneShotIterable([
-      "src/routes/projects/$id.tsx",
-      "src/routes/index.tsx"
-    ]);
+    const fileRoutes = oneShotIterable(["src/routes/projects/$id.tsx", "src/routes/index.tsx"]);
     const serverFunctionSources = oneShotIterable([
       {
         fn: getProject,
         module: "/src/project/project.server.ts",
-        exportName: "getProject"
-      }
+        exportName: "getProject",
+      },
     ]);
     const actionSources = oneShotIterable([
       {
         action: RenameProject,
         module: "/src/project/project.actions.ts",
-        exportName: "RenameProject"
-      }
+        exportName: "RenameProject",
+      },
     ]);
     const plugin = effectUiStart({
       serverFunctionSources: serverFunctionSources.iterable,
       actionSources: actionSources.iterable,
       fileRoutes: fileRoutes.iterable,
       fileRouteOptions: {
-        routeDirectory: "src/routes"
-      }
+        routeDirectory: "src/routes",
+      },
     });
     const config = plugin.config();
     const appGraphId = plugin.resolveId(appGraphVirtualModuleId);
@@ -6878,44 +7037,43 @@ describe("Effect UI Start", () => {
     expect(fileRoutes.iteratorCalls).toBe(1);
     expect(serverFunctionSources.iteratorCalls).toBe(1);
     expect(actionSources.iteratorCalls).toBe(1);
-    expect(String(config.define?.__EFFECT_UI_APP_GRAPH__)).toContain("Start.Project.one-shot-manifest");
+    expect(String(config.define?.__EFFECT_UI_APP_GRAPH__)).toContain(
+      "Start.Project.one-shot-manifest",
+    );
     expect(String(appGraphModule)).toContain("Start.Project.one-shot-manifest.rename");
     expect(String(diagnosticsModule)).toContain("src/routes/projects/$id.tsx");
   });
 
   it("normalizes one-shot manifest iterables once for diagnostics virtual module reloads", () => {
     const getProject = Server.fn<string, string>("Start.Project.diagnostics-one-shot", {
-      handler: (id) => Effect.succeed(id)
+      handler: (id) => Effect.succeed(id),
     });
     const RenameProject = Action.define<string, string>({
       name: "Start.Project.diagnostics-one-shot.rename",
-      run: (name) => Effect.succeed(name)
+      run: (name) => Effect.succeed(name),
     });
-    const fileRoutes = oneShotIterable([
-      "src/routes/projects/$id.tsx",
-      "src/routes/index.tsx"
-    ]);
+    const fileRoutes = oneShotIterable(["src/routes/projects/$id.tsx", "src/routes/index.tsx"]);
     const serverFunctionSources = oneShotIterable([
       {
         fn: getProject,
         module: "/src/project/project.server.ts",
-        exportName: "getProject"
-      }
+        exportName: "getProject",
+      },
     ]);
     const actionSources = oneShotIterable([
       {
         action: RenameProject,
         module: "/src/project/project.actions.ts",
-        exportName: "RenameProject"
-      }
+        exportName: "RenameProject",
+      },
     ]);
     const plugin = effectUiStartVirtualModules({
       serverFunctionSources: serverFunctionSources.iterable,
       actionSources: actionSources.iterable,
       fileRoutes: fileRoutes.iterable,
       fileRouteOptions: {
-        routeDirectory: "src/routes"
-      }
+        routeDirectory: "src/routes",
+      },
     });
     plugin.configResolved({ root: process.cwd() });
     const diagnosticsId = plugin.resolveId(appGraphRuntimeDiagnosticsVirtualModuleId);
@@ -6932,24 +7090,27 @@ describe("Effect UI Start", () => {
 
   it("keeps route implementation imports behind the runtime diagnostics virtual module", () => {
     const plugin = effectUiStart({
-      fileRoutes: [
-        "src/routes/projects/$id.tsx",
-        "src/routes/index.tsx"
-      ],
+      fileRoutes: ["src/routes/projects/$id.tsx", "src/routes/index.tsx"],
       fileRouteOptions: {
-        routeDirectory: "src/routes"
-      }
+        routeDirectory: "src/routes",
+      },
     });
     const resolved = plugin.resolveId(appGraphRuntimeDiagnosticsVirtualModuleId);
     const loaded = resolved === null ? undefined : plugin.load(resolved);
 
     expect(resolved).toBe(`\0${appGraphRuntimeDiagnosticsVirtualModuleId}`);
-    expect(String(loaded)).toContain("export const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {");
+    expect(String(loaded)).toContain(
+      "export const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {",
+    );
     expect(String(loaded)).toContain('import { Resource, Route } from "@effect-ui/core";');
     expect(String(loaded)).toContain('import { Route as route_root } from "/src/routes/index.js";');
-    expect(String(loaded)).toContain('import { Route as route_projects_$id } from "/src/routes/projects/$id.js";');
+    expect(String(loaded)).toContain(
+      'import { Route as route_projects_$id } from "/src/routes/projects/$id.js";',
+    );
     expect(String(loaded)).toContain("routeModules: routeModuleCandidates,");
-    expect(String(loaded)).toContain("preloadResources: Route.describePreloadResources(route_projects_$id)");
+    expect(String(loaded)).toContain(
+      "preloadResources: Route.describePreloadResources(route_projects_$id)",
+    );
   });
 
   it("emits a resolved diagnostics policy guard in the runtime diagnostics virtual module", async () => {
@@ -6958,19 +7119,17 @@ describe("Effect UI Start", () => {
         wireSchemas: false,
         diagnostics: {
           routePreloadResources: {
-            requireDeclaredForPreload: true
+            requireDeclaredForPreload: true,
           },
           routePreloadCollections: {
-            requireDeclaredForPreload: true
-          }
-        }
+            requireDeclaredForPreload: true,
+          },
+        },
       },
-      fileRoutes: [
-        "src/routes/projects/$id.tsx"
-      ],
+      fileRoutes: ["src/routes/projects/$id.tsx"],
       fileRouteOptions: {
-        routeDirectory: "src/routes"
-      }
+        routeDirectory: "src/routes",
+      },
     });
     const resolved = plugin.resolveId(appGraphRuntimeDiagnosticsVirtualModuleId);
     const loaded = resolved === null ? undefined : plugin.load(resolved);
@@ -7006,36 +7165,36 @@ describe("Effect UI Start", () => {
       export const actions = graph.actions;
       export default graph;"
     `);
+    expect(String(loaded)).toContain('"routePreloadResources":{"requireDeclaredForPreload":true}');
     expect(String(loaded)).toContain(
-      '"routePreloadResources":{"requireDeclaredForPreload":true}'
+      '"routePreloadCollections":{"requireDeclaredForPreload":true}',
     );
     expect(String(loaded)).toContain(
-      '"routePreloadCollections":{"requireDeclaredForPreload":true}'
+      "export const diagnosticsPolicyViolations = Effect.runSync(validateStartAppGraphDiagnosticsPolicyExceptionEffect(diagnostics, diagnosticsPolicy));",
     );
-    expect(String(loaded)).toContain("export const diagnosticsPolicyViolations = Effect.runSync(validateStartAppGraphDiagnosticsPolicyExceptionEffect(diagnostics, diagnosticsPolicy));");
     expect(String(loaded)).not.toContain("formatStartAppGraphDiagnosticsPolicyViolation");
-    expect(String(loaded)).not.toContain("new Error(`Effect UI app graph diagnostics policy failed");
+    expect(String(loaded)).not.toContain(
+      "new Error(`Effect UI app graph diagnostics policy failed",
+    );
   });
 
   it("serializes disabled resolved diagnostics policy through the runtime diagnostics virtual module", () => {
     const plugin = effectUiStart({
       buildPolicy: {
         wireSchemas: false,
-        diagnostics: false
+        diagnostics: false,
       },
-      fileRoutes: [
-        "src/routes/projects/$id.tsx"
-      ],
+      fileRoutes: ["src/routes/projects/$id.tsx"],
       fileRouteOptions: {
-        routeDirectory: "src/routes"
-      }
+        routeDirectory: "src/routes",
+      },
     });
     const resolved = plugin.resolveId(appGraphRuntimeDiagnosticsVirtualModuleId);
     const loaded = resolved === null ? undefined : plugin.load(resolved);
 
     expect(String(loaded)).toContain("const diagnosticsPolicy = null;");
     expect(String(loaded)).toContain(
-      "validateStartAppGraphDiagnosticsPolicyExceptionEffect(diagnostics, diagnosticsPolicy)"
+      "validateStartAppGraphDiagnosticsPolicyExceptionEffect(diagnostics, diagnosticsPolicy)",
     );
   });
 
@@ -7047,23 +7206,23 @@ describe("Effect UI Start", () => {
       writeFileSync(
         join(root, "src/routes/index.ts"),
         [
-          "import { Resource, route } from \"@effect-ui/core\";",
-          "import { Collection } from \"@effect-ui/db\";",
+          'import { Resource, route } from "@effect-ui/core";',
+          'import { Collection } from "@effect-ui/db";',
           "const ProjectById = Resource.family({",
-          "  name: \"Runner.Project.byId\",",
+          '  name: "Runner.Project.byId",',
           "  load: (id: string) => ({ id })",
           "});",
           "const Projects = Collection.define<{ readonly id: string }>({",
-          "  name: \"Runner.Projects\",",
+          '  name: "Runner.Projects",',
           "  getKey: (project) => project.id,",
-          "  load: () => [{ id: \"atlas\" }]",
+          '  load: () => [{ id: "atlas" }]',
           "});",
-          "export const Route = route(\"/\", {",
+          'export const Route = route("/", {',
           "  preloadResources: [ProjectById],",
           "  preloadCollections: [Projects],",
           "  preload: () => undefined",
-          "});"
-        ].join("\n")
+          "});",
+        ].join("\n"),
       );
 
       const result = await Effect.runPromise(
@@ -7073,22 +7232,22 @@ describe("Effect UI Start", () => {
           start: {
             fileRoutes: ["src/routes/index.ts"],
             fileRouteOptions: {
-              routeDirectory: "src/routes"
+              routeDirectory: "src/routes",
             },
             buildPolicy: {
               wireSchemas: false,
               diagnostics: {
                 routePreloadResources: {
-                  requireDeclaredForPreload: true
+                  requireDeclaredForPreload: true,
                 },
                 routePreloadCollections: {
-                  requireDeclaredForPreload: true
-                }
-              }
-            }
+                  requireDeclaredForPreload: true,
+                },
+              },
+            },
           },
-          vite: startDiagnosticsRunnerViteConfig()
-        })
+          vite: startDiagnosticsRunnerViteConfig(),
+        }),
       );
 
       expect(result.diagnosticsPolicyViolations).toEqual([]);
@@ -7098,23 +7257,19 @@ describe("Effect UI Start", () => {
           preload: "present",
           preloadResources: {
             status: "declared",
-            families: ["Runner.Project.byId"]
+            families: ["Runner.Project.byId"],
           },
           preloadCollections: {
             status: "declared",
-            collections: ["Runner.Projects"]
-          }
-        })
+            collections: ["Runner.Projects"],
+          },
+        }),
       ]);
       expect(result.diagnostics.resourceFamilies).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ name: "Runner.Project.byId" })
-        ])
+        expect.arrayContaining([expect.objectContaining({ name: "Runner.Project.byId" })]),
       );
       expect(result.diagnostics.collectionDefinitions).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ name: "Runner.Projects" })
-        ])
+        expect.arrayContaining([expect.objectContaining({ name: "Runner.Projects" })]),
       );
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -7128,18 +7283,16 @@ describe("Effect UI Start", () => {
       ssrLoadModule: async () => ({
         graph,
         diagnostics: describeStartAppGraph(graph),
-        diagnosticsPolicyViolations: []
+        diagnosticsPolicyViolations: [],
       }),
       close: async () => {
         closeCalls += 1;
-      }
+      },
     };
 
-    const loaded = await Effect.runPromise(
-      loadStartAppGraphDiagnosticsFromServerEffect(server)
-    );
+    const loaded = await Effect.runPromise(loadStartAppGraphDiagnosticsFromServerEffect(server));
     const withServerLoaded = await Effect.runPromise(
-      loadStartAppGraphDiagnosticsWithServerEffect(server)
+      loadStartAppGraphDiagnosticsWithServerEffect(server),
     );
 
     expect(loaded.diagnostics.routeCount).toBe(0);
@@ -7151,24 +7304,26 @@ describe("Effect UI Start", () => {
     const graph = JSON.parse(serializeStartAppGraph({ fileRoutes: [] }));
     let closeCalls = 0;
     const exit = await Effect.runPromiseExit(
-      loadStartAppGraphDiagnosticsWithOwnedServerEffect(Effect.succeed({
-        ssrLoadModule: async () => ({
-          graph,
-          diagnostics: describeStartAppGraph(graph),
-          diagnosticsPolicyViolations: []
+      loadStartAppGraphDiagnosticsWithOwnedServerEffect(
+        Effect.succeed({
+          ssrLoadModule: async () => ({
+            graph,
+            diagnostics: describeStartAppGraph(graph),
+            diagnosticsPolicyViolations: [],
+          }),
+          close: async () => {
+            closeCalls += 1;
+            throw new Error("diagnostics close failed");
+          },
         }),
-        close: async () => {
-          closeCalls += 1;
-          throw new Error("diagnostics close failed");
-        }
-      }))
+      ),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
     expect(closeCalls).toBe(1);
     expect(failure).toBeInstanceOf(StartAppGraphDiagnosticsRunnerError);
     expect(failure).toMatchObject({
-      message: "Could not close the temporary Vite server for Effect UI app graph diagnostics."
+      message: "Could not close the temporary Vite server for Effect UI app graph diagnostics.",
     });
   });
 
@@ -7180,11 +7335,11 @@ describe("Effect UI Start", () => {
       writeFileSync(
         join(root, "src/routes/index.ts"),
         [
-          "import { route } from \"@effect-ui/core\";",
-          "export const Route = route(\"/\", {",
+          'import { route } from "@effect-ui/core";',
+          'export const Route = route("/", {',
           "  preload: () => undefined",
-          "});"
-        ].join("\n")
+          "});",
+        ].join("\n"),
       );
 
       const result = await Effect.runPromise(
@@ -7194,20 +7349,20 @@ describe("Effect UI Start", () => {
           start: {
             fileRoutes: ["src/routes/index.ts"],
             fileRouteOptions: {
-              routeDirectory: "src/routes"
+              routeDirectory: "src/routes",
             },
             buildPolicy: {
               wireSchemas: false,
               diagnostics: {
                 routePreloadResources: {
-                  requireDeclaredForPreload: false
+                  requireDeclaredForPreload: false,
                 },
-                routePreloadCollections: false
-              }
-            }
+                routePreloadCollections: false,
+              },
+            },
           },
-          vite: startDiagnosticsRunnerViteConfig()
-        })
+          vite: startDiagnosticsRunnerViteConfig(),
+        }),
       );
 
       expect(result.diagnosticsPolicyViolations).toEqual([]);
@@ -7225,10 +7380,9 @@ describe("Effect UI Start", () => {
       mkdirSync(join(root, "src/routes"), { recursive: true });
       writeFileSync(
         join(root, "src/routes/index.ts"),
-        [
-          "import { route } from \"@effect-ui/core\";",
-          "export const Route = route(\"/\", {});"
-        ].join("\n")
+        ['import { route } from "@effect-ui/core";', 'export const Route = route("/", {});'].join(
+          "\n",
+        ),
       );
 
       const result = await Effect.runPromise(
@@ -7241,20 +7395,20 @@ describe("Effect UI Start", () => {
               effectUiStart({
                 fileRoutes: ["src/routes/index.ts"],
                 fileRouteOptions: {
-                  routeDirectory: "src/routes"
-                }
-              })
-            ]
-          }
-        })
+                  routeDirectory: "src/routes",
+                },
+              }),
+            ],
+          },
+        }),
       );
 
       expect(result.diagnostics.routePaths).toEqual(["/"]);
       expect(result.graph.routes.entries).toEqual([
         expect.objectContaining({
           routePath: "/",
-          moduleId: "src/routes/index.ts"
-        })
+          moduleId: "src/routes/index.ts",
+        }),
       ]);
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -7269,28 +7423,28 @@ describe("Effect UI Start", () => {
       writeFileSync(
         join(root, "src/routes/config.ts"),
         [
-          "import { route } from \"@effect-ui/core\";",
-          "export const Route = route(\"/config\", {});"
-        ].join("\n")
+          'import { route } from "@effect-ui/core";',
+          'export const Route = route("/config", {});',
+        ].join("\n"),
       );
       writeFileSync(
         join(root, "src/routes/explicit.ts"),
         [
-          "import { route } from \"@effect-ui/core\";",
-          "export const Route = route(\"/explicit\", {});"
-        ].join("\n")
+          'import { route } from "@effect-ui/core";',
+          'export const Route = route("/explicit", {});',
+        ].join("\n"),
       );
       writeFileSync(
         join(root, "vite.config.ts"),
         [
-          "import { effectUiStart } from \"@effect-ui/start/vite\";",
+          'import { effectUiStart } from "@effect-ui/start/vite";',
           "export default {",
           "  plugins: [effectUiStart({",
-          "    fileRoutes: [\"src/routes/config.ts\"],",
-          "    fileRouteOptions: { routeDirectory: \"src/routes\" }",
+          '    fileRoutes: ["src/routes/config.ts"],',
+          '    fileRouteOptions: { routeDirectory: "src/routes" }',
           "  })]",
-          "};"
-        ].join("\n")
+          "};",
+        ].join("\n"),
       );
 
       const result = await Effect.runPromise(
@@ -7299,19 +7453,19 @@ describe("Effect UI Start", () => {
           start: {
             fileRoutes: ["src/routes/explicit.ts"],
             fileRouteOptions: {
-              routeDirectory: "src/routes"
-            }
+              routeDirectory: "src/routes",
+            },
           },
-          vite: startDiagnosticsRunnerViteConfig()
-        })
+          vite: startDiagnosticsRunnerViteConfig(),
+        }),
       );
 
       expect(result.diagnostics.routePaths).toEqual(["/explicit"]);
       expect(result.graph.routes.entries).toEqual([
         expect.objectContaining({
           routePath: "/explicit",
-          moduleId: "src/routes/explicit.ts"
-        })
+          moduleId: "src/routes/explicit.ts",
+        }),
       ]);
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -7325,13 +7479,13 @@ describe("Effect UI Start", () => {
       const startOptions = {
         fileRoutes: ["src/routes/index.ts"],
         fileRouteOptions: {
-          routeDirectory: "src/routes"
-        }
+          routeDirectory: "src/routes",
+        },
       };
       const graph = await Effect.runPromise(makeStartBuildAppGraphEffect(startOptions));
       const diagnostics = {
         ...describeStartAppGraph(graph),
-        routePaths: ["/wrong"]
+        routePaths: ["/wrong"],
       };
       const resolvedDiagnosticsId = `\0${appGraphRuntimeDiagnosticsVirtualModuleId}`;
 
@@ -7355,18 +7509,18 @@ describe("Effect UI Start", () => {
                           `export const graph = ${serializeStartAppGraph(startOptions)};`,
                           `export const diagnostics = ${JSON.stringify(diagnostics)};`,
                           "export const diagnosticsPolicyViolations = [];",
-                          "export default graph;"
+                          "export default graph;",
                         ].join("\n")
                       : null;
-                  }
-                }
-              ]
-            }
-          })
-        )
+                  },
+                },
+              ],
+            },
+          }),
+        ),
       ).rejects.toMatchObject({
         _tag: "StartAppGraphDiagnosticsRunnerError",
-        message: expect.stringContaining("coherent")
+        message: expect.stringContaining("coherent"),
       });
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -7381,11 +7535,11 @@ describe("Effect UI Start", () => {
       writeFileSync(
         join(root, "src/routes/index.ts"),
         [
-          "import { route } from \"@effect-ui/core\";",
-          "export const Route = route(\"/\", {",
+          'import { route } from "@effect-ui/core";',
+          'export const Route = route("/", {',
           "  preload: () => undefined",
-          "});"
-        ].join("\n")
+          "});",
+        ].join("\n"),
       );
 
       await expect(
@@ -7396,25 +7550,25 @@ describe("Effect UI Start", () => {
             start: {
               fileRoutes: ["src/routes/index.ts"],
               fileRouteOptions: {
-                routeDirectory: "src/routes"
+                routeDirectory: "src/routes",
               },
               buildPolicy: {
                 wireSchemas: false,
                 diagnostics: {
                   routePreloadResources: {
-                    requireDeclaredForPreload: true
+                    requireDeclaredForPreload: true,
                   },
                   routePreloadCollections: {
-                    requireDeclaredForPreload: true
-                  }
-                }
-              }
+                    requireDeclaredForPreload: true,
+                  },
+                },
+              },
             },
-            vite: startDiagnosticsRunnerViteConfig()
-          })
-        )
+            vite: startDiagnosticsRunnerViteConfig(),
+          }),
+        ),
       ).rejects.toMatchObject({
-        name: "StartAppGraphDiagnosticsPolicyError"
+        name: "StartAppGraphDiagnosticsPolicyError",
       });
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -7432,20 +7586,20 @@ describe("Effect UI Start", () => {
           "<!doctype html>",
           "<html>",
           "  <body>",
-          "    <script type=\"module\" src=\"/src/main.ts\"></script>",
+          '    <script type="module" src="/src/main.ts"></script>',
           "  </body>",
-          "</html>"
-        ].join("\n")
+          "</html>",
+        ].join("\n"),
       );
       writeFileSync(join(root, "src/main.ts"), "export const mounted = true;\n");
       writeFileSync(
         join(root, "src/routes/index.ts"),
         [
-          "import { route } from \"@effect-ui/core\";",
-          "export const Route = route(\"/\", {",
+          'import { route } from "@effect-ui/core";',
+          'export const Route = route("/", {',
           "  preload: () => undefined",
-          "});"
-        ].join("\n")
+          "});",
+        ].join("\n"),
       );
 
       let buildError: unknown;
@@ -7459,21 +7613,21 @@ describe("Effect UI Start", () => {
             effectUiStart({
               fileRoutes: ["src/routes/index.ts"],
               fileRouteOptions: {
-                routeDirectory: "src/routes"
+                routeDirectory: "src/routes",
               },
               buildPolicy: {
                 wireSchemas: false,
                 diagnostics: {
                   routePreloadResources: {
-                    requireDeclaredForPreload: true
+                    requireDeclaredForPreload: true,
                   },
                   routePreloadCollections: {
-                    requireDeclaredForPreload: true
-                  }
-                }
-              }
-            })
-          ]
+                    requireDeclaredForPreload: true,
+                  },
+                },
+              },
+            }),
+          ],
         });
       } catch (error) {
         buildError = error;
@@ -7498,20 +7652,20 @@ describe("Effect UI Start", () => {
           "<!doctype html>",
           "<html>",
           "  <body>",
-          "    <script type=\"module\" src=\"/src/main.ts\"></script>",
+          '    <script type="module" src="/src/main.ts"></script>',
           "  </body>",
-          "</html>"
-        ].join("\n")
+          "</html>",
+        ].join("\n"),
       );
       writeFileSync(join(root, "src/main.ts"), "export const mounted = true;\n");
       writeFileSync(
         join(root, "src/routes/index.ts"),
         [
-          "import { route } from \"@effect-ui/core\";",
-          "export const Route = route(\"/\", {",
+          'import { route } from "@effect-ui/core";',
+          'export const Route = route("/", {',
           "  preload: () => undefined",
-          "});"
-        ].join("\n")
+          "});",
+        ].join("\n"),
       );
 
       await expect(
@@ -7524,15 +7678,15 @@ describe("Effect UI Start", () => {
             effectUiStart({
               fileRoutes: ["src/routes/index.ts"],
               fileRouteOptions: {
-                routeDirectory: "src/routes"
+                routeDirectory: "src/routes",
               },
               buildPolicy: {
                 wireSchemas: false,
-                diagnostics: false
-              }
-            })
-          ]
-        })
+                diagnostics: false,
+              },
+            }),
+          ],
+        }),
       ).resolves.toBeDefined();
     } finally {
       rmSync(root, { recursive: true, force: true });
@@ -7548,8 +7702,8 @@ describe("Effect UI Start", () => {
         "--config=false",
         "--mode",
         "ci",
-        "--pretty"
-      ])
+        "--pretty",
+      ]),
     ).toEqual({
       _tag: "Diagnostics",
       options: {
@@ -7557,8 +7711,8 @@ describe("Effect UI Start", () => {
         configFile: false,
         mode: "ci",
         json: true,
-        pretty: true
-      }
+        pretty: true,
+      },
     });
     expect(
       parseStartDiagnosticsCliArgs([
@@ -7568,8 +7722,8 @@ describe("Effect UI Start", () => {
         "--mode",
         "ci",
         "diagnostics",
-        "--pretty"
-      ])
+        "--pretty",
+      ]),
     ).toEqual({
       _tag: "Diagnostics",
       options: {
@@ -7577,8 +7731,8 @@ describe("Effect UI Start", () => {
         configFile: false,
         mode: "ci",
         json: true,
-        pretty: true
-      }
+        pretty: true,
+      },
     });
     expect(
       parseStartDiagnosticsCliArgs([
@@ -7586,8 +7740,8 @@ describe("Effect UI Start", () => {
         "--root=-app",
         "--config=-vite.config.ts",
         "--mode=-ci",
-        "--json"
-      ])
+        "--json",
+      ]),
     ).toEqual({
       _tag: "Diagnostics",
       options: {
@@ -7595,196 +7749,132 @@ describe("Effect UI Start", () => {
         configFile: "-vite.config.ts",
         mode: "-ci",
         json: true,
-        pretty: false
-      }
+        pretty: false,
+      },
     });
-    expect(
-      parseStartDiagnosticsCliArgs([
-        "graph",
-        "route",
-        "/projects/:id",
-        "--json"
-      ])
-    ).toEqual({
+    expect(parseStartDiagnosticsCliArgs(["graph", "route", "/projects/:id", "--json"])).toEqual({
       _tag: "Graph",
       options: {
         query: {
           kind: "route",
-          text: "/projects/:id"
+          text: "/projects/:id",
         },
         json: true,
         pretty: false,
-        verbose: false
-      }
+        verbose: false,
+      },
     });
     expect(
-      parseStartDiagnosticsCliArgs([
-        "graph",
-        "action",
-        "Project.rename",
-        "--verbose"
-      ])
+      parseStartDiagnosticsCliArgs(["graph", "action", "Project.rename", "--verbose"]),
     ).toEqual({
       _tag: "Graph",
       options: {
         query: {
           kind: "action",
-          text: "Project.rename"
+          text: "Project.rename",
         },
         json: false,
         pretty: false,
-        verbose: true
-      }
+        verbose: true,
+      },
     });
-    expect(
-      parseStartDiagnosticsCliArgs([
-        "graph",
-        "--verbose",
-        "route",
-        "/projects/:id"
-      ])
-    ).toEqual({
+    expect(parseStartDiagnosticsCliArgs(["graph", "--verbose", "route", "/projects/:id"])).toEqual({
       _tag: "Graph",
       options: {
         query: {
           kind: "route",
-          text: "/projects/:id"
+          text: "/projects/:id",
         },
         json: false,
         pretty: false,
-        verbose: true
-      }
+        verbose: true,
+      },
     });
-    expect(
-      parseStartDiagnosticsCliArgs([
-        "graph",
-        "route",
-        "--verbose",
-        "/projects/:id"
-      ])
-    ).toEqual({
+    expect(parseStartDiagnosticsCliArgs(["graph", "route", "--verbose", "/projects/:id"])).toEqual({
       _tag: "Graph",
       options: {
         query: {
           kind: "route",
-          text: "/projects/:id"
+          text: "/projects/:id",
         },
         json: false,
         pretty: false,
-        verbose: true
-      }
+        verbose: true,
+      },
     });
-    expect(
-      parseStartDiagnosticsCliArgs([
-        "graph",
-        "route",
-        "/projects/:id",
-        "--verbose"
-      ])
-    ).toEqual({
+    expect(parseStartDiagnosticsCliArgs(["graph", "route", "/projects/:id", "--verbose"])).toEqual({
       _tag: "Graph",
       options: {
         query: {
           kind: "route",
-          text: "/projects/:id"
+          text: "/projects/:id",
         },
         json: false,
         pretty: false,
-        verbose: true
-      }
+        verbose: true,
+      },
     });
-    expect(
-      parseStartDiagnosticsCliArgs([
-        "graph",
-        "--query=--root"
-      ])
-    ).toEqual({
+    expect(parseStartDiagnosticsCliArgs(["graph", "--query=--root"])).toEqual({
       _tag: "Graph",
       options: {
         query: {
-          text: "--root"
+          text: "--root",
         },
         json: false,
         pretty: false,
-        verbose: false
-      }
+        verbose: false,
+      },
     });
-    expect(
-      parseStartDiagnosticsCliArgs([
-        "graph",
-        "route",
-        "--query=--root",
-        "--json"
-      ])
-    ).toEqual({
+    expect(parseStartDiagnosticsCliArgs(["graph", "route", "--query=--root", "--json"])).toEqual({
       _tag: "Graph",
       options: {
         query: {
           kind: "route",
-          text: "--root"
+          text: "--root",
         },
         json: true,
         pretty: false,
-        verbose: false
-      }
+        verbose: false,
+      },
     });
     expect(
-      parseStartDiagnosticsCliArgs([
-        "impact",
-        "action",
-        "Project.rename",
-        "--root",
-        "app"
-      ])
+      parseStartDiagnosticsCliArgs(["impact", "action", "Project.rename", "--root", "app"]),
     ).toEqual({
       _tag: "Impact",
       options: {
         root: "app",
         query: {
           kind: "action",
-          text: "Project.rename"
+          text: "Project.rename",
         },
         json: false,
-        pretty: false
-      }
+        pretty: false,
+      },
     });
-    expect(
-      parseStartDiagnosticsCliArgs([
-        "impact",
-        "--query=--root",
-        "--root",
-        "app"
-      ])
-    ).toEqual({
+    expect(parseStartDiagnosticsCliArgs(["impact", "--query=--root", "--root", "app"])).toEqual({
       _tag: "Impact",
       options: {
         root: "app",
         query: {
-          text: "--root"
+          text: "--root",
         },
         json: false,
-        pretty: false
-      }
+        pretty: false,
+      },
     });
     expect(
-      parseStartDiagnosticsCliArgs([
-        "impact",
-        "route",
-        "--query=--root",
-        "--root",
-        "app"
-      ])
+      parseStartDiagnosticsCliArgs(["impact", "route", "--query=--root", "--root", "app"]),
     ).toEqual({
       _tag: "Impact",
       options: {
         root: "app",
         query: {
           kind: "route",
-          text: "--root"
+          text: "--root",
         },
         json: false,
-        pretty: false
-      }
+        pretty: false,
+      },
     });
     for (const kind of startAgentGraphQueryKinds) {
       expect(
@@ -7792,19 +7882,19 @@ describe("Effect UI Start", () => {
           "graph",
           kind,
           startAgentGraphCliQueryTextByKind[kind],
-          "--json"
-        ])
+          "--json",
+        ]),
       ).toEqual({
         _tag: "Graph",
         options: {
           query: {
             kind,
-            text: startAgentGraphCliQueryTextByKind[kind]
+            text: startAgentGraphCliQueryTextByKind[kind],
           },
           json: true,
           pretty: false,
-          verbose: false
-        }
+          verbose: false,
+        },
       });
       expect(
         parseStartDiagnosticsCliArgs([
@@ -7812,19 +7902,19 @@ describe("Effect UI Start", () => {
           kind,
           startAgentGraphCliQueryTextByKind[kind],
           "--root",
-          "app"
-        ])
+          "app",
+        ]),
       ).toEqual({
         _tag: "Impact",
         options: {
           root: "app",
           query: {
             kind,
-            text: startAgentGraphCliQueryTextByKind[kind]
+            text: startAgentGraphCliQueryTextByKind[kind],
           },
           json: false,
-          pretty: false
-        }
+          pretty: false,
+        },
       });
     }
     expect(parseStartDiagnosticsCliArgs([])).toEqual({ _tag: "Help" });
@@ -7836,45 +7926,45 @@ describe("Effect UI Start", () => {
       runStartDiagnosticsCliEffect(["--help"], {
         stdout: (text) => helpStdout.push(text),
         stderr: (text) => helpStderr.push(text),
-        loadDiagnosticsEffect: () => Effect.die("unreachable")
-      })
+        loadDiagnosticsEffect: () => Effect.die("unreachable"),
+      }),
     );
     expect(helpResult.exitCode).toBe(0);
     expect(helpStderr).toEqual([]);
     expect(helpStdout.join("\n")).toContain("USAGE");
     expect(helpStdout.join("\n")).toContain("effect-ui-start <subcommand> [flags]");
 
-	    const graphHelpStdout: string[] = [];
-	    const graphHelpStderr: string[] = [];
-	    const graphHelpResult = await Effect.runPromise(
-	      runStartDiagnosticsCliEffect(["graph", "--help"], {
-	        stdout: (text) => graphHelpStdout.push(text),
-	        stderr: (text) => graphHelpStderr.push(text),
-	        loadDiagnosticsEffect: () => Effect.die("unreachable")
-	      })
-	    );
-	    expect(graphHelpResult.exitCode).toBe(0);
-	    expect(graphHelpStderr).toEqual([]);
-	    const graphHelp = graphHelpStdout.join("\n");
-	    expect(graphHelp).toContain("effect-ui-start graph [flags] <query...>");
-	    expect(graphHelp).toContain("Optional graph kind and query text.");
-	    expect(graphHelp).not.toContain("graph <subcommand>");
+    const graphHelpStdout: string[] = [];
+    const graphHelpStderr: string[] = [];
+    const graphHelpResult = await Effect.runPromise(
+      runStartDiagnosticsCliEffect(["graph", "--help"], {
+        stdout: (text) => graphHelpStdout.push(text),
+        stderr: (text) => graphHelpStderr.push(text),
+        loadDiagnosticsEffect: () => Effect.die("unreachable"),
+      }),
+    );
+    expect(graphHelpResult.exitCode).toBe(0);
+    expect(graphHelpStderr).toEqual([]);
+    const graphHelp = graphHelpStdout.join("\n");
+    expect(graphHelp).toContain("effect-ui-start graph [flags] <query...>");
+    expect(graphHelp).toContain("Optional graph kind and query text.");
+    expect(graphHelp).not.toContain("graph <subcommand>");
 
-	    const impactHelpStdout: string[] = [];
-	    const impactHelpStderr: string[] = [];
-	    const impactHelpResult = await Effect.runPromise(
-	      runStartDiagnosticsCliEffect(["impact", "--help"], {
-	        stdout: (text) => impactHelpStdout.push(text),
-	        stderr: (text) => impactHelpStderr.push(text),
-	        loadDiagnosticsEffect: () => Effect.die("unreachable")
-	      })
-	    );
-	    expect(impactHelpResult.exitCode).toBe(0);
-	    expect(impactHelpStderr).toEqual([]);
-	    const impactHelp = impactHelpStdout.join("\n");
-	    expect(impactHelp).toContain("effect-ui-start impact [flags] <query...>");
-	    expect(impactHelp).toContain("Required impact query text with optional kind");
-	    expect(impactHelp).not.toContain("impact <subcommand>");
+    const impactHelpStdout: string[] = [];
+    const impactHelpStderr: string[] = [];
+    const impactHelpResult = await Effect.runPromise(
+      runStartDiagnosticsCliEffect(["impact", "--help"], {
+        stdout: (text) => impactHelpStdout.push(text),
+        stderr: (text) => impactHelpStderr.push(text),
+        loadDiagnosticsEffect: () => Effect.die("unreachable"),
+      }),
+    );
+    expect(impactHelpResult.exitCode).toBe(0);
+    expect(impactHelpStderr).toEqual([]);
+    const impactHelp = impactHelpStdout.join("\n");
+    expect(impactHelp).toContain("effect-ui-start impact [flags] <query...>");
+    expect(impactHelp).toContain("Required impact query text with optional kind");
+    expect(impactHelp).not.toContain("impact <subcommand>");
 
     const versionStdout: string[] = [];
     const versionStderr: string[] = [];
@@ -7882,8 +7972,8 @@ describe("Effect UI Start", () => {
       runStartDiagnosticsCliEffect(["--version"], {
         stdout: (text) => versionStdout.push(text),
         stderr: (text) => versionStderr.push(text),
-        loadDiagnosticsEffect: () => Effect.die("unreachable")
-      })
+        loadDiagnosticsEffect: () => Effect.die("unreachable"),
+      }),
     );
     expect(versionResult.exitCode).toBe(0);
     expect(versionStderr).toEqual([]);
@@ -7895,50 +7985,51 @@ describe("Effect UI Start", () => {
       runStartDiagnosticsCliEffect(["diagnostics", "--json"], {
         stdout: (text) => stdout.push(text),
         stderr: (text) => stderr.push(text),
-        loadDiagnosticsEffect: () => Effect.succeed({
-          graph: {
-            version: 1,
-            routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
-            serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
-            actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] }
-          },
-          diagnostics: {
-            version: 1,
-            routeCount: 0,
-            serverFunctionCount: 0,
-            actionCount: 0,
-            routePaths: [],
-            routeModules: [],
-            serverFunctionModules: [],
-            actionModules: [],
-            resourceFamilies: [],
-            resourceTags: [],
-            collectionDefinitions: [],
-            serverOnlyModules: [],
-            browserClientModules: [],
-            rpcPath: "/__effect-ui/rpc",
-            actionPath: "/__effect-ui/action",
-            schemaCoverage: {
-              serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
-              actions: { total: 0, input: 0, output: 0, error: 0 }
+        loadDiagnosticsEffect: () =>
+          Effect.succeed({
+            graph: {
+              version: 1,
+              routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
+              serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
+              actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] },
             },
-            missingSchemas: [],
-            unknownActionBehavior: [],
-            unknownRoutePreloadResources: [],
-            unknownRoutePreloadCollections: []
-          },
-          diagnosticsPolicyViolations: []
-        })
-      })
+            diagnostics: {
+              version: 1,
+              routeCount: 0,
+              serverFunctionCount: 0,
+              actionCount: 0,
+              routePaths: [],
+              routeModules: [],
+              serverFunctionModules: [],
+              actionModules: [],
+              resourceFamilies: [],
+              resourceTags: [],
+              collectionDefinitions: [],
+              serverOnlyModules: [],
+              browserClientModules: [],
+              rpcPath: "/__effect-ui/rpc",
+              actionPath: "/__effect-ui/action",
+              schemaCoverage: {
+                serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
+                actions: { total: 0, input: 0, output: 0, error: 0 },
+              },
+              missingSchemas: [],
+              unknownActionBehavior: [],
+              unknownRoutePreloadResources: [],
+              unknownRoutePreloadCollections: [],
+            },
+            diagnosticsPolicyViolations: [],
+          }),
+      }),
     );
 
     expect(result.exitCode).toBe(0);
     expect(stderr).toEqual([]);
     expect(JSON.parse(stdout[0] ?? "{}")).toMatchObject({
       diagnostics: {
-        routeCount: 0
+        routeCount: 0,
       },
-      diagnosticsPolicyViolations: []
+      diagnosticsPolicyViolations: [],
     });
   });
 
@@ -7949,63 +8040,64 @@ describe("Effect UI Start", () => {
       runStartDiagnosticsCliEffect(["graph", "route", "/projects/:id"], {
         stdout: (text) => stdout.push(text),
         stderr: (text) => stderr.push(text),
-        loadDiagnosticsEffect: () => Effect.succeed({
-          graph: {
-            version: 1,
-            routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
-            serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
-            actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] }
-          },
-          diagnostics: {
-            version: 1,
-            routeCount: 1,
-            serverFunctionCount: 0,
-            actionCount: 0,
-            routePaths: ["/projects/:id"],
-            routeModules: [
-              {
-                routeId: "route_projects_$id",
-                routePath: "/projects/:id",
-                moduleId: "src/routes/projects/$id.tsx",
-                filePath: "src/routes/projects/$id.tsx",
-                pathParamCount: 1,
-                hasPathParams: true,
-                params: [{ name: "id", optional: false }],
-                paramsSchema: "present",
-                searchSchema: "absent",
-                preload: "present",
-                preloadResources: {
-                  status: "declared",
-                  families: ["Project.byId"]
-                },
-                preloadCollections: {
-                  status: "declared",
-                  collections: ["ProjectRows"]
-                },
-                component: "present"
-              }
-            ],
-            serverFunctionModules: [],
-            actionModules: [],
-            resourceFamilies: [],
-            resourceTags: [],
-            collectionDefinitions: [],
-            serverOnlyModules: [],
-            browserClientModules: [],
-            rpcPath: "/__effect-ui/rpc",
-            actionPath: "/__effect-ui/action",
-            schemaCoverage: {
-              serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
-              actions: { total: 0, input: 0, output: 0, error: 0 }
+        loadDiagnosticsEffect: () =>
+          Effect.succeed({
+            graph: {
+              version: 1,
+              routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
+              serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
+              actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] },
             },
-            missingSchemas: [],
-            unknownActionBehavior: [],
-            unknownRoutePreloadResources: [],
-            unknownRoutePreloadCollections: []
-          },
-          diagnosticsPolicyViolations: []
-        })
-      })
+            diagnostics: {
+              version: 1,
+              routeCount: 1,
+              serverFunctionCount: 0,
+              actionCount: 0,
+              routePaths: ["/projects/:id"],
+              routeModules: [
+                {
+                  routeId: "route_projects_$id",
+                  routePath: "/projects/:id",
+                  moduleId: "src/routes/projects/$id.tsx",
+                  filePath: "src/routes/projects/$id.tsx",
+                  pathParamCount: 1,
+                  hasPathParams: true,
+                  params: [{ name: "id", optional: false }],
+                  paramsSchema: "present",
+                  searchSchema: "absent",
+                  preload: "present",
+                  preloadResources: {
+                    status: "declared",
+                    families: ["Project.byId"],
+                  },
+                  preloadCollections: {
+                    status: "declared",
+                    collections: ["ProjectRows"],
+                  },
+                  component: "present",
+                },
+              ],
+              serverFunctionModules: [],
+              actionModules: [],
+              resourceFamilies: [],
+              resourceTags: [],
+              collectionDefinitions: [],
+              serverOnlyModules: [],
+              browserClientModules: [],
+              rpcPath: "/__effect-ui/rpc",
+              actionPath: "/__effect-ui/action",
+              schemaCoverage: {
+                serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
+                actions: { total: 0, input: 0, output: 0, error: 0 },
+              },
+              missingSchemas: [],
+              unknownActionBehavior: [],
+              unknownRoutePreloadResources: [],
+              unknownRoutePreloadCollections: [],
+            },
+            diagnosticsPolicyViolations: [],
+          }),
+      }),
     );
 
     expect(result.exitCode).toBe(0);
@@ -8015,185 +8107,186 @@ describe("Effect UI Start", () => {
     expect(stdout.join("\n")).toContain("Status: pass");
     expect(stdout.join("\n")).toContain("Edit: src/routes/projects/$id.tsx");
     expect(stdout.join("\n")).toContain("Params: id");
-    expect(stdout.join("\n")).toContain("Preloads: resources Project.byId; collections ProjectRows");
+    expect(stdout.join("\n")).toContain(
+      "Preloads: resources Project.byId; collections ProjectRows",
+    );
     expect(stdout.join("\n")).toContain("Related: module: src/routes/projects/$id.tsx");
     expect(stdout.join("\n")).not.toContain("route:route_projects_$id");
   });
 
   it("runs every Start agent graph query kind through the CLI parser/runtime seam", async () => {
-    const loadDiagnosticsEffect = () => Effect.succeed({
-      graph: {
-        version: 1 as const,
-        routes: { version: 1 as const, entries: [], modules: [], routeDirectory: "src/routes" },
-        serverFunctions: { version: 1 as const, rpcPath: "/__effect-ui/rpc", entries: [] },
-        actions: { version: 1 as const, actionPath: "/__effect-ui/action", entries: [] }
-      },
-      diagnostics: {
-        version: 1 as const,
-        routeCount: 1,
-        serverFunctionCount: 1,
-        actionCount: 1,
-        routePaths: ["/projects/:id"],
-        routeModules: [
-          {
-            routeId: "route_projects_$id",
-            routePath: "/projects/:id",
-            moduleId: "src/routes/projects/$id.tsx",
-            filePath: "src/routes/projects/$id.tsx",
-            pathParamCount: 1,
-            hasPathParams: true,
-            params: [{ name: "id", optional: false }],
-            paramsSchema: "present" as const,
-            searchSchema: "absent" as const,
-            preload: "present" as const,
-            preloadResources: {
-              status: "declared" as const,
-              families: ["Project.byId"]
+    const loadDiagnosticsEffect = () =>
+      Effect.succeed({
+        graph: {
+          version: 1 as const,
+          routes: { version: 1 as const, entries: [], modules: [], routeDirectory: "src/routes" },
+          serverFunctions: { version: 1 as const, rpcPath: "/__effect-ui/rpc", entries: [] },
+          actions: { version: 1 as const, actionPath: "/__effect-ui/action", entries: [] },
+        },
+        diagnostics: {
+          version: 1 as const,
+          routeCount: 1,
+          serverFunctionCount: 1,
+          actionCount: 1,
+          routePaths: ["/projects/:id"],
+          routeModules: [
+            {
+              routeId: "route_projects_$id",
+              routePath: "/projects/:id",
+              moduleId: "src/routes/projects/$id.tsx",
+              filePath: "src/routes/projects/$id.tsx",
+              pathParamCount: 1,
+              hasPathParams: true,
+              params: [{ name: "id", optional: false }],
+              paramsSchema: "present" as const,
+              searchSchema: "absent" as const,
+              preload: "present" as const,
+              preloadResources: {
+                status: "declared" as const,
+                families: ["Project.byId"],
+              },
+              preloadCollections: {
+                status: "declared" as const,
+                collections: ["ProjectRows"],
+              },
+              component: "present" as const,
             },
-            preloadCollections: {
-              status: "declared" as const,
-              collections: ["ProjectRows"]
+          ],
+          serverFunctionModules: [
+            {
+              id: "sf_project-load",
+              name: "Project.load",
+              server: {
+                module: "/src/project/project.server.ts",
+                exportName: "loadProject",
+                moduleKind: "server-only" as const,
+              },
+              client: {
+                _tag: "Import" as const,
+                module: "/src/project/project.contract.ts",
+                exportName: "loadProject",
+              },
+              wire: {
+                inputSchema: true,
+                outputSchema: true,
+                errorSchema: false,
+                complete: false,
+              },
             },
-            component: "present" as const
-          }
-        ],
-        serverFunctionModules: [
-          {
-            id: "sf_project-load",
-            name: "Project.load",
-            server: {
-              module: "/src/project/project.server.ts",
-              exportName: "loadProject",
-              moduleKind: "server-only" as const
+          ],
+          actionModules: [
+            {
+              id: "act_project-rename",
+              name: "Project.rename",
+              server: {
+                module: "/src/project/project.actions.ts",
+                exportName: "RenameProject",
+                moduleKind: "shared" as const,
+              },
+              client: {
+                _tag: "Import" as const,
+                module: "/src/project/project.actions.ts",
+                exportName: "RenameProject",
+              },
+              wire: {
+                inputSchema: true,
+                outputSchema: true,
+                errorSchema: true,
+                complete: true,
+              },
+              behavior: {
+                invalidates: true,
+                optimistic: false,
+                retry: true,
+                concurrency: "latest" as const,
+              },
             },
-            client: {
-              _tag: "Import" as const,
-              module: "/src/project/project.contract.ts",
-              exportName: "loadProject"
-            },
-            wire: {
+          ],
+          resourceFamilies: [
+            {
+              name: "Project.byId",
               inputSchema: true,
               outputSchema: true,
               errorSchema: false,
-              complete: false
-            }
-          }
-        ],
-        actionModules: [
-          {
-            id: "act_project-rename",
-            name: "Project.rename",
-            server: {
-              module: "/src/project/project.actions.ts",
-              exportName: "RenameProject",
-              moduleKind: "shared" as const
+              providesTags: true,
+              policy: {
+                retry: false,
+              },
             },
-            client: {
-              _tag: "Import" as const,
-              module: "/src/project/project.actions.ts",
-              exportName: "RenameProject"
+          ],
+          resourceTags: [
+            {
+              name: "Project.updated",
+              keyed: true,
             },
-            wire: {
-              inputSchema: true,
-              outputSchema: true,
-              errorSchema: true,
-              complete: true
+          ],
+          collectionDefinitions: [
+            {
+              name: "ProjectRows",
+              readOnly: false,
+              inputSchema: false,
+              outputSchema: false,
+              initialData: false,
+              indexes: [],
+              load: false,
+              handlers: {
+                insert: false,
+                update: false,
+                delete: false,
+              },
+              policy: {
+                retry: false,
+              },
+              persistence: {
+                enabled: false,
+                hydrate: false,
+                restoreOnPreload: false,
+                loadAfterRestore: false,
+                persistOnLoad: false,
+                persistOnMutation: false,
+                persistOnWrite: false,
+              },
             },
-            behavior: {
-              invalidates: true,
-              optimistic: false,
-              retry: true,
-              concurrency: "latest" as const
-            }
-          }
-        ],
-        resourceFamilies: [
-          {
-            name: "Project.byId",
-            inputSchema: true,
-            outputSchema: true,
-            errorSchema: false,
-            providesTags: true,
-            policy: {
-              retry: false
-            }
-          }
-        ],
-        resourceTags: [
-          {
-            name: "Project.updated",
-            keyed: true
-          }
-        ],
-        collectionDefinitions: [
-          {
-            name: "ProjectRows",
-            readOnly: false,
-            inputSchema: false,
-            outputSchema: false,
-            initialData: false,
-            indexes: [],
-            load: false,
-            handlers: {
-              insert: false,
-              update: false,
-              delete: false
+          ],
+          serverOnlyModules: ["/src/project/project.server.ts"],
+          browserClientModules: [
+            "/src/project/project.contract.ts",
+            "/src/project/project.actions.ts",
+          ],
+          rpcPath: "/__effect-ui/rpc",
+          actionPath: "/__effect-ui/action",
+          schemaCoverage: {
+            serverFunctions: { total: 1, input: 1, output: 1, error: 0 },
+            actions: { total: 1, input: 1, output: 1, error: 1 },
+          },
+          missingSchemas: [
+            {
+              kind: "serverFunction" as const,
+              name: "Project.load",
+              input: true,
+              output: true,
+              error: false,
             },
-            policy: {
-              retry: false
-            },
-            persistence: {
-              enabled: false,
-              hydrate: false,
-              restoreOnPreload: false,
-              loadAfterRestore: false,
-              persistOnLoad: false,
-              persistOnMutation: false,
-              persistOnWrite: false
-            }
-          }
-        ],
-        serverOnlyModules: ["/src/project/project.server.ts"],
-        browserClientModules: [
-          "/src/project/project.contract.ts",
-          "/src/project/project.actions.ts"
-        ],
-        rpcPath: "/__effect-ui/rpc",
-        actionPath: "/__effect-ui/action",
-        schemaCoverage: {
-          serverFunctions: { total: 1, input: 1, output: 1, error: 0 },
-          actions: { total: 1, input: 1, output: 1, error: 1 }
+          ],
+          unknownActionBehavior: [],
+          unknownRoutePreloadResources: [],
+          unknownRoutePreloadCollections: [],
         },
-        missingSchemas: [
-          {
-            kind: "serverFunction" as const,
-            name: "Project.load",
-            input: true,
-            output: true,
-            error: false
-          }
-        ],
-        unknownActionBehavior: [],
-        unknownRoutePreloadResources: [],
-        unknownRoutePreloadCollections: []
-      },
-      diagnosticsPolicyViolations: []
-    });
+        diagnosticsPolicyViolations: [],
+      });
 
     for (const kind of startAgentGraphQueryKinds) {
       const graphStdout: string[] = [];
       const graphStderr: string[] = [];
       const graphResult = await Effect.runPromise(
-        runStartDiagnosticsCliEffect([
-          "graph",
-          kind,
-          startAgentGraphCliQueryTextByKind[kind],
-          "--json"
-        ], {
-          stdout: (text) => graphStdout.push(text),
-          stderr: (text) => graphStderr.push(text),
-          loadDiagnosticsEffect
-        })
+        runStartDiagnosticsCliEffect(
+          ["graph", kind, startAgentGraphCliQueryTextByKind[kind], "--json"],
+          {
+            stdout: (text) => graphStdout.push(text),
+            stderr: (text) => graphStderr.push(text),
+            loadDiagnosticsEffect,
+          },
+        ),
       );
       const graphPayload = JSON.parse(graphStdout[0] ?? "{}") as {
         readonly result?: {
@@ -8212,22 +8305,25 @@ describe("Effect UI Start", () => {
       const impactStdout: string[] = [];
       const impactStderr: string[] = [];
       const impactResult = await Effect.runPromise(
-        runStartDiagnosticsCliEffect([
-          "impact",
-          kind,
-          startAgentGraphCliQueryTextByKind[kind],
-          "--root",
-          "examples/project-console",
-          "--config",
-          "vite.config.ts",
-          "--mode",
-          "ci",
-          "--json"
-        ], {
-          stdout: (text) => impactStdout.push(text),
-          stderr: (text) => impactStderr.push(text),
-          loadDiagnosticsEffect
-        })
+        runStartDiagnosticsCliEffect(
+          [
+            "impact",
+            kind,
+            startAgentGraphCliQueryTextByKind[kind],
+            "--root",
+            "examples/project-console",
+            "--config",
+            "vite.config.ts",
+            "--mode",
+            "ci",
+            "--json",
+          ],
+          {
+            stdout: (text) => impactStdout.push(text),
+            stderr: (text) => impactStderr.push(text),
+            loadDiagnosticsEffect,
+          },
+        ),
       );
       const impactPayload = JSON.parse(impactStdout[0] ?? "{}") as {
         readonly query?: {
@@ -8245,7 +8341,7 @@ describe("Effect UI Start", () => {
       expect(impactPayload.matches).toBeGreaterThan(0);
       expect(impactPayload.items?.[0]?.verify).toEqual([
         "effect-ui-start diagnostics --root=examples/project-console --config=vite.config.ts --mode=ci",
-        `effect-ui-start graph --root=examples/project-console --config=vite.config.ts --mode=ci ${kind} ${startAgentGraphCliQueryTextByKind[kind]}`
+        `effect-ui-start graph --root=examples/project-console --config=vite.config.ts --mode=ci ${kind} ${startAgentGraphCliQueryTextByKind[kind]}`,
       ]);
     }
   });
@@ -8255,80 +8351,83 @@ describe("Effect UI Start", () => {
     const stderr: string[] = [];
     const loadOptions: unknown[] = [];
     const result = await Effect.runPromise(
-      runStartDiagnosticsCliEffect([
-        "impact",
-        "route",
-        "/project spaces/:id",
-        "--root",
-        "examples/project console",
-        "--config",
-        "vite config.ts",
-        "--mode",
-        "ci mode",
-        "--json"
-      ], {
-        stdout: (text) => stdout.push(text),
-        stderr: (text) => stderr.push(text),
-        loadDiagnosticsEffect: (options) => {
-          loadOptions.push(options);
-          return Effect.succeed({
-            graph: {
-              version: 1,
-              routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
-              serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
-              actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] }
-            },
-            diagnostics: {
-              version: 1,
-              routeCount: 1,
-              serverFunctionCount: 0,
-              actionCount: 0,
-              routePaths: ["/project spaces/:id"],
-              routeModules: [
-                {
-                  routeId: "route_project_spaces_$id",
-                  routePath: "/project spaces/:id",
-                  moduleId: "src/routes/project spaces/$id.tsx",
-                  filePath: "src/routes/project spaces/$id.tsx",
-                  pathParamCount: 1,
-                  hasPathParams: true,
-                  params: [{ name: "id", optional: false }],
-                  paramsSchema: "present",
-                  searchSchema: "absent",
-                  preload: "absent",
-                  preloadResources: {
-                    status: "none",
-                    families: []
-                  },
-                  preloadCollections: {
-                    status: "none",
-                    collections: []
-                  },
-                  component: "present"
-                }
-              ],
-              serverFunctionModules: [],
-              actionModules: [],
-              resourceFamilies: [],
-              resourceTags: [],
-              collectionDefinitions: [],
-              serverOnlyModules: [],
-              browserClientModules: [],
-              rpcPath: "/__effect-ui/rpc",
-              actionPath: "/__effect-ui/action",
-              schemaCoverage: {
-                serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
-                actions: { total: 0, input: 0, output: 0, error: 0 }
+      runStartDiagnosticsCliEffect(
+        [
+          "impact",
+          "route",
+          "/project spaces/:id",
+          "--root",
+          "examples/project console",
+          "--config",
+          "vite config.ts",
+          "--mode",
+          "ci mode",
+          "--json",
+        ],
+        {
+          stdout: (text) => stdout.push(text),
+          stderr: (text) => stderr.push(text),
+          loadDiagnosticsEffect: (options) => {
+            loadOptions.push(options);
+            return Effect.succeed({
+              graph: {
+                version: 1,
+                routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
+                serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
+                actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] },
               },
-              missingSchemas: [],
-              unknownActionBehavior: [],
-              unknownRoutePreloadResources: [],
-              unknownRoutePreloadCollections: []
-            },
-            diagnosticsPolicyViolations: []
-          });
-        }
-      })
+              diagnostics: {
+                version: 1,
+                routeCount: 1,
+                serverFunctionCount: 0,
+                actionCount: 0,
+                routePaths: ["/project spaces/:id"],
+                routeModules: [
+                  {
+                    routeId: "route_project_spaces_$id",
+                    routePath: "/project spaces/:id",
+                    moduleId: "src/routes/project spaces/$id.tsx",
+                    filePath: "src/routes/project spaces/$id.tsx",
+                    pathParamCount: 1,
+                    hasPathParams: true,
+                    params: [{ name: "id", optional: false }],
+                    paramsSchema: "present",
+                    searchSchema: "absent",
+                    preload: "absent",
+                    preloadResources: {
+                      status: "none",
+                      families: [],
+                    },
+                    preloadCollections: {
+                      status: "none",
+                      collections: [],
+                    },
+                    component: "present",
+                  },
+                ],
+                serverFunctionModules: [],
+                actionModules: [],
+                resourceFamilies: [],
+                resourceTags: [],
+                collectionDefinitions: [],
+                serverOnlyModules: [],
+                browserClientModules: [],
+                rpcPath: "/__effect-ui/rpc",
+                actionPath: "/__effect-ui/action",
+                schemaCoverage: {
+                  serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
+                  actions: { total: 0, input: 0, output: 0, error: 0 },
+                },
+                missingSchemas: [],
+                unknownActionBehavior: [],
+                unknownRoutePreloadResources: [],
+                unknownRoutePreloadCollections: [],
+              },
+              diagnosticsPolicyViolations: [],
+            });
+          },
+        },
+      ),
     );
     const payload = JSON.parse(stdout[0] ?? "{}") as {
       readonly items?: readonly {
@@ -8342,16 +8441,16 @@ describe("Effect UI Start", () => {
       {
         root: "examples/project console",
         configFile: "vite config.ts",
-        mode: "ci mode"
-      }
+        mode: "ci mode",
+      },
     ]);
     expect(payload.items?.[0]?.verify).toEqual([
       "effect-ui-start diagnostics --root='examples/project console' --config='vite config.ts' --mode='ci mode'",
-      "effect-ui-start graph --root='examples/project console' --config='vite config.ts' --mode='ci mode' route '/project spaces/:id'"
+      "effect-ui-start graph --root='examples/project console' --config='vite config.ts' --mode='ci mode' route '/project spaces/:id'",
     ]);
-    expect(parseStartDiagnosticsCliArgs(shellSplitStartCliArgs(
-      payload.items?.[0]?.verify?.[1] ?? ""
-    ))).toEqual({
+    expect(
+      parseStartDiagnosticsCliArgs(shellSplitStartCliArgs(payload.items?.[0]?.verify?.[1] ?? "")),
+    ).toEqual({
       _tag: "Graph",
       options: {
         root: "examples/project console",
@@ -8359,24 +8458,24 @@ describe("Effect UI Start", () => {
         mode: "ci mode",
         query: {
           kind: "route",
-          text: "/project spaces/:id"
+          text: "/project spaces/:id",
         },
         json: false,
         pretty: false,
-        verbose: false
-      }
+        verbose: false,
+      },
     });
   });
 
   it("protects impact verify command queries that look like CLI flags", () => {
     const query = { kind: "route" as const, text: "--root" };
     const commands = startDiagnosticsCliVerifyCommandsForQuery(query, {
-      root: "examples/project-console"
+      root: "examples/project-console",
     });
 
     expect(commands).toEqual([
       "effect-ui-start diagnostics --root=examples/project-console",
-      "effect-ui-start graph --root=examples/project-console route --query=--root"
+      "effect-ui-start graph --root=examples/project-console route --query=--root",
     ]);
     expect(parseStartDiagnosticsCliArgs(shellSplitStartCliArgs(commands[1] ?? ""))).toEqual({
       _tag: "Graph",
@@ -8385,44 +8484,48 @@ describe("Effect UI Start", () => {
         query,
         json: false,
         pretty: false,
-        verbose: false
-      }
+        verbose: false,
+      },
     });
 
     const textOnlyCommands = startDiagnosticsCliVerifyCommandsForQuery(
       { text: "--root" },
-      { root: "examples/project-console" }
+      { root: "examples/project-console" },
     );
 
     expect(textOnlyCommands).toEqual([
       "effect-ui-start diagnostics --root=examples/project-console",
-      "effect-ui-start graph --root=examples/project-console --query=--root"
+      "effect-ui-start graph --root=examples/project-console --query=--root",
     ]);
-    expect(parseStartDiagnosticsCliArgs(shellSplitStartCliArgs(textOnlyCommands[1] ?? ""))).toEqual({
-      _tag: "Graph",
-      options: {
-        root: "examples/project-console",
-        query: {
-          text: "--root"
+    expect(parseStartDiagnosticsCliArgs(shellSplitStartCliArgs(textOnlyCommands[1] ?? ""))).toEqual(
+      {
+        _tag: "Graph",
+        options: {
+          root: "examples/project-console",
+          query: {
+            text: "--root",
+          },
+          json: false,
+          pretty: false,
+          verbose: false,
         },
-        json: false,
-        pretty: false,
-        verbose: false
-      }
-    });
+      },
+    );
   });
 
   it("protects impact verify command load options that look like CLI flags", () => {
-    expect(startDiagnosticsCliVerifyCommandsForQuery(
-      { kind: "route", text: "/projects/:id" },
-      {
-        root: "-app",
-        configFile: "-vite.config.ts",
-        mode: "-ci"
-      }
-    )).toEqual([
+    expect(
+      startDiagnosticsCliVerifyCommandsForQuery(
+        { kind: "route", text: "/projects/:id" },
+        {
+          root: "-app",
+          configFile: "-vite.config.ts",
+          mode: "-ci",
+        },
+      ),
+    ).toEqual([
       "effect-ui-start diagnostics --root=-app --config=-vite.config.ts --mode=-ci",
-      "effect-ui-start graph --root=-app --config=-vite.config.ts --mode=-ci route /projects/:id"
+      "effect-ui-start graph --root=-app --config=-vite.config.ts --mode=-ci route /projects/:id",
     ]);
   });
 
@@ -8430,72 +8533,70 @@ describe("Effect UI Start", () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
     const result = await Effect.runPromise(
-      runStartDiagnosticsCliEffect([
-        "impact",
-        "route",
-        "/projects/:id",
-        "--root",
-        "examples/project-console"
-      ], {
-        stdout: (text) => stdout.push(text),
-        stderr: (text) => stderr.push(text),
-        loadDiagnosticsEffect: () => Effect.succeed({
-          graph: {
-            version: 1,
-            routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
-            serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
-            actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] }
-          },
-          diagnostics: {
-            version: 1,
-            routeCount: 1,
-            serverFunctionCount: 0,
-            actionCount: 0,
-            routePaths: ["/projects/:id"],
-            routeModules: [
-              {
-                routeId: "route_projects_$id",
-                routePath: "/projects/:id",
-                moduleId: "src/routes/projects/$id.tsx",
-                filePath: "src/routes/projects/$id.tsx",
-                pathParamCount: 1,
-                hasPathParams: true,
-                params: [{ name: "id", optional: false }],
-                paramsSchema: "present",
-                searchSchema: "absent",
-                preload: "present",
-                preloadResources: {
-                  status: "declared",
-                  families: ["Project.byId"]
+      runStartDiagnosticsCliEffect(
+        ["impact", "route", "/projects/:id", "--root", "examples/project-console"],
+        {
+          stdout: (text) => stdout.push(text),
+          stderr: (text) => stderr.push(text),
+          loadDiagnosticsEffect: () =>
+            Effect.succeed({
+              graph: {
+                version: 1,
+                routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
+                serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
+                actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] },
+              },
+              diagnostics: {
+                version: 1,
+                routeCount: 1,
+                serverFunctionCount: 0,
+                actionCount: 0,
+                routePaths: ["/projects/:id"],
+                routeModules: [
+                  {
+                    routeId: "route_projects_$id",
+                    routePath: "/projects/:id",
+                    moduleId: "src/routes/projects/$id.tsx",
+                    filePath: "src/routes/projects/$id.tsx",
+                    pathParamCount: 1,
+                    hasPathParams: true,
+                    params: [{ name: "id", optional: false }],
+                    paramsSchema: "present",
+                    searchSchema: "absent",
+                    preload: "present",
+                    preloadResources: {
+                      status: "declared",
+                      families: ["Project.byId"],
+                    },
+                    preloadCollections: {
+                      status: "declared",
+                      collections: ["ProjectRows"],
+                    },
+                    component: "present",
+                  },
+                ],
+                serverFunctionModules: [],
+                actionModules: [],
+                resourceFamilies: [],
+                resourceTags: [],
+                collectionDefinitions: [],
+                serverOnlyModules: [],
+                browserClientModules: [],
+                rpcPath: "/__effect-ui/rpc",
+                actionPath: "/__effect-ui/action",
+                schemaCoverage: {
+                  serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
+                  actions: { total: 0, input: 0, output: 0, error: 0 },
                 },
-                preloadCollections: {
-                  status: "declared",
-                  collections: ["ProjectRows"]
-                },
-                component: "present"
-              }
-            ],
-            serverFunctionModules: [],
-            actionModules: [],
-            resourceFamilies: [],
-            resourceTags: [],
-            collectionDefinitions: [],
-            serverOnlyModules: [],
-            browserClientModules: [],
-            rpcPath: "/__effect-ui/rpc",
-            actionPath: "/__effect-ui/action",
-            schemaCoverage: {
-              serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
-              actions: { total: 0, input: 0, output: 0, error: 0 }
-            },
-            missingSchemas: [],
-            unknownActionBehavior: [],
-            unknownRoutePreloadResources: [],
-            unknownRoutePreloadCollections: []
-          },
-          diagnosticsPolicyViolations: []
-        })
-      })
+                missingSchemas: [],
+                unknownActionBehavior: [],
+                unknownRoutePreloadResources: [],
+                unknownRoutePreloadCollections: [],
+              },
+              diagnosticsPolicyViolations: [],
+            }),
+        },
+      ),
     );
 
     const text = stdout.join("\n");
@@ -8506,7 +8607,9 @@ describe("Effect UI Start", () => {
     expect(text).toContain("- preloads: resources Project.byId; collections ProjectRows");
     expect(text).toContain("Depends on");
     expect(text).toContain("- effect-ui-start diagnostics --root=examples/project-console");
-    expect(text).toContain("- effect-ui-start graph --root=examples/project-console route /projects/:id");
+    expect(text).toContain(
+      "- effect-ui-start graph --root=examples/project-console route /projects/:id",
+    );
     expect(text).not.toContain("route:route_projects_$id");
   });
 
@@ -8516,8 +8619,8 @@ describe("Effect UI Start", () => {
       runStartDiagnosticsCliEffect(["unknown"], {
         stdout: () => undefined,
         stderr: (text) => stderr.push(text),
-        loadDiagnosticsEffect: () => Effect.die("unreachable")
-      })
+        loadDiagnosticsEffect: () => Effect.die("unreachable"),
+      }),
     );
 
     expect(result.exitCode).toBe(1);
@@ -8528,8 +8631,8 @@ describe("Effect UI Start", () => {
       runStartDiagnosticsCliEffect(["graph", "route", "/projects/:id", "extra"], {
         stdout: () => undefined,
         stderr: (text) => extraGraphStderr.push(text),
-        loadDiagnosticsEffect: () => Effect.die("unreachable")
-      })
+        loadDiagnosticsEffect: () => Effect.die("unreachable"),
+      }),
     );
     expect(extraGraphResult.exitCode).toBe(1);
     expect(extraGraphStderr.join("\n")).toContain("at most a graph kind and one query");
@@ -8539,11 +8642,13 @@ describe("Effect UI Start", () => {
       runStartDiagnosticsCliEffect(["impact", "route"], {
         stdout: () => undefined,
         stderr: (text) => missingImpactStderr.push(text),
-        loadDiagnosticsEffect: () => Effect.die("unreachable")
-      })
+        loadDiagnosticsEffect: () => Effect.die("unreachable"),
+      }),
     );
     expect(missingImpactResult.exitCode).toBe(1);
-    expect(missingImpactStderr.join("\n")).toContain("an impact query such as `impact route /projects/:id`");
+    expect(missingImpactStderr.join("\n")).toContain(
+      "an impact query such as `impact route /projects/:id`",
+    );
   });
 
   it("keeps Start diagnostics CLI bin write failures inside the Effect boundary", async () => {
@@ -8558,8 +8663,8 @@ describe("Effect UI Start", () => {
           stderr: (text) => {
             stderr.push(text);
           },
-          loadDiagnosticsEffect: () => Effect.die("unreachable")
-        })
+          loadDiagnosticsEffect: () => Effect.die("unreachable"),
+        }),
       );
       observedExitCode = process.exitCode;
     } finally {
@@ -8567,9 +8672,7 @@ describe("Effect UI Start", () => {
     }
 
     expect(observedExitCode).toBe(1);
-    expect(stderr).toEqual([
-      "Effect UI diagnostics CLI failed: Could not write stdout output."
-    ]);
+    expect(stderr).toEqual(["Effect UI diagnostics CLI failed: Could not write stdout output."]);
   });
 
   it("keeps invalid diagnostics CLI loaders inside the Effect boundary", async () => {
@@ -8580,18 +8683,18 @@ describe("Effect UI Start", () => {
         loadDiagnosticsEffect: () => {
           throw syncCause;
         },
-        message: "Diagnostics CLI loader threw before returning an Effect."
+        message: "Diagnostics CLI loader threw before returning an Effect.",
       },
       {
         label: "Promise return",
         loadDiagnosticsEffect: () => Promise.resolve({}),
-        message: "Diagnostics CLI loader returned Promise-shaped work instead of an Effect."
+        message: "Diagnostics CLI loader returned Promise-shaped work instead of an Effect.",
       },
       {
         label: "plain return",
         loadDiagnosticsEffect: () => ({ graph: {} }),
-        message: "Diagnostics CLI loader must return an Effect."
-      }
+        message: "Diagnostics CLI loader must return an Effect.",
+      },
     ];
 
     for (const testCase of cases) {
@@ -8601,14 +8704,14 @@ describe("Effect UI Start", () => {
         runStartDiagnosticsCliEffect(["diagnostics"], {
           stdout: (text) => stdout.push(text),
           stderr: (text) => stderr.push(text),
-          loadDiagnosticsEffect: testCase.loadDiagnosticsEffect as never
-        })
+          loadDiagnosticsEffect: testCase.loadDiagnosticsEffect as never,
+        }),
       );
 
       expect(result.exitCode, testCase.label).toBe(1);
       expect(stdout, testCase.label).toEqual([]);
       expect(stderr.join("\n"), testCase.label).toContain(
-        `Effect UI Start diagnostics failed: ${testCase.message}`
+        `Effect UI Start diagnostics failed: ${testCase.message}`,
       );
     }
   });
@@ -8619,7 +8722,7 @@ describe("Effect UI Start", () => {
         version: 1 as const,
         routes: { version: 1 as const, entries: [], modules: [], routeDirectory: "src/routes" },
         serverFunctions: { version: 1 as const, rpcPath: "/__effect-ui/rpc", entries: [] },
-        actions: { version: 1 as const, actionPath: "/__effect-ui/action", entries: [] }
+        actions: { version: 1 as const, actionPath: "/__effect-ui/action", entries: [] },
       },
       diagnostics: {
         version: 1 as const,
@@ -8641,14 +8744,14 @@ describe("Effect UI Start", () => {
             preload: "present" as const,
             preloadResources: {
               status: "unknown" as const,
-              families: []
+              families: [],
             },
             preloadCollections: {
               status: "unknown" as const,
-              collections: []
+              collections: [],
             },
-            component: "present" as const
-          }
+            component: "present" as const,
+          },
         ],
         serverFunctionModules: [
           {
@@ -8658,20 +8761,20 @@ describe("Effect UI Start", () => {
               module: "src/project/project.server.ts",
               exportName: "loadProject",
               moduleKind: "server-only" as const,
-              hasHandler: true
+              hasHandler: true,
             },
             client: {
               _tag: "Rpc" as const,
-              rpcPath: "/__effect-ui/rpc"
+              rpcPath: "/__effect-ui/rpc",
             },
             wire: {
               inputSchema: true,
               outputSchema: false,
               errorSchema: false,
               complete: false,
-              missing: ["output" as const, "error" as const]
-            }
-          }
+              missing: ["output" as const, "error" as const],
+            },
+          },
         ],
         actionModules: [
           {
@@ -8680,26 +8783,26 @@ describe("Effect UI Start", () => {
             server: {
               module: "src/project/project.actions.ts",
               exportName: "renameProject",
-              moduleKind: "server-only" as const
+              moduleKind: "server-only" as const,
             },
             client: {
               _tag: "Post" as const,
-              actionPath: "/__effect-ui/action"
+              actionPath: "/__effect-ui/action",
             },
             wire: {
               inputSchema: false,
               outputSchema: true,
               errorSchema: false,
               complete: false,
-              missing: ["input" as const, "error" as const]
+              missing: ["input" as const, "error" as const],
             },
             behavior: {
               invalidates: "unknown" as const,
               optimistic: "unknown" as const,
               retry: "present" as const,
-              concurrency: "unknown" as const
-            }
-          }
+              concurrency: "unknown" as const,
+            },
+          },
         ],
         resourceFamilies: [],
         resourceTags: [],
@@ -8710,7 +8813,7 @@ describe("Effect UI Start", () => {
         actionPath: "/__effect-ui/action",
         schemaCoverage: {
           serverFunctions: { total: 1, input: 1, output: 0, error: 0 },
-          actions: { total: 1, input: 0, output: 1, error: 0 }
+          actions: { total: 1, input: 0, output: 1, error: 0 },
         },
         missingSchemas: [
           {
@@ -8718,15 +8821,15 @@ describe("Effect UI Start", () => {
             name: "Project.load",
             input: true,
             output: false,
-            error: false
+            error: false,
           },
           {
             kind: "action" as const,
             name: "Project.rename",
             input: false,
             output: true,
-            error: false
-          }
+            error: false,
+          },
         ],
         unknownActionBehavior: [
           {
@@ -8735,8 +8838,8 @@ describe("Effect UI Start", () => {
             invalidates: "unknown" as const,
             optimistic: "unknown" as const,
             retry: "present" as const,
-            concurrency: "unknown" as const
-          }
+            concurrency: "unknown" as const,
+          },
         ],
         unknownRoutePreloadResources: [
           {
@@ -8748,9 +8851,9 @@ describe("Effect UI Start", () => {
             preload: "present" as const,
             preloadResources: {
               status: "unknown" as const,
-              families: []
-            }
-          }
+              families: [],
+            },
+          },
         ],
         unknownRoutePreloadCollections: [
           {
@@ -8762,12 +8865,12 @@ describe("Effect UI Start", () => {
             preload: "present" as const,
             preloadCollections: {
               status: "unknown" as const,
-              collections: []
-            }
-          }
-        ]
+              collections: [],
+            },
+          },
+        ],
       },
-      diagnosticsPolicyViolations: []
+      diagnosticsPolicyViolations: [],
     };
     const report = createStartDiagnosticsReport(loadedDiagnostics);
     const formatted = formatStartDiagnosticsReport(report);
@@ -8776,8 +8879,8 @@ describe("Effect UI Start", () => {
       runStartDiagnosticsCli(["diagnostics"], {
         stdout: (text) => stdout.push(text),
         stderr: () => undefined,
-        loadDiagnosticsEffect: () => Effect.succeed(loadedDiagnostics)
-      })
+        loadDiagnosticsEffect: () => Effect.succeed(loadedDiagnostics),
+      }),
     );
 
     expect(report.status).toBe("needs-attention");
@@ -8804,8 +8907,8 @@ describe("Effect UI Start", () => {
       preload: "present" as const,
       preloadResources: {
         status: "unknown" as const,
-        families: []
-      }
+        families: [],
+      },
     };
     const failure = Object.assign(new Error("Routes with preload must declare preloadResources."), {
       name: "StartAppGraphDiagnosticsPolicyError",
@@ -8813,8 +8916,8 @@ describe("Effect UI Start", () => {
         {
           _tag: "UnknownRoutePreloadResources",
           message: "Routes with preload must declare preloadResources.",
-          routes: [unknownPreloadRoute]
-        }
+          routes: [unknownPreloadRoute],
+        },
       ],
       diagnostics: {
         version: 1 as const,
@@ -8836,14 +8939,14 @@ describe("Effect UI Start", () => {
             preload: "present" as const,
             preloadResources: {
               status: "unknown" as const,
-              families: []
+              families: [],
             },
             preloadCollections: {
               status: "none" as const,
-              collections: []
+              collections: [],
             },
-            component: "present" as const
-          }
+            component: "present" as const,
+          },
         ],
         serverFunctionModules: [],
         actionModules: [],
@@ -8856,20 +8959,20 @@ describe("Effect UI Start", () => {
         actionPath: "/__effect-ui/action",
         schemaCoverage: {
           serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
-          actions: { total: 0, input: 0, output: 0, error: 0 }
+          actions: { total: 0, input: 0, output: 0, error: 0 },
         },
         missingSchemas: [],
         unknownActionBehavior: [],
         unknownRoutePreloadResources: [unknownPreloadRoute],
-        unknownRoutePreloadCollections: []
-      }
+        unknownRoutePreloadCollections: [],
+      },
     });
     const result = await Effect.runPromise(
       runStartDiagnosticsCli(["diagnostics"], {
         stdout: () => undefined,
         stderr: (text) => stderr.push(text),
-        loadDiagnosticsEffect: () => Effect.fail(failure)
-      })
+        loadDiagnosticsEffect: () => Effect.fail(failure),
+      }),
     );
 
     expect(result.exitCode).toBe(1);
@@ -8888,8 +8991,8 @@ describe("Effect UI Start", () => {
             name: "Start.Project.policy",
             module: "/src/project/project.server.ts",
             exportName: "getProject",
-            inputSchema: true
-          }
+            inputSchema: true,
+          },
         ],
         actionManifest: [
           {
@@ -8897,10 +9000,10 @@ describe("Effect UI Start", () => {
             module: "/src/project/project.actions.ts",
             exportName: "RenameProject",
             inputSchema: true,
-            outputSchema: true
-          }
-        ]
-      })
+            outputSchema: true,
+          },
+        ],
+      }),
     );
     const exit = await Effect.runPromiseExit(validateStartBuildPolicyEffect(graph));
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
@@ -8912,19 +9015,19 @@ describe("Effect UI Start", () => {
           kind: "serverFunction",
           name: "Start.Project.policy",
           input: true,
-          output: false
-        }
-      ]
+          output: false,
+        },
+      ],
     });
     await expect(
       Effect.runPromise(
         validateStartBuildPolicyEffect(graph, {
           wireSchemas: {
             requireInput: true,
-            requireOutput: false
-          }
-        })
-      )
+            requireOutput: false,
+          },
+        }),
+      ),
     ).resolves.toBeUndefined();
   });
 
@@ -8938,19 +9041,19 @@ describe("Effect UI Start", () => {
             module: "/src/project/project.actions.ts",
             exportName: "RenameProject",
             inputSchema: true,
-            outputSchema: true
-          }
-        ]
-      })
+            outputSchema: true,
+          },
+        ],
+      }),
     );
     const exit = await Effect.runPromiseExit(
       validateStartBuildPolicyEffect(graph, {
         wireSchemas: false,
         actionBehavior: {
           requireInvalidates: true,
-          requireConcurrency: true
-        }
-      })
+          requireConcurrency: true,
+        },
+      }),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -8961,9 +9064,9 @@ describe("Effect UI Start", () => {
           kind: "action",
           name: "Start.Project.policy.unknown-action",
           invalidates: "unknown",
-          concurrency: "unknown"
-        }
-      ]
+          concurrency: "unknown",
+        },
+      ],
     });
   });
 
@@ -8975,9 +9078,9 @@ describe("Effect UI Start", () => {
           name: "Start.Project.buildWall",
           module: "/src/project/project.server.ts",
           exportName: "getProject",
-          inputSchema: true
-        }
-      ]
+          inputSchema: true,
+        },
+      ],
     });
 
     expect(() => {
@@ -8989,9 +9092,13 @@ describe("Effect UI Start", () => {
     const defaultHandler = () => new Response("default");
     const namedHandler = () => new Response("named");
 
-    expect(resolveStartHandler({ default: defaultHandler })(new Request("https://example.com"))).toBeInstanceOf(Response);
+    expect(
+      resolveStartHandler({ default: defaultHandler })(new Request("https://example.com")),
+    ).toBeInstanceOf(Response);
     expect(resolveStartHandler({ handleRequest: namedHandler })).toBe(namedHandler);
-    expect(resolveStartHandler({ custom: namedHandler }, { handlerExport: "custom" })).toBe(namedHandler);
+    expect(resolveStartHandler({ custom: namedHandler }, { handlerExport: "custom" })).toBe(
+      namedHandler,
+    );
     expect(() => resolveStartHandler({})).toThrow(StartHandlerNotFound);
   });
 
@@ -8999,29 +9106,29 @@ describe("Effect UI Start", () => {
     const loadedEntries: Array<string> = [];
     const transformedUrls: Array<string> = [];
     const server = {
-      ssrLoadModule: (id: string) => Effect.sync(() => {
-        loadedEntries.push(id);
-        return {
-          default: (request: Request) =>
-            Effect.succeed(
-              new Response(`<html><body>${new URL(request.url).pathname}</body></html>`, {
-                headers: { "content-type": "text/html" }
-              })
-            )
-        };
-      }),
-      transformIndexHtml: (url: string, html: string) => Effect.sync(() => {
-        transformedUrls.push(url);
-        return html.replace("</body>", "<script>dev()</script></body>");
-      })
+      ssrLoadModule: (id: string) =>
+        Effect.sync(() => {
+          loadedEntries.push(id);
+          return {
+            default: (request: Request) =>
+              Effect.succeed(
+                new Response(`<html><body>${new URL(request.url).pathname}</body></html>`, {
+                  headers: { "content-type": "text/html" },
+                }),
+              ),
+          };
+        }),
+      transformIndexHtml: (url: string, html: string) =>
+        Effect.sync(() => {
+          transformedUrls.push(url);
+          return html.replace("</body>", "<script>dev()</script></body>");
+        }),
     };
 
     const response = await Effect.runPromise(
-      handleSsrDevRequest(
-        server,
-        new Request("https://example.com/projects/atlas?tab=activity"),
-        { serverEntry: "/src/server.tsx" }
-      )
+      handleSsrDevRequest(server, new Request("https://example.com/projects/atlas?tab=activity"), {
+        serverEntry: "/src/server.tsx",
+      }),
     );
     const html = await response.text();
 
@@ -9033,8 +9140,8 @@ describe("Effect UI Start", () => {
 
     await expect(
       Effect.runPromise(
-        handleSsrDevRequestEffect(server, new Request("https://example.com/projects/kepler"))
-      )
+        handleSsrDevRequestEffect(server, new Request("https://example.com/projects/kepler")),
+      ),
     ).resolves.toBeInstanceOf(Response);
   });
 
@@ -9042,31 +9149,31 @@ describe("Effect UI Start", () => {
     const traces: DevtoolsRequestTrace[] = [];
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       onRequestTrace: (trace) =>
         Effect.sync(() => {
           traces.push(trace);
         }),
-      render: () => "<html><body>home</body></html>"
+      render: () => "<html><body>home</body></html>",
     });
     const server = {
       ssrLoadModule: (_id: string) =>
         Effect.succeed({
-          default: handler
+          default: handler,
         }),
       transformIndexHtml: (_url: string, _html: string) =>
         Effect.fail(
           new StartDevServerError({
             operation: "transform-html",
-            error: new Error("vite transform failed")
-          })
-        )
+            error: new Error("vite transform failed"),
+          }),
+        ),
     };
 
     const exit = await Effect.runPromiseExit(
-      handleSsrDevRequestEffect(server, new Request("https://example.com/"))
+      handleSsrDevRequestEffect(server, new Request("https://example.com/")),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -9077,12 +9184,12 @@ describe("Effect UI Start", () => {
       streams: [
         {
           name: "response",
-          state: "errored"
-        }
+          state: "errored",
+        },
       ],
       teardown: {
-        reason: "dev-ssr-host-transform"
-      }
+        reason: "dev-ssr-host-transform",
+      },
     });
   });
 
@@ -9093,7 +9200,7 @@ describe("Effect UI Start", () => {
     const traces: DevtoolsRequestTrace[] = [];
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       onRequestTrace: (trace) =>
@@ -9109,33 +9216,33 @@ describe("Effect UI Start", () => {
             },
             cancel(reason) {
               Effect.runSync(Deferred.succeed(cancelled, reason).pipe(Effect.ignore));
-            }
+            },
           }),
           {
-            headers: { "content-type": "text/html" }
-          }
-        )
+            headers: { "content-type": "text/html" },
+          },
+        ),
     });
     const server = {
       ssrLoadModule: (_id: string) =>
         Effect.succeed({
-          default: handler
+          default: handler,
         }),
-      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html)
+      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html),
     };
 
     const fiber = Effect.runFork(
       handleSsrDevRequestEffect(
         server,
-        new Request("https://example.com/", { signal: controller.signal })
-      )
+        new Request("https://example.com/", { signal: controller.signal }),
+      ),
     );
 
     await Effect.runPromise(Deferred.await(started));
     controller.abort("dev-client-disconnect");
-    await expect(Effect.runPromise(
-      Deferred.await(cancelled).pipe(Effect.timeout("1 second"))
-    )).resolves.toBe("dev-client-disconnect");
+    await expect(
+      Effect.runPromise(Deferred.await(cancelled).pipe(Effect.timeout("1 second"))),
+    ).resolves.toBe("dev-client-disconnect");
     const exit = await Effect.runPromise(Fiber.await(fiber));
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -9146,12 +9253,12 @@ describe("Effect UI Start", () => {
       streams: [
         {
           name: "response",
-          state: "cancelled"
-        }
+          state: "cancelled",
+        },
       ],
       teardown: {
-        reason: "dev-client-disconnect"
-      }
+        reason: "dev-client-disconnect",
+      },
     });
   });
 
@@ -9160,19 +9267,19 @@ describe("Effect UI Start", () => {
     const traces: DevtoolsRequestTrace[] = [];
     const app = defineApp({
       routes: [route("/", {})] as const,
-      client: {}
+      client: {},
     });
     const handler = createRequestHandler(app, {
       onRequestTrace: (trace) =>
         Effect.sync(() => {
           traces.push(trace);
         }),
-      render: () => "<html><body>home</body></html>"
+      render: () => "<html><body>home</body></html>",
     });
     const server = {
       ssrLoadModule: (_id: string) =>
         Effect.succeed({
-          default: handler
+          default: handler,
         }),
       transformIndexHtml: (_url: string, _html: string) =>
         Effect.sync(() => {
@@ -9182,18 +9289,18 @@ describe("Effect UI Start", () => {
             Effect.fail(
               new StartDevServerError({
                 operation: "transform-html",
-                error: new Error("vite transform failed")
-              })
-            )
-          )
-        )
+                error: new Error("vite transform failed"),
+              }),
+            ),
+          ),
+        ),
     };
 
     const exit = await Effect.runPromiseExit(
       handleSsrDevRequestEffect(
         server,
-        new Request("https://example.com/", { signal: controller.signal })
-      )
+        new Request("https://example.com/", { signal: controller.signal }),
+      ),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -9204,12 +9311,12 @@ describe("Effect UI Start", () => {
       streams: [
         {
           name: "response",
-          state: "errored"
-        }
+          state: "errored",
+        },
       ],
       teardown: {
-        reason: "dev-ssr-host-transform"
-      }
+        reason: "dev-ssr-host-transform",
+      },
     });
   });
 
@@ -9229,26 +9336,28 @@ describe("Effect UI Start", () => {
                 },
                 cancel(reason) {
                   Effect.runSync(Deferred.succeed(cancelled, reason).pipe(Effect.ignore));
-                }
+                },
               }),
               {
-                headers: { "content-type": "text/html" }
-              }
-            )
+                headers: { "content-type": "text/html" },
+              },
+            ),
         }),
-      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html)
+      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html),
     };
 
     const fiber = Effect.runFork(
       handleSsrDevRequestEffect(
         server,
-        new Request("https://example.com/slow", { signal: controller.signal })
-      )
+        new Request("https://example.com/slow", { signal: controller.signal }),
+      ),
     );
 
     await Effect.runPromise(Deferred.await(started));
     controller.abort("dev-client-disconnect");
-    const cancelReason = await Effect.runPromise(Deferred.await(cancelled).pipe(Effect.timeout("1 second")));
+    const cancelReason = await Effect.runPromise(
+      Deferred.await(cancelled).pipe(Effect.timeout("1 second")),
+    );
     const exit = await Effect.runPromise(Fiber.await(fiber));
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -9265,19 +9374,22 @@ describe("Effect UI Start", () => {
           default: () =>
             Effect.gen(function* () {
               const scope = yield* Scope.Scope;
-              yield* Scope.addFinalizer(scope, Effect.sync(() => {
-                finalized = true;
-              }));
+              yield* Scope.addFinalizer(
+                scope,
+                Effect.sync(() => {
+                  finalized = true;
+                }),
+              );
               return new Response("<html><body>scoped</body></html>", {
-                headers: { "content-type": "text/html" }
+                headers: { "content-type": "text/html" },
               });
-            })
+            }),
         }),
-      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html)
+      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html),
     };
 
     const response = await Effect.runPromise(
-      handleSsrDevRequestEffect(server, new Request("https://example.com/scoped"))
+      handleSsrDevRequestEffect(server, new Request("https://example.com/scoped")),
     );
 
     await expect(response.text()).resolves.toContain("scoped");
@@ -9289,44 +9401,52 @@ describe("Effect UI Start", () => {
       readonly value: string;
     }
     const DevSsrToken = Context.Service<DevSsrToken>("@effect-ui/start/test/DevSsrToken");
-    const runtime = makeRuntime(
-      Layer.succeed(DevSsrToken)({ value: "runtime-token" })
-    );
+    const runtime = makeRuntime(Layer.succeed(DevSsrToken)({ value: "runtime-token" }));
     const done = Effect.runSync(Deferred.make<void>());
     const headers = new Map<string, string | readonly string[]>();
     const nextErrors: Array<unknown> = [];
     let middleware:
-      | ((request: IncomingMessage, response: ServerResponse, next: (error?: unknown) => void) => void)
+      | ((
+          request: IncomingMessage,
+          response: ServerResponse,
+          next: (error?: unknown) => void,
+        ) => void)
       | undefined;
     const plugin = effectUiStart({
       serverEntry: "/src/server.tsx",
-      devSsr: { runtime }
+      devSsr: { runtime },
     });
     const server = {
       ssrLoadModule: async () => ({
         default: () =>
           DevSsrToken.use((token) =>
-            Effect.succeed(new Response(null, {
-              status: 204,
-              headers: { "x-dev-ssr-token": token.value }
-            }))
-          )
+            Effect.succeed(
+              new Response(null, {
+                status: 204,
+                headers: { "x-dev-ssr-token": token.value },
+              }),
+            ),
+          ),
       }),
       transformIndexHtml: async (_url: string, html: string) => html,
       middlewares: {
         use: (
-          handler: (request: IncomingMessage, response: ServerResponse, next: (error?: unknown) => void) => void
+          handler: (
+            request: IncomingMessage,
+            response: ServerResponse,
+            next: (error?: unknown) => void,
+          ) => void,
         ) => {
           middleware = handler;
-        }
-      }
+        },
+      },
     };
     const request = {
       headers: { host: "example.com", accept: "text/html" },
       method: "GET",
       url: "/",
       once: () => request,
-      off: () => request
+      off: () => request,
     } as unknown as IncomingMessage;
     const response = {
       writableEnded: false,
@@ -9338,7 +9458,7 @@ describe("Effect UI Start", () => {
         Effect.runSync(Deferred.succeed(done, undefined).pipe(Effect.ignore));
       },
       once: () => response,
-      off: () => response
+      off: () => response,
     } as unknown as ServerResponse;
 
     try {
@@ -9361,7 +9481,11 @@ describe("Effect UI Start", () => {
     let requestOffCount = 0;
     let responseOffCount = 0;
     let middleware:
-      | ((request: IncomingMessage, response: ServerResponse, next: (error?: unknown) => void) => void)
+      | ((
+          request: IncomingMessage,
+          response: ServerResponse,
+          next: (error?: unknown) => void,
+        ) => void)
       | undefined;
     const plugin = effectUiStart({
       serverEntry: "/src/server.tsx",
@@ -9369,20 +9493,24 @@ describe("Effect UI Start", () => {
         runtime: {
           runFork: () => {
             throw setupError;
-          }
-        }
-      }
+          },
+        },
+      },
     });
     const server = {
       ssrLoadModule: async () => ({}),
       transformIndexHtml: async (_url: string, html: string) => html,
       middlewares: {
         use: (
-          handler: (request: IncomingMessage, response: ServerResponse, next: (error?: unknown) => void) => void
+          handler: (
+            request: IncomingMessage,
+            response: ServerResponse,
+            next: (error?: unknown) => void,
+          ) => void,
         ) => {
           middleware = handler;
-        }
-      }
+        },
+      },
     };
     const request = {
       headers: { host: "example.com", accept: "text/html" },
@@ -9392,7 +9520,7 @@ describe("Effect UI Start", () => {
       off: () => {
         requestOffCount += 1;
         return request;
-      }
+      },
     } as unknown as IncomingMessage;
     const response = {
       writableEnded: false,
@@ -9400,7 +9528,7 @@ describe("Effect UI Start", () => {
       off: () => {
         responseOffCount += 1;
         return response;
-      }
+      },
     } as unknown as ServerResponse;
 
     plugin.configureServer(server)();
@@ -9422,9 +9550,12 @@ describe("Effect UI Start", () => {
           default: () =>
             Effect.gen(function* () {
               const scope = yield* Scope.Scope;
-              yield* Scope.addFinalizer(scope, Effect.sync(() => {
-                finalized = true;
-              }));
+              yield* Scope.addFinalizer(
+                scope,
+                Effect.sync(() => {
+                  finalized = true;
+                }),
+              );
               return new Response(
                 new ReadableStream<Uint8Array>({
                   pull(controller) {
@@ -9432,22 +9563,23 @@ describe("Effect UI Start", () => {
                   },
                   cancel(reason) {
                     cancelled = reason;
-                  }
+                  },
                 }),
                 {
-                  headers: { "content-type": "text/plain" }
-                }
+                  headers: { "content-type": "text/plain" },
+                },
               );
-            })
+            }),
         }),
-      transformIndexHtml: (_url: string, html: string) => Effect.sync(() => {
-        expect.fail("text/plain pass-through responses should not be transformed");
-        return html;
-      })
+      transformIndexHtml: (_url: string, html: string) =>
+        Effect.sync(() => {
+          expect.fail("text/plain pass-through responses should not be transformed");
+          return html;
+        }),
     };
 
     const response = await Effect.runPromise(
-      handleSsrDevRequestEffect(server, new Request("https://example.com/pass-through"))
+      handleSsrDevRequestEffect(server, new Request("https://example.com/pass-through")),
     );
     const reader = response.body!.getReader();
 
@@ -9467,15 +9599,15 @@ describe("Effect UI Start", () => {
       transformIndexHtml: async (url: string, html: string) => `${url}:${html}`,
       ssrFixStacktrace: (error) => {
         fixedErrors.push(error);
-      }
+      },
     });
 
     await expect(Effect.runPromise(server.ssrLoadModule("/src/server.tsx"))).resolves.toEqual({
-      id: "/src/server.tsx"
+      id: "/src/server.tsx",
     });
-    await expect(Effect.runPromise(server.transformIndexHtml("/projects", "<html />"))).resolves.toBe(
-      "/projects:<html />"
-    );
+    await expect(
+      Effect.runPromise(server.transformIndexHtml("/projects", "<html />")),
+    ).resolves.toBe("/projects:<html />");
 
     const error = new Error("stack");
     await Effect.runPromise(server.ssrFixStacktrace?.(error) ?? Effect.void);
@@ -9485,7 +9617,7 @@ describe("Effect UI Start", () => {
       ssrLoadModule: async () => {
         throw new Error("load failed");
       },
-      transformIndexHtml: async (_url: string, html: string) => html
+      transformIndexHtml: async (_url: string, html: string) => html,
     });
     const exit = await Effect.runPromiseExit(failing.ssrLoadModule("/src/server.tsx"));
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
@@ -9498,13 +9630,13 @@ describe("Effect UI Start", () => {
     const server = {
       ssrLoadModule: (_id: string) =>
         Effect.succeed({
-          default: () => Effect.runPromise(Effect.succeed(new Response("promise")))
+          default: () => Effect.runPromise(Effect.succeed(new Response("promise"))),
         }),
-      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html)
+      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html),
     };
 
     const exit = await Effect.runPromiseExit(
-      handleSsrDevRequestEffect(server, new Request("https://example.com/promise"))
+      handleSsrDevRequestEffect(server, new Request("https://example.com/promise")),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -9512,8 +9644,8 @@ describe("Effect UI Start", () => {
     expect(failure).toMatchObject({
       operation: "run-handler",
       error: expect.objectContaining({
-        _tag: "EffectInputPromiseRejected"
-      })
+        _tag: "EffectInputPromiseRejected",
+      }),
     });
   });
 
@@ -9521,13 +9653,13 @@ describe("Effect UI Start", () => {
     const server = {
       ssrLoadModule: (_id: string) =>
         Effect.succeed({
-          default: () => "not a response" as never
+          default: () => "not a response" as never,
         }),
-      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html)
+      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html),
     };
 
     const exit = await Effect.runPromiseExit(
-      handleSsrDevRequestEffect(server, new Request("https://example.com/invalid"))
+      handleSsrDevRequestEffect(server, new Request("https://example.com/invalid")),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -9535,8 +9667,8 @@ describe("Effect UI Start", () => {
     expect(failure).toMatchObject({
       operation: "run-handler",
       error: expect.objectContaining({
-        _tag: "StartHandlerInvalidResponse"
-      })
+        _tag: "StartHandlerInvalidResponse",
+      }),
     });
   });
 
@@ -9545,21 +9677,22 @@ describe("Effect UI Start", () => {
     await Effect.runPromise(
       handleSsrDevMiddlewareEffect(
         {
-          ssrLoadModule: () => Effect.sync(() => {
-            expect.fail("should not load static requests");
-          }),
-          transformIndexHtml: (_url, html) => Effect.succeed(html)
+          ssrLoadModule: () =>
+            Effect.sync(() => {
+              expect.fail("should not load static requests");
+            }),
+          transformIndexHtml: (_url, html) => Effect.succeed(html),
         },
         {
           headers: {},
           method: "GET",
-          url: "/src/main.ts"
+          url: "/src/main.ts",
         } as IncomingMessage,
         {} as ServerResponse,
         () => {
           nextCalls += 1;
-        }
-      )
+        },
+      ),
     );
 
     expect(nextCalls).toBe(1);
@@ -9570,24 +9703,25 @@ describe("Effect UI Start", () => {
       Effect.runPromise(
         handleSsrDevMiddlewareEffect(
           {
-            ssrLoadModule: () => Effect.sync(() => {
-              loadedStatic = true;
-              return {};
-            }),
-            transformIndexHtml: (_url, html) => Effect.succeed(html)
+            ssrLoadModule: () =>
+              Effect.sync(() => {
+                loadedStatic = true;
+                return {};
+              }),
+            transformIndexHtml: (_url, html) => Effect.succeed(html),
           },
           {
             headers: {},
             method: "GET",
-            url: "/src/static.ts"
+            url: "/src/static.ts",
           } as IncomingMessage,
           {} as ServerResponse,
           () => {
             throwingNextCalls += 1;
             throw new Error("pass-through next failed");
-          }
-        )
-      )
+          },
+        ),
+      ),
     ).resolves.toBeUndefined();
 
     expect(throwingNextCalls).toBe(1);
@@ -9600,21 +9734,22 @@ describe("Effect UI Start", () => {
         {
           ssrLoadModule: () => Effect.succeed({}),
           transformIndexHtml: (_url, html) => Effect.succeed(html),
-          ssrFixStacktrace: (error) => Effect.sync(() => {
-            fixedErrors.push(error);
-          })
+          ssrFixStacktrace: (error) =>
+            Effect.sync(() => {
+              fixedErrors.push(error);
+            }),
         },
         {
           headers: { host: "example.com" },
           method: "GET",
-          url: "/projects/atlas"
+          url: "/projects/atlas",
         } as IncomingMessage,
         {} as ServerResponse,
         (error) => {
           nextErrors.push(error);
         },
-        { serverEntry: "/src/server.tsx" }
-      )
+        { serverEntry: "/src/server.tsx" },
+      ),
     );
 
     expect(nextErrors).toHaveLength(1);
@@ -9630,7 +9765,7 @@ describe("Effect UI Start", () => {
       setHeader: () => undefined,
       end: () => {
         responseEnded = true;
-      }
+      },
     } as unknown as ServerResponse;
 
     await Effect.runPromise(
@@ -9641,18 +9776,18 @@ describe("Effect UI Start", () => {
               default: (request: Request) => {
                 handledUrl = request.url;
                 return new Response(null, { status: 204 });
-              }
+              },
             }),
-          transformIndexHtml: (_url, html) => Effect.succeed(html)
+          transformIndexHtml: (_url, html) => Effect.succeed(html),
         },
         {
           headers: {
             host: "internal.local",
             "x-forwarded-proto": "https",
-            "x-forwarded-host": "public.example.com"
+            "x-forwarded-host": "public.example.com",
           },
           method: "GET",
-          url: "/settings"
+          url: "/settings",
         } as IncomingMessage,
         response,
         (error) => {
@@ -9660,9 +9795,9 @@ describe("Effect UI Start", () => {
         },
         {
           serverEntry: "/src/server.tsx",
-          nodeRequest: { trustForwardedHeaders: false }
-        }
-      )
+          nodeRequest: { trustForwardedHeaders: false },
+        },
+      ),
     );
 
     expect(nextErrors).toEqual([]);
@@ -9674,10 +9809,10 @@ describe("Effect UI Start", () => {
     const request = Object.assign(new EventEmitter(), {
       headers: {
         accept: "text/html",
-        host: "example.com"
+        host: "example.com",
       },
       method: "GET",
-      url: "/projects/atlas"
+      url: "/projects/atlas",
     }) as unknown as IncomingMessage;
     const responseEvents = new EventEmitter();
     const responseState = { writableEnded: false };
@@ -9692,7 +9827,7 @@ describe("Effect UI Start", () => {
       end: () => {
         responseState.writableEnded = true;
         responseEvents.emit("finish");
-      }
+      },
     }) as unknown as ServerResponse;
     const cancelledReads: Array<unknown> = [];
     const nextErrors: Array<unknown> = [];
@@ -9702,7 +9837,7 @@ describe("Effect UI Start", () => {
       },
       cancel: (reason) => {
         cancelledReads.push(reason);
-      }
+      },
     });
 
     const fiber = Effect.runFork(
@@ -9712,20 +9847,21 @@ describe("Effect UI Start", () => {
             Effect.succeed({
               default: () =>
                 new Response(body, {
-                  headers: { "content-type": "text/html" }
-                })
+                  headers: { "content-type": "text/html" },
+                }),
             }),
-          transformIndexHtml: () => Effect.sync(() => {
-            expect.fail("aborted dev SSR reads should not transform HTML");
-          })
+          transformIndexHtml: () =>
+            Effect.sync(() => {
+              expect.fail("aborted dev SSR reads should not transform HTML");
+            }),
         },
         request,
         response,
         (error) => {
           nextErrors.push(error);
         },
-        { serverEntry: "/src/server.tsx" }
-      )
+        { serverEntry: "/src/server.tsx" },
+      ),
     );
 
     await Effect.runPromise(Effect.sleep("20 millis"));
@@ -9746,7 +9882,7 @@ describe("Effect UI Start", () => {
       ssrFixStacktrace: () => {
         fixAttempts += 1;
         throw new Error("stack trace fix failed");
-      }
+      },
     });
 
     await expect(
@@ -9756,15 +9892,15 @@ describe("Effect UI Start", () => {
           {
             headers: { host: "example.com" },
             method: "GET",
-            url: "/projects/atlas"
+            url: "/projects/atlas",
           } as IncomingMessage,
           {} as ServerResponse,
           (error) => {
             nextErrors.push(error);
           },
-          { serverEntry: "/src/server.tsx" }
-        )
-      )
+          { serverEntry: "/src/server.tsx" },
+        ),
+      ),
     ).resolves.toBeUndefined();
 
     expect(fixAttempts).toBe(1);
@@ -9776,7 +9912,7 @@ describe("Effect UI Start", () => {
     let nextCalls = 0;
     const server = startDevServerFromVite({
       ssrLoadModule: async () => ({}),
-      transformIndexHtml: async (_url: string, html: string) => html
+      transformIndexHtml: async (_url: string, html: string) => html,
     });
 
     await expect(
@@ -9786,16 +9922,16 @@ describe("Effect UI Start", () => {
           {
             headers: { host: "example.com" },
             method: "GET",
-            url: "/projects/atlas"
+            url: "/projects/atlas",
           } as IncomingMessage,
           {} as ServerResponse,
           () => {
             nextCalls += 1;
             throw new Error("next failed");
           },
-          { serverEntry: "/src/server.tsx" }
-        )
-      )
+          { serverEntry: "/src/server.tsx" },
+        ),
+      ),
     ).resolves.toBeUndefined();
 
     expect(nextCalls).toBe(1);

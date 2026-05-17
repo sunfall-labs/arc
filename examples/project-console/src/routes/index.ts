@@ -5,8 +5,6 @@ import { ProjectSummaries } from "../project-collections.js";
 const RouteBuilder = defineFileRoute("/");
 
 export const Route = RouteBuilder.preload({
-  resources: [
-    RouteBuilder.resource(ProjectList, () => "all" as const)
-  ],
-  collections: [ProjectSummaries]
+  resources: [RouteBuilder.resource(ProjectList, () => "all" as const)],
+  collections: [ProjectSummaries],
 }).route();

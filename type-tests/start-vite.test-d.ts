@@ -51,7 +51,7 @@ import {
   type StartDevServer,
   type StartSsrHandlerModule,
   type StartViteDevServer,
-  type StartViteDevSsrOptions
+  type StartViteDevSsrOptions,
 } from "@effect-ui/start/vite";
 
 const viteExports: Array<unknown> = [
@@ -88,18 +88,18 @@ const viteExports: Array<unknown> = [
   validateStartBuildPolicyEffect,
   writeFileRouteDefinitionsFile,
   writeFileRouteDefinitionsFileEffect,
-  startDevServerFromVite
+  startDevServerFromVite,
 ];
 const diagnosticsBuildPolicyOptions = {
   buildPolicy: {
     wireSchemas: false,
     diagnostics: {
       routePreloadResources: {
-        requireDeclaredForPreload: false
+        requireDeclaredForPreload: false,
       },
-      routePreloadCollections: false
-    }
-  }
+      routePreloadCollections: false,
+    },
+  },
 } satisfies EffectUiStartOptions;
 type Assert<T extends true> = T;
 type StaticStartBuildPolicyErrors =
@@ -112,7 +112,9 @@ type _StartBuildPolicyErrorExcludesDiagnostics = Assert<
   Extract<
     StartBuildPolicyError,
     StartAppGraphUnknownRoutePreloadCollections | StartAppGraphUnknownRoutePreloadResources
-  > extends never ? true : false
+  > extends never
+    ? true
+    : false
 >;
 type ViteTypes =
   | EffectUiStartOptions
@@ -146,25 +148,24 @@ const devMiddlewareNext: StartDevMiddlewareNext = (error?: unknown) => {
 };
 const devSsrStartOptions = {
   devSsr: {
-    runtime: viteDevSsrRuntime
-  }
+    runtime: viteDevSsrRuntime,
+  },
 } satisfies EffectUiStartOptions;
 const devSsrOptions: StartViteDevSsrOptions<"dev-ssr-runtime"> = {
-  runtime: viteDevSsrRuntime
+  runtime: viteDevSsrRuntime,
 };
 const servicefulDevSsrEffect: Effect.Effect<Response, unknown, ViteDevSsrService> =
   handleSsrDevRequestEffect(servicefulDevSsrServer, new Request("https://example.com"));
-const servicefulDevSsrRequestAlias: typeof handleSsrDevRequestEffect =
-  handleSsrDevRequest;
+const servicefulDevSsrRequestAlias: typeof handleSsrDevRequestEffect = handleSsrDevRequest;
 const devSsrRequestOptions: HandleSsrDevRequestOptions = {
   serverEntry: defaultServerEntry,
   handlerExport: "handleRequest",
   rpcPath: "/__effect-ui/rpc",
-  actionPath: "/__effect-ui/action"
+  actionPath: "/__effect-ui/action",
 };
 const devSsrMiddlewareOptions: HandleSsrDevMiddlewareOptions = {
   ...devSsrRequestOptions,
-  runOptions: { signal: new AbortController().signal }
+  runOptions: { signal: new AbortController().signal },
 };
 const servicefulDevSsrMiddlewareEffect: Effect.Effect<void, never, ViteDevSsrService> =
   handleSsrDevMiddlewareEffect(
@@ -172,15 +173,15 @@ const servicefulDevSsrMiddlewareEffect: Effect.Effect<void, never, ViteDevSsrSer
     devSsrNodeRequest,
     devSsrNodeResponse,
     devMiddlewareNext,
-    devSsrMiddlewareOptions
+    devSsrMiddlewareOptions,
   );
 const hostDevSsrServer: StartDevServer = startDevServerFromVite(hostViteDevServer);
 const startDevServerError = new StartDevServerError({
   operation: "load-module",
-  error: "missing"
+  error: "missing",
 });
 const startHandlerNotFound = new StartHandlerNotFound({
-  exportName: "default"
+  exportName: "default",
 });
 void devSsrStartOptions;
 void devSsrOptions;
@@ -199,17 +200,15 @@ const discoveryOptions: FileRouteDiscoveryOptions = {
   root: viteRoot,
   routeDirectory: "src/routes",
   extensions: [".tsx"],
-  fileRouteGeneration: { outputFile: "src/routes/routeTree.gen.ts" }
+  fileRouteGeneration: { outputFile: "src/routes/routeTree.gen.ts" },
 };
 void discoveryOptions;
 declare const viteManifest: Parameters<typeof writeFileRouteDefinitionsFile>[1];
 declare const routeOutputFailure: FileRouteDefinitionsOutputPathError;
 declare const routeWriteFailure: FileRouteDefinitionsFileWriteError;
 const routeOutputGuidance: string = routeOutputFailure.guidance;
-const routeWriteOperation:
-  | "read-existing"
-  | "create-directory"
-  | "write-file" = routeWriteFailure.operation;
+const routeWriteOperation: "read-existing" | "create-directory" | "write-file" =
+  routeWriteFailure.operation;
 const routeDefinitionsWriteResult: FileRouteDefinitionsFileWriteResult | undefined =
   writeFileRouteDefinitionsFile(viteRoot, viteManifest);
 const routeDefinitionsWriteEffect: Effect.Effect<

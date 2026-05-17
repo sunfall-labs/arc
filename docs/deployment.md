@@ -33,11 +33,11 @@ import { createFetchHandler } from "@effect-ui/start-fetch";
 import { app } from "./app-definition.js";
 
 const fetch = createFetchHandler(createRequestHandlerEffect(app), {
-  runtime: app.runtime
+  runtime: app.runtime,
 });
 
 export default {
-  fetch
+  fetch,
 };
 ```
 
@@ -63,7 +63,7 @@ import { app } from "./app-definition.js";
 
 const handler = createNodeServerHandler(createRequestHandlerEffect(app), {
   runtime: app.runtime,
-  trustForwardedHeaders: true
+  trustForwardedHeaders: true,
 });
 
 createServer(handler).listen(3000);
@@ -99,11 +99,11 @@ import { createFetchHandler } from "@effect-ui/start-fetch";
 import { app } from "./app-definition.js";
 
 const fetch = createFetchHandler(createRequestHandlerEffect(app), {
-  runtime: app.runtime
+  runtime: app.runtime,
 });
 
 export default {
-  fetch
+  fetch,
 };
 ```
 
@@ -115,11 +115,11 @@ import { createFetchHandler } from "@effect-ui/start-fetch";
 import { app } from "./app-definition.js";
 
 const fetch = createFetchHandler(createRequestHandlerEffect(app), {
-  runtime: app.runtime
+  runtime: app.runtime,
 });
 
 Bun.serve({
-  fetch
+  fetch,
 });
 ```
 
@@ -138,8 +138,9 @@ deployment mode is explicit.
   are not split out yet. Node HTTP and generic Fetch hosts have package facades
   and platform recipes.
 - Static and SPA-only deployment remains a recipe, not a dedicated package.
-- Package publication remains blocked on the release decision to flip
-  `private` package manifests and publish real versions.
+- Package publication still needs final repository metadata and real version
+  numbers before npm release, but framework package manifests are already
+  publishable public scoped packages.
 
 Until platform-specific packages exist, keep those deployment integrations as
 small wrappers over `createRequestHandlerEffect(app)` and the tested adapters

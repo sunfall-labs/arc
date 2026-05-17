@@ -6,17 +6,14 @@ import {
   EffectInputPromiseRejected,
   Form,
   read,
-  Resource
+  Resource,
 } from "../src/index.js";
-import {
-  ActionResult,
-  type ActionResult as ActionResultValue
-} from "../src/action-result.js";
+import { ActionResult, type ActionResult as ActionResultValue } from "../src/action-result.js";
 
 describe("ActionResult", () => {
   const RenameInput = Schema.Struct({
     id: Schema.String,
-    name: Schema.String
+    name: Schema.String,
   });
 
   it("turns form validation into a typed success-channel result", () => {
@@ -30,7 +27,7 @@ describe("ActionResult", () => {
       validate: (values, validation) =>
         values.name.length < 3
           ? Effect.fail(validation.field("name", new ProjectNameTooShort({ minimum: 3 })))
-          : Effect.void
+          : Effect.void,
     });
 
     return Effect.runPromise(
@@ -45,10 +42,10 @@ describe("ActionResult", () => {
                 expect(error).toBeInstanceOf(ProjectNameTooShort);
               }
             }
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -69,7 +66,7 @@ describe("ActionResult", () => {
             : ActionResult.success({ id: "atlas" });
 
         return Effect.succeed(result);
-      }
+      },
     });
     const action = Action.use(SubmitProject);
 
@@ -87,39 +84,41 @@ describe("ActionResult", () => {
               _tag: "Success",
               value: {
                 _tag: "Redirect",
-                location: "/projects/atlas"
-              }
+                location: "/projects/atlas",
+              },
             });
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
-	  it("rejects Promise-shaped success and failure result payloads", () => {
-	    for (const build of [
-	      () => ActionResult.success(Promise.resolve({ id: "atlas" }) as never),
-	      () => ActionResult.successEffect(Promise.resolve({ id: "atlas" }) as never),
-	      () => ActionResult.failure(Promise.resolve("failed") as never),
-      () => ActionResult.failureEffect(Promise.resolve("failed") as never)
+  it("rejects Promise-shaped success and failure result payloads", () => {
+    for (const build of [
+      () => ActionResult.success(Promise.resolve({ id: "atlas" }) as never),
+      () => ActionResult.successEffect(Promise.resolve({ id: "atlas" }) as never),
+      () => ActionResult.failure(Promise.resolve("failed") as never),
+      () => ActionResult.failureEffect(Promise.resolve("failed") as never),
     ]) {
       try {
         build();
         throw new Error("expected ActionResult Promise payload rejection");
       } catch (error) {
         expect(error).toBeInstanceOf(EffectInputCallbackError);
-        expect((error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
-	      }
-	    }
-	  });
+        expect((error as EffectInputCallbackError).cause).toBeInstanceOf(
+          EffectInputPromiseRejected,
+        );
+      }
+    }
+  });
 
   it("rejects Effect-shaped success and failure result payloads", () => {
     for (const build of [
       () => ActionResult.success(Effect.succeed({ id: "atlas" }) as never),
       () => ActionResult.successEffect(Effect.succeed({ id: "atlas" }) as never),
       () => ActionResult.failure(Effect.succeed("failed") as never),
-      () => ActionResult.failureEffect(Effect.succeed("failed") as never)
+      () => ActionResult.failureEffect(Effect.succeed("failed") as never),
     ]) {
       try {
         build();
@@ -134,7 +133,7 @@ describe("ActionResult", () => {
   it("rejects Effect-shaped successes from ActionResult.fromEffect", () =>
     Effect.runPromise(
       Effect.exit(
-        ActionResult.fromEffect(Effect.succeed(Effect.succeed({ id: "atlas" })) as never)
+        ActionResult.fromEffect(Effect.succeed(Effect.succeed({ id: "atlas" })) as never),
       ).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
@@ -143,23 +142,24 @@ describe("ActionResult", () => {
               const defect = exit.cause.reasons.find((reason) => reason._tag === "Die");
               expect(defect?.defect).toBeInstanceOf(EffectInputCallbackError);
             }
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     ));
 
   it("rejects Promise-shaped and Effect-shaped invalidation entries", () => {
     const Project = Resource.family({
       name: "Project.action-result-invalidations",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const ref = Project("atlas");
 
     for (const build of [
       () => ActionResult.success("ok", { invalidates: [Promise.resolve(ref) as never] }),
       () => ActionResult.failure("failed", { invalidates: [Effect.succeed(ref) as never] }),
-      () => ActionResult.withInvalidation(ActionResult.success("ok"), [Promise.resolve(ref) as never])
+      () =>
+        ActionResult.withInvalidation(ActionResult.success("ok"), [Promise.resolve(ref) as never]),
     ]) {
       try {
         build();
@@ -170,37 +170,57 @@ describe("ActionResult", () => {
     }
   });
 
-	  it("rejects Promise-shaped validation error payloads", () => {
-	    for (const build of [
-	      () => ActionResult.fieldError<{ readonly name: string }, "name", string>("name", Promise.resolve("too short") as never),
-	      () => ActionResult.formError<{ readonly name: string }, string>(Promise.resolve("invalid") as never),
-	      () => ActionResult.fields<{ readonly name: string }, string>({
-	        name: [Promise.resolve("too short") as never]
-	      }),
-	      () => ActionResult.validation<{ readonly name: string }, string>({
-	        formErrors: [Promise.resolve("invalid") as never]
-	      })
-	    ]) {
-	      try {
-	        build();
-	        throw new Error("expected ActionResult Promise validation rejection");
-	      } catch (error) {
-	        expect(error).toBeInstanceOf(EffectInputCallbackError);
-	        expect((error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
-	      }
-	    }
-	  });
+  it("rejects Promise-shaped validation error payloads", () => {
+    for (const build of [
+      () =>
+        ActionResult.fieldError<{ readonly name: string }, "name", string>(
+          "name",
+          Promise.resolve("too short") as never,
+        ),
+      () =>
+        ActionResult.formError<{ readonly name: string }, string>(
+          Promise.resolve("invalid") as never,
+        ),
+      () =>
+        ActionResult.fields<{ readonly name: string }, string>({
+          name: [Promise.resolve("too short") as never],
+        }),
+      () =>
+        ActionResult.validation<{ readonly name: string }, string>({
+          formErrors: [Promise.resolve("invalid") as never],
+        }),
+    ]) {
+      try {
+        build();
+        throw new Error("expected ActionResult Promise validation rejection");
+      } catch (error) {
+        expect(error).toBeInstanceOf(EffectInputCallbackError);
+        expect((error as EffectInputCallbackError).cause).toBeInstanceOf(
+          EffectInputPromiseRejected,
+        );
+      }
+    }
+  });
 
   it("rejects Effect-shaped validation error payloads", () => {
     for (const build of [
-      () => ActionResult.fieldError<{ readonly name: string }, "name", string>("name", Effect.succeed("too short") as never),
-      () => ActionResult.formError<{ readonly name: string }, string>(Effect.succeed("invalid") as never),
-      () => ActionResult.fields<{ readonly name: string }, string>({
-        name: [Effect.succeed("too short") as never]
-      }),
-      () => ActionResult.validation<{ readonly name: string }, string>({
-        formErrors: [Effect.succeed("invalid") as never]
-      })
+      () =>
+        ActionResult.fieldError<{ readonly name: string }, "name", string>(
+          "name",
+          Effect.succeed("too short") as never,
+        ),
+      () =>
+        ActionResult.formError<{ readonly name: string }, string>(
+          Effect.succeed("invalid") as never,
+        ),
+      () =>
+        ActionResult.fields<{ readonly name: string }, string>({
+          name: [Effect.succeed("too short") as never],
+        }),
+      () =>
+        ActionResult.validation<{ readonly name: string }, string>({
+          formErrors: [Effect.succeed("invalid") as never],
+        }),
     ]) {
       try {
         build();
@@ -212,12 +232,12 @@ describe("ActionResult", () => {
     }
   });
 
-	  it("reports erased Promise-shaped ActionResult payloads from action runs as typed failures", () =>
+  it("reports erased Promise-shaped ActionResult payloads from action runs as typed failures", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const SubmitProject = Action.define<string, ActionResultValue<unknown>>({
           name: "project.submit.promise-result-payload",
-          run: () => ActionResult.success(Promise.resolve({ id: "atlas" }) as never)
+          run: () => ActionResult.success(Promise.resolve({ id: "atlas" }) as never),
         });
         const action = Action.use(SubmitProject);
 
@@ -229,14 +249,14 @@ describe("ActionResult", () => {
           expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
           expect(failure?.error).toMatchObject({
             operation: "ActionResult.success",
-            cause: expect.any(EffectInputPromiseRejected)
+            cause: expect.any(EffectInputPromiseRejected),
           });
           expect(read(action.state)).toMatchObject({
             _tag: "Failure",
-            input: "save"
+            input: "save",
           });
         }
-      })
+      }),
     ));
 
   it("captures domain failures as typed result data", () => {
@@ -246,9 +266,7 @@ describe("ActionResult", () => {
 
     return Effect.runPromise(
       Effect.exit(
-        ActionResult.fromEffect(
-          Effect.fail(new ProjectNameConflict({ name: "Atlas" }))
-        )
+        ActionResult.fromEffect(Effect.fail(new ProjectNameConflict({ name: "Atlas" }))),
       ).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
@@ -259,10 +277,10 @@ describe("ActionResult", () => {
                 expect(exit.value.error).toBeInstanceOf(ProjectNameConflict);
               }
             }
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -274,15 +292,15 @@ describe("ActionResult", () => {
     const error = new ProjectNameTooShort({ minimum: 3 });
     const result = ActionResult.fieldError<{ readonly name: string }, "name", ProjectNameTooShort>(
       "name",
-      error
+      error,
     );
 
     expect(result).toMatchObject({
       _tag: "ValidationFailure",
       fieldErrors: {
-        name: [error]
+        name: [error],
       },
-      formErrors: []
+      formErrors: [],
     });
   });
 
@@ -291,7 +309,7 @@ describe("ActionResult", () => {
     const load = vi.fn(() => Effect.succeed(value));
     const Count = Resource.family({
       name: "ActionResult.invalidate",
-      load
+      load,
     });
     const ref = Count(undefined);
 
@@ -302,7 +320,7 @@ describe("ActionResult", () => {
         Effect.sync(() => {
           value++;
           return ActionResult.withInvalidation(ActionResult.success(value), [ref]);
-        })
+        }),
     });
     const action = Action.use(Increment);
 
@@ -314,20 +332,22 @@ describe("ActionResult", () => {
         yield* Effect.sync(() => {
           expect(read(ref)).toBe(1);
           expect(load).toHaveBeenCalledTimes(2);
-          expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toEqual([ref.key]);
+          expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toEqual([
+            ref.key,
+          ]);
         });
-      })
+      }),
     );
   });
 
   it("snapshots and freezes invalidations carried by ActionResult values", () => {
     const First = Resource.family({
       name: "ActionResult.freeze-first",
-      load: () => Effect.succeed(1)
+      load: () => Effect.succeed(1),
     });
     const Second = Resource.family({
       name: "ActionResult.freeze-second",
-      load: () => Effect.succeed(2)
+      load: () => Effect.succeed(2),
     });
     const firstRef = First(undefined);
     const secondRef = Second(undefined);
@@ -348,7 +368,7 @@ describe("ActionResult", () => {
 
   it("snapshots and freezes redirect headers", () => {
     const headers = {
-      "x-action": "created"
+      "x-action": "created",
     };
 
     const result = ActionResult.redirect("/projects/atlas", { headers });
@@ -363,13 +383,13 @@ describe("ActionResult", () => {
     const fieldError = { code: "too-short" };
     const formError = { code: "invalid-form" };
     const fieldErrors = {
-      name: [fieldError]
+      name: [fieldError],
     };
     const formErrors = [formError];
 
     const result = ActionResult.validation<{ readonly name: string }, { code: string }>({
       fieldErrors,
-      formErrors
+      formErrors,
     });
     fieldErrors.name.push({ code: "mutated-field" });
     fieldErrors.name = [{ code: "replaced-field" }];
@@ -389,11 +409,11 @@ describe("ActionResult", () => {
     let right = 0;
     const Left = Resource.family({
       name: "ActionResult.invalidate-left",
-      load: () => Effect.succeed(left)
+      load: () => Effect.succeed(left),
     });
     const Right = Resource.family({
       name: "ActionResult.invalidate-right",
-      load: () => Effect.succeed(right)
+      load: () => Effect.succeed(right),
     });
     const leftRef = Left(undefined);
     const rightRef = Right(undefined);
@@ -406,7 +426,7 @@ describe("ActionResult", () => {
           right++;
           return ActionResult.withInvalidation(ActionResult.success(left + right), [rightRef]);
         }),
-      invalidates: () => [leftRef]
+      invalidates: () => [leftRef],
     });
     const action = Action.use(IncrementBoth);
 
@@ -419,12 +439,13 @@ describe("ActionResult", () => {
         yield* Effect.sync(() => {
           expect(read(leftRef)).toBe(1);
           expect(read(rightRef)).toBe(1);
-          expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key).sort()).toEqual([
-            leftRef.key,
-            rightRef.key
-          ].sort());
+          expect(
+            read(action.invalidationPlan)
+              ?.entries.map((entry) => entry.ref.key)
+              .sort(),
+          ).toEqual([leftRef.key, rightRef.key].sort());
         });
-      })
+      }),
     );
   });
 });

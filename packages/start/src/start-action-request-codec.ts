@@ -1,23 +1,15 @@
-import {
-  Server,
-  ServerRpcProtocolError,
-  type ActionDefinition
-} from "@effect-ui/core";
+import { Server, ServerRpcProtocolError, type ActionDefinition } from "@effect-ui/core";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
-import {
-  hasContentType,
-  startJsonMediaType
-} from "./rpc.js";
+import { hasContentType, startJsonMediaType } from "./rpc.js";
 import {
   resolveStartActionEndpoint,
   type StartActionEndpointManifest,
-  type StartActionEndpointSource,
   type StartTransportEndpointManifestSource,
-  type StartTransportEndpointOverrides
+  type StartTransportEndpointOverrides,
 } from "./start-transport-endpoints.js";
 import {
   readStartTransportFormDataBodyEffect,
-  readStartTransportJsonBodyEffect
+  readStartTransportJsonBodyEffect,
 } from "./start-transport-body.js";
 import { encodeWithSchema } from "./start-schema-codec.js";
 
@@ -76,9 +68,7 @@ export const startActionNameField = "__effect_ui_action";
 export const startActionInputField = "__effect_ui_input";
 
 /** Error raised by the synchronous progressive form encoding facade. */
-export class StartActionFormEncodeError extends Data.TaggedError(
-  "StartActionFormEncodeError"
-)<{
+export class StartActionFormEncodeError extends Data.TaggedError("StartActionFormEncodeError")<{
   readonly actionName: string;
   readonly operation: "schema-encode" | "json-stringify";
   readonly input: unknown;
@@ -89,16 +79,14 @@ export class StartActionFormEncodeError extends Data.TaggedError(
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
-const structSchemaFields = (
-  schema: unknown
-): Record<string, unknown> | undefined => {
+const structSchemaFields = (schema: unknown): Record<string, unknown> | undefined => {
   const fields = isRecord(schema) ? schema.fields : undefined;
   return isRecord(fields) ? fields : undefined;
 };
 
 const encodePartialWithSchema = (
   schema: unknown,
-  input: unknown
+  input: unknown,
 ): Effect.Effect<unknown, Schema.SchemaError> => {
   const fields = structSchemaFields(schema);
   if (!Schema.isSchema(schema) || fields === undefined || !isRecord(input)) {
@@ -113,55 +101,57 @@ const encodePartialWithSchema = (
     }
   }
 
-  return Schema.encodeUnknownEffect(Schema.Struct(presentFields))(input) as Effect.Effect<unknown, Schema.SchemaError>;
+  return Schema.encodeUnknownEffect(Schema.Struct(presentFields))(input) as Effect.Effect<
+    unknown,
+    Schema.SchemaError
+  >;
 };
 
 /** Encodes a Start action input through the action's declared wire schema. */
 export const encodeStartActionInputEffect = (
   action: StartActionDefinition,
-  input: unknown
-): Effect.Effect<unknown, Schema.SchemaError> =>
-  encodeWithSchema(action.input, input);
+  input: unknown,
+): Effect.Effect<unknown, Schema.SchemaError> => encodeWithSchema(action.input, input);
 
 /** Encodes a partial Start action input through the present fields of a struct input schema. */
 export const encodeStartActionPartialInputEffect = (
   action: StartActionDefinition,
-  input: unknown
-): Effect.Effect<unknown, Schema.SchemaError> =>
-  encodePartialWithSchema(action.input, input);
+  input: unknown,
+): Effect.Effect<unknown, Schema.SchemaError> => encodePartialWithSchema(action.input, input);
 
 /** Builds the shared Start action JSON request body before transport stringification. */
 export const encodeStartActionRequestEffect = (
   action: StartActionDefinition,
-  input: unknown
+  input: unknown,
 ): Effect.Effect<StartActionRequest, Schema.SchemaError> =>
   Effect.map(encodeStartActionInputEffect(action, input), (encodedInput) => ({
     name: action.name,
-    input: encodedInput
+    input: encodedInput,
   }));
 
 const startActionFormEncodeError = (
   action: StartActionDefinition,
   operation: StartActionFormEncodeError["operation"],
   input: unknown,
-  cause: unknown
+  cause: unknown,
 ): StartActionFormEncodeError =>
   new StartActionFormEncodeError({
     actionName: action.name,
     operation,
     input,
     cause,
-    guidance: "Start action form defaults must encode through the action input schema and be JSON-serializable."
+    guidance:
+      "Start action form defaults must encode through the action input schema and be JSON-serializable.",
   });
 
 /** Encodes progressive form default input through the same action request codec used by JSON submits. */
 export const encodeStartActionFormInputEffect = (
   action: StartActionDefinition,
-  input: unknown
+  input: unknown,
 ): Effect.Effect<string, StartActionFormEncodeError> =>
   Effect.gen(function* () {
     const encodedInput = yield* encodeStartActionPartialInputEffect(action, input).pipe(
-      Effect.mapError((cause) => startActionFormEncodeError(action, "schema-encode", input, cause))
+      Effect.mapError((cause) => startActionFormEncodeError(action, "schema-encode", input, cause)),
     );
 
     return yield* Effect.try({
@@ -170,19 +160,16 @@ export const encodeStartActionFormInputEffect = (
         if (json === undefined) {
           throw {
             _tag: "StartActionFormJsonUndefined",
-            message: "JSON.stringify returned undefined for a provided Start action form input."
+            message: "JSON.stringify returned undefined for a provided Start action form input.",
           };
         }
         return json;
       },
-      catch: (cause) => startActionFormEncodeError(action, "json-stringify", encodedInput, cause)
+      catch: (cause) => startActionFormEncodeError(action, "json-stringify", encodedInput, cause),
     });
   });
 
-const encodeStartActionFormInput = (
-  action: StartActionDefinition,
-  input: unknown
-): string => {
+const encodeStartActionFormInput = (action: StartActionDefinition, input: unknown): string => {
   const exit = Effect.runSyncExit(encodeStartActionFormInputEffect(action, input));
   if (Exit.isSuccess(exit)) {
     return exit.value;
@@ -199,46 +186,44 @@ const encodeStartActionFormInput = (
 /** Creates the hidden POST fields needed to submit a Start action from HTML. */
 export const startActionForm = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
-  options: StartActionFormOptions<I> = {}
+  options: StartActionFormOptions<I> = {},
 ): StartActionForm => ({
   method: "post",
   action: String(resolveStartActionEndpoint(options)),
   hiddenFields: [
     {
       name: startActionNameField,
-      value: definition.name
+      value: definition.name,
     },
     ...(options.input === undefined
       ? []
       : [
           {
             name: startActionInputField,
-            value: encodeStartActionFormInput(definition, options.input)
-          }
-        ])
-  ]
+            value: encodeStartActionFormInput(definition, options.input),
+          },
+        ]),
+  ],
 });
 
-const readActionJsonEffect = (request: Request): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>
+const readActionJsonEffect = (
+  request: Request,
+): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>
   Effect.gen(function* () {
     const payload = yield* readStartTransportJsonBodyEffect(
       request,
-      "Expected a JSON action request body."
+      "Expected a JSON action request body.",
     );
-    if (
-      !isRecord(payload) ||
-      typeof payload.name !== "string" ||
-      !("input" in payload)
-    ) {
+    if (!isRecord(payload) || typeof payload.name !== "string" || !("input" in payload)) {
       return yield* new ServerRpcProtocolError({
         message: "Expected an action request with string name and input fields.",
-        payload
+        payload,
       });
     }
 
     return {
       name: payload.name,
-      input: payload.input
+      input: payload.input,
     };
   });
 
@@ -267,16 +252,18 @@ const formDataToObject = (formData: FormData): Record<string, unknown> => {
   return input;
 };
 
-const readActionFormEffect = (request: Request): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>
+const readActionFormEffect = (
+  request: Request,
+): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>
   Effect.gen(function* () {
     const formData = yield* readStartTransportFormDataBodyEffect(
       request,
-      "Expected an action form body."
+      "Expected an action form body.",
     );
     const name = formData.get(startActionNameField);
     if (typeof name !== "string" || name.length === 0) {
       return yield* new ServerRpcProtocolError({
-        message: `Missing ${startActionNameField} form field.`
+        message: `Missing ${startActionNameField} form field.`,
       });
     }
 
@@ -285,7 +272,7 @@ const readActionFormEffect = (request: Request): Effect.Effect<StartActionReques
     if (typeof encodedInput !== "string" || encodedInput.length === 0) {
       return {
         name,
-        input: fieldInput
+        input: fieldInput,
       };
     }
 
@@ -294,8 +281,8 @@ const readActionFormEffect = (request: Request): Effect.Effect<StartActionReques
       catch: (cause) =>
         new ServerRpcProtocolError({
           message: `Could not parse ${startActionInputField} as JSON.`,
-          payload: Server.serializeDefect(cause)
-        })
+          payload: Server.serializeDefect(cause),
+        }),
     });
 
     return {
@@ -303,9 +290,9 @@ const readActionFormEffect = (request: Request): Effect.Effect<StartActionReques
       input: isRecord(baseInput)
         ? {
             ...baseInput,
-            ...fieldInput
+            ...fieldInput,
           }
-        : baseInput
+        : baseInput,
     };
   });
 
@@ -317,7 +304,7 @@ const readActionFormEffect = (request: Request): Effect.Effect<StartActionReques
  * fields as user input.
  */
 export const readStartActionRequestEffect = (
-  request: Request
+  request: Request,
 ): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>
   hasContentType(request.headers, [startJsonMediaType])
     ? readActionJsonEffect(request)

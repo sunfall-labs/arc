@@ -68,18 +68,17 @@ fighting the framework's thesis.
 const UserId = Schema.String.pipe(Schema.brand("UserId"));
 type UserId = typeof UserId.Type;
 
-const makeUserId = (id: string): UserId =>
-  Schema.decodeUnknownSync(UserId)(id);
+const makeUserId = (id: string): UserId => Schema.decodeUnknownSync(UserId)(id);
 
 const UserById = Resource.family({
   name: "User.byId",
   input: UserId,
-  load: (id: UserId) => Effect.succeed({ id })
+  load: (id: UserId) => Effect.succeed({ id }),
 });
 
 const ref = UserById(makeUserId("1"));
 
-yield* Resource.prefetchEffect(ref);
+yield * Resource.prefetchEffect(ref);
 ```
 
 Under the hood, `Resource.family` uses Effect `Cache`: `prefetchEffect` maps to
@@ -111,14 +110,14 @@ const userResolver = RequestResolver.make<GetUserRequest>((entries) =>
     for (const entry of entries) {
       yield* Request.succeed(entry, users.get(entry.request.id));
     }
-  })
+  }),
 );
 
 const UserById = Resource.requestFamily({
   name: "User.byId",
   input: UserId,
   request: (id: UserId) => GetUserRequest({ id }),
-  resolver: userResolver
+  resolver: userResolver,
 });
 ```
 
@@ -133,14 +132,14 @@ Resources can also publish typed tags into the dependency graph:
 ```ts
 const UsersTag = Resource.tag("Users");
 const UserTag = Resource.tag<{ readonly id: UserId }>("User", {
-  key: ({ id }) => id
+  key: ({ id }) => id,
 });
 
 const UserById = Resource.family({
   name: "User.byId",
   input: UserId,
   load: (id: UserId) => getUser.effect({ id }),
-  provides: (user) => [UserTag({ id: user.id })]
+  provides: (user) => [UserTag({ id: user.id })],
 });
 ```
 
@@ -150,7 +149,7 @@ Actions invalidate those facts after a successful mutation:
 const RenameUser = Action.define({
   name: "User.rename",
   run: (input: RenameUserInput) => renameUser.effect(input),
-  invalidates: (user) => [UsersTag, UserTag({ id: user.id })]
+  invalidates: (user) => [UsersTag, UserTag({ id: user.id })],
 });
 ```
 
@@ -158,7 +157,7 @@ When debugging, ask the runtime for the plan rather than guessing which cache
 entries will move:
 
 ```ts
-const plan = yield* Action.planInvalidationEffect(RenameUser, user, input);
+const plan = yield * Action.planInvalidationEffect(RenameUser, user, input);
 
 for (const entry of plan.entries) {
   console.log(entry.ref.key, entry.causes);
@@ -173,10 +172,11 @@ already-total callbacks and quick inspection.
 SSR hydration must populate both layers:
 
 ```ts
-yield* hydrateStartPayloadEffect(payload, {
-  runtime,
-  collections: [Projects, Tasks]
-})
+yield *
+  hydrateStartPayloadEffect(payload, {
+    runtime,
+    collections: [Projects, Tasks],
+  });
 ```
 
 Start hydration helpers call `Resource.hydrateEffect(payload)` for resource
@@ -192,10 +192,10 @@ const user = useResource(() => UserById(props.id));
 
 return user.match({
   initial: () => <UserSkeleton />,
-  pending: (previous) => previous ? <UserView user={previous} refreshing /> : <UserSkeleton />,
+  pending: (previous) => (previous ? <UserView user={previous} refreshing /> : <UserSkeleton />),
   success: (value) => <UserView user={value} />,
   failure: (error, previous) =>
-    previous ? <UserView user={previous} error={error} /> : <UserError error={error} />
+    previous ? <UserView user={previous} error={error} /> : <UserError error={error} />,
 });
 ```
 
@@ -205,8 +205,8 @@ const UserById = Resource.family({
   input: UserId,
   load: (id: UserId) => getUser.effect({ id }),
   policy: {
-    retry: Schedule.exponential("100 millis").pipe(Schedule.take(3))
-  }
+    retry: Schedule.exponential("100 millis").pipe(Schedule.take(3)),
+  },
 });
 ```
 
@@ -215,7 +215,7 @@ const SaveUser = Action.define({
   name: "User.save",
   policy: {
     concurrency: "latest",
-    retry: Schedule.recurs(1)
+    retry: Schedule.recurs(1),
   },
   optimistic: (input: UserInput, transaction) =>
     Effect.gen(function* () {
@@ -226,12 +226,12 @@ const SaveUser = Action.define({
         toastQueue.remove(`saving-${input.id}`);
       });
     }),
-  run: (input: UserInput) => saveUser(input)
+  run: (input: UserInput) => saveUser(input),
 });
 
 const action = Action.use(SaveUser);
 
-yield* action.submitEffect(input);
+yield * action.submitEffect(input);
 ```
 
 Expose progressive actions to Start when the same mutation should work with
@@ -243,9 +243,9 @@ const form = startActionForm(SubmitProjectName, {
     id: project.id,
     redirectTo: Route.href(ProjectRoute, {
       params: { id: project.id },
-      search: { tab: "activity" }
-    })
-  }
+      search: { tab: "activity" },
+    }),
+  },
 });
 ```
 
@@ -266,21 +266,21 @@ JSON action clients should use the Effect-native transport helper when they want
 server-posted mutations to update client resources without a second fetch:
 
 ```ts
-const result = yield* submitStartActionEffect(RenameUser, input)
+const result = yield * submitStartActionEffect(RenameUser, input);
 
 if (result._tag === "Success") {
-  result.hydration?.resources.map((resource) => resource.key)
+  result.hydration?.resources.map((resource) => resource.key);
 }
 ```
 
 Components can keep Action-like state while still using the Start transport:
 
 ```ts
-const rename = StartAction.use(RenameUser, { runtime })
+const rename = StartAction.use(RenameUser, { runtime });
 
-yield* rename.submitEffect(input)
-rename.invalidation.get()?.entries.map((entry) => entry.ref.key)
-rename.hydration.get()?.resources.map((resource) => resource.key)
+yield * rename.submitEffect(input);
+rename.invalidation.get()?.entries.map((entry) => entry.ref.key);
+rename.hydration.get()?.resources.map((resource) => resource.key);
 ```
 
 Start action responses include a serializable invalidation plan and a hydration
@@ -297,16 +297,15 @@ marked dirty just because callers passed a new object.
 const ProjectId = Schema.String.pipe(Schema.brand("ProjectId"));
 type ProjectId = typeof ProjectId.Type;
 
-const makeProjectId = (id: string): ProjectId =>
-  Schema.decodeUnknownSync(ProjectId)(id);
+const makeProjectId = (id: string): ProjectId => Schema.decodeUnknownSync(ProjectId)(id);
 
 class ProjectNameTooShort extends Data.TaggedError("ProjectNameTooShort")<{
-  readonly minimum: number
+  readonly minimum: number;
 }> {}
 
 const RenameProjectInput = Schema.Struct({
   id: ProjectId,
-  name: Schema.String
+  name: Schema.String,
 });
 
 const form = Form.make<typeof RenameProjectInput, ProjectNameTooShort>({
@@ -315,12 +314,12 @@ const form = Form.make<typeof RenameProjectInput, ProjectNameTooShort>({
   validate: (values, validation) =>
     values.name.length < 3
       ? Effect.fail(validation.field("name", new ProjectNameTooShort({ minimum: 3 })))
-      : Effect.void
+      : Effect.void,
 });
 
 form.setField("name", "Atlas Revenue");
 
-const input = yield* form.validateEffect();
+const input = yield * form.validateEffect();
 ```
 
 Start progressive forms reuse the same schema-backed action request codec as JSON
@@ -330,26 +329,26 @@ encoding Effect directly.
 
 ```ts
 interface ProjectApi {
-  readonly get: (id: ProjectId) => Effect.Effect<Project, ProjectError>
-  readonly rename: (input: RenameProjectInput) => Effect.Effect<Project, ProjectError>
+  readonly get: (id: ProjectId) => Effect.Effect<Project, ProjectError>;
+  readonly rename: (input: RenameProjectInput) => Effect.Effect<Project, ProjectError>;
 }
 
 const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
 
 const ProjectApiLive = ProjectApi.layer({
   get: (id) => getProject.effect({ id }),
-  rename: renameProject.effect
+  rename: renameProject.effect,
 });
 
 const ProjectApiTest = ProjectApi.mock({
   get: (id) => Effect.succeed({ id, name: "Mock Project" }),
-  rename: (input) => Effect.succeed({ id: input.id, name: input.name })
+  rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
 });
 
 const ProjectById = Resource.family({
   name: "Project.byId",
   input: ProjectId,
-  load: (id: ProjectId) => ProjectApi.use((api) => api.get(id))
+  load: (id: ProjectId) => ProjectApi.use((api) => api.get(id)),
 });
 ```
 
@@ -357,7 +356,7 @@ const ProjectById = Resource.family({
 export const GetProject = Server.contract("Project.get", {
   input: Schema.Struct({ id: ProjectId }),
   output: Project,
-  error: ProjectNotFound
+  error: ProjectNotFound,
 });
 
 export const getProject = Server.client(GetProject);
@@ -366,22 +365,20 @@ export const getProject = Server.client(GetProject);
 ```ts
 // project.server.ts
 export const getProject = Server.implement(GetProject, ({ id }) =>
-  Projects.use((projects) => projects.get(id))
+  Projects.use((projects) => projects.get(id)),
 );
 ```
 
 ```ts
-const testProject = yield* Server.provideMocks(
-  getProject.effect({ id: makeProjectId("atlas") }),
-  Server.mock(GetProject, ({ id }) =>
-    Effect.succeed({ id, name: "Test Project" })
-  )
-);
+const testProject =
+  yield *
+  Server.provideMocks(
+    getProject.effect({ id: makeProjectId("atlas") }),
+    Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Test Project" })),
+  );
 
 const TestServerLive = Server.mockLayer(
-  Server.mock(GetProject, ({ id }) =>
-    Effect.succeed({ id, name: "Layered Test Project" })
-  )
+  Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Layered Test Project" })),
 );
 ```
 
@@ -392,31 +389,31 @@ export const getProjectLegacy = Server.fn("Project.get", {
   input: GetProject.input,
   output: GetProject.output,
   error: GetProject.error,
-  handler: ({ id }) => Projects.use((projects) => projects.get(id))
+  handler: ({ id }) => Projects.use((projects) => projects.get(id)),
 });
 
-yield* getProject.effect({ id: makeProjectId("atlas") });
-yield* getProjectLegacy.invoke({ id: makeProjectId("atlas") });
+yield * getProject.effect({ id: makeProjectId("atlas") });
+yield * getProjectLegacy.invoke({ id: makeProjectId("atlas") });
 ```
 
 ```ts
 const UserRoute = route("/users/:id", {
   params: Schema.Struct({ id: UserId }),
-  preload: ({ params }) => Resource.prefetchEffect(UserById(params.id))
+  preload: ({ params }) => Resource.prefetchEffect(UserById(params.id)),
 });
 
 Route.href(UserRoute, { params: { id: makeUserId("1") } });
 ```
 
 ```ts
-const result = yield* Resource.collectEffect(Route.preloadEffect(match));
-const payload = yield* Resource.hydrationPayloadEffect(result.refs);
+const result = yield * Resource.collectEffect(Route.preloadEffect(match));
+const payload = yield * Resource.hydrationPayloadEffect(result.refs);
 ```
 
 Prefer route plans when callers need the full navigation data graph:
 
 ```ts
-const plan = yield* Route.planNavigationEffect(routes, "/users/1");
+const plan = yield * Route.planNavigationEffect(routes, "/users/1");
 
 if (plan._tag === "Matched") {
   plan.refs;
@@ -426,33 +423,33 @@ if (plan._tag === "Matched") {
 
 ```ts
 const UsersLive = Layer.succeed(Users)({
-  get: (id: string) => Effect.succeed({ id })
+  get: (id: string) => Effect.succeed({ id }),
 });
 
 const app = defineApp({
   routes,
   client: BrowserLive,
-  server: UsersLive
+  server: UsersLive,
 });
 
-yield* app.runtime.provide(Users.use((users) => users.get("1")));
+yield * app.runtime.provide(Users.use((users) => users.get("1")));
 
-const handler = createRequestHandler(app);    // native Effect handler
-const fetchEffect = toFetchHandler(handler);  // fetch-shaped Effect adapter
+const handler = createRequestHandler(app); // native Effect handler
+const fetchEffect = toFetchHandler(handler); // fetch-shaped Effect adapter
 ```
 
 ```ts
 const count = Signal.make(0);
 
-yield* Signal.values(count).pipe(
-  Stream.runForEach((value) => Effect.log(`count: ${value}`))
-);
+yield * Signal.values(count).pipe(Stream.runForEach((value) => Effect.log(`count: ${value}`)));
 ```
 
 ```ts
-const presence = yield* Signal.fromStreamEffect(presenceStream, {
-  status: "offline"
-});
+const presence =
+  yield *
+  Signal.fromStreamEffect(presenceStream, {
+    status: "offline",
+  });
 
 read(presence);
 ```
@@ -462,9 +459,10 @@ const title = Signal.make("Effect UI");
 
 watch(
   () => read(title),
-  (value) => Effect.sync(() => {
-    document.title = value
-  })
+  (value) =>
+    Effect.sync(() => {
+      document.title = value;
+    }),
 );
 
 forkScoped(Effect.never);

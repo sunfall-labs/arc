@@ -1,7 +1,11 @@
 import { Effect } from "effect";
 import { EffectInputCallbackError } from "./effect-like.js";
 import { rejectPlainSyncCallbackValue } from "./effect-input-sync.js";
-import { ResourceTagIdentityTypeId, ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
+import {
+  ResourceTagIdentityTypeId,
+  ResourceTagTypeId,
+  ResourceTypeId,
+} from "./resource-identifiers.js";
 import type {
   AnyResourceRef,
   ResourceInvalidation,
@@ -10,7 +14,7 @@ import type {
   ResourceInvalidationTarget,
   ResourceRef,
   ResourceTag,
-  ResourceTagIdentity
+  ResourceTagIdentity,
 } from "./resource.js";
 import type { MutableResourceStore as ResourceStoreState } from "./resource-store.js";
 
@@ -38,7 +42,9 @@ export const isResourceTag = (value: unknown): value is ResourceTag =>
   typeof (value as { readonly key?: unknown }).key === "string";
 
 const resourceTagStoreKey = (tag: ResourceTag): string => {
-  const identity = (tag as { readonly [ResourceTagIdentityTypeId]?: ResourceTagIdentity })[ResourceTagIdentityTypeId];
+  const identity = (tag as { readonly [ResourceTagIdentityTypeId]?: ResourceTagIdentity })[
+    ResourceTagIdentityTypeId
+  ];
   if (identity === undefined) {
     return JSON.stringify(["Legacy", tag.key]);
   }
@@ -53,7 +59,10 @@ export const isResourceRef = (value: unknown): value is AnyResourceRef<any> =>
   value !== null &&
   (value as { [ResourceTypeId]?: unknown })[ResourceTypeId] === ResourceTypeId;
 
-export const removeResourceRefFromTagIndex = (ref: AnyResourceRef<any>, store: ResourceStoreState): void => {
+export const removeResourceRefFromTagIndex = (
+  ref: AnyResourceRef<any>,
+  store: ResourceStoreState,
+): void => {
   const storeKey = resourceRefStoreKey(ref);
   const tags = store.refTags.get(storeKey);
   if (!tags) {
@@ -74,30 +83,26 @@ export const removeResourceRefFromTagIndex = (ref: AnyResourceRef<any>, store: R
 const resourceMetadataArraySync = <A>(
   operation: string,
   value: ReadonlyArray<A>,
-  guidance: string
+  guidance: string,
 ): ReadonlyArray<A> => {
   const metadata = rejectPlainSyncCallbackValue(operation, value, guidance);
   if (!Array.isArray(metadata)) {
     throw new EffectInputCallbackError({
       operation,
       cause: new TypeError("Resource metadata callbacks must return arrays."),
-      guidance
+      guidance,
     });
   }
   return metadata;
 };
 
-const resourceMetadataEntrySync = <A>(
-  operation: string,
-  value: A,
-  guidance: string
-): A =>
+const resourceMetadataEntrySync = <A>(operation: string, value: A, guidance: string): A =>
   rejectPlainSyncCallbackValue(operation, value, guidance);
 
 export const validateResourceProvidedTagsSync = (
   operation: string,
   tags: ReadonlyArray<ResourceTag>,
-  guidance = "Resource provides callbacks must return Resource.tag(...) metadata synchronously. Move host Promise work into the resource load Effect."
+  guidance = "Resource provides callbacks must return Resource.tag(...) metadata synchronously. Move host Promise work into the resource load Effect.",
 ): readonly ResourceTag[] =>
   Object.freeze(
     resourceMetadataArraySync(operation, tags, guidance).map((tag, index) => {
@@ -106,17 +111,17 @@ export const validateResourceProvidedTagsSync = (
         throw new EffectInputCallbackError({
           operation: `${operation}[${index}]`,
           cause: new TypeError("Resource.provides entries must be Resource tags."),
-          guidance
+          guidance,
         });
       }
       return entry;
-    })
+    }),
   );
 
 export const validateResourceInvalidationsArraySync = <R = never>(
   operation: string,
   invalidations: ReadonlyArray<ResourceInvalidation<R>>,
-  guidance = "Resource invalidation metadata must be Resource refs or tags synchronously. Move host Promise work into the Effect that prepares the metadata."
+  guidance = "Resource invalidation metadata must be Resource refs or tags synchronously. Move host Promise work into the Effect that prepares the metadata.",
 ): readonly ResourceInvalidation<R>[] =>
   Object.freeze(
     resourceMetadataArraySync(operation, invalidations, guidance).map((invalidation, index) => {
@@ -125,34 +130,35 @@ export const validateResourceInvalidationsArraySync = <R = never>(
         throw new EffectInputCallbackError({
           operation: `${operation}[${index}]`,
           cause: new TypeError("Resource invalidation entries must be Resource refs or tags."),
-          guidance
+          guidance,
         });
       }
       return entry;
-    })
+    }),
   );
 
 export const validateResourceInvalidationTargetSync = <R = never>(
   operation: string,
   target: ResourceInvalidationTarget<R>,
-  guidance?: string
+  guidance?: string,
 ): readonly ResourceInvalidation<R>[] => {
   const resolvedGuidance =
-    guidance ?? "Resource invalidation targets must be Resource refs or tags. Move host Promise work into the Effect that prepares the invalidation.";
+    guidance ??
+    "Resource invalidation targets must be Resource refs or tags. Move host Promise work into the Effect that prepares the invalidation.";
   const value = rejectPlainSyncCallbackValue(operation, target, resolvedGuidance);
   return Array.isArray(value)
     ? validateResourceInvalidationsArraySync(operation, value, resolvedGuidance)
     : validateResourceInvalidationsArraySync(
         operation,
         [value] as ReadonlyArray<ResourceInvalidation<R>>,
-        resolvedGuidance
+        resolvedGuidance,
       );
 };
 
 export const recordResourceProvidedTags = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   tags: readonly ResourceTag[],
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): void => {
   removeResourceRefFromTagIndex(ref, store);
 
@@ -178,7 +184,7 @@ export const recordResourceProvidedTags = <I, A, E, R>(
 
 export const resourceProvidedTagsEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  value: A
+  value: A,
 ): Effect.Effect<readonly ResourceTag[], EffectInputCallbackError> =>
   Effect.try({
     try: () => {
@@ -188,7 +194,7 @@ export const resourceProvidedTagsEffect = <I, A, E, R>(
         : validateResourceProvidedTagsSync(
             operation,
             ref.family.options.provides(value, ref.input),
-            "Resource provides callbacks must return Resource.tag(...) metadata synchronously. Move host Promise work into the resource load Effect."
+            "Resource provides callbacks must return Resource.tag(...) metadata synchronously. Move host Promise work into the resource load Effect.",
           );
     },
     catch: (cause) =>
@@ -197,14 +203,15 @@ export const resourceProvidedTagsEffect = <I, A, E, R>(
         : new EffectInputCallbackError({
             operation: `Resource.provides(${ref.family.options.name})`,
             cause,
-            guidance: "Resource provides callbacks must be pure and total. Synchronous callback throws are reported in the Effect error channel."
-          })
+            guidance:
+              "Resource provides callbacks must be pure and total. Synchronous callback throws are reported in the Effect error channel.",
+          }),
   });
 
 export const recordResourceProvidedTagsEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   value: A,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): Effect.Effect<void, EffectInputCallbackError> =>
   Effect.gen(function* () {
     const tags = yield* resourceProvidedTagsEffect(ref, value);
@@ -213,21 +220,25 @@ export const recordResourceProvidedTagsEffect = <I, A, E, R>(
 
 export const resourceRefsForTag = (
   tag: ResourceTag,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): ReadonlyArray<AnyResourceRef<any>> =>
-  Array.from(store.tagIndex.get(resourceTagStoreKey(tag))?.values() ?? []) as ReadonlyArray<AnyResourceRef<any>>;
+  Array.from(store.tagIndex.get(resourceTagStoreKey(tag))?.values() ?? []) as ReadonlyArray<
+    AnyResourceRef<any>
+  >;
 
-const freezeArray = <A>(values: Iterable<A>): ReadonlyArray<A> =>
-  Object.freeze(Array.from(values));
+const freezeArray = <A>(values: Iterable<A>): ReadonlyArray<A> => Object.freeze(Array.from(values));
 
 export const planResourceInvalidationTargets = <R = never>(
   target: ResourceInvalidationTarget<R>,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): ResourceInvalidationPlan<R> => {
   const targets = freezeArray(
-    validateResourceInvalidationTargetSync("Resource.planInvalidation", target)
+    validateResourceInvalidationTargetSync("Resource.planInvalidation", target),
   ) as ReadonlyArray<ResourceInvalidation<R>>;
-  const entries = new Map<string, { readonly ref: AnyResourceRef<R>; readonly causes: Array<ResourceInvalidationCause> }>();
+  const entries = new Map<
+    string,
+    { readonly ref: AnyResourceRef<R>; readonly causes: Array<ResourceInvalidationCause> }
+  >();
   const addCause = (ref: AnyResourceRef<R>, cause: ResourceInvalidationCause): void => {
     const storeKey = resourceRefStoreKey(ref);
     const existing = entries.get(storeKey);
@@ -258,11 +269,13 @@ export const planResourceInvalidationTargets = <R = never>(
 
   return Object.freeze({
     targets,
-    entries: freezeArray(Array.from(entries.values()).map((entry) =>
-      Object.freeze({
-        ref: entry.ref,
-        causes: freezeArray(entry.causes)
-      })
-    ))
+    entries: freezeArray(
+      Array.from(entries.values()).map((entry) =>
+        Object.freeze({
+          ref: entry.ref,
+          causes: freezeArray(entry.causes),
+        }),
+      ),
+    ),
   });
 };

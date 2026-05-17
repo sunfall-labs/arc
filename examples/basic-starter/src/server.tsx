@@ -2,7 +2,7 @@ import { RuntimeProvider } from "@effect-ui/solid";
 import {
   createStartStreamedHtmlResponseEffect,
   createRequestHandler,
-  htmlChunk
+  htmlChunk,
 } from "@effect-ui/start";
 import { Effect, Stream } from "effect";
 import { createComponent, generateHydrationScript, renderToString } from "solid-js/web";
@@ -36,8 +36,8 @@ export const handleRequest = createRequestHandler(app, {
           runtime,
           get children() {
             return createComponent(App, {});
-          }
-        })
+          },
+        }),
       );
 
       return yield* createStartStreamedHtmlResponseEffect({
@@ -46,10 +46,10 @@ export const handleRequest = createRequestHandler(app, {
         hydrationPlan,
         tail: htmlChunk(shellClose(hydrationRootScript)),
         headers: {
-          "x-effect-ui-starter": "basic"
-        }
+          "x-effect-ui-starter": "basic",
+        },
       });
-    })
+    }),
 });
 
 export default handleRequest;

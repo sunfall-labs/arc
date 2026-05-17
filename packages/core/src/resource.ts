@@ -1,23 +1,20 @@
-import {
-  Effect,
-  Request as EffectRequest,
-  RequestResolver,
-  Schema,
-  type Schedule
-} from "effect";
+import { Effect, Request as EffectRequest, RequestResolver, Schema, type Schedule } from "effect";
 import type {
   EffectInput,
   EffectInputError,
   EffectInputRequirements,
   EffectInputValue,
   EnsureEffectInput,
-  EnsureEffectInputValue
 } from "./effect-like.js";
 import { EffectInputCallbackError, EffectInputPromiseRejected } from "./effect-like.js";
 import { isEffectLikeValue, isPromiseLikeValue } from "./effect-input-sync.js";
 import type { DurationInput } from "./resource-duration.js";
 import { ResourceKeyError, type ResourceFailure, type ResourcePending } from "./resource-errors.js";
-import { ResourceTagIdentityTypeId, ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
+import {
+  ResourceTagIdentityTypeId,
+  ResourceTagTypeId,
+  ResourceTypeId,
+} from "./resource-identifiers.js";
 import type { ResourceStoreEvent } from "./resource-store.js";
 import type { ReadableSignal } from "./signal.js";
 import { encodeResourceKey } from "./resource-key-codec.js";
@@ -26,7 +23,7 @@ import {
   decodeResourceHydrationPayloadEffect,
   encodeResourceHydrationPayloadEffect,
   ResourceHydrationApplyError,
-  type ResourceSnapshotCodecError
+  type ResourceSnapshotCodecError,
 } from "./resource-snapshot-codec.js";
 import {
   registerResourceDefinition,
@@ -34,7 +31,7 @@ import {
   resourceDefinitionRegistry,
   resourceDiagnostics,
   resourceRegistryDiagnostics,
-  resourceTagDefinitionRegistry
+  resourceTagDefinitionRegistry,
 } from "./resource-registry.js";
 import {
   collectResourceEffect,
@@ -60,14 +57,23 @@ import {
   resourceStatusEffect,
   runResourceInvalidationPlan,
   runResourceInvalidationPlanEffect,
-  subscribeResourceEventsEffect
+  subscribeResourceEventsEffect,
 } from "./resource-runtime.js";
 
 export { isResourceRef, isResourceTag } from "./resource-dependency-graph.js";
 export { UnsupportedDuration } from "./resource-duration.js";
 export type { DurationInput } from "./resource-duration.js";
-export { ResourceTagIdentityTypeId, ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
-export { MissingResourceInput, ResourceFailure, ResourceKeyError, ResourcePending } from "./resource-errors.js";
+export {
+  ResourceTagIdentityTypeId,
+  ResourceTagTypeId,
+  ResourceTypeId,
+} from "./resource-identifiers.js";
+export {
+  MissingResourceInput,
+  ResourceFailure,
+  ResourceKeyError,
+  ResourcePending,
+} from "./resource-errors.js";
 
 /** Cache lifecycle policy for a resource family. */
 export interface ResourcePolicy<E = never> {
@@ -83,7 +89,12 @@ export interface ResourcePolicy<E = never> {
 export type ResourceState<A, E = never> =
   | { readonly _tag: "Initial"; readonly waiting: false }
   | { readonly _tag: "Pending"; readonly waiting: true; readonly previous?: A }
-  | { readonly _tag: "Success"; readonly waiting: false; readonly value: A; readonly updatedAt: number }
+  | {
+      readonly _tag: "Success";
+      readonly waiting: false;
+      readonly value: A;
+      readonly updatedAt: number;
+    }
   | { readonly _tag: "Failure"; readonly waiting: false; readonly error: E; readonly previous?: A };
 
 /**
@@ -121,16 +132,16 @@ export interface ResourceRequestFamilyOptions<
   I,
   Req extends EffectRequest.Any,
   EX = never,
-  RX = never
+  RX = never,
 > extends Omit<
-    ResourceFamilyOptions<
-      I,
-      EffectRequest.Success<Req>,
-      EffectRequest.Error<Req> | EX,
-      EffectRequest.Services<Req> | RX
-    >,
-    "load"
-  > {
+  ResourceFamilyOptions<
+    I,
+    EffectRequest.Success<Req>,
+    EffectRequest.Error<Req> | EX,
+    EffectRequest.Services<Req> | RX
+  >,
+  "load"
+> {
   /** Builds the Effect Request for one resource input. */
   readonly request: (input: I) => Req;
   /** Resolver used by Effect.request, including its batching and deduping policy. */
@@ -201,7 +212,9 @@ export interface ResourceRef<I = unknown, A = unknown, E = never, R = never> {
 export type AnyResourceFamily = ResourceFamily<any, any, any, any>;
 export type AnyResourceRef<R = any> = ResourceRef<any, any, any, R>;
 export type ResourceInvalidation<R = any> = AnyResourceRef<R> | ResourceTag;
-export type ResourceInvalidationTarget<R = any> = ResourceInvalidation<R> | ReadonlyArray<ResourceInvalidation<R>>;
+export type ResourceInvalidationTarget<R = any> =
+  | ResourceInvalidation<R>
+  | ReadonlyArray<ResourceInvalidation<R>>;
 export type ResourceInvalidationCause =
   | { readonly _tag: "Ref"; readonly ref: AnyResourceRef<any> }
   | { readonly _tag: "Tag"; readonly tag: ResourceTag };
@@ -319,38 +332,35 @@ export type ResourceStatus<I, A, E = never, R = never, RefError = E> =
       readonly error: E;
     });
 
-const resourceKeyCallbackPromiseError = (
-  operation: string,
-  name: string
-): ResourceKeyError =>
+const resourceKeyCallbackPromiseError = (operation: string, name: string): ResourceKeyError =>
   new ResourceKeyError({
     operation,
     name,
     path: "$",
     reason: "PromiseLikeKey",
     cause: new EffectInputPromiseRejected({
-      guidance: "Resource key callbacks must return strings synchronously. Move async key work before Resource ref/tag construction."
+      guidance:
+        "Resource key callbacks must return strings synchronously. Move async key work before Resource ref/tag construction.",
     }),
-    guidance: "Resource key callbacks must return stable string keys synchronously. Promise-shaped keys would create unstable Resource identities."
+    guidance:
+      "Resource key callbacks must return stable string keys synchronously. Promise-shaped keys would create unstable Resource identities.",
   });
 
-const resourceKeyCallbackEffectError = (
-  operation: string,
-  name: string
-): ResourceKeyError =>
+const resourceKeyCallbackEffectError = (operation: string, name: string): ResourceKeyError =>
   new ResourceKeyError({
     operation,
     name,
     path: "$",
     reason: "EffectLikeKey",
     cause: new TypeError("Resource key callbacks must return strings, not Effect values."),
-    guidance: "Resource key callbacks must return stable string keys synchronously. Use Effects before Resource ref/tag construction when identity requires executable work."
+    guidance:
+      "Resource key callbacks must return stable string keys synchronously. Use Effects before Resource ref/tag construction when identity requires executable work.",
   });
 
 const resourceKeyCallbackNonStringError = (
   operation: string,
   name: string,
-  value: unknown
+  value: unknown,
 ): ResourceKeyError =>
   new ResourceKeyError({
     operation,
@@ -358,14 +368,11 @@ const resourceKeyCallbackNonStringError = (
     path: "$",
     reason: "NonStringKey",
     cause: value,
-    guidance: "Resource key callbacks must return stable string keys. Return a string explicitly instead of relying on implicit coercion."
+    guidance:
+      "Resource key callbacks must return stable string keys. Return a string explicitly instead of relying on implicit coercion.",
   });
 
-const customResourceKey = (
-  operation: string,
-  name: string,
-  value: unknown
-): string => {
+const customResourceKey = (operation: string, name: string, value: unknown): string => {
   if (isPromiseLikeValue(value)) {
     throw resourceKeyCallbackPromiseError(operation, name);
   }
@@ -394,18 +401,19 @@ export class ResourceFamily<I, A, E = never, R = never> {
 
   /** Creates a stable ref for one input. */
   ref(input: I): ResourceRef<I, A, E, R> {
-    const encodedKey = this.options.key === undefined
-      ? encodeResourceKey(input, {
-          operation: "Resource.family.ref",
-          name: this.options.name
-        })
-      : customResourceKey("Resource.family.ref", this.options.name, this.options.key(input));
+    const encodedKey =
+      this.options.key === undefined
+        ? encodeResourceKey(input, {
+            operation: "Resource.family.ref",
+            name: this.options.name,
+          })
+        : customResourceKey("Resource.family.ref", this.options.name, this.options.key(input));
     const key = `${this.options.name}:${encodedKey}`;
     return {
       [ResourceTypeId]: ResourceTypeId,
       family: this,
       input,
-      key
+      key,
     };
   }
 }
@@ -413,12 +421,12 @@ export class ResourceFamily<I, A, E = never, R = never> {
 const makeResourceTag = (
   name: string,
   key: string,
-  identity: ResourceTagIdentity
+  identity: ResourceTagIdentity,
 ): ResourceTag => ({
   [ResourceTagTypeId]: ResourceTagTypeId,
   [ResourceTagIdentityTypeId]: identity,
   name,
-  key
+  key,
 });
 
 type CheckedResourceLoad<I, Definition> = Definition extends {
@@ -427,23 +435,26 @@ type CheckedResourceLoad<I, Definition> = Definition extends {
   ? { readonly load: (input: I) => EnsureEffectInput<Out> }
   : never;
 
-type ResourceRefFactory<I, A, E = never, R = never> =
-  ((input: I) => ResourceRef<I, A, E, R>) & { readonly family: ResourceFamily<I, A, E, R> };
+type ResourceRefFactory<I, A, E = never, R = never> = ((input: I) => ResourceRef<I, A, E, R>) & {
+  readonly family: ResourceFamily<I, A, E, R>;
+};
 
 type RejectPromiseEffectInput<Out> = EnsureEffectInput<Out> extends never ? never : unknown;
 
-type ResourceFamilyCommonOptions<I, A, E, R> =
-  Omit<ResourceFamilyOptions<I, A, E, R>, "input" | "output" | "load">;
+type ResourceFamilyCommonOptions<I, A, E, R> = Omit<
+  ResourceFamilyOptions<I, A, E, R>,
+  "input" | "output" | "load"
+>;
 
 const makeResourceFamily = <I, A, E, R>(
-  options: ResourceFamilyOptions<I, A, E, R>
+  options: ResourceFamilyOptions<I, A, E, R>,
 ): ResourceRefFactory<I, A, E, R> => {
   const family = new ResourceFamily(options);
   const makeRef = ((input: I) => family.ref(input)) as ResourceRefFactory<I, A, E, R>;
 
   Object.defineProperty(makeRef, "family", {
     value: family,
-    enumerable: true
+    enumerable: true,
   });
 
   return makeRef;
@@ -490,7 +501,13 @@ export namespace Resource {
   /** Error thrown by synchronous Resource reads when data is pending or failed. */
   export type ReadError<I, A, E = never, R = never> = ResourceReadError<I, A, E, R>;
   /** Diagnostic status for one Resource ref, including stale/previous data. */
-  export type Status<I, A, E = never, R = never, RefError = E> = ResourceStatus<I, A, E, R, RefError>;
+  export type Status<I, A, E = never, R = never, RefError = E> = ResourceStatus<
+    I,
+    A,
+    E,
+    R,
+    RefError
+  >;
   /** Resource store lifecycle event used by devtools and tests. */
   export type StoreEvent = ResourceStoreEvent;
   /** Diagnostics for one registered Resource family. */
@@ -500,8 +517,12 @@ export namespace Resource {
   /** Complete Resource registry/cache diagnostics snapshot. */
   export type Diagnostics = ResourceDiagnostics;
   /** Options for defining a Resource family backed by an Effect RequestResolver. */
-  export type RequestFamilyOptions<I, Req extends EffectRequest.Any, EX = never, RX = never> =
-    ResourceRequestFamilyOptions<I, Req, EX, RX>;
+  export type RequestFamilyOptions<
+    I,
+    Req extends EffectRequest.Any,
+    EX = never,
+    RX = never,
+  > = ResourceRequestFamilyOptions<I, Req, EX, RX>;
   /** Value returned from `collectEffect(...)` with the Resource refs touched by preload/read work. */
   export type Collected<A> = ResourceCollected<A>;
 
@@ -525,7 +546,7 @@ export namespace Resource {
   export function family<
     const Input extends Schema.Top,
     const Output extends Schema.Top,
-    Out extends EffectInput<Schema.Schema.Type<Output>, any, any>
+    Out extends EffectInput<Schema.Schema.Type<Output>, any, any>,
   >(
     options: ResourceFamilyCommonOptions<
       Schema.Schema.Type<Input>,
@@ -536,7 +557,7 @@ export namespace Resource {
       readonly input: Input;
       readonly output: Output;
       readonly load: (input: Schema.Schema.Type<Input>) => EnsureEffectInput<Out>;
-    } & RejectPromiseEffectInput<Out>
+    } & RejectPromiseEffectInput<Out>,
   ): ResourceRefFactory<
     Schema.Schema.Type<Input>,
     Schema.Schema.Type<Output>,
@@ -545,7 +566,7 @@ export namespace Resource {
   >;
   export function family<
     const Input extends Schema.Top,
-    Load extends (input: Schema.Schema.Type<Input>) => unknown
+    Load extends (input: Schema.Schema.Type<Input>) => unknown,
   >(
     options: Omit<
       ResourceFamilyOptions<
@@ -558,8 +579,9 @@ export namespace Resource {
     > & {
       readonly input: Input;
       readonly output?: never;
-      readonly load: Load & ((input: Schema.Schema.Type<Input>) => EnsureEffectInput<ReturnType<Load>>);
-    } & RejectPromiseEffectInput<ReturnType<Load>>
+      readonly load: Load &
+        ((input: Schema.Schema.Type<Input>) => EnsureEffectInput<ReturnType<Load>>);
+    } & RejectPromiseEffectInput<ReturnType<Load>>,
   ): ResourceRefFactory<
     Schema.Schema.Type<Input>,
     EffectInputValue<ReturnType<Load>>,
@@ -569,7 +591,7 @@ export namespace Resource {
   export function family<
     I,
     const Output extends Schema.Top,
-    Out extends EffectInput<Schema.Schema.Type<Output>, any, any>
+    Out extends EffectInput<Schema.Schema.Type<Output>, any, any>,
   >(
     options: Omit<
       ResourceFamilyOptions<
@@ -583,7 +605,7 @@ export namespace Resource {
       readonly input?: never;
       readonly output: Output;
       readonly load: (input: I) => EnsureEffectInput<Out>;
-    } & RejectPromiseEffectInput<Out>
+    } & RejectPromiseEffectInput<Out>,
   ): ResourceRefFactory<
     I,
     Schema.Schema.Type<Output>,
@@ -599,14 +621,9 @@ export namespace Resource {
       readonly load: (input: I) => EffectInput<A, E, R>;
     } = Omit<ResourceFamilyOptions<I, A, E, R>, "load"> & {
       readonly load: (input: I) => EffectInput<A, E, R>;
-    }
-  >(
-    options: Definition & CheckedResourceLoad<I, Definition>
-  ): ResourceRefFactory<I, A, E, R>;
-  export function family<
-    I,
-    Load extends (input: I) => unknown
-  >(
+    },
+  >(options: Definition & CheckedResourceLoad<I, Definition>): ResourceRefFactory<I, A, E, R>;
+  export function family<I, Load extends (input: I) => unknown>(
     options: Omit<
       ResourceFamilyOptions<
         I,
@@ -618,16 +635,14 @@ export namespace Resource {
     > & {
       readonly output?: never;
       readonly load: Load & ((input: I) => EnsureEffectInput<ReturnType<Load>>);
-    } & RejectPromiseEffectInput<ReturnType<Load>>
+    } & RejectPromiseEffectInput<ReturnType<Load>>,
   ): ResourceRefFactory<
     I,
     EffectInputValue<ReturnType<Load>>,
     EffectInputError<ReturnType<Load>>,
     EffectInputRequirements<ReturnType<Load>>
   >;
-  export function family(
-    options: unknown
-  ): any {
+  export function family(options: unknown): any {
     return makeResourceFamily(options as ResourceFamilyOptions<unknown, unknown, unknown, unknown>);
   }
 
@@ -637,14 +652,11 @@ export namespace Resource {
    * This preserves the normal Resource cache/state lifecycle while letting Effect
    * batch sibling loads that are evaluated together, e.g. during route preloads.
    */
-  export const requestFamily = <
-    I,
-    Req extends EffectRequest.Any,
-    EX = never,
-    RX = never
-  >(
-    options: ResourceRequestFamilyOptions<I, Req, EX, RX>
-  ): ((input: I) => ResourceRef<
+  export const requestFamily = <I, Req extends EffectRequest.Any, EX = never, RX = never>(
+    options: ResourceRequestFamilyOptions<I, Req, EX, RX>,
+  ): ((
+    input: I,
+  ) => ResourceRef<
     I,
     EffectRequest.Success<Req>,
     EffectRequest.Error<Req> | EX,
@@ -660,8 +672,7 @@ export namespace Resource {
     const { request, resolver, ...familyOptions } = options;
     return family({
       ...familyOptions,
-      load: (input: I) =>
-        Effect.request(request(input), resolver) as never
+      load: (input: I) => Effect.request(request(input), resolver) as never,
     }) as ResourceRefFactory<
       I,
       EffectRequest.Success<Req>,
@@ -672,36 +683,38 @@ export namespace Resource {
 
   const makeTagDefinition = <Input>(
     name: string,
-    options: { readonly key?: (input: Input) => string } = {}
+    options: { readonly key?: (input: Input) => string } = {},
   ): ResourceTagDefinition<Input> => {
-    const keyFor = options.key ?? ((input: Input) =>
-      encodeResourceKey(input, {
-        operation: "Resource.tag",
-        name
-      }));
+    const keyFor =
+      options.key ??
+      ((input: Input) =>
+        encodeResourceKey(input, {
+          operation: "Resource.tag",
+          name,
+        }));
     const make = ((input: Input) => {
       const key = customResourceKey("Resource.tag", name, keyFor(input));
       return makeResourceTag(name, `${name}:${key}`, {
         _tag: "Keyed",
         name,
-        key
+        key,
       });
     }) as ResourceTagDefinition<Input>;
 
     Object.defineProperties(make, {
       [ResourceTagTypeId]: {
         value: ResourceTagTypeId,
-        enumerable: false
+        enumerable: false,
       },
       name: {
         value: name,
         configurable: true,
-        enumerable: true
+        enumerable: true,
       },
       ref: {
         value: make,
-        enumerable: true
-      }
+        enumerable: true,
+      },
     });
 
     return make;
@@ -716,20 +729,20 @@ export namespace Resource {
   export function tag(name: string): ResourceTag;
   export function tag<Input>(
     name: string,
-    options: { readonly key?: (input: Input) => string }
+    options: { readonly key?: (input: Input) => string },
   ): ResourceTagDefinition<Input>;
   export function tag<Input>(
     name: string,
-    options?: { readonly key?: (input: Input) => string }
+    options?: { readonly key?: (input: Input) => string },
   ): ResourceTag | ResourceTagDefinition<Input> {
     registerResourceTagDefinition(name, {
       name,
-      keyed: options !== undefined
+      keyed: options !== undefined,
     });
     return options === undefined
       ? makeResourceTag(name, name, {
           _tag: "Unkeyed",
-          name
+          name,
         })
       : makeTagDefinition(name, options);
   }
@@ -739,9 +752,7 @@ export namespace Resource {
     resourceDefinitionRegistry();
 
   /** Resolves a Resource family by name, preferring the active Resource Store. */
-  export const definitionEffect = (
-    name: string
-  ): Effect.Effect<AnyResourceFamily | undefined> =>
+  export const definitionEffect = (name: string): Effect.Effect<AnyResourceFamily | undefined> =>
     lookupResourceFamilyEffect(name);
 
   /** Registered Resource tag definitions for diagnostics and invalidation UIs. */
@@ -749,8 +760,7 @@ export namespace Resource {
     resourceTagDefinitionRegistry();
 
   /** Resource registry/cache diagnostics for devtools and adapter health checks. */
-  export const diagnostics = (): ResourceDiagnostics =>
-    resourceDiagnostics();
+  export const diagnostics = (): ResourceDiagnostics => resourceDiagnostics();
 
   /** Registry diagnostics, including duplicate resource family/tag registrations. */
   export const registryDiagnostics = resourceRegistryDiagnostics;
@@ -760,20 +770,21 @@ export namespace Resource {
     refsForResourceTag(tag);
 
   /** Computes which cached refs would be affected by a ref or tag invalidation. */
-  export const planInvalidation = <R = never>(target: ResourceInvalidationTarget<R>): ResourceInvalidationPlan<R> =>
-    planResourceInvalidation(target);
+  export const planInvalidation = <R = never>(
+    target: ResourceInvalidationTarget<R>,
+  ): ResourceInvalidationPlan<R> => planResourceInvalidation(target);
 
   /** Effect version of planInvalidation that uses the ResourceStore in context. */
   export const planInvalidationEffect = <R = never>(
-    target: ResourceInvalidationTarget<R>
-  ): Effect.Effect<ResourceInvalidationPlan<R>> =>
-    planResourceInvalidationEffect(target);
+    target: ResourceInvalidationTarget<R>,
+  ): Effect.Effect<ResourceInvalidationPlan<R>> => planResourceInvalidationEffect(target);
 
   export const subscribeEventsEffect = subscribeResourceEventsEffect;
 
   /** Reactive state signal for a Resource ref, including callback failures. */
-  export const result = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): ReadableSignal<ResourceState<A, ResourceLoadError<E>>> =>
-    resourceResult(ref);
+  export const result = <I, A, E, R>(
+    ref: ResourceRef<I, A, E, R>,
+  ): ReadableSignal<ResourceState<A, ResourceLoadError<E>>> => resourceResult(ref);
 
   /**
    * Synchronous render/host-adapter seam for inspecting a resource ref without
@@ -782,15 +793,17 @@ export namespace Resource {
    * Effect workflows should prefer statusEffect so the active ResourceStore and
    * Clock come from Effect context.
    */
-  export const status = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): ResourceStatus<I, A, ResourceLoadError<E>, R, E> =>
-    resourceStatus(ref);
+  export const status = <I, A, E, R>(
+    ref: ResourceRef<I, A, E, R>,
+  ): ResourceStatus<I, A, ResourceLoadError<E>, R, E> => resourceStatus(ref);
 
   /**
    * Effect-first status inspection that reads the ResourceStore and Clock from
    * Effect context.
    */
-  export const statusEffect = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<ResourceStatus<I, A, ResourceLoadError<E>, R, E>> =>
-    resourceStatusEffect(ref);
+  export const statusEffect = <I, A, E, R>(
+    ref: ResourceRef<I, A, E, R>,
+  ): Effect.Effect<ResourceStatus<I, A, ResourceLoadError<E>, R, E>> => resourceStatusEffect(ref);
 
   /** Extracts the current or previous successful value from Resource state. */
   export const value = <A, E>(state: ResourceState<A, E>): A | undefined => {
@@ -814,15 +827,17 @@ export namespace Resource {
    *
    * Prefer this inside route preloads, actions, and other Effect workflows.
    */
-  export const refreshEffect = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E>, R> =>
-    refreshResourceEffect(ref);
+  export const refreshEffect = <I, A, E, R>(
+    ref: ResourceRef<I, A, E, R>,
+  ): Effect.Effect<A, ResourceLoadError<E>, R> => refreshResourceEffect(ref);
   /**
    * Ensures a resource ref is loaded as an Effect, reusing fresh cached data.
    *
    * This records the ref for route preload collection and shares in-flight work.
    */
-  export const prefetchEffect = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E>, R> =>
-    prefetchResourceEffect(ref);
+  export const prefetchEffect = <I, A, E, R>(
+    ref: ResourceRef<I, A, E, R>,
+  ): Effect.Effect<A, ResourceLoadError<E>, R> => prefetchResourceEffect(ref);
 
   /**
    * Deletes a resource ref from the active Resource Store.
@@ -836,9 +851,8 @@ export namespace Resource {
 
   /** Runs an Effect and returns the resource refs it touched through prefetch/refresh. */
   export const collectEffect = <A, E, R>(
-    effect: Effect.Effect<A, E, R>
-  ): Effect.Effect<Collected<A>, E, R> =>
-    collectResourceEffect(effect);
+    effect: Effect.Effect<A, E, R>,
+  ): Effect.Effect<Collected<A>, E, R> => collectResourceEffect(effect);
 
   /**
    * Synchronous render/host-adapter seam for reading a resource value after
@@ -861,47 +875,39 @@ export namespace Resource {
    * failures instead of thrown render-control values.
    */
   export const readEffect = <I, A, E, R>(
-    ref: ResourceRef<I, A, E, R>
-  ): Effect.Effect<A, ResourceReadError<I, A, E, R>, R> =>
-    readResourceEffect(ref);
+    ref: ResourceRef<I, A, E, R>,
+  ): Effect.Effect<A, ResourceReadError<I, A, E, R>, R> => readResourceEffect(ref);
 
   /**
    * Invalidates refs or tags and refreshes affected resources as an Effect.
    */
   export const invalidateEffect = <R = never>(
-    target: ResourceInvalidationTarget<R>
-  ): Effect.Effect<void, never, R> =>
-    invalidateResourceEffect(target);
+    target: ResourceInvalidationTarget<R>,
+  ): Effect.Effect<void, never, R> => invalidateResourceEffect(target);
 
   /** Runs a previously computed invalidation plan as an Effect. */
   export const runInvalidationPlanEffect = <R = never>(
-    plan: ResourceInvalidationPlan<R>
-  ): Effect.Effect<void, never, R> =>
-    runResourceInvalidationPlanEffect(plan);
+    plan: ResourceInvalidationPlan<R>,
+  ): Effect.Effect<void, never, R> => runResourceInvalidationPlanEffect(plan);
 
   /** Fire-and-forget runtime boundary for invalidateEffect. */
-  export const invalidate = (
-    target: ResourceInvalidationTarget
-  ): void => {
+  export const invalidate = (target: ResourceInvalidationTarget): void => {
     invalidateResource(target);
   };
 
   /** Fire-and-forget runtime boundary for runInvalidationPlanEffect. */
-  export const runInvalidationPlan = (
-    plan: ResourceInvalidationPlan
-  ): void => {
+  export const runInvalidationPlan = (plan: ResourceInvalidationPlan): void => {
     runResourceInvalidationPlan(plan);
   };
 
   /** Serializes successful resource refs from the current store for hydration. */
   export const dehydrate = (
-    refs: Iterable<AnyResourceRef<any>>
-  ): ReadonlyArray<ResourceHydrationSnapshot> =>
-    dehydrateResources(refs);
+    refs: Iterable<AnyResourceRef<any>>,
+  ): ReadonlyArray<ResourceHydrationSnapshot> => dehydrateResources(refs);
 
   /** Effect version of dehydrate that reads the ResourceStore from context. */
   export const dehydrateEffect = (
-    refs: Iterable<AnyResourceRef<any>>
+    refs: Iterable<AnyResourceRef<any>>,
   ): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>, ResourceSnapshotCodecError> =>
     dehydrateResourcesEffect(refs);
 
@@ -911,19 +917,19 @@ export namespace Resource {
 
   /** Builds a validated hydration payload from loaded Resource refs using the ResourceStore in context. */
   export const hydrationPayloadEffect = (
-    refs: Iterable<AnyResourceRef<any>>
+    refs: Iterable<AnyResourceRef<any>>,
   ): Effect.Effect<ResourceHydrationPayload, ResourceSnapshotCodecError> =>
     resourceHydrationPayloadEffect(refs);
 
   /** Encodes a validated hydration payload as JSON. */
   export const encodeHydrationPayloadEffect = (
-    payload: ResourceHydrationPayload
+    payload: ResourceHydrationPayload,
   ): Effect.Effect<string, ResourceSnapshotCodecError> =>
     encodeResourceHydrationPayloadEffect(payload);
 
   /** Decodes and validates a hydration payload from JSON. */
   export const decodeHydrationPayloadEffect = (
-    encoded: string
+    encoded: string,
   ): Effect.Effect<ResourceHydrationPayload, ResourceSnapshotCodecError> =>
     decodeResourceHydrationPayloadEffect(encoded);
 
@@ -936,14 +942,16 @@ export namespace Resource {
    */
   export const hydrateEffect = (
     input: ResourceHydrationPayload,
-    options?: ResourceHydrationOptions
-  ): Effect.Effect<void, ResourceSnapshotCodecError | ResourceHydrationApplyError | EffectInputCallbackError> =>
-    hydrateResourcesEffect(input, options);
+    options?: ResourceHydrationOptions,
+  ): Effect.Effect<
+    void,
+    ResourceSnapshotCodecError | ResourceHydrationApplyError | EffectInputCallbackError
+  > => hydrateResourcesEffect(input, options);
 
   /** Synchronous runtime boundary for hydrateEffect. */
   export const hydrate = (
     input: ResourceHydrationPayload,
-    options?: ResourceHydrationOptions
+    options?: ResourceHydrationOptions,
   ): void => {
     hydrateResources(input, options);
   };

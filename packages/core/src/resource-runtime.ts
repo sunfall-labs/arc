@@ -1,16 +1,34 @@
-import { Cache, Clock, Context, Duration, Effect, Exit, Fiber, Option, PubSub, Scope } from "effect";
+import {
+  Cache,
+  Clock,
+  Context,
+  Duration,
+  Effect,
+  Exit,
+  Fiber,
+  Option,
+  PubSub,
+  Scope,
+} from "effect";
 import {
   planResourceInvalidationTargets,
   removeResourceRefFromTagIndex,
   recordResourceProvidedTags,
   resourceRefStoreKey,
   resourceProvidedTagsEffect,
-  resourceRefsForTag
+  resourceRefsForTag,
 } from "./resource-dependency-graph.js";
-import { describeResourceStoreInvalidationCause, publishResourceStoreEvent } from "./resource-events.js";
+import {
+  describeResourceStoreInvalidationCause,
+  publishResourceStoreEvent,
+} from "./resource-events.js";
 import { ResourceCollector, type ResourceCollected } from "./resource-collector.js";
 import { MissingResourceInput, ResourceFailure, ResourcePending } from "./resource-errors.js";
-import { catchEffectInputPromiseDefect, EffectInputCallbackError, toEffect } from "./effect-like.js";
+import {
+  catchEffectInputPromiseDefect,
+  EffectInputCallbackError,
+  toEffect,
+} from "./effect-like.js";
 import { parseDuration } from "./resource-duration.js";
 import { lookupResourceHydrationFamily } from "./resource-registry.js";
 import {
@@ -22,7 +40,7 @@ import {
   resourceHydrationSnapshotFromRefEffect,
   type ResourceSnapshotCodecError,
   validateResourceHydrationInputEffect,
-  validateResourceHydrationPayloadEffect
+  validateResourceHydrationPayloadEffect,
 } from "./resource-snapshot-codec.js";
 import {
   clearResourceInFlight,
@@ -41,13 +59,13 @@ import {
   setResourceSuccess,
   shouldShowResourcePending,
   trackResourceFiber,
-  type ResourceLifetimeEntry as ResourceEntry
+  type ResourceLifetimeEntry as ResourceEntry,
 } from "./resource-lifetime.js";
 import {
   ResourceStore,
   unsafeMutableResourceStore,
   type MutableResourceStore as ResourceStoreState,
-  type ResourceStoreEvent
+  type ResourceStoreEvent,
 } from "./resource-store.js";
 import { currentOrDefaultRuntime, runFork, type AnyEffectUiRuntime } from "./runtime.js";
 import type { ReadableSignal } from "./signal.js";
@@ -64,20 +82,19 @@ import type {
   ResourceTag,
   ResourceRef,
   ResourceState,
-  ResourceStatus
+  ResourceStatus,
 } from "./resource.js";
 
 export const currentResourceStore = (): ResourceStoreState =>
   unsafeMutableResourceStore(currentOrDefaultRuntime().resourceStore);
 
-export const resourceStoreEffect: Effect.Effect<ResourceStoreState> =
-  Effect.gen(function* () {
-    const store = yield* Effect.serviceOption(ResourceStore);
-    return Option.isSome(store) ? unsafeMutableResourceStore(store.value) : currentResourceStore();
-  });
+export const resourceStoreEffect: Effect.Effect<ResourceStoreState> = Effect.gen(function* () {
+  const store = yield* Effect.serviceOption(ResourceStore);
+  return Option.isSome(store) ? unsafeMutableResourceStore(store.value) : currentResourceStore();
+});
 
 export const lookupResourceFamilyEffect = (
-  name: string
+  name: string,
 ): Effect.Effect<AnyResourceFamily | undefined> =>
   Effect.map(resourceStoreEffect, (store) => lookupResourceHydrationFamily(name, store));
 
@@ -91,14 +108,14 @@ const recordTouched = (ref: AnyResourceRef): Effect.Effect<void> =>
 
 const registerResourceFamilyInStore = (
   family: AnyResourceFamily,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): void => {
   store.families.set(family.options.name, family);
 };
 
 const resourceInputs = <I, A, E, R>(
   family: ResourceFamily<I, A, E, R>,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): Map<string, I> => {
   registerResourceFamilyInStore(family as AnyResourceFamily, store);
   const existing = store.inputs.get(family);
@@ -113,7 +130,7 @@ const resourceInputs = <I, A, E, R>(
 
 const resourceEntries = <I, A, E, R>(
   family: ResourceFamily<I, A, E, R>,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): Map<string, ResourceEntry<A, ResourceLoadError<E>>> => {
   registerResourceFamilyInStore(family as AnyResourceFamily, store);
   const existing = store.entries.get(family);
@@ -128,7 +145,7 @@ const resourceEntries = <I, A, E, R>(
 
 const resourceLoadEffect = <I, A, E, R>(
   family: ResourceFamily<I, A, E, R>,
-  input: I
+  input: I,
 ): Effect.Effect<A, ResourceLoadError<E>, R> =>
   Effect.flatMap(
     Effect.try({
@@ -137,8 +154,9 @@ const resourceLoadEffect = <I, A, E, R>(
         new EffectInputCallbackError({
           operation: `Resource.load(${family.options.name})`,
           cause,
-          guidance: "EffectInput callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel."
-        })
+          guidance:
+            "EffectInput callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel.",
+        }),
     }),
     (output) => {
       const operation = `Resource.load(${family.options.name})`;
@@ -146,14 +164,14 @@ const resourceLoadEffect = <I, A, E, R>(
       const retry = family.options.policy?.retry;
       return catchEffectInputPromiseDefect(
         operation,
-        retry === undefined ? effect : Effect.retry(effect, retry)
+        retry === undefined ? effect : Effect.retry(effect, retry),
       );
-    }
+    },
   );
 
 const resourceCache = <I, A, E, R>(
   family: ResourceFamily<I, A, E, R>,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): Cache.Cache<string, A, ResourceLoadError<E>, R> => {
   registerResourceFamilyInStore(family as AnyResourceFamily, store);
   const existing = store.caches.get(family);
@@ -180,9 +198,9 @@ const resourceCache = <I, A, E, R>(
             ? 0
             : family.options.policy?.gcFor === undefined
               ? Duration.infinity
-              : parseDuration(family.options.policy.gcFor)
-      }
-    )
+              : parseDuration(family.options.policy.gcFor),
+      },
+    ),
   );
   store.caches.set(family, cache);
   return cache;
@@ -190,22 +208,18 @@ const resourceCache = <I, A, E, R>(
 
 const rememberResourceRef = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): void => {
   resourceInputs(ref.family, store).set(ref.key, ref.input);
 };
 
-const resourceRetentionKey = (ref: AnyResourceRef): string =>
-  resourceRefStoreKey(ref);
+const resourceRetentionKey = (ref: AnyResourceRef): string => resourceRefStoreKey(ref);
 
-const isResourceRefRetained = (
-  ref: AnyResourceRef,
-  store: ResourceStoreState
-): boolean =>
+const isResourceRefRetained = (ref: AnyResourceRef, store: ResourceStoreState): boolean =>
   (store.retainedRefs.get(resourceRetentionKey(ref)) ?? 0) > 0;
 
 export const retainResourceRefEffect = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>
+  ref: ResourceRef<I, A, E, R>,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
@@ -219,7 +233,7 @@ export const retainResourceRefEffect = <I, A, E, R>(
   });
 
 export const releaseResourceRefEffect = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>
+  ref: ResourceRef<I, A, E, R>,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
@@ -234,19 +248,15 @@ export const releaseResourceRefEffect = <I, A, E, R>(
 
     const entry = peekResourceEntry(ref, store);
     if (entry?.state.get()._tag === "Success") {
-      yield* scheduleResourceGc(
-        ref,
-        entry,
-        store,
-        deleteResourceFromStoreEffect,
-        () => isResourceRefRetained(ref as AnyResourceRef, store)
+      yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
+        isResourceRefRetained(ref as AnyResourceRef, store),
       );
     }
   });
 
 export const resourceEntry = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  store: ResourceStoreState = currentResourceStore()
+  store: ResourceStoreState = currentResourceStore(),
 ): ResourceEntry<A, ResourceLoadError<E>> => {
   rememberResourceRef(ref, store);
   const entries = resourceEntries(ref.family, store);
@@ -255,14 +265,17 @@ export const resourceEntry = <I, A, E, R>(
     return existing;
   }
 
-  const entry = makeResourceEntry<A, ResourceLoadError<E>>() as ResourceEntry<A, ResourceLoadError<E>>;
+  const entry = makeResourceEntry<A, ResourceLoadError<E>>() as ResourceEntry<
+    A,
+    ResourceLoadError<E>
+  >;
   entries.set(ref.key, entry);
   return entry;
 };
 
 const peekResourceEntry = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): ResourceEntry<A, ResourceLoadError<E>> | undefined =>
   store.entries.get(ref.family)?.get(ref.key) as ResourceEntry<A, ResourceLoadError<E>> | undefined;
 
@@ -277,7 +290,7 @@ const runtimeCurrentTimeMillis = (runtime: AnyEffectUiRuntime<any>): number => {
 
 export const getCachedResourceEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): Effect.Effect<A, ResourceLoadError<E>, R> => {
   rememberResourceRef(ref, store);
   return Cache.get(resourceCache(ref.family, store), ref.key);
@@ -285,7 +298,7 @@ export const getCachedResourceEffect = <I, A, E, R>(
 
 export const refreshCachedResourceEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): Effect.Effect<A, ResourceLoadError<E>, R> => {
   rememberResourceRef(ref, store);
   return Cache.refresh(resourceCache(ref.family, store), ref.key);
@@ -293,44 +306,43 @@ export const refreshCachedResourceEffect = <I, A, E, R>(
 
 export const invalidateCachedResourceEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): Effect.Effect<void> => {
   rememberResourceRef(ref, store);
   return Cache.invalidate(resourceCache(ref.family, store), ref.key);
 };
 
-const invalidateResourceCacheEntryEffect = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>,
-  store: ResourceStoreState
-): Effect.Effect<void> =>
-  Cache.invalidate(resourceCache(ref.family, store), ref.key);
-
 const resourceEntryOwnsState = <A, E>(entry: ResourceEntry<A, E> | undefined): boolean =>
   entry !== undefined &&
-  (entry.inFlight !== undefined || entry.gcFiber !== undefined || entry.state.get()._tag !== "Initial");
+  (entry.inFlight !== undefined ||
+    entry.gcFiber !== undefined ||
+    entry.state.get()._tag !== "Initial");
 
-export const subscribeResourceEventsEffect = (): Effect.Effect<PubSub.Subscription<ResourceStoreEvent>, never, Scope.Scope> =>
-  Effect.flatMap(resourceStoreEffect, (store) => store.eventBus.subscribeEffect);
+export const subscribeResourceEventsEffect = (): Effect.Effect<
+  PubSub.Subscription<ResourceStoreEvent>,
+  never,
+  Scope.Scope
+> => Effect.flatMap(resourceStoreEffect, (store) => store.eventBus.subscribeEffect);
 
 export const resourceResult = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>
+  ref: ResourceRef<I, A, E, R>,
 ): ReadableSignal<ResourceState<A, ResourceLoadError<E>>> =>
   resourceEntry(ref, currentResourceStore()).state;
 
 export const resourceStatus = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>
+  ref: ResourceRef<I, A, E, R>,
 ): ResourceStatus<I, A, ResourceLoadError<E>, R, E> => {
   const runtime = currentOrDefaultRuntime();
   const store = unsafeMutableResourceStore(runtime.resourceStore);
   return inspectResourceStatus(
     ref,
     peekResourceEntry(ref, store)?.state.get() ?? { _tag: "Initial", waiting: false },
-    runtimeCurrentTimeMillis(runtime)
+    runtimeCurrentTimeMillis(runtime),
   );
 };
 
 export const resourceStatusEffect = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>
+  ref: ResourceRef<I, A, E, R>,
 ): Effect.Effect<ResourceStatus<I, A, ResourceLoadError<E>, R, E>> =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
@@ -338,13 +350,13 @@ export const resourceStatusEffect = <I, A, E, R>(
     return inspectResourceStatus(
       ref,
       peekResourceEntry(ref, store)?.state.get() ?? { _tag: "Initial", waiting: false },
-      now
+      now,
     );
   });
 
 export const runResourceEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  options: { readonly force: boolean }
+  options: { readonly force: boolean },
 ): Effect.Effect<A, ResourceLoadError<E>, R> =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
@@ -367,7 +379,7 @@ export const runResourceEffect = <I, A, E, R>(
         current,
         options.force,
         pendingNow,
-        isResourceRefRetained(ref as AnyResourceRef, store)
+        isResourceRefRetained(ref as AnyResourceRef, store),
       );
 
       if (shouldShowPending) {
@@ -378,32 +390,26 @@ export const runResourceEffect = <I, A, E, R>(
           name: ref.family.options.name,
           key: ref.key,
           force: options.force,
-          previous: previousResourceValue(current).present
+          previous: previousResourceValue(current).present,
         });
       }
 
-      const value = yield* (
-        options.force
-          ? refreshCachedResourceEffect(ref, store)
-          : getCachedResourceEffect(ref, store)
-      );
+      const value = yield* options.force
+        ? refreshCachedResourceEffect(ref, store)
+        : getCachedResourceEffect(ref, store);
       const tags = yield* resourceProvidedTagsEffect(ref, value);
       const updatedAt = yield* Clock.currentTimeMillis;
       recordResourceProvidedTags(ref, tags, store);
       setResourceSuccess(entry, value, updatedAt);
 
-      yield* scheduleResourceGc(
-        ref,
-        entry,
-        store,
-        deleteResourceFromStoreEffect,
-        () => isResourceRefRetained(ref as AnyResourceRef, store)
+      yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
+        isResourceRefRetained(ref as AnyResourceRef, store),
       );
       yield* publishResourceStoreEvent(store, {
         _tag: "ResourceSuccess",
         name: ref.family.options.name,
         key: ref.key,
-        updatedAt
+        updatedAt,
       });
 
       return value;
@@ -419,18 +425,18 @@ export const runResourceEffect = <I, A, E, R>(
             name: ref.family.options.name,
             key: ref.key,
             error,
-            previous: previous.present
+            previous: previous.present,
           });
           return yield* Effect.fail(error);
-        })
+        }),
       ),
-      Effect.ensuring(clearResourceInFlight(entry, store, token))
+      Effect.ensuring(clearResourceInFlight(entry, store, token)),
     );
     const fiber = yield* Effect.forkDetach(loadEffect, { startImmediately: true });
     entry.inFlight = {
       token,
       force: options.force,
-      fiber
+      fiber,
     };
     yield* trackResourceFiber(store, fiber);
     if (fiber.pollUnsafe() !== undefined) {
@@ -441,24 +447,22 @@ export const runResourceEffect = <I, A, E, R>(
   });
 
 export const refreshResourceEffect = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>
-): Effect.Effect<A, ResourceLoadError<E>, R> =>
-  runResourceEffect(ref, { force: true });
+  ref: ResourceRef<I, A, E, R>,
+): Effect.Effect<A, ResourceLoadError<E>, R> => runResourceEffect(ref, { force: true });
 
 export const prefetchResourceEffect = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>
-): Effect.Effect<A, ResourceLoadError<E>, R> =>
-  runResourceEffect(ref, { force: false });
+  ref: ResourceRef<I, A, E, R>,
+): Effect.Effect<A, ResourceLoadError<E>, R> => runResourceEffect(ref, { force: false });
 
 export const collectResourceEffect = <A, E, R>(
-  effect: Effect.Effect<A, E, R>
+  effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<ResourceCollected<A>, E, R> =>
   Effect.gen(function* () {
     const collector: ResourceCollector = { refs: new Map() };
     const value = yield* Effect.provideService(effect, ResourceCollector, collector);
     return {
       value,
-      refs: Array.from(collector.refs.values())
+      refs: Array.from(collector.refs.values()),
     };
   });
 
@@ -466,14 +470,15 @@ const resourcePending = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   state: "Initial" | "Pending" | "Collected",
   previous: A | undefined,
-  hasPrevious = false
+  hasPrevious = false,
 ): ResourcePending<I, A, E, R> =>
   new ResourcePending({
     ref,
     state,
     previous,
     hasPrevious,
-    guidance: "Resource.read(...) is a synchronous render/host-adapter seam. Run Resource.prefetchEffect(...) before reading, use Resource.readEffect(...) inside Effect code, or use a UI adapter such as Solid useResourceSuspense(...) for Suspense."
+    guidance:
+      "Resource.read(...) is a synchronous render/host-adapter seam. Run Resource.prefetchEffect(...) before reading, use Resource.readEffect(...) inside Effect code, or use a UI adapter such as Solid useResourceSuspense(...) for Suspense.",
   });
 
 type ResourceReadDecision<I, A, E, R> =
@@ -496,7 +501,7 @@ const resourceReadDecision = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   entry: ResourceEntry<A, ResourceLoadError<E>> | undefined,
   now: number,
-  retained = false
+  retained = false,
 ): ResourceReadDecision<I, A, E, R> => {
   if (entry === undefined) {
     return { _tag: "Pending", pending: resourcePending(ref, "Initial", undefined) };
@@ -521,23 +526,26 @@ const resourceReadDecision = <I, A, E, R>(
         ref,
         error: state.error,
         previous: hasPrevious ? state.previous : undefined,
-        hasPrevious
-      })
+        hasPrevious,
+      }),
     };
   }
 
-  if (!retained && isResourceStateCollected(ref as ResourceRef<unknown, A, E, unknown>, state, now)) {
+  if (
+    !retained &&
+    isResourceStateCollected(ref as ResourceRef<unknown, A, E, unknown>, state, now)
+  ) {
     return {
       _tag: "Pending",
       pending: resourcePending(ref, "Collected", state.value, true),
-      resetEntry: entry
+      resetEntry: entry,
     };
   }
 
   return {
     _tag: "Value",
     value: state.value,
-    refresh: isResourceStateStale(ref as ResourceRef<unknown, A, E, unknown>, state, now)
+    refresh: isResourceStateStale(ref as ResourceRef<unknown, A, E, unknown>, state, now),
   };
 };
 
@@ -546,7 +554,12 @@ export const readResource = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): A => {
   const store = unsafeMutableResourceStore(runtime.resourceStore);
   const entry = peekResourceEntry(ref, store);
   const now = runtimeCurrentTimeMillis(runtime);
-  const decision = resourceReadDecision(ref, entry, now, isResourceRefRetained(ref as AnyResourceRef, store));
+  const decision = resourceReadDecision(
+    ref,
+    entry,
+    now,
+    isResourceRefRetained(ref as AnyResourceRef, store),
+  );
   switch (decision._tag) {
     case "Pending":
       if (decision.resetEntry !== undefined) {
@@ -557,18 +570,14 @@ export const readResource = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): A => {
       throw decision.failure;
     case "Value":
       if (decision.refresh) {
-        void runFork(
-          refreshResourceEffect(ref).pipe(
-            Effect.catchCause(() => Effect.void)
-          )
-        );
+        void runFork(refreshResourceEffect(ref).pipe(Effect.catchCause(() => Effect.void)));
       }
       return decision.value;
   }
 };
 
 export const readResourceEffect = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>
+  ref: ResourceRef<I, A, E, R>,
 ): Effect.Effect<
   A,
   ResourcePending<I, A, E, R> | ResourceFailure<I, A, ResourceLoadError<E>, R, E>,
@@ -579,7 +588,12 @@ export const readResourceEffect = <I, A, E, R>(
     yield* recordTouched(ref as AnyResourceRef);
     const entry = peekResourceEntry(ref, store);
     const now = yield* Clock.currentTimeMillis;
-    const decision = resourceReadDecision(ref, entry, now, isResourceRefRetained(ref as AnyResourceRef, store));
+    const decision = resourceReadDecision(
+      ref,
+      entry,
+      now,
+      isResourceRefRetained(ref as AnyResourceRef, store),
+    );
     switch (decision._tag) {
       case "Pending":
         if (decision.resetEntry !== undefined) {
@@ -592,7 +606,7 @@ export const readResourceEffect = <I, A, E, R>(
         if (decision.refresh) {
           yield* forkTrackedDetachedResourceEffect(
             store,
-            refreshResourceEffect(ref).pipe(Effect.catchCause(() => Effect.void))
+            refreshResourceEffect(ref).pipe(Effect.catchCause(() => Effect.void)),
           );
         }
         return decision.value;
@@ -603,19 +617,20 @@ export const refsForResourceTag = (tag: ResourceTag): ReadonlyArray<AnyResourceR
   resourceRefsForTag(tag, currentResourceStore());
 
 export const planResourceInvalidation = <R = never>(
-  target: ResourceInvalidationTarget<R>
+  target: ResourceInvalidationTarget<R>,
 ): ResourceInvalidationPlan<R> =>
   planResourceInvalidationTargets(target, currentResourceStore()) as ResourceInvalidationPlan<R>;
 
 export const planResourceInvalidationEffect = <R = never>(
-  target: ResourceInvalidationTarget<R>
+  target: ResourceInvalidationTarget<R>,
 ): Effect.Effect<ResourceInvalidationPlan<R>> =>
-  Effect.map(resourceStoreEffect, (store) =>
-    planResourceInvalidationTargets(target, store) as ResourceInvalidationPlan<R>
+  Effect.map(
+    resourceStoreEffect,
+    (store) => planResourceInvalidationTargets(target, store) as ResourceInvalidationPlan<R>,
   );
 
 export const invalidateResourceEffect = <R = never>(
-  target: ResourceInvalidationTarget<R>
+  target: ResourceInvalidationTarget<R>,
 ): Effect.Effect<void, never, R> =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
@@ -623,7 +638,7 @@ export const invalidateResourceEffect = <R = never>(
   });
 
 export const runResourceInvalidationPlanEffect = <R = never>(
-  plan: ResourceInvalidationPlan<R>
+  plan: ResourceInvalidationPlan<R>,
 ): Effect.Effect<void, never, R> =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
@@ -632,32 +647,28 @@ export const runResourceInvalidationPlanEffect = <R = never>(
         _tag: "ResourceInvalidated",
         name: entry.ref.family.options.name,
         key: entry.ref.key,
-        causes: entry.causes.map(describeResourceStoreInvalidationCause)
+        causes: entry.causes.map(describeResourceStoreInvalidationCause),
       });
       yield* refreshResourceEffect(entry.ref).pipe(Effect.catchCause(() => Effect.void));
     }
   });
 
-export const invalidateResource = (
-  target: ResourceInvalidationTarget
-): void => {
+export const invalidateResource = (target: ResourceInvalidationTarget): void => {
   runResourceInvalidationPlan(planResourceInvalidationTargets(target, currentResourceStore()));
 };
 
-export const runResourceInvalidationPlan = (
-  plan: ResourceInvalidationPlan
-): void => {
+export const runResourceInvalidationPlan = (plan: ResourceInvalidationPlan): void => {
   const store = currentResourceStore();
   void runFork(
     Effect.provideService(runResourceInvalidationPlanEffect(plan), ResourceStore, store).pipe(
-      Effect.catchCause(() => Effect.void)
-    )
+      Effect.catchCause(() => Effect.void),
+    ),
   );
 };
 
 export const dehydrateResources = (
   refs: Iterable<AnyResourceRef<any>>,
-  store: ResourceStoreState = currentResourceStore()
+  store: ResourceStoreState = currentResourceStore(),
 ): ReadonlyArray<ResourceHydrationSnapshot> => {
   const snapshot: Array<ResourceHydrationSnapshot> = [];
 
@@ -678,7 +689,7 @@ export const dehydrateResources = (
 };
 
 export const dehydrateResourcesEffect = (
-  refs: Iterable<AnyResourceRef<any>>
+  refs: Iterable<AnyResourceRef<any>>,
 ): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>, ResourceSnapshotCodecError> =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
@@ -700,15 +711,15 @@ export const dehydrateResourcesEffect = (
     return snapshot;
   });
 
-export const resourceHydrationPayload = (refs: Iterable<AnyResourceRef<any>>): ResourceHydrationPayload =>
-  resourceHydrationPayloadFromSnapshots(dehydrateResources(refs));
+export const resourceHydrationPayload = (
+  refs: Iterable<AnyResourceRef<any>>,
+): ResourceHydrationPayload => resourceHydrationPayloadFromSnapshots(dehydrateResources(refs));
 
 export const resourceHydrationPayloadEffect = (
-  refs: Iterable<AnyResourceRef<any>>
+  refs: Iterable<AnyResourceRef<any>>,
 ): Effect.Effect<ResourceHydrationPayload, ResourceSnapshotCodecError> =>
-  Effect.flatMap(
-    dehydrateResourcesEffect(refs),
-    (resources) => validateResourceHydrationPayloadEffect({ resources }, "snapshot")
+  Effect.flatMap(dehydrateResourcesEffect(refs), (resources) =>
+    validateResourceHydrationPayloadEffect({ resources }, "snapshot"),
   );
 
 interface ResourceHydrationPlanEntry {
@@ -721,7 +732,7 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   state: Extract<ResourceState<A, E>, { readonly _tag: "Success" }>,
   tags: readonly ResourceTag[],
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     rememberResourceRef(ref, store);
@@ -731,25 +742,21 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
     recordResourceProvidedTags(ref, tags, store);
     setResourceSuccess(entry, state.value, state.updatedAt);
     yield* Cache.set(resourceCache(ref.family, store), ref.key, state.value);
-    yield* scheduleResourceGc(
-      ref,
-      entry,
-      store,
-      deleteResourceFromStoreEffect,
-      () => isResourceRefRetained(ref as AnyResourceRef, store)
+    yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
+      isResourceRefRetained(ref as AnyResourceRef, store),
     );
     yield* publishResourceStoreEvent(store, {
       _tag: "ResourceHydrated",
       name: ref.family.options.name,
       key: ref.key,
-      updatedAt: state.updatedAt
+      updatedAt: state.updatedAt,
     });
   });
 
 export const hydrateResourceRefEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   state: Extract<ResourceState<A, E>, { readonly _tag: "Success" }>,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): Effect.Effect<void, EffectInputCallbackError> =>
   Effect.gen(function* () {
     const tags = yield* resourceProvidedTagsEffect(ref, state.value);
@@ -757,7 +764,7 @@ export const hydrateResourceRefEffect = <I, A, E, R>(
   });
 
 export const deleteResourceEffect = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>
+  ref: ResourceRef<I, A, E, R>,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
@@ -766,12 +773,16 @@ export const deleteResourceEffect = <I, A, E, R>(
 
 export const deleteResourceFromStoreEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  store: ResourceStoreState
+  store: ResourceStoreState,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
-    const entries = store.entries.get(ref.family) as Map<string, ResourceEntry<A, ResourceLoadError<E>>> | undefined;
+    const entries = store.entries.get(ref.family) as
+      | Map<string, ResourceEntry<A, ResourceLoadError<E>>>
+      | undefined;
     const inputs = store.inputs.get(ref.family) as Map<string, I> | undefined;
-    const cache = store.caches.get(ref.family) as Cache.Cache<string, A, ResourceLoadError<E>, R> | undefined;
+    const cache = store.caches.get(ref.family) as
+      | Cache.Cache<string, A, ResourceLoadError<E>, R>
+      | undefined;
     const hadInput = inputs?.has(ref.key) === true;
     const entry = entries?.get(ref.key);
     const hadEntry = resourceEntryOwnsState(entry);
@@ -794,21 +805,24 @@ export const deleteResourceFromStoreEffect = <I, A, E, R>(
     yield* publishResourceStoreEvent(store, {
       _tag: "ResourceDeleted",
       name: ref.family.options.name,
-      key: ref.key
+      key: ref.key,
     });
   });
 
-export const deleteResource = (
-  ref: AnyResourceRef
-): void => {
+export const deleteResource = (ref: AnyResourceRef): void => {
   const store = currentResourceStore();
-  void runFork(Effect.provideService(deleteResourceFromStoreEffect(ref, store), ResourceStore, store));
+  void runFork(
+    Effect.provideService(deleteResourceFromStoreEffect(ref, store), ResourceStore, store),
+  );
 };
 
 export const hydrateResourcesEffect = (
   input: ResourceHydrationPayload,
-  options: ResourceHydrationOptions = {}
-): Effect.Effect<void, ResourceSnapshotCodecError | ResourceHydrationApplyError | EffectInputCallbackError> =>
+  options: ResourceHydrationOptions = {},
+): Effect.Effect<
+  void,
+  ResourceSnapshotCodecError | ResourceHydrationApplyError | EffectInputCallbackError
+> =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
     const snapshots = yield* validateResourceHydrationInputEffect(input, "hydrate");
@@ -822,32 +836,48 @@ export const hydrateResourcesEffect = (
         if (options.missingFamily === "skip") {
           continue;
         }
-        return yield* Effect.fail(new ResourceHydrationApplyError({
-          reason: "MissingFamily",
-          path,
-          name: snapshot.name,
-          key: snapshot.key,
-          guidance: "Register the Resource family before hydration, or pass { missingFamily: \"skip\" } to opt into dropping that snapshot."
-        }));
+        return yield* Effect.fail(
+          new ResourceHydrationApplyError({
+            reason: "MissingFamily",
+            path,
+            name: snapshot.name,
+            key: snapshot.key,
+            guidance:
+              'Register the Resource family before hydration, or pass { missingFamily: "skip" } to opt into dropping that snapshot.',
+          }),
+        );
       }
 
-      const input = yield* decodeResourceHydrationInputEffect(family, snapshot, "hydrate", `${path}.input`);
+      const input = yield* decodeResourceHydrationInputEffect(
+        family,
+        snapshot,
+        "hydrate",
+        `${path}.input`,
+      );
       const ref = family.ref(input);
       if (ref.key !== snapshot.key) {
         if (options.keyMismatch === "skip") {
           continue;
         }
-        return yield* Effect.fail(new ResourceHydrationApplyError({
-          reason: "KeyMismatch",
-          path,
-          name: snapshot.name,
-          key: snapshot.key,
-          expectedKey: ref.key,
-          guidance: "Hydration snapshot keys must match the registered Resource family's key function for the decoded input, or pass { keyMismatch: \"skip\" } to opt into dropping that snapshot."
-        }));
+        return yield* Effect.fail(
+          new ResourceHydrationApplyError({
+            reason: "KeyMismatch",
+            path,
+            name: snapshot.name,
+            key: snapshot.key,
+            expectedKey: ref.key,
+            guidance:
+              'Hydration snapshot keys must match the registered Resource family\'s key function for the decoded input, or pass { keyMismatch: "skip" } to opt into dropping that snapshot.',
+          }),
+        );
       }
 
-      const state = yield* decodeResourceHydrationStateEffect(family, snapshot, "hydrate", `${path}.state.value`);
+      const state = yield* decodeResourceHydrationStateEffect(
+        family,
+        snapshot,
+        "hydrate",
+        `${path}.state.value`,
+      );
       const successState = state as Extract<ResourceState<any, any>, { readonly _tag: "Success" }>;
       const tags = yield* resourceProvidedTagsEffect(ref, successState.value);
       plan.push({ ref, state: successState, tags });
@@ -856,13 +886,13 @@ export const hydrateResourcesEffect = (
     yield* Effect.forEach(
       plan,
       (entry) => applyHydratedResourceRefEffect(entry.ref, entry.state, entry.tags, store),
-      { discard: true }
+      { discard: true },
     );
   });
 
 export const hydrateResources = (
   input: ResourceHydrationPayload,
-  options?: ResourceHydrationOptions
+  options?: ResourceHydrationOptions,
 ): void => {
   currentOrDefaultRuntime().runSync(hydrateResourcesEffect(input, options));
 };

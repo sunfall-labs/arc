@@ -8,13 +8,11 @@ interface Project {
 
 const projectOptions = (
   name: string,
-  status: Project["status"] = "active"
+  status: Project["status"] = "active",
 ): CollectionOptions<Project> => ({
   name,
   getKey: (project) => project.id,
-  initialData: [
-    { id: status, status }
-  ]
+  initialData: [{ id: status, status }],
 });
 
 describe("Collection registry", () => {
@@ -31,17 +29,17 @@ describe("Collection registry", () => {
       collections: [
         {
           name,
-          initialData: true
-        }
+          initialData: true,
+        },
       ],
       duplicates: [
         {
           name,
           policy: "keep-first",
           retained: 1,
-          discarded: 2
-        }
-      ]
+          discarded: 2,
+        },
+      ],
     });
   });
 
@@ -57,8 +55,8 @@ describe("Collection registry", () => {
         name,
         policy: "replace",
         retained: 2,
-        discarded: 1
-      }
+        discarded: 1,
+      },
     ]);
   });
 
@@ -67,7 +65,7 @@ describe("Collection registry", () => {
     const registry = Collection.makeRegistry();
     const Projects = Collection.define<Project>(
       projectOptions("Projects.registry.normalized-name"),
-      sourceRegistry
+      sourceRegistry,
     );
 
     registry.register("wrong.registry.key", Projects);
@@ -87,9 +85,7 @@ describe("Collection registry", () => {
 
     expect(registry.definitions().get(name)).toBe(Projects);
     expect(registry.definitions().get("Projects.registry.injected")).toBeUndefined();
-    expect(registry.diagnostics().collections).toEqual([
-      expect.objectContaining({ name })
-    ]);
+    expect(registry.diagnostics().collections).toEqual([expect.objectContaining({ name })]);
   });
 
   it("returns detached default registry views", () => {
@@ -101,20 +97,21 @@ describe("Collection registry", () => {
 
     expect(Collection.definitions().get(name)).toBe(Projects);
     expect(Collection.registryDiagnostics().collections).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name })
-      ])
+      expect.arrayContaining([expect.objectContaining({ name })]),
     );
   });
 
   it("reports effective persistence defaults in diagnostics", () => {
     const registry = Collection.makeRegistry();
-    Collection.define<Project>({
-      ...projectOptions("Projects.registry.persistence-defaults"),
-      persistence: {
-        storage: Collection.memoryStorage()
-      }
-    }, registry);
+    Collection.define<Project>(
+      {
+        ...projectOptions("Projects.registry.persistence-defaults"),
+        persistence: {
+          storage: Collection.memoryStorage(),
+        },
+      },
+      registry,
+    );
 
     expect(registry.diagnostics().collections).toEqual([
       expect.objectContaining({
@@ -126,9 +123,9 @@ describe("Collection registry", () => {
           loadAfterRestore: false,
           persistOnLoad: true,
           persistOnMutation: true,
-          persistOnWrite: true
-        }
-      })
+          persistOnWrite: true,
+        },
+      }),
     ]);
   });
 
@@ -146,9 +143,9 @@ describe("Collection registry", () => {
           loadAfterRestore: false,
           persistOnLoad: false,
           persistOnMutation: false,
-          persistOnWrite: false
-        }
-      })
+          persistOnWrite: false,
+        },
+      }),
     ]);
   });
 
@@ -159,14 +156,10 @@ describe("Collection registry", () => {
     expect(Collection.defaultRegistry.definitions().get(name)).toBe(Projects);
     expect(Collection.definitions().get(name)).toBe(Projects);
     expect(Collection.diagnostics().collections).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name })
-      ])
+      expect.arrayContaining([expect.objectContaining({ name })]),
     );
     expect(Collection.registryDiagnostics().collections).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name })
-      ])
+      expect.arrayContaining([expect.objectContaining({ name })]),
     );
   });
 });

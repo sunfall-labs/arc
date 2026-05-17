@@ -27,7 +27,7 @@ export {
   type ResourceStoreFiberRegistry,
   type ResourceStoreInvalidationCause,
   type ResourceStoreModule,
-  type ResourceStoreModuleRegistry
+  type ResourceStoreModuleRegistry,
 } from "./resource-store.js";
 export * from "./resource-ui-binding.js";
 export * from "./route-grammar.js";

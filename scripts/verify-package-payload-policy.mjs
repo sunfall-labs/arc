@@ -7,10 +7,11 @@ import { Data, Effect } from "effect";
 import { runScriptMainEffect } from "./effect-main-runner.mjs";
 import { validateDistPackagePayloadEffect } from "./package-payload-policy.mjs";
 
-class PackagePayloadPolicySelfTestError extends Data.TaggedError("PackagePayloadPolicySelfTestError") {}
+class PackagePayloadPolicySelfTestError extends Data.TaggedError(
+  "PackagePayloadPolicySelfTestError",
+) {}
 
-const fail = (message, cause) =>
-  new PackagePayloadPolicySelfTestError({ message, cause });
+const fail = (message, cause) => new PackagePayloadPolicySelfTestError({ message, cause });
 
 const assert = (condition, message, cause) =>
   condition ? Effect.void : Effect.fail(fail(message, cause));
@@ -30,9 +31,9 @@ const writeTextEffect = (root, file, text) =>
 
 const basePackageJson = {
   name: "@effect-ui/payload-policy-self-test",
-  private: true,
-  license: "UNLICENSED",
+  license: "MIT",
   description: "Package payload policy self-test.",
+  publishConfig: { access: "public" },
   files: ["dist"],
   sideEffects: false,
   main: "./dist/index.js",
@@ -53,6 +54,7 @@ const basePackageJson = {
 };
 
 const baseFiles = [
+  "LICENSE",
   "package.json",
   "dist/feature.d.ts",
   "dist/feature.d.ts.map",
@@ -83,6 +85,7 @@ const makeTarget = (directory, packageJson = basePackageJson) => ({
 
 const populatePackageEffect = (directory, options = {}) =>
   Effect.gen(function* () {
+    yield* writeTextEffect(directory, "LICENSE", "MIT License\n\nCopyright (c) 2026 Andrew Lee\n");
     const virtualDeclaration = "export interface VirtualModule { readonly id: string; }\n";
     yield* writeTextEffect(directory, "src/index.ts", "export const index = 'index';\n");
     yield* writeTextEffect(directory, "src/feature.ts", "export const feature = 'feature';\n");
@@ -94,7 +97,11 @@ const populatePackageEffect = (directory, options = {}) =>
     yield* writeTextEffect(directory, "dist/index.d.ts.map", "{}\n");
     yield* writeTextEffect(directory, "dist/feature.js", "export const feature = 'feature';\n");
     yield* writeTextEffect(directory, "dist/feature.js.map", "{}\n");
-    yield* writeTextEffect(directory, "dist/feature.d.ts", "export declare const feature = 'feature';\n");
+    yield* writeTextEffect(
+      directory,
+      "dist/feature.d.ts",
+      "export declare const feature = 'feature';\n",
+    );
     yield* writeTextEffect(directory, "dist/feature.d.ts.map", "{}\n");
     yield* writeTextEffect(directory, "dist/virtual.js", "export const virtual = 'virtual';\n");
     yield* writeTextEffect(directory, "dist/virtual.js.map", "{}\n");
@@ -112,25 +119,27 @@ const withTempPackageEffect = (name, options, use) =>
   Effect.scoped(
     Effect.gen(function* () {
       const directory = yield* fsEffect(`create temp package for ${name}`, () =>
-        mkdtemp(join(tmpdir(), "effect-ui-payload-policy-"))
+        mkdtemp(join(tmpdir(), "effect-ui-payload-policy-")),
       );
       yield* Effect.addFinalizer(() =>
         fsEffect(`remove temp package for ${name}`, () =>
-          rm(directory, { recursive: true, force: true })
-        ).pipe(Effect.catchCause(() => Effect.void))
+          rm(directory, { recursive: true, force: true }),
+        ).pipe(Effect.catchCause(() => Effect.void)),
       );
       yield* populatePackageEffect(directory, options);
       return yield* use(directory);
-    })
+    }),
   );
 
 const expectFailuresEffect = (name, effect, expectedFragments) =>
   Effect.gen(function* () {
     const failures = yield* effect;
     if (failures.length !== expectedFragments.length) {
-      return yield* Effect.fail(fail(
-        `${name} expected ${expectedFragments.length} failures but found ${failures.length}: ${failures.join(" ")}`,
-      ));
+      return yield* Effect.fail(
+        fail(
+          `${name} expected ${expectedFragments.length} failures but found ${failures.length}: ${failures.join(" ")}`,
+        ),
+      );
     }
     for (const expectedFragment of expectedFragments) {
       yield* assert(
@@ -151,7 +160,7 @@ const validateEffect = (directory, options = {}) =>
 
 const selfTest = Effect.gen(function* () {
   yield* withTempPackageEffect("valid dist package", {}, (directory) =>
-    expectFailuresEffect("valid dist package", validateEffect(directory), [])
+    expectFailuresEffect("valid dist package", validateEffect(directory), []),
   );
   yield* withTempPackageEffect("stale dist artifact", {}, (directory) =>
     expectFailuresEffect(
@@ -160,7 +169,7 @@ const selfTest = Effect.gen(function* () {
         files: [...baseFiles, "dist/stale.js"],
       }),
       ["stale dist artifacts"],
-    )
+    ),
   );
   yield* withTempPackageEffect("missing dist artifact", {}, (directory) =>
     expectFailuresEffect(
@@ -169,27 +178,40 @@ const selfTest = Effect.gen(function* () {
         files: baseFiles.filter((file) => file !== "dist/feature.js.map"),
       }),
       ["dist/feature.js.map"],
-    )
+    ),
   );
-  yield* withTempPackageEffect("declaration content drift", {
-    virtualDeclarationText: "export interface VirtualModule { readonly drift: string; }\n",
-  }, (directory) =>
+  yield* withTempPackageEffect("missing license file", {}, (directory) =>
     expectFailuresEffect(
-      "declaration content drift",
-      validateEffect(directory),
-      ["does not match src/virtual-modules.d.ts"],
-    )
-  );
-  yield* withTempPackageEffect("forbidden declaration map", {
-    writeForbiddenDeclarationMap: true,
-  }, (directory) =>
-    expectFailuresEffect(
-      "forbidden declaration map",
+      "missing license file",
       validateEffect(directory, {
-        files: [...baseFiles, "dist/virtual.d.ts.map"],
+        files: baseFiles.filter((file) => file !== "LICENSE"),
       }),
-      ["forbidden copied declaration artifact dist/virtual.d.ts.map"],
-    )
+      ["missing LICENSE"],
+    ),
+  );
+  yield* withTempPackageEffect(
+    "declaration content drift",
+    {
+      virtualDeclarationText: "export interface VirtualModule { readonly drift: string; }\n",
+    },
+    (directory) =>
+      expectFailuresEffect("declaration content drift", validateEffect(directory), [
+        "does not match src/virtual-modules.d.ts",
+      ]),
+  );
+  yield* withTempPackageEffect(
+    "forbidden declaration map",
+    {
+      writeForbiddenDeclarationMap: true,
+    },
+    (directory) =>
+      expectFailuresEffect(
+        "forbidden declaration map",
+        validateEffect(directory, {
+          files: [...baseFiles, "dist/virtual.d.ts.map"],
+        }),
+        ["forbidden copied declaration artifact dist/virtual.d.ts.map"],
+      ),
   );
   yield* withTempPackageEffect("manifest target drift", {}, (directory) =>
     expectFailuresEffect(
@@ -204,8 +226,10 @@ const selfTest = Effect.gen(function* () {
         },
         payloadLabel: "generated local @effect-ui/payload-policy-self-test package",
       }),
-      ["generated local @effect-ui/payload-policy-self-test package manifest field exports../missing points at missing payload file dist/missing.js"],
-    )
+      [
+        "generated local @effect-ui/payload-policy-self-test package manifest field exports../missing points at missing payload file dist/missing.js",
+      ],
+    ),
   );
   yield* Effect.sync(() => {
     console.log("Verified package payload policy.");
@@ -218,7 +242,7 @@ runScriptMainEffect(
       Effect.sync(() => {
         console.error(cause);
         process.exitCode = 1;
-      })
-    )
-  )
+      }),
+    ),
+  ),
 );

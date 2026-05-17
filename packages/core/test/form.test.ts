@@ -3,24 +3,26 @@ import { describe, expect, it } from "vitest";
 import { EffectInputCallbackError, Form, read } from "../src/index.js";
 
 type DeepMutable<T> =
-  T extends Map<infer K, infer V> ? Map<K, DeepMutable<V>>
-    : T extends Set<infer V> ? Set<DeepMutable<V>>
-      : T extends object ? { -readonly [K in keyof T]: DeepMutable<T[K]> }
+  T extends Map<infer K, infer V>
+    ? Map<K, DeepMutable<V>>
+    : T extends Set<infer V>
+      ? Set<DeepMutable<V>>
+      : T extends object
+        ? { -readonly [K in keyof T]: DeepMutable<T[K]> }
         : T;
 
-const mutableSnapshot = <A>(value: A): DeepMutable<A> =>
-  value as DeepMutable<A>;
+const mutableSnapshot = <A>(value: A): DeepMutable<A> => value as DeepMutable<A>;
 
 describe("Form", () => {
   const RenameInput = Schema.Struct({
     id: Schema.String,
-    name: Schema.String
+    name: Schema.String,
   });
 
   it("initializes schema-backed form state", () => {
     const form = Form.make({
       schema: RenameInput,
-      initial: { id: "atlas", name: "Atlas Billing" }
+      initial: { id: "atlas", name: "Atlas Billing" },
     });
 
     expect(read(form.state)).toEqual({
@@ -30,14 +32,14 @@ describe("Form", () => {
       fieldErrors: {},
       formErrors: [],
       dirty: {},
-      touched: {}
+      touched: {},
     });
   });
 
   it("updates known fields and tracks dirty and touched state", () => {
     const form = Form.make({
       schema: RenameInput,
-      initial: { id: "atlas", name: "Atlas Billing" }
+      initial: { id: "atlas", name: "Atlas Billing" },
     });
 
     form.setField("name", "Atlas Revenue");
@@ -45,7 +47,7 @@ describe("Form", () => {
     expect(read(form.state)).toMatchObject({
       values: { id: "atlas", name: "Atlas Revenue" },
       dirty: { name: true },
-      touched: { name: true }
+      touched: { name: true },
     });
 
     form.setField("name", "Atlas Billing");
@@ -53,7 +55,7 @@ describe("Form", () => {
     expect(read(form.state)).toMatchObject({
       values: { id: "atlas", name: "Atlas Billing" },
       dirty: { name: false },
-      touched: { name: true }
+      touched: { name: true },
     });
   });
 
@@ -62,8 +64,8 @@ describe("Form", () => {
       id: Schema.String,
       details: Schema.Struct({
         name: Schema.String,
-        tags: Schema.Array(Schema.String)
-      })
+        tags: Schema.Array(Schema.String),
+      }),
     });
     const form = Form.make({
       schema: NestedInput,
@@ -71,36 +73,36 @@ describe("Form", () => {
         id: "atlas",
         details: {
           name: "Atlas Billing",
-          tags: ["billing", "core"]
-        }
-      }
+          tags: ["billing", "core"],
+        },
+      },
     });
 
     form.setField("details", {
       name: "Atlas Billing",
-      tags: ["billing", "core"]
+      tags: ["billing", "core"],
     });
 
     expect(read(form.state)).toMatchObject({
       dirty: { details: false },
-      touched: { details: true }
+      touched: { details: true },
     });
 
     form.setField("details", {
       name: "Atlas Billing",
-      tags: ["core", "billing"]
+      tags: ["core", "billing"],
     });
 
     expect(read(form.state)).toMatchObject({
       dirty: { details: true },
-      touched: { details: true }
+      touched: { details: true },
     });
   });
 
   it("touches fields without changing values", () => {
     const form = Form.make({
       schema: RenameInput,
-      initial: { id: "atlas", name: "Atlas Billing" }
+      initial: { id: "atlas", name: "Atlas Billing" },
     });
 
     form.touchField("name");
@@ -108,14 +110,14 @@ describe("Form", () => {
     expect(read(form.state)).toMatchObject({
       values: { id: "atlas", name: "Atlas Billing" },
       touched: { name: true },
-      dirty: {}
+      dirty: {},
     });
   });
 
   it("validates successfully with Effect Schema and resets errors", () => {
     const form = Form.make({
       schema: RenameInput,
-      initial: { id: "atlas", name: "Atlas Billing" }
+      initial: { id: "atlas", name: "Atlas Billing" },
     });
 
     return Effect.runPromise(
@@ -124,28 +126,28 @@ describe("Form", () => {
           Effect.sync(() =>
             expect(value).toEqual({
               id: "atlas",
-              name: "Atlas Billing"
-            })
-          )
+              name: "Atlas Billing",
+            }),
+          ),
         ),
         Effect.tap(() =>
           Effect.sync(() =>
             expect(read(form.state)).toMatchObject({
               status: "Valid",
               fieldErrors: {},
-              formErrors: []
-            })
-          )
+              formErrors: [],
+            }),
+          ),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
   it("maps schema failures to field errors", () => {
     const form = Form.make({
       schema: RenameInput,
-      initial: { id: "atlas", name: "Atlas Billing" }
+      initial: { id: "atlas", name: "Atlas Billing" },
     });
 
     // @ts-expect-error invalid field value is rejected by schema validation at runtime
@@ -159,10 +161,10 @@ describe("Form", () => {
             const state = read(form.state);
             expect(state.status).toBe("Invalid");
             expect(state.fieldErrors.name?.[0]).toBeInstanceOf(Schema.SchemaError);
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -177,7 +179,7 @@ describe("Form", () => {
       validate: (values, validation) =>
         values.name.length < 3
           ? Effect.fail(validation.field("name", new ProjectNameTooShort({ minimum: 3 })))
-          : Effect.void
+          : Effect.void,
     });
 
     return Effect.runPromise(
@@ -190,10 +192,10 @@ describe("Form", () => {
             if (error instanceof ProjectNameTooShort) {
               expect(error.minimum).toBe(3);
             }
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -204,15 +206,15 @@ describe("Form", () => {
           schema: RenameInput,
           initial: { id: "atlas", name: "Atlas Billing" },
           validate: (_values, validation) =>
-            Effect.fail(validation.field("name", Promise.resolve("required") as never))
+            Effect.fail(validation.field("name", Promise.resolve("required") as never)),
         }),
       () =>
         Form.make<typeof RenameInput, string>({
           schema: RenameInput,
           initial: { id: "atlas", name: "Atlas Billing" },
           validate: (_values, validation) =>
-            Effect.fail(validation.form(Effect.succeed("invalid") as never))
-        })
+            Effect.fail(validation.form(Effect.succeed("invalid") as never)),
+        }),
     ]) {
       const form = makeForm();
       const exit = Effect.runSync(Effect.exit(form.validateEffect()));
@@ -232,7 +234,7 @@ describe("Form", () => {
       initial: { id: "atlas", name: "Atlas Billing" },
       validate: () => {
         throw thrown;
-      }
+      },
     });
 
     const exit = await Effect.runPromise(Effect.exit(form.validateEffect()));
@@ -261,30 +263,34 @@ describe("Form", () => {
       initial: { id: "atlas", name: "Admin" },
       validate: (values, validation) =>
         ReservedNames.use((reserved) =>
-          reserved.has(values.name).pipe(
-            Effect.flatMap((isReserved) =>
-              isReserved
-                ? Effect.fail(validation.field("name", new ProjectNameReserved({ name: values.name })))
-                : Effect.void
-            )
-          )
-        )
+          reserved
+            .has(values.name)
+            .pipe(
+              Effect.flatMap((isReserved) =>
+                isReserved
+                  ? Effect.fail(
+                      validation.field("name", new ProjectNameReserved({ name: values.name })),
+                    )
+                  : Effect.void,
+              ),
+            ),
+        ),
     });
 
     return Effect.runPromise(
       Effect.exit(
         Effect.provideService(form.validateEffect(), ReservedNames, {
-          has: () => Effect.succeed(true)
-        })
+          has: () => Effect.succeed(true),
+        }),
       ).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
             expect(Exit.isFailure(exit)).toBe(true);
             expect(read(form.state).fieldErrors.name?.[0]).toBeInstanceOf(ProjectNameReserved);
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -293,7 +299,7 @@ describe("Form", () => {
       Effect.gen(function* () {
         const TagsInput = Schema.Struct({
           name: Schema.String,
-          tags: Schema.Array(Schema.String)
+          tags: Schema.Array(Schema.String),
         });
         const formData = new FormData();
         formData.set("name", "Atlas Billing");
@@ -302,42 +308,40 @@ describe("Form", () => {
         formData.set("__framework", "hidden");
 
         const decoded = yield* Form.decodeFormDataEffect(TagsInput, formData, {
-          omitFields: ["__framework"]
+          omitFields: ["__framework"],
         });
 
         expect(decoded).toEqual({
           name: "Atlas Billing",
-          tags: ["billing", "core"]
+          tags: ["billing", "core"],
         });
         expect(Form.data(formData, { omitFields: ["__framework"] })).toEqual({
           name: "Atlas Billing",
-          tags: ["billing", "core"]
+          tags: ["billing", "core"],
         });
-      })
+      }),
     ));
 
   it("maps FormData schema failures to typed field errors", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const ProgressInput = Schema.Struct({
-          progress: Schema.Number
+          progress: Schema.Number,
         });
         const formData = new FormData();
         formData.set("progress", "not-a-number");
 
-        const failure = yield* Effect.flip(
-          Form.decodeFormDataEffect(ProgressInput, formData)
-        );
+        const failure = yield* Effect.flip(Form.decodeFormDataEffect(ProgressInput, formData));
 
         expect(failure.fieldErrors.progress?.[0]).toBeInstanceOf(Schema.SchemaError);
         expect(failure.formErrors).toEqual([]);
-      })
+      }),
     ));
 
   it("resets values and validation state", () => {
     const form = Form.make({
       schema: RenameInput,
-      initial: { id: "atlas", name: "Atlas Billing" }
+      initial: { id: "atlas", name: "Atlas Billing" },
     });
 
     form.setField("name", "Atlas Revenue");
@@ -350,7 +354,7 @@ describe("Form", () => {
       fieldErrors: {},
       formErrors: [],
       dirty: {},
-      touched: {}
+      touched: {},
     });
   });
 
@@ -358,13 +362,13 @@ describe("Form", () => {
     const NestedInput = Schema.Struct({
       id: Schema.String,
       details: Schema.Struct({
-        name: Schema.String
-      })
+        name: Schema.String,
+      }),
     });
     const initial = { id: "atlas", details: { name: "Atlas Billing" } };
     const form = Form.make({
       schema: NestedInput,
-      initial
+      initial,
     });
 
     initial.details.name = "Mutated";
@@ -404,7 +408,7 @@ describe("Form", () => {
     const FlexibleInput = Schema.Struct({
       meta: Schema.Unknown,
       labels: Schema.Unknown,
-      owner: Schema.Unknown
+      owner: Schema.Unknown,
     });
     const team = { name: "Core" };
     const label = { id: "atlas" };
@@ -412,11 +416,11 @@ describe("Form", () => {
     const initial = {
       meta: new Map<string, { name: string }>([["team", team]]),
       labels: new Set<{ id: string }>([label]),
-      owner
+      owner,
     };
     const form = Form.make<typeof FlexibleInput, never, never, FlexibleValues>({
       schema: FlexibleInput,
-      initial
+      initial,
     });
 
     const state = read(form.state);
@@ -456,8 +460,8 @@ describe("Form", () => {
     const NestedInput = Schema.Struct({
       id: Schema.String,
       details: Schema.Struct({
-        name: Schema.String
-      })
+        name: Schema.String,
+      }),
     });
     const started = Effect.runSync(Deferred.make<void>());
     const release = Effect.runSync(Deferred.make<void>());
@@ -471,7 +475,7 @@ describe("Form", () => {
           yield* Deferred.succeed(started, undefined);
           yield* Deferred.await(release);
           validatedName = values.details.name;
-        })
+        }),
     });
 
     return Effect.runPromise(
@@ -489,7 +493,7 @@ describe("Form", () => {
 
         expect(validatedName).toBe("Atlas Billing");
         expect(read(form.state).values.details.name).toBe("Atlas Billing");
-      })
+      }),
     );
   });
 
@@ -508,9 +512,11 @@ describe("Form", () => {
           yield* Deferred.succeed(started, undefined);
           yield* Deferred.await(release);
           if (values.name.length < 3) {
-            return yield* Effect.fail(validation.field("name", new ProjectNameTooShort({ minimum: 3 })));
+            return yield* Effect.fail(
+              validation.field("name", new ProjectNameTooShort({ minimum: 3 })),
+            );
           }
-        })
+        }),
     });
 
     return Effect.runPromise(
@@ -527,7 +533,7 @@ describe("Form", () => {
         expect(state.status).toBe("Idle");
         expect(state.values.name).toBe("Atlas Revenue");
         expect(state.fieldErrors).toEqual({});
-      })
+      }),
     );
   });
 
@@ -541,7 +547,7 @@ describe("Form", () => {
         Effect.gen(function* () {
           yield* Deferred.succeed(started, undefined);
           yield* Deferred.await(release);
-        })
+        }),
     });
 
     return Effect.runPromise(
@@ -562,9 +568,9 @@ describe("Form", () => {
           fieldErrors: {},
           formErrors: [],
           dirty: {},
-          touched: {}
+          touched: {},
         });
-      })
+      }),
     );
   });
 });

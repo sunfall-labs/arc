@@ -4,14 +4,14 @@ import { Data, Effect } from "effect";
 import {
   createGeneratedFileRouteDefinitionsModule,
   isFileRouteDefinitionsModuleError,
-  type FileRouteDefinitionsModuleError
+  type FileRouteDefinitionsModuleError,
 } from "./file-route-modules.js";
 import {
   defaultFileRouteGeneratedFile,
   fileRouteDiscoveryDirectoryExists,
   fileRouteDiscoveryPlan,
   type EffectUiStartOptions,
-  type FileRouteGenerationOptions
+  type FileRouteGenerationOptions,
 } from "./start-manifest-wall.js";
 import type { FileRouteManifest } from "./file-routes.js";
 
@@ -41,7 +41,7 @@ export interface FileRouteDefinitionsFileWriteResult {
 
 /** Error raised while reading or writing the generated route definitions file. */
 export class FileRouteDefinitionsFileWriteError extends Data.TaggedError(
-  "FileRouteDefinitionsFileWriteError"
+  "FileRouteDefinitionsFileWriteError",
 )<{
   /** Filesystem operation that failed. */
   readonly operation: "read-existing" | "create-directory" | "write-file";
@@ -53,7 +53,7 @@ export class FileRouteDefinitionsFileWriteError extends Data.TaggedError(
 
 /** Error raised when generated route definitions would be written outside the Vite root. */
 export class FileRouteDefinitionsOutputPathError extends Data.TaggedError(
-  "FileRouteDefinitionsOutputPathError"
+  "FileRouteDefinitionsOutputPathError",
 )<{
   /** Vite project root used to resolve the output file. */
   readonly root: string;
@@ -78,15 +78,12 @@ export type FileRouteDefinitionsFileWriteFailure =
   | FileRouteDefinitionsModuleError;
 
 const normalizeGeneratedRouteDefinitionsPath = (path: string): string =>
-  path
-    .replace(/\\/g, "/")
-    .replace(/\/+/g, "/")
-    .replace(/\/$/, "");
+  path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
 
 const assertOutputFileInsideRoot = (
   root: string,
   outputFile: string,
-  absolutePath: string
+  absolutePath: string,
 ): void => {
   const relative = relativePath(root, absolutePath);
   if (relative === "" || relative.startsWith("..") || isAbsolute(relative)) {
@@ -94,7 +91,8 @@ const assertOutputFileInsideRoot = (
       root,
       outputFile,
       absolutePath,
-      guidance: "Keep fileRouteGeneration.outputFile inside the Vite root. Use a root-relative path such as 'src/routeTree.gen.ts'."
+      guidance:
+        "Keep fileRouteGeneration.outputFile inside the Vite root. Use a root-relative path such as 'src/routeTree.gen.ts'.",
     });
   }
 };
@@ -102,7 +100,7 @@ const assertOutputFileInsideRoot = (
 export const shouldWriteFileRouteDefinitionsFile = (
   root: string,
   activeOptions: EffectUiStartOptions,
-  initialOptions: EffectUiStartOptions
+  initialOptions: EffectUiStartOptions,
 ): boolean => {
   if (activeOptions.fileRouteGeneration?.outputFile === false) {
     return false;
@@ -112,60 +110,66 @@ export const shouldWriteFileRouteDefinitionsFile = (
     return true;
   }
 
-  return fileRouteDiscoveryDirectoryExists(fileRouteDiscoveryPlan({
-    root,
-    ...(activeOptions.fileRouteOptions?.routeDirectory === undefined
-      ? {}
-      : { routeDirectory: activeOptions.fileRouteOptions.routeDirectory }),
-    ...(activeOptions.fileRouteOptions?.extensions === undefined
-      ? {}
-      : { extensions: activeOptions.fileRouteOptions.extensions }),
-    ...(activeOptions.fileRouteGeneration === undefined
-      ? {}
-      : { fileRouteGeneration: activeOptions.fileRouteGeneration })
-  }));
+  return fileRouteDiscoveryDirectoryExists(
+    fileRouteDiscoveryPlan({
+      root,
+      ...(activeOptions.fileRouteOptions?.routeDirectory === undefined
+        ? {}
+        : { routeDirectory: activeOptions.fileRouteOptions.routeDirectory }),
+      ...(activeOptions.fileRouteOptions?.extensions === undefined
+        ? {}
+        : { extensions: activeOptions.fileRouteOptions.extensions }),
+      ...(activeOptions.fileRouteGeneration === undefined
+        ? {}
+        : { fileRouteGeneration: activeOptions.fileRouteGeneration }),
+    }),
+  );
 };
 
 export const planFileRouteDefinitionsFileWrite = (
   root: string,
   manifest: FileRouteManifest,
-  options: FileRouteGenerationOptions = {}
+  options: FileRouteGenerationOptions = {},
 ): FileRouteDefinitionsFileWritePlan | undefined => {
   if (options.outputFile === false) {
     return undefined;
   }
 
   const outputFile = options.outputFile ?? defaultFileRouteGeneratedFile;
-  const absolutePath = isAbsolute(outputFile)
-    ? outputFile
-    : resolvePath(root, outputFile);
+  const absolutePath = isAbsolute(outputFile) ? outputFile : resolvePath(root, outputFile);
   assertOutputFileInsideRoot(root, outputFile, absolutePath);
   const generatedFile = isAbsolute(outputFile)
     ? normalizeGeneratedRouteDefinitionsPath(relativePath(root, absolutePath))
     : outputFile;
   const source = createGeneratedFileRouteDefinitionsModule(manifest, {
     ...options,
-    generatedFile
+    generatedFile,
   });
 
   return {
     outputFile,
     absolutePath,
     generatedFile,
-    source
+    source,
   };
 };
 
 const planFileRouteDefinitionsFileWriteEffect = (
   root: string,
   manifest: FileRouteManifest,
-  options: FileRouteGenerationOptions = {}
-): Effect.Effect<FileRouteDefinitionsFileWritePlan | undefined, FileRouteDefinitionsModuleError | FileRouteDefinitionsOutputPathError> =>
+  options: FileRouteGenerationOptions = {},
+): Effect.Effect<
+  FileRouteDefinitionsFileWritePlan | undefined,
+  FileRouteDefinitionsModuleError | FileRouteDefinitionsOutputPathError
+> =>
   Effect.suspend(() => {
     try {
       return Effect.succeed(planFileRouteDefinitionsFileWrite(root, manifest, options));
     } catch (cause) {
-      if (isFileRouteDefinitionsModuleError(cause) || cause instanceof FileRouteDefinitionsOutputPathError) {
+      if (
+        isFileRouteDefinitionsModuleError(cause) ||
+        cause instanceof FileRouteDefinitionsOutputPathError
+      ) {
         return Effect.fail(cause);
       }
       throw cause;
@@ -181,7 +185,7 @@ const planFileRouteDefinitionsFileWriteEffect = (
 export const writeFileRouteDefinitionsFile = (
   root: string,
   manifest: FileRouteManifest,
-  options: FileRouteGenerationOptions = {}
+  options: FileRouteGenerationOptions = {},
 ): FileRouteDefinitionsFileWriteResult | undefined =>
   Effect.runSync(writeFileRouteDefinitionsFileEffect(root, manifest, options));
 
@@ -189,8 +193,11 @@ export const writeFileRouteDefinitionsFile = (
 export const writeFileRouteDefinitionsFileEffect = (
   root: string,
   manifest: FileRouteManifest,
-  options: FileRouteGenerationOptions = {}
-): Effect.Effect<FileRouteDefinitionsFileWriteResult | undefined, FileRouteDefinitionsFileWriteFailure> =>
+  options: FileRouteGenerationOptions = {},
+): Effect.Effect<
+  FileRouteDefinitionsFileWriteResult | undefined,
+  FileRouteDefinitionsFileWriteFailure
+> =>
   Effect.gen(function* () {
     const plan = yield* planFileRouteDefinitionsFileWriteEffect(root, manifest, options);
     if (plan === undefined) {
@@ -198,13 +205,14 @@ export const writeFileRouteDefinitionsFileEffect = (
     }
 
     const current = yield* Effect.try({
-      try: () => existsSync(plan.absolutePath) ? readFileSync(plan.absolutePath, "utf8") : undefined,
+      try: () =>
+        existsSync(plan.absolutePath) ? readFileSync(plan.absolutePath, "utf8") : undefined,
       catch: (cause) =>
         new FileRouteDefinitionsFileWriteError({
           operation: "read-existing",
           path: plan.absolutePath,
-          cause
-        })
+          cause,
+        }),
     });
 
     if (current === plan.source) {
@@ -212,7 +220,7 @@ export const writeFileRouteDefinitionsFileEffect = (
         outputFile: plan.outputFile,
         absolutePath: plan.absolutePath,
         source: plan.source,
-        written: false
+        written: false,
       };
     }
 
@@ -222,8 +230,8 @@ export const writeFileRouteDefinitionsFileEffect = (
         new FileRouteDefinitionsFileWriteError({
           operation: "create-directory",
           path: dirname(plan.absolutePath),
-          cause
-        })
+          cause,
+        }),
     });
     yield* Effect.try({
       try: () => writeFileSync(plan.absolutePath, plan.source),
@@ -231,14 +239,14 @@ export const writeFileRouteDefinitionsFileEffect = (
         new FileRouteDefinitionsFileWriteError({
           operation: "write-file",
           path: plan.absolutePath,
-          cause
-        })
+          cause,
+        }),
     });
 
     return {
       outputFile: plan.outputFile,
       absolutePath: plan.absolutePath,
       source: plan.source,
-      written: true
+      written: true,
     };
   });

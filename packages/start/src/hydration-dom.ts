@@ -36,7 +36,7 @@ export interface StartHydrationScriptElement {
 export interface StartHydrationChunkDocument {
   /** Finds streamed hydration chunk script elements. */
   querySelectorAll?(
-    selectors: string
+    selectors: string,
   ): Iterable<StartHydrationScriptElement> | ArrayLike<StartHydrationScriptElement>;
 }
 
@@ -56,10 +56,7 @@ export interface StartHydrationChunkScriptElement {
   readonly text: string;
 }
 
-const readElementSequence = (
-  element: StartHydrationScriptElement,
-  fallback: number
-): number => {
+const readElementSequence = (element: StartHydrationScriptElement, fallback: number): number => {
   const raw = element.getAttribute?.(streamHydrationSequenceAttribute);
   if (raw === undefined || raw === null) {
     return fallback;
@@ -74,7 +71,7 @@ const consumedAttributeFrom = (options: ReadStartHydrationChunksOptions): string
 
 const isConsumedElement = (
   element: StartHydrationScriptElement,
-  options: ReadStartHydrationChunksOptions
+  options: ReadStartHydrationChunksOptions,
 ): boolean => {
   const raw = element.getAttribute?.(consumedAttributeFrom(options));
   return raw !== undefined && raw !== null;
@@ -83,16 +80,16 @@ const isConsumedElement = (
 /** Read the raw JSON text from the root Start hydration script. */
 export const readStartHydrationScriptText = (
   document: Pick<Document, "getElementById">,
-  id = hydrationScriptId
+  id = hydrationScriptId,
 ): string | undefined => {
   const element = document.getElementById(id);
-  return element === null ? undefined : element.textContent ?? "";
+  return element === null ? undefined : (element.textContent ?? "");
 };
 
 /** Read raw streamed hydration script elements without parsing their JSON. */
 export const readStartHydrationChunkScriptElements = (
   document: StartHydrationChunkDocument,
-  options: ReadStartHydrationChunksOptions = {}
+  options: ReadStartHydrationChunksOptions = {},
 ): ReadonlyArray<StartHydrationChunkScriptElement> => {
   const elements = document.querySelectorAll?.(`[${streamHydrationAttribute}]`);
   if (!elements) {
@@ -109,7 +106,7 @@ export const readStartHydrationChunkScriptElements = (
       element,
       index,
       sequence: readElementSequence(element, index),
-      text: element.textContent ?? ""
+      text: element.textContent ?? "",
     });
   });
 
@@ -119,7 +116,7 @@ export const readStartHydrationChunkScriptElements = (
 /** Mark a streamed hydration chunk element as consumed after a successful apply. */
 export const markStartHydrationChunkElementConsumed = (
   element: StartHydrationScriptElement,
-  options: ReadStartHydrationChunksOptions = {}
+  options: ReadStartHydrationChunksOptions = {},
 ): void => {
   element.setAttribute?.(consumedAttributeFrom(options), "true");
 };

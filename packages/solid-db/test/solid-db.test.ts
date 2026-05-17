@@ -1,5 +1,10 @@
 import { makeRuntime, runWithRuntime, type ReadableSignal } from "@effect-ui/core";
-import { Collection, QueryEvaluationError, type CollectionLoadState, type CollectionRuntimeError } from "@effect-ui/db";
+import {
+  Collection,
+  QueryEvaluationError,
+  type CollectionLoadState,
+  type CollectionRuntimeError,
+} from "@effect-ui/db";
 import { useCollection, useLiveQuery } from "@effect-ui/solid-db";
 import { Context, Deferred, Effect, Fiber, Layer } from "effect";
 import { createRoot, createSignal } from "solid-js";
@@ -19,14 +24,12 @@ const makeDelayedCleanupRuntime = () => {
     ...runtime,
     runFork: ((
       effect: Effect.Effect<unknown, unknown, unknown>,
-      options?: Parameters<typeof runtime.runFork>[1]
+      options?: Parameters<typeof runtime.runFork>[1],
     ) =>
       runtime.runFork(
-        (delayForks
-          ? Effect.sleep("100 millis").pipe(Effect.andThen(effect))
-          : effect) as never,
-        options
-      )) as typeof runtime.runFork
+        (delayForks ? Effect.sleep("100 millis").pipe(Effect.andThen(effect)) : effect) as never,
+        options,
+      )) as typeof runtime.runFork,
   };
 
   return {
@@ -34,7 +37,7 @@ const makeDelayedCleanupRuntime = () => {
     delayForks: () => {
       delayForks = true;
     },
-    disposeEffect: runtime.disposeEffect
+    disposeEffect: runtime.disposeEffect,
   };
 };
 
@@ -47,11 +50,15 @@ describe("solid-db", () => {
 
   interface ProjectMutationApi {
     readonly insert: (projects: ReadonlyArray<Project>) => Effect.Effect<void>;
-    readonly update: (projects: ReadonlyArray<{ readonly key: string; readonly value: Project }>) => Effect.Effect<void>;
+    readonly update: (
+      projects: ReadonlyArray<{ readonly key: string; readonly value: Project }>,
+    ) => Effect.Effect<void>;
     readonly delete: (projects: ReadonlyArray<{ readonly key: string }>) => Effect.Effect<void>;
   }
 
-  const ProjectMutationApi = Context.Service<ProjectMutationApi>("@effect-ui/solid-db/test/ProjectMutationApi");
+  const ProjectMutationApi = Context.Service<ProjectMutationApi>(
+    "@effect-ui/solid-db/test/ProjectMutationApi",
+  );
 
   it("adapts collections and live queries to Solid accessors", () => {
     let dispose: (() => void) | undefined;
@@ -62,47 +69,48 @@ describe("solid-db", () => {
           name: "SolidDb.projects",
           getKey: (project) => project.id,
           indexes: {
-            active: (project) => project.active
+            active: (project) => project.active,
           },
           initialData: [
             { id: "atlas", name: "Atlas", active: true },
-            { id: "lumen", name: "Lumen", active: false }
-          ]
+            { id: "lumen", name: "Lumen", active: false },
+          ],
         });
 
         const handles = createRoot((rootDispose) => {
           dispose = rootDispose;
           return {
             projects: useCollection(Projects, { preload: false }),
-            activeNames: useLiveQuery((query) =>
-              query
-                .from({ project: Projects })
-                .where(({ project }) => project.active)
-                .select(({ project }) => project.name)
-                .orderBy(({ project }) => project.name),
-              { preload: false }
-            )
+            activeNames: useLiveQuery(
+              (query) =>
+                query
+                  .from({ project: Projects })
+                  .where(({ project }) => project.active)
+                  .select(({ project }) => project.name)
+                  .orderBy(({ project }) => project.name),
+              { preload: false },
+            ),
           };
         });
 
         yield* Effect.sleep("0 millis");
 
-        expect(handles.projects.rows().map((project) => project.name)).toEqual([
-          "Atlas",
-          "Lumen"
-        ]);
+        expect(handles.projects.rows().map((project) => project.name)).toEqual(["Atlas", "Lumen"]);
         expect(handles.projects.get("atlas")?.name).toBe("Atlas");
-        expect(handles.projects.index("active", true).map((project) => project.id)).toEqual(["atlas"]);
+        expect(handles.projects.index("active", true).map((project) => project.id)).toEqual([
+          "atlas",
+        ]);
         expect(handles.projects.firstByIndex("active", false)?.id).toBe("lumen");
         expect(handles.activeNames.data()).toEqual(["Atlas"]);
 
         yield* Projects.writeUpdateEffect("lumen", { active: true });
 
-        expect(handles.projects.index("active", true).map((project) => project.id)).toEqual(["atlas", "lumen"]);
+        expect(handles.projects.index("active", true).map((project) => project.id)).toEqual([
+          "atlas",
+          "lumen",
+        ]);
         expect(handles.activeNames.data()).toEqual(["Atlas", "Lumen"]);
-      }).pipe(
-        Effect.ensuring(Effect.sync(() => dispose?.()))
-      )
+      }).pipe(Effect.ensuring(Effect.sync(() => dispose?.()))),
     );
   });
 
@@ -120,19 +128,19 @@ describe("solid-db", () => {
           activeSubscriptions--;
           unsubscribe();
         };
-      }
+      },
     });
 
     const Projects = Collection.define<Project>({
       name: "SolidDb.cleanup.projects",
       getKey: (project) => project.id,
       indexes: {
-        active: (project) => project.active
+        active: (project) => project.active,
       },
       initialData: [
         { id: "atlas", name: "Atlas", active: true },
-        { id: "lumen", name: "Lumen", active: false }
-      ]
+        { id: "lumen", name: "Lumen", active: false },
+      ],
     });
 
     const version = trackSignalSubscriptions(Projects.version());
@@ -148,13 +156,14 @@ describe("solid-db", () => {
       createRoot((rootDispose) => {
         dispose = rootDispose;
         useCollection(Projects, { preload: false });
-        useLiveQuery((query) =>
-          query
-            .from({ project: Projects })
-            .where(({ project }) => project.active)
-            .select(({ project }) => project.name)
-            .orderBy(({ project }) => project.name),
-          { preload: false }
+        useLiveQuery(
+          (query) =>
+            query
+              .from({ project: Projects })
+              .where(({ project }) => project.active)
+              .select(({ project }) => project.name)
+              .orderBy(({ project }) => project.name),
+          { preload: false },
         );
       });
 
@@ -178,7 +187,7 @@ describe("solid-db", () => {
         const Projects = Collection.define<Project, string, typeof failure>({
           name: "SolidDb.preload-failure.projects",
           getKey: (project) => project.id,
-          load: () => Effect.fail(failure)
+          load: () => Effect.fail(failure),
         });
 
         const handles = createRoot((rootDispose) => {
@@ -188,20 +197,21 @@ describe("solid-db", () => {
               onPreloadFailure: (error) =>
                 Effect.sync(() => {
                   observedCollectionFailures.push(error);
-                }).pipe(Effect.andThen(Effect.fail("collection observer failed")))
+                }).pipe(Effect.andThen(Effect.fail("collection observer failed"))),
             }),
-            activeNames: useLiveQuery((query) =>
-              query
-                .from({ project: Projects })
-                .where(({ project }) => project.active)
-                .select(({ project }) => project.name),
+            activeNames: useLiveQuery(
+              (query) =>
+                query
+                  .from({ project: Projects })
+                  .where(({ project }) => project.active)
+                  .select(({ project }) => project.name),
               {
                 onPreloadFailure: (error) =>
                   Effect.sync(() => {
                     observedLiveFailures.push(error);
-                  }).pipe(Effect.andThen(Effect.fail("live query observer failed")))
-              }
-            )
+                  }).pipe(Effect.andThen(Effect.fail("live query observer failed"))),
+              },
+            ),
           };
         });
 
@@ -211,9 +221,7 @@ describe("solid-db", () => {
         expect(handles.activeNames.preloadFailure()).toEqual(failure);
         expect(observedCollectionFailures).toEqual([failure]);
         expect(observedLiveFailures).toEqual([failure]);
-      }).pipe(
-        Effect.ensuring(Effect.sync(() => dispose?.()))
-      )
+      }).pipe(Effect.ensuring(Effect.sync(() => dispose?.()))),
     );
   });
 
@@ -237,14 +245,14 @@ describe("solid-db", () => {
             }),
           refetch: () =>
             Effect.succeed<ReadonlyArray<Project>>([
-              { id: "atlas", name: "Atlas Fresh", active: true }
-            ])
+              { id: "atlas", name: "Atlas Fresh", active: true },
+            ]),
         });
 
         const handle = createRoot((rootDispose) => {
           dispose = rootDispose;
           return useCollection(Projects, {
-            onPreloadFailure: (error) => observedFailures.push(error)
+            onPreloadFailure: (error) => observedFailures.push(error),
           });
         });
 
@@ -260,9 +268,7 @@ describe("solid-db", () => {
         expect(handle.preloadFailure()).toBeUndefined();
         expect(observedFailures).toEqual([]);
         expect(handle.rows().map((project) => project.name)).toEqual(["Atlas Fresh"]);
-      }).pipe(
-        Effect.ensuring(Effect.sync(() => dispose?.()))
-      )
+      }).pipe(Effect.ensuring(Effect.sync(() => dispose?.()))),
     );
   });
 
@@ -280,7 +286,7 @@ describe("solid-db", () => {
             Effect.sync(() => {
               projectLoads++;
               return [{ id: "atlas", name: "Atlas", active: true }];
-            })
+            }),
         });
         const Tasks = Collection.define<{ readonly id: string; readonly projectId: string }>({
           name: "SolidDb.invalid-live-preload.tasks",
@@ -289,7 +295,7 @@ describe("solid-db", () => {
             Effect.sync(() => {
               taskLoads++;
               return [{ id: "task-1", projectId: "atlas" }];
-            })
+            }),
         });
 
         const handle = createRoot((rootDispose) => {
@@ -298,7 +304,7 @@ describe("solid-db", () => {
             query
               .from({ project: Projects })
               .joinIndexed("task", Tasks, ({ project }) => project.id, "missing")
-              .select(({ project }) => project.name)
+              .select(({ project }) => project.name),
           );
         });
 
@@ -310,14 +316,13 @@ describe("solid-db", () => {
           operation: "evaluate",
           cause: {
             _tag: "UnsupportedLiveQuery",
-            reason: 'Join source "task" uses unknown index "missing" on collection "SolidDb.invalid-live-preload.tasks".'
-          }
+            reason:
+              'Join source "task" uses unknown index "missing" on collection "SolidDb.invalid-live-preload.tasks".',
+          },
         });
         expect(projectLoads).toBe(0);
         expect(taskLoads).toBe(0);
-      }).pipe(
-        Effect.ensuring(Effect.sync(() => dispose?.()))
-      )
+      }).pipe(Effect.ensuring(Effect.sync(() => dispose?.()))),
     );
   });
 
@@ -332,7 +337,7 @@ describe("solid-db", () => {
         const Projects = Collection.define<Project, string, typeof failure>({
           name: "SolidDb.preload-observer-throw.projects",
           getKey: (project) => project.id,
-          load: () => Effect.fail(failure)
+          load: () => Effect.fail(failure),
         });
 
         const handles = createRoot((rootDispose) => {
@@ -342,20 +347,21 @@ describe("solid-db", () => {
               onPreloadFailure: (error) => {
                 observedCollectionFailures.push(error);
                 throw new Error("collection observer failed");
-              }
+              },
             }),
-            activeNames: useLiveQuery((query) =>
-              query
-                .from({ project: Projects })
-                .where(({ project }) => project.active)
-                .select(({ project }) => project.name),
+            activeNames: useLiveQuery(
+              (query) =>
+                query
+                  .from({ project: Projects })
+                  .where(({ project }) => project.active)
+                  .select(({ project }) => project.name),
               {
                 onPreloadFailure: (error) => {
                   observedLiveFailures.push(error);
                   throw new Error("live query observer failed");
-                }
-              }
-            )
+                },
+              },
+            ),
           };
         });
 
@@ -365,9 +371,7 @@ describe("solid-db", () => {
         expect(handles.activeNames.preloadFailure()).toEqual(failure);
         expect(observedCollectionFailures).toEqual([failure]);
         expect(observedLiveFailures).toEqual([failure]);
-      }).pipe(
-        Effect.ensuring(Effect.sync(() => dispose?.()))
-      )
+      }).pipe(Effect.ensuring(Effect.sync(() => dispose?.()))),
     );
   });
 
@@ -384,11 +388,11 @@ describe("solid-db", () => {
         const runtime = delayed;
         const ActiveProjects = Collection.define<Project>({
           name: "SolidDb.preload-stale-source.active",
-          getKey: (project) => project.id
+          getKey: (project) => project.id,
         });
         const ArchivedProjects = Collection.define<Project>({
           name: "SolidDb.preload-stale-source.archived",
-          getKey: (project) => project.id
+          getKey: (project) => project.id,
         });
         let selectArchive: ((value: boolean) => boolean) | undefined;
 
@@ -398,15 +402,13 @@ describe("solid-db", () => {
           selectArchive = setArchive;
           return makeSolidDbReactiveBinding<typeof staleFailure>({
             runtime: runtime.runtime,
-            sources: () => archive() ? [ArchivedProjects] : [ActiveProjects],
+            sources: () => (archive() ? [ArchivedProjects] : [ActiveProjects]),
             preloadEffect: Effect.suspend(() =>
               archive()
                 ? Effect.void
-                : Deferred.await(staleRelease).pipe(
-                    Effect.andThen(Effect.fail(staleFailure))
-                  )
+                : Deferred.await(staleRelease).pipe(Effect.andThen(Effect.fail(staleFailure))),
             ),
-            onPreloadFailure: (error) => observedFailures.push(error)
+            onPreloadFailure: (error) => observedFailures.push(error),
           });
         });
 
@@ -421,8 +423,8 @@ describe("solid-db", () => {
         expect(observedFailures).toEqual([]);
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(Effect.suspend(() => delayed?.disposeEffect ?? Effect.void))
-      )
+        Effect.ensuring(Effect.suspend(() => delayed?.disposeEffect ?? Effect.void)),
+      ),
     );
   });
 
@@ -442,16 +444,18 @@ describe("solid-db", () => {
               started = true;
             }).pipe(
               Effect.andThen(Effect.never),
-              Effect.ensuring(Effect.sync(() => {
-                interrupted = true;
-              }))
-            )
+              Effect.ensuring(
+                Effect.sync(() => {
+                  interrupted = true;
+                }),
+              ),
+            ),
         });
 
         createRoot((rootDispose) => {
           dispose = rootDispose;
           useCollection(Projects, {
-            onPreloadFailure: (error) => observedFailures.push(error)
+            onPreloadFailure: (error) => observedFailures.push(error),
           });
         });
 
@@ -464,9 +468,7 @@ describe("solid-db", () => {
 
         expect(interrupted).toBe(true);
         expect(observedFailures).toEqual([]);
-      }).pipe(
-        Effect.ensuring(Effect.sync(() => dispose?.()))
-      )
+      }).pipe(Effect.ensuring(Effect.sync(() => dispose?.()))),
     );
   });
 
@@ -488,9 +490,9 @@ describe("solid-db", () => {
             runtime: runtime.runtime,
             sources: [],
             preloadEffect: Deferred.await(staleRelease).pipe(
-              Effect.andThen(Effect.fail(staleFailure))
+              Effect.andThen(Effect.fail(staleFailure)),
             ),
-            onPreloadFailure: (error) => observedFailures.push(error)
+            onPreloadFailure: (error) => observedFailures.push(error),
           });
         });
 
@@ -504,8 +506,8 @@ describe("solid-db", () => {
         expect(observedFailures).toEqual([]);
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(Effect.suspend(() => delayed?.disposeEffect ?? Effect.void))
-      )
+        Effect.ensuring(Effect.suspend(() => delayed?.disposeEffect ?? Effect.void)),
+      ),
     );
   });
 
@@ -519,10 +521,10 @@ describe("solid-db", () => {
             loads++;
             return [
               { id: "atlas", name: "Atlas", active: true },
-              { id: "lumen", name: "Lumen", active: true }
+              { id: "lumen", name: "Lumen", active: true },
             ];
-          })
-      })
+          }),
+      }),
     );
 
     return Effect.runPromise(
@@ -530,7 +532,7 @@ describe("solid-db", () => {
         const Projects = Collection.define<Project, string, never, ProjectApi>({
           name: "SolidDb.runtime-bound-effects.projects",
           getKey: (project) => project.id,
-          load: () => ProjectApi.use((api) => api.list())
+          load: () => ProjectApi.use((api) => api.list()),
         });
 
         const handles = runWithRuntime(runtime, () =>
@@ -538,15 +540,16 @@ describe("solid-db", () => {
             dispose = rootDispose;
             return {
               projects: useCollection(Projects, { preload: false }),
-              names: useLiveQuery((query) =>
-                query
-                  .from({ project: Projects })
-                  .select(({ project }) => project.name)
-                  .orderBy(({ project }) => project.name),
-                { preload: false }
-              )
+              names: useLiveQuery(
+                (query) =>
+                  query
+                    .from({ project: Projects })
+                    .select(({ project }) => project.name)
+                    .orderBy(({ project }) => project.name),
+                { preload: false },
+              ),
             };
-          })
+          }),
         );
 
         yield* handles.projects.preloadEffect();
@@ -557,8 +560,8 @@ describe("solid-db", () => {
         expect(handles.projects.rows().map((project) => project.name)).toEqual(["Atlas", "Lumen"]);
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect)
-      )
+        Effect.ensuring(runtime.disposeEffect),
+      ),
     );
   });
 
@@ -582,18 +585,16 @@ describe("solid-db", () => {
             delete: (projects) =>
               Effect.sync(() => {
                 calls.push(`delete:${projects.map((project) => project.key).join(",")}`);
-              })
-          })
+              }),
+          }),
         );
         const Projects = Collection.define<Project, string, never, ProjectMutationApi>({
           name: "SolidDb.collection-adapter.projects",
           getKey: (project) => project.id,
-          initialData: [
-            { id: "atlas", name: "Atlas", active: true }
-          ],
+          initialData: [{ id: "atlas", name: "Atlas", active: true }],
           onInsert: (projects) => ProjectMutationApi.use((api) => api.insert(projects)),
           onUpdate: (projects) => ProjectMutationApi.use((api) => api.update(projects)),
-          onDelete: (projects) => ProjectMutationApi.use((api) => api.delete(projects))
+          onDelete: (projects) => ProjectMutationApi.use((api) => api.delete(projects)),
         });
 
         try {
@@ -601,10 +602,12 @@ describe("solid-db", () => {
             createRoot((rootDispose) => {
               dispose = rootDispose;
               return useCollection(Projects, { preload: false });
-            })
+            }),
           );
 
-          const insert = Effect.runFork(projects.insertEffect({ id: "lumen", name: "Lumen", active: false }));
+          const insert = Effect.runFork(
+            projects.insertEffect({ id: "lumen", name: "Lumen", active: false }),
+          );
           yield* Effect.sleep("0 millis");
 
           expect(projects.pendingMutations()).toHaveLength(1);
@@ -627,7 +630,7 @@ describe("solid-db", () => {
           dispose?.();
           yield* runtime.disposeEffect;
         }
-      })
+      }),
     );
   });
 
@@ -638,15 +641,12 @@ describe("solid-db", () => {
     let notifications = 0;
     const Projects = Collection.define<Project>({
       name: "SolidDb.live-query-collection-runtime.projects",
-      getKey: (project) => project.id
+      getKey: (project) => project.id,
     });
     const ProjectCards = Collection.liveQuery<Project, string>({
       name: "SolidDb.live-query-collection-runtime.cards",
       getKey: (project) => project.id,
-      query: (query) =>
-        query
-          .from({ project: Projects })
-          .select(({ project }) => project)
+      query: (query) => query.from({ project: Projects }).select(({ project }) => project),
     });
     const trackSignalNotifications = <A>(signal: ReadableSignal<A>): ReadableSignal<A> => ({
       ...signal,
@@ -655,7 +655,7 @@ describe("solid-db", () => {
         signal.subscribe(() => {
           notifications++;
           listener();
-        })
+        }),
     });
     const originalVersion = ProjectCards.version;
     const originalState = ProjectCards.state;
@@ -664,14 +664,18 @@ describe("solid-db", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* firstRuntime.provide(Projects.writeInsertEffect({ id: "atlas", name: "Atlas", active: true }));
-        yield* secondRuntime.provide(Projects.writeInsertEffect({ id: "lumen", name: "Lumen", active: true }));
+        yield* firstRuntime.provide(
+          Projects.writeInsertEffect({ id: "atlas", name: "Atlas", active: true }),
+        );
+        yield* secondRuntime.provide(
+          Projects.writeInsertEffect({ id: "lumen", name: "Lumen", active: true }),
+        );
 
         const cards = runWithRuntime(firstRuntime, () =>
           createRoot((rootDispose) => {
             dispose = rootDispose;
             return useCollection(ProjectCards, { preload: false });
-          })
+          }),
         );
         yield* Effect.sleep("0 millis");
 
@@ -692,8 +696,8 @@ describe("solid-db", () => {
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
         Effect.ensuring(firstRuntime.disposeEffect),
-        Effect.ensuring(secondRuntime.disposeEffect)
-      )
+        Effect.ensuring(secondRuntime.disposeEffect),
+      ),
     );
   });
 
@@ -702,21 +706,17 @@ describe("solid-db", () => {
     const Projects = Collection.define<Project>({
       name: "SolidDb.live-query-collection-ready.projects",
       getKey: (project) => project.id,
-      initialData: [
-        { id: "atlas", name: "Atlas", active: true }
-      ]
+      initialData: [{ id: "atlas", name: "Atlas", active: true }],
     });
     const ProjectCards = Collection.liveQuery<Project, string>({
       name: "SolidDb.live-query-collection-ready.cards",
       getKey: (project) => project.id,
       query: (query) =>
-        query
-          .from({ project: Projects })
-          .select(({ project }) => ({
-            id: project.id,
-            name: project.name,
-            active: true
-          }))
+        query.from({ project: Projects }).select(({ project }) => ({
+          id: project.id,
+          name: project.name,
+          active: true,
+        })),
     });
 
     return Effect.runPromise(
@@ -750,9 +750,7 @@ describe("solid-db", () => {
           expect.fail("Expected live query collection to remain ready.");
         }
         expect(changed.updatedAt).toBeGreaterThan(first.updatedAt);
-      }).pipe(
-        Effect.ensuring(Effect.sync(() => dispose?.()))
-      )
+      }).pipe(Effect.ensuring(Effect.sync(() => dispose?.()))),
     );
   });
 
@@ -762,21 +760,20 @@ describe("solid-db", () => {
     const Projects = Collection.define<Project>({
       name: "SolidDb.live-query-evaluation-failure.projects",
       getKey: (project) => project.id,
-      initialData: [
-        { id: "atlas", name: "Atlas", active: true }
-      ]
+      initialData: [{ id: "atlas", name: "Atlas", active: true }],
     });
 
     const handle = createRoot((rootDispose) => {
       dispose = rootDispose;
-      return useLiveQuery((query) =>
-        query
-          .from({ project: Projects })
-          .where(() => {
-            throw new Error("filter failed");
-          })
-          .select(({ project }) => project.name),
-        { preload: false }
+      return useLiveQuery(
+        (query) =>
+          query
+            .from({ project: Projects })
+            .where(() => {
+              throw new Error("filter failed");
+            })
+            .select(({ project }) => project.name),
+        { preload: false },
       );
     });
 
@@ -785,7 +782,7 @@ describe("solid-db", () => {
       expect(handle.state()).toMatchObject({
         _tag: "Failure",
         error: { _tag: "QueryEvaluationError", operation: "filter" },
-        data: []
+        data: [],
       });
     } finally {
       dispose?.();
@@ -800,24 +797,25 @@ describe("solid-db", () => {
       getKey: (project) => project.id,
       initialData: [
         { id: "atlas", name: "Atlas", active: true },
-        { id: "lumen", name: "Lumen", active: false }
-      ]
+        { id: "lumen", name: "Lumen", active: false },
+      ],
     });
 
     const handle = createRoot((rootDispose) => {
       dispose = rootDispose;
       const [onlyActive, set] = createSignal(true);
       setOnlyActive = set;
-      return useLiveQuery((query) =>
-        query
-          .from({ project: Projects })
-          .where(({ project }) => !onlyActive() || project.active)
-          .select(({ project }) => project.name)
-          .orderBy(({ project }) => project.name),
+      return useLiveQuery(
+        (query) =>
+          query
+            .from({ project: Projects })
+            .where(({ project }) => !onlyActive() || project.active)
+            .select(({ project }) => project.name)
+            .orderBy(({ project }) => project.name),
         {
           preload: false,
-          deps: () => [onlyActive()]
-        }
+          deps: () => [onlyActive()],
+        },
       );
     });
 
@@ -843,7 +841,7 @@ describe("solid-db", () => {
         Effect.sync(() => {
           activeLoads++;
           return [{ id: "atlas", name: "Atlas", active: true }];
-        })
+        }),
     });
     const ArchivedProjects = Collection.define<Project>({
       name: "SolidDb.live-query-dynamic-preload.archived",
@@ -852,21 +850,22 @@ describe("solid-db", () => {
         Effect.sync(() => {
           archiveLoads++;
           return [{ id: "lumen", name: "Lumen", active: false }];
-        })
+        }),
     });
 
     const handle = createRoot((rootDispose) => {
       dispose = rootDispose;
       const [archive, setArchive] = createSignal(false);
       selectArchive = setArchive;
-      return useLiveQuery((query) => {
-        const source = archive() ? ArchivedProjects : ActiveProjects;
-        return query
-          .from({ project: source })
-          .select(({ project }) => project.name);
-      }, {
-        deps: () => [archive()]
-      });
+      return useLiveQuery(
+        (query) => {
+          const source = archive() ? ArchivedProjects : ActiveProjects;
+          return query.from({ project: source }).select(({ project }) => project.name);
+        },
+        {
+          deps: () => [archive()],
+        },
+      );
     });
 
     try {

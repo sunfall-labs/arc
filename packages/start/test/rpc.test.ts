@@ -6,7 +6,7 @@ import {
   route,
   Server,
   ServerClient,
-  ServerTransportError
+  ServerTransportError,
 } from "@effect-ui/core";
 import {
   createServerActionResponseEffect,
@@ -21,25 +21,20 @@ import {
   startTransportProtocolHeader,
   startTransportProtocolVersion,
   startTransportRequestHeaders,
-  type StartFetch
+  type StartFetch,
 } from "../src/index.js";
 import {
   encodeStartClientTransportRequestBodyEffect,
-  executeStartClientTransportEffect
+  executeStartClientTransportEffect,
 } from "../src/start-client-transport.js";
-import {
-  resolveStartFetchEffect
-} from "../src/start-fetch.js";
-import {
-  parseRpcResponse,
-  parseStartActionResponse
-} from "../src/start-transport-protocol.js";
+import { resolveStartFetchEffect } from "../src/start-fetch.js";
+import { parseRpcResponse, parseStartActionResponse } from "../src/start-transport-protocol.js";
 
 const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
 const app = defineApp({
   routes: [route("/", {})] as const,
-  client: {}
+  client: {},
 });
 
 interface RpcFailureBody {
@@ -59,21 +54,23 @@ const erroringBodyStream = (): ReadableStream<Uint8Array> =>
   new ReadableStream<Uint8Array>({
     start(controller) {
       controller.error(new Error("body read failed"));
-    }
+    },
   });
 
 const requestStreamInit = (
-  init: Omit<RequestInit, "body"> & { readonly body: ReadableStream<Uint8Array> }
+  init: Omit<RequestInit, "body"> & { readonly body: ReadableStream<Uint8Array> },
 ): RequestInit =>
   ({
     ...init,
-    duplex: "half"
+    duplex: "half",
   }) as RequestInit;
 
-const readRpcFailureBodyEffect = (response: Response): Effect.Effect<RpcFailureBody, RpcFailureBodyReadError> =>
+const readRpcFailureBodyEffect = (
+  response: Response,
+): Effect.Effect<RpcFailureBody, RpcFailureBodyReadError> =>
   Effect.tryPromise({
     try: () => response.json() as Promise<RpcFailureBody>,
-    catch: (cause) => new RpcFailureBodyReadError({ cause })
+    catch: (cause) => new RpcFailureBodyReadError({ cause }),
   });
 
 describe("Start RPC transport", () => {
@@ -88,10 +85,10 @@ describe("Start RPC transport", () => {
               accept: startJsonMediaType,
               "content-type": "text/plain",
               [startRequestIdHeader]: "req-rpc-content-type",
-              [startTraceparentHeader]: traceparent
+              [startTraceparentHeader]: traceparent,
             },
-            body: JSON.stringify({ name: "missing", input: {} })
-          })
+            body: JSON.stringify({ name: "missing", input: {} }),
+          }),
         );
         const body = yield* readRpcFailureBodyEffect(response);
 
@@ -100,19 +97,21 @@ describe("Start RPC transport", () => {
           expect(response.headers.get(startRequestIdHeader)).toBe("req-rpc-content-type");
           expect(response.headers.get(startTraceparentHeader)).toBe(traceparent);
           expect(response.headers.get(startTransportKindHeader)).toBe("rpc");
-          expect(response.headers.get(startTransportProtocolHeader)).toBe(startTransportProtocolVersion);
+          expect(response.headers.get(startTransportProtocolHeader)).toBe(
+            startTransportProtocolVersion,
+          );
           expect(body).toMatchObject({
             _tag: "ServerError",
             error: {
               _tag: "ServerRpcProtocolError",
               payload: {
-                contentType: "text/plain"
-              }
-            }
+                contentType: "text/plain",
+              },
+            },
           });
           expect(body.error.message).toContain("Expected content-type application/json");
         });
-      })
+      }),
     );
   });
 
@@ -125,10 +124,10 @@ describe("Start RPC transport", () => {
             method: "POST",
             headers: {
               accept: "text/html",
-              "content-type": startJsonMediaType
+              "content-type": startJsonMediaType,
             },
-            body: JSON.stringify({ name: "missing", input: {} })
-          })
+            body: JSON.stringify({ name: "missing", input: {} }),
+          }),
         );
         const body = yield* readRpcFailureBodyEffect(response);
 
@@ -137,11 +136,11 @@ describe("Start RPC transport", () => {
           expect(body.error).toMatchObject({
             _tag: "ServerRpcProtocolError",
             payload: {
-              accept: "text/html"
-            }
+              accept: "text/html",
+            },
           });
         });
-      })
+      }),
     );
   });
 
@@ -153,9 +152,9 @@ describe("Start RPC transport", () => {
           new Request(`https://example.com${serverRpcPath}`, {
             method: "GET",
             headers: {
-              accept: startJsonMediaType
-            }
-          })
+              accept: startJsonMediaType,
+            },
+          }),
         );
         const body = yield* readRpcFailureBodyEffect(response);
 
@@ -163,11 +162,11 @@ describe("Start RPC transport", () => {
           expect(response.status).toBe(405);
           expect(response.headers.get("allow")).toBe("POST");
           expect(body.error).toMatchObject({
-            _tag: "ServerRpcProtocolError"
+            _tag: "ServerRpcProtocolError",
           });
           expect(body.error.message).toContain("Server functions require POST requests");
         });
-      })
+      }),
     );
   });
 
@@ -181,11 +180,11 @@ describe("Start RPC transport", () => {
             headers: {
               accept: startJsonMediaType,
               "content-type": "text/plain",
-              [startRequestIdHeader]: "req-action-content-type"
+              [startRequestIdHeader]: "req-action-content-type",
             },
-            body: "not a supported action body"
+            body: "not a supported action body",
           }),
-          []
+          [],
         );
         const body = yield* readRpcFailureBodyEffect(response);
 
@@ -196,12 +195,12 @@ describe("Start RPC transport", () => {
           expect(body.error).toMatchObject({
             _tag: "ServerRpcProtocolError",
             payload: {
-              contentType: "text/plain"
-            }
+              contentType: "text/plain",
+            },
           });
           expect(body.error.message).toContain("application/x-www-form-urlencoded");
         });
-      })
+      }),
     );
   });
 
@@ -211,9 +210,9 @@ describe("Start RPC transport", () => {
         parseStartActionResponse(
           new Response("not json", {
             status: 200,
-            headers: { "content-type": "text/plain" }
-          })
-        )
+            headers: { "content-type": "text/plain" },
+          }),
+        ),
       ).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
@@ -224,12 +223,12 @@ describe("Start RPC transport", () => {
               _tag: "ServerTransportError",
               reason: "InvalidResponse",
               status: 200,
-              message: "Start action response content-type was not application/json."
+              message: "Start action response content-type was not application/json.",
             });
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -244,11 +243,11 @@ describe("Start RPC transport", () => {
               method: "POST",
               headers: {
                 accept: startJsonMediaType,
-                "content-type": startJsonMediaType
+                "content-type": startJsonMediaType,
               },
-              body: erroringBodyStream()
-            })
-          )
+              body: erroringBodyStream(),
+            }),
+          ),
         );
         const actionRequestResponse = yield* createServerActionResponseEffect(
           app,
@@ -258,12 +257,12 @@ describe("Start RPC transport", () => {
               method: "POST",
               headers: {
                 accept: startJsonMediaType,
-                "content-type": "application/x-www-form-urlencoded"
+                "content-type": "application/x-www-form-urlencoded",
               },
-              body: erroringBodyStream()
-            })
+              body: erroringBodyStream(),
+            }),
           ),
-          []
+          [],
         );
         const rpcRequestFailureBody = yield* readRpcFailureBodyEffect(rpcRequestResponse);
         const actionRequestFailureBody = yield* readRpcFailureBodyEffect(actionRequestResponse);
@@ -271,17 +270,17 @@ describe("Start RPC transport", () => {
           parseRpcResponse(
             new Response(erroringBodyStream(), {
               status: 200,
-              headers: { "content-type": startJsonMediaType }
-            })
-          )
+              headers: { "content-type": startJsonMediaType },
+            }),
+          ),
         );
         const actionResponseExit = yield* Effect.exit(
           parseStartActionResponse(
             new Response(erroringBodyStream(), {
               status: 200,
-              headers: { "content-type": startJsonMediaType }
-            })
-          )
+              headers: { "content-type": startJsonMediaType },
+            }),
+          ),
         );
 
         yield* Effect.sync(() => {
@@ -294,26 +293,26 @@ describe("Start RPC transport", () => {
 
           expect(rpcRequestFailureBody.error).toMatchObject({
             _tag: "ServerRpcProtocolError",
-            message: "Expected a JSON server function request body."
+            message: "Expected a JSON server function request body.",
           });
           expect(actionRequestFailureBody.error).toMatchObject({
             _tag: "ServerRpcProtocolError",
-            message: "Expected an action form body."
+            message: "Expected an action form body.",
           });
           expect(rpcResponseFailure).toBeInstanceOf(ServerTransportError);
           expect(rpcResponseFailure).toMatchObject({
             reason: "InvalidResponse",
             status: 200,
-            message: "Could not read the server function response body."
+            message: "Could not read the server function response body.",
           });
           expect(actionResponseFailure).toBeInstanceOf(ServerTransportError);
           expect(actionResponseFailure).toMatchObject({
             reason: "InvalidResponse",
             status: 200,
-            message: "Could not read the action response body."
+            message: "Could not read the action response body.",
           });
         });
-      })
+      }),
     ));
 
   it("rejects malformed JSON action payloads as typed protocol failures", () => {
@@ -325,22 +324,22 @@ describe("Start RPC transport", () => {
             method: "POST",
             headers: {
               accept: startJsonMediaType,
-              "content-type": startJsonMediaType
+              "content-type": startJsonMediaType,
             },
-            body: JSON.stringify({ input: { value: "missing action name" } })
+            body: JSON.stringify({ input: { value: "missing action name" } }),
           }),
-          []
+          [],
         );
         const body = yield* readRpcFailureBodyEffect(response);
 
         yield* Effect.sync(() => {
           expect(response.status).toBe(400);
           expect(body.error).toMatchObject({
-            _tag: "ServerRpcProtocolError"
+            _tag: "ServerRpcProtocolError",
           });
           expect(body.error.message).toContain("Expected an action request with string name");
         });
-      })
+      }),
     );
   });
 
@@ -353,11 +352,11 @@ describe("Start RPC transport", () => {
             method: "POST",
             headers: {
               accept: startJsonMediaType,
-              "content-type": startJsonMediaType
+              "content-type": startJsonMediaType,
             },
-            body: "{"
+            body: "{",
           }),
-          []
+          [],
         );
         const body = yield* readRpcFailureBodyEffect(response);
 
@@ -365,17 +364,17 @@ describe("Start RPC transport", () => {
           expect(response.status).toBe(400);
           expect(body.error).toMatchObject({
             _tag: "ServerRpcProtocolError",
-            message: "Expected a JSON action request body."
+            message: "Expected a JSON action request body.",
           });
         });
-      })
+      }),
     );
   });
 
   it("propagates request id and trace headers from the browser RPC client", () => {
     const Echo = Server.contract<string, string>("Start.transport.echo", {
       input: Schema.String,
-      output: Schema.String
+      output: Schema.String,
     });
     const echo = Server.client(Echo);
     let observedHeaders: Headers | undefined;
@@ -383,8 +382,8 @@ describe("Start RPC transport", () => {
       observedHeaders = new Headers(init?.headers);
       return Effect.succeed(
         new Response(JSON.stringify({ _tag: "Success", value: "ok" }), {
-          headers: { "content-type": startJsonMediaType }
-        })
+          headers: { "content-type": startJsonMediaType },
+        }),
       );
     };
     const runtime = Layer.succeed(ServerClient)(
@@ -392,9 +391,9 @@ describe("Start RPC transport", () => {
         fetch: fetcher,
         headers: startTransportRequestHeaders({
           requestId: "req-client",
-          traceparent
-        })
-      })
+          traceparent,
+        }),
+      }),
     );
 
     return Effect.runPromise(
@@ -406,10 +405,10 @@ describe("Start RPC transport", () => {
             expect(observedHeaders?.get(startTraceparentHeader)).toBe(traceparent);
             expect(observedHeaders?.get("accept")).toBe(startJsonMediaType);
             expect(observedHeaders?.get("content-type")).toBe(startJsonMediaType);
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -418,7 +417,7 @@ describe("Start RPC transport", () => {
       Effect.gen(function* () {
         const Echo = Server.contract<string, string>("Start.transport.setup-throw", {
           input: Schema.String,
-          output: Schema.String
+          output: Schema.String,
         });
         const echo = Server.client(Echo);
         const headerCause = new Error("headers failed");
@@ -427,38 +426,42 @@ describe("Start RPC transport", () => {
           makeRpcClient({
             headers: () => {
               throw headerCause;
-            }
-          })
+            },
+          }),
         );
         const fetchRuntime = Layer.succeed(ServerClient)(
           makeRpcClient({
             fetch: () => {
               throw fetchCause;
-            }
-          })
+            },
+          }),
         );
 
         const headerExit = yield* Effect.exit(Effect.provide(echo.effect("hello"), headerRuntime));
         const fetchExit = yield* Effect.exit(Effect.provide(echo.effect("hello"), fetchRuntime));
 
         yield* Effect.sync(() => {
-          const headerFailure = Exit.isFailure(headerExit) ? firstFailure(headerExit.cause) : undefined;
-          const fetchFailure = Exit.isFailure(fetchExit) ? firstFailure(fetchExit.cause) : undefined;
+          const headerFailure = Exit.isFailure(headerExit)
+            ? firstFailure(headerExit.cause)
+            : undefined;
+          const fetchFailure = Exit.isFailure(fetchExit)
+            ? firstFailure(fetchExit.cause)
+            : undefined;
 
           expect(headerFailure).toBeInstanceOf(ServerTransportError);
           expect(headerFailure).toMatchObject({
             reason: "Network",
             message: "Could not construct Start transport headers.",
-            cause: headerCause
+            cause: headerCause,
           });
           expect(fetchFailure).toBeInstanceOf(ServerTransportError);
           expect(fetchFailure).toMatchObject({
             reason: "Network",
             message: "Server function request failed.",
-            cause: fetchCause
+            cause: fetchCause,
           });
         });
-      })
+      }),
     ));
 
   it("rejects Promise-shaped custom Start fetchers as transport errors", () =>
@@ -466,18 +469,20 @@ describe("Start RPC transport", () => {
       Effect.gen(function* () {
         const Echo = Server.contract<string, string>("Start.transport.promise-fetcher", {
           input: Schema.String,
-          output: Schema.String
+          output: Schema.String,
         });
         const echo = Server.client(Echo);
         const fetchRuntime = Layer.succeed(ServerClient)(
           makeRpcClient({
             fetch: (() =>
-              Effect.runPromise(Effect.succeed(
-                new Response(JSON.stringify({ _tag: "Success", value: "ok" }), {
-                  headers: { "content-type": startJsonMediaType }
-                })
-              ))) as unknown as StartFetch
-          })
+              Effect.runPromise(
+                Effect.succeed(
+                  new Response(JSON.stringify({ _tag: "Success", value: "ok" }), {
+                    headers: { "content-type": startJsonMediaType },
+                  }),
+                ),
+              )) as unknown as StartFetch,
+          }),
         );
 
         const exit = yield* Effect.exit(Effect.provide(echo.effect("hello"), fetchRuntime));
@@ -488,12 +493,14 @@ describe("Start RPC transport", () => {
           expect(failure).toBeInstanceOf(ServerTransportError);
           expect(failure).toMatchObject({
             reason: "Network",
-            message: "Server function request failed."
+            message: "Server function request failed.",
           });
           expect(failure).toHaveProperty("cause");
-          expect(String((failure as ServerTransportError).cause)).toContain("Start fetch hooks must return an Effect");
+          expect(String((failure as ServerTransportError).cause)).toContain(
+            "Start fetch hooks must return an Effect",
+          );
         });
-      })
+      }),
     ));
 
   it("rejects Promise-shaped RPC client headers as transport errors", () =>
@@ -501,13 +508,13 @@ describe("Start RPC transport", () => {
       Effect.gen(function* () {
         const Echo = Server.contract<string, string>("Start.transport.promise-headers", {
           input: Schema.String,
-          output: Schema.String
+          output: Schema.String,
         });
         const echo = Server.client(Echo);
         const headerRuntime = Layer.succeed(ServerClient)(
           makeRpcClient({
-            headers: (() => Promise.resolve({ authorization: "Bearer token" })) as never
-          })
+            headers: (() => Promise.resolve({ authorization: "Bearer token" })) as never,
+          }),
         );
 
         const exit = yield* Effect.exit(Effect.provide(echo.effect("hello"), headerRuntime));
@@ -519,10 +526,10 @@ describe("Start RPC transport", () => {
           expect(failure).toMatchObject({
             reason: "Network",
             message: "Could not construct Start transport headers.",
-            cause: expect.any(EffectInputPromiseRejected)
+            cause: expect.any(EffectInputPromiseRejected),
           });
         });
-      })
+      }),
     ));
 
   it("rejects RPC client headers with throwing then getters as transport errors", () =>
@@ -530,18 +537,18 @@ describe("Start RPC transport", () => {
       Effect.gen(function* () {
         const Echo = Server.contract<string, string>("Start.transport.throwing-then-headers", {
           input: Schema.String,
-          output: Schema.String
+          output: Schema.String,
         });
         const echo = Server.client(Echo);
         const throwingThenHeaders = Object.defineProperty({}, "then", {
           get: () => {
             throw new Error("then getter failed");
-          }
+          },
         });
         const headerRuntime = Layer.succeed(ServerClient)(
           makeRpcClient({
-            headers: () => throwingThenHeaders as never
-          })
+            headers: () => throwingThenHeaders as never,
+          }),
         );
 
         const exit = yield* Effect.exit(Effect.provide(echo.effect("hello"), headerRuntime));
@@ -553,10 +560,10 @@ describe("Start RPC transport", () => {
           expect(failure).toMatchObject({
             reason: "Network",
             message: "Could not construct Start transport headers.",
-            cause: expect.any(EffectInputPromiseRejected)
+            cause: expect.any(EffectInputPromiseRejected),
           });
         });
-      })
+      }),
     ));
 
   it("aborts the default global fetch when the client Effect is interrupted", () => {
@@ -566,7 +573,7 @@ describe("Start RPC transport", () => {
       Effect.gen(function* () {
         const Echo = Server.contract<string, string>("Start.transport.abort-default-fetch", {
           input: Schema.String,
-          output: Schema.String
+          output: Schema.String,
         });
         const echo = Server.client(Echo);
         const started = yield* Deferred.make<AbortSignal>();
@@ -586,20 +593,20 @@ describe("Start RPC transport", () => {
                   Effect.runFork(Deferred.succeed(aborted, undefined));
                   resume(Effect.fail(signal.reason));
                 },
-                { once: true }
+                { once: true },
               );
-            })
+            }),
           );
         }) as typeof globalThis.fetch;
 
         const runtime = Layer.succeed(ServerClient)(
           makeRpcClient({
-            endpoint: `https://example.com${serverRpcPath}`
-          })
+            endpoint: `https://example.com${serverRpcPath}`,
+          }),
         );
 
         const fiber = yield* Effect.forkDetach(Effect.provide(echo.effect("hello"), runtime), {
-          startImmediately: true
+          startImmediately: true,
         });
         const signal = yield* Deferred.await(started);
         yield* Effect.sync(() => {
@@ -611,10 +618,12 @@ describe("Start RPC transport", () => {
           expect(signal.aborted).toBe(true);
         });
       }).pipe(
-        Effect.ensuring(Effect.sync(() => {
-          globalThis.fetch = previousFetch;
-        }))
-      )
+        Effect.ensuring(
+          Effect.sync(() => {
+            globalThis.fetch = previousFetch;
+          }),
+        ),
+      ),
     );
   });
 
@@ -626,14 +635,16 @@ describe("Start RPC transport", () => {
       Effect.gen(function* () {
         const externalAbort = new AbortController();
         const addEventListener = externalAbort.signal.addEventListener.bind(externalAbort.signal);
-        const removeEventListener = externalAbort.signal.removeEventListener.bind(externalAbort.signal);
+        const removeEventListener = externalAbort.signal.removeEventListener.bind(
+          externalAbort.signal,
+        );
         let abortListenersAdded = 0;
         let abortListenersRemoved = 0;
         let observedSignal: AbortSignal | undefined;
 
         Object.defineProperty(AbortSignal, "any", {
           configurable: true,
-          value: undefined
+          value: undefined,
         });
         externalAbort.signal.addEventListener = ((type, listener, options) => {
           if (type === "abort") {
@@ -654,10 +665,10 @@ describe("Start RPC transport", () => {
 
         const fetcher = yield* resolveStartFetchEffect(
           undefined,
-          "No fetch implementation is available for server functions."
+          "No fetch implementation is available for server functions.",
         );
         const response = yield* fetcher("https://example.com/rpc", {
-          signal: externalAbort.signal
+          signal: externalAbort.signal,
         });
 
         yield* Effect.sync(() => {
@@ -668,15 +679,17 @@ describe("Start RPC transport", () => {
           expect(abortListenersRemoved).toBe(1);
         });
       }).pipe(
-        Effect.ensuring(Effect.sync(() => {
-          globalThis.fetch = previousFetch;
-          if (abortSignalAnyDescriptor) {
-            Object.defineProperty(AbortSignal, "any", abortSignalAnyDescriptor);
-          } else {
-            Reflect.deleteProperty(AbortSignal, "any");
-          }
-        }))
-      )
+        Effect.ensuring(
+          Effect.sync(() => {
+            globalThis.fetch = previousFetch;
+            if (abortSignalAnyDescriptor) {
+              Object.defineProperty(AbortSignal, "any", abortSignalAnyDescriptor);
+            } else {
+              Reflect.deleteProperty(AbortSignal, "any");
+            }
+          }),
+        ),
+      ),
     );
   });
 
@@ -686,7 +699,7 @@ describe("Start RPC transport", () => {
         const circular: Record<string, unknown> = {};
         circular.self = circular;
         const encodeExit = yield* Effect.exit(
-          encodeStartClientTransportRequestBodyEffect("rpc", circular)
+          encodeStartClientTransportRequestBodyEffect("rpc", circular),
         );
         const rpcDefectExit = yield* Effect.exit(
           executeStartClientTransportEffect({
@@ -694,23 +707,23 @@ describe("Start RPC transport", () => {
             endpoint: "https://example.com/__effect-ui/rpc",
             request: {
               name: "Start.transport.defect",
-              input: {}
+              input: {},
             },
             fetch: () =>
               Effect.succeed(
                 new Response(
                   JSON.stringify({
                     _tag: "Defect",
-                    defect: { message: "rpc exploded" }
+                    defect: { message: "rpc exploded" },
                   }),
                   {
                     status: 500,
-                    headers: { "content-type": startJsonMediaType }
-                  }
-                )
+                    headers: { "content-type": startJsonMediaType },
+                  },
+                ),
               ),
-            parseResponse: parseRpcResponse
-          })
+            parseResponse: parseRpcResponse,
+          }),
         );
         const rpcSuccessBadStatusExit = yield* Effect.exit(
           executeStartClientTransportEffect({
@@ -718,23 +731,23 @@ describe("Start RPC transport", () => {
             endpoint: "https://example.com/__effect-ui/rpc",
             request: {
               name: "Start.transport.status",
-              input: {}
+              input: {},
             },
             fetch: () =>
               Effect.succeed(
                 new Response(
                   JSON.stringify({
                     _tag: "Success",
-                    value: "ok"
+                    value: "ok",
                   }),
                   {
                     status: 500,
-                    headers: { "content-type": startJsonMediaType }
-                  }
-                )
+                    headers: { "content-type": startJsonMediaType },
+                  },
+                ),
               ),
-            parseResponse: parseRpcResponse
-          })
+            parseResponse: parseRpcResponse,
+          }),
         );
         const actionDefectExit = yield* Effect.exit(
           executeStartClientTransportEffect({
@@ -742,65 +755,73 @@ describe("Start RPC transport", () => {
             endpoint: "https://example.com/__effect-ui/action",
             request: {
               name: "Start.action.defect",
-              input: {}
+              input: {},
             },
             fetch: () =>
               Effect.succeed(
                 new Response(
                   JSON.stringify({
                     _tag: "Defect",
-                    defect: { message: "action exploded" }
+                    defect: { message: "action exploded" },
                   }),
                   {
                     status: 500,
-                    headers: { "content-type": startJsonMediaType }
-                  }
-                )
+                    headers: { "content-type": startJsonMediaType },
+                  },
+                ),
               ),
-            parseResponse: parseStartActionResponse
-          })
+            parseResponse: parseStartActionResponse,
+          }),
         );
 
         yield* Effect.sync(() => {
-          const encodeFailure = Exit.isFailure(encodeExit) ? firstFailure(encodeExit.cause) : undefined;
-          const rpcFailure = Exit.isFailure(rpcDefectExit) ? firstFailure(rpcDefectExit.cause) : undefined;
-          const rpcStatusFailure = Exit.isFailure(rpcSuccessBadStatusExit) ? firstFailure(rpcSuccessBadStatusExit.cause) : undefined;
-          const actionFailure = Exit.isFailure(actionDefectExit) ? firstFailure(actionDefectExit.cause) : undefined;
+          const encodeFailure = Exit.isFailure(encodeExit)
+            ? firstFailure(encodeExit.cause)
+            : undefined;
+          const rpcFailure = Exit.isFailure(rpcDefectExit)
+            ? firstFailure(rpcDefectExit.cause)
+            : undefined;
+          const rpcStatusFailure = Exit.isFailure(rpcSuccessBadStatusExit)
+            ? firstFailure(rpcSuccessBadStatusExit.cause)
+            : undefined;
+          const actionFailure = Exit.isFailure(actionDefectExit)
+            ? firstFailure(actionDefectExit.cause)
+            : undefined;
 
           expect(encodeFailure).toBeInstanceOf(ServerTransportError);
           expect(encodeFailure).toMatchObject({
             reason: "InvalidResponse",
-            message: "Could not encode the server function request body."
+            message: "Could not encode the server function request body.",
           });
           expect(rpcFailure).toBeInstanceOf(ServerTransportError);
           expect(rpcFailure).toMatchObject({
             reason: "Defect",
             status: 500,
             message: "Server function failed with a defect.",
-            payload: { message: "rpc exploded" }
+            payload: { message: "rpc exploded" },
           });
           expect(rpcStatusFailure).toBeInstanceOf(ServerTransportError);
           expect(rpcStatusFailure).toMatchObject({
             reason: "BadStatus",
             status: 500,
             message: "Server function succeeded with unexpected HTTP status 500.",
-            payload: { _tag: "Success" }
+            payload: { _tag: "Success" },
           });
           expect(actionFailure).toBeInstanceOf(ServerTransportError);
           expect(actionFailure).toMatchObject({
             reason: "Defect",
             status: 500,
             message: "Start action failed with a defect.",
-            payload: { message: "action exploded" }
+            payload: { message: "action exploded" },
           });
         });
-      })
+      }),
     ));
 
   it("rejects non-JSON RPC responses before decoding protocol payloads", () => {
     const Echo = Server.contract<string, string>("Start.transport.non-json", {
       input: Schema.String,
-      output: Schema.String
+      output: Schema.String,
     });
     const echo = Server.client(Echo);
     const runtime = Layer.succeed(ServerClient)(
@@ -809,10 +830,10 @@ describe("Start RPC transport", () => {
           Effect.succeed(
             new Response("not json", {
               status: 200,
-              headers: { "content-type": "text/plain" }
-            })
-          )
-      })
+              headers: { "content-type": "text/plain" },
+            }),
+          ),
+      }),
     );
 
     return Effect.runPromise(
@@ -825,12 +846,12 @@ describe("Start RPC transport", () => {
             expect(failure).toMatchObject({
               _tag: "ServerTransportError",
               reason: "InvalidResponse",
-              status: 200
+              status: 200,
             });
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 });

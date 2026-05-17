@@ -13,21 +13,14 @@ export interface BrowserRouterClickEvent {
 
 /** Returns true for plain primary-button clicks that should stay inside the router. */
 export const isPlainLeftClick = (event: BrowserRouterClickEvent): boolean =>
-  event.button === 0 &&
-  !event.metaKey &&
-  !event.altKey &&
-  !event.ctrlKey &&
-  !event.shiftKey;
+  event.button === 0 && !event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey;
 
 /** Returns true when the anchor download attribute is present rather than framework-absent. */
 export const browserRouterLinkHasDownload = (download: unknown): boolean =>
   download === true || typeof download === "string";
 
 /** Returns true when anchor attributes intentionally hand navigation to the browser. */
-export const opensOutsideRouter = (
-  target: string | undefined,
-  download: unknown
-): boolean =>
+export const opensOutsideRouter = (target: string | undefined, download: unknown): boolean =>
   browserRouterLinkHasDownload(download) ||
   (target !== undefined && target.length > 0 && target !== "_self");
 
@@ -67,7 +60,7 @@ export type BrowserRouterLinkPreloadDecision =
 
 /** Builds the shared hover preload decision used by framework RouterLink adapters. */
 export const browserRouterLinkPreloadDecision = (
-  options: BrowserRouterLinkPreloadDecisionOptions
+  options: BrowserRouterLinkPreloadDecisionOptions,
 ): BrowserRouterLinkPreloadDecision => {
   if (options.defaultPrevented) {
     return { _tag: "Ignore", reason: "default-prevented" };
@@ -110,7 +103,7 @@ export type BrowserRouterLinkClickDecision =
 
 /** Builds the shared click decision used by framework RouterLink adapters. */
 export const browserRouterLinkClickDecision = (
-  options: BrowserRouterLinkClickDecisionOptions
+  options: BrowserRouterLinkClickDecisionOptions,
 ): BrowserRouterLinkClickDecision => {
   if (options.event.defaultPrevented === true) {
     return { _tag: "Ignore", reason: "default-prevented" };
@@ -127,7 +120,7 @@ export const browserRouterLinkClickDecision = (
   return {
     _tag: "Navigate",
     href: options.href,
-    ...(options.replace === true ? { options: { replace: true } } : {})
+    ...(options.replace === true ? { options: { replace: true } } : {}),
   };
 };
 
@@ -168,14 +161,14 @@ const browserRouterLinkDownloadIdentityValue = (value: unknown): string =>
 
 /** Builds the stable link preload identity used by framework RouterLink adapters. */
 export const browserRouterLinkPreloadIdentity = (
-  options: BrowserRouterLinkPreloadIdentityOptions
+  options: BrowserRouterLinkPreloadIdentityOptions,
 ): BrowserRouterLinkPreloadIdentity => ({
   key: [
     options.href,
     options.preload,
     options.canHandleRoute,
     browserRouterLinkPreloadIdentityValue(options.target),
-    browserRouterLinkDownloadIdentityValue(options.download)
+    browserRouterLinkDownloadIdentityValue(options.download),
   ].join("\0"),
   enabled:
     browserRouterLinkPreloadDecision({
@@ -183,8 +176,8 @@ export const browserRouterLinkPreloadIdentity = (
       preload: options.preload,
       canHandleRoute: options.canHandleRoute,
       target: options.target,
-      download: options.download
-    })._tag === "Preload"
+      download: options.download,
+    })._tag === "Preload",
 });
 
 /** Runtime capability required by the framework-neutral link preloader. */
@@ -192,7 +185,7 @@ export interface BrowserRouterLinkPreloaderRuntime<ER = unknown> {
   /** Forks already provided, requirement-free link preload work. */
   runFork<A, E>(
     effect: Effect.Effect<A, E, never>,
-    options?: Effect.RunOptions
+    options?: Effect.RunOptions,
   ): Fiber.Fiber<A, E | ER>;
 }
 
@@ -213,7 +206,7 @@ export interface BrowserRouterLinkPreloaderOptions<ER = unknown> {
  * clears only the latest fiber when preloads race.
  */
 export const makeBrowserRouterLinkPreloader = <ER>(
-  options: BrowserRouterLinkPreloaderOptions<ER>
+  options: BrowserRouterLinkPreloaderOptions<ER>,
 ): BrowserRouterLinkPreloader => {
   let revision = 0;
   let preloadIdentity: BrowserRouterLinkPreloadIdentity | undefined;
@@ -225,7 +218,9 @@ export const makeBrowserRouterLinkPreloader = <ER>(
     return fiber;
   };
 
-  const interruptFiberEffect = (fiber: Fiber.Fiber<void, unknown> | undefined): Effect.Effect<void> =>
+  const interruptFiberEffect = (
+    fiber: Fiber.Fiber<void, unknown> | undefined,
+  ): Effect.Effect<void> =>
     fiber === undefined
       ? Effect.void
       : Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void));
@@ -257,12 +252,14 @@ export const makeBrowserRouterLinkPreloader = <ER>(
     preloadFiber = options.runtime.runFork(
       options.preloadEffect().pipe(
         Effect.catchCause(() => Effect.void),
-        Effect.ensuring(Effect.sync(() => {
-          if (revision === currentRevision) {
-            preloadFiber = undefined;
-          }
-        }))
-      )
+        Effect.ensuring(
+          Effect.sync(() => {
+            if (revision === currentRevision) {
+              preloadFiber = undefined;
+            }
+          }),
+        ),
+      ),
     );
   };
 

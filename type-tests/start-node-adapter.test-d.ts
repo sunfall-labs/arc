@@ -18,7 +18,7 @@ import {
   type StartNodeServerHandler,
   type StartNodeServerHandlerOptions,
   type StartNodeServerHandlerRuntimeOptions,
-  type WriteNodeResponseOptions
+  type WriteNodeResponseOptions,
 } from "@effect-ui/start/node-adapter";
 import type { EffectUiRuntime } from "@effect-ui/core";
 import type { StartRequestHandlerEffect } from "@effect-ui/start";
@@ -35,7 +35,7 @@ const nodeAdapterExports: Array<unknown> = [
   StartNodeAdapterError,
   StartRequestHandlerError,
   writeNodeResponse,
-  writeNodeResponseEffect
+  writeNodeResponseEffect,
 ];
 type NodeAdapter =
   | StartForkRuntime
@@ -64,35 +64,47 @@ declare const serviceRuntime: EffectUiRuntime<NodeAdapterTestService>;
 const nodeOriginPolicy: StartNodeOriginPolicy = { trustForwardedHeaders: true };
 const nodeRequestOptions: StartNodeRequestOptions = {
   ...nodeOriginPolicy,
-  origin: "https://example.com"
+  origin: "https://example.com",
 };
 const writeOptions: WriteNodeResponseOptions = { headOnly: false };
 const serverErrorHandler: StartNodeServerErrorHandler = () => Effect.void;
 const nodeServerOptions: StartNodeServerHandlerOptions = {
   ...nodeRequestOptions,
-  onError: serverErrorHandler
+  onError: serverErrorHandler,
 };
-const nodeRuntimeOptions: StartNodeServerHandlerRuntimeOptions<Scope.Scope | NodeAdapterTestService> = {
+const nodeRuntimeOptions: StartNodeServerHandlerRuntimeOptions<
+  Scope.Scope | NodeAdapterTestService
+> = {
   ...nodeRequestOptions,
-  runtime: serviceRuntime
+  runtime: serviceRuntime,
 };
 const nodeHandlerEffect: StartNodeHandlerEffect<Scope.Scope> = createNodeHandlerEffect(
   scopeOnlyHandler,
-  nodeRequestOptions
+  nodeRequestOptions,
 );
-const nodeHandler: StartNodeHandler<Scope.Scope> = createNodeHandler(scopeOnlyHandler, nodeRequestOptions);
-const nodeServerHandler: StartNodeServerHandler = createNodeServerHandler(scopeOnlyHandler, nodeServerOptions);
+const nodeHandler: StartNodeHandler<Scope.Scope> = createNodeHandler(
+  scopeOnlyHandler,
+  nodeRequestOptions,
+);
+const nodeServerHandler: StartNodeServerHandler = createNodeServerHandler(
+  scopeOnlyHandler,
+  nodeServerOptions,
+);
 const servicefulNodeServerHandler: StartNodeServerHandler = createNodeServerHandler(
   servicefulHandler,
-  nodeRuntimeOptions
+  nodeRuntimeOptions,
 );
 // @ts-expect-error serviceful Node callback facades must receive a runtime for non-Scope requirements.
 createNodeServerHandler(servicefulHandler, nodeServerOptions);
 nodeRequestOrigin(nodeRequest, nodeRequestOptions).toUpperCase();
 const webRequest: Request = nodeRequestToWebRequest(nodeRequest, nodeRequestOptions);
-nodeRequestToWebRequestEffect(nodeRequest, nodeRequestOptions).pipe(Effect.map((request) => request.url));
+nodeRequestToWebRequestEffect(nodeRequest, nodeRequestOptions).pipe(
+  Effect.map((request) => request.url),
+);
 writeNodeResponseEffect(nodeResponse, new Response("ok"), writeOptions).pipe(Effect.asVoid);
-writeNodeResponse(nodeResponse, new Response(null, { status: 204 }), writeOptions).pipe(Effect.asVoid);
+writeNodeResponse(nodeResponse, new Response(null, { status: 204 }), writeOptions).pipe(
+  Effect.asVoid,
+);
 void nodeHandlerEffect;
 void nodeHandler;
 void nodeServerHandler;

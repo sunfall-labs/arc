@@ -1,22 +1,34 @@
 import { Data, Effect } from "effect";
 
 type CallableThenableMember<Out> = Out extends { readonly then?: infer Then }
-  ? Extract<Then, (...args: any) => unknown> extends never ? never : Out
+  ? Extract<Then, (...args: any) => unknown> extends never
+    ? never
+    : Out
   : never;
 type PromiseShapedMember<Out> = Out extends unknown
-  ? Out extends PromiseLike<unknown> ? Out : CallableThenableMember<Out>
+  ? Out extends PromiseLike<unknown>
+    ? Out
+    : CallableThenableMember<Out>
   : never;
 type EffectShapedMember<Out> = Out extends unknown
-  ? Out extends Error ? never : Out extends Effect.Effect<unknown, unknown, unknown> ? Out : never
+  ? Out extends Error
+    ? never
+    : Out extends Effect.Effect<unknown, unknown, unknown>
+      ? Out
+      : never
   : never;
 
 type HasPromiseLike<Out> = [unknown] extends [Out]
   ? false
-  : [PromiseShapedMember<Out>] extends [never] ? false : true;
+  : [PromiseShapedMember<Out>] extends [never]
+    ? false
+    : true;
 type HasEffectLike<Out> = [unknown] extends [Out]
   ? false
-  : [EffectShapedMember<Out>] extends [never] ? false : true;
-type IsAny<T> = 0 extends (1 & T) ? true : false;
+  : [EffectShapedMember<Out>] extends [never]
+    ? false
+    : true;
+type IsAny<T> = 0 extends 1 & T ? true : false;
 
 type NonPromiseLikeUnknown =
   | null
@@ -28,17 +40,20 @@ type NonPromiseLikeUnknown =
   | symbol
   | (object & { readonly then?: never; readonly [Effect.TypeId]?: never });
 
-export type RejectPromiseLikeValue<A> =
-  [unknown] extends [A]
-    ? NonPromiseLikeUnknown
-    : HasPromiseLike<A> extends true ? never : unknown;
+export type RejectPromiseLikeValue<A> = [unknown] extends [A]
+  ? NonPromiseLikeUnknown
+  : HasPromiseLike<A> extends true
+    ? never
+    : unknown;
 
 export type PromiseSafeValue<A> =
   IsAny<A> extends true
     ? NonPromiseLikeUnknown
     : [unknown] extends [A]
       ? NonPromiseLikeUnknown
-      : HasPromiseLike<A> extends true ? never : A;
+      : HasPromiseLike<A> extends true
+        ? never
+        : A;
 
 type DirectEffectInputValue<A> =
   IsAny<A> extends true
@@ -47,7 +62,9 @@ type DirectEffectInputValue<A> =
       ? NonPromiseLikeUnknown
       : HasPromiseLike<A> extends true
         ? never
-        : HasEffectLike<A> extends true ? never : A;
+        : HasEffectLike<A> extends true
+          ? never
+          : A;
 
 /**
  * Plain data accepted by non-executable public seams.
@@ -74,20 +91,28 @@ export type EffectInput<A, E = never, R = never> =
   | DirectEffectInputValue<A>
   | Effect.Effect<PromiseSafeValue<A>, E, R>;
 
-export type EffectInputValue<Out> = Out extends Effect.Effect<infer A, infer _E, infer _R>
-  ? PromiseSafeValue<A>
-  : DirectEffectInputValue<Out>;
+export type EffectInputValue<Out> =
+  Out extends Effect.Effect<infer A, infer _E, infer _R>
+    ? PromiseSafeValue<A>
+    : DirectEffectInputValue<Out>;
 
-export type EffectInputError<Out> = Out extends Effect.Effect<infer _A, infer E, infer _R> ? E : never;
+export type EffectInputError<Out> =
+  Out extends Effect.Effect<infer _A, infer E, infer _R> ? E : never;
 
-export type EffectInputRequirements<Out> = Out extends Effect.Effect<infer _A, infer _E, infer R> ? R : never;
+export type EffectInputRequirements<Out> =
+  Out extends Effect.Effect<infer _A, infer _E, infer R> ? R : never;
 
 export type EnsureEffectInputValue<Out, A> =
   EffectInputValue<Out> extends A ? EnsureEffectInput<Out> : never;
 
-export type EnsureEffectInput<Out> = Out extends Effect.Effect<infer A, infer E, infer R>
-  ? PromiseSafeValue<A> extends never ? never : Effect.Effect<PromiseSafeValue<A>, E, R>
-  : DirectEffectInputValue<Out> extends never ? never : DirectEffectInputValue<Out>;
+export type EnsureEffectInput<Out> =
+  Out extends Effect.Effect<infer A, infer E, infer R>
+    ? PromiseSafeValue<A> extends never
+      ? never
+      : Effect.Effect<PromiseSafeValue<A>, E, R>
+    : DirectEffectInputValue<Out> extends never
+      ? never
+      : DirectEffectInputValue<Out>;
 
 export function isEffectLike<A, E, R>(value: unknown): value is Effect.Effect<A, E, R>;
 export function isEffectLike(value: unknown): value is Effect.Effect<unknown, never, never>;
@@ -101,9 +126,7 @@ export function isEffectLike(value: unknown): value is Effect.Effect<unknown, ne
  * Promise work should be adapted explicitly at host boundaries with
  * `Effect.tryPromise(...)`; library internals should stay Effect-first.
  */
-export class EffectInputPromiseRejected extends Data.TaggedError(
-  "EffectInputPromiseRejected"
-)<{
+export class EffectInputPromiseRejected extends Data.TaggedError("EffectInputPromiseRejected")<{
   readonly guidance: string;
 }> {}
 
@@ -114,9 +137,7 @@ export class EffectInputPromiseRejected extends Data.TaggedError(
  * preserve the failure in the Effect error channel instead of surfacing it as a
  * construction-time throw or Effect defect.
  */
-export class EffectInputCallbackError extends Data.TaggedError(
-  "EffectInputCallbackError"
-)<{
+export class EffectInputCallbackError extends Data.TaggedError("EffectInputCallbackError")<{
   readonly operation: string;
   readonly cause: unknown;
   readonly guidance: string;
@@ -148,7 +169,8 @@ export const isPromiseLikeValue = (value: unknown): boolean => {
 
 const promiseRejectedDefect = (): EffectInputPromiseRejected =>
   new EffectInputPromiseRejected({
-    guidance: "EffectInput does not accept Promise-shaped values. Wrap host Promise work in Effect.tryPromise(...) at the host adapter seam."
+    guidance:
+      "EffectInput does not accept Promise-shaped values. Wrap host Promise work in Effect.tryPromise(...) at the host adapter seam.",
   });
 
 /**
@@ -158,13 +180,13 @@ const promiseRejectedDefect = (): EffectInputPromiseRejected =>
  * implementation Effect-first.
  */
 export const toEffect = <A, E = never, R = never>(
-  value: EffectInput<A, E, R>
+  value: EffectInput<A, E, R>,
 ): Effect.Effect<A, E, R> => {
   if (isEffectLike(value)) {
     return Effect.flatMap(value, (success) =>
       isPromiseLikeValue(success)
         ? Effect.die(promiseRejectedDefect())
-        : Effect.succeed(success as A)
+        : Effect.succeed(success as A),
     ) as Effect.Effect<A, E, R>;
   }
 
@@ -177,12 +199,13 @@ export const toEffect = <A, E = never, R = never>(
 
 const promiseRejectedCallbackError = (
   operation: string,
-  cause: EffectInputPromiseRejected
+  cause: EffectInputPromiseRejected,
 ): EffectInputCallbackError =>
   new EffectInputCallbackError({
     operation,
     cause,
-    guidance: "EffectInput callbacks must return values or Effects. Wrap host Promise work in Effect.tryPromise(...) at the host adapter seam."
+    guidance:
+      "EffectInput callbacks must return values or Effects. Wrap host Promise work in Effect.tryPromise(...) at the host adapter seam.",
   });
 
 /**
@@ -194,19 +217,17 @@ const promiseRejectedCallbackError = (
  */
 export const catchEffectInputPromiseDefect = <A, E, R>(
   operation: string,
-  effect: Effect.Effect<A, E, R>
+  effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | EffectInputCallbackError, R> =>
-  Effect.catchDefect(
-    effect,
-    (defect) =>
-      defect instanceof EffectInputPromiseRejected
-        ? Effect.fail(promiseRejectedCallbackError(operation, defect))
-        : Effect.die(defect)
+  Effect.catchDefect(effect, (defect) =>
+    defect instanceof EffectInputPromiseRejected
+      ? Effect.fail(promiseRejectedCallbackError(operation, defect))
+      : Effect.die(defect),
   );
 
 const normalizeEffectInput = <A, E, R>(
   operation: string,
-  value: EffectInput<A, E, R>
+  value: EffectInput<A, E, R>,
 ): Effect.Effect<A, E | EffectInputCallbackError, R> =>
   catchEffectInputPromiseDefect(operation, toEffect(value as never) as Effect.Effect<A, E, R>);
 
@@ -214,12 +235,7 @@ const normalizeEffectInput = <A, E, R>(
  * Invokes an EffectInput-returning callback inside Effect and normalizes the
  * returned value through `toEffect(...)`.
  */
-export const invokeEffectInput = <
-  Args extends ReadonlyArray<unknown>,
-  A,
-  E = never,
-  R = never
->(
+export const invokeEffectInput = <Args extends ReadonlyArray<unknown>, A, E = never, R = never>(
   operation: string,
   callback: (...args: Args) => EffectInput<A, E, R>,
   ...args: Args
@@ -231,8 +247,9 @@ export const invokeEffectInput = <
         new EffectInputCallbackError({
           operation,
           cause,
-          guidance: "EffectInput callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel."
-        })
+          guidance:
+            "EffectInput callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel.",
+        }),
     }),
-    (value) => normalizeEffectInput(operation, value)
+    (value) => normalizeEffectInput(operation, value),
   );

@@ -14,7 +14,7 @@ const root = document.getElementById("root");
 if (!root) {
   throw new ReactStarterRootMissing({
     id: "root",
-    guidance: "Add a root element with id=\"root\" to the document shell."
+    guidance: 'Add a root element with id="root" to the document shell.',
   });
 }
 

@@ -4,8 +4,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 export class ScriptCommandError extends Data.TaggedError("ScriptCommandError") {}
 
-export const scriptCommandText = (command, args) =>
-  `${command} ${args.join(" ")}`;
+export const scriptCommandText = (command, args) => `${command} ${args.join(" ")}`;
 
 export const makeScriptCommand = (command, args, options = {}) =>
   ChildProcess.make(command, args, {
@@ -14,18 +13,18 @@ export const makeScriptCommand = (command, args, options = {}) =>
     stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
-    killSignal: options.killSignal ?? "SIGTERM"
+    killSignal: options.killSignal ?? "SIGTERM",
   });
 
 export const scriptCommandErrorExitFacts = (error) =>
   [
     `Command: ${error.commandText}`,
-    error.signal === null
-      ? `Exit code: ${error.code}`
-      : `Signal: ${error.signal}`,
+    error.signal === null ? `Exit code: ${error.code}` : `Signal: ${error.signal}`,
     error.stdout.trim() === "" ? undefined : `stdout: ${error.stdout.trim()}`,
     error.stderr.trim() === "" ? undefined : `stderr: ${error.stderr.trim()}`,
-  ].filter(Boolean).join(" ");
+  ]
+    .filter(Boolean)
+    .join(" ");
 
 export const scriptCommandErrorMessage = (description, error) =>
   error.code === undefined && error.signal === undefined
@@ -37,8 +36,7 @@ export const scriptCommandErrorRepair = (error, spawnRepair) =>
     ? spawnRepair
     : scriptCommandErrorExitFacts(error);
 
-const platformError = (message, cause) =>
-  new ScriptCommandError({ message, cause });
+const platformError = (message, cause) => new ScriptCommandError({ message, cause });
 
 const scriptCommandExitStatus = Symbol("effect-ui.scriptCommandExitStatus");
 
@@ -61,15 +59,14 @@ const signalExitCode = (signal) => {
     SIGUSR2: 12,
     SIGPIPE: 13,
     SIGALRM: 14,
-    SIGTERM: 15
+    SIGTERM: 15,
   }[signal];
   return signalNumber === undefined ? 1 : 128 + signalNumber;
 };
 
 const isWindows = process.platform === "win32";
 
-const isChildRunning = (child) =>
-  child.exitCode === null && child.signalCode === null;
+const isChildRunning = (child) => child.exitCode === null && child.signalCode === null;
 
 const spawnWindowsTaskkill = (pid, force) => {
   const args = ["/pid", String(pid), "/T"];
@@ -79,7 +76,7 @@ const spawnWindowsTaskkill = (pid, force) => {
   try {
     const killer = spawn("taskkill", args, {
       stdio: "ignore",
-      windowsHide: true
+      windowsHide: true,
     });
     killer.unref();
   } catch {
@@ -122,7 +119,7 @@ const processExistsEffect = (pid) =>
           : true;
       }
     },
-    catch: (cause) => platformError("Process existence probe failed.", cause)
+    catch: (cause) => platformError("Process existence probe failed.", cause),
   });
 
 const killProcessBestEffortEffect = (pid, signal = "SIGKILL") =>
@@ -138,7 +135,7 @@ const readableProcessStream = (readable) =>
   readable === null || readable === undefined
     ? Stream.empty
     : Stream.fromAsyncIterable(readable, (cause) =>
-        platformError("Child process stream failed.", cause)
+        platformError("Child process stream failed.", cause),
       );
 
 const nodeChildProcessHandle = (child, command) =>
@@ -149,7 +146,9 @@ const nodeChildProcessHandle = (child, command) =>
     };
 
     child.once("error", (cause) => {
-      completeExit(Deferred.fail(exitStatus, platformError("Child process failed to start.", cause)));
+      completeExit(
+        Deferred.fail(exitStatus, platformError("Child process failed to start.", cause)),
+      );
     });
     child.once("close", (code, signal) => {
       completeExit(Deferred.succeed(exitStatus, { code, signal }));
@@ -158,55 +157,62 @@ const nodeChildProcessHandle = (child, command) =>
     const stdout = readableProcessStream(child.stdout);
     const stderr = readableProcessStream(child.stderr);
 
-    return Object.assign(ChildProcessSpawner.makeHandle({
-      pid: ChildProcessSpawner.ProcessId(child.pid ?? 0),
-      exitCode: Deferred.await(exitStatus).pipe(
-        Effect.map((status) => ChildProcessSpawner.ExitCode(
-          status.code ?? signalExitCode(status.signal)
-        ))
-      ),
-      isRunning: Effect.sync(() => child.exitCode === null && child.signalCode === null),
-      kill: (options = {}) =>
-        Effect.gen(function* () {
-          yield* interruptChildProcessTree(
-            child,
-            options.killSignal ?? command.options.killSignal ?? "SIGTERM",
-            false
-          );
-          yield* Deferred.await(exitStatus).pipe(
-            Effect.timeout(options.forceKillAfter ?? "1 second"),
-            Effect.catchCause(() =>
-              Effect.gen(function* () {
-                yield* interruptChildProcessTree(child, "SIGKILL", true);
-                yield* Deferred.await(exitStatus);
-              }).pipe(Effect.catchCause(() => Effect.void))
-            ),
-            Effect.asVoid
-          );
+    return Object.assign(
+      ChildProcessSpawner.makeHandle({
+        pid: ChildProcessSpawner.ProcessId(child.pid ?? 0),
+        exitCode: Deferred.await(exitStatus).pipe(
+          Effect.map((status) =>
+            ChildProcessSpawner.ExitCode(status.code ?? signalExitCode(status.signal)),
+          ),
+        ),
+        isRunning: Effect.sync(() => child.exitCode === null && child.signalCode === null),
+        kill: (options = {}) =>
+          Effect.gen(function* () {
+            yield* interruptChildProcessTree(
+              child,
+              options.killSignal ?? command.options.killSignal ?? "SIGTERM",
+              false,
+            );
+            yield* Deferred.await(exitStatus).pipe(
+              Effect.timeout(options.forceKillAfter ?? "1 second"),
+              Effect.catchCause(() =>
+                Effect.gen(function* () {
+                  yield* interruptChildProcessTree(child, "SIGKILL", true);
+                  yield* Deferred.await(exitStatus);
+                }).pipe(Effect.catchCause(() => Effect.void)),
+              ),
+              Effect.asVoid,
+            );
+          }),
+        stdin: Sink.drain,
+        stdout,
+        stderr,
+        all: Stream.merge(stdout, stderr),
+        getInputFd: () => Sink.drain,
+        getOutputFd: () => Stream.empty,
+        unref: Effect.try({
+          try: () => {
+            child.unref();
+            return Effect.sync(() => child.ref());
+          },
+          catch: (cause) => platformError("Child process unref failed.", cause),
         }),
-      stdin: Sink.drain,
-      stdout,
-      stderr,
-      all: Stream.merge(stdout, stderr),
-      getInputFd: () => Sink.drain,
-      getOutputFd: () => Stream.empty,
-      unref: Effect.try({
-        try: () => {
-          child.unref();
-          return Effect.sync(() => child.ref());
-        },
-        catch: (cause) => platformError("Child process unref failed.", cause),
       }),
-    }), {
-      [scriptCommandExitStatus]: Deferred.await(exitStatus)
-    });
+      {
+        [scriptCommandExitStatus]: Deferred.await(exitStatus),
+      },
+    );
   });
 
 const nodeChildProcessSpawner = ChildProcessSpawner.make((command) =>
   Effect.acquireRelease(
     Effect.gen(function* () {
       if (!ChildProcess.isStandardCommand(command)) {
-        return yield* Effect.fail(platformError("Piped child process commands are not supported by the script command runner."));
+        return yield* Effect.fail(
+          platformError(
+            "Piped child process commands are not supported by the script command runner.",
+          ),
+        );
       }
       const child = yield* Effect.try({
         try: () =>
@@ -225,11 +231,11 @@ const nodeChildProcessSpawner = ChildProcessSpawner.make((command) =>
         Effect.flatMap((running) =>
           running
             ? handle.kill({ killSignal: command.options.killSignal ?? "SIGTERM" })
-            : Effect.void
+            : Effect.void,
         ),
-        Effect.catchCause(() => Effect.void)
-      )
-  )
+        Effect.catchCause(() => Effect.void),
+      ),
+  ),
 );
 
 const collectProcessOutputEffect = (stream, onChunk) =>
@@ -245,7 +251,7 @@ const collectProcessOutputEffect = (stream, onChunk) =>
     };
 
     yield* Stream.runForEach(stream, (chunk) =>
-      Effect.sync(() => append(decoder.decode(chunk, { stream: true })))
+      Effect.sync(() => append(decoder.decode(chunk, { stream: true }))),
     );
     yield* Effect.sync(() => append(decoder.decode()));
     return text;
@@ -264,16 +270,16 @@ export const runScriptCommandEffect = (command, args, options = {}) =>
     const handle = yield* effectCommand;
     const stdoutFiber = yield* collectProcessOutputEffect(
       handle.stdout,
-      options.onStdoutChunk
+      options.onStdoutChunk,
     ).pipe(Effect.forkChild({ startImmediately: true }));
     const stderrFiber = yield* collectProcessOutputEffect(
       handle.stderr,
-      options.onStderrChunk
+      options.onStderrChunk,
     ).pipe(Effect.forkChild({ startImmediately: true }));
-    const status = yield* (handle[scriptCommandExitStatus] ?? Effect.map(
-      handle.exitCode,
-      (code) => ({ code: Number(code), signal: null })
-    ));
+    const status = yield* (
+      handle[scriptCommandExitStatus] ??
+        Effect.map(handle.exitCode, (code) => ({ code: Number(code), signal: null }))
+    );
     const stdout = yield* Fiber.join(stdoutFiber);
     const stderr = yield* Fiber.join(stderrFiber);
 
@@ -287,15 +293,16 @@ export const runScriptCommandEffect = (command, args, options = {}) =>
         args,
         commandText,
         cwd: options.cwd,
-        message: status.signal === null
-          ? `Command failed with exit code ${status.code}: ${commandText}`
-          : `Command failed with signal ${status.signal}: ${commandText}`,
+        message:
+          status.signal === null
+            ? `Command failed with exit code ${status.code}: ${commandText}`
+            : `Command failed with signal ${status.signal}: ${commandText}`,
         cause: { code: status.code, signal: status.signal },
         code: status.code ?? undefined,
         signal: status.signal,
         stdout,
         stderr,
-      })
+      }),
     );
   }).pipe(
     Effect.scoped,
@@ -315,7 +322,7 @@ export const runScriptCommandEffect = (command, args, options = {}) =>
         stderr: "",
       });
     }),
-    Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, nodeChildProcessSpawner)
+    Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, nodeChildProcessSpawner),
   );
 
 export const scriptCommandProcessExistsEffect = processExistsEffect;

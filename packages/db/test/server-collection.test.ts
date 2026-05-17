@@ -7,7 +7,7 @@ import {
   serverCollectionOptions,
   type ServerCollectionDeletePayload,
   type ServerCollectionInsertPayload,
-  type ServerCollectionUpdatePayload
+  type ServerCollectionUpdatePayload,
 } from "../src/server-collection.js";
 
 interface Project {
@@ -22,36 +22,34 @@ describe("serverCollectionOptions", () => {
       serverCollectionOptions<Project>(
         // @ts-expect-error missing stable collection identity is rejected at runtime
         {
-          getKey: (project) => project.id
-        }
+          getKey: (project) => project.id,
+        },
       );
       expect.fail("Expected serverCollectionOptions to reject missing identity");
     } catch (error) {
       expect(error).toBeInstanceOf(ServerCollectionMissingIdentity);
       expect(error).toMatchObject({
         _tag: "ServerCollectionMissingIdentity",
-        guidance: expect.stringContaining("stable name or id")
+        guidance: expect.stringContaining("stable name or id"),
       });
     }
   });
 
   it("uses load for preload and refetch for later refreshes", () => {
     const load = vi.fn(() =>
-      Effect.succeed<ReadonlyArray<Project>>([
-        { id: "atlas", name: "Atlas", archived: false }
-      ])
+      Effect.succeed<ReadonlyArray<Project>>([{ id: "atlas", name: "Atlas", archived: false }]),
     );
     const refetch = vi.fn(() =>
-      Effect.succeed<ReadonlyArray<Project>>([
-        { id: "lumen", name: "Lumen", archived: true }
-      ])
+      Effect.succeed<ReadonlyArray<Project>>([{ id: "lumen", name: "Lumen", archived: true }]),
     );
-    const Projects = Collection.define(serverCollectionOptions<Project>({
-      id: "Projects.server.load-refetch",
-      getKey: (project) => project.id,
-      load,
-      refetch
-    }));
+    const Projects = Collection.define(
+      serverCollectionOptions<Project>({
+        id: "Projects.server.load-refetch",
+        getKey: (project) => project.id,
+        load,
+        refetch,
+      }),
+    );
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -71,7 +69,7 @@ describe("serverCollectionOptions", () => {
           expect(load).toHaveBeenCalledTimes(1);
           expect(refetch).toHaveBeenCalledTimes(1);
         });
-      })
+      }),
     );
   });
 
@@ -85,8 +83,8 @@ describe("serverCollectionOptions", () => {
         handler: (payload) =>
           Effect.sync(() => {
             inserts.push(payload);
-          })
-      }
+          }),
+      },
     );
     const update = Server.fn<ServerCollectionUpdatePayload<Project, string>, void>(
       "Projects.server.update",
@@ -94,8 +92,8 @@ describe("serverCollectionOptions", () => {
         handler: (payload) =>
           Effect.sync(() => {
             updates.push(payload);
-          })
-      }
+          }),
+      },
     );
     const remove = Server.fn<ServerCollectionDeletePayload<Project, string>, void>(
       "Projects.server.delete",
@@ -103,19 +101,19 @@ describe("serverCollectionOptions", () => {
         handler: (payload) =>
           Effect.sync(() => {
             deletes.push(payload);
-          })
-      }
+          }),
+      },
     );
-    const Projects = Collection.define(serverCollectionOptions<Project>({
-      name: "Projects.server.mutations",
-      getKey: (project) => project.id,
-      initialData: [
-        { id: "atlas", name: "Atlas", archived: false }
-      ],
-      insert,
-      update,
-      delete: remove
-    }));
+    const Projects = Collection.define(
+      serverCollectionOptions<Project>({
+        name: "Projects.server.mutations",
+        getKey: (project) => project.id,
+        initialData: [{ id: "atlas", name: "Atlas", archived: false }],
+        insert,
+        update,
+        delete: remove,
+      }),
+    );
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -133,11 +131,11 @@ describe("serverCollectionOptions", () => {
                   {
                     _tag: "Insert",
                     key: "lumen",
-                    value: { id: "lumen", name: "Lumen", archived: false }
-                  }
-                ]
-              }
-            }
+                    value: { id: "lumen", name: "Lumen", archived: false },
+                  },
+                ],
+              },
+            },
           ]);
           expect(updates).toMatchObject([
             {
@@ -146,31 +144,31 @@ describe("serverCollectionOptions", () => {
                   key: "atlas",
                   previous: { id: "atlas", name: "Atlas", archived: false },
                   value: { id: "atlas", name: "Atlas Prime", archived: false },
-                  changes: { name: "Atlas Prime" }
-                }
+                  changes: { name: "Atlas Prime" },
+                },
               ],
               transaction: {
                 collection: "Projects.server.mutations",
-                mutations: [{ _tag: "Update", key: "atlas", changes: { name: "Atlas Prime" } }]
-              }
-            }
+                mutations: [{ _tag: "Update", key: "atlas", changes: { name: "Atlas Prime" } }],
+              },
+            },
           ]);
           expect(deletes).toMatchObject([
             {
               deletes: [
                 {
                   key: "lumen",
-                  previous: { id: "lumen", name: "Lumen", archived: false }
-                }
+                  previous: { id: "lumen", name: "Lumen", archived: false },
+                },
               ],
               transaction: {
                 collection: "Projects.server.mutations",
-                mutations: [{ _tag: "Delete", key: "lumen" }]
-              }
-            }
+                mutations: [{ _tag: "Delete", key: "lumen" }],
+              },
+            },
           ]);
         });
-      })
+      }),
     );
   });
 
@@ -186,12 +184,8 @@ describe("serverCollectionOptions", () => {
     const options: MethodServerOptions = {
       name: "Projects.server.method-receiver",
       getKey: (project) => project.id,
-      loaded: [
-        { id: "atlas", name: "Atlas", archived: false }
-      ],
-      refreshed: [
-        { id: "atlas", name: "Atlas Prime", archived: false }
-      ],
+      loaded: [{ id: "atlas", name: "Atlas", archived: false }],
+      refreshed: [{ id: "atlas", name: "Atlas Prime", archived: false }],
       inserts: [],
       updates: [],
       deletes: [],
@@ -209,7 +203,7 @@ describe("serverCollectionOptions", () => {
       },
       delete(this: MethodServerOptions, payload) {
         this.deletes.push(payload);
-      }
+      },
     };
     const Projects = Collection.define(serverCollectionOptions(options));
 
@@ -231,13 +225,13 @@ describe("serverCollectionOptions", () => {
             updates: [
               {
                 key: "atlas",
-                value: { id: "atlas", name: "Atlas Prime", archived: true }
-              }
-            ]
-          }
+                value: { id: "atlas", name: "Atlas Prime", archived: true },
+              },
+            ],
+          },
         ]);
         expect(options.deletes).toHaveLength(1);
-      })
+      }),
     );
   });
 });

@@ -8,7 +8,9 @@ export class StableStringifyCircularData extends Data.TaggedError("StableStringi
 }> {}
 
 /** Error raised when stable identity data contains unsupported executable values. */
-export class StableStringifyUnsupportedValue extends Data.TaggedError("StableStringifyUnsupportedValue")<{
+export class StableStringifyUnsupportedValue extends Data.TaggedError(
+  "StableStringifyUnsupportedValue",
+)<{
   readonly path: string;
   readonly valueType: string;
   readonly guidance: string;
@@ -49,22 +51,20 @@ type StableMarkerTag =
 
 const tagged = (
   tag: StableMarkerTag,
-  fields: Record<string, unknown> = {}
+  fields: Record<string, unknown> = {},
 ): Record<string, unknown> => ({
   [stableMarker]: tag,
-  ...fields
+  ...fields,
 });
 
 const pathSegment = (key: string): string =>
-  /^[A-Za-z_$][\w$]*$/.test(key)
-    ? `.${key}`
-    : `[${JSON.stringify(key)}]`;
+  /^[A-Za-z_$][\w$]*$/.test(key) ? `.${key}` : `[${JSON.stringify(key)}]`;
 
 const encodeFailure = (path: string, cause: unknown): StableStringifyEncodeFailure =>
   new StableStringifyEncodeFailure({
     path,
     cause,
-    guidance: unsupportedValueGuidance
+    guidance: unsupportedValueGuidance,
   });
 
 const isStableStringifyError = (error: unknown): boolean =>
@@ -128,7 +128,7 @@ export const stableStringify = (value: unknown): string => {
       throw new StableStringifyUnsupportedValue({
         path,
         valueType: typeof input,
-        guidance: unsupportedValueGuidance
+        guidance: unsupportedValueGuidance,
       });
     }
 
@@ -141,7 +141,7 @@ export const stableStringify = (value: unknown): string => {
       throw new StableStringifyCircularData({
         path,
         referencePath,
-        guidance: circularDataGuidance
+        guidance: circularDataGuidance,
       });
     }
 
@@ -153,7 +153,7 @@ export const stableStringify = (value: unknown): string => {
         if (!Number.isFinite(millis)) {
           throw new StableStringifyInvalidDate({
             path,
-            guidance: unsupportedValueGuidance
+            guidance: unsupportedValueGuidance,
           });
         }
         return tagged("Date", { value: input.toISOString() });
@@ -165,55 +165,59 @@ export const stableStringify = (value: unknown): string => {
 
       if (input instanceof ArrayBuffer) {
         return tagged("ArrayBuffer", {
-          bytes: bytesToHex(new Uint8Array(input))
+          bytes: bytesToHex(new Uint8Array(input)),
         });
       }
 
       if (input instanceof DataView) {
         return tagged("DataView", {
-          bytes: viewBytes(input)
+          bytes: viewBytes(input),
         });
       }
 
       if (ArrayBuffer.isView(input)) {
         return tagged("TypedArray", {
           type: input.constructor.name,
-          bytes: viewBytes(input)
+          bytes: viewBytes(input),
         });
       }
 
       if (input instanceof Map) {
-        const entries = readHostValue(path, () => Array.from(input.entries())).map(([key, entryValue], index) => {
-          const keyPath = `${path}.<key:${index}>`;
-          const valuePath = `${path}.<value:${index}>`;
-          const normalizedKey = normalize(key, `${path}.<key:${index}>`);
-          const normalizedValue = normalize(entryValue, `${path}.<value:${index}>`);
-          return {
-            key: normalizedKey,
-            keySort: stableSortKey(normalizedKey, keyPath),
-            value: normalizedValue,
-            valueSort: stableSortKey(normalizedValue, valuePath)
-          };
-        });
+        const entries = readHostValue(path, () => Array.from(input.entries())).map(
+          ([key, entryValue], index) => {
+            const keyPath = `${path}.<key:${index}>`;
+            const valuePath = `${path}.<value:${index}>`;
+            const normalizedKey = normalize(key, `${path}.<key:${index}>`);
+            const normalizedValue = normalize(entryValue, `${path}.<value:${index}>`);
+            return {
+              key: normalizedKey,
+              keySort: stableSortKey(normalizedKey, keyPath),
+              value: normalizedValue,
+              valueSort: stableSortKey(normalizedValue, valuePath),
+            };
+          },
+        );
         entries.sort((left, right) => {
           return left.keySort === right.keySort
             ? left.valueSort.localeCompare(right.valueSort)
             : left.keySort.localeCompare(right.keySort);
         });
         return tagged("Map", {
-          entries: entries.map((entry) => [entry.key, entry.value])
+          entries: entries.map((entry) => [entry.key, entry.value]),
         });
       }
 
       if (input instanceof Set) {
-        const values = readHostValue(path, () => Array.from(input.values())).map((entryValue, index) => {
-          const valuePath = `${path}.<value:${index}>`;
-          const normalizedValue = normalize(entryValue, valuePath);
-          return {
-            value: normalizedValue,
-            sort: stableSortKey(normalizedValue, valuePath)
-          };
-        });
+        const values = readHostValue(path, () => Array.from(input.values())).map(
+          (entryValue, index) => {
+            const valuePath = `${path}.<value:${index}>`;
+            const normalizedValue = normalize(entryValue, valuePath);
+            return {
+              value: normalizedValue,
+              sort: stableSortKey(normalizedValue, valuePath),
+            };
+          },
+        );
         values.sort((left, right) => left.sort.localeCompare(right.sort));
         return tagged("Set", { values: values.map((entry) => entry.value) });
       }
@@ -224,12 +228,15 @@ export const stableStringify = (value: unknown): string => {
         for (let index = 0; index < length; index++) {
           const itemPath = `${path}[${index}]`;
           const hasIndex = readHostValue(itemPath, () =>
-            Object.prototype.hasOwnProperty.call(input, index)
+            Object.prototype.hasOwnProperty.call(input, index),
           );
           out.push(
             hasIndex
-              ? normalize(readHostValue(itemPath, () => input[index]), itemPath)
-              : tagged("SparseArrayHole")
+              ? normalize(
+                  readHostValue(itemPath, () => input[index]),
+                  itemPath,
+                )
+              : tagged("SparseArrayHole"),
           );
         }
         return out;
@@ -243,16 +250,19 @@ export const stableStringify = (value: unknown): string => {
             key,
             normalize(
               readHostValue(`${path}${pathSegment(key)}`, () => object[key]),
-              `${path}${pathSegment(key)}`
-            )
-          ])
+              `${path}${pathSegment(key)}`,
+            ),
+          ]),
         });
       }
 
       const out: Record<string, unknown> = {};
       for (const key of sortedKeys) {
         const propertyPath = `${path}${pathSegment(key)}`;
-        out[key] = normalize(readHostValue(propertyPath, () => object[key]), propertyPath);
+        out[key] = normalize(
+          readHostValue(propertyPath, () => object[key]),
+          propertyPath,
+        );
       }
       return out;
     } catch (cause) {

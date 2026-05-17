@@ -2,11 +2,9 @@ import type {
   StartAppGraphActionDiagnostics,
   StartAppGraphDiagnostics,
   StartAppGraphServerFunctionDiagnostics,
-  StartAppGraphWireSchemaField
+  StartAppGraphWireSchemaField,
 } from "./app-graph.js";
-import type {
-  StartAppGraphDiagnosticsPolicyViolation
-} from "./start-app-graph-diagnostics-policy.js";
+import type { StartAppGraphDiagnosticsPolicyViolation } from "./start-app-graph-diagnostics-policy.js";
 
 /** Overall Start diagnostics status used by CI, CLI, and agent repair reports. */
 export type StartDiagnosticsReportStatus = "pass" | "needs-attention";
@@ -74,30 +72,22 @@ export interface StartDiagnosticsReportInput {
 
 const ownerForServerFunction = (
   entry: StartAppGraphServerFunctionDiagnostics | undefined,
-  fallback: string
-): string =>
-  entry === undefined
-    ? fallback
-    : `${entry.server.module}#${entry.server.exportName}`;
+  fallback: string,
+): string => (entry === undefined ? fallback : `${entry.server.module}#${entry.server.exportName}`);
 
 const ownerForAction = (
   entry: StartAppGraphActionDiagnostics | undefined,
-  fallback: string
-): string =>
-  entry === undefined
-    ? fallback
-    : `${entry.server.module}#${entry.server.exportName}`;
+  fallback: string,
+): string => (entry === undefined ? fallback : `${entry.server.module}#${entry.server.exportName}`);
 
-const missingWireFields = (
-  entry: {
-    readonly input: boolean;
-    readonly output: boolean;
-    readonly error: boolean;
-  }
-): readonly StartAppGraphWireSchemaField[] => [
+const missingWireFields = (entry: {
+  readonly input: boolean;
+  readonly output: boolean;
+  readonly error: boolean;
+}): readonly StartAppGraphWireSchemaField[] => [
   ...(entry.input ? [] : ["input" as const]),
   ...(entry.output ? [] : ["output" as const]),
-  ...(entry.error ? [] : ["error" as const])
+  ...(entry.error ? [] : ["error" as const]),
 ];
 
 const inlineList = (values: readonly string[]): string => {
@@ -118,26 +108,26 @@ const quotedList = (values: readonly string[]): string =>
 
 const schemaEdit = (
   kind: "serverFunction" | "action",
-  fields: readonly StartAppGraphWireSchemaField[]
+  fields: readonly StartAppGraphWireSchemaField[],
 ): string =>
   kind === "serverFunction"
     ? `Add ${quotedList(fields)} schema${fields.length === 1 ? "" : "s"} to this Server function contract or manifest entry.`
     : `Add ${quotedList(fields)} schema${fields.length === 1 ? "" : "s"} to \`Action.define(...)\` or this action manifest entry.`;
 
 const unknownBehaviorFields = (
-  entry: StartAppGraphDiagnostics["unknownActionBehavior"][number]
+  entry: StartAppGraphDiagnostics["unknownActionBehavior"][number],
 ): readonly string[] => [
   ...(entry.invalidates === "unknown" ? ["invalidates"] : []),
   ...(entry.optimistic === "unknown" ? ["optimistic"] : []),
   ...(entry.retry === "unknown" ? ["retry"] : []),
-  ...(entry.concurrency === "unknown" ? ["concurrency"] : [])
+  ...(entry.concurrency === "unknown" ? ["concurrency"] : []),
 ];
 
 const actionBehaviorEdit = (fields: readonly string[]): string =>
   `Declare action behavior metadata for ${quotedList(fields)} by generating the manifest from \`Action.define(...)\`, or set the matching fields on the hand-written action manifest entry.`;
 
 const policyViolationFinding = (
-  violation: StartAppGraphDiagnosticsPolicyViolation
+  violation: StartAppGraphDiagnosticsPolicyViolation,
 ): StartDiagnosticsReportFinding => {
   return {
     kind: "policy-violation",
@@ -145,12 +135,12 @@ const policyViolationFinding = (
     subject: violation._tag,
     issue: violation.message,
     edit: "Fix the underlying diagnostic finding, or relax `StartBuildPolicy.diagnostics` if this route policy is intentionally not required.",
-    details: [`tag: ${violation._tag}`]
+    details: [`tag: ${violation._tag}`],
   };
 };
 
 const groupFindings = (
-  findings: readonly StartDiagnosticsReportFinding[]
+  findings: readonly StartDiagnosticsReportFinding[],
 ): readonly StartDiagnosticsReportOwnerGroup[] => {
   const grouped = new Map<string, StartDiagnosticsReportFinding[]>();
   for (const finding of findings) {
@@ -166,7 +156,7 @@ const groupFindings = (
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([owner, ownerFindings]) => ({
       owner,
-      findings: ownerFindings
+      findings: ownerFindings,
     }));
 };
 
@@ -177,54 +167,59 @@ const groupFindings = (
  * declarations, and diagnostics policy violations.
  */
 export const createStartDiagnosticsReport = (
-  input: StartDiagnosticsReportInput
+  input: StartDiagnosticsReportInput,
 ): StartDiagnosticsReport => {
   const diagnostics = input.diagnostics;
   const serverFunctions = new Map(
-    diagnostics.serverFunctionModules.map((entry) => [entry.name, entry])
+    diagnostics.serverFunctionModules.map((entry) => [entry.name, entry]),
   );
-  const actions = new Map(
-    diagnostics.actionModules.map((entry) => [entry.name, entry])
-  );
+  const actions = new Map(diagnostics.actionModules.map((entry) => [entry.name, entry]));
   const findings: StartDiagnosticsReportFinding[] = [
-    ...diagnostics.unknownRoutePreloadResources.map((entry): StartDiagnosticsReportFinding => ({
-      kind: "route-preload-resources",
-      owner: entry.filePath,
-      subject: `${entry.routePath} (${entry.routeId})`,
-      issue: "Route preload is present, but the route does not declare which resource families it preloads.",
-      edit: "Add `preloadResources: [...]` to this route definition; use an empty array when the preload intentionally touches no resources.",
-      details: [
-        `module: ${entry.moduleId}`,
-        `current preloadResources status: ${entry.preloadResources.status}`
-      ]
-    })),
-    ...diagnostics.unknownRoutePreloadCollections.map((entry): StartDiagnosticsReportFinding => ({
-      kind: "route-preload-collections",
-      owner: entry.filePath,
-      subject: `${entry.routePath} (${entry.routeId})`,
-      issue: "Route preload is present, but the route does not declare which DB collections it preloads.",
-      edit: "Add `preloadCollections: [...]` to this route definition; use an empty array when the preload intentionally touches no collections.",
-      details: [
-        `module: ${entry.moduleId}`,
-        `current preloadCollections status: ${entry.preloadCollections.status}`
-      ]
-    })),
+    ...diagnostics.unknownRoutePreloadResources.map(
+      (entry): StartDiagnosticsReportFinding => ({
+        kind: "route-preload-resources",
+        owner: entry.filePath,
+        subject: `${entry.routePath} (${entry.routeId})`,
+        issue:
+          "Route preload is present, but the route does not declare which resource families it preloads.",
+        edit: "Add `preloadResources: [...]` to this route definition; use an empty array when the preload intentionally touches no resources.",
+        details: [
+          `module: ${entry.moduleId}`,
+          `current preloadResources status: ${entry.preloadResources.status}`,
+        ],
+      }),
+    ),
+    ...diagnostics.unknownRoutePreloadCollections.map(
+      (entry): StartDiagnosticsReportFinding => ({
+        kind: "route-preload-collections",
+        owner: entry.filePath,
+        subject: `${entry.routePath} (${entry.routeId})`,
+        issue:
+          "Route preload is present, but the route does not declare which DB collections it preloads.",
+        edit: "Add `preloadCollections: [...]` to this route definition; use an empty array when the preload intentionally touches no collections.",
+        details: [
+          `module: ${entry.moduleId}`,
+          `current preloadCollections status: ${entry.preloadCollections.status}`,
+        ],
+      }),
+    ),
     ...diagnostics.missingSchemas.map((entry): StartDiagnosticsReportFinding => {
       const fields = missingWireFields(entry);
       const subject = `${entry.kind}: ${entry.name}`;
       return {
         kind: "wire-schema",
-        owner: entry.kind === "serverFunction"
-          ? ownerForServerFunction(serverFunctions.get(entry.name), entry.name)
-          : ownerForAction(actions.get(entry.name), entry.name),
+        owner:
+          entry.kind === "serverFunction"
+            ? ownerForServerFunction(serverFunctions.get(entry.name), entry.name)
+            : ownerForAction(actions.get(entry.name), entry.name),
         subject,
         issue: `${subject} is missing ${quotedList(fields)} wire schema${fields.length === 1 ? "" : "s"}.`,
         edit: schemaEdit(entry.kind, fields),
         details: [
           `input schema: ${entry.input ? "present" : "missing"}`,
           `output schema: ${entry.output ? "present" : "missing"}`,
-          `error schema: ${entry.error ? "present" : "missing"}`
-        ]
+          `error schema: ${entry.error ? "present" : "missing"}`,
+        ],
       };
     }),
     ...diagnostics.unknownActionBehavior.map((entry): StartDiagnosticsReportFinding => {
@@ -239,11 +234,11 @@ export const createStartDiagnosticsReport = (
           `invalidates: ${entry.invalidates}`,
           `optimistic: ${entry.optimistic}`,
           `retry: ${entry.retry}`,
-          `concurrency: ${entry.concurrency}`
-        ]
+          `concurrency: ${entry.concurrency}`,
+        ],
       };
     }),
-    ...(input.diagnosticsPolicyViolations ?? []).map(policyViolationFinding)
+    ...(input.diagnosticsPolicyViolations ?? []).map(policyViolationFinding),
   ];
   const summary: StartDiagnosticsReportSummary = {
     routes: diagnostics.routeCount,
@@ -257,13 +252,13 @@ export const createStartDiagnosticsReport = (
     unknownRoutePreloadResources: diagnostics.unknownRoutePreloadResources.length,
     unknownRoutePreloadCollections: diagnostics.unknownRoutePreloadCollections.length,
     policyViolations: input.diagnosticsPolicyViolations?.length ?? 0,
-    findingCount: findings.length
+    findingCount: findings.length,
   };
 
   return {
     status: findings.length === 0 ? "pass" : "needs-attention",
     summary,
     findings,
-    groups: groupFindings(findings)
+    groups: groupFindings(findings),
   };
 };

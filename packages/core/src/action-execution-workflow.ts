@@ -2,70 +2,66 @@ import { Effect, Fiber } from "effect";
 import {
   ActionResult,
   type ActionResultInvalidationRequirements,
-  type AnyActionResult
+  type AnyActionResult,
 } from "./action-result.js";
 import {
   ActionInterrupted,
   type ActionSubmissionController,
   type ActionSubmissionFiber,
-  type ActionSubmissionRun
+  type ActionSubmissionRun,
 } from "./action-submission.js";
 import {
   makeActionOptimisticTransactionRuntime,
   type ActionOptimisticTransactionRuntime,
-  type ActionRollback
+  type ActionRollback,
 } from "./action-optimistic.js";
 import {
   catchEffectInputPromiseDefect,
   EffectInputCallbackError,
   invokeEffectInput,
-  toEffect
+  toEffect,
 } from "./effect-like.js";
 import { validateResourceInvalidationsArraySync } from "./resource-dependency-graph.js";
 import type { ResourceInvalidation, ResourceInvalidationPlan } from "./resource.js";
 import {
   planResourceInvalidationEffect,
-  runResourceInvalidationPlanEffect
+  runResourceInvalidationPlanEffect,
 } from "./resource-runtime.js";
 import type { ActionDefinition } from "./action.js";
 
-export const actionCallbackError = (
-  operation: string,
-  cause: unknown
-): EffectInputCallbackError =>
+export const actionCallbackError = (operation: string, cause: unknown): EffectInputCallbackError =>
   cause instanceof EffectInputCallbackError
     ? cause
     : new EffectInputCallbackError({
         operation,
         cause,
-        guidance: "Action callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel."
+        guidance:
+          "Action callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel.",
       });
 
 const resultInvalidations = <A>(
-  value: A
+  value: A,
 ): ReadonlyArray<ResourceInvalidation<ActionResultInvalidationRequirements<A>>> =>
-  ActionResult.is(value)
-    ? ActionResult.invalidations(value as AnyActionResult)
-    : [];
+  ActionResult.is(value) ? ActionResult.invalidations(value as AnyActionResult) : [];
 
 export const invalidationsFor = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
   value: A,
-  input: I
+  input: I,
 ): ReadonlyArray<ResourceInvalidation<R | ActionResultInvalidationRequirements<A>>> => {
   const operation = `Action.invalidates(${definition.name})`;
   try {
-    const invalidations = definition.invalidates === undefined
-      ? []
-      : validateResourceInvalidationsArraySync(
-          operation,
-          definition.invalidates(value, input),
-          "Action invalidates callbacks must return Resource refs or tags synchronously. Move host Promise work into the action run Effect."
-        );
-    return [
-      ...invalidations,
-      ...resultInvalidations(value)
-    ] as ReadonlyArray<ResourceInvalidation<R | ActionResultInvalidationRequirements<A>>>;
+    const invalidations =
+      definition.invalidates === undefined
+        ? []
+        : validateResourceInvalidationsArraySync(
+            operation,
+            definition.invalidates(value, input),
+            "Action invalidates callbacks must return Resource refs or tags synchronously. Move host Promise work into the action run Effect.",
+          );
+    return [...invalidations, ...resultInvalidations(value)] as ReadonlyArray<
+      ResourceInvalidation<R | ActionResultInvalidationRequirements<A>>
+    >;
   } catch (cause) {
     throw actionCallbackError(operation, cause);
   }
@@ -74,7 +70,7 @@ export const invalidationsFor = <I, A, E, R>(
 export const invalidationsForEffect = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
   value: A,
-  input: I
+  input: I,
 ): Effect.Effect<
   ReadonlyArray<ResourceInvalidation<R | ActionResultInvalidationRequirements<A>>>,
   EffectInputCallbackError
@@ -88,15 +84,15 @@ export const invalidationsForEffect = <I, A, E, R>(
           : validateResourceInvalidationsArraySync(
               operation,
               definition.invalidates(value, input),
-              "Action invalidates callbacks must return Resource refs or tags synchronously. Move host Promise work into the action run Effect."
+              "Action invalidates callbacks must return Resource refs or tags synchronously. Move host Promise work into the action run Effect.",
             );
       },
-      catch: (cause) => actionCallbackError(`Action.invalidates(${definition.name})`, cause)
+      catch: (cause) => actionCallbackError(`Action.invalidates(${definition.name})`, cause),
     }),
-    (invalidations) => [
-      ...invalidations,
-      ...resultInvalidations(value)
-    ] as ReadonlyArray<ResourceInvalidation<R | ActionResultInvalidationRequirements<A>>>
+    (invalidations) =>
+      [...invalidations, ...resultInvalidations(value)] as ReadonlyArray<
+        ResourceInvalidation<R | ActionResultInvalidationRequirements<A>>
+      >,
   );
 
 export interface ActionExecutionWorkflowOptions<I, A, E, R, ER> {
@@ -108,12 +104,14 @@ export interface ActionExecutionWorkflowOptions<I, A, E, R, ER> {
     ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>>
   >;
   readonly runAtActionBoundary: <Value, Error, Requirements>(
-    effect: Effect.Effect<Value, Error, Requirements>
+    effect: Effect.Effect<Value, Error, Requirements>,
   ) => Effect.Effect<Value, Error | ER, Requirements>;
 }
 
 export interface ActionExecutionWorkflow<I, A, E, R, ER> {
-  readonly submitEffect: (input: I) => Effect.Effect<
+  readonly submitEffect: (
+    input: I,
+  ) => Effect.Effect<
     A,
     E | ER | EffectInputCallbackError | ActionInterrupted,
     R | ActionResultInvalidationRequirements<A>
@@ -131,7 +129,7 @@ export interface ActionExecutionWorkflow<I, A, E, R, ER> {
  * type subtraction local to the facade.
  */
 export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
-  options: ActionExecutionWorkflowOptions<I, A, E, R, ER>
+  options: ActionExecutionWorkflowOptions<I, A, E, R, ER>,
 ): ActionExecutionWorkflow<I, A, E, R, ER> => {
   const { definition, submissions, runAtActionBoundary } = options;
 
@@ -140,22 +138,22 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
     return Effect.flatMap(
       Effect.try({
         try: () => definition.run(input),
-        catch: (cause) => actionCallbackError(operation, cause)
+        catch: (cause) => actionCallbackError(operation, cause),
       }),
       (result) => {
         const effect = toEffect(result as never) as Effect.Effect<A, E, R>;
         const retry = definition.policy?.retry;
         return catchEffectInputPromiseDefect(
           operation,
-          retry === undefined ? effect : Effect.retry(effect, retry)
+          retry === undefined ? effect : Effect.retry(effect, retry),
         );
-      }
+      },
     );
   };
 
   const applyOptimistic = (
     input: I,
-    transaction: ActionOptimisticTransactionRuntime<R>
+    transaction: ActionOptimisticTransactionRuntime<R>,
   ): Effect.Effect<ActionRollback<R>, EffectInputCallbackError, R> => {
     if (!definition.optimistic) {
       return Effect.succeed(transaction.rollback);
@@ -165,17 +163,20 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
       `Action.optimistic(${definition.name})`,
       definition.optimistic,
       input,
-      transaction.api
+      transaction.api,
     ).pipe(
       Effect.map((extraRollback) =>
-        Effect.ensuring(extraRollback, transaction.rollback.pipe(Effect.catchCause(() => Effect.void)))
-      )
+        Effect.ensuring(
+          extraRollback,
+          transaction.rollback.pipe(Effect.catchCause(() => Effect.void)),
+        ),
+      ),
     );
   };
 
   const runWorkflow = (
     input: I,
-    submission: ActionSubmissionRun<A, E | ER | EffectInputCallbackError>
+    submission: ActionSubmissionRun<A, E | ER | EffectInputCallbackError>,
   ): Effect.Effect<
     A,
     E | ER | EffectInputCallbackError | ActionInterrupted,
@@ -208,57 +209,66 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
             submission,
             input,
             value,
-            invalidations.length === 0 ? undefined : plan
+            invalidations.length === 0 ? undefined : plan,
           );
 
           return value;
         }),
-        Effect.suspend(() => rollback.pipe(Effect.catchCause(() => Effect.void)))
+        Effect.suspend(() => rollback.pipe(Effect.catchCause(() => Effect.void))),
       );
     }).pipe(
-      Effect.catch((
-        error: E | ER | EffectInputCallbackError | ActionInterrupted
-      ): Effect.Effect<never, E | ER | EffectInputCallbackError | ActionInterrupted> => {
-        if (error instanceof ActionInterrupted) {
-          return Effect.fail(error);
-        }
+      Effect.catch(
+        (
+          error: E | ER | EffectInputCallbackError | ActionInterrupted,
+        ): Effect.Effect<never, E | ER | EffectInputCallbackError | ActionInterrupted> => {
+          if (error instanceof ActionInterrupted) {
+            return Effect.fail(error);
+          }
 
-        return submissions.failureEffect(submission, input, error).pipe(
-          Effect.andThen(Effect.fail(error))
-        );
-      })
+          return submissions
+            .failureEffect(submission, input, error)
+            .pipe(Effect.andThen(Effect.fail(error)));
+        },
+      ),
     );
 
-  const submitEffect = (input: I): Effect.Effect<
+  const submitEffect = (
+    input: I,
+  ): Effect.Effect<
     A,
     E | ER | EffectInputCallbackError | ActionInterrupted,
     R | ActionResultInvalidationRequirements<A>
   > =>
-    runAtActionBoundary(Effect.suspend(() => {
-      return Effect.withFiber((fiber) => {
-        const submissionFiber = fiber as ActionSubmissionFiber<A, E | ER | EffectInputCallbackError>;
+    runAtActionBoundary(
+      Effect.suspend(() => {
+        return Effect.withFiber((fiber) => {
+          const submissionFiber = fiber as ActionSubmissionFiber<
+            A,
+            E | ER | EffectInputCallbackError
+          >;
 
-        return submissions.beginEffect(submissionFiber).pipe(
-          Effect.flatMap((submission) => {
-            if (submission._tag === "Join") {
-              return Fiber.join(submission.fiber);
-            }
-
-            return Effect.gen(function* () {
-              if (submission.previousFiber && submission.previousFiber !== submissionFiber) {
-                yield* Fiber.interrupt(submission.previousFiber);
+          return submissions.beginEffect(submissionFiber).pipe(
+            Effect.flatMap((submission) => {
+              if (submission._tag === "Join") {
+                return Fiber.join(submission.fiber);
               }
 
-              return yield* runWorkflow(input, submission);
-            }).pipe(Effect.ensuring(submissions.clearCurrentEffect(submission.clearToken)));
-          })
-        );
-      });
-    }));
+              return Effect.gen(function* () {
+                if (submission.previousFiber && submission.previousFiber !== submissionFiber) {
+                  yield* Fiber.interrupt(submission.previousFiber);
+                }
+
+                return yield* runWorkflow(input, submission);
+              }).pipe(Effect.ensuring(submissions.clearCurrentEffect(submission.clearToken)));
+            }),
+          );
+        });
+      }),
+    );
 
   return {
     submitEffect,
     captureResetEffect: submissions.captureResetEffect,
-    resetEffect: submissions.resetEffect
+    resetEffect: submissions.resetEffect,
   };
 };

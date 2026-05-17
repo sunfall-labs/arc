@@ -24,8 +24,8 @@ const pendingProjectSnapshot = (collection: string): Collection.Snapshot<Project
       key: "atlas",
       value: { id: "atlas", name: "Atlas", progress: 80 },
       synced: false,
-      origin: "local"
-    }
+      origin: "local",
+    },
   ],
   pendingMutations: [
     {
@@ -38,9 +38,9 @@ const pendingProjectSnapshot = (collection: string): Collection.Snapshot<Project
             key: "atlas",
             previous: { id: "atlas", name: "Atlas", progress: 72 },
             value: { id: "atlas", name: "Atlas", progress: 80 },
-            changes: { progress: 80 }
-          }
-        ]
+            changes: { progress: 80 },
+          },
+        ],
       },
       rollbackRows: [
         {
@@ -49,15 +49,15 @@ const pendingProjectSnapshot = (collection: string): Collection.Snapshot<Project
             key: "atlas",
             value: { id: "atlas", name: "Atlas", progress: 72 },
             synced: true,
-            origin: "remote"
-          }
-        }
+            origin: "remote",
+          },
+        },
       ],
       createdAt: 1,
-      attempts: 0
-    }
+      attempts: 0,
+    },
   ],
-  updatedAt: 1
+  updatedAt: 1,
 });
 
 describe("flushCollectionsPendingMutationsEffect", () => {
@@ -71,7 +71,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
       onUpdate: (updates) =>
         Effect.sync(() => {
           persistedProjects.push(...updates.map((update) => update.value));
-        })
+        }),
     });
     const Tasks = Collection.define<Task, string, never>({
       name: "Tasks.flush-policy.multi",
@@ -79,129 +79,131 @@ describe("flushCollectionsPendingMutationsEffect", () => {
       onUpdate: (updates) =>
         Effect.sync(() => {
           persistedTasks.push(...updates.map((update) => update.value));
-        })
+        }),
     });
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* runtime.provide(Projects.hydrateEffect({
-          name: Projects.name,
-          rows: [
-            {
-              key: "atlas",
-              value: { id: "atlas", name: "Atlas", progress: 80 },
-              synced: false,
-              origin: "local"
-            }
-          ],
-          pendingMutations: [
-            {
-              transaction: {
-                id: "project-tx",
-                collection: Projects.name,
-                mutations: [
-                  {
-                    _tag: "Update",
-                    key: "atlas",
-                    previous: { id: "atlas", name: "Atlas", progress: 72 },
-                    value: { id: "atlas", name: "Atlas", progress: 80 },
-                    changes: { progress: 80 }
-                  }
-                ]
+        yield* runtime.provide(
+          Projects.hydrateEffect({
+            name: Projects.name,
+            rows: [
+              {
+                key: "atlas",
+                value: { id: "atlas", name: "Atlas", progress: 80 },
+                synced: false,
+                origin: "local",
               },
-              rollbackRows: [
-                {
-                  key: "atlas",
-                  row: {
-                    key: "atlas",
-                    value: { id: "atlas", name: "Atlas", progress: 72 },
-                    synced: true,
-                    origin: "remote"
-                  }
-                }
-              ],
-              createdAt: 1,
-              attempts: 0
-            }
-          ],
-          updatedAt: 1
-        }));
-        yield* runtime.provide(Tasks.hydrateEffect({
-          name: Tasks.name,
-          rows: [
-            {
-              key: "t1",
-              value: { id: "t1", projectId: "atlas", title: "Sync queue", done: true },
-              synced: false,
-              origin: "local"
-            }
-          ],
-          pendingMutations: [
-            {
-              transaction: {
-                id: "task-tx",
-                collection: Tasks.name,
-                mutations: [
+            ],
+            pendingMutations: [
+              {
+                transaction: {
+                  id: "project-tx",
+                  collection: Projects.name,
+                  mutations: [
+                    {
+                      _tag: "Update",
+                      key: "atlas",
+                      previous: { id: "atlas", name: "Atlas", progress: 72 },
+                      value: { id: "atlas", name: "Atlas", progress: 80 },
+                      changes: { progress: 80 },
+                    },
+                  ],
+                },
+                rollbackRows: [
                   {
-                    _tag: "Update",
-                    key: "t1",
-                    previous: { id: "t1", projectId: "atlas", title: "Sync queue", done: false },
-                    value: { id: "t1", projectId: "atlas", title: "Sync queue", done: true },
-                    changes: { done: true }
-                  }
-                ]
+                    key: "atlas",
+                    row: {
+                      key: "atlas",
+                      value: { id: "atlas", name: "Atlas", progress: 72 },
+                      synced: true,
+                      origin: "remote",
+                    },
+                  },
+                ],
+                createdAt: 1,
+                attempts: 0,
               },
-              rollbackRows: [
-                {
-                  key: "t1",
-                  row: {
+            ],
+            updatedAt: 1,
+          }),
+        );
+        yield* runtime.provide(
+          Tasks.hydrateEffect({
+            name: Tasks.name,
+            rows: [
+              {
+                key: "t1",
+                value: { id: "t1", projectId: "atlas", title: "Sync queue", done: true },
+                synced: false,
+                origin: "local",
+              },
+            ],
+            pendingMutations: [
+              {
+                transaction: {
+                  id: "task-tx",
+                  collection: Tasks.name,
+                  mutations: [
+                    {
+                      _tag: "Update",
+                      key: "t1",
+                      previous: { id: "t1", projectId: "atlas", title: "Sync queue", done: false },
+                      value: { id: "t1", projectId: "atlas", title: "Sync queue", done: true },
+                      changes: { done: true },
+                    },
+                  ],
+                },
+                rollbackRows: [
+                  {
                     key: "t1",
-                    value: { id: "t1", projectId: "atlas", title: "Sync queue", done: false },
-                    synced: true,
-                    origin: "remote"
-                  }
-                }
-              ],
-              createdAt: 1,
-              attempts: 0
-            }
-          ],
-          updatedAt: 1
-        }));
+                    row: {
+                      key: "t1",
+                      value: { id: "t1", projectId: "atlas", title: "Sync queue", done: false },
+                      synced: true,
+                      origin: "remote",
+                    },
+                  },
+                ],
+                createdAt: 1,
+                attempts: 0,
+              },
+            ],
+            updatedAt: 1,
+          }),
+        );
 
         const results = yield* runtime.provide(
-          flushCollectionsPendingMutationsEffect([Projects, Tasks])
+          flushCollectionsPendingMutationsEffect([Projects, Tasks]),
         );
 
         expect(results).toMatchObject([
           {
             _tag: "Flushed",
             collection: Projects.name,
-            transactions: [{ id: "project-tx", collection: Projects.name }]
+            transactions: [{ id: "project-tx", collection: Projects.name }],
           },
           {
             _tag: "Flushed",
             collection: Tasks.name,
-            transactions: [{ id: "task-tx", collection: Tasks.name }]
-          }
+            transactions: [{ id: "task-tx", collection: Tasks.name }],
+          },
         ]);
-        expect(persistedProjects).toEqual([
-          { id: "atlas", name: "Atlas", progress: 80 }
-        ]);
+        expect(persistedProjects).toEqual([{ id: "atlas", name: "Atlas", progress: 80 }]);
         expect(persistedTasks).toEqual([
-          { id: "t1", projectId: "atlas", title: "Sync queue", done: true }
+          { id: "t1", projectId: "atlas", title: "Sync queue", done: true },
         ]);
         expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
         expect(runWithRuntime(runtime, () => Tasks.pendingMutations())).toEqual([]);
         expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
           progress: 80,
-          $synced: true
+          $synced: true,
         });
         expect(runWithRuntime(runtime, () => Tasks.get("t1"))).toMatchObject({
           done: true,
-          $synced: true
+          $synced: true,
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect))
+      }).pipe(Effect.ensuring(runtime.disposeEffect)),
     );
   });
 
@@ -216,7 +218,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
       onUpdate: (updates) =>
         Effect.sync(() => {
           persistedProjects.push(...updates.map((update) => update.value));
-        })
+        }),
     });
     const Tasks = Collection.define<Task, string, never>({
       name: "Tasks.flush-policy.skip",
@@ -224,95 +226,99 @@ describe("flushCollectionsPendingMutationsEffect", () => {
       onUpdate: (updates) =>
         Effect.sync(() => {
           persistedTasks.push(...updates.map((update) => update.value));
-        })
+        }),
     });
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* runtime.provide(Projects.hydrateEffect({
-          name: Projects.name,
-          rows: [
-            {
-              key: "atlas",
-              value: { id: "atlas", name: "Atlas", progress: 80 },
-              synced: false,
-              origin: "local"
-            }
-          ],
-          pendingMutations: [
-            {
-              transaction: {
-                id: "project-skip-tx",
-                collection: Projects.name,
-                mutations: [
-                  {
-                    _tag: "Update",
-                    key: "atlas",
-                    previous: { id: "atlas", name: "Atlas", progress: 72 },
-                    value: { id: "atlas", name: "Atlas", progress: 80 },
-                    changes: { progress: 80 }
-                  }
-                ]
+        yield* runtime.provide(
+          Projects.hydrateEffect({
+            name: Projects.name,
+            rows: [
+              {
+                key: "atlas",
+                value: { id: "atlas", name: "Atlas", progress: 80 },
+                synced: false,
+                origin: "local",
               },
-              rollbackRows: [
-                {
-                  key: "atlas",
-                  row: {
-                    key: "atlas",
-                    value: { id: "atlas", name: "Atlas", progress: 72 },
-                    synced: true,
-                    origin: "remote"
-                  }
-                }
-              ],
-              createdAt: 1,
-              attempts: 0
-            }
-          ],
-          updatedAt: 1
-        }));
-        yield* runtime.provide(Tasks.hydrateEffect({
-          name: Tasks.name,
-          rows: [
-            {
-              key: "t1",
-              value: { id: "t1", projectId: "atlas", title: "Sync queue", done: true },
-              synced: false,
-              origin: "local"
-            }
-          ],
-          pendingMutations: [
-            {
-              transaction: {
-                id: "task-skip-tx",
-                collection: Tasks.name,
-                mutations: [
+            ],
+            pendingMutations: [
+              {
+                transaction: {
+                  id: "project-skip-tx",
+                  collection: Projects.name,
+                  mutations: [
+                    {
+                      _tag: "Update",
+                      key: "atlas",
+                      previous: { id: "atlas", name: "Atlas", progress: 72 },
+                      value: { id: "atlas", name: "Atlas", progress: 80 },
+                      changes: { progress: 80 },
+                    },
+                  ],
+                },
+                rollbackRows: [
                   {
-                    _tag: "Update",
-                    key: "t1",
-                    previous: { id: "t1", projectId: "atlas", title: "Sync queue", done: false },
-                    value: { id: "t1", projectId: "atlas", title: "Sync queue", done: true },
-                    changes: { done: true }
-                  }
-                ]
+                    key: "atlas",
+                    row: {
+                      key: "atlas",
+                      value: { id: "atlas", name: "Atlas", progress: 72 },
+                      synced: true,
+                      origin: "remote",
+                    },
+                  },
+                ],
+                createdAt: 1,
+                attempts: 0,
               },
-              rollbackRows: [
-                {
-                  key: "t1",
-                  row: {
+            ],
+            updatedAt: 1,
+          }),
+        );
+        yield* runtime.provide(
+          Tasks.hydrateEffect({
+            name: Tasks.name,
+            rows: [
+              {
+                key: "t1",
+                value: { id: "t1", projectId: "atlas", title: "Sync queue", done: true },
+                synced: false,
+                origin: "local",
+              },
+            ],
+            pendingMutations: [
+              {
+                transaction: {
+                  id: "task-skip-tx",
+                  collection: Tasks.name,
+                  mutations: [
+                    {
+                      _tag: "Update",
+                      key: "t1",
+                      previous: { id: "t1", projectId: "atlas", title: "Sync queue", done: false },
+                      value: { id: "t1", projectId: "atlas", title: "Sync queue", done: true },
+                      changes: { done: true },
+                    },
+                  ],
+                },
+                rollbackRows: [
+                  {
                     key: "t1",
-                    value: { id: "t1", projectId: "atlas", title: "Sync queue", done: false },
-                    synced: true,
-                    origin: "remote"
-                  }
-                }
-              ],
-              createdAt: 1,
-              attempts: 0
-            }
-          ],
-          updatedAt: 1
-        }));
+                    row: {
+                      key: "t1",
+                      value: { id: "t1", projectId: "atlas", title: "Sync queue", done: false },
+                      synced: true,
+                      origin: "remote",
+                    },
+                  },
+                ],
+                createdAt: 1,
+                attempts: 0,
+              },
+            ],
+            updatedAt: 1,
+          }),
+        );
 
         const results = yield* runtime.provide(
           flushCollectionsPendingMutationsEffect([Projects, Tasks], {
@@ -320,39 +326,37 @@ describe("flushCollectionsPendingMutationsEffect", () => {
               Effect.sync(() => {
                 skipChecks.push(collection.name);
                 return collection.name === Tasks.name;
-              })
-          })
+              }),
+          }),
         );
 
         expect(results).toMatchObject([
           {
             _tag: "Flushed",
             collection: Projects.name,
-            transactions: [{ id: "project-skip-tx", collection: Projects.name }]
+            transactions: [{ id: "project-skip-tx", collection: Projects.name }],
           },
           {
             _tag: "Skipped",
             collection: Tasks.name,
-            transactions: []
-          }
+            transactions: [],
+          },
         ]);
         expect(skipChecks).toEqual([Projects.name, Tasks.name]);
-        expect(persistedProjects).toEqual([
-          { id: "atlas", name: "Atlas", progress: 80 }
-        ]);
+        expect(persistedProjects).toEqual([{ id: "atlas", name: "Atlas", progress: 80 }]);
         expect(persistedTasks).toEqual([]);
         expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
         expect(runWithRuntime(runtime, () => Tasks.pendingMutations())).toMatchObject([
           {
             transaction: { id: "task-skip-tx", collection: Tasks.name },
-            attempts: 0
-          }
+            attempts: 0,
+          },
         ]);
         expect(runWithRuntime(runtime, () => Tasks.get("t1"))).toMatchObject({
           done: true,
-          $synced: false
+          $synced: false,
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect))
+      }).pipe(Effect.ensuring(runtime.disposeEffect)),
     );
   });
 
@@ -360,25 +364,29 @@ describe("flushCollectionsPendingMutationsEffect", () => {
     const runtime = makeRuntime();
     const Projects = Collection.define<Project, string, never>({
       name: "Projects.flush-policy.skip-throw",
-      getKey: (project) => project.id
+      getKey: (project) => project.id,
     });
     const cause = new Error("skip failed");
 
     try {
-      await Effect.runPromise(runtime.provide(Projects.hydrateEffect(pendingProjectSnapshot(Projects.name))));
+      await Effect.runPromise(
+        runtime.provide(Projects.hydrateEffect(pendingProjectSnapshot(Projects.name))),
+      );
 
       await expect(
-        Effect.runPromise(runtime.provide(
-          flushCollectionsPendingMutationsEffect([Projects], {
-            skip: () => {
-              throw cause;
-            }
-          })
-        ))
+        Effect.runPromise(
+          runtime.provide(
+            flushCollectionsPendingMutationsEffect([Projects], {
+              skip: () => {
+                throw cause;
+              },
+            }),
+          ),
+        ),
       ).rejects.toMatchObject({
         _tag: "EffectInputCallbackError",
         operation: "Collection.flush.skip",
-        cause
+        cause,
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
@@ -389,22 +397,26 @@ describe("flushCollectionsPendingMutationsEffect", () => {
     const runtime = makeRuntime();
     const Projects = Collection.define<Project, string, never>({
       name: "Projects.flush-policy.skip-promise",
-      getKey: (project) => project.id
+      getKey: (project) => project.id,
     });
 
     try {
-      await Effect.runPromise(runtime.provide(Projects.hydrateEffect(pendingProjectSnapshot(Projects.name))));
+      await Effect.runPromise(
+        runtime.provide(Projects.hydrateEffect(pendingProjectSnapshot(Projects.name))),
+      );
 
       await expect(
-        Effect.runPromise(runtime.provide(
-          flushCollectionsPendingMutationsEffect([Projects], {
-            skip: Promise.resolve(true) as never
-          })
-        ))
+        Effect.runPromise(
+          runtime.provide(
+            flushCollectionsPendingMutationsEffect([Projects], {
+              skip: Promise.resolve(true) as never,
+            }),
+          ),
+        ),
       ).rejects.toMatchObject({
         _tag: "EffectInputCallbackError",
         operation: "Collection.flush.skip",
-        cause: expect.any(EffectInputPromiseRejected)
+        cause: expect.any(EffectInputPromiseRejected),
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
@@ -421,7 +433,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
       onUpdate: (updates) =>
         Effect.sync(() => {
           persistedProjects.push(...updates.map((update) => update.value));
-        })
+        }),
     });
 
     return Effect.runPromise(
@@ -437,9 +449,9 @@ describe("flushCollectionsPendingMutationsEffect", () => {
                 Effect.sync(() => {
                   adapterContexts.push(context);
                   return true;
-                })
-            }
-          })
+                }),
+            },
+          }),
         );
 
         expect(result).toMatchObject({
@@ -449,16 +461,16 @@ describe("flushCollectionsPendingMutationsEffect", () => {
           pending: [
             {
               collection: Projects.name,
-              transactions: [{ id: `${Projects.name}:tx`, collection: Projects.name }]
-            }
+              transactions: [{ id: `${Projects.name}:tx`, collection: Projects.name }],
+            },
           ],
           results: [
             {
               _tag: "Flushed",
               collection: Projects.name,
-              transactions: [{ id: `${Projects.name}:tx`, collection: Projects.name }]
-            }
-          ]
+              transactions: [{ id: `${Projects.name}:tx`, collection: Projects.name }],
+            },
+          ],
         });
         expect(adapterContexts).toMatchObject([
           {
@@ -467,16 +479,14 @@ describe("flushCollectionsPendingMutationsEffect", () => {
             pending: [
               {
                 collection: Projects.name,
-                transactions: [{ id: `${Projects.name}:tx`, collection: Projects.name }]
-              }
-            ]
-          }
+                transactions: [{ id: `${Projects.name}:tx`, collection: Projects.name }],
+              },
+            ],
+          },
         ]);
-        expect(persistedProjects).toEqual([
-          { id: "atlas", name: "Atlas", progress: 80 }
-        ]);
+        expect(persistedProjects).toEqual([{ id: "atlas", name: "Atlas", progress: 80 }]);
         expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect))
+      }).pipe(Effect.ensuring(runtime.disposeEffect)),
     );
   });
 
@@ -484,28 +494,32 @@ describe("flushCollectionsPendingMutationsEffect", () => {
     const runtime = makeRuntime();
     const Projects = Collection.define<Project, string, never>({
       name: "Projects.background-sync.should-flush-throw",
-      getKey: (project) => project.id
+      getKey: (project) => project.id,
     });
     const cause = new Error("readiness failed");
 
     try {
-      await Effect.runPromise(runtime.provide(Projects.hydrateEffect(pendingProjectSnapshot(Projects.name))));
+      await Effect.runPromise(
+        runtime.provide(Projects.hydrateEffect(pendingProjectSnapshot(Projects.name))),
+      );
 
       await expect(
-        Effect.runPromise(runtime.provide(
-          Collection.backgroundSyncPendingMutationsEffect([Projects], {
-            adapter: {
-              name: "test-throw",
-              shouldFlush: () => {
-                throw cause;
-              }
-            }
-          })
-        ))
+        Effect.runPromise(
+          runtime.provide(
+            Collection.backgroundSyncPendingMutationsEffect([Projects], {
+              adapter: {
+                name: "test-throw",
+                shouldFlush: () => {
+                  throw cause;
+                },
+              },
+            }),
+          ),
+        ),
       ).rejects.toMatchObject({
         _tag: "EffectInputCallbackError",
         operation: "Collection.backgroundSync.shouldFlush",
-        cause
+        cause,
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
@@ -521,7 +535,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
       onUpdate: (updates) =>
         Effect.sync(() => {
           persistedProjects.push(...updates.map((update) => update.value));
-        })
+        }),
     });
 
     return Effect.runPromise(
@@ -533,9 +547,9 @@ describe("flushCollectionsPendingMutationsEffect", () => {
             trigger: "visibility",
             adapter: {
               name: "test-hidden",
-              shouldFlush: () => Effect.succeed(false)
-            }
-          })
+              shouldFlush: () => Effect.succeed(false),
+            },
+          }),
         );
 
         expect(result).toMatchObject({
@@ -545,19 +559,19 @@ describe("flushCollectionsPendingMutationsEffect", () => {
           pending: [
             {
               collection: Projects.name,
-              transactions: [{ id: `${Projects.name}:tx`, collection: Projects.name }]
-            }
+              transactions: [{ id: `${Projects.name}:tx`, collection: Projects.name }],
+            },
           ],
-          results: []
+          results: [],
         });
         expect(persistedProjects).toEqual([]);
         expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toMatchObject([
           {
             transaction: { id: `${Projects.name}:tx`, collection: Projects.name },
-            attempts: 0
-          }
+            attempts: 0,
+          },
         ]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect))
+      }).pipe(Effect.ensuring(runtime.disposeEffect)),
     );
   });
 
@@ -566,7 +580,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
     let adapterChecks = 0;
     const Projects = Collection.define<Project, string, never>({
       name: "Projects.background-sync.idle",
-      getKey: (project) => project.id
+      getKey: (project) => project.id,
     });
 
     return Effect.runPromise(
@@ -579,9 +593,9 @@ describe("flushCollectionsPendingMutationsEffect", () => {
                 Effect.sync(() => {
                   adapterChecks++;
                   return true;
-                })
-            }
-          })
+                }),
+            },
+          }),
         );
 
         expect(result).toEqual({
@@ -590,13 +604,13 @@ describe("flushCollectionsPendingMutationsEffect", () => {
           pending: [
             {
               collection: Projects.name,
-              transactions: []
-            }
+              transactions: [],
+            },
           ],
-          results: []
+          results: [],
         });
         expect(adapterChecks).toBe(0);
-      }).pipe(Effect.ensuring(runtime.disposeEffect))
+      }).pipe(Effect.ensuring(runtime.disposeEffect)),
     );
   });
 });

@@ -7,18 +7,18 @@ import type {
   DevtoolsStartAppGraphRouteModuleDiagnostics,
   DevtoolsStartAppGraphRoutePreloadCollections,
   DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry,
-  DevtoolsSummary
+  DevtoolsSummary,
 } from "./devtools-contract.js";
 import {
   normalizeAppGraphCollectionDefinitions,
   normalizeAppGraphUnknownRoutePreloadCollections,
   normalizeDevtoolsAppGraphDiagnostics,
-  normalizeRouteModulePreloadCollections
+  normalizeRouteModulePreloadCollections,
 } from "./app-graph-normalizer.js";
 import type { NormalizeDevtoolsAppGraphDiagnosticsOptions } from "./app-graph-normalizer.js";
 
 const valueCounts = <Value extends string>(
-  values: Iterable<Value>
+  values: Iterable<Value>,
 ): ReadonlyArray<{ readonly state: Value; readonly count: number }> => {
   const counts = new Map<Value, number>();
   for (const value of values) {
@@ -31,7 +31,7 @@ const valueCounts = <Value extends string>(
 };
 
 const actionBehaviorSummary = (
-  actions: readonly DevtoolsStartAppGraphActionDiagnostics[]
+  actions: readonly DevtoolsStartAppGraphActionDiagnostics[],
 ): {
   readonly invalidates: readonly {
     readonly state: DevtoolsStartAppGraphActionBehaviorPresence;
@@ -50,23 +50,25 @@ const actionBehaviorSummary = (
     readonly count: number;
   }[];
 } => ({
-    invalidates: valueCounts(actions.map((action) => action.behavior.invalidates)),
-    optimistic: valueCounts(actions.map((action) => action.behavior.optimistic)),
-    retry: valueCounts(actions.map((action) => action.behavior.retry)),
-    concurrency: valueCounts(actions.map((action) => action.behavior.concurrency))
-  });
+  invalidates: valueCounts(actions.map((action) => action.behavior.invalidates)),
+  optimistic: valueCounts(actions.map((action) => action.behavior.optimistic)),
+  retry: valueCounts(actions.map((action) => action.behavior.retry)),
+  concurrency: valueCounts(actions.map((action) => action.behavior.concurrency)),
+});
 
 export const appGraphCollectionDefinitions = (
-  appGraph: DevtoolsStartAppGraphDiagnostics
+  appGraph: DevtoolsStartAppGraphDiagnostics,
 ): readonly DevtoolsStartAppGraphCollectionDiagnostics[] =>
   normalizeAppGraphCollectionDefinitions(appGraph);
 
 export const appGraphUnknownRoutePreloadCollections = (
-  appGraph: DevtoolsStartAppGraphDiagnostics
+  appGraph: DevtoolsStartAppGraphDiagnostics,
 ): readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[] =>
-  (appGraph as {
-    readonly unknownRoutePreloadCollections?: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[];
-  }).unknownRoutePreloadCollections?.map((entry) => ({
+  (
+    appGraph as {
+      readonly unknownRoutePreloadCollections?: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[];
+    }
+  ).unknownRoutePreloadCollections?.map((entry) => ({
     kind: "route" as const,
     routeId: entry.routeId,
     routePath: entry.routePath,
@@ -75,22 +77,22 @@ export const appGraphUnknownRoutePreloadCollections = (
     preload: entry.preload,
     preloadCollections: {
       status: entry.preloadCollections.status,
-      collections: [...entry.preloadCollections.collections]
-    }
+      collections: [...entry.preloadCollections.collections],
+    },
   })) ?? normalizeAppGraphUnknownRoutePreloadCollections(appGraph);
 
 export const routeModulePreloadCollections = (
-  routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics
+  routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics,
 ): DevtoolsStartAppGraphRoutePreloadCollections =>
   normalizeRouteModulePreloadCollections(routeModule);
 
 export const graphSummary = (
   appGraph: DevtoolsStartAppGraphDiagnostics | undefined,
-  options: NormalizeDevtoolsAppGraphDiagnosticsOptions = {}
+  options: NormalizeDevtoolsAppGraphDiagnosticsOptions = {},
 ): DevtoolsSummary["graph"] => {
   if (!appGraph) {
     return {
-      _tag: "Unavailable"
+      _tag: "Unavailable",
     };
   }
 
@@ -104,25 +106,30 @@ export const graphSummary = (
       paths: [...detached.routePaths],
       modules: detached.routeModules.map((routeModule) => ({ ...routeModule })),
       unknownPreloadResources: detached.unknownRoutePreloadResources.map((entry) => ({ ...entry })),
-      unknownPreloadCollections: appGraphUnknownRoutePreloadCollections(detached).map((entry) => ({ ...entry }))
+      unknownPreloadCollections: appGraphUnknownRoutePreloadCollections(detached).map((entry) => ({
+        ...entry,
+      })),
     },
     serverFunctions: {
       count: detached.serverFunctionCount,
       schemaCoverage: { ...detached.schemaCoverage.serverFunctions },
-      modules: detached.serverFunctionModules.map((serverFunction) => ({ ...serverFunction }))
+      modules: detached.serverFunctionModules.map((serverFunction) => ({ ...serverFunction })),
     },
     actions: {
       count: detached.actionCount,
       schemaCoverage: { ...detached.schemaCoverage.actions },
       modules: detached.actionModules.map((action) => ({ ...action })),
       behavior: actionBehaviorSummary(detached.actionModules),
-      unknownBehavior: detached.unknownActionBehavior.map((entry) => ({ ...entry }))
+      unknownBehavior: detached.unknownActionBehavior.map((entry) => ({ ...entry })),
     },
     resources: {
       familyCount: detached.resourceFamilies.length,
       tagCount: detached.resourceTags.length,
-      families: detached.resourceFamilies.map((family) => ({ ...family, policy: { ...family.policy } })),
-      tags: detached.resourceTags.map((tag) => ({ ...tag }))
+      families: detached.resourceFamilies.map((family) => ({
+        ...family,
+        policy: { ...family.policy },
+      })),
+      tags: detached.resourceTags.map((tag) => ({ ...tag })),
     },
     collections: {
       definitionCount: collections.length,
@@ -132,17 +139,17 @@ export const graphSummary = (
         handlers: { ...collection.handlers },
         policy: { ...collection.policy },
         ...(collection.sync === undefined ? {} : { sync: { ...collection.sync } }),
-        persistence: { ...collection.persistence }
-      }))
+        persistence: { ...collection.persistence },
+      })),
     },
     endpoints: {
       rpc: detached.rpcPath,
-      action: detached.actionPath
+      action: detached.actionPath,
     },
     modules: {
       serverOnly: [...detached.serverOnlyModules],
-      browserClient: [...detached.browserClientModules]
+      browserClient: [...detached.browserClientModules],
     },
-    missingSchemas: detached.missingSchemas.map((missingSchema) => ({ ...missingSchema }))
+    missingSchemas: detached.missingSchemas.map((missingSchema) => ({ ...missingSchema })),
   };
 };

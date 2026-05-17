@@ -5,7 +5,7 @@ import {
   nodeRequestLifecycle,
   nodeRequestToWebRequestEffect,
   writeNodeExchangeResponseEffect,
-  type StartNodeRequestOptions
+  type StartNodeRequestOptions,
 } from "./node-web-exchange.js";
 import { acceptsMediaType, startHtmlMediaType } from "./rpc.js";
 import type { StartRequestHandlerError } from "./start-request-handler.js";
@@ -14,12 +14,12 @@ import { responseWithScopeLifetimeEffect } from "./response-lifetime.js";
 import { suspendResponseStreamSuccessFinalizerEffect } from "./streaming.js";
 import {
   resolveStartTransportEndpoints,
-  type StartTransportEndpointSource
+  type StartTransportEndpointSource,
 } from "./start-transport-endpoints.js";
 import {
   interruptStartHostFiberOnSignal,
   mergeStartAbortSignals,
-  runStartAbortFinalizerOnSignalEffect
+  runStartAbortFinalizerOnSignalEffect,
 } from "./start-abort-lifecycle.js";
 
 /**
@@ -30,15 +30,15 @@ import {
  */
 export type StartSsrRequestHandler<
   HandlerError = StartRequestHandlerError,
-  Requirements = never
+  Requirements = never,
 > = (
-  request: Request
+  request: Request,
 ) => Response | Effect.Effect<Response, HandlerError, Scope.Scope | Requirements>;
 
 /** Loaded Vite dev SSR module with a handler that may require Effect services. */
 export type StartSsrHandlerModule<
   HandlerError = StartRequestHandlerError,
-  Requirements = never
+  Requirements = never,
 > = Record<string, unknown> & {
   readonly default?: StartSsrRequestHandler<HandlerError, Requirements>;
   readonly handleRequest?: StartSsrRequestHandler<HandlerError, Requirements>;
@@ -46,8 +46,13 @@ export type StartSsrHandlerModule<
 
 /** Effect-first dev server operations used by Start SSR middleware. */
 export interface StartDevServer<Requirements = never> {
-  ssrLoadModule(id: string): Effect.Effect<StartSsrHandlerModule<unknown, Requirements>, StartDevServerError, Requirements>;
-  transformIndexHtml(url: string, html: string): Effect.Effect<string, StartDevServerError, Requirements>;
+  ssrLoadModule(
+    id: string,
+  ): Effect.Effect<StartSsrHandlerModule<unknown, Requirements>, StartDevServerError, Requirements>;
+  transformIndexHtml(
+    url: string,
+    html: string,
+  ): Effect.Effect<string, StartDevServerError, Requirements>;
   ssrFixStacktrace?(error: Error): Effect.Effect<void, never, Requirements>;
 }
 
@@ -97,30 +102,30 @@ export interface HandleSsrDevMiddlewareOptions extends HandleSsrDevRequestOption
 
 const fixSsrStacktraceBestEffort = <R>(
   server: StartDevServer<R>,
-  error: Error
+  error: Error,
 ): Effect.Effect<void, never, R> =>
   Effect.suspend(() => server.ssrFixStacktrace?.(error) ?? Effect.void).pipe(
-    Effect.catchCause(() => Effect.void)
+    Effect.catchCause(() => Effect.void),
   );
 
 const callMiddlewareNextBestEffort = (
   next: StartDevMiddlewareNext,
-  error?: unknown
+  error?: unknown,
 ): Effect.Effect<void> =>
   Effect.try({
     try: () => {
       next(error);
     },
-    catch: () => undefined
+    catch: () => undefined,
   }).pipe(
     Effect.catchCause(() => Effect.void),
-    Effect.asVoid
+    Effect.asVoid,
   );
 
 const reportSsrDevMiddlewareError = <R>(
   server: StartDevServer<R>,
   next: StartDevMiddlewareNext,
-  error: unknown
+  error: unknown,
 ): Effect.Effect<void, never, R> =>
   Effect.gen(function* () {
     if (error instanceof Error) {
@@ -131,69 +136,71 @@ const reportSsrDevMiddlewareError = <R>(
 
 const tryViteDevPromise = <A>(
   operation: StartDevServerError["operation"],
-  f: () => Promise<A>
+  f: () => Promise<A>,
 ): Effect.Effect<A, StartDevServerError> =>
   Effect.tryPromise({
     try: f,
-    catch: (error) => new StartDevServerError({ operation, error })
+    catch: (error) => new StartDevServerError({ operation, error }),
   });
 
 const devServerError = (
   operation: StartDevServerError["operation"],
-  error: unknown
-): StartDevServerError =>
-  new StartDevServerError({ operation, error });
+  error: unknown,
+): StartDevServerError => new StartDevServerError({ operation, error });
 
 const requestAbortError = (signal: AbortSignal): StartDevServerError =>
-  devServerError("read-html", signal.reason ?? new Error("Request aborted while reading dev SSR HTML."));
+  devServerError(
+    "read-html",
+    signal.reason ?? new Error("Request aborted while reading dev SSR HTML."),
+  );
 
 const failIfRequestAborted = (signal: AbortSignal): Effect.Effect<void, StartDevServerError> =>
   signal.aborted ? Effect.fail(requestAbortError(signal)) : Effect.void;
 
 const cancelResponseReaderEffect = (
   reader: ReadableStreamDefaultReader<Uint8Array>,
-  reason: unknown
+  reason: unknown,
 ): Effect.Effect<void> =>
   Effect.tryPromise({
     try: () => reader.cancel(reason),
-    catch: () => undefined
+    catch: () => undefined,
   }).pipe(
     Effect.catchCause(() => Effect.void),
-    Effect.asVoid
+    Effect.asVoid,
   );
 
 const installRequestAbortReaderCancel = (
   reader: ReadableStreamDefaultReader<Uint8Array>,
-  signal: AbortSignal
+  signal: AbortSignal,
 ): Effect.Effect<void, never, Scope.Scope> =>
   runStartAbortFinalizerOnSignalEffect(signal, (reason) => {
     void Effect.runFork(cancelResponseReaderEffect(reader, reason ?? "request-aborted"));
   });
 
 const readResponseChunkEffect = (
-  reader: ReadableStreamDefaultReader<Uint8Array>
+  reader: ReadableStreamDefaultReader<Uint8Array>,
 ): Effect.Effect<ReadableStreamReadResult<Uint8Array>, StartDevServerError> =>
   Effect.tryPromise({
     try: () => reader.read(),
-    catch: (error) => devServerError("read-html", error)
+    catch: (error) => devServerError("read-html", error),
   });
 
 const releaseResponseReaderLockEffect = (
-  reader: ReadableStreamDefaultReader<Uint8Array>
+  reader: ReadableStreamDefaultReader<Uint8Array>,
 ): Effect.Effect<void> =>
   Effect.try({
     try: () => {
       reader.releaseLock();
     },
-    catch: () => undefined
+    catch: () => undefined,
   }).pipe(
     Effect.catchCause(() => Effect.void),
-    Effect.asVoid
+    Effect.asVoid,
   );
 
 const readResponseTextEffect = (
   response: Response,
-  signal: AbortSignal
+  signal: AbortSignal,
 ): Effect.Effect<string, StartDevServerError> =>
   response.body === null
     ? Effect.succeed("")
@@ -218,10 +225,12 @@ const readResponseTextEffect = (
           });
 
           return yield* readLoop.pipe(
-            Effect.onInterrupt(() => cancelResponseReaderEffect(reader, "dev-ssr-read-interrupted")),
-            Effect.ensuring(releaseResponseReaderLockEffect(reader))
+            Effect.onInterrupt(() =>
+              cancelResponseReaderEffect(reader, "dev-ssr-read-interrupted"),
+            ),
+            Effect.ensuring(releaseResponseReaderLockEffect(reader)),
           );
-        })
+        }),
       );
 
 /** Adapts Vite's Promise-based dev server API to Start's Effect-first seam. */
@@ -235,8 +244,8 @@ export const startDevServerFromVite = (server: StartViteDevServer): StartDevServ
         ssrFixStacktrace: (error: Error) =>
           Effect.sync(() => {
             server.ssrFixStacktrace?.(error);
-          })
-      })
+          }),
+      }),
 });
 
 /**
@@ -250,7 +259,7 @@ export const handleSsrDevMiddlewareEffect = <R = never>(
   request: IncomingMessage,
   response: ServerResponse,
   next: StartDevMiddlewareNext,
-  options: HandleSsrDevMiddlewareOptions = {}
+  options: HandleSsrDevMiddlewareOptions = {},
 ): Effect.Effect<void, never, R> =>
   Effect.withFiber((fiber) =>
     Effect.acquireUseRelease(
@@ -258,12 +267,12 @@ export const handleSsrDevMiddlewareEffect = <R = never>(
         const nodeLifecycle = nodeRequestLifecycle(request, response);
         const mergedLifecycle = mergeStartAbortSignals([
           nodeLifecycle.signal,
-          options.nodeRequest?.signal
+          options.nodeRequest?.signal,
         ]);
         const disposeInterrupt = interruptStartHostFiberOnSignal(
           fiber,
           mergedLifecycle.signal,
-          options.runOptions === undefined ? {} : { runOptions: options.runOptions }
+          options.runOptions === undefined ? {} : { runOptions: options.runOptions },
         );
 
         return {
@@ -272,7 +281,7 @@ export const handleSsrDevMiddlewareEffect = <R = never>(
             disposeInterrupt();
             mergedLifecycle.cleanup();
             nodeLifecycle.dispose();
-          }
+          },
         };
       }),
       ({ signal }) =>
@@ -284,18 +293,16 @@ export const handleSsrDevMiddlewareEffect = <R = never>(
 
           const webRequest = yield* nodeRequestToWebRequestEffect(request, {
             ...options.nodeRequest,
-            signal
+            signal,
           });
           const webResponse = yield* handleSsrDevRequestEffect(server, webRequest, options);
           yield* writeNodeExchangeResponseEffect(request, response, webResponse);
         }),
-      ({ dispose }) => Effect.sync(dispose)
-    )
+      ({ dispose }) => Effect.sync(dispose),
+    ),
   ).pipe(
     Effect.catch((error) => reportSsrDevMiddlewareError(server, next, error)),
-    Effect.catchCause((cause) =>
-      reportSsrDevMiddlewareError(server, next, Cause.squash(cause))
-    )
+    Effect.catchCause((cause) => reportSsrDevMiddlewareError(server, next, Cause.squash(cause))),
   );
 
 /** Returns true when a response should pass through Vite HTML transforms. */
@@ -305,43 +312,40 @@ export const isHtmlResponse = (response: Response): boolean =>
 const devSsrHostTransformFailureEvent = {
   stream: {
     name: "response",
-    state: "errored"
+    state: "errored",
   },
   status: "failure",
-  teardownReason: "dev-ssr-host-transform"
+  teardownReason: "dev-ssr-host-transform",
 } as const;
 
-const devSsrExitFailure = (
-  exit: Exit.Exit<unknown, unknown>
-): unknown =>
-  Exit.isFailure(exit)
-    ? exit.cause.reasons.find(Cause.isFailReason)?.error
-    : undefined;
+const devSsrExitFailure = (exit: Exit.Exit<unknown, unknown>): unknown =>
+  Exit.isFailure(exit) ? exit.cause.reasons.find(Cause.isFailReason)?.error : undefined;
 
 const devSsrHostReadFailureEvent = (
   request: Request,
-  exit: Exit.Exit<unknown, unknown>
-): typeof devSsrHostTransformFailureEvent | {
-  readonly stream: {
-    readonly name: "response";
-    readonly state: "cancelled";
-  };
-  readonly status: "cancelled";
-  readonly teardownReason: string;
-} => {
+  exit: Exit.Exit<unknown, unknown>,
+):
+  | typeof devSsrHostTransformFailureEvent
+  | {
+      readonly stream: {
+        readonly name: "response";
+        readonly state: "cancelled";
+      };
+      readonly status: "cancelled";
+      readonly teardownReason: string;
+    } => {
   const failure = devSsrExitFailure(exit);
   return request.signal.aborted &&
-      failure instanceof StartDevServerError &&
-      failure.operation === "read-html"
+    failure instanceof StartDevServerError &&
+    failure.operation === "read-html"
     ? {
         stream: {
           name: "response",
-          state: "cancelled"
+          state: "cancelled",
         },
         status: "cancelled",
-        teardownReason: typeof request.signal.reason === "string"
-          ? request.signal.reason
-          : "request-abort"
+        teardownReason:
+          typeof request.signal.reason === "string" ? request.signal.reason : "request-abort",
       }
     : devSsrHostTransformFailureEvent;
 };
@@ -359,7 +363,7 @@ const headerAcceptsHtml = (accept: string | readonly string[] | undefined): bool
 /** Returns true for requests the dev SSR middleware should handle. */
 export const shouldHandleSsrRequest = (
   request: Pick<IncomingMessage, "method" | "url" | "headers">,
-  endpoints?: StartTransportEndpointSource
+  endpoints?: StartTransportEndpointSource,
 ): boolean => {
   const url = request.url ?? "/";
   const pathname = new URL(url, "http://effect-ui.local").pathname;
@@ -392,16 +396,13 @@ export const shouldHandleSsrRequest = (
 };
 
 /** Resolves the SSR request handler export from a loaded server module. */
-export const resolveStartHandler = <
-  HandlerError = StartRequestHandlerError,
-  Requirements = never
->(
+export const resolveStartHandler = <HandlerError = StartRequestHandlerError, Requirements = never>(
   module: StartSsrHandlerModule<HandlerError, Requirements>,
-  options: { readonly handlerExport?: string } = {}
+  options: { readonly handlerExport?: string } = {},
 ): StartSsrRequestHandler<HandlerError, Requirements> => {
   const candidate = options.handlerExport
     ? module[options.handlerExport]
-    : module.default ?? module.handleRequest;
+    : (module.default ?? module.handleRequest);
 
   if (typeof candidate !== "function") {
     const exportName = options.handlerExport ?? "default or handleRequest";
@@ -414,10 +415,10 @@ export const resolveStartHandler = <
 /** Effect wrapper for `resolveStartHandler` with a typed not-found error. */
 export const resolveStartHandlerEffect = <
   HandlerError = StartRequestHandlerError,
-  Requirements = never
+  Requirements = never,
 >(
   module: StartSsrHandlerModule<HandlerError, Requirements>,
-  options: { readonly handlerExport?: string } = {}
+  options: { readonly handlerExport?: string } = {},
 ): Effect.Effect<StartSsrRequestHandler<HandlerError, Requirements>, StartHandlerNotFound> =>
   Effect.try({
     try: () => resolveStartHandler(module, options),
@@ -425,23 +426,23 @@ export const resolveStartHandlerEffect = <
       error instanceof StartHandlerNotFound
         ? error
         : new StartHandlerNotFound({
-            exportName: options.handlerExport ?? "default or handleRequest"
-          })
+            exportName: options.handlerExport ?? "default or handleRequest",
+          }),
   });
 
 const handlerResultEffect = <HandlerError = StartRequestHandlerError, Requirements = never>(
   handler: StartSsrRequestHandler<HandlerError, Requirements>,
-  request: Request
+  request: Request,
 ): Effect.Effect<Response, StartDevServerError, Requirements> =>
   Effect.suspend(() =>
     Effect.try({
       try: () => handler(request),
-      catch: (error) => new StartDevServerError({ operation: "run-handler", error })
+      catch: (error) => new StartDevServerError({ operation: "run-handler", error }),
     }).pipe(
       Effect.flatMap((result) =>
         responseWithScopeLifetimeEffect<HandlerError, Requirements>(
-          toEffect(result as EffectInput<Response, HandlerError, Scope.Scope | Requirements>)
-        )
+          toEffect(result as EffectInput<Response, HandlerError, Scope.Scope | Requirements>),
+        ),
       ),
       Effect.flatMap((response) =>
         response instanceof Response
@@ -450,27 +451,28 @@ const handlerResultEffect = <HandlerError = StartRequestHandlerError, Requiremen
               new StartDevServerError({
                 operation: "run-handler",
                 error: new StartHandlerInvalidResponse({
-                  message: "Vite dev SSR handlers must return a Response or an Effect that succeeds with a Response.",
-                  value: response
-                })
-              })
-            )
+                  message:
+                    "Vite dev SSR handlers must return a Response or an Effect that succeeds with a Response.",
+                  value: response,
+                }),
+              }),
+            ),
       ),
       Effect.mapError((error) =>
         error instanceof StartDevServerError
           ? error
-          : new StartDevServerError({ operation: "run-handler", error })
-      )
-    )
+          : new StartDevServerError({ operation: "run-handler", error }),
+      ),
+    ),
   ).pipe(
     Effect.catchCause((cause) => {
       const failure = cause.reasons.find(Cause.isFailReason)?.error;
       return Effect.fail(
         failure instanceof StartDevServerError
           ? failure
-          : new StartDevServerError({ operation: "run-handler", error: Cause.squash(cause) })
+          : new StartDevServerError({ operation: "run-handler", error: Cause.squash(cause) }),
       );
-    })
+    }),
   );
 
 /**
@@ -482,7 +484,7 @@ const handlerResultEffect = <HandlerError = StartRequestHandlerError, Requiremen
 export const handleSsrDevRequestEffect = <R = never>(
   server: StartDevServer<R>,
   request: Request,
-  options: HandleSsrDevRequestOptions = {}
+  options: HandleSsrDevRequestOptions = {},
 ): Effect.Effect<Response, StartHandlerNotFound | StartDevServerError, R> =>
   Effect.gen(function* () {
     const module = yield* server.ssrLoadModule(options.serverEntry ?? defaultServerEntry);
@@ -505,10 +507,10 @@ export const handleSsrDevRequestEffect = <R = never>(
         return new Response(transformed, {
           status: response.status,
           statusText: response.statusText,
-          headers
+          headers,
         });
       }),
-      (exit) => devSsrHostReadFailureEvent(request, exit)
+      (exit) => devSsrHostReadFailureEvent(request, exit),
     );
 
     return transformedResponse;
@@ -518,6 +520,6 @@ export const handleSsrDevRequestEffect = <R = never>(
 export const handleSsrDevRequest = <R = never>(
   server: StartDevServer<R>,
   request: Request,
-  options: HandleSsrDevRequestOptions = {}
+  options: HandleSsrDevRequestOptions = {},
 ): Effect.Effect<Response, StartHandlerNotFound | StartDevServerError, R> =>
   handleSsrDevRequestEffect(server, request, options);

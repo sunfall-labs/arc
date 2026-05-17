@@ -10,27 +10,22 @@ const buttonVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
         secondary: "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
-        outline: "border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground"
-      }
+        outline:
+          "border border-input bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
+      },
     },
     defaultVariants: {
-      variant: "default"
-    }
-  }
+      variant: "default",
+    },
+  },
 );
 
 export interface ButtonProps
-  extends ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
+  extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
   readonly asChild?: boolean;
 }
 
 export function Button({ className, variant, asChild = false, ...props }: ButtonProps) {
   const Comp = asChild ? Slot : "button";
-  return (
-    <Comp
-      className={cn(buttonVariants({ variant }), className)}
-      {...props}
-    />
-  );
+  return <Comp className={cn(buttonVariants({ variant }), className)} {...props} />;
 }

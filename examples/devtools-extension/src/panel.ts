@@ -5,9 +5,7 @@ import { type ChromeInspectedWindowApi } from "./transport.js";
 import { panelTitle, pollInspectedWindowEffect } from "./panel-runtime.js";
 import "./styles.css";
 
-class DevtoolsExtensionRootMissing extends Data.TaggedError(
-  "DevtoolsExtensionRootMissing",
-)<{
+class DevtoolsExtensionRootMissing extends Data.TaggedError("DevtoolsExtensionRootMissing")<{
   readonly id: string;
   readonly guidance: string;
 }> {}
@@ -23,7 +21,7 @@ export const bootDevtoolsExtensionPanel = (root: HTMLElement) =>
     afterMount: (mount) => {
       const inspectedWindowApi = typeof chrome === "undefined" ? undefined : chrome;
       return pollInspectedWindowEffect(mount, inspectedWindowApi);
-    }
+    },
   }).fiber;
 
 const root = document.getElementById("devtools-root");
@@ -31,7 +29,7 @@ const root = document.getElementById("devtools-root");
 if (!root) {
   throw new DevtoolsExtensionRootMissing({
     id: "devtools-root",
-    guidance: "Add a devtools root element with id=\"devtools-root\" to the extension panel."
+    guidance: 'Add a devtools root element with id="devtools-root" to the extension panel.',
   });
 }
 
@@ -44,7 +42,7 @@ export const devtoolsExtensionPanelBoot = bootDevtoolsPanels({
   afterMount: (mount) => {
     const inspectedWindowApi = typeof chrome === "undefined" ? undefined : chrome;
     return pollInspectedWindowEffect(mount, inspectedWindowApi);
-  }
+  },
 });
 export const devtoolsExtensionPanelBootFiber = devtoolsExtensionPanelBoot.fiber;
 export const interruptDevtoolsExtensionPanelBoot = interruptDevtoolsPanelBoot;

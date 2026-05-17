@@ -5,11 +5,13 @@ import {
   EffectInputCallbackError,
   EffectInputPromiseRejected,
   isPromiseLikeValue,
-  invokeEffectInput
+  invokeEffectInput,
 } from "./effect-like.js";
 
 /** Runtime marker used by `isCapability(...)` to identify Capability definitions. */
-export const CapabilityTypeId: unique symbol = Symbol.for("@effect-ui/core/Capability") as typeof CapabilityTypeId;
+export const CapabilityTypeId: unique symbol = Symbol.for(
+  "@effect-ui/core/Capability",
+) as typeof CapabilityTypeId;
 
 /**
  * Typed service handle for injecting UI capabilities through Effect context.
@@ -26,7 +28,9 @@ export interface Capability<Identifier, Shape> {
   /** Creates a test Layer for this capability. */
   readonly mock: (service: Shape) => Layer.Layer<Identifier>;
   /** Accesses the provided service inside an Effect. */
-  readonly use: <A, E, R>(f: (service: Shape) => Effect.Effect<A, E, R>) => Effect.Effect<A, E, R | Identifier>;
+  readonly use: <A, E, R>(
+    f: (service: Shape) => Effect.Effect<A, E, R>,
+  ) => Effect.Effect<A, E, R | Identifier>;
   /**
    * Accesses the service with a callback that may return a plain value or Effect.
    *
@@ -35,10 +39,10 @@ export interface Capability<Identifier, Shape> {
    */
   readonly useEffect: {
     <A, E, R>(
-      f: (service: Shape) => Effect.Effect<PromiseSafeValue<A>, E, R>
+      f: (service: Shape) => Effect.Effect<PromiseSafeValue<A>, E, R>,
     ): Effect.Effect<PromiseSafeValue<A>, E | EffectInputCallbackError, R | Identifier>;
     <A>(
-      f: (service: Shape) => PromiseSafeValue<A>
+      f: (service: Shape) => PromiseSafeValue<A>,
     ): Effect.Effect<PromiseSafeValue<A>, EffectInputCallbackError, Identifier>;
   };
   /**
@@ -48,11 +52,11 @@ export interface Capability<Identifier, Shape> {
    * `useEffect(...)` when the service access performs Effect work.
    */
   readonly useSync: <A>(
-    f: (service: Shape) => PlainValue<A>
+    f: (service: Shape) => PlainValue<A>,
   ) => Effect.Effect<PlainValue<A>, never, Identifier>;
   readonly provide: <A, E, R>(
     effect: Effect.Effect<A, E, R>,
-    service: Shape
+    service: Shape,
   ) => Effect.Effect<A, E, Exclude<R, Identifier>>;
 }
 
@@ -69,7 +73,8 @@ export namespace Capability {
   /** Extracts the service shape from a Capability definition. */
   export type Shape<C> = C extends Capability<infer _Identifier, infer Shape> ? Shape : never;
   /** Extracts the Effect service identifier from a Capability definition. */
-  export type Identifier<C> = C extends Capability<infer Identifier, infer _Shape> ? Identifier : never;
+  export type Identifier<C> =
+    C extends Capability<infer Identifier, infer _Shape> ? Identifier : never;
 
   /**
    * Defines a capability backed by an Effect Context service.
@@ -83,26 +88,24 @@ export namespace Capability {
    * const copy = Clipboard.use((clipboard) => clipboard.write("copied"));
    * ```
    */
-  export const define = <Shape>(
-    key: string
-  ): Capability<Shape, Shape> => {
+  export const define = <Shape>(key: string): Capability<Shape, Shape> => {
     const tag = Context.Service<Shape>(key);
 
     function useEffect<A, E, R>(
-      f: (service: Shape) => Effect.Effect<PromiseSafeValue<A>, E, R>
+      f: (service: Shape) => Effect.Effect<PromiseSafeValue<A>, E, R>,
     ): Effect.Effect<PromiseSafeValue<A>, E | EffectInputCallbackError, R | Shape>;
     function useEffect<A>(
-      f: (service: Shape) => PromiseSafeValue<A>
+      f: (service: Shape) => PromiseSafeValue<A>,
     ): Effect.Effect<PromiseSafeValue<A>, EffectInputCallbackError, Shape>;
     function useEffect<A, E, R>(
-      f: (service: Shape) => Effect.Effect<A, E, R> | A
+      f: (service: Shape) => Effect.Effect<A, E, R> | A,
     ): Effect.Effect<A, E | EffectInputCallbackError, R | Shape> {
       return tag.use((service) =>
         invokeEffectInput(
           `Capability.useEffect(${key})`,
           f as (service: Shape) => EffectInput<A, E, R>,
-          service
-        )
+          service,
+        ),
       );
     }
 
@@ -116,44 +119,48 @@ export namespace Capability {
       useEffect,
       useSync: (f) =>
         tag.use((service) =>
-          Effect.flatMap(Effect.sync(() => f(service)), (value) =>
-            isPromiseLikeValue(value)
-              ? Effect.die(new EffectInputPromiseRejected({
-                  guidance: `Capability.useSync(${key}) callbacks must return synchronous values, not Promises. Use Capability.useEffect(...) with Effect.tryPromise(...) at the host adapter seam.`
-                }))
-              : isEffectLikeValue(value)
-                ? Effect.die(new EffectInputCallbackError({
-                    operation: `Capability.useSync(${key})`,
-                    cause: new TypeError("Capability.useSync callbacks must return plain data, not Effect values."),
-                    guidance: `Capability.useSync(${key}) callbacks must return plain data. Use Capability.useEffect(...) for Effect work.`
-                  }))
-              : Effect.succeed(value)
-          )
+          Effect.flatMap(
+            Effect.sync(() => f(service)),
+            (value) =>
+              isPromiseLikeValue(value)
+                ? Effect.die(
+                    new EffectInputPromiseRejected({
+                      guidance: `Capability.useSync(${key}) callbacks must return synchronous values, not Promises. Use Capability.useEffect(...) with Effect.tryPromise(...) at the host adapter seam.`,
+                    }),
+                  )
+                : isEffectLikeValue(value)
+                  ? Effect.die(
+                      new EffectInputCallbackError({
+                        operation: `Capability.useSync(${key})`,
+                        cause: new TypeError(
+                          "Capability.useSync callbacks must return plain data, not Effect values.",
+                        ),
+                        guidance: `Capability.useSync(${key}) callbacks must return plain data. Use Capability.useEffect(...) for Effect work.`,
+                      }),
+                    )
+                  : Effect.succeed(value),
+          ),
         ),
-      provide: (effect, service) =>
-        Effect.provideService(effect, tag, service)
+      provide: (effect, service) => Effect.provideService(effect, tag, service),
     };
   };
 
   /** Builds a Layer that provides a concrete implementation for a capability. */
   export const layer = <Identifier, Shape>(
     capability: Capability<Identifier, Shape>,
-    service: Shape
-  ): Layer.Layer<Identifier> =>
-    capability.layer(service);
+    service: Shape,
+  ): Layer.Layer<Identifier> => capability.layer(service);
 
   /** Builds a test Layer for a capability implementation. */
   export const mock = <Identifier, Shape>(
     capability: Capability<Identifier, Shape>,
-    service: Shape
-  ): Layer.Layer<Identifier> =>
-    capability.mock(service);
+    service: Shape,
+  ): Layer.Layer<Identifier> => capability.mock(service);
 
   /** Provides a capability implementation directly to one Effect. */
   export const provide = <Identifier, Shape, A, E, R>(
     capability: Capability<Identifier, Shape>,
     effect: Effect.Effect<A, E, R>,
-    service: Shape
-  ): Effect.Effect<A, E, Exclude<R, Identifier>> =>
-    capability.provide(effect, service);
+    service: Shape,
+  ): Effect.Effect<A, E, Exclude<R, Identifier>> => capability.provide(effect, service);
 }

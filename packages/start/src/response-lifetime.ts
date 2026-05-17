@@ -2,7 +2,7 @@ import { Effect, Exit, Scope } from "effect";
 import {
   responseWithStreamFinalizer,
   type StartResponseStreamFinalizeEvent,
-  type StartResponseStreamRunner
+  type StartResponseStreamRunner,
 } from "./streaming.js";
 
 export interface ResponseScopeLifetimeOptions {
@@ -13,7 +13,7 @@ export interface ResponseScopeLifetimeOptions {
 }
 
 const streamFinalizeExit = (
-  event: StartResponseStreamFinalizeEvent
+  event: StartResponseStreamFinalizeEvent,
 ): Exit.Exit<void, StartResponseStreamFinalizeEvent> =>
   event.status === "success" ? Exit.void : Exit.fail(event);
 
@@ -23,7 +23,7 @@ const streamFinalizeExit = (
  */
 export const responseWithScopeLifetimeEffect = <E, R>(
   effect: Effect.Effect<Response, E, R | Scope.Scope>,
-  options: ResponseScopeLifetimeOptions = {}
+  options: ResponseScopeLifetimeOptions = {},
 ): Effect.Effect<Response, E, Exclude<R, Scope.Scope>> =>
   Effect.gen(function* () {
     const scope = yield* Scope.make("sequential");
@@ -67,10 +67,10 @@ export const responseWithScopeLifetimeEffect = <E, R>(
       ...(options.abortTeardownReason === undefined
         ? {}
         : { abortTeardownReason: options.abortTeardownReason }),
-      onFinalize
+      onFinalize,
     };
     const attachExit = yield* Effect.exit(
-      Effect.sync(() => responseWithStreamFinalizer(response, finalizerOptions))
+      Effect.sync(() => responseWithStreamFinalizer(response, finalizerOptions)),
     );
     if (Exit.isFailure(attachExit)) {
       yield* closeScope(attachExit);

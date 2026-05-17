@@ -1,6 +1,7 @@
 declare module "virtual:effect-ui/server-functions" {
   /** Generated server-function manifest discovered by the Start Vite plugin. */
-  export type ServerFunctionManifest = import("./server-function-manifest.js").ServerFunctionManifest;
+  export type ServerFunctionManifest =
+    import("./server-function-manifest.js").ServerFunctionManifest;
   /** One server-function manifest entry, including server and client module facts. */
   export type ServerFunctionManifestEntry =
     import("./server-function-manifest.js").ServerFunctionManifestEntry;
@@ -49,13 +50,22 @@ declare module "virtual:effect-ui/routes" {
    * Use the written `routeTree.gen.ts` artifact when an app needs precise
    * route-id, path, params, search, and href-option unions in editor hovers.
    */
-  export const routes: readonly import("@effect-ui/core").Route.Definition<string, unknown, unknown, any>[];
+  export const routes: readonly import("@effect-ui/core").Route.Definition<
+    string,
+    unknown,
+    unknown,
+    any
+  >[];
   /** Alias for `routes`, matching the written route definitions artifact. */
   export const routeTree: typeof routes;
   /** Broad virtual map keyed by generated route id. */
-  export const routeById: Readonly<Record<string, import("@effect-ui/core").Route.Definition<string, unknown, unknown, any>>>;
+  export const routeById: Readonly<
+    Record<string, import("@effect-ui/core").Route.Definition<string, unknown, unknown, any>>
+  >;
   /** Broad virtual map keyed by route path. */
-  export const routeByPath: Readonly<Record<string, import("@effect-ui/core").Route.Definition<string, unknown, unknown, any>>>;
+  export const routeByPath: Readonly<
+    Record<string, import("@effect-ui/core").Route.Definition<string, unknown, unknown, any>>
+  >;
   /** Broad virtual map from route path to generated route id. */
   export const routeIdByPath: Readonly<Record<string, string>>;
   /** Builds a typed href for a virtual route id. Written generated files narrow this per app. */
@@ -71,26 +81,38 @@ declare module "virtual:effect-ui/routes" {
   /** Narrows a broad route match to one virtual route path pattern. */
   export const isRoutePathMatch: <Path extends RoutePath>(
     path: Path,
-    match: import("@effect-ui/core").Route.Match<FileRoute> | undefined
+    match: import("@effect-ui/core").Route.Match<FileRoute> | undefined,
   ) => match is FileRouteMatch<Path>;
   /** Layout modules scoped to each generated route id. */
-  export const fileRouteLayoutsById: Readonly<Record<string, readonly import("./file-route.js").FileRouteLayoutDefinition[]>>;
+  export const fileRouteLayoutsById: Readonly<
+    Record<string, readonly import("./file-route.js").FileRouteLayoutDefinition[]>
+  >;
   /** Nearest error boundary modules keyed by generated route id. */
-  export const fileRouteErrorBoundaryById: Readonly<Partial<Record<string, import("./file-route.js").FileRouteErrorBoundaryDefinition>>>;
+  export const fileRouteErrorBoundaryById: Readonly<
+    Partial<Record<string, import("./file-route.js").FileRouteErrorBoundaryDefinition>>
+  >;
   /** Metadata modules scoped to each generated route id. */
-  export const fileRouteMetadataById: Readonly<Record<string, readonly import("./file-route.js").FileRouteMetadataDefinition[]>>;
+  export const fileRouteMetadataById: Readonly<
+    Record<string, readonly import("./file-route.js").FileRouteMetadataDefinition[]>
+  >;
   /** Returns layout modules for a virtual route id. Written generated files narrow this per app. */
   export const layoutsById: <Id extends RouteId>(id: Id) => FileRouteLayouts<Id>;
   /** Returns layout modules for a virtual route path. Written generated files narrow this per app. */
-  export const layoutsByPath: <Path extends RoutePath>(path: Path) => FileRouteLayouts<RouteIdByPath[Path]>;
+  export const layoutsByPath: <Path extends RoutePath>(
+    path: Path,
+  ) => FileRouteLayouts<RouteIdByPath[Path]>;
   /** Returns the nearest error boundary for a virtual route id, when one exists. */
   export const errorBoundaryById: <Id extends RouteId>(id: Id) => FileRouteErrorBoundary<Id>;
   /** Returns the nearest error boundary for a virtual route path, when one exists. */
-  export const errorBoundaryByPath: <Path extends RoutePath>(path: Path) => FileRouteErrorBoundary<RouteIdByPath[Path]>;
+  export const errorBoundaryByPath: <Path extends RoutePath>(
+    path: Path,
+  ) => FileRouteErrorBoundary<RouteIdByPath[Path]>;
   /** Returns metadata modules for a virtual route id. Written generated files narrow this per app. */
   export const metadataById: <Id extends RouteId>(id: Id) => FileRouteMetadataModules<Id>;
   /** Returns metadata modules for a virtual route path. Written generated files narrow this per app. */
-  export const metadataByPath: <Path extends RoutePath>(path: Path) => FileRouteMetadataModules<RouteIdByPath[Path]>;
+  export const metadataByPath: <Path extends RoutePath>(
+    path: Path,
+  ) => FileRouteMetadataModules<RouteIdByPath[Path]>;
   /** Generated file-route manifest modules used by diagnostics and tooling. */
   export const fileRouteModules: readonly import("./file-routes.js").FileRouteManifestModule[];
   /** Generated route metadata used by diagnostics and tooling. */
@@ -112,27 +134,53 @@ declare module "virtual:effect-ui/routes" {
   /** Alias for the route path lookup map. */
   export type FileRouteByPath = RouteByPath;
   /** Params mapped by route id. Written generated files narrow this per app. */
-  export type FileRouteParamsById = { readonly [Id in FileRouteId]: import("@effect-ui/core").Route.Params<RouteById[Id]> };
+  export type FileRouteParamsById = {
+    readonly [Id in FileRouteId]: import("@effect-ui/core").Route.Params<RouteById[Id]>;
+  };
   /** Search values mapped by route id. Written generated files narrow this per app. */
-  export type FileRouteSearchById = { readonly [Id in FileRouteId]: import("@effect-ui/core").Route.Search<RouteById[Id]> };
+  export type FileRouteSearchById = {
+    readonly [Id in FileRouteId]: import("@effect-ui/core").Route.Search<RouteById[Id]>;
+  };
   /** Href options mapped by route id. Written generated files narrow this per app. */
-  export type FileRouteHrefOptionsById = { readonly [Id in FileRouteId]: import("@effect-ui/core").Route.HrefOptions<RouteById[Id]> };
+  export type FileRouteHrefOptionsById = {
+    readonly [Id in FileRouteId]: import("@effect-ui/core").Route.HrefOptions<RouteById[Id]>;
+  };
   /** Href options for one virtual route id. */
   export type FileRouteHrefOptions<Id extends FileRouteId> = FileRouteHrefOptionsById[Id];
   /** Href arguments mapped by route id. Written generated files narrow this per app. */
-  export type FileRouteHrefArgsById = { readonly [Id in FileRouteId]: import("@effect-ui/core").Route.HrefArgs<RouteById[Id]> };
+  export type FileRouteHrefArgsById = {
+    readonly [Id in FileRouteId]: import("@effect-ui/core").Route.HrefArgs<RouteById[Id]>;
+  };
   /** Href arguments for one virtual route id. */
   export type FileRouteHrefArgs<Id extends FileRouteId> = FileRouteHrefArgsById[Id];
   /** Params mapped by route path. Written generated files narrow this per app. */
-  export type FileRouteParamsByPath = { readonly [Path in keyof FileRouteByPath]: import("@effect-ui/core").Route.Params<FileRouteByPath[Path]> };
+  export type FileRouteParamsByPath = {
+    readonly [Path in keyof FileRouteByPath]: import("@effect-ui/core").Route.Params<
+      FileRouteByPath[Path]
+    >;
+  };
   /** Search values mapped by route path. Written generated files narrow this per app. */
-  export type FileRouteSearchByPath = { readonly [Path in keyof FileRouteByPath]: import("@effect-ui/core").Route.Search<FileRouteByPath[Path]> };
+  export type FileRouteSearchByPath = {
+    readonly [Path in keyof FileRouteByPath]: import("@effect-ui/core").Route.Search<
+      FileRouteByPath[Path]
+    >;
+  };
   /** Href options mapped by route path. Written generated files narrow this per app. */
-  export type FileRouteHrefOptionsByPath = { readonly [Path in keyof FileRouteByPath]: import("@effect-ui/core").Route.HrefOptions<FileRouteByPath[Path]> };
+  export type FileRouteHrefOptionsByPath = {
+    readonly [Path in keyof FileRouteByPath]: import("@effect-ui/core").Route.HrefOptions<
+      FileRouteByPath[Path]
+    >;
+  };
   /** Href arguments mapped by route path. Written generated files narrow this per app. */
-  export type FileRouteHrefArgsByPath = { readonly [Path in keyof FileRouteByPath]: import("@effect-ui/core").Route.HrefArgs<FileRouteByPath[Path]> };
+  export type FileRouteHrefArgsByPath = {
+    readonly [Path in keyof FileRouteByPath]: import("@effect-ui/core").Route.HrefArgs<
+      FileRouteByPath[Path]
+    >;
+  };
   /** Route match narrowed to one virtual route path pattern. */
-  export type FileRouteMatch<Path extends FileRoutePath> = import("@effect-ui/core").Route.Match<FileRouteByPath[Path]>;
+  export type FileRouteMatch<Path extends FileRoutePath> = import("@effect-ui/core").Route.Match<
+    FileRouteByPath[Path]
+  >;
   /** Layout modules keyed by virtual route id. */
   export type FileRouteLayoutsById = typeof fileRouteLayoutsById;
   /** Error boundary modules keyed by virtual route id when present. */
@@ -184,7 +232,8 @@ declare module "virtual:effect-ui/app-graph" {
   /** Static diagnostics projected from generated manifests only. */
   export type StartAppGraphDiagnostics = import("./app-graph.js").StartAppGraphDiagnostics;
   /** Diagnostics policy violation raised before the virtual module is usable. */
-  export type StartAppGraphDiagnosticsPolicyViolation = import("./app-graph.js").StartAppGraphDiagnosticsPolicyViolation;
+  export type StartAppGraphDiagnosticsPolicyViolation =
+    import("./app-graph.js").StartAppGraphDiagnosticsPolicyViolation;
 
   /** Generated static app graph. */
   export const graph: StartAppGraph;
@@ -207,7 +256,8 @@ declare module "virtual:effect-ui/app-graph/runtime-diagnostics" {
   /** Runtime diagnostics layered onto the generated app graph. */
   export type StartAppGraphDiagnostics = import("./app-graph.js").StartAppGraphDiagnostics;
   /** Diagnostics policy violation raised before the virtual module is usable. */
-  export type StartAppGraphDiagnosticsPolicyViolation = import("./app-graph.js").StartAppGraphDiagnosticsPolicyViolation;
+  export type StartAppGraphDiagnosticsPolicyViolation =
+    import("./app-graph.js").StartAppGraphDiagnosticsPolicyViolation;
 
   /** Generated static app graph. */
   export const graph: StartAppGraph;

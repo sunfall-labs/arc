@@ -1,4 +1,9 @@
-import { isEffectLike, isPromiseLikeValue, stableStringify, type PlainValue } from "@effect-ui/core";
+import {
+  isEffectLike,
+  isPromiseLikeValue,
+  stableStringify,
+  type PlainValue,
+} from "@effect-ui/core";
 import { Data } from "effect";
 import type {
   AnyCollection,
@@ -6,11 +11,11 @@ import type {
   CollectionRuntimeError,
   CollectionRequirements,
   CollectionRow,
-  CollectionRowValue
+  CollectionRowValue,
 } from "./collection-contract.js";
 import {
   makeQuerySourceAdapter,
-  type QueryCollectionSourceAdapter
+  type QueryCollectionSourceAdapter,
 } from "./query-source-adapter.js";
 
 /**
@@ -44,15 +49,11 @@ export class QueryEvaluationError extends Data.TaggedError("QueryEvaluationError
   readonly cause: unknown;
 }> {}
 
-class QueryCallbackPromiseRejected extends Data.TaggedError(
-  "QueryCallbackPromiseRejected"
-)<{
+class QueryCallbackPromiseRejected extends Data.TaggedError("QueryCallbackPromiseRejected")<{
   readonly guidance: string;
 }> {}
 
-class QueryCallbackEffectRejected extends Data.TaggedError(
-  "QueryCallbackEffectRejected"
-)<{
+class QueryCallbackEffectRejected extends Data.TaggedError("QueryCallbackEffectRejected")<{
   readonly guidance: string;
 }> {}
 
@@ -74,12 +75,14 @@ export type AnyQueryContext = Record<string, any>;
 export type AnyCollectionRow = CollectionRow<any, any>;
 
 /** Union of source collection runtime errors for a query source map. */
-export type QuerySourcesError<Sources extends SourceRecord> =
-  CollectionRuntimeError<CollectionError<Sources[keyof Sources]>>;
+export type QuerySourcesError<Sources extends SourceRecord> = CollectionRuntimeError<
+  CollectionError<Sources[keyof Sources]>
+>;
 
 /** Union of source collection service requirements for a query source map. */
-export type QuerySourcesRequirements<Sources extends SourceRecord> =
-  CollectionRequirements<Sources[keyof Sources]>;
+export type QuerySourcesRequirements<Sources extends SourceRecord> = CollectionRequirements<
+  Sources[keyof Sources]
+>;
 
 /** Row context produced from the source alias map. */
 export type QueryContext<Sources extends SourceRecord> = {
@@ -90,18 +93,17 @@ export type QueryContext<Sources extends SourceRecord> = {
 export type QueryJoinedContext<
   TContext extends AnyQueryContext,
   Alias extends string,
-  C extends AnyCollection
+  C extends AnyCollection,
 > = TContext & {
   readonly [Key in Alias]: CollectionRowValue<C>;
 };
 
 /** Result context chosen after a join projection. */
-export type QueryJoinResult<TContext, TResult, TNextContext> =
-  [TResult] extends [TContext]
-    ? [TContext] extends [TResult]
-      ? TNextContext
-      : TResult
-    : TResult;
+export type QueryJoinResult<TContext, TResult, TNextContext> = [TResult] extends [TContext]
+  ? [TContext] extends [TResult]
+    ? TNextContext
+    : TResult
+  : TResult;
 
 /** Compiled order clause used by the query execution plan. */
 export interface QueryOrder<TContext> {
@@ -205,33 +207,41 @@ export interface QueryAggregate<TContext, R, V = unknown> {
 export type QueryAggregateRecord<TContext> = Record<string, QueryAggregate<TContext, any, any>>;
 export type AnyQueryAggregateRecord = QueryAggregateRecord<any>;
 /** Recursively rejects executable-shaped values inside query result data structures. */
-export type RejectPlainQueryRecord<Value> =
-  [PlainValue<Value>] extends [never]
-    ? never
-    : Value extends (...args: any) => unknown
+export type RejectPlainQueryRecord<Value> = [PlainValue<Value>] extends [never]
+  ? never
+  : Value extends (...args: any) => unknown
+    ? Value
+    : Value extends Date | URL | ArrayBuffer | DataView
       ? Value
-      : Value extends Date | URL | ArrayBuffer | DataView
-        ? Value
-    : Value extends readonly (infer Item)[]
-      ? readonly RejectPlainQueryRecord<Item>[]
-      : Value extends ReadonlyMap<infer Key, infer Item>
-        ? ReadonlyMap<RejectPlainQueryRecord<Key>, RejectPlainQueryRecord<Item>>
-        : Value extends ReadonlySet<infer Item>
-          ? ReadonlySet<RejectPlainQueryRecord<Item>>
-      : Value extends object
-        ? { readonly [Key in keyof Value]: RejectPlainQueryRecord<Value[Key]> }
-        : Value;
+      : Value extends readonly (infer Item)[]
+        ? readonly RejectPlainQueryRecord<Item>[]
+        : Value extends ReadonlyMap<infer Key, infer Item>
+          ? ReadonlyMap<RejectPlainQueryRecord<Key>, RejectPlainQueryRecord<Item>>
+          : Value extends ReadonlySet<infer Item>
+            ? ReadonlySet<RejectPlainQueryRecord<Item>>
+            : Value extends object
+              ? { readonly [Key in keyof Value]: RejectPlainQueryRecord<Value[Key]> }
+              : Value;
 /** Public grouped-query key shape accepted by `Query.groupBy(...)`. */
-export type QueryGroupKey<TKey extends Record<string, unknown> = Record<string, unknown>> =
-  TKey & RejectPlainQueryRecord<TKey>;
+export type QueryGroupKey<TKey extends Record<string, unknown> = Record<string, unknown>> = TKey &
+  RejectPlainQueryRecord<TKey>;
 export type QueryAggregateResult<
   TKey extends Record<string, unknown>,
-  Aggregates extends AnyQueryAggregateRecord
+  Aggregates extends AnyQueryAggregateRecord,
 > = TKey & {
-  readonly [Key in keyof Aggregates]: Aggregates[Key] extends QueryAggregate<infer _Context, infer R, infer _Value> ? R : never;
+  readonly [Key in keyof Aggregates]: Aggregates[Key] extends QueryAggregate<
+    infer _Context,
+    infer R,
+    infer _Value
+  >
+    ? R
+    : never;
 };
 
-export interface QueryGrouping<TSource extends AnyQueryContext, TResult extends Record<string, unknown>> {
+export interface QueryGrouping<
+  TSource extends AnyQueryContext,
+  _TResult extends Record<string, unknown>,
+> {
   readonly key: (row: TSource) => Record<string, unknown>;
   readonly aggregates: QueryAggregateRecord<TSource>;
   readonly sourceFilters: ReadonlyArray<(row: TSource) => boolean>;
@@ -262,39 +272,35 @@ export const projectCurrentContext = <TContext, TResult>(row: TContext): TResult
 
 const isQueryEvaluationError = (cause: unknown): cause is QueryEvaluationError =>
   cause instanceof QueryEvaluationError ||
-  (
-    typeof cause === "object" &&
+  (typeof cause === "object" &&
     cause !== null &&
     (cause as { readonly _tag?: unknown })._tag === "QueryEvaluationError" &&
     "operation" in cause &&
     "cause" in cause &&
-    "message" in cause
-  );
+    "message" in cause);
 
 export const toQueryEvaluationError = (
   operation: QueryEvaluationOperation,
-  cause: unknown
+  cause: unknown,
 ): QueryEvaluationError =>
   isQueryEvaluationError(cause)
     ? cause
     : new QueryEvaluationError({
-      operation,
-      cause,
-      message: cause instanceof Error ? cause.message : String(cause)
-    });
+        operation,
+        cause,
+        message: cause instanceof Error ? cause.message : String(cause),
+      });
 
 const isEffectShapedQueryValue = (value: unknown): boolean =>
   value instanceof Error ? false : isEffectLike(value);
 
 const queryGroupKeyPathSegment = (key: string): string =>
-  /^[A-Za-z_$][\w$]*$/.test(key)
-    ? `.${key}`
-    : `[${JSON.stringify(key)}]`;
+  /^[A-Za-z_$][\w$]*$/.test(key) ? `.${key}` : `[${JSON.stringify(key)}]`;
 
 const promiseShapedQueryValuePath = (
   value: unknown,
   path = "$",
-  active = new WeakSet<object>()
+  active = new WeakSet<object>(),
 ): string | undefined => {
   if (isPromiseLikeValue(value)) {
     return path;
@@ -333,7 +339,11 @@ const promiseShapedQueryValuePath = (
         if (keyPath !== undefined) {
           return keyPath;
         }
-        const valuePath = promiseShapedQueryValuePath(entryValue, `${path}.<value:${index}>`, active);
+        const valuePath = promiseShapedQueryValuePath(
+          entryValue,
+          `${path}.<value:${index}>`,
+          active,
+        );
         if (valuePath !== undefined) {
           return valuePath;
         }
@@ -356,11 +366,7 @@ const promiseShapedQueryValuePath = (
     const object = value as Record<string, unknown>;
     for (const key of Object.keys(object)) {
       const propertyPath = `${path}${queryGroupKeyPathSegment(key)}`;
-      const found = promiseShapedQueryValuePath(
-        Reflect.get(object, key),
-        propertyPath,
-        active
-      );
+      const found = promiseShapedQueryValuePath(Reflect.get(object, key), propertyPath, active);
       if (found !== undefined) {
         return found;
       }
@@ -374,7 +380,7 @@ const promiseShapedQueryValuePath = (
 const effectShapedQueryValuePath = (
   value: unknown,
   path = "$",
-  active = new WeakSet<object>()
+  active = new WeakSet<object>(),
 ): string | undefined => {
   if (isEffectShapedQueryValue(value)) {
     return path;
@@ -413,7 +419,11 @@ const effectShapedQueryValuePath = (
         if (keyPath !== undefined) {
           return keyPath;
         }
-        const valuePath = effectShapedQueryValuePath(entryValue, `${path}.<value:${index}>`, active);
+        const valuePath = effectShapedQueryValuePath(
+          entryValue,
+          `${path}.<value:${index}>`,
+          active,
+        );
         if (valuePath !== undefined) {
           return valuePath;
         }
@@ -436,11 +446,7 @@ const effectShapedQueryValuePath = (
     const object = value as Record<string, unknown>;
     for (const key of Object.keys(object)) {
       const propertyPath = `${path}${queryGroupKeyPathSegment(key)}`;
-      const found = effectShapedQueryValuePath(
-        Reflect.get(object, key),
-        propertyPath,
-        active
-      );
+      const found = effectShapedQueryValuePath(Reflect.get(object, key), propertyPath, active);
       if (found !== undefined) {
         return found;
       }
@@ -453,31 +459,33 @@ const effectShapedQueryValuePath = (
 
 const promiseShapedQueryCallbackError = (
   operation: QueryEvaluationOperation,
-  path = "$"
+  path = "$",
 ): QueryEvaluationError =>
   new QueryEvaluationError({
     operation,
     cause: new QueryCallbackPromiseRejected({
-      guidance: "Query callbacks are synchronous. Move async work into collection load/refetch/sync adapters, or wrap host Promise work in an Effect before it reaches Query evaluation."
+      guidance:
+        "Query callbacks are synchronous. Move async work into collection load/refetch/sync adapters, or wrap host Promise work in an Effect before it reaches Query evaluation.",
     }),
-    message: `Query ${operation} callbacks must return synchronous values, not Promise-shaped values at ${path}.`
+    message: `Query ${operation} callbacks must return synchronous values, not Promise-shaped values at ${path}.`,
   });
 
 const effectShapedQueryCallbackError = (
   operation: QueryEvaluationOperation,
-  path = "$"
+  path = "$",
 ): QueryEvaluationError =>
   new QueryEvaluationError({
     operation,
     cause: new QueryCallbackEffectRejected({
-      guidance: "Query callbacks are synchronous data projections. Return Effect work from collection load/refetch/sync adapters before it reaches Query evaluation."
+      guidance:
+        "Query callbacks are synchronous data projections. Return Effect work from collection load/refetch/sync adapters before it reaches Query evaluation.",
     }),
-    message: `Query ${operation} callbacks must return plain data, not Effect-shaped values at ${path}.`
+    message: `Query ${operation} callbacks must return plain data, not Effect-shaped values at ${path}.`,
   });
 
 export const evaluateQueryOperation = <A>(
   operation: QueryEvaluationOperation,
-  evaluate: () => A
+  evaluate: () => A,
 ): A => {
   try {
     const value = evaluate();
@@ -495,7 +503,7 @@ export const evaluateQueryOperation = <A>(
 
 export const evaluateQueryStructuredOperation = <A>(
   operation: QueryEvaluationOperation,
-  evaluate: () => A
+  evaluate: () => A,
 ): A =>
   evaluateQueryOperation(operation, () => {
     const value = evaluate();
@@ -541,15 +549,15 @@ const querySortValueError = (path: string, reason: string): QueryEvaluationError
   new QueryEvaluationError({
     operation: "order",
     cause: new TypeError(reason),
-    message: `Query order value at ${path} must be a comparable scalar value.`
+    message: `Query order value at ${path} must be a comparable scalar value.`,
   });
 
-const normalizeQuerySortValue = (
-  value: unknown,
-  path: string
-): NormalizedQuerySortValue => {
+const normalizeQuerySortValue = (value: unknown, path: string): NormalizedQuerySortValue => {
   if (!isQuerySortScalar(value)) {
-    throw querySortValueError(path, "Query order values must be string, number, boolean, Date, null, or undefined.");
+    throw querySortValueError(
+      path,
+      "Query order values must be string, number, boolean, Date, null, or undefined.",
+    );
   }
   if (value instanceof Date) {
     const millis = value.getTime();
@@ -566,7 +574,7 @@ const normalizeQuerySortValue = (
 
 const validateQueryOrderValues = (
   contexts: ReadonlyArray<AnyQueryContext>,
-  orders: ReadonlyArray<QueryOrder<any>>
+  orders: ReadonlyArray<QueryOrder<any>>,
 ): void => {
   for (const context of contexts) {
     for (const order of orders) {
@@ -586,26 +594,32 @@ export const reservedQuerySourceAliasReason = (alias: string): string =>
 export const validateQuerySourceAlias = (alias: string): void => {
   if (reservedQuerySourceAliases.has(alias)) {
     throw new UnsupportedLiveQuery({
-      reason: reservedQuerySourceAliasReason(alias)
+      reason: reservedQuerySourceAliasReason(alias),
     });
   }
 };
 
 /** Validates alias and join invariants before a Query plan reads source rows. */
 export const validateQueryPlan = <TContext extends AnyQueryContext>(
-  builder: QueryPlanBuilder<TContext>
+  builder: QueryPlanBuilder<TContext>,
 ): void => {
   if (builder.sources.length === 0) {
-    throw new UnsupportedLiveQuery({ reason: "Live queries require at least one source collection." });
+    throw new UnsupportedLiveQuery({
+      reason: "Live queries require at least one source collection.",
+    });
   }
   if (!Number.isSafeInteger(builder.offsetCount) || builder.offsetCount < 0) {
-    throw new UnsupportedLiveQuery({ reason: "Query offset must be a finite non-negative safe integer." });
+    throw new UnsupportedLiveQuery({
+      reason: "Query offset must be a finite non-negative safe integer.",
+    });
   }
   if (
     builder.limitCount !== undefined &&
     (!Number.isSafeInteger(builder.limitCount) || builder.limitCount < 0)
   ) {
-    throw new UnsupportedLiveQuery({ reason: "Query limit must be a finite non-negative safe integer." });
+    throw new UnsupportedLiveQuery({
+      reason: "Query limit must be a finite non-negative safe integer.",
+    });
   }
 
   const aliases = new Map<string, AnyCollection>();
@@ -614,7 +628,7 @@ export const validateQueryPlan = <TContext extends AnyQueryContext>(
     const existing = aliases.get(alias);
     if (existing) {
       throw new UnsupportedLiveQuery({
-        reason: `Query source alias "${alias}" is registered more than once.`
+        reason: `Query source alias "${alias}" is registered more than once.`,
       });
     }
     aliases.set(alias, collection);
@@ -624,12 +638,12 @@ export const validateQueryPlan = <TContext extends AnyQueryContext>(
     const source = aliases.get(join.alias);
     if (!source) {
       throw new UnsupportedLiveQuery({
-        reason: `Join source "${join.alias}" is not registered.`
+        reason: `Join source "${join.alias}" is not registered.`,
       });
     }
     if (source !== join.collection) {
       throw new UnsupportedLiveQuery({
-        reason: `Join source "${join.alias}" is registered for collection "${source.name}" but the join uses "${join.collection.name}".`
+        reason: `Join source "${join.alias}" is registered for collection "${source.name}" but the join uses "${join.collection.name}".`,
       });
     }
     if (
@@ -637,7 +651,7 @@ export const validateQueryPlan = <TContext extends AnyQueryContext>(
       !makeQuerySourceAdapter(join.collection).hasIndex(join.rightIndex)
     ) {
       throw new UnsupportedLiveQuery({
-        reason: `Join source "${join.alias}" uses unknown index "${join.rightIndex}" on collection "${join.collection.name}".`
+        reason: `Join source "${join.alias}" uses unknown index "${join.rightIndex}" on collection "${join.collection.name}".`,
       });
     }
   }
@@ -647,7 +661,7 @@ export const validateQueryPlan = <TContext extends AnyQueryContext>(
     const hasBaseSource = builder.sources.some(([alias]) => !joinAliases.has(alias));
     if (!hasBaseSource) {
       throw new UnsupportedLiveQuery({
-        reason: "Live queries with joins require at least one non-join source collection."
+        reason: "Live queries with joins require at least one non-join source collection.",
       });
     }
   }
@@ -655,7 +669,7 @@ export const validateQueryPlan = <TContext extends AnyQueryContext>(
 
 /** Compiles validated Query builder facts into the shared snapshot/live stage plan. */
 export const compileQueryStagePlan = <TContext extends AnyQueryContext>(
-  builder: QueryPlanBuilder<TContext>
+  builder: QueryPlanBuilder<TContext>,
 ): QueryStagePlan<TContext> => {
   validateQueryPlan(builder);
   const joinAliases = new Set(builder.joins.map((join) => join.alias));
@@ -670,12 +684,14 @@ export const compileQueryStagePlan = <TContext extends AnyQueryContext>(
     adapterByCollection.set(collection, adapter);
     return adapter;
   };
-  const sources = builder.sources.map(([alias, collection]): QueryStageSource => ({
-    alias,
-    collection,
-    adapter: sourceAdapter(collection),
-    role: joinAliases.has(alias) ? "join" : "base"
-  }));
+  const sources = builder.sources.map(
+    ([alias, collection]): QueryStageSource => ({
+      alias,
+      collection,
+      adapter: sourceAdapter(collection),
+      role: joinAliases.has(alias) ? "join" : "base",
+    }),
+  );
   const baseSources = sources.filter((source) => source.role === "base");
   const sourceByAlias = new Map(sources.map((source) => [source.alias, source]));
   return {
@@ -685,7 +701,7 @@ export const compileQueryStagePlan = <TContext extends AnyQueryContext>(
     sourceByAlias,
     identityAliases: [
       ...baseSources.map((source) => source.alias),
-      ...builder.joins.map((join) => join.alias)
+      ...builder.joins.map((join) => join.alias),
     ],
     joins: builder.joins,
     grouping: builder.grouping,
@@ -693,16 +709,18 @@ export const compileQueryStagePlan = <TContext extends AnyQueryContext>(
     orders: builder.orders,
     window: {
       offset: builder.offsetCount,
-      ...(builder.limitCount === undefined ? {} : { limit: builder.limitCount })
-    }
+      ...(builder.limitCount === undefined ? {} : { limit: builder.limitCount }),
+    },
   };
 };
 
 const buildStageSourceContexts = <TContext extends AnyQueryContext>(
-  sources: ReadonlyArray<QueryStageSource>
+  sources: ReadonlyArray<QueryStageSource>,
 ): Array<TContext> => {
   if (sources.length === 0) {
-    throw new UnsupportedLiveQuery({ reason: "Live queries require at least one source collection." });
+    throw new UnsupportedLiveQuery({
+      reason: "Live queries require at least one source collection.",
+    });
   }
 
   const contexts: Array<TContext> = [];
@@ -729,13 +747,13 @@ const buildStageSourceContexts = <TContext extends AnyQueryContext>(
 };
 
 export const buildQueryExecutionFromStagePlan = <TContext extends AnyQueryContext>(
-  stagePlan: QueryStagePlan<TContext>
+  stagePlan: QueryStagePlan<TContext>,
 ): QueryExecution<TContext> => {
   const sourceDiagnostics = stagePlan.sources.map((source): QueryPlanSourceDiagnostics => {
     return {
       alias: source.alias,
       collection: source.adapter.name,
-      rows: source.adapter.rowCount()
+      rows: source.adapter.rowCount(),
     };
   });
   const joins: Array<QueryPlanJoinDiagnostics> = [];
@@ -760,7 +778,7 @@ export const buildQueryExecutionFromStagePlan = <TContext extends AnyQueryContex
         if (rightKeys.some((rightValue) => left === evaluateQueryJoinKey(rightValue))) {
           joined.push({
             ...context,
-            [join.alias]: row
+            [join.alias]: row,
           });
         }
       }
@@ -773,7 +791,7 @@ export const buildQueryExecutionFromStagePlan = <TContext extends AnyQueryContex
       leftRows,
       rightRows,
       outputRows: joined.length,
-      estimatedComparisons: join.rightIndex ? leftRows : leftRows * rightRows
+      estimatedComparisons: join.rightIndex ? leftRows : leftRows * rightRows,
     });
     contexts = joined;
   }
@@ -788,10 +806,10 @@ export const buildQueryExecutionFromStagePlan = <TContext extends AnyQueryContex
     validateQueryOrderValues(
       resultContexts.filter((context) =>
         stagePlan.filters.every((filter) =>
-          evaluateQueryOperation("filter", () => filter(context as TContext))
-        )
+          evaluateQueryOperation("filter", () => filter(context as TContext)),
+        ),
       ),
-      stagePlan.orders
+      stagePlan.orders,
     );
   }
 
@@ -805,24 +823,29 @@ export const buildQueryExecutionFromStagePlan = <TContext extends AnyQueryContex
       grouped: stagePlan.grouping !== undefined,
       offset: stagePlan.window.offset,
       ...(stagePlan.window.limit === undefined ? {} : { limit: stagePlan.window.limit }),
-      contextRows: resultContexts.length
-    }
+      contextRows: resultContexts.length,
+    },
   };
 };
 
 export const groupContexts = (
   contexts: ReadonlyArray<AnyQueryContext>,
-  grouping: AnyQueryGrouping
+  grouping: AnyQueryGrouping,
 ): Array<Record<string, unknown>> => {
-  const groups = new Map<string, {
-    readonly key: Record<string, unknown>;
-    readonly values: Array<AnyQueryContext>;
-  }>();
+  const groups = new Map<
+    string,
+    {
+      readonly key: Record<string, unknown>;
+      readonly values: Array<AnyQueryContext>;
+    }
+  >();
 
   for (const context of contexts) {
-    if (!grouping.sourceFilters.every((filter) =>
-      evaluateQueryOperation("filter", () => filter(context))
-    )) {
+    if (
+      !grouping.sourceFilters.every((filter) =>
+        evaluateQueryOperation("filter", () => filter(context)),
+      )
+    ) {
       continue;
     }
 
@@ -839,8 +862,12 @@ export const groupContexts = (
   return Array.from(groups.values(), (group) => {
     const result: Record<string, unknown> = { ...group.key };
     for (const [name, aggregate] of Object.entries(grouping.aggregates)) {
-      const values = group.values.map((value) =>
-        [evaluateQueryStructuredOperation("aggregate", () => aggregate.preMap(value)), 1] as [unknown, number]
+      const values = group.values.map(
+        (value) =>
+          [evaluateQueryStructuredOperation("aggregate", () => aggregate.preMap(value)), 1] as [
+            unknown,
+            number,
+          ],
       );
       const reduced = evaluateQueryStructuredOperation("aggregate", () => aggregate.reduce(values));
       result[name] = aggregate.postMap
@@ -866,7 +893,7 @@ export const compareRows = <TContext>(
   right: TContext,
   leftIndex: number,
   rightIndex: number,
-  orders: ReadonlyArray<QueryOrder<TContext>>
+  orders: ReadonlyArray<QueryOrder<TContext>>,
 ): number => {
   for (const order of orders) {
     const direction = order.direction === "asc" ? 1 : -1;

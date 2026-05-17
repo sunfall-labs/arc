@@ -12,7 +12,7 @@ import {
   ServerFunctionManifestInvalidEntry,
   ServerFunctionManifestParseError,
   ServerFunctionManifestUnsafeClientReference,
-  stableServerFunctionId
+  stableServerFunctionId,
 } from "../src/server-function-manifest.js";
 
 describe("server function manifest", () => {
@@ -23,7 +23,7 @@ describe("server function manifest", () => {
     clientModule: "/src/project/project.contract.ts",
     clientExportName: "getProject",
     inputSchema: true,
-    outputSchema: true
+    outputSchema: true,
   };
   const RenameProject = {
     name: "Project.rename",
@@ -33,7 +33,7 @@ describe("server function manifest", () => {
     clientExportName: "renameProject",
     inputSchema: true,
     outputSchema: true,
-    errorSchema: true
+    errorSchema: true,
   };
 
   it("builds deterministic stable ids and serialized output", () => {
@@ -44,29 +44,29 @@ describe("server function manifest", () => {
 
         yield* Effect.sync(() => {
           expect(serializeServerFunctionManifest(first)).toBe(
-            serializeServerFunctionManifest(second)
+            serializeServerFunctionManifest(second),
           );
           expect(first.entries.map((entry) => entry.name)).toEqual([
             "Project.byId",
-            "Project.rename"
+            "Project.rename",
           ]);
           expect(first.entries.map((entry) => entry.id)).toEqual(
-            first.entries.map((entry) => stableServerFunctionId(entry.name))
+            first.entries.map((entry) => stableServerFunctionId(entry.name)),
           );
           expect(first.entries[0]).toMatchObject({
             server: {
               module: "/src/project/project.server.ts",
               moduleKind: "server-only",
-              hasHandler: true
+              hasHandler: true,
             },
             wire: {
               inputSchema: true,
               outputSchema: true,
-              errorSchema: false
-            }
+              errorSchema: false,
+            },
           });
         });
-      })
+      }),
     );
   });
 
@@ -74,32 +74,32 @@ describe("server function manifest", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const manifest = yield* makeServerFunctionManifest([GetProject, RenameProject], {
-          rpcPath: "/__effect-ui/test-rpc"
+          rpcPath: "/__effect-ui/test-rpc",
         });
         const roundTrip = yield* deserializeServerFunctionManifest(
-          serializeServerFunctionManifest(manifest)
+          serializeServerFunctionManifest(manifest),
         );
 
         yield* Effect.sync(() => expect(roundTrip).toEqual(manifest));
-      })
+      }),
     );
   });
 
   it("normalizes source server function endpoint paths", () => {
     return Effect.runPromise(
       makeServerFunctionManifest([GetProject], {
-        rpcPath: " /__effect-ui/custom-rpc "
+        rpcPath: " /__effect-ui/custom-rpc ",
       }).pipe(
         Effect.tap((manifest) =>
           Effect.sync(() => {
             expect(manifest.rpcPath).toBe("/__effect-ui/custom-rpc");
             expect(manifest.entries[0]?.client).toMatchObject({
-              rpcPath: "/__effect-ui/custom-rpc"
+              rpcPath: "/__effect-ui/custom-rpc",
             });
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -108,8 +108,8 @@ describe("server function manifest", () => {
       Effect.gen(function* () {
         const exits = yield* Effect.all(
           ["", "   ", "rpc", "https://example.com/rpc", "/__effect-ui/rpc\r\nx"].map((rpcPath) =>
-            Effect.exit(makeServerFunctionManifest([GetProject], { rpcPath }))
-          )
+            Effect.exit(makeServerFunctionManifest([GetProject], { rpcPath })),
+          ),
         );
 
         yield* Effect.sync(() => {
@@ -117,7 +117,7 @@ describe("server function manifest", () => {
             expect(firstFailure(exit)).toBeInstanceOf(ServerFunctionManifestInvalidEndpointPath);
           }
         });
-      })
+      }),
     );
   });
 
@@ -125,7 +125,7 @@ describe("server function manifest", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const manifest = yield* makeServerFunctionManifest([GetProject], {
-          rpcPath: "/__effect-ui/rpc"
+          rpcPath: "/__effect-ui/rpc",
         });
         const serialized = JSON.parse(serializeServerFunctionManifest(manifest)) as {
           rpcPath: string;
@@ -138,10 +138,10 @@ describe("server function manifest", () => {
         yield* Effect.sync(() => {
           expect(decoded.rpcPath).toBe("/__effect-ui/serialized-rpc");
           expect(decoded.entries[0]?.client).toMatchObject({
-            rpcPath: "/__effect-ui/serialized-rpc"
+            rpcPath: "/__effect-ui/serialized-rpc",
           });
         });
-      })
+      }),
     );
   });
 
@@ -166,14 +166,14 @@ describe("server function manifest", () => {
           },
           (value: SerializedServerFunctionManifest) => {
             value.entries[0]!.client.rpcPath = "rpc";
-          }
+          },
         ];
         const exits = yield* Effect.all(
           cases.map((mutate) => {
             const decoded = JSON.parse(serialized) as SerializedServerFunctionManifest;
             mutate(decoded);
             return Effect.exit(deserializeServerFunctionManifest(JSON.stringify(decoded)));
-          })
+          }),
         );
 
         yield* Effect.sync(() => {
@@ -181,7 +181,7 @@ describe("server function manifest", () => {
             expect(firstFailure(exit)).toBeInstanceOf(ServerFunctionManifestParseError);
           }
         });
-      })
+      }),
     );
   });
 
@@ -204,17 +204,17 @@ describe("server function manifest", () => {
         clientKindMismatch.entries[0]!.client.moduleKind = "shared";
 
         const invalidServerKind = yield* Effect.exit(
-          deserializeServerFunctionManifest(JSON.stringify(serverKindMismatch))
+          deserializeServerFunctionManifest(JSON.stringify(serverKindMismatch)),
         );
         const invalidClientKind = yield* Effect.exit(
-          deserializeServerFunctionManifest(JSON.stringify(clientKindMismatch))
+          deserializeServerFunctionManifest(JSON.stringify(clientKindMismatch)),
         );
 
         yield* Effect.sync(() => {
           expect(firstFailure(invalidServerKind)).toBeInstanceOf(ServerFunctionManifestParseError);
           expect(firstFailure(invalidClientKind)).toBeInstanceOf(ServerFunctionManifestParseError);
         });
-      })
+      }),
     );
   });
 
@@ -248,14 +248,14 @@ describe("server function manifest", () => {
           },
           (value: SerializedServerFunctionManifest) => {
             value.entries[0]!.client.exportName = "   ";
-          }
+          },
         ];
         const exits = yield* Effect.all(
           cases.map((mutate) => {
             const decoded = JSON.parse(serialized) as SerializedServerFunctionManifest;
             mutate(decoded);
             return Effect.exit(deserializeServerFunctionManifest(JSON.stringify(decoded)));
-          })
+          }),
         );
 
         yield* Effect.sync(() => {
@@ -263,7 +263,7 @@ describe("server function manifest", () => {
             expect(firstFailure(exit)).toBeInstanceOf(ServerFunctionManifestParseError);
           }
         });
-      })
+      }),
     );
   });
 
@@ -275,9 +275,9 @@ describe("server function manifest", () => {
             GetProject,
             {
               ...GetProject,
-              module: "/src/other/project.server.ts"
-            }
-          ])
+              module: "/src/other/project.server.ts",
+            },
+          ]),
         );
         const duplicateExport = yield* Effect.exit(
           makeServerFunctionManifest([
@@ -285,20 +285,18 @@ describe("server function manifest", () => {
             {
               ...RenameProject,
               module: GetProject.module,
-              exportName: GetProject.exportName
-            }
-          ])
+              exportName: GetProject.exportName,
+            },
+          ]),
         );
 
         yield* Effect.sync(() => {
-          expect(firstFailure(duplicateName)).toBeInstanceOf(
-            ServerFunctionManifestDuplicateName
-          );
+          expect(firstFailure(duplicateName)).toBeInstanceOf(ServerFunctionManifestDuplicateName);
           expect(firstFailure(duplicateExport)).toBeInstanceOf(
-            ServerFunctionManifestDuplicateExport
+            ServerFunctionManifestDuplicateExport,
           );
         });
-      })
+      }),
     );
   });
 
@@ -312,16 +310,18 @@ describe("server function manifest", () => {
 
             expect(reference).toBeDefined();
             expect(reference?._tag).toBe("Import");
-            expect(reference ? isBrowserSafeServerFunctionClientReference(reference) : false).toBe(true);
+            expect(reference ? isBrowserSafeServerFunctionClientReference(reference) : false).toBe(
+              true,
+            );
             expect(JSON.stringify(reference)).not.toContain(".server");
             if (reference?._tag === "Import") {
               expect(reference.module).toBe("/src/project/project.contract.ts");
               expect(reference.moduleKind).toBe("contract");
             }
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -333,19 +333,17 @@ describe("server function manifest", () => {
             name: "Project.delete",
             module: "/src/project/project.server.ts",
             exportName: "deleteProject",
-            clientModule: "/src/project/project.server.ts"
-          }
-        ])
+            clientModule: "/src/project/project.server.ts",
+          },
+        ]),
       ).pipe(
         Effect.tap((exit) =>
           Effect.sync(() =>
-            expect(firstFailure(exit)).toBeInstanceOf(
-              ServerFunctionManifestUnsafeClientReference
-            )
-          )
+            expect(firstFailure(exit)).toBeInstanceOf(ServerFunctionManifestUnsafeClientReference),
+          ),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -356,30 +354,34 @@ describe("server function manifest", () => {
           makeServerFunctionManifest([
             {
               ...GetProject,
-              clientModule: ""
-            }
-          ])
+              clientModule: "",
+            },
+          ]),
         );
         const emptyClientExport = yield* Effect.exit(
           makeServerFunctionManifest([
             {
               ...GetProject,
-              clientExportName: ""
-            }
-          ])
+              clientExportName: "",
+            },
+          ]),
         );
 
         yield* Effect.sync(() => {
-          expect(firstFailure(emptyClientModule)).toBeInstanceOf(ServerFunctionManifestInvalidEntry);
+          expect(firstFailure(emptyClientModule)).toBeInstanceOf(
+            ServerFunctionManifestInvalidEntry,
+          );
           expect(firstFailure(emptyClientModule)).toMatchObject({
-            reason: "MissingModule"
+            reason: "MissingModule",
           });
-          expect(firstFailure(emptyClientExport)).toBeInstanceOf(ServerFunctionManifestInvalidEntry);
+          expect(firstFailure(emptyClientExport)).toBeInstanceOf(
+            ServerFunctionManifestInvalidEntry,
+          );
           expect(firstFailure(emptyClientExport)).toMatchObject({
-            reason: "MissingExportName"
+            reason: "MissingExportName",
           });
         });
-      })
+      }),
     );
   });
 
@@ -392,8 +394,8 @@ describe("server function manifest", () => {
             { ...GetProject, module: "   " },
             { ...GetProject, exportName: "   " },
             { ...GetProject, clientModule: "   " },
-            { ...GetProject, clientExportName: "   " }
-          ].map((definition) => Effect.exit(makeServerFunctionManifest([definition])))
+            { ...GetProject, clientExportName: "   " },
+          ].map((definition) => Effect.exit(makeServerFunctionManifest([definition]))),
         );
 
         yield* Effect.sync(() => {
@@ -401,7 +403,7 @@ describe("server function manifest", () => {
             expect(firstFailure(exit)).toBeInstanceOf(ServerFunctionManifestInvalidEntry);
           }
         });
-      })
+      }),
     );
   });
 });

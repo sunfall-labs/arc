@@ -3,8 +3,10 @@
 Effect UI is an experimental full-stack TypeScript framework built around
 Effect, Solid, React, TSRX, and deterministic app graph diagnostics.
 
-The project is still pre-release. Packages remain private while the framework
-surface, examples, diagnostics, and release gates are being hardened.
+The project is still pre-release. Framework packages are MIT-licensed and
+configured for public alpha publication; the workspace root and copyable
+examples/starters remain private so only the library packages are publishable
+while examples, diagnostics, and release gates are hardened.
 
 ## What This Repo Proves
 
@@ -38,6 +40,10 @@ surface, examples, diagnostics, and release gates are being hardened.
 - [Devtools panel example](examples/devtools-panel/README.md)
 - [Devtools extension example](examples/devtools-extension/README.md)
 - [Project console example](examples/project-console/README.md)
+
+## License
+
+MIT. See [LICENSE](LICENSE).
 
 ## Development
 

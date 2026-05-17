@@ -134,8 +134,8 @@ const ActiveProjectNames = Query.live((query) =>
     .from({ project: Projects })
     .where(({ project }) => project.status === "active")
     .select(({ project }) => project.name)
-    .orderBy(({ project }) => project.name)
-)
+    .orderBy(({ project }) => project.name),
+);
 ```
 
 The concrete `QueryBuilder` constructor is internal to the package source; apps
@@ -161,9 +161,14 @@ Use explicit keyed joins when the relationship is known:
 const ProjectTasks = Query.live((query) =>
   query
     .from({ project: Projects })
-    .join("task", Tasks, ({ project }) => project.id, (task) => task.projectId)
-    .select(({ project, task }) => `${project.name}: ${task.title}`)
-)
+    .join(
+      "task",
+      Tasks,
+      ({ project }) => project.id,
+      (task) => task.projectId,
+    )
+    .select(({ project, task }) => `${project.name}: ${task.title}`),
+);
 ```
 
 Declare Collection Secondary Indexes when a relationship is queried repeatedly.
@@ -178,11 +183,11 @@ const Tasks = Collection.define<Task>({
   getKey: (task) => task.id,
   indexes: {
     byProject: (task) => task.projectId,
-    tags: (task) => task.tags
-  }
-})
+    tags: (task) => task.tags,
+  },
+});
 
-const atlasTasks = Tasks.index("byProject", "atlas")
+const atlasTasks = Tasks.index("byProject", "atlas");
 ```
 
 Indexed joins use the declared index buckets instead of scanning the right-hand
@@ -193,8 +198,8 @@ const ProjectTasks = Query.live((query) =>
   query
     .from({ project: Projects })
     .joinIndexed("task", Tasks, ({ project }) => project.id, "byProject")
-    .select(({ project, task }) => `${project.name}: ${task.title}`)
-)
+    .select(({ project, task }) => `${project.name}: ${task.title}`),
+);
 ```
 
 Multi-value indexes are supported for direct lookup and indexed joins. A row
@@ -209,14 +214,14 @@ Collection Store diagnostics are intentionally counts, not mutable state or
 runtime disposal:
 
 ```ts
-const store = yield* Collection.storeEffect()
-const snapshot = store.diagnostics.snapshot()
-const effectSnapshot = yield* store.diagnostics.snapshotEffect
+const store = yield * Collection.storeEffect();
+const snapshot = store.diagnostics.snapshot();
+const effectSnapshot = yield * store.diagnostics.snapshotEffect;
 
-snapshot.collectionCount
-snapshot.rowCount
-snapshot.pendingMutationCount
-snapshot.failureCount
+snapshot.collectionCount;
+snapshot.rowCount;
+snapshot.pendingMutationCount;
+snapshot.failureCount;
 ```
 
 Query plans can be inspected without reaching into the builder implementation:
@@ -226,10 +231,10 @@ const plan = Query.diagnostics((query) =>
   query
     .from({ project: Projects })
     .joinIndexed("task", Tasks, ({ project }) => project.id, "byProject")
-    .select(({ project, task }) => `${project.name}: ${task.title}`)
-)
+    .select(({ project, task }) => `${project.name}: ${task.title}`),
+);
 
-plan.joins[0]
+plan.joins[0];
 // {
 //   strategy: "collection-index",
 //   index: "byProject",
@@ -253,15 +258,12 @@ Grouped aggregates are also live:
 const ProjectStatusCounts = Query.live((query) =>
   query
     .from({ project: Projects })
-    .groupBy(
-      ({ project }) => ({ status: project.status }),
-      {
-        count: Query.count(),
-        avgProgress: Query.avg(({ project }) => project.progress)
-      }
-    )
-    .orderBy((group) => group.status)
-)
+    .groupBy(({ project }) => ({ status: project.status }), {
+      count: Query.count(),
+      avgProgress: Query.avg(({ project }) => project.progress),
+    })
+    .orderBy((group) => group.status),
+);
 ```
 
 The current adapter compiles source collections, explicit keyed joins,
@@ -295,9 +297,9 @@ const ActiveProjectCards = Collection.liveQuery({
       .select(({ project }) => ({
         id: project.id,
         name: project.name,
-        progress: project.progress
-      }))
-})
+        progress: project.progress,
+      })),
+});
 ```
 
 The Live Query Collection does not own source rows and rejects local mutations.
@@ -337,11 +339,11 @@ const Projects = Collection.define<Project>({
   name: "Projects",
   getKey: (project) => project.id,
   policy: {
-    retry: Schedule.exponential("100 millis").pipe(Schedule.take(3))
+    retry: Schedule.exponential("100 millis").pipe(Schedule.take(3)),
   },
   load: () => ProjectApi.use((api) => api.list()),
-  onUpdate: (updates) => ProjectApi.use((api) => api.updateMany(updates))
-})
+  onUpdate: (updates) => ProjectApi.use((api) => api.updateMany(updates)),
+});
 ```
 
 Optimistic row writes stay visible while the scheduled Effect retries. If all
@@ -356,13 +358,14 @@ Collection Definition Interface while putting host-specific calling conventions
 behind an Adapter:
 
 ```ts
-const Projects = Collection.define(Collection.serverOptions<Project>({
-  id: "Projects",
-  getKey: (project) => project.id,
-  load: listProjects,
-  update: ({ updates }) =>
-    ProjectApi.use((api) => api.renameMany(updates))
-}))
+const Projects = Collection.define(
+  Collection.serverOptions<Project>({
+    id: "Projects",
+    getKey: (project) => project.id,
+    load: listProjects,
+    update: ({ updates }) => ProjectApi.use((api) => api.renameMany(updates)),
+  }),
+);
 ```
 
 The Adapter accepts Effect callbacks and Start `Server.fn` / `Server.client`
@@ -375,19 +378,19 @@ For host integrations that are not server functions, use the generic Collection
 Sync Adapter seam directly:
 
 ```ts
-const Projects = Collection.define(Collection.syncOptions<Project>({
-  name: "Projects",
-  getKey: (project) => project.id,
-  sync: {
-    name: "projects-sync",
-    load: () => Effect.tryPromise(() => remote.listProjects()),
-    refetch: () => Effect.tryPromise(() => remote.listProjects({ force: true })),
-    update: ({ updates }) =>
-      Effect.tryPromise(() =>
-        remote.updateProjects(updates.map((update) => update.value))
-      )
-  }
-}))
+const Projects = Collection.define(
+  Collection.syncOptions<Project>({
+    name: "Projects",
+    getKey: (project) => project.id,
+    sync: {
+      name: "projects-sync",
+      load: () => Effect.tryPromise(() => remote.listProjects()),
+      refetch: () => Effect.tryPromise(() => remote.listProjects({ force: true })),
+      update: ({ updates }) =>
+        Effect.tryPromise(() => remote.updateProjects(updates.map((update) => update.value))),
+    },
+  }),
+);
 ```
 
 `Collection.serverSyncAdapter(...)` exposes the same server-function behavior as
@@ -402,18 +405,20 @@ Effect Resource refs can also be the read side of a synced collection:
 ```ts
 const ProjectRows = Resource.family<void, ReadonlyArray<Project>>({
   name: "Project.rows",
-  load: () => ProjectApi.use((api) => api.list())
-})
+  load: () => ProjectApi.use((api) => api.list()),
+});
 
-const Projects = Collection.define(Collection.syncOptions<Project>({
-  name: "Projects",
-  getKey: (project) => project.id,
-  sync: Collection.resourceSyncAdapter({
-    ref: ProjectRows(undefined),
-    update: ({ updates }) =>
-      ProjectApi.use((api) => api.updateMany(updates.map((update) => update.value)))
-  })
-}))
+const Projects = Collection.define(
+  Collection.syncOptions<Project>({
+    name: "Projects",
+    getKey: (project) => project.id,
+    sync: Collection.resourceSyncAdapter({
+      ref: ProjectRows(undefined),
+      update: ({ updates }) =>
+        ProjectApi.use((api) => api.updateMany(updates.map((update) => update.value))),
+    }),
+  }),
+);
 ```
 
 The Resource remains responsible for Effect cache behavior and tag facts; the
@@ -424,18 +429,20 @@ TanStack Query-shaped clients can provide the read side without adding a
 TanStack Query dependency to `@effect-ui/db`:
 
 ```ts
-const Projects = Collection.define(Collection.syncOptions<Project>({
-  name: "Projects",
-  getKey: (project) => project.id,
-  sync: Collection.querySyncAdapter({
-    name: "tanstack-query:projects",
-    queryKey: ["projects"],
-    queryFn: () => ProjectApi.use((api) => api.list()),
-    queryClient,
-    update: ({ updates }) =>
-      ProjectApi.use((api) => api.updateMany(updates.map((update) => update.value)))
-  })
-}))
+const Projects = Collection.define(
+  Collection.syncOptions<Project>({
+    name: "Projects",
+    getKey: (project) => project.id,
+    sync: Collection.querySyncAdapter({
+      name: "tanstack-query:projects",
+      queryKey: ["projects"],
+      queryFn: () => ProjectApi.use((api) => api.list()),
+      queryClient,
+      update: ({ updates }) =>
+        ProjectApi.use((api) => api.updateMany(updates.map((update) => update.value))),
+    }),
+  }),
+);
 ```
 
 The Adapter calls `queryClient.fetchQuery({ queryKey, queryFn })` for loads and
@@ -449,10 +456,11 @@ Change-feed hosts can apply external row batches without touching private
 Collection Store maps:
 
 ```ts
-yield* Collection.applyChangesEffect(Projects, [
-  { _tag: "Upsert", value: { id: "atlas", name: "Atlas Prime" } },
-  { _tag: "Delete", key: "lumen" }
-])
+yield *
+  Collection.applyChangesEffect(Projects, [
+    { _tag: "Upsert", value: { id: "atlas", name: "Atlas Prime" } },
+    { _tag: "Delete", key: "lumen" },
+  ]);
 ```
 
 The batch flows through normal collection writes, so secondary indexes,
@@ -466,16 +474,17 @@ stays active until the surrounding Effect scope closes, and unsubscribe runs as
 a finalizer:
 
 ```ts
-yield* Collection.subscribeChangesEffect(Projects, {
-  name: "projects-feed",
-  subscribe: ({ emitChanges }) => {
-    const unsubscribe = feed.onChange((changes) => {
-      emitChanges(changes, { origin: "remote", synced: true })
-    })
+yield *
+  Collection.subscribeChangesEffect(Projects, {
+    name: "projects-feed",
+    subscribe: ({ emitChanges }) => {
+      const unsubscribe = feed.onChange((changes) => {
+        emitChanges(changes, { origin: "remote", synced: true });
+      });
 
-    return unsubscribe
-  }
-})
+      return unsubscribe;
+    },
+  });
 ```
 
 The internal Collection Change Feed Runtime owns the scoped dispatcher and
@@ -493,9 +502,9 @@ Collections expose synchronous inspection helpers for UI/runtime-bound code and
 Effect forms for durable SSR, route preload, tests, and server adapters:
 
 ```ts
-const snapshot = yield* Projects.snapshotEffect()
+const snapshot = yield * Projects.snapshotEffect();
 
-yield* Projects.hydrateEffect(snapshot)
+yield * Projects.hydrateEffect(snapshot);
 ```
 
 Use `snapshotEffect(...)` and `Collection.dehydrateEffect(...)` for hydration,
@@ -506,9 +515,9 @@ store; they do not wait behind in-flight durable commit permits.
 Multiple collections can travel as one hydration payload:
 
 ```ts
-const payload = yield* Collection.dehydrateEffect([Projects, Tasks])
+const payload = yield * Collection.dehydrateEffect([Projects, Tasks]);
 
-yield* Collection.hydratePayloadEffect([Projects, Tasks], payload)
+yield * Collection.hydratePayloadEffect([Projects, Tasks], payload);
 ```
 
 Hydration validates every collection snapshot before applying any of them. That
@@ -530,10 +539,10 @@ portable across browser storage, test memory storage, and durable SQL-backed
 adapters:
 
 ```ts
-const storage = Collection.storage(localStorage)
+const storage = Collection.storage(localStorage);
 
-yield* Projects.persistEffect(storage, { key: "projects" })
-yield* Projects.restoreEffect(storage, { key: "projects" })
+yield * Projects.persistEffect(storage, { key: "projects" });
+yield * Projects.restoreEffect(storage, { key: "projects" });
 ```
 
 `Collection.memoryStorage()` is useful for tests and in-memory examples. Both
@@ -548,11 +557,11 @@ share the same Collection Durable Storage Adapter Interface:
 ```ts
 const storage = Collection.sqliteStorage(sqliteDriver, {
   namespace: `workspace:${workspaceId}`,
-  schemaVersion: 1
-})
+  schemaVersion: 1,
+});
 
-yield* Projects.restoreEffect(storage, { key: "projects" })
-yield* Projects.persistEffect(storage, { key: "projects" })
+yield * Projects.restoreEffect(storage, { key: "projects" });
+yield * Projects.persistEffect(storage, { key: "projects" });
 ```
 
 Schema versions are checked at the storage Adapter. A mismatch reads as no
@@ -565,8 +574,8 @@ to `@effect-ui/db`:
 ```ts
 const sqliteDriver = Collection.sqliteStatementDriver({
   execute: (sql, params) => Effect.tryPromise(() => db.execute(sql, params)),
-  select: (sql, params) => Effect.tryPromise(() => db.select(sql, params))
-})
+  select: (sql, params) => Effect.tryPromise(() => db.select(sql, params)),
+});
 ```
 
 The generated table stores `namespace`, `key`, `schema_version`, `value`, and
@@ -595,19 +604,20 @@ Prepared-statement clients can be adapted before they enter the statement
 driver Interface:
 
 ```ts
-const sqliteDatabase = Collection.sqlitePreparedStatementDatabase({
-  prepare: (sql) => {
-    const statement = db.prepare(sql)
-    return {
-      run: (...params) => statement.run(...params),
-      all: (...params) => statement.all(...params)
-    }
-  }
-}, { cache: true })
+const sqliteDatabase = Collection.sqlitePreparedStatementDatabase(
+  {
+    prepare: (sql) => {
+      const statement = db.prepare(sql);
+      return {
+        run: (...params) => statement.run(...params),
+        all: (...params) => statement.all(...params),
+      };
+    },
+  },
+  { cache: true },
+);
 
-const storage = Collection.sqliteStorage(
-  Collection.sqliteStatementDriver(sqliteDatabase)
-)
+const storage = Collection.sqliteStorage(Collection.sqliteStatementDriver(sqliteDatabase));
 ```
 
 For tests, docs, and host adapter development, use the in-memory statement
@@ -615,30 +625,29 @@ database. It supports the SQL generated by `Collection.sqliteStatementDriver`;
 it is not intended to be a general SQLite engine:
 
 ```ts
-const memoryDb = Collection.sqliteMemoryStatementDatabase()
-const storage = Collection.sqliteStorage(
-  Collection.sqliteStatementDriver(memoryDb),
-  {
-    namespace: "test",
-    schemaVersion: 1
-  }
-)
+const memoryDb = Collection.sqliteMemoryStatementDatabase();
+const storage = Collection.sqliteStorage(Collection.sqliteStatementDriver(memoryDb), {
+  namespace: "test",
+  schemaVersion: 1,
+});
 ```
 
 Use a Collection Persistence Policy when a collection should own its durable
 restore/writeback loop:
 
 ```ts
-const Projects = Collection.define(Collection.persistedOptions<Project>({
-  name: "Projects",
-  getKey: (project) => project.id,
-  load: () => ProjectApi.use((api) => api.list()),
-  persistence: {
-    storage,
-    key: "projects",
-    loadAfterRestore: true
-  }
-}))
+const Projects = Collection.define(
+  Collection.persistedOptions<Project>({
+    name: "Projects",
+    getKey: (project) => project.id,
+    load: () => ProjectApi.use((api) => api.list()),
+    persistence: {
+      storage,
+      key: "projects",
+      loadAfterRestore: true,
+    },
+  }),
+);
 ```
 
 Preload restores the persisted snapshot first. By default, a restored snapshot
@@ -654,22 +663,22 @@ commit/rollback, and restored pending flush replay.
 Pending optimistic transactions can be inspected separately:
 
 ```ts
-const pending = yield* Projects.pendingMutationsEffect()
+const pending = yield * Projects.pendingMutationsEffect();
 
 pending.map((entry) => ({
   id: entry.transaction.id,
   mutations: entry.transaction.mutations.length,
-  attempts: entry.attempts
-}))
+  attempts: entry.attempts,
+}));
 ```
 
 Restored or current pending transactions can be flushed back through the
 collection's mutation handlers without re-applying local row changes:
 
 ```ts
-const flushed = yield* Projects.flushPendingMutationsEffect()
+const flushed = yield * Projects.flushPendingMutationsEffect();
 
-flushed.map((transaction) => transaction.id)
+flushed.map((transaction) => transaction.id);
 ```
 
 Flush uses the pending transaction facts already in collection state. On
@@ -687,33 +696,33 @@ Use a Collection Flush Policy when the app needs to coordinate multiple
 collections or skip flushing while offline:
 
 ```ts
-const results = yield* Collection.flushAllPendingMutationsEffect(
-  [Projects, Tasks],
-  { skip: () => Network.use((network) => !network.online) }
-)
+const results =
+  yield *
+  Collection.flushAllPendingMutationsEffect([Projects, Tasks], {
+    skip: () => Network.use((network) => !network.online),
+  });
 
-results.map((result) => [result.collection, result._tag])
+results.map((result) => [result.collection, result._tag]);
 ```
 
 Use a Collection Background Sync Adapter when a host trigger should decide
 whether a pending flush is allowed to run:
 
 ```ts
-const sync = yield* Collection.backgroundSyncPendingMutationsEffect(
-  [Projects, Tasks],
-  {
+const sync =
+  yield *
+  Collection.backgroundSyncPendingMutationsEffect([Projects, Tasks], {
     trigger: "online",
     adapter: {
       name: "browser-online",
       shouldFlush: ({ pending }) =>
-        Network.use((network) =>
-          network.online && pending.some((entry) => entry.transactions.length > 0)
-        )
-    }
-  }
-)
+        Network.use(
+          (network) => network.online && pending.some((entry) => entry.transactions.length > 0),
+        ),
+    },
+  });
 
-sync._tag
+sync._tag;
 // "Idle" | "Deferred" | "Flushed"
 ```
 
@@ -730,8 +739,8 @@ Collection lifecycle events flow through the active Resource Store's collection
 store:
 
 ```ts
-const store = yield* Collection.storeEffect()
-const subscription = yield* store.subscribeEventsEffect()
+const store = yield * Collection.storeEffect();
+const subscription = yield * store.subscribeEventsEffect();
 ```
 
 The public store surface is intentionally narrow: callers can subscribe to
@@ -749,8 +758,8 @@ the request runtime:
 
 ```ts
 const ProjectRoute = route("/projects/:id", {
-  preload: () => Projects.preloadEffect()
-})
+  preload: () => Projects.preloadEffect(),
+});
 ```
 
 Explicit `collections` are still supported as a hydration registry and override.
@@ -772,13 +781,13 @@ hydration payload:
 export const handleRequest = createRequestHandler(app, {
   collections: [Projects, Tasks],
   render: ({ collectionPreload, legacyHydrationScript }) => {
-    collectionPreload.routeTouchedCollections
-    collectionPreload.routeDeclaredCollections
-    collectionPreload.registeredCollections
-    collectionPreload.dehydratedCollections
-    return `<html><body><div id="root"></div>${legacyHydrationScript}</body></html>`
-  }
-})
+    collectionPreload.routeTouchedCollections;
+    collectionPreload.routeDeclaredCollections;
+    collectionPreload.registeredCollections;
+    collectionPreload.dehydratedCollections;
+    return `<html><body><div id="root"></div>${legacyHydrationScript}</body></html>`;
+  },
+});
 ```
 
 The browser entrypoint hydrates both resources and collections from the same
@@ -786,11 +795,13 @@ script. Prefer the Effect form and run it through the browser Runtime Spine so
 hydration lands in the same runtime that the UI will use:
 
 ```ts
-const runtime = createEffectRuntime(AppLive)
+const runtime = createEffectRuntime(AppLive);
 
-runtime.runSync(hydrateFromDocumentEffect(document, "__EFFECT_UI_HYDRATION__", {
-  collections: [Projects, Tasks]
-}))
+runtime.runSync(
+  hydrateFromDocumentEffect(document, "__EFFECT_UI_HYDRATION__", {
+    collections: [Projects, Tasks],
+  }),
+);
 ```
 
 Minimal browser entrypoints can use the synchronous host facade

@@ -14,7 +14,7 @@ export interface StartHostPromiseRunnerOptions<RuntimeError = never> {
 export interface StartForkRuntime<RuntimeError = never> {
   readonly runFork: <A, E, R>(
     effect: Effect.Effect<A, E, R>,
-    options?: Effect.RunOptions
+    options?: Effect.RunOptions,
   ) => Fiber.Fiber<A, E | RuntimeError>;
 }
 
@@ -27,31 +27,28 @@ export interface StartHostForkRunnerOptions<RuntimeError = never> {
 }
 
 const hostPromiseRuntime = <RuntimeError>(
-  runtime: StartHostPromiseRunnerOptions<RuntimeError>["runtime"] | undefined
+  runtime: StartHostPromiseRunnerOptions<RuntimeError>["runtime"] | undefined,
 ): AnyEffectUiRuntime<RuntimeError> =>
   (runtime ?? defaultRuntime) as AnyEffectUiRuntime<RuntimeError>;
 
 const hostForkRuntime = <RuntimeError>(
-  runtime: StartHostForkRunnerOptions<RuntimeError>["runtime"] | undefined
+  runtime: StartHostForkRunnerOptions<RuntimeError>["runtime"] | undefined,
 ): StartForkRuntime<RuntimeError> =>
   runtime ?? (defaultRuntime as unknown as StartForkRuntime<RuntimeError>);
 
 /** Runs a host facade Effect to the platform Promise required by the host. */
 export const runStartHostPromise = <A, E, R, RuntimeError = never>(
   effect: Effect.Effect<A, E, R>,
-  options: StartHostPromiseRunnerOptions<RuntimeError> = {}
+  options: StartHostPromiseRunnerOptions<RuntimeError> = {},
 ): Promise<A> =>
-  Effect.runPromise(
-    hostPromiseRuntime(options.runtime).provide(effect),
-    options.runOptions
-  );
+  Effect.runPromise(hostPromiseRuntime(options.runtime).provide(effect), options.runOptions);
 
 /** Forks a scoped host facade Effect from callback-shaped hosts such as Node and Vite. */
 export const forkStartHostEffect = <A, E, R, RuntimeError = never>(
   effect: Effect.Effect<A, E, R>,
-  options: StartHostForkRunnerOptions<RuntimeError> = {}
+  options: StartHostForkRunnerOptions<RuntimeError> = {},
 ): Fiber.Fiber<A, E | RuntimeError> =>
   hostForkRuntime(options.runtime).runFork(
     Effect.scoped(effect),
-    options.runOptions
+    options.runOptions,
   ) as Fiber.Fiber<A, E | RuntimeError>;

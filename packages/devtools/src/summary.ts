@@ -1,29 +1,17 @@
 import { Effect } from "effect";
-import {
-  describeDevtoolsCausalGraph,
-  describeDevtoolsCausalGraphEffect,
-  makeDevtoolsCausalGraph
-} from "./causal-graph.js";
+import { makeDevtoolsCausalGraph } from "./causal-graph.js";
 import {
   appGraphCollectionDefinitions,
   appGraphUnknownRoutePreloadCollections,
-  graphSummary
+  graphSummary,
 } from "./summary-app-graph.js";
-import {
-  normalizeDevtoolsSummaryInput
-} from "./summary-facts.js";
-import type {
-  DevtoolsSummary,
-  DevtoolsSummaryInput
-} from "./devtools-contract.js";
+import { normalizeDevtoolsSummaryInput } from "./summary-facts.js";
+import type { DevtoolsSummary, DevtoolsSummaryInput } from "./devtools-contract.js";
 
-export {
-  describeDevtoolsCausalGraph,
-  describeDevtoolsCausalGraphEffect
-} from "./causal-graph.js";
+export { describeDevtoolsCausalGraph, describeDevtoolsCausalGraphEffect } from "./causal-graph.js";
 
 const stateCounts = (
-  entries: Iterable<{ readonly state: string }>
+  entries: Iterable<{ readonly state: string }>,
 ): ReadonlyArray<{ readonly state: string; readonly count: number }> => {
   const counts = new Map<string, number>();
   for (const entry of entries) {
@@ -36,9 +24,7 @@ const stateCounts = (
 };
 
 /** Projects snapshots, app graph facts, traces, and events into a stable Devtools summary. */
-export const describeDevtoolsSummary = (
-  input: DevtoolsSummaryInput = {}
-): DevtoolsSummary => {
+export const describeDevtoolsSummary = (input: DevtoolsSummaryInput = {}): DevtoolsSummary => {
   const normalized = normalizeDevtoolsSummaryInput(input);
   const causalGraph = makeDevtoolsCausalGraph({
     appGraph: normalized.appGraph,
@@ -48,7 +34,7 @@ export const describeDevtoolsSummary = (
     requestTraces: normalized.requestTraces,
     requestTraceSummaries: normalized.requestTraceSummaries,
     resources: normalized.resources,
-    runtimeEvents: normalized.runtimeEvents
+    runtimeEvents: normalized.runtimeEvents,
   });
 
   return {
@@ -59,7 +45,9 @@ export const describeDevtoolsSummary = (
       actionCount: normalized.appGraph?.actionCount ?? 0,
       resourceFamilyCount: normalized.appGraph?.resourceFamilies.length ?? 0,
       resourceTagCount: normalized.appGraph?.resourceTags.length ?? 0,
-      collectionDefinitionCount: normalized.appGraph ? appGraphCollectionDefinitions(normalized.appGraph).length : 0,
+      collectionDefinitionCount: normalized.appGraph
+        ? appGraphCollectionDefinitions(normalized.appGraph).length
+        : 0,
       runtimeResourceCount: normalized.snapshot.resources.length,
       runtimeActionCount: normalized.snapshot.actions.length,
       invalidationPlanCount: normalized.invalidations.length,
@@ -68,11 +56,15 @@ export const describeDevtoolsSummary = (
       runtimeEventCount: normalized.runtimeEvents.length,
       missingSchemaCount: normalized.appGraph?.missingSchemas.length ?? 0,
       unknownActionBehaviorCount: normalized.appGraph?.unknownActionBehavior.length ?? 0,
-      unknownRoutePreloadResourcesCount: normalized.appGraph?.unknownRoutePreloadResources.length ?? 0,
-      unknownRoutePreloadCollectionsCount: normalized.appGraph ? appGraphUnknownRoutePreloadCollections(normalized.appGraph).length : 0,
-      notFoundRoutePlanCount: normalized.routePlans.filter((plan) => plan._tag === "NotFound").length,
+      unknownRoutePreloadResourcesCount:
+        normalized.appGraph?.unknownRoutePreloadResources.length ?? 0,
+      unknownRoutePreloadCollectionsCount: normalized.appGraph
+        ? appGraphUnknownRoutePreloadCollections(normalized.appGraph).length
+        : 0,
+      notFoundRoutePlanCount: normalized.routePlans.filter((plan) => plan._tag === "NotFound")
+        .length,
       causalNodeCount: causalGraph.nodes.length,
-      causalEdgeCount: causalGraph.edges.length
+      causalEdgeCount: causalGraph.edges.length,
     },
     graph: graphSummary(normalized.appGraph, { preserveDerivedPreloadFacts: true }),
     runtime: {
@@ -80,29 +72,30 @@ export const describeDevtoolsSummary = (
       actions: normalized.snapshot.actions.map((action) => ({
         name: action.name,
         state: action.state,
-        invalidationIndexes: [...(action.invalidationIndexes ?? [])]
+        invalidationIndexes: [...(action.invalidationIndexes ?? [])],
       })),
       events: normalized.runtimeEvents,
       resourceStates: stateCounts(normalized.snapshot.resources),
-      actionStates: stateCounts(normalized.snapshot.actions)
+      actionStates: stateCounts(normalized.snapshot.actions),
     },
     invalidations: {
-      plans: normalized.invalidations
+      plans: normalized.invalidations,
     },
     routes: {
       plans: normalized.routePlans,
-      notFoundHrefs: normalized.routePlans.flatMap((plan) => plan._tag === "NotFound" ? [plan.href] : [])
+      notFoundHrefs: normalized.routePlans.flatMap((plan) =>
+        plan._tag === "NotFound" ? [plan.href] : [],
+      ),
     },
     requests: {
-      traces: normalized.requestTraceSummaries
+      traces: normalized.requestTraceSummaries,
     },
     resources: normalized.resources,
-    causalGraph
+    causalGraph,
   };
 };
 
 /** Effect wrapper for `describeDevtoolsSummary(...)`. */
 export const describeDevtoolsSummaryEffect = (
-  input: DevtoolsSummaryInput = {}
-): Effect.Effect<DevtoolsSummary> =>
-  Effect.sync(() => describeDevtoolsSummary(input));
+  input: DevtoolsSummaryInput = {},
+): Effect.Effect<DevtoolsSummary> => Effect.sync(() => describeDevtoolsSummary(input));

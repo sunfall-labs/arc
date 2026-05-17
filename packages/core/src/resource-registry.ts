@@ -3,7 +3,7 @@ import type {
   AnyResourceFamily,
   ResourceDiagnostics,
   ResourceFamilyDiagnostics,
-  ResourceTagDiagnostics
+  ResourceTagDiagnostics,
 } from "./resource.js";
 import type { MutableResourceStore } from "./resource-store.js";
 
@@ -25,7 +25,9 @@ export interface ResourceDefinitionRegistryOptions {
 }
 
 /** Result of registering one Resource family or tag definition. */
-export interface ResourceDefinitionRegistration<Definition = AnyResourceFamily | ResourceTagDiagnostics> {
+export interface ResourceDefinitionRegistration<
+  Definition = AnyResourceFamily | ResourceTagDiagnostics,
+> {
   readonly kind: ResourceDefinitionRegistryKind;
   readonly name: string;
   readonly definition: Definition;
@@ -66,10 +68,19 @@ export interface ResourceDefinitionHydrationLookupOptions {
  * process-wide definitions, matching existing runtime/request locality rules.
  */
 export interface ResourceDefinitionRegistryAdapter {
-  registerFamily(name: string, definition: AnyResourceFamily): ResourceDefinitionRegistration<AnyResourceFamily>;
-  registerTag(name: string, definition: ResourceTagDiagnostics): ResourceDefinitionRegistration<ResourceTagDiagnostics>;
+  registerFamily(
+    name: string,
+    definition: AnyResourceFamily,
+  ): ResourceDefinitionRegistration<AnyResourceFamily>;
+  registerTag(
+    name: string,
+    definition: ResourceTagDiagnostics,
+  ): ResourceDefinitionRegistration<ResourceTagDiagnostics>;
   definitions(): ResourceDefinitionRegistryDefinitions;
-  lookupHydrationFamily(name: string, options?: ResourceDefinitionHydrationLookupOptions): AnyResourceFamily | undefined;
+  lookupHydrationFamily(
+    name: string,
+    options?: ResourceDefinitionHydrationLookupOptions,
+  ): AnyResourceFamily | undefined;
   diagnostics(): ResourceDefinitionRegistryDiagnostics;
 }
 
@@ -78,9 +89,7 @@ interface ResourceDefinitionRegistryEntry<Definition> {
   readonly sequence: number;
 }
 
-const resourceFamilyDiagnostics = (
-  family: AnyResourceFamily
-): ResourceFamilyDiagnostics => {
+const resourceFamilyDiagnostics = (family: AnyResourceFamily): ResourceFamilyDiagnostics => {
   const policy = family.options.policy;
   return {
     name: family.options.name,
@@ -91,8 +100,8 @@ const resourceFamilyDiagnostics = (
     policy: {
       ...(policy?.staleFor === undefined ? {} : { staleFor: policy.staleFor }),
       ...(policy?.gcFor === undefined ? {} : { gcFor: policy.gcFor }),
-      retry: policy?.retry !== undefined
-    }
+      retry: policy?.retry !== undefined,
+    },
   };
 };
 
@@ -104,7 +113,7 @@ const makeRegistration = <Definition>(
   duplicates: Array<ResourceDefinitionDuplicateDiagnostics>,
   duplicatePolicy: ResourceDefinitionDuplicatePolicy,
   nextSequence: () => number,
-  definition: Definition
+  definition: Definition,
 ): ResourceDefinitionRegistration<Definition> => {
   const existing = entries.get(name);
 
@@ -115,7 +124,7 @@ const makeRegistration = <Definition>(
       definition,
       sequence: existing.sequence,
       duplicate: false,
-      retained: definition
+      retained: definition,
     };
   }
 
@@ -129,7 +138,7 @@ const makeRegistration = <Definition>(
       definition,
       sequence,
       duplicate: false,
-      retained: definition
+      retained: definition,
     };
   }
 
@@ -141,7 +150,7 @@ const makeRegistration = <Definition>(
       name,
       policy: duplicatePolicy,
       retained: sequence,
-      discarded: existing.sequence
+      discarded: existing.sequence,
     });
     return {
       kind,
@@ -149,7 +158,7 @@ const makeRegistration = <Definition>(
       definition,
       sequence,
       duplicate: true,
-      retained: definition
+      retained: definition,
     };
   }
 
@@ -158,7 +167,7 @@ const makeRegistration = <Definition>(
     name,
     policy: duplicatePolicy,
     retained: existing.sequence,
-    discarded: sequence
+    discarded: sequence,
   });
   return {
     kind,
@@ -166,13 +175,13 @@ const makeRegistration = <Definition>(
     definition,
     sequence,
     duplicate: true,
-    retained: existing.definition
+    retained: existing.definition,
   };
 };
 
 /** Creates a mutable Resource Definition Registry Adapter. */
 export const makeResourceDefinitionRegistry = (
-  options: ResourceDefinitionRegistryOptions = {}
+  options: ResourceDefinitionRegistryOptions = {},
 ): ResourceDefinitionRegistryAdapter => {
   const duplicatePolicy = options.duplicates ?? "replace";
   const families = new Map<string, AnyResourceFamily>();
@@ -193,7 +202,7 @@ export const makeResourceDefinitionRegistry = (
         duplicates,
         duplicatePolicy,
         nextSequence,
-        definition
+        definition,
       ),
     registerTag: (name, definition) =>
       makeRegistration(
@@ -204,28 +213,28 @@ export const makeResourceDefinitionRegistry = (
         duplicates,
         duplicatePolicy,
         nextSequence,
-        definition
+        definition,
       ),
     definitions: () => ({
       families,
-      tags
+      tags,
     }),
     lookupHydrationFamily: (name, options) =>
-      options?.store?.families.get(name) as AnyResourceFamily | undefined ??
-      families.get(name),
+      (options?.store?.families.get(name) as AnyResourceFamily | undefined) ?? families.get(name),
     diagnostics: () => ({
-      families: Array.from(families.values(), resourceFamilyDiagnostics)
-        .sort((left, right) => left.name.localeCompare(right.name)),
-      tags: Array.from(tags.values())
-        .sort((left, right) => left.name.localeCompare(right.name)),
+      families: Array.from(families.values(), resourceFamilyDiagnostics).sort((left, right) =>
+        left.name.localeCompare(right.name),
+      ),
+      tags: Array.from(tags.values()).sort((left, right) => left.name.localeCompare(right.name)),
       duplicates: duplicates
         .slice()
-        .sort((left, right) =>
-          left.kind.localeCompare(right.kind) ||
-          left.name.localeCompare(right.name) ||
-          left.discarded - right.discarded
-        )
-    })
+        .sort(
+          (left, right) =>
+            left.kind.localeCompare(right.kind) ||
+            left.name.localeCompare(right.name) ||
+            left.discarded - right.discarded,
+        ),
+    }),
   };
 };
 
@@ -233,17 +242,14 @@ export const makeResourceDefinitionRegistry = (
 export const defaultResourceDefinitionRegistry = makeResourceDefinitionRegistry();
 
 /** Registers a Resource family in the process-wide registry. */
-export const registerResourceDefinition = (
-  name: string,
-  definition: AnyResourceFamily
-): void => {
+export const registerResourceDefinition = (name: string, definition: AnyResourceFamily): void => {
   defaultResourceDefinitionRegistry.registerFamily(name, definition);
 };
 
 /** Registers a Resource tag definition in the process-wide registry. */
 export const registerResourceTagDefinition = (
   name: string,
-  definition: ResourceTagDiagnostics
+  definition: ResourceTagDiagnostics,
 ): void => {
   defaultResourceDefinitionRegistry.registerTag(name, definition);
 };
@@ -259,7 +265,7 @@ export const resourceTagDefinitionRegistry = (): ReadonlyMap<string, ResourceTag
 /** Resolves a Resource hydration family, preferring the active Resource Store. */
 export const lookupResourceHydrationFamily = (
   name: string,
-  store: MutableResourceStore
+  store: MutableResourceStore,
 ): AnyResourceFamily | undefined =>
   defaultResourceDefinitionRegistry.lookupHydrationFamily(name, { store });
 
@@ -268,7 +274,7 @@ export const resourceDiagnostics = (): ResourceDiagnostics => {
   const diagnostics = defaultResourceDefinitionRegistry.diagnostics();
   return {
     families: diagnostics.families,
-    tags: diagnostics.tags
+    tags: diagnostics.tags,
   };
 };
 

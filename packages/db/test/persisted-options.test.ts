@@ -15,28 +15,30 @@ describe("Collection.persistedOptions", () => {
     const second = makeRuntime();
     const storage = Collection.memoryStorage();
     const load = vi.fn(() =>
-      Effect.succeed<ReadonlyArray<Project>>([
-        { id: "remote", name: "Remote", progress: 1 }
-      ])
+      Effect.succeed<ReadonlyArray<Project>>([{ id: "remote", name: "Remote", progress: 1 }]),
     );
-    const Projects = Collection.define(Collection.persistedOptions<Project>({
-      name: "Projects.persisted.preload",
-      getKey: (project) => project.id,
-      load,
-      persistence: {
-        storage,
-        key: "projects-preload"
-      }
-    }));
+    const Projects = Collection.define(
+      Collection.persistedOptions<Project>({
+        name: "Projects.persisted.preload",
+        getKey: (project) => project.id,
+        load,
+        persistence: {
+          storage,
+          key: "projects-preload",
+        },
+      }),
+    );
 
     return Effect.runPromise(
       Effect.gen(function* () {
         yield* Effect.scoped(
-          first.provide(Projects.writeInsertEffect({
-            id: "atlas",
-            name: "Atlas",
-            progress: 72
-          }))
+          first.provide(
+            Projects.writeInsertEffect({
+              id: "atlas",
+              name: "Atlas",
+              progress: 72,
+            }),
+          ),
         );
 
         yield* Effect.sync(() => expect(storage.values.has("projects-preload")).toBe(true));
@@ -45,12 +47,14 @@ describe("Collection.persistedOptions", () => {
 
         yield* Effect.sync(() => {
           expect(load).not.toHaveBeenCalled();
-          expect(runWithRuntime(first, () => Projects.rows().map((project) => project.id))).toEqual(["atlas"]);
-          expect(runWithRuntime(second, () => Projects.rows().map((project) => project.id))).toEqual(["atlas"]);
+          expect(runWithRuntime(first, () => Projects.rows().map((project) => project.id))).toEqual(
+            ["atlas"],
+          );
+          expect(
+            runWithRuntime(second, () => Projects.rows().map((project) => project.id)),
+          ).toEqual(["atlas"]);
         });
-      }).pipe(
-        Effect.ensuring(Effect.andThen(first.disposeEffect, second.disposeEffect))
-      )
+      }).pipe(Effect.ensuring(Effect.andThen(first.disposeEffect, second.disposeEffect))),
     );
   });
 
@@ -58,41 +62,45 @@ describe("Collection.persistedOptions", () => {
     const first = makeRuntime();
     const second = makeRuntime();
     const storage = Collection.memoryStorage();
-    const Projects = Collection.define(Collection.persistedOptions<Project>({
-      name: "Projects.persisted.load-after-restore",
-      getKey: (project) => project.id,
-      load: () =>
-        Effect.succeed<ReadonlyArray<Project>>([
-          { id: "lumen", name: "Lumen", progress: 34 }
-        ]),
-      persistence: {
-        storage,
-        key: "projects-refresh",
-        loadAfterRestore: true
-      }
-    }));
+    const Projects = Collection.define(
+      Collection.persistedOptions<Project>({
+        name: "Projects.persisted.load-after-restore",
+        getKey: (project) => project.id,
+        load: () =>
+          Effect.succeed<ReadonlyArray<Project>>([{ id: "lumen", name: "Lumen", progress: 34 }]),
+        persistence: {
+          storage,
+          key: "projects-refresh",
+          loadAfterRestore: true,
+        },
+      }),
+    );
 
     return Effect.runPromise(
       Effect.gen(function* () {
         yield* Effect.scoped(
-          first.provide(Projects.writeInsertEffect({
-            id: "atlas",
-            name: "Atlas",
-            progress: 72
-          }))
+          first.provide(
+            Projects.writeInsertEffect({
+              id: "atlas",
+              name: "Atlas",
+              progress: 72,
+            }),
+          ),
         );
 
         yield* Effect.scoped(second.provide(Projects.preloadEffect()));
 
         yield* Effect.sync(() => {
-          expect(runWithRuntime(second, () => Projects.rows().map((project) => project.id))).toEqual(["lumen"]);
+          expect(
+            runWithRuntime(second, () => Projects.rows().map((project) => project.id)),
+          ).toEqual(["lumen"]);
 
-          const persisted = JSON.parse(storage.values.get("projects-refresh") ?? "{}") as CollectionSnapshot<Project>;
+          const persisted = JSON.parse(
+            storage.values.get("projects-refresh") ?? "{}",
+          ) as CollectionSnapshot<Project>;
           expect(persisted.rows.map((row) => row.key)).toEqual(["lumen"]);
         });
-      }).pipe(
-        Effect.ensuring(Effect.andThen(first.disposeEffect, second.disposeEffect))
-      )
+      }).pipe(Effect.ensuring(Effect.andThen(first.disposeEffect, second.disposeEffect))),
     );
   });
 
@@ -100,18 +108,18 @@ describe("Collection.persistedOptions", () => {
     const runtime = makeRuntime();
     const release = Effect.runSync(Deferred.make<void>());
     const storage = Collection.memoryStorage();
-    const Projects = Collection.define(Collection.persistedOptions<Project, string, never>({
-      name: "Projects.persisted.optimistic",
-      getKey: (project) => project.id,
-      initialData: [
-        { id: "atlas", name: "Atlas", progress: 72 }
-      ],
-      onUpdate: () => Deferred.await(release),
-      persistence: {
-        storage,
-        key: "projects-optimistic"
-      }
-    }));
+    const Projects = Collection.define(
+      Collection.persistedOptions<Project, string, never>({
+        name: "Projects.persisted.optimistic",
+        getKey: (project) => project.id,
+        initialData: [{ id: "atlas", name: "Atlas", progress: 72 }],
+        onUpdate: () => Deferred.await(release),
+        persistence: {
+          storage,
+          key: "projects-optimistic",
+        },
+      }),
+    );
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -119,22 +127,24 @@ describe("Collection.persistedOptions", () => {
         yield* Effect.sleep("10 millis");
 
         yield* Effect.sync(() => {
-          const pendingSnapshot = JSON.parse(storage.values.get("projects-optimistic") ?? "{}") as CollectionSnapshot<Project>;
+          const pendingSnapshot = JSON.parse(
+            storage.values.get("projects-optimistic") ?? "{}",
+          ) as CollectionSnapshot<Project>;
           expect(pendingSnapshot.rows).toMatchObject([
             {
               key: "atlas",
               value: { id: "atlas", name: "Atlas", progress: 80 },
               synced: false,
-              origin: "local"
-            }
+              origin: "local",
+            },
           ]);
           expect(pendingSnapshot.pendingMutations).toMatchObject([
             {
               transaction: {
                 collection: "Projects.persisted.optimistic",
-                mutations: [{ _tag: "Update", key: "atlas", changes: { progress: 80 } }]
-              }
-            }
+                mutations: [{ _tag: "Update", key: "atlas", changes: { progress: 80 } }],
+              },
+            },
           ]);
         });
 
@@ -142,14 +152,16 @@ describe("Collection.persistedOptions", () => {
         yield* Fiber.join(update);
 
         yield* Effect.sync(() => {
-          const committedSnapshot = JSON.parse(storage.values.get("projects-optimistic") ?? "{}") as CollectionSnapshot<Project>;
+          const committedSnapshot = JSON.parse(
+            storage.values.get("projects-optimistic") ?? "{}",
+          ) as CollectionSnapshot<Project>;
           expect(committedSnapshot.rows).toMatchObject([
             {
               key: "atlas",
               value: { id: "atlas", name: "Atlas", progress: 80 },
               synced: true,
-              origin: "local"
-            }
+              origin: "local",
+            },
           ]);
           expect(committedSnapshot.pendingMutations).toEqual([]);
         });
@@ -157,10 +169,10 @@ describe("Collection.persistedOptions", () => {
         Effect.ensuring(
           Deferred.succeed(release, undefined).pipe(
             Effect.ignore,
-            Effect.andThen(runtime.disposeEffect)
-          )
-        )
-      )
+            Effect.andThen(runtime.disposeEffect),
+          ),
+        ),
+      ),
     );
   });
 });

@@ -385,7 +385,7 @@ static extraction guardrails.
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
 - `pnpm --filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/start
-  typecheck`, `pnpm typecheck:types`, and
+typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/core/test/server.test.ts packages/core/test/route-server.test.ts packages/start/test/rpc.test.ts packages/start/test/start.test.ts -t "server function|Server|RPC|browser runtimes call server functions"`
   passed after tightening `ServerClient` requirement typing and centralizing
   server schema decode casts: 4 files, 20 selected tests.
@@ -436,7 +436,7 @@ static extraction guardrails.
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
 - `pnpm --filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/start
-  typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`,
+typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`,
   and
   `pnpm exec vitest run packages/core/test/server.test.ts packages/core/test/form.test.ts packages/core/test/runtime.test.ts packages/core/test/route-server.test.ts packages/start/test/start.test.ts packages/start/test/rpc.test.ts packages/start/test/adapters.test.ts packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
   passed after the schema, EffectInput, Start preload/adapter, and DB query

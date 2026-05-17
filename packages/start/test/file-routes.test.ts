@@ -11,7 +11,7 @@ import {
   generateFileRouteManifest,
   generateFileRouteManifestArtifact,
   generateValidatedFileRouteManifestArtifactEffect,
-  serializeFileRouteManifest
+  serializeFileRouteManifest,
 } from "../src/index.js";
 import { FileRouteManifestDuplicateRouteId } from "../src/file-routes.js";
 
@@ -26,7 +26,7 @@ describe("file route manifest generation", () => {
       filePath: "src/routes/index.tsx",
       routePath: "/",
       segments: [],
-      params: []
+      params: [],
     });
   });
 
@@ -37,9 +37,9 @@ describe("file route manifest generation", () => {
       segments: [
         {
           _tag: "Static",
-          value: "projects"
-        }
-      ]
+          value: "projects",
+        },
+      ],
     });
   });
 
@@ -52,20 +52,20 @@ describe("file route manifest generation", () => {
       segments: [
         {
           _tag: "Static",
-          value: "projects"
+          value: "projects",
         },
         {
           _tag: "Dynamic",
           name: "id",
-          optional: false
-        }
+          optional: false,
+        },
       ],
       params: [
         {
           name: "id",
-          optional: false
-        }
-      ]
+          optional: false,
+        },
+      ],
     });
   });
 
@@ -76,9 +76,9 @@ describe("file route manifest generation", () => {
       params: [
         {
           name: "id",
-          optional: true
-        }
-      ]
+          optional: true,
+        },
+      ],
     });
   });
 
@@ -88,9 +88,11 @@ describe("file route manifest generation", () => {
   });
 
   it("ignores route group and pathless layout directory segments", () => {
-    expect(filePathToRouteManifestEntry("src/routes/(app)/_shell/projects/$id.tsx", options)).toMatchObject({
+    expect(
+      filePathToRouteManifestEntry("src/routes/(app)/_shell/projects/$id.tsx", options),
+    ).toMatchObject({
       id: "(app)/_shell/projects/$id",
-      routePath: "/projects/:id"
+      routePath: "/projects/:id",
     });
   });
 
@@ -101,10 +103,10 @@ describe("file route manifest generation", () => {
           "src/routes/layout.tsx",
           "src/routes/_layout.tsx",
           "src/routes/+layout.tsx",
-          "src/routes/projects/_layout.tsx"
+          "src/routes/projects/_layout.tsx",
         ],
-        options
-      )
+        options,
+      ),
     ).toEqual([]);
   });
 
@@ -114,17 +116,17 @@ describe("file route manifest generation", () => {
       kind: "Layout",
       exportName: "Layout",
       routeId: "route_projects",
-      routePath: "/projects"
+      routePath: "/projects",
     });
     expect(filePathToFileRouteModule("src/routes/projects/error.tsx", options)).toMatchObject({
       kind: "ErrorBoundary",
       exportName: "ErrorBoundary",
-      routePath: "/projects"
+      routePath: "/projects",
     });
     expect(filePathToFileRouteModule("src/routes/projects/metadata.ts", options)).toMatchObject({
       kind: "Metadata",
       exportName: "Metadata",
-      routePath: "/projects"
+      routePath: "/projects",
     });
     expect(generateFileRouteManifest(["src/routes/projects/error.tsx"], options)).toEqual([]);
   });
@@ -137,68 +139,58 @@ describe("file route manifest generation", () => {
           "src/routes/projects/new.tsx",
           "src/routes/projects/index.tsx",
           "src/routes/(app)/index.tsx",
-          "src/routes/about.tsx"
+          "src/routes/about.tsx",
         ],
-        options
-      ).map((route) => route.routePath)
+        options,
+      ).map((route) => route.routePath),
     ).toEqual(["/", "/about", "/projects", "/projects/new", "/projects/:id"]);
   });
 
   it("creates a deterministic route manifest artifact", () => {
     const ordered = generateFileRouteManifestArtifact(
-      [
-        "src/routes/projects/$id.tsx",
-        "src/routes/index.tsx",
-        "src/routes/projects/new.tsx"
-      ],
-      options
+      ["src/routes/projects/$id.tsx", "src/routes/index.tsx", "src/routes/projects/new.tsx"],
+      options,
     );
     const reversed = generateFileRouteManifestArtifact(
-      [
-        "src/routes/projects/new.tsx",
-        "src/routes/index.tsx",
-        "src/routes/projects/$id.tsx"
-      ],
-      options
+      ["src/routes/projects/new.tsx", "src/routes/index.tsx", "src/routes/projects/$id.tsx"],
+      options,
     );
 
     expect(serializeFileRouteManifest(ordered)).toBe(serializeFileRouteManifest(reversed));
-    expect(
-      ordered
-    ).toMatchObject({
+    expect(ordered).toMatchObject({
       version: 1,
       routeDirectory: "src/routes",
       entries: [
         {
           routeId: "route_root",
           moduleId: "src/routes/index.tsx",
-          routePath: "/"
+          routePath: "/",
         },
         {
           routeId: "route_projects_new",
           moduleId: "src/routes/projects/new.tsx",
-          routePath: "/projects/new"
+          routePath: "/projects/new",
         },
         {
           routeId: "route_projects_$id",
           moduleId: "src/routes/projects/$id.tsx",
-          routePath: "/projects/:id"
-        }
+          routePath: "/projects/:id",
+        },
       ],
       modules: [
         {
           kind: "Route",
-          routePath: "/"
+          routePath: "/",
         },
         {
           kind: "Route",
-          routePath: "/projects/new"
+          routePath: "/projects/new",
         },
         {
           kind: "Route",
-          routePath: "/projects/:id"
-        }
-      ]
+          routePath: "/projects/:id",
+        },
+      ],
     });
   });
 
@@ -215,15 +207,17 @@ describe("file route manifest generation", () => {
     expect(manifest.entries).toEqual([
       expect.objectContaining({
         routePath: "/",
-        moduleId: "src/routes/index.tsx"
-      })
+        moduleId: "src/routes/index.tsx",
+      }),
     ]);
-    expect(manifest.modules).toEqual(expect.arrayContaining([
-      expect.objectContaining({ kind: "Route", moduleId: "src/routes/index.tsx" }),
-      expect.objectContaining({ kind: "Layout", moduleId: "src/routes/layout.tsx" }),
-      expect.objectContaining({ kind: "ErrorBoundary", moduleId: "src/routes/error.tsx" }),
-      expect.objectContaining({ kind: "Metadata", moduleId: "src/routes/metadata.ts" })
-    ]));
+    expect(manifest.modules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "Route", moduleId: "src/routes/index.tsx" }),
+        expect.objectContaining({ kind: "Layout", moduleId: "src/routes/layout.tsx" }),
+        expect.objectContaining({ kind: "ErrorBoundary", moduleId: "src/routes/error.tsx" }),
+        expect.objectContaining({ kind: "Metadata", moduleId: "src/routes/metadata.ts" }),
+      ]),
+    );
   });
 
   it("describes parent routes and scoped support modules", () => {
@@ -237,9 +231,9 @@ describe("file route manifest generation", () => {
         "src/routes/projects/error.tsx",
         "src/routes/projects/metadata.ts",
         "src/routes/projects/index.tsx",
-        "src/routes/projects/$id.tsx"
+        "src/routes/projects/$id.tsx",
       ],
-      options
+      options,
     );
 
     expect(describeFileRouteManifest(manifest)).toEqual(
@@ -251,18 +245,18 @@ describe("file route manifest generation", () => {
           parentRoutePath: "/projects",
           layouts: [
             expect.objectContaining({ kind: "Layout", routePath: "/" }),
-            expect.objectContaining({ kind: "Layout", routePath: "/projects" })
+            expect.objectContaining({ kind: "Layout", routePath: "/projects" }),
           ],
           errorBoundary: expect.objectContaining({
             kind: "ErrorBoundary",
-            routePath: "/projects"
+            routePath: "/projects",
           }),
           metadataModules: [
             expect.objectContaining({ kind: "Metadata", routePath: "/" }),
-            expect.objectContaining({ kind: "Metadata", routePath: "/projects" })
-          ]
-        })
-      ])
+            expect.objectContaining({ kind: "Metadata", routePath: "/projects" }),
+          ],
+        }),
+      ]),
     );
   });
 
@@ -275,26 +269,18 @@ describe("file route manifest generation", () => {
         "src/routes/(admin)/dashboard.tsx",
         "src/routes/(marketing)/about.tsx",
         "src/routes/_auth/_layout.tsx",
-        "src/routes/_auth/settings.tsx"
+        "src/routes/_auth/settings.tsx",
       ],
-      options
+      options,
     );
     const descriptions = describeFileRouteManifest(manifest);
     const dashboard = descriptions.find((entry) => entry.routePath === "/dashboard");
     const about = descriptions.find((entry) => entry.routePath === "/about");
     const settings = descriptions.find((entry) => entry.routePath === "/settings");
 
-    expect(dashboard?.layouts.map((layout) => layout.id)).toEqual([
-      "layout",
-      "(admin)/_layout"
-    ]);
-    expect(about?.layouts.map((layout) => layout.id)).toEqual([
-      "layout"
-    ]);
-    expect(settings?.layouts.map((layout) => layout.id)).toEqual([
-      "layout",
-      "_auth/_layout"
-    ]);
+    expect(dashboard?.layouts.map((layout) => layout.id)).toEqual(["layout", "(admin)/_layout"]);
+    expect(about?.layouts.map((layout) => layout.id)).toEqual(["layout"]);
+    expect(settings?.layouts.map((layout) => layout.id)).toEqual(["layout", "_auth/_layout"]);
   });
 
   it("rejects duplicate support modules for the same route scope", () => {
@@ -304,16 +290,18 @@ describe("file route manifest generation", () => {
           [
             "src/routes/index.tsx",
             "src/routes/projects/layout.tsx",
-            "src/routes/projects/_layout.tsx"
+            "src/routes/projects/_layout.tsx",
           ],
-          options
-        )
+          options,
+        ),
       ).pipe(
         Effect.tap((duplicate) =>
-          Effect.sync(() => expect(firstFailure(duplicate)).toBeInstanceOf(FileRouteManifestDuplicateModuleRole))
+          Effect.sync(() =>
+            expect(firstFailure(duplicate)).toBeInstanceOf(FileRouteManifestDuplicateModuleRole),
+          ),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -324,20 +312,21 @@ describe("file route manifest generation", () => {
           "src/routes/(admin)/_layout.tsx",
           "src/routes/(admin)/dashboard.tsx",
           "src/routes/(marketing)/_layout.tsx",
-          "src/routes/(marketing)/about.tsx"
+          "src/routes/(marketing)/about.tsx",
         ],
-        options
+        options,
       ).pipe(
         Effect.tap((manifest) =>
           Effect.sync(() => {
-            expect(manifest.modules.filter((module) => module.kind === "Layout").map((module) => module.id)).toEqual([
-              "(admin)/_layout",
-              "(marketing)/_layout"
-            ]);
-          })
+            expect(
+              manifest.modules
+                .filter((module) => module.kind === "Layout")
+                .map((module) => module.id),
+            ).toEqual(["(admin)/_layout", "(marketing)/_layout"]);
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -345,12 +334,9 @@ describe("file route manifest generation", () => {
     return Effect.runPromise(
       Effect.exit(
         generateValidatedFileRouteManifestArtifactEffect(
-          [
-            "src/routes/projects/foo-bar.tsx",
-            "src/routes/projects/foo_bar.tsx"
-          ],
-          options
-        )
+          ["src/routes/projects/foo-bar.tsx", "src/routes/projects/foo_bar.tsx"],
+          options,
+        ),
       ).pipe(
         Effect.tap((duplicate) =>
           Effect.sync(() => {
@@ -358,23 +344,19 @@ describe("file route manifest generation", () => {
             expect(failure).toBeInstanceOf(FileRouteManifestDuplicateRouteId);
             expect(failure).toMatchObject({
               _tag: "FileRouteManifestDuplicateRouteId",
-              routeId: "route_projects_foo_bar"
+              routeId: "route_projects_foo_bar",
             });
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
   it("round-trips a branded route manifest artifact", () => {
     const manifest = generateFileRouteManifestArtifact(
-      [
-        "src/routes/projects/_layout.tsx",
-        "src/routes/projects/$id.tsx",
-        "src/routes/index.tsx"
-      ],
-      options
+      ["src/routes/projects/_layout.tsx", "src/routes/projects/$id.tsx", "src/routes/index.tsx"],
+      options,
     );
 
     return Effect.runPromise(
@@ -385,20 +367,20 @@ describe("file route manifest generation", () => {
             expect(roundTrip.modules).toEqual(
               expect.arrayContaining([
                 expect.objectContaining({ kind: "Layout", routePath: "/projects" }),
-                expect.objectContaining({ kind: "Route", routePath: "/projects/:id" })
-              ])
+                expect.objectContaining({ kind: "Route", routePath: "/projects/:id" }),
+              ]),
             );
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
   it("rejects serialized manifests whose route entries and modules disagree", () => {
     const manifest = generateFileRouteManifestArtifact(
       ["src/routes/projects/_layout.tsx", "src/routes/projects/$id.tsx"],
-      options
+      options,
     );
     const missingRouteModule = JSON.parse(serializeFileRouteManifest(manifest)) as {
       modules: Array<{ kind?: string }>;
@@ -410,49 +392,48 @@ describe("file route manifest generation", () => {
       modules: Array<{ kind?: string }>;
     };
 
-    missingRouteModule.modules = missingRouteModule.modules.filter((module) => module.kind !== "Route");
+    missingRouteModule.modules = missingRouteModule.modules.filter(
+      (module) => module.kind !== "Route",
+    );
     orphanRouteModule.modules.find((module) => module.kind === "Route")!.moduleId =
       "src/routes/projects/orphan.tsx";
     duplicateRouteModule.modules.push(
-      duplicateRouteModule.modules.find((module) => module.kind === "Route")!
+      duplicateRouteModule.modules.find((module) => module.kind === "Route")!,
     );
 
     return Effect.runPromise(
       Effect.gen(function* () {
         const missing = yield* Effect.exit(
-          deserializeFileRouteManifest(JSON.stringify(missingRouteModule))
+          deserializeFileRouteManifest(JSON.stringify(missingRouteModule)),
         );
         const orphan = yield* Effect.exit(
-          deserializeFileRouteManifest(JSON.stringify(orphanRouteModule))
+          deserializeFileRouteManifest(JSON.stringify(orphanRouteModule)),
         );
         const duplicate = yield* Effect.exit(
-          deserializeFileRouteManifest(JSON.stringify(duplicateRouteModule))
+          deserializeFileRouteManifest(JSON.stringify(duplicateRouteModule)),
         );
 
         yield* Effect.sync(() => {
           expect(firstFailure(missing)).toMatchObject({
             _tag: "FileRouteManifestRouteModuleMismatch",
-            reason: "MissingRouteModule"
+            reason: "MissingRouteModule",
           });
           expect(firstFailure(missing)).toBeInstanceOf(FileRouteManifestRouteModuleMismatch);
           expect(firstFailure(orphan)).toMatchObject({
             _tag: "FileRouteManifestRouteModuleMismatch",
-            reason: "OrphanRouteModule"
+            reason: "OrphanRouteModule",
           });
           expect(firstFailure(duplicate)).toMatchObject({
             _tag: "FileRouteManifestRouteModuleMismatch",
-            reason: "DuplicateRouteModule"
+            reason: "DuplicateRouteModule",
           });
         });
-      })
+      }),
     );
   });
 
   it("rejects route manifests whose ids do not match their segments", () => {
-    const manifest = generateFileRouteManifestArtifact(
-      ["src/routes/projects/$id.tsx"],
-      options
-    );
+    const manifest = generateFileRouteManifestArtifact(["src/routes/projects/$id.tsx"], options);
 
     return Effect.runPromise(
       Effect.exit(
@@ -461,24 +442,23 @@ describe("file route manifest generation", () => {
             ...manifest,
             entries: manifest.entries.map((entry) => ({
               ...entry,
-              routeId: "route_projects_wrong"
-            }))
-          })
-        )
+              routeId: "route_projects_wrong",
+            })),
+          }),
+        ),
       ).pipe(
         Effect.tap((invalid) =>
-          Effect.sync(() => expect(firstFailure(invalid)).toBeInstanceOf(FileRouteManifestParseError))
+          Effect.sync(() =>
+            expect(firstFailure(invalid)).toBeInstanceOf(FileRouteManifestParseError),
+          ),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
   it("rejects route manifest modules whose path metadata does not match their segments", () => {
-    const manifest = generateFileRouteManifestArtifact(
-      ["src/routes/projects/$id.tsx"],
-      options
-    );
+    const manifest = generateFileRouteManifestArtifact(["src/routes/projects/$id.tsx"], options);
     const corrupted = JSON.parse(serializeFileRouteManifest(manifest)) as {
       readonly modules: Array<{ routePath: string }>;
     };
@@ -493,10 +473,12 @@ describe("file route manifest generation", () => {
     return Effect.runPromise(
       Effect.exit(deserializeFileRouteManifest(JSON.stringify(corrupted))).pipe(
         Effect.tap((invalid) =>
-          Effect.sync(() => expect(firstFailure(invalid)).toBeInstanceOf(FileRouteManifestParseError))
+          Effect.sync(() =>
+            expect(firstFailure(invalid)).toBeInstanceOf(FileRouteManifestParseError),
+          ),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 });

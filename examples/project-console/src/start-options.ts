@@ -1,14 +1,11 @@
-import type {
-  ActionManifestSource,
-  ServerFunctionManifestSource
-} from "@effect-ui/start";
+import type { ActionManifestSource, ServerFunctionManifestSource } from "@effect-ui/start";
 import { SubmitProjectName } from "./domain.js";
 import {
   advanceProject,
   getProject,
   listProjects,
   renameProject,
-  submitProjectName
+  submitProjectName,
 } from "./domain.server.js";
 import { RenameProjectFromCollection } from "./project-collections.js";
 
@@ -18,36 +15,36 @@ export const projectConsoleServerFunctionSources = [
     module: "/src/domain.server.ts",
     exportName: "advanceProject",
     clientModule: "/src/domain.contract.ts",
-    clientExportName: "advanceProject"
+    clientExportName: "advanceProject",
   },
   {
     fn: getProject,
     module: "/src/domain.server.ts",
     exportName: "getProject",
     clientModule: "/src/domain.contract.ts",
-    clientExportName: "getProject"
+    clientExportName: "getProject",
   },
   {
     fn: listProjects,
     module: "/src/domain.server.ts",
     exportName: "listProjects",
     clientModule: "/src/domain.contract.ts",
-    clientExportName: "listProjects"
+    clientExportName: "listProjects",
   },
   {
     fn: submitProjectName,
     module: "/src/domain.server.ts",
     exportName: "submitProjectName",
     clientModule: "/src/domain.contract.ts",
-    clientExportName: "submitProjectName"
+    clientExportName: "submitProjectName",
   },
   {
     fn: renameProject,
     module: "/src/domain.server.ts",
     exportName: "renameProject",
     clientModule: "/src/domain.contract.ts",
-    clientExportName: "renameProject"
-  }
+    clientExportName: "renameProject",
+  },
 ] as const satisfies readonly ServerFunctionManifestSource[];
 
 export const projectConsoleActionSources = [
@@ -56,20 +53,20 @@ export const projectConsoleActionSources = [
     module: "/src/project-collections.ts",
     exportName: "RenameProjectFromCollection",
     clientModule: "/src/project-collections.ts",
-    clientExportName: "RenameProjectFromCollection"
+    clientExportName: "RenameProjectFromCollection",
   },
   {
     action: SubmitProjectName,
     module: "/src/domain.ts",
     exportName: "SubmitProjectName",
     clientModule: "/src/domain.ts",
-    clientExportName: "SubmitProjectName"
-  }
+    clientExportName: "SubmitProjectName",
+  },
 ] as const satisfies readonly ActionManifestSource[];
 
 export const projectConsoleServerRegistry = {
   actions: projectConsoleActionSources.map((source) => source.action),
-  serverFunctions: projectConsoleServerFunctionSources.map((source) => source.fn)
+  serverFunctions: projectConsoleServerFunctionSources.map((source) => source.fn),
 } as const;
 
 export const projectConsoleStartOptions = {
@@ -77,19 +74,19 @@ export const projectConsoleStartOptions = {
   serverFunctionSources: projectConsoleServerFunctionSources,
   actionSources: projectConsoleActionSources,
   fileRouteOptions: {
-    routeDirectory: "src/routes"
+    routeDirectory: "src/routes",
   },
   fileRouteGeneration: {
-    outputFile: "src/routeTree.gen.ts"
+    outputFile: "src/routeTree.gen.ts",
   },
   buildPolicy: {
     diagnostics: {
       routePreloadResources: {
-        requireDeclaredForPreload: true
+        requireDeclaredForPreload: true,
       },
       routePreloadCollections: {
-        requireDeclaredForPreload: true
-      }
-    }
-  }
+        requireDeclaredForPreload: true,
+      },
+    },
+  },
 } as const;

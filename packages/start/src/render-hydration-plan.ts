@@ -6,7 +6,7 @@ import {
   createHydrationScriptEffect,
   createStartHydrationPayload,
   type StartHydrationPayload,
-  type StartHydrationPayloadSerializeError
+  type StartHydrationPayloadSerializeError,
 } from "./hydration.js";
 
 /**
@@ -45,35 +45,33 @@ const emptyResourceHydrationPayload: ResourceHydrationPayload = { resources: [] 
  * same resource pair in both the root script and the stream.
  */
 export const createStartRenderHydrationPlanEffect = (
-  options: CreateStartRenderHydrationPlanOptions
+  options: CreateStartRenderHydrationPlanOptions,
 ): Effect.Effect<StartRenderHydrationPlan, StartHydrationPayloadSerializeError> =>
   Effect.gen(function* () {
     const rootPayload = createStartHydrationPayload(
       emptyResourceHydrationPayload,
-      options.collections
+      options.collections,
     );
     const rootScript = yield* createHydrationScriptEffect(rootPayload);
-    const legacyPayload = createStartHydrationPayload(
-      options.resources,
-      options.collections
-    );
-    const streamedResourceChunks = options.resources.resources.length === 0
-      ? []
-      : [createStartHydrationPayload(options.resources)];
+    const legacyPayload = createStartHydrationPayload(options.resources, options.collections);
+    const streamedResourceChunks =
+      options.resources.resources.length === 0
+        ? []
+        : [createStartHydrationPayload(options.resources)];
     let legacyScript: string | undefined;
 
     return {
       root: {
         payload: rootPayload,
-        script: rootScript
+        script: rootScript,
       },
       legacy: {
         payload: legacyPayload,
         get script() {
           legacyScript ??= createHydrationScript(legacyPayload);
           return legacyScript;
-        }
+        },
       },
-      streamedResourceChunks
+      streamedResourceChunks,
     };
   });

@@ -13,5 +13,5 @@ export {
   Route,
   Signal,
   UiScope,
-  watch
+  watch,
 } from "@effect-ui/core";

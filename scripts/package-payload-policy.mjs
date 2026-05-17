@@ -35,8 +35,7 @@ export const workspaceDistPackagePayloadPolicies = new Map([
 
 export const knownPayloadPolicies = new Set(["dist-package", "source-package"]);
 
-const fail = (message, repair, cause) =>
-  new PackagePayloadPolicyError({ message, repair, cause });
+const fail = (message, repair, cause) => new PackagePayloadPolicyError({ message, repair, cause });
 
 const toPosixPath = (filePath) => filePath.split(sep).join("/");
 
@@ -52,10 +51,7 @@ const fsEffect = (workspaceRoot, description, evaluate) =>
   });
 
 const isNodeNotFoundError = (cause) =>
-  cause &&
-  typeof cause === "object" &&
-  "code" in cause &&
-  cause.code === "ENOENT";
+  cause && typeof cause === "object" && "code" in cause && cause.code === "ENOENT";
 
 const pathExistsEffect = (workspaceRoot, filePath) =>
   Effect.tryPromise({
@@ -76,19 +72,16 @@ const pathExistsEffect = (workspaceRoot, filePath) =>
     ),
   );
 
-export const isNonEmptyString = (value) =>
-  typeof value === "string" && value.trim().length > 0;
+export const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
 
 export const stripSourceExtension = (filePath) =>
-  filePath
-    .replace(/\.d\.ts$/, "")
-    .replace(/\.[cm]?tsx?$/, "");
+  filePath.replace(/\.d\.ts$/, "").replace(/\.[cm]?tsx?$/, "");
 
 export const distPackageSourceStemsFromFiles = (files) =>
   new Set(
     files
       .filter((file) => !file.endsWith(".d.ts") && /\.[cm]?tsx?$/.test(file))
-      .map(stripSourceExtension)
+      .map(stripSourceExtension),
   );
 
 const stripDistArtifactExtension = (filePath) =>
@@ -135,9 +128,9 @@ const declarationArtifactTypeMapOptionalStems = (target) =>
       .map((artifact) =>
         isNonEmptyString(artifact.output) && artifact.output.startsWith("dist/")
           ? distArtifactStem(artifact.output)
-          : undefined
+          : undefined,
       )
-      .filter(Boolean)
+      .filter(Boolean),
   );
 
 const requiredDistArtifactKinds = (target, stem) => {
@@ -164,20 +157,28 @@ export const distPackageArtifactDriftFailures = (target, files, sourceStems) => 
   const extra = [...artifactStems]
     .filter((stem) => !sourceStems.has(stem))
     .sort((left, right) => left.localeCompare(right));
-  const missing = [...sourceStems].flatMap((stem) => {
-    const actualKinds = artifactKindsByStem.get(stem) ?? new Set();
-    return [...requiredDistArtifactKinds(target, stem)]
-      .filter((kind) => !actualKinds.has(kind))
-      .map((kind) => `${stem}.${kind === "types" ? "d.ts" : kind === "types.map" ? "d.ts.map" : kind}`);
-  })
+  const missing = [...sourceStems]
+    .flatMap((stem) => {
+      const actualKinds = artifactKindsByStem.get(stem) ?? new Set();
+      return [...requiredDistArtifactKinds(target, stem)]
+        .filter((kind) => !actualKinds.has(kind))
+        .map(
+          (kind) =>
+            `${stem}.${kind === "types" ? "d.ts" : kind === "types.map" ? "d.ts.map" : kind}`,
+        );
+    })
     .sort((left, right) => left.localeCompare(right));
   const failures = [];
 
   if (extra.length > 0) {
-    failures.push(`${target.label} package dry-run includes stale dist artifacts without matching src files: ${extra.map((stem) => "dist/" + stem).join(", ")}.`);
+    failures.push(
+      `${target.label} package dry-run includes stale dist artifacts without matching src files: ${extra.map((stem) => "dist/" + stem).join(", ")}.`,
+    );
   }
   if (missing.length > 0) {
-    failures.push(`${target.label} package dry-run is missing built JS, declaration, or source-map artifacts for src files: ${missing.map((stem) => "dist/" + stem).join(", ")}.`);
+    failures.push(
+      `${target.label} package dry-run is missing built JS, declaration, or source-map artifacts for src files: ${missing.map((stem) => "dist/" + stem).join(", ")}.`,
+    );
   }
 
   return failures;
@@ -188,55 +189,87 @@ export const declarationArtifactPackFailures = (target, files) => {
   const fileSet = new Set(files);
   for (const artifact of target.declarationArtifacts ?? []) {
     if (!isNonEmptyString(artifact.source) || !isNonEmptyString(artifact.output)) {
-      failures.push(`${target.label} declaration artifact policy must declare non-empty source and output paths.`);
+      failures.push(
+        `${target.label} declaration artifact policy must declare non-empty source and output paths.`,
+      );
       continue;
     }
     if (!fileSet.has(artifact.output)) {
-      failures.push(`${target.label} package dry-run is missing copied declaration artifact ${artifact.output}.`);
+      failures.push(
+        `${target.label} package dry-run is missing copied declaration artifact ${artifact.output}.`,
+      );
     }
     for (const forbidden of artifact.forbidden ?? []) {
       if (!isNonEmptyString(forbidden)) {
-        failures.push(`${target.label} declaration artifact forbidden paths must be non-empty strings.`);
+        failures.push(
+          `${target.label} declaration artifact forbidden paths must be non-empty strings.`,
+        );
       } else if (fileSet.has(forbidden)) {
-        failures.push(`${target.label} package dry-run includes forbidden copied declaration artifact ${forbidden}.`);
+        failures.push(
+          `${target.label} package dry-run includes forbidden copied declaration artifact ${forbidden}.`,
+        );
       }
     }
   }
   return failures;
 };
 
-export const collectDistPackageSourceStemsEffect = ({
-  sourceDir,
-  workspaceRoot,
-}) =>
+export const licensePayloadFailuresEffect = ({ target, files, workspaceRoot, packageJson }) =>
+  Effect.gen(function* () {
+    const failures = [];
+    if (packageJson.license !== "MIT") {
+      failures.push(`${target.label} package manifest must declare MIT license metadata.`);
+    }
+    if (!files.includes("LICENSE")) {
+      failures.push(`${target.label} package dry-run is missing LICENSE.`);
+      return failures;
+    }
+
+    const workspaceLicensePath = join(workspaceRoot, "LICENSE");
+    const packageLicensePath = join(target.directory, "LICENSE");
+    const workspaceLicense = yield* fsEffect(
+      workspaceRoot,
+      `read ${relative(workspaceRoot, workspaceLicensePath)}`,
+      () => readFile(workspaceLicensePath),
+    );
+    const packageLicense = yield* fsEffect(
+      workspaceRoot,
+      `read ${relative(workspaceRoot, packageLicensePath)}`,
+      () => readFile(packageLicensePath),
+    );
+    if (!workspaceLicense.equals(packageLicense)) {
+      failures.push(`${target.label} package LICENSE must match the workspace LICENSE.`);
+    }
+    return failures;
+  });
+
+export const collectDistPackageSourceStemsEffect = ({ sourceDir, workspaceRoot }) =>
   Effect.gen(function* () {
     const files = [];
-    const visit = (directory) => Effect.gen(function* () {
-      const entries = yield* fsEffect(
-        workspaceRoot,
-        `read ${relative(workspaceRoot, directory)}`,
-        () => readdir(directory, { withFileTypes: true }),
-      );
-      for (const entry of entries) {
-        const fullPath = join(directory, entry.name);
-        if (entry.isDirectory()) {
-          yield* visit(fullPath);
-          continue;
+    const visit = (directory) =>
+      Effect.gen(function* () {
+        const entries = yield* fsEffect(
+          workspaceRoot,
+          `read ${relative(workspaceRoot, directory)}`,
+          () => readdir(directory, { withFileTypes: true }),
+        );
+        for (const entry of entries) {
+          const fullPath = join(directory, entry.name);
+          if (entry.isDirectory()) {
+            yield* visit(fullPath);
+            continue;
+          }
+          if (entry.isFile()) {
+            files.push(toPosixPath(relative(sourceDir, fullPath)));
+          }
         }
-        if (entry.isFile()) {
-          files.push(toPosixPath(relative(sourceDir, fullPath)));
-        }
-      }
-    });
+      });
 
     yield* visit(sourceDir);
     return distPackageSourceStemsFromFiles(files);
   });
 
-export const declarationArtifactContentFailuresEffect = ({
-  target,
-  workspaceRoot,
-}) =>
+export const declarationArtifactContentFailuresEffect = ({ target, workspaceRoot }) =>
   Effect.gen(function* () {
     const failures = [];
     for (const artifact of target.declarationArtifacts ?? []) {
@@ -257,7 +290,9 @@ export const declarationArtifactContentFailuresEffect = ({
         () => readFile(outputPath),
       );
       if (!source.equals(output)) {
-        failures.push(`${target.label} copied declaration artifact ${artifact.output} does not match ${artifact.source}.`);
+        failures.push(
+          `${target.label} copied declaration artifact ${artifact.output} does not match ${artifact.source}.`,
+        );
       }
 
       for (const forbidden of artifact.forbidden ?? []) {
@@ -266,7 +301,9 @@ export const declarationArtifactContentFailuresEffect = ({
         }
         const forbiddenPath = join(target.directory, forbidden);
         if (yield* pathExistsEffect(workspaceRoot, forbiddenPath)) {
-          failures.push(`${target.label} copied declaration artifact left forbidden file ${forbidden}.`);
+          failures.push(
+            `${target.label} copied declaration artifact left forbidden file ${forbidden}.`,
+          );
         }
       }
     }
@@ -309,8 +346,15 @@ export const validateDistPackagePayloadEffect = ({
       files,
       payloadLabel,
     });
+    const licensePayloadDrift = yield* licensePayloadFailuresEffect({
+      target,
+      files,
+      workspaceRoot,
+      packageJson,
+    });
 
     return [
+      ...licensePayloadDrift,
       ...distArtifactDrift,
       ...declarationArtifactPackDrift,
       ...declarationArtifactContentDrift,

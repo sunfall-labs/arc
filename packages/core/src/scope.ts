@@ -53,8 +53,8 @@ export class UiScope {
     if (this.disposed) {
       this.runLateFinalizer(
         invokeEffectInput("UiScope.finalizer", finalizer).pipe(
-          Effect.catchCause(() => Effect.void)
-        )
+          Effect.catchCause(() => Effect.void),
+        ),
       );
       return;
     }
@@ -65,40 +65,35 @@ export class UiScope {
   /** Forks an Effect into this scope so it is interrupted on disposal. */
   fork<A, E>(
     effect: Effect.Effect<A, E, Scope.Scope>,
-    options: ForkScopedOptions = {}
+    options: ForkScopedOptions = {},
   ): Fiber.Fiber<A, E> {
     if (this.disposed) {
       throw new UiScopeDisposed({ operation: "fork" });
     }
 
     return Effect.runSync(
-      Effect.forkIn(
-        Scope.provide(effect, this.effectScope),
-        this.effectScope,
-        {
-          startImmediately: options.startImmediately ?? true,
-          uninterruptible: options.uninterruptible
-        }
-      )
+      Effect.forkIn(Scope.provide(effect, this.effectScope), this.effectScope, {
+        startImmediately: options.startImmediately ?? true,
+        uninterruptible: options.uninterruptible,
+      }),
     );
   }
 
   /** Effect-first disposal for integrations that already run inside Effect. */
   captureDisposeEffect(): Effect.Effect<void> {
-    const scope = this;
-
-    if (scope.disposed) {
+    if (this.disposed) {
       return Effect.void;
     }
 
-    scope.disposed = true;
-    const finalizers = scope.finalizers.splice(0).reverse();
+    this.disposed = true;
+    const effectScope = this.effectScope;
+    const finalizers = this.finalizers.splice(0).reverse();
 
     return Effect.gen(function* () {
-      const closeExit = yield* Effect.exit(Scope.close(scope.effectScope, Exit.void));
+      const closeExit = yield* Effect.exit(Scope.close(effectScope, Exit.void));
       for (const finalizer of finalizers) {
         yield* invokeEffectInput("UiScope.finalizer", finalizer).pipe(
-          Effect.catchCause(() => Effect.void)
+          Effect.catchCause(() => Effect.void),
         );
       }
       if (Exit.isFailure(closeExit)) {
@@ -130,7 +125,7 @@ export const makeRuntimeUiScope = <ER>(runtime: AnyEffectUiRuntime<ER>): UiScope
   new UiScope({
     runLateFinalizer: (effect) => {
       void runtime.runFork(effect);
-    }
+    },
   });
 
 /** Runtime-owned UI frame used by framework adapters during one render lifetime. */
@@ -153,7 +148,9 @@ export interface RuntimeUiScopeFrame<ER = unknown> {
 }
 
 /** Creates a runtime-owned UI frame for adapter component or route lifetimes. */
-export const makeRuntimeUiScopeFrame = <ER>(runtime: AnyEffectUiRuntime<ER>): RuntimeUiScopeFrame<ER> => {
+export const makeRuntimeUiScopeFrame = <ER>(
+  runtime: AnyEffectUiRuntime<ER>,
+): RuntimeUiScopeFrame<ER> => {
   const scope = makeRuntimeUiScope(runtime);
   return {
     runtime,
@@ -163,13 +160,13 @@ export const makeRuntimeUiScopeFrame = <ER>(runtime: AnyEffectUiRuntime<ER>): Ru
       runtime.provide(scope.captureDisposeEffect()).pipe(Effect.catchCause(() => Effect.void)),
     disposeEffect: () =>
       Effect.suspend(() => runtime.provide(scope.captureDisposeEffect())).pipe(
-        Effect.catchCause(() => Effect.void)
+        Effect.catchCause(() => Effect.void),
       ),
     dispose: () => {
       void runtime.runFork(
-        runtime.provide(scope.captureDisposeEffect()).pipe(Effect.catchCause(() => Effect.void))
+        runtime.provide(scope.captureDisposeEffect()).pipe(Effect.catchCause(() => Effect.void)),
       );
-    }
+    },
   };
 };
 
@@ -222,7 +219,7 @@ export const onDispose = onScopeDispose;
  */
 export const forkScoped = <A, E>(
   effect: Effect.Effect<A, E, Scope.Scope>,
-  options?: ForkScopedOptions
+  options?: ForkScopedOptions,
 ): Fiber.Fiber<A, E> => {
   const scope = getCurrentScope();
   if (!scope) {

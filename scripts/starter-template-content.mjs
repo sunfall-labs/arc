@@ -40,7 +40,9 @@ export const reactStarterTsConfig = {
   include: ["src", "vite.config.ts"],
 };
 
-export const solidStarterViteConfig = (startOptionsImport) => `import { effectUiStart } from "@effect-ui/start/vite";
+export const solidStarterViteConfig = (
+  startOptionsImport,
+) => `import { effectUiStart } from "@effect-ui/start/vite";
 import { effectUiTsrx } from "@effect-ui/tsrx";
 import { defineConfig } from "vite";
 import { ${startOptionsImport} } from "./src/start-options.js";

@@ -1,4 +1,9 @@
-import { invokeEffectInput, runWithRuntime, type AnyEffectUiRuntime, type EffectInput } from "@effect-ui/core";
+import {
+  invokeEffectInput,
+  runWithRuntime,
+  type AnyEffectUiRuntime,
+  type EffectInput,
+} from "@effect-ui/core";
 import {
   bindCollectionRuntimeEffect,
   collectionStateError,
@@ -6,7 +11,7 @@ import {
   makeCollectionReactivePreloadController,
   sameCollectionReactiveSources,
   subscribeCollectionReactiveSource,
-  type AnyCollection
+  type AnyCollection,
 } from "@effect-ui/db";
 import { useRuntime } from "@effect-ui/solid";
 import { Effect } from "effect";
@@ -46,7 +51,7 @@ export interface SolidDbReactiveBindingOptions<E, R = never, ER = never> {
  * domain-specific accessors.
  */
 export const makeSolidDbReactiveBinding = <E, R = never, ER = never>(
-  options: SolidDbReactiveBindingOptions<E, R, ER>
+  options: SolidDbReactiveBindingOptions<E, R, ER>,
 ): SolidDbReactiveBinding<E, ER> => {
   const runtime = options.runtime ?? useRuntime<ER>();
   const [tick, setTick] = createSignal(0);
@@ -65,12 +70,16 @@ export const makeSolidDbReactiveBinding = <E, R = never, ER = never>(
         Effect.andThen(
           options.onPreloadFailure === undefined
             ? Effect.void
-            : invokeEffectInput("SolidDbReactiveBinding.onPreloadFailure", options.onPreloadFailure, error).pipe(
+            : invokeEffectInput(
+                "SolidDbReactiveBinding.onPreloadFailure",
+                options.onPreloadFailure,
+                error,
+              ).pipe(
                 Effect.catchCause(() => Effect.void),
-                Effect.asVoid
-              )
-        )
-      )
+                Effect.asVoid,
+              ),
+        ),
+      ),
   });
   const startPreload = (): void => {
     preloadController.start(options.preloadEffect, options.preload !== false);
@@ -116,6 +125,6 @@ export const makeSolidDbReactiveBinding = <E, R = never, ER = never>(
       return runWithRuntime(runtime, read);
     },
     bindEffect: (effect) => bindCollectionRuntimeEffect(runtime, effect),
-    refreshSources
+    refreshSources,
   };
 };

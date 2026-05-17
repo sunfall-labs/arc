@@ -13,7 +13,7 @@ import {
   validateManifestEndpointPathEffect,
   validateManifestEntrySet,
   type StartManifestEndpointPathErrorInput,
-  type StartManifestModuleKind
+  type StartManifestModuleKind,
 } from "./manifest-entry-core.js";
 import { defaultStartTransportEndpoints } from "./start-transport-endpoints.js";
 
@@ -129,7 +129,7 @@ export interface ServerFunctionManifest {
 
 /** Validation error for a raw server-function definition with missing identity fields. */
 export class ServerFunctionManifestInvalidEntry extends Data.TaggedError(
-  "ServerFunctionManifestInvalidEntry"
+  "ServerFunctionManifestInvalidEntry",
 )<{
   readonly index: number;
   readonly reason: "MissingName" | "MissingModule" | "MissingExportName";
@@ -138,7 +138,7 @@ export class ServerFunctionManifestInvalidEntry extends Data.TaggedError(
 
 /** Error raised when two server functions use the same public function name. */
 export class ServerFunctionManifestDuplicateName extends Data.TaggedError(
-  "ServerFunctionManifestDuplicateName"
+  "ServerFunctionManifestDuplicateName",
 )<{
   readonly name: string;
   readonly firstModule: string;
@@ -147,7 +147,7 @@ export class ServerFunctionManifestDuplicateName extends Data.TaggedError(
 
 /** Error raised when two server functions point at the same module export. */
 export class ServerFunctionManifestDuplicateExport extends Data.TaggedError(
-  "ServerFunctionManifestDuplicateExport"
+  "ServerFunctionManifestDuplicateExport",
 )<{
   readonly module: string;
   readonly exportName: string;
@@ -157,7 +157,7 @@ export class ServerFunctionManifestDuplicateExport extends Data.TaggedError(
 
 /** Error raised when two server-function names produce the same stable id. */
 export class ServerFunctionManifestDuplicateId extends Data.TaggedError(
-  "ServerFunctionManifestDuplicateId"
+  "ServerFunctionManifestDuplicateId",
 )<{
   readonly id: ServerFunctionId;
   readonly firstName: string;
@@ -166,7 +166,7 @@ export class ServerFunctionManifestDuplicateId extends Data.TaggedError(
 
 /** Error raised when a server function declares a browser import from a server-only module. */
 export class ServerFunctionManifestUnsafeClientReference extends Data.TaggedError(
-  "ServerFunctionManifestUnsafeClientReference"
+  "ServerFunctionManifestUnsafeClientReference",
 )<{
   readonly name: string;
   readonly clientModule: string;
@@ -174,7 +174,7 @@ export class ServerFunctionManifestUnsafeClientReference extends Data.TaggedErro
 
 /** Error raised when the server-function RPC endpoint is not an origin-form path. */
 export class ServerFunctionManifestInvalidEndpointPath extends Data.TaggedError(
-  "ServerFunctionManifestInvalidEndpointPath"
+  "ServerFunctionManifestInvalidEndpointPath",
 )<{
   readonly field: "rpcPath";
   readonly value: unknown;
@@ -184,7 +184,7 @@ export class ServerFunctionManifestInvalidEndpointPath extends Data.TaggedError(
 
 /** Error raised while decoding a serialized server-function manifest artifact. */
 export class ServerFunctionManifestParseError extends Data.TaggedError(
-  "ServerFunctionManifestParseError"
+  "ServerFunctionManifestParseError",
 )<{
   readonly message: string;
   readonly cause?: unknown;
@@ -201,7 +201,7 @@ export type ServerFunctionManifestError =
 
 const compareEntries = (
   left: ServerFunctionManifestEntry,
-  right: ServerFunctionManifestEntry
+  right: ServerFunctionManifestEntry,
 ): number => compareManifestEntries(left, right);
 
 export { normalizeManifestModuleId } from "./manifest-entry-core.js";
@@ -223,27 +223,27 @@ export const stableServerFunctionId = (name: string): ServerFunctionId =>
   Schema.decodeUnknownSync(ServerFunctionId)(stableManifestEntryId("sf", "function", name));
 
 const serverFunctionManifestInvalidEndpointPath = (
-  input: StartManifestEndpointPathErrorInput
+  input: StartManifestEndpointPathErrorInput,
 ): ServerFunctionManifestInvalidEndpointPath =>
   new ServerFunctionManifestInvalidEndpointPath({
     field: "rpcPath",
     value: input.value,
     reason: input.reason,
-    guidance: input.guidance
+    guidance: input.guidance,
   });
 
 const normalizeServerFunctionManifestPathEffect = (
-  rpcPath: string | undefined
+  rpcPath: string | undefined,
 ): Effect.Effect<string, ServerFunctionManifestInvalidEndpointPath> =>
   validateManifestEndpointPathEffect(rpcPath ?? defaultStartTransportEndpoints.rpcPath, {
     field: "rpcPath",
-    invalidPath: serverFunctionManifestInvalidEndpointPath
+    invalidPath: serverFunctionManifestInvalidEndpointPath,
   });
 
 /** Convert a registered ServerFunction plus module metadata into a raw manifest definition. */
 export const serverFunctionManifestDefinition = (
   fn: ServerFunction<any, any, any, any>,
-  source: Omit<ServerFunctionManifestSource, "fn">
+  source: Omit<ServerFunctionManifestSource, "fn">,
 ): ServerFunctionManifestDefinition => {
   const base =
     source.exportName === undefined
@@ -253,7 +253,7 @@ export const serverFunctionManifestDefinition = (
           hasHandler: fn.hasHandler,
           inputSchema: Schema.isSchema(fn.input),
           outputSchema: Schema.isSchema(fn.output),
-          errorSchema: Schema.isSchema(fn.error)
+          errorSchema: Schema.isSchema(fn.error),
         }
       : {
           name: fn.name,
@@ -262,7 +262,7 @@ export const serverFunctionManifestDefinition = (
           hasHandler: fn.hasHandler,
           inputSchema: Schema.isSchema(fn.input),
           outputSchema: Schema.isSchema(fn.output),
-          errorSchema: Schema.isSchema(fn.error)
+          errorSchema: Schema.isSchema(fn.error),
         };
 
   if (source.clientModule === undefined) {
@@ -272,24 +272,24 @@ export const serverFunctionManifestDefinition = (
   return source.clientExportName === undefined
     ? {
         ...base,
-        clientModule: source.clientModule
+        clientModule: source.clientModule,
       }
     : {
         ...base,
         clientModule: source.clientModule,
-        clientExportName: source.clientExportName
+        clientExportName: source.clientExportName,
       };
 };
 
 const sortManifestEntries = (
-  entries: readonly ServerFunctionManifestEntry[]
+  entries: readonly ServerFunctionManifestEntry[],
 ): readonly ServerFunctionManifestEntry[] => [...entries].sort(compareEntries);
 
 /** Validate one raw server-function definition and convert it into a manifest entry. */
 export const makeServerFunctionManifestEntry = (
   definition: ServerFunctionManifestDefinition,
   options: ServerFunctionManifestOptions = {},
-  index = 0
+  index = 0,
 ): Effect.Effect<
   ServerFunctionManifestEntry,
   | ServerFunctionManifestInvalidEntry
@@ -302,19 +302,18 @@ export const makeServerFunctionManifestEntry = (
       transportPath: rpcPath,
       stableId: stableServerFunctionId,
       invalidEntry: (input) => new ServerFunctionManifestInvalidEntry(input),
-      unsafeClientReference: (input) =>
-        new ServerFunctionManifestUnsafeClientReference(input),
+      unsafeClientReference: (input) => new ServerFunctionManifestUnsafeClientReference(input),
       server: ({ definition, validated, moduleKind }): ServerFunctionServerReference => ({
         module: validated.module,
         exportName: validated.exportName,
         moduleKind,
-        hasHandler: definition.hasHandler ?? true
+        hasHandler: definition.hasHandler ?? true,
       }),
       transportClient: ({ id, name, transportPath }): ServerFunctionClientReference => ({
         _tag: "Rpc",
         id,
         name,
-        rpcPath: transportPath
+        rpcPath: transportPath,
       }),
       importClient: ({
         id,
@@ -322,7 +321,7 @@ export const makeServerFunctionManifestEntry = (
         transportPath,
         module,
         exportName,
-        moduleKind
+        moduleKind,
       }): ServerFunctionClientReference => ({
         _tag: "Import",
         id,
@@ -330,22 +329,22 @@ export const makeServerFunctionManifestEntry = (
         rpcPath: transportPath,
         module,
         exportName,
-        moduleKind
+        moduleKind,
       }),
       entry: ({ id, name, server, client, wire }): ServerFunctionManifestEntry => ({
         id,
         name,
         server,
         client,
-        wire
-      })
-    })
+        wire,
+      }),
+    }),
   );
 
 /** Build and validate a complete server-function manifest from raw definitions. */
 export const makeServerFunctionManifest = (
   definitions: Iterable<ServerFunctionManifestDefinition>,
-  options: ServerFunctionManifestOptions = {}
+  options: ServerFunctionManifestOptions = {},
 ): Effect.Effect<ServerFunctionManifest, ServerFunctionManifestError> =>
   Effect.gen(function* () {
     const entries: ServerFunctionManifestEntry[] = [];
@@ -356,27 +355,30 @@ export const makeServerFunctionManifest = (
       index++;
     }
 
-    yield* validateManifestEntrySet<ServerFunctionManifestEntry, ServerFunctionManifestError>(entries, {
-      duplicateName: (input) => new ServerFunctionManifestDuplicateName(input),
-      duplicateId: (input) => new ServerFunctionManifestDuplicateId(input),
-      duplicateExport: (input) => new ServerFunctionManifestDuplicateExport(input)
-    });
+    yield* validateManifestEntrySet<ServerFunctionManifestEntry, ServerFunctionManifestError>(
+      entries,
+      {
+        duplicateName: (input) => new ServerFunctionManifestDuplicateName(input),
+        duplicateId: (input) => new ServerFunctionManifestDuplicateId(input),
+        duplicateExport: (input) => new ServerFunctionManifestDuplicateExport(input),
+      },
+    );
 
     return {
       version: 1 as const,
       rpcPath,
-      entries: sortManifestEntries(entries)
+      entries: sortManifestEntries(entries),
     };
   });
 
 /** Return the client reference entries generated from a server-function manifest. */
 export const clientReferencesForServerFunctionManifest = (
-  manifest: ServerFunctionManifest
+  manifest: ServerFunctionManifest,
 ): readonly ServerFunctionClientReference[] => manifest.entries.map((entry) => entry.client);
 
 /** Check whether a server-function client reference can be imported in browser code. */
 export const isBrowserSafeServerFunctionClientReference = (
-  reference: ServerFunctionClientReference
+  reference: ServerFunctionClientReference,
 ): boolean => reference._tag === "Rpc" || !isServerFunctionServerOnlyModule(reference.module);
 
 /** Serialize a server-function manifest into the virtual-module JSON payload. */
@@ -384,13 +386,13 @@ export const serializeServerFunctionManifest = (manifest: ServerFunctionManifest
   JSON.stringify({
     version: 1,
     rpcPath: manifest.rpcPath,
-    entries: sortManifestEntries(manifest.entries)
+    entries: sortManifestEntries(manifest.entries),
   });
 
 const decodeSerializedEntry = (
   value: unknown,
   index: number,
-  rpcPath: string
+  rpcPath: string,
 ): Effect.Effect<ServerFunctionManifestDefinition, ServerFunctionManifestParseError> =>
   Effect.gen(function* () {
     const decoded = yield* decodeSerializedCallableManifestEntry(value, index, {
@@ -400,14 +402,14 @@ const decodeSerializedEntry = (
       stableId: stableServerFunctionId,
       recordEntryLabel: "manifest entry",
       messageEntryLabel: "Manifest entry",
-      parseError: (message) => new ServerFunctionManifestParseError({ message })
+      parseError: (message) => new ServerFunctionManifestParseError({ message }),
     });
 
     if (typeof decoded.serverRecord.hasHandler !== "boolean") {
       return yield* Effect.fail(
         new ServerFunctionManifestParseError({
-          message: `Manifest entry ${index} has invalid server or wire fields.`
-        })
+          message: `Manifest entry ${index} has invalid server or wire fields.`,
+        }),
       );
     }
 
@@ -418,7 +420,7 @@ const decodeSerializedEntry = (
       hasHandler: decoded.serverRecord.hasHandler,
       inputSchema: decoded.inputSchema,
       outputSchema: decoded.outputSchema,
-      errorSchema: decoded.errorSchema
+      errorSchema: decoded.errorSchema,
     };
 
     return decoded.clientModule === undefined || decoded.clientExportName === undefined
@@ -426,12 +428,12 @@ const decodeSerializedEntry = (
       : {
           ...base,
           clientModule: decoded.clientModule,
-          clientExportName: decoded.clientExportName
+          clientExportName: decoded.clientExportName,
         };
   });
 
 const decodeSerializedManifest = (
-  value: unknown
+  value: unknown,
 ): Effect.Effect<
   {
     readonly rpcPath: string;
@@ -444,29 +446,34 @@ const decodeSerializedManifest = (
       pathField: "rpcPath",
       manifestName: "server function",
       parseError: (message) => new ServerFunctionManifestParseError({ message }),
-      decodeEntry: decodeSerializedEntry
+      decodeEntry: decodeSerializedEntry,
     }),
     ({ path, definitions }) => ({
       rpcPath: path,
-      definitions
-    })
+      definitions,
+    }),
   );
 
 /** Decode and validate a serialized server-function manifest artifact. */
 export const deserializeServerFunctionManifest = (
   serialized: string,
-  options: ServerFunctionManifestOptions = {}
-): Effect.Effect<ServerFunctionManifest, ServerFunctionManifestParseError | ServerFunctionManifestError> =>
-  parseSerializedStartManifestJson(serialized, (cause) =>
+  options: ServerFunctionManifestOptions = {},
+): Effect.Effect<
+  ServerFunctionManifest,
+  ServerFunctionManifestParseError | ServerFunctionManifestError
+> =>
+  parseSerializedStartManifestJson(
+    serialized,
+    (cause) =>
       new ServerFunctionManifestParseError({
         message: "Server function manifest is not valid JSON.",
-        cause
-      })
+        cause,
+      }),
   ).pipe(
     Effect.flatMap(decodeSerializedManifest),
     Effect.flatMap(({ definitions, rpcPath }) =>
       makeServerFunctionManifest(definitions, {
-        rpcPath: options.rpcPath ?? rpcPath
-      })
-    )
+        rpcPath: options.rpcPath ?? rpcPath,
+      }),
+    ),
   );

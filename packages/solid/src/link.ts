@@ -4,7 +4,7 @@ import {
   browserRouterLinkPreloadDecision,
   browserRouterLinkPreloadIdentity,
   isPlainLeftClick as coreIsPlainLeftClick,
-  makeBrowserRouterLinkPreloader
+  makeBrowserRouterLinkPreloader,
 } from "@effect-ui/core";
 import { createMemo, createRenderEffect, onCleanup, splitProps, type JSX } from "solid-js";
 import { createComponent, Dynamic, type DynamicProps } from "solid-js/web";
@@ -23,12 +23,14 @@ type AnchorMouseEvent = MouseEvent & {
 };
 
 type AnchorMouseHandler =
-  JSX.AnchorHTMLAttributes<HTMLAnchorElement>["onClick"] |
-  JSX.AnchorHTMLAttributes<HTMLAnchorElement>["onMouseEnter"];
+  | JSX.AnchorHTMLAttributes<HTMLAnchorElement>["onClick"]
+  | JSX.AnchorHTMLAttributes<HTMLAnchorElement>["onMouseEnter"];
 
 /** Props for a typed router-owned anchor. */
-export type RouterLinkProps<R extends AnyRoute> =
-  Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "href"> &
+export type RouterLinkProps<R extends AnyRoute> = Omit<
+  JSX.AnchorHTMLAttributes<HTMLAnchorElement>,
+  "href"
+> &
   RouterLinkRouteOptions<R> & {
     /** Route definition to build and navigate to. */
     readonly route: R;
@@ -42,13 +44,12 @@ export type RouterLinkProps<R extends AnyRoute> =
 export const isPlainLeftClick = coreIsPlainLeftClick;
 
 const hrefArgs = <R extends AnyRoute>(
-  options: Route.HrefOptions<R> | undefined
-): Route.HrefArgs<R> =>
-  (options === undefined ? [] : [options]) as Route.HrefArgs<R>;
+  options: Route.HrefOptions<R> | undefined,
+): Route.HrefArgs<R> => (options === undefined ? [] : [options]) as Route.HrefArgs<R>;
 
 const callAnchorMouseHandler = (
   handler: AnchorMouseHandler | undefined,
-  event: AnchorMouseEvent
+  event: AnchorMouseEvent,
 ): void => {
   if (!handler) {
     return;
@@ -63,16 +64,14 @@ const callAnchorMouseHandler = (
 };
 
 /** Typed Solid anchor that builds hrefs, preloads on hover, and navigates on plain clicks. */
-export const RouterLink = <R extends AnyRoute>(
-  props: RouterLinkProps<R>
-): JSX.Element => {
+export const RouterLink = <R extends AnyRoute>(props: RouterLinkProps<R>): JSX.Element => {
   const [local, anchorProps] = splitProps(props, [
     "route",
     "options",
     "replace",
     "preload",
     "onClick",
-    "onMouseEnter"
+    "onMouseEnter",
   ]);
   const router = useRouter();
   const route = (): R => local.route as R;
@@ -95,9 +94,9 @@ export const RouterLink = <R extends AnyRoute>(
         preload: local.preload !== false,
         canHandleRoute: router.canHandleRoute(route()),
         target: anchorProps.target,
-        download: anchorProps.download
+        download: anchorProps.download,
       })._tag === "Preload",
-    preloadEffect: () => router.preloadEffect<R>(route(), ...currentHrefArgs())
+    preloadEffect: () => router.preloadEffect<R>(route(), ...currentHrefArgs()),
   });
 
   createRenderEffect(() => {
@@ -109,8 +108,8 @@ export const RouterLink = <R extends AnyRoute>(
         preload,
         canHandleRoute,
         target: anchorProps.target,
-        download: anchorProps.download
-      })
+        download: anchorProps.download,
+      }),
     );
   });
   createRenderEffect(() => {
@@ -127,7 +126,7 @@ export const RouterLink = <R extends AnyRoute>(
       preload: local.preload !== false,
       canHandleRoute: router.canHandleRoute(route()),
       target: anchorProps.target,
-      download: anchorProps.download
+      download: anchorProps.download,
     });
     if (preloadDecision._tag === "Preload") {
       preloader.preload();
@@ -141,7 +140,7 @@ export const RouterLink = <R extends AnyRoute>(
       replace: local.replace === true,
       canHandleRoute: router.canHandleRoute(route()),
       target: anchorProps.target,
-      download: anchorProps.download
+      download: anchorProps.download,
     });
     if (clickDecision._tag === "Ignore") {
       return;
@@ -159,11 +158,8 @@ export const RouterLink = <R extends AnyRoute>(
       return href();
     },
     "on:click": onClick,
-    "on:mouseenter": onMouseEnter
+    "on:mouseenter": onMouseEnter,
   } as unknown as DynamicProps<"a">;
 
-  return createComponent(
-    Dynamic as (props: DynamicProps<"a">) => JSX.Element,
-    dynamicProps
-  );
+  return createComponent(Dynamic as (props: DynamicProps<"a">) => JSX.Element, dynamicProps);
 };

@@ -1,42 +1,29 @@
 import type {
   StartAgentGraphImpactOptions,
-  StartAgentGraphQuery
+  StartAgentGraphQuery,
 } from "./start-agent-graph-contract.js";
 export {
   isStartAgentGraphQueryKind,
   startAgentGraphQueryKinds,
-  startAgentGraphQueryKindsText
+  startAgentGraphQueryKindsText,
 } from "./start-agent-graph-vocabulary.js";
 
 const shellSafePattern = /^[A-Za-z0-9_./:@=-]+$/;
 
-const shellArg = (
-  value: string
-): string =>
-  shellSafePattern.test(value)
-    ? value
-    : `'${value.replace(/'/g, "'\\''")}'`;
+const shellArg = (value: string): string =>
+  shellSafePattern.test(value) ? value : `'${value.replace(/'/g, "'\\''")}'`;
 
-const shellFlag = (
-  name: string,
-  value: string | false | undefined
-): string =>
-  value === undefined
-    ? ""
-    : ` --${name}=${shellArg(value === false ? "false" : value)}`;
+const shellFlag = (name: string, value: string | false | undefined): string =>
+  value === undefined ? "" : ` --${name}=${shellArg(value === false ? "false" : value)}`;
 
-const diagnosticsLoadCommandOptions = (
-  options: StartAgentGraphImpactOptions
-): string =>
+const diagnosticsLoadCommandOptions = (options: StartAgentGraphImpactOptions): string =>
   [
     shellFlag("root", options.root),
     shellFlag("config", options.configFile),
-    shellFlag("mode", options.mode)
+    shellFlag("mode", options.mode),
   ].join("");
 
-const queryCommandArgs = (
-  query: StartAgentGraphQuery
-): string => {
+const queryCommandArgs = (query: StartAgentGraphQuery): string => {
   const kind = query.kind === undefined ? "" : ` ${shellArg(query.kind)}`;
   if (query.text === undefined) {
     return kind;
@@ -55,11 +42,11 @@ const queryCommandArgs = (
  */
 export const startDiagnosticsCliVerifyCommandsForQuery = (
   query: StartAgentGraphQuery,
-  options: StartAgentGraphImpactOptions
+  options: StartAgentGraphImpactOptions,
 ): readonly string[] => {
   const loadOptions = diagnosticsLoadCommandOptions(options);
   return [
     `effect-ui-start diagnostics${loadOptions}`,
-    `effect-ui-start graph${loadOptions}${queryCommandArgs(query)}`
+    `effect-ui-start graph${loadOptions}${queryCommandArgs(query)}`,
   ];
 };

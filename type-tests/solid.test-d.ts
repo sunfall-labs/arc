@@ -2,7 +2,7 @@ import {
   ActionInterrupted,
   makeMemoryBrowserHistoryAdapter,
   route,
-  type EffectInputCallbackError
+  type EffectInputCallbackError,
 } from "@effect-ui/core";
 import { Effect, Stream } from "effect";
 import {
@@ -56,7 +56,7 @@ import {
   type RouterOutletProps,
   type RuntimeEffectRunner,
   type RuntimeProviderProps,
-  type UseResourceOptions
+  type UseResourceOptions,
 } from "@effect-ui/solid";
 
 interface SolidProject {
@@ -68,11 +68,11 @@ const solidRoutes = [route("/", {}), route("/projects/:id", {})] as const;
 const solidHistory = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
 const solidBrowserOptions: BrowserRouterOptions<typeof solidRoutes> = {
   history: solidHistory,
-  hydrating: true
+  hydrating: true,
 };
 const solidRouter: BrowserRouter<typeof solidRoutes> = createBrowserRouter(solidRoutes, {
   history: solidHistory,
-  hydrating: true
+  hydrating: true,
 });
 const solidRouterFromHook: BrowserRouter<typeof solidRoutes> = useRouter<typeof solidRoutes>();
 const solidRouterState: BrowserRouterState<typeof solidRoutes> = solidRouter.state();
@@ -80,14 +80,18 @@ const solidRoutePath: BrowserRouterPath<typeof solidRoutes> = "/";
 type SolidRouteForHome = BrowserRouterRouteForPath<typeof solidRoutes, typeof solidRoutePath>;
 const solidRouteForPath: SolidRouteForHome = solidRoutes[0];
 const solidRouteHref: string = Route.href(solidRoutes[0]);
-const solidNavigateArgs: BrowserNavigateArgs<typeof solidRoutes[0]> = [];
+const solidNavigateArgs: BrowserNavigateArgs<(typeof solidRoutes)[0]> = [];
 const solidNavigateOptions: BrowserNavigateOptions = { replace: true };
 const solidHrefByPath: string = solidRouter.hrefByPath("/projects/:id", {
-  params: { id: "atlas" }
+  params: { id: "atlas" },
 });
-solidRouter.navigateByPath("/projects/:id", {
-  params: { id: "atlas" }
-}, solidNavigateOptions);
+solidRouter.navigateByPath(
+  "/projects/:id",
+  {
+    params: { id: "atlas" },
+  },
+  solidNavigateOptions,
+);
 const solidMatchByPath = solidRouter.matchByPath("/projects/:id");
 const solidPreloadByPathEffect: Effect.Effect<void, Route.NavigationError> =
   solidRouter.preloadByPathEffect("/projects/:id", { params: { id: "atlas" } });
@@ -96,11 +100,11 @@ const solidPlainLeftClick: boolean = isPlainLeftClick({
   metaKey: false,
   altKey: false,
   ctrlKey: false,
-  shiftKey: false
+  shiftKey: false,
 });
-const solidRouterLinkProps: RouterLinkProps<typeof solidRoutes[0]> = {
+const solidRouterLinkProps: RouterLinkProps<(typeof solidRoutes)[0]> = {
   route: solidRoutes[0],
-  children: "Home"
+  children: "Home",
 };
 const solidRouterLinkNode = RouterLink(solidRouterLinkProps);
 const solidRouterOutletNode = RouterOutlet<typeof solidRoutes>({});
@@ -109,7 +113,7 @@ const solidRouteNotRegistered = new RouterRouteNotRegistered({ path: "/" });
 const solidProviderProps: RouterProviderProps<typeof solidRoutes> = {
   routes: solidRoutes,
   history: solidHistory,
-  hydrating: true
+  hydrating: true,
 };
 const solidCountSignal = Signal.make(0);
 const solidReadSignalValue: number = read(solidCountSignal);
@@ -120,16 +124,16 @@ class SolidRuntimeProviderObserverError {
 }
 declare const solidRuntimeProviderObserverPromise: Promise<void>;
 const solidRuntimeProviderFailingObserverProps: RuntimeProviderProps = {
-  onDisposeFailure: () => Effect.fail(new SolidRuntimeProviderObserverError())
+  onDisposeFailure: () => Effect.fail(new SolidRuntimeProviderObserverError()),
 };
 const solidRuntimeProviderPromiseObserverProps: RuntimeProviderProps = {
   // @ts-expect-error RuntimeProvider disposal observers must return void or an Effect, not a Promise.
-  onDisposeFailure: () => solidRuntimeProviderObserverPromise
+  onDisposeFailure: () => solidRuntimeProviderObserverPromise,
 };
 // @ts-expect-error host-owned RuntimeProvider instances do not accept disposal observers.
 const solidRuntimeProviderHostOwnedObserverProps: RuntimeProviderProps = {
   runtime: solidEffectRuntime,
-  onDisposeFailure: () => Effect.void
+  onDisposeFailure: () => Effect.void,
 };
 const solidForkScoped: typeof forkScoped = forkScoped;
 const solidOnDispose: typeof onDispose = onDispose;
@@ -142,10 +146,14 @@ const solidRuntimeRunner: RuntimeEffectRunner = useRuntimeEffect();
 const solidRuntimeFiber = solidRuntimeRunner(Effect.succeed("ready"));
 const SolidProgram = Program.define<number, "tick">({
   initial: 0,
-  update: (model) => Program.next(model + 1)
+  update: (model) => Program.next(model + 1),
 });
-const solidProgramHandle: ProgramHandle<number, "tick", EffectInputCallbackError, EffectInputCallbackError | Program.Disposed> =
-  useProgram<number, "tick">(SolidProgram);
+const solidProgramHandle: ProgramHandle<
+  number,
+  "tick",
+  EffectInputCallbackError,
+  EffectInputCallbackError | Program.Disposed
+> = useProgram<number, "tick">(SolidProgram);
 solidProgramHandle.clearTimeline();
 const solidUnknownProgramHandle = solidProgramHandle as ProgramHandle<
   number,
@@ -159,13 +167,13 @@ solidUnknownProgramHandle.dispatch(solidRuntimeProviderObserverPromise);
 solidUnknownProgramHandle.dispatchEffect(solidRuntimeProviderObserverPromise);
 const SolidProjectById = Resource.family<string, SolidProject>({
   name: "Solid.type-test.project",
-  load: (id) => Effect.succeed({ id, name: "Atlas" })
+  load: (id) => Effect.succeed({ id, name: "Atlas" }),
 });
 const solidProjectRef = SolidProjectById("atlas");
 const solidResourceOptions: UseResourceOptions<never> = { preload: false };
 const solidResourceHandle: ResourceHandle<string, SolidProject, never> = useResource(
   solidProjectRef,
-  solidResourceOptions
+  solidResourceOptions,
 );
 const solidResourceState = useResourceResult(solidProjectRef);
 const solidResourceValue = useResourceValue(solidProjectRef);
@@ -176,33 +184,27 @@ const solidResourceSuccessMeta: ResourceSuccessMeta<SolidProject, Resource.LoadE
     _tag: "Success",
     waiting: false,
     value: { id: "atlas", name: "Atlas" },
-    updatedAt: 0
-  }
+    updatedAt: 0,
+  },
 };
 const solidResourceMatch: ResourceMatch<SolidProject, Resource.LoadError<never>, string> = {
   initial: () => "initial",
   pending: () => "pending",
   success: (project) => project.name,
-  failure: () => "failure"
+  failure: () => "failure",
 };
 const SolidAction = Action.define<{ readonly id: string }, { readonly ok: boolean }>({
   name: "Solid.type-test.action",
-  run: ({ id }) => Effect.succeed({ ok: id.length > 0 })
+  run: ({ id }) => Effect.succeed({ ok: id.length > 0 }),
 });
 const solidAction = useAction(SolidAction);
-const solidActionHandle: ActionHandle<
-  { readonly id: string },
-  { readonly ok: boolean }
-> = solidAction;
+const solidActionHandle: ActionHandle<{ readonly id: string }, { readonly ok: boolean }> =
+  solidAction;
 const solidActionSubmit: Effect.Effect<
   { readonly ok: boolean },
   EffectInputCallbackError | ActionInterrupted
 > = solidAction.submitEffect({ id: "atlas" });
-const solidActionStateTag:
-  | "Idle"
-  | "Pending"
-  | "Success"
-  | "Failure" = solidAction.state()._tag;
+const solidActionStateTag: "Idle" | "Pending" | "Success" | "Failure" = solidAction.state()._tag;
 solidAction.instance.state.get()._tag;
 solidAction.invalidationPlan()?.entries.map((entry) => entry.ref.key);
 const solidExports: Array<unknown> = [
@@ -281,11 +283,11 @@ const solidExports: Array<unknown> = [
   solidActionSubmit,
   solidActionStateTag,
   solidBrowserOptions,
-  solidProviderProps
+  solidProviderProps,
 ];
 type SolidRouter = BrowserRouter | RouterOutletProps;
-type SolidRouterLinkProps = RouterLinkProps<typeof solidRoutes[0]>;
-type SolidBrowserNavigateArgs = BrowserNavigateArgs<typeof solidRoutes[0]>;
+type SolidRouterLinkProps = RouterLinkProps<(typeof solidRoutes)[0]>;
+type SolidBrowserNavigateArgs = BrowserNavigateArgs<(typeof solidRoutes)[0]>;
 type SolidBrowserNavigateOptions = BrowserNavigateOptions;
 type SolidBrowserRouterPath = BrowserRouterPath<typeof solidRoutes>;
 type SolidBrowserRouterRouteForPath = BrowserRouterRouteForPath<typeof solidRoutes, "/">;
@@ -293,10 +295,15 @@ type SolidBrowserRouterState = BrowserRouterState<typeof solidRoutes>;
 type SolidBrowserRouterOptions = BrowserRouterOptions;
 type SolidRouterProviderProps = RouterProviderProps<typeof solidRoutes>;
 type SolidRuntimeProviderProps = RuntimeProviderProps;
-type SolidRouteHrefOptions = Route.HrefOptions<typeof solidRoutes[0]>;
+type SolidRouteHrefOptions = Route.HrefOptions<(typeof solidRoutes)[0]>;
 type SolidUiScope = UiScope;
 type SolidActionHandle = ActionHandle<{ readonly id: string }, { readonly ok: boolean }>;
-type SolidProgramHandle = ProgramHandle<number, "tick", EffectInputCallbackError, EffectInputCallbackError | Program.Disposed>;
+type SolidProgramHandle = ProgramHandle<
+  number,
+  "tick",
+  EffectInputCallbackError,
+  EffectInputCallbackError | Program.Disposed
+>;
 type SolidResourceHandle = ResourceHandle<string, SolidProject, never>;
 type SolidUseResourceOptions = UseResourceOptions<never>;
 type SolidRuntimeEffectRunner = RuntimeEffectRunner;

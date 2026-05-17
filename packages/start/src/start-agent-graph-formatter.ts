@@ -6,11 +6,9 @@ import {
   formatServerFunctionSummary,
   inlineList,
   publicStatus,
-  titleForNode
+  titleForNode,
 } from "./start-agent-graph-display.js";
-import {
-  queryStartAgentGraph
-} from "./start-agent-graph-query.js";
+import { queryStartAgentGraph } from "./start-agent-graph-query.js";
 import { startAgentGraphFactText } from "./start-agent-graph-facts.js";
 import type {
   StartAgentGraph,
@@ -20,15 +18,14 @@ import type {
   StartAgentGraphImpactItem,
   StartAgentGraphImpactRelation,
   StartAgentGraphNode,
-  StartAgentGraphSelfReview
+  StartAgentGraphSelfReview,
 } from "./start-agent-graph-contract.js";
 
-const formatFactValue = (value: unknown): string =>
-  startAgentGraphFactText(value);
+const formatFactValue = (value: unknown): string => startAgentGraphFactText(value);
 
 const formatFacts = (
   facts: Readonly<Record<string, unknown>>,
-  indent: string
+  indent: string,
 ): readonly string[] => {
   const lines: string[] = [];
   try {
@@ -53,7 +50,7 @@ const formatFacts = (
 
 const formatNode = (
   node: StartAgentGraphNode,
-  edges: readonly StartAgentGraphEdge[]
+  edges: readonly StartAgentGraphEdge[],
 ): readonly string[] => {
   const relatedEdges = edges.filter((edge) => edge.from === node.id || edge.to === node.id);
   return [
@@ -69,21 +66,19 @@ const formatNode = (
           ...relatedEdges.map((edge) =>
             edge.from === node.id
               ? `  - ${edge.kind} -> ${edge.to}`
-              : `  - ${edge.kind} <- ${edge.from}`
-          )
-        ])
+              : `  - ${edge.kind} <- ${edge.from}`,
+          ),
+        ]),
   ];
 };
 
-const nodeLabel = (
-  graph: StartAgentGraph,
-  id: string
-): string => graph.nodes.find((node) => node.id === id)?.label ?? id;
+const nodeLabel = (graph: StartAgentGraph, id: string): string =>
+  graph.nodes.find((node) => node.id === id)?.label ?? id;
 
 const relatedLines = (
   graph: StartAgentGraph,
   node: StartAgentGraphNode,
-  edges: readonly StartAgentGraphEdge[]
+  edges: readonly StartAgentGraphEdge[],
 ): readonly string[] => {
   const lines: string[] = [];
   for (const edge of edges) {
@@ -106,17 +101,18 @@ const relatedLines = (
 const formatConciseNode = (
   graph: StartAgentGraph,
   node: StartAgentGraphNode,
-  edges: readonly StartAgentGraphEdge[]
+  edges: readonly StartAgentGraphEdge[],
 ): readonly string[] => {
-  const summary = node.kind === "Route"
-    ? formatRouteSummary(node)
-    : node.kind === "Action"
-      ? formatActionSummary(node)
-      : node.kind === "ServerFunction"
-        ? formatServerFunctionSummary(node)
-        : node.kind === "Finding"
-          ? formatFindingSummary(node)
-          : formatGenericSummary(node);
+  const summary =
+    node.kind === "Route"
+      ? formatRouteSummary(node)
+      : node.kind === "Action"
+        ? formatActionSummary(node)
+        : node.kind === "ServerFunction"
+          ? formatServerFunctionSummary(node)
+          : node.kind === "Finding"
+            ? formatFindingSummary(node)
+            : formatGenericSummary(node);
   const related = relatedLines(graph, node, edges);
   return [
     titleForNode(node),
@@ -126,33 +122,21 @@ const formatConciseNode = (
     ...summary,
     ...(related.length === 0
       ? []
-      : [
-          `Related: ${related
-            .map((line) => line.replace(/^- /, ""))
-            .join("; ")}`
-        ])
+      : [`Related: ${related.map((line) => line.replace(/^- /, "")).join("; ")}`]),
   ];
 };
 
-const selfReviewText = (
-  selfReview: StartAgentGraphSelfReview
-): string =>
+const selfReviewText = (selfReview: StartAgentGraphSelfReview): string =>
   [
     `policy ${selfReview.policyClean ? "clean" : "needs-attention"}`,
     `wire ${selfReview.wireComplete ? "complete" : "needs-attention"}`,
     `action behavior ${selfReview.actionBehaviorKnown ? "known" : "needs-attention"}`,
-    `route preloads ${selfReview.routePreloadsDeclared ? "declared" : "needs-attention"}`
+    `route preloads ${selfReview.routePreloadsDeclared ? "declared" : "needs-attention"}`,
   ].join("; ");
 
-const formatOverview = (
-  graph: StartAgentGraph
-): string => {
-  const routes = graph.nodes
-    .filter((node) => node.kind === "Route")
-    .map((node) => node.label);
-  const actions = graph.nodes
-    .filter((node) => node.kind === "Action")
-    .map((node) => node.label);
+const formatOverview = (graph: StartAgentGraph): string => {
+  const routes = graph.nodes.filter((node) => node.kind === "Route").map((node) => node.label);
+  const actions = graph.nodes.filter((node) => node.kind === "Action").map((node) => node.label);
   const resources = graph.nodes
     .filter((node) => node.kind === "ResourceFamily")
     .map((node) => node.label);
@@ -169,16 +153,16 @@ const formatOverview = (
     `- routes: ${inlineList(routes)}`,
     `- actions: ${inlineList(actions)}`,
     `- resource families: ${inlineList(resources)}`,
-    `- collections: ${inlineList(collections)}`
+    `- collections: ${inlineList(collections)}`,
   ];
 
   if (graph.findings.length > 0) {
     lines.push(
       "",
       "Findings",
-      ...graph.findings.map((finding) =>
-        `- ${finding.kind}: ${finding.subject} (${finding.owner})`
-      )
+      ...graph.findings.map(
+        (finding) => `- ${finding.kind}: ${finding.subject} (${finding.owner})`,
+      ),
     );
   }
 
@@ -187,7 +171,7 @@ const formatOverview = (
 
 const formatStartAgentGraphVerbose = (
   graph: StartAgentGraph,
-  options: StartAgentGraphFormatOptions = {}
+  options: StartAgentGraphFormatOptions = {},
 ): string => {
   const lines = [
     "Effect UI Start Agent Graph",
@@ -201,20 +185,20 @@ const formatStartAgentGraphVerbose = (
     `resource tags: ${graph.summary.resourceTags}`,
     `collections: ${graph.summary.collections}`,
     `findings: ${graph.summary.findings}`,
-    `self review: policy ${graph.selfReview.policyClean ? "clean" : "needs-attention"}, wire ${graph.selfReview.wireComplete ? "complete" : "needs-attention"}, action behavior ${graph.selfReview.actionBehaviorKnown ? "known" : "needs-attention"}, route preloads ${graph.selfReview.routePreloadsDeclared ? "declared" : "needs-attention"}`
+    `self review: policy ${graph.selfReview.policyClean ? "clean" : "needs-attention"}, wire ${graph.selfReview.wireComplete ? "complete" : "needs-attention"}, action behavior ${graph.selfReview.actionBehaviorKnown ? "known" : "needs-attention"}, route preloads ${graph.selfReview.routePreloadsDeclared ? "declared" : "needs-attention"}`,
   ];
   const query = options.query;
   const result = query === undefined ? undefined : queryStartAgentGraph(graph, query);
-  const displayedNodes = result?.nodes ?? graph.nodes.filter((node) =>
-    node.kind !== "Module" && node.kind !== "Endpoint"
-  );
+  const displayedNodes =
+    result?.nodes ??
+    graph.nodes.filter((node) => node.kind !== "Module" && node.kind !== "Endpoint");
   const displayedEdges = result?.edges ?? graph.edges;
 
   if (query !== undefined) {
     lines.push(
       "",
       `Query: ${query.kind ?? "node"}${query.text === undefined ? "" : ` ${query.text}`}`,
-      `matches: ${displayedNodes.length}`
+      `matches: ${displayedNodes.length}`,
     );
   }
 
@@ -235,7 +219,7 @@ const impactRelationLimit = 6;
 
 const formatRelations = (
   title: string,
-  relations: readonly StartAgentGraphImpactRelation[]
+  relations: readonly StartAgentGraphImpactRelation[],
 ): readonly string[] => {
   if (relations.length === 0) {
     return [];
@@ -245,18 +229,14 @@ const formatRelations = (
   return [
     "",
     title,
-    ...displayed.map((relation) =>
-      `- ${relation.kind} ${relation.label} (${relation.reason})`
-    ),
+    ...displayed.map((relation) => `- ${relation.kind} ${relation.label} (${relation.reason})`),
     ...(relations.length > displayed.length
       ? [`- +${relations.length - displayed.length} more`]
-      : [])
+      : []),
   ];
 };
 
-const formatImpactItem = (
-  item: StartAgentGraphImpactItem
-): readonly string[] => [
+const formatImpactItem = (item: StartAgentGraphImpactItem): readonly string[] => [
   titleForNode(item.node),
   `Status: ${publicStatus(item.node)}`,
   ...(item.editTarget === undefined ? [] : [`Edit: ${item.editTarget}`]),
@@ -267,24 +247,18 @@ const formatImpactItem = (
   ...formatRelations("May affect", item.mayAffect),
   ...(item.warnings.length === 0
     ? []
-    : [
-        "",
-        "Warnings",
-        ...item.warnings.map((warning) => `- ${warning}`)
-      ]),
+    : ["", "Warnings", ...item.warnings.map((warning) => `- ${warning}`)]),
   "",
   "Verify",
-  ...item.verify.map((command) => `- ${command}`)
+  ...item.verify.map((command) => `- ${command}`),
 ];
 
 /** Formats an impact report as concise, agent-readable repair text. */
-export const formatStartAgentGraphImpact = (
-  impact: StartAgentGraphImpact
-): string => {
+export const formatStartAgentGraphImpact = (impact: StartAgentGraphImpact): string => {
   const query = impact.query;
   const lines = [
     `Impact: ${query.kind ?? "node"}${query.text === undefined ? "" : ` ${query.text}`}`,
-    `Matches: ${impact.matches}`
+    `Matches: ${impact.matches}`,
   ];
 
   if (impact.items.length === 0) {
@@ -310,7 +284,7 @@ export const formatStartAgentGraphImpact = (
  */
 export const formatStartAgentGraph = (
   graph: StartAgentGraph,
-  options: StartAgentGraphFormatOptions = {}
+  options: StartAgentGraphFormatOptions = {},
 ): string => {
   if (options.verbose === true) {
     return formatStartAgentGraphVerbose(graph, options);
@@ -324,7 +298,7 @@ export const formatStartAgentGraph = (
   const result = queryStartAgentGraph(graph, query);
   const lines = [
     `Query: ${query.kind ?? "node"}${query.text === undefined ? "" : ` ${query.text}`}`,
-    `Matches: ${result.nodes.length}`
+    `Matches: ${result.nodes.length}`,
   ];
 
   if (result.nodes.length === 0) {

@@ -5,20 +5,19 @@ import { StartRequestHandlerError } from "./start-request-handler-error.js";
 import {
   invokeStartRequestHandlerEffect,
   type StartRequestHandlerInput,
-  type StartRequestHandlerRequirements
+  type StartRequestHandlerRequirements,
 } from "./start-host-adapter.js";
 import {
   nodeRequestLifecycle,
   nodeRequestToWebRequestEffect,
   writeNodeExchangeResponseEffect,
   type StartNodeAdapterError,
-  type StartNodeRequestOptions
+  type StartNodeRequestOptions,
 } from "./node-web-exchange.js";
 import {
   forkStartHostEffect,
   interruptStartHostFiberOnSignal,
-  type StartForkRuntime,
-  type StartHostForkRunnerOptions
+  type StartHostForkRunnerOptions,
 } from "./start-host-runtime-runner.js";
 
 export { StartRequestHandlerError } from "./start-request-handler-error.js";
@@ -28,18 +27,18 @@ export {
   nodeRequestToWebRequest,
   nodeRequestToWebRequestEffect,
   writeNodeResponse,
-  writeNodeResponseEffect
+  writeNodeResponseEffect,
 } from "./node-web-exchange.js";
 export type {
   StartNodeOriginPolicy,
   StartNodeRequestOptions,
-  WriteNodeResponseOptions
+  WriteNodeResponseOptions,
 } from "./node-web-exchange.js";
 
 /** Effect-first Node HTTP handler returned by `createNodeHandlerEffect`. */
 export type StartNodeHandlerEffect<Requirements = never> = (
   request: IncomingMessage,
-  response: ServerResponse
+  response: ServerResponse,
 ) => Effect.Effect<Response, StartNodeAdapterError | StartRequestHandlerError, Requirements>;
 
 /** Node HTTP handler returned by `createNodeHandler`. */
@@ -56,18 +55,18 @@ export type { StartForkRuntime } from "./start-host-runtime-runner.js";
 export type StartNodeServerErrorHandler = (
   error: unknown,
   request: IncomingMessage,
-  response: ServerResponse
+  response: ServerResponse,
 ) => EffectInput<void, never, never>;
 
 /** Options for Node `createServer`-style host handlers. */
 export interface StartNodeServerHandlerOptions<RuntimeError = never>
-  extends StartNodeRequestOptions,
-    StartHostForkRunnerOptions<RuntimeError> {
+  extends StartNodeRequestOptions, StartHostForkRunnerOptions<RuntimeError> {
   readonly onError?: StartNodeServerErrorHandler;
 }
 
-type StartNodeRuntimeRequirements<Requirements> =
-  unknown extends Requirements ? never : Exclude<Requirements, Scope.Scope>;
+type StartNodeRuntimeRequirements<Requirements> = unknown extends Requirements
+  ? never
+  : Exclude<Requirements, Scope.Scope>;
 
 /**
  * Options required when a Node callback facade runs a serviceful request handler.
@@ -76,25 +75,21 @@ type StartNodeRuntimeRequirements<Requirements> =
  * services must be supplied by a typed runtime so missing requirements remain
  * visible at the host Adapter Interface.
  */
-export type StartNodeServerHandlerRuntimeOptions<
-  Requirements,
-  RuntimeError = never
-> = Omit<StartNodeServerHandlerOptions<RuntimeError>, "runtime"> & {
+export type StartNodeServerHandlerRuntimeOptions<Requirements, RuntimeError = never> = Omit<
+  StartNodeServerHandlerOptions<RuntimeError>,
+  "runtime"
+> & {
   readonly runtime: EffectUiRuntime<StartNodeRuntimeRequirements<Requirements>, RuntimeError>;
 };
 
-type StartNodeServerHandlerOptionsArgs<
-  Requirements,
-  RuntimeError = never
-> = [StartNodeRuntimeRequirements<Requirements>] extends [never]
+type StartNodeServerHandlerOptionsArgs<Requirements, RuntimeError = never> = [
+  StartNodeRuntimeRequirements<Requirements>,
+] extends [never]
   ? [options?: StartNodeServerHandlerOptions<RuntimeError>]
   : [options: StartNodeServerHandlerRuntimeOptions<Requirements, RuntimeError>];
 
 /** Node `createServer` callback that runs the adapter Effect internally. */
-export type StartNodeServerHandler = (
-  request: IncomingMessage,
-  response: ServerResponse
-) => void;
+export type StartNodeServerHandler = (request: IncomingMessage, response: ServerResponse) => void;
 
 /**
  * Creates an Effect-first Node HTTP handler from a Start request handler.
@@ -109,7 +104,7 @@ export type StartNodeServerHandler = (
  */
 export function createNodeHandlerEffect<Handler extends StartRequestHandlerInput<any, any>>(
   handler: Handler,
-  options?: StartNodeRequestOptions
+  options?: StartNodeRequestOptions,
 ): StartNodeHandlerEffect<StartRequestHandlerRequirements<Handler>>;
 /**
  * Creates an Effect-first Node HTTP handler while preserving explicit handler
@@ -117,7 +112,7 @@ export function createNodeHandlerEffect<Handler extends StartRequestHandlerInput
  */
 export function createNodeHandlerEffect<HandlerError, Requirements>(
   handler: StartRequestHandlerInput<HandlerError, Requirements>,
-  options?: StartNodeRequestOptions
+  options?: StartNodeRequestOptions,
 ): StartNodeHandlerEffect<Requirements>;
 /**
  * Implementation for the Effect-first Node Adapter. It owns Node/Web request
@@ -125,7 +120,7 @@ export function createNodeHandlerEffect<HandlerError, Requirements>(
  */
 export function createNodeHandlerEffect(
   handler: StartRequestHandlerInput<any, any>,
-  options: StartNodeRequestOptions = {}
+  options: StartNodeRequestOptions = {},
 ): StartNodeHandlerEffect<any> {
   return (request, response) =>
     Effect.gen(function* () {
@@ -139,7 +134,7 @@ export function createNodeHandlerEffect(
 /** Alias for `createNodeHandlerEffect`. */
 export function createNodeHandler<Handler extends StartRequestHandlerInput<any, any>>(
   handler: Handler,
-  options?: StartNodeRequestOptions
+  options?: StartNodeRequestOptions,
 ): StartNodeHandler<StartRequestHandlerRequirements<Handler>>;
 /**
  * Alias overload for typed Start request handlers whose service requirements
@@ -147,7 +142,7 @@ export function createNodeHandler<Handler extends StartRequestHandlerInput<any, 
  */
 export function createNodeHandler<HandlerError, Requirements>(
   handler: StartRequestHandlerInput<HandlerError, Requirements>,
-  options?: StartNodeRequestOptions
+  options?: StartNodeRequestOptions,
 ): StartNodeHandler<Requirements>;
 /**
  * Implementation for the Node Effect Adapter alias. It delegates to
@@ -155,16 +150,12 @@ export function createNodeHandler<HandlerError, Requirements>(
  */
 export function createNodeHandler(
   handler: StartRequestHandlerInput<any, any>,
-  options: StartNodeRequestOptions = {}
+  options: StartNodeRequestOptions = {},
 ): StartNodeHandler<any> {
   return createNodeHandlerEffect(handler, options);
 }
 
-const defaultNodeServerErrorHandler: StartNodeServerErrorHandler = (
-  error,
-  _request,
-  response
-) => {
+const defaultNodeServerErrorHandler: StartNodeServerErrorHandler = (error, _request, response) => {
   if (response.writableEnded) {
     return;
   }
@@ -181,15 +172,15 @@ const reportNodeServerErrorEffect = (
   error: unknown,
   request: IncomingMessage,
   response: ServerResponse,
-  onError: StartNodeServerErrorHandler = defaultNodeServerErrorHandler
+  onError: StartNodeServerErrorHandler = defaultNodeServerErrorHandler,
 ): Effect.Effect<void, never, never> =>
   Effect.suspend(() => toEffect(onError(error, request, response))).pipe(
     Effect.catchCause((cause) =>
       Effect.sync(() => {
         defaultNodeServerErrorHandler(Cause.squash(cause), request, response);
-      })
+      }),
     ),
-    Effect.catchCause(() => Effect.void)
+    Effect.catchCause(() => Effect.void),
   );
 
 /**
@@ -198,7 +189,10 @@ const reportNodeServerErrorEffect = (
  * This keeps `createNodeHandlerEffect` available for Effect-first hosts while
  * giving ordinary Node HTTP integrations a host-shaped callback facade.
  */
-export function createNodeServerHandler<Handler extends StartRequestHandlerInput<any, any>, RuntimeError = never>(
+export function createNodeServerHandler<
+  Handler extends StartRequestHandlerInput<any, any>,
+  RuntimeError = never,
+>(
   handler: Handler,
   ...args: StartNodeServerHandlerOptionsArgs<StartRequestHandlerRequirements<Handler>, RuntimeError>
 ): StartNodeServerHandler {
@@ -207,13 +201,13 @@ export function createNodeServerHandler<Handler extends StartRequestHandlerInput
     const lifecycle = nodeRequestLifecycle(request, response);
     const effectHandler = createNodeHandlerEffect(handler, {
       ...options,
-      signal: lifecycle.signal
+      signal: lifecycle.signal,
     });
     const reportError = (error: unknown): void => {
       try {
         void defaultRuntime.runFork(
           reportNodeServerErrorEffect(error, request, response, options.onError),
-          options.runOptions
+          options.runOptions,
         );
       } catch (reportFailure) {
         try {
@@ -229,10 +223,10 @@ export function createNodeServerHandler<Handler extends StartRequestHandlerInput
         effectHandler(request, response).pipe(
           Effect.asVoid,
           Effect.catchCause((cause) =>
-            reportNodeServerErrorEffect(Cause.squash(cause), request, response, options.onError)
-          )
+            reportNodeServerErrorEffect(Cause.squash(cause), request, response, options.onError),
+          ),
         ),
-        options
+        options,
       );
       const disposeInterrupt = interruptStartHostFiberOnSignal(fiber, lifecycle.signal, options);
       fiber.addObserver(() => {

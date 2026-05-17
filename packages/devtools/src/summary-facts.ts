@@ -8,12 +8,11 @@ import {
   devtoolsResourceNodeId as resourceNodeId,
   devtoolsRoutePlanNodeId as routePlanNodeId,
   devtoolsRuntimeEventSummaryId as runtimeEventSummaryId,
-  devtoolsRuntimeTargetLabel as runtimeTargetLabel
 } from "./graph-ids.js";
 import {
   firstDevtoolsFactIndexes,
   matchingDevtoolsFactIndex,
-  normalizeRequestTraceFacts
+  normalizeRequestTraceFacts,
 } from "./fact-identity.js";
 import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
@@ -29,7 +28,6 @@ import type {
   DevtoolsSnapshot,
   DevtoolsStartAppGraphDiagnostics,
   DevtoolsSummaryInput,
-  DevtoolsSummaryInvalidationCause,
   DevtoolsSummaryInvalidationPlan,
   DevtoolsSummaryInvalidationTarget,
   DevtoolsSummaryRequestTraceAction,
@@ -39,14 +37,14 @@ import type {
   DevtoolsSummaryResource,
   DevtoolsSummaryResourceRef,
   DevtoolsSummaryRoutePlan,
-  DevtoolsSummaryRuntimeEvent
+  DevtoolsSummaryRuntimeEvent,
 } from "./devtools-contract.js";
 
 export const emptySnapshot = (): DevtoolsSnapshot => ({
   resources: [],
   actions: [],
   invalidations: [],
-  routePlans: []
+  routePlans: [],
 });
 
 export interface NormalizedDevtoolsSummaryInput {
@@ -60,19 +58,6 @@ export interface NormalizedDevtoolsSummaryInput {
   readonly resources: ReadonlyArray<DevtoolsSummaryResource>;
 }
 
-const stateCounts = (
-  entries: Iterable<{ readonly state: string }>
-): ReadonlyArray<{ readonly state: string; readonly count: number }> => {
-  const counts = new Map<string, number>();
-  for (const entry of entries) {
-    counts.set(entry.state, (counts.get(entry.state) ?? 0) + 1);
-  }
-
-  return Array.from(counts.entries())
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([state, count]) => ({ state, count }));
-};
-
 export const summarizeResourceRef = (ref: {
   readonly key: string;
   readonly family: string;
@@ -80,22 +65,22 @@ export const summarizeResourceRef = (ref: {
 }): DevtoolsSummaryResourceRef => ({
   key: ref.key,
   family: ref.family,
-  input: toDevtoolsSerializableValue(ref.input)
+  input: toDevtoolsSerializableValue(ref.input),
 });
 
 export const summarizeTarget = (
-  target: DevtoolsInvalidationTarget
+  target: DevtoolsInvalidationTarget,
 ): DevtoolsSummaryInvalidationTarget =>
   target._tag === "Ref"
     ? {
         _tag: "Ref",
-        ...summarizeResourceRef(target)
+        ...summarizeResourceRef(target),
       }
     : { ...target };
 
 export const summarizeInvalidationPlan = (
   plan: DevtoolsInvalidationPlan,
-  index: number
+  index: number,
 ): DevtoolsSummaryInvalidationPlan => ({
   index,
   targetCount: plan.targets.length,
@@ -104,8 +89,8 @@ export const summarizeInvalidationPlan = (
   targets: plan.targets.map(summarizeTarget),
   entries: plan.entries.map((entry) => ({
     ref: summarizeResourceRef(entry.ref),
-    causes: entry.causes.map((cause) => ({ ...cause }))
-  }))
+    causes: entry.causes.map((cause) => ({ ...cause })),
+  })),
 });
 
 const hydratedResourceKeys = (plan: DevtoolsRoutePlan): ReadonlyArray<string> => {
@@ -118,7 +103,7 @@ const hydratedResourceKeys = (plan: DevtoolsRoutePlan): ReadonlyArray<string> =>
 
 export const summarizeRoutePlan = (
   plan: DevtoolsRoutePlan,
-  index: number
+  index: number,
 ): DevtoolsSummaryRoutePlan => {
   const hydratedKeys = hydratedResourceKeys(plan);
   return {
@@ -131,12 +116,12 @@ export const summarizeRoutePlan = (
     resourceCount: plan.resources.length,
     hydrationResourceCount: plan.hydration.resourceCount,
     hydratedResourceKeys: hydratedKeys,
-    resources: plan.resources.map(summarizeResourceRef)
+    resources: plan.resources.map(summarizeResourceRef),
   };
 };
 
 const summarizeTeardownSnapshot = (
-  snapshot: DevtoolsRequestTraceTeardownSnapshot | undefined
+  snapshot: DevtoolsRequestTraceTeardownSnapshot | undefined,
 ): DevtoolsSummaryRequestTraceTeardownSnapshot | null =>
   snapshot === undefined
     ? null
@@ -144,29 +129,29 @@ const summarizeTeardownSnapshot = (
         fiberCount: snapshot.fiberCount,
         familyCount: snapshot.familyCount,
         moduleCount: snapshot.moduleCount,
-        tagCount: snapshot.tagCount
+        tagCount: snapshot.tagCount,
       };
 
 const summarizeTraceServerFunction = (
-  entry: DevtoolsRequestTrace["serverFunctions"][number]
+  entry: DevtoolsRequestTrace["serverFunctions"][number],
 ): DevtoolsSummaryRequestTraceServerFunction => ({
   name: entry.name,
   status: entry.status ?? null,
-  failureKind: entry.failureKind ?? null
+  failureKind: entry.failureKind ?? null,
 });
 
 const summarizeTraceAction = (
-  entry: DevtoolsRequestTrace["actions"][number]
+  entry: DevtoolsRequestTrace["actions"][number],
 ): DevtoolsSummaryRequestTraceAction => ({
   name: entry.name,
   state: entry.state ?? null,
   failureKind: entry.failureKind ?? null,
-  invalidationIndexes: [...(entry.invalidationIndexes ?? [])]
+  invalidationIndexes: [...(entry.invalidationIndexes ?? [])],
 });
 
 export const summarizeRequestTrace = (
   trace: DevtoolsRequestTrace,
-  index: number
+  index: number,
 ): DevtoolsSummaryRequestTrace => ({
   index,
   id: trace.request.id ?? `${trace.request.method}:${trace.request.path}:${index}`,
@@ -197,17 +182,21 @@ export const summarizeRequestTrace = (
   cleanupFailure: trace.teardown?.cleanupFailure ?? null,
   serverFunctions: trace.serverFunctions.map(summarizeTraceServerFunction),
   actions: trace.actions.map(summarizeTraceAction),
-  routeHref: trace.routePlan?.href ?? null
+  routeHref: trace.routePlan?.href ?? null,
 });
 
-const resourceEventTarget = (event: ResourceStoreEvent): { readonly id: string; readonly label: string } => ({
+const resourceEventTarget = (
+  event: ResourceStoreEvent,
+): { readonly id: string; readonly label: string } => ({
   id: resourceNodeId(event.key),
-  label: event.name
+  label: event.name,
 });
 
-const collectionEventTarget = (event: DevtoolsCollectionStoreEvent): { readonly id: string; readonly label: string } => ({
+const collectionEventTarget = (
+  event: DevtoolsCollectionStoreEvent,
+): { readonly id: string; readonly label: string } => ({
   id: collectionNodeId(event.collection),
-  label: event.collection
+  label: event.collection,
 });
 
 interface RuntimeEventFactIndexes {
@@ -221,11 +210,11 @@ const emptyRuntimeEventFactIndexes = (): RuntimeEventFactIndexes => ({
   invalidations: new Map(),
   invalidationCount: 0,
   routePlans: new Map(),
-  routePlanCount: 0
+  routePlanCount: 0,
 });
 
 const programEventName = (
-  event: DevtoolsRuntimeEvent & { readonly _tag: "ProgramEvent" }
+  event: DevtoolsRuntimeEvent & { readonly _tag: "ProgramEvent" },
 ): string =>
   typeof event.event.program === "string" && event.event.program.length > 0
     ? event.event.program
@@ -234,7 +223,7 @@ const programEventName = (
 export const summarizeRuntimeEvent = (
   event: DevtoolsRuntimeEvent,
   index: number,
-  factIndexes: RuntimeEventFactIndexes = emptyRuntimeEventFactIndexes()
+  factIndexes: RuntimeEventFactIndexes = emptyRuntimeEventFactIndexes(),
 ): DevtoolsSummaryRuntimeEvent => {
   const sequence = event.sequence ?? index;
   const at = event.at ?? null;
@@ -251,9 +240,9 @@ export const summarizeRuntimeEvent = (
         label: event.event._tag,
         target: {
           kind: "Resource",
-          id: target.id
+          id: target.id,
         },
-        data: toDevtoolsSerializableValue(event.event)
+        data: toDevtoolsSerializableValue(event.event),
       };
     }
     case "CollectionStoreEvent": {
@@ -267,9 +256,9 @@ export const summarizeRuntimeEvent = (
         label: event.event._tag,
         target: {
           kind: "Collection",
-          id: target.id
+          id: target.id,
         },
-        data: toDevtoolsSerializableValue(event.event)
+        data: toDevtoolsSerializableValue(event.event),
       };
     }
     case "ProgramEvent": {
@@ -283,9 +272,9 @@ export const summarizeRuntimeEvent = (
         label: `${program} ${event.event._tag}`,
         target: {
           kind: "Program",
-          id: programNodeId(program)
+          id: programNodeId(program),
         },
-        data: toDevtoolsSerializableValue(event.event)
+        data: toDevtoolsSerializableValue(event.event),
       };
     }
     case "ActionState":
@@ -298,14 +287,14 @@ export const summarizeRuntimeEvent = (
         label: `${event.action} ${event.state}`,
         target: {
           kind: "Action",
-          id: actionNodeId(event.action)
+          id: actionNodeId(event.action),
         },
         data: toDevtoolsSerializableValue({
           action: event.action,
           state: event.state,
           input: event.input,
-          invalidationIndexes: event.invalidationIndexes ?? []
-        })
+          invalidationIndexes: event.invalidationIndexes ?? [],
+        }),
       };
     case "Invalidation":
       const invalidationIndex =
@@ -321,14 +310,14 @@ export const summarizeRuntimeEvent = (
         label: event.action === undefined ? "Invalidation" : `${event.action} invalidation`,
         target: {
           kind: "InvalidationPlan",
-          id: invalidationNodeId(invalidationTargetIndex)
+          id: invalidationNodeId(invalidationTargetIndex),
         },
         invalidationPlan,
         data: toDevtoolsSerializableValue({
           action: event.action ?? null,
           invalidationIndex: invalidationIndex ?? null,
-          plan: event.plan
-        })
+          plan: event.plan,
+        }),
       };
     case "RoutePlan":
       const routePlanIndex =
@@ -344,10 +333,10 @@ export const summarizeRuntimeEvent = (
         label: event.plan.href,
         target: {
           kind: "RoutePlan",
-          id: routePlanNodeId(routePlanTargetIndex, event.plan.href)
+          id: routePlanNodeId(routePlanTargetIndex, event.plan.href),
         },
         routePlan,
-        data: toDevtoolsSerializableValue(event.plan)
+        data: toDevtoolsSerializableValue(event.plan),
       };
     case "RequestTrace": {
       const trace = summarizeRequestTrace(event.trace, index);
@@ -360,9 +349,9 @@ export const summarizeRuntimeEvent = (
         label: `${trace.method} ${trace.path}`,
         target: {
           kind: "RequestTrace",
-          id: requestTraceNodeId(trace)
+          id: requestTraceNodeId(trace),
         },
-        data: toDevtoolsSerializableValue(event.trace)
+        data: toDevtoolsSerializableValue(event.trace),
       };
     }
     case "Custom":
@@ -376,8 +365,8 @@ export const summarizeRuntimeEvent = (
         target: null,
         data: toDevtoolsSerializableValue({
           name: event.name,
-          payload: event.payload
-        })
+          payload: event.payload,
+        }),
       };
   }
 };
@@ -393,17 +382,20 @@ export const resourceIndex = (
   routePlans: ReadonlyArray<DevtoolsSummaryRoutePlan>,
   requestTraces: ReadonlyArray<DevtoolsRequestTrace>,
   runtimeEvents: ReadonlyArray<DevtoolsRuntimeEvent> = [],
-  runtimeEventSummaries: ReadonlyArray<DevtoolsSummaryRuntimeEvent> = []
+  runtimeEventSummaries: ReadonlyArray<DevtoolsSummaryRuntimeEvent> = [],
 ): ReadonlyArray<DevtoolsSummaryResource> => {
-  const resources = new Map<string, {
-    key: string;
-    family: string | null;
-    input: DevtoolsSerializableValue | null;
-    state: string | null;
-    sources: Set<ResourceIndexSource>;
-    routeHrefs: Set<string>;
-    invalidationIndexes: Set<number>;
-  }>();
+  const resources = new Map<
+    string,
+    {
+      key: string;
+      family: string | null;
+      input: DevtoolsSerializableValue | null;
+      state: string | null;
+      sources: Set<ResourceIndexSource>;
+      routeHrefs: Set<string>;
+      invalidationIndexes: Set<number>;
+    }
+  >();
 
   const entryFor = (key: string) => {
     const existing = resources.get(key);
@@ -417,7 +409,7 @@ export const resourceIndex = (
       state: null,
       sources: new Set<ResourceIndexSource>(),
       routeHrefs: new Set<string>(),
-      invalidationIndexes: new Set<number>()
+      invalidationIndexes: new Set<number>(),
     };
     resources.set(key, next);
     return next;
@@ -459,7 +451,7 @@ export const resourceIndex = (
 
   const recordedFactNodeIds = new Set<string>([
     ...invalidations.map((plan) => invalidationNodeId(plan.index)),
-    ...routePlans.map((plan) => routePlanNodeId(plan.index, plan.href))
+    ...routePlans.map((plan) => routePlanNodeId(plan.index, plan.href)),
   ]);
   for (const event of runtimeEventSummaries) {
     if (
@@ -531,57 +523,68 @@ export const resourceIndex = (
       state: resource.state,
       sources: Array.from(resource.sources).sort(),
       routeHrefs: sortedStrings(resource.routeHrefs),
-      invalidationIndexes: Array.from(resource.invalidationIndexes).sort((left, right) => left - right)
+      invalidationIndexes: Array.from(resource.invalidationIndexes).sort(
+        (left, right) => left - right,
+      ),
     }));
 };
 
 export const summarizeRuntimeEvents = (
   events: ReadonlyArray<DevtoolsRuntimeEvent>,
   invalidations: ReadonlyArray<DevtoolsInvalidationPlan> = [],
-  routePlans: ReadonlyArray<DevtoolsRoutePlan> = []
+  routePlans: ReadonlyArray<DevtoolsRoutePlan> = [],
 ): ReadonlyArray<DevtoolsSummaryRuntimeEvent> => {
   const factIndexes = {
     invalidations: firstDevtoolsFactIndexes(invalidations),
     invalidationCount: invalidations.length,
     routePlans: firstDevtoolsFactIndexes(routePlans),
-    routePlanCount: routePlans.length
+    routePlanCount: routePlans.length,
   };
-  return events.map((event, index) =>
-    summarizeRuntimeEvent(event, index, factIndexes)
-  ).sort((left, right) => {
-    const bySequence = left.sequence - right.sequence;
-    return bySequence === 0 ? left.id.localeCompare(right.id) : bySequence;
-  });
+  return events
+    .map((event, index) => summarizeRuntimeEvent(event, index, factIndexes))
+    .sort((left, right) => {
+      const bySequence = left.sequence - right.sequence;
+      return bySequence === 0 ? left.id.localeCompare(right.id) : bySequence;
+    });
 };
 
 /** Normalizes summary input overrides and raw snapshot facts into shared summary facts. */
 export const normalizeDevtoolsSummaryInput = (
-  input: DevtoolsSummaryInput = {}
+  input: DevtoolsSummaryInput = {},
 ): NormalizedDevtoolsSummaryInput => {
   const snapshot = input.snapshot ?? emptySnapshot();
   const appGraphInput = input.appGraph ?? snapshot.appGraph;
-  const preserveDerivedPreloadFacts = input.appGraph === undefined && snapshot.appGraph !== undefined;
-  const appGraph = appGraphInput === undefined
-    ? undefined
-    : normalizeDevtoolsAppGraphDiagnostics(appGraphInput, { preserveDerivedPreloadFacts });
+  const preserveDerivedPreloadFacts =
+    input.appGraph === undefined && snapshot.appGraph !== undefined;
+  const appGraph =
+    appGraphInput === undefined
+      ? undefined
+      : normalizeDevtoolsAppGraphDiagnostics(appGraphInput, { preserveDerivedPreloadFacts });
   const invalidationPlans = input.invalidations ?? snapshot.invalidations;
   const routePlanInputs = input.routePlans ?? snapshot.routePlans;
   const requestTraceInputs = input.requestTraces ?? snapshot.requestTraces ?? [];
   const runtimeEventInputsRaw = input.runtimeEvents ?? snapshot.events ?? [];
-  const normalizedRequestTraceFacts = normalizeRequestTraceFacts(requestTraceInputs, runtimeEventInputsRaw);
+  const normalizedRequestTraceFacts = normalizeRequestTraceFacts(
+    requestTraceInputs,
+    runtimeEventInputsRaw,
+  );
   const requestTraces = normalizedRequestTraceFacts.requestTraces;
   const runtimeEventInputs = normalizedRequestTraceFacts.events;
   const invalidations = invalidationPlans.map(summarizeInvalidationPlan);
   const routePlans = routePlanInputs.map(summarizeRoutePlan);
   const requestTraceSummaries = requestTraces.map(summarizeRequestTrace);
-  const runtimeEvents = summarizeRuntimeEvents(runtimeEventInputs, invalidationPlans, routePlanInputs);
+  const runtimeEvents = summarizeRuntimeEvents(
+    runtimeEventInputs,
+    invalidationPlans,
+    routePlanInputs,
+  );
   const resources = resourceIndex(
     snapshot,
     invalidations,
     routePlans,
     requestTraces,
     runtimeEventInputs,
-    runtimeEvents
+    runtimeEvents,
   );
 
   return {
@@ -592,6 +595,6 @@ export const normalizeDevtoolsSummaryInput = (
     requestTraces,
     requestTraceSummaries,
     runtimeEvents,
-    resources
+    resources,
   };
 };

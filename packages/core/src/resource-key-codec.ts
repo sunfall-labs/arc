@@ -9,35 +9,35 @@ const resourceKeyGuidance =
   "Default Resource keys support JSON-compatible values plus Date, URL, Map, and Set. Provide Resource.family({ key }) or Resource.tag(name, { key }) for unsupported key inputs.";
 
 const pathSegment = (key: string): string =>
-  /^[A-Za-z_$][\w$]*$/.test(key)
-    ? `.${key}`
-    : `[${JSON.stringify(key)}]`;
+  /^[A-Za-z_$][\w$]*$/.test(key) ? `.${key}` : `[${JSON.stringify(key)}]`;
 
 interface ResourceKeyErrorFields {
   readonly path: string;
-  readonly reason: "CircularReference" | "UnsupportedObject" | "InvalidDate" | "EncodeFailure" | "PromiseLikeKey";
+  readonly reason:
+    | "CircularReference"
+    | "UnsupportedObject"
+    | "InvalidDate"
+    | "EncodeFailure"
+    | "PromiseLikeKey";
   readonly referencePath?: string;
   readonly cause?: unknown;
 }
 
 const keyError = (
   options: ResourceKeyEncodeOptions,
-  fields: ResourceKeyErrorFields
+  fields: ResourceKeyErrorFields,
 ): ResourceKeyError =>
   new ResourceKeyError({
     operation: options.operation,
     name: options.name,
     guidance: resourceKeyGuidance,
-    ...fields
+    ...fields,
   });
 
 const objectTag = (value: object): string =>
   Object.prototype.toString.call(value).slice("[object ".length, -1);
 
-export const encodeResourceKey = (
-  value: unknown,
-  options: ResourceKeyEncodeOptions
-): string => {
+export const encodeResourceKey = (value: unknown, options: ResourceKeyEncodeOptions): string => {
   const active = new WeakMap<object, string>();
 
   const normalize = (input: unknown, path: string): unknown => {
@@ -57,7 +57,7 @@ export const encodeResourceKey = (
       throw keyError(options, {
         path,
         reason: "UnsupportedObject",
-        cause: input
+        cause: input,
       });
     }
 
@@ -70,7 +70,7 @@ export const encodeResourceKey = (
       throw keyError(options, {
         path,
         reason: "CircularReference",
-        referencePath
+        referencePath,
       });
     }
 
@@ -83,20 +83,20 @@ export const encodeResourceKey = (
           throw keyError(options, {
             path,
             reason: "InvalidDate",
-            cause: input
+            cause: input,
           });
         }
 
         return {
           $effectUiResourceKey: "Date",
-          value: input.toISOString()
+          value: input.toISOString(),
         };
       }
 
       if (input instanceof URL) {
         return {
           $effectUiResourceKey: "URL",
-          value: input.href
+          value: input.href,
         };
       }
 
@@ -106,25 +106,21 @@ export const encodeResourceKey = (
           const normalizedValue = normalize(entryValue, `${path}.<value:${index}>`);
           return [normalizedKey, normalizedValue] as const;
         });
-        entries.sort((left, right) =>
-          JSON.stringify(left).localeCompare(JSON.stringify(right))
-        );
+        entries.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         return {
           $effectUiResourceKey: "Map",
-          entries
+          entries,
         };
       }
 
       if (input instanceof Set) {
         const values = Array.from(input.values()).map((entryValue, index) =>
-          normalize(entryValue, `${path}.<value:${index}>`)
+          normalize(entryValue, `${path}.<value:${index}>`),
         );
-        values.sort((left, right) =>
-          JSON.stringify(left).localeCompare(JSON.stringify(right))
-        );
+        values.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         return {
           $effectUiResourceKey: "Set",
-          values
+          values,
         };
       }
 
@@ -137,7 +133,7 @@ export const encodeResourceKey = (
         throw keyError(options, {
           path,
           reason: "UnsupportedObject",
-          cause: objectTag(input)
+          cause: objectTag(input),
         });
       }
 
@@ -162,7 +158,7 @@ export const encodeResourceKey = (
     throw keyError(options, {
       path: "$",
       reason: "EncodeFailure",
-      cause
+      cause,
     });
   }
 };

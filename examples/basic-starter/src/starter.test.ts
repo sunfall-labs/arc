@@ -5,7 +5,7 @@ import {
   hydrationScriptId,
   streamHydrationAttribute,
   type StartHydrationChunk,
-  type StartHydrationPayload
+  type StartHydrationPayload,
 } from "@effect-ui/start";
 import { app } from "./app-definition.js";
 import { WelcomeRef } from "./starter.js";
@@ -15,7 +15,7 @@ import {
   routeById,
   routeByPath,
   routes,
-  type FileRouteHrefOptionsById
+  type FileRouteHrefOptionsById,
 } from "./routeTree.gen.js";
 import { handleRequest } from "./server.js";
 
@@ -44,13 +44,12 @@ describe("basic starter", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const response = yield* Effect.scoped(
-          app.runtime.provide(handleRequest(new Request("https://starter.test/")))
+          app.runtime.provide(handleRequest(new Request("https://starter.test/"))),
         );
         const html = yield* Effect.tryPromise(() => response.text());
         const rootPairs = resourcePairs(rootHydrationPayloadFrom(html));
         const streamedPairs = new Set(
-          streamHydrationChunksFrom(html)
-            .flatMap((chunk) => [...resourcePairs(chunk.payload)])
+          streamHydrationChunksFrom(html).flatMap((chunk) => [...resourcePairs(chunk.payload)]),
         );
 
         expect(response.status).toBe(200);
@@ -60,9 +59,11 @@ describe("basic starter", () => {
         expect(html).toContain("data-effect-ui-hydration-chunk");
         expect([...rootPairs]).toEqual([]);
         expect(streamHydrationChunksFrom(html)).toHaveLength(1);
-        expect([...streamedPairs]).toContain(JSON.stringify([WelcomeRef.family.options.name, WelcomeRef.key]));
+        expect([...streamedPairs]).toContain(
+          JSON.stringify([WelcomeRef.family.options.name, WelcomeRef.key]),
+        );
         expect([...streamedPairs].filter((pair) => rootPairs.has(pair))).toEqual([]);
-      })
+      }),
     ));
 
   it("pins the generated route definitions artifact", () => {

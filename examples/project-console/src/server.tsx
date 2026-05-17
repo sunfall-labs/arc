@@ -3,7 +3,7 @@ import { RuntimeProvider } from "@effect-ui/solid";
 import {
   createStartStreamedHtmlResponseEffect,
   createRequestHandler,
-  htmlChunk
+  htmlChunk,
 } from "@effect-ui/start";
 import { Effect, Layer, Stream } from "effect";
 import { createComponent, generateHydrationScript, renderToString } from "solid-js/web";
@@ -22,7 +22,7 @@ export const ProjectConsoleServerLive = Layer.mergeAll(ProjectApiLive, ProjectDe
 export const serverApp = defineApp({
   ...projectConsoleAppBaseOptions,
   server: ProjectConsoleServerLive,
-  registry: projectConsoleServerRegistry
+  registry: projectConsoleServerRegistry,
 });
 
 const shellOpen = (options: {
@@ -57,8 +57,8 @@ export const handleRequest = createRequestHandler(serverApp, {
           runtime,
           get children() {
             return createComponent(App, { initialHref: href, runtime });
-          }
-        })
+          },
+        }),
       );
       const title = isRoutePathMatch("/projects/:id", match)
         ? `${match.params.id} · Effect UI Project Console`
@@ -67,8 +67,8 @@ export const handleRequest = createRequestHandler(serverApp, {
         shell: htmlChunk(
           shellOpen({
             solidHydrationScript: generateHydrationScript(),
-            title
-          })
+            title,
+          }),
         ),
         chunks: Stream.make(htmlChunk(body)),
         hydrationPlan,
@@ -76,11 +76,11 @@ export const handleRequest = createRequestHandler(serverApp, {
         headers: {
           "x-effect-ui-render": "streaming",
           "x-effect-ui-start-graph": projectConsoleStartGraphHeader,
-          "x-effect-ui-start-routes": projectConsoleStartGraphSummary.routes.join(",")
-        }
+          "x-effect-ui-start-routes": projectConsoleStartGraphSummary.routes.join(","),
+        },
       });
     });
-  }
+  },
 });
 
 export default handleRequest;

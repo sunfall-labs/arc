@@ -4,7 +4,7 @@ import {
   createServerRpcResponseEffect,
   preloadRequestEffect,
   serverRpcPath,
-  startJsonMediaType
+  startJsonMediaType,
 } from "@effect-ui/start";
 import { Effect, Schema } from "effect";
 import { bench, describe } from "vitest";
@@ -12,28 +12,31 @@ import { handleRequest } from "../examples/project-console/src/server.js";
 
 const BenchProject = Resource.family({
   name: "Benchmark.Project.byId",
-  load: (id: string) => Effect.succeed({ id, name: `Project ${id}` })
+  load: (id: string) => Effect.succeed({ id, name: `Project ${id}` }),
 });
 
 const BenchProjectRoute = route("/bench/projects/:id", {
   params: Schema.Struct({ id: Schema.String }),
-  preload: ({ params }) => Resource.prefetchEffect(BenchProject(params.id))
+  preload: ({ params }) => Resource.prefetchEffect(BenchProject(params.id)),
 });
 
 const benchStartApp = defineApp({
   routes: [BenchProjectRoute] as const,
-  client: {}
+  client: {},
 });
 
-const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Benchmark.echo.rpc", {
-  input: Schema.Struct({ value: Schema.String }),
-  output: Schema.Struct({ value: Schema.String })
-});
+const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
+  "Benchmark.echo.rpc",
+  {
+    input: Schema.Struct({ value: Schema.String }),
+    output: Schema.Struct({ value: Schema.String }),
+  },
+);
 const echo = Server.implement(Echo, ({ value }) => Effect.succeed({ value: value.toUpperCase() }));
 
 const benchRpcApp = defineApp({
   routes: [route("/", {})] as const,
-  client: {}
+  client: {},
 });
 
 interface Project {
@@ -55,8 +58,8 @@ const BenchProjects = Collection.define<Project>({
   initialData: [
     { id: "atlas", name: "Atlas", status: "active", progress: 72 },
     { id: "kepler", name: "Kepler", status: "active", progress: 58 },
-    { id: "lumen", name: "Lumen", status: "blocked", progress: 34 }
-  ]
+    { id: "lumen", name: "Lumen", status: "blocked", progress: 34 },
+  ],
 });
 
 const BenchProjectCards = Collection.liveQuery<ProjectCard, string>({
@@ -69,23 +72,22 @@ const BenchProjectCards = Collection.liveQuery<ProjectCard, string>({
       .select(({ project }) => ({
         id: project.id,
         name: project.name,
-        progress: project.progress
+        progress: project.progress,
       }))
-      .orderBy(({ project }) => project.name)
+      .orderBy(({ project }) => project.name),
 });
 
 describe("Effect UI release baseline", () => {
   bench("project console streaming SSR", async () => {
-    const response = await handleRequest(new Request("https://example.test/projects/atlas?tab=activity"));
+    const response = await handleRequest(
+      new Request("https://example.test/projects/atlas?tab=activity"),
+    );
     await response.text();
   });
 
   bench("Start route preload request", async () => {
     await Effect.runPromise(
-      preloadRequestEffect(
-        benchStartApp,
-        new Request("https://example.test/bench/projects/atlas")
-      )
+      preloadRequestEffect(benchStartApp, new Request("https://example.test/bench/projects/atlas")),
     );
   });
 
@@ -118,14 +120,14 @@ describe("Effect UI release baseline", () => {
           method: "POST",
           headers: {
             accept: startJsonMediaType,
-            "content-type": startJsonMediaType
+            "content-type": startJsonMediaType,
           },
           body: JSON.stringify({
             name: echo.name,
-            input: { value: "atlas" }
-          })
-        })
-      )
+            input: { value: "atlas" },
+          }),
+        }),
+      ),
     );
     await response.json();
   });

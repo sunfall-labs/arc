@@ -9,73 +9,62 @@ import {
   type ActionDefinitionRequirements,
   type EffectInput,
   type EffectUiRuntime,
-  type ResourceStore as ResourceStoreState
+  type ResourceStore as ResourceStoreState,
 } from "@effect-ui/core";
 import { Effect, Scope } from "effect";
-import {
-  type StartCollectionHydrationOptions
-} from "./hydration.js";
+import { type StartCollectionHydrationOptions } from "./hydration.js";
 import {
   makeRequestRuntime,
   provideRequestRuntime,
-  type RequestRuntimeRemainingRequirements
+  type RequestRuntimeRemainingRequirements,
 } from "./request-runtime.js";
-import {
-  startRequestTraceFactsEffect,
-  type StartRequestTraceHandler
-} from "./request-trace.js";
+import { startRequestTraceFactsEffect, type StartRequestTraceHandler } from "./request-trace.js";
 import { runRequestRuntimeLifecycleEffect } from "./request-runtime-lifecycle.js";
 import { recordStartRequestTracePreload } from "./request-trace-recorder.js";
 import {
   createStartRenderHydrationPlanEffect,
-  type StartRenderHydrationPlan
+  type StartRenderHydrationPlan,
 } from "./render-hydration-plan.js";
 import {
   isServerActionRequest,
   isServerRpcRequest,
   makeActionMap,
-  type StartActionDefinition
+  type StartActionDefinition,
 } from "./start-transport-protocol.js";
 import type {
   StartActionEndpointManifest,
   StartServerFunctionEndpointManifest,
   StartTransportEndpointOverrides,
-  StartTransportEndpointManifestSource
+  StartTransportEndpointManifestSource,
 } from "./start-transport-endpoints.js";
-import {
-  resolveStartTransportEndpointsEffect
-} from "./start-transport-endpoints.js";
+import { resolveStartTransportEndpointsEffect } from "./start-transport-endpoints.js";
 import {
   createServerActionResponseEffectWithRuntime,
-  createServerRpcResponseEffectWithRuntime
+  createServerRpcResponseEffectWithRuntime,
 } from "./start-request-endpoints.js";
 import type {
   StartRequestHandlerInput,
-  StartRequestHandlerRequirementsMarker
+  StartRequestHandlerRequirementsMarker,
 } from "./start-host-adapter.js";
 import {
   preloadRequestEffectWithRuntime,
-  type StartCollectionPreload,
-  type StartPreloadResult
+  type StartPreloadResult,
 } from "./start-request-preload.js";
 import {
   normalizeStartRequestHandlerError,
-  StartRequestHandlerError
+  StartRequestHandlerError,
 } from "./start-request-handler-error.js";
 
 export {
   createServerActionResponseEffect,
-  createServerRpcResponseEffect
+  createServerRpcResponseEffect,
 } from "./start-request-endpoints.js";
 export {
   StartPreloadError,
   preloadRequest,
-  preloadRequestEffect
+  preloadRequestEffect,
 } from "./start-request-preload.js";
-export type {
-  StartCollectionPreload,
-  StartPreloadResult
-} from "./start-request-preload.js";
+export type { StartCollectionPreload, StartPreloadResult } from "./start-request-preload.js";
 export { StartRequestHandlerError } from "./start-request-handler-error.js";
 
 /**
@@ -89,11 +78,12 @@ export { StartRequestHandlerError } from "./start-request-handler-error.js";
  * emitted only through streamed hydration chunks.
  */
 export interface StartRenderContext<
-  Routes extends readonly Route.Definition<string, unknown, unknown, any>[] = readonly Route.Definition<string, unknown, unknown, any>[],
+  Routes extends readonly Route.Definition<string, unknown, unknown, any>[] =
+    readonly Route.Definition<string, unknown, unknown, any>[],
   Client = unknown,
   ServerServices = never,
   ServerError = never,
-  Registry extends AppDefinitionRegistry = AppDefinitionRegistry
+  Registry extends AppDefinitionRegistry = AppDefinitionRegistry,
 > extends StartPreloadResult<Routes> {
   readonly request: Request;
   readonly app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>;
@@ -121,7 +111,7 @@ export interface CreateRequestHandlerOptions<
   ServerServices = never,
   ServerError = never,
   Actions extends StartActionDefinition = StartActionDefinition,
-  Registry extends AppDefinitionRegistry = AppDefinitionRegistry
+  Registry extends AppDefinitionRegistry = AppDefinitionRegistry,
 > extends StartCollectionHydrationOptions {
   /** Transport endpoint paths used to route RPC/action requests. */
   readonly endpoints?: StartTransportEndpointOverrides;
@@ -136,7 +126,9 @@ export interface CreateRequestHandlerOptions<
   /** App graph whose transport paths should be used by this request handler. */
   readonly appGraph?: StartTransportEndpointManifestSource;
   /** Render the preloaded request context to HTML or a custom Response. */
-  readonly render?: (context: StartRenderContext<Routes, Client, ServerServices, ServerError, Registry>) => EffectInput<string | Response>;
+  readonly render?: (
+    context: StartRenderContext<Routes, Client, ServerServices, ServerError, Registry>,
+  ) => EffectInput<string | Response>;
   /** Actions served by the action transport. Defaults to globally registered actions. */
   readonly actions?: Iterable<Actions>;
   /** Receives best-effort request diagnostics after runtime teardown. */
@@ -147,7 +139,7 @@ type StartRequestRequirements<
   Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   ServerServices,
   Registry extends AppDefinitionRegistry,
-  Actions extends StartActionDefinition
+  Actions extends StartActionDefinition,
 > = RequestRuntimeRemainingRequirements<
   | Route.PreloadRequirements<Routes[number]>
   | AppDefinitionRegistryRequirements<Registry>
@@ -156,8 +148,10 @@ type StartRequestRequirements<
 >;
 
 /** Effect-returning request handler used by the Start SSR/RPC/action pipeline. */
-export type StartRequestHandlerEffect<Requirements = never> =
-  StartRequestHandlerInput<StartRequestHandlerError, Scope.Scope | Requirements> &
+export type StartRequestHandlerEffect<Requirements = never> = StartRequestHandlerInput<
+  StartRequestHandlerError,
+  Scope.Scope | Requirements
+> &
   StartRequestHandlerRequirementsMarker<Scope.Scope | Requirements>;
 /**
  * Public Effect-returning handler consumed by platform adapters and server entries.
@@ -165,8 +159,10 @@ export type StartRequestHandlerEffect<Requirements = never> =
  * This type is the Start library boundary. Fetch and Node adapters expose the
  * host Promise/callback facades; application request handlers stay Effect-first.
  */
-export type StartRequestHandler<Requirements = never> =
-  StartRequestHandlerInput<StartRequestHandlerError, Scope.Scope | Requirements>;
+export type StartRequestHandler<Requirements = never> = StartRequestHandlerInput<
+  StartRequestHandlerError,
+  Scope.Scope | Requirements
+>;
 
 /**
  * Builds the main Start request handler for SSR, RPC, and actions.
@@ -182,30 +178,41 @@ export type StartRequestHandler<Requirements = never> =
  * });
  * ```
  */
-export const createRequestHandlerEffect =
-  <
-    const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
+export const createRequestHandlerEffect = <
+  const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
+  Client,
+  ServerServices,
+  ServerError,
+  Registry extends AppDefinitionRegistry,
+  Actions extends StartActionDefinition = never,
+>(
+  app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
+  options: CreateRequestHandlerOptions<
+    Routes,
     Client,
     ServerServices,
     ServerError,
-    Registry extends AppDefinitionRegistry,
-    Actions extends StartActionDefinition = never
-  >(
-    app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
-    options: CreateRequestHandlerOptions<Routes, Client, ServerServices, ServerError, Actions, Registry> = {}
-  ): StartRequestHandlerEffect<StartRequestRequirements<Routes, ServerServices, Registry, Actions>> => {
-    const explicitActionMap = options.actions === undefined
-      ? undefined
-      : makeActionMap(options.actions);
+    Actions,
+    Registry
+  > = {},
+): StartRequestHandlerEffect<
+  StartRequestRequirements<Routes, ServerServices, Registry, Actions>
+> => {
+  const explicitActionMap =
+    options.actions === undefined ? undefined : makeActionMap(options.actions);
 
-    return ((
-    request: Request
-  ): Effect.Effect<Response, StartRequestHandlerError, Scope.Scope | StartRequestRequirements<Routes, ServerServices, Registry, Actions>> =>
+  return ((
+    request: Request,
+  ): Effect.Effect<
+    Response,
+    StartRequestHandlerError,
+    Scope.Scope | StartRequestRequirements<Routes, ServerServices, Registry, Actions>
+  > =>
     Effect.gen(function* () {
       const endpoints = yield* resolveStartTransportEndpointsEffect(options);
       const requestOptions = {
         ...options,
-        endpoints
+        endpoints,
       };
       const requestRuntime = makeRequestRuntime(app);
       const responseContext = makeResponseContext();
@@ -217,7 +224,7 @@ export const createRequestHandlerEffect =
             request,
             requestRuntime,
             responseContext,
-            traceFacts
+            traceFacts,
           );
         }
 
@@ -228,7 +235,7 @@ export const createRequestHandlerEffect =
             requestRuntime,
             explicitActionMap,
             responseContext,
-            traceFacts
+            traceFacts,
           );
         }
 
@@ -237,17 +244,17 @@ export const createRequestHandlerEffect =
           request,
           requestRuntime,
           requestOptions,
-          responseContext
+          responseContext,
         );
         recordStartRequestTracePreload(
           traceFacts,
           requestRuntime,
           preloaded.routePlan,
-          preloaded.collectionPreload
+          preloaded.collectionPreload,
         );
         const hydrationPlan = yield* createStartRenderHydrationPlanEffect({
           resources: preloaded.resources,
-          collections: preloaded.collections
+          collections: preloaded.collections,
         });
         const context = {
           app,
@@ -267,27 +274,26 @@ export const createRequestHandlerEffect =
           },
           get hydrationScript() {
             return hydrationPlan.legacy.script;
-          }
+          },
         } satisfies StartRenderContext<Routes, Client, ServerServices, ServerError, Registry>;
 
         if (options.render) {
-          const renderEffect = invokeEffectInput(
-            "Start.render",
-            () => runWithRuntime(requestRuntime, () => options.render!(context))
+          const renderEffect = invokeEffectInput("Start.render", () =>
+            runWithRuntime(requestRuntime, () => options.render!(context)),
           );
           const rendered = yield* provideRequestRuntime(
             requestRuntime,
             request,
             renderEffect,
             responseContext,
-            app.registry
+            app.registry,
           );
           return rendered instanceof Response
             ? rendered
             : new Response(rendered, {
                 headers: {
-                  "content-type": "text/html"
-                }
+                  "content-type": "text/html",
+                },
               });
         }
 
@@ -299,31 +305,34 @@ export const createRequestHandlerEffect =
             match: preloaded.match?.href,
             resources: preloaded.resources,
             collections: preloaded.collections,
-            hydration: preloaded.hydration
+            hydration: preloaded.hydration,
           }),
           {
             headers: {
-              "content-type": "application/json"
-            }
-          }
+              "content-type": "application/json",
+            },
+          },
         );
       });
 
-      return yield* runRequestRuntimeLifecycleEffect(
-        {
-          request,
-          runtime: requestRuntime,
-          responseContext,
-          traceFacts,
-          responseEffect,
-          ...(options.onRequestTrace === undefined ? {} : { onRequestTrace: options.onRequestTrace })
-        }
-      );
+      return yield* runRequestRuntimeLifecycleEffect({
+        request,
+        runtime: requestRuntime,
+        responseContext,
+        traceFacts,
+        responseEffect,
+        ...(options.onRequestTrace === undefined ? {} : { onRequestTrace: options.onRequestTrace }),
+      });
     }).pipe(
-      Effect.mapError((cause) => normalizeStartRequestHandlerError(request, cause))
-    ) as Effect.Effect<Response, StartRequestHandlerError, Scope.Scope | StartRequestRequirements<Routes, ServerServices, Registry, Actions>>
-  ) as StartRequestHandlerEffect<StartRequestRequirements<Routes, ServerServices, Registry, Actions>>;
-  };
+      Effect.mapError((cause) => normalizeStartRequestHandlerError(request, cause)),
+    ) as Effect.Effect<
+      Response,
+      StartRequestHandlerError,
+      Scope.Scope | StartRequestRequirements<Routes, ServerServices, Registry, Actions>
+    >) as StartRequestHandlerEffect<
+    StartRequestRequirements<Routes, ServerServices, Registry, Actions>
+  >;
+};
 
 /**
  * Primary Start request handler factory for server entry modules.
@@ -331,19 +340,25 @@ export const createRequestHandlerEffect =
  * The returned handler returns an `Effect`; use the Fetch/Node adapters when a
  * host expects a Promise-returning or callback-style request function.
  */
-export const createRequestHandler =
-  <
-    const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
+export const createRequestHandler = <
+  const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
+  Client,
+  ServerServices,
+  ServerError,
+  Registry extends AppDefinitionRegistry,
+  Actions extends StartActionDefinition = never,
+>(
+  app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
+  options: CreateRequestHandlerOptions<
+    Routes,
     Client,
     ServerServices,
     ServerError,
-    Registry extends AppDefinitionRegistry,
-    Actions extends StartActionDefinition = never
-  >(
-    app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
-    options: CreateRequestHandlerOptions<Routes, Client, ServerServices, ServerError, Actions, Registry> = {}
-  ): StartRequestHandlerEffect<StartRequestRequirements<Routes, ServerServices, Registry, Actions>> =>
-    createRequestHandlerEffect(app, options);
+    Actions,
+    Registry
+  > = {},
+): StartRequestHandlerEffect<StartRequestRequirements<Routes, ServerServices, Registry, Actions>> =>
+  createRequestHandlerEffect(app, options);
 
 /** Alias for `createRequestHandler` for server entry modules. */
 export const createServerHandler = createRequestHandler;

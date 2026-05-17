@@ -4,7 +4,7 @@ import {
   routePathFromSegments,
   routePathSlug,
   type RoutePathParam,
-  type RoutePathSegment
+  type RoutePathSegment,
 } from "@effect-ui/core";
 import { Data, Effect, Exit } from "effect";
 
@@ -21,14 +21,14 @@ export interface DecodedFileRoutePath {
 }
 
 export class FileRoutePathDecodeInvalidSegment extends Data.TaggedError(
-  "FileRoutePathDecodeInvalidSegment"
+  "FileRoutePathDecodeInvalidSegment",
 )<{
   readonly segment: string;
   readonly reason: "InvalidParamName";
 }> {}
 
 export class SerializedFileRoutePathDecodeError extends Data.TaggedError(
-  "SerializedFileRoutePathDecodeError"
+  "SerializedFileRoutePathDecodeError",
 )<{
   readonly message: string;
 }> {}
@@ -60,8 +60,8 @@ export const parseFileRouteSegment = (segment: string): ParsedFileRouteSegment =
       _tag: "Valid",
       segment: {
         _tag: "Static",
-        value: segment
-      }
+        value: segment,
+      },
     };
   }
 
@@ -74,35 +74,31 @@ export const parseFileRouteSegment = (segment: string): ParsedFileRouteSegment =
         segment: {
           _tag: "Dynamic",
           name,
-          optional
-        }
+          optional,
+        },
       }
     : {
         _tag: "Invalid",
-        reason: "InvalidParamName"
+        reason: "InvalidParamName",
       };
 };
 
 export const fileRouteIdFromRoutePath = (routePath: string): string =>
-  routePath === "/"
-    ? "route_root"
-    : `route_${routePathSlug(routePath)}`;
+  routePath === "/" ? "route_root" : `route_${routePathSlug(routePath)}`;
 
-const decodedPathFromSegments = (
-  segments: readonly RoutePathSegment[]
-): DecodedFileRoutePath => {
+const decodedPathFromSegments = (segments: readonly RoutePathSegment[]): DecodedFileRoutePath => {
   const routePath = routePathFromSegments(segments);
 
   return {
     routeId: fileRouteIdFromRoutePath(routePath),
     routePath,
     segments,
-    params: routeParamsFromSegments(segments)
+    params: routeParamsFromSegments(segments),
   };
 };
 
 const decodeFileRoutePathSegmentEffect = (
-  segment: string
+  segment: string,
 ): Effect.Effect<RoutePathSegment | undefined, FileRoutePathDecodeInvalidSegment> => {
   const parsed = parseFileRouteSegment(segment);
   switch (parsed._tag) {
@@ -114,25 +110,25 @@ const decodeFileRoutePathSegmentEffect = (
       return Effect.fail(
         new FileRoutePathDecodeInvalidSegment({
           segment,
-          reason: parsed.reason
-        })
+          reason: parsed.reason,
+        }),
       );
   }
 };
 
 export const decodeFileRoutePathEffect = (
-  rawSegments: readonly string[]
+  rawSegments: readonly string[],
 ): Effect.Effect<DecodedFileRoutePath, FileRoutePathDecodeInvalidSegment> =>
   Effect.forEach(rawSegments, decodeFileRoutePathSegmentEffect).pipe(
     Effect.map((segments) =>
       decodedPathFromSegments(
-        segments.filter((segment): segment is RoutePathSegment => segment !== undefined)
-      )
-    )
+        segments.filter((segment): segment is RoutePathSegment => segment !== undefined),
+      ),
+    ),
   );
 
 export const decodeFileRoutePath = (
-  rawSegments: readonly string[]
+  rawSegments: readonly string[],
 ): DecodedFileRoutePath | undefined => {
   const exit = Effect.runSyncExit(decodeFileRoutePathEffect(rawSegments));
   return Exit.isSuccess(exit) ? exit.value : undefined;
@@ -146,20 +142,20 @@ const isNonEmptyString = (value: unknown): value is string =>
 
 const decodeSerializedSegment = (
   value: unknown,
-  index: number
+  index: number,
 ): Effect.Effect<RoutePathSegment, SerializedFileRoutePathDecodeError> => {
   if (!isRecord(value)) {
     return Effect.fail(
       new SerializedFileRoutePathDecodeError({
-        message: `Expected file route segment ${index} to be a record.`
-      })
+        message: `Expected file route segment ${index} to be a record.`,
+      }),
     );
   }
 
   if (value._tag === "Static" && isNonEmptyString(value.value)) {
     return Effect.succeed({
       _tag: "Static",
-      value: value.value
+      value: value.value,
     });
   }
 
@@ -172,20 +168,20 @@ const decodeSerializedSegment = (
     return Effect.succeed({
       _tag: "Dynamic",
       name: value.name,
-      optional: value.optional
+      optional: value.optional,
     });
   }
 
   return Effect.fail(
     new SerializedFileRoutePathDecodeError({
-      message: `File route segment ${index} is invalid.`
-    })
+      message: `File route segment ${index} is invalid.`,
+    }),
   );
 };
 
 const decodeSerializedParam = (
   value: unknown,
-  index: number
+  index: number,
 ): Effect.Effect<RoutePathParam, SerializedFileRoutePathDecodeError> => {
   if (
     isRecord(value) &&
@@ -195,20 +191,20 @@ const decodeSerializedParam = (
   ) {
     return Effect.succeed({
       name: value.name,
-      optional: value.optional
+      optional: value.optional,
     });
   }
 
   return Effect.fail(
     new SerializedFileRoutePathDecodeError({
-      message: `File route param ${index} is invalid.`
-    })
+      message: `File route param ${index} is invalid.`,
+    }),
   );
 };
 
 export const decodeSerializedFileRoutePathEffect = (
   value: SerializedFileRoutePathFields,
-  options: SerializedFileRoutePathDecodeOptions
+  options: SerializedFileRoutePathDecodeOptions,
 ): Effect.Effect<DecodedFileRoutePath, SerializedFileRoutePathDecodeError> =>
   Effect.gen(function* () {
     const segments = yield* Effect.forEach(value.segments, decodeSerializedSegment);
@@ -222,8 +218,8 @@ export const decodeSerializedFileRoutePathEffect = (
     ) {
       return yield* Effect.fail(
         new SerializedFileRoutePathDecodeError({
-          message: `${options.owner} does not match its segments.`
-        })
+          message: `${options.owner} does not match its segments.`,
+        }),
       );
     }
 

@@ -8,10 +8,12 @@ import {
   trackSignalDependency,
   withoutSignalDependencyObserver,
   type SignalDependencyTracker,
-  type Subscribable
+  type Subscribable,
 } from "./signal-dependencies.js";
 
-export const SignalTypeId: unique symbol = Symbol.for("@effect-ui/core/Signal") as typeof SignalTypeId;
+export const SignalTypeId: unique symbol = Symbol.for(
+  "@effect-ui/core/Signal",
+) as typeof SignalTypeId;
 
 /** Read-only reactive cell that participates in Effect UI dependency tracking. */
 export interface ReadableSignal<A> extends Subscribable {
@@ -53,7 +55,7 @@ const observeDependencies = <A>(
   evaluate: () => A,
   onChange: (value: A, previous: A | undefined) => void,
   options: WatchOptions<A> = {},
-  onFailure?: (error: EffectInputCallbackError) => void
+  onFailure?: (error: EffectInputCallbackError) => void,
 ): (() => void) => {
   const equals = options.equals ?? Object.is;
   let initialized = false;
@@ -72,7 +74,7 @@ const observeDependencies = <A>(
 
       initialized = true;
     },
-    (cause) => onFailure?.(signalEvaluationError("Signal.watch.evaluate", cause))
+    (cause) => onFailure?.(signalEvaluationError("Signal.watch.evaluate", cause)),
   );
 
   tracker.run();
@@ -80,14 +82,12 @@ const observeDependencies = <A>(
   return () => tracker.dispose();
 };
 
-const signalEvaluationError = (
-  operation: string,
-  cause: unknown
-): EffectInputCallbackError =>
+const signalEvaluationError = (operation: string, cause: unknown): EffectInputCallbackError =>
   new EffectInputCallbackError({
     operation,
     cause,
-    guidance: "Signal evaluators must be pure and total. Synchronous evaluator throws are reported as typed callback failures."
+    guidance:
+      "Signal evaluators must be pure and total. Synchronous evaluator throws are reported as typed callback failures.",
   });
 
 /**
@@ -99,7 +99,7 @@ const signalEvaluationError = (
 export const watch = <A, E = never>(
   evaluate: () => A,
   effect: (value: A, previous: A | undefined) => EffectInput<void, E, Scope.Scope>,
-  options?: WatchOptions<A>
+  options?: WatchOptions<A>,
 ): (() => void) => {
   const scope = getCurrentScope();
   if (!scope) {
@@ -133,7 +133,7 @@ export const watch = <A, E = never>(
       }
 
       fiber = scope.fork(Effect.fail(error));
-    }
+    },
   );
 
   const dispose = (): Effect.Effect<void> =>
@@ -189,8 +189,7 @@ class WritableSignalImpl<A> extends BaseSignal<A> implements WritableSignal<A> {
   }
 
   set(value: A | ((current: A) => A)): void {
-    const next =
-      typeof value === "function" ? (value as (current: A) => A)(this.value) : value;
+    const next = typeof value === "function" ? (value as (current: A) => A)(this.value) : value;
 
     if (Object.is(this.value, next)) {
       return;
@@ -244,7 +243,7 @@ class DerivedSignalImpl<A> extends BaseSignal<A> {
     this.tracker = makeSignalDependencyTracker(
       this.compute,
       (next) => this.applyValue(next),
-      (cause) => this.applyFailure(cause)
+      (cause) => this.applyFailure(cause),
     );
     this.tracker.run();
   }
@@ -305,8 +304,7 @@ export namespace Signal {
   export const make = <A>(initial: A): WritableSignal<A> => new WritableSignalImpl(initial);
 
   /** Creates a derived signal that tracks the signals read by `compute`. */
-  export const derive = <A>(compute: () => A): ReadableSignal<A> =>
-    new DerivedSignalImpl(compute);
+  export const derive = <A>(compute: () => A): ReadableSignal<A> => new DerivedSignalImpl(compute);
 
   /** Reads a signal and records dependency tracking when one is active. */
   export const get = <A>(signal: ReadableSignal<A>): A => signal.get();
@@ -330,7 +328,7 @@ export namespace Signal {
   /** Stream of future signal values. The current value is not emitted immediately. */
   export const changes = <A>(
     signal: ReadableSignal<A>,
-    options?: SignalStreamOptions
+    options?: SignalStreamOptions,
   ): Stream.Stream<A> =>
     Stream.callback<A>(
       (queue) =>
@@ -342,27 +340,30 @@ export namespace Signal {
 
           yield* Scope.addFinalizer(scope, Effect.sync(unsubscribe));
         }),
-      options
+      options,
     );
 
   /** Stream that emits the current value first, then future changes. */
   export const values = <A>(
     signal: ReadableSignal<A>,
-    options?: SignalStreamOptions
+    options?: SignalStreamOptions,
   ): Stream.Stream<A> =>
-    Stream.concat(Stream.sync(() => peek(signal)), changes(signal, options));
+    Stream.concat(
+      Stream.sync(() => peek(signal)),
+      changes(signal, options),
+    );
 
   /** Creates a signal from a stream inside an Effect scope. */
   export const fromStreamEffect = <A, R>(
     stream: Stream.Stream<A, never, R>,
-    initial: A
+    initial: A,
   ): Effect.Effect<ReadableSignal<A>, never, R | Scope.Scope> =>
     Effect.gen(function* () {
       const signal = make(initial);
 
       yield* stream.pipe(
         Stream.runForEach((value) => Effect.sync(() => signal.set(value))),
-        Effect.forkScoped({ startImmediately: true })
+        Effect.forkScoped({ startImmediately: true }),
       );
 
       return signal;
@@ -371,7 +372,7 @@ export namespace Signal {
   /** Creates a signal from a stream using the current `UiScope`. */
   export const fromStream = <A>(
     stream: Stream.Stream<A, never, never>,
-    initial: A
+    initial: A,
   ): ReadableSignal<A> => {
     const scope = getCurrentScope();
     if (!scope) {
@@ -379,9 +380,7 @@ export namespace Signal {
     }
 
     const signal = make(initial);
-    scope.fork(
-      stream.pipe(Stream.runForEach((value) => Effect.sync(() => signal.set(value))))
-    );
+    scope.fork(stream.pipe(Stream.runForEach((value) => Effect.sync(() => signal.set(value)))));
 
     return signal;
   };

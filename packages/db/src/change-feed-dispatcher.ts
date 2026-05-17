@@ -2,7 +2,7 @@ import { Deferred, Effect, Exit, Queue, Scope } from "effect";
 import type {
   CollectionChange,
   CollectionKey,
-  CollectionWriteOptions
+  CollectionWriteOptions,
 } from "./collection-contract.js";
 
 export interface CollectionChangeFeedDispatch<A extends object, K extends CollectionKey, E> {
@@ -21,41 +21,39 @@ export interface CollectionChangeFeedDispatcher<A extends object, K extends Coll
   readonly policy: Required<CollectionChangeFeedDispatchPolicy>;
   emitChanges(
     changes: ReadonlyArray<CollectionChange<A, K>>,
-    options?: CollectionWriteOptions
+    options?: CollectionWriteOptions,
   ): boolean;
   emitEffect(
     changes: ReadonlyArray<CollectionChange<A, K>>,
-    options?: CollectionWriteOptions
+    options?: CollectionWriteOptions,
   ): Effect.Effect<void, E>;
   takeEffect(): Effect.Effect<CollectionChangeFeedDispatch<A, K, E>>;
   shutdownEffect(): Effect.Effect<void>;
 }
 
 const defaultPolicy: Required<CollectionChangeFeedDispatchPolicy> = {
-  lateEmit: "drop"
+  lateEmit: "drop",
 };
 
 const normalizePolicy = (
-  policy: CollectionChangeFeedDispatchPolicy = {}
+  policy: CollectionChangeFeedDispatchPolicy = {},
 ): Required<CollectionChangeFeedDispatchPolicy> => ({
-  lateEmit: policy.lateEmit ?? defaultPolicy.lateEmit
+  lateEmit: policy.lateEmit ?? defaultPolicy.lateEmit,
 });
 
 export const makeCollectionChangeFeedDispatcherEffect = <
   A extends object,
   K extends CollectionKey,
-  E = unknown
+  E = unknown,
 >(
-  policy?: CollectionChangeFeedDispatchPolicy
+  policy?: CollectionChangeFeedDispatchPolicy,
 ): Effect.Effect<CollectionChangeFeedDispatcher<A, K, E>> =>
   Effect.gen(function* () {
     const queue = yield* Queue.unbounded<CollectionChangeFeedDispatch<A, K, E>>();
     const normalized = normalizePolicy(policy);
     let closed = false;
 
-    const emitDispatch = (
-      dispatch: CollectionChangeFeedDispatch<A, K, E>
-    ): boolean => {
+    const emitDispatch = (dispatch: CollectionChangeFeedDispatch<A, K, E>): boolean => {
       if (closed) {
         return false;
       }
@@ -95,18 +93,17 @@ export const makeCollectionChangeFeedDispatcherEffect = <
           yield* Deferred.await(completed);
         }),
       takeEffect: () => Queue.take(queue),
-      shutdownEffect: () => shutdownEffect
+      shutdownEffect: () => shutdownEffect,
     };
   });
 
 export const scopedCollectionChangeFeedDispatcherEffect = <
   A extends object,
   K extends CollectionKey,
-  E = unknown
+  E = unknown,
 >(
-  policy?: CollectionChangeFeedDispatchPolicy
+  policy?: CollectionChangeFeedDispatchPolicy,
 ): Effect.Effect<CollectionChangeFeedDispatcher<A, K, E>, never, Scope.Scope> =>
-  Effect.acquireRelease(
-    makeCollectionChangeFeedDispatcherEffect<A, K, E>(policy),
-    (dispatcher) => dispatcher.shutdownEffect()
+  Effect.acquireRelease(makeCollectionChangeFeedDispatcherEffect<A, K, E>(policy), (dispatcher) =>
+    dispatcher.shutdownEffect(),
   );

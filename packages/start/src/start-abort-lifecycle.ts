@@ -9,18 +9,16 @@ export interface StartAbortSignalLifecycle {
 
 const noop = (): void => undefined;
 
-const abortSignalAny = (
-  signals: readonly AbortSignal[]
-): AbortSignal | undefined => {
-  const any = (AbortSignal as typeof AbortSignal & {
-    readonly any?: (signals: AbortSignal[]) => AbortSignal;
-  }).any;
+const abortSignalAny = (signals: readonly AbortSignal[]): AbortSignal | undefined => {
+  const any = (
+    AbortSignal as typeof AbortSignal & {
+      readonly any?: (signals: AbortSignal[]) => AbortSignal;
+    }
+  ).any;
   return typeof any === "function" ? any([...signals]) : undefined;
 };
 
-const uniqueAbortSignals = (
-  signals: Iterable<AbortSignal | undefined>
-): readonly AbortSignal[] => {
+const uniqueAbortSignals = (signals: Iterable<AbortSignal | undefined>): readonly AbortSignal[] => {
   const unique: AbortSignal[] = [];
   for (const signal of signals) {
     if (signal !== undefined && !unique.includes(signal)) {
@@ -37,7 +35,7 @@ const uniqueAbortSignals = (
  * listener removal idempotent and propagates the first abort reason.
  */
 export const mergeStartAbortSignals = (
-  signals: Iterable<AbortSignal | undefined>
+  signals: Iterable<AbortSignal | undefined>,
 ): StartAbortSignalLifecycle => {
   const uniqueSignals = uniqueAbortSignals(signals);
   if (uniqueSignals.length === 0) {
@@ -78,7 +76,7 @@ export const mergeStartAbortSignals = (
       for (const cleanup of cleanupHandlers.splice(0)) {
         cleanup();
       }
-    }
+    },
   };
 };
 
@@ -87,7 +85,7 @@ export const mergeStartAbortSignals = (
  */
 export const runStartAbortFinalizerOnSignalEffect = (
   signal: AbortSignal,
-  finalizer: (reason: unknown) => void
+  finalizer: (reason: unknown) => void,
 ): Effect.Effect<void, never, Scope.Scope> =>
   Effect.acquireRelease(
     Effect.sync(() => {
@@ -102,19 +100,19 @@ export const runStartAbortFinalizerOnSignalEffect = (
     (runFinalizer) =>
       Effect.sync(() => {
         signal.removeEventListener("abort", runFinalizer);
-      })
+      }),
   ).pipe(Effect.asVoid);
 
 /** Interrupts a forked host Effect from an AbortSignal and removes listeners on completion. */
 export const interruptStartHostFiberOnSignal = <A, E>(
   fiber: Fiber.Fiber<A, E>,
   signal: AbortSignal,
-  options: { readonly runOptions?: Effect.RunOptions } = {}
+  options: { readonly runOptions?: Effect.RunOptions } = {},
 ): (() => void) => {
   const interrupt = (): void => {
     void defaultRuntime.runFork(
       Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void)),
-      options.runOptions
+      options.runOptions,
     );
   };
   const dispose = (): void => {

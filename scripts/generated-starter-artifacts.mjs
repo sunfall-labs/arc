@@ -1,4 +1,1 @@
-export {
-  generatedStarterArtifacts,
-  generatedStarterArtifactsFor,
-} from "./starter-catalog.mjs";
+export { generatedStarterArtifacts, generatedStarterArtifactsFor } from "./starter-catalog.mjs";

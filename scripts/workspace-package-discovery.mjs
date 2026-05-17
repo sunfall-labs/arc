@@ -35,10 +35,7 @@ const parseJsonEffect = (workspaceRoot, filePath, text) =>
   });
 
 const isNodeNotFoundError = (cause) =>
-  cause &&
-  typeof cause === "object" &&
-  "code" in cause &&
-  cause.code === "ENOENT";
+  cause && typeof cause === "object" && "code" in cause && cause.code === "ENOENT";
 
 const pathExists = (workspaceRoot, filePath) =>
   Effect.tryPromise({
@@ -167,13 +164,11 @@ export const collectWorkspacePackageManifests = (workspaceRoot) =>
       );
     }
 
-    const packageJsonPaths = (yield* Effect.forEach(
-      workspaceGlobs,
-      (workspaceGlob) => packageJsonPathsForWorkspaceGlob(workspaceRoot, workspaceGlob),
+    const packageJsonPaths = (yield* Effect.forEach(workspaceGlobs, (workspaceGlob) =>
+      packageJsonPathsForWorkspaceGlob(workspaceRoot, workspaceGlob),
     )).flat();
-    const manifests = yield* Effect.forEach(
-      packageJsonPaths,
-      (packageJsonPath) => readPackageJson(workspaceRoot, packageJsonPath),
+    const manifests = yield* Effect.forEach(packageJsonPaths, (packageJsonPath) =>
+      readPackageJson(workspaceRoot, packageJsonPath),
     );
     const names = new Set();
     const duplicateNames = [];
@@ -188,7 +183,7 @@ export const collectWorkspacePackageManifests = (workspaceRoot) =>
       const previousPackageName = localDirectoryNames.get(manifest.localDirectoryName);
       if (previousPackageName !== undefined) {
         duplicateLocalDirectoryNames.push(
-          `${manifest.localDirectoryName} (${previousPackageName}, ${name})`
+          `${manifest.localDirectoryName} (${previousPackageName}, ${name})`,
         );
       } else {
         localDirectoryNames.set(manifest.localDirectoryName, name);
@@ -212,6 +207,6 @@ export const collectWorkspacePackageManifests = (workspaceRoot) =>
     }
 
     return manifests.sort((left, right) =>
-      left.packageJson.name.localeCompare(right.packageJson.name)
+      left.packageJson.name.localeCompare(right.packageJson.name),
     );
   });

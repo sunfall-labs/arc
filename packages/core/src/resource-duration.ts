@@ -1,7 +1,9 @@
 import { Data } from "effect";
 
 /** Duration accepted by Resource lifecycle policies, measured in milliseconds. */
-export type DurationInput = number | `${number} ${"millisecond" | "milliseconds" | "second" | "seconds" | "minute" | "minutes"}`;
+export type DurationInput =
+  | number
+  | `${number} ${"millisecond" | "milliseconds" | "second" | "seconds" | "minute" | "minutes"}`;
 
 /** Error raised when a Resource lifecycle duration cannot be parsed. */
 export class UnsupportedDuration extends Data.TaggedError("UnsupportedDuration")<{
@@ -17,7 +19,9 @@ export const parseDuration = (duration: DurationInput | undefined): number => {
     return duration;
   }
 
-  const match = /^(-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?) (milliseconds?|seconds?|minutes?)$/i.exec(duration);
+  const match = /^(-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?) (milliseconds?|seconds?|minutes?)$/i.exec(
+    duration,
+  );
   if (!match) {
     throw new UnsupportedDuration({ duration });
   }

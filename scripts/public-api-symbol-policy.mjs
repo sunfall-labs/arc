@@ -11,7 +11,7 @@ export const publicHoverDocGroups = [
       "ActionInstance",
       "ActionUseOptions",
       "isActionDefinition",
-      "Action"
+      "Action",
     ],
     namespaceDeclarations: {
       Action: [
@@ -21,9 +21,9 @@ export const publicHoverDocGroups = [
         "Concurrency",
         "Policy",
         "Rollback",
-        "OptimisticTransaction"
-      ]
-    }
+        "OptimisticTransaction",
+      ],
+    },
   },
   {
     file: "packages/core/src/action-result.ts",
@@ -41,32 +41,17 @@ export const publicHoverDocGroups = [
       "ActionResultBoundary",
       "AnyActionResult",
       "ActionResultInvalidationRequirements",
-      "ActionResultMatch"
+      "ActionResultMatch",
     ],
-    allDeclarations: [
-      "ActionResult"
-    ]
+    allDeclarations: ["ActionResult"],
   },
   {
     file: "packages/core/src/capability.ts",
-    declarations: [
-      "CapabilityTypeId",
-      "isCapability"
-    ],
-    allDeclarations: [
-      "Capability"
-    ],
+    declarations: ["CapabilityTypeId", "isCapability"],
+    allDeclarations: ["Capability"],
     namespaceDeclarations: {
-      Capability: [
-        "Any",
-        "Shape",
-        "Identifier",
-        "define",
-        "layer",
-        "mock",
-        "provide"
-      ]
-    }
+      Capability: ["Any", "Shape", "Identifier", "define", "layer", "mock", "provide"],
+    },
   },
   {
     file: "packages/core/src/form.ts",
@@ -87,11 +72,9 @@ export const publicHoverDocGroups = [
       "FormValidationError",
       "formDataToObject",
       "decodeFormDataEffect",
-      "isForm"
+      "isForm",
     ],
-    allDeclarations: [
-      "Form"
-    ],
+    allDeclarations: ["Form"],
     namespaceDeclarations: {
       Form: [
         "FieldKey",
@@ -106,9 +89,9 @@ export const publicHoverDocGroups = [
         "DataOptions",
         "error",
         "fieldError",
-        "make"
-      ]
-    }
+        "make",
+      ],
+    },
   },
   {
     file: "packages/core/src/program.ts",
@@ -116,7 +99,7 @@ export const publicHoverDocGroups = [
       "Program",
       "ProgramStartOptions",
       "startProgram",
-      "startProgramWithRuntimeError"
+      "startProgramWithRuntimeError",
     ],
     namespaceDeclarations: {
       Program: [
@@ -147,9 +130,9 @@ export const publicHoverDocGroups = [
         "SubscriptionInput",
         "StoryEntry",
         "Story",
-        "StoryOptions"
-      ]
-    }
+        "StoryOptions",
+      ],
+    },
   },
   {
     file: "packages/core/src/runtime.ts",
@@ -167,8 +150,8 @@ export const publicHoverDocGroups = [
       "getCurrentRuntime",
       "currentOrDefaultRuntime",
       "runWithRuntime",
-      "runFork"
-    ]
+      "runFork",
+    ],
   },
   {
     file: "packages/core/src/runtime-provider-lifecycle.ts",
@@ -179,14 +162,12 @@ export const publicHoverDocGroups = [
       "makeRuntimeProviderLifecycleEntry",
       "DisposeRuntimeProviderLifecycleOptions",
       "disposeRuntimeProviderLifecycleEntryEffect",
-      "disposeRuntimeProviderLifecycleEffect"
-    ]
+      "disposeRuntimeProviderLifecycleEffect",
+    ],
   },
   {
     file: "packages/core/src/effect-like.ts",
-    declarations: [
-      "isPromiseLikeValue"
-    ]
+    declarations: ["isPromiseLikeValue"],
   },
   {
     file: "packages/core/src/stable-stringify.ts",
@@ -195,15 +176,12 @@ export const publicHoverDocGroups = [
       "StableStringifyEncodeFailure",
       "StableStringifyInvalidDate",
       "StableStringifyUnsupportedValue",
-      "stableStringify"
-    ]
+      "stableStringify",
+    ],
   },
   {
     file: "packages/core/src/resource-duration.ts",
-    declarations: [
-      "DurationInput",
-      "UnsupportedDuration"
-    ]
+    declarations: ["DurationInput", "UnsupportedDuration"],
   },
   {
     file: "packages/core/src/program-contract.ts",
@@ -240,8 +218,8 @@ export const publicHoverDocGroups = [
       "ProgramStoryEntry",
       "ProgramStory",
       "ProgramStoryOptions",
-      "ProgramInstance"
-    ]
+      "ProgramInstance",
+    ],
   },
   {
     file: "packages/core/src/scope.ts",
@@ -259,8 +237,8 @@ export const publicHoverDocGroups = [
       "scoped",
       "onScopeDispose",
       "onDispose",
-      "forkScoped"
-    ]
+      "forkScoped",
+    ],
   },
   {
     file: "packages/core/src/browser-router-link.ts",
@@ -282,8 +260,8 @@ export const publicHoverDocGroups = [
       "BrowserRouterLinkPreloadIdentity",
       "BrowserRouterLinkPreloaderRuntime",
       "BrowserRouterLinkPreloaderOptions",
-      "makeBrowserRouterLinkPreloader"
-    ]
+      "makeBrowserRouterLinkPreloader",
+    ],
   },
   {
     file: "packages/core/src/browser-router-render-decision.ts",
@@ -296,8 +274,8 @@ export const publicHoverDocGroups = [
       "browserRouteRenderKey",
       "browserRouteRenderDecision",
       "browserRouteActiveRenderer",
-      "browserRouteRenderIdentity"
-    ]
+      "browserRouteRenderIdentity",
+    ],
   },
   {
     file: "packages/core/src/resource.ts",
@@ -309,7 +287,7 @@ export const publicHoverDocGroups = [
       "ResourceHydrationPayload",
       "ResourceHydrationInput",
       "ResourceStatus",
-      "Resource"
+      "Resource",
     ],
     namespaceDeclarations: {
       Resource: [
@@ -336,9 +314,9 @@ export const publicHoverDocGroups = [
         "hydrationPayload",
         "hydrationPayloadEffect",
         "value",
-        "error"
-      ]
-    }
+        "error",
+      ],
+    },
   },
   {
     file: "packages/core/src/resource-ui-binding.ts",
@@ -363,16 +341,16 @@ export const publicHoverDocGroups = [
       "resourceUiMatchState",
       "resourceUiBindRuntimeEffect",
       "makeResourceUiBindingController",
-      "makeResourceUiSuspensePreloadController"
-    ]
+      "makeResourceUiSuspensePreloadController",
+    ],
   },
   {
     file: "packages/devtools/src/serialization.ts",
     declarations: [
       "DevtoolsUnknownInvalidationTarget",
       "describeInvalidationPlan",
-      "describeRoutePlan"
-    ]
+      "describeRoutePlan",
+    ],
   },
   {
     file: "packages/devtools/src/devtools-contract.ts",
@@ -403,8 +381,8 @@ export const publicHoverDocGroups = [
       "DevtoolsPanelMountOptions",
       "DevtoolsPanelMount",
       "DevtoolsPanelBootOptions",
-      "DevtoolsPanelBoot"
-    ]
+      "DevtoolsPanelBoot",
+    ],
   },
   {
     file: "packages/devtools/src/index.ts",
@@ -417,8 +395,8 @@ export const publicHoverDocGroups = [
       "mountDevtoolsPanels",
       "mountDevtoolsPanelsEffect",
       "interruptDevtoolsPanelBoot",
-      "bootDevtoolsPanels"
-    ]
+      "bootDevtoolsPanels",
+    ],
   },
   {
     file: "packages/devtools/src/app-graph-normalizer.ts",
@@ -427,21 +405,16 @@ export const publicHoverDocGroups = [
       "normalizeAppGraphCollectionDefinitions",
       "normalizeAppGraphUnknownRoutePreloadCollections",
       "NormalizeDevtoolsAppGraphDiagnosticsOptions",
-      "normalizeDevtoolsAppGraphDiagnostics"
-    ]
+      "normalizeDevtoolsAppGraphDiagnostics",
+    ],
   },
   {
     file: "packages/devtools/src/panel-renderer.ts",
-    declarations: [
-      "devtoolsPanelStyles"
-    ]
+    declarations: ["devtoolsPanelStyles"],
   },
   {
     file: "packages/devtools/src/summary.ts",
-    declarations: [
-      "describeDevtoolsSummary",
-      "describeDevtoolsSummaryEffect"
-    ]
+    declarations: ["describeDevtoolsSummary", "describeDevtoolsSummaryEffect"],
   },
   {
     file: "packages/devtools/src/panel-contract.ts",
@@ -460,8 +433,8 @@ export const publicHoverDocGroups = [
       "isDevtoolsPanels",
       "normalizeDevtoolsPanels",
       "resolveDevtoolsPanelContract",
-      "resolveDevtoolsPanelsInput"
-    ]
+      "resolveDevtoolsPanelsInput",
+    ],
   },
   {
     file: "packages/start/src/file-route.ts",
@@ -471,8 +444,8 @@ export const publicHoverDocGroups = [
       "FileRoutePreloadResource",
       "FileRoutePreloadOptions",
       "FileRoutePreloadError",
-      "FileRoutePreloadRouteOptions"
-    ]
+      "FileRoutePreloadRouteOptions",
+    ],
   },
   {
     file: "packages/start/src/file-route-modules.ts",
@@ -489,8 +462,8 @@ export const publicHoverDocGroups = [
       "createFileRouteModuleReferences",
       "createFileRouteCompanionModuleReferences",
       "createFileRouteDefinitionsModule",
-      "createGeneratedFileRouteDefinitionsModule"
-    ]
+      "createGeneratedFileRouteDefinitionsModule",
+    ],
   },
   {
     file: "packages/db/src/collection-contract.ts",
@@ -537,76 +510,59 @@ export const publicHoverDocGroups = [
       "CollectionStoreEvent",
       "CollectionStoreDiagnosticsSnapshot",
       "CollectionStoreDiagnostics",
-      "CollectionStore"
+      "CollectionStore",
     ],
     namespaceAliases: {
       CollectionStoreDiagnosticsSnapshot: "Collection.StoreDiagnosticsSnapshot",
-      CollectionStoreDiagnostics: "Collection.StoreDiagnostics"
-    }
+      CollectionStoreDiagnostics: "Collection.StoreDiagnostics",
+    },
   },
   {
     file: "packages/db/src/collection-ids.ts",
-    declarations: [
-      "CollectionStoreTypeId",
-      "CollectionTypeId"
-    ]
+    declarations: ["CollectionStoreTypeId", "CollectionTypeId"],
   },
   {
     file: "packages/db/src/collection-index-materialization.ts",
-    declarations: [
-      "UnknownCollectionIndex"
-    ],
+    declarations: ["UnknownCollectionIndex"],
     namespaceAliases: {
-      UnknownCollectionIndex: "Collection.UnknownIndex"
-    }
+      UnknownCollectionIndex: "Collection.UnknownIndex",
+    },
   },
   {
     file: "packages/db/src/collection-errors.ts",
     declarations: [
       "CollectionRowKeyChanged",
       "CollectionRowNotFound",
-      "ReadonlyCollectionMutation"
+      "ReadonlyCollectionMutation",
     ],
     namespaceAliases: {
       CollectionRowKeyChanged: "Collection.RowKeyChanged",
       CollectionRowNotFound: "Collection.RowNotFound",
-      ReadonlyCollectionMutation: "Collection.ReadonlyMutation"
-    }
+      ReadonlyCollectionMutation: "Collection.ReadonlyMutation",
+    },
   },
   {
     file: "packages/db/src/collection-snapshot-codec.ts",
-    declarations: [
-      "CollectionSnapshotCodecError"
-    ],
+    declarations: ["CollectionSnapshotCodecError"],
     namespaceAliases: {
-      CollectionSnapshotCodecError: "Collection.SnapshotCodecError"
-    }
+      CollectionSnapshotCodecError: "Collection.SnapshotCodecError",
+    },
   },
   {
     file: "packages/db/src/collection-preload.ts",
-    allDeclarations: [
-      "CollectionPreloadCollector"
-    ]
+    allDeclarations: ["CollectionPreloadCollector"],
   },
   {
     file: "packages/db/src/live-query-collection.ts",
-    declarations: [
-      "CollectionLiveQueryOptions"
-    ]
+    declarations: ["CollectionLiveQueryOptions"],
   },
   {
     file: "packages/db/src/collection-registry.ts",
-    declarations: [
-      "defaultCollectionDefinitionRegistry",
-      "makeCollectionDefinitionRegistry"
-    ]
+    declarations: ["defaultCollectionDefinitionRegistry", "makeCollectionDefinitionRegistry"],
   },
   {
     file: "packages/db/src/index.ts",
-    declarations: [
-      "isCollection",
-      "makeLiveQueryCollection"
-    ],
+    declarations: ["isCollection", "makeLiveQueryCollection"],
     namespaceDeclarations: {
       Collection: [
         "define",
@@ -764,9 +720,9 @@ export const publicHoverDocGroups = [
         "persistEffect",
         "restoreEffect",
         "memoryStorage",
-        "storage"
-      ]
-    }
+        "storage",
+      ],
+    },
   },
   {
     file: "packages/db/src/query-plan.ts",
@@ -782,12 +738,12 @@ export const publicHoverDocGroups = [
       "QueryPlanJoinDiagnostics",
       "QueryPlanDiagnostics",
       "QueryAggregate",
-      "QueryGroupKey"
+      "QueryGroupKey",
     ],
     namespaceAliases: {
       QueryEvaluationError: "Query.EvaluationError",
-      UnsupportedLiveQuery: "Query.UnsupportedLiveQuery"
-    }
+      UnsupportedLiveQuery: "Query.UnsupportedLiveQuery",
+    },
   },
   {
     file: "packages/db/src/query-builder.ts",
@@ -830,9 +786,9 @@ export const publicHoverDocGroups = [
         "build",
         "diagnostics",
         "onceEffect",
-        "live"
-      ]
-    }
+        "live",
+      ],
+    },
   },
   {
     file: "packages/db/src/collection-persistence.ts",
@@ -840,11 +796,11 @@ export const publicHoverDocGroups = [
       "CollectionStorageError",
       "collectionStorageFromSync",
       "makeCollectionMemoryStorage",
-      "persistedCollectionOptions"
+      "persistedCollectionOptions",
     ],
     namespaceAliases: {
-      CollectionStorageError: "Collection.StorageError"
-    }
+      CollectionStorageError: "Collection.StorageError",
+    },
   },
   {
     file: "packages/db/src/flush-policy.ts",
@@ -869,8 +825,8 @@ export const publicHoverDocGroups = [
       "CollectionBackgroundSyncError",
       "CollectionBackgroundSyncRequirements",
       "flushCollectionsPendingMutationsEffect",
-      "backgroundSyncCollectionsPendingMutationsEffect"
-    ]
+      "backgroundSyncCollectionsPendingMutationsEffect",
+    ],
   },
   {
     file: "packages/db/src/collection-reactive-binding.ts",
@@ -888,40 +844,24 @@ export const publicHoverDocGroups = [
       "selectCollectionReactiveLiveQuery",
       "CollectionReactivePreloadController",
       "CollectionReactivePreloadControllerOptions",
-      "makeCollectionReactivePreloadController"
-    ]
+      "makeCollectionReactivePreloadController",
+    ],
   },
   {
     file: "packages/react-db/src/collection.ts",
-    declarations: [
-      "UseCollectionOptions",
-      "CollectionHandle",
-      "useCollection"
-    ]
+    declarations: ["UseCollectionOptions", "CollectionHandle", "useCollection"],
   },
   {
     file: "packages/react-db/src/live-query.ts",
-    declarations: [
-      "UseLiveQueryOptions",
-      "LiveQueryHandle",
-      "useLiveQuery"
-    ]
+    declarations: ["UseLiveQueryOptions", "LiveQueryHandle", "useLiveQuery"],
   },
   {
     file: "packages/solid-db/src/collection.ts",
-    declarations: [
-      "UseCollectionOptions",
-      "CollectionHandle",
-      "useCollection"
-    ]
+    declarations: ["UseCollectionOptions", "CollectionHandle", "useCollection"],
   },
   {
     file: "packages/solid-db/src/live-query.ts",
-    declarations: [
-      "UseLiveQueryOptions",
-      "LiveQueryHandle",
-      "useLiveQuery"
-    ]
+    declarations: ["UseLiveQueryOptions", "LiveQueryHandle", "useLiveQuery"],
   },
   {
     file: "packages/db/src/server-collection.ts",
@@ -934,8 +874,8 @@ export const publicHoverDocGroups = [
       "ServerCollectionOptions",
       "ServerCollectionMissingIdentity",
       "serverCollectionSyncAdapter",
-      "serverCollectionOptions"
-    ]
+      "serverCollectionOptions",
+    ],
   },
   {
     file: "packages/db/src/sqlite-persistence.ts",
@@ -964,7 +904,7 @@ export const publicHoverDocGroups = [
       "makeSQLiteMemoryStatementDatabase",
       "makeSQLitePreparedStatementDatabase",
       "makeSQLiteStatementPersistenceDriver",
-      "makeSQLitePersistenceStorage"
+      "makeSQLitePersistenceStorage",
     ],
     namespaceDeclarations: {
       SQLitePersistence: [
@@ -985,16 +925,13 @@ export const publicHoverDocGroups = [
         "storage",
         "preparedStatementDatabase",
         "statementDriver",
-        "memoryStatementDatabase"
-      ]
-    }
+        "memoryStatementDatabase",
+      ],
+    },
   },
   {
     file: "packages/core/src/browser-router-state.ts",
-    declarations: [
-      "BrowserRouterPath",
-      "BrowserRouterRouteForPath"
-    ]
+    declarations: ["BrowserRouterPath", "BrowserRouterRouteForPath"],
   },
   {
     file: "packages/core/src/browser-router-history-adapter.ts",
@@ -1004,8 +941,8 @@ export const publicHoverDocGroups = [
       "BrowserHistoryAdapter",
       "MemoryBrowserHistoryAdapter",
       "makeWindowBrowserHistoryAdapter",
-      "makeMemoryBrowserHistoryAdapter"
-    ]
+      "makeMemoryBrowserHistoryAdapter",
+    ],
   },
   {
     file: "packages/core/src/browser-router-kernel.ts",
@@ -1017,15 +954,12 @@ export const publicHoverDocGroups = [
       "BrowserRouterKernelOptions",
       "BrowserRouterKernel",
       "createBrowserRouterKernel",
-      "RouterRouteNotRegistered"
-    ]
+      "RouterRouteNotRegistered",
+    ],
   },
   {
     file: "packages/core/src/browser-router-host-controller.ts",
-    declarations: [
-      "BrowserRouterHostController",
-      "createBrowserRouterHostController"
-    ]
+    declarations: ["BrowserRouterHostController", "createBrowserRouterHostController"],
   },
   {
     file: "packages/react/src/router.ts",
@@ -1038,16 +972,12 @@ export const publicHoverDocGroups = [
       "createBrowserRouter",
       "useRouter",
       "RouterOutlet",
-      "RouterProvider"
-    ]
+      "RouterProvider",
+    ],
   },
   {
     file: "packages/react/src/link.ts",
-    declarations: [
-      "RouterLinkProps",
-      "isPlainLeftClick",
-      "RouterLink"
-    ]
+    declarations: ["RouterLinkProps", "isPlainLeftClick", "RouterLink"],
   },
   {
     file: "packages/react/src/runtime.ts",
@@ -1058,8 +988,8 @@ export const publicHoverDocGroups = [
       "useRuntime",
       "RuntimeProvider",
       "useComponentScope",
-      "useScoped"
-    ]
+      "useScoped",
+    ],
   },
   {
     file: "packages/react/src/hooks.ts",
@@ -1080,8 +1010,8 @@ export const publicHoverDocGroups = [
       "useResourceError",
       "useResource",
       "useResourceSuspense",
-      "useAction"
-    ]
+      "useAction",
+    ],
   },
   {
     file: "packages/solid/src/router.ts",
@@ -1094,16 +1024,12 @@ export const publicHoverDocGroups = [
       "createBrowserRouter",
       "useRouter",
       "RouterOutlet",
-      "RouterProvider"
-    ]
+      "RouterProvider",
+    ],
   },
   {
     file: "packages/solid/src/link.ts",
-    declarations: [
-      "RouterLinkProps",
-      "isPlainLeftClick",
-      "RouterLink"
-    ]
+    declarations: ["RouterLinkProps", "isPlainLeftClick", "RouterLink"],
   },
   {
     file: "packages/solid/src/runtime.ts",
@@ -1113,8 +1039,8 @@ export const publicHoverDocGroups = [
       "createEffectRuntime",
       "useRuntime",
       "RuntimeProvider",
-      "createComponentScope"
-    ]
+      "createComponentScope",
+    ],
   },
   {
     file: "packages/solid/src/hooks.ts",
@@ -1135,8 +1061,8 @@ export const publicHoverDocGroups = [
       "useResourceError",
       "useResource",
       "useResourceSuspense",
-      "useAction"
-    ]
+      "useAction",
+    ],
   },
   {
     file: "packages/start/src/action-manifest.ts",
@@ -1169,8 +1095,8 @@ export const publicHoverDocGroups = [
       "clientReferencesForActionManifest",
       "isBrowserSafeActionClientReference",
       "serializeActionManifest",
-      "deserializeActionManifest"
-    ]
+      "deserializeActionManifest",
+    ],
   },
   {
     file: "packages/start/src/server-function-manifest.ts",
@@ -1203,8 +1129,8 @@ export const publicHoverDocGroups = [
       "clientReferencesForServerFunctionManifest",
       "isBrowserSafeServerFunctionClientReference",
       "serializeServerFunctionManifest",
-      "deserializeServerFunctionManifest"
-    ]
+      "deserializeServerFunctionManifest",
+    ],
   },
   {
     file: "packages/start/src/start-action-request-codec.ts",
@@ -1222,15 +1148,12 @@ export const publicHoverDocGroups = [
       "encodeStartActionRequestEffect",
       "encodeStartActionFormInputEffect",
       "startActionForm",
-      "readStartActionRequestEffect"
-    ]
+      "readStartActionRequestEffect",
+    ],
   },
   {
     file: "packages/start/src/start-action-client.ts",
-    declarations: [
-      "submitStartActionEffect",
-      "StartAction"
-    ]
+    declarations: ["submitStartActionEffect", "StartAction"],
   },
   {
     file: "packages/start/src/hydration.ts",
@@ -1241,29 +1164,24 @@ export const publicHoverDocGroups = [
       "HydrateStartHydrationChunksFromDocumentOptions",
       "HydrateFromDocumentEffectOptions",
       "HydrateFromDocumentOptions",
-      "PreloadRequestOptions"
-    ]
+      "PreloadRequestOptions",
+    ],
   },
   {
     file: "packages/start/src/render-hydration-plan.ts",
     declarations: [
       "StartRenderHydrationPlan",
       "CreateStartRenderHydrationPlanOptions",
-      "createStartRenderHydrationPlanEffect"
-    ]
+      "createStartRenderHydrationPlanEffect",
+    ],
   },
   {
     file: "packages/start/src/start-transport-protocol.ts",
-    declarations: [
-      "StartActionDuplicateName"
-    ]
+    declarations: ["StartActionDuplicateName"],
   },
   {
     file: "packages/start/src/agent-graph.ts",
-    declarations: [
-      "createStartAgentGraph",
-      "createStartAgentGraphEffect"
-    ]
+    declarations: ["createStartAgentGraph", "createStartAgentGraphEffect"],
   },
   {
     file: "packages/start/src/start-agent-graph-contract.ts",
@@ -1284,8 +1202,8 @@ export const publicHoverDocGroups = [
       "StartAgentGraphImpactRelation",
       "StartAgentGraphImpactItem",
       "StartAgentGraphImpact",
-      "StartAgentGraphImpactOptions"
-    ]
+      "StartAgentGraphImpactOptions",
+    ],
   },
   {
     file: "packages/start/src/start-agent-graph-vocabulary.ts",
@@ -1295,8 +1213,8 @@ export const publicHoverDocGroups = [
       "isStartAgentGraphQueryKind",
       "startAgentGraphQueryKindsText",
       "startAgentGraphNodeKindForQuery",
-      "startAgentGraphRelationKindForNode"
-    ]
+      "startAgentGraphRelationKindForNode",
+    ],
   },
   {
     file: "packages/start/src/app-graph.ts",
@@ -1327,8 +1245,8 @@ export const publicHoverDocGroups = [
       "describeStartAppGraphEffect",
       "validateStartAppGraphWireSchemasEffect",
       "validateStartAppGraphActionBehaviorEffect",
-      "deserializeStartAppGraph"
-    ]
+      "deserializeStartAppGraph",
+    ],
   },
   {
     file: "packages/start/src/start-app-graph-diagnostics-policy.ts",
@@ -1348,8 +1266,8 @@ export const publicHoverDocGroups = [
       "enforceStartAppGraphDiagnosticsPolicy",
       "validateStartAppGraphDiagnosticsPolicyExceptionEffect",
       "validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect",
-      "validateStartAppGraphDiagnosticsPolicyEffect"
-    ]
+      "validateStartAppGraphDiagnosticsPolicyEffect",
+    ],
   },
   {
     file: "packages/start/src/start-manifest-wall.ts",
@@ -1360,8 +1278,8 @@ export const publicHoverDocGroups = [
       "defaultStartBuildWireSchemaPolicy",
       "defaultStartBuildPolicy",
       "StartBuildPolicy",
-      "StartBuildPolicyError"
-    ]
+      "StartBuildPolicyError",
+    ],
   },
   {
     file: "packages/start/src/start-virtual-modules.ts",
@@ -1371,8 +1289,8 @@ export const publicHoverDocGroups = [
       "fileRouteManifestVirtualModuleId",
       "fileRouteDefinitionsVirtualModuleId",
       "appGraphVirtualModuleId",
-      "appGraphRuntimeDiagnosticsVirtualModuleId"
-    ]
+      "appGraphRuntimeDiagnosticsVirtualModuleId",
+    ],
   },
   {
     file: "packages/start/src/start-vite-dev-ssr.ts",
@@ -1393,14 +1311,12 @@ export const publicHoverDocGroups = [
       "resolveStartHandler",
       "resolveStartHandlerEffect",
       "handleSsrDevRequestEffect",
-      "handleSsrDevRequest"
-    ]
+      "handleSsrDevRequest",
+    ],
   },
   {
     file: "packages/start/src/start-vite-diagnostics-loader.ts",
-    declarations: [
-      "StartAppGraphDiagnosticsLoadError"
-    ]
+    declarations: ["StartAppGraphDiagnosticsLoadError"],
   },
   {
     file: "packages/start/src/start-transport-endpoints.ts",
@@ -1429,8 +1345,8 @@ export const publicHoverDocGroups = [
       "resolveStartRpcEndpoint",
       "resolveStartActionEndpoint",
       "isStartRpcEndpointRequest",
-      "isStartActionEndpointRequest"
-    ]
+      "isStartActionEndpointRequest",
+    ],
   },
   {
     file: "packages/start/src/request-trace.ts",
@@ -1458,51 +1374,41 @@ export const publicHoverDocGroups = [
       "StartRequestTraceHandler",
       "startRequestCountMetric",
       "startRequestDurationMetric",
-      "startRequestStatusMetric"
-    ]
+      "startRequestStatusMetric",
+    ],
   },
   {
     file: "packages/start/src/fetch-adapter.ts",
-    allDeclarations: [
-      "toFetchHandlerEffect",
-      "toFetchHandler",
-      "createFetchHandler"
-    ]
+    allDeclarations: ["toFetchHandlerEffect", "toFetchHandler", "createFetchHandler"],
   },
   {
     file: "packages/start/src/node-adapter.ts",
-    allDeclarations: [
-      "createNodeHandlerEffect",
-      "createNodeHandler",
-      "createNodeServerHandler"
-    ]
-  }
+    allDeclarations: ["createNodeHandlerEffect", "createNodeHandler", "createNodeServerHandler"],
+  },
 ];
 
 export const namespaceBackedSurfaceModules = new Map([
-  ["@effect-ui/db", new Set(["sync-adapter"])]
+  ["@effect-ui/db", new Set(["sync-adapter"])],
 ]);
 
 export const currentDocsEvidencePolicy = {
-  latestFocusedReview: 247,
-  latestFocusedTitle: "Scope Cleanup Capture And Namespace Public Pins",
+  latestFocusedReview: 490,
+  latestFocusedTitle:
+    "Effect-First Lazy Route Components And Formatter-Tolerant Public API Inventory",
   latestFullGateReview: 240,
   rootTestFiles: 53,
   rootTestCount: 1170,
-  effectFirstFiles: 415,
-  activeCleanCounter: "0/30"
+  effectFirstFiles: 445,
+  activeCleanCounter: "0/30",
 };
 
 const staleFocusedReviewPattern =
-  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2[0-3]\d|24[0-6])\b/;
-const staleAsOfReviewPattern =
-  /As of Review(?:1\d\d|2[0-3]\d|24[0-6]), the latest full/;
+  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|489)\b/;
+const staleAsOfReviewPattern = /As of Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|489), the latest full/;
 const staleFullGateReviewPattern =
   /(?:The latest full verification gate is green after Review|Latest full gate[^.\n]*after Review|latest full `pnpm verify` passed after Review|current full gate is the Review) ?(?:1\d\d|2[0-3]\d)\b/;
-const staleRootTestCountPattern =
-  /53 root test files \/ 1161 tests/;
 const stalePostReviewWaitPattern =
-  /until a fresh post-Review(?:1\d\d|2[0-3]\d|24[0-6])\s+sweep reports no actionable findings/;
+  /until a fresh post-Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|489)\s+sweep reports no actionable findings/;
 
 export const currentDocsTextPolicies = [
   {
@@ -1510,281 +1416,287 @@ export const currentDocsTextPolicies = [
     banned: [
       {
         name: "Start Diagnostics CLI Contract must describe variadic graph/impact arguments",
-        pattern: /Start Diagnostics CLI Contract[\s\S]*?nested `Command` subcommands/
-      }
-    ]
+        pattern: /Start Diagnostics CLI Contract[\s\S]*?nested `Command` subcommands/,
+      },
+    ],
   },
   {
     file: "packages/start/src/start-agent-graph-contract.ts",
     banned: [
       {
         name: "StartAgentGraphQuery hover docs must describe graph/impact arguments, not query-kind subcommands",
-        pattern: /CLI subcommands/
-      }
-    ]
+        pattern: /CLI subcommands/,
+      },
+    ],
   },
   {
     file: "packages/start/src/start-agent-graph-vocabulary.ts",
     banned: [
       {
         name: "Start agent graph vocabulary hover docs must describe query parsing, not query-kind subcommands",
-        pattern: /wiring CLI subcommands or impact relations/
-      }
-    ]
+        pattern: /wiring CLI subcommands or impact relations/,
+      },
+    ],
   },
   {
     file: "docs/architecture-deepening-review.md",
     required: [
       {
-        name: "Architecture tip must name the current focused Review247",
-        pattern: /newest focused review is Review247 Scope Cleanup Capture\s+And Namespace Public Pins/
+        name: "Architecture tip must name the current focused Review490",
+        pattern:
+          /newest focused review is Review490 Effect-First Lazy Route Components And\s+Formatter-Tolerant Public API Inventory/,
       },
       {
         name: "Architecture tip must keep Review240 as the newest full checkpoint",
-        pattern: /newest full verification checkpoint remains Review240/
+        pattern: /newest full verification checkpoint remains Review240/,
       },
       {
-        name: "Architecture tip must wait on the post-Review247 clean sweep",
-        pattern: /active Thirty-Sweep clean counter is 0\/30 until a fresh post-Review247\s+sweep reports no actionable findings/
-      }
+        name: "Architecture tip must wait on the post-Review490 clean sweep",
+        pattern:
+          /active Thirty-Sweep clean counter is 0\/30 until a fresh post-Review490\s+sweep reports no actionable findings/,
+      },
     ],
     banned: [
       {
         name: "Architecture tip must not name an older newest focused review",
-        pattern: staleFocusedReviewPattern
+        pattern: staleFocusedReviewPattern,
       },
       {
         name: "Architecture tip must not wait on an older post-review sweep",
-        pattern: stalePostReviewWaitPattern
-      }
-    ]
+        pattern: stalePostReviewWaitPattern,
+      },
+    ],
   },
   {
     file: "docs/perfection-progress.md",
     required: [
       {
         name: "Perfection progress must name the current focused review from currentDocsEvidencePolicy",
-        pattern: /latest focused Review247 Scope Cleanup Capture\s+And Namespace\s+Public Pins/
+        pattern:
+          /latest focused Review490 Effect-First Lazy Route Components\s+And\s+Formatter-Tolerant Public API Inventory/,
       },
       {
         name: "Perfection progress must keep the Review240 full gate as current full evidence",
-        pattern: /latest full verification gate is green after Review240/
+        pattern: /latest full verification gate is green after Review240/,
       },
       {
-        name: "Perfection progress must keep the active Thirty-Sweep counter at 0\/30 after Review247 work",
-        pattern: /active Thirty-Sweep clean counter remains 0\/30 until a fresh post-Review247 sweep reports no actionable findings/
-      }
+        name: "Perfection progress must keep the active Thirty-Sweep counter at 0/30 after Review490 work",
+        pattern:
+          /active Thirty-Sweep clean counter remains 0\/30 until\s+a fresh post-Review490 sweep reports no actionable findings/,
+      },
     ],
     banned: [
       {
         name: "Perfection progress must not name an older latest focused review",
-        pattern: staleFocusedReviewPattern
+        pattern: staleFocusedReviewPattern,
       },
       {
         name: "Perfection progress must not name an older latest full gate review",
-        pattern: staleFullGateReviewPattern
+        pattern: staleFullGateReviewPattern,
       },
       {
         name: "Perfection progress must not wait on an older post-review sweep",
-        pattern: stalePostReviewWaitPattern
+        pattern: stalePostReviewWaitPattern,
       },
       {
         name: "Perfection progress must not call Review239 the latest focused review",
-        pattern: /latest focused Review239/
+        pattern: /latest focused Review239/,
       },
       {
         name: "Perfection progress must not call Review239 the latest full verification gate",
-        pattern: /latest full verification gate is green after Review239/
+        pattern: /latest full verification gate is green after Review239/,
       },
       {
         name: "Perfection progress must not wait on a post-Review239 clean sweep",
-        pattern: /fresh post-Review239 sweep is clean/
-      }
-    ]
+        pattern: /fresh post-Review239 sweep is clean/,
+      },
+    ],
   },
   {
     file: "docs/release-notes.md",
     required: [
       {
-        name: "Release notes must include the current focused Review247 entry",
-        pattern: /Review 247 Scope Cleanup Capture And Namespace Public Pins/
+        name: "Release notes must include the current focused Review490 entry",
+        pattern:
+          /Review 490 Effect-First Lazy Route Components And Formatter-Tolerant Public\s+API Inventory/,
       },
       {
         name: "Release notes must keep the Review240 full gate snapshot",
-        pattern: /Latest full gate on May 17, 2026 after Review 240/
+        pattern: /Latest full gate on May 17, 2026 after Review 240/,
       },
       {
-        name: "Release notes must wait on the post-Review247 clean sweep",
-        pattern: /until a fresh post-Review247\s+sweep reports no actionable findings/
-      }
+        name: "Release notes must wait on the post-Review490 clean sweep",
+        pattern: /until a fresh post-Review490\s+sweep reports no actionable\s+findings/,
+      },
     ],
     banned: [
       {
         name: "Release notes must not name an older latest full gate review",
-        pattern: staleFullGateReviewPattern
+        pattern: staleFullGateReviewPattern,
       },
       {
         name: "Release notes must not wait on an older post-review sweep",
-        pattern: stalePostReviewWaitPattern
+        pattern: stalePostReviewWaitPattern,
       },
       {
         name: "Release notes must not call Review239 the latest full gate",
-        pattern: /Latest full gate on May 17, 2026 after Review 239/
+        pattern: /Latest full gate on May 17, 2026 after Review 239/,
       },
       {
         name: "Release notes must not call Review239 the latest full verify",
-        pattern: /latest full `pnpm verify` passed after Review 239/
+        pattern: /latest full `pnpm verify` passed after Review 239/,
       },
       {
         name: "Release notes must not wait on a post-Review239 clean sweep",
-        pattern: /fresh post-Review239 sweep (?:is clean|reports no actionable findings)/
-      }
-    ]
+        pattern: /fresh post-Review239 sweep (?:is clean|reports no actionable findings)/,
+      },
+    ],
   },
   {
     file: "docs/docs-drift-audit.md",
     required: [
       {
-        name: "Docs drift audit must name the current focused Review247 evidence",
-        pattern: /As of Review247, the latest full/
+        name: "Docs drift audit must name the current focused Review490 evidence",
+        pattern: /As of Review490, the latest full/,
       },
       {
         name: "Docs drift audit must keep Review240 full gate counts",
-        pattern: /Review240 run with 53 root test files \/ 1170 tests/
+        pattern: /Review240 run with 53 root test files \/ 1170 tests/,
       },
       {
-        name: "Docs drift audit must wait on the post-Review247 clean sweep",
-        pattern: /counter is 0\/30 until a fresh post-Review247 sweep reports no actionable/
-      }
+        name: "Docs drift audit must wait on the post-Review490 clean sweep",
+        pattern: /counter is 0\/30 until a fresh post-Review490 sweep reports no actionable/,
+      },
     ],
     banned: [
       {
         name: "Docs drift audit must not name an older current release-tracking review",
-        pattern: staleAsOfReviewPattern
+        pattern: staleAsOfReviewPattern,
       },
       {
         name: "Docs drift audit must not wait on an older post-review sweep",
-        pattern: stalePostReviewWaitPattern
+        pattern: stalePostReviewWaitPattern,
       },
       {
         name: "Docs drift audit must not call Review239 the current release-tracking truth",
-        pattern: /As of Review239, the latest full/
+        pattern: /As of Review239, the latest full/,
       },
       {
         name: "Docs drift audit must not wait on a post-Review239 clean sweep",
-        pattern: /fresh post-Review239 sweep reports no actionable findings/
-      }
-    ]
+        pattern: /fresh post-Review239 sweep reports no actionable findings/,
+      },
+    ],
   },
   {
     file: "docs/type-test-coverage-audit.md",
     required: [
       {
-        name: "Type-test audit must name Review247 public type-test pins",
-        pattern: /Review247 Scope Cleanup Capture And Namespace Public Pins/
+        name: "Type-test audit must name Review490 public type-test pins",
+        pattern: /Review490 Effect-First Lazy Route Components And Formatter-Tolerant Public/,
       },
       {
         name: "Type-test audit must keep Review240 full gate counts",
-        pattern: /Full `pnpm verify` passed after Review240 with\s+53 root test files \/ 1170 tests/
-      }
+        pattern:
+          /Full `pnpm verify` passed after Review240 with\s+53 root test files \/ 1170 tests/,
+      },
     ],
     banned: [
       {
         name: "Type-test audit must not use Review239 as current verification evidence",
-        pattern: /full `pnpm verify` passed\s+after Review239 with/
-      }
-    ]
+        pattern: /full `pnpm verify` passed\s+after Review239 with/,
+      },
+    ],
   },
   {
     file: "docs/effect-first-audit.md",
     required: [
       {
         name: "Effect-first audit must name Review247 as current sweep work",
-        pattern: /Review247 Scope Cleanup Capture And Namespace Public Pins/
+        pattern: /Review247 Scope Cleanup Capture And Namespace Public Pins/,
       },
       {
         name: "Effect-first audit must keep the 415-file audit count",
-        pattern: /Effect-first audit over 415 files/
+        pattern: /Effect-first audit over 415 files/,
       },
       {
         name: "Effect-first audit must keep the Review240 full gate as current full evidence",
-        pattern: /current full gate is the Review 240/
-      }
+        pattern: /current full gate is the Review 240/,
+      },
     ],
     banned: [
       {
         name: "Effect-first audit must not call Review239 the current full gate",
-        pattern: /current full (?:gate is the|`pnpm verify` passed after) Review ?239/
+        pattern: /current full (?:gate is the|`pnpm verify` passed after) Review ?239/,
       },
       {
         name: "Effect-first audit must not keep Review239 root-test count as current evidence",
-        pattern: /53 root test files \/ 1161 tests/
-      }
-    ]
+        pattern: /53 root test files \/ 1161 tests/,
+      },
+    ],
   },
   {
     file: "docs/package-hygiene-audit.md",
     banned: [
       {
         name: "Package hygiene audit must not call Review239 the current full gate",
-        pattern: /current full `pnpm verify` passed after Review239/
+        pattern: /current full `pnpm verify` passed after Review239/,
       },
       {
         name: "Package hygiene audit must not keep Review239 root-test count as current evidence",
-        pattern: /53 root test files \/ 1161 tests/
-      }
-    ]
+        pattern: /53 root test files \/ 1161 tests/,
+      },
+    ],
   },
   {
     file: "docs/sharp-cast-audit.md",
     banned: [
       {
         name: "Sharp cast audit must not call Review239 the current verification gate",
-        pattern: /current full verification gate is recorded in the Review 239/
+        pattern: /current full verification gate is recorded in the Review 239/,
       },
       {
         name: "Sharp cast audit must not keep Review239 root-test count as current evidence",
-        pattern: /53 root test files \/ 1161 tests/
-      }
-    ]
+        pattern: /53 root test files \/ 1161 tests/,
+      },
+    ],
   },
   {
     file: "docs/ultimate-goal-checklist.md",
     required: [
       {
-        name: "Ultimate goal checklist must name Review247 as latest focused evidence",
-        pattern: /Latest focused evidence: Review 247/
+        name: "Ultimate goal checklist must name Review490 as latest focused evidence",
+        pattern: /Latest focused evidence: Review 490/,
       },
       {
         name: "Ultimate goal checklist must keep Review240 as latest full evidence",
-        pattern: /Review240 records the latest full gate/
+        pattern: /Review240 records the latest full gate/,
       },
       {
-        name: "Ultimate goal checklist must keep active clean counter at 0\/30 after Review247",
-        pattern: /leaving the active counter at 0\/30/
-      }
+        name: "Ultimate goal checklist must keep active clean counter at 0/30 after Review490",
+        pattern: /leaving the active counter at 0\/30/,
+      },
     ],
     banned: [
       {
         name: "Ultimate goal checklist must not name an older latest focused review",
-        pattern: staleFocusedReviewPattern
+        pattern: staleFocusedReviewPattern,
       },
       {
         name: "Ultimate goal checklist must not wait on an older post-review sweep",
-        pattern: stalePostReviewWaitPattern
+        pattern: stalePostReviewWaitPattern,
       },
       {
         name: "Ultimate goal checklist must not call Review239 latest focused evidence",
-        pattern: /Latest focused evidence: Review 239/
+        pattern: /Latest focused evidence: Review 239/,
       },
       {
         name: "Ultimate goal checklist must not call Review239 latest full evidence",
-        pattern: /`pnpm verify` ran after Review 239/
+        pattern: /`pnpm verify` ran after Review 239/,
       },
       {
         name: "Ultimate goal checklist must not keep Review239 root-test count as current evidence",
-        pattern: /53 root\s+test files \/ 1161/
-      }
-    ]
-  }
+        pattern: /53 root\s+test files \/ 1161/,
+      },
+    ],
+  },
 ];

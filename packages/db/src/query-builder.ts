@@ -1,4 +1,9 @@
-import { isEffectLike, isPromiseLikeValue, type PlainValue, type ReadableSignal } from "@effect-ui/core";
+import {
+  isEffectLike,
+  isPromiseLikeValue,
+  type PlainValue,
+  type ReadableSignal,
+} from "@effect-ui/core";
 import { Data, Effect } from "effect";
 import { makeLiveQueryState } from "./live-query-state.js";
 import {
@@ -31,12 +36,12 @@ import {
   type SourceRecord,
   type UnsupportedLiveQuery as UnsupportedLiveQueryType,
   evaluateQueryOperation,
-  toQueryEvaluationError
+  toQueryEvaluationError,
 } from "./query-plan.js";
 import {
   executeQueryPlan,
   preloadQueryExecutionPlanEffect,
-  queryExecutionPlanDiagnostics
+  queryExecutionPlanDiagnostics,
 } from "./query-execution-plan.js";
 import { makeQuerySourceAdapter } from "./query-source-adapter.js";
 import { collectionStoreEffect, runWithCollectionStore } from "./runtime-collection-store.js";
@@ -45,10 +50,12 @@ import type {
   CollectionError,
   CollectionRuntimeError,
   CollectionRequirements,
-  CollectionRowValue
+  CollectionRowValue,
 } from "./collection-contract.js";
 
-const QueryBuilderTypeId: unique symbol = Symbol.for("@effect-ui/db/QueryBuilder") as typeof QueryBuilderTypeId;
+const QueryBuilderTypeId: unique symbol = Symbol.for(
+  "@effect-ui/db/QueryBuilder",
+) as typeof QueryBuilderTypeId;
 
 /**
  * Immutable builder for collection-backed queries.
@@ -56,7 +63,12 @@ const QueryBuilderTypeId: unique symbol = Symbol.for("@effect-ui/db/QueryBuilder
  * Builders are cheap descriptions. `execute` reads current collection state
  * synchronously; `Query.onceEffect` and `Query.live` preload sources first.
  */
-export interface QueryBuilderInterface<TContext extends AnyQueryContext, TResult, E = never, R = never> {
+export interface QueryBuilderInterface<
+  TContext extends AnyQueryContext,
+  TResult,
+  E = never,
+  R = never,
+> {
   readonly [QueryBuilderTypeId]: typeof QueryBuilderTypeId;
   readonly Type?: {
     readonly Error: E;
@@ -66,14 +78,14 @@ export interface QueryBuilderInterface<TContext extends AnyQueryContext, TResult
   where(predicate: (row: TContext) => boolean): QueryBuilderInterface<TContext, TResult, E, R>;
   /** Returns a new query that projects each matching context to a result value. */
   select<Next>(
-    projector: (row: TContext) => Next & RejectPlainQueryRecord<Next>
+    projector: (row: TContext) => Next & RejectPlainQueryRecord<Next>,
   ): QueryBuilderInterface<TContext, Next, E, R>;
   /** Inner-joins another collection by comparing keys from the left context and right rows. */
   join<const Alias extends string, C extends AnyCollection>(
     alias: Alias,
     collection: C,
     leftKey: (row: TContext) => QueryJoinKey,
-    rightKey: (row: CollectionRowValue<C>) => QueryJoinKey
+    rightKey: (row: CollectionRowValue<C>) => QueryJoinKey,
   ): QueryBuilderInterface<
     QueryJoinedContext<TContext, Alias, C>,
     QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
@@ -85,7 +97,7 @@ export interface QueryBuilderInterface<TContext extends AnyQueryContext, TResult
     alias: Alias,
     collection: C,
     leftKey: (row: TContext) => QueryJoinKey,
-    index: string
+    index: string,
   ): QueryBuilderInterface<
     QueryJoinedContext<TContext, Alias, C>,
     QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
@@ -97,7 +109,7 @@ export interface QueryBuilderInterface<TContext extends AnyQueryContext, TResult
     alias: Alias,
     collection: C,
     leftKey: (row: TContext) => QueryJoinKey,
-    rightKey: (row: CollectionRowValue<C>) => QueryJoinKey
+    rightKey: (row: CollectionRowValue<C>) => QueryJoinKey,
   ): QueryBuilderInterface<
     QueryJoinedContext<TContext, Alias, C>,
     QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
@@ -109,7 +121,7 @@ export interface QueryBuilderInterface<TContext extends AnyQueryContext, TResult
     alias: Alias,
     collection: C,
     leftKey: (row: TContext) => QueryJoinKey,
-    index: string
+    index: string,
   ): QueryBuilderInterface<
     QueryJoinedContext<TContext, Alias, C>,
     QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
@@ -117,12 +129,9 @@ export interface QueryBuilderInterface<TContext extends AnyQueryContext, TResult
     R | CollectionRequirements<C>
   >;
   /** Groups filtered source rows by a key object and evaluates aggregate selectors. */
-  groupBy<
-    TKey extends Record<string, unknown>,
-    Aggregates extends QueryAggregateRecord<TContext>
-  >(
+  groupBy<TKey extends Record<string, unknown>, Aggregates extends QueryAggregateRecord<TContext>>(
     key: (row: TContext) => QueryGroupKey<TKey>,
-    aggregates: Aggregates
+    aggregates: Aggregates,
   ): QueryBuilderInterface<
     QueryAggregateResult<QueryGroupKey<TKey>, Aggregates>,
     QueryAggregateResult<QueryGroupKey<TKey>, Aggregates>,
@@ -130,7 +139,10 @@ export interface QueryBuilderInterface<TContext extends AnyQueryContext, TResult
     R
   >;
   /** Adds a stable sort. Multiple `orderBy` calls are evaluated in order. */
-  orderBy(selector: (row: TContext) => QuerySortValue, direction?: QuerySortDirection): QueryBuilderInterface<TContext, TResult, E, R>;
+  orderBy(
+    selector: (row: TContext) => QuerySortValue,
+    direction?: QuerySortDirection,
+  ): QueryBuilderInterface<TContext, TResult, E, R>;
   /** Skips the first `count` results after filtering and sorting. */
   offset(count: number): QueryBuilderInterface<TContext, TResult, E, R>;
   /** Limits the number of results after filtering, sorting, and offset. */
@@ -154,14 +166,16 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
     readonly offsetCount = 0,
     readonly limitCount: number | undefined = undefined,
     readonly joins: ReadonlyArray<QueryJoin> = [],
-    readonly grouping: AnyQueryGrouping | undefined = undefined
+    readonly grouping: AnyQueryGrouping | undefined = undefined,
   ) {}
 
   private filtersFor<NextContext extends TContext>(): ReadonlyArray<(row: NextContext) => boolean> {
     return this.filters;
   }
 
-  private projectorFor<NextContext extends AnyQueryContext, NextResult>(): ((row: NextContext) => NextResult) | undefined {
+  private projectorFor<NextContext extends AnyQueryContext, NextResult>():
+    | ((row: NextContext) => NextResult)
+    | undefined {
     return this.projector as ((row: NextContext) => NextResult) | undefined;
   }
 
@@ -179,13 +193,13 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
       this.offsetCount,
       this.limitCount,
       this.joins,
-      this.grouping
+      this.grouping,
     );
   }
 
   /** Returns a new query that projects each matching context to a result value. */
   select<Next>(
-    projector: (row: TContext) => Next & RejectPlainQueryRecord<Next>
+    projector: (row: TContext) => Next & RejectPlainQueryRecord<Next>,
   ): QueryBuilder<TContext, Next, E, R> {
     return new QueryBuilder<TContext, Next, E, R>(
       this.sources,
@@ -195,7 +209,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
       this.offsetCount,
       this.limitCount,
       this.joins,
-      this.grouping
+      this.grouping,
     );
   }
 
@@ -204,7 +218,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
     alias: Alias,
     collection: C,
     leftKey: (row: TContext) => QueryJoinKey,
-    rightKey: (row: CollectionRowValue<C>) => QueryJoinKey
+    rightKey: (row: CollectionRowValue<C>) => QueryJoinKey,
   ): QueryBuilder<
     QueryJoinedContext<TContext, Alias, C>,
     QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
@@ -213,7 +227,12 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
   > {
     type NextContext = QueryJoinedContext<TContext, Alias, C>;
     type NextResult = QueryJoinResult<TContext, TResult, NextContext>;
-    return new QueryBuilder<NextContext, NextResult, E | CollectionRuntimeError<CollectionError<C>>, R | CollectionRequirements<C>>(
+    return new QueryBuilder<
+      NextContext,
+      NextResult,
+      E | CollectionRuntimeError<CollectionError<C>>,
+      R | CollectionRequirements<C>
+    >(
       [...this.sources, [alias, collection] as const],
       this.filtersFor<NextContext>(),
       this.projectorFor<NextContext, NextResult>(),
@@ -227,11 +246,11 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
           collection,
           leftKey: leftKey as (row: AnyQueryContext) => QueryJoinKey,
           rightKeys: (row: AnyCollectionRow) => [
-            (rightKey as (row: AnyCollectionRow) => QueryJoinKey)(row)
-          ]
-        }
+            (rightKey as (row: AnyCollectionRow) => QueryJoinKey)(row),
+          ],
+        },
       ],
-      this.grouping
+      this.grouping,
     );
   }
 
@@ -240,7 +259,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
     alias: Alias,
     collection: C,
     leftKey: (row: TContext) => QueryJoinKey,
-    index: string
+    index: string,
   ): QueryBuilder<
     QueryJoinedContext<TContext, Alias, C>,
     QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
@@ -250,7 +269,12 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
     type NextContext = QueryJoinedContext<TContext, Alias, C>;
     type NextResult = QueryJoinResult<TContext, TResult, NextContext>;
     const source = makeQuerySourceAdapter(collection);
-    return new QueryBuilder<NextContext, NextResult, E | CollectionRuntimeError<CollectionError<C>>, R | CollectionRequirements<C>>(
+    return new QueryBuilder<
+      NextContext,
+      NextResult,
+      E | CollectionRuntimeError<CollectionError<C>>,
+      R | CollectionRequirements<C>
+    >(
       [...this.sources, [alias, collection] as const],
       this.filtersFor<NextContext>(),
       this.projectorFor<NextContext, NextResult>(),
@@ -264,10 +288,10 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
           collection,
           leftKey: leftKey as (row: AnyQueryContext) => QueryJoinKey,
           rightKeys: (row: AnyCollectionRow) => source.indexJoinKeys(index, row),
-          rightIndex: index
-        }
+          rightIndex: index,
+        },
       ],
-      this.grouping
+      this.grouping,
     );
   }
 
@@ -276,7 +300,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
     alias: Alias,
     collection: C,
     leftKey: (row: TContext) => QueryJoinKey,
-    rightKey: (row: CollectionRowValue<C>) => QueryJoinKey
+    rightKey: (row: CollectionRowValue<C>) => QueryJoinKey,
   ): QueryBuilder<
     QueryJoinedContext<TContext, Alias, C>,
     QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
@@ -291,7 +315,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
     alias: Alias,
     collection: C,
     leftKey: (row: TContext) => QueryJoinKey,
-    index: string
+    index: string,
   ): QueryBuilder<
     QueryJoinedContext<TContext, Alias, C>,
     QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
@@ -302,12 +326,9 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
   }
 
   /** Groups filtered source rows by a key object and evaluates aggregate selectors. */
-  groupBy<
-    TKey extends Record<string, unknown>,
-    Aggregates extends QueryAggregateRecord<TContext>
-  >(
+  groupBy<TKey extends Record<string, unknown>, Aggregates extends QueryAggregateRecord<TContext>>(
     key: (row: TContext) => QueryGroupKey<TKey>,
-    aggregates: Aggregates
+    aggregates: Aggregates,
   ): QueryBuilder<
     QueryAggregateResult<QueryGroupKey<TKey>, Aggregates>,
     QueryAggregateResult<QueryGroupKey<TKey>, Aggregates>,
@@ -326,8 +347,8 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
       {
         key: key as (row: AnyQueryContext) => Record<string, unknown>,
         aggregates: aggregates as AnyQueryAggregateRecord,
-        sourceFilters: this.filters as ReadonlyArray<(row: AnyQueryContext) => boolean>
-      }
+        sourceFilters: this.filters as ReadonlyArray<(row: AnyQueryContext) => boolean>,
+      },
     );
   }
 
@@ -337,7 +358,10 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
    * Selectors must return comparable scalar values. Invalid Dates and `NaN`
    * fail as `QueryEvaluationError` with operation `"order"`.
    */
-  orderBy(selector: (row: TContext) => QuerySortValue, direction: QuerySortDirection = "asc"): QueryBuilder<TContext, TResult, E, R> {
+  orderBy(
+    selector: (row: TContext) => QuerySortValue,
+    direction: QuerySortDirection = "asc",
+  ): QueryBuilder<TContext, TResult, E, R> {
     return new QueryBuilder<TContext, TResult, E, R>(
       this.sources,
       this.filters,
@@ -346,7 +370,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
       this.offsetCount,
       this.limitCount,
       this.joins,
-      this.grouping
+      this.grouping,
     );
   }
 
@@ -365,7 +389,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
       count,
       this.limitCount,
       this.joins,
-      this.grouping
+      this.grouping,
     );
   }
 
@@ -384,7 +408,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
       this.offsetCount,
       count,
       this.joins,
-      this.grouping
+      this.grouping,
     );
   }
 
@@ -404,7 +428,9 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
 
 export type AnyQueryBuilder<TResult = any, E = any, R = any> = QueryBuilder<any, TResult, E, R>;
 
-export type QueryFactory<TResult, E = never, R = never> = (query: QueryRoot) => QueryBuilderInterface<any, TResult, E, R>;
+export type QueryFactory<TResult, E = never, R = never> = (
+  query: QueryRoot,
+) => QueryBuilderInterface<any, TResult, E, R>;
 
 class QueryFactoryResultRejected extends Data.TaggedError("QueryFactoryResultRejected")<{
   readonly reason: "promise" | "effect" | "builder";
@@ -412,7 +438,7 @@ class QueryFactoryResultRejected extends Data.TaggedError("QueryFactoryResultRej
 }> {}
 
 const queryFactoryResultRejected = (
-  reason: "promise" | "effect" | "builder"
+  reason: "promise" | "effect" | "builder",
 ): QueryFactoryResultRejected =>
   new QueryFactoryResultRejected({
     reason,
@@ -421,7 +447,7 @@ const queryFactoryResultRejected = (
         ? "Query factories must return a QueryBuilder synchronously. Move async work into collection Effects before building the query."
         : reason === "effect"
           ? "Query factories must return a QueryBuilder, not an Effect. Move Effect work into collection sources and keep the factory synchronous."
-          : "Query factories must return the QueryBuilder produced by Query.from(...)."
+          : "Query factories must return the QueryBuilder produced by Query.from(...).",
   });
 
 const validateQueryFactoryResult = <T, E, R>(value: unknown): AnyQueryBuilder<T, E, R> => {
@@ -449,7 +475,7 @@ export interface QueryRoot {
    * validation.
    */
   from<const Sources extends SourceRecord>(
-    sources: Sources
+    sources: Sources,
   ): QueryBuilderInterface<
     QueryContext<Sources>,
     QueryContext<Sources>,
@@ -464,7 +490,12 @@ export interface QueryRoot {
 export type LiveQueryState<T, E = never> =
   | { readonly _tag: "Pending"; readonly waiting: true; readonly data: ReadonlyArray<T> }
   | { readonly _tag: "Success"; readonly waiting: false; readonly data: ReadonlyArray<T> }
-  | { readonly _tag: "Failure"; readonly waiting: false; readonly error: E; readonly data: ReadonlyArray<T> };
+  | {
+      readonly _tag: "Failure";
+      readonly waiting: false;
+      readonly error: E;
+      readonly data: ReadonlyArray<T>;
+    };
 
 /**
  * Incrementally evaluated query over one or more collections.
@@ -483,37 +514,43 @@ export interface LiveQuery<T, E = never, R = never> {
 
 const queryRoot: QueryRoot = {
   from: <const Sources extends SourceRecord>(
-    sources: Sources
+    sources: Sources,
   ): QueryBuilderInterface<
     QueryContext<Sources>,
     QueryContext<Sources>,
     QuerySourcesError<Sources>,
     QuerySourcesRequirements<Sources>
-  > => new QueryBuilder<
-    QueryContext<Sources>,
-    QueryContext<Sources>,
-    QuerySourcesError<Sources>,
-    QuerySourcesRequirements<Sources>
-  >(
-    Object.entries(sources) as ReadonlyArray<readonly [string, AnyCollection]>
-  ) as unknown as QueryBuilderInterface<
-    QueryContext<Sources>,
-    QueryContext<Sources>,
-    QuerySourcesError<Sources>,
-    QuerySourcesRequirements<Sources>
-  >
+  > =>
+    new QueryBuilder<
+      QueryContext<Sources>,
+      QueryContext<Sources>,
+      QuerySourcesError<Sources>,
+      QuerySourcesRequirements<Sources>
+    >(
+      Object.entries(sources) as ReadonlyArray<readonly [string, AnyCollection]>,
+    ) as unknown as QueryBuilderInterface<
+      QueryContext<Sources>,
+      QueryContext<Sources>,
+      QuerySourcesError<Sources>,
+      QuerySourcesRequirements<Sources>
+    >,
 };
 
 const queryPredicateEq = <A>(left: A, right: A): boolean => Object.is(left, right);
 const queryPredicateNeq = <A>(left: A, right: A): boolean => !Object.is(left, right);
-const queryPredicateGt = <A extends number | string | Date>(left: A, right: A): boolean => left > right;
-const queryPredicateGte = <A extends number | string | Date>(left: A, right: A): boolean => left >= right;
-const queryPredicateLt = <A extends number | string | Date>(left: A, right: A): boolean => left < right;
-const queryPredicateLte = <A extends number | string | Date>(left: A, right: A): boolean => left <= right;
+const queryPredicateGt = <A extends number | string | Date>(left: A, right: A): boolean =>
+  left > right;
+const queryPredicateGte = <A extends number | string | Date>(left: A, right: A): boolean =>
+  left >= right;
+const queryPredicateLt = <A extends number | string | Date>(left: A, right: A): boolean =>
+  left < right;
+const queryPredicateLte = <A extends number | string | Date>(left: A, right: A): boolean =>
+  left <= right;
 const queryPredicateAnd = (...values: ReadonlyArray<boolean>): boolean => values.every(Boolean);
 const queryPredicateOr = (...values: ReadonlyArray<boolean>): boolean => values.some(Boolean);
 const queryPredicateNot = (value: boolean): boolean => !value;
-const queryPredicateIncludes = <A>(values: ReadonlyArray<A>, value: A): boolean => values.includes(value);
+const queryPredicateIncludes = <A>(values: ReadonlyArray<A>, value: A): boolean =>
+  values.includes(value);
 
 /** Equality predicate using `Object.is`, matching signal and collection change checks. Prefer `Query.eq(...)` in new code. */
 export const eq = queryPredicateEq;
@@ -537,22 +574,20 @@ export const not = queryPredicateNot;
 export const includes = queryPredicateIncludes;
 
 const aggregateCount = <TContext, A = unknown>(
-  value: (row: TContext) => A & PlainValue<A> =
-    (row) => row as A & PlainValue<A>
+  value: (row: TContext) => A & PlainValue<A> = (row) => row as A & PlainValue<A>,
 ): QueryAggregate<TContext, number, number> => ({
-  preMap: (row) =>
-    evaluateQueryOperation("aggregate", () => value(row)) == null ? 0 : 1,
+  preMap: (row) => (evaluateQueryOperation("aggregate", () => value(row)) == null ? 0 : 1),
   reduce: (values) => {
     let total = 0;
     for (const [present, multiplicity] of values) {
       total += present * multiplicity;
     }
     return total;
-  }
+  },
 });
 
 const aggregateSum = <TContext>(
-  value: (row: TContext) => number
+  value: (row: TContext) => number,
 ): QueryAggregate<TContext, number, number> => ({
   preMap: (row) => evaluateQueryOperation("aggregate", () => value(row)),
   reduce: (values) => {
@@ -561,15 +596,15 @@ const aggregateSum = <TContext>(
       total += amount * multiplicity;
     }
     return total;
-  }
+  },
 });
 
 const aggregateAvg = <TContext>(
-  value: (row: TContext) => number
+  value: (row: TContext) => number,
 ): QueryAggregate<TContext, number, { readonly sum: number; readonly count: number }> => ({
   preMap: (row) => ({
     sum: evaluateQueryOperation("aggregate", () => value(row)),
-    count: 1
+    count: 1,
   }),
   reduce: (values) => {
     let sum = 0;
@@ -580,14 +615,15 @@ const aggregateAvg = <TContext>(
     }
     return { sum, count };
   },
-  postMap: ({ sum, count }) => count === 0 ? 0 : sum / count
+  postMap: ({ sum, count }) => (count === 0 ? 0 : sum / count),
 });
 
 const aggregateMin = <TContext, V extends number | string | Date | bigint>(
-  value: (row: TContext) => V
+  value: (row: TContext) => V,
 ): QueryAggregate<TContext, V | undefined, V | undefined> => ({
   preMap: (row) =>
-    evaluateQueryOperation("aggregate", () => value(row)) as (V | undefined) & RejectPlainQueryRecord<V | undefined>,
+    evaluateQueryOperation("aggregate", () => value(row)) as (V | undefined) &
+      RejectPlainQueryRecord<V | undefined>,
   reduce: (values) => {
     let min: V | undefined;
     for (const [candidate, multiplicity] of values) {
@@ -599,14 +635,15 @@ const aggregateMin = <TContext, V extends number | string | Date | bigint>(
       }
     }
     return min as (V | undefined) & RejectPlainQueryRecord<V | undefined>;
-  }
+  },
 });
 
 const aggregateMax = <TContext, V extends number | string | Date | bigint>(
-  value: (row: TContext) => V
+  value: (row: TContext) => V,
 ): QueryAggregate<TContext, V | undefined, V | undefined> => ({
   preMap: (row) =>
-    evaluateQueryOperation("aggregate", () => value(row)) as (V | undefined) & RejectPlainQueryRecord<V | undefined>,
+    evaluateQueryOperation("aggregate", () => value(row)) as (V | undefined) &
+      RejectPlainQueryRecord<V | undefined>,
   reduce: (values) => {
     let max: V | undefined;
     for (const [candidate, multiplicity] of values) {
@@ -618,7 +655,7 @@ const aggregateMax = <TContext, V extends number | string | Date | bigint>(
       }
     }
     return max as (V | undefined) & RejectPlainQueryRecord<V | undefined>;
-  }
+  },
 });
 
 /**
@@ -629,8 +666,12 @@ const aggregateMax = <TContext, V extends number | string | Date | bigint>(
  */
 export namespace Query {
   /** Immutable query builder DSL carrying context, result, error, and requirement types without exposing plan internals. */
-  export type Builder<TContext extends AnyQueryContext, TResult, E = never, R = never> =
-    QueryBuilderInterface<TContext, TResult, E, R>;
+  export type Builder<
+    TContext extends AnyQueryContext,
+    TResult,
+    E = never,
+    R = never,
+  > = QueryBuilderInterface<TContext, TResult, E, R>;
   /** Function that receives the query root DSL and returns a builder. */
   export type Factory<TResult, E = never, R = never> = QueryFactory<TResult, E, R>;
   /** Reactive query handle backed by source collection state. */
@@ -667,7 +708,7 @@ export namespace Query {
   /** Result type for a grouped query key plus aggregate map. */
   export type AggregateResult<
     TKey extends Record<string, unknown>,
-    Aggregates extends AnyQueryAggregateRecord
+    Aggregates extends AnyQueryAggregateRecord,
   > = QueryAggregateResult<TKey, Aggregates>;
 
   /** Error raised when query factory, callback, plan, or order comparable evaluation fails. */
@@ -714,16 +755,20 @@ export namespace Query {
    * factory results, and other non-builder factory results are normalized and
    * thrown as `QueryEvaluationError` with operation `"evaluate"`.
    */
-  export const build = <T, E = never, R = never>(factory: QueryFactory<T, E, R>): QueryBuilderInterface<any, T, E, R> => {
+  export const build = <T, E = never, R = never>(
+    factory: QueryFactory<T, E, R>,
+  ): QueryBuilderInterface<any, T, E, R> => {
     try {
-      return validateQueryFactoryResult<T, E, R>(factory(queryRoot)) as unknown as QueryBuilderInterface<any, T, E, R>;
+      return validateQueryFactoryResult<T, E, R>(
+        factory(queryRoot),
+      ) as unknown as QueryBuilderInterface<any, T, E, R>;
     } catch (cause) {
       throw toQueryEvaluationError("evaluate", cause);
     }
   };
 
   const buildOrThrowQueryEvaluationError = <T, E = never, R = never>(
-    factory: QueryFactory<T, E, R>
+    factory: QueryFactory<T, E, R>,
   ): AnyQueryBuilder<T, E, R> => {
     try {
       return validateQueryFactoryResult<T, E, R>(factory(queryRoot));
@@ -741,7 +786,7 @@ export namespace Query {
    * `"evaluate"`.
    */
   export const diagnostics = <T, E = never, R = never>(
-    factory: QueryFactory<T, E, R>
+    factory: QueryFactory<T, E, R>,
   ): QueryPlanDiagnostics => {
     const builder = buildOrThrowQueryEvaluationError(factory);
     try {
@@ -761,18 +806,18 @@ export namespace Query {
    * Effect error channel.
    */
   export const onceEffect = <T, E = never, R = never>(
-    factory: QueryFactory<T, E, R>
+    factory: QueryFactory<T, E, R>,
   ): Effect.Effect<ReadonlyArray<T>, E | QueryEvaluationError, R> =>
     Effect.gen(function* () {
       const builder = yield* Effect.try({
         try: () => buildOrThrowQueryEvaluationError(factory),
-        catch: (cause) => toQueryEvaluationError("evaluate", cause)
+        catch: (cause) => toQueryEvaluationError("evaluate", cause),
       });
       yield* preloadQueryExecutionPlanEffect<E, R>(builder, false);
       const store = yield* collectionStoreEffect;
       return yield* Effect.try({
         try: () => runWithCollectionStore(store, () => builder.execute()),
-        catch: (cause) => toQueryEvaluationError("evaluate", cause)
+        catch: (cause) => toQueryEvaluationError("evaluate", cause),
       });
     });
 
@@ -792,7 +837,6 @@ export namespace Query {
    * )
    */
   export const live = <T, E = never, R = never>(
-    factory: QueryFactory<T, E, R>
-  ): LiveQuery<T, E, R> =>
-    makeLiveQueryState(buildOrThrowQueryEvaluationError(factory));
+    factory: QueryFactory<T, E, R>,
+  ): LiveQuery<T, E, R> => makeLiveQueryState(buildOrThrowQueryEvaluationError(factory));
 }

@@ -10,7 +10,7 @@ import {
   type AnyBrowserRoute,
   type BrowserRouterPath,
   type BrowserRouterRouteForPath,
-  type BrowserRouterState
+  type BrowserRouterState,
 } from "./browser-router-state.js";
 
 /** Positional arguments accepted by router navigation helpers for one route. */
@@ -25,7 +25,7 @@ export type BrowserRouterInitialMatchedHost = "browser" | "server";
 /** Input for the shared browser-router initial matched state policy. */
 export interface BrowserRouterInitialMatchedStateOptions<
   Routes extends readonly AnyBrowserRoute[],
-  ER = never
+  _ER = never,
 > {
   /** Initial URL being matched. */
   readonly href: string;
@@ -46,9 +46,9 @@ export interface BrowserRouterInitialMatchedStateOptions<
  */
 export const browserRouterInitialMatchedState = <
   const Routes extends readonly AnyBrowserRoute[],
-  ER = never
+  ER = never,
 >(
-  options: BrowserRouterInitialMatchedStateOptions<Routes, ER>
+  options: BrowserRouterInitialMatchedStateOptions<Routes, ER>,
 ): Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Pending" | "Ready" }> =>
   options.host === "browser" && options.hydrating !== true
     ? { _tag: "Pending", href: options.href, match: options.match }
@@ -67,15 +67,12 @@ export class RouterRouteNotRegistered extends Data.TaggedError("RouterRouteNotRe
  * lifecycle. `initialMatchedState` lets an adapter preserve SSR hydration
  * semantics without changing the shared navigation kernel.
  */
-export interface BrowserRouterKernelOptions<
-  Routes extends readonly AnyBrowserRoute[],
-  ER
-> {
+export interface BrowserRouterKernelOptions<Routes extends readonly AnyBrowserRoute[], ER> {
   readonly runtime: AnyEffectUiRuntime<ER>;
   readonly initialHref: string;
   readonly initialMatchedState?: (
     href: string,
-    match: Route.Match<Routes[number]>
+    match: Route.Match<Routes[number]>,
   ) => Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Pending" | "Ready" }>;
 }
 
@@ -88,7 +85,7 @@ export interface BrowserRouterKernelOptions<
  */
 export interface BrowserRouterKernel<
   Routes extends readonly AnyBrowserRoute[] = readonly AnyBrowserRoute[],
-  ER = never
+  ER = never,
 > {
   readonly routes: Routes;
   readonly runtime: AnyEffectUiRuntime<ER>;
@@ -116,7 +113,7 @@ export interface BrowserRouterKernel<
   ): void;
   navigateHref(href: string): void;
   matchByPath<Path extends BrowserRouterPath<Routes>>(
-    path: Path
+    path: Path,
   ): Route.Match<BrowserRouterRouteForPath<Routes, Path>> | undefined;
   preloadEffect<R extends Routes[number]>(
     definition: R,
@@ -130,63 +127,65 @@ export interface BrowserRouterKernel<
 
 const provideRouterPreloadEffect = <ER, R extends AnyBrowserRoute>(
   runtime: AnyEffectUiRuntime<ER>,
-  match: Route.Match<R>
+  match: Route.Match<R>,
 ): Effect.Effect<void, Route.PreloadError | ER> =>
-  runtime.provide(Effect.scoped(Route.preloadEffect(match)));
+  runtime.provide(
+    Effect.scoped(
+      Effect.all([Route.preloadEffect(match), Route.preloadComponentEffect(match)], {
+        discard: true,
+      }),
+    ),
+  );
 
 const routeOutsideRouterError = (definition: AnyBrowserRoute): RouteNavigationError =>
   new RouteNavigationError({
     input: definition.path,
-    cause: new RouterRouteNotRegistered({ path: definition.path })
+    cause: new RouterRouteNotRegistered({ path: definition.path }),
   });
 
 const routePathOutsideRouterError = (path: string): RouteNavigationError =>
   new RouteNavigationError({
     input: path,
-    cause: new RouterRouteNotRegistered({ path })
+    cause: new RouterRouteNotRegistered({ path }),
   });
 
 const routerHasRoute = <Routes extends readonly AnyBrowserRoute[]>(
   routes: Routes,
-  definition: AnyBrowserRoute
-): definition is Routes[number] =>
-  (routes as readonly AnyBrowserRoute[]).includes(definition);
+  definition: AnyBrowserRoute,
+): definition is Routes[number] => (routes as readonly AnyBrowserRoute[]).includes(definition);
 
 const routeMembershipFailureState = <Routes extends readonly AnyBrowserRoute[], ER>(
   href: string,
-  definition: AnyBrowserRoute
+  definition: AnyBrowserRoute,
 ): Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }> =>
   browserRouterFailureState<Routes, ER>(
     href,
-    Cause.fail(routeOutsideRouterError(definition)) as Cause.Cause<Route.NavigationError | ER>
+    Cause.fail(routeOutsideRouterError(definition)) as Cause.Cause<Route.NavigationError | ER>,
   );
 
 const routePathMembershipFailureState = <Routes extends readonly AnyBrowserRoute[], ER>(
   href: string,
-  path: string
+  path: string,
 ): Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }> =>
   browserRouterFailureState<Routes, ER>(
     href,
-    Cause.fail(routePathOutsideRouterError(path)) as Cause.Cause<Route.NavigationError | ER>
+    Cause.fail(routePathOutsideRouterError(path)) as Cause.Cause<Route.NavigationError | ER>,
   );
 
 const splitNavigateArgs = <R extends AnyBrowserRoute>(
-  args: BrowserNavigateArgs<R>
+  args: BrowserNavigateArgs<R>,
 ): readonly [Route.HrefArgs<R>, BrowserNavigateOptions | undefined] => {
   const [options, navigateOptions] = args;
-  return [
-    (options === undefined ? [] : [options]) as Route.HrefArgs<R>,
-    navigateOptions
-  ];
+  return [(options === undefined ? [] : [options]) as Route.HrefArgs<R>, navigateOptions];
 };
 
 const defaultInitialMatchedState = <Routes extends readonly AnyBrowserRoute[], ER>(
   href: string,
-  match: Route.Match<Routes[number]>
+  match: Route.Match<Routes[number]>,
 ): Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Ready" }> => ({
   _tag: "Ready",
   href,
-  match
+  match,
 });
 
 /**
@@ -197,10 +196,10 @@ const defaultInitialMatchedState = <Routes extends readonly AnyBrowserRoute[], E
  */
 export const createBrowserRouterKernel = <
   const Routes extends readonly AnyBrowserRoute[],
-  ER = never
+  ER = never,
 >(
   routes: Routes,
-  options: BrowserRouterKernelOptions<Routes, ER>
+  options: BrowserRouterKernelOptions<Routes, ER>,
 ): BrowserRouterKernel<Routes, ER> => {
   const { runtime, initialHref } = options;
   const initialMatchedState = options.initialMatchedState ?? defaultInitialMatchedState<Routes, ER>;
@@ -209,7 +208,7 @@ export const createBrowserRouterKernel = <
     if (Exit.isFailure(matchExit)) {
       return browserRouterFailureState(
         initialHref,
-        matchExit.cause as Cause.Cause<Route.NavigationError | ER>
+        matchExit.cause as Cause.Cause<Route.NavigationError | ER>,
       );
     }
 
@@ -228,7 +227,7 @@ export const createBrowserRouterKernel = <
     }
   }
   const routeForPath = <Path extends BrowserRouterPath<Routes>>(
-    path: Path
+    path: Path,
   ): BrowserRouterRouteForPath<Routes, Path> | undefined =>
     routeByPath.get(path) as BrowserRouterRouteForPath<Routes, Path> | undefined;
 
@@ -276,10 +275,9 @@ export const createBrowserRouterKernel = <
     disposePreloadScope();
 
     if (Exit.isFailure(matchExit)) {
-      setState(browserRouterFailureState(
-        href,
-        matchExit.cause as Cause.Cause<Route.NavigationError | ER>
-      ));
+      setState(
+        browserRouterFailureState(href, matchExit.cause as Cause.Cause<Route.NavigationError | ER>),
+      );
       return;
     }
 
@@ -312,18 +310,20 @@ export const createBrowserRouterKernel = <
         if (Exit.isSuccess(exit)) {
           setState({ _tag: "Ready", href, match: nextMatch });
         } else {
-          setState(browserRouterFailureState(
-            href,
-            exit.cause as Cause.Cause<Route.NavigationError | ER>,
-            nextMatch
-          ));
+          setState(
+            browserRouterFailureState(
+              href,
+              exit.cause as Cause.Cause<Route.NavigationError | ER>,
+              nextMatch,
+            ),
+          );
         }
-      })
+      }),
     );
   };
 
   const cancelNavigationAndSetFailure = (
-    next: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }>
+    next: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }>,
   ): void => {
     navigation++;
     disposePreloadScope();
@@ -332,20 +332,21 @@ export const createBrowserRouterKernel = <
 
   const preloadRouteEffect = <R extends Routes[number]>(
     definition: R,
-    args: Route.HrefArgs<R>
+    args: Route.HrefArgs<R>,
   ): Effect.Effect<void, Route.NavigationError | ER> => {
     const hrefEffect = Effect.try({
       try: () => Route.href(definition, ...args),
-      catch: (cause) => new RouteNavigationError({
-        input: definition.path,
-        cause
-      })
+      catch: (cause) =>
+        new RouteNavigationError({
+          input: definition.path,
+          cause,
+        }),
     });
     return hrefEffect.pipe(
       Effect.flatMap((href) => Route.matchEffect(routes, href)),
       Effect.flatMap((routeMatch) =>
-        routeMatch ? provideRouterPreloadEffect(runtime, routeMatch) : Effect.void
-      )
+        routeMatch ? provideRouterPreloadEffect(runtime, routeMatch) : Effect.void,
+      ),
     );
   };
 
@@ -368,7 +369,9 @@ export const createBrowserRouterKernel = <
     },
     navigate: (definition, commit, ...args) => {
       if (!routeIsConfigured(definition)) {
-        cancelNavigationAndSetFailure(routeMembershipFailureState<Routes, ER>(state.get().href, definition));
+        cancelNavigationAndSetFailure(
+          routeMembershipFailureState<Routes, ER>(state.get().href, definition),
+        );
         return;
       }
 
@@ -378,7 +381,9 @@ export const createBrowserRouterKernel = <
     navigateByPath: (path, commit, ...args) => {
       const definition = routeForPath(path);
       if (!definition) {
-        cancelNavigationAndSetFailure(routePathMembershipFailureState<Routes, ER>(state.get().href, path));
+        cancelNavigationAndSetFailure(
+          routePathMembershipFailureState<Routes, ER>(state.get().href, path),
+        );
         return;
       }
 
@@ -389,7 +394,7 @@ export const createBrowserRouterKernel = <
     matchByPath: (path) => {
       const currentMatch = routeStateMatch(state.get());
       return currentMatch?.route.path === path
-        ? currentMatch as Route.Match<BrowserRouterRouteForPath<Routes, typeof path>>
+        ? (currentMatch as Route.Match<BrowserRouterRouteForPath<Routes, typeof path>>)
         : undefined;
     },
     preloadEffect: (definition, ...args) => {
@@ -404,6 +409,6 @@ export const createBrowserRouterKernel = <
       return definition
         ? preloadRouteEffect(definition, args)
         : Effect.fail(routePathOutsideRouterError(path));
-    }
+    },
   };
 };

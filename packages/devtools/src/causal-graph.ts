@@ -16,20 +16,20 @@ import {
   devtoolsRuntimeEventNodeId as runtimeEventNodeId,
   devtoolsRuntimeTargetLabel as runtimeTargetLabel,
   devtoolsSchemaCoverageNodeId as schemaCoverageNodeId,
-  devtoolsServerFunctionNodeId as serverFunctionNodeId
+  devtoolsServerFunctionNodeId as serverFunctionNodeId,
 } from "./graph-ids.js";
 import { stableFactFingerprint } from "./fact-identity.js";
 import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
 import {
   appGraphCollectionDefinitions,
-  routeModulePreloadCollections
+  routeModulePreloadCollections,
 } from "./summary-app-graph.js";
 import { projectDevtoolsRoutePlanFacts } from "./route-plan-facts.js";
 import {
   normalizeDevtoolsSummaryInput,
   summarizeRequestTrace,
-  summarizeRoutePlan
+  summarizeRoutePlan,
 } from "./summary-facts.js";
 import type {
   DevtoolsCausalEdge,
@@ -46,22 +46,19 @@ import type {
   DevtoolsSummaryResource,
   DevtoolsSummaryRoutePlan,
   DevtoolsSummaryRuntimeEvent,
-  DevtoolsRequestTrace
+  DevtoolsRequestTrace,
 } from "./devtools-contract.js";
 
 const schemaCoverageData = (
-  coverage: DevtoolsStartAppGraphSchemaCoverage
+  coverage: DevtoolsStartAppGraphSchemaCoverage,
 ): DevtoolsSerializableValue => ({
   error: coverage.error,
   input: coverage.input,
   output: coverage.output,
-  total: coverage.total
+  total: coverage.total,
 });
 
-const addNode = (
-  nodes: Map<string, DevtoolsCausalNode>,
-  node: DevtoolsCausalNode
-): void => {
+const addNode = (nodes: Map<string, DevtoolsCausalNode>, node: DevtoolsCausalNode): void => {
   if (!nodes.has(node.id)) {
     nodes.set(node.id, node);
   }
@@ -70,14 +67,14 @@ const addNode = (
 const addEdge = (
   edges: Array<DevtoolsCausalEdge>,
   edge: Omit<DevtoolsCausalEdge, "id">,
-  ordinals: Map<string, number>
+  ordinals: Map<string, number>,
 ): void => {
   const ordinalKey = `${edge.kind}\u0000${edge.source}\u0000${edge.target}\u0000${edge.label ?? ""}`;
   const ordinal = ordinals.get(ordinalKey) ?? 0;
   ordinals.set(ordinalKey, ordinal + 1);
   edges.push({
     id: causalEdgeId(edge.kind, edge.source, edge.target, edge.label, ordinal),
-    ...edge
+    ...edge,
   });
 };
 
@@ -91,13 +88,13 @@ const routePlanSummaryFingerprint = (plan: DevtoolsSummaryRoutePlan): string =>
     plan.resourceCount,
     plan.hydrationResourceCount,
     plan.hydratedResourceKeys,
-    plan.resources
+    plan.resources,
   ]) ?? "";
 
 const requestRoutePlanSummary = (
   routePlans: ReadonlyArray<DevtoolsSummaryRoutePlan>,
   trace: DevtoolsRequestTrace,
-  fallbackIndex: number
+  fallbackIndex: number,
 ): DevtoolsSummaryRoutePlan | undefined => {
   if (trace.routePlan === undefined) {
     return undefined;
@@ -119,22 +116,19 @@ interface DevtoolsCausalGraphInput {
   readonly runtimeEvents: ReadonlyArray<DevtoolsSummaryRuntimeEvent>;
 }
 
-export const makeDevtoolsCausalGraph = (
-  input: DevtoolsCausalGraphInput
-): DevtoolsCausalGraph => {
+export const makeDevtoolsCausalGraph = (input: DevtoolsCausalGraphInput): DevtoolsCausalGraph => {
   const nodes = new Map<string, DevtoolsCausalNode>();
   const edges: Array<DevtoolsCausalEdge> = [];
   const edgeOrdinals = new Map<string, number>();
-  const appGraph = input.appGraph === undefined
-    ? undefined
-    : normalizeDevtoolsAppGraphDiagnostics(input.appGraph);
+  const appGraph =
+    input.appGraph === undefined ? undefined : normalizeDevtoolsAppGraphDiagnostics(input.appGraph);
 
   const connect = (edge: Omit<DevtoolsCausalEdge, "id">): void => {
     addEdge(edges, edge, edgeOrdinals);
   };
   const routePlanSink = {
     addNode: (node: DevtoolsCausalNode) => addNode(nodes, node),
-    connect
+    connect,
   };
   const projectInvalidationFacts = (plan: DevtoolsSummaryInvalidationPlan): void => {
     const planId = invalidationNodeId(plan.index);
@@ -146,8 +140,8 @@ export const makeDevtoolsCausalGraph = (
         causeCount: plan.causeCount,
         index: plan.index,
         matchedResourceCount: plan.matchedResourceCount,
-        targetCount: plan.targetCount
-      }
+        targetCount: plan.targetCount,
+      },
     });
 
     for (const target of plan.targets) {
@@ -156,14 +150,14 @@ export const makeDevtoolsCausalGraph = (
         id: targetId,
         kind: target._tag === "Tag" ? "ResourceTag" : "Resource",
         label: target._tag === "Tag" ? target.name : target.family,
-        data: toDevtoolsSerializableValue(target)
+        data: toDevtoolsSerializableValue(target),
       });
       connect({
         kind: "Targets",
         source: planId,
         target: targetId,
         label: "targets",
-        data: null
+        data: null,
       });
     }
 
@@ -177,8 +171,8 @@ export const makeDevtoolsCausalGraph = (
           family: entry.ref.family,
           input: entry.ref.input,
           key: entry.ref.key,
-          state: null
-        }
+          state: null,
+        },
       });
       connect({
         kind: "Invalidates",
@@ -186,8 +180,8 @@ export const makeDevtoolsCausalGraph = (
         target: affectedResourceId,
         label: "invalidates",
         data: {
-          causeCount: entry.causes.length
-        }
+          causeCount: entry.causes.length,
+        },
       });
 
       for (const cause of entry.causes) {
@@ -196,7 +190,7 @@ export const makeDevtoolsCausalGraph = (
           id: causeId,
           kind: cause._tag === "Tag" ? "ResourceTag" : "Resource",
           label: cause._tag === "Tag" ? cause.name : cause.family,
-          data: toDevtoolsSerializableValue(cause)
+          data: toDevtoolsSerializableValue(cause),
         });
         connect({
           kind: "Causes",
@@ -204,8 +198,8 @@ export const makeDevtoolsCausalGraph = (
           target: affectedResourceId,
           label: "causes",
           data: {
-            invalidationIndex: plan.index
-          }
+            invalidationIndex: plan.index,
+          },
         });
       }
     }
@@ -213,7 +207,7 @@ export const makeDevtoolsCausalGraph = (
   const addModuleNode = (
     kind: "server-only" | "browser-client" | "route" | DevtoolsStartAppGraphModuleKind,
     path: string,
-    data: DevtoolsSerializableValue = null
+    data: DevtoolsSerializableValue = null,
   ): string => {
     const id = moduleNodeId(kind, path);
     addNode(nodes, {
@@ -223,18 +217,20 @@ export const makeDevtoolsCausalGraph = (
       data: {
         boundary: kind,
         path,
-        ...(typeof data === "object" && data !== null && !Array.isArray(data) ? data : {})
-      }
+        ...(typeof data === "object" && data !== null && !Array.isArray(data) ? data : {}),
+      },
     });
     return id;
   };
 
   if (appGraph) {
     const collectionDefinitionsByName = new Map(
-      appGraphCollectionDefinitions(appGraph).map((collection) => [collection.name, collection] as const)
+      appGraphCollectionDefinitions(appGraph).map(
+        (collection) => [collection.name, collection] as const,
+      ),
     );
     const resourceFamiliesByName = new Map(
-      appGraph.resourceFamilies.map((family) => [family.name, family] as const)
+      appGraph.resourceFamilies.map((family) => [family.name, family] as const),
     );
 
     addNode(nodes, {
@@ -243,8 +239,8 @@ export const makeDevtoolsCausalGraph = (
       label: appGraph.rpcPath,
       data: {
         path: appGraph.rpcPath,
-        transport: "rpc"
-      }
+        transport: "rpc",
+      },
     });
     addNode(nodes, {
       id: endpointNodeId("action"),
@@ -252,8 +248,8 @@ export const makeDevtoolsCausalGraph = (
       label: appGraph.actionPath,
       data: {
         path: appGraph.actionPath,
-        transport: "action"
-      }
+        transport: "action",
+      },
     });
 
     for (const routeModule of appGraph.routeModules) {
@@ -262,11 +258,11 @@ export const makeDevtoolsCausalGraph = (
         id: routeId,
         kind: "Route",
         label: routeModule.routePath,
-        data: toDevtoolsSerializableValue(routeModule)
+        data: toDevtoolsSerializableValue(routeModule),
       });
       const moduleId = addModuleNode("route", routeModule.filePath, {
         moduleId: routeModule.moduleId,
-        routeId: routeModule.routeId
+        routeId: routeModule.routeId,
       });
       connect({
         kind: "UsesModule",
@@ -274,8 +270,8 @@ export const makeDevtoolsCausalGraph = (
         target: moduleId,
         label: "declared in",
         data: {
-          routeId: routeModule.routeId
-        }
+          routeId: routeModule.routeId,
+        },
       });
       for (const family of routeModule.preloadResources.families) {
         const familyId = resourceFamilyNodeId(family);
@@ -289,10 +285,10 @@ export const makeDevtoolsCausalGraph = (
               ? {
                   name: family,
                   source: "RoutePreloadResources",
-                  status: routeModule.preloadResources.status
+                  status: routeModule.preloadResources.status,
                 }
-              : definition
-          )
+              : definition,
+          ),
         });
         connect({
           kind: "Preloads",
@@ -301,8 +297,8 @@ export const makeDevtoolsCausalGraph = (
           label: "declares preload",
           data: {
             routeId: routeModule.routeId,
-            status: routeModule.preloadResources.status
-          }
+            status: routeModule.preloadResources.status,
+          },
         });
       }
       const preloadCollections = routeModulePreloadCollections(routeModule);
@@ -318,13 +314,13 @@ export const makeDevtoolsCausalGraph = (
               ? {
                   name: collection,
                   source: "RoutePreloadCollections",
-                  status: preloadCollections.status
+                  status: preloadCollections.status,
                 }
               : {
                   ...definition,
-                  source: "AppGraph"
-                }
-          )
+                  source: "AppGraph",
+                },
+          ),
         });
         connect({
           kind: "Preloads",
@@ -333,8 +329,8 @@ export const makeDevtoolsCausalGraph = (
           label: "declares collection preload",
           data: {
             routeId: routeModule.routeId,
-            status: preloadCollections.status
-          }
+            status: preloadCollections.status,
+          },
         });
       }
     }
@@ -344,7 +340,7 @@ export const makeDevtoolsCausalGraph = (
         id: routeNodeId(path),
         kind: "Route",
         label: path,
-        data: { path }
+        data: { path },
       });
     }
 
@@ -353,14 +349,14 @@ export const makeDevtoolsCausalGraph = (
       id: serverFunctionCoverageId,
       kind: "SchemaCoverage",
       label: "serverFunctions schemas",
-      data: schemaCoverageData(appGraph.schemaCoverage.serverFunctions)
+      data: schemaCoverageData(appGraph.schemaCoverage.serverFunctions),
     });
     connect({
       kind: "UsesEndpoint",
       source: serverFunctionCoverageId,
       target: endpointNodeId("rpc"),
       label: "served by",
-      data: null
+      data: null,
     });
 
     const actionCoverageId = schemaCoverageNodeId("actions");
@@ -368,14 +364,14 @@ export const makeDevtoolsCausalGraph = (
       id: actionCoverageId,
       kind: "SchemaCoverage",
       label: "actions schemas",
-      data: schemaCoverageData(appGraph.schemaCoverage.actions)
+      data: schemaCoverageData(appGraph.schemaCoverage.actions),
     });
     connect({
       kind: "UsesEndpoint",
       source: actionCoverageId,
       target: endpointNodeId("action"),
       label: "served by",
-      data: null
+      data: null,
     });
 
     for (const serverFunction of appGraph.serverFunctionModules) {
@@ -384,7 +380,7 @@ export const makeDevtoolsCausalGraph = (
         id: serverFunctionId,
         kind: "ServerFunction",
         label: serverFunction.name,
-        data: toDevtoolsSerializableValue(serverFunction)
+        data: toDevtoolsSerializableValue(serverFunction),
       });
       connect({
         kind: "UsesEndpoint",
@@ -392,8 +388,8 @@ export const makeDevtoolsCausalGraph = (
         target: endpointNodeId("rpc"),
         label: "served by",
         data: {
-          rpcPath: serverFunction.client.rpcPath
-        }
+          rpcPath: serverFunction.client.rpcPath,
+        },
       });
       connect({
         kind: "Covers",
@@ -404,33 +400,33 @@ export const makeDevtoolsCausalGraph = (
           total: 1,
           input: serverFunction.wire.inputSchema ? 1 : 0,
           output: serverFunction.wire.outputSchema ? 1 : 0,
-          error: serverFunction.wire.errorSchema ? 1 : 0
-        })
+          error: serverFunction.wire.errorSchema ? 1 : 0,
+        }),
       });
       connect({
         kind: "UsesModule",
         source: serverFunctionId,
         target: addModuleNode(serverFunction.server.moduleKind, serverFunction.server.module, {
-          exportName: serverFunction.server.exportName
+          exportName: serverFunction.server.exportName,
         }),
         label: "server export",
         data: {
           exportName: serverFunction.server.exportName,
-          moduleKind: serverFunction.server.moduleKind
-        }
+          moduleKind: serverFunction.server.moduleKind,
+        },
       });
       if (serverFunction.client._tag === "Import") {
         connect({
           kind: "UsesModule",
           source: serverFunctionId,
           target: addModuleNode(serverFunction.client.moduleKind, serverFunction.client.module, {
-            exportName: serverFunction.client.exportName
+            exportName: serverFunction.client.exportName,
           }),
           label: "client reference",
           data: {
             exportName: serverFunction.client.exportName,
-            moduleKind: serverFunction.client.moduleKind
-          }
+            moduleKind: serverFunction.client.moduleKind,
+          },
         });
       }
     }
@@ -441,7 +437,7 @@ export const makeDevtoolsCausalGraph = (
         id: actionId,
         kind: "Action",
         label: action.name,
-        data: toDevtoolsSerializableValue(action)
+        data: toDevtoolsSerializableValue(action),
       });
       connect({
         kind: "UsesEndpoint",
@@ -449,8 +445,8 @@ export const makeDevtoolsCausalGraph = (
         target: endpointNodeId("action"),
         label: "served by",
         data: {
-          actionPath: action.client.actionPath
-        }
+          actionPath: action.client.actionPath,
+        },
       });
       connect({
         kind: "Covers",
@@ -461,33 +457,33 @@ export const makeDevtoolsCausalGraph = (
           total: 1,
           input: action.wire.inputSchema ? 1 : 0,
           output: action.wire.outputSchema ? 1 : 0,
-          error: action.wire.errorSchema ? 1 : 0
-        })
+          error: action.wire.errorSchema ? 1 : 0,
+        }),
       });
       connect({
         kind: "UsesModule",
         source: actionId,
         target: addModuleNode(action.server.moduleKind, action.server.module, {
-          exportName: action.server.exportName
+          exportName: action.server.exportName,
         }),
         label: "server export",
         data: {
           exportName: action.server.exportName,
-          moduleKind: action.server.moduleKind
-        }
+          moduleKind: action.server.moduleKind,
+        },
       });
       if (action.client._tag === "Import") {
         connect({
           kind: "UsesModule",
           source: actionId,
           target: addModuleNode(action.client.moduleKind, action.client.module, {
-            exportName: action.client.exportName
+            exportName: action.client.exportName,
           }),
           label: "client reference",
           data: {
             exportName: action.client.exportName,
-            moduleKind: action.client.moduleKind
-          }
+            moduleKind: action.client.moduleKind,
+          },
         });
       }
     }
@@ -497,7 +493,7 @@ export const makeDevtoolsCausalGraph = (
         id: resourceFamilyNodeId(family.name),
         kind: "ResourceFamily",
         label: family.name,
-        data: toDevtoolsSerializableValue(family)
+        data: toDevtoolsSerializableValue(family),
       });
     }
 
@@ -506,7 +502,7 @@ export const makeDevtoolsCausalGraph = (
         id: tagNodeId(tag.name),
         kind: "ResourceTag",
         label: tag.name,
-        data: toDevtoolsSerializableValue(tag)
+        data: toDevtoolsSerializableValue(tag),
       });
     }
 
@@ -517,8 +513,8 @@ export const makeDevtoolsCausalGraph = (
         label: collection.name,
         data: toDevtoolsSerializableValue({
           ...collection,
-          source: "AppGraph"
-        })
+          source: "AppGraph",
+        }),
       });
     }
 
@@ -529,7 +525,7 @@ export const makeDevtoolsCausalGraph = (
         source: serverFunctionCoverageId,
         target: moduleId,
         label: "discovers",
-        data: null
+        data: null,
       });
     }
 
@@ -540,44 +536,46 @@ export const makeDevtoolsCausalGraph = (
         source: actionCoverageId,
         target: moduleId,
         label: "discovers",
-        data: null
+        data: null,
       });
     }
 
     for (const missingSchema of appGraph.missingSchemas) {
       const missingId = missingSchemaNodeId(missingSchema);
-      const ownerId = missingSchema.kind === "action"
-        ? actionNodeId(missingSchema.name)
-        : serverFunctionNodeId(missingSchema.name);
-      const coverageId = missingSchema.kind === "action" ? actionCoverageId : serverFunctionCoverageId;
+      const ownerId =
+        missingSchema.kind === "action"
+          ? actionNodeId(missingSchema.name)
+          : serverFunctionNodeId(missingSchema.name);
+      const coverageId =
+        missingSchema.kind === "action" ? actionCoverageId : serverFunctionCoverageId;
 
       addNode(nodes, {
         id: ownerId,
         kind: missingSchema.kind === "action" ? "Action" : "ServerFunction",
         label: missingSchema.name,
         data: {
-          name: missingSchema.name
-        }
+          name: missingSchema.name,
+        },
       });
       addNode(nodes, {
         id: missingId,
         kind: "MissingSchema",
         label: missingSchema.name,
-        data: toDevtoolsSerializableValue(missingSchema)
+        data: toDevtoolsSerializableValue(missingSchema),
       });
       connect({
         kind: "MissingSchema",
         source: ownerId,
         target: missingId,
         label: "missing schema",
-        data: null
+        data: null,
       });
       connect({
         kind: "Covers",
         source: coverageId,
         target: missingId,
         label: "reports",
-        data: null
+        data: null,
       });
     }
   }
@@ -592,8 +590,8 @@ export const makeDevtoolsCausalGraph = (
         input: resource.input,
         key: resource.key,
         sources: [...resource.sources],
-        state: resource.state
-      }
+        state: resource.state,
+      },
     });
   }
 
@@ -605,8 +603,8 @@ export const makeDevtoolsCausalGraph = (
       label: action.name,
       data: {
         name: action.name,
-        state: action.state
-      }
+        state: action.state,
+      },
     });
 
     for (const invalidationIndex of action.invalidationIndexes ?? []) {
@@ -616,8 +614,8 @@ export const makeDevtoolsCausalGraph = (
         target: invalidationNodeId(invalidationIndex),
         label: "emits",
         data: {
-          invalidationIndex
-        }
+          invalidationIndex,
+        },
       });
     }
   }
@@ -641,8 +639,8 @@ export const makeDevtoolsCausalGraph = (
         failureKind: trace.failureKind ?? null,
         teardown: trace.teardown ?? null,
         fibers: trace.fibers,
-        streams: trace.streams
-      })
+        streams: trace.streams,
+      }),
     });
 
     if (trace.request.transport === "rpc" || trace.request.transport === "action") {
@@ -652,8 +650,8 @@ export const makeDevtoolsCausalGraph = (
         kind: "Endpoint",
         label: trace.request.transport,
         data: {
-          transport: trace.request.transport
-        }
+          transport: trace.request.transport,
+        },
       });
       connect({
         kind: "UsesEndpoint",
@@ -661,8 +659,8 @@ export const makeDevtoolsCausalGraph = (
         target: endpointId,
         label: "uses",
         data: {
-          transport: trace.request.transport
-        }
+          transport: trace.request.transport,
+        },
       });
     }
 
@@ -674,7 +672,7 @@ export const makeDevtoolsCausalGraph = (
         source: traceId,
         target: routePlanId,
         label: "records",
-        data: null
+        data: null,
       });
     }
 
@@ -688,8 +686,8 @@ export const makeDevtoolsCausalGraph = (
           family: resource.family,
           input: resource.input === undefined ? null : toDevtoolsSerializableValue(resource.input),
           key: resource.key,
-          state: resource.state ?? null
-        }
+          state: resource.state ?? null,
+        },
       });
       connect({
         kind: "Records",
@@ -697,8 +695,8 @@ export const makeDevtoolsCausalGraph = (
         target: resourceId,
         label: "records",
         data: {
-          targetKind: "Resource"
-        }
+          targetKind: "Resource",
+        },
       });
     }
 
@@ -710,8 +708,8 @@ export const makeDevtoolsCausalGraph = (
         label: collection.name,
         data: toDevtoolsSerializableValue({
           ...collection,
-          source: "RequestTrace"
-        })
+          source: "RequestTrace",
+        }),
       });
       connect({
         kind: "Records",
@@ -719,8 +717,8 @@ export const makeDevtoolsCausalGraph = (
         target: collectionId,
         label: "records",
         data: {
-          targetKind: "Collection"
-        }
+          targetKind: "Collection",
+        },
       });
     }
 
@@ -730,7 +728,7 @@ export const makeDevtoolsCausalGraph = (
         id: actionId,
         kind: "Action",
         label: action.name,
-        data: toDevtoolsSerializableValue(action)
+        data: toDevtoolsSerializableValue(action),
       });
       connect({
         kind: "Records",
@@ -738,8 +736,8 @@ export const makeDevtoolsCausalGraph = (
         target: actionId,
         label: "records",
         data: {
-          targetKind: "Action"
-        }
+          targetKind: "Action",
+        },
       });
     }
 
@@ -749,7 +747,7 @@ export const makeDevtoolsCausalGraph = (
         id: serverFunctionId,
         kind: "ServerFunction",
         label: serverFunction.name,
-        data: toDevtoolsSerializableValue(serverFunction)
+        data: toDevtoolsSerializableValue(serverFunction),
       });
       connect({
         kind: "Records",
@@ -757,8 +755,8 @@ export const makeDevtoolsCausalGraph = (
         target: serverFunctionId,
         label: "records",
         data: {
-          targetKind: "ServerFunction"
-        }
+          targetKind: "ServerFunction",
+        },
       });
     }
   });
@@ -778,8 +776,8 @@ export const makeDevtoolsCausalGraph = (
         event: event.data,
         index: event.index,
         sequence: event.sequence,
-        tag: event._tag
-      }
+        tag: event._tag,
+      },
     });
     if (event.target !== null) {
       if (!nodes.has(event.target.id)) {
@@ -795,8 +793,8 @@ export const makeDevtoolsCausalGraph = (
         label: runtimeTargetLabel(event.target),
         data: {
           source: "RuntimeEvent",
-          targetKind: event.target.kind
-        }
+          targetKind: event.target.kind,
+        },
       });
       connect({
         kind: "Observes",
@@ -804,8 +802,8 @@ export const makeDevtoolsCausalGraph = (
         target: event.target.id,
         label: "observes",
         data: {
-          targetKind: event.target.kind
-        }
+          targetKind: event.target.kind,
+        },
       });
     }
   }
@@ -813,12 +811,12 @@ export const makeDevtoolsCausalGraph = (
   return {
     version: 1,
     nodes: Array.from(nodes.values()).sort((left, right) => left.id.localeCompare(right.id)),
-    edges: edges.sort((left, right) => left.id.localeCompare(right.id))
+    edges: edges.sort((left, right) => left.id.localeCompare(right.id)),
   };
 };
 
 export const describeDevtoolsCausalGraph = (
-  input: DevtoolsSummaryInput = {}
+  input: DevtoolsSummaryInput = {},
 ): DevtoolsCausalGraph => {
   const normalized = normalizeDevtoolsSummaryInput(input);
 
@@ -830,11 +828,10 @@ export const describeDevtoolsCausalGraph = (
     requestTraces: normalized.requestTraces,
     requestTraceSummaries: normalized.requestTraceSummaries,
     resources: normalized.resources,
-    runtimeEvents: normalized.runtimeEvents
+    runtimeEvents: normalized.runtimeEvents,
   });
 };
 
 export const describeDevtoolsCausalGraphEffect = (
-  input: DevtoolsSummaryInput = {}
-): Effect.Effect<DevtoolsCausalGraph> =>
-  Effect.sync(() => describeDevtoolsCausalGraph(input));
+  input: DevtoolsSummaryInput = {},
+): Effect.Effect<DevtoolsCausalGraph> => Effect.sync(() => describeDevtoolsCausalGraph(input));

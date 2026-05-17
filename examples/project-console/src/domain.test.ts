@@ -11,7 +11,7 @@ import {
   makeProjectReturnTo,
   normalizeProjectError,
   renameProject,
-  submitProjectName
+  submitProjectName,
 } from "./domain.js";
 import { ProjectDemoStoreLive } from "./domain.server.js";
 import { Route as ProjectRoute } from "./routes/projects/$id.js";
@@ -42,14 +42,14 @@ describe("project console domain", () => {
 
     expect(normalizeProjectError(notFound)).toMatchObject({
       _tag: "ProjectNotFound",
-      id: "atlas"
+      id: "atlas",
     });
     expect(normalizeProjectError(invalidName)).toMatchObject({
       _tag: "InvalidProjectName",
-      name: "At"
+      name: "At",
     });
     expect(formatProjectError(new InvalidProjectName({ name: "At" }))).toBe(
-      "Project names need at least three meaningful characters."
+      "Project names need at least three meaningful characters.",
     );
   });
 
@@ -58,7 +58,7 @@ describe("project console domain", () => {
       ref: {} as never,
       error: new ProjectNotFound({ id: makeProjectId("kepler") }),
       previous: undefined,
-      hasPrevious: false
+      hasPrevious: false,
     });
 
     expect(formatProjectError(failure)).toBe('Project "kepler" was not found.');
@@ -71,8 +71,8 @@ describe("project console domain", () => {
           const projects = yield* withLocalServer(listProjects.effect("all"));
 
           expect(projects.length).toBeGreaterThan(0);
-        })
-      )
+        }),
+      ),
     ));
 
   it("renames and reloads a project", () =>
@@ -80,16 +80,14 @@ describe("project console domain", () => {
       provideProjectDemoStore(
         Effect.gen(function* () {
           const renamed = yield* withLocalServer(
-            renameProject.effect({ id: makeProjectId("atlas"), name: "Atlas Revenue" })
+            renameProject.effect({ id: makeProjectId("atlas"), name: "Atlas Revenue" }),
           );
-          const loaded = yield* withLocalServer(
-            getProject.effect({ id: makeProjectId("atlas") })
-          );
+          const loaded = yield* withLocalServer(getProject.effect({ id: makeProjectId("atlas") }));
 
           expect(renamed.name).toBe("Atlas Revenue");
           expect(loaded.name).toBe("Atlas Revenue");
-        })
-      )
+        }),
+      ),
     ));
 
   it("uses request-scoped context inside server mutations", () =>
@@ -99,18 +97,18 @@ describe("project console domain", () => {
           provideRequest(
             new Request("https://example.com/projects/meridian", {
               headers: {
-                "x-effect-ui-now-label": "request scoped"
-              }
-            })
+                "x-effect-ui-now-label": "request scoped",
+              },
+            }),
           )(
             withLocalServer(
-              renameProject.effect({ id: makeProjectId("meridian"), name: "Meridian Insights" })
-            )
-          )
+              renameProject.effect({ id: makeProjectId("meridian"), name: "Meridian Insights" }),
+            ),
+          ),
         );
 
         expect(renamed.updatedAt).toBe("request scoped");
-      })
+      }),
     ));
 
   it("returns typed validation data for progressive project name submissions", () =>
@@ -118,15 +116,15 @@ describe("project console domain", () => {
       provideProjectDemoStore(
         Effect.gen(function* () {
           const result = yield* withLocalServer(
-            submitProjectName.effect({ id: makeProjectId("atlas"), name: "At" })
+            submitProjectName.effect({ id: makeProjectId("atlas"), name: "At" }),
           );
 
           expect(result._tag).toBe("ValidationFailure");
           if (result._tag === "ValidationFailure") {
             expect(result.fieldErrors.name?.[0]).toContain("three meaningful characters");
           }
-        })
-      )
+        }),
+      ),
     ));
 
   it("returns a typed redirect after a valid progressive project name submission", () =>
@@ -137,21 +135,19 @@ describe("project console domain", () => {
             submitProjectName.effect({
               id: makeProjectId("kepler"),
               name: "Kepler Discovery",
-              redirectTo: makeProjectReturnTo("/projects/kepler?tab=activity")
-            })
+              redirectTo: makeProjectReturnTo("/projects/kepler?tab=activity"),
+            }),
           );
-          const loaded = yield* withLocalServer(
-            getProject.effect({ id: makeProjectId("kepler") })
-          );
+          const loaded = yield* withLocalServer(getProject.effect({ id: makeProjectId("kepler") }));
 
           expect(result).toMatchObject({
             _tag: "Redirect",
             location: "/projects/kepler?tab=activity",
             status: 303,
-            replace: true
+            replace: true,
           });
           expect(loaded.name).toBe("Kepler Discovery");
-        })
-      )
+        }),
+      ),
     ));
 });

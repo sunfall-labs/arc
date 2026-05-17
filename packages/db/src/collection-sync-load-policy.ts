@@ -6,13 +6,13 @@ import type {
   CollectionKey,
   CollectionLoadState,
   CollectionSnapshot,
-  CollectionRuntimeError
+  CollectionRuntimeError,
 } from "./collection-contract.js";
 import {
   collectionPersistenceConfig,
   collectionPersistencePersistOptions,
   persistCollectionSnapshotEffect,
-  restoreCollectionBeforePreloadEffect
+  restoreCollectionBeforePreloadEffect,
 } from "./collection-persistence.js";
 import { ingestCollectionOutputRowsEffect } from "./collection-row-ingress.js";
 import {
@@ -22,24 +22,19 @@ import {
   rebaseCollectionBaseRows,
   type CollectionLoadAttempt,
   type CollectionState,
-  type StoredRow
+  type StoredRow,
 } from "./collection-state.js";
-import {
-  collectionStoreEffect,
-  type RuntimeCollectionStore
-} from "./runtime-collection-store.js";
+import { collectionStoreEffect, type RuntimeCollectionStore } from "./runtime-collection-store.js";
 import {
   collectionCallbackEffect,
-  collectionStateEffect
+  collectionStateEffect,
 } from "./collection-projection-callback-policy.js";
 import {
   restoreCollectionStateSnapshot,
   snapshotCollectionState,
-  withCollectionDurableCommitPermit
+  withCollectionDurableCommitPermit,
 } from "./collection-write-commit.js";
-import {
-  collectionSnapshotFromState
-} from "./collection-snapshot-codec.js";
+import { collectionSnapshotFromState } from "./collection-snapshot-codec.js";
 import { withCollectionPolicyRetry } from "./collection-policy.js";
 
 /** Options for one Collection Sync Load Policy invocation. */
@@ -50,13 +45,12 @@ export interface CollectionSyncLoadPolicyOptions {
 
 const publishStoreEvent = (
   store: RuntimeCollectionStore,
-  event: Parameters<RuntimeCollectionStore["publish"]>[0]
-): Effect.Effect<void> =>
-  store.publish(event);
+  event: Parameters<RuntimeCollectionStore["publish"]>[0],
+): Effect.Effect<void> => store.publish(event);
 
-const replaceLoadedCollectionRows = <A extends object, K extends CollectionKey, E, R>(
+const replaceLoadedCollectionRows = <A extends object, K extends CollectionKey, E>(
   state: CollectionState<A, K, E>,
-  rows: ReadonlyArray<StoredRow<A, K>>
+  rows: ReadonlyArray<StoredRow<A, K>>,
 ): void => {
   const nextRows = new Map<K, StoredRow<A, K>>();
 
@@ -72,7 +66,7 @@ const replaceLoadedCollectionRows = <A extends object, K extends CollectionKey, 
   state.rows.clear();
   const rebaseKeys = new Set<K>();
 
-  for (const [key, row] of nextRows) {
+  for (const row of nextRows.values()) {
     applyCollectionBaseRow(state, row, rebaseKeys);
   }
 
@@ -92,25 +86,25 @@ const failCollectionLoadEffect = <A extends object, K extends CollectionKey, E, 
   store: RuntimeCollectionStore,
   definition: CollectionDefinition<A, K, E, R>,
   state: CollectionState<A, K, E>,
-  error: Cause
+  error: Cause,
 ): Effect.Effect<never, Cause> =>
   Effect.gen(function* () {
     state.loadState.set({
       _tag: "Failure",
       waiting: false,
-      error: error as CollectionRuntimeError<E>
+      error: error as CollectionRuntimeError<E>,
     });
     yield* publishStoreEvent(store, {
       _tag: "CollectionLoadFailure",
       collection: definition.name,
-      error
+      error,
     });
     return yield* Effect.fail(error);
   });
 
 const beginCollectionLoadAttempt = <E>(
   state: CollectionState<any, any, E>,
-  force: boolean
+  force: boolean,
 ): Effect.Effect<
   | { readonly _tag: "Owner"; readonly attempt: CollectionLoadAttempt }
   | { readonly _tag: "Join"; readonly attempt: CollectionLoadAttempt },
@@ -124,7 +118,7 @@ const beginCollectionLoadAttempt = <E>(
     const attempt: CollectionLoadAttempt = {
       generation: ++state.loadGeneration,
       force,
-      deferred: yield* Deferred.make<void, CollectionRuntimeError<E>>()
+      deferred: yield* Deferred.make<void, CollectionRuntimeError<E>>(),
     };
     state.activeLoad = attempt;
     return { _tag: "Owner" as const, attempt };
@@ -132,14 +126,15 @@ const beginCollectionLoadAttempt = <E>(
 
 const isCurrentLoadAttempt = <E>(
   state: CollectionState<any, any, E>,
-  attempt: CollectionLoadAttempt
+  attempt: CollectionLoadAttempt,
 ): boolean =>
-  state.loadGeneration === attempt.generation && state.activeLoad?.generation === attempt.generation;
+  state.loadGeneration === attempt.generation &&
+  state.activeLoad?.generation === attempt.generation;
 
 const completeCollectionLoadAttempt = <E>(
   state: CollectionState<any, any, E>,
   attempt: CollectionLoadAttempt,
-  exit: Exit.Exit<void, CollectionRuntimeError<E>>
+  exit: Exit.Exit<void, CollectionRuntimeError<E>>,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     if (state.activeLoad?.generation === attempt.generation) {
@@ -147,34 +142,35 @@ const completeCollectionLoadAttempt = <E>(
     }
     yield* Deferred.done(
       attempt.deferred as Deferred.Deferred<void, CollectionRuntimeError<E>>,
-      exit
+      exit,
     ).pipe(Effect.asVoid);
   });
 
 const effectFromLoadAttemptExit = <E>(
-  exit: Exit.Exit<void, CollectionRuntimeError<E>>
+  exit: Exit.Exit<void, CollectionRuntimeError<E>>,
 ): Effect.Effect<void, CollectionRuntimeError<E>> =>
   Exit.isSuccess(exit) ? Effect.void : Effect.failCause(exit.cause);
 
 const supersededLoadAttemptWithoutActiveError = (
   definition: AnyCollection,
   state: CollectionState<any, any, any>,
-  attempt: CollectionLoadAttempt
+  attempt: CollectionLoadAttempt,
 ): EffectInputCallbackError =>
   new EffectInputCallbackError({
     operation: `Collection.load(${definition.name}).superseded`,
     cause: {
       attemptGeneration: attempt.generation,
       currentGeneration: state.loadGeneration,
-      loadState: state.loadState.get()._tag
+      loadState: state.loadState.get()._tag,
     },
-    guidance: "A superseded collection load can only complete from a visible Ready or Failure state, or by joining the current active load generation."
+    guidance:
+      "A superseded collection load can only complete from a visible Ready or Failure state, or by joining the current active load generation.",
   });
 
 const waitForSupersedingLoadAttempt = <E>(
   definition: AnyCollection,
   state: CollectionState<any, any, E>,
-  attempt: CollectionLoadAttempt
+  attempt: CollectionLoadAttempt,
 ): Effect.Effect<void, CollectionRuntimeError<E>> =>
   Effect.suspend(() => {
     const current = state.loadState.get();
@@ -197,7 +193,7 @@ const resolveLoadAttemptCompletion = <E>(
   definition: AnyCollection,
   state: CollectionState<any, any, E>,
   attempt: CollectionLoadAttempt,
-  exit: Exit.Exit<void, CollectionRuntimeError<E>>
+  exit: Exit.Exit<void, CollectionRuntimeError<E>>,
 ): Effect.Effect<void, CollectionRuntimeError<E>> =>
   state.loadGeneration === attempt.generation
     ? effectFromLoadAttemptExit(exit)
@@ -205,17 +201,17 @@ const resolveLoadAttemptCompletion = <E>(
 
 const collectionLoadOperation = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  force: boolean
+  force: boolean,
 ): (() => EffectInput<ReadonlyArray<A>, E, R>) | undefined =>
   force
-    ? definition.options.refetch ?? definition.options.load
-    : definition.options.load ?? definition.options.refetch;
+    ? (definition.options.refetch ?? definition.options.load)
+    : (definition.options.load ?? definition.options.refetch);
 
 const restoreBeforePreloadEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   state: CollectionState<A, K, E>,
   store: RuntimeCollectionStore,
-  attempt: CollectionLoadAttempt
+  attempt: CollectionLoadAttempt,
 ): Effect.Effect<boolean, CollectionRuntimeError<E>, R> =>
   Effect.suspend(() => {
     const restoreVersion = state.version.get();
@@ -224,7 +220,7 @@ const restoreBeforePreloadEffect = <A extends object, K extends CollectionKey, E
       state,
       store,
       collectionStoreEffect,
-      () => isCurrentLoadAttempt(state, attempt) && state.version.get() === restoreVersion
+      () => isCurrentLoadAttempt(state, attempt) && state.version.get() === restoreVersion,
     );
   });
 
@@ -237,7 +233,7 @@ const stagedLoadedCollectionSnapshotEffect = <A extends object, K extends Collec
   definition: CollectionDefinition<A, K, E, R>,
   state: CollectionState<A, K, E>,
   rows: ReadonlyArray<StoredRow<A, K>>,
-  updatedAt: number
+  updatedAt: number,
 ): Effect.Effect<CollectionSnapshot<A, K>, EffectInputCallbackError> =>
   Effect.try({
     try: () => {
@@ -250,14 +246,15 @@ const stagedLoadedCollectionSnapshotEffect = <A extends object, K extends Collec
       new EffectInputCallbackError({
         operation: `Collection.load(${definition.name}).snapshot`,
         cause,
-        guidance: "Collection load snapshots must be serializable before rows are committed to live state."
-      })
+        guidance:
+          "Collection load snapshots must be serializable before rows are committed to live state.",
+      }),
   });
 
 const persistLoadSnapshotEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   store: RuntimeCollectionStore,
-  snapshot: CollectionSnapshot<A, K>
+  snapshot: CollectionSnapshot<A, K>,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.suspend(() => {
     const config = collectionPersistenceConfig(definition);
@@ -270,14 +267,14 @@ const persistLoadSnapshotEffect = <A extends object, K extends CollectionKey, E,
       Effect.succeed(snapshot),
       config.storage,
       collectionPersistencePersistOptions(config),
-      store
+      store,
     ).pipe(Effect.asVoid);
   });
 
 const restoreLoadStateIfCurrentEffect = <A extends object, K extends CollectionKey, E>(
   state: CollectionState<A, K, E>,
   attempt: CollectionLoadAttempt,
-  loadState: CollectionLoadState<CollectionRuntimeError<E>>
+  loadState: CollectionLoadState<CollectionRuntimeError<E>>,
 ): Effect.Effect<void> =>
   Effect.sync(() => {
     if (isCurrentLoadAttempt(state, attempt)) {
@@ -292,7 +289,7 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
   attempt: CollectionLoadAttempt,
   rows: ReadonlyArray<StoredRow<A, K>>,
   previousLoadState: CollectionLoadState<CollectionRuntimeError<E>>,
-  updatedAt: number
+  updatedAt: number,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   withCollectionDurableCommitPermit(
     state,
@@ -307,8 +304,8 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
               Effect.catch((error) =>
                 isCurrentLoadAttempt(state, attempt)
                   ? failCollectionLoadEffect(store, definition, state, error)
-                  : Effect.fail(error)
-              )
+                  : Effect.fail(error),
+              ),
             )
           : undefined;
 
@@ -316,9 +313,9 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
           return;
         }
 
-        const persistExit = yield* (snapshot === undefined
+        const persistExit = yield* snapshot === undefined
           ? Effect.succeed(Exit.void)
-          : restore(persistLoadSnapshotEffect(definition, store, snapshot)).pipe(Effect.exit));
+          : restore(persistLoadSnapshotEffect(definition, store, snapshot)).pipe(Effect.exit);
         if (Exit.isFailure(persistExit)) {
           if (isInterruptedCause(persistExit.cause)) {
             yield* restoreLoadStateIfCurrentEffect(state, attempt, previousLoadState);
@@ -327,7 +324,8 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
               store,
               definition,
               state,
-              persistExit.cause.reasons.find(Cause.isFailReason)?.error ?? Cause.squash(persistExit.cause)
+              persistExit.cause.reasons.find(Cause.isFailReason)?.error ??
+                Cause.squash(persistExit.cause),
             ).pipe(Effect.exit);
           }
           return yield* Effect.failCause(persistExit.cause);
@@ -344,10 +342,10 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
           _tag: "CollectionLoaded",
           collection: definition.name,
           count: state.rows.size,
-          updatedAt
+          updatedAt,
         });
-      })
-    )
+      }),
+    ),
   );
 
 /**
@@ -360,7 +358,7 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
  */
 export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  options: CollectionSyncLoadPolicyOptions
+  options: CollectionSyncLoadPolicyOptions,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
     const store = yield* collectionStoreEffect;
@@ -368,21 +366,19 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
     const ownership = yield* beginCollectionLoadAttempt(state, options.force);
     if (ownership._tag === "Join") {
       return yield* Deferred.await(
-        ownership.attempt.deferred as Deferred.Deferred<void, CollectionRuntimeError<E>>
+        ownership.attempt.deferred as Deferred.Deferred<void, CollectionRuntimeError<E>>,
       );
     }
 
     const attempt = ownership.attempt;
-    const failCurrentLoad = <Cause>(
-      error: Cause
-    ): Effect.Effect<never, Cause> =>
+    const failCurrentLoad = <Cause>(error: Cause): Effect.Effect<never, Cause> =>
       isCurrentLoadAttempt(state, attempt)
         ? failCollectionLoadEffect(store, definition, state, error)
         : Effect.fail(error);
 
     const runOwnerLoad = Effect.gen(function* () {
       const restored = yield* restoreBeforePreloadEffect(definition, state, store, attempt).pipe(
-        Effect.catch((error: CollectionRuntimeError<E>) => failCurrentLoad(error))
+        Effect.catch((error: CollectionRuntimeError<E>) => failCurrentLoad(error)),
       );
       if (!isCurrentLoadAttempt(state, attempt)) {
         return;
@@ -418,19 +414,17 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         Effect.onExit((exit) =>
           Exit.isFailure(exit) && isInterruptedCause(exit.cause)
             ? restoreLoadStateIfCurrentEffect(state, attempt, previousLoadState)
-            : Effect.void
+            : Effect.void,
         ),
-        Effect.catch((error: E | EffectInputCallbackError) => failCurrentLoad(error))
+        Effect.catch((error: E | EffectInputCallbackError) => failCurrentLoad(error)),
       );
       yield* Effect.gen(function* () {
         const rows = yield* ingestCollectionOutputRowsEffect(definition, values, {
           operation: "load",
           path: `$.collections[${definition.name}].rows`,
           synced: true,
-          origin: "remote"
-        }).pipe(
-          Effect.catch((error) => failCurrentLoad(error))
-        );
+          origin: "remote",
+        }).pipe(Effect.catch((error) => failCurrentLoad(error)));
 
         if (!isCurrentLoadAttempt(state, attempt)) {
           return;
@@ -444,24 +438,26 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
           attempt,
           rows,
           previousLoadState,
-          updatedAt
+          updatedAt,
         );
       }).pipe(
         Effect.onExit((exit) =>
           Exit.isFailure(exit) && isInterruptedCause(exit.cause)
             ? restoreLoadStateIfCurrentEffect(state, attempt, previousLoadState)
-            : Effect.void
-        )
+            : Effect.void,
+        ),
       );
     }).pipe(
       Effect.exit,
       Effect.flatMap((exit) =>
         Effect.gen(function* () {
-          const completionExit = yield* Effect.exit(resolveLoadAttemptCompletion(definition, state, attempt, exit));
+          const completionExit = yield* Effect.exit(
+            resolveLoadAttemptCompletion(definition, state, attempt, exit),
+          );
           yield* completeCollectionLoadAttempt(state, attempt, completionExit);
           return yield* effectFromLoadAttemptExit(completionExit);
-        })
-      )
+        }),
+      ),
     );
 
     return yield* runOwnerLoad.pipe(
@@ -470,9 +466,9 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
           ? completeCollectionLoadAttempt(
               state,
               attempt,
-              exit as Exit.Exit<void, CollectionRuntimeError<E>>
+              exit as Exit.Exit<void, CollectionRuntimeError<E>>,
             )
-          : Effect.void
-      )
+          : Effect.void,
+      ),
     );
   });

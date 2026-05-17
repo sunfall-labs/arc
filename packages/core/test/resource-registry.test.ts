@@ -4,19 +4,18 @@ import { Resource, makeResourceDefinitionRegistry, type AnyResourceFamily } from
 
 let registryTestId = 0;
 
-const registryName = (name: string): string =>
-  `Resource.registry.${++registryTestId}.${name}`;
+const registryName = (name: string): string => `Resource.registry.${++registryTestId}.${name}`;
 
 describe("Resource definition registry", () => {
   it("preserves replacing global resource definitions and records duplicate diagnostics", () => {
     const familyName = registryName("duplicate-family");
     const First = Resource.family({
       name: familyName,
-      load: () => Effect.succeed(1)
+      load: () => Effect.succeed(1),
     });
     const Second = Resource.family({
       name: familyName,
-      load: () => Effect.succeed(2)
+      load: () => Effect.succeed(2),
     });
     const tagName = registryName("duplicate-tag");
     Resource.tag(tagName);
@@ -29,24 +28,24 @@ describe("Resource definition registry", () => {
         expect.objectContaining({
           kind: "family",
           name: familyName,
-          policy: "replace"
+          policy: "replace",
         }),
         expect.objectContaining({
           kind: "tag",
           name: tagName,
-          policy: "replace"
-        })
-      ])
+          policy: "replace",
+        }),
+      ]),
     );
   });
 
   it("can create an isolated keep-first registry adapter with store-first hydration lookup", () => {
     const name = registryName("isolated");
     const first = {
-      options: { name }
+      options: { name },
     } as unknown as AnyResourceFamily;
     const second = {
-      options: { name }
+      options: { name },
     } as unknown as AnyResourceFamily;
     const registry = makeResourceDefinitionRegistry({ duplicates: "keep-first" });
 
@@ -57,21 +56,23 @@ describe("Resource definition registry", () => {
       kind: "family",
       name,
       duplicate: true,
-      retained: first
+      retained: first,
     });
     expect(registry.definitions().families.get(name)).toBe(first);
     expect(registry.lookupHydrationFamily(name)).toBe(first);
-    expect(registry.lookupHydrationFamily(name, {
-      store: { families: new Map([[name, second]]) }
-    })).toBe(second);
+    expect(
+      registry.lookupHydrationFamily(name, {
+        store: { families: new Map([[name, second]]) },
+      }),
+    ).toBe(second);
     expect(registry.diagnostics().duplicates).toEqual([
       {
         kind: "family",
         name,
         policy: "keep-first",
         retained: 1,
-        discarded: 2
-      }
+        discarded: 2,
+      },
     ]);
   });
 
@@ -84,15 +85,15 @@ describe("Resource definition registry", () => {
       input: Schema.String,
       output: Schema.Number,
       error: Schema.String,
-      load: () => Effect.succeed(1)
+      load: () => Effect.succeed(1),
     });
     const MetadataBacked = {
       options: {
         name: metadataName,
         input: { description: "not an Effect schema" },
         output: { description: "not an Effect schema" },
-        error: { description: "not an Effect schema" }
-      }
+        error: { description: "not an Effect schema" },
+      },
     } as unknown as AnyResourceFamily;
 
     registry.registerFamily(schemaName, SchemaBacked.family);
@@ -104,15 +105,15 @@ describe("Resource definition registry", () => {
           name: schemaName,
           inputSchema: true,
           outputSchema: true,
-          errorSchema: true
+          errorSchema: true,
         }),
         expect.objectContaining({
           name: metadataName,
           inputSchema: false,
           outputSchema: false,
-          errorSchema: false
-        })
-      ])
+          errorSchema: false,
+        }),
+      ]),
     );
   });
 });

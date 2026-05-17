@@ -1,12 +1,12 @@
 import {
   devtoolsResourceNodeId as resourceNodeId,
   devtoolsRouteNodeId as routeNodeId,
-  devtoolsRoutePlanNodeId as routePlanNodeId
+  devtoolsRoutePlanNodeId as routePlanNodeId,
 } from "./graph-ids.js";
 import type {
   DevtoolsCausalEdge,
   DevtoolsCausalNode,
-  DevtoolsSummaryRoutePlan
+  DevtoolsSummaryRoutePlan,
 } from "./devtools-contract.js";
 
 export interface DevtoolsRoutePlanFactSink {
@@ -26,7 +26,7 @@ export interface DevtoolsRoutePlanFacts {
  */
 export const projectDevtoolsRoutePlanFacts = (
   plan: DevtoolsSummaryRoutePlan,
-  sink: DevtoolsRoutePlanFactSink
+  sink: DevtoolsRoutePlanFactSink,
 ): DevtoolsRoutePlanFacts => {
   const routePlanId = routePlanNodeId(plan.index, plan.href);
   sink.addNode({
@@ -41,8 +41,8 @@ export const projectDevtoolsRoutePlanFacts = (
       path: plan.path,
       resourceCount: plan.resourceCount,
       search: plan.search,
-      tag: plan._tag
-    }
+      tag: plan._tag,
+    },
   });
 
   if (plan.path !== null) {
@@ -51,7 +51,7 @@ export const projectDevtoolsRoutePlanFacts = (
       id: routeId,
       kind: "Route",
       label: plan.path,
-      data: { path: plan.path }
+      data: { path: plan.path },
     });
     sink.connect({
       kind: "Matches",
@@ -59,8 +59,8 @@ export const projectDevtoolsRoutePlanFacts = (
       target: routeId,
       label: "matches",
       data: {
-        href: plan.href
-      }
+        href: plan.href,
+      },
     });
   }
 
@@ -75,8 +75,8 @@ export const projectDevtoolsRoutePlanFacts = (
         family: resource.family,
         input: resource.input,
         key: resource.key,
-        state: null
-      }
+        state: null,
+      },
     });
     sink.connect({
       kind: "Preloads",
@@ -84,8 +84,8 @@ export const projectDevtoolsRoutePlanFacts = (
       target: targetId,
       label: "preloads",
       data: {
-        href: plan.href
-      }
+        href: plan.href,
+      },
     });
     if (hydratedKeys.has(resource.key)) {
       sink.connect({
@@ -94,8 +94,8 @@ export const projectDevtoolsRoutePlanFacts = (
         target: targetId,
         label: "hydrates",
         data: {
-          href: plan.href
-        }
+          href: plan.href,
+        },
       });
     }
   }

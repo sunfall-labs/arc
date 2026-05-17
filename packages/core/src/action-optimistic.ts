@@ -1,17 +1,16 @@
 import { Effect } from "effect";
-import {
-  EffectInputCallbackError,
-  type RejectPromiseLikeValue
-} from "./effect-like.js";
+import { EffectInputCallbackError, type RejectPromiseLikeValue } from "./effect-like.js";
 import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
 import { Signal, type WritableSignal } from "./signal.js";
 
 export type ActionRollback<R = never> = Effect.Effect<void, EffectInputCallbackError, R>;
 
-type ActionOptimisticSignalValue<A> =
-  A
-  & RejectPromiseLikeValue<A>
-  & { readonly call?: never; readonly apply?: never; readonly bind?: never };
+type ActionOptimisticSignalValue<A> = A &
+  RejectPromiseLikeValue<A> & {
+    readonly call?: never;
+    readonly apply?: never;
+    readonly bind?: never;
+  };
 
 type ActionOptimisticSignalUpdate<A> =
   | ActionOptimisticSignalValue<A>
@@ -34,7 +33,7 @@ export interface ActionOptimisticTransaction {
    */
   readonly signal: <A>(
     signal: WritableSignal<A>,
-    update: ActionOptimisticSignalUpdate<A>
+    update: ActionOptimisticSignalUpdate<A>,
   ) => Effect.Effect<void, EffectInputCallbackError>;
 }
 
@@ -69,44 +68,39 @@ interface PlannedSignalPatchFinish<A> {
 
 const signalPatchStates = new WeakMap<AnyWritableSignal, AnySignalPatchState>();
 
-const optimisticSignalPatchError = (
-  actionName: string,
-  cause: unknown
-): EffectInputCallbackError =>
+const optimisticSignalPatchError = (actionName: string, cause: unknown): EffectInputCallbackError =>
   cause instanceof EffectInputCallbackError
     ? cause
     : new EffectInputCallbackError({
         operation: `Action.optimistic(${actionName}).signal`,
         cause,
-        guidance: "Optimistic signal update functions must be pure and total. Synchronous throws are reported in the Effect error channel."
+        guidance:
+          "Optimistic signal update functions must be pure and total. Synchronous throws are reported in the Effect error channel.",
       });
 
 const optimisticSignalPromiseGuidance =
   "Optimistic signal updates must return plain values. Move host Promise work into the action run Effect with Effect.tryPromise(...) before patching local signal state.";
 
-const rejectOptimisticSignalPatchValue = <A>(
-  actionName: string,
-  value: A
-): A =>
+const rejectOptimisticSignalPatchValue = <A>(actionName: string, value: A): A =>
   rejectPromiseLikeSyncCallbackValue(
     `Action.optimistic(${actionName}).signal`,
     value,
-    optimisticSignalPromiseGuidance
+    optimisticSignalPromiseGuidance,
   );
 
 const applySignalPatchEffect = <A>(
   actionName: string,
   patch: SignalPatch<A>,
-  value: A
+  value: A,
 ): Effect.Effect<A, EffectInputCallbackError> =>
   Effect.try({
     try: () => rejectOptimisticSignalPatchValue(actionName, patch.apply(value)),
-    catch: (cause) => optimisticSignalPatchError(actionName, cause)
+    catch: (cause) => optimisticSignalPatchError(actionName, cause),
   });
 
 const recomputeSignalValueEffect = <A>(
   actionName: string,
-  state: SignalPatchState<A>
+  state: SignalPatchState<A>,
 ): Effect.Effect<A, EffectInputCallbackError> =>
   Effect.gen(function* () {
     let value = state.base;
@@ -120,7 +114,10 @@ const planSignalPatches = <A>(
   actionName: string,
   signal: WritableSignal<A>,
   transaction: symbol,
-  onPatch: (base: A, patch: SignalPatch<A>) => Effect.Effect<SignalPatchDecision<A>, EffectInputCallbackError>
+  onPatch: (
+    base: A,
+    patch: SignalPatch<A>,
+  ) => Effect.Effect<SignalPatchDecision<A>, EffectInputCallbackError>,
 ): Effect.Effect<PlannedSignalPatchFinish<A> | undefined, EffectInputCallbackError> =>
   Effect.gen(function* () {
     const state = signalPatchStates.get(signal) as SignalPatchState<A> | undefined;
@@ -164,7 +161,7 @@ const applySignalPatchPlan = <A>(plan: PlannedSignalPatchFinish<A>): void => {
  * recomputes any later optimistic patches from other submissions.
  */
 export const makeActionOptimisticTransactionRuntime = <R>(
-  actionName: string
+  actionName: string,
 ): ActionOptimisticTransactionRuntime<R> => {
   const transaction = Symbol("Action.optimistic");
   const touched = new Set<AnyWritableSignal>();
@@ -172,30 +169,32 @@ export const makeActionOptimisticTransactionRuntime = <R>(
   const api: ActionOptimisticTransaction = {
     signal: <A>(
       signal: WritableSignal<A>,
-      update: ActionOptimisticSignalUpdate<A>
+      update: ActionOptimisticSignalUpdate<A>,
     ): Effect.Effect<void, EffectInputCallbackError> =>
       Effect.gen(function* () {
         const existing = signalPatchStates.get(signal) as SignalPatchState<A> | undefined;
         const state = existing ?? {
           base: Signal.peek(signal),
-          patches: []
+          patches: [],
         };
-        const apply =
-          typeof update === "function" ? update as (current: A) => A : () => update;
+        const apply = typeof update === "function" ? (update as (current: A) => A) : () => update;
 
         const nextState = {
           base: state.base,
-          patches: [...state.patches, { transaction, apply }]
+          patches: [...state.patches, { transaction, apply }],
         };
         const value = yield* recomputeSignalValueEffect(actionName, nextState);
         signal.set(value);
         signalPatchStates.set(signal, nextState);
         touched.add(signal);
-      })
+      }),
   };
 
   const finish = (
-    onPatch: <A>(base: A, patch: SignalPatch<A>) => Effect.Effect<SignalPatchDecision<A>, EffectInputCallbackError>
+    onPatch: <A>(
+      base: A,
+      patch: SignalPatch<A>,
+    ) => Effect.Effect<SignalPatchDecision<A>, EffectInputCallbackError>,
   ): ActionRollback<R> =>
     Effect.gen(function* () {
       const plans: Array<PlannedSignalPatchFinish<any>> = [];
@@ -216,9 +215,9 @@ export const makeActionOptimisticTransactionRuntime = <R>(
     commit: finish((base, patch) =>
       Effect.map(applySignalPatchEffect(actionName, patch, base), (nextBase) => ({
         _tag: "Commit",
-        base: nextBase
-      }))
+        base: nextBase,
+      })),
     ),
-    rollback: finish(() => Effect.succeed({ _tag: "Rollback" }))
+    rollback: finish(() => Effect.succeed({ _tag: "Rollback" })),
   };
 };

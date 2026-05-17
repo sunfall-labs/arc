@@ -2,7 +2,7 @@ import {
   ActionInterrupted,
   makeMemoryBrowserHistoryAdapter,
   route,
-  type EffectInputCallbackError
+  type EffectInputCallbackError,
 } from "@effect-ui/core";
 import { Effect, Stream } from "effect";
 import {
@@ -57,10 +57,11 @@ import {
   type RouterOutletProps,
   type RuntimeEffectRunner,
   type RuntimeProviderProps,
-  type UseResourceOptions
+  type UseResourceOptions,
 } from "@effect-ui/react";
-// @ts-expect-error React commit-scope frames are adapter internals, not root public exports.
-type ReactCommitScopeFactoryIsInternal = typeof import("@effect-ui/react").makeReactRuntimeUiScopeFrame;
+type ReactCommitScopeFactoryIsInternal =
+  // @ts-expect-error React commit-scope frames are adapter internals, not root public exports.
+  typeof import("@effect-ui/react").makeReactRuntimeUiScopeFrame;
 // @ts-expect-error React commit-scope frame types are adapter internals, not root public exports.
 type ReactCommitScopeFrameIsInternal = import("@effect-ui/react").ReactRuntimeUiScopeFrame<never>;
 
@@ -73,11 +74,11 @@ const reactRoutes = [route("/", {})] as const;
 const reactHistory = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
 const reactBrowserOptions: BrowserRouterOptions<typeof reactRoutes> = {
   history: reactHistory,
-  hydrating: true
+  hydrating: true,
 };
 const reactRouter: BrowserRouter<typeof reactRoutes> = createBrowserRouter(reactRoutes, {
   history: reactHistory,
-  hydrating: true
+  hydrating: true,
 });
 const reactRouterFromHook: BrowserRouter<typeof reactRoutes> = useRouter<typeof reactRoutes>();
 const reactRouterState: BrowserRouterState<typeof reactRoutes> = reactRouter.state.get();
@@ -85,18 +86,18 @@ const reactRoutePath: BrowserRouterPath<typeof reactRoutes> = "/";
 type ReactRouteForHome = BrowserRouterRouteForPath<typeof reactRoutes, typeof reactRoutePath>;
 const reactRouteForPath: ReactRouteForHome = reactRoutes[0];
 const reactRouteHref: string = Route.href(reactRoutes[0]);
-const reactNavigateArgs: BrowserNavigateArgs<typeof reactRoutes[0]> = [];
+const reactNavigateArgs: BrowserNavigateArgs<(typeof reactRoutes)[0]> = [];
 const reactNavigateOptions: BrowserNavigateOptions = { replace: true };
 const reactPlainLeftClick: boolean = isPlainLeftClick({
   button: 0,
   metaKey: false,
   altKey: false,
   ctrlKey: false,
-  shiftKey: false
+  shiftKey: false,
 });
-const reactRouterLinkProps: RouterLinkProps<typeof reactRoutes[0]> = {
+const reactRouterLinkProps: RouterLinkProps<(typeof reactRoutes)[0]> = {
   route: reactRoutes[0],
-  children: "Home"
+  children: "Home",
 };
 const reactRouterLinkNode = RouterLink(reactRouterLinkProps);
 const reactRouterOutletNode = RouterOutlet<typeof reactRoutes>({});
@@ -105,7 +106,7 @@ const reactRouteNotRegistered = new RouterRouteNotRegistered({ path: "/" });
 const reactProviderProps: RouterProviderProps<typeof reactRoutes> = {
   routes: reactRoutes,
   history: reactHistory,
-  hydrating: true
+  hydrating: true,
 };
 const reactCountSignal = Signal.make(0);
 const reactReadSignalValue: number = read(reactCountSignal);
@@ -116,16 +117,16 @@ class ReactRuntimeProviderObserverError {
 }
 declare const reactRuntimeProviderObserverPromise: Promise<void>;
 const reactRuntimeProviderFailingObserverProps: RuntimeProviderProps = {
-  onDisposeFailure: () => Effect.fail(new ReactRuntimeProviderObserverError())
+  onDisposeFailure: () => Effect.fail(new ReactRuntimeProviderObserverError()),
 };
 const reactRuntimeProviderPromiseObserverProps: RuntimeProviderProps = {
   // @ts-expect-error RuntimeProvider disposal observers must return void or an Effect, not a Promise.
-  onDisposeFailure: () => reactRuntimeProviderObserverPromise
+  onDisposeFailure: () => reactRuntimeProviderObserverPromise,
 };
 // @ts-expect-error host-owned RuntimeProvider instances do not accept disposal observers.
 const reactRuntimeProviderHostOwnedObserverProps: RuntimeProviderProps = {
   runtime: reactEffectRuntime,
-  onDisposeFailure: () => Effect.void
+  onDisposeFailure: () => Effect.void,
 };
 const reactForkScoped: typeof forkScoped = forkScoped;
 const reactOnDispose: typeof onDispose = onDispose;
@@ -139,10 +140,14 @@ const reactRuntimeRunner: RuntimeEffectRunner = useRuntimeEffect();
 const reactRuntimeFiber = reactRuntimeRunner(Effect.succeed("ready"));
 const ReactProgram = Program.define<number, "tick">({
   initial: 0,
-  update: (model) => Program.next(model + 1)
+  update: (model) => Program.next(model + 1),
 });
-const reactProgramHandle: ProgramHandle<number, "tick", EffectInputCallbackError, EffectInputCallbackError | Program.Disposed> =
-  useProgram<number, "tick">(ReactProgram);
+const reactProgramHandle: ProgramHandle<
+  number,
+  "tick",
+  EffectInputCallbackError,
+  EffectInputCallbackError | Program.Disposed
+> = useProgram<number, "tick">(ReactProgram);
 reactProgramHandle.clearTimeline();
 const reactUnknownProgramHandle = reactProgramHandle as ProgramHandle<
   number,
@@ -156,13 +161,13 @@ reactUnknownProgramHandle.dispatch(reactRuntimeProviderObserverPromise);
 reactUnknownProgramHandle.dispatchEffect(reactRuntimeProviderObserverPromise);
 const ReactProjectById = Resource.family<string, ReactProject>({
   name: "React.type-test.project",
-  load: (id) => Effect.succeed({ id, name: "Atlas" })
+  load: (id) => Effect.succeed({ id, name: "Atlas" }),
 });
 const reactProjectRef = ReactProjectById("atlas");
 const reactResourceOptions: UseResourceOptions<never> = { preload: false };
 const reactResourceHandle: ResourceHandle<string, ReactProject, never> = useResource(
   reactProjectRef,
-  reactResourceOptions
+  reactResourceOptions,
 );
 const reactResourceState = useResourceResult(reactProjectRef);
 const reactResourceValue = useResourceValue(reactProjectRef);
@@ -173,33 +178,27 @@ const reactResourceSuccessMeta: ResourceSuccessMeta<ReactProject, Resource.LoadE
     _tag: "Success",
     waiting: false,
     value: { id: "atlas", name: "Atlas" },
-    updatedAt: 0
-  }
+    updatedAt: 0,
+  },
 };
 const reactResourceMatch: ResourceMatch<ReactProject, Resource.LoadError<never>, string> = {
   initial: () => "initial",
   pending: () => "pending",
   success: (project) => project.name,
-  failure: () => "failure"
+  failure: () => "failure",
 };
 const ReactAction = Action.define<{ readonly id: string }, { readonly ok: boolean }>({
   name: "React.type-test.action",
-  run: ({ id }) => Effect.succeed({ ok: id.length > 0 })
+  run: ({ id }) => Effect.succeed({ ok: id.length > 0 }),
 });
 const reactAction = useAction(ReactAction);
-const reactActionHandle: ActionHandle<
-  { readonly id: string },
-  { readonly ok: boolean }
-> = reactAction;
+const reactActionHandle: ActionHandle<{ readonly id: string }, { readonly ok: boolean }> =
+  reactAction;
 const reactActionSubmit: Effect.Effect<
   { readonly ok: boolean },
   EffectInputCallbackError | ActionInterrupted
 > = reactAction.submitEffect({ id: "atlas" });
-const reactActionStateTag:
-  | "Idle"
-  | "Pending"
-  | "Success"
-  | "Failure" = reactAction.state._tag;
+const reactActionStateTag: "Idle" | "Pending" | "Success" | "Failure" = reactAction.state._tag;
 reactAction.instance.state.get()._tag;
 reactAction.invalidationPlan?.entries.map((entry) => entry.ref.key);
 const reactExports: Array<unknown> = [
@@ -277,11 +276,11 @@ const reactExports: Array<unknown> = [
   reactActionSubmit,
   reactActionStateTag,
   reactBrowserOptions,
-  reactProviderProps
+  reactProviderProps,
 ];
 type ReactRouter = BrowserRouter | RouterOutletProps;
-type ReactRouterLinkProps = RouterLinkProps<typeof reactRoutes[0]>;
-type ReactBrowserNavigateArgs = BrowserNavigateArgs<typeof reactRoutes[0]>;
+type ReactRouterLinkProps = RouterLinkProps<(typeof reactRoutes)[0]>;
+type ReactBrowserNavigateArgs = BrowserNavigateArgs<(typeof reactRoutes)[0]>;
 type ReactBrowserNavigateOptions = BrowserNavigateOptions;
 type ReactBrowserRouterPath = BrowserRouterPath<typeof reactRoutes>;
 type ReactBrowserRouterRouteForPath = BrowserRouterRouteForPath<typeof reactRoutes, "/">;
@@ -289,10 +288,15 @@ type ReactBrowserRouterState = BrowserRouterState<typeof reactRoutes>;
 type ReactBrowserRouterOptions = BrowserRouterOptions;
 type ReactRouterProviderProps = RouterProviderProps<typeof reactRoutes>;
 type ReactRuntimeProviderProps = RuntimeProviderProps;
-type ReactRouteHrefOptions = Route.HrefOptions<typeof reactRoutes[0]>;
+type ReactRouteHrefOptions = Route.HrefOptions<(typeof reactRoutes)[0]>;
 type ReactUiScope = UiScope;
 type ReactActionHandle = ActionHandle<{ readonly id: string }, { readonly ok: boolean }>;
-type ReactProgramHandle = ProgramHandle<number, "tick", EffectInputCallbackError, EffectInputCallbackError | Program.Disposed>;
+type ReactProgramHandle = ProgramHandle<
+  number,
+  "tick",
+  EffectInputCallbackError,
+  EffectInputCallbackError | Program.Disposed
+>;
 type ReactResourceHandle = ResourceHandle<string, ReactProject, never>;
 type ReactUseResourceOptions = UseResourceOptions<never>;
 type ReactRuntimeEffectRunner = RuntimeEffectRunner;

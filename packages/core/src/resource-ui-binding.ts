@@ -9,7 +9,7 @@ import {
   releaseResourceRefEffect,
   retainResourceRefEffect,
   refreshResourceEffect,
-  resourceResult
+  resourceResult,
 } from "./resource-runtime.js";
 import type { ReadableSignal } from "./signal.js";
 
@@ -69,7 +69,9 @@ export interface ResourceUiBindingControllerOptions<I, A, E, R, ER> {
   /** Runtime Spine used to provide services and Resource Store state. */
   readonly runtime: AnyEffectUiRuntime<ER>;
   /** Adapter callback used to bridge keyed preload failures into host reactivity. */
-  readonly onPreloadFailureChange?: (failure: ResourceUiPreloadFailure<I, A, E, R, ER> | undefined) => void;
+  readonly onPreloadFailureChange?: (
+    failure: ResourceUiPreloadFailure<I, A, E, R, ER> | undefined,
+  ) => void;
 }
 
 /**
@@ -91,7 +93,10 @@ export interface ResourceUiBindingController<I, A, E, R, ER> {
   /** Marks a ref as current, clearing stale keyed failures and interrupting stale preload joins. */
   bindRef(ref: ResourceRef<I, A, E, R>): void;
   /** Starts the automatic preload when the current Resource state is still initial. */
-  startInitialPreload(ref: ResourceRef<I, A, E, R>, options?: ResourceUiAutoPreloadOptions<E, ER>): void;
+  startInitialPreload(
+    ref: ResourceRef<I, A, E, R>,
+    options?: ResourceUiAutoPreloadOptions<E, ER>,
+  ): void;
   /** Interrupts the current automatic preload join fiber as an Effect. */
   interruptPreloadEffect(): Effect.Effect<void>;
   /** Runtime-owned synchronous convenience for current-ref cleanup hooks. */
@@ -108,9 +113,11 @@ export interface ResourceUiBindingController<I, A, E, R, ER> {
 export type ResourceUiSuspensePreloadFiber<A, E, ER> = Fiber.Fiber<A, ResourceLoadError<E> | ER>;
 
 /** Options for converting a Resource preload fiber to a host Suspense token. */
-export interface ResourceUiSuspensePreloadOptions<I, A, E, R, ER, Token> {
+export interface ResourceUiSuspensePreloadOptions<_I, A, E, R, ER, Token> {
   /** Optional adapter fork hook, used when a UI scope should own the waiting fiber. */
-  readonly fork?: (effect: Effect.Effect<A, ResourceLoadError<E>, R>) => ResourceUiSuspensePreloadFiber<A, E, ER>;
+  readonly fork?: (
+    effect: Effect.Effect<A, ResourceLoadError<E>, R>,
+  ) => ResourceUiSuspensePreloadFiber<A, E, ER>;
   /** Converts the waiting fiber to the host token the UI Suspense adapter throws. */
   readonly toHostToken: (fiber: ResourceUiSuspensePreloadFiber<A, E, ER>) => Token;
 }
@@ -118,7 +125,10 @@ export interface ResourceUiSuspensePreloadOptions<I, A, E, R, ER, Token> {
 /** Adapter-neutral controller for deduping and interrupting Suspense preload joins. */
 export interface ResourceUiSuspensePreloadController<I, A, E, R, ER, Token> {
   /** Returns the current host token for `ref`, starting a new preload join when needed. */
-  hostToken(ref: ResourceRef<I, A, E, R>, options: ResourceUiSuspensePreloadOptions<I, A, E, R, ER, Token>): Token;
+  hostToken(
+    ref: ResourceRef<I, A, E, R>,
+    options: ResourceUiSuspensePreloadOptions<I, A, E, R, ER, Token>,
+  ): Token;
   /** Interrupts the current preload join when it belongs to a stale ref. */
   interruptStale(ref: ResourceRef<I, A, E, R>): void;
   /** Interrupts the current preload join fiber, if any. */
@@ -133,22 +143,21 @@ export interface ResourceUiSuspensePreloadController<I, A, E, R, ER, Token> {
 
 /** Resolves a Resource UI ref input to the current Resource ref. */
 export const resourceUiRefValue = <I, A, E, R>(
-  ref: ResourceUiInput<I, A, E, R>
+  ref: ResourceUiInput<I, A, E, R>,
 ): ResourceRef<I, A, E, R> =>
   typeof ref === "function" ? (ref as () => ResourceRef<I, A, E, R>)() : ref;
 
 /** Converts a Resource UI ref input to a stable accessor shape. */
 export const resourceUiRefAccessor = <I, A, E, R>(
-  ref: ResourceUiInput<I, A, E, R>
+  ref: ResourceUiInput<I, A, E, R>,
 ): (() => ResourceRef<I, A, E, R>) =>
   typeof ref === "function" ? (ref as () => ResourceRef<I, A, E, R>) : () => ref;
 
 /** Returns true when two Resource refs target the same family entry. */
 export const resourceUiSameRef = <I, A, E, R>(
   left: ResourceRef<I, A, E, R>,
-  right: ResourceRef<I, A, E, R>
-): boolean =>
-  left.family === right.family && left.key === right.key;
+  right: ResourceRef<I, A, E, R>,
+): boolean => left.family === right.family && left.key === right.key;
 
 /** Returns true when a Resource state contains a current or previous value. */
 export const resourceUiStateHasValue = <A, E>(state: ResourceState<A, E>): boolean => {
@@ -166,16 +175,14 @@ export const resourceUiStateHasValue = <A, E>(state: ResourceState<A, E>): boole
 /** Returns a preload failure only when it still belongs to the supplied Resource ref. */
 export const resourceUiPreloadFailureFor = <I, A, E, R, ER>(
   failure: ResourceUiPreloadFailure<I, A, E, R, ER> | undefined,
-  ref: ResourceRef<I, A, E, R>
+  ref: ResourceRef<I, A, E, R>,
 ): ResourceLoadError<E> | ER | undefined =>
-  failure !== undefined && resourceUiSameRef(failure.ref, ref)
-    ? failure.error
-    : undefined;
+  failure !== undefined && resourceUiSameRef(failure.ref, ref) ? failure.error : undefined;
 
 /** Folds one Resource state through exhaustive Resource UI render cases. */
 export const resourceUiMatchState = <A, E, B>(
   state: ResourceState<A, E>,
-  cases: ResourceUiMatch<A, E, B>
+  cases: ResourceUiMatch<A, E, B>,
 ): B => {
   switch (state._tag) {
     case "Initial":
@@ -196,9 +203,8 @@ export const resourceUiMatchState = <A, E, B>(
 /** Binds a Resource Effect to the adapter runtime that owns Resource Store state. */
 export const resourceUiBindRuntimeEffect = <A, E, R, ER>(
   runtime: AnyEffectUiRuntime<ER>,
-  effect: Effect.Effect<A, E, R>
-): Effect.Effect<A, E | ER> =>
-  Effect.scoped(runtime.provide(effect));
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E | ER> => Effect.scoped(runtime.provide(effect));
 
 interface ResourceUiBindingPreload<I, A, E, R> {
   readonly ref: ResourceRef<I, A, E, R>;
@@ -213,7 +219,7 @@ interface ResourceUiBindingDisposal<I, A, E, R> {
 
 /** Creates the adapter-neutral Resource UI binding controller. */
 export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never>(
-  options: ResourceUiBindingControllerOptions<I, A, E, R, ER>
+  options: ResourceUiBindingControllerOptions<I, A, E, R, ER>,
 ): ResourceUiBindingController<I, A, E, R, ER> => {
   let currentRef: ResourceRef<I, A, E, R> | undefined;
   let preloadFailure: ResourceUiPreloadFailure<I, A, E, R, ER> | undefined;
@@ -221,7 +227,9 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
   let retainedRef: ResourceRef<I, A, E, R> | undefined;
   let retentionFiber: Fiber.Fiber<void, unknown> | undefined;
 
-  const setPreloadFailure = (failure: ResourceUiPreloadFailure<I, A, E, R, ER> | undefined): void => {
+  const setPreloadFailure = (
+    failure: ResourceUiPreloadFailure<I, A, E, R, ER> | undefined,
+  ): void => {
     preloadFailure = failure;
     try {
       options.onPreloadFailureChange?.(failure);
@@ -243,7 +251,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
   };
 
   const interruptTakenPreloadEffect = (
-    current: ResourceUiBindingPreload<I, A, E, R> | undefined
+    current: ResourceUiBindingPreload<I, A, E, R> | undefined,
   ): Effect.Effect<void> =>
     current === undefined
       ? Effect.void
@@ -255,9 +263,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
   const interruptPreload = (): void => {
     const current = takePreload();
     if (current !== undefined) {
-      void options.runtime.runFork(
-        interruptTakenPreloadEffect(current)
-      );
+      void options.runtime.runFork(interruptTakenPreloadEffect(current));
     }
   };
 
@@ -269,7 +275,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
           yield* Fiber.join(previous).pipe(Effect.catchCause(() => Effect.void));
         }
         yield* resourceUiBindRuntimeEffect(options.runtime, effect);
-      }).pipe(Effect.catchCause(() => Effect.void))
+      }).pipe(Effect.catchCause(() => Effect.void)),
     );
   };
 
@@ -292,19 +298,17 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     return {
       preload: currentPreload,
       retainedRef: currentRetainedRef,
-      retentionFiber: currentRetentionFiber
+      retentionFiber: currentRetentionFiber,
     };
   };
 
-  const releaseCapturedRetainedRefEffect = (
-    ref: ResourceRef<I, A, E, R>
-  ): Effect.Effect<void> =>
+  const releaseCapturedRetainedRefEffect = (ref: ResourceRef<I, A, E, R>): Effect.Effect<void> =>
     resourceUiBindRuntimeEffect(options.runtime, releaseResourceRefEffect(ref)).pipe(
-      Effect.catchCause(() => Effect.void)
+      Effect.catchCause(() => Effect.void),
     );
 
   const disposeCapturedEffect = (
-    captured: ResourceUiBindingDisposal<I, A, E, R>
+    captured: ResourceUiBindingDisposal<I, A, E, R>,
   ): Effect.Effect<void> =>
     Effect.gen(function* () {
       yield* interruptTakenPreloadEffect(captured.preload);
@@ -335,33 +339,39 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     setPreloadFailure(undefined);
   };
 
-  const result = (ref: ResourceRef<I, A, E, R>): ReadableSignal<ResourceState<A, ResourceLoadError<E>>> =>
+  const result = (
+    ref: ResourceRef<I, A, E, R>,
+  ): ReadableSignal<ResourceState<A, ResourceLoadError<E>>> =>
     runWithRuntime(options.runtime, () => resourceResult(ref));
 
-  const prefetchEffect = (ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E> | ER> =>
+  const prefetchEffect = (
+    ref: ResourceRef<I, A, E, R>,
+  ): Effect.Effect<A, ResourceLoadError<E> | ER> =>
     resourceUiBindRuntimeEffect(options.runtime, prefetchResourceEffect(ref)).pipe(
-      Effect.tap(() => Effect.sync(() => clearPreloadFailureForRef(ref)))
+      Effect.tap(() => Effect.sync(() => clearPreloadFailureForRef(ref))),
     );
 
-  const refreshEffect = (ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E> | ER> =>
+  const refreshEffect = (
+    ref: ResourceRef<I, A, E, R>,
+  ): Effect.Effect<A, ResourceLoadError<E> | ER> =>
     resourceUiBindRuntimeEffect(options.runtime, refreshResourceEffect(ref)).pipe(
-      Effect.tap(() => Effect.sync(() => clearPreloadFailureForRef(ref)))
+      Effect.tap(() => Effect.sync(() => clearPreloadFailureForRef(ref))),
     );
 
   const notifyPreloadFailure = (
     observer: ResourceUiAutoPreloadOptions<E, ER>["onPreloadFailure"],
-    error: ResourceLoadError<E> | ER
+    error: ResourceLoadError<E> | ER,
   ): Effect.Effect<void> =>
     observer === undefined
       ? Effect.void
       : invokeEffectInput("ResourceUiBinding.onPreloadFailure", observer, error).pipe(
           Effect.catchCause(() => Effect.void),
-          Effect.asVoid
+          Effect.asVoid,
         );
 
   const startInitialPreload = (
     ref: ResourceRef<I, A, E, R>,
-    preloadOptions: ResourceUiAutoPreloadOptions<E, ER> = {}
+    preloadOptions: ResourceUiAutoPreloadOptions<E, ER> = {},
   ): void => {
     bindRef(ref);
     if (preloadOptions.preload === false || result(ref).get()._tag !== "Initial") {
@@ -378,19 +388,17 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
         Effect.catch((error) =>
           Effect.sync(() => {
             setPreloadFailure({ ref, error });
-          }).pipe(
-            Effect.andThen(notifyPreloadFailure(preloadOptions.onPreloadFailure, error))
-          )
+          }).pipe(Effect.andThen(notifyPreloadFailure(preloadOptions.onPreloadFailure, error))),
         ),
         Effect.ensuring(
           Effect.sync(() => {
             if (preload !== undefined && resourceUiSameRef(preload.ref, ref)) {
               preload = undefined;
             }
-          })
+          }),
         ),
-        Effect.catchCause(() => Effect.void)
-      )
+        Effect.catchCause(() => Effect.void),
+      ),
     );
     preload = { ref, fiber };
   };
@@ -407,13 +415,20 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     dispose: () => {
       void options.runtime.runFork(disposeCapturedEffect(captureDisposal()));
     },
-    preloadFailureFor: (ref) => resourceUiPreloadFailureFor(preloadFailure, ref)
+    preloadFailureFor: (ref) => resourceUiPreloadFailureFor(preloadFailure, ref),
   };
 };
 
 /** Creates the adapter-neutral Resource Suspense preload controller. */
-export const makeResourceUiSuspensePreloadController = <I, A, E, R = unknown, ER = never, Token = unknown>(
-  runtime: AnyEffectUiRuntime<ER>
+export const makeResourceUiSuspensePreloadController = <
+  I,
+  A,
+  E,
+  R = unknown,
+  ER = never,
+  Token = unknown,
+>(
+  runtime: AnyEffectUiRuntime<ER>,
 ): ResourceUiSuspensePreloadController<I, A, E, R, ER, Token> => {
   let preload:
     | {
@@ -446,7 +461,7 @@ export const makeResourceUiSuspensePreloadController = <I, A, E, R = unknown, ER
           readonly token: Token;
           readonly removeObserver: () => void;
         }
-      | undefined
+      | undefined,
   ): Effect.Effect<void> =>
     current === undefined
       ? Effect.void
@@ -476,9 +491,10 @@ export const makeResourceUiSuspensePreloadController = <I, A, E, R = unknown, ER
       }
 
       interrupt();
-      const fiber = options.fork === undefined
-        ? runtime.runFork(Effect.scoped(runtime.provide(prefetchResourceEffect(ref))))
-        : options.fork(prefetchResourceEffect(ref));
+      const fiber =
+        options.fork === undefined
+          ? runtime.runFork(Effect.scoped(runtime.provide(prefetchResourceEffect(ref))))
+          : options.fork(prefetchResourceEffect(ref));
       const token = options.toHostToken(fiber);
       const removeObserver = fiber.addObserver(() => {
         clearCompleted(fiber);
@@ -497,6 +513,6 @@ export const makeResourceUiSuspensePreloadController = <I, A, E, R = unknown, ER
     interruptEffect,
     interrupt,
     disposeEffect: interruptEffect,
-    dispose: interrupt
+    dispose: interrupt,
   };
 };

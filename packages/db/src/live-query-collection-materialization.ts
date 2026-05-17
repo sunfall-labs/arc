@@ -2,25 +2,22 @@ import {
   EffectInputCallbackError,
   Signal,
   stableStringify,
-  type ReadableSignal
+  type ReadableSignal,
 } from "@effect-ui/core";
 import { Effect } from "effect";
 import type { ReadonlyCollectionMutation } from "./collection-errors.js";
 import {
   collectionIndex,
   collectionIndexKey,
-  uniqueCollectionIndexValues
+  uniqueCollectionIndexValues,
 } from "./collection-index-materialization.js";
-import {
-  cloneCollectionValue,
-  detachCollectionRow
-} from "./collection-value-detachment.js";
+import { cloneCollectionValue, detachCollectionRow } from "./collection-value-detachment.js";
 import { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
 import { ingestCollectionOutputRowsSync } from "./collection-row-ingress.js";
 import {
   currentCollectionStore,
   runWithCollectionStore,
-  type RuntimeCollectionStore
+  type RuntimeCollectionStore,
 } from "./runtime-collection-store.js";
 import type {
   CollectionDefinition,
@@ -28,7 +25,7 @@ import type {
   CollectionKey,
   CollectionLoadState,
   CollectionRow,
-  CollectionSnapshot
+  CollectionSnapshot,
 } from "./collection-contract.js";
 import type { LiveQuery } from "./query-builder.js";
 import type { QueryEvaluationError } from "./query-plan.js";
@@ -39,10 +36,7 @@ export type LiveQueryCollectionMaterializationError =
 
 type LiveQueryCollectionMaterializationOperation = "load" | "snapshot";
 
-type LiveQueryCollectionError<E> =
-  | E
-  | QueryEvaluationError
-  | ReadonlyCollectionMutation;
+type LiveQueryCollectionError<E> = E | QueryEvaluationError | ReadonlyCollectionMutation;
 
 type LiveQueryCollectionLoadStateError<E> =
   | LiveQueryCollectionError<E>
@@ -52,7 +46,7 @@ type LiveQueryCollectionDefinitionForMaterialization<
   A extends object,
   K extends CollectionKey,
   E,
-  R
+  R,
 > = CollectionDefinition<A, K, LiveQueryCollectionError<E>, R>;
 
 interface MaterializedEntry<A extends object, K extends CollectionKey> {
@@ -91,7 +85,11 @@ interface LiveQueryCollectionStoreMaterialization<A extends object, K extends Co
  * cache behind this interface prevents the read-only Collection Definition
  * adapter from also owning projection invalidation and snapshot encoding rules.
  */
-export interface LiveQueryCollectionMaterialization<A extends object, K extends CollectionKey, E = never> {
+export interface LiveQueryCollectionMaterialization<
+  A extends object,
+  K extends CollectionKey,
+  E = never,
+> {
   state(): ReadableSignal<CollectionLoadState<LiveQueryCollectionLoadStateError<E>>>;
   version(): ReadableSignal<number>;
   get(key: K): CollectionRow<A, K> | undefined;
@@ -99,13 +97,10 @@ export interface LiveQueryCollectionMaterialization<A extends object, K extends 
   index(index: string, value: CollectionIndexValue): ReadonlyArray<CollectionRow<A, K>>;
   firstByIndex(index: string, value: CollectionIndexValue): CollectionRow<A, K> | undefined;
   snapshot(updatedAt: number): CollectionSnapshot<A, K>;
-  snapshotWithStore(
-    store: RuntimeCollectionStore,
-    updatedAt: number
-  ): CollectionSnapshot<A, K>;
+  snapshotWithStore(store: RuntimeCollectionStore, updatedAt: number): CollectionSnapshot<A, K>;
   snapshotWithStoreEffect(
     store: RuntimeCollectionStore,
-    updatedAt: number
+    updatedAt: number,
   ): Effect.Effect<CollectionSnapshot<A, K>, LiveQueryCollectionMaterializationError>;
 }
 
@@ -113,7 +108,7 @@ export interface LiveQueryCollectionMaterializationOptions<
   A extends object,
   K extends CollectionKey,
   E = never,
-  R = never
+  R = never,
 > {
   readonly name: string;
   readonly live: LiveQuery<A, E, R>;
@@ -123,18 +118,19 @@ export interface LiveQueryCollectionMaterializationOptions<
 const materializationCallbackError = (
   collection: string,
   operation: LiveQueryCollectionMaterializationOperation,
-  cause: unknown
+  cause: unknown,
 ): EffectInputCallbackError =>
   new EffectInputCallbackError({
     operation: `Collection.materialize(${collection}).${operation}`,
     cause,
-    guidance: "Live query collection materialization must produce collection rows with stable keys and stable-stringifiable values."
+    guidance:
+      "Live query collection materialization must produce collection rows with stable keys and stable-stringifiable values.",
   });
 
 const normalizeMaterializationError = (
   collection: string,
   operation: LiveQueryCollectionMaterializationOperation,
-  cause: unknown
+  cause: unknown,
 ): LiveQueryCollectionMaterializationError =>
   cause instanceof CollectionSnapshotCodecError || cause instanceof EffectInputCallbackError
     ? cause
@@ -152,17 +148,20 @@ export const makeLiveQueryCollectionMaterialization = <
   A extends object,
   K extends CollectionKey = string,
   E = never,
-  R = never
+  R = never,
 >(
-  options: LiveQueryCollectionMaterializationOptions<A, K, E, R>
+  options: LiveQueryCollectionMaterializationOptions<A, K, E, R>,
 ): LiveQueryCollectionMaterialization<A, K, E> => {
-  const storeAdapters = new WeakMap<RuntimeCollectionStore, LiveQueryCollectionStoreMaterialization<A, K, E>>();
+  const storeAdapters = new WeakMap<
+    RuntimeCollectionStore,
+    LiveQueryCollectionStoreMaterialization<A, K, E>
+  >();
   const currentRuntimeCollectionStore = (): RuntimeCollectionStore =>
     currentCollectionStore() as RuntimeCollectionStore;
   const withStore = <Out>(store: RuntimeCollectionStore, evaluate: () => Out): Out =>
     runWithCollectionStore(store, evaluate);
   const storeAdapter = (
-    store: RuntimeCollectionStore
+    store: RuntimeCollectionStore,
   ): LiveQueryCollectionStoreMaterialization<A, K, E> => {
     const existing = storeAdapters.get(store);
     if (existing) {
@@ -181,36 +180,38 @@ export const makeLiveQueryCollectionMaterialization = <
     };
     const materialize = (
       values: ReadonlyArray<A>,
-      operation: "load" | "snapshot"
+      operation: "load" | "snapshot",
     ): Omit<MaterializedProjection<A, K>, "revision" | "updatedAt"> => {
       const definition = options.definition();
       const rows = ingestCollectionOutputRowsSync(definition, values, {
         operation,
         path: `$.collections[${options.name}].rows`,
         synced: true,
-        origin: "remote"
+        origin: "remote",
       });
       const byKey = new Map<K, MaterializedEntry<A, K>>();
       for (const row of rows) {
         byKey.set(row.key, {
           key: row.key,
-          value: cloneCollectionValue(row.value)
+          value: cloneCollectionValue(row.value),
         });
       }
       const entries = Array.from(byKey.values());
       return {
         entries,
         byKey,
-        serialized: stableStringify(entries.map((entry) => [typeof entry.key, entry.key, entry.value]))
+        serialized: stableStringify(
+          entries.map((entry) => [typeof entry.key, entry.key, entry.value]),
+        ),
       };
     };
     const emptyProjection = (): Omit<MaterializedProjection<A, K>, "revision" | "updatedAt"> => ({
       entries: [],
       byKey: new Map(),
-      serialized: "[]"
+      serialized: "[]",
     });
     const replaceObservedProjection = (
-      next: Omit<MaterializedProjection<A, K>, "revision" | "updatedAt">
+      next: Omit<MaterializedProjection<A, K>, "revision" | "updatedAt">,
     ): MaterializedProjection<A, K> => {
       if (projection === undefined || projection.serialized !== next.serialized) {
         revision++;
@@ -218,7 +219,7 @@ export const makeLiveQueryCollectionMaterialization = <
         projection = {
           ...next,
           revision,
-          updatedAt: nextUpdatedAt()
+          updatedAt: nextUpdatedAt(),
         };
       }
       return projection;
@@ -233,26 +234,22 @@ export const makeLiveQueryCollectionMaterialization = <
         return projection ?? replaceObservedProjection(emptyProjection());
       }
     };
-    const currentProjection = (): MaterializedProjection<A, K> =>
-      projectionSignal.get();
+    const currentProjection = (): MaterializedProjection<A, K> => projectionSignal.get();
     const currentProjectionDirect = (): MaterializedProjection<A, K> =>
       withStore(store, () => observeMaterialized(options.live.state.get().data));
-    const projectionSignal = Signal.derive(() =>
-      currentProjectionDirect()
-    );
+    const projectionSignal = Signal.derive(() => currentProjectionDirect());
     const row = (entry: MaterializedEntry<A, K>): CollectionRow<A, K> =>
       detachCollectionRow({
         collection: options.name,
         key: entry.key,
         value: entry.value,
         synced: true,
-        origin: "remote"
+        origin: "remote",
       });
-    const rows = (): ReadonlyArray<CollectionRow<A, K>> =>
-      currentProjection().entries.map(row);
+    const rows = (): ReadonlyArray<CollectionRow<A, K>> => currentProjection().entries.map(row);
     const indexEntries = (
       name: string,
-      value: CollectionIndexValue
+      value: CollectionIndexValue,
     ): ReadonlyArray<MaterializedEntry<A, K>> => {
       const definition = options.definition();
       const definitionIndex = collectionIndex<A>(definition, name);
@@ -279,24 +276,26 @@ export const makeLiveQueryCollectionMaterialization = <
     };
     const snapshot = (
       materialized: MaterializedProjection<A, K>,
-      updatedAt: number
+      updatedAt: number,
     ): CollectionSnapshot<A, K> => ({
       name: options.name,
       rows: materialized.entries.map((entry) => ({
         key: entry.key,
         value: cloneCollectionValue(entry.value),
         synced: true,
-        origin: "remote"
+        origin: "remote",
       })),
       pendingMutations: [],
-      updatedAt
+      updatedAt,
     });
     let readyState: CollectionLoadState<LiveQueryCollectionLoadStateError<E>> | undefined;
     const pendingState: CollectionLoadState<LiveQueryCollectionLoadStateError<E>> = {
       _tag: "Pending",
-      waiting: true
+      waiting: true,
     };
-    const ready = (updatedAt: number): CollectionLoadState<LiveQueryCollectionLoadStateError<E>> => {
+    const ready = (
+      updatedAt: number,
+    ): CollectionLoadState<LiveQueryCollectionLoadStateError<E>> => {
       if (readyState?._tag === "Ready" && readyState.updatedAt === updatedAt) {
         return readyState;
       }
@@ -321,9 +320,7 @@ export const makeLiveQueryCollectionMaterialization = <
         }
       });
     const stateSignal = Signal.derive(readState);
-    const versionSignal = Signal.derive(() =>
-      currentProjection().revision
-    );
+    const versionSignal = Signal.derive(() => currentProjection().revision);
     const adapter: LiveQueryCollectionStoreMaterialization<A, K, E> = {
       stateSignal,
       versionSignal,
@@ -332,8 +329,7 @@ export const makeLiveQueryCollectionMaterialization = <
         return entry ? row(entry) : undefined;
       },
       rows,
-      index: (index, value) =>
-        indexEntries(index, value).map(row),
+      index: (index, value) => indexEntries(index, value).map(row),
       firstByIndex: (index, value) => {
         const entry = indexEntries(index, value)[0];
         return entry === undefined ? undefined : row(entry);
@@ -345,41 +341,38 @@ export const makeLiveQueryCollectionMaterialization = <
             throw new CollectionSnapshotCodecError({
               operation: "snapshot",
               path: "$",
-              reason: `Live query collection "${options.name}" is failed; resolve the live query failure before snapshotting or persisting it.`
+              reason: `Live query collection "${options.name}" is failed; resolve the live query failure before snapshotting or persisting it.`,
             });
           }
           const next = materialize(state.data, "snapshot");
-          return snapshot({
-            ...next,
-            revision: revision + 1,
-            updatedAt
-          }, updatedAt);
+          return snapshot(
+            {
+              ...next,
+              revision: revision + 1,
+              updatedAt,
+            },
+            updatedAt,
+          );
         } catch (error) {
           throw normalizeMaterializationError(options.name, "snapshot", error);
         }
-      }
+      },
     };
     storeAdapters.set(store, adapter);
     return adapter;
   };
   const currentAdapter = (): LiveQueryCollectionStoreMaterialization<A, K, E> =>
     storeAdapter(currentRuntimeCollectionStore());
-  const snapshotWithStoreEffect = (
-    store: RuntimeCollectionStore,
-    updatedAt: number
-  ) =>
+  const snapshotWithStoreEffect = (store: RuntimeCollectionStore, updatedAt: number) =>
     Effect.try({
-      try: () => runWithCollectionStore(store, () => {
-        const adapter = storeAdapter(store);
-        return adapter.snapshot(updatedAt);
-      }),
-      catch: (cause) =>
-        normalizeMaterializationError(options.name, "snapshot", cause)
+      try: () =>
+        runWithCollectionStore(store, () => {
+          const adapter = storeAdapter(store);
+          return adapter.snapshot(updatedAt);
+        }),
+      catch: (cause) => normalizeMaterializationError(options.name, "snapshot", cause),
     });
-  const snapshotWithStore = (
-    store: RuntimeCollectionStore,
-    updatedAt: number
-  ) =>
+  const snapshotWithStore = (store: RuntimeCollectionStore, updatedAt: number) =>
     runWithCollectionStore(store, () => {
       const adapter = storeAdapter(store);
       return adapter.snapshot(updatedAt);
@@ -390,12 +383,10 @@ export const makeLiveQueryCollectionMaterialization = <
     version: () => currentAdapter().versionSignal,
     get: (key) => currentAdapter().get(key),
     rows: () => currentAdapter().rows(),
-    index: (index, value) =>
-      currentAdapter().index(index, value),
-    firstByIndex: (index, value) =>
-      currentAdapter().firstByIndex(index, value),
+    index: (index, value) => currentAdapter().index(index, value),
+    firstByIndex: (index, value) => currentAdapter().firstByIndex(index, value),
     snapshot: (updatedAt) => currentAdapter().snapshot(updatedAt),
     snapshotWithStore,
-    snapshotWithStoreEffect
+    snapshotWithStoreEffect,
   };
 };

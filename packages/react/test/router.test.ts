@@ -1,7 +1,27 @@
-import { forkScoped, makeMemoryBrowserHistoryAdapter, makeRuntime, onDispose, Resource, route, runWithRuntime, UiScopeDisposed, type BrowserRouterState } from "@effect-ui/core";
+import {
+  forkScoped,
+  makeMemoryBrowserHistoryAdapter,
+  makeRuntime,
+  onDispose,
+  Resource,
+  Route,
+  route,
+  runWithRuntime,
+  UiScopeDisposed,
+  type BrowserRouterState,
+} from "@effect-ui/core";
 import { Cause, Deferred, Effect } from "effect";
 import { Window } from "happy-dom";
-import { act, Component, createElement, Fragment, StrictMode, Suspense, useState, type ReactNode } from "react";
+import {
+  act,
+  Component,
+  createElement,
+  Fragment,
+  StrictMode,
+  Suspense,
+  useState,
+  type ReactNode,
+} from "react";
 import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -11,7 +31,7 @@ import {
   RouterProvider,
   RuntimeProvider,
   useRouter,
-  type BrowserRouter
+  type BrowserRouter,
 } from "../src/index.js";
 import { renderReactRouteState } from "../src/route-render-scope.js";
 
@@ -24,16 +44,16 @@ const installDom = (url = "http://effect-ui.test/"): (() => void) => {
     "HTMLElement",
     "Node",
     "MouseEvent",
-    "IS_REACT_ACT_ENVIRONMENT"
+    "IS_REACT_ACT_ENVIRONMENT",
   ] as const;
   const previous = new Map<PropertyKey, PropertyDescriptor | undefined>(
-    keys.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)])
+    keys.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]),
   );
   const setGlobal = (key: PropertyKey, value: unknown): void => {
     Object.defineProperty(globalThis, key, {
       configurable: true,
       writable: true,
-      value
+      value,
     });
   };
 
@@ -60,7 +80,7 @@ const installDom = (url = "http://effect-ui.test/"): (() => void) => {
 
 const withReactRoot = async (
   f: (root: Root, container: HTMLElement) => Promise<void> | void,
-  url?: string
+  url?: string,
 ): Promise<void> => {
   const cleanupDom = installDom(url);
   const container = document.createElement("div");
@@ -107,7 +127,7 @@ class TestErrorBoundary extends Component<
 describe("react router", () => {
   it("renders the matched route component after preload", async () => {
     const Home = route("/", {
-      component: () => createElement("h1", {}, "Home")
+      component: () => createElement("h1", {}, "Home"),
     });
     const routes = [Home] as const;
 
@@ -121,13 +141,46 @@ describe("react router", () => {
     });
   });
 
+  it("renders lazy route components after route preload loads the chunk", async () => {
+    let imports = 0;
+    const LazyProject = Route.lazyComponent(
+      Effect.sync(() => {
+        imports++;
+        return {
+          default: ({ params }: { readonly params: { readonly id: string } }) =>
+            createElement("h1", {}, `Project ${params.id}`),
+        };
+      }),
+    );
+    const Project = route("/lazy-react-projects/:id", {
+      component: LazyProject,
+    });
+    const routes = [Project] as const;
+
+    await withReactRoot(async (root, container) => {
+      await act(async () => {
+        root.render(
+          createElement(RouterProvider, {
+            routes,
+            initialHref: "/lazy-react-projects/atlas",
+          }),
+        );
+      });
+      await flushReact();
+
+      expect(imports).toBe(1);
+      expect(container.textContent).toBe("Project atlas");
+    }, "http://effect-ui.test/lazy-react-projects/atlas");
+  });
+
   it("starts matched routes ready while React hydrates existing DOM", async () => {
     const cleanupDom = installDom("http://effect-ui.test/hydrating-projects/atlas");
     const runtime = makeRuntime();
     const release = await Effect.runPromise(Deferred.make<void>());
     const Project = route("/hydrating-projects/:id", {
       preload: () => Deferred.await(release),
-      component: ({ params }) => createElement("h1", {}, `Project ${(params as { id: string }).id}`)
+      component: ({ params }) =>
+        createElement("h1", {}, `Project ${(params as { id: string }).id}`),
     });
     const routes = [Project] as const;
     const container = document.createElement("div");
@@ -152,18 +205,19 @@ describe("react router", () => {
               initialHref: "/hydrating-projects/atlas",
               runtime,
               hydrating: true,
-              pending: () => createElement("h1", {}, "Pending")
-            })
-          )
+              pending: () => createElement("h1", {}, "Pending"),
+            }),
+          ),
         );
         await Effect.runPromise(Effect.sleep(0));
       });
 
       expect(container.textContent).toBe("Project atlas");
-      expect(errors.filter((message) =>
-        message.includes("Hydration failed") ||
-        message.includes("did not match")
-      )).toEqual([]);
+      expect(
+        errors.filter(
+          (message) => message.includes("Hydration failed") || message.includes("did not match"),
+        ),
+      ).toEqual([]);
 
       await act(async () => {
         await Effect.runPromise(Deferred.succeed(release, undefined));
@@ -185,10 +239,11 @@ describe("react router", () => {
   it("navigates by href and updates RouterOutlet", async () => {
     let router: BrowserRouter<typeof routes> | undefined;
     const Home = route("/", {
-      component: () => createElement("h1", {}, "Home")
+      component: () => createElement("h1", {}, "Home"),
     });
     const Project = route("/projects/:id", {
-      component: ({ params }) => createElement("h1", {}, `Project ${(params as { id: string }).id}`)
+      component: ({ params }) =>
+        createElement("h1", {}, `Project ${(params as { id: string }).id}`),
     });
     const routes = [Home, Project] as const;
 
@@ -203,8 +258,8 @@ describe("react router", () => {
           createElement(
             RouterProvider,
             { routes, initialHref: "/" },
-            createElement(Fragment, {}, createElement(CaptureRouter), createElement(RouterOutlet))
-          )
+            createElement(Fragment, {}, createElement(CaptureRouter), createElement(RouterOutlet)),
+          ),
         );
       });
       await flushReact();
@@ -223,10 +278,11 @@ describe("react router", () => {
     let router: BrowserRouter<typeof routes> | undefined;
     const history = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
     const Home = route("/", {
-      component: () => createElement("h1", {}, "Home")
+      component: () => createElement("h1", {}, "Home"),
     });
     const Project = route("/provider-history/:id", {
-      component: ({ params }) => createElement("h1", {}, `Project ${(params as { id: string }).id}`)
+      component: ({ params }) =>
+        createElement("h1", {}, `Project ${(params as { id: string }).id}`),
     });
     const routes = [Home, Project] as const;
 
@@ -241,8 +297,8 @@ describe("react router", () => {
           createElement(
             RouterProvider,
             { routes, history },
-            createElement(Fragment, {}, createElement(CaptureRouter), createElement(RouterOutlet))
-          )
+            createElement(Fragment, {}, createElement(CaptureRouter), createElement(RouterOutlet)),
+          ),
         );
       });
       await flushReact();
@@ -266,10 +322,16 @@ describe("react router", () => {
         Effect.sync(() => {
           preloads++;
         }),
-      component: ({ params }) => createElement("h1", {}, `Project ${(params as { id: string }).id}`)
+      component: ({ params }) =>
+        createElement("h1", {}, `Project ${(params as { id: string }).id}`),
     });
     const Home = route("/", {
-      component: () => createElement(RouterLink, { route: Project, options: { params: { id: "atlas" } } }, "Project")
+      component: () =>
+        createElement(
+          RouterLink,
+          { route: Project, options: { params: { id: "atlas" } } },
+          "Project",
+        ),
     });
     const routes = [Home, Project] as const;
 
@@ -304,24 +366,35 @@ describe("react router", () => {
         Effect.sync(() => {
           preloads++;
         }),
-      component: ({ params }) => createElement("h1", {}, `Project ${(params as { id: string }).id}`)
+      component: ({ params }) =>
+        createElement("h1", {}, `Project ${(params as { id: string }).id}`),
     });
     const Home = route("/", {
       component: () =>
-        createElement(Fragment, {},
-          createElement(RouterLink, {
-            route: Project,
-            options: { params: { id: "atlas" } },
-            download: false,
-            "data-kind": "false-download"
-          }, "False download"),
-          createElement(RouterLink, {
-            route: Project,
-            options: { params: { id: "curie" } },
-            download: "project.csv",
-            "data-kind": "real-download"
-          }, "Real download")
-        )
+        createElement(
+          Fragment,
+          {},
+          createElement(
+            RouterLink,
+            {
+              route: Project,
+              options: { params: { id: "atlas" } },
+              download: false,
+              "data-kind": "false-download",
+            },
+            "False download",
+          ),
+          createElement(
+            RouterLink,
+            {
+              route: Project,
+              options: { params: { id: "curie" } },
+              download: "project.csv",
+              "data-kind": "real-download",
+            },
+            "Real download",
+          ),
+        ),
     });
     const routes = [Home, Project] as const;
 
@@ -365,11 +438,14 @@ describe("react router", () => {
           started.push((params as { id: string }).id);
         }).pipe(
           Effect.andThen(Effect.never),
-          Effect.ensuring(Effect.sync(() => {
-            finalized.push((params as { id: string }).id);
-          }))
+          Effect.ensuring(
+            Effect.sync(() => {
+              finalized.push((params as { id: string }).id);
+            }),
+          ),
         ),
-      component: ({ params }) => createElement("h1", {}, `Project ${(params as { id: string }).id}`)
+      component: ({ params }) =>
+        createElement("h1", {}, `Project ${(params as { id: string }).id}`),
     });
     const routes = [Project] as const;
 
@@ -385,8 +461,8 @@ describe("react router", () => {
             createElement(RouterLink, {
               route: Project,
               options: { params: { id: projectId } },
-              children: projectId
-            })
+              children: projectId,
+            }),
           );
         }
 
@@ -430,10 +506,12 @@ describe("react router", () => {
           started.push((params as { id: string }).id);
         }).pipe(
           Effect.andThen(Effect.never),
-          Effect.ensuring(Effect.sync(() => {
-            finalized.push((params as { id: string }).id);
-          }))
-        )
+          Effect.ensuring(
+            Effect.sync(() => {
+              finalized.push((params as { id: string }).id);
+            }),
+          ),
+        ),
     });
     const routes = [Project] as const;
 
@@ -450,8 +528,8 @@ describe("react router", () => {
               route: Project,
               options: { params: { id: "atlas" } },
               preload,
-              children: "Atlas"
-            })
+              children: "Atlas",
+            }),
           );
         }
 
@@ -494,10 +572,12 @@ describe("react router", () => {
           started.push("old");
         }).pipe(
           Effect.andThen(Effect.never),
-          Effect.ensuring(Effect.sync(() => {
-            finalized.push("old");
-          }))
-        )
+          Effect.ensuring(
+            Effect.sync(() => {
+              finalized.push("old");
+            }),
+          ),
+        ),
     });
     const NewProject = route("/hover-router-replace/:id", {
       preload: () =>
@@ -505,30 +585,34 @@ describe("react router", () => {
           started.push("new");
         }).pipe(
           Effect.andThen(Effect.never),
-          Effect.ensuring(Effect.sync(() => {
-            finalized.push("new");
-          }))
-        )
+          Effect.ensuring(
+            Effect.sync(() => {
+              finalized.push("new");
+            }),
+          ),
+        ),
     });
 
     try {
       await withReactRoot(async (root, container) => {
         let replaceRoute: (() => void) | undefined;
         function App() {
-          const [projectRoute, setProjectRoute] = useState<typeof OldProject | typeof NewProject>(OldProject);
+          const [projectRoute, setProjectRoute] = useState<typeof OldProject | typeof NewProject>(
+            OldProject,
+          );
           replaceRoute = () => setProjectRoute(NewProject);
           return createElement(
             RouterProvider,
             {
               routes: [projectRoute] as readonly [typeof OldProject | typeof NewProject],
               initialHref: "/missing",
-              runtime
+              runtime,
             },
             createElement(RouterLink, {
               route: projectRoute,
               options: { params: { id: "atlas" } },
-              children: "Atlas"
-            })
+              children: "Atlas",
+            }),
           );
         }
 
@@ -570,14 +654,15 @@ describe("react router", () => {
         Effect.sync(() => {
           preloaded.push(`project:${params.id}`);
         }),
-      component: ({ params }) => createElement("h1", {}, `Project ${(params as { id: string }).id}`)
+      component: ({ params }) =>
+        createElement("h1", {}, `Project ${(params as { id: string }).id}`),
     });
     const ProjectSettings = route("/projects/settings", {
       preload: () =>
         Effect.sync(() => {
           preloaded.push("settings");
         }),
-      component: () => createElement("h1", {}, "Settings")
+      component: () => createElement("h1", {}, "Settings"),
     });
     const routes = [Project, ProjectSettings] as const;
 
@@ -592,8 +677,8 @@ describe("react router", () => {
           createElement(
             RouterProvider,
             { routes, initialHref: "/projects/settings" },
-            createElement(Fragment, {}, createElement(CaptureRouter), createElement(RouterOutlet))
-          )
+            createElement(Fragment, {}, createElement(CaptureRouter), createElement(RouterOutlet)),
+          ),
         );
       });
       await flushReact();
@@ -615,11 +700,13 @@ describe("react router", () => {
     const Home = route("/", {
       component: () => {
         const renderedLabel = label;
-        onDispose(() => Effect.sync(() => {
-          disposed.push(renderedLabel);
-        }));
+        onDispose(() =>
+          Effect.sync(() => {
+            disposed.push(renderedLabel);
+          }),
+        );
         return createElement("h1", {}, renderedLabel);
-      }
+      },
     });
     const routes = [Home] as const;
 
@@ -662,11 +749,13 @@ describe("react router", () => {
     const disposed: string[] = [];
     const Home = route("/", {
       component: () => {
-        onDispose(() => Effect.sync(() => {
-          disposed.push("home");
-        }));
+        onDispose(() =>
+          Effect.sync(() => {
+            disposed.push("home");
+          }),
+        );
         return createElement("h1", {}, "Home");
-      }
+      },
     });
     const routes = [Home] as const;
 
@@ -680,9 +769,9 @@ describe("react router", () => {
               createElement(RouterProvider, {
                 routes,
                 initialHref: "/",
-                runtime
-              })
-            )
+                runtime,
+              }),
+            ),
           );
         });
         await flushReact();
@@ -707,11 +796,13 @@ describe("react router", () => {
       component: () => {
         const [label, setLabel] = useState("first");
         rerender = () => setLabel("second");
-        onDispose(() => Effect.sync(() => {
-          disposed.push(label);
-        }));
+        onDispose(() =>
+          Effect.sync(() => {
+            disposed.push(label);
+          }),
+        );
         return createElement("h1", {}, label);
-      }
+      },
     });
     const routes = [Home] as const;
 
@@ -749,14 +840,16 @@ describe("react router", () => {
       component: () => {
         const [label, setLabel] = useState("good");
         rerender = () => setLabel("bad");
-        onDispose(() => Effect.sync(() => {
-          disposed.push(label);
-        }));
+        onDispose(() =>
+          Effect.sync(() => {
+            disposed.push(label);
+          }),
+        );
         if (label === "bad") {
           throw renderError;
         }
         return createElement("h1", {}, label);
-      }
+      },
     });
     const routes = [Home] as const;
 
@@ -769,10 +862,10 @@ describe("react router", () => {
               {
                 onError: (error) => {
                   caught = error;
-                }
+                },
               },
-              createElement(RouterProvider, { routes, initialHref: "/", runtime })
-            )
+              createElement(RouterProvider, { routes, initialHref: "/", runtime }),
+            ),
           );
         });
         await flushReact();
@@ -809,14 +902,16 @@ describe("react router", () => {
       component: () => {
         const [label, setLabel] = useState("ready");
         suspend = () => setLabel("suspended");
-        onDispose(() => Effect.sync(() => {
-          disposed.push(label);
-        }));
+        onDispose(() =>
+          Effect.sync(() => {
+            disposed.push(label);
+          }),
+        );
         if (label === "suspended" && !resolved) {
           throw suspensePromise;
         }
         return createElement("h1", {}, label);
-      }
+      },
     });
     const routes = [Home] as const;
 
@@ -827,8 +922,8 @@ describe("react router", () => {
             createElement(
               Suspense,
               { fallback: createElement("span", {}, "pending") },
-              createElement(RouterProvider, { routes, initialHref: "/", runtime })
-            )
+              createElement(RouterProvider, { routes, initialHref: "/", runtime }),
+            ),
           );
         });
         await flushReact();
@@ -867,11 +962,13 @@ describe("react router", () => {
     let caught: unknown;
     const Broken = route("/", {
       component: () => {
-        onDispose(() => Effect.sync(() => {
-          disposed.push("route");
-        }));
+        onDispose(() =>
+          Effect.sync(() => {
+            disposed.push("route");
+          }),
+        );
         throw renderError;
-      }
+      },
     });
     const routes = [Broken] as const;
 
@@ -884,14 +981,14 @@ describe("react router", () => {
               {
                 onError: (error) => {
                   caught = error;
-                }
+                },
               },
               createElement(RouterProvider, {
                 routes,
                 initialHref: "/",
-                runtime
-              })
-            )
+                runtime,
+              }),
+            ),
           );
         });
         await flushReact();
@@ -913,7 +1010,7 @@ describe("react router", () => {
       component: () => {
         forkScoped(Effect.never);
         return createElement("h1", {}, "unreachable");
-      }
+      },
     });
     const routes = [Forking] as const;
 
@@ -926,14 +1023,14 @@ describe("react router", () => {
               {
                 onError: (error) => {
                   caught = error;
-                }
+                },
               },
               createElement(RouterProvider, {
                 routes,
                 initialHref: "/",
-                runtime
-              })
-            )
+                runtime,
+              }),
+            ),
           );
         });
         await flushReact();
@@ -950,14 +1047,14 @@ describe("react router", () => {
     const runtime = makeRuntime();
     const ProjectById = Resource.family<string, { readonly id: string }>({
       name: "ReactRouter.pending-runtime-resource",
-      load: (id) => Effect.succeed({ id })
+      load: (id) => Effect.succeed({ id }),
     });
     const ref = ProjectById("atlas");
     await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
 
     const Project = route("/pending-runtime/:id", {
       preload: () => Effect.never,
-      component: () => createElement("h1", {}, "Project")
+      component: () => createElement("h1", {}, "Project"),
     });
     const routes = [Project] as const;
 
@@ -972,8 +1069,8 @@ describe("react router", () => {
               pending: () => {
                 onDispose(() => Resource.deleteEffect(ref));
                 return Resource.status(ref)._tag;
-              }
-            })
+              },
+            }),
           );
         });
         await flushReact();
@@ -991,28 +1088,35 @@ describe("react router", () => {
   it("rerenders pending outlet renderers without navigation", async () => {
     const runtime = makeRuntime();
     const Project = route("/renderer-pending/:id", {
-      component: () => createElement("span", {}, "Project")
+      component: () => createElement("span", {}, "Project"),
     });
     const match = Project.match("/renderer-pending/atlas");
     if (!match) {
       expect.fail("Expected route to match.");
     }
-    const state: Extract<BrowserRouterState<readonly [typeof Project]>, { readonly _tag: "Pending" }> = {
+    const state: Extract<
+      BrowserRouterState<readonly [typeof Project]>,
+      { readonly _tag: "Pending" }
+    > = {
       _tag: "Pending",
       href: "/renderer-pending/atlas",
-      match
+      match,
     };
     const disposed: Array<string> = [];
     const first = () => {
-      onDispose(() => Effect.sync(() => {
-        disposed.push("first");
-      }));
+      onDispose(() =>
+        Effect.sync(() => {
+          disposed.push("first");
+        }),
+      );
       return createElement("span", {}, "pending-one");
     };
     const second = () => {
-      onDispose(() => Effect.sync(() => {
-        disposed.push("second");
-      }));
+      onDispose(() =>
+        Effect.sync(() => {
+          disposed.push("second");
+        }),
+      );
       return createElement("span", {}, "pending-two");
     };
 
@@ -1042,27 +1146,34 @@ describe("react router", () => {
     const runtime = makeRuntime();
     const FailingRoute = route("/renderer-failure", {
       preload: () => Effect.fail("offline" as const),
-      component: () => createElement("span", {}, "never")
+      component: () => createElement("span", {}, "never"),
     });
     const routes = [FailingRoute] as const;
-    type FailureState = Extract<BrowserRouterState<typeof routes, "offline">, { readonly _tag: "Failure" }>;
+    type FailureState = Extract<
+      BrowserRouterState<typeof routes, "offline">,
+      { readonly _tag: "Failure" }
+    >;
     const state: FailureState = {
       _tag: "Failure",
       href: "/renderer-failure",
       cause: Cause.fail("offline" as const),
-      error: "offline"
+      error: "offline",
     };
     const disposed: Array<string> = [];
     const first = () => {
-      onDispose(() => Effect.sync(() => {
-        disposed.push("first");
-      }));
+      onDispose(() =>
+        Effect.sync(() => {
+          disposed.push("first");
+        }),
+      );
       return createElement("span", {}, "failure-one");
     };
     const second = () => {
-      onDispose(() => Effect.sync(() => {
-        disposed.push("second");
-      }));
+      onDispose(() =>
+        Effect.sync(() => {
+          disposed.push("second");
+        }),
+      );
       return createElement("span", {}, "failure-two");
     };
 
@@ -1093,7 +1204,7 @@ describe("react router", () => {
     const innerRuntime = makeRuntime();
     const ProjectById = Resource.family<string, { readonly id: string }>({
       name: "ReactRouter.runtime-owned-route-resource",
-      load: (id) => Effect.succeed({ id })
+      load: (id) => Effect.succeed({ id }),
     });
     const ref = ProjectById("atlas");
     let renderedStatus: string | undefined;
@@ -1103,7 +1214,7 @@ describe("react router", () => {
         const status = Resource.status(ref);
         renderedStatus = status._tag;
         return createElement("span", {}, status._tag);
-      }
+      },
     });
     const routes = [Project] as const;
 
@@ -1116,14 +1227,14 @@ describe("react router", () => {
               {
                 routes,
                 initialHref: "/runtime-projects/atlas",
-                runtime: outerRuntime
+                runtime: outerRuntime,
               },
               createElement(
                 RuntimeProvider,
                 { runtime: innerRuntime },
-                createElement(RouterOutlet)
-              )
-            )
+                createElement(RouterOutlet),
+              ),
+            ),
           );
         });
         await flushReact();

@@ -3,24 +3,17 @@ import type {
   StartAgentGraph,
   StartAgentGraphNode,
   StartAgentGraphQuery,
-  StartAgentGraphQueryResult
+  StartAgentGraphQueryResult,
 } from "./start-agent-graph-contract.js";
 import { startAgentGraphFactText } from "./start-agent-graph-facts.js";
 import { startAgentGraphNodeKindForQuery } from "./start-agent-graph-vocabulary.js";
 
 const searchableText = (node: StartAgentGraphNode): string =>
-  [
-    node.id,
-    node.kind,
-    node.label,
-    node.owner ?? "",
-    startAgentGraphFactText(node.facts)
-  ].join("\n").toLowerCase();
+  [node.id, node.kind, node.label, node.owner ?? "", startAgentGraphFactText(node.facts)]
+    .join("\n")
+    .toLowerCase();
 
-const matchesQuery = (
-  node: StartAgentGraphNode,
-  query: StartAgentGraphQuery
-): boolean => {
+const matchesQuery = (node: StartAgentGraphNode, query: StartAgentGraphQuery): boolean => {
   const kind = startAgentGraphNodeKindForQuery(query.kind);
   if (kind !== undefined && node.kind !== kind) {
     return false;
@@ -38,20 +31,19 @@ const matchesQuery = (
  */
 export const queryStartAgentGraph = (
   graph: StartAgentGraph,
-  query: StartAgentGraphQuery = {}
+  query: StartAgentGraphQuery = {},
 ): StartAgentGraphQueryResult => {
   const nodes = graph.nodes.filter((node) => matchesQuery(node, query));
   const nodeIds = new Set(nodes.map((node) => node.id));
   return {
     query,
     nodes,
-    edges: graph.edges.filter((edge) => nodeIds.has(edge.from) || nodeIds.has(edge.to))
+    edges: graph.edges.filter((edge) => nodeIds.has(edge.from) || nodeIds.has(edge.to)),
   };
 };
 
 /** Effect wrapper for `queryStartAgentGraph(...)`, useful in CLI pipelines. */
 export const queryStartAgentGraphEffect = (
   graph: StartAgentGraph,
-  query: StartAgentGraphQuery = {}
-): Effect.Effect<StartAgentGraphQueryResult> =>
-  Effect.succeed(queryStartAgentGraph(graph, query));
+  query: StartAgentGraphQuery = {},
+): Effect.Effect<StartAgentGraphQueryResult> => Effect.succeed(queryStartAgentGraph(graph, query));

@@ -34,10 +34,7 @@ export interface WriteNodeResponseOptions {
   readonly headOnly?: boolean;
 }
 
-const forwardedHeader = (
-  request: IncomingMessage,
-  name: string
-): string | undefined => {
+const forwardedHeader = (request: IncomingMessage, name: string): string | undefined => {
   const value = request.headers[name];
   return Array.isArray(value) ? value[0] : value;
 };
@@ -45,7 +42,7 @@ const forwardedHeader = (
 /** Resolves the absolute request origin from explicit options or forwarded headers. */
 export const nodeRequestOrigin = (
   request: IncomingMessage,
-  options: StartNodeRequestOptions = {}
+  options: StartNodeRequestOptions = {},
 ): string => {
   if (typeof options.origin === "function") {
     return options.origin(request);
@@ -56,18 +53,18 @@ export const nodeRequestOrigin = (
 
   const trustForwardedHeaders = options.trustForwardedHeaders ?? true;
   const protocol = trustForwardedHeaders
-    ? forwardedHeader(request, "x-forwarded-proto") ?? "http"
+    ? (forwardedHeader(request, "x-forwarded-proto") ?? "http")
     : "http";
   const host = trustForwardedHeaders
-    ? forwardedHeader(request, "x-forwarded-host") ?? request.headers.host ?? "localhost"
-    : request.headers.host ?? "localhost";
+    ? (forwardedHeader(request, "x-forwarded-host") ?? request.headers.host ?? "localhost")
+    : (request.headers.host ?? "localhost");
   return `${protocol}://${host}`;
 };
 
 /** Converts a Node request into a standards-based web `Request`. */
 export const nodeRequestToWebRequest = (
   request: IncomingMessage,
-  options: StartNodeRequestOptions = {}
+  options: StartNodeRequestOptions = {},
 ): Request => {
   const url = new URL(request.url ?? "/", nodeRequestOrigin(request, options));
   const headers = new Headers();
@@ -90,7 +87,7 @@ export const nodeRequestToWebRequest = (
   const init: RequestInit & { duplex?: "half" } = {
     method,
     headers,
-    ...(options.signal === undefined ? {} : { signal: options.signal })
+    ...(options.signal === undefined ? {} : { signal: options.signal }),
   };
 
   if (method !== "GET" && method !== "HEAD") {
@@ -114,7 +111,7 @@ type NodeLifecycleEventTarget = {
 const addNodeLifecycleListener = (
   target: NodeLifecycleEventTarget | undefined,
   event: string,
-  listener: () => void
+  listener: () => void,
 ): void => {
   if (typeof target?.once === "function") {
     target.once(event, listener);
@@ -124,7 +121,7 @@ const addNodeLifecycleListener = (
 const removeNodeLifecycleListener = (
   target: NodeLifecycleEventTarget | undefined,
   event: string,
-  listener: () => void
+  listener: () => void,
 ): void => {
   if (typeof target?.off === "function") {
     target.off(event, listener);
@@ -134,7 +131,7 @@ const removeNodeLifecycleListener = (
 /** Creates a per-request AbortSignal from Node request/response disconnects. */
 export const nodeRequestLifecycle = (
   request: IncomingMessage,
-  response?: ServerResponse
+  response?: ServerResponse,
 ): StartNodeRequestLifecycle => {
   const controller = new AbortController();
   const abort = (): void => {
@@ -159,66 +156,59 @@ export const nodeRequestLifecycle = (
 
   return {
     signal: controller.signal,
-    dispose
+    dispose,
   };
 };
 
 /** Effect wrapper for `nodeRequestToWebRequest` with adapter errors. */
 export const nodeRequestToWebRequestEffect = (
   request: IncomingMessage,
-  options: StartNodeRequestOptions = {}
+  options: StartNodeRequestOptions = {},
 ): Effect.Effect<Request, StartNodeAdapterError> =>
   Effect.try({
     try: () => nodeRequestToWebRequest(request, options),
-    catch: (error) => new StartNodeAdapterError({ operation: "create-request", error })
+    catch: (error) => new StartNodeAdapterError({ operation: "create-request", error }),
   });
 
 const endNodeResponseEffect = (
-  target: ServerResponse
+  target: ServerResponse,
 ): Effect.Effect<void, StartNodeAdapterError> =>
   Effect.try({
     try: () => {
       target.end();
     },
-    catch: (error) => new StartNodeAdapterError({ operation: "write-response", error })
+    catch: (error) => new StartNodeAdapterError({ operation: "write-response", error }),
   });
 
 const cancelResponseBodyEffect = (
   response: Response,
-  reason: string
+  reason: string,
 ): Effect.Effect<void, StartNodeAdapterError> =>
   response.body
     ? Effect.tryPromise({
         try: () => response.body!.cancel(reason),
-        catch: (error) => new StartNodeAdapterError({ operation: "write-response", error })
+        catch: (error) => new StartNodeAdapterError({ operation: "write-response", error }),
       })
     : Effect.void;
 
 const writeStreamBodyEffect = (
   target: ServerResponse,
   response: Response,
-  headOnly: boolean
+  headOnly: boolean,
 ): Effect.Effect<void, StartNodeAdapterError> =>
   headOnly
     ? cancelResponseBodyEffect(response, "head-response").pipe(
-        Effect.andThen(endNodeResponseEffect(target))
+        Effect.andThen(endNodeResponseEffect(target)),
       )
     : !response.body
       ? endNodeResponseEffect(target)
       : Effect.tryPromise({
           try: (signal) =>
-            pipeline(
-              Readable.fromWeb(response.body as NodeReadableStream),
-              target,
-              { signal }
-            ),
-          catch: (error) => new StartNodeAdapterError({ operation: "write-response", error })
+            pipeline(Readable.fromWeb(response.body as NodeReadableStream), target, { signal }),
+          catch: (error) => new StartNodeAdapterError({ operation: "write-response", error }),
         });
 
-const setNodeResponseHeaders = (
-  target: ServerResponse,
-  headers: Headers
-): void => {
+const setNodeResponseHeaders = (target: ServerResponse, headers: Headers): void => {
   const setCookies = headers.getSetCookie();
   headers.forEach((value, key) => {
     if (key.toLowerCase() === "set-cookie") {
@@ -240,7 +230,7 @@ const setNodeResponseHeaders = (
 export const writeNodeResponseEffect = (
   target: ServerResponse,
   response: Response,
-  options: WriteNodeResponseOptions = {}
+  options: WriteNodeResponseOptions = {},
 ): Effect.Effect<void, StartNodeAdapterError> =>
   Effect.gen(function* () {
     yield* Effect.try({
@@ -249,7 +239,7 @@ export const writeNodeResponseEffect = (
         target.statusMessage = response.statusText;
         setNodeResponseHeaders(target, response.headers);
       },
-      catch: (error) => new StartNodeAdapterError({ operation: "write-response", error })
+      catch: (error) => new StartNodeAdapterError({ operation: "write-response", error }),
     });
     yield* writeStreamBodyEffect(target, response, options.headOnly ?? false);
   });
@@ -258,16 +248,15 @@ export const writeNodeResponseEffect = (
 export const writeNodeResponse = (
   target: ServerResponse,
   response: Response,
-  options: WriteNodeResponseOptions = {}
-): Effect.Effect<void, StartNodeAdapterError> =>
-  writeNodeResponseEffect(target, response, options);
+  options: WriteNodeResponseOptions = {},
+): Effect.Effect<void, StartNodeAdapterError> => writeNodeResponseEffect(target, response, options);
 
 /** Writes a Web response back to the Node exchange that produced it. */
 export const writeNodeExchangeResponseEffect = (
   request: IncomingMessage,
   target: ServerResponse,
-  response: Response
+  response: Response,
 ): Effect.Effect<void, StartNodeAdapterError> =>
   writeNodeResponseEffect(target, response, {
-    headOnly: request.method === "HEAD"
+    headOnly: request.method === "HEAD",
   });

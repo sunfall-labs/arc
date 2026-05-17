@@ -16,13 +16,7 @@ export interface RequestContext {
 export const RequestContext = Context.Service<RequestContext>("@effect-ui/core/RequestContext");
 
 /** Accepted SameSite spellings for response cookies. */
-export type ResponseCookieSameSite =
-  | "Strict"
-  | "Lax"
-  | "None"
-  | "strict"
-  | "lax"
-  | "none";
+export type ResponseCookieSameSite = "Strict" | "Lax" | "None" | "strict" | "lax" | "none";
 
 /** Attributes used when serializing a `Set-Cookie` response header. */
 export interface ResponseCookieOptions {
@@ -47,7 +41,7 @@ export type ResponseDeleteCookieOptions = Omit<ResponseCookieOptions, "expires" 
 
 /** Error raised when response cookie data cannot be serialized safely. */
 export class ResponseCookieSerializationError extends Data.TaggedError(
-  "ResponseCookieSerializationError"
+  "ResponseCookieSerializationError",
 )<{
   /** Cookie field or attribute that failed validation. */
   readonly attribute: string;
@@ -79,9 +73,16 @@ export interface ResponseContext {
   /** Appends a response header value. `set-cookie` is preserved as a separate header. */
   appendHeader(name: string, value: string): Effect.Effect<void, EffectInputCallbackError>;
   /** Appends a serialized `Set-Cookie` header. */
-  setCookie(name: string, value: string, options?: ResponseCookieOptions): Effect.Effect<void, ResponseCookieSerializationError>;
+  setCookie(
+    name: string,
+    value: string,
+    options?: ResponseCookieOptions,
+  ): Effect.Effect<void, ResponseCookieSerializationError>;
   /** Appends a cookie-expiring `Set-Cookie` header. */
-  deleteCookie(name: string, options?: ResponseDeleteCookieOptions): Effect.Effect<void, ResponseCookieSerializationError>;
+  deleteCookie(
+    name: string,
+    options?: ResponseDeleteCookieOptions,
+  ): Effect.Effect<void, ResponseCookieSerializationError>;
 }
 
 export const ResponseContext = Context.Service<ResponseContext>("@effect-ui/core/ResponseContext");
@@ -108,12 +109,12 @@ export const makeRequestContext = (request: Request): RequestContext => ({
   request,
   url: new URL(request.url),
   headers: request.headers,
-  cookies: parseCookies(request.headers.get("cookie"))
+  cookies: parseCookies(request.headers.get("cookie")),
 });
 
 /** Creates the request service value and reports host parsing failures as typed Effects. */
 export const makeRequestContextEffect = (
-  request: Request
+  request: Request,
 ): Effect.Effect<RequestContext, EffectInputCallbackError> =>
   Effect.try({
     try: () => makeRequestContext(request),
@@ -121,12 +122,12 @@ export const makeRequestContextEffect = (
       new EffectInputCallbackError({
         operation: "RequestContext.make",
         cause,
-        guidance: "Request URL and Cookie headers must be parseable before server route handlers can read RequestContext."
-      })
+        guidance:
+          "Request URL and Cookie headers must be parseable before server route handlers can read RequestContext.",
+      }),
   });
 
-const isSetCookieHeader = (name: string): boolean =>
-  name.toLowerCase() === "set-cookie";
+const isSetCookieHeader = (name: string): boolean => name.toLowerCase() === "set-cookie";
 
 type CookieSerializationResult =
   | { readonly _tag: "Success"; readonly value: string }
@@ -134,19 +135,20 @@ type CookieSerializationResult =
 
 const cookieSerializationSuccess = (value: string): CookieSerializationResult => ({
   _tag: "Success",
-  value
+  value,
 });
 
 const cookieSerializationFailure = (
   attribute: string,
-  cause: unknown
+  cause: unknown,
 ): CookieSerializationResult => ({
   _tag: "Failure",
   error: new ResponseCookieSerializationError({
     attribute,
     cause,
-    guidance: "Response cookie names, values, and attributes must be valid Set-Cookie data. Wrap host-specific cookie work in an Effect and keep invalid values in the Effect error channel."
-  })
+    guidance:
+      "Response cookie names, values, and attributes must be valid Set-Cookie data. Wrap host-specific cookie work in an Effect and keep invalid values in the Effect error channel.",
+  }),
 });
 
 const normalizeSameSite = (sameSite: ResponseCookieSameSite): CookieSerializationResult => {
@@ -157,22 +159,24 @@ const normalizeSameSite = (sameSite: ResponseCookieSameSite): CookieSerializatio
   return cookieSerializationSuccess(`${lower.charAt(0).toUpperCase()}${lower.slice(1)}`);
 };
 
-const invalidCookieAttributePattern = /[\x00-\x1F\x7F;]/;
+const hasInvalidCookieAttributeCharacter = (value: string): boolean =>
+  value.includes(";") ||
+  Array.from(value).some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 0x1f || code === 0x7f;
+  });
 
 const validateCookieAttribute = (
   name: string,
-  value: string | undefined
+  value: string | undefined,
 ): CookieSerializationResult | undefined => {
-  if (value !== undefined && invalidCookieAttributePattern.test(value)) {
+  if (value !== undefined && hasInvalidCookieAttributeCharacter(value)) {
     return cookieSerializationFailure(name, value);
   }
   return undefined;
 };
 
-const encodeCookieComponent = (
-  attribute: string,
-  value: string
-): CookieSerializationResult => {
+const encodeCookieComponent = (attribute: string, value: string): CookieSerializationResult => {
   try {
     return cookieSerializationSuccess(encodeURIComponent(value));
   } catch (cause) {
@@ -183,7 +187,7 @@ const encodeCookieComponent = (
 const serializeResponseCookieResult = (
   name: string,
   value: string,
-  options: ResponseCookieOptions = {}
+  options: ResponseCookieOptions = {},
 ): CookieSerializationResult => {
   const domainValidation = validateCookieAttribute("Domain", options.domain);
   if (domainValidation) {
@@ -244,7 +248,7 @@ const serializeResponseCookieResult = (
 export const serializeResponseCookie = (
   name: string,
   value: string,
-  options: ResponseCookieOptions = {}
+  options: ResponseCookieOptions = {},
 ): string => {
   const result = serializeResponseCookieResult(name, value, options);
   if (result._tag === "Failure") {
@@ -257,12 +261,10 @@ export const serializeResponseCookie = (
 export const serializeResponseCookieEffect = (
   name: string,
   value: string,
-  options: ResponseCookieOptions = {}
+  options: ResponseCookieOptions = {},
 ): Effect.Effect<string, ResponseCookieSerializationError> => {
   const result = serializeResponseCookieResult(name, value, options);
-  return result._tag === "Success"
-    ? Effect.succeed(result.value)
-    : Effect.fail(result.error);
+  return result._tag === "Success" ? Effect.succeed(result.value) : Effect.fail(result.error);
 };
 
 /** Creates an empty mutable response context. */
@@ -291,8 +293,9 @@ export const makeResponseContext = (): ResponseContext => {
           new EffectInputCallbackError({
             operation: "ResponseContext.setStatus",
             cause,
-            guidance: "Response status metadata must be valid for the platform Response constructor."
-          })
+            guidance:
+              "Response status metadata must be valid for the platform Response constructor.",
+          }),
       }),
     setHeader: (name, value) =>
       Effect.try({
@@ -307,8 +310,9 @@ export const makeResponseContext = (): ResponseContext => {
           new EffectInputCallbackError({
             operation: "ResponseContext.setHeader",
             cause,
-            guidance: "Response header names and values must be accepted by the platform Headers implementation."
-          })
+            guidance:
+              "Response header names and values must be accepted by the platform Headers implementation.",
+          }),
       }),
     appendHeader: (name, value) =>
       Effect.try({
@@ -323,35 +327,33 @@ export const makeResponseContext = (): ResponseContext => {
           new EffectInputCallbackError({
             operation: "ResponseContext.appendHeader",
             cause,
-            guidance: "Response header names and values must be accepted by the platform Headers implementation."
-          })
+            guidance:
+              "Response header names and values must be accepted by the platform Headers implementation.",
+          }),
       }),
     setCookie: (name, value, options) =>
-      Effect.flatMap(
-        serializeResponseCookieEffect(name, value, options),
-        (cookie) => Effect.sync(() => {
+      Effect.flatMap(serializeResponseCookieEffect(name, value, options), (cookie) =>
+        Effect.sync(() => {
           cookies.push(cookie);
-        })
+        }),
       ),
     deleteCookie: (name, options) =>
       Effect.flatMap(
         serializeResponseCookieEffect(name, "", {
           ...options,
           expires: new Date(0),
-          maxAge: 0
+          maxAge: 0,
         }),
-        (cookie) => Effect.sync(() => {
-          cookies.push(cookie);
-        })
-      )
+        (cookie) =>
+          Effect.sync(() => {
+            cookies.push(cookie);
+          }),
+      ),
   };
 };
 
 /** Applies accumulated status, headers, and cookies to a final `Response`. */
-export const applyResponseContext = (
-  context: ResponseContext,
-  response: Response
-): Response => {
+export const applyResponseContext = (context: ResponseContext, response: Response): Response => {
   const headers = new Headers(response.headers);
   context.headers.forEach((value, key) => {
     headers.set(key, value);
@@ -362,7 +364,7 @@ export const applyResponseContext = (
 
   const init: ResponseInit = {
     status: context.status ?? response.status,
-    headers
+    headers,
   };
   const statusText = context.statusText ?? response.statusText;
   if (statusText) {
@@ -375,7 +377,7 @@ export const applyResponseContext = (
 /** Applies accumulated response metadata and reports host failures as typed Effects. */
 export const applyResponseContextEffect = (
   context: ResponseContext,
-  response: Response
+  response: Response,
 ): Effect.Effect<Response, EffectInputCallbackError> =>
   Effect.try({
     try: () => applyResponseContext(context, response),
@@ -383,20 +385,23 @@ export const applyResponseContextEffect = (
       new EffectInputCallbackError({
         operation: "ResponseContext.apply",
         cause,
-        guidance: "Accumulated response status, headers, and cookies must be accepted by the platform Response implementation."
-      })
+        guidance:
+          "Accumulated response status, headers, and cookies must be accepted by the platform Response implementation.",
+      }),
   });
 
 /** Provides `RequestContext` to an Effect. */
-export const provideRequest = (request: Request) =>
+export const provideRequest =
+  (request: Request) =>
   <A, E, R>(
-    effect: Effect.Effect<A, E, R>
+    effect: Effect.Effect<A, E, R>,
   ): Effect.Effect<A, E | EffectInputCallbackError, Exclude<R, RequestContext>> =>
     Effect.flatMap(makeRequestContextEffect(request), (requestContext) =>
-      Effect.provideService(effect, RequestContext, requestContext)
+      Effect.provideService(effect, RequestContext, requestContext),
     );
 
 /** Provides `ResponseContext` to an Effect. */
-export const provideResponse = (context: ResponseContext = makeResponseContext()) =>
+export const provideResponse =
+  (context: ResponseContext = makeResponseContext()) =>
   <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, Exclude<R, ResponseContext>> =>
     Effect.provideService(effect, ResponseContext, context);

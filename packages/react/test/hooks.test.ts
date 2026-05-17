@@ -1,4 +1,14 @@
-import { Action, makeRuntime, Program, Resource, ResourceStoreDisposeError, RuntimeDisposeError, Signal, UiScopeDisposed, watch } from "@effect-ui/core";
+import {
+  Action,
+  makeRuntime,
+  Program,
+  Resource,
+  ResourceStoreDisposeError,
+  RuntimeDisposeError,
+  Signal,
+  UiScopeDisposed,
+  watch,
+} from "@effect-ui/core";
 import { Window } from "happy-dom";
 import { Cause, Context, Deferred, Effect, Fiber, Layer, Scope, Stream } from "effect";
 import { StrictMode, Suspense, act, createElement, useEffect, useState } from "react";
@@ -14,7 +24,7 @@ import {
   useRuntimeEffect,
   useScoped,
   useSignal,
-  type ResourceHandle
+  type ResourceHandle,
 } from "../src/index.js";
 
 interface Project {
@@ -36,16 +46,16 @@ const installDom = (): (() => void) => {
     "navigator",
     "HTMLElement",
     "Node",
-    "IS_REACT_ACT_ENVIRONMENT"
+    "IS_REACT_ACT_ENVIRONMENT",
   ] as const;
   const previous = new Map<PropertyKey, PropertyDescriptor | undefined>(
-    keys.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)])
+    keys.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]),
   );
   const setGlobal = (key: PropertyKey, value: unknown): void => {
     Object.defineProperty(globalThis, key, {
       configurable: true,
       writable: true,
-      value
+      value,
     });
   };
 
@@ -70,7 +80,7 @@ const installDom = (): (() => void) => {
 };
 
 const withReactRoot = async (
-  f: (root: Root, container: HTMLElement) => Promise<void> | void
+  f: (root: Root, container: HTMLElement) => Promise<void> | void,
 ): Promise<void> => {
   const cleanupDom = installDom();
   const container = document.createElement("div");
@@ -97,8 +107,8 @@ const suppressHostThenableFailure = (value: unknown): void => {
   void Effect.runPromise(
     Effect.tryPromise({
       try: () => value as PromiseLike<unknown>,
-      catch: () => undefined
-    }).pipe(Effect.catchCause(() => Effect.void))
+      catch: () => undefined,
+    }).pipe(Effect.catchCause(() => Effect.void)),
   );
 };
 
@@ -136,12 +146,12 @@ describe("react hooks", () => {
           Effect.sync(() => {
             loads++;
             return { id, name: id === "atlas" ? "Atlas" : id };
-          })
-      })
+          }),
+      }),
     );
     const ProjectById = Resource.family<string, Project, never, ProjectApi>({
       name: "ReactHooks.runtime-bound-resource",
-      load: (id) => ProjectApi.use((api) => api.get(id))
+      load: (id) => ProjectApi.use((api) => api.get(id)),
     });
 
     function Capture() {
@@ -154,13 +164,7 @@ describe("react hooks", () => {
         try: () =>
           withReactRoot(async (root) => {
             await act(async () => {
-              root.render(
-                createElement(
-                  RuntimeProvider,
-                  { runtime },
-                  createElement(Capture)
-                )
-              );
+              root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
             });
 
             const prefetched = await Effect.runPromise(project!.prefetchEffect());
@@ -170,8 +174,8 @@ describe("react hooks", () => {
             expect(refreshed.name).toBe("Atlas");
             expect(loads).toBeGreaterThan(0);
           }),
-        catch: (error) => error
-      }).pipe(Effect.ensuring(runtime.disposeEffect))
+        catch: (error) => error,
+      }).pipe(Effect.ensuring(runtime.disposeEffect)),
     );
   });
 
@@ -179,7 +183,7 @@ describe("react hooks", () => {
     const runtime = makeRuntime();
     const ProjectById = Resource.family<string, Project>({
       name: "ReactHooks.useScoped-runtime-spine",
-      load: (id) => Effect.succeed({ id, name: "Atlas" })
+      load: (id) => Effect.succeed({ id, name: "Atlas" }),
     });
     const ref = ProjectById("atlas");
     await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
@@ -192,13 +196,7 @@ describe("react hooks", () => {
         }
 
         await act(async () => {
-          root.render(
-            createElement(
-              RuntimeProvider,
-              { runtime },
-              createElement(Capture)
-            )
-          );
+          root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
         });
         await flushReact();
 
@@ -215,7 +213,10 @@ describe("react hooks", () => {
 
     function Capture() {
       return useScoped(() => {
-        watch(() => signal.get(), () => Effect.void);
+        watch(
+          () => signal.get(),
+          () => Effect.void,
+        );
         return null;
       });
     }
@@ -223,15 +224,9 @@ describe("react hooks", () => {
     await expect(
       withReactRoot(async (root) => {
         await act(async () => {
-          root.render(
-            createElement(
-              RuntimeProvider,
-              { runtime },
-              createElement(Capture)
-            )
-          );
+          root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
         });
-      })
+      }),
     ).rejects.toBeInstanceOf(UiScopeDisposed);
 
     await Effect.runPromise(runtime.disposeEffect);
@@ -243,9 +238,11 @@ describe("react hooks", () => {
     function Capture() {
       const runEffect = useRuntimeEffect();
       useEffect(() => {
-        runEffect(Effect.sync(() => {
-          runs++;
-        }));
+        runEffect(
+          Effect.sync(() => {
+            runs++;
+          }),
+        );
       }, [runEffect]);
       return null;
     }
@@ -253,15 +250,7 @@ describe("react hooks", () => {
     await withReactRoot(async (root) => {
       await act(async () => {
         root.render(
-          createElement(
-            StrictMode,
-            {},
-            createElement(
-              RuntimeProvider,
-              {},
-              createElement(Capture)
-            )
-          )
+          createElement(StrictMode, {}, createElement(RuntimeProvider, {}, createElement(Capture))),
         );
       });
       await flushReact();
@@ -281,7 +270,7 @@ describe("react hooks", () => {
         Effect.sync(() => {
           loads++;
           return { id, name: `Atlas ${loads}` };
-        })
+        }),
     });
     const ref = ProjectById("atlas");
 
@@ -293,13 +282,7 @@ describe("react hooks", () => {
         }
 
         await act(async () => {
-          root.render(
-            createElement(
-              RuntimeProvider,
-              { runtime },
-              createElement(Capture)
-            )
-          );
+          root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
         });
 
         expect(project?.state._tag).toBe("Initial");
@@ -339,8 +322,8 @@ describe("react hooks", () => {
       name: "ReactHooks.resource-mounted-gc-retention",
       load: (id) => Effect.succeed({ id, name: "Atlas" }),
       policy: {
-        gcFor: 10
-      }
+        gcFor: 10,
+      },
     });
     const ref = ProjectById("atlas");
 
@@ -354,13 +337,7 @@ describe("react hooks", () => {
         }
 
         await act(async () => {
-          root.render(
-            createElement(
-              RuntimeProvider,
-              { runtime },
-              createElement(Capture)
-            )
-          );
+          root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
         });
         await act(async () => {
           await vi.advanceTimersByTimeAsync(0);
@@ -373,13 +350,17 @@ describe("react hooks", () => {
         });
 
         expect(project?.value).toEqual({ id: "atlas", name: "Atlas" });
-        expect((await Effect.runPromise(runtime.provide(Resource.statusEffect(ref))))._tag).toBe("Success");
+        expect((await Effect.runPromise(runtime.provide(Resource.statusEffect(ref))))._tag).toBe(
+          "Success",
+        );
       });
 
       await vi.advanceTimersByTimeAsync(0);
       await vi.advanceTimersByTimeAsync(11);
 
-      expect((await Effect.runPromise(runtime.provide(Resource.statusEffect(ref))))._tag).toBe("Initial");
+      expect((await Effect.runPromise(runtime.provide(Resource.statusEffect(ref))))._tag).toBe(
+        "Initial",
+      );
     } finally {
       vi.useRealTimers();
       await Effect.runPromise(runtime.disposeEffect);
@@ -393,7 +374,7 @@ describe("react hooks", () => {
     let project: ResourceHandle<string, Project, typeof failure> | undefined;
     const ProjectById = Resource.family<string, Project, typeof failure>({
       name: "ReactHooks.resource-preload-failure",
-      load: () => Effect.fail(failure)
+      load: () => Effect.fail(failure),
     });
 
     try {
@@ -402,19 +383,13 @@ describe("react hooks", () => {
           project = useResource(ProjectById("atlas"), {
             onPreloadFailure: (error) => {
               observed = error;
-            }
+            },
           });
           return null;
         }
 
         await act(async () => {
-          root.render(
-            createElement(
-              RuntimeProvider,
-              { runtime },
-              createElement(Capture)
-            )
-          );
+          root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
         });
 
         await act(async () => {
@@ -441,8 +416,8 @@ describe("react hooks", () => {
       load: () =>
         Deferred.succeed(started, undefined).pipe(
           Effect.flatMap(() => Deferred.await(release)),
-          Effect.flatMap(() => Effect.fail(failure))
-        )
+          Effect.flatMap(() => Effect.fail(failure)),
+        ),
     });
 
     try {
@@ -453,19 +428,13 @@ describe("react hooks", () => {
           useResource(ProjectById("atlas"), {
             onPreloadFailure: () => {
               observed.push(version);
-            }
+            },
           });
           return null;
         }
 
         await act(async () => {
-          root.render(
-            createElement(
-              RuntimeProvider,
-              { runtime },
-              createElement(Capture)
-            )
-          );
+          root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
         });
 
         await Effect.runPromise(Deferred.await(started).pipe(Effect.timeout("1 second")));
@@ -494,10 +463,7 @@ describe("react hooks", () => {
     let setProjectId: ((id: string) => void) | undefined;
     const ProjectById = Resource.family<string, Project, typeof failure>({
       name: "ReactHooks.resource-preload-failure-keyed",
-      load: (id) =>
-        id === "fail"
-          ? Effect.fail(failure)
-          : Effect.succeed({ id, name: "Atlas" })
+      load: (id) => (id === "fail" ? Effect.fail(failure) : Effect.succeed({ id, name: "Atlas" })),
     });
 
     try {
@@ -512,13 +478,7 @@ describe("react hooks", () => {
         }
 
         await act(async () => {
-          root.render(
-            createElement(
-              RuntimeProvider,
-              { runtime },
-              createElement(Capture)
-            )
-          );
+          root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
         });
 
         await act(async () => {
@@ -554,10 +514,8 @@ describe("react hooks", () => {
           ? Effect.gen(function* () {
               yield* Deferred.succeed(started, undefined);
               return yield* Effect.never;
-            }).pipe(
-              Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))
-            )
-          : Effect.succeed(value)
+            }).pipe(Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined)))
+          : Effect.succeed(value),
     });
 
     try {
@@ -570,13 +528,7 @@ describe("react hooks", () => {
         }
 
         await act(async () => {
-          root.render(
-            createElement(
-              RuntimeProvider,
-              { runtime },
-              createElement(Capture)
-            )
-          );
+          root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
         });
 
         const first = runtime.runFork(action!.submitEffect("first").pipe(Effect.exit));
@@ -591,7 +543,7 @@ describe("react hooks", () => {
         await Effect.runPromise(action!.submitEffect("second"));
         await Effect.runPromise(Deferred.await(interrupted));
         expect(await Effect.runPromise(Fiber.join(first).pipe(Effect.exit))).toMatchObject({
-          _tag: "Failure"
+          _tag: "Failure",
         });
       });
     } finally {
@@ -605,7 +557,7 @@ describe("react hooks", () => {
     const release = await Effect.runPromise(Deferred.make<void>());
     const ProjectById = Resource.family<string, Project>({
       name: "ReactHooks.action-state-project",
-      load: (id) => Effect.succeed({ id, name: id })
+      load: (id) => Effect.succeed({ id, name: id }),
     });
     const Save = Action.define<string, string>({
       name: "ReactHooks.action-state-values",
@@ -615,7 +567,7 @@ describe("react hooks", () => {
           yield* Deferred.await(release);
           return value.toUpperCase();
         }),
-      invalidates: (value) => [ProjectById(value)]
+      invalidates: (value) => [ProjectById(value)],
     });
     let action: ReturnType<typeof useAction<string, string, never, never>> | undefined;
 
@@ -628,18 +580,12 @@ describe("react hooks", () => {
           return createElement(
             "span",
             null,
-            `${action.state._tag}:${action.invalidationPlan?.entries.length ?? 0}`
+            `${action.state._tag}:${action.invalidationPlan?.entries.length ?? 0}`,
           );
         }
 
         await act(async () => {
-          root.render(
-            createElement(
-              RuntimeProvider,
-              { runtime },
-              createElement(Capture)
-            )
-          );
+          root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
         });
         expect(container.textContent).toBe("Idle:0");
 
@@ -675,9 +621,7 @@ describe("react hooks", () => {
         Effect.gen(function* () {
           yield* Deferred.succeed(started, undefined);
           return yield* Effect.never;
-        }).pipe(
-          Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))
-        )
+        }).pipe(Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))),
     });
 
     try {
@@ -688,13 +632,7 @@ describe("react hooks", () => {
         }
 
         await act(async () => {
-          root.render(
-            createElement(
-              RuntimeProvider,
-              { runtime },
-              createElement(Capture)
-            )
-          );
+          root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
         });
 
         runtime.runFork(action!.submitEffect(undefined).pipe(Effect.exit));
@@ -717,11 +655,11 @@ describe("react hooks", () => {
     type Message = "go";
     const First = Program.define<Model, Message>({
       initial: { name: "first-idle" },
-      update: () => Program.next({ name: "first" })
+      update: () => Program.next({ name: "first" }),
     });
     const Second = Program.define<Model, Message>({
       initial: { name: "second-idle" },
-      update: () => Program.next({ name: "second" })
+      update: () => Program.next({ name: "second" }),
     });
     let program: ReturnType<typeof useProgram<Model, Message>> | undefined;
     let useSecond: (() => void) | undefined;
@@ -736,13 +674,7 @@ describe("react hooks", () => {
         }
 
         await act(async () => {
-          root.render(
-            createElement(
-              RuntimeProvider,
-              { runtime },
-              createElement(Capture)
-            )
-          );
+          root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
         });
 
         expect(program?.model).toEqual({ name: "first-idle" });
@@ -778,7 +710,7 @@ describe("react hooks", () => {
     const runtime = makeRuntime();
     let starts = 0;
     const suspended = {
-      then: () => undefined
+      then: () => undefined,
     } satisfies PromiseLike<void>;
     const SuspendedProgram = Program.define<number, "tick">({
       initial: 0,
@@ -789,9 +721,9 @@ describe("react hooks", () => {
             Effect.sync(() => {
               starts++;
               return "tick" as const;
-            })
-          )
-        )
+            }),
+          ),
+        ),
     });
 
     try {
@@ -809,9 +741,9 @@ describe("react hooks", () => {
               createElement(
                 Suspense,
                 { fallback: createElement("span", null, "loading") },
-                createElement(Capture)
-              )
-            )
+                createElement(Capture),
+              ),
+            ),
           );
         });
 
@@ -831,7 +763,7 @@ describe("react hooks", () => {
     const runtime = makeRuntime();
     const ProjectById = Resource.family<string, Project>({
       name: "ReactHooks.runtime-bound-suspense",
-      load: (id) => Effect.succeed({ id, name: "Atlas" })
+      load: (id) => Effect.succeed({ id, name: "Atlas" }),
     });
     const ref = ProjectById("atlas");
 
@@ -847,20 +779,14 @@ describe("react hooks", () => {
               }
 
               await act(async () => {
-                root.render(
-                  createElement(
-                    RuntimeProvider,
-                    { runtime },
-                    createElement(Capture)
-                  )
-                );
+                root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
               });
 
               expect(project).toEqual({ id: "atlas", name: "Atlas" });
             }),
-          catch: (error) => error
+          catch: (error) => error,
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect))
+      }).pipe(Effect.ensuring(runtime.disposeEffect)),
     );
   });
 
@@ -871,12 +797,11 @@ describe("react hooks", () => {
     const ProjectById = Resource.family<string, Project, never, Scope.Scope>({
       name: "ReactHooks.suspense-default-scoped",
       load: (id) =>
-        Effect.acquireRelease(
-          Effect.succeed({ id, name: "Atlas" }),
-          () => Effect.sync(() => {
+        Effect.acquireRelease(Effect.succeed({ id, name: "Atlas" }), () =>
+          Effect.sync(() => {
             releases++;
-          })
-        )
+          }),
+        ),
     });
 
     try {
@@ -894,9 +819,9 @@ describe("react hooks", () => {
               createElement(
                 Suspense,
                 { fallback: createElement("span", null, "loading") },
-                createElement(Capture)
-              )
-            )
+                createElement(Capture),
+              ),
+            ),
           );
         });
         await flushReact();
@@ -925,8 +850,8 @@ describe("react hooks", () => {
               return yield* Effect.never;
             }).pipe(
               Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined)),
-              Effect.as({ id, name: "Atlas" })
-            )
+              Effect.as({ id, name: "Atlas" }),
+            ),
         });
 
         yield* Effect.tryPromise({
@@ -943,31 +868,25 @@ describe("react hooks", () => {
               }
 
               await act(async () => {
-                root.render(
-                  createElement(
-                    RuntimeProvider,
-                    { runtime },
-                    createElement(Capture)
-                  )
-                );
+                root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
               });
 
               expect(thrown).toBeInstanceOf(Promise);
               await Effect.runPromise(Deferred.await(started));
             }),
-          catch: (error) => error
+          catch: (error) => error,
         });
 
         const interruptedBeforeRuntimeDispose = yield* Deferred.await(interrupted).pipe(
           Effect.as(true),
           Effect.timeout("200 millis"),
-          Effect.catch(() => Effect.succeed(false))
+          Effect.catch(() => Effect.succeed(false)),
         );
 
         expect(interruptedBeforeRuntimeDispose).toBe(false);
         yield* runtime.disposeEffect;
         yield* Deferred.await(interrupted);
-      })
+      }),
     ));
 
   it("detaches stale suspense preload work when the ref changes to a loaded resource", () =>
@@ -987,9 +906,9 @@ describe("react hooks", () => {
                   return yield* Effect.never;
                 }).pipe(
                   Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined)),
-                  Effect.as({ id, name: "Slow" })
+                  Effect.as({ id, name: "Slow" }),
                 )
-              : Effect.succeed({ id, name: "Fast" })
+              : Effect.succeed({ id, name: "Fast" }),
         });
 
         yield* runtime.provide(Resource.prefetchEffect(ProjectById("fast")));
@@ -1009,13 +928,7 @@ describe("react hooks", () => {
               }
 
               await act(async () => {
-                root.render(
-                  createElement(
-                    RuntimeProvider,
-                    { runtime },
-                    createElement(Capture)
-                  )
-                );
+                root.render(createElement(RuntimeProvider, { runtime }, createElement(Capture)));
               });
 
               await Effect.runPromise(Deferred.await(started));
@@ -1025,19 +938,19 @@ describe("react hooks", () => {
               await flushReact();
               expect(project).toEqual({ id: "fast", name: "Fast" });
             }),
-          catch: (error) => error
+          catch: (error) => error,
         });
 
         const interruptedBeforeRuntimeDispose = yield* Deferred.await(interrupted).pipe(
           Effect.as(true),
           Effect.timeout("200 millis"),
-          Effect.catch(() => Effect.succeed(false))
+          Effect.catch(() => Effect.succeed(false)),
         );
 
         expect(interruptedBeforeRuntimeDispose).toBe(false);
         yield* runtime.disposeEffect;
         yield* Deferred.await(interrupted);
-      })
+      }),
     ));
 
   it("interrupts useRuntimeEffect fibers on component cleanup", async () => {
@@ -1058,22 +971,14 @@ describe("react hooks", () => {
                     Effect.gen(function* () {
                       yield* Deferred.succeed(started, undefined);
                       return yield* Effect.never;
-                    }).pipe(
-                      Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))
-                    )
+                    }).pipe(Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))),
                   );
                 }, [run]);
                 return null;
               }
 
               await act(async () => {
-                root.render(
-                  createElement(
-                    RuntimeProvider,
-                    { runtime },
-                    createElement(Worker)
-                  )
-                );
+                root.render(createElement(RuntimeProvider, { runtime }, createElement(Worker)));
               });
 
               await Effect.runPromise(Deferred.await(started));
@@ -1084,9 +989,9 @@ describe("react hooks", () => {
 
               await Effect.runPromise(Deferred.await(interrupted));
             }),
-          catch: (error) => error
+          catch: (error) => error,
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect))
+      }).pipe(Effect.ensuring(runtime.disposeEffect)),
     );
   });
 
@@ -1105,9 +1010,11 @@ describe("react hooks", () => {
               function Worker(props: { readonly label: string }) {
                 const run = useRuntimeEffect();
                 useEffect(() => {
-                  run(Effect.sync(() => {
-                    seen.push(props.label);
-                  }));
+                  run(
+                    Effect.sync(() => {
+                      seen.push(props.label);
+                    }),
+                  );
                 }, [run, props.label]);
                 return null;
               }
@@ -1119,7 +1026,7 @@ describe("react hooks", () => {
                 return createElement(
                   RuntimeProvider,
                   { runtime },
-                  createElement(Worker, { label })
+                  createElement(Worker, { label }),
                 );
               }
 
@@ -1135,21 +1042,18 @@ describe("react hooks", () => {
 
               expect(seen).toContain("Beta");
             }),
-          catch: (error) => error
+          catch: (error) => error,
         });
-      }).pipe(
-        Effect.ensuring(runtimeA.disposeEffect),
-        Effect.ensuring(runtimeB.disposeEffect)
-      )
+      }).pipe(Effect.ensuring(runtimeA.disposeEffect), Effect.ensuring(runtimeB.disposeEffect)),
     );
   });
 
   it("recreates provider-owned React runtimes when the source changes", async () => {
     const sourceA = Layer.succeed(ProjectApi)({
-      get: (id) => Effect.succeed({ id, name: "Alpha" })
+      get: (id) => Effect.succeed({ id, name: "Alpha" }),
     });
     const sourceB = Layer.succeed(ProjectApi)({
-      get: (id) => Effect.succeed({ id, name: "Beta" })
+      get: (id) => Effect.succeed({ id, name: "Beta" }),
     });
     const seen: string[] = [];
 
@@ -1167,9 +1071,9 @@ describe("react hooks", () => {
                     api.get("atlas").pipe(
                       Effect.map((project) => {
                         seen.push(`${props.label}:${project.name}`);
-                      })
-                    )
-                  )
+                      }),
+                    ),
+                  ),
                 );
               }, [run, props.label]);
               return null;
@@ -1179,11 +1083,7 @@ describe("react hooks", () => {
               const [source, setSource] = useState(sourceA);
               switchSource = () => setSource(sourceB);
               const label = source === sourceA ? "First" : "Second";
-              return createElement(
-                RuntimeProvider,
-                { source },
-                createElement(Worker, { label })
-              );
+              return createElement(RuntimeProvider, { source }, createElement(Worker, { label }));
             }
 
             await act(async () => {
@@ -1199,8 +1099,8 @@ describe("react hooks", () => {
             expect(seen).toContain("First:Alpha");
             expect(seen).toContain("Second:Beta");
           }),
-        catch: (error) => error
-      })
+        catch: (error) => error,
+      }),
     );
   });
 
@@ -1215,7 +1115,7 @@ describe("react hooks", () => {
       const runtime = useRuntime();
       useEffect(() => {
         runtime.resourceStore.moduleRegistry.register(Symbol("react-provider-dispose-failure"), {
-          disposeEffect: Effect.fail("react dispose failed")
+          disposeEffect: Effect.fail("react dispose failed"),
         });
       }, [runtime]);
       return null;
@@ -1223,13 +1123,15 @@ describe("react hooks", () => {
 
     try {
       await act(async () => {
-        root.render(createElement(
-          RuntimeProvider,
-          {
-            onDisposeFailure: (error) => Deferred.succeed(observed, error)
-          },
-          createElement(Worker)
-        ));
+        root.render(
+          createElement(
+            RuntimeProvider,
+            {
+              onDisposeFailure: (error) => Deferred.succeed(observed, error),
+            },
+            createElement(Worker),
+          ),
+        );
       });
       await flushReact();
 
@@ -1238,7 +1140,7 @@ describe("react hooks", () => {
       });
 
       const error = await Effect.runPromise(
-        Deferred.await(observed).pipe(Effect.timeout("1 second"))
+        Deferred.await(observed).pipe(Effect.timeout("1 second")),
       );
       expect(error).toBeInstanceOf(RuntimeDisposeError);
       if (error instanceof RuntimeDisposeError) {
@@ -1246,7 +1148,9 @@ describe("react hooks", () => {
         const storeError = error.cause.reasons.find(Cause.isFailReason)?.error;
         expect(storeError).toBeInstanceOf(ResourceStoreDisposeError);
         if (storeError instanceof ResourceStoreDisposeError) {
-          expect(storeError.cause.reasons.find(Cause.isFailReason)?.error).toBe("react dispose failed");
+          expect(storeError.cause.reasons.find(Cause.isFailReason)?.error).toBe(
+            "react dispose failed",
+          );
         }
       }
     } finally {
@@ -1264,7 +1168,7 @@ describe("react hooks", () => {
         runtime.resourceStore.moduleRegistry.register(Symbol("react-provider-dispose-count"), {
           disposeEffect: Effect.sync(() => {
             disposeCount++;
-          })
+          }),
         });
       }, [runtime]);
       return null;
@@ -1276,11 +1180,12 @@ describe("react hooks", () => {
       return createElement(
         RuntimeProvider,
         {
-          onDisposeFailure: () => Effect.sync(() => {
-            void version;
-          })
+          onDisposeFailure: () =>
+            Effect.sync(() => {
+              void version;
+            }),
         },
-        createElement(Worker)
+        createElement(Worker),
       );
     }
 

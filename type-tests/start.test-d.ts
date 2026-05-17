@@ -10,6 +10,7 @@ import {
   createStartStreamedHtmlResponseEffect,
   defaultGeneratedFileRouteDefinitionsHeader,
   defineFileRoute,
+  extractStartStaticHtmlLinks,
   describeStartAppGraph,
   describeStartAppGraphRuntimeDiagnostics,
   deserializeStartAppGraph,
@@ -65,6 +66,7 @@ import {
   StartAppGraphParseError,
   StartTransportEndpointConflictError,
   StartTransportEndpointPathError,
+  StartStaticPathError,
   FileRoutePreloadError,
   StartAction,
   StartAppGraphUnknownActionBehavior,
@@ -78,6 +80,8 @@ import {
   startActionInputField,
   startActionNameField,
   submitStartActionEffect,
+  normalizeStartStaticPath,
+  startStaticPageOutputPath,
   validateStartAppGraphActionBehaviorEffect,
   validateStartAppGraphDiagnosticsPolicyEffect,
   validateStartAppGraphDiagnosticsPolicyExceptionEffect,
@@ -167,7 +171,9 @@ import {
   type StartRequestTraceTeardownSnapshot,
   type StartRequestTraceTransport,
   type StartRequestHandler,
-  type StartRequestTrace
+  type StartRequestTrace,
+  type StartStaticLinkExtractionOptions,
+  type StartStaticOutputPathOptions,
 } from "@effect-ui/start";
 import type { ActionDefinition, EffectUiRuntime } from "@effect-ui/core";
 
@@ -182,6 +188,7 @@ const startExports: Array<unknown> = [
   createRequestHandler,
   createStartStreamedHtmlResponseEffect,
   defaultGeneratedFileRouteDefinitionsHeader,
+  extractStartStaticHtmlLinks,
   describeStartAppGraph,
   describeStartAppGraphRuntimeDiagnostics,
   deserializeStartAppGraph,
@@ -240,6 +247,7 @@ const startExports: Array<unknown> = [
   StartAppGraphParseError,
   StartTransportEndpointConflictError,
   StartTransportEndpointPathError,
+  StartStaticPathError,
   StartAppGraphUnknownActionBehavior,
   encodeStartActionFormInputEffect,
   encodeStartActionInputEffect,
@@ -250,12 +258,14 @@ const startExports: Array<unknown> = [
   startActionInputField,
   startActionNameField,
   submitStartActionEffect,
+  normalizeStartStaticPath,
+  startStaticPageOutputPath,
   validateStartAppGraphActionBehaviorEffect,
   validateStartAppGraphDiagnosticsPolicyEffect,
   validateStartAppGraphDiagnosticsPolicyExceptionEffect,
   validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect,
   validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect,
-  validateStartAppGraphWireSchemasEffect
+  validateStartAppGraphWireSchemasEffect,
 ];
 type StartTypes =
   | StartAppGraph
@@ -341,22 +351,49 @@ type StartTypes =
   | StartRequestTraceTeardownSnapshot
   | StartRequestTraceTransport
   | StartRequestHandler
-  | StartRequestTrace;
+  | StartRequestTrace
+  | StartStaticLinkExtractionOptions
+  | StartStaticOutputPathOptions;
 void startExports;
 type _StartTypes = StartTypes;
+
+const startStaticOutputPathOptions: StartStaticOutputPathOptions = {
+  autoSubfolderIndex: true,
+};
+const startStaticLinkExtractionOptions: StartStaticLinkExtractionOptions = {
+  origin: "https://docs.example",
+  fromPath: "/docs",
+};
+const normalizedStartStaticPath: string = normalizeStartStaticPath("/docs/");
+const startStaticOutputPath: string = startStaticPageOutputPath(
+  normalizedStartStaticPath,
+  startStaticOutputPathOptions,
+);
+const startStaticLinks: readonly string[] = extractStartStaticHtmlLinks(
+  '<a href="/docs/start">Start</a>',
+  startStaticLinkExtractionOptions,
+);
+const startStaticPathError = new StartStaticPathError({
+  path: "docs",
+  reason: "relative-url",
+  guidance: "Use a root-relative path.",
+});
+void startStaticOutputPath;
+void startStaticLinks;
+void startStaticPathError;
 
 const fileRouteBuilder: DefineFileRouteBuilder<"/typed/:id"> = defineFileRoute("/typed/:id");
 const fileRouteFromBuilder = fileRouteBuilder.preload({}).route();
 declare const fileRoutePreloadResource: FileRoutePreloadResource<"/typed/:id">;
 const fileRoutePreloadOptions: FileRoutePreloadOptions<"/typed/:id"> = {
-  resources: [fileRoutePreloadResource]
+  resources: [fileRoutePreloadResource],
 };
 const fileRoutePreloadRouteOptions: FileRoutePreloadRouteOptions = {};
 const fileRoutePreloadError = new FileRoutePreloadError({
   path: "/typed/:id",
   operation: "custom-preload",
   cause: "promise-shaped preload",
-  guidance: "Return an Effect from preload."
+  guidance: "Return an Effect from preload.",
 });
 const fileRoutePreloadOperation: "resource-selector" | "custom-preload" =
   fileRoutePreloadError.operation;
@@ -365,47 +402,62 @@ void fileRoutePreloadOptions;
 void fileRoutePreloadRouteOptions;
 void fileRoutePreloadOperation;
 
-declare const startActionDefinition: ActionDefinition<{ readonly id: string }, unknown, never, never>;
+declare const startActionDefinition: ActionDefinition<
+  { readonly id: string },
+  unknown,
+  never,
+  never
+>;
 const startActionDefinitionPin: StartActionDefinition = startActionDefinition;
 const startActionRequest: StartActionRequest = {
   name: startActionDefinition.name,
-  input: { id: "atlas" }
+  input: { id: "atlas" },
 };
 const startActionFormOptions: StartActionFormOptions<{ readonly id: string }> = {
-  input: { id: "atlas" }
+  input: { id: "atlas" },
 };
-const progressiveStartActionForm: StartActionForm =
-  startActionForm(startActionDefinition, startActionFormOptions);
-const namespaceStartActionForm: StartActionForm =
-  StartAction.form(startActionDefinition, startActionFormOptions);
+const progressiveStartActionForm: StartActionForm = startActionForm(
+  startActionDefinition,
+  startActionFormOptions,
+);
+const namespaceStartActionForm: StartActionForm = StartAction.form(
+  startActionDefinition,
+  startActionFormOptions,
+);
 const startActionHiddenField: StartActionFormField = {
   name: startActionNameField,
-  value: startActionDefinition.name
+  value: startActionDefinition.name,
 };
 const startActionInputHiddenField: StartActionFormField = {
   name: startActionInputField,
-  value: "{}"
+  value: "{}",
 };
 const startActionFormEncodeError = new StartActionFormEncodeError({
   actionName: startActionDefinition.name,
   operation: "json-stringify",
   input: undefined,
   cause: "not serializable",
-  guidance: "use serializable defaults"
+  guidance: "use serializable defaults",
 });
-const encodedStartActionInputEffect = encodeStartActionInputEffect(startActionDefinition, { id: "atlas" });
-const encodedStartActionPartialInputEffect =
-  encodeStartActionPartialInputEffect(startActionDefinition, { id: "atlas" });
-const encodedStartActionRequestEffect =
-  encodeStartActionRequestEffect(startActionDefinition, { id: "atlas" });
-const encodedStartActionFormInputEffect =
-  encodeStartActionFormInputEffect(startActionDefinition, { id: "atlas" });
+const encodedStartActionInputEffect = encodeStartActionInputEffect(startActionDefinition, {
+  id: "atlas",
+});
+const encodedStartActionPartialInputEffect = encodeStartActionPartialInputEffect(
+  startActionDefinition,
+  { id: "atlas" },
+);
+const encodedStartActionRequestEffect = encodeStartActionRequestEffect(startActionDefinition, {
+  id: "atlas",
+});
+const encodedStartActionFormInputEffect = encodeStartActionFormInputEffect(startActionDefinition, {
+  id: "atlas",
+});
 const readStartActionRequest = readStartActionRequestEffect(
   new Request("https://example.com/_actions", {
     method: "POST",
     body: JSON.stringify(startActionRequest),
-    headers: { "content-type": "application/json" }
-  })
+    headers: { "content-type": "application/json" },
+  }),
 );
 const startActionSubmitEffect = submitStartActionEffect(startActionDefinition, { id: "atlas" });
 const startActionInstance = StartAction.use(startActionDefinition);
@@ -438,7 +490,7 @@ declare const startFileRouteManifest: FileRouteManifest;
 const fileRouteDefinitionsOptions: FileRouteDefinitionsModuleOptions = {
   generatedFile: "src/routeTree.gen.ts",
   importMode: "relative",
-  routeModuleExportName: "Route"
+  routeModuleExportName: "Route",
 };
 const fileRouteModuleReferences: readonly FileRouteModuleReference[] =
   createFileRouteModuleReferences(startFileRouteManifest, fileRouteDefinitionsOptions);
@@ -446,18 +498,22 @@ const fileRouteCompanionReferences: readonly FileRouteCompanionModuleReference[]
   createFileRouteCompanionModuleReferences(startFileRouteManifest, fileRouteDefinitionsOptions);
 const generatedFileRouteDefinitionsOptions: GeneratedFileRouteDefinitionsModuleOptions = {
   ...fileRouteDefinitionsOptions,
-  header: defaultGeneratedFileRouteDefinitionsHeader
+  header: defaultGeneratedFileRouteDefinitionsHeader,
 };
-const fileRouteDefinitionsModule: string =
-  createFileRouteDefinitionsModule(startFileRouteManifest, fileRouteDefinitionsOptions);
-const generatedFileRouteDefinitionsModule: string =
-  createGeneratedFileRouteDefinitionsModule(startFileRouteManifest, generatedFileRouteDefinitionsOptions);
+const fileRouteDefinitionsModule: string = createFileRouteDefinitionsModule(
+  startFileRouteManifest,
+  fileRouteDefinitionsOptions,
+);
+const generatedFileRouteDefinitionsModule: string = createGeneratedFileRouteDefinitionsModule(
+  startFileRouteManifest,
+  generatedFileRouteDefinitionsOptions,
+);
 const invalidFileRouteIdentifier = new FileRouteDefinitionsModuleInvalidIdentifier({
   routeId: "route-projects",
-  routePath: "/projects"
+  routePath: "/projects",
 });
 const invalidFileRouteExportName = new FileRouteDefinitionsModuleInvalidExportName({
-  exportName: "1Route"
+  exportName: "1Route",
 });
 const fileRouteDefinitionsError: FileRouteDefinitionsModuleError = invalidFileRouteIdentifier;
 if (isFileRouteDefinitionsModuleError(fileRouteDefinitionsError)) {
@@ -478,7 +534,7 @@ declare const hydrationRuntime: EffectUiRuntime<HydrationRuntimeService>;
 declare const hydrationChunks: ReadonlyArray<StartHydrationChunk>;
 const sortedHydrationChunks: ReadonlyArray<StartHydrationChunk> =
   hydrateStartHydrationChunks<HydrationRuntimeService>(hydrationChunks, {
-    runtime: hydrationRuntime
+    runtime: hydrationRuntime,
   });
 
 declare const serverFunctionManifest: ServerFunctionManifest;
@@ -489,7 +545,7 @@ declare const procedureDescriptor: StartEffectRpcProcedureDescriptor;
 const procedureSchemaFlags: ReadonlyArray<boolean> = [
   procedureDescriptor.schemas.payload,
   procedureDescriptor.schemas.success,
-  procedureDescriptor.schemas.error
+  procedureDescriptor.schemas.error,
 ];
 void sortedHydrationChunks;
 void endpointPath;
@@ -498,14 +554,14 @@ void procedureSchemaFlags;
 const endpointConflictInput: StartEndpointConflictErrorInput = {
   rpcPath: "/same",
   actionPath: "/same",
-  guidance: "Use distinct endpoint paths."
+  guidance: "Use distinct endpoint paths.",
 };
 const endpointConflict = new StartTransportEndpointConflictError(endpointConflictInput);
 const endpointPathInput: StartEndpointPathErrorInput = {
   field: "rpcPath",
   value: "rpc",
   reason: "NotOriginForm",
-  guidance: "Use an origin-form path."
+  guidance: "Use an origin-form path.",
 };
 const endpointPathError = new StartTransportEndpointPathError(endpointPathInput);
 void endpointConflict;
@@ -524,7 +580,7 @@ const traceResource: StartRequestTraceResource = {
   key: "project:atlas",
   family: "Project",
   input: { id: "atlas" },
-  state: "Success"
+  state: "Success",
 };
 const traceRequest: StartRequestTraceRequest = {
   id: "request-1",
@@ -533,45 +589,45 @@ const traceRequest: StartRequestTraceRequest = {
   path: "/projects",
   transport: traceTransport,
   headers: [traceHeader],
-  cookies: [traceCookie]
+  cookies: [traceCookie],
 };
 const traceResponse: StartRequestTraceResponse = {
   status: 200,
   headers: [traceHeader],
-  setCookieCount: 0
+  setCookieCount: 0,
 };
 const traceCollection: StartRequestTraceCollection = { name: "projects", state: "Ready" };
 const traceServerFunction: StartRequestTraceServerFunction = {
   name: "loadProjects",
-  status: traceStatus
+  status: traceStatus,
 };
 const traceAction: StartRequestTraceAction = {
   name: "saveProject",
   state: "Success",
   failureKind: traceFailureKind,
-  invalidationIndexes: [0]
+  invalidationIndexes: [0],
 };
 const traceFiber: StartRequestTraceFiber = { name: "request-runtime", status: traceFiberStatus };
 const traceStream: StartRequestTraceStream = {
   name: "ssr",
   state: traceStreamState,
-  chunkCount: 1
+  chunkCount: 1,
 };
 const traceTeardownSnapshot: StartRequestTraceTeardownSnapshot = {
   fiberCount: 0,
   familyCount: 0,
   moduleCount: 0,
-  tagCount: 0
+  tagCount: 0,
 };
 const traceCleanupFailure: StartRequestTraceCleanupFailure = {
   _tag: "Failure",
-  message: "cleanup failed"
+  message: "cleanup failed",
 };
 const traceTeardown: StartRequestTraceTeardown = {
   runtimeDisposed: true,
   beforeDispose: traceTeardownSnapshot,
   afterDispose: traceTeardownSnapshot,
-  cleanupFailure: traceCleanupFailure
+  cleanupFailure: traceCleanupFailure,
 };
 const traceRoutePlan: StartRequestTraceRoutePlan = {
   _tag: "Matched",
@@ -580,12 +636,12 @@ const traceRoutePlan: StartRequestTraceRoutePlan = {
     path: "/projects",
     href: "/projects",
     params: {},
-    search: {}
+    search: {},
   },
   resources: [],
   hydration: {
-    resourceCount: 0
-  }
+    resourceCount: 0,
+  },
 };
 const requestTrace: StartRequestTrace = {
   request: traceRequest,
@@ -599,12 +655,12 @@ const requestTrace: StartRequestTrace = {
   fibers: [traceFiber],
   streams: [traceStream],
   status: traceStatus,
-  teardown: traceTeardown
+  teardown: traceTeardown,
 };
 const requestMetrics: ReadonlyArray<unknown> = [
   startRequestCountMetric,
   startRequestDurationMetric,
-  startRequestStatusMetric
+  startRequestStatusMetric,
 ];
 const traceHandler: StartRequestTraceHandler = (trace) => {
   void trace;

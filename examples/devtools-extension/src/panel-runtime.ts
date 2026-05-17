@@ -4,13 +4,13 @@ import {
   type DevtoolsPanelMount,
   type DevtoolsPanels,
   describeDevtoolsPanels,
-  toDevtoolsSerializableValue
+  toDevtoolsSerializableValue,
 } from "@effect-ui/devtools";
 import {
   DevtoolsExtensionTransportError,
   readInspectedWindowDevtoolsPayloadEffect,
   type ChromeInspectedWindowApi,
-  type InspectedWindowEvalOptions
+  type InspectedWindowEvalOptions,
 } from "./transport.js";
 
 export const panelTitle = "Effect UI Devtools Extension";
@@ -41,40 +41,37 @@ const transportErrorItem = (error: DevtoolsExtensionTransportError) => ({
     operation: error.operation,
     reason: error.reason ?? null,
     description: errorDescription(error.error),
-    error: toDevtoolsSerializableValue(error.error)
-  }
+    error: toDevtoolsSerializableValue(error.error),
+  },
 });
 
 const withTransportError = (
   panel: DevtoolsPanel,
-  error: DevtoolsExtensionTransportError
+  error: DevtoolsExtensionTransportError,
 ): DevtoolsPanel =>
   panel.id === "diagnostics"
     ? {
         ...panel,
         severity: "error",
         summary: "Inspected-window bridge error",
-        items: [
-          transportErrorItem(error),
-          ...panel.items
-        ]
+        items: [transportErrorItem(error), ...panel.items],
       }
     : panel;
 
 export const devtoolsExtensionTransportErrorPanels = (
-  error: DevtoolsExtensionTransportError
+  error: DevtoolsExtensionTransportError,
 ): DevtoolsPanels => {
   const fallback = describeDevtoolsPanels();
   return {
     ...fallback,
-    panels: fallback.panels.map((panel) => withTransportError(panel, error))
+    panels: fallback.panels.map((panel) => withTransportError(panel, error)),
   };
 };
 
 export const updateFromInspectedWindowEffect = (
   mount: DevtoolsPanelMount,
   api: ChromeInspectedWindowApi | undefined,
-  options: InspectedWindowEvalOptions = {}
+  options: InspectedWindowEvalOptions = {},
 ): Effect.Effect<void> =>
   readInspectedWindowDevtoolsPayloadEffect(api, undefined, options).pipe(
     Effect.matchEffect({
@@ -83,7 +80,7 @@ export const updateFromInspectedWindowEffect = (
           mount.update({
             panels: devtoolsExtensionTransportErrorPanels(error),
             selectedPanelId: "diagnostics",
-            title: panelTitle
+            title: panelTitle,
           });
         }),
       onSuccess: (payload) =>
@@ -95,10 +92,10 @@ export const updateFromInspectedWindowEffect = (
                 ...(payload.selectedPanelId === undefined
                   ? {}
                   : { selectedPanelId: payload.selectedPanelId }),
-                title: payload.title ?? panelTitle
+                title: payload.title ?? panelTitle,
               });
-            })
-    })
+            }),
+    }),
   );
 
 export type DevtoolsExtensionPollInterval = Parameters<typeof Effect.sleep>[0];
@@ -110,7 +107,7 @@ export type DevtoolsExtensionPollingOptions = InspectedWindowEvalOptions & {
 export const pollInspectedWindowEffect = (
   mount: DevtoolsPanelMount,
   api: ChromeInspectedWindowApi | undefined,
-  options: DevtoolsExtensionPollingOptions = {}
+  options: DevtoolsExtensionPollingOptions = {},
 ): Effect.Effect<void, never, Scope.Scope> =>
   Effect.gen(function* () {
     const { pollInterval = "1 second", ...evalOptions } = options;
@@ -119,6 +116,6 @@ export const pollInspectedWindowEffect = (
     yield* Effect.sleep(pollInterval).pipe(
       Effect.andThen(pollOnce),
       Effect.forever,
-      Effect.forkScoped
+      Effect.forkScoped,
     );
   });

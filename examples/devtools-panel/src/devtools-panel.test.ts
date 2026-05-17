@@ -9,13 +9,13 @@ describe("devtools panel example", () => {
     const html = renderDevtoolsPanelsHtml({
       panels: sampleDevtoolsPanels(),
       selectedPanelId: "requests",
-      title: "Effect UI Devtools Panel"
+      title: "Effect UI Devtools Panel",
     });
 
     expect(html).toContain("Effect UI Devtools Panel");
     expect(html).toContain("GET /projects/atlas");
     expect(html).toContain("Project.byId:atlas");
-    expect(html).toContain("data-selected-panel=\"requests\"");
+    expect(html).toContain('data-selected-panel="requests"');
   });
 
   it("boots the actual panel entrypoint with a DOM root", async () => {
@@ -36,7 +36,9 @@ describe("devtools panel example", () => {
 
       expect(root.innerHTML).toContain("Effect UI Devtools Panel");
       expect(root.innerHTML).toContain("GET /projects/atlas");
-      expect(root.querySelector("[data-effect-ui-devtools-panel-target=\"requests\"]")).not.toBeNull();
+      expect(
+        root.querySelector('[data-effect-ui-devtools-panel-target="requests"]'),
+      ).not.toBeNull();
       await Effect.runPromise(Fiber.interrupt(entrypoint.devtoolsPanelBootFiber));
       expect(root.innerHTML).toBe("");
     } finally {

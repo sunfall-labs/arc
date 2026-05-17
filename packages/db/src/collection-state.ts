@@ -8,13 +8,13 @@ import type {
   CollectionRuntimeError,
   CollectionOrigin,
   CollectionRow,
-  CollectionTransaction
+  CollectionTransaction,
 } from "./collection-contract.js";
 import {
   cloneCollectionMutation,
   cloneCollectionTransaction,
   cloneCollectionValue,
-  detachCollectionRow
+  detachCollectionRow,
 } from "./collection-value-detachment.js";
 import type { CollectionIndexCacheEntry } from "./collection-index-materialization.js";
 
@@ -71,20 +71,27 @@ export interface CollectionState<A extends object, K extends CollectionKey, E> {
   persistenceRestored: boolean;
 }
 
-export const makeCollectionState = <A extends object, K extends CollectionKey, E>(): CollectionState<A, K, E> => ({
+export const makeCollectionState = <
+  A extends object,
+  K extends CollectionKey,
+  E,
+>(): CollectionState<A, K, E> => ({
   rows: new Map(),
   pendingMutations: new Map(),
   optimisticRows: new Map(),
   indexCache: new Map(),
   version: Signal.make(0),
-  loadState: Signal.make<CollectionLoadState<CollectionRuntimeError<E>>>({ _tag: "Initial", waiting: false }),
+  loadState: Signal.make<CollectionLoadState<CollectionRuntimeError<E>>>({
+    _tag: "Initial",
+    waiting: false,
+  }),
   nextTransactionId: 0,
   nextMutationAttemptId: 0,
   loadGeneration: 0,
   activeLoad: undefined,
   initialized: false,
   initialDataError: undefined,
-  persistenceRestored: false
+  persistenceRestored: false,
 });
 
 export const bumpCollectionState = (state: CollectionState<any, any, any>): void => {
@@ -94,19 +101,19 @@ export const bumpCollectionState = (state: CollectionState<any, any, any>): void
 
 export const augmentCollectionRow = <A extends object, K extends CollectionKey>(
   definition: CollectionDefinition<A, K, any, any>,
-  row: StoredRow<A, K>
+  row: StoredRow<A, K>,
 ): CollectionRow<A, K> =>
   detachCollectionRow({
     collection: definition.name,
     key: row.key,
     value: row.value,
     synced: row.synced,
-    origin: row.origin
+    origin: row.origin,
   });
 
 export const markStoredRowsSynced = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
-  keys: ReadonlyArray<K>
+  keys: ReadonlyArray<K>,
 ): void => {
   for (const key of keys) {
     const row = state.rows.get(key);
@@ -118,46 +125,45 @@ export const markStoredRowsSynced = <A extends object, K extends CollectionKey>(
 };
 
 export const cloneStoredRow = <A extends object, K extends CollectionKey>(
-  row: StoredRow<A, K>
+  row: StoredRow<A, K>,
 ): StoredRow<A, K> => ({
   key: row.key,
   value: cloneCollectionValue(row.value),
   synced: row.synced,
-  origin: row.origin
+  origin: row.origin,
 });
 
 export const cloneRollbackRow = <A extends object, K extends CollectionKey>(
-  row: StoredRow<A, K> | undefined
-): StoredRow<A, K> | undefined =>
-  row ? cloneStoredRow(row) : undefined;
+  row: StoredRow<A, K> | undefined,
+): StoredRow<A, K> | undefined => (row ? cloneStoredRow(row) : undefined);
 
 export const cloneOptimisticRowStack = <A extends object, K extends CollectionKey>(
-  stack: OptimisticRowStack<A, K>
+  stack: OptimisticRowStack<A, K>,
 ): OptimisticRowStack<A, K> => ({
   base: cloneRollbackRow(stack.base),
   patches: stack.patches.map((patch) => ({
     transactionId: patch.transactionId,
     mutation: cloneCollectionMutation(patch.mutation),
-    committed: patch.committed
-  }))
+    committed: patch.committed,
+  })),
 });
 
 export const clonePendingMutationEntry = <A extends object, K extends CollectionKey>(
   entry: PendingMutationEntry<A, K>,
-  options: { readonly preserveActiveAttempt?: boolean } = {}
+  options: { readonly preserveActiveAttempt?: boolean } = {},
 ): PendingMutationEntry<A, K> => ({
   transaction: cloneCollectionTransaction(entry.transaction),
   rollbackRows: new Map(
-    Array.from(entry.rollbackRows, ([key, row]) => [key, cloneRollbackRow(row)])
+    Array.from(entry.rollbackRows, ([key, row]) => [key, cloneRollbackRow(row)]),
   ),
   createdAt: entry.createdAt,
   attempts: entry.attempts,
-  activeAttempt: options.preserveActiveAttempt === true ? entry.activeAttempt : undefined
+  activeAttempt: options.preserveActiveAttempt === true ? entry.activeAttempt : undefined,
 });
 
 export const restoreStoredRows = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
-  snapshots: ReadonlyMap<K, StoredRow<A, K> | undefined>
+  snapshots: ReadonlyMap<K, StoredRow<A, K> | undefined>,
 ): void => {
   for (const [key, row] of snapshots) {
     if (row) {
@@ -173,7 +179,7 @@ export const restoreOptimisticState = <A extends object, K extends CollectionKey
   state: CollectionState<A, K, any>,
   rows: ReadonlyMap<K, StoredRow<A, K>>,
   pendingMutations: ReadonlyMap<string, PendingMutationEntry<A, K>>,
-  optimisticRows: ReadonlyMap<K, OptimisticRowStack<A, K>>
+  optimisticRows: ReadonlyMap<K, OptimisticRowStack<A, K>>,
 ): void => {
   state.rows.clear();
   for (const [key, row] of rows) {
@@ -182,7 +188,10 @@ export const restoreOptimisticState = <A extends object, K extends CollectionKey
 
   state.pendingMutations.clear();
   for (const [id, entry] of pendingMutations) {
-    state.pendingMutations.set(id, clonePendingMutationEntry(entry, { preserveActiveAttempt: true }));
+    state.pendingMutations.set(
+      id,
+      clonePendingMutationEntry(entry, { preserveActiveAttempt: true }),
+    );
   }
 
   state.optimisticRows.clear();
@@ -192,13 +201,12 @@ export const restoreOptimisticState = <A extends object, K extends CollectionKey
 };
 
 export const optimisticMutationKeys = <A extends object, K extends CollectionKey>(
-  transaction: CollectionTransaction<A, K>
-): ReadonlyArray<K> =>
-  Array.from(new Set(transaction.mutations.map((mutation) => mutation.key)));
+  transaction: CollectionTransaction<A, K>,
+): ReadonlyArray<K> => Array.from(new Set(transaction.mutations.map((mutation) => mutation.key)));
 
 const applyOptimisticMutationToRow = <A extends object, K extends CollectionKey>(
   row: StoredRow<A, K> | undefined,
-  mutation: CollectionMutation<A, K>
+  mutation: CollectionMutation<A, K>,
 ): StoredRow<A, K> | undefined => {
   switch (mutation._tag) {
     case "Insert":
@@ -206,7 +214,7 @@ const applyOptimisticMutationToRow = <A extends object, K extends CollectionKey>
         key: mutation.key,
         value: cloneCollectionValue(mutation.value),
         synced: false,
-        origin: "local"
+        origin: "local",
       };
     case "Update": {
       const previous = row?.value ?? mutation.previous;
@@ -214,7 +222,7 @@ const applyOptimisticMutationToRow = <A extends object, K extends CollectionKey>
         key: mutation.key,
         value: cloneCollectionValue({ ...previous, ...mutation.changes } as A),
         synced: false,
-        origin: "local"
+        origin: "local",
       };
     }
     case "Delete":
@@ -223,7 +231,7 @@ const applyOptimisticMutationToRow = <A extends object, K extends CollectionKey>
 };
 
 const collapseCommittedOptimisticPatches = <A extends object, K extends CollectionKey>(
-  stack: OptimisticRowStack<A, K>
+  stack: OptimisticRowStack<A, K>,
 ): void => {
   while (stack.patches[0]?.committed) {
     const [patch] = stack.patches.splice(0, 1);
@@ -239,7 +247,7 @@ const collapseCommittedOptimisticPatches = <A extends object, K extends Collecti
 
 const rebaseOptimisticRow = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
-  key: K
+  key: K,
 ): void => {
   const stack = state.optimisticRows.get(key);
   if (!stack) {
@@ -282,7 +290,7 @@ const rebaseOptimisticRow = <A extends object, K extends CollectionKey>(
 
 export const rebaseOptimisticRows = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
-  keys: ReadonlyArray<K>
+  keys: ReadonlyArray<K>,
 ): void => {
   for (const key of keys) {
     rebaseOptimisticRow(state, key);
@@ -293,21 +301,21 @@ export const rebaseOptimisticRows = <A extends object, K extends CollectionKey>(
 export const applyOptimisticTransaction = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
   transaction: CollectionTransaction<A, K>,
-  snapshots: ReadonlyMap<K, StoredRow<A, K> | undefined>
+  snapshots: ReadonlyMap<K, StoredRow<A, K> | undefined>,
 ): void => {
   for (const mutation of transaction.mutations) {
     let stack = state.optimisticRows.get(mutation.key);
     if (!stack) {
       stack = {
         base: cloneRollbackRow(snapshots.get(mutation.key)),
-        patches: []
+        patches: [],
       };
       state.optimisticRows.set(mutation.key, stack);
     }
     stack.patches.push({
       transactionId: transaction.id,
       mutation,
-      committed: false
+      committed: false,
     });
   }
   rebaseOptimisticRows(state, optimisticMutationKeys(transaction));
@@ -316,7 +324,7 @@ export const applyOptimisticTransaction = <A extends object, K extends Collectio
 export const applyCollectionBaseRow = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
   row: StoredRow<A, K>,
-  rebaseKeys: Set<K>
+  rebaseKeys: Set<K>,
 ): void => {
   const stack = state.optimisticRows.get(row.key);
   if (stack) {
@@ -331,7 +339,7 @@ export const applyCollectionBaseRow = <A extends object, K extends CollectionKey
 export const deleteCollectionBaseRow = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
   key: K,
-  rebaseKeys: Set<K>
+  rebaseKeys: Set<K>,
 ): void => {
   const stack = state.optimisticRows.get(key);
   if (stack) {
@@ -345,7 +353,7 @@ export const deleteCollectionBaseRow = <A extends object, K extends CollectionKe
 
 export const rebaseCollectionBaseRows = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
-  rebaseKeys: Set<K>
+  rebaseKeys: Set<K>,
 ): void => {
   if (rebaseKeys.size > 0) {
     rebaseOptimisticRows(state, Array.from(rebaseKeys));
@@ -357,15 +365,15 @@ export const rebaseCollectionBaseRows = <A extends object, K extends CollectionK
 
 const hasOptimisticTransaction = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
-  transaction: CollectionTransaction<A, K>
+  transaction: CollectionTransaction<A, K>,
 ): boolean =>
   optimisticMutationKeys(transaction).some((key) =>
-    state.optimisticRows.get(key)?.patches.some((patch) => patch.transactionId === transaction.id)
+    state.optimisticRows.get(key)?.patches.some((patch) => patch.transactionId === transaction.id),
   );
 
 export const commitOptimisticTransaction = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
-  transaction: CollectionTransaction<A, K>
+  transaction: CollectionTransaction<A, K>,
 ): boolean => {
   if (!hasOptimisticTransaction(state, transaction)) {
     return false;
@@ -389,7 +397,7 @@ export const commitOptimisticTransaction = <A extends object, K extends Collecti
 
 export const rollbackOptimisticTransaction = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
-  transaction: CollectionTransaction<A, K>
+  transaction: CollectionTransaction<A, K>,
 ): boolean => {
   if (!hasOptimisticTransaction(state, transaction)) {
     return false;
@@ -409,7 +417,7 @@ export const rollbackOptimisticTransaction = <A extends object, K extends Collec
 };
 
 export const syncOptimisticRowsFromPendingMutations = <A extends object, K extends CollectionKey>(
-  state: CollectionState<A, K, any>
+  state: CollectionState<A, K, any>,
 ): void => {
   const desired = new Map<K, OptimisticRowStack<A, K>>();
   const rebaseKeys = new Set<K>(state.optimisticRows.keys());
@@ -424,14 +432,14 @@ export const syncOptimisticRowsFromPendingMutations = <A extends object, K exten
           : state.rows.get(mutation.key);
         stack = {
           base: existing ? cloneRollbackRow(existing.base) : cloneRollbackRow(rollback),
-          patches: []
+          patches: [],
         };
         desired.set(mutation.key, stack);
       }
       stack.patches.push({
         transactionId: entry.transaction.id,
         mutation,
-        committed: false
+        committed: false,
       });
       rebaseKeys.add(mutation.key);
     }

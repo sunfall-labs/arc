@@ -19,9 +19,25 @@ export class ActionInterrupted extends Data.TaggedError("ActionInterrupted")<{
 /** Visible submission state exposed by action client instances. */
 export type ActionSubmissionState<I, A, E = never, P = ResourceInvalidationPlan> =
   | { readonly _tag: "Idle" }
-  | { readonly _tag: "Pending"; readonly input: I; readonly previous: A | undefined; readonly hasPrevious: boolean }
-  | { readonly _tag: "Success"; readonly value: A; readonly input: I; readonly invalidationPlan?: P }
-  | { readonly _tag: "Failure"; readonly error: E; readonly input: I; readonly previous: A | undefined; readonly hasPrevious: boolean };
+  | {
+      readonly _tag: "Pending";
+      readonly input: I;
+      readonly previous: A | undefined;
+      readonly hasPrevious: boolean;
+    }
+  | {
+      readonly _tag: "Success";
+      readonly value: A;
+      readonly input: I;
+      readonly invalidationPlan?: P;
+    }
+  | {
+      readonly _tag: "Failure";
+      readonly error: E;
+      readonly input: I;
+      readonly previous: A | undefined;
+      readonly hasPrevious: boolean;
+    };
 
 export type ActionSubmissionFiber<A, E> = Fiber.Fiber<A, E | ActionInterrupted>;
 
@@ -54,28 +70,23 @@ export interface ActionSubmissionController<I, A, E, P = ResourceInvalidationPla
   readonly state: ReadableSignal<ActionSubmissionState<I, A, E, P>>;
   readonly invalidationPlan: ReadableSignal<P | undefined>;
   readonly beginEffect: (
-    fiber: ActionSubmissionFiber<A, E>
+    fiber: ActionSubmissionFiber<A, E>,
   ) => Effect.Effect<ActionSubmissionDecision<A, E>>;
-  readonly acceptsStateUpdate: (
-    submission: ActionSubmissionRun<A, E>
-  ) => boolean;
-  readonly pendingEffect: (
-    submission: ActionSubmissionRun<A, E>,
-    input: I
-  ) => Effect.Effect<void>;
+  readonly acceptsStateUpdate: (submission: ActionSubmissionRun<A, E>) => boolean;
+  readonly pendingEffect: (submission: ActionSubmissionRun<A, E>, input: I) => Effect.Effect<void>;
   readonly interruptStaleEffect: (
-    submission: ActionSubmissionRun<A, E>
+    submission: ActionSubmissionRun<A, E>,
   ) => Effect.Effect<void, ActionInterrupted>;
   readonly successEffect: (
     submission: ActionSubmissionRun<A, E>,
     input: I,
     value: A,
-    plan: P | undefined
+    plan: P | undefined,
   ) => Effect.Effect<void>;
   readonly failureEffect: (
     submission: ActionSubmissionRun<A, E>,
     input: I,
-    error: E
+    error: E,
   ) => Effect.Effect<void>;
   readonly clearCurrentEffect: (token: object) => Effect.Effect<void>;
   /**
@@ -98,7 +109,7 @@ export interface ActionSubmissionControllerOptions {
 }
 
 const previousFromState = <I, A, E, P>(
-  state: ActionSubmissionState<I, A, E, P>
+  state: ActionSubmissionState<I, A, E, P>,
 ): { readonly present: boolean; readonly value: A | undefined } => {
   switch (state._tag) {
     case "Success":
@@ -113,7 +124,7 @@ const previousFromState = <I, A, E, P>(
 
 /** Creates the shared submission controller used by Action and StartAction clients. */
 export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidationPlan>(
-  options: ActionSubmissionControllerOptions
+  options: ActionSubmissionControllerOptions,
 ): ActionSubmissionController<I, A, E, P> => {
   const state = Signal.make<ActionSubmissionState<I, A, E, P>>({ _tag: "Idle" });
   const invalidationPlan = Signal.make<P | undefined>(undefined);
@@ -127,7 +138,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
   const acceptsStateUpdate = (submission: ActionSubmissionRun<A, E>): boolean =>
     !submission.updateOnlyLatest || isLatest(submission);
   const interruptFibersEffect = (
-    fibers: ReadonlyArray<ActionSubmissionFiber<A, E>>
+    fibers: ReadonlyArray<ActionSubmissionFiber<A, E>>,
   ): Effect.Effect<void> =>
     Effect.gen(function* () {
       for (const fiber of fibers) {
@@ -143,8 +154,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
     state.set({ _tag: "Idle" });
     return interruptFibersEffect(fibers);
   };
-  const resetEffect = (): Effect.Effect<void> =>
-    Effect.suspend(() => captureResetEffect());
+  const resetEffect = (): Effect.Effect<void> => Effect.suspend(() => captureResetEffect());
 
   return {
     state,
@@ -163,14 +173,14 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
           clearToken: {},
           ...(previousFiber === undefined ? {} : { previousFiber }),
           interruptStale: concurrency === "latest",
-          updateOnlyLatest: true
+          updateOnlyLatest: true,
         };
         activeSubmissions.set(submission.clearToken, fiber);
 
         if (concurrency !== "parallel") {
           currentSubmission = {
             token: submission.clearToken,
-            fiber
+            fiber,
           };
         }
 
@@ -189,7 +199,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
           _tag: "Pending",
           input,
           previous: previous.value,
-          hasPrevious: previous.present
+          hasPrevious: previous.present,
         });
       }),
     interruptStaleEffect: (submission) =>
@@ -197,7 +207,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
         !activeSubmissions.has(submission.clearToken) ||
         (submission.interruptStale && !isLatest(submission))
           ? Effect.fail(new ActionInterrupted({ actionName: options.actionName }))
-          : Effect.void
+          : Effect.void,
       ),
     successEffect: (submission, input, value, plan) =>
       Effect.sync(() => {
@@ -210,7 +220,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
           _tag: "Success",
           value,
           input,
-          ...(plan === undefined ? {} : { invalidationPlan: plan })
+          ...(plan === undefined ? {} : { invalidationPlan: plan }),
         });
       }),
     failureEffect: (submission, input, error) =>
@@ -225,7 +235,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
           error,
           input,
           previous: previous.value,
-          hasPrevious: previous.present
+          hasPrevious: previous.present,
         });
       }),
     clearCurrentEffect: (token) =>
@@ -236,6 +246,6 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
         }
       }),
     captureResetEffect,
-    resetEffect
+    resetEffect,
   };
 };

@@ -2,7 +2,7 @@ import { Effect, Exit, Semaphore } from "effect";
 import type {
   CollectionKey,
   CollectionRuntimeError,
-  CollectionStoreEvent
+  CollectionStoreEvent,
 } from "./collection-contract.js";
 import {
   cloneOptimisticRowStack,
@@ -12,7 +12,7 @@ import {
   type CollectionState,
   type OptimisticRowStack,
   type PendingMutationEntry,
-  type StoredRow
+  type StoredRow,
 } from "./collection-state.js";
 
 export interface CollectionStateSnapshot<A extends object, K extends CollectionKey> {
@@ -23,24 +23,24 @@ export interface CollectionStateSnapshot<A extends object, K extends CollectionK
 }
 
 export const snapshotCollectionState = <A extends object, K extends CollectionKey>(
-  state: CollectionState<A, K, any>
+  state: CollectionState<A, K, any>,
 ): CollectionStateSnapshot<A, K> => ({
   rows: new Map(Array.from(state.rows, ([key, row]) => [key, cloneStoredRow(row)])),
   pendingMutations: new Map(
     Array.from(state.pendingMutations, ([id, entry]) => [
       id,
-      clonePendingMutationEntry(entry, { preserveActiveAttempt: true })
-    ])
+      clonePendingMutationEntry(entry, { preserveActiveAttempt: true }),
+    ]),
   ),
   optimisticRows: new Map(
-    Array.from(state.optimisticRows, ([key, stack]) => [key, cloneOptimisticRowStack(stack)])
+    Array.from(state.optimisticRows, ([key, stack]) => [key, cloneOptimisticRowStack(stack)]),
   ),
-  version: state.version.get()
+  version: state.version.get(),
 });
 
 export const restoreCollectionStateSnapshot = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
-  snapshot: CollectionStateSnapshot<A, K>
+  snapshot: CollectionStateSnapshot<A, K>,
 ): void => {
   restoreOptimisticState(state, snapshot.rows, snapshot.pendingMutations, snapshot.optimisticRows);
   state.indexCache.clear();
@@ -58,9 +58,7 @@ interface CollectionWriteCommitOptions<A extends object, K extends CollectionKey
 
 const durableCommitSemaphores = new WeakMap<object, Semaphore.Semaphore>();
 
-const durableCommitSemaphore = (
-  state: CollectionState<any, any, any>
-): Semaphore.Semaphore => {
+const durableCommitSemaphore = (state: CollectionState<any, any, any>): Semaphore.Semaphore => {
   const existing = durableCommitSemaphores.get(state);
   if (existing) {
     return existing;
@@ -73,9 +71,8 @@ const durableCommitSemaphore = (
 
 export const withCollectionDurableCommitPermit = <A, E, R>(
   state: CollectionState<any, any, any>,
-  effect: Effect.Effect<A, E, R>
-): Effect.Effect<A, E, R> =>
-  Semaphore.withPermit(durableCommitSemaphore(state), effect);
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E, R> => Semaphore.withPermit(durableCommitSemaphore(state), effect);
 
 /**
  * Atomically apply a direct collection write around persistence and event
@@ -87,7 +84,7 @@ export const withCollectionDurableCommitPermit = <A, E, R>(
  * success.
  */
 export const commitCollectionWriteEffect = <A extends object, K extends CollectionKey, E, R>(
-  options: CollectionWriteCommitOptions<A, K, E, R>
+  options: CollectionWriteCommitOptions<A, K, E, R>,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   withCollectionDurableCommitPermit(
     options.state,
@@ -103,8 +100,8 @@ export const commitCollectionWriteEffect = <A extends object, K extends Collecti
         yield* options.publishEffect({
           _tag: "CollectionWritten",
           collection: options.collection,
-          mutations: options.mutations
+          mutations: options.mutations,
         });
-      })
-    )
+      }),
+    ),
   );

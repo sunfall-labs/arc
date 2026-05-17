@@ -10,10 +10,19 @@ import {
   type EffectUiRuntime,
   type RuntimeDisposeError,
   type RuntimeProviderLifecycleEntry,
-  type UiScope
+  type UiScope,
 } from "@effect-ui/core";
 import { Effect, Layer, ManagedRuntime } from "effect";
-import { createContext, createMemo, createRenderEffect, createRoot, createSignal, onCleanup, useContext, type JSX } from "solid-js";
+import {
+  createContext,
+  createMemo,
+  createRenderEffect,
+  createRoot,
+  createSignal,
+  onCleanup,
+  useContext,
+  type JSX,
+} from "solid-js";
 import { createComponent } from "solid-js/web";
 
 /** Solid context carrying the active Effect UI Runtime Spine. */
@@ -24,17 +33,25 @@ interface RuntimeProviderChildren {
   readonly children?: JSX.Element;
 }
 
-interface RuntimeProviderRuntimeProps<RuntimeServices = never, ER = never> extends RuntimeProviderChildren {
+interface RuntimeProviderRuntimeProps<
+  RuntimeServices = never,
+  ER = never,
+> extends RuntimeProviderChildren {
   /** Existing host-owned runtime. The provider exposes it and does not dispose it. */
   readonly runtime: EffectUiRuntime<RuntimeServices, ER> | AnyEffectUiRuntime<ER>;
   readonly source?: never;
   readonly onDisposeFailure?: never;
 }
 
-interface RuntimeProviderSourceProps<RuntimeServices = never, ER = never> extends RuntimeProviderChildren {
+interface RuntimeProviderSourceProps<
+  RuntimeServices = never,
+  ER = never,
+> extends RuntimeProviderChildren {
   readonly runtime?: never;
   /** Runtime source owned by this Solid provider and disposed with its owner. */
-  readonly source: ManagedRuntime.ManagedRuntime<RuntimeServices, ER> | Layer.Layer<RuntimeServices, ER, never>;
+  readonly source:
+    | ManagedRuntime.ManagedRuntime<RuntimeServices, ER>
+    | Layer.Layer<RuntimeServices, ER, never>;
   /**
    * Observes failures from provider-owned runtime disposal.
    *
@@ -76,12 +93,12 @@ export const useRuntime = <ER = never>(): AnyEffectUiRuntime<ER> =>
  * to let the provider create and dispose a runtime with the Solid owner.
  */
 export const RuntimeProvider = <RuntimeServices = never, ER = never>(
-  props: RuntimeProviderProps<RuntimeServices, ER>
+  props: RuntimeProviderProps<RuntimeServices, ER>,
 ): JSX.Element => {
   const entry = createMemo<RuntimeProviderLifecycleEntry<ER>>(() =>
     props.runtime === undefined
       ? makeRuntimeProviderLifecycleEntry({ source: props.source })
-      : makeRuntimeProviderLifecycleEntry({ runtime: props.runtime })
+      : makeRuntimeProviderLifecycleEntry({ runtime: props.runtime }),
   );
   const [view, setView] = createSignal<JSX.Element>();
   let disposeEntry: (() => void) | undefined;
@@ -97,7 +114,7 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
         },
         get children() {
           return props.children;
-        }
+        },
       });
       setView(() => next);
     });
@@ -118,20 +135,20 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
   return view as unknown as JSX.Element;
 };
 
-const RuntimeProviderInstance = <ER>(
-  props: {
-    readonly entry: RuntimeProviderLifecycleEntry<ER>;
-    readonly onDisposeFailure?: ((error: RuntimeDisposeError) => EffectInput<void, unknown>) | undefined;
-    readonly children?: JSX.Element;
-  }
-): JSX.Element => {
+const RuntimeProviderInstance = <ER>(props: {
+  readonly entry: RuntimeProviderLifecycleEntry<ER>;
+  readonly onDisposeFailure?:
+    | ((error: RuntimeDisposeError) => EffectInput<void, unknown>)
+    | undefined;
+  readonly children?: JSX.Element;
+}): JSX.Element => {
   if (props.entry.ownsRuntime) {
     onCleanup(() => {
       void Effect.runFork(
         disposeRuntimeProviderLifecycleEffect(props.entry, {
           observerOperation: "SolidRuntimeProvider.onDisposeFailure",
-          onDisposeFailure: props.onDisposeFailure
-        })
+          onDisposeFailure: props.onDisposeFailure,
+        }),
       );
     });
   }
@@ -140,7 +157,7 @@ const RuntimeProviderInstance = <ER>(
     value: props.entry.runtime as unknown as AnyEffectUiRuntime<never>,
     get children() {
       return runWithRuntime(props.entry.runtime, () => props.children);
-    }
+    },
   });
 };
 

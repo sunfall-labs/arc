@@ -2,7 +2,7 @@ import { Effect, Fiber, type Scope } from "effect";
 import {
   mountDevtoolsPanelsEffectWithResolver,
   mountDevtoolsPanelsWithResolver,
-  renderDevtoolsPanelsHtmlWithResolver
+  renderDevtoolsPanelsHtmlWithResolver,
 } from "./panel-renderer.js";
 import { describeDevtoolsPanels as describeDevtoolsPanelsInternal } from "./panels.js";
 import { resolveDevtoolsPanelsInput } from "./panel-contract.js";
@@ -16,7 +16,7 @@ import type {
   DevtoolsPanelsInput,
   DevtoolsPanelUiInput,
   DevtoolsStore,
-  DevtoolsStoreOptions
+  DevtoolsStoreOptions,
 } from "./devtools-contract.js";
 
 export * from "./bridge.js";
@@ -25,7 +25,7 @@ export {
   normalizeAppGraphCollectionDefinitions,
   normalizeAppGraphUnknownRoutePreloadCollections,
   normalizeDevtoolsAppGraphDiagnostics,
-  normalizeRouteModulePreloadCollections
+  normalizeRouteModulePreloadCollections,
 } from "./app-graph-normalizer.js";
 export type { NormalizeDevtoolsAppGraphDiagnosticsOptions } from "./app-graph-normalizer.js";
 export { devtoolsPanelStyles } from "./panel-renderer.js";
@@ -33,13 +33,13 @@ export {
   DevtoolsUnknownInvalidationTarget,
   describeInvalidationPlan,
   describeRoutePlan,
-  toDevtoolsSerializableValue
+  toDevtoolsSerializableValue,
 } from "./serialization.js";
 export {
   describeDevtoolsCausalGraph,
   describeDevtoolsCausalGraphEffect,
   describeDevtoolsSummary,
-  describeDevtoolsSummaryEffect
+  describeDevtoolsSummaryEffect,
 } from "./summary.js";
 export {
   devtoolsPanelIds,
@@ -57,62 +57,52 @@ export {
   resolveDevtoolsPanelContract,
   resolveDevtoolsPanelsInput,
   resolveEffectUiDevtoolsBridgePayload,
-  DevtoolsPanelContractError
+  DevtoolsPanelContractError,
 } from "./panel-contract.js";
 export type {
   DevtoolsBridgePayloadContractResolution,
   DevtoolsPanelContractErrorReason,
-  DevtoolsPanelContractResolution
+  DevtoolsPanelContractResolution,
 } from "./panel-contract.js";
 
 /** Projects snapshots, diagnostics, and runtime facts into stable panel data. */
-export const describeDevtoolsPanels = (
-  input: DevtoolsPanelsInput = {}
-): DevtoolsPanels =>
+export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): DevtoolsPanels =>
   describeDevtoolsPanelsInternal(input);
 
 /** Effect wrapper for `describeDevtoolsPanels(...)`. */
 export const describeDevtoolsPanelsEffect = (
-  input: DevtoolsPanelsInput = {}
-): Effect.Effect<DevtoolsPanels> =>
-  Effect.sync(() => describeDevtoolsPanels(input));
+  input: DevtoolsPanelsInput = {},
+): Effect.Effect<DevtoolsPanels> => Effect.sync(() => describeDevtoolsPanels(input));
 
 const resolveDevtoolsPanels = (input: DevtoolsPanelUiInput): DevtoolsPanels =>
   resolveDevtoolsPanelsInput(input, describeDevtoolsPanels);
 
 /** Renders the stable panel contract to deterministic embeddable HTML. */
-export const renderDevtoolsPanelsHtml = (
-  input: DevtoolsPanelUiInput = {}
-): string =>
+export const renderDevtoolsPanelsHtml = (input: DevtoolsPanelUiInput = {}): string =>
   renderDevtoolsPanelsHtmlWithResolver(input, resolveDevtoolsPanels);
 
 /** Effect wrapper for deterministic panel HTML rendering. */
 export const renderDevtoolsPanelsHtmlEffect = (
-  input: DevtoolsPanelUiInput = {}
-): Effect.Effect<string> =>
-  Effect.sync(() => renderDevtoolsPanelsHtml(input));
+  input: DevtoolsPanelUiInput = {},
+): Effect.Effect<string> => Effect.sync(() => renderDevtoolsPanelsHtml(input));
 
 /** Mounts the panel renderer into a host DOM root and returns update/unmount controls. */
-export const mountDevtoolsPanels = (
-  options: DevtoolsPanelMountOptions
-): DevtoolsPanelMount =>
+export const mountDevtoolsPanels = (options: DevtoolsPanelMountOptions): DevtoolsPanelMount =>
   mountDevtoolsPanelsWithResolver(options, resolveDevtoolsPanels);
 
 /** Scoped Effect mount helper that unmounts the panel renderer when the Scope closes. */
 export const mountDevtoolsPanelsEffect = (
-  options: DevtoolsPanelMountOptions
+  options: DevtoolsPanelMountOptions,
 ): Effect.Effect<DevtoolsPanelMount, never, Scope.Scope> =>
   mountDevtoolsPanelsEffectWithResolver(options, resolveDevtoolsPanels);
 
 /** Interrupts a Devtools panel boot fiber, ignoring repeat cleanup failures. */
-export const interruptDevtoolsPanelBoot = (
-  fiber: Fiber.Fiber<void, never>
-): Effect.Effect<void> =>
+export const interruptDevtoolsPanelBoot = (fiber: Fiber.Fiber<void, never>): Effect.Effect<void> =>
   Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void));
 
 const wireDevtoolsPanelLifecycleCleanup = (
   interrupt: () => void,
-  lifecycleWindow: Pick<Window, "addEventListener" | "removeEventListener">
+  lifecycleWindow: Pick<Window, "addEventListener" | "removeEventListener">,
 ): (() => void) => {
   let released = false;
   function release(): void {
@@ -134,20 +124,15 @@ const wireDevtoolsPanelLifecycleCleanup = (
 };
 
 /** Boots a scoped live Devtools panel and optionally wires browser lifecycle cleanup. */
-export const bootDevtoolsPanels = (
-  options: DevtoolsPanelBootOptions
-): DevtoolsPanelBoot => {
-  const {
-    afterMount,
-    lifecycleWindow,
-    ...mountOptions
-  } = options;
+export const bootDevtoolsPanels = (options: DevtoolsPanelBootOptions): DevtoolsPanelBoot => {
+  const { afterMount, lifecycleWindow, ...mountOptions } = options;
   let interruptBootFiber: () => Effect.Effect<void> = () => Effect.void;
-  const releaseLifecycleListeners = lifecycleWindow === undefined
-    ? () => undefined
-    : wireDevtoolsPanelLifecycleCleanup(() => {
-        void Effect.runFork(interruptBootFiber());
-      }, lifecycleWindow);
+  const releaseLifecycleListeners =
+    lifecycleWindow === undefined
+      ? () => undefined
+      : wireDevtoolsPanelLifecycleCleanup(() => {
+          void Effect.runFork(interruptBootFiber());
+        }, lifecycleWindow);
   const fiber = Effect.runFork(
     Effect.scoped(
       Effect.gen(function* () {
@@ -156,8 +141,8 @@ export const bootDevtoolsPanels = (
           yield* afterMount(mount);
         }
         yield* Effect.never;
-      })
-    ).pipe(Effect.ensuring(Effect.sync(() => releaseLifecycleListeners())))
+      }),
+    ).pipe(Effect.ensuring(Effect.sync(() => releaseLifecycleListeners()))),
   );
   interruptBootFiber = () => interruptDevtoolsPanelBoot(fiber);
   const interruptEffect = Effect.gen(function* () {
@@ -170,7 +155,7 @@ export const bootDevtoolsPanels = (
     interrupt: () => {
       releaseLifecycleListeners();
       void Effect.runFork(interruptBootFiber());
-    }
+    },
   };
 
   return boot;

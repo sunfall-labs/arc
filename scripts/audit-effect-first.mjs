@@ -5,7 +5,7 @@ import ts from "typescript";
 import {
   generatedStarterEffectFirstTemplates,
   generatedStarterReadmeTemplates,
-  starterCatalogConsistencyFailures
+  starterCatalogConsistencyFailures,
 } from "./starter-catalog.mjs";
 import { runScriptMainEffect } from "./effect-main-runner.mjs";
 
@@ -29,13 +29,11 @@ const markdownSnippetExtensions = new Map([
   ["mjs", ".mjs"],
   ["ts", ".ts"],
   ["tsx", ".tsx"],
-  ["typescript", ".ts"]
+  ["typescript", ".ts"],
 ]);
 
 const extensionOf = (fileName) =>
-  fileName.endsWith(".d.ts")
-    ? ".d.ts"
-    : fileName.slice(fileName.lastIndexOf("."));
+  fileName.endsWith(".d.ts") ? ".d.ts" : fileName.slice(fileName.lastIndexOf("."));
 
 const isTestFile = (fileName) =>
   /\.test\.(ts|tsx)$/.test(fileName) || /\.spec\.(ts|tsx)$/.test(fileName);
@@ -49,7 +47,7 @@ const auditableRoots = [
       entry.isFile() &&
       relativeFile.startsWith("packages/") &&
       relativeFile.includes("/src/") &&
-      typeScriptDeclarationExtensions.has(extensionOf(entry.name))
+      typeScriptDeclarationExtensions.has(extensionOf(entry.name)),
   },
   {
     name: "example sources",
@@ -60,23 +58,21 @@ const auditableRoots = [
       relativeFile.startsWith("examples/") &&
       relativeFile.includes("/src/") &&
       !isTestFile(entry.name) &&
-      typeScriptSourceExtensions.has(extensionOf(entry.name))
+      typeScriptSourceExtensions.has(extensionOf(entry.name)),
   },
   {
     name: "example configs",
     directory: join(root, "examples"),
     description: "examples/*/vite.config.ts build entrypoints",
     include: (relativeFile, entry) =>
-      entry.isFile() &&
-      /^examples\/[^/]+\/vite\.config\.ts$/.test(relativeFile)
+      entry.isFile() && /^examples\/[^/]+\/vite\.config\.ts$/.test(relativeFile),
   },
   {
     name: "example scripts",
     directory: join(root, "examples"),
     description: "examples/*/scripts/*.mjs copyable starter tools",
     include: (relativeFile, entry) =>
-      entry.isFile() &&
-      /^examples\/[^/]+\/scripts\/[^/]+\.mjs$/.test(relativeFile)
+      entry.isFile() && /^examples\/[^/]+\/scripts\/[^/]+\.mjs$/.test(relativeFile),
   },
   {
     name: "workspace scripts",
@@ -85,7 +81,7 @@ const auditableRoots = [
     include: (relativeFile, entry) =>
       entry.isFile() &&
       relativeFile.startsWith("scripts/") &&
-      scriptExtensions.has(extensionOf(entry.name))
+      scriptExtensions.has(extensionOf(entry.name)),
   },
   {
     name: "public type tests",
@@ -94,7 +90,7 @@ const auditableRoots = [
     include: (relativeFile, entry) =>
       entry.isFile() &&
       relativeFile.startsWith("type-tests/") &&
-      typeScriptDeclarationExtensions.has(extensionOf(entry.name))
+      typeScriptDeclarationExtensions.has(extensionOf(entry.name)),
   },
   {
     name: "markdown docs",
@@ -103,12 +99,10 @@ const auditableRoots = [
     include: (relativeFile, entry) =>
       entry.isFile() &&
       relativeFile.endsWith(".md") &&
-      (
-        relativeFile === "README.md" ||
+      (relativeFile === "README.md" ||
         relativeFile.startsWith("docs/") ||
-        relativeFile.startsWith("examples/")
-      )
-  }
+        relativeFile.startsWith("examples/")),
+  },
 ];
 
 const collectFiles = (auditableRoot) => {
@@ -141,19 +135,19 @@ const collectFiles = (auditableRoot) => {
 
 const auditableFilesByRoot = auditableRoots.map((auditableRoot) => ({
   ...auditableRoot,
-  files: collectFiles(auditableRoot)
+  files: collectFiles(auditableRoot),
 }));
 
 const physicalSourceFiles = auditableFilesByRoot
   .flatMap((auditableRoot) => auditableRoot.files)
   .map((file) => ({
     relativeFile: relative(root, file),
-    read: () => readFileSync(file, "utf8")
+    read: () => readFileSync(file, "utf8"),
   }));
 
 const generatedStarterTemplateFiles = generatedStarterEffectFirstTemplates.map((template) => ({
   relativeFile: template.file,
-  read: () => template.source
+  read: () => template.source,
 }));
 
 const extractMarkdownCodeSnippets = (relativeFile, source) => {
@@ -175,7 +169,7 @@ const extractMarkdownCodeSnippets = (relativeFile, source) => {
       active = {
         language: (fence[1] ?? "").toLowerCase(),
         startLine: index + 2,
-        lines: []
+        lines: [],
       };
       continue;
     }
@@ -185,7 +179,7 @@ const extractMarkdownCodeSnippets = (relativeFile, source) => {
       snippetIndex += 1;
       snippets.push({
         relativeFile: `${relativeFile}:${active.startLine}:snippet-${snippetIndex}${extension}`,
-        source: active.lines.join("\n")
+        source: active.lines.join("\n"),
       });
     }
     active = undefined;
@@ -199,23 +193,22 @@ const markdownSnippetFiles = physicalSourceFiles
   .flatMap((file) =>
     extractMarkdownCodeSnippets(file.relativeFile, file.read()).map((snippet) => ({
       relativeFile: snippet.relativeFile,
-      read: () => snippet.source
-    }))
+      read: () => snippet.source,
+    })),
   );
 
-const generatedStarterReadmeSnippetFiles = generatedStarterReadmeTemplates
-  .flatMap((template) =>
-    extractMarkdownCodeSnippets(template.file, template.source).map((snippet) => ({
-      relativeFile: snippet.relativeFile,
-      read: () => snippet.source
-    }))
-  );
+const generatedStarterReadmeSnippetFiles = generatedStarterReadmeTemplates.flatMap((template) =>
+  extractMarkdownCodeSnippets(template.file, template.source).map((snippet) => ({
+    relativeFile: snippet.relativeFile,
+    read: () => snippet.source,
+  })),
+);
 
 const sourceFiles = [
   ...physicalSourceFiles.filter((file) => !file.relativeFile.endsWith(".md")),
   ...generatedStarterTemplateFiles,
   ...markdownSnippetFiles,
-  ...generatedStarterReadmeSnippetFiles
+  ...generatedStarterReadmeSnippetFiles,
 ];
 const sourceFileNames = new Set(sourceFiles.map((file) => file.relativeFile));
 
@@ -225,17 +218,17 @@ const printScopeSummary = () => {
   console.log("Effect-first audit scope:");
   for (const auditableRoot of auditableFilesByRoot) {
     console.log(
-      `- ${auditableRoot.name}: ${auditableRoot.files.length} files (${auditableRoot.description})`
+      `- ${auditableRoot.name}: ${auditableRoot.files.length} files (${auditableRoot.description})`,
     );
   }
   console.log(
-    `- generated starter templates: ${generatedStarterTemplateFiles.length} virtual files (standalone starter TypeScript templates emitted by scripts/package-project-console-starter.mjs)`
+    `- generated starter templates: ${generatedStarterTemplateFiles.length} virtual files (standalone starter TypeScript templates emitted by scripts/package-project-console-starter.mjs)`,
   );
   console.log(
-    `- markdown code snippets: ${markdownSnippetFiles.length} virtual files (README, docs, and example TypeScript/JavaScript fences)`
+    `- markdown code snippets: ${markdownSnippetFiles.length} virtual files (README, docs, and example TypeScript/JavaScript fences)`,
   );
   console.log(
-    `- generated starter README snippets: ${generatedStarterReadmeSnippetFiles.length} virtual files (standalone starter README TypeScript/JavaScript fences)`
+    `- generated starter README snippets: ${generatedStarterReadmeSnippetFiles.length} virtual files (standalone starter README TypeScript/JavaScript fences)`,
   );
   console.log(`- total auditable files: ${sourceFiles.length}`);
   console.log("Effect-first anchored allowed occurrences:");
@@ -255,7 +248,9 @@ const printScopeSummary = () => {
       console.log(`  - ${allowedSeam.file}: ${allowedSeam.name}`);
     }
   }
-  console.log(`- Promise constructor/static AST guard: constructor usage plus ${promiseStaticMembers.length} static members across direct, host-global, alias, and extraction forms`);
+  console.log(
+    `- Promise constructor/static AST guard: constructor usage plus ${promiseStaticMembers.length} static members across direct, host-global, alias, and extraction forms`,
+  );
 };
 
 const allowed = [
@@ -263,69 +258,226 @@ const allowed = [
     pattern: /Effect\.runPromise/g,
     name: "Effect.runPromise",
     seams: [
-      seam("packages/solid/src/hooks.ts", "Solid Suspense token Adapter", /toHostToken:\s*\(fiber\)\s*=>\s*Effect\.runPromise\(Fiber\.join\(fiber\)\)/),
-      seam("packages/react/src/hooks.ts", "React Suspense token Adapter", /toHostToken:\s*\(fiber\)\s*=>\s*Effect\.runPromise\(Fiber\.join\(fiber\)\)/),
-      seam("packages/start/src/request-runtime-response.ts", "Request Runtime response host runner", /runEffect:\s*\(effect\)\s*=>\s*Effect\.runPromise\(runtime\.provide\(effect\)\)/),
-      seam("packages/start/src/streaming.ts", "ReadableStream finalizer host runner", /const runResponseStreamEffect:\s*StartResponseStreamRunner\s*=\s*\(effect\)\s*=>\s*Effect\.runPromise\(effect\);/),
-      seam("packages/start/src/start-host-runtime-runner.ts", "Start host Promise runtime runner", /export const runStartHostPromise[\s\S]*?Effect\.runPromise\(/)
-    ]
+      seam(
+        "packages/solid/src/hooks.ts",
+        "Solid Suspense token Adapter",
+        /toHostToken:\s*\(fiber\)\s*=>\s*Effect\.runPromise\(Fiber\.join\(fiber\)\)/,
+      ),
+      seam(
+        "packages/react/src/hooks.ts",
+        "React Suspense token Adapter",
+        /toHostToken:\s*\(fiber\)\s*=>\s*Effect\.runPromise\(Fiber\.join\(fiber\)\)/,
+      ),
+      seam(
+        "packages/react/src/route-render-scope.ts",
+        "React lazy route component Suspense token Adapter",
+        /const fiber = props\.runtime\.runFork\(pendingLazyComponent\.pipe\(Effect\.asVoid\)\);\s*throw Effect\.runPromise\(Fiber\.join\(fiber\)\);/,
+      ),
+      seam(
+        "packages/solid/src/route-render-scope.ts",
+        "Solid lazy route component Suspense token Adapter",
+        /const fiber = runtime\.runFork\(effect\.pipe\(Effect\.asVoid\)\);\s*return Effect\.runPromise\(Fiber\.join\(fiber\)\);/,
+      ),
+      seam(
+        "packages/start/src/request-runtime-response.ts",
+        "Request Runtime response host runner",
+        /runEffect:\s*\(effect\)\s*=>\s*Effect\.runPromise\(runtime\.provide\(effect\)\)/,
+      ),
+      seam(
+        "packages/start/src/streaming.ts",
+        "ReadableStream finalizer host runner",
+        /const runResponseStreamEffect:\s*StartResponseStreamRunner\s*=\s*\(effect\)\s*=>\s*Effect\.runPromise\(effect\);/,
+      ),
+      seam(
+        "packages/start/src/start-host-runtime-runner.ts",
+        "Start host Promise runtime runner",
+        /export const runStartHostPromise[\s\S]*?Effect\.runPromise\(/,
+      ),
+    ],
   },
   {
     pattern: /\bPromise\s*</g,
     name: "Promise return type",
     seams: [
-      seam("packages/start/src/fetch-adapter.ts", "Fetch host Promise handler facade", /export type StartFetchPromiseHandler\s*=\s*\(request:\s*Request\)\s*=>\s*Promise<Response>;/),
-      seam("packages/start/src/start-host-runtime-runner.ts", "generic host Promise runner return", /export const runStartHostPromise[\s\S]*?\):\s*Promise<A>\s*=>/),
-      seam("packages/start/src/start-vite-dev-ssr.ts", "Vite ssrLoadModule host method", /ssrLoadModule\(id:\s*string\):\s*Promise<Record<string,\s*unknown>>;/),
-      seam("packages/start/src/start-vite-dev-ssr.ts", "Vite transformIndexHtml host method", /transformIndexHtml\(url:\s*string,\s*html:\s*string\):\s*Promise<string>;/),
-      seam("packages/start/src/start-vite-dev-ssr.ts", "Vite module loader host callback", /f:\s*\(\)\s*=>\s*Promise<A>/),
-      seam("packages/start/src/vite.ts", "Vite plugin buildStart hook contract", /readonly buildStart:\s*\(\)\s*=>\s*void\s*\|\s*Promise<void>;/),
-      seam("packages/start/src/vite.ts", "Vite diagnostics gate Promise hook", /const runCurrentDiagnosticsGate\s*=\s*\(\):\s*Promise<void>\s*=>/),
-      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedProject", /declare const promisedProject:\s*Promise<Project>;/),
-      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedProjects", /declare const promisedProjects:\s*Promise<ReadonlyArray<Project>>;/),
-      seam("type-tests/framework.test-d.ts", "Promise negative fixture maybePromisedProject", /declare const maybePromisedProject:\s*Project\s*\|\s*Promise<Project>;/),
-      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedString", /declare const promisedString:\s*Promise<string>;/),
-      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedNumber", /declare const promisedNumber:\s*Promise<number>;/),
-      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedVoid", /declare const promisedVoid:\s*Promise<void>;/),
-      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedStartDevModule", /declare const promisedStartDevModule:\s*Promise<Record<string,\s*unknown>>;/),
-      seam("type-tests/framework.test-d.ts", "Promise negative fixture projectRowsPromise", /declare const projectRowsPromise:\s*Promise<readonly Project\[]>;/),
-      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedBoolean", /declare const promisedBoolean:\s*Promise<boolean>;/),
-      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedStorageText", /declare const promisedStorageText:\s*Promise<string\s*\|\s*null>;/),
-      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedSqliteRow", /declare const promisedSqliteRow:\s*Promise<Collection\.SQLiteStorageRow\s*\|\s*null>;/),
-      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedChangeFeedSubscription", /declare const promisedChangeFeedSubscription:\s*Promise<Collection\.ChangeFeedSubscription>;/),
-      seam("type-tests/framework.test-d.ts", "Promise negative fixture startResponsePromise", /declare const startResponsePromise:\s*Promise<Response>;/),
-      seam("type-tests/react.test-d.ts", "React RuntimeProvider Promise observer negative fixture", /declare const reactRuntimeProviderObserverPromise:\s*Promise<void>;/),
-      seam("type-tests/solid.test-d.ts", "Solid RuntimeProvider Promise observer negative fixture", /declare const solidRuntimeProviderObserverPromise:\s*Promise<void>;/),
-      seam("type-tests/react-db.test-d.ts", "React DB preload observer Promise negative fixture", /declare const reactDbPreloadObserverPromise:\s*Promise<void>;/),
-      seam("type-tests/solid-db.test-d.ts", "Solid DB preload observer Promise negative fixture", /declare const solidDbPreloadObserverPromise:\s*Promise<void>;/),
-      seam("type-tests/framework.test-d.ts", "Start fetch package Promise facade assertion", /const rootFetchPromise:\s*Promise<Response>\s*=\s*rootFetchPromiseHandler/)
-    ]
+      seam(
+        "packages/start/src/fetch-adapter.ts",
+        "Fetch host Promise handler facade",
+        /export type StartFetchPromiseHandler\s*=\s*\(request:\s*Request\)\s*=>\s*Promise<Response>;/,
+      ),
+      seam(
+        "packages/start/src/start-host-runtime-runner.ts",
+        "generic host Promise runner return",
+        /export const runStartHostPromise[\s\S]*?\):\s*Promise<A>\s*=>/,
+      ),
+      seam(
+        "packages/start/src/start-vite-dev-ssr.ts",
+        "Vite ssrLoadModule host method",
+        /ssrLoadModule\(id:\s*string\):\s*Promise<Record<string,\s*unknown>>;/,
+      ),
+      seam(
+        "packages/start/src/start-vite-dev-ssr.ts",
+        "Vite transformIndexHtml host method",
+        /transformIndexHtml\(url:\s*string,\s*html:\s*string\):\s*Promise<string>;/,
+      ),
+      seam(
+        "packages/start/src/start-vite-dev-ssr.ts",
+        "Vite module loader host callback",
+        /f:\s*\(\)\s*=>\s*Promise<A>/,
+      ),
+      seam(
+        "packages/start/src/vite.ts",
+        "Vite plugin buildStart hook contract",
+        /readonly buildStart:\s*\(\)\s*=>\s*void\s*\|\s*Promise<void>;/,
+      ),
+      seam(
+        "packages/start/src/vite.ts",
+        "Vite diagnostics gate Promise hook",
+        /const runCurrentDiagnosticsGate\s*=\s*\(\):\s*Promise<void>\s*=>/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "Promise negative fixture promisedProject",
+        /declare const promisedProject:\s*Promise<Project>;/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "Promise negative fixture promisedProjects",
+        /declare const promisedProjects:\s*Promise<ReadonlyArray<Project>>;/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "Promise negative fixture maybePromisedProject",
+        /declare const maybePromisedProject:\s*Project\s*\|\s*Promise<Project>;/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "Promise negative fixture promisedString",
+        /declare const promisedString:\s*Promise<string>;/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "Promise negative fixture promisedNumber",
+        /declare const promisedNumber:\s*Promise<number>;/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "Promise negative fixture promisedVoid",
+        /declare const promisedVoid:\s*Promise<void>;/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "Promise negative fixture promisedStartDevModule",
+        /declare const promisedStartDevModule:\s*Promise<Record<string,\s*unknown>>;/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "Promise negative fixture projectRowsPromise",
+        /declare const projectRowsPromise:\s*Promise<readonly Project\[]>;/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "Promise negative fixture promisedBoolean",
+        /declare const promisedBoolean:\s*Promise<boolean>;/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "Promise negative fixture promisedStorageText",
+        /declare const promisedStorageText:\s*Promise<string\s*\|\s*null>;/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "Promise negative fixture promisedSqliteRow",
+        /declare const promisedSqliteRow:\s*Promise<Collection\.SQLiteStorageRow\s*\|\s*null>;/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "Promise negative fixture promisedChangeFeedSubscription",
+        /declare const promisedChangeFeedSubscription:\s*Promise<Collection\.ChangeFeedSubscription>;/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "Promise negative fixture startResponsePromise",
+        /declare const startResponsePromise:\s*Promise<Response>;/,
+      ),
+      seam(
+        "type-tests/react.test-d.ts",
+        "React RuntimeProvider Promise observer negative fixture",
+        /declare const reactRuntimeProviderObserverPromise:\s*Promise<void>;/,
+      ),
+      seam(
+        "type-tests/solid.test-d.ts",
+        "Solid RuntimeProvider Promise observer negative fixture",
+        /declare const solidRuntimeProviderObserverPromise:\s*Promise<void>;/,
+      ),
+      seam(
+        "type-tests/react-db.test-d.ts",
+        "React DB preload observer Promise negative fixture",
+        /declare const reactDbPreloadObserverPromise:\s*Promise<void>;/,
+      ),
+      seam(
+        "type-tests/solid-db.test-d.ts",
+        "Solid DB preload observer Promise negative fixture",
+        /declare const solidDbPreloadObserverPromise:\s*Promise<void>;/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "Start fetch package Promise facade assertion",
+        /const rootFetchPromise:\s*Promise<Response>\s*=\s*rootFetchPromiseHandler/,
+      ),
+    ],
   },
   {
     pattern: /\bPromiseLike\s*</g,
     name: "PromiseLike return type",
     seams: [
-      seam("packages/core/src/effect-like.ts", "EffectInput union Promise rejection helper", /type PromiseShapedMember[\s\S]*?Out extends PromiseLike<unknown>/),
-      seam("packages/start/src/streaming.ts", "ReadableStream finalizer host return contract", /export type StartResponseStreamRunner[\s\S]*?PromiseLike<A>;/)
-    ]
+      seam(
+        "packages/core/src/effect-like.ts",
+        "EffectInput union Promise rejection helper",
+        /type PromiseShapedMember[\s\S]*?Out extends PromiseLike<unknown>/,
+      ),
+      seam(
+        "packages/start/src/streaming.ts",
+        "ReadableStream finalizer host return contract",
+        /export type StartResponseStreamRunner[\s\S]*?PromiseLike<A>;/,
+      ),
+    ],
   },
   {
     pattern: /(?:^|[;{\n]\s*)(?:readonly\s+)?then\s*\??\s*(?:\(|:)/gm,
     name: "structural thenable type surface",
     seams: [
-      seam("packages/core/src/effect-like.ts", "EffectInput callable thenable type detector", /type CallableThenableMember[\s\S]*?readonly then\?:\s*infer Then/),
-      seam("packages/core/src/effect-like.ts", "EffectInput broad unknown non-thenable guard", /object\s*&\s*\{\s*readonly then\?: never;\s*readonly \[Effect\.TypeId\]\?: never\s*\}/),
-      seam("type-tests/framework.test-d.ts", "EffectInput callable thenable negative fixture", /declare const thenableProject:\s*\{ readonly then:\s*\(\) => void;/),
-      seam("type-tests/framework.test-d.ts", "EffectInput optional callable thenable negative fixture", /declare const optionalThenableProject:\s*\{ readonly then\?:\s*\(\) => void;/)
-    ]
-  }
+      seam(
+        "packages/core/src/effect-like.ts",
+        "EffectInput callable thenable type detector",
+        /type CallableThenableMember[\s\S]*?readonly then\?:\s*infer Then/,
+      ),
+      seam(
+        "packages/core/src/effect-like.ts",
+        "EffectInput broad unknown non-thenable guard",
+        /object\s*&\s*\{\s*readonly then\?: never;\s*readonly \[Effect\.TypeId\]\?: never\s*\}/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "EffectInput callable thenable negative fixture",
+        /declare const thenableProject:\s*\{\s*readonly then:\s*\(\) => void;/,
+      ),
+      seam(
+        "type-tests/framework.test-d.ts",
+        "EffectInput optional callable thenable negative fixture",
+        /declare const optionalThenableProject:\s*\{\s*readonly then\?:\s*\(\) => void;/,
+      ),
+    ],
+  },
 ];
 
-const staticMemberKeyPattern = (member) =>
-  "(?:['\"]" + member + "['\"]|`" + member + "`)";
+const staticMemberKeyPattern = (member) => "(?:['\"]" + member + "['\"]|`" + member + "`)";
 
 const memberAccessPattern = (member) =>
-  "(?:(?:\\?\\.\\s*|\\.\\s*)" + member + "\\b|(?:\\?\\.\\s*)?\\[\\s*" + staticMemberKeyPattern(member) + "\\s*\\])";
+  "(?:(?:\\?\\.\\s*|\\.\\s*)" +
+  member +
+  "\\b|(?:\\?\\.\\s*)?\\[\\s*" +
+  staticMemberKeyPattern(member) +
+  "\\s*\\])";
 
 const memberCallSuffixPattern =
   "(?:\\s*(?:\\?\\.\\s*)?(?:<[^>]+>\\s*)?\\(|\\s*\\)\\s*(?:\\?\\.\\s*)?(?:<[^>]+>\\s*)?\\(|\\s*\\)?\\s*(?:\\?\\.\\s*|\\.\\s*)(?:call|apply|bind)\\s*(?:\\?\\.\\s*)?\\()";
@@ -358,7 +510,7 @@ const promiseStaticMembers = [
   "resolve",
   "reject",
   "try",
-  "withResolvers"
+  "withResolvers",
 ];
 const promiseStaticMemberSet = new Set(promiseStaticMembers);
 const hostGlobalReceiverNames = new Set(["globalThis", "window", "self"]);
@@ -447,7 +599,7 @@ const bindingNames = (name) => {
   }
   if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
     return name.elements.flatMap((element) =>
-      ts.isBindingElement(element) ? bindingNames(element.name) : []
+      ts.isBindingElement(element) ? bindingNames(element.name) : [],
     );
   }
   return [];
@@ -459,13 +611,13 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     sourceText,
     ts.ScriptTarget.Latest,
     true,
-    scriptKindForFile(fileName)
+    scriptKindForFile(fileName),
   );
   const scopes = [
     new Map([
       ["Promise", promiseConstructorBinding],
-      ...[...hostGlobalReceiverNames].map((name) => [name, hostGlobalBinding])
-    ])
+      ...[...hostGlobalReceiverNames].map((name) => [name, hostGlobalBinding]),
+    ]),
   ];
   const findings = [];
 
@@ -588,7 +740,7 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
       return expression.elements.flatMap((element) =>
         ts.isSpreadElement(element)
           ? assignmentTargetNames(element.expression)
-          : assignmentTargetNames(element)
+          : assignmentTargetNames(element),
       );
     }
     return [];
@@ -645,7 +797,10 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
         setBinding(unwrappedTarget.text, promiseConstructorBinding);
       } else if (ts.isObjectLiteralExpression(unwrappedTarget)) {
         for (const nestedProperty of unwrappedTarget.properties) {
-          if (!ts.isShorthandPropertyAssignment(nestedProperty) && !ts.isPropertyAssignment(nestedProperty)) {
+          if (
+            !ts.isShorthandPropertyAssignment(nestedProperty) &&
+            !ts.isPropertyAssignment(nestedProperty)
+          ) {
             continue;
           }
           const nestedPropertyName = bindingNameText(nestedProperty.name);
@@ -683,7 +838,9 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
           if (!ts.isBindingElement(nestedElement)) {
             continue;
           }
-          const nestedPropertyName = bindingNameText(nestedElement.propertyName ?? nestedElement.name);
+          const nestedPropertyName = bindingNameText(
+            nestedElement.propertyName ?? nestedElement.name,
+          );
           if (nestedPropertyName !== undefined && promiseStaticMemberSet.has(nestedPropertyName)) {
             addFinding(nestedElement, promiseStaticExtractionName(nestedPropertyName));
           }
@@ -725,7 +882,10 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     }
 
     if (ts.isIdentifier(node.name)) {
-      setBinding(node.name.text, initializer === undefined ? false : bindingKindForInitializer(initializer));
+      setBinding(
+        node.name.text,
+        initializer === undefined ? false : bindingKindForInitializer(initializer),
+      );
     } else if (
       initializer !== undefined &&
       declaresPromiseConstructorFromHostGlobalObject(node.name, initializer)
@@ -769,12 +929,10 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     let parent = current.parent;
     while (
       parent !== undefined &&
-      (
-        ts.isParenthesizedExpression(parent) ||
+      (ts.isParenthesizedExpression(parent) ||
         ts.isAsExpression(parent) ||
         ts.isSatisfiesExpression(parent) ||
-        ts.isNonNullExpression(parent)
-      ) &&
+        ts.isNonNullExpression(parent)) &&
       parent.expression === current
     ) {
       current = parent;
@@ -877,24 +1035,36 @@ const banned = [
     pattern: new RegExp("\\b" + "async\\b", "g"),
     name: "async function syntax",
     seams: [
-      seam("docs/effect-ui-framework-comparison.md:83:snippet-3.ts", "React Router comparison action", /export async function action/)
-    ]
+      seam(
+        "docs/effect-ui-framework-comparison.md:83:snippet-3.ts",
+        "React Router comparison action",
+        /export async function action/,
+      ),
+    ],
   },
   { pattern: memberCallPattern("then"), name: "." + "then(...)" },
   {
     pattern: /(?<!\.)\bawait\b/g,
     name: "await keyword",
     seams: [
-      seam("docs/effect-ui-framework-comparison.md:83:snippet-3.ts", "React Router comparison formData await", /await request\.formData\(\)/),
-      seam("docs/effect-ui-framework-comparison.md:83:snippet-3.ts", "React Router comparison mutation await", /await renameProject\(name\)/)
-    ]
+      seam(
+        "docs/effect-ui-framework-comparison.md:83:snippet-3.ts",
+        "React Router comparison formData await",
+        /await request\.formData\(\)/,
+      ),
+      seam(
+        "docs/effect-ui-framework-comparison.md:83:snippet-3.ts",
+        "React Router comparison mutation await",
+        /await renameProject\(name\)/,
+      ),
+    ],
   },
   {
     pattern: memberCallPattern("catch"),
     name: "non-Effect ." + "catch(...)",
-    allow: isEffectStaticMemberAccess
+    allow: isEffectStaticMemberAccess,
   },
-  { pattern: memberCallPattern("finally"), name: "." + "finally(...)" }
+  { pattern: memberCallPattern("finally"), name: "." + "finally(...)" },
 ];
 
 const codeLines = (source) => {
@@ -957,7 +1127,7 @@ const codeLines = (source) => {
       if (current === "/" && next === "/") {
         break;
       }
-      if (current === "\"" || current === "'") {
+      if (current === '"' || current === "'") {
         quote = current;
         continue;
       }
@@ -996,8 +1166,7 @@ const codeLines = (source) => {
   });
 };
 
-const lineNumberAt = (source, offset) =>
-  source.slice(0, offset).split(/\r?\n/).length;
+const lineNumberAt = (source, offset) => source.slice(0, offset).split(/\r?\n/).length;
 
 const failSelfTest = (message) => {
   selfTestFailures.push(`Effect-first audit self-test failed: ${message}`);
@@ -1015,8 +1184,8 @@ const assertMarkdownSnippetExtraction = () => {
       "```",
       "```tsx",
       "<RuntimeProvider />",
-      "```"
-    ].join("\n")
+      "```",
+    ].join("\n"),
   );
   if (
     snippets.length !== 2 ||
@@ -1036,7 +1205,7 @@ const assertAuditPattern = (checkName, source, expectedMatches) => {
   const matches = source.match(check.pattern)?.length ?? 0;
   if (matches !== expectedMatches) {
     failSelfTest(
-      `${checkName} audit pattern self-test expected ${expectedMatches} matches but found ${matches}`
+      `${checkName} audit pattern self-test expected ${expectedMatches} matches but found ${matches}`,
     );
   }
 };
@@ -1064,7 +1233,7 @@ const assertBannedPattern = (checkName, source, expectedMatches) => {
   const matches = bannedMatches(check, source).length;
   if (matches !== expectedMatches) {
     failSelfTest(
-      `${checkName} banned audit pattern self-test expected ${expectedMatches} matches but found ${matches}`
+      `${checkName} banned audit pattern self-test expected ${expectedMatches} matches but found ${matches}`,
     );
   }
 };
@@ -1073,13 +1242,13 @@ const assertPromiseStaticBans = (source, expectedNames) => {
   const matches = analyzePromiseStaticBans("self-test.ts", source).map((match) => match.name);
   if (matches.length !== expectedNames.length) {
     failSelfTest(
-      `Promise static AST self-test expected ${expectedNames.length} matches but found ${matches.length}: ${matches.join(", ")}`
+      `Promise static AST self-test expected ${expectedNames.length} matches but found ${matches.length}: ${matches.join(", ")}`,
     );
   }
   for (let index = 0; index < expectedNames.length; index += 1) {
     if (matches[index] !== expectedNames[index]) {
       failSelfTest(
-        `Promise static AST self-test expected ${expectedNames.join(", ")} but found ${matches.join(", ")}`
+        `Promise static AST self-test expected ${expectedNames.join(", ")} but found ${matches.join(", ")}`,
       );
     }
   }
@@ -1091,38 +1260,58 @@ assertAuditPattern("Promise return type", "const value: Promise\n<string> = prom
 assertAuditPattern("PromiseLike return type", ") => void | PromiseLike <string>;", 1);
 assertAuditPattern("PromiseLike return type", "type Bad<T> = PromiseLike<T>;", 1);
 assertAuditPattern("PromiseLike return type", "interface Bad<T> extends PromiseLike<T> {}", 1);
-assertAuditPattern("structural thenable type surface", "interface Token<T> { then(resolve: (value: T) => void): void }", 1);
-assertAuditPattern("structural thenable type surface", "type Token<T> = { readonly then: (resolve: (value: T) => void) => void }", 1);
+assertAuditPattern(
+  "structural thenable type surface",
+  "interface Token<T> { then(resolve: (value: T) => void): void }",
+  1,
+);
+assertAuditPattern(
+  "structural thenable type surface",
+  "type Token<T> = { readonly then: (resolve: (value: T) => void) => void }",
+  1,
+);
 assertPromiseStaticBans("Promise\n.all([]);", ["Promise.all"]);
-assertPromiseStaticBans("Promise[\"all\"]([]);", ["Promise.all"]);
+assertPromiseStaticBans('Promise["all"]([]);', ["Promise.all"]);
 assertPromiseStaticBans("Promise[`all`]([]);", ["Promise.all"]);
-assertPromiseStaticBans("Promise[\"all\" as const]([]);", ["Promise.all"]);
-assertPromiseStaticBans("Promise[\"all\" satisfies string]([]);", ["Promise.all"]);
-assertPromiseStaticBans("Promise?.[\"all\"]?.([]);", ["Promise.all"]);
+assertPromiseStaticBans('Promise["all" as const]([]);', ["Promise.all"]);
+assertPromiseStaticBans('Promise["all" satisfies string]([]);', ["Promise.all"]);
+assertPromiseStaticBans('Promise?.["all"]?.([]);', ["Promise.all"]);
 assertPromiseStaticBans("Promise?.[`all`]?.([]);", ["Promise.all"]);
 assertPromiseStaticBans("(Promise).all([]);", ["Promise.all"]);
 assertPromiseStaticBans("(Promise.all)([]);", ["Promise.all"]);
 assertPromiseStaticBans("globalThis.Promise.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("window.Promise.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("self.Promise.all([]);", ["Promise.all"]);
-assertPromiseStaticBans("globalThis[\"Promise\"][\"all\"]([]);", ["Promise.all"]);
-assertPromiseStaticBans("self[\"Promise\"][\"all\"]([]);", ["Promise.all"]);
+assertPromiseStaticBans('globalThis["Promise"]["all"]([]);', ["Promise.all"]);
+assertPromiseStaticBans('self["Promise"]["all"]([]);', ["Promise.all"]);
 assertPromiseStaticBans("const host = globalThis; host.Promise.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const host = window; host.Promise.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const host = self; host.Promise.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("let host; host = globalThis; host.Promise.all([]);", ["Promise.all"]);
-assertPromiseStaticBans("let host; host = self; new host.Promise(() => undefined);", ["new Promise"]);
-assertPromiseStaticBans("const host = globalThis; const P = host.Promise; P.resolve(value);", ["Promise.resolve"]);
-assertPromiseStaticBans("const host = globalThis; let P; P = host.Promise; P.all([]);", ["Promise.all"]);
-assertPromiseStaticBans("const host = globalThis; const all = host.Promise.all; all([]);", ["Promise.all.extraction"]);
-assertPromiseStaticBans("const host = globalThis; let all; all = host.Promise.all; all([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans("let host; host = self; new host.Promise(() => undefined);", [
+  "new Promise",
+]);
+assertPromiseStaticBans("const host = globalThis; const P = host.Promise; P.resolve(value);", [
+  "Promise.resolve",
+]);
+assertPromiseStaticBans("const host = globalThis; let P; P = host.Promise; P.all([]);", [
+  "Promise.all",
+]);
+assertPromiseStaticBans("const host = globalThis; const all = host.Promise.all; all([]);", [
+  "Promise.all.extraction",
+]);
+assertPromiseStaticBans("const host = globalThis; let all; all = host.Promise.all; all([]);", [
+  "Promise.all.extraction",
+]);
 assertPromiseStaticBans("const P = Promise; P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const P = globalThis.Promise; P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const P = window.Promise; const Q = P; Q.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const P = self.Promise; const Q = P; Q.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("let P; P = self.Promise; P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("let P; P = globalThis.Promise; new P(() => undefined);", ["new Promise"]);
-assertPromiseStaticBans("const P = Promise; function run(P) { P.all([]); } P.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("const P = Promise; function run(P) { P.all([]); } P.all([]);", [
+  "Promise.all",
+]);
 assertPromiseStaticBans("const Promise = { all() {} }; Promise.all([]);", []);
 assertPromiseStaticBans("Promise.allSettled([]);", ["Promise.allSettled"]);
 assertPromiseStaticBans("Promise.any([]);", ["Promise.any"]);
@@ -1138,67 +1327,120 @@ assertPromiseStaticBans("Promise.all.apply(Promise, [[]]);", ["Promise.all"]);
 assertPromiseStaticBans("Promise.all.bind(Promise);", ["Promise.all"]);
 assertPromiseStaticBans("const all = Promise.all; all([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("let all; all = Promise.all;", ["Promise.all.extraction"]);
-assertPromiseStaticBans("const all = Promise[\"all\"]; all([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans('const all = Promise["all"]; all([]);', ["Promise.all.extraction"]);
 assertPromiseStaticBans("const all = Promise[`all`]; all([]);", ["Promise.all.extraction"]);
-assertPromiseStaticBans("const all = Promise[\"all\" as const]; all([]);", ["Promise.all.extraction"]);
-assertPromiseStaticBans("const all = Promise[\"all\" satisfies string]; all([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans('const all = Promise["all" as const]; all([]);', [
+  "Promise.all.extraction",
+]);
+assertPromiseStaticBans('const all = Promise["all" satisfies string]; all([]);', [
+  "Promise.all.extraction",
+]);
 assertPromiseStaticBans("const { all } = Promise; all([]);", ["Promise.all.extraction"]);
-assertPromiseStaticBans("const { all: promiseAll } = Promise; promiseAll([]);", ["Promise.all.extraction"]);
-assertPromiseStaticBans("const P = Promise; const { all } = P; all([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans("const { all: promiseAll } = Promise; promiseAll([]);", [
+  "Promise.all.extraction",
+]);
+assertPromiseStaticBans("const P = Promise; const { all } = P; all([]);", [
+  "Promise.all.extraction",
+]);
 assertPromiseStaticBans("let all; ({ all } = Promise); all([]);", ["Promise.all.extraction"]);
-assertPromiseStaticBans("let promiseAll; ({ all: promiseAll } = Promise); promiseAll([]);", ["Promise.all.extraction"]);
-assertPromiseStaticBans("const P = Promise; let resolve; ({ resolve } = P); resolve(value);", ["Promise.resolve.extraction"]);
-assertPromiseStaticBans("const race = globalThis.Promise.race; race([]);", ["Promise.race.extraction"]);
-assertPromiseStaticBans("const resolve = window.Promise.resolve; resolve(value);", ["Promise.resolve.extraction"]);
-assertPromiseStaticBans("const resolve = self.Promise.resolve; resolve(value);", ["Promise.resolve.extraction"]);
-assertPromiseStaticBans("const promiseTry = Promise.try; promiseTry(() => value);", ["Promise.try.extraction"]);
-assertPromiseStaticBans("const withResolvers = Promise[`withResolvers`]; withResolvers();", ["Promise.withResolvers.extraction"]);
+assertPromiseStaticBans("let promiseAll; ({ all: promiseAll } = Promise); promiseAll([]);", [
+  "Promise.all.extraction",
+]);
+assertPromiseStaticBans("const P = Promise; let resolve; ({ resolve } = P); resolve(value);", [
+  "Promise.resolve.extraction",
+]);
+assertPromiseStaticBans("const race = globalThis.Promise.race; race([]);", [
+  "Promise.race.extraction",
+]);
+assertPromiseStaticBans("const resolve = window.Promise.resolve; resolve(value);", [
+  "Promise.resolve.extraction",
+]);
+assertPromiseStaticBans("const resolve = self.Promise.resolve; resolve(value);", [
+  "Promise.resolve.extraction",
+]);
+assertPromiseStaticBans("const promiseTry = Promise.try; promiseTry(() => value);", [
+  "Promise.try.extraction",
+]);
+assertPromiseStaticBans("const withResolvers = Promise[`withResolvers`]; withResolvers();", [
+  "Promise.withResolvers.extraction",
+]);
 assertPromiseStaticBans("Reflect.apply(Promise.all, Promise, [[]]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("[Promise.resolve];", ["Promise.resolve.extraction"]);
-assertPromiseStaticBans("const table = { run: Promise.withResolvers };", ["Promise.withResolvers.extraction"]);
-assertPromiseStaticBans("Reflect.apply(globalThis.Promise.race, Promise, [[]]);", ["Promise.race.extraction"]);
+assertPromiseStaticBans("const table = { run: Promise.withResolvers };", [
+  "Promise.withResolvers.extraction",
+]);
+assertPromiseStaticBans("Reflect.apply(globalThis.Promise.race, Promise, [[]]);", [
+  "Promise.race.extraction",
+]);
 assertPromiseStaticBans("new Promise(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("new globalThis.Promise(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("new self.Promise(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("new (Promise)(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("const P = Promise; new P(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("const { Promise: P } = globalThis; P.all([]);", ["Promise.all"]);
-assertPromiseStaticBans("const { Promise } = window; new Promise(() => undefined);", ["new Promise"]);
+assertPromiseStaticBans("const { Promise } = window; new Promise(() => undefined);", [
+  "new Promise",
+]);
 assertPromiseStaticBans("const { Promise } = self; new Promise(() => undefined);", ["new Promise"]);
-assertPromiseStaticBans("const { Promise: { all } } = globalThis; all([]);", ["Promise.all.extraction"]);
-assertPromiseStaticBans("const { Promise: { resolve } } = self; resolve(value);", ["Promise.resolve.extraction"]);
-assertPromiseStaticBans("const host = globalThis; const { Promise: P } = host; P.all([]);", ["Promise.all"]);
-assertPromiseStaticBans("const host = window; const { Promise } = host; new Promise(() => undefined);", ["new Promise"]);
-assertPromiseStaticBans("const host = self; const { Promise: { all } } = host; all([]);", ["Promise.all.extraction"]);
-assertPromiseStaticBans("const { [\"Promise\"]: P } = globalThis; P.all([]);", ["Promise.all"]);
-assertPromiseStaticBans("const { [\"Promise\"]: P } = self; P.resolve(value);", ["Promise.resolve"]);
+assertPromiseStaticBans("const { Promise: { all } } = globalThis; all([]);", [
+  "Promise.all.extraction",
+]);
+assertPromiseStaticBans("const { Promise: { resolve } } = self; resolve(value);", [
+  "Promise.resolve.extraction",
+]);
+assertPromiseStaticBans("const host = globalThis; const { Promise: P } = host; P.all([]);", [
+  "Promise.all",
+]);
+assertPromiseStaticBans(
+  "const host = window; const { Promise } = host; new Promise(() => undefined);",
+  ["new Promise"],
+);
+assertPromiseStaticBans("const host = self; const { Promise: { all } } = host; all([]);", [
+  "Promise.all.extraction",
+]);
+assertPromiseStaticBans('const { ["Promise"]: P } = globalThis; P.all([]);', ["Promise.all"]);
+assertPromiseStaticBans('const { ["Promise"]: P } = self; P.resolve(value);', ["Promise.resolve"]);
 assertPromiseStaticBans("let P; ({ Promise: P } = globalThis); P.all([]);", ["Promise.all"]);
-assertPromiseStaticBans("let P; ({ Promise: P } = window); new P(() => undefined);", ["new Promise"]);
-assertPromiseStaticBans("let all; ({ Promise: { all } } = globalThis); all([]);", ["Promise.all.extraction"]);
-assertPromiseStaticBans("let resolve; ({ [\"Promise\"]: { resolve } } = self); resolve(value);", ["Promise.resolve.extraction"]);
-assertPromiseStaticBans("let host; host = globalThis; let P; ({ Promise: P } = host); P.all([]);", ["Promise.all"]);
-assertPromiseStaticBans("let host; host = self; let all; ({ Promise: { all } } = host); all([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans("let P; ({ Promise: P } = window); new P(() => undefined);", [
+  "new Promise",
+]);
+assertPromiseStaticBans("let all; ({ Promise: { all } } = globalThis); all([]);", [
+  "Promise.all.extraction",
+]);
+assertPromiseStaticBans('let resolve; ({ ["Promise"]: { resolve } } = self); resolve(value);', [
+  "Promise.resolve.extraction",
+]);
+assertPromiseStaticBans("let host; host = globalThis; let P; ({ Promise: P } = host); P.all([]);", [
+  "Promise.all",
+]);
+assertPromiseStaticBans("let host; host = self; let all; ({ Promise: { all } } = host); all([]);", [
+  "Promise.all.extraction",
+]);
 assertPromiseStaticBans("const Promise = class {}; new Promise(() => undefined);", []);
 assertBannedPattern(".then(...)", "client.then<string>(() => undefined);", 1);
-assertBannedPattern(".then(...)", "client[\"then\"](() => undefined);", 1);
+assertBannedPattern(".then(...)", 'client["then"](() => undefined);', 1);
 assertBannedPattern(".then(...)", "client[`then`](() => undefined);", 1);
 assertBannedPattern(".then(...)", "client.then\n<string>(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client.then?.(() => undefined);", 1);
-assertBannedPattern(".then(...)", "client[\"then\"]?.(() => undefined);", 1);
+assertBannedPattern(".then(...)", 'client["then"]?.(() => undefined);', 1);
 assertBannedPattern(".then(...)", "(client.then)(() => undefined);", 1);
-assertBannedPattern(".then(...)", "(client[\"then\"])(() => undefined);", 1);
+assertBannedPattern(".then(...)", '(client["then"])(() => undefined);', 1);
 assertBannedPattern(".then(...)", "client.then.call(client, () => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", "Effect.catch(() => Effect.void);", 0);
 assertBannedPattern("non-Effect .catch(...)", "Effect.catch<Error>(() => Effect.void);", 0);
 assertBannedPattern("non-Effect .catch(...)", "Effect\n.catch<Error>(() => Effect.void);", 0);
 assertBannedPattern("non-Effect .catch(...)", "client.catch(() => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", "client.catch<Error>(() => undefined);", 1);
-assertBannedPattern("non-Effect .catch(...)", "client[\"catch\"](() => undefined);", 1);
+assertBannedPattern("non-Effect .catch(...)", 'client["catch"](() => undefined);', 1);
 assertBannedPattern("non-Effect .catch(...)", "client[`catch`](() => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", "client.catch.call(client, () => undefined);", 1);
-assertBannedPattern("non-Effect .catch(...)", codeLines("`${client.catch(() => undefined)}`;")[0], 1);
+assertBannedPattern(
+  "non-Effect .catch(...)",
+  codeLines("`${client.catch(() => undefined)}`;")[0],
+  1,
+);
 assertBannedPattern(".finally(...)", "client.finally<void>(() => undefined);", 1);
-assertBannedPattern(".finally(...)", "client[\"finally\"](() => undefined);", 1);
+assertBannedPattern(".finally(...)", 'client["finally"](() => undefined);', 1);
 assertBannedPattern(".finally(...)", "client[`finally`](() => undefined);", 1);
 assertBannedPattern(".finally(...)", "client.finally.call(client, () => undefined);", 1);
 assertBannedPattern("async function syntax", "async function run() {}", 1);
@@ -1221,12 +1463,14 @@ const rangesForSeam = (source, check, allowedSeam) => {
     const pattern = globalPattern(check.pattern);
     const patternMatches = [...anchorSource.matchAll(pattern)];
     if (patternMatches.length !== 1) {
-      failures.push(`${allowedSeam.file} seam "${allowedSeam.name}" contains ${patternMatches.length} ${check.name} occurrences; expected exactly 1`);
+      failures.push(
+        `${allowedSeam.file} seam "${allowedSeam.name}" contains ${patternMatches.length} ${check.name} occurrences; expected exactly 1`,
+      );
     } else {
       ranges.push({
         start: anchorMatch.index,
         end: anchorMatch.index + anchorSource.length,
-        seam: allowedSeam
+        seam: allowedSeam,
       });
     }
     if (anchorMatch[0].length === 0) {
@@ -1236,7 +1480,9 @@ const rangesForSeam = (source, check, allowedSeam) => {
   if (ranges.length === 0) {
     failures.push(`${allowedSeam.file} seam "${allowedSeam.name}" for ${check.name} was not found`);
   } else if (ranges.length > 1) {
-    failures.push(`${allowedSeam.file} seam "${allowedSeam.name}" for ${check.name} matched ${ranges.length} anchors; expected exactly 1`);
+    failures.push(
+      `${allowedSeam.file} seam "${allowedSeam.name}" for ${check.name} matched ${ranges.length} anchors; expected exactly 1`,
+    );
   }
   return ranges;
 };
@@ -1278,7 +1524,9 @@ for (const file of sourceFiles) {
     let match;
     while ((match = check.pattern.exec(source)) !== null) {
       if (!inAnchoredRange(anchoredRanges, match.index)) {
-        failures.push(`${relativeFile}:${lineNumberAt(source, match.index)} uses ${check.name} outside an anchored exception`);
+        failures.push(
+          `${relativeFile}:${lineNumberAt(source, match.index)} uses ${check.name} outside an anchored exception`,
+        );
       }
 
       if (match[0].length === 0) {
@@ -1293,7 +1541,9 @@ for (const file of sourceFiles) {
     let match;
     while ((match = check.pattern.exec(source)) !== null) {
       if (!inAnchoredRange(anchoredRanges, match.index)) {
-        failures.push(`${relativeFile}:${lineNumberAt(source, match.index)} uses ${check.name} outside an anchored allowed occurrence`);
+        failures.push(
+          `${relativeFile}:${lineNumberAt(source, match.index)} uses ${check.name} outside an anchored allowed occurrence`,
+        );
       }
 
       if (match[0].length === 0) {
@@ -1306,7 +1556,9 @@ for (const file of sourceFiles) {
 for (const check of allowed) {
   for (const allowedSeam of check.seams) {
     if (!sourceFileNames.has(allowedSeam.file) && !existsSync(join(root, allowedSeam.file))) {
-      failures.push(`${allowedSeam.file} seam "${allowedSeam.name}" for ${check.name} points at a missing file`);
+      failures.push(
+        `${allowedSeam.file} seam "${allowedSeam.name}" for ${check.name} points at a missing file`,
+      );
     }
   }
 }
@@ -1317,7 +1569,9 @@ for (const check of banned) {
   }
   for (const allowedSeam of check.seams) {
     if (!sourceFileNames.has(allowedSeam.file) && !existsSync(join(root, allowedSeam.file))) {
-      failures.push(`${allowedSeam.file} seam "${allowedSeam.name}" for ${check.name} points at a missing file`);
+      failures.push(
+        `${allowedSeam.file} seam "${allowedSeam.name}" for ${check.name} points at a missing file`,
+      );
     }
   }
 }
@@ -1333,14 +1587,14 @@ if (failures.length > 0) {
       });
       return yield* Effect.fail({
         _tag: "EffectFirstAuditFailure",
-        failures
+        failures,
       });
-    })
+    }),
   );
 } else {
   runScriptMainEffect(
     Effect.sync(() => {
       console.log("Effect-first audit passed.");
-    })
+    }),
   );
 }

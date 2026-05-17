@@ -17,14 +17,14 @@ const root = document.getElementById("root");
 if (!root) {
   throw new ProjectConsoleRootMissing({
     id: "root",
-    guidance: "Add a root element with id=\"root\" to the document shell."
+    guidance: 'Add a root element with id="root" to the document shell.',
   });
 }
 
 const runtime = createEffectRuntime(Layer.mergeAll(BrowserRpcLive, ProjectApiLive));
 hydrateFromDocument(document, undefined, {
   runtime,
-  collections: [ProjectSummaries]
+  collections: [ProjectSummaries],
 });
 
 const Root = () => (

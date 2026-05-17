@@ -1,18 +1,18 @@
 import type {
   CollectionKey,
   CollectionMutation,
-  CollectionTransaction
+  CollectionTransaction,
 } from "./collection-contract.js";
 import {
   pendingEntryFromSnapshot,
   pendingMutationSnapshot,
-  pendingMutationSnapshots
+  pendingMutationSnapshots,
 } from "./collection-snapshot-codec.js";
 import {
   bumpCollectionState,
   type CollectionState,
   type PendingMutationEntry,
-  type StoredRow
+  type StoredRow,
 } from "./collection-state.js";
 import { cloneFrozenCollectionTransaction } from "./collection-value-detachment.js";
 
@@ -21,17 +21,17 @@ const transactionIdPattern = /^ctx_(\d+)$/;
 export const createCollectionTransaction = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
   collection: string,
-  mutations: ReadonlyArray<CollectionMutation<A, K>>
+  mutations: ReadonlyArray<CollectionMutation<A, K>>,
 ): CollectionTransaction<A, K> =>
   cloneFrozenCollectionTransaction({
     id: `ctx_${++state.nextTransactionId}`,
     collection,
-    mutations
+    mutations,
   });
 
 export const advanceCollectionTransactionIdentity = (
   state: CollectionState<any, any, any>,
-  id: string
+  id: string,
 ): void => {
   const matched = transactionIdPattern.exec(id);
   if (!matched) {
@@ -44,17 +44,13 @@ export const advanceCollectionTransactionIdentity = (
   }
 };
 
-export {
-  pendingEntryFromSnapshot,
-  pendingMutationSnapshot,
-  pendingMutationSnapshots
-};
+export { pendingEntryFromSnapshot, pendingMutationSnapshot, pendingMutationSnapshots };
 
 export const enqueuePendingMutation = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
   mutation: CollectionTransaction<A, K>,
   rollbackRows: ReadonlyMap<K, StoredRow<A, K> | undefined>,
-  createdAt: number
+  createdAt: number,
 ): PendingMutationEntry<A, K> => {
   const existing = state.pendingMutations.get(mutation.id);
   if (existing) {
@@ -66,7 +62,7 @@ export const enqueuePendingMutation = <A extends object, K extends CollectionKey
     rollbackRows: new Map(rollbackRows),
     createdAt,
     attempts: 0,
-    activeAttempt: undefined
+    activeAttempt: undefined,
   };
   state.pendingMutations.set(mutation.id, entry);
   bumpCollectionState(state);
@@ -75,7 +71,7 @@ export const enqueuePendingMutation = <A extends object, K extends CollectionKey
 
 export const dequeuePendingMutation = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
-  id: string
+  id: string,
 ): void => {
   if (state.pendingMutations.delete(id)) {
     bumpCollectionState(state);
@@ -83,7 +79,7 @@ export const dequeuePendingMutation = <A extends object, K extends CollectionKey
 };
 
 export const recordPendingMutationAttempt = <A extends object, K extends CollectionKey>(
-  entry: PendingMutationEntry<A, K>
+  entry: PendingMutationEntry<A, K>,
 ): CollectionTransaction<A, K> => {
   entry.attempts += 1;
   return entry.transaction;

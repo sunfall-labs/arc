@@ -3,14 +3,14 @@ import type {
   DevtoolsRequestTraceAction,
   DevtoolsRuntimeEvent,
   DevtoolsSerializationPolicy,
-  DevtoolsSnapshotAction
+  DevtoolsSnapshotAction,
 } from "./devtools-contract.js";
 import { toDevtoolsSerializableFingerprint } from "./serialization.js";
 
 const factIdentitySerializationPolicy = {
   maxDepth: 8,
   maxEntries: 50,
-  maxStringLength: 1_000
+  maxStringLength: 1_000,
 } satisfies DevtoolsSerializationPolicy;
 
 /**
@@ -43,7 +43,7 @@ export const stableFactFingerprint = (fact: unknown): string | undefined => {
  * bounded history trimming cannot retarget runtime events to later duplicates.
  */
 export const firstDevtoolsFactIndexes = <Fact>(
-  facts: ReadonlyArray<Fact>
+  facts: ReadonlyArray<Fact>,
 ): ReadonlyMap<string, number> => {
   const indexes = new Map<string, number>();
   facts.forEach((fact, index) => {
@@ -63,7 +63,7 @@ export const firstDevtoolsFactIndexes = <Fact>(
  */
 export const matchingDevtoolsFactIndex = <Fact>(
   indexes: ReadonlyMap<string, number>,
-  fact: Fact
+  fact: Fact,
 ): number | undefined => {
   const fingerprint = stableFactFingerprint(fact);
   return fingerprint === undefined ? undefined : indexes.get(fingerprint);
@@ -77,28 +77,25 @@ export const matchingDevtoolsFactIndex = <Fact>(
  */
 export const findMatchingDevtoolsFactIndex = <Fact>(
   facts: ReadonlyArray<Fact>,
-  fact: Fact
-): number | undefined =>
-  matchingDevtoolsFactIndex(firstDevtoolsFactIndexes(facts), fact);
+  fact: Fact,
+): number | undefined => matchingDevtoolsFactIndex(firstDevtoolsFactIndexes(facts), fact);
 
 export const rebaseInvalidationIndexes = (
   indexes: ReadonlyArray<number> | undefined,
-  dropped: number
+  dropped: number,
 ): ReadonlyArray<number> | undefined => {
   if (indexes === undefined) {
     return undefined;
   }
 
-  const rebased = indexes
-    .map((index) => index - dropped)
-    .filter((index) => index >= 0);
+  const rebased = indexes.map((index) => index - dropped).filter((index) => index >= 0);
 
   return rebased.length === 0 ? undefined : rebased;
 };
 
 export const rebaseSnapshotActionInvalidations = (
   actions: ReadonlyArray<DevtoolsSnapshotAction>,
-  dropped: number
+  dropped: number,
 ): ReadonlyArray<DevtoolsSnapshotAction> =>
   actions.map((action) => {
     const invalidationIndexes = rebaseInvalidationIndexes(action.invalidationIndexes, dropped);
@@ -107,14 +104,12 @@ export const rebaseSnapshotActionInvalidations = (
     }
 
     const { invalidationIndexes: _dropped, ...rest } = action;
-    return invalidationIndexes === undefined
-      ? rest
-      : { ...rest, invalidationIndexes };
+    return invalidationIndexes === undefined ? rest : { ...rest, invalidationIndexes };
   });
 
 const rebaseRequestTraceActionInvalidations = (
   action: DevtoolsRequestTraceAction,
-  dropped: number
+  dropped: number,
 ): DevtoolsRequestTraceAction => {
   const invalidationIndexes = rebaseInvalidationIndexes(action.invalidationIndexes, dropped);
   if (invalidationIndexes === action.invalidationIndexes) {
@@ -122,27 +117,22 @@ const rebaseRequestTraceActionInvalidations = (
   }
 
   const { invalidationIndexes: _dropped, ...rest } = action;
-  return invalidationIndexes === undefined
-    ? rest
-    : { ...rest, invalidationIndexes };
+  return invalidationIndexes === undefined ? rest : { ...rest, invalidationIndexes };
 };
 
 export const rebaseRequestTraceInvalidations = (
   traces: ReadonlyArray<DevtoolsRequestTrace> | undefined,
-  dropped: number
+  dropped: number,
 ): ReadonlyArray<DevtoolsRequestTrace> | undefined =>
   traces?.map((trace) => {
-    const actions = trace.actions.map((action) => rebaseRequestTraceActionInvalidations(action, dropped));
+    const actions = trace.actions.map((action) =>
+      rebaseRequestTraceActionInvalidations(action, dropped),
+    );
     const changed = actions.some((action, index) => action !== trace.actions[index]);
-    return changed
-      ? { ...trace, actions }
-      : trace;
+    return changed ? { ...trace, actions } : trace;
   });
 
-export const rebaseFactIndex = (
-  index: number | undefined,
-  dropped: number
-): number | undefined => {
+export const rebaseFactIndex = (index: number | undefined, dropped: number): number | undefined => {
   if (index === undefined) {
     return undefined;
   }
@@ -153,7 +143,7 @@ export const rebaseFactIndex = (
 
 export const rebaseRuntimeEventInvalidations = (
   events: ReadonlyArray<DevtoolsRuntimeEvent> | undefined,
-  dropped: number
+  dropped: number,
 ): ReadonlyArray<DevtoolsRuntimeEvent> | undefined =>
   events?.map((event) => {
     if (event._tag === "ActionState") {
@@ -163,17 +153,13 @@ export const rebaseRuntimeEventInvalidations = (
       }
 
       const { invalidationIndexes: _dropped, ...rest } = event;
-      return invalidationIndexes === undefined
-        ? rest
-        : { ...rest, invalidationIndexes };
+      return invalidationIndexes === undefined ? rest : { ...rest, invalidationIndexes };
     }
 
     if (event._tag !== "Invalidation") {
       if (event._tag === "RequestTrace") {
         const trace = rebaseRequestTraceInvalidations([event.trace], dropped)?.[0] ?? event.trace;
-        return trace === event.trace
-          ? event
-          : { ...event, trace };
+        return trace === event.trace ? event : { ...event, trace };
       }
 
       return event;
@@ -185,14 +171,12 @@ export const rebaseRuntimeEventInvalidations = (
     }
 
     const { invalidationIndex: _dropped, ...rest } = event;
-    return invalidationIndex === undefined
-      ? rest
-      : { ...rest, invalidationIndex };
+    return invalidationIndex === undefined ? rest : { ...rest, invalidationIndex };
   });
 
 export const rebaseRuntimeEventRoutePlans = (
   events: ReadonlyArray<DevtoolsRuntimeEvent> | undefined,
-  dropped: number
+  dropped: number,
 ): ReadonlyArray<DevtoolsRuntimeEvent> | undefined =>
   events?.map((event) => {
     if (event._tag !== "RoutePlan") {
@@ -205,28 +189,29 @@ export const rebaseRuntimeEventRoutePlans = (
     }
 
     const { routePlanIndex: _dropped, ...rest } = event;
-    return routePlanIndex === undefined
-      ? rest
-      : { ...rest, routePlanIndex };
+    return routePlanIndex === undefined ? rest : { ...rest, routePlanIndex };
   });
 
 export const ensureRequestTraceId = (
   trace: DevtoolsRequestTrace,
-  fallbackId: string
+  fallbackId: string,
 ): DevtoolsRequestTrace =>
   trace.request.id === undefined
-    ? Object.defineProperties({}, {
-        ...Object.getOwnPropertyDescriptors(trace),
-        request: {
-          value: {
-            ...trace.request,
-            id: fallbackId
+    ? (Object.defineProperties(
+        {},
+        {
+          ...Object.getOwnPropertyDescriptors(trace),
+          request: {
+            value: {
+              ...trace.request,
+              id: fallbackId,
+            },
+            enumerable: true,
+            configurable: true,
+            writable: true,
           },
-          enumerable: true,
-          configurable: true,
-          writable: true
-        }
-      }) as DevtoolsRequestTrace
+        },
+      ) as DevtoolsRequestTrace)
     : trace;
 
 export const requestTraceSequence = (id: string | undefined): number | undefined => {
@@ -243,20 +228,23 @@ const requestTraceFingerprint = (trace: DevtoolsRequestTrace): string =>
     trace.request.method,
     trace.request.url,
     trace.request.path,
-    trace.request.transport
+    trace.request.transport,
   ]);
 
 const requestTraceIdentityFingerprint = (trace: DevtoolsRequestTrace): string => {
   const { id: _id, ...request } = trace.request;
-  const withoutRequestId = Object.defineProperties({}, {
-    ...Object.getOwnPropertyDescriptors(trace),
-    request: {
-      value: request,
-      enumerable: true,
-      configurable: true,
-      writable: true
-    }
-  });
+  const withoutRequestId = Object.defineProperties(
+    {},
+    {
+      ...Object.getOwnPropertyDescriptors(trace),
+      request: {
+        value: request,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      },
+    },
+  );
   return stableFactFingerprint(withoutRequestId) ?? requestTraceFingerprint(trace);
 };
 
@@ -268,7 +256,7 @@ interface ImportedRequestTraceId {
 const pushImportedRequestTraceId = (
   map: Map<string, Array<ImportedRequestTraceId>>,
   fingerprint: string,
-  imported: ImportedRequestTraceId
+  imported: ImportedRequestTraceId,
 ): void => {
   const ids = map.get(fingerprint);
   if (ids === undefined) {
@@ -279,7 +267,7 @@ const pushImportedRequestTraceId = (
 };
 
 const consumeImportedRequestTraceId = (
-  ids: Array<ImportedRequestTraceId> | undefined
+  ids: Array<ImportedRequestTraceId> | undefined,
 ): string | undefined => {
   const imported = ids?.find((id) => !id.consumed);
   if (imported === undefined) {
@@ -300,7 +288,7 @@ const consumeImportedRequestTraceId = (
  */
 export const normalizeRequestTraceFacts = (
   requestTraceInputs: ReadonlyArray<DevtoolsRequestTrace> = [],
-  eventInputs: ReadonlyArray<DevtoolsRuntimeEvent> = []
+  eventInputs: ReadonlyArray<DevtoolsRuntimeEvent> = [],
 ): {
   readonly requestTraces: ReadonlyArray<DevtoolsRequestTrace>;
   readonly events: ReadonlyArray<DevtoolsRuntimeEvent>;
@@ -337,10 +325,18 @@ export const normalizeRequestTraceFacts = (
     const normalized = normalizeTrace(trace);
     const imported = {
       id: normalized.request.id!,
-      consumed: false
+      consumed: false,
     };
-    pushImportedRequestTraceId(importedIdsByTraceFingerprint, requestTraceIdentityFingerprint(trace), imported);
-    pushImportedRequestTraceId(importedIdsByRequestFingerprint, requestTraceFingerprint(trace), imported);
+    pushImportedRequestTraceId(
+      importedIdsByTraceFingerprint,
+      requestTraceIdentityFingerprint(trace),
+      imported,
+    );
+    pushImportedRequestTraceId(
+      importedIdsByRequestFingerprint,
+      requestTraceFingerprint(trace),
+      imported,
+    );
     return normalized;
   });
   const events = eventInputs.map((event) => {
@@ -349,11 +345,15 @@ export const normalizeRequestTraceFacts = (
     }
 
     const importedId =
-      consumeImportedRequestTraceId(importedIdsByTraceFingerprint.get(requestTraceIdentityFingerprint(event.trace))) ??
-      consumeImportedRequestTraceId(importedIdsByRequestFingerprint.get(requestTraceFingerprint(event.trace)));
+      consumeImportedRequestTraceId(
+        importedIdsByTraceFingerprint.get(requestTraceIdentityFingerprint(event.trace)),
+      ) ??
+      consumeImportedRequestTraceId(
+        importedIdsByRequestFingerprint.get(requestTraceFingerprint(event.trace)),
+      );
     return {
       ...event,
-      trace: ensureRequestTraceId(event.trace, importedId ?? allocateId())
+      trace: ensureRequestTraceId(event.trace, importedId ?? allocateId()),
     };
   });
   const tracesById = new Map<string, DevtoolsRequestTrace>();
@@ -376,6 +376,6 @@ export const normalizeRequestTraceFacts = (
   return {
     requestTraces: Array.from(tracesById.values()),
     events,
-    nextRequestTraceSequence: sequence
+    nextRequestTraceSequence: sequence,
   };
 };

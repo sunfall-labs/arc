@@ -84,16 +84,16 @@ Last evidence pass: May 17, 2026.
 ## Core Runtime And Reactivity
 
 - [x] `Signal` semantics are documented, tested, and ergonomic for latest-value
-  reactivity and stream interop.
+      reactivity and stream interop.
   - Evidence: `packages/core/test/signal.test.ts`; docs in
     `docs/architecture.md` and `docs/effect-style.md`.
 - [x] `Resource` lifecycle covers initial, pending, refreshing, stale, success,
-  failure, previous value, hydration, GC, retry, and event publication.
+      failure, previous value, hydration, GC, retry, and event publication.
   - Evidence: `packages/core/test/resource.test.ts` covers status inspection,
     stale/GC timing, refresh-with-previous, typed failures, hydration cache
     population, retry, delete, and PubSub events.
 - [x] `Resource` invalidation remains semantic through tags/refs and publishes
-  inspectable invalidation plans.
+      inspectable invalidation plans.
   - Evidence: `packages/core/test/resource.test.ts`,
     `packages/core/test/action.test.ts`, and `packages/devtools/test/devtools.test.ts`.
 - [x] `Resource` hydration populates visible state and Effect-backed cache state.
@@ -101,24 +101,24 @@ Last evidence pass: May 17, 2026.
     `packages/core/test/resource.test.ts`; Start hydration tests also prove no
     duplicate resource load after hydration.
 - [x] `Action` lifecycle covers idle, pending, success, failure, typed input,
-  typed output, typed errors, and latest invalidation plan.
+      typed output, typed errors, and latest invalidation plan.
   - Evidence: `packages/core/test/action.test.ts`; negative type cases in
     `type-tests/framework.test-d.ts`.
 - [x] `Action` concurrency modes are tested for `latest`, `exhaust`, and
-  `parallel`.
+      `parallel`.
   - Evidence: `packages/core/test/action.test.ts`.
 - [x] `Action` optimistic transactions commit on success and roll back on
-  failure or interruption.
+      failure or interruption.
   - Evidence: optimistic success/failure/interruption tests in
     `packages/core/test/action.test.ts`.
 - [x] `ActionResult` supports success, validation failure, redirect, domain
-  failure, and result-carried invalidation.
+      failure, and result-carried invalidation.
   - Evidence: `packages/core/test/action-result.test.ts`.
 - [x] `Route` APIs preserve schema/branded params and search inference.
   - Evidence: `packages/core/test/route-server.test.ts` and
     `type-tests/framework.test-d.ts`.
 - [x] `Server` contract/client/implement flow stays browser-safe and
-  schema-backed.
+      schema-backed.
   - Evidence: `packages/core/test/server.test.ts`,
     `packages/core/test/route-server.test.ts`,
     `packages/start/test/server-function-manifest.test.ts`.
@@ -142,16 +142,16 @@ Last evidence pass: May 17, 2026.
   - Evidence: `docs/effect-style.md`, `docs/architecture.md`, and
     `docs/framework-perfection-charter.md`.
 - [x] Resource public preload/refresh APIs are Effect-native and track
-  in-flight lifecycle with fibers.
+      in-flight lifecycle with fibers.
   - Evidence: `packages/core/src/resource.ts`; `packages/core/test/resource.test.ts`
     covers dedupe and runtime-disposal interruption.
 - [x] Resource Store has LSP-facing public seams instead of requiring private
-  map access.
+      map access.
   - Evidence: `packages/core/src/resource-store.ts` exposes `eventBus`,
     `moduleRegistry`, `fiberRegistry`, and `diagnostics`; Resource Store tests
     use those seams for event/module/fiber assertions.
 - [x] Core Action and Resource runtime calls keep service erasure at the runtime
-  boundary.
+      boundary.
   - Evidence: `packages/core/src/action.ts` and `packages/core/src/resource.ts`
     pass `Fiber.join`, interruption, in-flight refresh, and workflow Effects
     directly through `EffectUiRuntime` methods.
@@ -216,7 +216,7 @@ Last evidence pass: May 17, 2026.
     placeholder grep reports no hits. Full `pnpm verify` passed after this
     cleanup.
 - [x] Remaining arbitrary wildcard boundaries are named where they are part of
-  public assignability.
+      public assignability.
   - Evidence: core Action/Server/Resource, DB flush-policy, Solid-DB, and Start
     action surfaces use local `Any*` aliases or existing exported aliases for
     arbitrary definitions instead of repeated inline wildcard applications;
@@ -297,7 +297,7 @@ Last evidence pass: May 17, 2026.
     decisions, React/Solid link adapters consume it, and Core/React/Solid router
     tests cover the shared policy and host wiring.
 - [x] Package-source validation failures use typed errors instead of raw
-  `Error`/`TypeError` throws.
+      `Error`/`TypeError` throws.
   - Evidence: `docs/error-message-audit.md`,
     `packages/core/test/stable-stringify.test.ts`, and focused DB/devtools/Start
     tests added in the typed-error sweep; `StartDiagnosticsCliUsageError` now
@@ -306,11 +306,11 @@ Last evidence pass: May 17, 2026.
 ## Full-Stack Start Layer
 
 - [x] SSR preload, render, server RPC, action handling, hydration, and teardown
-  run through request runtimes.
+      run through request runtimes.
   - Evidence: `packages/start/test/start.test.ts` request-runtime, RPC, action,
     hydration, and stream-finalizer tests.
 - [x] Route params/search constraints stay opaque when helpers only carry
-  arbitrary routes.
+      arbitrary routes.
   - Evidence: `packages/core/src/route.ts`, `packages/core/src/app.ts`,
     `packages/solid/src/index.ts`, `packages/start/src/index.ts`, and
     `packages/start/src/virtual-modules.d.ts` use
@@ -318,13 +318,13 @@ Last evidence pass: May 17, 2026.
     while focused Core/Solid/Start typechecks, public type tests, and full
     `pnpm verify` passed.
 - [x] Start client and hydration runtime options keep caller details opaque
-  where the runtime is only an execution boundary.
+      where the runtime is only an execution boundary.
   - Evidence: `packages/start/src/index.ts` and `packages/start/src/hydration.ts`
     keep services opaque while carrying generic runtime error parameters with
     `never` defaults for action client and hydration runtime options. Focused
     Start typecheck, public type tests, and full `pnpm verify` passed.
 - [x] Start trace and teardown helpers avoid runtime wildcards except at the
-  core ambient runtime boundary.
+      core ambient runtime boundary.
   - Evidence: Start collection trace, request-runtime teardown, response
     finalizer, and response completion helpers use
     generic runtime error parameters or `never` where host failures are
@@ -337,43 +337,43 @@ Last evidence pass: May 17, 2026.
     programs, and hydration sync Effects directly through runtime/Effect
     primitives.
 - [x] Request runtimes use fresh request-local `ResourceStore` and
-  `Collection.Store` state.
+      `Collection.Store` state.
   - Evidence: `uses a fresh resource store for each SSR request`,
     `dehydrates DB collections from the SSR request runtime`, and DB collection
     runtime-isolation tests.
 - [x] Streamed responses keep request runtimes open until body close or
-  cancellation.
+      cancellation.
   - Evidence: `responseWithStreamFinalizer` handles stream `pull` completion
     and `cancel`; `keeps request runtime fibers alive until streamed response
-    bodies close` verifies the lifecycle.
+bodies close` verifies the lifecycle.
 - [x] `ResponseContext` supports status, headers, and cookies across SSR, RPC,
-  actions, and server routes.
+      actions, and server routes.
   - Evidence: core server-route test, Start render/RPC tests, and Start action
     response code applies the same `ResponseContext` after action execution.
 - [x] Server functions are contract-first with shared clients and server-only
-  handlers.
+      handlers.
   - Evidence: `Server.contract`/`Server.client`/`Server.implement` tests,
     project-console `domain.contract.ts` and `domain.server.ts`, manifest
     browser-safe client-reference tests.
 - [x] Server function manifests have deterministic ids, schema flags, duplicate
-  detection, and browser-safe references.
+      detection, and browser-safe references.
   - Evidence: `packages/start/test/server-function-manifest.test.ts`.
 - [x] Start action manifests have deterministic ids and behavior metadata.
   - Evidence: `packages/start/test/action-manifest.test.ts`.
 - [x] JSON Start actions decode input, run action definitions, encode typed
-  results, hydrate refreshed refs, and replay invalidation metadata.
+      results, hydrate refreshed refs, and replay invalidation metadata.
   - Evidence: Start action tests in `packages/start/test/start.test.ts`.
 - [x] Plain form Start actions support no-JS validation, redirect, success, and
-  failure flows.
+      failure flows.
   - Evidence: `packages/start/test/start.test.ts`,
     `examples/project-console/src/server.test.ts`, and
     `examples/project-console/src/full-stack-golden.test.ts`.
 - [x] `StartAction.use` gives components Action-like state over the Start
-  transport.
+      transport.
   - Evidence: `exposes a StartAction client instance with Action-like state` in
     `packages/start/test/start.test.ts`.
 - [x] File-route generation writes deterministic route definitions and type
-  maps.
+      maps.
   - Evidence: `packages/start/test/file-routes.test.ts`,
     `packages/start/test/start.test.ts`, and generated
     `examples/project-console/src/routeTree.gen.ts`.
@@ -383,7 +383,7 @@ Last evidence pass: May 17, 2026.
 - [x] Deployment adapters cover current Node/fetch behavior with tests.
   - Evidence: `packages/start/test/adapters.test.ts`.
 - [x] Start integration tests cover request isolation, hydration, progressive
-  actions, redirects, validation, and leak scans.
+      actions, redirects, validation, and leak scans.
   - Evidence: `packages/start/test/start.test.ts` and example SSR/golden tests.
 
 ## Data Layer And Local-First Foundation
@@ -400,7 +400,7 @@ Last evidence pass: May 17, 2026.
     adapters use typed helpers/combinators or a named PromiseLike bridge before
     entering collection Effects.
 - [x] DB collection internals avoid local Effect requirement erasure outside query
-  variance.
+      variance.
   - Evidence: DB collection persistence, load, mutation, change-feed, and
     source-preload paths use named Effect helpers or direct Effect combinators.
 - [x] DB query variance boundaries are named or expressed in helper types.
@@ -410,12 +410,12 @@ Last evidence pass: May 17, 2026.
 - [x] Collection retry policy uses Effect `Schedule`.
   - Evidence: collection load and mutation retry tests.
 - [x] Collection mutation workflow owns optimistic commit/rollback and pending
-  replay.
+      replay.
   - Evidence: `packages/db/src/collection-mutation-workflow.ts` owns
     insert/update/delete and flush orchestration; collection mutation, pending
     queue, rollback persistence, and optimistic rebase tests cover it.
 - [x] Optimistic insert/update/delete mutations publish events and preserve
-  rollback rows.
+      rollback rows.
   - Evidence: collection optimistic success/failure, pending queue, rollback,
     and event tests.
 - [x] Pending mutation queues can persist, restore, inspect, and flush.
@@ -441,18 +441,18 @@ Last evidence pass: May 17, 2026.
   - Evidence: `packages/db/test/collection.test.ts`,
     `packages/db/test/sqlite-persistence.test.ts`.
 - [x] Sync adapters cover server functions, resources, host APIs, and
-  TanStack Query-shaped sources.
+      TanStack Query-shaped sources.
   - Evidence: `packages/db/test/sync-adapter.test.ts` and
     `packages/db/test/server-collection.test.ts`.
 - [x] Background flush policy can skip/defer work through Effect services.
   - Evidence: `packages/db/test/flush-policy.test.ts`.
 - [x] Start SSR collects and hydrates route-touched and route-declared
-  collections.
+      collections.
   - Evidence: Start collection preload/hydration tests.
 - [x] Devtools can observe collection events without private row maps.
   - Evidence: `Collection.Store` event API and devtools collection-event tests.
 - [x] Example app demonstrates collections, indexes, optimistic mutation,
-  sync, and hydration.
+      sync, and hydration.
   - Evidence: `examples/project-console/src/project-collections.ts`,
     `domain.mock.test.ts`, `server.test.ts`, and `full-stack-golden.test.ts`.
 
@@ -468,22 +468,22 @@ Last evidence pass: May 17, 2026.
 - [x] Generated route files assert imported route literal paths.
   - Evidence: generated-route tests in `packages/start/test/start.test.ts`.
 - [x] Generated route type maps expose route id, path, params, search, and href
-  option views.
+      option views.
   - Evidence: `packages/start/src/virtual-modules.d.ts`,
     generated route file tests, and type tests.
 - [x] Server function manifests validate names, ids, exports, schemas, and
-  browser references.
+      browser references.
   - Evidence: `packages/start/test/server-function-manifest.test.ts`.
 - [x] Action manifests validate ids, exports, endpoint references, and behavior
-  metadata.
+      metadata.
   - Evidence: `packages/start/test/action-manifest.test.ts`.
 - [x] Start app graph includes routes, server functions, actions, endpoints,
-  module ownership, schemas, resources, tags, collections, and preload
-  declarations.
+      module ownership, schemas, resources, tags, collections, and preload
+      declarations.
   - Evidence: `packages/start/test/app-graph.test.ts` and Vite virtual graph
     tests.
 - [x] Static diagnostics use `present`, `absent`, or `unknown` rather than
-  guessing.
+      guessing.
   - Evidence: app graph diagnostics tests.
 - [x] Strict build policy can reject missing wire schemas.
   - Evidence: Start build policy tests.
@@ -494,11 +494,11 @@ Last evidence pass: May 17, 2026.
 - [x] Strict build policy can reject unknown action behavior metadata.
   - Evidence: Start build policy tests.
 - [x] Diagnostics reports group issues by source owner with concrete repair
-  guidance.
+      guidance.
   - Evidence: `prints an agent-readable Start diagnostics repair report`.
 - [x] App graph artifacts are consumable by CI, devtools, tests, and agents.
   - Evidence: `loadStartAppGraphDiagnostics(...)`, `effect-ui-start
-    diagnostics`, devtools summary tests, and generated virtual modules.
+diagnostics`, devtools summary tests, and generated virtual modules.
 - [x] Start diagnostics CLI command vocabulary has one Effect v4 source of truth.
   - Evidence: `packages/start/src/start-diagnostics-cli-contract.ts` feeds
     graph/impact query-kind validation text and impact verify commands while
@@ -512,32 +512,32 @@ Last evidence pass: May 17, 2026.
 - [x] Devtools snapshots are JSON-safe.
   - Evidence: JSON serialization and non-JSON normalization tests.
 - [x] Devtools summaries normalize resources, actions, invalidations, routes,
-  runtime events, app graph facts, and collections.
+      runtime events, app graph facts, and collections.
   - Evidence: devtools summary and golden-path tests.
 - [x] Causal graph nodes and edges are deterministic.
   - Evidence: causal graph determinism tests.
 - [x] Route plans show matched route, params, search, preloaded refs, and
-  hydration.
+      hydration.
   - Evidence: `describeRoutePlan` tests.
 - [x] Resource timelines have public facts for pending, success, failure,
-  hydration, deletion, GC, stale/refresh, and invalidation events.
+      hydration, deletion, GC, stale/refresh, and invalidation events.
   - Evidence: `Resource.StoreEvent` variants in `packages/core/src/resource-store.ts`,
     status tests, resource event tests, and devtools runtime-event summaries.
 - [x] Action timelines include state, input, invalidation plan, concurrency, and
-  Start action metadata.
+      Start action metadata.
   - Evidence: action tracking tests, Start-shaped action tests, and app graph
     action behavior metadata.
 - [x] Collection timelines include load, hydrate, mutation, rollback,
-  persistence, sync, and pending queue facts.
+      persistence, sync, and pending queue facts.
   - Evidence: `Collection.StoreEvent` variants, DB tests, sync diagnostics, and
     devtools collection-event tests.
 - [x] Server RPC traces separate domain failures, protocol errors, transport
-  errors, defects, and interruption.
+      errors, defects, and interruption.
   - Evidence: Start RPC/action transport code and tests distinguish typed
     protocol failures, transport failures, schema/domain failures, defects, and
     interruption payloads.
 - [x] Request traces include services, request context, response context,
-  resources, collections, fibers, streams, and teardown.
+      resources, collections, fibers, streams, and teardown.
   - Progress: `@effect-ui/devtools` now exposes a structured
     `DevtoolsRequestTrace` data contract, store recording API, summary, and
     causal graph integration.
@@ -579,12 +579,12 @@ Last evidence pass: May 17, 2026.
     `RouterProvider`, `useResource`, `useAction`, `useSignal`; example app uses
     them directly.
 - [x] Solid hook wildcard defaults avoid UI-local `any` where requirements are
-  opaque.
+      opaque.
   - Evidence: `packages/solid/src/index.ts` defaults Resource hook
     requirements to `unknown` and uses record/unknown-shaped route outlet
     boundaries.
 - [x] Solid runtime provider and router surfaces keep runtime/source details
-  opaque where they only cross UI execution boundaries.
+      opaque where they only cross UI execution boundaries.
   - Evidence: `packages/solid/src/index.ts` uses
     generic runtime/source parameters with `never` defaults for
     provider/router surfaces and a `never` runtime-error context, while
@@ -603,7 +603,7 @@ Last evidence pass: May 17, 2026.
   - Evidence: resources in `domain.ts`, UI states in `App.tsx`, and domain/mock
     tests.
 - [x] Example app demonstrates Start actions with pending, success, validation,
-  redirect, failure, invalidation, and hydration metadata.
+      redirect, failure, invalidation, and hydration metadata.
   - Evidence: `domain.mock.test.ts`, `server.test.ts`, and
     `full-stack-golden.test.ts`.
 - [x] Example app demonstrates collections and live query or indexed query use.
@@ -626,18 +626,18 @@ Last evidence pass: May 17, 2026.
 
 - [x] `docs/best-framework-plan.md` reflects the product north star.
 - [x] `docs/winning-spec.md` reflects current execution goals and success
-  metrics.
+      metrics.
 - [x] `docs/architecture.md` matches implementation reality.
 - [x] `docs/effect-style.md` explains idiomatic Effect UI code.
 - [x] `docs/invariants.md` captures non-negotiable product guarantees.
 - [x] `docs/competitiveness.md` explains the competitive and winning bars.
 - [x] `docs/devtools.md` documents observable facts and target panels.
 - [x] `docs/migration-notes.md` maps common source-framework patterns onto the
-  Effect UI golden path.
+      Effect UI golden path.
 - [x] `docs/release-notes.md` records the current stable, experimental, and
-  limited surfaces.
+      limited surfaces.
 - [x] `docs/db.md` explains collections, live queries, persistence, sync, and
-  hydration.
+      hydration.
   - Evidence: docs were inspected in the final pass; their terminology matches
     current source/test surfaces.
 - [x] Examples in docs are copyable or clearly illustrative.
@@ -675,16 +675,18 @@ Last evidence pass: May 17, 2026.
   - Evidence: this checklist ownership map, Start diagnostics repair report, and
     generated app graph/route tree artifacts.
 - [x] Friendly comparison blog post explains the current position against
-  top-tier frameworks with code examples.
+      top-tier frameworks with code examples.
   - Evidence: [`docs/effect-ui-framework-comparison.md`](./effect-ui-framework-comparison.md).
 
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 247 passed Core Scope and Action tests 2
-    files / 58 tests plus `pnpm typecheck:types` while closing UI scope
-    capture, Action reset naming, DB namespace error ownership, and Start Vite
-    dev SSR public-pin work. Latest full verification evidence remains Review 240.
+  - Latest focused evidence: Review 490 passed
+    `pnpm --filter @effect-ui/core build`, `pnpm typecheck:types`,
+    `pnpm audit:effect-first`, `pnpm audit:public-api`, focused Core/React/Solid
+    router tests 3 files / 90 tests, and `pnpm typecheck` while closing the
+    lazy route Effect Interface and formatter-tolerant public API inventory
+    parser work. Latest full verification evidence remains Review 240.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
@@ -705,8 +707,10 @@ Last evidence pass: May 17, 2026.
     Outcome work, Review243 Browser Router And DB Public Interface Pins work,
     Review244 Effect Cleanup Ownership, DB Pins, And Evidence Policy work,
     Review245 Public API Symbol Reachability And Router Adapter Parity work,
-    Review246 Effect Cleanup Capture And Vite Middleware Lifecycle work, and
-    Review247 Scope Cleanup Capture And Namespace Public Pins work.
+    Review246 Effect Cleanup Capture And Vite Middleware Lifecycle work,
+    Review247 Scope Cleanup Capture And Namespace Public Pins work, and
+    Review490 Effect-First Lazy Route Components And Formatter-Tolerant Public
+    API Inventory work.
     Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
     Sweep 2 found Review209 work and the local post-Review209 pass found
     Review210 work; the first post-Review210 sweep found Review211 work, and
@@ -747,7 +751,9 @@ Last evidence pass: May 17, 2026.
     Review245 public API symbol reachability and router Adapter parity work,
     and the fresh post-Review245 sweep found Review246 Effect cleanup capture
     and Vite middleware lifecycle work, and the fresh post-Review246 sweep
-    found Review247 Scope cleanup capture and namespace public pin work,
+    found Review247 Scope cleanup capture and namespace public pin work, and
+    the dirty-lane follow-up found Review490 lazy route Effect Interface and
+    formatter-tolerant inventory work,
     leaving the active counter at 0/30.
     Latest full evidence:
     `pnpm verify` ran after Review 240 with 53 root
@@ -910,10 +916,10 @@ Last evidence pass: May 17, 2026.
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 247 records Core Scope and Action tests 2 files / 58
-    tests plus public type tests after closing UI scope capture, Action reset
-    naming, DB namespace error ownership, and Start Vite dev SSR public-pin
-    findings. Review240 records the latest full gate. Clean
+  - Evidence: Review 490 records Core build, public type tests,
+    Effect-first audit, public API audit, focused Core/React/Solid router tests,
+    and workspace typecheck after closing lazy route Effect Interface and
+    formatter-tolerant public API inventory findings. Review240 records the latest full gate. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
@@ -975,14 +981,16 @@ Last evidence pass: May 17, 2026.
     Review245 public API symbol reachability and router Adapter parity work,
     and the fresh post-Review245 sweep found Review246 Effect cleanup capture
     and Vite middleware lifecycle work, and the fresh post-Review246 sweep
-    found Review247 Scope cleanup capture and namespace public pin work,
+    found Review247 Scope cleanup capture and namespace public pin work, and
+    the dirty-lane follow-up found Review490 lazy route Effect Interface and
+    formatter-tolerant inventory work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items
 
 - [x] Turn the documented devtools target panels into an actual browser or app
-  UI once the trace payload is stable.
+      UI once the trace payload is stable.
   - Evidence: `@effect-ui/devtools` now exposes deterministic HTML rendering
     and an Effect-scoped DOM mount helper for the `DevtoolsPanels` contract.
 - [x] Integrate the browser panel renderer into a dedicated app shell.
@@ -1003,7 +1011,7 @@ Last evidence pass: May 17, 2026.
     manifests, runs isolated non-workspace installs, and executes generated
     `verify` scripts through `pnpm starter:package`.
 - [ ] Add broader host-specific adapter packages when real host behavior is
-  needed beyond the generic Node/fetch facades.
+      needed beyond the generic Node/fetch facades.
   - Evidence: current Node/fetch deployment guidance exists in
     `docs/deployment.md`, tested Node/fetch adapter facades exist as
     `@effect-ui/start-node` and `@effect-ui/start-fetch`, and
@@ -1011,7 +1019,7 @@ Last evidence pass: May 17, 2026.
     `docs/deployment.md`; platform-specific packages with behavior beyond the
     generic Node/fetch facades remain future work.
 - [x] Add benchmarks for SSR, route preload, resource cache behavior, DB live
-  query behavior, and RPC/action transport.
+      query behavior, and RPC/action transport.
   - Evidence: `benchmarks/framework-baseline.bench.ts` and
     `docs/benchmark-baseline-audit.md`.
 

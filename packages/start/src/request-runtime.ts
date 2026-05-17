@@ -11,22 +11,22 @@ import {
   type ResourceStore as ResourceStoreState,
   type ResponseContext,
   type Route,
-  type AppDefinitionRegistry
+  type AppDefinitionRegistry,
 } from "@effect-ui/core";
 import { Effect, type Scope } from "effect";
 export {
   completeRequestRuntimeWithResponse,
   type RequestRuntimeFinalizeState,
-  type RequestRuntimeStreamFinalizeState
+  type RequestRuntimeStreamFinalizeState,
 } from "./request-runtime-response.js";
 
 export const makeRequestRuntime = <
   Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   Client,
   ServerServices,
-  ServerError
+  ServerError,
 >(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError>
+  app: AppDefinition<Routes, Client, ServerServices, ServerError>,
 ): EffectUiRuntime<ServerServices, ServerError> =>
   withResourceStore(app.runtime, makeResourceStore());
 
@@ -37,17 +37,19 @@ type RequestRuntimeProvidedRequirements<RuntimeServices> =
   | ResponseContext
   | ServerClient;
 
-export type RequestRuntimeRemainingRequirements<RIn, RuntimeServices> =
-  Exclude<RIn, RequestRuntimeProvidedRequirements<RuntimeServices>>;
+export type RequestRuntimeRemainingRequirements<RIn, RuntimeServices> = Exclude<
+  RIn,
+  RequestRuntimeProvidedRequirements<RuntimeServices>
+>;
 
 export const provideLocalServerClient = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
-  registry?: AppDefinitionRegistry
+  registry?: AppDefinitionRegistry,
 ): Effect.Effect<A, E, Exclude<R, ServerClient>> =>
   Effect.provideService(
     effect,
     ServerClient,
-    Server.localClient(registry === undefined ? {} : { registry })
+    Server.localClient(registry === undefined ? {} : { registry }),
   ) as Effect.Effect<A, E, Exclude<R, ServerClient>>;
 
 export const provideRequestRuntime = <A, E, R, RuntimeServices, RuntimeError>(
@@ -55,10 +57,18 @@ export const provideRequestRuntime = <A, E, R, RuntimeServices, RuntimeError>(
   request: Request,
   effect: Effect.Effect<A, E, R>,
   responseContext: ResponseContext,
-  registry?: AppDefinitionRegistry
-): Effect.Effect<A, E | RuntimeError, Scope.Scope | RequestRuntimeRemainingRequirements<R, RuntimeServices>> =>
+  registry?: AppDefinitionRegistry,
+): Effect.Effect<
+  A,
+  E | RuntimeError,
+  Scope.Scope | RequestRuntimeRemainingRequirements<R, RuntimeServices>
+> =>
   runtime.provide(
     provideRequest(request)(
-      provideResponse(responseContext)(provideLocalServerClient(effect, registry))
-    )
-  ) as Effect.Effect<A, E | RuntimeError, Scope.Scope | RequestRuntimeRemainingRequirements<R, RuntimeServices>>;
+      provideResponse(responseContext)(provideLocalServerClient(effect, registry)),
+    ),
+  ) as Effect.Effect<
+    A,
+    E | RuntimeError,
+    Scope.Scope | RequestRuntimeRemainingRequirements<R, RuntimeServices>
+  >;

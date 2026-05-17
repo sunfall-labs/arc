@@ -27,9 +27,6 @@ import {
   type ProgramTimelineOptions,
   type ProgramUpdate,
   type ProgramUpdateFailedEvent,
-  ProgramCommandTypeId,
-  ProgramStepTypeId,
-  ProgramSubscriptionTypeId
 } from "./program-contract.js";
 export {
   ProgramDisposed,
@@ -66,7 +63,7 @@ export {
   type ProgramUpdateRequirements,
   type ProgramSubscriptionError,
   type ProgramSubscriptionRequirements,
-  type ProgramUpdateFailedEvent
+  type ProgramUpdateFailedEvent,
 } from "./program-contract.js";
 import {
   defineProgram,
@@ -76,7 +73,7 @@ import {
   programEffect,
   programNext,
   programStepEffect,
-  programSubscription
+  programSubscription,
 } from "./program-primitives.js";
 export {
   defineProgram,
@@ -86,20 +83,29 @@ export {
   programEffect,
   programNext,
   programStepEffect,
-  programSubscription
+  programSubscription,
 } from "./program-primitives.js";
 import { makeProgramRuntimeInstance } from "./program-runtime.js";
 import { makeProgramStory } from "./program-story.js";
 export { makeProgramStory } from "./program-story.js";
 import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
-import { currentOrDefaultRuntime, type AnyEffectUiRuntime, type EffectUiRuntime } from "./runtime.js";
+import {
+  currentOrDefaultRuntime,
+  type AnyEffectUiRuntime,
+  type EffectUiRuntime,
+} from "./runtime.js";
 import { getCurrentScope } from "./scope.js";
 
 type ProgramRuntimeProvidedRequirements<R> = R | ResourceStoreState;
-type ProgramRuntimeRemainingRequirements<RIn, RProvided> =
-  Exclude<RIn, ProgramRuntimeProvidedRequirements<RProvided>>;
-type ProgramRuntimeSatisfied<RIn, RProvided> =
-  [ProgramRuntimeRemainingRequirements<RIn, RProvided>] extends [never] ? unknown : never;
+type ProgramRuntimeRemainingRequirements<RIn, RProvided> = Exclude<
+  RIn,
+  ProgramRuntimeProvidedRequirements<RProvided>
+>;
+type ProgramRuntimeSatisfied<RIn, RProvided> = [
+  ProgramRuntimeRemainingRequirements<RIn, RProvided>,
+] extends [never]
+  ? unknown
+  : never;
 
 /** Options for starting a Program on an explicit typed Runtime Spine. */
 export interface ProgramStartOptions<RRuntime = never, ER = never> {
@@ -116,14 +122,14 @@ type ProgramStartImplementationOptions<ER> = {
 
 const startProgramImplementation = <Model, Message, E = never, ER = never>(
   definition: ProgramDefinition<Model, Message, E, never>,
-  options?: ProgramStartImplementationOptions<ER>
+  options?: ProgramStartImplementationOptions<ER>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> => {
   const runtime = (options?.runtime ?? currentOrDefaultRuntime()) as AnyEffectUiRuntime<ER>;
   const scope = getCurrentScope();
   return makeProgramRuntimeInstance<Model, Message, E, never, ER>({
     definition,
     runtime,
-    scope
+    scope,
   });
 };
 
@@ -135,7 +141,7 @@ const startProgramImplementation = <Model, Message, E = never, ER = never>(
  * Runtime Spine provides those services.
  */
 export function startProgram<Model, Message, E = never>(
-  definition: ProgramDefinition<Model, Message, E, never>
+  definition: ProgramDefinition<Model, Message, E, never>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E>, ProgramDispatchError<E>>;
 /**
  * Starts a Program on an explicit typed Runtime Spine.
@@ -144,29 +150,17 @@ export function startProgram<Model, Message, E = never>(
  * and only services supplied by the runtime are discharged from the Program
  * definition requirements.
  */
-export function startProgram<
-  Model,
-  Message,
-  E = never,
-  R = never,
-  ER = never,
-  RRuntime = R
->(
+export function startProgram<Model, Message, E = never, R = never, ER = never, RRuntime = R>(
   definition: ProgramDefinition<Model, Message, E, R>,
-  options: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>
+  options: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>>;
-export function startProgram<
-  Model,
-  Message,
-  E = never,
-  ER = never
->(
+export function startProgram<Model, Message, E = never, ER = never>(
   definition: unknown,
-  options?: ProgramStartImplementationOptions<ER>
+  options?: ProgramStartImplementationOptions<ER>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> {
   return startProgramImplementation(
     definition as ProgramDefinition<Model, Message, E, never>,
-    options
+    options,
   );
 }
 
@@ -175,7 +169,7 @@ export function startProgram<
  * the returned failure channel.
  */
 export function startProgramWithRuntimeError<Model, Message, E = never>(
-  definition: ProgramDefinition<Model, Message, E, never>
+  definition: ProgramDefinition<Model, Message, E, never>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E>, ProgramDispatchError<E>>;
 export function startProgramWithRuntimeError<
   Model,
@@ -183,32 +177,37 @@ export function startProgramWithRuntimeError<
   E = never,
   R = never,
   ER = never,
-  RRuntime = R
+  RRuntime = R,
 >(
   definition: ProgramDefinition<Model, Message, E, R>,
-  options: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>
+  options: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>>;
-export function startProgramWithRuntimeError<
-  Model,
-  Message,
-  E = never,
-  ER = never
->(
+export function startProgramWithRuntimeError<Model, Message, E = never, ER = never>(
   definition: unknown,
-  options?: ProgramStartImplementationOptions<ER>
+  options?: ProgramStartImplementationOptions<ER>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> {
   return startProgramImplementation(
     definition as ProgramDefinition<Model, Message, E, never>,
-    options
+    options,
   );
 }
 
 /** Public namespace facade for defining, starting, testing, and typing Programs. */
 export namespace Program {
   /** Definition for a headless model/message loop with Effect-owned work. */
-  export type Definition<Model, Message, E = never, R = never> = ProgramDefinition<Model, Message, E, R>;
+  export type Definition<Model, Message, E = never, R = never> = ProgramDefinition<
+    Model,
+    Message,
+    E,
+    R
+  >;
   /** Running Program handle with model, dispatch, timeline, and disposal state. */
-  export type Instance<Model, Message, E = never, DispatchE = E> = ProgramInstance<Model, Message, E, DispatchE>;
+  export type Instance<Model, Message, E = never, DispatchE = E> = ProgramInstance<
+    Model,
+    Message,
+    E,
+    DispatchE
+  >;
   /** Captured update, command, or subscription failure with triggering message context. */
   export type Failure<Message, E> = ProgramFailure<Message, E>;
   /** Program failure channel plus Runtime Spine provision/startup failures. */
@@ -220,7 +219,10 @@ export namespace Program {
   /** Options for starting a Program on an explicit typed Runtime Spine. */
   export type StartOptions<RRuntime = never, ER = never> = ProgramStartOptions<RRuntime, ER>;
   /** Services still required after applying a typed Runtime Spine to a Program. */
-  export type RuntimeRemainingRequirements<RIn, RProvided> = ProgramRuntimeRemainingRequirements<RIn, RProvided>;
+  export type RuntimeRemainingRequirements<RIn, RProvided> = ProgramRuntimeRemainingRequirements<
+    RIn,
+    RProvided
+  >;
   /** Timeline retention settings for Program runtime events. */
   export type TimelineOptions = ProgramTimelineOptions;
   /** Union of message, command, subscription, failure, and disposal timeline events. */
@@ -258,9 +260,18 @@ export namespace Program {
   /** Stream-backed external input attached to a Program model generation. */
   export type Subscription<Message, E = never, R = never> = ProgramSubscription<Message, E, R>;
   /** Accepted subscription input: none, one subscription, or many subscriptions. */
-  export type SubscriptionInput<Message, E = never, R = never> = ProgramSubscriptionInput<Message, E, R>;
+  export type SubscriptionInput<Message, E = never, R = never> = ProgramSubscriptionInput<
+    Message,
+    E,
+    R
+  >;
   /** One deterministic story assertion step for Program tests and docs. */
-  export type StoryEntry<Model, Message, E = never, R = never> = ProgramStoryEntry<Model, Message, E, R>;
+  export type StoryEntry<Model, Message, E = never, R = never> = ProgramStoryEntry<
+    Model,
+    Message,
+    E,
+    R
+  >;
   /** Deterministic Program story runner that executes updates without live subscriptions. */
   export type Story<Model, Message, E = never, R = never> = ProgramStory<Model, Message, E, R>;
   /** Options for deterministic story execution. */

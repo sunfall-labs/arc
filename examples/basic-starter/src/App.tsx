@@ -15,13 +15,10 @@ export default function App() {
           success: (value) => (
             <>
               <h1>{value.message}</h1>
-              <p>
-                Start with one route, one Resource preload, SSR, and browser
-                hydration.
-              </p>
+              <p>Start with one route, one Resource preload, SSR, and browser hydration.</p>
             </>
           ),
-          failure: () => <h1>Starter resource failed</h1>
+          failure: () => <h1>Starter resource failed</h1>,
         })}
       </section>
     </main>

@@ -11,10 +11,10 @@ describe("Core definition registry", () => {
   it("preserves the global Action and Server registry facades", () => {
     const Ping = Action.define({
       name: registryName("global-action"),
-      run: () => Effect.succeed("pong")
+      run: () => Effect.succeed("pong"),
     });
     const ping = Server.fn(registryName("global-server"), {
-      handler: () => Effect.succeed("pong")
+      handler: () => Effect.succeed("pong"),
     });
 
     expect(Action.definitions().get(Ping.name)).toBe(Ping);
@@ -27,23 +27,23 @@ describe("Core definition registry", () => {
   it("captures app registry snapshots without later global definitions", () => {
     const BeforeAction = Action.define({
       name: registryName("snapshot-before-action"),
-      run: () => Effect.succeed("before")
+      run: () => Effect.succeed("before"),
     });
     const beforeServer = Server.fn(registryName("snapshot-before-server"), {
-      handler: () => Effect.succeed("before")
+      handler: () => Effect.succeed("before"),
     });
 
     const app = defineApp({
       routes: [] as const,
-      client: {}
+      client: {},
     });
 
     const AfterAction = Action.define({
       name: registryName("snapshot-after-action"),
-      run: () => Effect.succeed("after")
+      run: () => Effect.succeed("after"),
     });
     const afterServer = Server.fn(registryName("snapshot-after-server"), {
-      handler: () => Effect.succeed("after")
+      handler: () => Effect.succeed("after"),
     });
 
     expect(app.registry.actions.get(BeforeAction.name)).toBe(BeforeAction);
@@ -57,17 +57,17 @@ describe("Core definition registry", () => {
   it("accepts an explicit app registry instead of inheriting globals", () => {
     const GlobalAction = Action.define({
       name: registryName("explicit-global-action"),
-      run: () => Effect.succeed("global")
+      run: () => Effect.succeed("global"),
     });
     const LocalAction = Action.define({
       name: registryName("explicit-local-action"),
-      run: () => Effect.succeed("local")
+      run: () => Effect.succeed("local"),
     });
     const globalServer = Server.fn(registryName("explicit-global-server"), {
-      handler: () => Effect.succeed("global")
+      handler: () => Effect.succeed("global"),
     });
     const localServer = Server.fn(registryName("explicit-local-server"), {
-      handler: () => Effect.succeed("local")
+      handler: () => Effect.succeed("local"),
     });
 
     const app = defineApp({
@@ -75,8 +75,8 @@ describe("Core definition registry", () => {
       client: {},
       registry: {
         actions: [LocalAction],
-        serverFunctions: [localServer]
-      }
+        serverFunctions: [localServer],
+      },
     });
 
     expect(app.registry.actions.get(LocalAction.name)).toBe(LocalAction);
@@ -90,10 +90,10 @@ describe("Core definition registry", () => {
   it("normalizes explicit registry Map inputs by definition name", () => {
     const LocalAction = Action.define({
       name: registryName("map-local-action"),
-      run: () => Effect.succeed("local")
+      run: () => Effect.succeed("local"),
     });
     const localServer = Server.fn(registryName("map-local-server"), {
-      handler: () => Effect.succeed("local")
+      handler: () => Effect.succeed("local"),
     });
 
     const app = defineApp({
@@ -101,8 +101,8 @@ describe("Core definition registry", () => {
       client: {},
       registry: {
         actions: new Map([["wrong-action-key", LocalAction]]),
-        serverFunctions: new Map([["wrong-server-key", localServer]])
-      }
+        serverFunctions: new Map([["wrong-server-key", localServer]]),
+      },
     });
 
     expect(app.registry.actions.get(LocalAction.name)).toBe(LocalAction);
@@ -115,18 +115,18 @@ describe("Core definition registry", () => {
     const actionName = registryName("duplicate-action");
     const FirstAction = Action.define({
       name: actionName,
-      run: () => Effect.succeed("first")
+      run: () => Effect.succeed("first"),
     });
     const SecondAction = Action.define({
       name: actionName,
-      run: () => Effect.succeed("second")
+      run: () => Effect.succeed("second"),
     });
     const serverName = registryName("duplicate-server");
     const firstServer = Server.fn(serverName, {
-      handler: () => Effect.succeed("first")
+      handler: () => Effect.succeed("first"),
     });
     const secondServer = Server.fn(serverName, {
-      handler: () => Effect.succeed("second")
+      handler: () => Effect.succeed("second"),
     });
 
     expect(Action.get(actionName)).not.toBe(FirstAction);
@@ -138,14 +138,14 @@ describe("Core definition registry", () => {
         expect.objectContaining({
           kind: "action",
           name: actionName,
-          policy: "replace"
+          policy: "replace",
         }),
         expect.objectContaining({
           kind: "serverFunction",
           name: serverName,
-          policy: "replace"
-        })
-      ])
+          policy: "replace",
+        }),
+      ]),
     );
   });
 
@@ -153,45 +153,41 @@ describe("Core definition registry", () => {
     const actionName = registryName("reset-duplicate-action");
     Action.define({
       name: actionName,
-      run: () => Effect.succeed("first")
+      run: () => Effect.succeed("first"),
     });
     Action.define({
       name: actionName,
-      run: () => Effect.succeed("second")
+      run: () => Effect.succeed("second"),
     });
     expect(Action.registryDiagnostics().duplicates).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ kind: "action", name: actionName })
-      ])
+      expect.arrayContaining([expect.objectContaining({ kind: "action", name: actionName })]),
     );
 
     Action.clearRegistryUnsafe();
 
     expect(Action.registryDiagnostics().duplicates).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ kind: "action", name: actionName })
-      ])
+      expect.arrayContaining([expect.objectContaining({ kind: "action", name: actionName })]),
     );
 
     const serverName = registryName("reset-duplicate-server");
     Server.fn(serverName, {
-      handler: () => Effect.succeed("first")
+      handler: () => Effect.succeed("first"),
     });
     Server.fn(serverName, {
-      handler: () => Effect.succeed("second")
+      handler: () => Effect.succeed("second"),
     });
     expect(Server.registryDiagnostics().duplicates).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: "serverFunction", name: serverName })
-      ])
+        expect.objectContaining({ kind: "serverFunction", name: serverName }),
+      ]),
     );
 
     Server.clearRegistryUnsafe();
 
     expect(Server.registryDiagnostics().duplicates).not.toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ kind: "serverFunction", name: serverName })
-      ])
+        expect.objectContaining({ kind: "serverFunction", name: serverName }),
+      ]),
     );
   });
 
@@ -208,15 +204,15 @@ describe("Core definition registry", () => {
 
     expect(registration).toMatchObject({
       duplicate: true,
-      retained: second
+      retained: second,
     });
     expect(registry.definitions().actions.get(first.name)).toBe(second);
     expect(registry.diagnostics().duplicates).toEqual([
       expect.objectContaining({
         kind: "action",
         name: first.name,
-        policy: "replace"
-      })
+        policy: "replace",
+      }),
     ]);
   });
 });

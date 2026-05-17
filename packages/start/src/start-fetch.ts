@@ -4,14 +4,10 @@ import {
   isPromiseLikeValue,
   ServerTransportError,
   type AnyEffectUiRuntime,
-  type EffectUiRuntime
+  type EffectUiRuntime,
 } from "@effect-ui/core";
 import { Data, Effect } from "effect";
-import {
-  makeStartRequestIdEffect,
-  startJsonMediaType,
-  startRequestIdHeader
-} from "./rpc.js";
+import { makeStartRequestIdEffect, startJsonMediaType, startRequestIdHeader } from "./rpc.js";
 import { mergeStartAbortSignals } from "./start-abort-lifecycle.js";
 import type { StartTransportEndpointSource } from "./start-transport-endpoints.js";
 
@@ -40,51 +36,54 @@ export type StartFetchInit = Parameters<typeof globalThis.fetch>[1];
  */
 export type StartFetch<E = never, R = never> = (
   input: StartFetchInput,
-  init?: StartFetchInit
+  init?: StartFetchInit,
 ) => Effect.Effect<Response, E, R>;
 
 /** Options for clients that call Start server functions over HTTP RPC. */
 export interface ServerRpcClientOptions<
   FetchError = never,
   FetchRequirements = never,
-  RuntimeError = never
+  RuntimeError = never,
 > extends Pick<
-    StartTransportEndpointSource,
-    "rpcPath" | "endpoints" | "serverFunctionManifest" | "appGraph"
-  > {
+  StartTransportEndpointSource,
+  "rpcPath" | "endpoints" | "serverFunctionManifest" | "appGraph"
+> {
   /** RPC endpoint. Defaults to the Start server function path. */
   readonly endpoint?: string | URL;
   /** Fetch implementation for browsers, tests, edge runtimes, or Effect handlers. */
   readonly fetch?: StartFetch<FetchError, FetchRequirements>;
   /** Runtime used to provide services required by the fetch Effect. */
-  readonly transportRuntime?: EffectUiRuntime<FetchRequirements, RuntimeError> | AnyEffectUiRuntime<RuntimeError>;
+  readonly transportRuntime?:
+    | EffectUiRuntime<FetchRequirements, RuntimeError>
+    | AnyEffectUiRuntime<RuntimeError>;
   /** Static or lazily computed headers added to every RPC request. */
   readonly headers?: HeadersInit | (() => HeadersInit);
 }
 
 export const getStartTransportHeadersEffect = (
-  options: Pick<ServerRpcClientOptions, "headers">
+  options: Pick<ServerRpcClientOptions, "headers">,
 ): Effect.Effect<Headers, ServerTransportError> =>
   Effect.gen(function* () {
     const headersInit = yield* Effect.try({
-      try: () => typeof options.headers === "function"
-        ? options.headers()
-        : options.headers,
+      try: () => (typeof options.headers === "function" ? options.headers() : options.headers),
       catch: (cause) =>
         new ServerTransportError({
           reason: "Network",
           message: "Could not construct Start transport headers.",
-          cause
-        })
+          cause,
+        }),
     });
     if (isPromiseLikeValue(headersInit)) {
-      return yield* Effect.fail(new ServerTransportError({
-        reason: "Network",
-        message: "Could not construct Start transport headers.",
-        cause: new EffectInputPromiseRejected({
-          guidance: "Start transport headers must be static HeadersInit or a synchronous HeadersInit callback. Move async header work into the StartFetch Adapter and wrap host Promise work with Effect.tryPromise(...)."
-        })
-      }));
+      return yield* Effect.fail(
+        new ServerTransportError({
+          reason: "Network",
+          message: "Could not construct Start transport headers.",
+          cause: new EffectInputPromiseRejected({
+            guidance:
+              "Start transport headers must be static HeadersInit or a synchronous HeadersInit callback. Move async header work into the StartFetch Adapter and wrap host Promise work with Effect.tryPromise(...).",
+          }),
+        }),
+      );
     }
 
     const headers = yield* Effect.try({
@@ -93,8 +92,8 @@ export const getStartTransportHeadersEffect = (
         new ServerTransportError({
           reason: "Network",
           message: "Could not construct Start transport headers.",
-          cause
-        })
+          cause,
+        }),
     });
     if (!headers.has(startRequestIdHeader)) {
       headers.set(startRequestIdHeader, yield* makeStartRequestIdEffect);
@@ -108,26 +107,32 @@ export const callStartFetchEffect = <FetchError, FetchRequirements>(
   fetcher: StartFetch<FetchError, FetchRequirements>,
   input: StartFetchInput,
   init: StartFetchInit,
-  onError: (cause: FetchError | unknown) => ServerTransportError
+  onError: (cause: FetchError | unknown) => ServerTransportError,
 ): Effect.Effect<Response, ServerTransportError, FetchRequirements> =>
   Effect.flatMap(
     Effect.try({
       try: () => fetcher(input, init) as unknown,
-      catch: onError
+      catch: onError,
     }),
     (result) =>
       isEffectLike(result)
-        ? (result as Effect.Effect<Response, FetchError, FetchRequirements>).pipe(Effect.mapError(onError))
-        : Effect.fail(onError(new StartFetchInvalidReturn({
-            message: invalidStartFetchReturnMessage,
-            received: result
-          })))
+        ? (result as Effect.Effect<Response, FetchError, FetchRequirements>).pipe(
+            Effect.mapError(onError),
+          )
+        : Effect.fail(
+            onError(
+              new StartFetchInvalidReturn({
+                message: invalidStartFetchReturnMessage,
+                received: result,
+              }),
+            ),
+          ),
   );
 
 const withStartFetchAbortSignal = (
   input: StartFetchInput,
   init: StartFetchInit,
-  effectSignal: AbortSignal
+  effectSignal: AbortSignal,
 ): { readonly init: StartFetchInit; readonly cleanup: () => void } => {
   const signals = [effectSignal];
   if (init?.signal) {
@@ -140,16 +145,19 @@ const withStartFetchAbortSignal = (
   return {
     init: {
       ...init,
-      signal: merged.signal
+      signal: merged.signal,
     },
-    cleanup: merged.cleanup
+    cleanup: merged.cleanup,
   };
 };
 
 export const resolveStartFetchEffect = <FetchError = never, FetchRequirements = never>(
   fetcher: StartFetch<FetchError, FetchRequirements> | undefined,
-  unavailableMessage: string
-): Effect.Effect<StartFetch<FetchError | ServerTransportError, FetchRequirements>, ServerTransportError> => {
+  unavailableMessage: string,
+): Effect.Effect<
+  StartFetch<FetchError | ServerTransportError, FetchRequirements>,
+  ServerTransportError
+> => {
   if (fetcher) {
     return Effect.succeed(fetcher);
   }
@@ -158,8 +166,8 @@ export const resolveStartFetchEffect = <FetchError = never, FetchRequirements = 
     return Effect.fail(
       new ServerTransportError({
         reason: "Network",
-        message: unavailableMessage
-      })
+        message: unavailableMessage,
+      }),
     );
   }
 
@@ -176,11 +184,8 @@ export const resolveStartFetchEffect = <FetchError = never, FetchRequirements = 
           new ServerTransportError({
             reason: "Network",
             message: "Global fetch request failed.",
-            cause
-          })
-      }).pipe(
-        Effect.ensuring(Effect.sync(() => cleanup()))
-      );
-    })
-  ) as StartFetch<FetchError | ServerTransportError, FetchRequirements>);
+            cause,
+          }),
+      }).pipe(Effect.ensuring(Effect.sync(() => cleanup())));
+    })) as StartFetch<FetchError | ServerTransportError, FetchRequirements>);
 };

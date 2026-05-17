@@ -10,7 +10,7 @@ export const Route = RouteBuilder.preload({
   search: ProjectRouteSearch,
   resources: ({ resource }) => [
     resource(ProjectList, () => "all" as const),
-    resource(ProjectById, ({ params }) => params.id)
+    resource(ProjectById, ({ params }) => params.id),
   ],
-  collections: [ProjectSummaries]
+  collections: [ProjectSummaries],
 }).route();

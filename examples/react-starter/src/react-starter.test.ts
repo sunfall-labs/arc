@@ -10,7 +10,7 @@ import {
   hydrationScriptId,
   streamHydrationAttribute,
   type StartHydrationChunk,
-  type StartHydrationPayload
+  type StartHydrationPayload,
 } from "@effect-ui/start";
 import App from "./App.js";
 import { app } from "./app-definition.js";
@@ -21,7 +21,7 @@ import {
   routeById,
   routeByPath,
   routes,
-  type FileRouteHrefOptionsById
+  type FileRouteHrefOptionsById,
 } from "./routeTree.gen.js";
 import { handleRequest } from "./server.js";
 
@@ -56,16 +56,16 @@ const installDom = (html: string): (() => void) => {
     "navigator",
     "HTMLElement",
     "Node",
-    "IS_REACT_ACT_ENVIRONMENT"
+    "IS_REACT_ACT_ENVIRONMENT",
   ] as const;
   const previous = new Map<PropertyKey, PropertyDescriptor | undefined>(
-    keys.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)])
+    keys.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]),
   );
   const setGlobal = (key: PropertyKey, value: unknown): void => {
     Object.defineProperty(globalThis, key, {
       configurable: true,
       writable: true,
-      value
+      value,
     });
   };
 
@@ -94,13 +94,12 @@ describe("react starter", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const response = yield* Effect.scoped(
-          app.runtime.provide(handleRequest(new Request("https://starter.test/")))
+          app.runtime.provide(handleRequest(new Request("https://starter.test/"))),
         );
         const html = yield* Effect.tryPromise(() => response.text());
         const rootPairs = resourcePairs(rootHydrationPayloadFrom(html));
         const streamedPairs = new Set(
-          streamHydrationChunksFrom(html)
-            .flatMap((chunk) => [...resourcePairs(chunk.payload)])
+          streamHydrationChunksFrom(html).flatMap((chunk) => [...resourcePairs(chunk.payload)]),
         );
 
         expect(response.status).toBe(200);
@@ -110,16 +109,18 @@ describe("react starter", () => {
         expect(html).toContain("data-effect-ui-hydration-chunk");
         expect([...rootPairs]).toEqual([]);
         expect(streamHydrationChunksFrom(html)).toHaveLength(1);
-        expect([...streamedPairs]).toContain(JSON.stringify([WelcomeRef.family.options.name, WelcomeRef.key]));
+        expect([...streamedPairs]).toContain(
+          JSON.stringify([WelcomeRef.family.options.name, WelcomeRef.key]),
+        );
         expect([...streamedPairs].filter((pair) => rootPairs.has(pair))).toEqual([]);
-      })
+      }),
     ));
 
   it("hydrates a fresh browser document from streamed Resource payloads", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const response = yield* Effect.scoped(
-          app.runtime.provide(handleRequest(new Request("https://starter.test/")))
+          app.runtime.provide(handleRequest(new Request("https://starter.test/"))),
         );
         const html = yield* Effect.tryPromise(() => response.text());
         const cleanupDom = installDom(html);
@@ -144,14 +145,10 @@ describe("react starter", () => {
             act(async () => {
               root = hydrateRoot(
                 container!,
-                createElement(
-                  RuntimeRoot,
-                  { runtime },
-                  createElement(App)
-                )
+                createElement(RuntimeRoot, { runtime }, createElement(App)),
               );
               await Effect.runPromise(Effect.sleep(0));
-            })
+            }),
           );
 
           expect(container!.textContent).toContain("Hello, React.");
@@ -164,13 +161,13 @@ describe("react starter", () => {
             yield* Effect.tryPromise(() =>
               act(async () => {
                 root?.unmount();
-              })
+              }),
             );
           }
           cleanupDom();
           yield* runtime.disposeEffect;
         }
-      })
+      }),
     ));
 
   it("pins the generated route definitions artifact", () => {

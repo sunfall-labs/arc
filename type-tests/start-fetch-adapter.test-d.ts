@@ -7,13 +7,18 @@ import {
   type StartFetchHandlerEffect,
   type StartFetchPromiseHandler,
   type StartFetchPromiseHandlerOptions,
-  type StartFetchPromiseHandlerRuntimeOptions
+  type StartFetchPromiseHandlerRuntimeOptions,
 } from "@effect-ui/start/fetch-adapter";
 import type { EffectUiRuntime } from "@effect-ui/core";
 import type { StartRequestHandlerEffect } from "@effect-ui/start";
 import { Scope } from "effect";
 
-const fetchAdapterExports: Array<unknown> = [createFetchHandler, StartRequestHandlerError, toFetchHandler, toFetchHandlerEffect];
+const fetchAdapterExports: Array<unknown> = [
+  createFetchHandler,
+  StartRequestHandlerError,
+  toFetchHandler,
+  toFetchHandlerEffect,
+];
 type FetchAdapter =
   | StartFetchHandler
   | StartFetchHandlerEffect
@@ -31,16 +36,19 @@ declare const scopeOnlyHandler: StartRequestHandlerEffect<Scope.Scope>;
 declare const servicefulHandler: StartRequestHandlerEffect<Scope.Scope | FetchAdapterTestService>;
 declare const serviceRuntime: EffectUiRuntime<FetchAdapterTestService>;
 
-const fetchHandlerEffect: StartFetchHandlerEffect<Scope.Scope> = toFetchHandlerEffect(scopeOnlyHandler);
+const fetchHandlerEffect: StartFetchHandlerEffect<Scope.Scope> =
+  toFetchHandlerEffect(scopeOnlyHandler);
 const fetchHandler: StartFetchHandler<Scope.Scope> = toFetchHandler(scopeOnlyHandler);
 const fetchPromiseHandler: StartFetchPromiseHandler = createFetchHandler(scopeOnlyHandler);
 const fetchPromiseOptions: StartFetchPromiseHandlerOptions = {};
-const fetchRuntimeOptions: StartFetchPromiseHandlerRuntimeOptions<Scope.Scope | FetchAdapterTestService> = {
-  runtime: serviceRuntime
+const fetchRuntimeOptions: StartFetchPromiseHandlerRuntimeOptions<
+  Scope.Scope | FetchAdapterTestService
+> = {
+  runtime: serviceRuntime,
 };
 const servicefulFetchPromiseHandler: StartFetchPromiseHandler = createFetchHandler(
   servicefulHandler,
-  fetchRuntimeOptions
+  fetchRuntimeOptions,
 );
 // @ts-expect-error serviceful Fetch Promise facades must receive a runtime for non-Scope requirements.
 createFetchHandler(servicefulHandler, fetchPromiseOptions);

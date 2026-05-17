@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   makeStartEffectRpcCompatibilityArtifact,
   makeStartEffectRpcGroup,
-  serverFunctionToEffectRpc
+  serverFunctionToEffectRpc,
 } from "../src/effect-rpc-compat.js";
 import { makeServerFunctionManifest } from "../src/server-function-manifest.js";
 
@@ -17,7 +17,7 @@ describe("Effect Rpc compatibility", () => {
       input: GetProjectInput,
       output: GetProjectOutput,
       error: GetProjectError,
-      handler: () => ({ name: "Effect UI" })
+      handler: () => ({ name: "Effect UI" }),
     });
 
     const rpc = serverFunctionToEffectRpc(getProject);
@@ -38,7 +38,7 @@ describe("Effect Rpc compatibility", () => {
 
   it("falls back to Unknown schemas for untyped server functions", () => {
     const untyped = Server.fn("Project.untyped", {
-      handler: () => ({ ok: true })
+      handler: () => ({ ok: true }),
     });
     const rpc = serverFunctionToEffectRpc(untyped);
 
@@ -60,17 +60,17 @@ describe("Effect Rpc compatibility", () => {
               clientExportName: "renameProject",
               inputSchema: true,
               outputSchema: true,
-              errorSchema: true
+              errorSchema: true,
             },
             {
               name: "Project.byId",
               module: "/src/project/project.server.ts",
               exportName: "getProject",
               inputSchema: true,
-              outputSchema: true
-            }
+              outputSchema: true,
+            },
           ],
-          { rpcPath: "/__effect-ui/test-rpc" }
+          { rpcPath: "/__effect-ui/test-rpc" },
         );
 
         yield* Effect.sync(() => {
@@ -82,7 +82,7 @@ describe("Effect Rpc compatibility", () => {
               path: "/__effect-ui/test-rpc",
               requestMediaType: "application/json",
               responseMediaType: "application/json",
-              protocolVersion: "1"
+              protocolVersion: "1",
             },
             procedures: [
               {
@@ -91,8 +91,8 @@ describe("Effect Rpc compatibility", () => {
                 schemas: {
                   payload: true,
                   success: true,
-                  error: false
-                }
+                  error: false,
+                },
               },
               {
                 tag: "Project.rename",
@@ -100,13 +100,13 @@ describe("Effect Rpc compatibility", () => {
                 schemas: {
                   payload: true,
                   success: true,
-                  error: true
-                }
-              }
-            ]
+                  error: true,
+                },
+              },
+            ],
           });
         });
-      })
+      }),
     );
   });
 });

@@ -6,7 +6,7 @@ import {
   currentDocsEvidencePolicy,
   currentDocsTextPolicies,
   namespaceBackedSurfaceModules,
-  publicHoverDocGroups
+  publicHoverDocGroups,
 } from "./public-api-symbol-policy.mjs";
 import { runScriptMainEffect } from "./effect-main-runner.mjs";
 
@@ -27,19 +27,15 @@ const failSelfTest = (message) => {
 };
 
 const hasJsDoc = (node) =>
-  ts.getJSDocCommentsAndTags(node).some((entry) =>
-    entry.kind === ts.SyntaxKind.JSDocComment
-  );
+  ts.getJSDocCommentsAndTags(node).some((entry) => entry.kind === ts.SyntaxKind.JSDocComment);
 
 const declarationName = (node) => {
   if (
-    (
-      ts.isInterfaceDeclaration(node) ||
+    (ts.isInterfaceDeclaration(node) ||
       ts.isTypeAliasDeclaration(node) ||
       ts.isClassDeclaration(node) ||
       ts.isFunctionDeclaration(node) ||
-      ts.isModuleDeclaration(node)
-    ) &&
+      ts.isModuleDeclaration(node)) &&
     node.name
   ) {
     return node.name.text;
@@ -51,7 +47,7 @@ const declarationName = (node) => {
 const variableStatementDeclarationNames = (statement) =>
   ts.isVariableStatement(statement)
     ? statement.declarationList.declarations.flatMap((declaration) =>
-        ts.isIdentifier(declaration.name) ? [declaration.name.text] : []
+        ts.isIdentifier(declaration.name) ? [declaration.name.text] : [],
       )
     : [];
 
@@ -71,7 +67,10 @@ const findDeclarationNode = (statements, name) => {
 const findDeclarationNodes = (statements, name) => {
   const declarations = [];
   for (const statement of statements) {
-    if (declarationName(statement) === name || variableStatementDeclarationNames(statement).includes(name)) {
+    if (
+      declarationName(statement) === name ||
+      variableStatementDeclarationNames(statement).includes(name)
+    ) {
       declarations.push(statement);
     }
   }
@@ -79,12 +78,13 @@ const findDeclarationNodes = (statements, name) => {
 };
 
 const namespaceStatements = (sourceFile, namespaceName) => {
-  const namespace = sourceFile.statements.find((statement) =>
-    ts.isModuleDeclaration(statement) &&
-    ts.isIdentifier(statement.name) &&
-    statement.name.text === namespaceName &&
-    statement.body !== undefined &&
-    ts.isModuleBlock(statement.body)
+  const namespace = sourceFile.statements.find(
+    (statement) =>
+      ts.isModuleDeclaration(statement) &&
+      ts.isIdentifier(statement.name) &&
+      statement.name.text === namespaceName &&
+      statement.body !== undefined &&
+      ts.isModuleBlock(statement.body),
   );
   return namespace?.body && ts.isModuleBlock(namespace.body)
     ? namespace.body.statements
@@ -105,7 +105,7 @@ const auditPublicHoverDocs = () => {
       source,
       ts.ScriptTarget.Latest,
       true,
-      ts.ScriptKind.TS
+      ts.ScriptKind.TS,
     );
 
     for (const name of group.declarations ?? []) {
@@ -125,7 +125,9 @@ const auditPublicHoverDocs = () => {
       }
       declarations.forEach((declaration, index) => {
         if (!hasJsDoc(declaration)) {
-          failures.push(`${group.file} public hover declaration ${name}#${index + 1} is missing JSDoc`);
+          failures.push(
+            `${group.file} public hover declaration ${name}#${index + 1} is missing JSDoc`,
+          );
         }
       });
     }
@@ -139,7 +141,9 @@ const auditPublicHoverDocs = () => {
       for (const name of names) {
         const declaration = findDeclarationNode(statements, name);
         if (declaration === undefined) {
-          failures.push(`${group.file} namespace ${namespaceName} is missing public hover declaration ${name}`);
+          failures.push(
+            `${group.file} namespace ${namespaceName} is missing public hover declaration ${name}`,
+          );
         } else if (!hasJsDoc(declaration)) {
           failures.push(`${group.file} namespace ${namespaceName}.${name} is missing JSDoc`);
         }
@@ -173,61 +177,69 @@ const assertCurrentDocsTextPolicySelfTest = () => {
     required: [
       {
         name: "self-test current focused review",
-        pattern: new RegExp(`Review ?${latestFocusedReview}`)
+        pattern: new RegExp(`Review ?${latestFocusedReview}`),
       },
       {
         name: "self-test current full gate review",
-        pattern: new RegExp(`Review ?${latestFullGateReview}`)
+        pattern: new RegExp(`Review ?${latestFullGateReview}`),
       },
       {
         name: "self-test current root test count",
-        pattern: new RegExp(`${currentDocsEvidencePolicy.rootTestFiles} root test files / ${currentDocsEvidencePolicy.rootTestCount} tests`)
+        pattern: new RegExp(
+          `${currentDocsEvidencePolicy.rootTestFiles} root test files / ${currentDocsEvidencePolicy.rootTestCount} tests`,
+        ),
       },
       {
         name: "self-test current clean counter",
-        pattern: new RegExp(`post-Review${latestFocusedReview} sweep reports no actionable findings`)
-      }
+        pattern: new RegExp(
+          `post-Review${latestFocusedReview} sweep reports no actionable findings`,
+        ),
+      },
     ],
     banned: [
       {
         name: "self-test stale focused review",
-        pattern: /Latest focused evidence: Review 243/
+        pattern: /Latest focused evidence: Review 243/,
       },
       {
         name: "self-test stale full gate review",
-        pattern: /latest full gate is Review239/
+        pattern: /latest full gate is Review239/,
       },
       {
         name: "self-test stale root test count",
-        pattern: /53 root test files \/ 1161 tests/
+        pattern: /53 root test files \/ 1161 tests/,
       },
       {
         name: "self-test stale clean counter",
-        pattern: /post-Review243 sweep reports no actionable findings/
-      }
-    ]
+        pattern: /post-Review243 sweep reports no actionable findings/,
+      },
+    ],
   };
   const staleFailures = currentDocsTextPolicyFailures(
     currentDocsSelfTestPolicy,
-    "Latest focused evidence: Review 243; latest full gate is Review239; 53 root test files / 1161 tests; post-Review243 sweep reports no actionable findings."
+    "Latest focused evidence: Review 243; latest full gate is Review239; 53 root test files / 1161 tests; post-Review243 sweep reports no actionable findings.",
   );
   for (const expected of [
     "self-test stale focused review",
     "self-test stale full gate review",
     "self-test stale root test count",
-    "self-test stale clean counter"
+    "self-test stale clean counter",
   ]) {
     if (!staleFailures.some((failure) => failure.includes(expected))) {
-      failSelfTest(`current docs text policy self-test did not catch ${expected}: ${staleFailures.join(" ")}`);
+      failSelfTest(
+        `current docs text policy self-test did not catch ${expected}: ${staleFailures.join(" ")}`,
+      );
     }
   }
 
   const currentFailures = currentDocsTextPolicyFailures(
     currentDocsSelfTestPolicy,
-    `Latest focused evidence: Review ${latestFocusedReview}; latest full gate is Review${latestFullGateReview}; ${currentDocsEvidencePolicy.rootTestFiles} root test files / ${currentDocsEvidencePolicy.rootTestCount} tests; post-Review${latestFocusedReview} sweep reports no actionable findings.`
+    `Latest focused evidence: Review ${latestFocusedReview}; latest full gate is Review${latestFullGateReview}; ${currentDocsEvidencePolicy.rootTestFiles} root test files / ${currentDocsEvidencePolicy.rootTestCount} tests; post-Review${latestFocusedReview} sweep reports no actionable findings.`,
   );
   if (currentFailures.length > 0) {
-    failSelfTest(`current docs text policy self-test rejected current evidence: ${currentFailures.join(" ")}`);
+    failSelfTest(
+      `current docs text policy self-test rejected current evidence: ${currentFailures.join(" ")}`,
+    );
   }
 };
 
@@ -245,7 +257,9 @@ const auditCurrentDocsTextPolicies = () => {
 
 const inventoryRows = new Map();
 for (const line of inventory.split(/\r?\n/)) {
-  const match = line.match(/^\| `([^`]+)` \| `([^`]+)`([^|]*) \| `([^`]+)` \| ([^|]+) \|/);
+  const match = line.match(
+    /^\|\s*`([^`]+)`\s*\|\s*`([^`]+)`([^|]*)\|\s*`([^`]+)`\s*\|\s*([^|]+)\|/,
+  );
   if (match === null) {
     continue;
   }
@@ -253,7 +267,9 @@ for (const line of inventory.split(/\r?\n/)) {
   const exportLabel = `${match[2]}${match[3].includes("bin") ? " bin" : ""}`;
   const key = `${match[1]}\0${exportLabel}`;
   if (inventoryRows.has(key)) {
-    failures.push(`docs/public-api-inventory.md duplicates Package Export Map row for ${match[1]} ${exportLabel}`);
+    failures.push(
+      `docs/public-api-inventory.md duplicates Package Export Map row for ${match[1]} ${exportLabel}`,
+    );
   }
   inventoryRows.set(key, match[4]);
 }
@@ -270,21 +286,20 @@ const expectedBins = new Map();
 const importSpecifierFor = (packageName, exportPath) =>
   exportPath === "." ? packageName : `${packageName}${exportPath.slice(1)}`;
 
-const stripTypeScriptExtension = (path) =>
-  path
-    .replace(/\.d\.ts$/, "")
-    .replace(/\.[cm]?tsx?$/, "");
+const stripTypeScriptExtension = (path) => path.replace(/\.d\.ts$/, "").replace(/\.[cm]?tsx?$/, "");
 
 const packageDirectoryForName = (packageName) =>
-  packageDirectories.find((directory) =>
-    readJson(join(directory, "package.json")).name === packageName
+  packageDirectories.find(
+    (directory) => readJson(join(directory, "package.json")).name === packageName,
   );
 
 const manifestSourceDistStem = (entry, packageDirectory) => {
   const packageRelativeDirectory = relative(root, packageDirectory).split("\\").join("/");
   const sourcePrefix = `${packageRelativeDirectory}/src/`;
   if (typeof entry.source !== "string" || !entry.source.startsWith(sourcePrefix)) {
-    failures.push(`${entry.package} export ${entry.export} source ${entry.source} must live under ${sourcePrefix}`);
+    failures.push(
+      `${entry.package} export ${entry.export} source ${entry.source} must live under ${sourcePrefix}`,
+    );
     return undefined;
   }
 
@@ -302,7 +317,7 @@ const expectedManifestTargets = (entry, packageDirectory) => {
   }
   return {
     types: `./dist/${stem}.d.ts`,
-    default: `./dist/${stem}.js`
+    default: `./dist/${stem}.js`,
   };
 };
 
@@ -318,16 +333,22 @@ const assertManifestExportTargets = (entry, packageManifest, packageDirectory) =
 
   if (entry.export === ".") {
     if (packageManifest.main !== expected.default) {
-      failures.push(`${entry.package} main must target ${expected.default} because public-api.manifest.json maps root source to ${entry.source}`);
+      failures.push(
+        `${entry.package} main must target ${expected.default} because public-api.manifest.json maps root source to ${entry.source}`,
+      );
     }
     if (packageManifest.types !== expected.types) {
-      failures.push(`${entry.package} types must target ${expected.types} because public-api.manifest.json maps root source to ${entry.source}`);
+      failures.push(
+        `${entry.package} types must target ${expected.types} because public-api.manifest.json maps root source to ${entry.source}`,
+      );
     }
   }
 
   if (typeof exportValue === "string") {
     if (exportValue !== expected.default) {
-      failures.push(`${entry.package} export ${entry.export} must target ${expected.default} because public-api.manifest.json maps it to ${entry.source}`);
+      failures.push(
+        `${entry.package} export ${entry.export} must target ${expected.default} because public-api.manifest.json maps it to ${entry.source}`,
+      );
     }
     return;
   }
@@ -336,10 +357,14 @@ const assertManifestExportTargets = (entry, packageManifest, packageDirectory) =
   }
 
   if (exportValue.types !== expected.types) {
-    failures.push(`${entry.package} export ${entry.export} types target must be ${expected.types} because public-api.manifest.json maps it to ${entry.source}`);
+    failures.push(
+      `${entry.package} export ${entry.export} types target must be ${expected.types} because public-api.manifest.json maps it to ${entry.source}`,
+    );
   }
   if (exportValue.default !== expected.default) {
-    failures.push(`${entry.package} export ${entry.export} default target must be ${expected.default} because public-api.manifest.json maps it to ${entry.source}`);
+    failures.push(
+      `${entry.package} export ${entry.export} default target must be ${expected.default} because public-api.manifest.json maps it to ${entry.source}`,
+    );
   }
 };
 
@@ -351,7 +376,9 @@ const assertManifestBinTarget = (entry, packageManifest, packageDirectory) => {
   const expected = `./dist/${stem}.js`;
   const actual = packageManifest.bin?.[entry.bin];
   if (actual !== expected) {
-    failures.push(`${entry.package} bin ${entry.bin} target must be ${expected} because public-api.manifest.json maps it to ${entry.source}`);
+    failures.push(
+      `${entry.package} bin ${entry.bin} target must be ${expected} because public-api.manifest.json maps it to ${entry.source}`,
+    );
   }
 };
 
@@ -367,20 +394,20 @@ const assertRelativeFile = (label, path) => {
 };
 
 const importDeclarationsFor = (sourceFile, specifier) =>
-  sourceFile.statements.filter((statement) =>
-    ts.isImportDeclaration(statement) &&
-    ts.isStringLiteral(statement.moduleSpecifier) &&
-    statement.moduleSpecifier.text === specifier
+  sourceFile.statements.filter(
+    (statement) =>
+      ts.isImportDeclaration(statement) &&
+      ts.isStringLiteral(statement.moduleSpecifier) &&
+      statement.moduleSpecifier.text === specifier,
   );
 
 const importModuleSpecifiers = (sourceFile) =>
   new Set(
     sourceFile.statements.flatMap((statement) =>
-      ts.isImportDeclaration(statement) &&
-      ts.isStringLiteral(statement.moduleSpecifier)
+      ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)
         ? [statement.moduleSpecifier.text]
-        : []
-    )
+        : [],
+    ),
   );
 
 const importedBindingNames = (declaration) => {
@@ -416,15 +443,25 @@ const typeTestReferenceCoverageFailures = (entry, sourceFile) => {
 
   for (const reference of entry.typeTestReferences ?? []) {
     if (typeof reference !== "string" || reference.length === 0) {
-      referenceFailures.push(`${entry.package} export ${entry.export} typeTestReferences entries must be non-empty strings`);
+      referenceFailures.push(
+        `${entry.package} export ${entry.export} typeTestReferences entries must be non-empty strings`,
+      );
     } else if (reference.startsWith("virtual:")) {
       if (!moduleSpecifiers.has(reference)) {
-        referenceFailures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} must import virtual module ${reference}`);
+        referenceFailures.push(
+          `${entry.package} export ${entry.export} type test ${entry.typeTest} must import virtual module ${reference}`,
+        );
       }
-    } else if (!reference.split(".").every((part) => ts.isIdentifierText(part, ts.ScriptTarget.Latest))) {
-      referenceFailures.push(`${entry.package} export ${entry.export} typeTestReferences entry ${reference} must be either a virtual:* module specifier, TypeScript identifier, or dotted namespace member`);
+    } else if (
+      !reference.split(".").every((part) => ts.isIdentifierText(part, ts.ScriptTarget.Latest))
+    ) {
+      referenceFailures.push(
+        `${entry.package} export ${entry.export} typeTestReferences entry ${reference} must be either a virtual:* module specifier, TypeScript identifier, or dotted namespace member`,
+      );
     } else if (!usedReferences.has(reference)) {
-      referenceFailures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} is missing required symbol reference ${reference}`);
+      referenceFailures.push(
+        `${entry.package} export ${entry.export} type test ${entry.typeTest} is missing required symbol reference ${reference}`,
+      );
     }
   }
 
@@ -475,33 +512,45 @@ const assertTypeTestCoverage = (entry, typeTestPath, typeTest) => {
     typeTest,
     ts.ScriptTarget.Latest,
     true,
-    ts.ScriptKind.TS
+    ts.ScriptKind.TS,
   );
   const imports = importDeclarationsFor(sourceFile, entry.import);
   if (imports.length === 0) {
-    failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} does not import ${entry.import}`);
+    failures.push(
+      `${entry.package} export ${entry.export} type test ${entry.typeTest} does not import ${entry.import}`,
+    );
     return;
   }
 
   const importedNames = imports.flatMap(importedBindingNames);
   if (importedNames.length === 0 && !Array.isArray(entry.typeTestReferences)) {
-    failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} is side-effect-only and must declare typeTestReferences in the manifest`);
+    failures.push(
+      `${entry.package} export ${entry.export} type test ${entry.typeTest} is side-effect-only and must declare typeTestReferences in the manifest`,
+    );
   }
 
   const usedIdentifiers = nonImportReferenceNames(sourceFile);
   for (const name of importedNames) {
     if (!usedIdentifiers.has(name)) {
-      failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} imports ${name} but does not exercise it outside the import declaration`);
+      failures.push(
+        `${entry.package} export ${entry.export} type test ${entry.typeTest} imports ${name} but does not exercise it outside the import declaration`,
+      );
     }
   }
 
   for (const name of entry.requiredTypeTestImports ?? []) {
     if (typeof name !== "string" || name.length === 0) {
-      failures.push(`${entry.package} export ${entry.export} requiredTypeTestImports entries must be non-empty strings`);
+      failures.push(
+        `${entry.package} export ${entry.export} requiredTypeTestImports entries must be non-empty strings`,
+      );
     } else if (!importedNames.includes(name)) {
-      failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} must directly import required public symbol ${name}`);
+      failures.push(
+        `${entry.package} export ${entry.export} type test ${entry.typeTest} must directly import required public symbol ${name}`,
+      );
     } else if (!usedIdentifiers.has(name)) {
-      failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} must exercise required public symbol ${name}`);
+      failures.push(
+        `${entry.package} export ${entry.export} type test ${entry.typeTest} must exercise required public symbol ${name}`,
+      );
     }
   }
 
@@ -514,24 +563,24 @@ const assertTypeTestReferenceSelfTest = (name, source, references, expectedFragm
     source,
     ts.ScriptTarget.Latest,
     true,
-    ts.ScriptKind.TS
+    ts.ScriptKind.TS,
   );
   const entry = {
     package: "@effect-ui/self-test",
     export: "./virtual",
     typeTest: `${name}.test-d.ts`,
-    typeTestReferences: references
+    typeTestReferences: references,
   };
   const referenceFailures = typeTestReferenceCoverageFailures(entry, sourceFile);
   if (referenceFailures.length !== expectedFragments.length) {
     failSelfTest(
-      `${name} typeTestReferences self-test expected ${expectedFragments.length} failures but found ${referenceFailures.length}: ${referenceFailures.join(" ")}`
+      `${name} typeTestReferences self-test expected ${expectedFragments.length} failures but found ${referenceFailures.length}: ${referenceFailures.join(" ")}`,
     );
   }
   for (const expectedFragment of expectedFragments) {
     if (!referenceFailures.some((failure) => failure.includes(expectedFragment))) {
       failSelfTest(
-        `${name} typeTestReferences self-test did not find expected failure fragment ${expectedFragment}: ${referenceFailures.join(" ")}`
+        `${name} typeTestReferences self-test did not find expected failure fragment ${expectedFragment}: ${referenceFailures.join(" ")}`,
       );
     }
   }
@@ -544,7 +593,7 @@ const values: Array<unknown> = [actionManifest];
 type Entry = ActionManifestEntry;
 `,
   ["virtual:effect-ui/actions", "actionManifest", "ActionManifestEntry"],
-  []
+  [],
 );
 assertTypeTestReferenceSelfTest(
   "substring references rejected",
@@ -553,7 +602,11 @@ const text = "virtual:effect-ui/server-functions actionManifest ActionManifestEn
 void text;
 `,
   ["virtual:effect-ui/server-functions", "actionManifest", "ActionManifestEntry"],
-  ["virtual module virtual:effect-ui/server-functions", "symbol reference actionManifest", "symbol reference ActionManifestEntry"]
+  [
+    "virtual module virtual:effect-ui/server-functions",
+    "symbol reference actionManifest",
+    "symbol reference ActionManifestEntry",
+  ],
 );
 
 const exportedDeclarationNames = (source) => {
@@ -562,12 +615,16 @@ const exportedDeclarationNames = (source) => {
     source,
     ts.ScriptTarget.Latest,
     true,
-    ts.ScriptKind.TS
+    ts.ScriptKind.TS,
   );
   const names = [];
   for (const statement of sourceFile.statements) {
-    const hasExportModifier = ts.canHaveModifiers(statement) &&
-      (ts.getModifiers(statement)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ?? false);
+    const hasExportModifier =
+      ts.canHaveModifiers(statement) &&
+      (ts
+        .getModifiers(statement)
+        ?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ??
+        false);
     if (!hasExportModifier) {
       continue;
     }
@@ -586,7 +643,7 @@ const exportedNamedModules = (source) => {
     source,
     ts.ScriptTarget.Latest,
     true,
-    ts.ScriptKind.TS
+    ts.ScriptKind.TS,
   );
   for (const statement of sourceFile.statements) {
     if (
@@ -602,7 +659,7 @@ const exportedNamedModules = (source) => {
     for (const element of statement.exportClause.elements) {
       exports.push({
         moduleName: statement.moduleSpecifier.text.slice(2).replace(/\.js$/, ""),
-        exportedName: element.name.text
+        exportedName: element.name.text,
       });
     }
   }
@@ -684,8 +741,8 @@ const publicNamespaceMembers = (groups, exportedSymbolsByFile) => {
 };
 
 const publicHoverDeclarationNames = (group) => [
-  ...group.declarations ?? [],
-  ...group.allDeclarations ?? []
+  ...(group.declarations ?? []),
+  ...(group.allDeclarations ?? []),
 ];
 
 const publicHoverSymbolReachabilityFailures = (groups, exportedSymbolsByFile) => {
@@ -702,9 +759,13 @@ const publicHoverSymbolReachabilityFailures = (groups, exportedSymbolsByFile) =>
         continue;
       }
       if (namespaceAlias !== undefined) {
-        symbolFailures.push(`${group.file} public hover declaration ${name} points at missing public namespace alias ${namespaceAlias}`);
+        symbolFailures.push(
+          `${group.file} public hover declaration ${name} points at missing public namespace alias ${namespaceAlias}`,
+        );
       } else {
-        symbolFailures.push(`${group.file} public hover declaration ${name} is not reachable from a public package export`);
+        symbolFailures.push(
+          `${group.file} public hover declaration ${name} is not reachable from a public package export`,
+        );
       }
     }
   }
@@ -714,55 +775,74 @@ const publicHoverSymbolReachabilityFailures = (groups, exportedSymbolsByFile) =>
 const assertPublicHoverSymbolReachabilitySelfTest = () => {
   const exportedSymbolsByFile = new Map([
     ["self.ts", new Set(["Exported"])],
-    ["index.ts", new Set(["Public"])]
+    ["index.ts", new Set(["Public"])],
   ]);
   const selfTestGroups = [
     {
       file: "self.ts",
       declarations: ["Exported", "Hidden"],
       namespaceAliases: {
-        Hidden: "Public.Hidden"
-      }
+        Hidden: "Public.Hidden",
+      },
     },
     {
       file: "index.ts",
       namespaceDeclarations: {
-        Public: ["Hidden"]
-      }
-    }
+        Public: ["Hidden"],
+      },
+    },
   ];
-  const validFailures = publicHoverSymbolReachabilityFailures(selfTestGroups, exportedSymbolsByFile);
+  const validFailures = publicHoverSymbolReachabilityFailures(
+    selfTestGroups,
+    exportedSymbolsByFile,
+  );
   if (validFailures.length > 0) {
-    failSelfTest(`public hover symbol reachability self-test rejected namespace alias: ${validFailures.join(" ")}`);
+    failSelfTest(
+      `public hover symbol reachability self-test rejected namespace alias: ${validFailures.join(" ")}`,
+    );
   }
 
-  const missingDirectFailures = publicHoverSymbolReachabilityFailures([
-    {
-      file: "self.ts",
-      declarations: ["Hidden"]
-    }
-  ], exportedSymbolsByFile);
+  const missingDirectFailures = publicHoverSymbolReachabilityFailures(
+    [
+      {
+        file: "self.ts",
+        declarations: ["Hidden"],
+      },
+    ],
+    exportedSymbolsByFile,
+  );
   if (!missingDirectFailures.some((failure) => failure.includes("Hidden is not reachable"))) {
-    failSelfTest(`public hover symbol reachability self-test missed unexported symbol: ${missingDirectFailures.join(" ")}`);
+    failSelfTest(
+      `public hover symbol reachability self-test missed unexported symbol: ${missingDirectFailures.join(" ")}`,
+    );
   }
 
-  const missingNamespaceFailures = publicHoverSymbolReachabilityFailures([
-    {
-      file: "self.ts",
-      declarations: ["Hidden"],
-      namespaceAliases: {
-        Hidden: "Public.Missing"
-      }
-    },
-    {
-      file: "index.ts",
-      namespaceDeclarations: {
-        Public: ["Hidden"]
-      }
-    }
-  ], exportedSymbolsByFile);
-  if (!missingNamespaceFailures.some((failure) => failure.includes("missing public namespace alias Public.Missing"))) {
-    failSelfTest(`public hover symbol reachability self-test missed stale namespace alias: ${missingNamespaceFailures.join(" ")}`);
+  const missingNamespaceFailures = publicHoverSymbolReachabilityFailures(
+    [
+      {
+        file: "self.ts",
+        declarations: ["Hidden"],
+        namespaceAliases: {
+          Hidden: "Public.Missing",
+        },
+      },
+      {
+        file: "index.ts",
+        namespaceDeclarations: {
+          Public: ["Hidden"],
+        },
+      },
+    ],
+    exportedSymbolsByFile,
+  );
+  if (
+    !missingNamespaceFailures.some((failure) =>
+      failure.includes("missing public namespace alias Public.Missing"),
+    )
+  ) {
+    failSelfTest(
+      `public hover symbol reachability self-test missed stale namespace alias: ${missingNamespaceFailures.join(" ")}`,
+    );
   }
 };
 
@@ -770,33 +850,45 @@ const sourceSurfaceCoverageFailures = (entry, actualModules) => {
   if (entry.sourceSurface === undefined) {
     return actualModules.length === 0
       ? []
-      : [`${entry.package} export ${entry.export} sourceSurface is required because ${basename(entry.source)} re-exports local module ${actualModules[0]}`];
+      : [
+          `${entry.package} export ${entry.export} sourceSurface is required because ${basename(entry.source)} re-exports local module ${actualModules[0]}`,
+        ];
   }
 
   const surfaceFailures = [];
   if (
     !Array.isArray(entry.sourceSurface) ||
-    entry.sourceSurface.some((moduleName) => typeof moduleName !== "string" || moduleName.length === 0)
+    entry.sourceSurface.some(
+      (moduleName) => typeof moduleName !== "string" || moduleName.length === 0,
+    )
   ) {
-    return [`${entry.package} export ${entry.export} sourceSurface must be an array of non-empty strings`];
+    return [
+      `${entry.package} export ${entry.export} sourceSurface must be an array of non-empty strings`,
+    ];
   }
 
   const expectedModules = [...new Set(entry.sourceSurface)].sort();
   if (expectedModules.length !== entry.sourceSurface.length) {
-    surfaceFailures.push(`${entry.package} export ${entry.export} sourceSurface contains duplicate module names`);
+    surfaceFailures.push(
+      `${entry.package} export ${entry.export} sourceSurface contains duplicate module names`,
+    );
   }
 
   const expectedModuleSet = new Set(expectedModules);
   for (const moduleName of actualModules) {
     if (!expectedModuleSet.has(moduleName)) {
-      surfaceFailures.push(`${entry.package} export ${entry.export} sourceSurface is missing local re-exported module ${moduleName}`);
+      surfaceFailures.push(
+        `${entry.package} export ${entry.export} sourceSurface is missing local re-exported module ${moduleName}`,
+      );
     }
   }
 
   const actualModuleSet = new Set(actualModules);
   for (const moduleName of expectedModules) {
     if (!actualModuleSet.has(moduleName)) {
-      surfaceFailures.push(`${entry.package} export ${entry.export} sourceSurface lists ${moduleName}, but ${basename(entry.source)} does not re-export it`);
+      surfaceFailures.push(
+        `${entry.package} export ${entry.export} sourceSurface lists ${moduleName}, but ${basename(entry.source)} does not re-export it`,
+      );
     }
   }
 
@@ -815,48 +907,47 @@ const assertSourceSurfaceSelfTest = (name, sourceSurface, actualModules, expecte
   );
   if (failures.length !== expectedFragments.length) {
     failSelfTest(
-      `${name} sourceSurface self-test expected ${expectedFragments.length} failures but found ${failures.length}: ${failures.join(" ")}`
+      `${name} sourceSurface self-test expected ${expectedFragments.length} failures but found ${failures.length}: ${failures.join(" ")}`,
     );
   }
   for (const expectedFragment of expectedFragments) {
     if (!failures.some((failure) => failure.includes(expectedFragment))) {
       failSelfTest(
-        `${name} sourceSurface self-test did not find expected failure fragment ${expectedFragment}: ${failures.join(" ")}`
+        `${name} sourceSurface self-test did not find expected failure fragment ${expectedFragment}: ${failures.join(" ")}`,
       );
     }
   }
 };
 
-assertSourceSurfaceSelfTest(
-  "valid source surface",
-  ["alpha", "beta"],
-  ["alpha", "beta"],
-  []
-);
+assertSourceSurfaceSelfTest("valid source surface", ["alpha", "beta"], ["alpha", "beta"], []);
 assertSourceSurfaceSelfTest(
   "source surface drift",
   ["alpha", "stale"],
   ["alpha", "missing"],
-  ["missing local re-exported module missing", "lists stale"]
+  ["missing local re-exported module missing", "lists stale"],
 );
 assertSourceSurfaceSelfTest(
   "missing source surface",
   undefined,
   ["alpha"],
-  ["sourceSurface is required"]
+  ["sourceSurface is required"],
 );
 
 for (const entry of publicApiManifest.entrypoints ?? []) {
   const key = `${entry.package}\0${entry.export}`;
   if (expectedEntrypoints.has(key)) {
-    failures.push(`type-tests/public-api.manifest.json duplicates ${entry.package} export ${entry.export}`);
+    failures.push(
+      `type-tests/public-api.manifest.json duplicates ${entry.package} export ${entry.export}`,
+    );
     continue;
   }
 
   expectedEntrypoints.set(key, entry);
   const expectedImport = importSpecifierFor(entry.package, entry.export);
   if (entry.import !== expectedImport) {
-    failures.push(`${entry.package} export ${entry.export} manifest import must be ${expectedImport}`);
+    failures.push(
+      `${entry.package} export ${entry.export} manifest import must be ${expectedImport}`,
+    );
   }
   assertRelativeFile(`${entry.package} export ${entry.export} source`, entry.source);
   assertRelativeFile(`${entry.package} export ${entry.export} docs`, entry.docs);
@@ -870,7 +961,9 @@ for (const entry of publicApiManifest.entrypoints ?? []) {
 for (const entry of publicApiManifest.bins ?? []) {
   const key = `${entry.package}\0${entry.bin}`;
   if (expectedBins.has(key)) {
-    failures.push(`type-tests/public-api.manifest.json duplicates ${entry.package} bin ${entry.bin}`);
+    failures.push(
+      `type-tests/public-api.manifest.json duplicates ${entry.package} bin ${entry.bin}`,
+    );
     continue;
   }
 
@@ -897,26 +990,46 @@ for (const packageDirectory of packageDirectories) {
   for (const exportPath of Object.keys(packageManifest.exports ?? {})) {
     const key = `${packageName}\0${exportPath}`;
     if (!inventoryRows.has(key)) {
-      failures.push(`${packageName} export ${exportPath} is missing from docs/public-api-inventory.md Package Export Map`);
+      failures.push(
+        `${packageName} export ${exportPath} is missing from docs/public-api-inventory.md Package Export Map`,
+      );
     }
     if (!expectedEntrypoints.has(key)) {
-      failures.push(`${packageName} export ${exportPath} is missing from type-tests/public-api.manifest.json`);
+      failures.push(
+        `${packageName} export ${exportPath} is missing from type-tests/public-api.manifest.json`,
+      );
     }
-    if (inventoryRows.has(key) && expectedEntrypoints.has(key) && inventoryRows.get(key) !== expectedEntrypoints.get(key).source) {
-      failures.push(`${packageName} export ${exportPath} docs Source must match type-tests/public-api.manifest.json source ${expectedEntrypoints.get(key).source}`);
+    if (
+      inventoryRows.has(key) &&
+      expectedEntrypoints.has(key) &&
+      inventoryRows.get(key) !== expectedEntrypoints.get(key).source
+    ) {
+      failures.push(
+        `${packageName} export ${exportPath} docs Source must match type-tests/public-api.manifest.json source ${expectedEntrypoints.get(key).source}`,
+      );
     }
   }
 
   for (const binName of Object.keys(packageManifest.bin ?? {})) {
     const key = `${packageName}\0${binName} bin`;
     if (!inventoryRows.has(key)) {
-      failures.push(`${packageName} bin ${binName} is missing from docs/public-api-inventory.md Package Export Map`);
+      failures.push(
+        `${packageName} bin ${binName} is missing from docs/public-api-inventory.md Package Export Map`,
+      );
     }
     if (!expectedBins.has(`${packageName}\0${binName}`)) {
-      failures.push(`${packageName} bin ${binName} is missing from type-tests/public-api.manifest.json`);
+      failures.push(
+        `${packageName} bin ${binName} is missing from type-tests/public-api.manifest.json`,
+      );
     }
-    if (inventoryRows.has(key) && expectedBins.has(`${packageName}\0${binName}`) && inventoryRows.get(key) !== expectedBins.get(`${packageName}\0${binName}`).source) {
-      failures.push(`${packageName} bin ${binName} docs Source must match type-tests/public-api.manifest.json source ${expectedBins.get(`${packageName}\0${binName}`).source}`);
+    if (
+      inventoryRows.has(key) &&
+      expectedBins.has(`${packageName}\0${binName}`) &&
+      inventoryRows.get(key) !== expectedBins.get(`${packageName}\0${binName}`).source
+    ) {
+      failures.push(
+        `${packageName} bin ${binName} docs Source must match type-tests/public-api.manifest.json source ${expectedBins.get(`${packageName}\0${binName}`).source}`,
+      );
     }
   }
 }
@@ -925,13 +1038,17 @@ for (const [key, entry] of expectedEntrypoints) {
   const [packageName, exportPath] = key.split("\0");
   const packageDirectory = packageDirectoryForName(packageName);
   if (!packageDirectory) {
-    failures.push(`${entry.package} export ${entry.export} in type-tests/public-api.manifest.json has no workspace package`);
+    failures.push(
+      `${entry.package} export ${entry.export} in type-tests/public-api.manifest.json has no workspace package`,
+    );
     continue;
   }
 
   const packageManifest = readJson(join(packageDirectory, "package.json"));
   if (!(exportPath in (packageManifest.exports ?? {}))) {
-    failures.push(`${entry.package} export ${entry.export} in type-tests/public-api.manifest.json is not a package export`);
+    failures.push(
+      `${entry.package} export ${entry.export} in type-tests/public-api.manifest.json is not a package export`,
+    );
   } else {
     assertManifestExportTargets(entry, packageManifest, packageDirectory);
   }
@@ -941,13 +1058,17 @@ for (const [key, entry] of expectedBins) {
   const [packageName, binName] = key.split("\0");
   const packageDirectory = packageDirectoryForName(packageName);
   if (!packageDirectory) {
-    failures.push(`${entry.package} bin ${entry.bin} in type-tests/public-api.manifest.json has no workspace package`);
+    failures.push(
+      `${entry.package} bin ${entry.bin} in type-tests/public-api.manifest.json has no workspace package`,
+    );
     continue;
   }
 
   const packageManifest = readJson(join(packageDirectory, "package.json"));
   if (!(binName in (packageManifest.bin ?? {}))) {
-    failures.push(`${entry.package} bin ${entry.bin} in type-tests/public-api.manifest.json is not a package bin`);
+    failures.push(
+      `${entry.package} bin ${entry.bin} in type-tests/public-api.manifest.json is not a package bin`,
+    );
   } else {
     assertManifestBinTarget(entry, packageManifest, packageDirectory);
   }
@@ -955,13 +1076,18 @@ for (const [key, entry] of expectedBins) {
 
 const sectionForPackage = (packageName) => {
   const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = new RegExp(`^### \`${escaped}\`\\n([\\s\\S]*?)(?=^### \`|^## |(?![\\s\\S]))`, "m");
+  const pattern = new RegExp(
+    `^### \`${escaped}\`\\n([\\s\\S]*?)(?=^### \`|^## |(?![\\s\\S]))`,
+    "m",
+  );
   return inventory.match(pattern)?.[1] ?? "";
 };
 
 const exportedModuleNames = (source) => {
   const modules = [];
-  for (const match of source.matchAll(/export\s+(?:type\s+)?(?:\*\s+|\{[\s\S]*?\}\s+)from\s+"\.\/([^"]+)\.js";/g)) {
+  for (const match of source.matchAll(
+    /export\s+(?:type\s+)?(?:\*\s+|\{[\s\S]*?\}\s+)from\s+"\.\/([^"]+)\.js";/g,
+  )) {
     modules.push(match[1]);
   }
   return modules;
@@ -975,7 +1101,9 @@ const exportedModules = (entrypoint) => {
 
 for (const entry of expectedEntrypoints.values()) {
   if (existsSync(join(root, entry.source))) {
-    failures.push(...sourceSurfaceCoverageFailures(entry, exportedModules(join(root, entry.source))));
+    failures.push(
+      ...sourceSurfaceCoverageFailures(entry, exportedModules(join(root, entry.source))),
+    );
   }
 }
 
@@ -1029,10 +1157,14 @@ const assertPublicSymbolPolicyReachability = () => {
   const exportedSymbolsByFile = publicApiExportedSymbolsBySourceFile();
   for (const group of publicHoverDocGroups) {
     if (!reachable.has(group.file)) {
-      failures.push(`${group.file} has public hover symbol policy but is not reachable from a public package export or re-exported source module`);
+      failures.push(
+        `${group.file} has public hover symbol policy but is not reachable from a public package export or re-exported source module`,
+      );
     }
   }
-  failures.push(...publicHoverSymbolReachabilityFailures(publicHoverDocGroups, exportedSymbolsByFile));
+  failures.push(
+    ...publicHoverSymbolReachabilityFailures(publicHoverDocGroups, exportedSymbolsByFile),
+  );
 };
 
 const localDependencyModules = (entrypoint) => {
@@ -1044,20 +1176,19 @@ const localDependencyModules = (entrypoint) => {
   return [...new Set(modules)].sort();
 };
 
-const backtickNames = (source) =>
-  [...source.matchAll(/`([^`]+)`/g)].map((match) => match[1]);
+const backtickNames = (source) => [...source.matchAll(/`([^`]+)`/g)].map((match) => match[1]);
 
 const documentedSourceSurface = (packageSection) => {
   const directModules = [];
   const namespaceModules = [];
   const coreRootExports = packageSection.match(
-    /The root export (?:star-exports|re-exports) these (?:local )?modules:\n\n([\s\S]*?)(?=\n\n)/
+    /The root export (?:star-exports|re-exports) these (?:local )?modules:\n\n([\s\S]*?)(?=\n\n)/,
   );
   const localSourceModules = packageSection.match(
-    /- Local source modules: ([\s\S]*?)(?=\n- |\n\n)/
+    /- Local source modules: ([\s\S]*?)(?=\n- |\n\n)/,
   );
   const namespaceSourceModules = packageSection.match(
-    /- Namespace-backed source modules: ([\s\S]*?)(?=\n- |\n\n)/
+    /- Namespace-backed source modules: ([\s\S]*?)(?=\n- |\n\n)/,
   );
 
   if (coreRootExports !== null) {
@@ -1072,7 +1203,7 @@ const documentedSourceSurface = (packageSection) => {
 
   return {
     directModules: [...new Set(directModules)].sort(),
-    namespaceModules: [...new Set(namespaceModules)].sort()
+    namespaceModules: [...new Set(namespaceModules)].sort(),
   };
 };
 
@@ -1097,14 +1228,18 @@ for (const [key, entry] of expectedEntrypoints) {
   const documentedDirectModuleSet = new Set(documentedSurface.directModules);
   for (const moduleName of rootExportedModules) {
     if (!documentedDirectModuleSet.has(moduleName)) {
-      failures.push(`${packageName} root export ${moduleName} is not classified in its Source Surface section`);
+      failures.push(
+        `${packageName} root export ${moduleName} is not classified in its Source Surface section`,
+      );
     }
   }
 
   const rootExportedModuleSet = new Set(rootExportedModules);
   for (const moduleName of documentedSurface.directModules) {
     if (!rootExportedModuleSet.has(moduleName)) {
-      failures.push(`${packageName} Source Surface lists ${moduleName}, but ${basename(entry.source)} does not re-export it`);
+      failures.push(
+        `${packageName} Source Surface lists ${moduleName}, but ${basename(entry.source)} does not re-export it`,
+      );
     }
   }
 
@@ -1112,9 +1247,13 @@ for (const [key, entry] of expectedEntrypoints) {
   const localDependencyModuleSet = new Set(localDependencyModules(join(root, entry.source)));
   for (const moduleName of documentedSurface.namespaceModules) {
     if (!allowedNamespaceModules.has(moduleName)) {
-      failures.push(`${packageName} Source Surface lists ${moduleName} as namespace-backed without an audit allowance`);
+      failures.push(
+        `${packageName} Source Surface lists ${moduleName} as namespace-backed without an audit allowance`,
+      );
     } else if (!localDependencyModuleSet.has(moduleName)) {
-      failures.push(`${packageName} Source Surface lists ${moduleName} as namespace-backed, but ${basename(entry.source)} does not import it`);
+      failures.push(
+        `${packageName} Source Surface lists ${moduleName} as namespace-backed, but ${basename(entry.source)} does not import it`,
+      );
     }
   }
 }
@@ -1136,14 +1275,14 @@ if (failures.length > 0) {
       });
       return yield* Effect.fail({
         _tag: "PublicApiInventoryAuditFailure",
-        failures
+        failures,
       });
-    })
+    }),
   );
 } else {
   runScriptMainEffect(
     Effect.sync(() => {
       console.log("Public API inventory audit passed.");
-    })
+    }),
   );
 }

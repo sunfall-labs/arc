@@ -9,11 +9,11 @@ export const sampleDevtoolsPanels = (): DevtoolsPanels =>
           method: "GET",
           url: "https://example.test/projects/atlas?tab=activity",
           path: "/projects/atlas",
-          transport: "ssr"
+          transport: "ssr",
         },
         response: {
           status: 200,
-          statusText: "OK"
+          statusText: "OK",
         },
         services: ["ProjectApi"],
         resources: [
@@ -21,40 +21,40 @@ export const sampleDevtoolsPanels = (): DevtoolsPanels =>
             key: "Project.byId:atlas",
             family: "Project.byId",
             input: { id: "atlas" },
-            state: "Success"
-          }
+            state: "Success",
+          },
         ],
         collections: [
           {
             name: "ProjectSummaries",
             state: "loaded",
-            eventCount: 2
-          }
+            eventCount: 2,
+          },
         ],
         serverFunctions: [
           {
             name: "Project.get",
-            status: "success"
-          }
+            status: "success",
+          },
         ],
         actions: [
           {
             name: "Project.rename",
-            state: "Idle"
-          }
+            state: "Idle",
+          },
         ],
         fibers: [
           {
             name: "request-runtime",
-            status: "done"
-          }
+            status: "done",
+          },
         ],
         streams: [
           {
             name: "html",
             state: "closed",
-            chunkCount: 2
-          }
+            chunkCount: 2,
+          },
         ],
         status: "success",
         teardown: {
@@ -65,15 +65,15 @@ export const sampleDevtoolsPanels = (): DevtoolsPanels =>
             fiberCount: 1,
             familyCount: 1,
             moduleCount: 1,
-            tagCount: 0
+            tagCount: 0,
           },
           afterDispose: {
             fiberCount: 0,
             familyCount: 0,
             moduleCount: 0,
-            tagCount: 0
-          }
-        }
-      }
-    ]
+            tagCount: 0,
+          },
+        },
+      },
+    ],
   });

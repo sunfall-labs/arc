@@ -22,7 +22,7 @@ import {
   routePathFromSegments,
   routePathSlug,
   Server,
-  ServerRouteHandlerError
+  ServerRouteHandlerError,
 } from "../src/index.js";
 
 describe("route", () => {
@@ -60,7 +60,9 @@ describe("route", () => {
     expect(MaybeProjectRoute.match("/projects")?.params).toEqual({});
     expect(MaybeProjectRoute.match("/projects/atlas")?.params).toEqual({ id: "atlas" });
     expect(NestedMaybeProjectRoute.match("/projects/settings")?.params).toEqual({});
-    expect(NestedMaybeProjectRoute.match("/projects/atlas/settings")?.params).toEqual({ id: "atlas" });
+    expect(NestedMaybeProjectRoute.match("/projects/atlas/settings")?.params).toEqual({
+      id: "atlas",
+    });
     expectTypeOf<Route.Props<typeof MaybeProjectRoute>>().toEqualTypeOf<{
       readonly params: { readonly id?: string };
       readonly search: Record<string, never>;
@@ -81,15 +83,19 @@ describe("route", () => {
     expect(segments).toEqual([
       { _tag: "Static", value: "projects" },
       { _tag: "Dynamic", name: "id", optional: true },
-      { _tag: "Static", value: "settings" }
+      { _tag: "Static", value: "settings" },
     ]);
     expect(routePathFromSegments(segments)).toBe("/projects/:id?/settings");
     expect(routeParamsFromSegments(segments)).toEqual([{ name: "id", optional: true }]);
     expect(routePathSlug("/projects/:id?/settings")).toBe("projects_$id_optional_settings");
     expect(buildRoutePath("/projects/:id?/settings", {})).toBe("/projects/settings");
-    expect(buildRoutePath("/projects/:id?/settings", { id: "atlas" })).toBe("/projects/atlas/settings");
+    expect(buildRoutePath("/projects/:id?/settings", { id: "atlas" })).toBe(
+      "/projects/atlas/settings",
+    );
     expect(matchRoutePath("/projects/:id?/settings", "/projects/settings")).toEqual({});
-    expect(matchRoutePath("/projects/:id?/settings", "/projects/atlas/settings")).toEqual({ id: "atlas" });
+    expect(matchRoutePath("/projects/:id?/settings", "/projects/atlas/settings")).toEqual({
+      id: "atlas",
+    });
   });
 
   it("rejects invalid and duplicate route params at the route grammar seam", () => {
@@ -99,14 +105,16 @@ describe("route", () => {
     expect(() => parseRoutePathSegments("/projects/:id/:id?")).toThrow(DuplicateRouteParam);
     expect(() => parseRoutePathSegments("/projects/:id?/:id?")).toThrow(DuplicateRouteParam);
     expect(() => buildRoutePath("/projects/:id/:id", { id: "atlas" })).toThrow(DuplicateRouteParam);
-    expect(() => matchRoutePath("/projects/:id/:id", "/projects/atlas/settings")).toThrow(DuplicateRouteParam);
+    expect(() => matchRoutePath("/projects/:id/:id", "/projects/atlas/settings")).toThrow(
+      DuplicateRouteParam,
+    );
   });
 
   it("defines client-only apps", () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home],
-      client: {}
+      client: {},
     });
 
     expect(app.fullStack).toBe(false);
@@ -115,7 +123,7 @@ describe("route", () => {
   it("matches route params and search", () => {
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      search: Schema.Struct({ tab: Schema.optional(Schema.Literal("activity")) })
+      search: Schema.Struct({ tab: Schema.optional(Schema.Literal("activity")) }),
     });
 
     const match = Route.match([ProjectRoute] as const, "/projects/atlas?tab=activity");
@@ -151,7 +159,7 @@ describe("route", () => {
       preload: ({ params }) =>
         Effect.sync(() => {
           preloaded = params.id;
-        })
+        }),
     });
     const match = ProjectRoute.match("/projects/atlas");
 
@@ -162,8 +170,8 @@ describe("route", () => {
     return Effect.runPromise(
       effect.pipe(
         Effect.tap(() => Effect.sync(() => expect(preloaded).toBe("atlas"))),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -171,7 +179,7 @@ describe("route", () => {
     const ProjectRoute = route("/projects/:id", {
       preload: () => {
         throw "preload-failed";
-      }
+      },
     });
     const match = ProjectRoute.match("/projects/atlas");
 
@@ -187,16 +195,16 @@ describe("route", () => {
           Effect.sync(() => {
             expect(error).toBeInstanceOf(RoutePreloadError);
             expect(error.cause).toBe("preload-failed");
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
   it("captures erased Promise-shaped preload returns as typed preload failures", () => {
     const ProjectRoute = route("/projects/:id", {
-      preload: () => Promise.resolve(undefined) as never
+      preload: () => Promise.resolve(undefined) as never,
     });
     const match = ProjectRoute.match("/projects/atlas");
 
@@ -210,22 +218,22 @@ describe("route", () => {
             expect(error.cause).toMatchObject({
               _tag: "EffectInputCallbackError",
               operation: "Route.preload(/projects/:id)",
-              cause: expect.any(EffectInputPromiseRejected)
+              cause: expect.any(EffectInputPromiseRejected),
             });
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
   it("plans route preload resources and hydration payloads", () => {
     const Project = Resource.family({
       name: "Route.Project.plan",
-      load: (id: string) => Effect.succeed({ id, name: "Atlas" })
+      load: (id: string) => Effect.succeed({ id, name: "Atlas" }),
     });
     const ProjectRoute = route("/projects/:id", {
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id))
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
     });
 
     return Effect.runPromise(
@@ -240,14 +248,14 @@ describe("route", () => {
               input: "atlas",
               state: {
                 _tag: "Success",
-                value: { id: "atlas", name: "Atlas" }
-              }
+                value: { id: "atlas", name: "Atlas" },
+              },
             });
             expect(read(Project("atlas"))).toEqual({ id: "atlas", name: "Atlas" });
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -255,61 +263,52 @@ describe("route", () => {
     let ran = false;
     const Project = Resource.family({
       name: "Route.Project.preload-diagnostics",
-      load: (id: string) => Effect.succeed({ id })
+      load: (id: string) => Effect.succeed({ id }),
     });
     const ProjectRoute = route("/projects/:id", {
       preloadResources: [Project, Project("atlas"), "Route.Project.extra"],
-      preloadCollections: [
-        { name: "Route.Project.collection" },
-        "Route.Project.collection.extra"
-      ],
+      preloadCollections: [{ name: "Route.Project.collection" }, "Route.Project.collection.extra"],
       preload: () =>
         Effect.sync(() => {
           ran = true;
-        })
+        }),
     });
     const UnknownRoute = route("/unknown", {
-      preload: () => Effect.void
+      preload: () => Effect.void,
     });
     const PlainRoute = route("/plain", {});
 
     expect(Route.preloadResourceFamilies(ProjectRoute)).toEqual([
       "Route.Project.extra",
-      "Route.Project.preload-diagnostics"
+      "Route.Project.preload-diagnostics",
     ]);
     expect(Route.preloadCollectionNames(ProjectRoute)).toEqual([
       "Route.Project.collection",
-      "Route.Project.collection.extra"
+      "Route.Project.collection.extra",
     ]);
     expect(Route.describePreloadResources(ProjectRoute)).toEqual({
       status: "declared",
-      families: [
-        "Route.Project.extra",
-        "Route.Project.preload-diagnostics"
-      ]
+      families: ["Route.Project.extra", "Route.Project.preload-diagnostics"],
     });
     expect(Route.describePreloadCollections(ProjectRoute)).toEqual({
       status: "declared",
-      collections: [
-        "Route.Project.collection",
-        "Route.Project.collection.extra"
-      ]
+      collections: ["Route.Project.collection", "Route.Project.collection.extra"],
     });
     expect(Route.describePreloadResources(UnknownRoute)).toEqual({
       status: "unknown",
-      families: []
+      families: [],
     });
     expect(Route.describePreloadCollections(UnknownRoute)).toEqual({
       status: "unknown",
-      collections: []
+      collections: [],
     });
     expect(Route.describePreloadResources(PlainRoute)).toEqual({
       status: "none",
-      families: []
+      families: [],
     });
     expect(Route.describePreloadCollections(PlainRoute)).toEqual({
       status: "none",
-      collections: []
+      collections: [],
     });
     expect(ran).toBe(false);
   });
@@ -326,25 +325,22 @@ describe("route", () => {
               href: "/missing",
               match: undefined,
               refs: [],
-              resources: { resources: [] }
-            })
-          )
+              resources: { resources: [] },
+            }),
+          ),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
   it("captures route schema decode failures inside navigation effects", () => {
     const ProjectRoute = route("/projects/:id", {
-      params: Schema.Struct({ id: Schema.Number })
+      params: Schema.Struct({ id: Schema.Number }),
     });
 
     let effect:
-      | Effect.Effect<
-          Route.NavigationPlan<typeof ProjectRoute>,
-          Route.NavigationError
-        >
+      | Effect.Effect<Route.NavigationPlan<typeof ProjectRoute>, Route.NavigationError>
       | undefined;
     expect(() => {
       effect = Route.planNavigationEffect([ProjectRoute] as const, "/projects/atlas");
@@ -356,16 +352,16 @@ describe("route", () => {
           Effect.sync(() => {
             expect(error).toBeInstanceOf(RouteNavigationError);
             expect(error.input).toBe("/projects/atlas");
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
   it("captures route schema decode failures inside match effects", () => {
     const ProjectRoute = route("/projects/:id", {
-      params: Schema.Struct({ id: Schema.Number })
+      params: Schema.Struct({ id: Schema.Number }),
     });
 
     return Effect.runPromise(
@@ -374,10 +370,10 @@ describe("route", () => {
           Effect.sync(() => {
             expect(error).toBeInstanceOf(RouteNavigationError);
             expect(error.input).toBe("/projects/atlas");
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -388,10 +384,10 @@ describe("route", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const duplicateError = yield* Effect.flip(
-          Route.matchEffect([DuplicateParamRoute] as const, "/projects/atlas/settings")
+          Route.matchEffect([DuplicateParamRoute] as const, "/projects/atlas/settings"),
         );
         const invalidError = yield* Effect.flip(
-          Route.matchEffect([InvalidParamRoute] as const, "/invalid-projects/atlas")
+          Route.matchEffect([InvalidParamRoute] as const, "/invalid-projects/atlas"),
         );
 
         expect(duplicateError).toBeInstanceOf(RouteNavigationError);
@@ -400,13 +396,13 @@ describe("route", () => {
         expect(invalidError).toBeInstanceOf(RouteNavigationError);
         expect(invalidError.input).toBe("/invalid-projects/atlas");
         expect(invalidError.cause).toBeInstanceOf(InvalidRouteParam);
-      })
+      }),
     );
   });
 
   it("keeps schema decode failures synchronous for match helpers", () => {
     const ProjectRoute = route("/projects/:id", {
-      params: Schema.Struct({ id: Schema.Number })
+      params: Schema.Struct({ id: Schema.Number }),
     });
 
     expect(() => ProjectRoute.match("/projects/atlas")).toThrow();
@@ -417,7 +413,7 @@ describe("route", () => {
 describe("Server", () => {
   it("runs Effect-backed server functions", () => {
     const getNumber = Server.fn("Number.get", {
-      handler: (_input: void) => Effect.succeed(42)
+      handler: (_input: void) => Effect.succeed(42),
     });
 
     return Effect.runPromise(
@@ -433,11 +429,11 @@ describe("Server", () => {
               name: "Number.get",
               inputSchema: false,
               outputSchema: false,
-              errorSchema: false
-            }
+              errorSchema: false,
+            },
           ]);
         });
-      })
+      }),
     );
   });
 
@@ -445,7 +441,7 @@ describe("Server", () => {
     const echo = Server.fn("Echo", {
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
-      handler: ({ value }) => Effect.succeed({ value: value.toUpperCase() })
+      handler: ({ value }) => Effect.succeed({ value: value.toUpperCase() }),
     });
 
     return Effect.runPromise(
@@ -457,22 +453,25 @@ describe("Server", () => {
           expect(success).toEqual({ value: "ADA" });
           expect(Exit.isFailure(invalid)).toBe(true);
         });
-      })
+      }),
     );
   });
 
   it("provides request context to server routes", () => {
     const serverRoute = Server.route("GET", "/hello", () =>
-      RequestContext.use(({ url }) => Effect.succeed(new Response(url.pathname)))
+      RequestContext.use(({ url }) => Effect.succeed(new Response(url.pathname))),
     );
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const response = yield* Server.handleRoute(serverRoute, new Request("https://example.com/hello"));
+        const response = yield* Server.handleRoute(
+          serverRoute,
+          new Request("https://example.com/hello"),
+        );
         const responseText = yield* Effect.promise(() => response.text());
         const effectResponse = yield* Server.handleRouteEffect(
           serverRoute,
-          new Request("https://example.com/effect")
+          new Request("https://example.com/effect"),
         );
         const effectResponseText = yield* Effect.promise(() => effectResponse.text());
 
@@ -480,7 +479,7 @@ describe("Server", () => {
           expect(responseText).toBe("/hello");
           expect(effectResponseText).toBe("/effect");
         });
-      })
+      }),
     );
   });
 
@@ -506,12 +505,12 @@ describe("Server", () => {
             expect(error.cause).toBeInstanceOf(EffectInputCallbackError);
             expect(error.cause).toMatchObject({
               operation: "Server.route(GET /hello).handler",
-              cause: "handler-failed"
+              cause: "handler-failed",
             });
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -524,16 +523,19 @@ describe("Server", () => {
           yield* response.setCookie("session", "abc123", {
             httpOnly: true,
             path: "/",
-            sameSite: "Lax"
+            sameSite: "Lax",
           });
           return new Response("ok");
-        })
-      )
+        }),
+      ),
     );
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const response = yield* Server.handleRoute(serverRoute, new Request("https://example.com/login"));
+        const response = yield* Server.handleRoute(
+          serverRoute,
+          new Request("https://example.com/login"),
+        );
         const body = yield* Effect.promise(() => response.text());
 
         yield* Effect.sync(() => {
@@ -541,11 +543,11 @@ describe("Server", () => {
           expect(response.statusText).toBe("Accepted");
           expect(response.headers.get("x-effect-ui-route")).toBe("response-context");
           expect(response.headers.getSetCookie()).toEqual([
-            "session=abc123; Path=/; HttpOnly; SameSite=Lax"
+            "session=abc123; Path=/; HttpOnly; SameSite=Lax",
           ]);
           expect(body).toBe("ok");
         });
-      })
+      }),
     );
   });
 
@@ -556,29 +558,29 @@ describe("Server", () => {
           ResponseContext.use((response) =>
             Effect.gen(function* () {
               yield* response.setCookie("session", "abc123", {
-                sameSite: "Loose" as never
+                sameSite: "Loose" as never,
               });
               return new Response("ok");
-            })
-          )
+            }),
+          ),
         );
         const failure = yield* Effect.flip(
-          Server.handleRoute(serverRoute, new Request("https://example.com/bad-cookie"))
+          Server.handleRoute(serverRoute, new Request("https://example.com/bad-cookie")),
         );
 
         expect(failure).toBeInstanceOf(ResponseCookieSerializationError);
         expect(failure).toMatchObject({
-          attribute: "SameSite"
+          attribute: "SameSite",
         });
         expect((failure as ResponseCookieSerializationError).cause).toBe("Loose");
-      })
+      }),
     ));
 
   it("reports malformed request cookies through ServerRouteHandlerError", () => {
     const serverRoute = Server.route("GET", "/cookies", () =>
       RequestContext.use(({ cookies }) =>
-        Effect.succeed(new Response(cookies.get("session") ?? "missing"))
-      )
+        Effect.succeed(new Response(cookies.get("session") ?? "missing")),
+      ),
     );
 
     return Effect.runPromise(
@@ -587,22 +589,22 @@ describe("Server", () => {
           serverRoute,
           new Request("https://example.com/cookies", {
             headers: {
-              cookie: "session=%E0%A4%A"
-            }
-          })
-        )
+              cookie: "session=%E0%A4%A",
+            },
+          }),
+        ),
       ).pipe(
         Effect.tap((error) =>
           Effect.sync(() => {
             expect(error).toBeInstanceOf(ServerRouteHandlerError);
             expect(error.cause).toMatchObject({
               _tag: "EffectInputCallbackError",
-              operation: "RequestContext.make"
+              operation: "RequestContext.make",
             });
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -612,26 +614,28 @@ describe("Server", () => {
         Effect.gen(function* () {
           yield* response.setCookie("session", "abc123", {
             path: "/; HttpOnly",
-            maxAge: Number.POSITIVE_INFINITY
+            maxAge: Number.POSITIVE_INFINITY,
           });
           return new Response("ok");
-        })
-      )
+        }),
+      ),
     );
 
     return Effect.runPromise(
-      Effect.flip(Server.handleRouteEffect(serverRoute, new Request("https://example.com/cookies"))).pipe(
+      Effect.flip(
+        Server.handleRouteEffect(serverRoute, new Request("https://example.com/cookies")),
+      ).pipe(
         Effect.tap((error) =>
           Effect.sync(() => {
             expect(error).toBeInstanceOf(ResponseCookieSerializationError);
             expect(error).toMatchObject({
               _tag: "ResponseCookieSerializationError",
-              attribute: "Path"
+              attribute: "Path",
             });
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -641,23 +645,25 @@ describe("Server", () => {
         Effect.gen(function* () {
           yield* response.setHeader("bad header", "value");
           return new Response("ok");
-        })
-      )
+        }),
+      ),
     );
 
     return Effect.runPromise(
-      Effect.flip(Server.handleRouteEffect(serverRoute, new Request("https://example.com/headers"))).pipe(
+      Effect.flip(
+        Server.handleRouteEffect(serverRoute, new Request("https://example.com/headers")),
+      ).pipe(
         Effect.tap((error) =>
           Effect.sync(() => {
             expect(error).toBeInstanceOf(ServerRouteHandlerError);
             expect(error.cause).toMatchObject({
               _tag: "EffectInputCallbackError",
-              operation: "ResponseContext.setHeader"
+              operation: "ResponseContext.setHeader",
             });
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -667,23 +673,25 @@ describe("Server", () => {
         Effect.gen(function* () {
           yield* response.setStatus(99);
           return new Response("ok");
-        })
-      )
+        }),
+      ),
     );
 
     return Effect.runPromise(
-      Effect.flip(Server.handleRouteEffect(serverRoute, new Request("https://example.com/status"))).pipe(
+      Effect.flip(
+        Server.handleRouteEffect(serverRoute, new Request("https://example.com/status")),
+      ).pipe(
         Effect.tap((error) =>
           Effect.sync(() => {
             expect(error).toBeInstanceOf(ServerRouteHandlerError);
             expect(error.cause).toMatchObject({
               _tag: "EffectInputCallbackError",
-              operation: "ResponseContext.apply"
+              operation: "ResponseContext.apply",
             });
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 });

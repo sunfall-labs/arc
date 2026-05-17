@@ -1,28 +1,19 @@
 import { Signal, SignalTypeId, type ReadableSignal } from "@effect-ui/core";
 import { Effect } from "effect";
-import {
-  makeLiveQueryRuntime,
-  type LiveQueryRuntime
-} from "./live-query-runtime.js";
+import { makeLiveQueryRuntime, type LiveQueryRuntime } from "./live-query-runtime.js";
 import {
   currentCollectionStore,
   runWithCollectionStore,
-  type RuntimeCollectionStore
+  type RuntimeCollectionStore,
 } from "./runtime-collection-store.js";
-import type {
-  AnyQueryBuilder,
-  LiveQuery,
-  LiveQueryState
-} from "./query-builder.js";
+import type { AnyQueryBuilder, LiveQuery, LiveQueryState } from "./query-builder.js";
 import {
   compileQueryStagePlan,
   toQueryEvaluationError,
   type QueryEvaluationError,
-  type QueryStagePlan
+  type QueryStagePlan,
 } from "./query-plan.js";
-import {
-  preloadQueryExecutionPlanEffect
-} from "./query-execution-plan.js";
+import { preloadQueryExecutionPlanEffect } from "./query-execution-plan.js";
 
 /**
  * Builds the signal-backed state handle returned by `Query.live(...)`.
@@ -33,7 +24,7 @@ import {
  * preload/refetch effects.
  */
 export const makeLiveQueryState = <T, E = never, R = never>(
-  builder: AnyQueryBuilder<T, E, R>
+  builder: AnyQueryBuilder<T, E, R>,
 ): LiveQuery<T, E, R> => {
   const initialStagePlan = (() => {
     try {
@@ -50,19 +41,21 @@ export const makeLiveQueryState = <T, E = never, R = never>(
     engine: LiveQueryRuntime<T> | undefined;
     latestData: ReadonlyArray<T>;
     latestEvaluationVersion: ReadonlyArray<number> | undefined;
-    latestEvaluation: {
-      readonly data: ReadonlyArray<T>;
-      readonly error: QueryEvaluationError | undefined;
-    } | undefined;
-    signals:
+    latestEvaluation:
       | {
-        readonly evaluation: ReadableSignal<{
           readonly data: ReadonlyArray<T>;
           readonly error: QueryEvaluationError | undefined;
-        }>;
-        readonly data: ReadableSignal<ReadonlyArray<T>>;
-        readonly state: ReadableSignal<LiveQueryState<T, E | QueryEvaluationError>>;
-      }
+        }
+      | undefined;
+    signals:
+      | {
+          readonly evaluation: ReadableSignal<{
+            readonly data: ReadonlyArray<T>;
+            readonly error: QueryEvaluationError | undefined;
+          }>;
+          readonly data: ReadableSignal<ReadonlyArray<T>>;
+          readonly state: ReadableSignal<LiveQueryState<T, E | QueryEvaluationError>>;
+        }
       | undefined;
   }
   const storeStates = new WeakMap<RuntimeCollectionStore, StoreEvaluationState>();
@@ -79,7 +72,7 @@ export const makeLiveQueryState = <T, E = never, R = never>(
       latestData: [],
       latestEvaluationVersion: undefined,
       latestEvaluation: undefined,
-      signals: undefined
+      signals: undefined,
     };
     storeStates.set(store, state);
     return state;
@@ -87,16 +80,16 @@ export const makeLiveQueryState = <T, E = never, R = never>(
 
   const sourceVersions = (): ReadonlyArray<number> =>
     sourceAdapters.map((source) => source.version().get());
-  const sameVersions = (
-    left: ReadonlyArray<number>,
-    right: ReadonlyArray<number>
-  ): boolean =>
-    left.length === right.length && left.every((version, index) => Object.is(version, right[index]));
+  const sameVersions = (left: ReadonlyArray<number>, right: ReadonlyArray<number>): boolean =>
+    left.length === right.length &&
+    left.every((version, index) => Object.is(version, right[index]));
 
   const withStore = <A>(store: RuntimeCollectionStore, evaluate: () => A): A =>
     runWithCollectionStore(store, evaluate);
 
-  const storeSignals = (store: RuntimeCollectionStore): NonNullable<StoreEvaluationState["signals"]> => {
+  const storeSignals = (
+    store: RuntimeCollectionStore,
+  ): NonNullable<StoreEvaluationState["signals"]> => {
     const storeEvaluation = storeState(store);
     if (storeEvaluation.signals) {
       return storeEvaluation.signals;
@@ -129,11 +122,11 @@ export const makeLiveQueryState = <T, E = never, R = never>(
           storeEvaluation.latestEvaluationVersion = versions;
           storeEvaluation.latestEvaluation = {
             data: storeEvaluation.latestData,
-            error: toQueryEvaluationError("evaluate", cause)
+            error: toQueryEvaluationError("evaluate", cause),
           };
           return storeEvaluation.latestEvaluation;
         }
-      })
+      }),
     );
 
     const data = Signal.derive(() => evaluation.get().data);
@@ -145,7 +138,7 @@ export const makeLiveQueryState = <T, E = never, R = never>(
             _tag: "Failure",
             waiting: false,
             error: current.error,
-            data: current.data
+            data: current.data,
           };
         }
 
@@ -157,7 +150,7 @@ export const makeLiveQueryState = <T, E = never, R = never>(
               _tag: "Failure",
               waiting: false,
               error: sourceState.error as E,
-              data: currentData
+              data: currentData,
             };
           }
         }
@@ -170,7 +163,7 @@ export const makeLiveQueryState = <T, E = never, R = never>(
         return waiting
           ? { _tag: "Pending", waiting: true, data: currentData }
           : { _tag: "Success", waiting: false, data: currentData };
-      })
+      }),
     );
 
     storeEvaluation.signals = { evaluation, data, state };
@@ -178,12 +171,12 @@ export const makeLiveQueryState = <T, E = never, R = never>(
   };
 
   const currentStoreSignal = <A>(
-    select: (signals: NonNullable<StoreEvaluationState["signals"]>) => ReadableSignal<A>
+    select: (signals: NonNullable<StoreEvaluationState["signals"]>) => ReadableSignal<A>,
   ): ReadableSignal<A> => ({
     [SignalTypeId]: SignalTypeId,
     get: () => select(storeSignals(currentRuntimeCollectionStore())).get(),
     subscribe: (listener) =>
-      select(storeSignals(currentRuntimeCollectionStore())).subscribe(listener)
+      select(storeSignals(currentRuntimeCollectionStore())).subscribe(listener),
   });
 
   const data = currentStoreSignal((signals) => signals.data);
@@ -194,7 +187,9 @@ export const makeLiveQueryState = <T, E = never, R = never>(
     state,
     sources,
     evaluate: () => data.get(),
-    preloadEffect: (): Effect.Effect<void, E | QueryEvaluationError, R> => preloadQueryExecutionPlanEffect(builder, false),
-    refetchEffect: (): Effect.Effect<void, E | QueryEvaluationError, R> => preloadQueryExecutionPlanEffect(builder, true)
+    preloadEffect: (): Effect.Effect<void, E | QueryEvaluationError, R> =>
+      preloadQueryExecutionPlanEffect(builder, false),
+    refetchEffect: (): Effect.Effect<void, E | QueryEvaluationError, R> =>
+      preloadQueryExecutionPlanEffect(builder, true),
   };
 };

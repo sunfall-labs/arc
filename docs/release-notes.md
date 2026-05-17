@@ -1,8 +1,9 @@
 # Release Notes Draft
 
 This is the current release-candidate snapshot for the pre-release Effect UI
-framework. Package manifests remain private, so this is not an npm release note
-yet.
+framework. Framework package manifests are configured for public MIT alpha
+publication; this remains a release-candidate draft until versions, repository
+metadata, and final npm publication are selected.
 
 ## Stable For The First External App
 
@@ -86,6 +87,17 @@ Latest full gate on May 17, 2026 after Review 240:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 490 Effect-First Lazy Route Components And Formatter-Tolerant Public
+  API Inventory closed the dirty-lane follow-up: Core `Route.lazyComponent(...)`
+  now accepts an Effect loader, exposes `preloadEffect()`, caches the detached
+  load fiber, and reports lazy pending/failure through tagged values. React and
+  Solid convert only the tagged pending state into host Suspense tokens at
+  their Adapter seams, Solid keeps `createComponent(...)` for hydration, and
+  Start auto code splitting emits Effect loaders. The public API inventory
+  audit now survives formatter-aligned Markdown tables, and package payload
+  policy requires package-local MIT license files in publishable tarballs. The
+  active Thirty-Sweep clean counter remains 0/30 until a fresh post-Review490
+  sweep reports no actionable findings.
 - Review 247 Scope Cleanup Capture And Namespace Public Pins closed the
   post-Review246 sweep: `UiScope` and runtime UI frames now expose synchronous
   capture seams while retaining lazy `disposeEffect()` composition, React and
@@ -93,8 +105,8 @@ Latest full gate on May 17, 2026 after Review 240:
   capture is explicitly named `captureResetEffect()`, DB Collection and Query
   errors are namespace-owned, and Start Vite dev SSR middleware helpers are
   directly pinned for public type tests and LSP hovers. The active Thirty-Sweep
-  clean counter remains 0/30 until a fresh post-Review247 sweep reports no
-  actionable findings.
+  clean counter remained 0/30; the later dirty-lane follow-up found Review490
+  lazy route Effect Interface and formatter-tolerant inventory work.
 - Review 246 Effect Cleanup Capture And Vite Middleware Lifecycle closed the
   post-Review245 sweep: Action reset and StartAction reset synchronously
   capture active submission fibers before forking cleanup, Resource UI Binding
@@ -554,8 +566,8 @@ Latest full gate on May 17, 2026 after Review 240:
   symbol reachability and router Adapter parity work, and the fresh
   post-Review245 sweep found Review246 Effect cleanup capture and Vite
   middleware lifecycle work.
-  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review246
-  sweep reports no actionable findings.
+  The later post-Review246 sweep found Review247 scope cleanup capture and
+  namespace public pin work.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
 - Review 190 tightened `Server.fn(...)` so union-shaped Promise handler returns
@@ -1123,9 +1135,8 @@ Latest full gate on May 17, 2026 after Review 240:
   scopes `globalThis.__EFFECT_UI_DEVTOOLS__` setup and cleanup inside Effect.
 - The latest devtools extension verify includes 1 extension test file / 20 tests
   plus the Manifest V3 production build.
-- The latest `pnpm verify` also covers the private `UNLICENSED` workspace
-  metadata sweep, the type-test Promise-method cleanup, and the test
-  Promise-catch cleanup.
+- The latest `pnpm verify` also covers the workspace package metadata sweep,
+  the type-test Promise-method cleanup, and the test Promise-catch cleanup.
 - The devtools extension now structurally validates inspected-window
   `DevtoolsPanels` bridge payloads before rendering live data.
 - `effectUiStart(...)` now returns the concrete `EffectUiStartPlugin` type for
@@ -1632,15 +1643,17 @@ Latest full gate on May 17, 2026 after Review 240:
 
 ## Notable Limits
 
-- Packages are still private and versioned `0.0.0-alpha.0`.
-- Package manifests include pre-release descriptions, `UNLICENSED`, and build
-  metadata, but final public npm repository/license decisions are still open.
+- Framework packages are publishable public scoped packages, but still versioned
+  `0.0.0-alpha.0`.
+- Package manifests include pre-release descriptions, MIT license metadata,
+  author metadata, public scoped-package access, and build metadata, but final
+  public npm repository metadata and real version numbers are still open.
 - The browser extension live bridge expects the inspected app to expose
   `globalThis.__EFFECT_UI_DEVTOOLS__`; automatic injection is not part of the
   checked shell.
 - Generated starter payloads currently include local `.effect-ui-packages/*`
-  file dependencies because packages remain private; final public npm
-  repository/license decisions are still tracked separately from starter
-  generation.
+  file dependencies until the framework packages are actually published; final
+  public npm repository metadata and package versions are still tracked
+  separately from starter generation.
 - Cloudflare, Vercel, Netlify, Bun, and static deployment currently use recipes
   over Node/fetch facades rather than dedicated packages.

@@ -4,13 +4,13 @@ import { Data, Effect, Exit, Stream } from "effect";
 import {
   createStreamHydrationScriptEffect,
   StartHydrationPayloadSerializeError,
-  type StartHydrationPayload
+  type StartHydrationPayload,
 } from "./hydration.js";
 import type { StartRenderHydrationPlan } from "./render-hydration-plan.js";
 import type {
   StartRequestTraceFailureKind,
   StartRequestTraceStatus,
-  StartRequestTraceStream
+  StartRequestTraceStream,
 } from "./request-trace.js";
 
 export {
@@ -20,7 +20,7 @@ export {
   streamHydrationAttribute,
   streamHydrationConsumedAttribute,
   streamHydrationSequenceAttribute,
-  streamHydrationScriptType
+  streamHydrationScriptType,
 } from "./hydration.js";
 
 /**
@@ -81,8 +81,10 @@ export interface HtmlResponseOptions<E = never, R = never> extends HtmlStreamOpt
 }
 
 /** Options for creating a Start streamed HTML response from a render hydration plan. */
-export interface StartStreamedHtmlResponseOptions<E = never, R = never>
-  extends Omit<HtmlResponseOptions<E, R>, "chunks"> {
+export interface StartStreamedHtmlResponseOptions<E = never, R = never> extends Omit<
+  HtmlResponseOptions<E, R>,
+  "chunks"
+> {
   /** Middle stream emitted after the shell and before streamed hydration chunks. */
   readonly chunks?: Stream.Stream<HtmlStreamInput, E, R>;
   /** Render hydration plan whose streamed chunks are appended before the tail. */
@@ -108,7 +110,7 @@ export interface StartResponseStreamFinalizeEvent {
 
 /** Effect finalizer invoked once when a wrapped response body ends. */
 export type StartResponseStreamFinalizer = (
-  event: StartResponseStreamFinalizeEvent
+  event: StartResponseStreamFinalizeEvent,
 ) => Effect.Effect<void>;
 
 /**
@@ -124,7 +126,7 @@ export type StartResponseStreamFinalizeFailureEvent<A = unknown, E = unknown> =
 
 /** Runs stream adapter Effects from Web stream callbacks. */
 export type StartResponseStreamRunner = <A, E>(
-  effect: Effect.Effect<A, E>
+  effect: Effect.Effect<A, E>,
 ) => void | PromiseLike<A>;
 
 /** Options for wrapping a Web `Response` body with lifecycle finalization. */
@@ -142,22 +144,17 @@ export interface StartResponseStreamFinalizerOptions {
 interface StartResponseStreamFinalizerState {
   suspendSuccess: <A, E, R>(
     effect: Effect.Effect<A, E, R>,
-    failureEvent: StartResponseStreamFinalizeFailureEvent<A, E>
+    failureEvent: StartResponseStreamFinalizeFailureEvent<A, E>,
   ) => Effect.Effect<A, E, R>;
 }
 
 const resolveResponseStreamFailureEvent = <A, E>(
   failureEvent: StartResponseStreamFinalizeFailureEvent<A, E>,
-  exit: Exit.Exit<A, E>
+  exit: Exit.Exit<A, E>,
 ): StartResponseStreamFinalizeEvent =>
-  typeof failureEvent === "function"
-    ? failureEvent(exit)
-    : failureEvent;
+  typeof failureEvent === "function" ? failureEvent(exit) : failureEvent;
 
-const responseStreamFinalizerStates = new WeakMap<
-  Response,
-  StartResponseStreamFinalizerState
->();
+const responseStreamFinalizerStates = new WeakMap<Response, StartResponseStreamFinalizerState>();
 
 /**
  * Runs host response work while holding a successful stream finalizer.
@@ -170,12 +167,10 @@ const responseStreamFinalizerStates = new WeakMap<
 export const suspendResponseStreamSuccessFinalizerEffect = <A, E, R>(
   response: Response,
   effect: Effect.Effect<A, E, R>,
-  failureEvent: StartResponseStreamFinalizeFailureEvent<A, E>
+  failureEvent: StartResponseStreamFinalizeFailureEvent<A, E>,
 ): Effect.Effect<A, E, R> => {
   const state = responseStreamFinalizerStates.get(response);
-  return state === undefined
-    ? effect
-    : state.suspendSuccess(effect, failureEvent);
+  return state === undefined ? effect : state.suspendSuccess(effect, failureEvent);
 };
 
 /**
@@ -199,13 +194,10 @@ interface PhasedHtmlStreamInput {
 }
 
 const textEncoder = new TextEncoder();
-const runResponseStreamEffect: StartResponseStreamRunner = (effect) =>
-  Effect.runPromise(effect);
+const runResponseStreamEffect: StartResponseStreamRunner = (effect) => Effect.runPromise(effect);
 
 const startStreamFailurePhase = (cause: unknown): StartStreamPhase | undefined =>
-  cause instanceof StartStreamError
-    ? cause.reason
-    : undefined;
+  cause instanceof StartStreamError ? cause.reason : undefined;
 
 const startStreamFailureKind = (cause: unknown): StartRequestTraceFailureKind =>
   cause instanceof StartStreamError ? "domain" : "transport";
@@ -213,13 +205,13 @@ const startStreamFailureKind = (cause: unknown): StartRequestTraceFailureKind =>
 /** Creates a typed HTML text chunk. */
 export const htmlChunk = (html: string): HtmlStreamChunk => ({
   _tag: "Html",
-  html
+  html,
 });
 
 /** Creates a typed pre-encoded byte chunk. */
 export const bytesChunk = (bytes: Uint8Array): HtmlStreamChunk => ({
   _tag: "Bytes",
-  bytes
+  bytes,
 });
 
 /**
@@ -230,11 +222,11 @@ export const bytesChunk = (bytes: Uint8Array): HtmlStreamChunk => ({
  */
 export const streamHydrationChunk = (
   payload: StartHydrationPayload,
-  options: { readonly sequence?: number } = {}
+  options: { readonly sequence?: number } = {},
 ): HtmlStreamChunk => ({
   _tag: "Hydration",
   payload,
-  ...(options.sequence === undefined ? {} : { sequence: options.sequence })
+  ...(options.sequence === undefined ? {} : { sequence: options.sequence }),
 });
 
 const isHtmlStreamChunk = (input: HtmlStreamInput): input is HtmlStreamChunk =>
@@ -247,7 +239,7 @@ const isHtmlStreamChunk = (input: HtmlStreamInput): input is HtmlStreamChunk =>
 
 const encodeInputEffect = (
   input: HtmlStreamInput,
-  hydrationSequence = 0
+  hydrationSequence = 0,
 ): Effect.Effect<Uint8Array, StartHydrationPayloadSerializeError> => {
   if (input instanceof Uint8Array) {
     return Effect.succeed(input);
@@ -266,10 +258,8 @@ const encodeInputEffect = (
       case "Hydration":
         return createStreamHydrationScriptEffect(
           input.payload,
-          input.sequence ?? hydrationSequence
-        ).pipe(
-          Effect.map((script) => textEncoder.encode(script))
-        );
+          input.sequence ?? hydrationSequence,
+        ).pipe(Effect.map((script) => textEncoder.encode(script)));
     }
   }
 
@@ -278,7 +268,7 @@ const encodeInputEffect = (
 
 const encodeInputWithHydrationSequenceEffect = (
   nextSequence: number,
-  chunk: PhasedHtmlStreamInput
+  chunk: PhasedHtmlStreamInput,
 ): Effect.Effect<
   readonly [nextSequence: number, chunks: ReadonlyArray<Uint8Array>],
   StartStreamError<StartHydrationPayloadSerializeError>
@@ -288,33 +278,31 @@ const encodeInputWithHydrationSequenceEffect = (
     const sequence = input.sequence ?? nextSequence;
     return encodeInputEffect(input, sequence).pipe(
       Effect.map((encoded) => [Math.max(nextSequence, sequence + 1), [encoded]] as const),
-      Effect.mapError((cause) => new StartStreamError({ reason: chunk.reason, cause }))
+      Effect.mapError((cause) => new StartStreamError({ reason: chunk.reason, cause })),
     );
   }
 
   return encodeInputEffect(input).pipe(
     Effect.map((encoded) => [nextSequence, [encoded]] as const),
-    Effect.mapError((cause) => new StartStreamError({ reason: chunk.reason, cause }))
+    Effect.mapError((cause) => new StartStreamError({ reason: chunk.reason, cause })),
   );
 };
 
 const streamFromEffectInput = <E, R>(
   reason: StartStreamError<E>["reason"],
-  input: EffectInput<HtmlStreamInput, E, R>
+  input: EffectInput<HtmlStreamInput, E, R>,
 ): Stream.Stream<PhasedHtmlStreamInput, StartStreamError<E>, R> =>
   Stream.unwrap(
     toEffect(input).pipe(
       Effect.map((input) => Stream.make({ reason, input })),
-      Effect.mapError((cause) => new StartStreamError({ reason, cause }))
-    )
+      Effect.mapError((cause) => new StartStreamError({ reason, cause })),
+    ),
   );
 
 const tailStream = <E, R>(
-  options: HtmlStreamOptions<E, R>
+  options: HtmlStreamOptions<E, R>,
 ): Stream.Stream<PhasedHtmlStreamInput, StartStreamError<E>, R> =>
-  options.tail === undefined
-    ? Stream.empty
-    : streamFromEffectInput("Tail", options.tail);
+  options.tail === undefined ? Stream.empty : streamFromEffectInput("Tail", options.tail);
 
 /**
  * Builds a byte stream in shell -> chunks -> tail order.
@@ -323,33 +311,33 @@ const tailStream = <E, R>(
  * order, so streamed clients can replay them deterministically.
  */
 export const createHtmlStream = <E = never, R = never>(
-  options: HtmlStreamOptions<E, R>
+  options: HtmlStreamOptions<E, R>,
 ): Stream.Stream<Uint8Array, HtmlStreamEncodingError<E>, R> => {
   const shell = streamFromEffectInput("Shell", options.shell);
   const chunks = (options.chunks ?? Stream.empty).pipe(
     Stream.map((input): PhasedHtmlStreamInput => ({ reason: "Chunk", input })),
-    Stream.mapError((cause) => new StartStreamError({ reason: "Chunk", cause }))
+    Stream.mapError((cause) => new StartStreamError({ reason: "Chunk", cause })),
   );
 
   return shell.pipe(
     Stream.concat(chunks),
     Stream.concat(tailStream(options)),
-    Stream.mapAccumEffect(() => 0, encodeInputWithHydrationSequenceEffect)
+    Stream.mapAccumEffect(() => 0, encodeInputWithHydrationSequenceEffect),
   );
 };
 
 /** Effect wrapper for `createHtmlStream(...)`. */
 export const createHtmlStreamEffect = <E = never, R = never>(
-  options: HtmlStreamOptions<E, R>
+  options: HtmlStreamOptions<E, R>,
 ): Effect.Effect<Stream.Stream<Uint8Array, HtmlStreamEncodingError<E>, R>> =>
   Effect.succeed(createHtmlStream(options));
 
 /** Converts a Start HTML byte stream into a platform `ReadableStream`. */
 export const createReadableHtmlStreamEffect = <E = never, R = never>(
-  options: HtmlStreamOptions<E, R>
+  options: HtmlStreamOptions<E, R>,
 ): Effect.Effect<ReadableStream<Uint8Array>, never, R> =>
   Effect.flatMap(createHtmlStreamEffect(options), (stream) =>
-    Stream.toReadableStreamEffect(stream)
+    Stream.toReadableStreamEffect(stream),
   );
 
 const htmlHeaders = (input: HeadersInit | undefined): Headers => {
@@ -367,45 +355,39 @@ const htmlHeaders = (input: HeadersInit | undefined): Headers => {
  * without failing, while stream failures are represented in the stream Effect.
  */
 export const createHtmlResponseEffect = <E = never, R = never>(
-  options: HtmlResponseOptions<E, R>
+  options: HtmlResponseOptions<E, R>,
 ): Effect.Effect<Response, never, R> =>
-  Effect.map(
-    createReadableHtmlStreamEffect(options),
-    (body) => {
-      const init: ResponseInit = {
-        headers: htmlHeaders(options.headers)
-      };
-      if (options.status !== undefined) {
-        init.status = options.status;
-      }
-
-      return new Response(body, init);
+  Effect.map(createReadableHtmlStreamEffect(options), (body) => {
+    const init: ResponseInit = {
+      headers: htmlHeaders(options.headers),
+    };
+    if (options.status !== undefined) {
+      init.status = options.status;
     }
-  );
+
+    return new Response(body, init);
+  });
 
 /**
  * Creates a Start streaming HTML `Response` and appends route hydration chunks
  * from the render hydration plan before the tail.
  */
 export const createStartStreamedHtmlResponseEffect = <E = never, R = never>(
-  options: StartStreamedHtmlResponseOptions<E, R>
+  options: StartStreamedHtmlResponseOptions<E, R>,
 ): Effect.Effect<Response, never, R> => {
-  const {
-    hydrationPlan,
-    chunks,
-    ...htmlOptions
-  } = options;
+  const { hydrationPlan, chunks, ...htmlOptions } = options;
   const hydrationChunks = hydrationPlan.streamedResourceChunks.map((payload) =>
-    streamHydrationChunk(payload)
+    streamHydrationChunk(payload),
   );
-  const responseChunks = hydrationChunks.length === 0
-    ? chunks
-    : chunks === undefined
-      ? Stream.make(...hydrationChunks)
-      : chunks.pipe(Stream.concat(Stream.make(...hydrationChunks)));
+  const responseChunks =
+    hydrationChunks.length === 0
+      ? chunks
+      : chunks === undefined
+        ? Stream.make(...hydrationChunks)
+        : chunks.pipe(Stream.concat(Stream.make(...hydrationChunks)));
   return createHtmlResponseEffect({
     ...htmlOptions,
-    ...(responseChunks === undefined ? {} : { chunks: responseChunks })
+    ...(responseChunks === undefined ? {} : { chunks: responseChunks }),
   });
 };
 
@@ -418,7 +400,7 @@ export const createStartStreamedHtmlResponseEffect = <E = never, R = never>(
  */
 export const responseWithStreamFinalizer = (
   response: Response,
-  options: StartResponseStreamFinalizerOptions = {}
+  options: StartResponseStreamFinalizerOptions = {},
 ): Response => {
   if (!response.body) {
     return response;
@@ -435,9 +417,7 @@ export const responseWithStreamFinalizer = (
   let successSuspensions = 0;
   let pendingSuccess: StartResponseStreamFinalizeEvent | undefined;
   let cleanupAbortSignal = (): void => undefined;
-  const runFinalize = (
-    event: StartResponseStreamFinalizeEvent
-  ): Effect.Effect<void> =>
+  const runFinalize = (event: StartResponseStreamFinalizeEvent): Effect.Effect<void> =>
     Effect.suspend(() => {
       if (finalized) {
         return Effect.void;
@@ -445,13 +425,9 @@ export const responseWithStreamFinalizer = (
 
       finalized = true;
       cleanupAbortSignal();
-      return options.onFinalize === undefined
-        ? Effect.void
-        : options.onFinalize(event);
+      return options.onFinalize === undefined ? Effect.void : options.onFinalize(event);
     });
-  const finalize = (
-    event: StartResponseStreamFinalizeEvent
-  ): Effect.Effect<void> =>
+  const finalize = (event: StartResponseStreamFinalizeEvent): Effect.Effect<void> =>
     Effect.suspend(() => {
       if (event.status === "success" && successSuspensions > 0) {
         pendingSuccess = event;
@@ -462,7 +438,7 @@ export const responseWithStreamFinalizer = (
     });
   const cancelReaderEffect = (
     reason: unknown,
-    options: { readonly ignoreFailure?: boolean } = {}
+    options: { readonly ignoreFailure?: boolean } = {},
   ): Effect.Effect<void, unknown> =>
     Effect.suspend(() => {
       if (readerCancelled) {
@@ -472,7 +448,7 @@ export const responseWithStreamFinalizer = (
       readerCancelled = true;
       const cancel = Effect.tryPromise({
         try: () => reader.cancel(reason),
-        catch: (cause) => cause
+        catch: (cause) => cause,
       });
       return options.ignoreFailure === true
         ? cancel.pipe(Effect.catchCause(() => Effect.void))
@@ -482,12 +458,12 @@ export const responseWithStreamFinalizer = (
     stream: {
       name: "response",
       state: "cancelled",
-      chunkCount
+      chunkCount,
     },
     status: "cancelled",
-    teardownReason: options.abortTeardownReason ?? (
-      typeof abortReason === "string" ? abortReason : "request-abort"
-    )
+    teardownReason:
+      options.abortTeardownReason ??
+      (typeof abortReason === "string" ? abortReason : "request-abort"),
   });
 
   const body = new ReadableStream<Uint8Array>({
@@ -504,14 +480,16 @@ export const responseWithStreamFinalizer = (
         void runEffect(
           cancelReaderEffect(reason, { ignoreFailure: true }).pipe(
             Effect.ensuring(finalize(abortFinalizeEvent())),
-            Effect.ensuring(Effect.sync(() => {
-              try {
-                controller.error(reason);
-              } catch {
-                // The consumer may have already closed or cancelled the stream.
-              }
-            }))
-          )
+            Effect.ensuring(
+              Effect.sync(() => {
+                try {
+                  controller.error(reason);
+                } catch {
+                  // The consumer may have already closed or cancelled the stream.
+                }
+              }),
+            ),
+          ),
         );
       };
       cleanupAbortSignal = () => {
@@ -528,7 +506,7 @@ export const responseWithStreamFinalizer = (
         Effect.gen(function* () {
           const result = yield* Effect.tryPromise({
             try: () => reader.read(),
-            catch: (cause) => cause
+            catch: (cause) => cause,
           });
           if (result.done) {
             if (abortRequested) {
@@ -547,10 +525,10 @@ export const responseWithStreamFinalizer = (
               stream: {
                 name: "response",
                 state: "closed",
-                chunkCount
+                chunkCount,
               },
               status: "success",
-              teardownReason: "stream-close"
+              teardownReason: "stream-close",
             });
             yield* Effect.sync(() => {
               controller.close();
@@ -579,19 +557,19 @@ export const responseWithStreamFinalizer = (
                   name: "response",
                   state: "errored",
                   chunkCount,
-                  ...(failurePhase === undefined ? {} : { failurePhase })
+                  ...(failurePhase === undefined ? {} : { failurePhase }),
                 },
                 status: "failure",
                 failureKind: startStreamFailureKind(cause),
                 teardownReason: "stream-error",
-                ...(failurePhase === undefined ? {} : { failurePhase })
+                ...(failurePhase === undefined ? {} : { failurePhase }),
               });
               yield* Effect.sync(() => {
                 controller.error(cause);
               });
-            })
-          )
-        )
+            }),
+          ),
+        ),
       );
     },
     cancel(reason) {
@@ -602,21 +580,21 @@ export const responseWithStreamFinalizer = (
               stream: {
                 name: "response",
                 state: "cancelled",
-                chunkCount
+                chunkCount,
               },
               status: "cancelled",
-              teardownReason: typeof reason === "string" ? reason : "stream-cancel"
-            })
-          )
-        )
+              teardownReason: typeof reason === "string" ? reason : "stream-cancel",
+            }),
+          ),
+        ),
       );
-    }
+    },
   });
 
   const wrapped = new Response(body, {
     status: response.status,
     statusText: response.statusText,
-    headers: response.headers
+    headers: response.headers,
   });
   responseStreamFinalizerStates.set(wrapped, {
     suspendSuccess: (effect, failureEvent) =>
@@ -641,10 +619,10 @@ export const responseWithStreamFinalizer = (
               yield* runFinalize(resolveResponseStreamFailureEvent(failureEvent, exit));
             }
             return yield* Effect.failCause(exit.cause);
-          })
+          }),
         ),
-        failureEvent
-      )
+        failureEvent,
+      ),
   });
 
   return wrapped;

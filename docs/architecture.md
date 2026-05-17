@@ -90,10 +90,11 @@ const project = useResource(() => ProjectById(props.id));
 
 return project.match({
   initial: () => <ProjectSkeleton />,
-  pending: (previous) => previous ? <ProjectView project={previous} refreshing /> : <ProjectSkeleton />,
+  pending: (previous) =>
+    previous ? <ProjectView project={previous} refreshing /> : <ProjectSkeleton />,
   success: (value) => <ProjectView project={value} />,
   failure: (error, previous) =>
-    previous ? <ProjectView project={previous} error={error} /> : <ProjectError error={error} />
+    previous ? <ProjectView project={previous} error={error} /> : <ProjectError error={error} />,
 });
 ```
 
@@ -118,11 +119,10 @@ inputs, action payloads, server contracts, and manifests cannot accept a random
 string by structural accident:
 
 ```ts
-export const ProjectId = Schema.String.pipe(Schema.brand("ProjectId"))
-export type ProjectId = typeof ProjectId.Type
+export const ProjectId = Schema.String.pipe(Schema.brand("ProjectId"));
+export type ProjectId = typeof ProjectId.Type;
 
-export const makeProjectId = (id: string): ProjectId =>
-  Schema.decodeUnknownSync(ProjectId)(id)
+export const makeProjectId = (id: string): ProjectId => Schema.decodeUnknownSync(ProjectId)(id);
 ```
 
 ## Runtime Spine
@@ -155,16 +155,17 @@ preload, render, server functions, actions, and server routes set status,
 headers, and cookies through Effect:
 
 ```ts
-yield* ResponseContext.use((response) =>
-  Effect.gen(function* () {
-    yield* response.setHeader("x-project", "atlas")
-    yield* response.setCookie("session", token, {
-      httpOnly: true,
-      path: "/",
-      sameSite: "Lax"
-    })
-  })
-)
+yield *
+  ResponseContext.use((response) =>
+    Effect.gen(function* () {
+      yield* response.setHeader("x-project", "atlas");
+      yield* response.setCookie("session", token, {
+        httpOnly: true,
+        path: "/",
+        sameSite: "Lax",
+      });
+    }),
+  );
 ```
 
 Start applies the accumulated response context to the final `Response`, including
@@ -201,16 +202,16 @@ layer helpers:
 
 ```ts
 export interface ProjectApi {
-  readonly get: (id: ProjectId) => Effect.Effect<Project, ProjectError>
-  readonly rename: (input: RenameProjectInput) => Effect.Effect<Project, ProjectError>
+  readonly get: (id: ProjectId) => Effect.Effect<Project, ProjectError>;
+  readonly rename: (input: RenameProjectInput) => Effect.Effect<Project, ProjectError>;
 }
 
-export const ProjectApi = Capability.define<ProjectApi>("ProjectApi")
+export const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
 
 export const ProjectApiLive = ProjectApi.layer({
   get: (id) => getProject.effect({ id }),
-  rename: renameProject.effect
-})
+  rename: renameProject.effect,
+});
 ```
 
 Resources, actions, and route preload depend on `ProjectApi.use(...)`. Server
@@ -226,13 +227,13 @@ export const SubmitProjectName = Action.define({
   name: "Project.name.submit",
   input: SubmitProjectNameInput,
   output: ProjectNameSubmissionResultSchema,
-  run: (input) => ProjectApi.use((api) => api.submitName(input))
-})
+  run: (input) => ProjectApi.use((api) => api.submitName(input)),
+});
 
 export const handleRequest = createRequestHandler(app, {
   actions: [SubmitProjectName],
-  render
-})
+  render,
+});
 ```
 
 `POST /__effect-ui/action` accepts either JSON (`{ name, input }`) or ordinary
@@ -282,17 +283,17 @@ Resource dependencies are semantic tags, not string cache keys. Families can say
 which domain facts a successful value provides:
 
 ```ts
-const ProjectsTag = Resource.tag("Projects")
+const ProjectsTag = Resource.tag("Projects");
 const ProjectTag = Resource.tag<{ readonly id: ProjectId }>("Project", {
-  key: ({ id }) => id
-})
+  key: ({ id }) => id,
+});
 
 const ProjectById = Resource.family({
   name: "Project.byId",
   input: ProjectId,
   load: (id: ProjectId) => ProjectApi.use((api) => api.get(id)),
-  provides: (project) => [ProjectTag({ id: project.id })]
-})
+  provides: (project) => [ProjectTag({ id: project.id })],
+});
 ```
 
 Actions can invalidate refs directly or invalidate the tags they changed:
@@ -301,8 +302,8 @@ Actions can invalidate refs directly or invalidate the tags they changed:
 const RenameProject = Action.define({
   name: "Project.rename",
   run: (input: RenameProjectInput) => ProjectApi.use((api) => api.rename(input)),
-  invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })]
-})
+  invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
+});
 ```
 
 At runtime, successful resource loads update a tag index from tag key to known
@@ -326,15 +327,12 @@ mark the behavior as `unknown`.
 The graph is inspectable before it is executed:
 
 ```ts
-const plan = Resource.planInvalidation([
-  ProjectsTag,
-  ProjectTag({ id: project.id })
-])
+const plan = Resource.planInvalidation([ProjectsTag, ProjectTag({ id: project.id })]);
 
 plan.entries.map((entry) => ({
   ref: entry.ref.key,
-  causes: entry.causes
-}))
+  causes: entry.causes,
+}));
 ```
 
 `Action.use(...)` exposes the latest `invalidationPlan` as a signal, and
@@ -368,23 +366,24 @@ and scoped fibers are interrupted. Plain Solid components stay unscoped until
 they opt into one of those Solid Adapter seams.
 
 ```ts
-const title = Signal.make("Effect UI")
+const title = Signal.make("Effect UI");
 
 watch(
   () => read(title),
-  (value) => Effect.sync(() => {
-    document.title = value
-  })
-)
+  (value) =>
+    Effect.sync(() => {
+      document.title = value;
+    }),
+);
 
 forkScoped(
   Effect.gen(function* () {
-    yield* Effect.sleep("1 second")
-    yield* Effect.log("still mounted")
-  })
-)
+    yield* Effect.sleep("1 second");
+    yield* Effect.log("still mounted");
+  }),
+);
 
-onDispose(() => Effect.log("component disposed"))
+onDispose(() => Effect.log("component disposed"));
 ```
 
 Use `watch` only for imperative sinks. Use `Signal.derive`, `Resource`,
@@ -431,12 +430,14 @@ reading private cache maps.
 progressive resource payloads:
 
 ```ts
-const response = yield* createStartStreamedHtmlResponseEffect({
-  shell: "<!doctype html><html><body>",
-  chunks: Stream.make(htmlChunk("<main>ready</main>")),
-  hydrationPlan,
-  tail: "</body></html>"
-})
+const response =
+  yield *
+  createStartStreamedHtmlResponseEffect({
+    shell: "<!doctype html><html><body>",
+    chunks: Stream.make(htmlChunk("<main>ready</main>")),
+    hydrationPlan,
+    tail: "</body></html>",
+  });
 ```
 
 The core Interface is `createHtmlStreamEffect`, which returns an Effect `Stream`
@@ -461,13 +462,13 @@ export const ProjectRoute = route("/projects/:id", {
   params: Schema.Struct({ id: ProjectId }),
   search: Schema.Struct({ tab: Schema.optional(ProjectTab) }),
   preloadResources: [ProjectById],
-  preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id))
-})
+  preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id)),
+});
 
 Route.href(ProjectRoute, {
   params: { id: makeProjectId("atlas") },
-  search: { tab: "activity" }
-})
+  search: { tab: "activity" },
+});
 ```
 
 The Solid adapter owns browser history through `RouterProvider`. On navigation it
@@ -490,12 +491,12 @@ instead of allowing later segments to overwrite earlier params.
 Preload is also inspectable as a route data graph:
 
 ```ts
-const plan = yield* Route.planNavigationEffect(routes, "/projects/atlas")
+const plan = yield * Route.planNavigationEffect(routes, "/projects/atlas");
 
 if (plan._tag === "Matched") {
-  plan.match.route.path
-  plan.refs.map((ref) => ref.key)
-  plan.resources.resources
+  plan.match.route.path;
+  plan.refs.map((ref) => ref.key);
+  plan.resources.resources;
 }
 ```
 
@@ -556,16 +557,14 @@ agents, and non-Vite tooling. Route files export a named `Route`, usually by
 binding a builder so schemas, preload metadata, and preload work stay together:
 
 ```ts
-const RouteBuilder = defineFileRoute("/projects/:id")
+const RouteBuilder = defineFileRoute("/projects/:id");
 
 export const Route = RouteBuilder.preload({
   params: ProjectRouteParams,
   search: ProjectRouteSearch,
-  resources: ({ resource }) => [
-    resource(ProjectById, ({ params }) => params.id)
-  ],
-  collections: [ProjectSummaries]
-}).route()
+  resources: ({ resource }) => [resource(ProjectById, ({ params }) => params.id)],
+  collections: [ProjectSummaries],
+}).route();
 ```
 
 The generated file imports those route modules, checks each imported route's
@@ -595,8 +594,8 @@ request, run the matched route preload, collect every resource touched by
 `Resource.prefetchEffect`, and serialize successful resource cache entries:
 
 ```ts
-const preloaded = yield* preloadRequestEffect(app, request)
-preloaded.resources // { resources: [...] }
+const preloaded = yield * preloadRequestEffect(app, request);
+preloaded.resources; // { resources: [...] }
 ```
 
 The payload includes the resource family name, stable key, original input, and
@@ -620,8 +619,8 @@ automatically:
 
 ```ts
 const ProjectRoute = route("/projects/:id", {
-  preload: () => Projects.preloadEffect()
-})
+  preload: () => Projects.preloadEffect(),
+});
 ```
 
 Matched routes can also declare Collection Definitions with `preloadCollections`;
@@ -640,13 +639,13 @@ appended:
 createRequestHandler(app, {
   collections: [Projects, Tasks],
   render: ({ collectionPreload, legacyHydrationScript }) => {
-    collectionPreload.routeTouchedCollections
-    collectionPreload.routeDeclaredCollections
-    collectionPreload.registeredCollections
-    collectionPreload.dehydratedCollections
-    return html(legacyHydrationScript)
-  }
-})
+    collectionPreload.routeTouchedCollections;
+    collectionPreload.routeDeclaredCollections;
+    collectionPreload.registeredCollections;
+    collectionPreload.dehydratedCollections;
+    return html(legacyHydrationScript);
+  },
+});
 ```
 
 The browser entrypoint passes the same definitions and browser runtime back to
@@ -654,12 +653,13 @@ The browser entrypoint passes the same definitions and browser runtime back to
 one script into the same Runtime Spine that the UI will use:
 
 ```ts
-const runtime = createEffectRuntime(AppLive)
+const runtime = createEffectRuntime(AppLive);
 
-yield* hydrateFromDocumentEffect(document, "__EFFECT_UI_HYDRATION__", {
-  runtime,
-  collections: [Projects, Tasks]
-})
+yield *
+  hydrateFromDocumentEffect(document, "__EFFECT_UI_HYDRATION__", {
+    runtime,
+    collections: [Projects, Tasks],
+  });
 ```
 
 `createRequestHandler(app, { render })` passes renderers a
@@ -678,8 +678,8 @@ document can run the chunk-only transport directly:
 ```ts
 const chunks = hydrateStartHydrationChunksFromDocument(document, {
   runtime,
-  collections: [Projects, Tasks]
-})
+  collections: [Projects, Tasks],
+});
 ```
 
 The Effect form, `hydrateStartHydrationChunksFromDocumentEffect`, is for hosts
@@ -747,16 +747,19 @@ those contracts:
 
 ```ts
 export class ProjectNotFound extends Schema.TaggedErrorClass<ProjectNotFound>()("ProjectNotFound", {
-  id: ProjectId
+  id: ProjectId,
 }) {}
 
-export const GetProject = Server.contract<{ readonly id: ProjectId }, Project, ProjectNotFound>("Project.get", {
-  input: Schema.Struct({ id: ProjectId }),
-  output: Project,
-  error: ProjectNotFound
-})
+export const GetProject = Server.contract<{ readonly id: ProjectId }, Project, ProjectNotFound>(
+  "Project.get",
+  {
+    input: Schema.Struct({ id: ProjectId }),
+    output: Project,
+    error: ProjectNotFound,
+  },
+);
 
-export const getProject = Server.client(GetProject)
+export const getProject = Server.client(GetProject);
 ```
 
 Application resources and actions import these shared clients. The same call site
@@ -766,8 +769,8 @@ works on the server and in the browser:
 Resource.family({
   name: "Project.byId",
   input: ProjectId,
-  load: (id: ProjectId) => getProject.effect({ id })
-})
+  load: (id: ProjectId) => getProject.effect({ id }),
+});
 ```
 
 Real handlers live in `.server.ts` modules and register the same function names
@@ -775,8 +778,8 @@ by implementing the shared contracts:
 
 ```ts
 export const getProject = Server.implement(GetProject, ({ id }) =>
-  Projects.use((projects) => projects.get(id))
-)
+  Projects.use((projects) => projects.get(id)),
+);
 ```
 
 The contract is the source of truth for the function name and wire schemas.
@@ -786,8 +789,8 @@ handler in the server graph without repeating the schemas:
 
 ```ts
 export const renameProject = Server.implement(RenameProject, (input) =>
-  Projects.use((projects) => projects.rename(input))
-)
+  Projects.use((projects) => projects.rename(input)),
+);
 ```
 
 `Server.fn` and `Server.stub` remain the low-level primitives behind this split,
@@ -800,8 +803,8 @@ export const getProjectLegacy = Server.fn("Project.get", {
   input: GetProject.input,
   output: GetProject.output,
   error: GetProject.error,
-  handler: ({ id }) => Projects.use((projects) => projects.get(id))
-})
+  handler: ({ id }) => Projects.use((projects) => projects.get(id)),
+});
 ```
 
 On the server, Start provides a request-local `ServerClient` during request
@@ -919,12 +922,12 @@ may be affected, and which framework checks should be rerun.
 Tests should mock contracts, not modules:
 
 ```ts
-const value = yield* Server.provideMocks(
-  getProject.effect({ id: makeProjectId("atlas") }),
-  Server.mock(GetProject, ({ id }) =>
-    Effect.succeed({ id, name: "Mock Project" })
-  )
-)
+const value =
+  yield *
+  Server.provideMocks(
+    getProject.effect({ id: makeProjectId("atlas") }),
+    Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Mock Project" })),
+  );
 ```
 
 `Server.mock(...)` does not register a global handler and does not import
@@ -952,14 +955,14 @@ become render dependencies.
 The temporal model is still available through Effect streams:
 
 ```ts
-Signal.values(count);   // current value, then updates
-Signal.changes(count);  // updates only
+Signal.values(count); // current value, then updates
+Signal.changes(count); // updates only
 ```
 
 Streams can also drive signals when the stream cannot fail:
 
 ```ts
-const online = yield* Signal.fromStreamEffect(presenceStream, false);
+const online = yield * Signal.fromStreamEffect(presenceStream, false);
 ```
 
 `Signal.fromStream(stream, initial)` is the component-boundary helper. It requires
@@ -985,8 +988,8 @@ Resource.family({
   input: ProjectId,
   load: (id: ProjectId) => getProject.effect({ id }),
   policy: {
-    retry: Schedule.exponential("100 millis").pipe(Schedule.take(3))
-  }
+    retry: Schedule.exponential("100 millis").pipe(Schedule.take(3)),
+  },
 });
 ```
 
@@ -1001,10 +1004,10 @@ const RenameProject = Action.define({
   name: "Project.rename",
   policy: {
     concurrency: "latest",
-    retry: Schedule.recurs(1)
+    retry: Schedule.recurs(1),
   },
-  run: renameProject.effect
-})
+  run: renameProject.effect,
+});
 ```
 
 `latest` interrupts older event submissions, `exhaust` reuses the in-flight
@@ -1019,12 +1022,15 @@ flow:
 ```ts
 const result = ActionResult.redirect("/projects/atlas", {
   status: 303,
-  replace: true
-})
+  replace: true,
+});
 
-const validation = ActionResult.fieldError("name", new ProjectNameTooShort({
-  minimum: 3
-}))
+const validation = ActionResult.fieldError(
+  "name",
+  new ProjectNameTooShort({
+    minimum: 3,
+  }),
+);
 ```
 
 `ActionResult` can represent success, validation failure, redirect, and domain

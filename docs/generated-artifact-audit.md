@@ -114,7 +114,7 @@ repeating stale package/test totals.
   16-target package dry-run gate. Current starter file counts are recorded in
   the latest Review240 evidence above.
 - Review173 focused Start artifact verification passed: `pnpm --filter
-  @effect-ui/start build` and `pnpm example:pack-dry-run` with the copied
+@effect-ui/start build` and `pnpm example:pack-dry-run` with the copied
   virtual declaration Adapter byte check and stale declaration-map rejection
   active.
 - Review219 focused package verification passed `pnpm example:pack-dry-run`

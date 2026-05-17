@@ -4,7 +4,7 @@ import {
   Capability,
   EffectInputCallbackError,
   EffectInputPromiseRejected,
-  makeRuntime
+  makeRuntime,
 } from "../src/index.js";
 
 describe("Capability", () => {
@@ -19,17 +19,19 @@ describe("Capability", () => {
     const runtime = makeRuntime(
       Numbers.layer({
         get: (id) => Effect.succeed(id.length),
-        save: (value) => Effect.succeed(value + 1)
-      })
+        save: (value) => Effect.succeed(value + 1),
+      }),
     );
 
-    return Effect.runPromise(runtime.provide(
-      Numbers.use((numbers) => numbers.get("atlas")).pipe(
-        Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
-        Effect.asVoid,
-        Effect.ensuring(runtime.disposeEffect)
-      )
-    ));
+    return Effect.runPromise(
+      runtime.provide(
+        Numbers.use((numbers) => numbers.get("atlas")).pipe(
+          Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
+          Effect.asVoid,
+          Effect.ensuring(runtime.disposeEffect),
+        ),
+      ),
+    );
   });
 
   it("supports pure and Effect-returning accessors", () =>
@@ -37,19 +39,19 @@ describe("Capability", () => {
       Numbers.provide(
         Effect.all([
           Numbers.useEffect((numbers) => numbers.get("kepler")),
-          Numbers.useSync((numbers) => numbers.save)
+          Numbers.useSync((numbers) => numbers.save),
         ]),
         {
           get: (id) => Effect.succeed(id.length),
-          save: (value) => Effect.succeed(value + 1)
-        }
+          save: (value) => Effect.succeed(value + 1),
+        },
       ).pipe(
         Effect.flatMap(([length, save]) =>
-          Effect.map(save(length), (saved) => ({ length, saved }))
+          Effect.map(save(length), (saved) => ({ length, saved })),
         ),
         Effect.tap((value) => Effect.sync(() => expect(value).toEqual({ length: 6, saved: 7 }))),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     ));
 
   it("captures synchronous useEffect throws in the Effect error channel", () =>
@@ -61,9 +63,9 @@ describe("Capability", () => {
           }),
           {
             get: (id) => Effect.succeed(id.length),
-            save: (value) => Effect.succeed(value + 1)
-          }
-        )
+            save: (value) => Effect.succeed(value + 1),
+          },
+        ),
       ).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
@@ -72,10 +74,10 @@ describe("Capability", () => {
               const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
               expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
             }
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     ));
 
   it("rejects Promise-shaped useSync return values as EffectInput defects", () =>
@@ -85,9 +87,9 @@ describe("Capability", () => {
           Numbers.useSync((numbers) => Effect.runPromise(numbers.get("kepler")) as never),
           {
             get: (id) => Effect.succeed(id.length),
-            save: (value) => Effect.succeed(value + 1)
-          }
-        )
+            save: (value) => Effect.succeed(value + 1),
+          },
+        ),
       ).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
@@ -96,10 +98,10 @@ describe("Capability", () => {
               const defect = exit.cause.reasons.find((reason) => reason._tag === "Die");
               expect(defect?.defect).toBeInstanceOf(EffectInputPromiseRejected);
             }
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     ));
 
   it("rejects Effect-shaped useSync return values as EffectInput defects", () =>
@@ -109,9 +111,9 @@ describe("Capability", () => {
           Numbers.useSync((numbers) => numbers.get("kepler") as never),
           {
             get: (id) => Effect.succeed(id.length),
-            save: (value) => Effect.succeed(value + 1)
-          }
-        )
+            save: (value) => Effect.succeed(value + 1),
+          },
+        ),
       ).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
@@ -120,26 +122,26 @@ describe("Capability", () => {
               const defect = exit.cause.reasons.find((reason) => reason._tag === "Die");
               expect(defect?.defect).toBeInstanceOf(EffectInputCallbackError);
             }
-          })
+          }),
         ),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     ));
 
   it("exposes mock layers for tests", () => {
     const TestNumbers = Numbers.mock({
       get: (id) => Effect.succeed(id.length * 2),
-      save: (value) => Effect.succeed(value)
+      save: (value) => Effect.succeed(value),
     });
 
     return Effect.runPromise(
       Effect.provide(
         Numbers.use((numbers) => numbers.get("ada")),
-        TestNumbers
+        TestNumbers,
       ).pipe(
         Effect.tap((value) => Effect.sync(() => expect(value).toBe(6))),
-        Effect.asVoid
-      )
+        Effect.asVoid,
+      ),
     );
   });
 
@@ -152,22 +154,24 @@ describe("Capability", () => {
       Layer.mergeAll(
         Numbers.layer({
           get: (id) => Effect.succeed(id.length),
-          save: (value) => Effect.succeed(value + 1)
+          save: (value) => Effect.succeed(value + 1),
         }),
         Names.layer({
-          normalize: (name) => name.trim().toLowerCase()
-        })
-      )
+          normalize: (name) => name.trim().toLowerCase(),
+        }),
+      ),
     );
 
-    return Effect.runPromise(runtime.provide(
-      Names.useEffect((names) =>
-        Numbers.use((numbers) => numbers.get(names.normalize("  ATLAS  ")))
-      ).pipe(
-        Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
-        Effect.asVoid,
-        Effect.ensuring(runtime.disposeEffect)
-      )
-    ));
+    return Effect.runPromise(
+      runtime.provide(
+        Names.useEffect((names) =>
+          Numbers.use((numbers) => numbers.get(names.normalize("  ATLAS  "))),
+        ).pipe(
+          Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
+          Effect.asVoid,
+          Effect.ensuring(runtime.disposeEffect),
+        ),
+      ),
+    );
   });
 });

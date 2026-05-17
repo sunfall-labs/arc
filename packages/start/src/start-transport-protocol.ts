@@ -9,24 +9,24 @@ import {
   type ActionDefinition,
   type AnyEffectUiRuntime,
   type EffectUiRuntime,
-  type ServerFunction
+  type ServerFunction,
 } from "@effect-ui/core";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
 import type { StartCollectionHydrationOptions } from "./hydration.js";
 import {
   startJsonMediaType,
   validateStartRpcResponseEffect,
-  type StartTransportRequestError
+  type StartTransportRequestError,
 } from "./rpc.js";
 import {
   isStartActionEndpointRequest,
   isStartRpcEndpointRequest,
   type StartActionEndpointSource,
-  type StartTransportEndpointSource
+  type StartTransportEndpointSource,
 } from "./start-transport-endpoints.js";
 import {
   readStartTransportJsonBodyEffect,
-  readStartTransportResponseTextEffect
+  readStartTransportResponseTextEffect,
 } from "./start-transport-body.js";
 import type { StartActionDefinition } from "./start-action-request-codec.js";
 import type { StartRequestTraceFailureKind } from "./request-trace.js";
@@ -43,7 +43,7 @@ export {
   actionTransportRequestFailureResponse,
   decodeStartActionResponseEffect,
   describeStartActionInvalidationPlan,
-  parseStartActionResponse
+  parseStartActionResponse,
 } from "./start-action-response-codec.js";
 export type {
   ActionDefinitionErrorValue,
@@ -54,16 +54,13 @@ export type {
   StartActionResponseBody,
   StartActionResponseMeta,
   StartActionResult,
-  StartActionResultFor
+  StartActionResultFor,
 } from "./start-action-response-codec.js";
-export {
-  decodeWithSchema,
-  encodeWithSchema
-} from "./start-schema-codec.js";
+export { decodeWithSchema, encodeWithSchema } from "./start-schema-codec.js";
 
 export {
   applyStartActionResponseEffect,
-  hydrateActionResponseEffect
+  hydrateActionResponseEffect,
 } from "./start-action-response-application.js";
 
 export {
@@ -75,14 +72,14 @@ export {
   StartActionFormEncodeError,
   startActionForm,
   startActionInputField,
-  startActionNameField
+  startActionNameField,
 } from "./start-action-request-codec.js";
 export type {
   StartActionDefinition,
   StartActionForm,
   StartActionFormField,
   StartActionFormOptions,
-  StartActionRequest
+  StartActionRequest,
 } from "./start-action-request-codec.js";
 
 /**
@@ -94,18 +91,19 @@ export type {
 export interface StartActionClientOptions<
   FetchError = never,
   FetchRequirements = never,
-  RuntimeError = never
-> extends ServerRpcClientOptions<FetchError, FetchRequirements, RuntimeError>,
-    Pick<
-      StartActionEndpointSource,
-      "actionPath" | "actionManifest" | "appGraph" | "endpoints"
-    >,
+  RuntimeError = never,
+>
+  extends
+    ServerRpcClientOptions<FetchError, FetchRequirements, RuntimeError>,
+    Pick<StartActionEndpointSource, "actionPath" | "actionManifest" | "appGraph" | "endpoints">,
     StartCollectionHydrationOptions {
   /**
    * Runtime used for action response hydration and, when `transportRuntime` is
    * omitted, for fetch Effects that require services.
    */
-  readonly runtime?: EffectUiRuntime<FetchRequirements, RuntimeError> | AnyEffectUiRuntime<RuntimeError>;
+  readonly runtime?:
+    | EffectUiRuntime<FetchRequirements, RuntimeError>
+    | AnyEffectUiRuntime<RuntimeError>;
   /**
    * Runtime used only for action response hydration and invalidation metadata.
    *
@@ -122,86 +120,85 @@ export type ActionDefinitionInputValue<D> =
 /** True when a request targets the Start server-function RPC endpoint. */
 export const isServerRpcRequest = (
   request: Request,
-  endpoints?: StartTransportEndpointSource
-): boolean =>
-  isStartRpcEndpointRequest(request, endpoints);
+  endpoints?: StartTransportEndpointSource,
+): boolean => isStartRpcEndpointRequest(request, endpoints);
 
 /** True when a request targets the Start action endpoint. */
 export const isServerActionRequest = (
   request: Request,
-  endpoints?: StartTransportEndpointSource
-): boolean =>
-  isStartActionEndpointRequest(request, endpoints);
+  endpoints?: StartTransportEndpointSource,
+): boolean => isStartActionEndpointRequest(request, endpoints);
 
 type StartTransportJsonBody = Server.RpcResponse;
 
-const startTransportDefectBody = (cause: unknown): Extract<Server.RpcResponse, { readonly _tag: "Defect" }> => ({
+const startTransportDefectBody = (
+  cause: unknown,
+): Extract<Server.RpcResponse, { readonly _tag: "Defect" }> => ({
   _tag: "Defect",
-  defect: Server.serializeDefect(cause)
+  defect: Server.serializeDefect(cause),
 });
 
-const startTransportJson = (body: StartTransportJsonBody, status = 200): Response =>
-  {
-    const headers = {
-      "content-type": startJsonMediaType
-    };
-
-    try {
-      return new Response(JSON.stringify(body), { status, headers });
-    } catch (cause) {
-      return new Response(JSON.stringify(startTransportDefectBody(cause)), {
-        status: 500,
-        headers
-      });
-    }
+const startTransportJson = (body: StartTransportJsonBody, status = 200): Response => {
+  const headers = {
+    "content-type": startJsonMediaType,
   };
+
+  try {
+    return new Response(JSON.stringify(body), { status, headers });
+  } catch (cause) {
+    return new Response(JSON.stringify(startTransportDefectBody(cause)), {
+      status: 500,
+      headers,
+    });
+  }
+};
 
 const rpcJson = (body: Server.RpcResponse, status = 200): Response =>
   startTransportJson(body, status);
 
 export const readJsonEffect = (request: Request): Effect.Effect<unknown, ServerRpcProtocolError> =>
-  readStartTransportJsonBodyEffect(
-    request,
-    "Expected a JSON server function request body."
-  );
+  readStartTransportJsonBodyEffect(request, "Expected a JSON server function request body.");
 
 const serverErrorBody = (
-  error: ServerRpcProtocolError | ServerFunctionNotFound
+  error: ServerRpcProtocolError | ServerFunctionNotFound,
 ): Extract<Server.RpcResponse, { readonly _tag: "ServerError" }> => ({
   _tag: "ServerError",
-  error: Server.serializeServerError(error)
+  error: Server.serializeServerError(error),
 });
 
-const defectBody = (
-  defect: unknown
-): Extract<Server.RpcResponse, { readonly _tag: "Defect" }> => ({
+const defectBody = (defect: unknown): Extract<Server.RpcResponse, { readonly _tag: "Defect" }> => ({
   _tag: "Defect",
-  defect: Server.serializeDefect(defect)
+  defect: Server.serializeDefect(defect),
 });
 
-const startTransportRuntimeFailureResponse = <Body extends Extract<StartTransportJsonBody, { readonly _tag: "Defect" }>>(
+const startTransportRuntimeFailureResponse = <
+  Body extends Extract<StartTransportJsonBody, { readonly _tag: "Defect" }>,
+>(
   json: (body: Body, status?: number) => Response,
-  error: unknown
+  error: unknown,
 ): Response => json(defectBody(error) as Body, 500);
 
-const startTransportProtocolFailureResponse = <Body extends Extract<StartTransportJsonBody, { readonly _tag: "ServerError" }>>(
+const startTransportProtocolFailureResponse = <
+  Body extends Extract<StartTransportJsonBody, { readonly _tag: "ServerError" }>,
+>(
   json: (body: Body, status?: number) => Response,
   error: ServerRpcProtocolError,
-  status = 400
+  status = 400,
 ): Response => json(serverErrorBody(error) as Body, status);
 
-const startTransportFunctionNotFoundResponse = <Body extends Extract<StartTransportJsonBody, { readonly _tag: "ServerError" }>>(
+const startTransportFunctionNotFoundResponse = <
+  Body extends Extract<StartTransportJsonBody, { readonly _tag: "ServerError" }>,
+>(
   json: (body: Body, status?: number) => Response,
-  functionName: string
-): Response =>
-  json(serverErrorBody(new ServerFunctionNotFound({ functionName })) as Body, 404);
+  functionName: string,
+): Response => json(serverErrorBody(new ServerFunctionNotFound({ functionName })) as Body, 404);
 
 export const rpcRuntimeFailureResponse = (error: unknown): Response =>
   startTransportRuntimeFailureResponse(rpcJson, error);
 
 const withTransportRequestErrorHeaders = (
   response: Response,
-  error: StartTransportRequestError
+  error: StartTransportRequestError,
 ): Response => {
   if (error.allow) {
     response.headers.set("allow", error.allow);
@@ -225,14 +222,14 @@ export type StartActionSource<Actions extends StartActionDefinition = StartActio
   | StartActionMap<Actions>;
 
 const isStartActionMap = <Actions extends StartActionDefinition>(
-  actions: StartActionSource<Actions>
+  actions: StartActionSource<Actions>,
 ): actions is StartActionMap<Actions> =>
   typeof (actions as { readonly get?: unknown }).get === "function" &&
   typeof (actions as { readonly has?: unknown }).has === "function" &&
   typeof (actions as { readonly forEach?: unknown }).forEach === "function";
 
 export const materializeStartActionMap = <Actions extends StartActionDefinition>(
-  actions: Iterable<Actions>
+  actions: Iterable<Actions>,
 ): StartActionMap<Actions> => {
   const actionMap = new Map<string, Actions>();
   const firstIndexes = new Map<string, number>();
@@ -244,7 +241,7 @@ export const materializeStartActionMap = <Actions extends StartActionDefinition>
         actionName: action.name,
         first,
         duplicate: index,
-        message: `Duplicate Start action name: ${action.name}`
+        message: `Duplicate Start action name: ${action.name}`,
       });
     }
     actionMap.set(action.name, action);
@@ -257,15 +254,13 @@ export const materializeStartActionMap = <Actions extends StartActionDefinition>
 
 export const makeActionMap = <Actions extends StartActionDefinition = StartActionDefinition>(
   actions?: StartActionSource<Actions>,
-  registry?: CoreDefinitionRegistry<Actions, ServerFunction<any, any, any, any>>
+  registry?: CoreDefinitionRegistry<Actions, ServerFunction<any, any, any, any>>,
 ): StartActionMap<Actions> => {
   if (actions === undefined) {
     return (registry?.actions ?? Action.definitions()) as StartActionMap<Actions>;
   }
 
-  return isStartActionMap(actions)
-    ? actions
-    : materializeStartActionMap(actions);
+  return isStartActionMap(actions) ? actions : materializeStartActionMap(actions);
 };
 
 const firstFail = <E>(cause: Cause.Cause<E>): E | undefined => {
@@ -280,7 +275,7 @@ const firstDefect = <E>(cause: Cause.Cause<E>): unknown | undefined => {
 
 export const rpcFailureKindEffect = <FnError>(
   fn: ServerFunction<unknown, unknown, FnError, unknown>,
-  exit: Exit.Exit<unknown, FnError>
+  exit: Exit.Exit<unknown, FnError>,
 ): Effect.Effect<StartRequestTraceFailureKind> => {
   if (Exit.isSuccess(exit)) {
     return Effect.succeed("domain");
@@ -292,20 +287,17 @@ export const rpcFailureKindEffect = <FnError>(
       return Effect.succeed("validation");
     }
 
-    return Effect.map(
-      Effect.exit(Server.encodeError(fn, failure)),
-      (encoded) => Exit.isSuccess(encoded) ? "domain" : "defect"
+    return Effect.map(Effect.exit(Server.encodeError(fn, failure)), (encoded) =>
+      Exit.isSuccess(encoded) ? "domain" : "defect",
     );
   }
 
   return Effect.succeed(
-    exit.cause.reasons.some(Cause.isInterruptReason) ? "interruption" : "defect"
+    exit.cause.reasons.some(Cause.isInterruptReason) ? "interruption" : "defect",
   );
 };
 
-const actionResultFailureKind = (
-  result: unknown
-): StartRequestTraceFailureKind | undefined => {
+const actionResultFailureKind = (result: unknown): StartRequestTraceFailureKind | undefined => {
   if (!ActionResult.is(result)) {
     return undefined;
   }
@@ -320,7 +312,7 @@ const actionResultFailureKind = (
 
 export const actionFailureKindEffect = <ActionError>(
   action: StartActionDefinition,
-  exit: Exit.Exit<unknown, ActionError>
+  exit: Exit.Exit<unknown, ActionError>,
 ): Effect.Effect<StartRequestTraceFailureKind | undefined> => {
   if (Exit.isSuccess(exit)) {
     return Effect.succeed(actionResultFailureKind(exit.value));
@@ -332,41 +324,35 @@ export const actionFailureKindEffect = <ActionError>(
       return Effect.succeed("validation");
     }
 
-    return Effect.map(
-      Effect.exit(encodeWithSchema(action.error, failure)),
-      (encoded) => Exit.isSuccess(encoded) ? "domain" : "defect"
+    return Effect.map(Effect.exit(encodeWithSchema(action.error, failure)), (encoded) =>
+      Exit.isSuccess(encoded) ? "domain" : "defect",
     );
   }
 
   return Effect.succeed(
-    exit.cause.reasons.some(Cause.isInterruptReason) ? "interruption" : "defect"
+    exit.cause.reasons.some(Cause.isInterruptReason) ? "interruption" : "defect",
   );
 };
 
 export const protocolFailureResponse = (error: ServerRpcProtocolError, status = 400): Response =>
   startTransportProtocolFailureResponse(rpcJson, error, status);
 
-export const rpcTransportRequestFailureResponse = (
-  error: StartTransportRequestError
-): Response =>
-  withTransportRequestErrorHeaders(
-    protocolFailureResponse(error.error, error.status),
-    error
-  );
+export const rpcTransportRequestFailureResponse = (error: StartTransportRequestError): Response =>
+  withTransportRequestErrorHeaders(protocolFailureResponse(error.error, error.status), error);
 
 export const functionNotFoundResponse = (functionName: string): Response =>
   startTransportFunctionNotFoundResponse(rpcJson, functionName);
 
 export const exitToRpcResponse = <FnError>(
   fn: ServerFunction<unknown, unknown, FnError, unknown>,
-  exit: Exit.Exit<unknown, FnError>
+  exit: Exit.Exit<unknown, FnError>,
 ): Effect.Effect<Response, never> => {
   if (Exit.isSuccess(exit)) {
     return Effect.succeed(
       rpcJson({
         _tag: "Success",
-        value: exit.value
-      })
+        value: exit.value,
+      }),
     );
   }
 
@@ -377,9 +363,9 @@ export const exitToRpcResponse = <FnError>(
         protocolFailureResponse(
           new ServerRpcProtocolError({
             message: failure.message,
-            payload: Server.serializeDefect(failure)
-          })
-        )
+            payload: Server.serializeDefect(failure),
+          }),
+        ),
       );
     }
 
@@ -388,16 +374,16 @@ export const exitToRpcResponse = <FnError>(
       if (Exit.isSuccess(encoded)) {
         return rpcJson({
           _tag: "Failure",
-          error: encoded.value
+          error: encoded.value,
         });
       }
 
       return rpcJson(
         {
           _tag: "Defect",
-          defect: Server.serializeDefect(Cause.pretty(encoded.cause))
+          defect: Server.serializeDefect(Cause.pretty(encoded.cause)),
         },
-        500
+        500,
       );
     });
   }
@@ -409,11 +395,11 @@ export const exitToRpcResponse = <FnError>(
           _tag: "Defect",
           defect: {
             _tag: "Interrupted",
-            message: "The server function fiber was interrupted."
-          }
+            message: "The server function fiber was interrupted.",
+          },
         },
-        499
-      )
+        499,
+      ),
     );
   }
 
@@ -421,21 +407,21 @@ export const exitToRpcResponse = <FnError>(
     rpcJson(
       {
         _tag: "Defect",
-        defect: Server.serializeDefect(firstDefect(exit.cause) ?? Cause.pretty(exit.cause))
+        defect: Server.serializeDefect(firstDefect(exit.cause) ?? Cause.pretty(exit.cause)),
       },
-      500
-    )
+      500,
+    ),
   );
 };
 
 export const parseRpcResponse = (
-  response: Response
+  response: Response,
 ): Effect.Effect<Server.RpcResponse, ServerTransportError | Schema.SchemaError> =>
   Effect.gen(function* () {
     yield* validateStartRpcResponseEffect(response);
     const text = yield* readStartTransportResponseTextEffect(
       response,
-      "Could not read the server function response body."
+      "Could not read the server function response body.",
     );
     const payload = yield* Effect.try({
       try: () => JSON.parse(text),
@@ -445,8 +431,8 @@ export const parseRpcResponse = (
           status: response.status,
           message: "Server function response was not valid JSON.",
           cause,
-          payload: text
-        })
+          payload: text,
+        }),
     });
     return yield* Server.decodeRpcResponse(payload);
   });
