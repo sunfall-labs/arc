@@ -269,8 +269,8 @@ export namespace Program {
   /**
    * Defines a headless model/message Program.
    *
-   * The update callback returns an Effect or pure step; Promise-shaped updates
-   * are rejected so async work stays in the Effect runtime.
+   * The update callback returns an Effect or pure step; Promise-shaped models
+   * and messages are rejected so async work stays in the Effect runtime.
    */
   export const define = defineProgram;
   /** Runs one Program update deterministically without starting subscriptions. */
@@ -279,16 +279,36 @@ export namespace Program {
   export const story = makeProgramStory;
   /** Starts a Program on the current or explicit Runtime Spine and UI scope. */
   export const start = startProgram;
-  /** Returns a pure model update step with no commands. */
+  /**
+   * Returns a pure model update step, optionally with commands.
+   *
+   * The model must be plain. Promise-shaped models are rejected; move host
+   * Promise work into `Program.command(Effect.tryPromise(...))` and dispatch a
+   * follow-up message with the resolved value.
+   */
   export const next = programNext;
-  /** Creates a command that can emit a follow-up message through Effect. */
+  /**
+   * Creates a command that can emit a follow-up message through Effect.
+   *
+   * Emitted messages must be plain values. Use `Effect.tryPromise(...)` inside
+   * the command for host Promise work before mapping to a resolved message.
+   */
   export const command = programCommand;
   /** Creates a command from an Effect that may fail through the Program error channel. */
   export const effect = programEffect;
-  /** Creates a command that immediately dispatches another message. */
+  /**
+   * Creates a command that immediately dispatches another message.
+   *
+   * The message must be a plain value; Promise-shaped messages are rejected.
+   */
   export const dispatch = programDispatch;
   /** Creates a step that emits several commands after a model update. */
   export const commands = programCommands;
-  /** Creates a Stream-backed subscription for model-driven external input. */
+  /**
+   * Creates a Stream-backed subscription for model-driven external input.
+   *
+   * Stream emissions must be plain messages. Adapt host Promise sources with
+   * `Effect.tryPromise(...)` before emitting into the Program loop.
+   */
   export const subscription = programSubscription;
 }

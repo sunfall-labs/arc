@@ -513,6 +513,14 @@ Program.next(promisedProject);
 Program.next<unknown, "bad">(promisedProject);
 // @ts-expect-error Effects cannot hide Program.next Promise-shaped model values
 Effect.succeed(Program.next(promisedProject));
+// @ts-expect-error Program commands cannot emit Promise-shaped messages
+Program.command<unknown>(Effect.succeed(promisedProject));
+// @ts-expect-error Program dispatch commands cannot accept Promise-shaped messages
+Program.dispatch(promisedProject);
+// @ts-expect-error Program subscriptions cannot emit Promise-shaped messages
+Program.subscription(Stream.succeed(promisedProject));
+// @ts-expect-error Program message types cannot be Promise-shaped
+Program.define<number, typeof promisedNumber>({ initial: 0, update: (model: number) => model });
 // @ts-expect-error EffectInput callbacks cannot hide Promise-shaped values behind explicit unknown
 invokeEffectInput<[], unknown>("Project.promiseUnknown", () => promisedProject);
 // @ts-expect-error ActionResult.fromEffect rejects Promise-shaped direct values
@@ -525,6 +533,18 @@ ActionResult.fromEffect<unknown>(Effect.succeed(promisedProject));
 ActionResult.fromValidationEffect(promisedProject);
 // @ts-expect-error ActionResult.fromValidationEffect rejects Effect successes that are Promise-shaped
 ActionResult.fromValidationEffect(Effect.succeed(promisedProject));
+// @ts-expect-error ActionResult.success rejects Promise-shaped payloads
+ActionResult.success(promisedProject);
+// @ts-expect-error ActionResult.success rejects Promise-shaped payloads hidden behind explicit unknown
+ActionResult.success<unknown>(promisedProject);
+// @ts-expect-error ActionResult.successEffect rejects Promise-shaped payloads
+ActionResult.successEffect(promisedProject);
+// @ts-expect-error ActionResult.failure rejects Promise-shaped errors
+ActionResult.failure(promisedProject);
+// @ts-expect-error ActionResult.fail rejects Promise-shaped errors
+ActionResult.fail(promisedProject);
+// @ts-expect-error ActionResult.failureEffect rejects Promise-shaped errors
+ActionResult.failureEffect(promisedProject);
 
 type ProjectError = {
   readonly _tag: "ProjectError";
@@ -3314,7 +3334,7 @@ const ProjectProgram = Program.define<
       case "Load":
         return Program.next(
           { ...model, loading: true },
-          Program.command(
+          Program.command<ProjectProgramMessage, ProjectError | Server.ClientError, ProjectApi>(
             ProjectApi.use((api) =>
               Effect.map(api.get(message.id), (project) => ({ _tag: "Loaded", project }) as const)
             )
@@ -3324,7 +3344,7 @@ const ProjectProgram = Program.define<
         return { selected: message.project, loading: false };
       case "Refresh":
         return model.selected
-          ? Program.next(model, Program.dispatch({ _tag: "Load", id: model.selected.id }))
+          ? Program.next(model, Program.dispatch<ProjectProgramMessage>({ _tag: "Load", id: model.selected.id }))
           : model;
     }
   },
@@ -4095,6 +4115,12 @@ const TouchProjectWithResultInvalidation = Action.define<{ readonly id: string }
         { invalidates: [ProjectsTag, ProjectTag({ id })] }
       )
     )
+});
+
+Action.define<{ readonly id: string }, ActionResult<Project>>({
+  name: "Project.touchResultPromise",
+  // @ts-expect-error ActionResult.success cannot hide Promise payloads inside Action.run
+  run: () => ActionResult.success(promisedProject)
 });
 
 Action.planInvalidation(

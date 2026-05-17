@@ -3,8 +3,11 @@ import {
   type EffectInput,
   type EffectInputCallbackError
 } from "@effect-ui/core";
-import { Cause, Deferred, Effect, Exit, Scope } from "effect";
-import { scopedCollectionChangeFeedDispatcherEffect } from "./change-feed-dispatcher.js";
+import { Cause, Deferred, Effect, Exit, Fiber, Scope } from "effect";
+import {
+  scopedCollectionChangeFeedDispatcherEffect,
+  type CollectionChangeFeedDispatch
+} from "./change-feed-dispatcher.js";
 import type {
   CollectionChange,
   CollectionKey,
@@ -63,6 +66,35 @@ const changeFeedUnsubscribe = <E, R>(
 const changeFeedFailureError = (cause: Cause.Cause<unknown>): unknown =>
   cause.reasons.find(Cause.isFailReason)?.error ?? Cause.squash(cause);
 
+const completeChangeFeedEmission = <
+  A extends object,
+  K extends CollectionKey,
+  E
+>(
+  emission: CollectionChangeFeedDispatch<A, K, E>,
+  exit: Exit.Exit<void, E>
+): Effect.Effect<void> =>
+  emission.completed
+    ? Deferred.done(emission.completed, exit).pipe(
+        Effect.asVoid,
+        Effect.catchCause(() => Effect.void)
+      )
+    : Effect.void;
+
+const interruptChangeFeedEmission = <
+  A extends object,
+  K extends CollectionKey,
+  E
+>(
+  emission: CollectionChangeFeedDispatch<A, K, E>
+): Effect.Effect<void> =>
+  emission.completed
+    ? Deferred.interrupt(emission.completed).pipe(
+        Effect.asVoid,
+        Effect.catchCause(() => Effect.void)
+      )
+    : Effect.void;
+
 /**
  * Subscribe a change-feed adapter into one Collection Store runtime.
  *
@@ -85,7 +117,7 @@ export const subscribeCollectionChangeFeedRuntimeEffect = <
     const options = runtime.options ?? {};
     const dispatcher = yield* scopedCollectionChangeFeedDispatcherEffect<A, K, CollectionRuntimeError<E>>(options.dispatch);
 
-    yield* dispatcher.takeEffect().pipe(
+    const consumerFiber = yield* dispatcher.takeEffect().pipe(
       Effect.flatMap((emission) =>
         Effect.gen(function* () {
           const exit = yield* Effect.exit(
@@ -94,14 +126,17 @@ export const subscribeCollectionChangeFeedRuntimeEffect = <
           if (Exit.isFailure(exit)) {
             yield* runtime.publishFailure(changeFeedFailureError(exit.cause));
           }
-          if (emission.completed) {
-            yield* Deferred.done(emission.completed, exit).pipe(Effect.asVoid);
-          }
-        })
+          yield* completeChangeFeedEmission(emission, exit);
+        }).pipe(Effect.ensuring(interruptChangeFeedEmission(emission)))
       ),
       Effect.forever,
       Effect.forkScoped
     );
+
+    const shutdownSetup = Effect.all([
+      Fiber.interrupt(consumerFiber).pipe(Effect.asVoid, Effect.catchCause(() => Effect.void)),
+      dispatcher.shutdownEffect().pipe(Effect.catchCause(() => Effect.void))
+    ], { discard: true });
 
     yield* Effect.acquireRelease(
       collectionChangeFeedInputCallbackEffect<CollectionChangeFeedSubscription<FeedError, FeedRequirements>, FeedError, FeedRequirements>(() =>
@@ -112,6 +147,12 @@ export const subscribeCollectionChangeFeedRuntimeEffect = <
             dispatcher.emitChanges(changes, writeOptions);
           }
         })
+      ).pipe(
+        Effect.onExit((exit) =>
+          Exit.isFailure(exit)
+            ? shutdownSetup
+            : Effect.void
+        )
       ),
       (subscription) => {
         const unsubscribe = changeFeedUnsubscribe(subscription);

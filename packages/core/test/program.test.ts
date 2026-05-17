@@ -190,6 +190,110 @@ describe("Program", () => {
       })
     ));
 
+  it("reports erased Promise-shaped dispatch messages as typed failures", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const program = Program.start(Program.define<number, "increment">({
+          initial: 0,
+          update: (model) => model + 1
+        }));
+
+        const failure = yield* Effect.flip(
+          program.dispatchEffect(Promise.resolve("increment") as never)
+        );
+
+        expect(read(program.model)).toBe(0);
+        expect(failure).toMatchObject({
+          _tag: "ProgramFailure",
+          phase: "Update",
+          error: expect.any(EffectInputCallbackError)
+        });
+        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+        expect(read(program.failures)).toEqual([failure]);
+
+        yield* program.disposeEffect;
+      })
+    ));
+
+  it("reports erased Promise-shaped command messages without enqueueing them", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const program = Program.start(Program.define<number, "load" | "loaded">({
+          initial: 0,
+          update: (model, message) =>
+            message === "load"
+              ? Program.next(
+                  model,
+                  Program.command(Effect.succeed(Promise.resolve("loaded") as never))
+                )
+              : model + 1
+        }));
+
+        yield* program.dispatchEffect("load");
+        yield* Effect.sleep("0 millis");
+
+        expect(read(program.model)).toBe(0);
+        const [failure] = read(program.failures);
+        expect(failure).toMatchObject({
+          _tag: "ProgramFailure",
+          phase: "Command",
+          message: "load",
+          error: expect.any(EffectInputCallbackError)
+        });
+        expect((failure?.error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+
+        yield* program.disposeEffect;
+      })
+    ));
+
+  it("reports erased Promise-shaped subscription messages without enqueueing them", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const program = Program.start(Program.define<number, "increment">({
+          initial: 0,
+          update: (model) => model + 1,
+          subscriptions: () =>
+            Program.subscription(Stream.succeed(Promise.resolve("increment") as never))
+        }));
+
+        yield* Effect.sleep("0 millis");
+
+        expect(read(program.model)).toBe(0);
+        const [failure] = read(program.failures);
+        expect(failure).toMatchObject({
+          _tag: "ProgramFailure",
+          phase: "Subscription",
+          error: expect.any(EffectInputCallbackError)
+        });
+        expect((failure?.error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+
+        yield* program.disposeEffect;
+      })
+    ));
+
+  it("reports erased Promise-shaped story command messages as typed failures", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const story = Program.story(Program.define<number, "increment">({
+          initial: 0,
+          update: (model) => model + 1
+        }));
+        const command = Program.command<"increment">(
+          Effect.succeed(Promise.resolve("increment") as never)
+        );
+
+        const failure = yield* Effect.flip(story.run(command));
+
+        expect(read(story.model)).toBe(0);
+        expect(failure).toMatchObject({
+          _tag: "ProgramFailure",
+          phase: "Command",
+          error: expect.any(EffectInputCallbackError)
+        });
+        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+      })
+    ));
+
   it("reports runtime provision failures as typed dispatch failures", () =>
     Effect.runPromise(
       Effect.gen(function* () {

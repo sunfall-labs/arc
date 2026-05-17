@@ -159,7 +159,12 @@ type StartRequestRequirements<
 export type StartRequestHandlerEffect<Requirements = never> =
   StartRequestHandlerInput<StartRequestHandlerError, Scope.Scope | Requirements> &
   StartRequestHandlerRequirementsMarker<Scope.Scope | Requirements>;
-/** Public handler type consumed by platform adapters and server entries. */
+/**
+ * Public Effect-returning handler consumed by platform adapters and server entries.
+ *
+ * This type is the Start library boundary. Fetch and Node adapters expose the
+ * host Promise/callback facades; application request handlers stay Effect-first.
+ */
 export type StartRequestHandler<Requirements = never> =
   StartRequestHandlerInput<StartRequestHandlerError, Scope.Scope | Requirements>;
 
@@ -320,7 +325,12 @@ export const createRequestHandlerEffect =
   ) as StartRequestHandlerEffect<StartRequestRequirements<Routes, ServerServices, Registry, Actions>>;
   };
 
-/** Primary Start request handler factory for server entry modules. */
+/**
+ * Primary Start request handler factory for server entry modules.
+ *
+ * The returned handler returns an `Effect`; use the Fetch/Node adapters when a
+ * host expects a Promise-returning or callback-style request function.
+ */
 export const createRequestHandler =
   <
     const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],

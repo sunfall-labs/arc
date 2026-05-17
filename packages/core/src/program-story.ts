@@ -3,6 +3,7 @@ import {
   type ProgramCommand,
   type ProgramDefinition,
   type ProgramFailure,
+  type ProgramMessageValue,
   type ProgramRuntimeError,
   type ProgramStory,
   type ProgramStoryEntry,
@@ -10,7 +11,8 @@ import {
 } from "./program-contract.js";
 import {
   makeProgramFailure,
-  programStepEffect
+  programStepEffect,
+  validateProgramMessageEffect
 } from "./program-primitives.js";
 import { Signal } from "./signal.js";
 
@@ -32,9 +34,14 @@ export const makeProgramStory = <Model, Message, E = never, R = never>(
   > =>
     Effect.gen(function* () {
       const before = Signal.peek(model);
-      const step = yield* programStepEffect(definition, before, message);
+      const validMessage = yield* validateProgramMessageEffect("Program.story.send", message).pipe(
+        Effect.mapError((error) =>
+          makeProgramFailure<Message, ProgramRuntimeError<E>>("Update", error, message)
+        )
+      );
+      const step = yield* programStepEffect(definition, before, validMessage);
       const entry: ProgramStoryEntry<Model, Message, E, R> = {
-        message,
+        message: validMessage,
         before,
         after: step.model,
         commands: step.commands
@@ -48,10 +55,21 @@ export const makeProgramStory = <Model, Message, E = never, R = never>(
 
   const run = (
     command: ProgramCommand<Message, E, R>
-  ): Effect.Effect<Message | void, ProgramFailure<Message, ProgramRuntimeError<E>>, R> =>
+  ): Effect.Effect<ProgramMessageValue<Message> | void, ProgramFailure<Message, ProgramRuntimeError<E>>, R> =>
     command.effect.pipe(
+      Effect.flatMap((message) =>
+        message === undefined
+          ? Effect.succeed(undefined)
+          : validateProgramMessageEffect("Program.story.run", message).pipe(
+              Effect.mapError((error) =>
+                makeProgramFailure<Message, ProgramRuntimeError<E>>("Command", error)
+              )
+            )
+      ),
       Effect.mapError((error) =>
-        makeProgramFailure<Message, ProgramRuntimeError<E>>("Command", error as ProgramRuntimeError<E>)
+        error && typeof error === "object" && "_tag" in error && error._tag === "ProgramFailure"
+          ? error as ProgramFailure<Message, ProgramRuntimeError<E>>
+          : makeProgramFailure<Message, ProgramRuntimeError<E>>("Command", error as ProgramRuntimeError<E>)
       )
     );
 

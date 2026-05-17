@@ -17,7 +17,21 @@ type ActionOptimisticSignalUpdate<A> =
   | ActionOptimisticSignalValue<A>
   | ((current: A) => ActionOptimisticSignalValue<A>);
 
+/**
+ * Optimistic patch transaction passed to `Action.define({ optimistic })`.
+ *
+ * Signal patches must be plain synchronous values or pure synchronous updater
+ * functions. Promise-shaped patch values are rejected as
+ * `EffectInputCallbackError`; move host Promise work into the action `run`
+ * Effect with `Effect.tryPromise(...)` before patching local signal state.
+ */
 export interface ActionOptimisticTransaction {
+  /**
+   * Patches a writable signal for the lifetime of the optimistic submission.
+   *
+   * The update may be a plain value or a synchronous updater. It must not
+   * return a Promise-shaped value.
+   */
   readonly signal: <A>(
     signal: WritableSignal<A>,
     update: ActionOptimisticSignalUpdate<A>

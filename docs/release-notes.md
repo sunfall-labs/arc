@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 211:
+Latest full gate on May 16, 2026 after Review 212:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 408 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1068 tests;
+- 53 root test files / 1076 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, and project console packages;
 - starter-suite packaging for basic (19 app files / 5 local packages), React
@@ -86,6 +86,15 @@ Latest full gate on May 16, 2026 after Review 211:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 212 closed the post-Review211 sweep findings: `ActionResult`
+  success/failure helpers reject nested Promise-shaped payloads, Program
+  command/dispatch/subscription/story message seams reject Promise-shaped
+  messages, DB change-feed failed subscribe setup shuts down captured emitters,
+  in-flight direct emits complete when scope release interrupts apply work,
+  Core/Start LSP hovers name the Effect-first no-Promise contracts, and
+  Effect-first evidence wording distinguishes runtime-test Promise rejection
+  fixtures from implementation Promise choreography. The active Thirty-Sweep
+  clean counter remains 0/30 until a fresh post-Review212 sweep is clean.
 - Review 211 closed the post-Review210 sweep findings: `Program.next(...)`
   rejects Promise-shaped models, Program runtime rejects erased Promise-shaped
   step models before state commit, optimistic action signal patches reject
@@ -93,16 +102,16 @@ Latest full gate on May 16, 2026 after Review 211:
   published and swallowed during scope release, React/Solid preload observer
   hovers name Promise rejection and failing Effect behavior, and Review210
   evidence wording now distinguishes Promise return-type allowances from
-  negative fixtures. The active Thirty-Sweep clean counter remains 0/30 until a
-  fresh post-Review211 sweep is clean.
+  negative fixtures. A later post-Review211 sweep found Review212 work, so the
+  active Thirty-Sweep clean counter stayed at 0/30.
 - Review 210 closed the post-Review209 sweep findings: EffectInput now rejects
   returned Effects that succeed with Promise-shaped or callable-`then` values,
   `verify.mjs` handles help/invalid argv before running builds, DB change-feed
   cleanup docs describe failure publication without cleanup rethrows,
   React/Solid DB option types are public type-test pinned, Start diagnostics
   CLI tests pin all three Effect CLI `graph --verbose` shared-flag placements,
-  and the active Thirty-Sweep clean counter remains 0/30 until a fresh
-  post-Review210 sweep is clean.
+  and a later post-Review210 sweep found Review211 work, so the active
+  Thirty-Sweep clean counter stayed at 0/30.
 - Review 209 closed the Clean Sweep 2 finding after Review208: explicit
   broad `unknown` annotations can no longer hide Promise-shaped callback
   returns at direct EffectInput, Resource, Action, or Program seams, and the
@@ -246,9 +255,9 @@ Latest full gate on May 16, 2026 after Review 211:
   actionable findings, creating Clean Sweep 1 after Review208, but Clean Sweep
   2 found Review209 work, a local post-Review209 pass found Review210 Core,
   DB, scripts, docs, React/Solid DB, and Start evidence work, and the first
-  post-Review210 sweep found Review211 work. The active Thirty-Sweep clean
-  counter is 0/30 until a fresh post-Review211 sweep reports no actionable
-  findings.
+  post-Review210 sweep found Review211 work, and the first post-Review211
+  sweep found Review212 work. The active Thirty-Sweep clean counter is 0/30
+  until a fresh post-Review212 sweep reports no actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
 - Review 190 tightened `Server.fn(...)` so union-shaped Promise handler returns
@@ -1183,20 +1192,20 @@ Latest full gate on May 16, 2026 after Review 211:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 211 Program step,
-  optimistic signal, DB cleanup defect, adapter docs, and evidence precision
-  fixes.
+- The latest full `pnpm verify` passed after Review 212 ActionResult payload,
+  Program message, DB change-feed setup/direct-emit cleanup, Start/Core LSP,
+  and evidence precision fixes.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
-  Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, and Review211 work.
+  Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, and Review212 work.
   Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
   Sweep 2 found Review209 work and the local post-Review209 pass found
   Review210 Core, DB, scripts, docs, React/Solid DB, and Start evidence work;
-  the first post-Review210 sweep found Review211 work, so the active counter is
-  0/30.
+  the first post-Review210 sweep found Review211 work, and the first
+  post-Review211 sweep found Review212 work, so the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 408 physical/virtual files, 53 root test files / 1068
+  Effect-first audit over 408 physical/virtual files, 53 root test files / 1076
   tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console

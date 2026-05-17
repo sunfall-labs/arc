@@ -1,6 +1,13 @@
 import { Data, Effect, Exit, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { Action, Form, read, Resource } from "../src/index.js";
+import {
+  Action,
+  EffectInputCallbackError,
+  EffectInputPromiseRejected,
+  Form,
+  read,
+  Resource
+} from "../src/index.js";
 import {
   ActionResult,
   type ActionResult as ActionResultValue
@@ -89,6 +96,50 @@ describe("ActionResult", () => {
       )
     );
   });
+
+  it("rejects Promise-shaped success and failure result payloads", () => {
+    for (const build of [
+      () => ActionResult.success(Promise.resolve({ id: "atlas" }) as never),
+      () => ActionResult.successEffect(Promise.resolve({ id: "atlas" }) as never),
+      () => ActionResult.failure(Promise.resolve("failed") as never),
+      () => ActionResult.failureEffect(Promise.resolve("failed") as never)
+    ]) {
+      try {
+        build();
+        throw new Error("expected ActionResult Promise payload rejection");
+      } catch (error) {
+        expect(error).toBeInstanceOf(EffectInputCallbackError);
+        expect((error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+      }
+    }
+  });
+
+  it("reports erased Promise-shaped ActionResult payloads from action runs as typed failures", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const SubmitProject = Action.define<string, ActionResultValue<unknown>>({
+          name: "project.submit.promise-result-payload",
+          run: () => ActionResult.success(Promise.resolve({ id: "atlas" }) as never)
+        });
+        const action = Action.use(SubmitProject);
+
+        const exit = yield* Effect.exit(action.submitEffect("save"));
+
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+          expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
+          expect(failure?.error).toMatchObject({
+            operation: "ActionResult.success",
+            cause: expect.any(EffectInputPromiseRejected)
+          });
+          expect(read(action.state)).toMatchObject({
+            _tag: "Failure",
+            input: "save"
+          });
+        }
+      })
+    ));
 
   it("captures domain failures as typed result data", () => {
     class ProjectNameConflict extends Data.TaggedError("ProjectNameConflict")<{

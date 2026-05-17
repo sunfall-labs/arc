@@ -539,7 +539,7 @@ const useProjectActionsProgram = (project: () => Project) => {
               renamePending: true,
               advancePending: model.advancePending
             },
-            Program.command(
+            Program.command<ProjectActionsMessage>(
               Form.decodeFormDataEffect(ProjectNameFormInput, message.formData, {
                 omitFields: [startActionNameField, startActionInputField]
               }).pipe(
@@ -621,7 +621,7 @@ const useProjectActionsProgram = (project: () => Project) => {
               renamePending: model.renamePending,
               advancePending: true
             },
-            Program.command(
+            Program.command<ProjectActionsMessage>(
               advance.submitEffect({ id: model.project.id }).pipe(
                 Effect.match({
                   onFailure: (error): ProjectActionsMessage => ({ _tag: "AdvanceFailed", error }),

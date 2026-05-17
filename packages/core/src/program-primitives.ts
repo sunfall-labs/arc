@@ -13,6 +13,7 @@ import {
   type ProgramCommandInput,
   type ProgramDefinition,
   type ProgramFailure,
+  type ProgramMessageValue,
   type ProgramPhase,
   type ProgramRuntimeError,
   type ProgramStep,
@@ -64,7 +65,7 @@ export const normalizeProgramSubscriptions = <Message, E, R>(
   }
 
   if (Stream.isStream(input)) {
-    return [programSubscription(input as Stream.Stream<Message, E, R>)];
+    return [programSubscription(input as Stream.Stream<ProgramMessageValue<Message>, E, R>)];
   }
 
   return input.flatMap((entry) => normalizeProgramSubscriptions(entry));
@@ -83,14 +84,15 @@ export const makeProgramFailure = <Message, E>(
 
 /** Defines a reusable Program with centralized model, messages, commands, and subscriptions. */
 export const defineProgram = <Model, Message, E = never, R = never>(
-  definition: ProgramDefinition<Model, Message, E, R>
+  definition: ProgramDefinition<Model, Message, E, R> &
+    (RejectPromiseLikeValue<Message> extends never ? never : unknown)
 ): ProgramDefinition<Model, Message, E, R> => definition;
 
 /** Runs one Program update and normalizes the result into a ProgramStep. */
 export const programStepEffect = <Model, Message, E = never, R = never>(
   definition: ProgramDefinition<Model, Message, E, R>,
   model: Model,
-  message: Message
+  message: ProgramMessageValue<Message>
 ): Effect.Effect<
   ProgramStep<Model, Message, E, R>,
   ProgramFailure<Message, ProgramRuntimeError<E>>,
@@ -109,6 +111,9 @@ export const programStepEffect = <Model, Message, E = never, R = never>(
 
 const programModelPromiseGuidance =
   "Program update models must be plain values. Move host Promise work into Program.command(Effect.tryPromise(...)) and dispatch a follow-up message with the resolved value.";
+
+const programMessagePromiseGuidance =
+  "Program messages must be plain values. Move host Promise work into Effect.tryPromise(...) inside Program.command(...) or a subscription stream before emitting a resolved follow-up message.";
 
 export const validateProgramStepModelEffect = <Model, Message, E, R>(
   step: ProgramStep<Model, Message, E, R>
@@ -132,6 +137,27 @@ export const validateProgramStepModelEffect = <Model, Message, E, R>(
           })
   });
 
+export const validateProgramMessageEffect = <Message>(
+  operation: string,
+  message: Message
+): Effect.Effect<ProgramMessageValue<Message>, EffectInputCallbackError> =>
+  Effect.try({
+    try: () =>
+      rejectPromiseLikeSyncCallbackValue(
+        operation,
+        message,
+        programMessagePromiseGuidance
+      ) as ProgramMessageValue<Message>,
+    catch: (cause) =>
+      cause instanceof EffectInputCallbackError
+        ? cause
+        : new EffectInputCallbackError({
+            operation,
+            cause,
+            guidance: programMessagePromiseGuidance
+          })
+  });
+
 /** Builds a state transition, optionally with commands to run after the model is written. */
 export const programNext = <Model, Message, E = never, R = never>(
   model: Model & RejectPromiseLikeValue<Model>,
@@ -144,14 +170,16 @@ export const programNext = <Model, Message, E = never, R = never>(
 
 /** Effect command that emits its successful value as the next message. */
 export const programCommand = <Message, E = never, R = never>(
-  effect: Effect.Effect<Message | void, E, R>
+  effect: Effect.Effect<ProgramMessageValue<Message> | void, E, R>
 ): ProgramCommand<Message, E, R> => ({
   [ProgramCommandTypeId]: ProgramCommandTypeId,
   effect
 });
 
 /** Command that immediately dispatches a message. */
-export const programDispatch = <Message>(message: Message): ProgramCommand<Message> =>
+export const programDispatch = <Message>(
+  message: ProgramMessageValue<Message>
+): ProgramCommand<Message> =>
   programCommand(Effect.succeed(message));
 
 /** Command for background Effects that do not emit follow-up messages. */
@@ -168,7 +196,7 @@ export const programCommands = <Message, E = never, R = never>(
 
 /** Wraps a Stream subscription that emits messages into the Program loop. */
 export const programSubscription = <Message, E = never, R = never>(
-  stream: Stream.Stream<Message, E, R>
+  stream: Stream.Stream<ProgramMessageValue<Message>, E, R>
 ): ProgramSubscription<Message, E, R> => ({
   [ProgramSubscriptionTypeId]: ProgramSubscriptionTypeId,
   stream

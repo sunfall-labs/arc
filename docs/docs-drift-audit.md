@@ -3,9 +3,9 @@
 Last updated: 2026-05-16.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review211, the latest full
-`pnpm verify` gate passed with 53 root test files / 1068 tests, and the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review211 sweep reports
+and `docs/perfection-progress.md`. As of Review212, the latest full
+`pnpm verify` gate passed with 53 root test files / 1076 tests, and the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review212 sweep reports
 no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -127,6 +127,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   found Program step Promise gates, optimistic signal Promise gates, DB
   unsubscribe defect publication, adapter preload observer docs, and evidence
   wording precision work.
+- Review212 refreshed current ledgers after the first post-Review211 sweep
+  found ActionResult nested Promise payload gates, Program message Promise
+  gates, DB change-feed setup/emit cleanup, Start/Core LSP docs, and
+  Effect-first evidence wording work.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

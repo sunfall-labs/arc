@@ -1,6 +1,7 @@
 import { Effect, type Schema } from "effect";
 import type { EffectInput, EffectInputCallbackError, RejectPromiseLikeValue } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
+import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
 import {
   FormValidationError,
   type FormFieldErrors,
@@ -181,25 +182,39 @@ const freezeFormErrors = <E>(
     ? emptyFormErrors as ReadonlyArray<E>
     : Object.freeze([...formErrors]);
 
+const actionResultSuccessPromiseGuidance =
+  "ActionResult success values must be plain data. Move host Promise work into the action run Effect with Effect.tryPromise(...) before building the result.";
+
+const actionResultFailurePromiseGuidance =
+  "ActionResult failure values must be plain data. Move host Promise work into the action run Effect with Effect.tryPromise(...) before building the result.";
+
 /** Builds a successful action result. */
 const success = <A, R = never>(
-  value: A,
+  value: A & RejectPromiseLikeValue<A>,
   options: ActionResultOptions<R> = {}
 ): ActionResultSuccess<A, R> => ({
   [ActionResultTypeId]: ActionResultTypeId,
   _tag: "Success",
-  value,
+  value: rejectPromiseLikeSyncCallbackValue(
+    "ActionResult.success",
+    value,
+    actionResultSuccessPromiseGuidance
+  ),
   ...optionalInvalidates(options)
 });
 
 /** Builds a typed action failure result without throwing or failing the Effect. */
 const failure = <E, R = never>(
-  error: E,
+  error: E & RejectPromiseLikeValue<E>,
   options: ActionResultOptions<R> = {}
 ): ActionResultFailure<E, R> => ({
   [ActionResultTypeId]: ActionResultTypeId,
   _tag: "Failure",
-  error,
+  error: rejectPromiseLikeSyncCallbackValue(
+    "ActionResult.failure",
+    error,
+    actionResultFailurePromiseGuidance
+  ),
   ...optionalInvalidates(options)
 });
 
@@ -351,16 +366,16 @@ const match = <A, Values extends object, ValidationError, E, B, R = never>(
 };
 
 const successEffect = <A, R = never>(
-  value: A,
+  value: A & RejectPromiseLikeValue<A>,
   options: ActionResultOptions<R> = {}
 ): Effect.Effect<ActionResultSuccess<A, R>> =>
-  Effect.succeed(success(value, options));
+  Effect.succeed(success<A, R>(value, options));
 
 const failureEffect = <E, R = never>(
-  error: E,
+  error: E & RejectPromiseLikeValue<E>,
   options: ActionResultOptions<R> = {}
 ): Effect.Effect<ActionResultFailure<E, R>> =>
-  Effect.succeed(failure(error, options));
+  Effect.succeed(failure<E, R>(error, options));
 
 const redirectEffect = <R = never>(
   location: string,
@@ -379,8 +394,8 @@ const fromEffect = <A, E = never, R = never>(
   effect: EffectInput<A, E, R> & RejectPromiseLikeValue<A>
 ): Effect.Effect<ActionResult<A, never, never, E>, never, R> =>
   toEffect(effect as never).pipe(
-    Effect.map((value) => success(value)),
-    Effect.catch((error) => Effect.succeed(failure(error)))
+    Effect.map((value) => success<A>(value as A & RejectPromiseLikeValue<A>)),
+    Effect.catch((error) => Effect.succeed(failure<E>(error as E & RejectPromiseLikeValue<E>)))
   ) as Effect.Effect<ActionResult<A, never, never, E>, never, R>;
 
 /** Converts a form validation Effect into success or validation-failure results. */
@@ -389,7 +404,7 @@ const fromValidationEffect = <Values extends object, E, R = never>(
     RejectPromiseLikeValue<Values>
 ): Effect.Effect<ActionResult<Values, Values, E, never>, never, R> =>
   toEffect(effect as never).pipe(
-    Effect.map((value) => success(value)),
+    Effect.map((value) => success<Values>(value as Values & RejectPromiseLikeValue<Values>)),
     Effect.catch((error) => Effect.succeed(validation(error)))
   ) as Effect.Effect<ActionResult<Values, Values, E, never>, never, R>;
 

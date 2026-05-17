@@ -1,6 +1,6 @@
 import { EffectInputCallbackError, Resource, Server, makeRuntime, toEffect } from "@effect-ui/core";
 import { Collection } from "@effect-ui/db";
-import { Effect, Option, PubSub } from "effect";
+import { Deferred, Effect, Exit, Fiber, Option, PubSub, Scope } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { makeCollectionChangeFeedDispatcherEffect } from "../src/change-feed-dispatcher.js";
 import { subscribeCollectionChangeFeedRuntimeEffect } from "../src/collection-change-feed-runtime.js";
@@ -674,6 +674,83 @@ describe("Collection.syncOptions", () => {
           expect(String(event.value.error)).toContain("cleanup-defect");
         })
       )
+    ));
+
+  it("shuts down captured change-feed emitters when subscribe setup fails", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const Projects = Collection.define<Project>({
+            name: "Projects.sync.feed-subscribe-failure-cleanup",
+            getKey: (project) => project.id,
+            initialData: [
+              { id: "atlas", name: "Atlas", archived: false }
+            ]
+          });
+          let emitChanges!: Collection.ChangeFeedContext<Project>["emitChanges"];
+          const feed: Collection.ChangeFeedAdapter<Project, string, "setup failed"> = {
+            name: "projects-subscribe-failure-cleanup-feed",
+            subscribe: (context) => {
+              emitChanges = context.emitChanges;
+              return Effect.fail("setup failed" as const);
+            }
+          };
+
+          const exit = yield* Effect.exit(Collection.subscribeChangesEffect(Projects, feed));
+          expect(Exit.isFailure(exit)).toBe(true);
+
+          emitChanges([
+            { _tag: "Upsert", value: { id: "late", name: "Late", archived: true } }
+          ]);
+          yield* Effect.sleep("0 millis");
+
+          expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
+        })
+      )
+    ));
+
+  it("completes direct change-feed emitters when scope closes during apply", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const started = yield* Deferred.make<void>();
+        const scope = yield* Scope.make();
+        let emit!: Collection.ChangeFeedContext<Project>["emit"];
+
+        yield* subscribeCollectionChangeFeedRuntimeEffect<Project, string, never, never>({
+          collection: "Projects.sync.feed-direct-close-during-apply",
+          adapter: {
+            name: "projects-direct-close-during-apply-feed",
+            subscribe: (context) => {
+              emit = context.emit;
+            }
+          },
+          applyChanges: () =>
+            Deferred.succeed(started, undefined).pipe(
+              Effect.flatMap(() => Effect.never)
+            ),
+          publishFailure: () => Effect.void
+        }).pipe(Effect.provideService(Scope.Scope, scope));
+
+        const emitFiberScope = yield* Scope.make();
+        const emitFiber = yield* Effect.forkIn(
+          toEffect(emit([
+            { _tag: "Upsert", value: { id: "late", name: "Late", archived: true } }
+          ])).pipe(Effect.exit),
+          emitFiberScope
+        );
+        yield* Deferred.await(started);
+        yield* Scope.close(scope, Exit.succeed(undefined));
+
+        const completed = yield* Fiber.join(emitFiber).pipe(
+          Effect.timeoutOption("20 millis")
+        );
+
+        expect(Option.isSome(completed)).toBe(true);
+        if (Option.isSome(completed)) {
+          expect(Exit.isFailure(completed.value)).toBe(true);
+        }
+        yield* Scope.close(emitFiberScope, Exit.succeed(undefined));
+      })
     ));
 
   it("binds Effect change-feed emitters to the subscribed Collection store", () => {

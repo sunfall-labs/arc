@@ -18,6 +18,9 @@ export const ProgramSubscriptionTypeId: unique symbol = Symbol.for("@effect-ui/c
 /** Runtime phase that produced a Program failure or timeline event. */
 export type ProgramPhase = "Update" | "Command" | "Subscription";
 
+/** Plain Program message value. Promise-shaped messages must be adapted through Effects first. */
+export type ProgramMessageValue<Message> = Message & RejectPromiseLikeValue<Message>;
+
 /** Failure reported by a running Program without tearing down the UI loop. */
 export interface ProgramFailure<Message, E> {
   readonly _tag: "ProgramFailure";
@@ -29,7 +32,7 @@ export interface ProgramFailure<Message, E> {
 /** Effect command that may emit one follow-up message. */
 export interface ProgramCommand<Message, E = never, R = never> {
   readonly [ProgramCommandTypeId]: typeof ProgramCommandTypeId;
-  readonly effect: Effect.Effect<Message | void, E, R>;
+  readonly effect: Effect.Effect<ProgramMessageValue<Message> | void, E, R>;
 }
 
 /** Accepted command input: none, one command, several commands, or no-op sentinels. */
@@ -55,12 +58,12 @@ export type ProgramUpdate<Model, Message, E = never, R = never> =
 /** Stream subscription that emits messages into a Program. */
 export interface ProgramSubscription<Message, E = never, R = never> {
   readonly [ProgramSubscriptionTypeId]: typeof ProgramSubscriptionTypeId;
-  readonly stream: Stream.Stream<Message, E, R>;
+  readonly stream: Stream.Stream<ProgramMessageValue<Message>, E, R>;
 }
 
 /** Accepted subscription input: none, one stream/subscription, or nested groups. */
 export type ProgramSubscriptionInput<Message, E = never, R = never> =
-  | Stream.Stream<Message, E, R>
+  | Stream.Stream<ProgramMessageValue<Message>, E, R>
   | ProgramSubscription<Message, E, R>
   | ReadonlyArray<ProgramSubscriptionInput<Message, E, R>>
   | false
@@ -83,7 +86,7 @@ export interface ProgramDefinition<Model, Message, E = never, R = never> {
   readonly initial: Model;
   readonly update: (
     model: Model,
-    message: Message
+    message: ProgramMessageValue<Message>
   ) => EffectInput<ProgramUpdate<Model, Message, E, R>, E, R>;
   readonly subscriptions?: (
     model: Model
@@ -209,14 +212,14 @@ export interface ProgramStory<Model, Message, E = never, R = never> {
   /** Applied transitions, including returned commands that have not run implicitly. */
   readonly history: ReadableSignal<ReadonlyArray<ProgramStoryEntry<Model, Message, E, R>>>;
   /** Applies one message through `update` and records the resulting transition. */
-  send(message: Message): Effect.Effect<
+  send(message: ProgramMessageValue<Message>): Effect.Effect<
     ProgramStoryEntry<Model, Message, E, R>,
     ProgramFailure<Message, ProgramRuntimeError<E>>,
     R
   >;
   /** Runs one command without applying its emitted message. */
   run(command: ProgramCommand<Message, E, R>): Effect.Effect<
-    Message | void,
+    ProgramMessageValue<Message> | void,
     ProgramFailure<Message, ProgramRuntimeError<E>>,
     R
   >;
@@ -246,14 +249,14 @@ export interface ProgramInstance<Model, Message, E = never, DispatchE = E> {
   /** Bounded runtime timeline for messages, commands, subscriptions, and failures. */
   readonly timeline: ReadableSignal<ReadonlyArray<ProgramEvent<Model, Message, E>>>;
   /** Fire-and-forget dispatch for UI event handlers. */
-  dispatch(message: Message): void;
+  dispatch(message: ProgramMessageValue<Message>): void;
   /**
    * Effect dispatch that completes after the message update has committed.
    *
    * If disposal happens before the update commits, the Effect fails with a
    * `ProgramFailure` whose error is `ProgramDisposed`.
    */
-  dispatchEffect(message: Message): Effect.Effect<void, ProgramFailure<Message, DispatchE>>;
+  dispatchEffect(message: ProgramMessageValue<Message>): Effect.Effect<void, ProgramFailure<Message, DispatchE>>;
   /** Clears accumulated failures. */
   clearFailures(): void;
   /** Clears retained timeline events without changing model or failures. */

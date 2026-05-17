@@ -11,18 +11,20 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review211, the post-Review210 sweep
-fixing Program.next Promise model gates, optimistic signal Promise patch gates,
-DB change-feed cleanup defects, adapter preload docs, and evidence wording.
-The newest full verification checkpoint is Review211. Clean Sweep 1 after
+The newest completed focused review is Review212, the post-Review211 sweep
+fixing ActionResult nested Promise payload gates, Program message Promise
+gates, DB change-feed setup/emit cleanup, Start/Core LSP docs, and evidence
+wording. The newest full verification checkpoint is Review212. Clean Sweep 1 after
 Review208 remains historical 1/30 evidence, but later sweeps found Review209
 and Review210 work, and the first post-Review210 sweep found Review211 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review211
-sweep reports no actionable findings. Clean Sweep 1 after
+and the first post-Review211 sweep found Review212 work, so the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review212 sweep reports
+no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
-Review206, Review207, Review208, Review209, Review210, and Review211 work.
+Review206, Review207, Review208, Review209, Review210, Review211, and
+Review212 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -69,7 +71,91 @@ Review208. Clean Sweep 2 after Review208 found Review209 broad-`unknown`
 Promise callback rejection work, and the post-Review209 sweep found Review210
 Core, DB, scripts, docs, and Start evidence work, so the counter stayed at
 0/30. The first post-Review210 sweep found Review211 Core, DB, docs/LSP, and
-evidence work, so the counter remains 0/30.
+evidence work, and the first post-Review211 sweep found Review212 Core, DB,
+docs/LSP, and evidence work, so the counter remains 0/30.
+
+## Review 212: ActionResult Payloads, Program Messages, Change-Feed Setup, And LSP Precision
+
+Review212 fixed actionable findings from the fresh post-Review211 sweep. Core
+found two remaining nested Promise-shaped paths, DB found change-feed lifecycle
+cleanup gaps, and docs/LSP found evidence and hover drift.
+
+1. ActionResult Nested Promise Payload Rejection
+   - Status: fixed.
+   - Files: `packages/core/src/action-result.ts`,
+     `packages/core/test/action-result.test.ts`, `type-tests/framework.test-d.ts`.
+   - Problem: `ActionResult.success(Promise)`, `successEffect(Promise)`, and
+     failure helpers could wrap Promise-shaped payloads. An action returning
+     `ActionResult.success(Promise)` bypassed the outer `EffectInput` guard
+     because the top-level value was already an ActionResult.
+   - Fix: success and failure result constructors now apply
+     `RejectPromiseLikeValue` and runtime Promise-shaped guards. Erased
+     Promise payloads thrown inside `Action.run` are reported as typed
+     `EffectInputCallbackError` failures.
+   - Benefits: ActionResult values stay serializable/plain; host Promise work
+     must resolve inside the action Effect before building the result.
+
+2. Program Message Promise Rejection
+   - Status: fixed.
+   - Files: `packages/core/src/program-contract.ts`,
+     `packages/core/src/program-primitives.ts`,
+     `packages/core/src/program-runtime.ts`,
+     `packages/core/src/program-story.ts`, `packages/core/src/program.ts`,
+     `packages/core/test/program.test.ts`, `type-tests/framework.test-d.ts`.
+   - Problem: Review211 rejected Promise-shaped Program models, but messages
+     emitted through `Program.command(...)`, `Program.dispatch(...)`,
+     subscriptions, and stories could still be Promise-shaped and enter the
+     message loop.
+   - Fix: Program message seams now use `ProgramMessageValue` /
+     `RejectPromiseLikeValue`, runtime validates erased command, dispatch,
+     subscription, and story messages, and failures are reported in the
+     appropriate Program phase without enqueueing the Promise-shaped value.
+   - Benefits: the Program loop only processes plain messages; async message
+     production belongs in Effect work such as `Effect.tryPromise(...)`.
+
+3. Change-Feed Setup And In-Flight Emit Cleanup
+   - Status: fixed.
+   - Files: `packages/db/src/collection-change-feed-runtime.ts`,
+     `packages/db/test/sync-adapter.test.ts`.
+   - Problem: if `adapter.subscribe(context)` captured emitters and then
+     failed, the dispatcher and consumer remained live in the parent Scope.
+     Direct `context.emit(...)` calls could also hang if scope release
+     interrupted the consumer while `applyChanges(...)` was in flight.
+   - Fix: failed subscribe setup now interrupts the consumer and shuts down the
+     dispatcher before re-failing. Each in-flight direct emission completes its
+     Deferred from an interruption-safe finalizer.
+   - Benefits: failed feeds cannot mutate rows later, and scoped shutdown
+     deterministically completes direct emit callers.
+
+4. LSP And Evidence Precision
+   - Status: fixed.
+   - Files: `packages/core/src/action-optimistic.ts`,
+     `packages/core/src/program.ts`,
+     `packages/start/src/start-request-handler.ts`,
+     `docs/effect-first-audit.md`, `docs/ultimate-goal-checklist.md`.
+   - Problem: hovers for optimistic transactions, `Program.next`, Program
+     message seams, and Start request handlers did not fully describe the
+     Effect-first / no-Promise contract. One Effect-first grep sentence ignored
+     runtime-test Promise fixtures, and one checklist sentence described
+     kickoff repo state as current state.
+   - Fix: JSDoc now names plain synchronous optimistic patches, plain Program
+     models/messages, and Effect-returning Start handlers. Evidence docs now
+     distinguish runtime-test Promise rejection fixtures from implementation
+     Promise choreography and label the untracked workspace state as historical
+     kickoff evidence.
+   - Benefits: LSP hovers and ledgers now describe the actual contracts users
+     and agents rely on.
+
+Focused verification for Review212 passed: `pnpm typecheck:types`,
+Core/DB/Start/React/Solid package typechecks, focused Core ActionResult/Program
+and DB sync-adapter tests with 3 files / 53 tests, public API audit, and
+Effect-first audit over 408 files with 26 Promise return-type allowances,
+6 `PromiseLike` allowances, and 8 structural thenable allowances. Full
+`pnpm verify` and `pnpm verify:serial` passed after Review212 with 11 package
+builds, workspace typecheck, public type tests, public API inventory audit,
+Effect-first audit over 408 files, 53 root test files / 1076 tests,
+package-level verifies, generated starter packaging, the 16-target package
+dry-run gate, project-console checks, and leak scans.
 
 ## Review 211: Program Step, Optimistic Signal, Cleanup Defect, And Evidence Precision
 
@@ -340,8 +426,8 @@ four review lanes.
 At the Clean Sweep 1 checkpoint, the Thirty-Sweep clean counter reached 1/30.
 Clean Sweep 2 later found Review209 work and the post-Review209 sweep found
 Review210 work, and the first post-Review210 sweep found Review211 work, so
-the active counter is 0/30 until a fresh post-Review211 sweep reports no
-actionable findings.
+the first post-Review211 sweep found Review212 work. The active counter is
+0/30 until a fresh post-Review212 sweep reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 

@@ -514,11 +514,15 @@ interruption.
     `scripts/audit-effect-first.mjs` outside the docs that record historical
     evidence.
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples type-tests -g '*.ts' -g '*.tsx'`
-    currently finds no package, example, or type-test implementation hits.
+    currently reports only package runtime-test Promise rejection fixtures; it
+    finds no package source, example, or type-test implementation Promise
+    choreography hits.
     Raw `scripts/` hits are expected in `scripts/audit-effect-first.mjs`
     scanner fixture strings.
   - `rg -n "new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples type-tests -g '*.ts' -g '*.tsx'`
-    currently finds no package, example, or type-test implementation hits.
+    currently reports only package runtime-test Promise rejection fixtures; it
+    finds no package source, example, or type-test implementation Promise
+    choreography hits.
   - `rg -n "new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" scripts -g '*.mjs'`
     currently reports only `scripts/audit-effect-first.mjs` scanner fixture
     strings; keep that script covered by this audit instead of treating raw grep
@@ -578,10 +582,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 211 `pnpm verify` run recorded in
+- The current full gate is the Review 212 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 408 files, 53 root test files / 1068 tests, package-level verifies,
+  over 408 files, 53 root test files / 1076 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
@@ -1400,12 +1404,13 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 211 Program step,
-  optimistic signal, DB cleanup defect, adapter docs, and evidence precision
-  fixes: 11 package builds, workspace typecheck, type tests, public API
+- The current full `pnpm verify` passed after the Review 212 ActionResult
+  payload, Program message, DB change-feed setup/direct-emit cleanup,
+  Start/Core LSP, and evidence precision fixes: 11 package builds, workspace
+  typecheck, type tests, public API
   inventory audit, Effect-first audit over 408
   package/example/config/script/type-test/generated/docs files, 53 root test
-  files / 1068 tests, package-level verifies for copyable/source packages,
+  files / 1076 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans. The Effect-first audit now

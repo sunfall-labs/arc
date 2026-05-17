@@ -69,6 +69,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 - Review211 added `Program.next(...)` Promise-shaped model rejection pins and
   optimistic action signal patch pins for direct values and updater returns
   hidden behind `Signal<unknown>`.
+- Review212 added ActionResult success/failure Promise payload rejection pins
+  and Program command, dispatch, subscription, and Promise-shaped message type
+  rejection pins.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
