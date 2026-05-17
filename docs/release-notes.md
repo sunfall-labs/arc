@@ -92,6 +92,9 @@ Latest full gate on May 16, 2026 after Review 208:
   the linked `effect-ui-start` bin directly on POSIX, the Start build marks
   `dist/cli.js` executable, Solid match docs use plain callback values, and
   stale current-gate ledgers now name Review208.
+- Clean Sweep 1 after Review208 found no actionable Core/React/Solid,
+  DB/public API, Start/devtools/scripts/package, or docs/evidence findings, so
+  the active Thirty-Sweep clean counter is 1/30.
 - Review 207 closed the first post-Review206 sweep findings: Action hover docs
   now describe `exhaust` as joining the in-flight submission, direct Action
   root symbols are public-hover and type-test pinned, and starter/DB hydration
@@ -216,10 +219,8 @@ Latest full gate on May 16, 2026 after Review 208:
   Review204 work, the first post-Review204 sweep found Review205 work, the
   first post-Review205 sweep found Review206 work, the first
   post-Review206 sweep found Review207 work, and the first post-Review207
-  sweep found Review208 work. The active Thirty-Sweep
-  clean counter is reset to
-  0/30 until a fresh post-Review208 sweep reports no
-  actionable findings.
+  sweep found Review208 work. The fresh post-Review208 sweep found no
+  actionable findings, so the active Thirty-Sweep clean counter is 1/30.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
 - Review 190 tightened `Server.fn(...)` so union-shaped Promise handler returns
@@ -1158,8 +1159,9 @@ Latest full gate on May 16, 2026 after Review 208:
   observer typing and CLI direct-bin fixes.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
-  Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, and Review208 work, leaving the
-  active counter at 0/30.
+  Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, and Review208 work. The
+  fresh post-Review208 sweep found no actionable findings, so the active
+  counter is 1/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
   Effect-first audit over 408 physical/virtual files, 53 root test files / 1062

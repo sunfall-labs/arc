@@ -14,14 +14,13 @@ explicitly scoped future work.
 The newest completed focused review is Review208, the post-Review207 sweep
 fixing RuntimeProvider observer typing, direct CLI bin rehearsal, stale
 evidence wording, and Solid match callback docs.
-The newest full verification checkpoint is Review208. Clean
-Sweep 1 after Review190 remains
-historical evidence, but later sweeps found Review191, Review192, Review193,
-Review194, Review195, Review196, Review197, Review198, Review199, and
-Review200, Review201, Review202, Review203, Review204, Review205, and
-Review206, Review207, and Review208 work, so the active Thirty-Sweep clean counter is 0/30
-until a fresh post-Review208 sweep reports no actionable
-findings. Some older review entries
+The newest full verification checkpoint is Review208. The fresh post-Review208
+subagent sweep reported no actionable findings, creating active Clean Sweep 1
+after Review208 and moving the Thirty-Sweep clean counter to 1/30. Clean Sweep
+1 after Review190 remains historical evidence, but later sweeps found
+Review191, Review192, Review193, Review194, Review195, Review196, Review197,
+Review198, Review199, Review200, Review201, Review202, Review203, Review204,
+Review205, Review206, Review207, and Review208 work. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
 
@@ -59,8 +58,52 @@ hydration-doc drift. The first post-Review206 sweep found Review207 Action
 JSDoc/public API pins and starter/DB hydration wording drift. The first
 post-Review207 sweep found Review208 RuntimeProvider observer typing, CLI
 direct-bin rehearsal, stale package-hygiene ledger wording, and Solid match
-docs work. The counter remains inactive until a fresh post-Review208 sweep is
-clean.
+docs work. The fresh post-Review208 Core/React/Solid, DB/public API,
+Start/devtools/scripts/package, and docs/evidence sweeps found no actionable
+Module, Interface, Seam, Adapter, Locality, Depth, Leverage, typed-error,
+Effect-first, package, or docs drift work, creating active Clean Sweep 1 after
+Review208.
+
+## Clean Sweep 1 After Review208
+
+The fresh post-Review208 subagent sweep found no actionable findings across the
+four review lanes.
+
+1. Core/React/Solid Runtime And Adapter Lane
+   - Status: clean.
+   - Evidence: `pnpm typecheck:types`, `pnpm --filter @effect-ui/core
+     typecheck`, `pnpm --filter @effect-ui/react typecheck`, `pnpm --filter
+     @effect-ui/solid typecheck`, `pnpm audit:effect-first`, `pnpm
+     audit:public-api`, and focused Core/React/Solid runtime/hook tests passed
+     after inspecting RuntimeProvider disposal observers, `EffectInput`
+     Promise rejection, Solid match docs, and public adapter type tests.
+
+2. DB And Public API Lane
+   - Status: clean.
+   - Evidence: `pnpm audit:public-api`, `pnpm audit:effect-first`, `pnpm
+     typecheck:types`, `pnpm typecheck`, DB-family package typechecks, and
+     focused DB/React-DB/Solid-DB tests passed after inspecting DB surfaces,
+     public API inventory/policy, and focused type-test pins.
+
+3. Start, Devtools, Scripts, And Package Lane
+   - Status: clean.
+   - Evidence: `node scripts/verify-package-dry-runs.mjs`, `node
+     scripts/audit-effect-first.mjs`, `pnpm typecheck:types`, targeted Start
+     tests, direct `packages/start/dist/cli.js --version`, Node fallback CLI
+     invocation, and executable-mode checks passed after inspecting the
+     Review208 direct-bin rehearsal, package dry-run gates, Effect command
+     runner usage, and `verify` / `verify:serial` parity.
+
+4. Docs And Evidence Lane
+   - Status: clean.
+   - Evidence: targeted current-gate and clean-counter greps, Review208
+     file-list checks, package-hygiene claim checks, Solid adapter example
+     checks, `pnpm audit:effect-first`, `pnpm audit:public-api`, `pnpm
+     typecheck:types`, and `git diff --check` passed.
+
+The active Thirty-Sweep clean counter is now 1/30. Twenty-nine more consecutive
+fresh sweeps with no actionable findings are required before claiming the final
+no-new-improvements gate.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 

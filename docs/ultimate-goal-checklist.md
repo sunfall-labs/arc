@@ -667,8 +667,9 @@ Last evidence pass: May 16, 2026.
     direct-bin rehearsal, package-hygiene ledger wording, and Solid match docs.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
-    Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, and Review208 work, leaving the
-    active counter at 0/30.
+    Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, and Review208 work. The
+    fresh post-Review208 subagent sweep found no actionable findings, moving
+    the active counter to 1/30.
     Latest full evidence:
     `pnpm verify` ran after Review 208 with 53 test files / 1062 tests.
 - [x] Type tests pass after compile-time API changes.
@@ -833,8 +834,9 @@ Last evidence pass: May 16, 2026.
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
-    Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, and Review208 work, leaving the active
-    counter at 0/30.
+    Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, and Review208 work. The fresh
+    post-Review208 subagent sweep found no actionable findings, leaving the
+    active counter at 1/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items
