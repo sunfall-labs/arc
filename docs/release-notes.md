@@ -86,6 +86,13 @@ Latest full gate on May 17, 2026 after Review 240:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 245 Public API Symbol Reachability And Router Adapter Parity closed
+  the post-Review244 sweep: public hover policy now checks symbol reachability
+  through package entrypoints, namespace-only aliases are explicit, memory
+  history same-href commits match the window Adapter, and RouterLink download
+  facts normalize framework-absent `false`/`null` values before Core click and
+  preload decisions. The active Thirty-Sweep clean counter remains 0/30 until
+  a fresh post-Review245 sweep reports no actionable findings.
 - Review 244 Effect Cleanup Ownership, DB Pins, And Evidence Policy closed the
   post-Review243 sweep: DB Query namespace scalar aliases now match the
   documented namespace-first Interface, React/Solid DB Effect handles are
@@ -93,7 +100,8 @@ Latest full gate on May 17, 2026 after Review 240:
   channel, sync cleanup conveniences take owner slots before forking cleanup,
   and current-evidence policy now checks the focused review, full gate, test
   count, and clean counter. The active Thirty-Sweep clean counter remains 0/30
-  until a fresh post-Review244 sweep reports no actionable findings.
+  until the later post-Review244 sweep found Review245 public API symbol
+  reachability and router Adapter parity work.
 - Review 243 Browser Router And DB Public Interface Pins closed the
   post-Review242 sweep: outside-route Browser Router navigation now increments
   the navigation generation and disposes active preload `UiScope` work before
@@ -522,8 +530,9 @@ Latest full gate on May 17, 2026 after Review 240:
   post-Review242 sweep found Review243 Browser Router Kernel and DB public
   Interface work, and the fresh post-Review243 sweep found Review244 Effect
   cleanup ownership, DB pins, Devtools typed failure, and current-evidence
-  policy work.
-  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review244
+  policy work, and the fresh post-Review244 sweep found Review245 public API
+  symbol reachability and router Adapter parity work.
+  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review245
   sweep reports no actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
@@ -1507,7 +1516,9 @@ Latest full gate on May 17, 2026 after Review 240:
   and the fresh post-Review242 sweep found Review243 Browser Router Kernel and
   DB public Interface work, and the fresh post-Review243 sweep found Review244
   Effect cleanup ownership, DB pins, Devtools typed failure, and
-  current-evidence policy work, so the active counter is 0/30.
+  current-evidence policy work, and the fresh post-Review244 sweep found
+  Review245 public API symbol reachability and router Adapter parity work, so
+  the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
   Effect-first audit over 415 physical/virtual files, 53 root test files / 1170

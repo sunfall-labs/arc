@@ -11,11 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review244 Effect Cleanup Ownership, DB Pins, And
-Evidence Policy, the fresh post-Review243 sweep that fixed DB Query namespace
-scalar aliases, React/Solid DB Effect type pins, Devtools typed invalidation
-conflict failures, sync cleanup ownership transfer, and current-evidence script
-policies. The newest full verification checkpoint remains Review240.
+The newest focused review is Review245 Public API Symbol Reachability
+And Router Adapter Parity, the fresh post-Review244 sweep that deepened public
+hover policy to symbol reachability, aligned memory history same-href commits
+with browser history, and normalized RouterLink download facts across Core,
+React, and Solid. The newest full verification checkpoint remains Review240.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -50,7 +50,8 @@ and the fresh post-Review240 sweep found Review241 work,
 and the fresh post-Review241 framework follow-up found Review242 work,
 and the fresh post-Review242 sweep found Review243 work,
 and the fresh post-Review243 sweep found Review244 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review244
+and the fresh post-Review244 sweep found Review245 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review245
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -62,7 +63,7 @@ Review226, Review227, Review228, Review229, Review230, Review231, and
 Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
 Review235 work, Review236 work, Review237 work, Review238 work, Review239
 work, Review240 work, Review241 work, Review242 work, Review243 work, and
-Review244 work.
+Review244 work, and Review245 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -160,7 +161,48 @@ and the fresh post-Review242 sweep found Review243 Browser Router Kernel and
 DB public Interface work,
 and the fresh post-Review243 sweep found Review244 Effect cleanup ownership,
 DB public Interface, Devtools, and current-evidence policy work,
+and the fresh post-Review244 sweep found Review245 public API symbol
+reachability and router Adapter parity work,
 so the counter remains 0/30.
+
+## Review 245: Public API Symbol Reachability And Router Adapter Parity
+
+Review245 fixes the actionable findings from the fresh post-Review244 sweep.
+
+1. Public API Symbol Reachability Policy
+   - Status: fixed.
+   - Files: `scripts/audit-public-api-inventory.mjs` and
+     `scripts/public-api-symbol-policy.mjs`.
+   - Problem: the public hover policy proved that a source Module was reachable
+     from a package Interface, but it did not prove each named declaration was
+     importable from that Interface. Query execution implementation types could
+     therefore look public to the policy even though callers could not import
+     them.
+   - Solution: make the audit compute public symbol reachability for each
+     package entrypoint, fail hover-policy declarations that are neither
+     directly exported nor explicitly mapped to public namespace aliases, and
+     remove implementation-only Query plan types from the public hover policy.
+   - Benefits: Locality improves because release decisions live at the package
+     Interface instead of file reachability; Leverage improves because docs,
+     hover policy, manifest, and type tests now describe the same public
+     surface.
+
+2. Router Adapter Parity
+   - Status: fixed.
+   - Files: `packages/core/src/browser-router-history-adapter.ts`,
+     `packages/core/src/browser-router-link.ts`,
+     `packages/core/test/browser-router.test.ts`,
+     `packages/react/test/router.test.ts`, and
+     `packages/solid/test/router.test.ts`.
+   - Problem: the Memory Browser History Adapter pushed duplicate entries for
+     same-href commits even though the Window Adapter no-ops, and RouterLink
+     treated framework-absent `download={false}` / `download={null}` values as
+     browser-handled links.
+   - Solution: align memory history same-href commits with browser history and
+     centralize download normalization in the Core Browser Router Link Module.
+   - Benefits: Locality improves because browser-vs-memory and framework prop
+     semantics are owned at Core seams; Leverage improves because React/Solid
+     tests exercise browser-faithful Adapter behavior.
 
 ## Review 244: Effect Cleanup Ownership, DB Pins, And Evidence Policy
 

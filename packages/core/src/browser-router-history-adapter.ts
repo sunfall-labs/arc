@@ -123,6 +123,9 @@ export const makeMemoryBrowserHistoryAdapter = (
       };
     },
     commit: (nextHref, navigateOptions = {}) => {
+      if (nextHref === href) {
+        return href;
+      }
       href = nextHref;
       if (navigateOptions.replace) {
         entries[entries.length - 1] = href;

@@ -186,6 +186,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   namespace Query scalar alias pins for `Query.JoinKey`, `Query.SortDirection`,
   and `Query.SortValue`, React/Solid DB handle Effect channel pins, and the
   Devtools typed invalidation conflict Effect pin.
+- Review245 Public API Symbol Reachability And Router Adapter Parity added
+  symbol-level public hover policy checks so type-test imports, manifest
+  required imports, and public hover declarations cannot drift apart at the
+  package Interface seam.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them

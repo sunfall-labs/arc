@@ -659,6 +659,92 @@ describe("createBrowserRouter", () => {
       )
     ));
 
+  it("normalizes RouterLink download props before preload and click decisions", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const preloaded: Array<string> = [];
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const ProjectRoute = route("/download-projects/:id", {
+            preload: ({ params }) =>
+              Effect.sync(() => {
+                preloaded.push(params.id);
+              })
+          });
+          let router: BrowserRouter<readonly [typeof ProjectRoute]> | undefined;
+          const LinkView = () => {
+            router = useRouter<readonly [typeof ProjectRoute]>();
+            return [
+              createComponent(RouterLink, {
+                route: ProjectRoute,
+                options: { params: { id: "atlas" } },
+                download: false,
+                "data-kind": "false-download",
+                children: "False download"
+              }),
+              createComponent(RouterLink, {
+                route: ProjectRoute,
+                options: { params: { id: "curie" } },
+                download: "project.csv",
+                "data-kind": "real-download",
+                children: "Real download"
+              })
+            ] as unknown as JSX.Element;
+          };
+          const container = document.createElement("div");
+          const dispose = render(
+            () =>
+              createComponent(RouterProvider, {
+                routes: [ProjectRoute] as const,
+                initialHref: "/missing",
+                runtime,
+                get children() {
+                  return createComponent(LinkView, {});
+                }
+              }),
+            container
+          );
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          const realDownload = container.querySelector('a[data-kind="real-download"]');
+          realDownload?.dispatchEvent(new MouseEvent("mouseenter", { cancelable: true }));
+          const realDownloadClick = new MouseEvent("click", {
+            bubbles: true,
+            button: 0,
+            cancelable: true
+          });
+          realDownload?.dispatchEvent(realDownloadClick);
+          yield* Effect.sleep("20 millis");
+          expect(preloaded).toEqual([]);
+          expect(realDownloadClick.defaultPrevented).toBe(false);
+          expect(router?.state()).toMatchObject({ _tag: "NotFound", href: "/missing" });
+
+          const falseDownload = container.querySelector('a[data-kind="false-download"]');
+          falseDownload?.dispatchEvent(new MouseEvent("mouseenter", { cancelable: true }));
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(preloaded).toEqual(["atlas"]))
+          );
+
+          const falseDownloadClick = new MouseEvent("click", {
+            bubbles: true,
+            button: 0,
+            cancelable: true
+          });
+          falseDownload?.dispatchEvent(falseDownloadClick);
+          expect(falseDownloadClick.defaultPrevented).toBe(true);
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(router?.state()).toMatchObject({
+              _tag: "Ready",
+              href: "/download-projects/atlas"
+            }))
+          );
+          expect(preloaded).toEqual(["atlas", "atlas"]);
+        })
+      )
+    ));
+
   it("forwards RouterProvider history adapters to navigation", () =>
     Effect.runPromise(
       Effect.scoped(

@@ -297,6 +297,64 @@ describe("react router", () => {
     });
   });
 
+  it("normalizes RouterLink download props before preload and click decisions", async () => {
+    let preloads = 0;
+    const Project = route("/download-projects/:id", {
+      preload: () =>
+        Effect.sync(() => {
+          preloads++;
+        }),
+      component: ({ params }) => createElement("h1", {}, `Project ${(params as { id: string }).id}`)
+    });
+    const Home = route("/", {
+      component: () =>
+        createElement(Fragment, {},
+          createElement(RouterLink, {
+            route: Project,
+            options: { params: { id: "atlas" } },
+            download: false,
+            "data-kind": "false-download"
+          }, "False download"),
+          createElement(RouterLink, {
+            route: Project,
+            options: { params: { id: "curie" } },
+            download: "project.csv",
+            "data-kind": "real-download"
+          }, "Real download")
+        )
+    });
+    const routes = [Home, Project] as const;
+
+    await withReactRoot(async (root, container) => {
+      await act(async () => {
+        root.render(createElement(RouterProvider, { routes, initialHref: "/" }));
+      });
+      await flushReact();
+
+      const realDownload = container.querySelector('a[data-kind="real-download"]')!;
+      await act(async () => {
+        realDownload.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+        realDownload.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
+      });
+      await flushReact();
+      expect(preloads).toBe(0);
+      expect(container.textContent).toContain("False download");
+
+      const falseDownload = container.querySelector('a[data-kind="false-download"]')!;
+      await act(async () => {
+        falseDownload.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      });
+      await flushReact();
+      expect(preloads).toBe(1);
+
+      await act(async () => {
+        falseDownload.dispatchEvent(new MouseEvent("click", { bubbles: true, button: 0 }));
+      });
+      await flushReact();
+      expect(container.textContent).toBe("Project atlas");
+    });
+  });
+
   it("interrupts stale RouterLink hover preloads when the target changes", async () => {
     const runtime = makeRuntime();
     const started: string[] = [];

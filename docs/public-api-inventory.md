@@ -68,8 +68,10 @@ file does not export. Declaration-level symbol policy lives in
 `scripts/public-api-symbol-policy.mjs`: curated namespace-backed source modules
 must have an explicit audit allowance and a root-barrel import, curated hover
 declaration groups must be reachable from a package export or re-exported
-source module, and those declarations must keep JSDoc for LSP hovers. Together
-these checks keep hover/LSP docs from drifting away from exported source files.
+source module, each declaration must be reachable as an exported package symbol
+or explicit namespace alias, and those declarations must keep JSDoc for LSP
+hovers. Together these checks keep hover/LSP docs from drifting away from
+package Interfaces rather than merely reachable implementation files.
 The curated hover declarations currently cover the Core Action, ActionResult,
 Capability, Form, Program, and Resource Interfaces,
 browser-router/router Adapter, React/Solid runtime and hook Adapter seams,

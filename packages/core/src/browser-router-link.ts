@@ -19,12 +19,16 @@ export const isPlainLeftClick = (event: BrowserRouterClickEvent): boolean =>
   !event.ctrlKey &&
   !event.shiftKey;
 
+/** Returns true when the anchor download attribute is present rather than framework-absent. */
+export const browserRouterLinkHasDownload = (download: unknown): boolean =>
+  download === true || typeof download === "string";
+
 /** Returns true when anchor attributes intentionally hand navigation to the browser. */
 export const opensOutsideRouter = (
   target: string | undefined,
   download: unknown
 ): boolean =>
-  download !== undefined ||
+  browserRouterLinkHasDownload(download) ||
   (target !== undefined && target.length > 0 && target !== "_self");
 
 /** Reason a router-owned link left navigation or preloading to the adapter/browser. */
@@ -39,7 +43,7 @@ export type BrowserRouterLinkIgnoreReason =
 export interface BrowserRouterLinkTarget {
   /** Anchor target attribute. Non-empty targets other than `_self` are browser-handled. */
   readonly target?: string | undefined;
-  /** Anchor download attribute. Any defined value is browser-handled. */
+  /** Anchor download attribute. `true` and string values are browser-handled; false/null/undefined are absent. */
   readonly download?: unknown;
 }
 
@@ -159,6 +163,8 @@ export interface BrowserRouterLinkPreloadIdentityOptions extends BrowserRouterLi
 
 const browserRouterLinkPreloadIdentityValue = (value: unknown): string =>
   value === undefined ? "" : String(value);
+const browserRouterLinkDownloadIdentityValue = (value: unknown): string =>
+  browserRouterLinkHasDownload(value) ? String(value) : "";
 
 /** Builds the stable link preload identity used by framework RouterLink adapters. */
 export const browserRouterLinkPreloadIdentity = (
@@ -169,7 +175,7 @@ export const browserRouterLinkPreloadIdentity = (
     options.preload,
     options.canHandleRoute,
     browserRouterLinkPreloadIdentityValue(options.target),
-    browserRouterLinkPreloadIdentityValue(options.download)
+    browserRouterLinkDownloadIdentityValue(options.download)
   ].join("\0"),
   enabled:
     browserRouterLinkPreloadDecision({

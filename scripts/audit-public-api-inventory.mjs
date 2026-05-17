@@ -556,6 +556,216 @@ void text;
   ["virtual module virtual:effect-ui/server-functions", "symbol reference actionManifest", "symbol reference ActionManifestEntry"]
 );
 
+const exportedDeclarationNames = (source) => {
+  const sourceFile = ts.createSourceFile(
+    "public-api-source.ts",
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const names = [];
+  for (const statement of sourceFile.statements) {
+    const hasExportModifier = ts.canHaveModifiers(statement) &&
+      (ts.getModifiers(statement)?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) ?? false);
+    if (!hasExportModifier) {
+      continue;
+    }
+    if (declarationName(statement) !== undefined) {
+      names.push(declarationName(statement));
+    }
+    names.push(...variableStatementDeclarationNames(statement));
+  }
+  return names.filter((name) => name !== undefined);
+};
+
+const exportedNamedModules = (source) => {
+  const exports = [];
+  const sourceFile = ts.createSourceFile(
+    "public-api-entrypoint.ts",
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  for (const statement of sourceFile.statements) {
+    if (
+      !ts.isExportDeclaration(statement) ||
+      statement.moduleSpecifier === undefined ||
+      !ts.isStringLiteral(statement.moduleSpecifier) ||
+      !statement.moduleSpecifier.text.startsWith("./") ||
+      statement.exportClause === undefined ||
+      !ts.isNamedExports(statement.exportClause)
+    ) {
+      continue;
+    }
+    for (const element of statement.exportClause.elements) {
+      exports.push({
+        moduleName: statement.moduleSpecifier.text.slice(2).replace(/\.js$/, ""),
+        exportedName: element.name.text
+      });
+    }
+  }
+  return exports;
+};
+
+const addExportedSymbol = (exportedSymbolsByFile, file, name) => {
+  const relativeFile = toRelativeSourceFile(file);
+  const symbols = exportedSymbolsByFile.get(relativeFile) ?? new Set();
+  symbols.add(name);
+  exportedSymbolsByFile.set(relativeFile, symbols);
+};
+
+const collectPublicExportedSymbols = (entrySource) => {
+  const exportedSymbolsByFile = new Map();
+  const visited = new Set();
+  const stack = [join(root, entrySource)];
+
+  while (stack.length > 0) {
+    const file = stack.pop();
+    if (file === undefined || visited.has(file) || !existsSync(file)) {
+      continue;
+    }
+    visited.add(file);
+
+    const source = readText(file);
+    for (const name of exportedDeclarationNames(source)) {
+      addExportedSymbol(exportedSymbolsByFile, file, name);
+    }
+    for (const namedExport of exportedNamedModules(source)) {
+      const target = exportedSourceModuleFile(file, namedExport.moduleName);
+      if (target !== undefined) {
+        addExportedSymbol(exportedSymbolsByFile, target, namedExport.exportedName);
+      }
+    }
+    for (const moduleName of exportedModuleNames(source)) {
+      const target = exportedSourceModuleFile(file, moduleName);
+      if (target !== undefined) {
+        stack.push(target);
+      }
+    }
+  }
+
+  return exportedSymbolsByFile;
+};
+
+const mergeExportedSymbols = (left, right) => {
+  for (const [file, symbols] of right) {
+    const merged = left.get(file) ?? new Set();
+    for (const symbol of symbols) {
+      merged.add(symbol);
+    }
+    left.set(file, merged);
+  }
+};
+
+const publicApiExportedSymbolsBySourceFile = () => {
+  const exportedSymbolsByFile = new Map();
+  for (const entry of expectedEntrypoints.values()) {
+    mergeExportedSymbols(exportedSymbolsByFile, collectPublicExportedSymbols(entry.source));
+  }
+  return exportedSymbolsByFile;
+};
+
+const publicNamespaceMembers = (groups, exportedSymbolsByFile) => {
+  const members = new Set();
+  for (const group of groups) {
+    const exportedSymbols = exportedSymbolsByFile.get(group.file) ?? new Set();
+    for (const [namespaceName, names] of Object.entries(group.namespaceDeclarations ?? {})) {
+      if (!exportedSymbols.has(namespaceName)) {
+        continue;
+      }
+      for (const name of names) {
+        members.add(`${namespaceName}.${name}`);
+      }
+    }
+  }
+  return members;
+};
+
+const publicHoverDeclarationNames = (group) => [
+  ...group.declarations ?? [],
+  ...group.allDeclarations ?? []
+];
+
+const publicHoverSymbolReachabilityFailures = (groups, exportedSymbolsByFile) => {
+  const namespaceMembers = publicNamespaceMembers(groups, exportedSymbolsByFile);
+  const symbolFailures = [];
+  for (const group of groups) {
+    const exportedSymbols = exportedSymbolsByFile.get(group.file) ?? new Set();
+    for (const name of publicHoverDeclarationNames(group)) {
+      if (exportedSymbols.has(name)) {
+        continue;
+      }
+      const namespaceAlias = group.namespaceAliases?.[name];
+      if (namespaceAlias !== undefined && namespaceMembers.has(namespaceAlias)) {
+        continue;
+      }
+      if (namespaceAlias !== undefined) {
+        symbolFailures.push(`${group.file} public hover declaration ${name} points at missing public namespace alias ${namespaceAlias}`);
+      } else {
+        symbolFailures.push(`${group.file} public hover declaration ${name} is not reachable from a public package export`);
+      }
+    }
+  }
+  return symbolFailures;
+};
+
+const assertPublicHoverSymbolReachabilitySelfTest = () => {
+  const exportedSymbolsByFile = new Map([
+    ["self.ts", new Set(["Exported"])],
+    ["index.ts", new Set(["Public"])]
+  ]);
+  const selfTestGroups = [
+    {
+      file: "self.ts",
+      declarations: ["Exported", "Hidden"],
+      namespaceAliases: {
+        Hidden: "Public.Hidden"
+      }
+    },
+    {
+      file: "index.ts",
+      namespaceDeclarations: {
+        Public: ["Hidden"]
+      }
+    }
+  ];
+  const validFailures = publicHoverSymbolReachabilityFailures(selfTestGroups, exportedSymbolsByFile);
+  if (validFailures.length > 0) {
+    failSelfTest(`public hover symbol reachability self-test rejected namespace alias: ${validFailures.join(" ")}`);
+  }
+
+  const missingDirectFailures = publicHoverSymbolReachabilityFailures([
+    {
+      file: "self.ts",
+      declarations: ["Hidden"]
+    }
+  ], exportedSymbolsByFile);
+  if (!missingDirectFailures.some((failure) => failure.includes("Hidden is not reachable"))) {
+    failSelfTest(`public hover symbol reachability self-test missed unexported symbol: ${missingDirectFailures.join(" ")}`);
+  }
+
+  const missingNamespaceFailures = publicHoverSymbolReachabilityFailures([
+    {
+      file: "self.ts",
+      declarations: ["Hidden"],
+      namespaceAliases: {
+        Hidden: "Public.Missing"
+      }
+    },
+    {
+      file: "index.ts",
+      namespaceDeclarations: {
+        Public: ["Hidden"]
+      }
+    }
+  ], exportedSymbolsByFile);
+  if (!missingNamespaceFailures.some((failure) => failure.includes("missing public namespace alias Public.Missing"))) {
+    failSelfTest(`public hover symbol reachability self-test missed stale namespace alias: ${missingNamespaceFailures.join(" ")}`);
+  }
+};
+
 const sourceSurfaceCoverageFailures = (entry, actualModules) => {
   if (entry.sourceSurface === undefined) {
     return actualModules.length === 0
@@ -816,11 +1026,13 @@ const publicApiReachableSourceFiles = () => {
 
 const assertPublicSymbolPolicyReachability = () => {
   const reachable = publicApiReachableSourceFiles();
+  const exportedSymbolsByFile = publicApiExportedSymbolsBySourceFile();
   for (const group of publicHoverDocGroups) {
     if (!reachable.has(group.file)) {
       failures.push(`${group.file} has public hover symbol policy but is not reachable from a public package export or re-exported source module`);
     }
   }
+  failures.push(...publicHoverSymbolReachabilityFailures(publicHoverDocGroups, exportedSymbolsByFile));
 };
 
 const localDependencyModules = (entrypoint) => {
@@ -908,6 +1120,7 @@ for (const [key, entry] of expectedEntrypoints) {
 }
 
 assertPublicSymbolPolicyReachability();
+assertPublicHoverSymbolReachabilitySelfTest();
 assertCurrentDocsTextPolicySelfTest();
 auditPublicHoverDocs();
 auditCurrentDocsTextPolicies();

@@ -538,7 +538,11 @@ export const publicHoverDocGroups = [
       "CollectionStoreDiagnosticsSnapshot",
       "CollectionStoreDiagnostics",
       "CollectionStore"
-    ]
+    ],
+    namespaceAliases: {
+      CollectionStoreDiagnosticsSnapshot: "Collection.StoreDiagnosticsSnapshot",
+      CollectionStoreDiagnostics: "Collection.StoreDiagnostics"
+    }
   },
   {
     file: "packages/db/src/collection-ids.ts",
@@ -758,20 +762,9 @@ export const publicHoverDocGroups = [
       "QuerySortValue",
       "QueryJoinKey",
       "QueryJoinStrategy",
-      "SourceRecord",
-      "AnyQueryContext",
-      "AnyCollectionRow",
-      "QuerySourcesError",
-      "QuerySourcesRequirements",
-      "QueryContext",
-      "QueryJoinedContext",
-      "QueryJoinResult",
-      "QueryOrder",
-      "QueryJoin",
       "QueryPlanSourceDiagnostics",
       "QueryPlanJoinDiagnostics",
       "QueryPlanDiagnostics",
-      "QueryExecution",
       "QueryAggregate",
       "QueryGroupKey"
     ]
@@ -1435,8 +1428,8 @@ export const namespaceBackedSurfaceModules = new Map([
 ]);
 
 export const currentDocsEvidencePolicy = {
-  latestFocusedReview: 244,
-  latestFocusedTitle: "Effect Cleanup Ownership, DB Pins, And Evidence Policy",
+  latestFocusedReview: 245,
+  latestFocusedTitle: "Public API Symbol Reachability And Router Adapter Parity",
   latestFullGateReview: 240,
   rootTestFiles: 53,
   rootTestCount: 1170,
@@ -1445,15 +1438,15 @@ export const currentDocsEvidencePolicy = {
 };
 
 const staleFocusedReviewPattern =
-  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2[0-3]\d|24[0-3])\b/;
+  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2[0-3]\d|24[0-4])\b/;
 const staleAsOfReviewPattern =
-  /As of Review(?:1\d\d|2[0-3]\d|24[0-3]), the latest full/;
+  /As of Review(?:1\d\d|2[0-3]\d|24[0-4]), the latest full/;
 const staleFullGateReviewPattern =
   /(?:The latest full verification gate is green after Review|Latest full gate[^.\n]*after Review|latest full `pnpm verify` passed after Review|current full gate is the Review) ?(?:1\d\d|2[0-3]\d)\b/;
 const staleRootTestCountPattern =
   /53 root test files \/ 1161 tests/;
 const stalePostReviewWaitPattern =
-  /until a fresh post-Review(?:1\d\d|2[0-3]\d|24[0-3])\s+sweep reports no actionable findings/;
+  /until a fresh post-Review(?:1\d\d|2[0-3]\d|24[0-4])\s+sweep reports no actionable findings/;
 
 export const currentDocsTextPolicies = [
   {
@@ -1487,16 +1480,16 @@ export const currentDocsTextPolicies = [
     file: "docs/architecture-deepening-review.md",
     required: [
       {
-        name: "Architecture tip must name the current focused Review244",
-        pattern: /newest focused review is Review244 Effect Cleanup Ownership,\s+DB Pins,\s+And\s+Evidence Policy/
+        name: "Architecture tip must name the current focused Review245",
+        pattern: /newest focused review is Review245 Public API Symbol Reachability\s+And Router Adapter Parity/
       },
       {
         name: "Architecture tip must keep Review240 as the newest full checkpoint",
         pattern: /newest full verification checkpoint remains Review240/
       },
       {
-        name: "Architecture tip must wait on the post-Review244 clean sweep",
-        pattern: /active Thirty-Sweep clean counter is 0\/30 until a fresh post-Review244\s+sweep reports no actionable findings/
+        name: "Architecture tip must wait on the post-Review245 clean sweep",
+        pattern: /active Thirty-Sweep clean counter is 0\/30 until a fresh post-Review245\s+sweep reports no actionable findings/
       }
     ],
     banned: [
@@ -1515,15 +1508,15 @@ export const currentDocsTextPolicies = [
     required: [
       {
         name: "Perfection progress must name the current focused review from currentDocsEvidencePolicy",
-        pattern: /latest focused Review244 Effect Cleanup Ownership,\s+DB Pins,\s+And Evidence\s+Policy/
+        pattern: /latest focused Review245 Public API Symbol Reachability\s+And Router\s+Adapter Parity/
       },
       {
         name: "Perfection progress must keep the Review240 full gate as current full evidence",
         pattern: /latest full verification gate is green after Review240/
       },
       {
-        name: "Perfection progress must keep the active Thirty-Sweep counter at 0\/30 after Review244 work",
-        pattern: /active Thirty-Sweep clean counter remains 0\/30 until a fresh post-Review244 sweep reports no actionable findings/
+        name: "Perfection progress must keep the active Thirty-Sweep counter at 0\/30 after Review245 work",
+        pattern: /active Thirty-Sweep clean counter remains 0\/30 until a fresh post-Review245 sweep reports no actionable findings/
       }
     ],
     banned: [
@@ -1557,16 +1550,16 @@ export const currentDocsTextPolicies = [
     file: "docs/release-notes.md",
     required: [
       {
-        name: "Release notes must include the current focused Review244 entry",
-        pattern: /Review 244 Effect Cleanup Ownership, DB Pins, And Evidence Policy/
+        name: "Release notes must include the current focused Review245 entry",
+        pattern: /Review 245 Public API Symbol Reachability And Router Adapter Parity/
       },
       {
         name: "Release notes must keep the Review240 full gate snapshot",
         pattern: /Latest full gate on May 17, 2026 after Review 240/
       },
       {
-        name: "Release notes must wait on the post-Review244 clean sweep",
-        pattern: /until a fresh post-Review244 sweep reports no actionable findings/
+        name: "Release notes must wait on the post-Review245 clean sweep",
+        pattern: /until a fresh post-Review245\s+sweep reports no actionable findings/
       }
     ],
     banned: [
@@ -1596,16 +1589,16 @@ export const currentDocsTextPolicies = [
     file: "docs/docs-drift-audit.md",
     required: [
       {
-        name: "Docs drift audit must name the current focused Review244 evidence",
-        pattern: /As of Review244, the latest full/
+        name: "Docs drift audit must name the current focused Review245 evidence",
+        pattern: /As of Review245, the latest full/
       },
       {
         name: "Docs drift audit must keep Review240 full gate counts",
         pattern: /Review240 run with 53 root test files \/ 1170 tests/
       },
       {
-        name: "Docs drift audit must wait on the post-Review244 clean sweep",
-        pattern: /counter is 0\/30 until a fresh post-Review244 sweep reports no actionable/
+        name: "Docs drift audit must wait on the post-Review245 clean sweep",
+        pattern: /counter is 0\/30 until a fresh post-Review245 sweep reports no actionable/
       }
     ],
     banned: [
@@ -1631,8 +1624,8 @@ export const currentDocsTextPolicies = [
     file: "docs/type-test-coverage-audit.md",
     required: [
       {
-        name: "Type-test audit must name Review244 public type-test pins",
-        pattern: /Review244 Effect Cleanup Ownership, DB Pins, And Evidence Policy/
+        name: "Type-test audit must name Review245 public type-test pins",
+        pattern: /Review245 Public API Symbol Reachability And Router Adapter Parity/
       },
       {
         name: "Type-test audit must keep Review240 full gate counts",
@@ -1650,8 +1643,8 @@ export const currentDocsTextPolicies = [
     file: "docs/effect-first-audit.md",
     required: [
       {
-        name: "Effect-first audit must name Review244 as current sweep work",
-        pattern: /Review244 Effect Cleanup Ownership, DB Pins, And Evidence Policy/
+        name: "Effect-first audit must name Review245 as current sweep work",
+        pattern: /Review245 Public API Symbol Reachability And Router Adapter Parity/
       },
       {
         name: "Effect-first audit must keep the 415-file audit count",
@@ -1703,15 +1696,15 @@ export const currentDocsTextPolicies = [
     file: "docs/ultimate-goal-checklist.md",
     required: [
       {
-        name: "Ultimate goal checklist must name Review244 as latest focused evidence",
-        pattern: /Latest focused evidence: Review 244/
+        name: "Ultimate goal checklist must name Review245 as latest focused evidence",
+        pattern: /Latest focused evidence: Review 245/
       },
       {
         name: "Ultimate goal checklist must keep Review240 as latest full evidence",
         pattern: /Review240 records the latest full gate/
       },
       {
-        name: "Ultimate goal checklist must keep active clean counter at 0\/30 after Review244",
+        name: "Ultimate goal checklist must keep active clean counter at 0\/30 after Review245",
         pattern: /leaving the active counter at 0\/30/
       }
     ],

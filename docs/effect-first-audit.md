@@ -20,6 +20,12 @@ interruption.
 
 ## Current Sweep Results
 
+- Review245 Public API Symbol Reachability And Router Adapter Parity keeps the
+  post-Review244 fixes Effect-first: public API symbol reachability is an audit
+  policy change, memory history parity is synchronous Adapter behavior, and
+  RouterLink download normalization changes Core click/preload decisions
+  without adding Promise-shaped APIs. The Effect-first audit over 415 files
+  remains green.
 - Review244 Effect Cleanup Ownership, DB Pins, And Evidence Policy keeps the
   post-Review243 fixes Effect-first: Devtools action invalidation conflicts
   now fail through the typed Effect channel, sync cleanup Interfaces take owner

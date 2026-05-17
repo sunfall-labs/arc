@@ -52,7 +52,10 @@ describe("browser router kernel", () => {
     })).toBe(false);
     expect(opensOutsideRouter("_blank", undefined)).toBe(true);
     expect(opensOutsideRouter("_self", undefined)).toBe(false);
+    expect(opensOutsideRouter(undefined, false)).toBe(false);
+    expect(opensOutsideRouter(undefined, null)).toBe(false);
     expect(opensOutsideRouter(undefined, "")).toBe(true);
+    expect(opensOutsideRouter(undefined, true)).toBe(true);
     expect(browserRouterLinkPreloadDecision({
       defaultPrevented: false,
       preload: true,
@@ -91,6 +94,15 @@ describe("browser router kernel", () => {
       href: "/projects/atlas",
       preload: true,
       canHandleRoute: true,
+      download: false
+    })).toEqual({
+      key: "/projects/atlas\u0000true\u0000true\u0000\u0000",
+      enabled: true
+    });
+    expect(browserRouterLinkPreloadIdentity({
+      href: "/projects/atlas",
+      preload: true,
+      canHandleRoute: true,
       target: "_blank"
     })).toEqual({
       key: "/projects/atlas\u0000true\u0000true\u0000_blank\u0000",
@@ -121,7 +133,25 @@ describe("browser router kernel", () => {
       event: plainClick,
       href: "/projects/atlas",
       canHandleRoute: true,
+      download: false
+    })).toEqual({ _tag: "Navigate", href: "/projects/atlas" });
+    expect(browserRouterLinkClickDecision({
+      event: plainClick,
+      href: "/projects/atlas",
+      canHandleRoute: true,
+      download: null
+    })).toEqual({ _tag: "Navigate", href: "/projects/atlas" });
+    expect(browserRouterLinkClickDecision({
+      event: plainClick,
+      href: "/projects/atlas",
+      canHandleRoute: true,
       download: ""
+    })).toEqual({ _tag: "Ignore", reason: "browser-handled" });
+    expect(browserRouterLinkClickDecision({
+      event: plainClick,
+      href: "/projects/atlas",
+      canHandleRoute: true,
+      download: true
     })).toEqual({ _tag: "Ignore", reason: "browser-handled" });
     expect(browserRouterLinkClickDecision({
       event: plainClick,
@@ -521,6 +551,8 @@ describe("browser router kernel", () => {
     });
 
     expect(history.currentHref()).toBe("/initial");
+    expect(history.commit("/initial")).toBe("/initial");
+    expect(history.entries()).toEqual(["/initial"]);
     expect(history.commit("/next")).toBe("/next");
     expect(history.commit("/replacement", { replace: true })).toBe("/replacement");
     expect(externalHrefs).toEqual([]);
@@ -528,6 +560,56 @@ describe("browser router kernel", () => {
     expect(externalHrefs).toEqual(["/external"]);
     expect(history.entries()).toEqual(["/initial", "/replacement", "/external"]);
   });
+
+  it("retries same-href preloads through memory history without pushing an entry", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          let attempts = 0;
+          const Project = route("/memory-retry", {
+            preload: () =>
+              Effect.gen(function* () {
+                attempts++;
+                if (attempts === 1) {
+                  return yield* Effect.fail("offline");
+                }
+              })
+          });
+          const history = makeMemoryBrowserHistoryAdapter({ initialHref: "/memory-retry" });
+          const router = createBrowserRouterHostController([Project] as const, {
+            history,
+            runtime
+          });
+          yield* Effect.addFinalizer(() => router.disposeEffect());
+
+          router.start();
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(router.state.get()).toMatchObject({
+                _tag: "Failure",
+                href: "/memory-retry"
+              });
+              expect(attempts).toBe(1);
+            })
+          );
+
+          router.navigateHref("/memory-retry");
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(router.state.get()).toMatchObject({
+                _tag: "Ready",
+                href: "/memory-retry"
+              });
+              expect(attempts).toBe(2);
+            })
+          );
+          expect(history.entries()).toEqual(["/memory-retry"]);
+        })
+      )
+    ));
 
   it("centralizes host controller start, navigation, replace, and disposal policy", () =>
     Effect.runPromise(

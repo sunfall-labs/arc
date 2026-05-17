@@ -681,12 +681,10 @@ Last evidence pass: May 17, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 244 passed Devtools tests 1 file / 78
-    tests, Core Browser Router and Resource UI Binding tests 2 files / 37
-    tests, DB/React DB/Solid DB/Devtools public type pins,
-    `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first`
-    over 415 files, and `git diff --check`. Latest full verification evidence
-    remains Review 240.
+  - Latest focused evidence: Review 245 passed Core Browser Router tests 1 file
+    / 23 tests, React/Solid router tests 2 files / 64 tests, Core/React/Solid
+    typechecks, `pnpm audit:public-api`, and the Review245 gates below. Latest
+    full verification evidence remains Review 240.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
@@ -705,7 +703,8 @@ Last evidence pass: May 17, 2026.
     Cleanup, Suspense, And Public API Pins work, and Review241 Current
     Evidence Docs Drift work, and Review242 Solid Route Update Suspense
     Outcome work, Review243 Browser Router And DB Public Interface Pins work,
-    and Review244 Effect Cleanup Ownership, DB Pins, And Evidence Policy work.
+    Review244 Effect Cleanup Ownership, DB Pins, And Evidence Policy work, and
+    Review245 Public API Symbol Reachability And Router Adapter Parity work.
     Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
     Sweep 2 found Review209 work and the local post-Review209 pass found
     Review210 work; the first post-Review210 sweep found Review211 work, and
@@ -742,7 +741,9 @@ Last evidence pass: May 17, 2026.
     work, the fresh post-Review242 sweep found Review243 Browser Router Kernel
     and DB public Interface work, and the fresh post-Review243 sweep found
     Review244 Effect cleanup ownership, DB pins, Devtools typed failure, and
-    current-evidence policy work, leaving the active counter at 0/30.
+    current-evidence policy work, and the fresh post-Review244 sweep found
+    Review245 public API symbol reachability and router Adapter parity work,
+    leaving the active counter at 0/30.
     Latest full evidence:
     `pnpm verify` ran after Review 240 with 53 root
     test files / 1170
@@ -904,12 +905,11 @@ Last evidence pass: May 17, 2026.
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 244 records Devtools tests 1 file / 78 tests, Core Browser
-    Router and Resource UI Binding tests 2 files / 37 tests, public type tests,
-    public API audit, Effect-first audit over 415 files, and `git diff --check`
-    after closing DB pins, Devtools typed failures, sync cleanup ownership, and
-    current-evidence policy findings. Review240 records the latest full gate.
-    Clean
+  - Evidence: Review 245 records Core Browser Router tests 1 file / 23 tests,
+    React/Solid router tests 2 files / 64 tests, Core/React/Solid typechecks,
+    public API audit, and the Review245 gates after closing symbol-level public
+    hover reachability, memory history parity, and RouterLink download
+    normalization findings. Review240 records the latest full gate. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
@@ -929,7 +929,8 @@ Last evidence pass: May 17, 2026.
     Cleanup, Suspense, And Public API Pins work, and Review241 Current
     Evidence Docs Drift work, and Review242 Solid Route Update Suspense
     Outcome work, Review243 Browser Router And DB Public Interface Pins work,
-    and Review244 Effect Cleanup Ownership, DB Pins, And Evidence Policy work.
+    Review244 Effect Cleanup Ownership, DB Pins, And Evidence Policy work, and
+    Review245 Public API Symbol Reachability And Router Adapter Parity work.
     Clean
     Sweep 1 after Review208 remains historical 1/30 evidence, but Clean Sweep
     2 found Review209 work and the local post-Review209 pass found Review210
@@ -966,7 +967,8 @@ Last evidence pass: May 17, 2026.
     work, the fresh post-Review242 sweep found Review243 Browser Router Kernel
     and DB public Interface work, and the fresh post-Review243 sweep found
     Review244 Effect cleanup ownership, DB pins, Devtools typed failure, and
-    current-evidence policy work,
+    current-evidence policy work, and the fresh post-Review244 sweep found
+    Review245 public API symbol reachability and router Adapter parity work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 
