@@ -15,6 +15,7 @@ import {
   createContext,
   createMemo,
   createRenderEffect,
+  createResource,
   createRoot,
   createSignal,
   onCleanup,
@@ -293,6 +294,8 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
   const renderers = createMemo(() => routerOutletRenderers(typedProps));
   const [node, setNode] = createSignal<JSX.Element>();
   const [renderError, setRenderError] = createSignal<unknown>();
+  const [renderSuspension, setRenderSuspension] = createSignal<unknown>();
+  const [suspensionResource] = createResource(renderSuspension, (suspension) => suspension);
   const routeRenderScope = makeSolidRouteRenderScopeController({
     initialInput: {
       state: router.state(),
@@ -300,7 +303,8 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
     },
     runtime,
     setNode,
-    setRenderError
+    setRenderError,
+    setRenderSuspension
   });
 
   createRenderEffect(() => {
@@ -322,7 +326,16 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
     return node();
   });
 
-  return view as unknown as JSX.Element;
+  const SuspenseBridge = (): JSX.Element => {
+    const suspension = renderSuspension();
+    if (suspension !== undefined) {
+      suspensionResource();
+      return undefined;
+    }
+    return view();
+  };
+
+  return createComponent(SuspenseBridge, {});
 };
 
 /**

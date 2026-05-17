@@ -9,7 +9,7 @@ import type { BrowserRouter, BrowserRouterState } from "../src/index.js";
 vi.doMock("solid-js", () => import("solid-js/dist/solid.js"));
 vi.doMock("solid-js/web", () => import("solid-js/web/dist/web.js"));
 
-const { ErrorBoundary, Show, createRoot, createSignal, onCleanup, sharedConfig } = await import("solid-js");
+const { ErrorBoundary, Show, Suspense, createRoot, createSignal, onCleanup, sharedConfig } = await import("solid-js");
 const { createComponent, render } = await import("solid-js/web");
 const { createBrowserRouter, RouterLink, RouterOutlet, RouterProvider, RouterRouteNotRegistered, RuntimeProvider, useRouter } = await import("../src/index.js");
 const { makeSolidRouteRenderScopeController } = await import("../src/route-render-scope.js");
@@ -1727,6 +1727,309 @@ describe("createBrowserRouter", () => {
 
           expect(nodeWrites).toBe(0);
           expect(renderErrorWrites).toBe(0);
+        })
+      )
+    ));
+
+  it("keeps route render thenables after navigation out of the host ErrorBoundary", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const thenable = new Promise<never>(() => undefined);
+          const GoodRoute = route("/suspense-good", {
+            component: () => undefined
+          });
+          const SuspendedRoute = route("/suspense-route", {
+            component: () => {
+              throw thenable;
+            }
+          });
+          const routes = [GoodRoute, SuspendedRoute] as const;
+
+          let router: BrowserRouter<typeof routes> | undefined;
+          let caught: unknown;
+          const CaptureRouter = () => {
+            router = useRouter<typeof routes>();
+            return createComponent(Suspense, {
+              fallback: "loading",
+              get children() {
+                return createComponent(ErrorBoundary, {
+                  fallback: (error) => {
+                    caught = error;
+                    return "caught";
+                  },
+                  get children() {
+                    return createComponent(RouterOutlet, {});
+                  }
+                });
+              }
+            });
+          };
+          const container = document.createElement("div");
+          const dispose = render(
+            () =>
+              createComponent(RouterProvider, {
+                routes,
+                initialHref: "/suspense-good",
+                runtime,
+                get children() {
+                  return createComponent(CaptureRouter, {});
+                }
+              }),
+            container
+          );
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          yield* Effect.promise(() => vi.waitFor(() => expect(router!.state()).toMatchObject({ href: "/suspense-good" })));
+          expect(container.textContent).toBe("");
+          router!.navigateHref("/suspense-route");
+
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(router!.state()).toMatchObject({
+                _tag: "Ready",
+                href: "/suspense-route"
+              });
+              expect(caught).toBeUndefined();
+            })
+          );
+        })
+      )
+    ));
+
+  it("publishes suspended route render outcomes from controller updates", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const thenable = { then: () => undefined };
+          const GoodRoute = route("/controller-suspense-good", {
+            component: () => "good"
+          });
+          const SuspendedRoute = route("/controller-suspense-route", {
+            component: () => {
+              throw thenable;
+            }
+          });
+          const goodMatch = GoodRoute.match("/controller-suspense-good");
+          const suspendedMatch = SuspendedRoute.match("/controller-suspense-route");
+          if (!goodMatch || !suspendedMatch) {
+            expect.fail("Expected routes to match.");
+          }
+
+          let node: (() => JSX.Element) | undefined;
+          let suspension: (() => unknown) | undefined;
+          let update: (() => void) | undefined;
+          let dispose: () => void = () => undefined;
+          createRoot((rootDispose) => {
+            dispose = rootDispose;
+            const [currentNode, setNode] = createSignal<JSX.Element>();
+            const [, setRenderError] = createSignal<unknown>();
+            const [currentSuspension, setRenderSuspension] = createSignal<unknown>();
+            const controller = makeSolidRouteRenderScopeController({
+              initialInput: {
+                state: {
+                  _tag: "Ready",
+                  href: "/controller-suspense-good",
+                  match: goodMatch
+                },
+                renderers: {}
+              },
+              runtime,
+              setNode,
+              setRenderError,
+              setRenderSuspension
+            });
+            node = currentNode;
+            suspension = currentSuspension;
+            update = () => controller.update({
+              state: {
+                _tag: "Ready",
+                href: "/controller-suspense-route",
+                match: suspendedMatch
+              },
+              renderers: {}
+            });
+          });
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          expect(node?.()).toBe("good");
+          update?.();
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(node?.()).toBeUndefined();
+              expect(suspension?.()).toBe(thenable);
+            })
+          );
+        })
+      )
+    ));
+
+  it("retries suspended route render outcomes when the thenable settles", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          let shouldSuspend = true;
+          let resumeSuspension: (() => void) | undefined;
+          const thenable = {
+            then: (resolve: () => void) => {
+              resumeSuspension = resolve;
+            }
+          };
+          const GoodRoute = route("/controller-retry-good", {
+            component: () => "good"
+          });
+          const SuspendedRoute = route("/controller-retry-route", {
+            component: () => {
+              if (shouldSuspend) {
+                throw thenable;
+              }
+              return "ready";
+            }
+          });
+          const goodMatch = GoodRoute.match("/controller-retry-good");
+          const suspendedMatch = SuspendedRoute.match("/controller-retry-route");
+          if (!goodMatch || !suspendedMatch) {
+            expect.fail("Expected routes to match.");
+          }
+
+          let node: (() => JSX.Element) | undefined;
+          let suspension: (() => unknown) | undefined;
+          let update: (() => void) | undefined;
+          let dispose: () => void = () => undefined;
+          createRoot((rootDispose) => {
+            dispose = rootDispose;
+            const [currentNode, setNode] = createSignal<JSX.Element>();
+            const [, setRenderError] = createSignal<unknown>();
+            const [currentSuspension, setRenderSuspension] = createSignal<unknown>();
+            const controller = makeSolidRouteRenderScopeController({
+              initialInput: {
+                state: {
+                  _tag: "Ready",
+                  href: "/controller-retry-good",
+                  match: goodMatch
+                },
+                renderers: {}
+              },
+              runtime,
+              setNode,
+              setRenderError,
+              setRenderSuspension
+            });
+            node = currentNode;
+            suspension = currentSuspension;
+            update = () => controller.update({
+              state: {
+                _tag: "Ready",
+                href: "/controller-retry-route",
+                match: suspendedMatch
+              },
+              renderers: {}
+            });
+          });
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          expect(node?.()).toBe("good");
+          update?.();
+          yield* Effect.promise(() => vi.waitFor(() => expect(suspension?.()).toBe(thenable)));
+
+          shouldSuspend = false;
+          resumeSuspension?.();
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(suspension?.()).toBeUndefined();
+              expect(node?.()).toBe("ready");
+            })
+          );
+        })
+      )
+    ));
+
+  it("disposes suspended route frames when a newer controller update wins", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const events: Array<string> = [];
+          const thenable = { then: () => undefined };
+          const OldRoute = route("/suspense-cleanup-old", {
+            component: () => "old"
+          });
+          const SuspendedRoute = route("/suspense-cleanup-pending", {
+            component: () => {
+              onCleanup(() => {
+                events.push("suspended:cleanup");
+              });
+              throw thenable;
+            }
+          });
+          const NewRoute = route("/suspense-cleanup-new", {
+            component: () => "new"
+          });
+          const oldMatch = OldRoute.match("/suspense-cleanup-old");
+          const suspendedMatch = SuspendedRoute.match("/suspense-cleanup-pending");
+          const newMatch = NewRoute.match("/suspense-cleanup-new");
+          if (!oldMatch || !suspendedMatch || !newMatch) {
+            expect.fail("Expected routes to match.");
+          }
+
+          let node: (() => JSX.Element) | undefined;
+          let suspension: (() => unknown) | undefined;
+          let update: ((href: string, match: typeof oldMatch | typeof suspendedMatch | typeof newMatch) => void) | undefined;
+          let dispose: () => void = () => undefined;
+          createRoot((rootDispose) => {
+            dispose = rootDispose;
+            const [currentNode, setNode] = createSignal<JSX.Element>();
+            const [, setRenderError] = createSignal<unknown>();
+            const [currentSuspension, setRenderSuspension] = createSignal<unknown>();
+            const controller = makeSolidRouteRenderScopeController({
+              initialInput: {
+                state: {
+                  _tag: "Ready",
+                  href: "/suspense-cleanup-old",
+                  match: oldMatch
+                },
+                renderers: {}
+              },
+              runtime,
+              setNode,
+              setRenderError,
+              setRenderSuspension
+            });
+            node = currentNode;
+            suspension = currentSuspension;
+            update = (href, match) => controller.update({
+              state: {
+                _tag: "Ready",
+                href,
+                match
+              },
+              renderers: {}
+            });
+          });
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          expect(node?.()).toBe("old");
+          update?.("/suspense-cleanup-pending", suspendedMatch);
+          yield* Effect.promise(() => vi.waitFor(() => expect(suspension?.()).toBe(thenable)));
+
+          update?.("/suspense-cleanup-new", newMatch);
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(node?.()).toBe("new");
+              expect(events).toEqual(["suspended:cleanup"]);
+            })
+          );
         })
       )
     ));

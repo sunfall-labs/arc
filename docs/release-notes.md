@@ -86,11 +86,20 @@ Latest full gate on May 17, 2026 after Review 240:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 242 Solid Route Update Suspense Outcome closed the post-Review241
+  framework follow-up: navigation-time Solid route render thenables now become
+  owned suspended outcomes, retry through the controller when the host thenable
+  settles, and dispose tentative suspended route frames when a newer transition
+  wins. `RouterOutlet` uses Solid `createResource(...)` as the host Suspense
+  Adapter while real render failures still flow to ErrorBoundary. The active
+  Thirty-Sweep clean counter remains 0/30 until a fresh post-Review242 sweep is
+  clean.
 - Review 241 Current Evidence Docs Drift closed the post-Review240 docs
   evidence finding: current-facing release docs now name the Review240 full
   verification gate, and the public API audit rejects stale "latest/current
-  Review239" wording. The active Thirty-Sweep clean counter remains 0/30 until
-  a fresh post-Review241 sweep is clean.
+  Review239" wording. The active Thirty-Sweep clean counter remained 0/30; the
+  later post-Review241 framework follow-up found Review242 Solid route update
+  Suspense outcome work.
 - Review 240 Effect-First Cleanup, Suspense, And Public API Pins closed the
   post-Review239 sweep: best-effort cleanup catches full Causes, Start
   CLI/streaming response/command-runner/starter script ownership is
@@ -491,8 +500,9 @@ Latest full gate on May 17, 2026 after Review 240:
   cleanup, and public hover work, the fresh post-Review239 sweep found
   Review240 cleanup, framework, Start tooling, DB, and public API ownership
   work, and the fresh post-Review240 sweep found Review241 current-evidence
-  docs drift work.
-  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review241
+  docs drift work, and the fresh post-Review241 framework follow-up found
+  Review242 Solid route update Suspense outcome work.
+  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review242
   sweep reports no actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
@@ -1471,7 +1481,9 @@ Latest full gate on May 17, 2026 after Review 240:
   UI lifetime, framework cleanup, and public hover work, and the fresh
   post-Review239 sweep found Review240 cleanup, framework, Start tooling, DB,
   and public API ownership work, and the fresh post-Review240 sweep found
-  Review241 current-evidence docs drift work, so the active counter is 0/30.
+  Review241 current-evidence docs drift work, and the fresh post-Review241
+  framework follow-up found Review242 Solid route update Suspense outcome work,
+  so the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
   Effect-first audit over 415 physical/virtual files, 53 root test files / 1170

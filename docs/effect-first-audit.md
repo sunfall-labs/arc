@@ -20,6 +20,12 @@ interruption.
 
 ## Current Sweep Results
 
+- Review242 Solid Route Update Suspense Outcome keeps the framework follow-up
+  Effect-first: the Solid Route Render Scope Controller represents suspended
+  route updates as an owned outcome, retries the transition from an Effect
+  callback when the host thenable settles, disposes superseded suspended route
+  frames through the controller cleanup chain, and leaves Solid `createResource`
+  as the only host Suspense Adapter in `RouterOutlet`.
 - Review241 Current Evidence Docs Drift changed release evidence docs and the
   current-docs text policy only; it added no Promise-shaped library API and
   kept the Effect-first audit green over 415 files.

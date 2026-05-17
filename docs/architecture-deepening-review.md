@@ -11,10 +11,12 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review241 Current Evidence Docs Drift, the fresh
-post-Review240 sweep that refreshed current-facing release evidence docs and
-added a docs-text policy so stale "latest/current Review239" claims fail the
-public API audit. The newest full verification checkpoint remains Review240.
+The newest focused review is Review242 Solid Route Update Suspense Outcome, the
+fresh post-Review241 framework follow-up that deepened the Solid Route Render
+Scope Controller so navigation-time suspended route renders publish a Suspense
+outcome, retry after the host thenable settles, and dispose tentative route
+frames when a newer transition wins. The newest full verification checkpoint
+remains Review240.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -46,7 +48,8 @@ and the fresh post-Review237 sweep found Review238 work,
 and the fresh post-Review238 sweep found Review239 work,
 and the fresh post-Review239 sweep found Review240 work,
 and the fresh post-Review240 sweep found Review241 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review241
+and the fresh post-Review241 framework follow-up found Review242 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review242
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -57,7 +60,7 @@ Review220, Review221, Review222, Review223, Review224, Review225,
 Review226, Review227, Review228, Review229, Review230, Review231, and
 Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
 Review235 work, Review236 work, Review237 work, Review238 work, Review239
-work, Review240 work, and Review241 work.
+work, Review240 work, Review241 work, and Review242 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -149,7 +152,43 @@ work, and the fresh post-Review239 sweep found Review240 cleanup, framework,
 Start tooling, DB, and public API ownership work,
 and the fresh post-Review240 sweep found Review241 current-evidence docs drift
 work,
+and the fresh post-Review241 framework follow-up found Review242 Solid route
+update Suspense outcome work,
 so the counter remains 0/30.
+
+## Review 242: Solid Route Update Suspense Outcome
+
+Review242 fixes the actionable Solid framework finding from the fresh
+post-Review241 follow-up.
+
+1. Solid Route Render Suspense Update Seam
+   - Status: fixed.
+   - Files: `CONTEXT.md`, `packages/solid/src/route-render-scope.ts`,
+     `packages/solid/src/router.ts`, `packages/solid/test/router.test.ts`,
+     `docs/architecture-deepening-review.md`, `docs/docs-drift-audit.md`,
+     `docs/effect-first-audit.md`, `docs/perfection-progress.md`,
+     `docs/release-notes.md`, and `docs/ultimate-goal-checklist.md`.
+   - Problem: initial route render thenables escaped to the host, but
+     navigation/update renders caught thenables inside the background
+     `renderTransition` Effect and returned without giving `RouterOutlet` a
+     suspended outcome. The Solid Suspense Adapter seam was therefore split
+     between the controller and the host view, and tentative suspended route
+     frames had no explicit retry/cleanup owner.
+   - Fix: the Solid Route Render Scope Controller now classifies suspended
+     render outcomes beside failures, stores the tentative route cleanup,
+     publishes the host thenable to `RouterOutlet`, retries the same transition
+     when that thenable settles, and disposes the suspended frame when a newer
+     transition wins. `RouterOutlet` feeds the published thenable into Solid's
+     `createResource(...)` Suspense Adapter while preserving ErrorBoundary
+     behavior for real render failures.
+   - Benefits: Suspense behavior now has Locality in one Module, and the public
+     Solid router Adapter gets better Depth: callers keep writing ordinary
+     route components while the controller owns route scope cleanup, stale
+     transition suppression, Suspense retry, and failure routing.
+
+Focused verification for this pass: Solid typecheck and Solid router tests
+passed with 42 tests. The wider framework, public API, Effect-first,
+type-test, and whitespace gates are recorded in the Review242 commit.
 
 ## Review 241: Current Evidence Docs Drift
 

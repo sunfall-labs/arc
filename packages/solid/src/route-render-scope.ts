@@ -47,6 +47,15 @@ class SolidRouteRenderFailure {
   ) {}
 }
 
+class SolidRouteRenderSuspension {
+  readonly _tag = "SolidRouteRenderSuspension";
+
+  constructor(
+    readonly thenable: unknown,
+    readonly dispose: Effect.Effect<void, never, never>
+  ) {}
+}
+
 const defaultPending = (): JSX.Element => undefined;
 
 const defaultFailure = <ER>(
@@ -102,12 +111,12 @@ const renderInRouteScope = <ER>(
     });
   } catch (error) {
     if (isPromiseLikeValue(error)) {
-      throw error;
+      throw new SolidRouteRenderSuspension(error, dispose);
     }
     throw new SolidRouteRenderFailure(error, dispose);
   }
   if (renderThenable !== undefined) {
-    throw renderThenable;
+    throw new SolidRouteRenderSuspension(renderThenable, dispose);
   }
   if (renderFailure !== undefined) {
     throw new SolidRouteRenderFailure(renderFailure.error, dispose);
@@ -148,6 +157,38 @@ const disposeRenderedRoute = (
 const solidRouteRenderFailure = (error: unknown): SolidRouteRenderFailure | undefined =>
   error instanceof SolidRouteRenderFailure ? error : undefined;
 
+const solidRouteRenderSuspension = (error: unknown): SolidRouteRenderSuspension | undefined =>
+  error instanceof SolidRouteRenderSuspension ? error : undefined;
+
+const awaitRouteRenderThenableEffect = (thenable: unknown): Effect.Effect<void> =>
+  Effect.callback((resume, signal) => {
+    let completed = false;
+    const abort = () => {
+      completed = true;
+      signal.removeEventListener("abort", abort);
+    };
+    const complete = () => {
+      if (completed) {
+        return;
+      }
+      completed = true;
+      signal.removeEventListener("abort", abort);
+      resume(Effect.void);
+    };
+    signal.addEventListener("abort", abort, { once: true });
+
+    try {
+      const then = Reflect.get(Object(thenable), "then");
+      if (typeof then !== "function") {
+        complete();
+        return;
+      }
+      Reflect.apply(then, thenable, [complete, complete]);
+    } catch {
+      complete();
+    }
+  });
+
 const scheduleRouteRenderError = (
   onCurrentTransition: () => boolean,
   setRenderError: Setter<unknown>,
@@ -168,6 +209,7 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
   readonly runtime: AnyEffectUiRuntime<ER>;
   readonly setNode: Setter<JSX.Element>;
   readonly setRenderError: Setter<unknown>;
+  readonly setRenderSuspension?: Setter<unknown>;
 }): SolidRouteRenderScopeController<Routes, ER> => {
   let renderedState = options.initialInput.state;
   let renderedIdentity = browserRouteRenderIdentity({
@@ -178,6 +220,15 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
   let disposeRoute: Effect.Effect<void, never, never> | undefined;
   let transitionVersion = 0;
   let disposalFiber: Fiber.Fiber<void, unknown> | undefined;
+  let suspensionRetryFiber: Fiber.Fiber<void, unknown> | undefined;
+
+  const interruptSuspensionRetry = (): void => {
+    const fiber = suspensionRetryFiber;
+    suspensionRetryFiber = undefined;
+    if (fiber !== undefined) {
+      void options.runtime.runFork(Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void)));
+    }
+  };
 
   const disposeStaleRenderedRoute = (rendered: RenderedRouteScope): void => {
     void options.runtime.runFork(
@@ -228,6 +279,23 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
       try {
         next = renderRouteState(input.state, input.renderers, options.runtime);
       } catch (error) {
+        const suspension = solidRouteRenderSuspension(error);
+        if (suspension !== undefined) {
+          if (transition !== transitionVersion) {
+            startRouteDisposal(suspension.dispose);
+            return;
+          }
+          if (options.setRenderSuspension === undefined) {
+            startRouteDisposal(suspension.dispose);
+            return;
+          }
+          disposeRoute = suspension.dispose;
+          options.setRenderError(() => undefined);
+          options.setNode(() => undefined);
+          options.setRenderSuspension(() => suspension.thenable);
+          scheduleSuspensionRetry(input, transition, suspension);
+          return;
+        }
         if (isPromiseLikeValue(error)) {
           return;
         }
@@ -252,17 +320,46 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
       }
 
       disposeRoute = next.dispose;
+      interruptSuspensionRetry();
       options.setRenderError(() => undefined);
+      options.setRenderSuspension?.(() => undefined);
       options.setNode(() => next.node);
     });
 
+  function scheduleSuspensionRetry(
+    input: SolidRouteRenderInput<Routes, ER>,
+    transition: number,
+    suspension: SolidRouteRenderSuspension
+  ): void {
+    interruptSuspensionRetry();
+    suspensionRetryFiber = options.runtime.runFork(
+      awaitRouteRenderThenableEffect(suspension.thenable).pipe(
+        Effect.andThen(Effect.sync(() => {
+          if (transition !== transitionVersion) {
+            return;
+          }
+          suspensionRetryFiber = undefined;
+          options.setRenderSuspension?.(() => undefined);
+          void options.runtime.runFork(renderTransition(
+            input,
+            transition,
+            startCurrentRouteDisposal()
+          ));
+        })),
+        Effect.catchCause(() => Effect.void)
+      )
+    );
+  }
+
   const disposeEffect = (): Effect.Effect<void> =>
     Effect.suspend(() => {
+      interruptSuspensionRetry();
       transitionVersion++;
       return joinRouteDisposal(startCurrentRouteDisposal());
     });
 
   const dispose = (): void => {
+    interruptSuspensionRetry();
     transitionVersion++;
     void startCurrentRouteDisposal();
   };
@@ -271,8 +368,22 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
     try {
       const initial = renderRouteState(renderedState, options.initialInput.renderers, options.runtime);
       disposeRoute = initial.dispose;
+      options.setRenderSuspension?.(() => undefined);
       options.setNode(() => initial.node);
     } catch (error) {
+      const suspension = solidRouteRenderSuspension(error);
+      if (suspension !== undefined) {
+        if (options.setRenderSuspension === undefined) {
+          startRouteDisposal(suspension.dispose);
+          throw suspension.thenable;
+        }
+        disposeRoute = suspension.dispose;
+        options.setNode(() => undefined);
+        options.setRenderError(() => undefined);
+        options.setRenderSuspension(() => suspension.thenable);
+        scheduleSuspensionRetry(options.initialInput, transitionVersion, suspension);
+        return;
+      }
       const failure = solidRouteRenderFailure(error);
       if (failure !== undefined) {
         startRouteDisposal(failure.dispose);
@@ -305,8 +416,10 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
       renderedState = input.state;
       renderedIdentity = nextIdentity;
       const transition = ++transitionVersion;
+      interruptSuspensionRetry();
       options.setNode(() => undefined);
       options.setRenderError(() => undefined);
+      options.setRenderSuspension?.(() => undefined);
       void options.runtime.runFork(renderTransition(
         input,
         transition,
