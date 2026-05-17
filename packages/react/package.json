@@ -1,9 +1,25 @@
 {
   "name": "@sunfall/arc-react",
-  "version": "0.0.0-alpha.0",
+  "version": "0.1.0-alpha.0",
   "description": "React runtime provider, router, resource, action, program, stream, and scope bindings for Sunfall Arc.",
+  "keywords": [
+    "effect",
+    "framework",
+    "react",
+    "resources",
+    "typescript"
+  ],
+  "homepage": "https://github.com/sunfall-labs/arc#readme",
+  "bugs": {
+    "url": "https://github.com/sunfall-labs/arc/issues"
+  },
   "license": "MIT",
   "author": "Andrew Lee",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sunfall-labs/arc.git",
+    "directory": "packages/react"
+  },
   "files": [
     "dist"
   ],

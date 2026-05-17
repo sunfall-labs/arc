@@ -330,8 +330,8 @@ or command result that proves it.
 - Devtools inspected-window bridge installation now lives in
   `packages/devtools/src/bridge.ts`, including Effect-scoped cleanup.
 - Framework package manifests are publishable under the MIT license with public
-  scoped-package access; repository metadata and real npm versions remain
-  explicit publication work.
+  scoped-package access and the selected `0.1.0-alpha.0` alpha version;
+  repository metadata points at `https://github.com/sunfall-labs/arc`.
 - DB live-query incremental IVM runtime work now lives in
   `packages/db/src/live-query-runtime.ts`, with Query facades delegating source
   preload/refetch loops and evaluation to that module.

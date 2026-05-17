@@ -8,7 +8,9 @@ import {
 } from "@sunfall/arc-start";
 import { Effect, Schema } from "effect";
 import { bench, describe } from "vitest";
-import { handleRequest } from "../examples/project-console/src/server.js";
+import { handleRequest, serverApp } from "../examples/project-console/src/server.js";
+
+const releaseBenchOptions = { throws: true };
 
 const BenchProject = Resource.family({
   name: "Benchmark.Project.byId",
@@ -78,57 +80,82 @@ const BenchProjectCards = Collection.liveQuery<ProjectCard, string>({
 });
 
 describe("Sunfall Arc release baseline", () => {
-  bench("project console streaming SSR", async () => {
-    const response = await handleRequest(
-      new Request("https://example.test/projects/atlas?tab=activity"),
-    );
-    await response.text();
-  });
+  bench(
+    "project console streaming SSR",
+    async () => {
+      const response = await Effect.runPromise(
+        serverApp.runtime.provide(
+          handleRequest(new Request("https://example.test/projects/atlas?tab=activity")),
+        ),
+      );
+      await response.text();
+    },
+    releaseBenchOptions,
+  );
 
-  bench("Start route preload request", async () => {
-    await Effect.runPromise(
-      preloadRequestEffect(benchStartApp, new Request("https://example.test/bench/projects/atlas")),
-    );
-  });
+  bench(
+    "Start route preload request",
+    async () => {
+      await Effect.runPromise(
+        preloadRequestEffect(
+          benchStartApp,
+          new Request("https://example.test/bench/projects/atlas"),
+        ),
+      );
+    },
+    releaseBenchOptions,
+  );
 
-  bench("Resource cold plus cached prefetch", async () => {
-    const runtime = makeRuntime();
-    try {
-      const ref = BenchProject("atlas");
-      await runtime.runPromise(Resource.prefetchEffect(ref));
-      await runtime.runPromise(Resource.prefetchEffect(ref));
-    } finally {
-      await runtime.runPromise(runtime.disposeEffect);
-    }
-  });
+  bench(
+    "Resource cold plus cached prefetch",
+    async () => {
+      const runtime = makeRuntime();
+      try {
+        const ref = BenchProject("atlas");
+        await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
+        await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
+      } finally {
+        await Effect.runPromise(runtime.disposeEffect);
+      }
+    },
+    releaseBenchOptions,
+  );
 
-  bench("Collection live query materialization", async () => {
-    const runtime = makeRuntime();
-    try {
-      await runtime.runPromise(BenchProjectCards.preloadEffect());
-      runWithRuntime(runtime, () => BenchProjectCards.rows());
-    } finally {
-      await runtime.runPromise(runtime.disposeEffect);
-    }
-  });
+  bench(
+    "Collection live query materialization",
+    async () => {
+      const runtime = makeRuntime();
+      try {
+        await Effect.runPromise(runtime.provide(BenchProjectCards.preloadEffect()));
+        runWithRuntime(runtime, () => BenchProjectCards.rows());
+      } finally {
+        await Effect.runPromise(runtime.disposeEffect);
+      }
+    },
+    releaseBenchOptions,
+  );
 
-  bench("Start RPC transport success", async () => {
-    const response = await Effect.runPromise(
-      createServerRpcResponseEffect(
-        benchRpcApp,
-        new Request(`https://example.test${serverRpcPath}`, {
-          method: "POST",
-          headers: {
-            accept: startJsonMediaType,
-            "content-type": startJsonMediaType,
-          },
-          body: JSON.stringify({
-            name: echo.name,
-            input: { value: "atlas" },
+  bench(
+    "Start RPC transport success",
+    async () => {
+      const response = await Effect.runPromise(
+        createServerRpcResponseEffect(
+          benchRpcApp,
+          new Request(`https://example.test${serverRpcPath}`, {
+            method: "POST",
+            headers: {
+              accept: startJsonMediaType,
+              "content-type": startJsonMediaType,
+            },
+            body: JSON.stringify({
+              name: echo.name,
+              input: { value: "atlas" },
+            }),
           }),
-        }),
-      ),
-    );
-    await response.json();
-  });
+        ),
+      );
+      await response.json();
+    },
+    releaseBenchOptions,
+  );
 });

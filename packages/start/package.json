@@ -1,9 +1,25 @@
 {
   "name": "@sunfall/arc-start",
-  "version": "0.0.0-alpha.0",
+  "version": "0.1.0-alpha.0",
   "description": "Sunfall Arc full-stack Start layer for SSR, hydration, transports, diagnostics, and app graphs.",
+  "keywords": [
+    "effect",
+    "framework",
+    "ssr",
+    "typescript",
+    "vite"
+  ],
+  "homepage": "https://github.com/sunfall-labs/arc#readme",
+  "bugs": {
+    "url": "https://github.com/sunfall-labs/arc/issues"
+  },
   "license": "MIT",
   "author": "Andrew Lee",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sunfall-labs/arc.git",
+    "directory": "packages/start"
+  },
   "bin": {
     "sunfall-arc-start": "./dist/cli.js"
   },

@@ -1,9 +1,25 @@
 {
   "name": "@sunfall/arc-db",
-  "version": "0.0.0-alpha.0",
+  "version": "0.1.0-alpha.0",
   "description": "Sunfall Arc local-first collections, live queries, persistence, and sync adapters.",
+  "keywords": [
+    "collections",
+    "effect",
+    "live-query",
+    "local-first",
+    "typescript"
+  ],
+  "homepage": "https://github.com/sunfall-labs/arc#readme",
+  "bugs": {
+    "url": "https://github.com/sunfall-labs/arc/issues"
+  },
   "license": "MIT",
   "author": "Andrew Lee",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sunfall-labs/arc.git",
+    "directory": "packages/db"
+  },
   "files": [
     "dist"
   ],

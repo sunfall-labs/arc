@@ -2,8 +2,9 @@
 
 This is the current release-candidate snapshot for the pre-release Sunfall Arc
 framework. Framework package manifests are configured for public MIT alpha
-publication; this remains a release-candidate draft until versions, repository
-metadata, and final npm publication are selected.
+publication under `https://github.com/sunfall-labs/arc`; this remains a
+release-candidate draft until final npm publication is selected. The selected
+first public alpha version is `0.1.0-alpha.0`.
 
 ## Stable For The First External App
 
@@ -66,14 +67,19 @@ metadata, and final npm publication are selected.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 492:
+Latest full gate on May 17, 2026 after Review 492, refreshed for
+release-readiness:
 
 - 11 package builds;
+- workspace format check and lint;
 - workspace typecheck and public type tests;
 - public API inventory audit;
+- Effect command runner policy verification;
+- package payload policy verification;
 - Effect-first audit over 449 package/example/config/script/type-test/generated
-  template/docs-snippet physical and virtual files;
-- 58 root test files / 1223 tests;
+  template/docs-snippet physical and virtual files, including 44 markdown docs
+  and 140 markdown code snippets;
+- 58 root test files / 1227 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, docs site, and project console packages;
 - starter-suite packaging for basic (20 app files / 5 local packages), React
@@ -86,7 +92,9 @@ Latest full gate on May 17, 2026 after Review 492:
 - project console typecheck;
 - 4 project console test files / 27 tests;
 - project console production build;
-- project console server-only leak scan.
+- project console server-only leak scan;
+- `pnpm benchmark` refreshed the SSR, route preload, Resource, live query, and
+  RPC transport baselines on May 17, 2026.
 - Clean Sweep 1 after Review510 found no actionable Module, Interface, Seam,
   Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package,
   generated-artifact, or docs-honesty work across Core/React/Solid, DB-family,
@@ -1877,17 +1885,16 @@ Latest full gate on May 17, 2026 after Review 492:
 
 ## Notable Limits
 
-- Framework packages are publishable public scoped packages, but still versioned
-  `0.0.0-alpha.0`.
+- Framework packages are publishable public scoped packages versioned
+  `0.1.0-alpha.0`.
 - Package manifests include pre-release descriptions, MIT license metadata,
-  author metadata, public scoped-package access, and build metadata, but final
-  public npm repository metadata and real version numbers are still open.
+  author metadata, public scoped-package access, package keywords, and build
+  metadata plus GitHub repository/homepage/bugs links. Final npm publication
+  credentials are still open.
 - The browser extension live bridge expects the inspected app to expose
   `globalThis.__SUNFALL_ARC_DEVTOOLS__`; automatic injection is not part of the
   checked shell.
 - Generated starter payloads currently include local `.sunfall-arc-packages/*`
-  file dependencies until the framework packages are actually published; final
-  public npm repository metadata and package versions are still tracked
-  separately from starter generation.
+  file dependencies until the framework packages are actually published.
 - Cloudflare, Vercel, Netlify, Bun, and static deployment currently use recipes
   over Node/fetch facades rather than dedicated packages.

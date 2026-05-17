@@ -48,6 +48,9 @@ export default defineConfig({
         test: {
           name: "react",
           include: reactTestIncludes,
+          benchmark: {
+            exclude: ["benchmarks/**/*.bench.ts"],
+          },
           globals: true,
         },
       },
@@ -60,6 +63,9 @@ export default defineConfig({
           name: "solid-core",
           include: ["packages/**/*.test.ts", "examples/**/*.test.ts"],
           exclude: [...configDefaults.exclude, ...reactTestIncludes],
+          benchmark: {
+            include: ["benchmarks/**/*.bench.ts"],
+          },
           globals: true,
         },
       },

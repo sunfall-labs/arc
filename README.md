@@ -36,6 +36,7 @@ while examples, diagnostics, and release gates are hardened.
 - [React starter](examples/react-starter/README.md)
 - [Migration notes](docs/migration-notes.md)
 - [Public API inventory](docs/public-api-inventory.md)
+- [Public release readiness](docs/public-release-readiness.md)
 - [Release notes draft](docs/release-notes.md)
 - [Devtools panel example](examples/devtools-panel/README.md)
 - [Devtools extension example](examples/devtools-extension/README.md)

@@ -110,7 +110,7 @@ export class StartDiagnosticsCliUsageError extends Data.TaggedError(
 export const startDiagnosticsCliUsage =
   "Run `sunfall-arc-start --help` for usage generated from the Effect CLI command tree.";
 
-const startDiagnosticsCliVersion = "0.0.0-alpha.0";
+const startDiagnosticsCliVersion = "0.1.0-alpha.0";
 
 const invalidGraphQueryKindError = (value: string): CliError.InvalidValue =>
   new CliError.InvalidValue({

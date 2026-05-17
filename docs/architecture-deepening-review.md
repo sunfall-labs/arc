@@ -9800,7 +9800,7 @@ Thirty-Sweep clean counter remains at 0.
   now flow through `Command.runWith(...)`, Effect CLI's built-in global flags,
   `CliError.ShowHelp`, and the formatter output path.
 - Version source: the `sunfall-arc-start` command runner now reports
-  `0.0.0-alpha.0`, matching the package version.
+  the package version through its CLI `--version` output.
 
 Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm exec
 vitest run packages/start/test/start.test.ts -t "Start diagnostics CLI"` (1 file

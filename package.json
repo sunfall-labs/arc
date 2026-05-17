@@ -1,8 +1,16 @@
 {
   "name": "sunfall-arc-workspace",
   "private": true,
+  "homepage": "https://github.com/sunfall-labs/arc#readme",
+  "bugs": {
+    "url": "https://github.com/sunfall-labs/arc/issues"
+  },
   "license": "MIT",
   "author": "Andrew Lee",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sunfall-labs/arc.git"
+  },
   "type": "module",
   "scripts": {
     "build": "pnpm -r --filter './packages/*' build",
