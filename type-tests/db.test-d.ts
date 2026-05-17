@@ -143,6 +143,34 @@ const persistedProjectOptions = persistedCollectionOptions<
 });
 const backgroundSyncEffect: Effect.Effect<CollectionBackgroundSyncResult, unknown> =
   backgroundSyncCollectionsPendingMutationsEffect([dbStaticProjectsCollection]);
+const collectionMemoryStorage = Collection.memoryStorage();
+const collectionStorage = Collection.storage({
+  getItem: () => null,
+  setItem: () => undefined,
+  removeItem: () => undefined
+});
+const collectionPersistedProjectOptions = Collection.persistedOptions<
+  Project,
+  string,
+  never,
+  never,
+  EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
+>({
+  name: "type-tests/collection-persisted-projects",
+  getKey: (project) => project.id,
+  initialData: [],
+  persistence: {
+    storage: sqliteNamespaceStorage
+  }
+});
+const collectionFlushEffect: Effect.Effect<ReadonlyArray<Collection.FlushAllPendingMutationsResult>, unknown> =
+  Collection.flushAllPendingMutationsEffect([dbStaticProjectsCollection]);
+const collectionBackgroundSyncEffect: Effect.Effect<Collection.BackgroundSyncResult, unknown> =
+  Collection.backgroundSyncPendingMutationsEffect([dbStaticProjectsCollection]);
+const collectionSqliteMemoryDatabase = Collection.sqliteMemoryStatementDatabase();
+const collectionSqliteStorage = Collection.sqliteStorage(
+  Collection.sqliteStatementDriver(collectionSqliteMemoryDatabase)
+);
 const sqliteRow: SQLitePersistenceRow = {
   namespace: "workspace",
   key: "projects",
@@ -290,6 +318,13 @@ const dbExports: Array<unknown> = [
   sqliteNamespaceStorage,
   persistedProjectOptions,
   backgroundSyncEffect,
+  collectionMemoryStorage,
+  collectionStorage,
+  collectionPersistedProjectOptions,
+  collectionFlushEffect,
+  collectionBackgroundSyncEffect,
+  collectionSqliteMemoryDatabase,
+  collectionSqliteStorage,
   sqliteRow,
   collectionAlias,
   liveQueryAlias,

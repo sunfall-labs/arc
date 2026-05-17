@@ -127,6 +127,12 @@ are easiest to regress while refactoring internals toward Effect primitives.
   `backgroundSyncCollectionsPendingMutationsEffect(...)` root pins, and
   Core/React/Solid source-surface manifest ownership. It moved the current full
   verification evidence to the Review230 gate.
+- Review231 added Browser Router Kernel and Host Controller `disposeEffect()`
+  type ownership, updated Solid's Browser Router projection for that Effect
+  Interface, required React DB/Solid DB `sourceSurface` manifest entries, and
+  added focused `Collection.*` namespace value pins for storage, persistence,
+  flush/background-sync, and SQLite helpers. It moved the current full
+  verification evidence to the Review231 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -246,12 +252,14 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review230 with
-  53 root test files / 1141 tests, including the latest branded
-  `Query.Builder` negative pin, Resource UI Binding `disposeEffect()` pin,
-  DB persistence/background-sync root pins, Core/React/Solid source-surface
-  manifest pins, Core helper ownership pins, Stable Identity Codec pins,
-  Resource duration pins, Start action bridge pins, Core Resource direct symbol
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review231 with
+  53 root test files / 1146 tests, including the latest Browser Router
+  `disposeEffect()` pin, DB adapter source-surface manifest pins, Collection
+  namespace value pins, branded `Query.Builder` negative pin, Resource UI
+  Binding `disposeEffect()` pin, DB persistence/background-sync root pins,
+  Core/React/Solid source-surface manifest pins, Core helper ownership pins,
+  Stable Identity Codec pins, Resource duration pins, Start action bridge pins,
+  Core Resource direct symbol
   pins, Solid path-helper pins, DB Query/Store public-surface negative pins,
   DB `QueryBuilder` root-export negative pin,
   Core `isPromiseLikeValue(...)` pin, direct DB root export pins, Start

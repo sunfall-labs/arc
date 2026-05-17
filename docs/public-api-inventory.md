@@ -60,10 +60,11 @@ entries may also list `requiredTypeTestImports` when a public symbol is
 important enough to pin as a direct import; the audit rejects entries that are
 not directly imported and exercised outside import declarations. It also checks
 manifest `sourceSurface` lists for entrypoints against their local
-re-exported Modules, checks that every package root barrel's local re-exported
-modules are named in that package's Source Surface section, and checks that
-Source Surface local-module lists do not name Modules the source file does not
-export. Declaration-level symbol policy lives in
+re-exported Modules, rejects missing `sourceSurface` lists for package roots
+that re-export local Modules, checks that every package root barrel's local
+re-exported modules are named in that package's Source Surface section, and
+checks that Source Surface local-module lists do not name Modules the source
+file does not export. Declaration-level symbol policy lives in
 `scripts/public-api-symbol-policy.mjs`: curated namespace-backed source modules
 must have an explicit audit allowance and a root-barrel import, curated hover
 declaration groups must be reachable from a package export or re-exported
@@ -231,6 +232,10 @@ Release decisions:
   `makeBrowserRouterLinkPreloader(...)` seam accepts only full preload identity
   facts and requirement-free preload Effects, so framework adapters must
   provide route services before handing hover work to Core.
+- `BrowserRouterKernel.disposeEffect()` and
+  `BrowserRouterHostController.disposeEffect()` are the Effect-first disposal
+  Interfaces for route preload lifetime teardown. Sync `dispose()` remains a
+  runtime-owned host cleanup convenience for framework owner hooks.
 - Browser route render decisions live in Core so framework adapters share the
   same outlet state meaning. `browserRouteRenderDecision(...)`,
   `browserRouteRenderKey(...)`, `BrowserRouteOutletRenderers`,
@@ -1104,11 +1109,14 @@ Release decisions:
   `EffectInput<void, unknown>`: observers may return pure values or Effects,
   Promise-shaped observers are rejected, observer failures are swallowed after
   the disposal failure is observed, and the prop is intentionally unavailable
-  for host-owned `runtime` props.
+  for host-owned `runtime` props. Provider-owned cleanup defers disposal by one
+  microtask so React StrictMode effect replay can cancel same-entry cleanup
+  before the still-current Runtime Spine is disposed.
 - React `useComponentScope(...)` and `useScoped(...)` install a commit-gated
   `UiScope`: render-time reads can observe the Runtime Spine, but scoped
   finalizers and forks are rejected until React commits the component so
-  abandoned renders cannot leak Effect work.
+  abandoned renders cannot leak Effect work. Cleanup uses the same replay-aware
+  microtask policy as `RuntimeProvider`.
 - React router helpers mirror the Solid route helper surface while exposing
   state through Effect UI `Signal` values that React components consume via
   `useSignal(...)`.
@@ -1128,7 +1136,9 @@ Release decisions:
   render-seam helpers such as `Resource.status(...)`, `read(...)`,
   `onDispose(...)`, and `forkScoped(...)` observe the same ownership as route
   preloads. The internal React Route Render Scope Controller owns this branch
-  rendering, keyed route frame remounting, runtime provider re-entry, and route
+  rendering, keyed route frame remounting, runtime provider re-entry,
+  replay-aware cleanup, committed finalizer buffering, speculative render-pass
+  finalizer replacement, pre-commit `forkScoped(...)` rejection, and route
   finalizer policy while the public router surface stays unchanged.
 - `useResource<..., ER>(...)` exposes `preloadFailure` and accepts
   `onPreloadFailure(...)` for automatic mount-time preloads. The observer may
@@ -1173,7 +1183,9 @@ Release decisions:
 - The focused React DB type test and public API manifest pin `Collection`,
   `Query`, `useCollection`, `useLiveQuery`, `CollectionHandle`, and
   `LiveQueryHandle`, plus `UseCollectionOptions` and `UseLiveQueryOptions`, as
-  direct imports so this Adapter re-export Interface cannot drift silently.
+  direct imports so this Adapter re-export Interface cannot drift silently. The
+  manifest also requires the root Source Surface Modules `collection` and
+  `live-query`.
 - `useCollection(...)` and `useLiveQuery(...)` share one internal React DB
   Reactive Binding Module for runtime capture, source subscriptions, cleanup,
   automatic preload, and runtime-bound returned Effects. The public handles
@@ -1292,7 +1304,9 @@ Release decisions:
 - The focused Solid DB type test and public API manifest pin `Collection`,
   `Query`, `useCollection`, `useLiveQuery`, `CollectionHandle`, and
   `LiveQueryHandle`, plus `UseCollectionOptions` and `UseLiveQueryOptions`, as
-  direct imports so this Adapter re-export Interface cannot drift silently.
+  direct imports so this Adapter re-export Interface cannot drift silently. The
+  manifest also requires the root Source Surface Modules `collection` and
+  `live-query`.
 - `useCollection(...)` and `useLiveQuery(...)` share one internal Solid DB
   Reactive Binding Module for runtime capture, source subscriptions, cleanup,
   automatic preload, and runtime-bound returned Effects. The public handles

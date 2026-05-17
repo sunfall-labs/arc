@@ -457,7 +457,9 @@ void text;
 
 const sourceSurfaceCoverageFailures = (entry, actualModules) => {
   if (entry.sourceSurface === undefined) {
-    return [];
+    return actualModules.length === 0
+      ? []
+      : [`${entry.package} export ${entry.export} sourceSurface is required because ${basename(entry.source)} re-exports local module ${actualModules[0]}`];
   }
 
   const surfaceFailures = [];
@@ -525,6 +527,12 @@ assertSourceSurfaceSelfTest(
   ["alpha", "stale"],
   ["alpha", "missing"],
   ["missing local re-exported module missing", "lists stale"]
+);
+assertSourceSurfaceSelfTest(
+  "missing source surface",
+  undefined,
+  ["alpha"],
+  ["sourceSurface is required"]
 );
 
 for (const entry of publicApiManifest.entrypoints ?? []) {

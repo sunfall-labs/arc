@@ -284,6 +284,10 @@
       "source": "packages/react-db/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/react-db.test-d.ts",
+      "sourceSurface": [
+        "collection",
+        "live-query"
+      ],
       "requiredTypeTestImports": [
         "Collection",
         "CollectionHandle",
@@ -369,6 +373,10 @@
       "source": "packages/solid-db/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/solid-db.test-d.ts",
+      "sourceSurface": [
+        "collection",
+        "live-query"
+      ],
       "requiredTypeTestImports": [
         "Collection",
         "CollectionHandle",

@@ -661,7 +661,26 @@ export const publicHoverDocGroups = [
         "SQLiteStatementDatabase",
         "SQLitePreparedStatement",
         "SQLitePreparedStatementDatabase",
-        "SQLitePreparedStatementDatabaseOptions"
+        "SQLitePreparedStatementDatabaseOptions",
+        "serverOptions",
+        "serverSyncAdapter",
+        "resourceSyncAdapter",
+        "querySyncAdapter",
+        "syncOptions",
+        "persistedOptions",
+        "liveQuery",
+        "makeRegistry",
+        "defaultRegistry",
+        "flushAllPendingMutationsEffect",
+        "backgroundSyncPendingMutationsEffect",
+        "sqliteStorage",
+        "sqlitePreparedStatementDatabase",
+        "sqliteStatementDriver",
+        "sqliteMemoryStatementDatabase",
+        "persistEffect",
+        "restoreEffect",
+        "memoryStorage",
+        "storage"
       ]
     }
   },

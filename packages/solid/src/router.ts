@@ -93,7 +93,7 @@ type BrowserRouterOptionsArgs<
 type SolidBrowserRouterHostController<
   Routes extends readonly AnyRoute[],
   ER
-> = Omit<BrowserRouterHostController<Routes, ER>, "state" | "match" | "start" | "dispose">;
+> = Omit<BrowserRouterHostController<Routes, ER>, "state" | "match" | "start" | "dispose" | "disposeEffect">;
 
 /** Solid browser router backed by Effect UI route definitions and preload. */
 export interface BrowserRouter<Routes extends readonly AnyRoute[] = readonly AnyRoute[], ER = never>

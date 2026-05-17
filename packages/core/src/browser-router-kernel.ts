@@ -94,6 +94,9 @@ export interface BrowserRouterKernel<
   readonly runtime: AnyEffectUiRuntime<ER>;
   readonly state: ReadableSignal<BrowserRouterState<Routes, ER>>;
   readonly match: ReadableSignal<Route.Match<Routes[number]> | undefined>;
+  /** Effect-first disposal for interrupting active route preload work before teardown completes. */
+  disposeEffect(): Effect.Effect<void>;
+  /** Runtime-owned synchronous convenience for framework host cleanup hooks. */
   dispose(): void;
   canHandleRoute(definition: AnyBrowserRoute): definition is Routes[number];
   href<R extends Routes[number]>(definition: R, ...args: Route.HrefArgs<R>): string;
@@ -232,11 +235,33 @@ export const createBrowserRouterKernel = <
   let navigation = 0;
   let preloadScope: UiScope | undefined;
 
+  const takePreloadScope = (): UiScope | undefined => {
+    const current = preloadScope;
+    preloadScope = undefined;
+    return current;
+  };
+
+  const disposePreloadScopeEffect = (): Effect.Effect<void> =>
+    Effect.suspend(() => {
+      const current = takePreloadScope();
+      return current === undefined
+        ? Effect.void
+        : current.disposeEffect().pipe(Effect.catch(() => Effect.void));
+    });
+
   const disposePreloadScope = (): void => {
-    if (preloadScope) {
-      void runtime.runFork(preloadScope.disposeEffect().pipe(Effect.catch(() => Effect.void)));
-      preloadScope = undefined;
-    }
+    void runtime.runFork(disposePreloadScopeEffect());
+  };
+
+  const disposeEffect = (): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      navigation++;
+      yield* disposePreloadScopeEffect();
+    });
+
+  const dispose = (): void => {
+    navigation++;
+    disposePreloadScope();
   };
 
   const setState = (next: BrowserRouterState<Routes, ER>): void => {
@@ -321,10 +346,8 @@ export const createBrowserRouterKernel = <
     runtime,
     state,
     match,
-    dispose: () => {
-      navigation++;
-      disposePreloadScope();
-    },
+    disposeEffect,
+    dispose,
     canHandleRoute: routeIsConfigured,
     href: (definition, ...args) => Route.href(definition, ...args),
     hrefByPath: (path, ...args) => {

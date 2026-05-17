@@ -1,7 +1,7 @@
-import { makeMemoryBrowserHistoryAdapter, makeRuntime, onDispose, Resource, route, runWithRuntime, type BrowserRouterState } from "@effect-ui/core";
+import { forkScoped, makeMemoryBrowserHistoryAdapter, makeRuntime, onDispose, Resource, route, runWithRuntime, UiScopeDisposed, type BrowserRouterState } from "@effect-ui/core";
 import { Cause, Deferred, Effect } from "effect";
 import { Window } from "happy-dom";
-import { act, Component, createElement, Fragment, useState, type ReactNode } from "react";
+import { act, Component, createElement, Fragment, StrictMode, useState, type ReactNode } from "react";
 import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -599,15 +599,55 @@ describe("react router", () => {
     }
   });
 
-  it("disposes route scope finalizers when route render throws before commit", async () => {
+  it("keeps committed route scopes alive across React StrictMode effect replay", async () => {
+    const runtime = makeRuntime();
+    const disposed: string[] = [];
+    const Home = route("/", {
+      component: () => {
+        onDispose(() => Effect.sync(() => {
+          disposed.push("home");
+        }));
+        return createElement("h1", {}, "Home");
+      }
+    });
+    const routes = [Home] as const;
+
+    try {
+      await withReactRoot(async (root, container) => {
+        await act(async () => {
+          root.render(
+            createElement(
+              StrictMode,
+              {},
+              createElement(RouterProvider, {
+                routes,
+                initialHref: "/",
+                runtime
+              })
+            )
+          );
+        });
+        await flushReact();
+        await Effect.runPromise(Effect.sleep("20 millis"));
+
+        expect(container.textContent).toBe("Home");
+        expect(disposed).toEqual([]);
+      });
+
+      await Effect.runPromise(Effect.sleep("20 millis"));
+      expect(disposed).toEqual(["home"]);
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("drops uncommitted route scope finalizers when route render throws before commit", async () => {
     const runtime = makeRuntime();
     const renderError = new Error("route render failed");
-    const attempts: string[] = [];
     const disposed: string[] = [];
     let caught: unknown;
     const Broken = route("/", {
       component: () => {
-        attempts.push("route");
         onDispose(() => Effect.sync(() => {
           disposed.push("route");
         }));
@@ -640,7 +680,47 @@ describe("react router", () => {
 
         expect(container.textContent).toBe("caught");
         expect(caught).toBe(renderError);
-        expect(disposed).toEqual(attempts);
+        expect(disposed).toEqual([]);
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("rejects route render scoped forks before React commit", async () => {
+    const runtime = makeRuntime();
+    let caught: unknown;
+    const Forking = route("/", {
+      component: () => {
+        forkScoped(Effect.never);
+        return createElement("h1", {}, "unreachable");
+      }
+    });
+    const routes = [Forking] as const;
+
+    try {
+      await withReactRoot(async (root, container) => {
+        await act(async () => {
+          root.render(
+            createElement(
+              TestErrorBoundary,
+              {
+                onError: (error) => {
+                  caught = error;
+                }
+              },
+              createElement(RouterProvider, {
+                routes,
+                initialHref: "/",
+                runtime
+              })
+            )
+          );
+        });
+        await flushReact();
+
+        expect(container.textContent).toBe("caught");
+        expect(caught).toBeInstanceOf(UiScopeDisposed);
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);

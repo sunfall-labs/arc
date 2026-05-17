@@ -241,6 +241,42 @@ describe("Resource UI Binding Controller", () => {
     );
   });
 
+  it("disposeEffect lets the same ref bind retain again after cleanup replay", () => {
+    const runtime = makeRuntime();
+    const ProjectById = Resource.family<string, Project>({
+      name: "ResourceUiBinding.dispose-rebind",
+      load: (id) => Effect.succeed({ id, name: id })
+    });
+    const ref = ProjectById("atlas");
+    const controller = makeResourceUiBindingController<string, Project, never, never, never>({
+      runtime
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        controller.bindRef(ref);
+        yield* Effect.sleep("20 millis");
+
+        const store = unsafeMutableResourceStore(runtime.resourceStore);
+        expect([...store.retainedRefs.entries()]).toEqual([
+          [resourceRefStoreKey(ref), 1]
+        ]);
+
+        yield* controller.disposeEffect();
+        expect([...store.retainedRefs.entries()]).toEqual([]);
+
+        controller.bindRef(ref);
+        yield* Effect.sleep("20 millis");
+        expect([...store.retainedRefs.entries()]).toEqual([
+          [resourceRefStoreKey(ref), 1]
+        ]);
+      }).pipe(
+        Effect.ensuring(controller.disposeEffect()),
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
   it("dedupes Suspense preload host tokens per ref", () => {
     const runtime = makeRuntime();
     const ProjectById = Resource.family<string, Project>({

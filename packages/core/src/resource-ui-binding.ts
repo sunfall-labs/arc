@@ -263,6 +263,8 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     Effect.gen(function* () {
       yield* interruptPreloadEffect();
       releaseRetainedRef();
+      currentRef = undefined;
+      setPreloadFailure(undefined);
       const currentRetention = retentionFiber;
       if (currentRetention !== undefined) {
         yield* Fiber.join(currentRetention).pipe(Effect.catch(() => Effect.void));

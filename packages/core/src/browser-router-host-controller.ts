@@ -1,4 +1,4 @@
-import type { Effect } from "effect";
+import { Effect } from "effect";
 import type { Route } from "./route.js";
 import type { AnyEffectUiRuntime } from "./runtime.js";
 import type { ReadableSignal } from "./signal.js";
@@ -53,7 +53,11 @@ export interface BrowserRouterHostController<
   readonly runtime: AnyEffectUiRuntime<ER>;
   readonly state: ReadableSignal<BrowserRouterState<Routes, ER>>;
   readonly match: ReadableSignal<Route.Match<Routes[number]> | undefined>;
+  /** Starts history listening and returns an idempotent host-listener cleanup. */
   start(): () => void;
+  /** Effect-first disposal for host listeners plus active route preload work. */
+  disposeEffect(): Effect.Effect<void>;
+  /** Runtime-owned synchronous convenience for framework host cleanup hooks. */
   dispose(): void;
   canHandleRoute(definition: AnyBrowserRoute): definition is Routes[number];
   href<R extends Routes[number]>(definition: R, ...args: Route.HrefArgs<R>): string;
@@ -108,6 +112,20 @@ export const createBrowserRouterHostController = <
   const kernel = createBrowserRouterKernel(routes, kernelOptions);
   let started = false;
   let stopHistory = (): void => undefined;
+  const stopHost = (): void => {
+    stopHistory();
+    stopHistory = () => undefined;
+    started = false;
+  };
+  const disposeEffect = (): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      stopHost();
+      yield* kernel.disposeEffect();
+    });
+  const dispose = (): void => {
+    stopHost();
+    kernel.dispose();
+  };
 
   const controller: BrowserRouterHostController<Routes, ER> = {
     routes,
@@ -125,12 +143,8 @@ export const createBrowserRouterHostController = <
 
       return controller.dispose;
     },
-    dispose: () => {
-      stopHistory();
-      stopHistory = () => undefined;
-      started = false;
-      kernel.dispose();
-    },
+    disposeEffect,
+    dispose,
     canHandleRoute: kernel.canHandleRoute,
     href: kernel.href,
     hrefByPath: kernel.hrefByPath,

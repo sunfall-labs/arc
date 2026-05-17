@@ -1,7 +1,7 @@
 import { Action, makeRuntime, Program, Resource, ResourceStoreDisposeError, RuntimeDisposeError, Signal, UiScopeDisposed, watch } from "@effect-ui/core";
 import { Window } from "happy-dom";
 import { Cause, Context, Deferred, Effect, Fiber, Layer, Scope, Stream } from "effect";
-import { Suspense, act, createElement, useEffect, useState } from "react";
+import { StrictMode, Suspense, act, createElement, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -235,6 +235,40 @@ describe("react hooks", () => {
     ).rejects.toBeInstanceOf(UiScopeDisposed);
 
     await Effect.runPromise(runtime.disposeEffect);
+  });
+
+  it("keeps runtime-owned scoped runners alive across React StrictMode effect replay", async () => {
+    let runs = 0;
+
+    function Capture() {
+      const runEffect = useRuntimeEffect();
+      useEffect(() => {
+        runEffect(Effect.sync(() => {
+          runs++;
+        }));
+      }, [runEffect]);
+      return null;
+    }
+
+    await withReactRoot(async (root) => {
+      await act(async () => {
+        root.render(
+          createElement(
+            StrictMode,
+            {},
+            createElement(
+              RuntimeProvider,
+              {},
+              createElement(Capture)
+            )
+          )
+        );
+      });
+      await flushReact();
+      await Effect.runPromise(Effect.sleep("20 millis"));
+
+      expect(runs).toBe(2);
+    });
   });
 
   it("bridges same-ref delete and reload through React resource handles", async () => {

@@ -11,11 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review230, the post-Review229 sweep
-fixing branded DB query builders, Effect-first Resource UI Binding disposal,
-React commit-gated component scopes, manifest-owned source surfaces, DB
-persisted/background-sync public pins, and D2 locality docs wording. The newest
-full verification checkpoint is Review230.
+The newest completed focused review is Review231, the post-Review230 sweep
+fixing Browser Router Effect-first disposal, replay-safe Resource UI Binding
+cleanup, React StrictMode-safe runtime/route scopes, required React DB and
+Solid DB source-surface manifest ownership, and Collection namespace public
+pins. The newest full verification checkpoint is Review231.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -36,7 +36,8 @@ and the post-Review226 sweep found Review227 work,
 and the post-Review227 sweep found Review228 work,
 and the post-Review228 sweep found Review229 work,
 and the post-Review229 sweep found Review230 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review230
+and the post-Review230 sweep found Review231 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review231
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -44,7 +45,7 @@ Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, Review219,
 Review220, Review221, Review222, Review223, Review224, Review225,
-Review226, Review227, Review228, Review229, and Review230 work.
+Review226, Review227, Review228, Review229, Review230, and Review231 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -119,8 +120,111 @@ and the post-Review227 sweep found Review228 Core, DB, and Start public seam
 work,
 and the post-Review228 sweep found Review229 Core, Solid, DB, Start, and script
 public seam work, and the post-Review229 sweep found Review230 Core/React/Solid
-Resource UI Binding, DB query/public-surface, and docs/LSP ownership work,
+Resource UI Binding, DB query/public-surface, and docs/LSP ownership work, and
+the post-Review230 sweep found Review231 Core/React/Solid browser-router,
+Resource UI Binding replay, React route-scope, and DB public source ownership
+work,
 so the counter remains 0/30.
+
+## Review 231: Replay-Safe UI Lifetimes And Source Ownership
+
+Review231 fixed the narrow actionable findings from the fresh post-Review230
+sweep and records one larger DB Query Stage Planning candidate for the next
+deepening pass.
+
+1. Browser Router Disposal Effect
+   - Status: fixed.
+   - Files: `packages/core/src/browser-router-kernel.ts`,
+     `packages/core/src/browser-router-host-controller.ts`,
+     `packages/core/test/browser-router.test.ts`,
+     `packages/solid/src/router.ts`, and `type-tests/core.test-d.ts`.
+   - Problem: the Browser Router Kernel and Host Controller exposed only sync
+     `dispose()` even though they own active route preload `UiScope` teardown.
+   - Fix: both Interfaces now expose `disposeEffect()` for Effect-first
+     teardown while keeping sync `dispose()` as a runtime-owned host cleanup
+     convenience. Tests prove active navigation preload work is interrupted
+     before the disposal Effect completes.
+   - Benefits: route preload lifetime now has one Effect Interface with better
+     Locality for framework Adapters and better Leverage for tests.
+
+2. Resource UI Binding Replay Cleanup
+   - Status: fixed.
+   - Files: `packages/core/src/resource-ui-binding.ts` and
+     `packages/core/test/resource-ui-binding.test.ts`.
+   - Problem: `disposeEffect()` released the retained ref but left `currentRef`
+     set, so a StrictMode-style cleanup/rebind of the same ref could skip the
+     next retain.
+   - Fix: controller disposal now clears both retained ref state and keyed
+     preload failure state, and a regression proves the same ref can be bound
+     and retained again after cleanup replay.
+   - Benefits: the Resource UI Binding Controller remains the single adapter
+     policy Module for ref retain/release sequencing.
+
+3. React Commit Scope Replay Safety
+   - Status: fixed.
+   - Files: `packages/react/src/runtime.ts`, `packages/react/src/route-render-scope.ts`,
+     `packages/react/test/hooks.test.ts`, and
+     `packages/react/test/router.test.ts`.
+   - Problem: React `RuntimeProvider`, component scopes, and route scopes could
+     dispose still-current lifetimes during StrictMode effect replay, and route
+     rendering bypassed the React commit-gated scope Seam by creating Core
+     frames directly.
+   - Fix: React now owns a React Commit Scope Adapter. Provider-owned runtimes,
+     component scopes, and route frames defer cleanup by one microtask so replay
+     setup can cancel same-frame disposal. Route render frames use the React
+     commit-gated frame, buffer `onDispose(...)` registrations until commit,
+     replace speculative render-pass finalizers, reject pre-commit
+     `forkScoped(...)`, and drop uncommitted finalizers on render failure.
+   - Benefits: React host lifecycle policy is local to the React Adapter while
+     Core keeps the simpler runtime-owned `UiScope` Interface.
+
+4. DB Adapter Source Surface Manifest Ownership
+   - Status: fixed.
+   - Files: `scripts/audit-public-api-inventory.mjs` and
+     `type-tests/public-api.manifest.json`.
+   - Problem: `@effect-ui/react-db` and `@effect-ui/solid-db` root barrels
+     re-exported local modules documented in the inventory, but the manifest
+     did not require their `sourceSurface` entries.
+   - Fix: the public API audit now rejects missing `sourceSurface` lists for
+     local root re-exports, and both DB adapter manifests pin
+     `collection` and `live-query`.
+   - Benefits: package-root source ownership is now manifest-owned, keeping
+     LSP-facing docs and package barrels aligned.
+
+5. Collection Namespace Public Pins
+   - Status: fixed.
+   - Files: `scripts/public-api-symbol-policy.mjs` and
+     `type-tests/db.test-d.ts`.
+   - Problem: the documented `Collection.*` namespace value surface had broad
+     type-test coverage, but focused hover-policy ownership was weaker than the
+     public Interface.
+   - Fix: hover policy now owns the main `Collection` namespace value aliases,
+     and DB public type tests exercise representative storage, persistence,
+     flush, background-sync, and SQLite namespace helpers directly.
+   - Benefits: LSP hover quality now follows the namespace Interface users
+     actually compose with instead of only the top-level aliases.
+
+6. DB Query Stage Planning
+   - Status: queued for the next deepening pass.
+   - Files: `packages/db/src/query-plan.ts`,
+     `packages/db/src/query-execution-plan.ts`, and
+     `packages/db/src/live-query-runtime.ts`.
+   - Problem: snapshot execution and Live Query Runtime still split stage
+     knowledge across planning, execution, and live evaluation Modules.
+   - Candidate fix: introduce a compiled Query Stage Plan consumed by both
+     snapshot execution and Live Query Runtime so source reads, index choices,
+     joins, projection, and live invalidation dependencies share one deeper
+     Interface.
+   - Benefits: this should improve Locality for query behavior and reduce the
+     chance that live and snapshot query semantics drift.
+
+Focused workspace evidence for this pass: Core/DB/React/Solid typechecks,
+public type tests, public API audit, focused Core Browser Router and Resource
+UI Binding tests, focused React hook/router tests, and focused Solid
+hook/router tests passed before the full Review231 gate. Full `pnpm verify`
+passed after Review231 with 53 root test files / 1146 tests and the 411-file
+Effect-first audit. This sweep found work, so the active clean counter remains
+0/30 until a fresh post-Review231 sweep is clean.
 
 ## Review 230: Branded Builders And Effect-First UI Disposal
 
@@ -188,7 +292,7 @@ public type tests, public API audit, Effect-first audit, focused Core Resource
 UI Binding tests, focused React hook tests, and `git diff --check` passed. Full
 `pnpm verify` passed after Review230 with 53 root test files / 1141 tests and
 the 411-file Effect-first audit. This sweep found work, so the active clean
-counter remains 0/30 until a fresh post-Review230 sweep is clean.
+counter remained 0/30; the later post-Review230 sweep found Review231 work.
 
 ## Review 229: Public Surface Ownership And Scoped Command Runners
 
@@ -1826,8 +1930,9 @@ the post-Review222 local sweep found Review223 work, and the post-Review223
 sweep found Review224 work, the post-Review224 sweep found Review225 work, the
 post-Review225 sweep found Review226 work, the post-Review226 sweep found
 Review227 work, the post-Review227 sweep found Review228 work, and the
-post-Review228 sweep found Review229 work, and the post-Review229 sweep found
-Review230 work. The active counter is 0/30 until a fresh post-Review230 sweep
+post-Review228 sweep found Review229 work, the post-Review229 sweep found
+Review230 work, and the post-Review230 sweep found Review231 work. The active
+counter is 0/30 until a fresh post-Review231 sweep
 reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift

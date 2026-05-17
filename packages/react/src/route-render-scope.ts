@@ -1,20 +1,22 @@
 import {
   browserRouteRenderDecision,
   browserRouteRenderIdentity,
-  makeRuntimeUiScopeFrame,
   type AnyEffectUiRuntime,
   type AnyBrowserRoute,
   type BrowserRouterState,
-  type BrowserRouteOutletRenderers,
-  type RuntimeUiScopeFrame
+  type BrowserRouteOutletRenderers
 } from "@effect-ui/core";
 import {
   createElement,
-  useEffect,
+  useLayoutEffect,
   useRef,
   type ReactNode
 } from "react";
-import { RuntimeContext } from "./runtime.js";
+import {
+  makeReactRuntimeUiScopeFrame,
+  RuntimeContext,
+  type ReactRuntimeUiScopeFrame
+} from "./runtime.js";
 
 type AnyRoute = AnyBrowserRoute;
 
@@ -45,25 +47,44 @@ interface RouteRenderFrameProps<ER> {
 const RouteRenderFrame = <ER,>(props: RouteRenderFrameProps<ER>): ReactNode => {
   const scopeRef = useRef<{
     readonly runtime: AnyEffectUiRuntime<ER>;
-    readonly frame: RuntimeUiScopeFrame<ER>;
+    readonly frame: ReactRuntimeUiScopeFrame<ER>;
   } | undefined>(undefined);
 
   if (scopeRef.current === undefined || scopeRef.current.runtime !== props.runtime) {
     scopeRef.current = {
       runtime: props.runtime,
-      frame: makeRuntimeUiScopeFrame(props.runtime)
+      frame: makeReactRuntimeUiScopeFrame(props.runtime, {
+        preCommitFinalizers: "buffer"
+      })
     };
   }
 
   const frame = scopeRef.current.frame;
+  const activeFrameRef = useRef(frame);
+  const frameLifecycleVersionRef = useRef(0);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    activeFrameRef.current = frame;
+    frameLifecycleVersionRef.current++;
+    frame.commit();
     return () => {
-      void props.runtime.runFork(frame.disposeEffect());
+      const cleanupFrame = frame;
+      const cleanupVersion = ++frameLifecycleVersionRef.current;
+      queueMicrotask(() => {
+        if (
+          activeFrameRef.current === cleanupFrame &&
+          frameLifecycleVersionRef.current !== cleanupVersion
+        ) {
+          return;
+        }
+
+        void props.runtime.runFork(cleanupFrame.disposeEffect());
+      });
     };
   }, [props.runtime, frame]);
 
   try {
+    frame.beginRenderPass();
     return frame.run(props.render);
   } catch (error) {
     scopeRef.current = undefined;

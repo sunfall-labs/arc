@@ -542,7 +542,7 @@ describe("browser router kernel", () => {
             initialHref: "/missing",
             runtime
           });
-          yield* Effect.addFinalizer(() => Effect.sync(() => router.dispose()));
+          yield* Effect.addFinalizer(() => router.disposeEffect());
 
           yield* router.preloadEffect(Project, { params: { id: "settings" } });
           expect(preloaded).toEqual(["settings"]);
@@ -583,7 +583,7 @@ describe("browser router kernel", () => {
             initialHref: "/retry-projects/atlas",
             runtime
           });
-          yield* Effect.addFinalizer(() => Effect.sync(() => router.dispose()));
+          yield* Effect.addFinalizer(() => router.disposeEffect());
 
           router.navigateHref("/retry-projects/atlas");
           yield* Effect.promise(() =>
@@ -635,7 +635,7 @@ describe("browser router kernel", () => {
             initialHref: "/missing",
             runtime
           });
-          yield* Effect.addFinalizer(() => Effect.sync(() => router.dispose()));
+          yield* Effect.addFinalizer(() => router.disposeEffect());
 
           router.navigateHref("/slow");
           yield* Effect.promise(() => vi.waitFor(() => expect(starts).toBe(1)));
@@ -649,6 +649,41 @@ describe("browser router kernel", () => {
               });
             })
           );
+        })
+      )
+    ));
+
+  it("disposeEffect interrupts current navigation preload before completing", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          let starts = 0;
+          let finalizers = 0;
+          const Slow = route("/dispose-slow", {
+            preload: () =>
+              Effect.sync(() => {
+                starts++;
+              }).pipe(
+                Effect.andThen(Effect.never),
+                Effect.ensuring(Effect.sync(() => {
+                  finalizers++;
+                }))
+              )
+          });
+          const router = createBrowserRouterKernel([Slow] as const, {
+            initialHref: "/missing",
+            runtime
+          });
+          yield* Effect.addFinalizer(() => router.disposeEffect());
+
+          router.navigateHref("/dispose-slow");
+          yield* Effect.promise(() => vi.waitFor(() => expect(starts).toBe(1)));
+
+          yield* router.disposeEffect();
+          expect(finalizers).toBe(1);
         })
       )
     ));
@@ -672,7 +707,7 @@ describe("browser router kernel", () => {
             initialHref: "/missing",
             runtime
           });
-          yield* Effect.addFinalizer(() => Effect.sync(() => router.dispose()));
+          yield* Effect.addFinalizer(() => router.disposeEffect());
 
           const preloadExit = yield* Effect.exit(
             // @ts-expect-error outside route intentionally violates the configured router tuple
@@ -713,7 +748,7 @@ describe("browser router kernel", () => {
             initialHref: "/failure-projects/atlas",
             runtime
           });
-          yield* Effect.addFinalizer(() => Effect.sync(() => router.dispose()));
+          yield* Effect.addFinalizer(() => router.disposeEffect());
 
           router.navigateHref("/failure-projects/atlas");
           yield* Effect.promise(() =>
@@ -749,7 +784,7 @@ describe("browser router kernel", () => {
             initialHref: "/promise-failure-projects/atlas",
             runtime
           });
-          yield* Effect.addFinalizer(() => Effect.sync(() => router.dispose()));
+          yield* Effect.addFinalizer(() => router.disposeEffect());
 
           router.navigateHref("/promise-failure-projects/atlas");
           yield* Effect.promise(() =>
@@ -791,7 +826,7 @@ describe("browser router kernel", () => {
             initialHref: "/missing",
             runtime
           });
-          yield* Effect.addFinalizer(() => Effect.sync(() => router.dispose()));
+          yield* Effect.addFinalizer(() => router.disposeEffect());
 
           expect(router.hrefByPath("/path-projects/:id", {
             params: { id: "atlas" }

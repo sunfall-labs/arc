@@ -171,6 +171,7 @@ const browserRouterKernelOptions: BrowserRouterKernelOptions<typeof coreRoutes, 
   initialHref: "/projects/atlas"
 };
 const browserRouterKernel = createBrowserRouterKernel(coreRoutes, browserRouterKernelOptions);
+const browserRouterKernelDisposeEffect: Effect.Effect<void> = browserRouterKernel.disposeEffect();
 const browserRouterPath: BrowserRouterPath<typeof coreRoutes> = "/projects/:id";
 type CoreProjectRoute = BrowserRouterRouteForPath<typeof coreRoutes, "/projects/:id">;
 const browserNavigateArgs: BrowserNavigateArgs<CoreProjectRoute> = [{ params: { id: "atlas" } }];
@@ -186,6 +187,11 @@ if (browserRouterInitialMatch) {
   browserRouterInitialMatchedState(initialMatchedStateOptions)._tag;
 }
 const memoryHistory = makeMemoryBrowserHistoryAdapter({ initialHref: "/projects" });
+const browserRouterHostController = createBrowserRouterHostController(coreRoutes, {
+  runtime: browserRouterKernelRuntime,
+  history: memoryHistory
+});
+const browserRouterHostDisposeEffect: Effect.Effect<void> = browserRouterHostController.disposeEffect();
 const windowHistory = makeWindowBrowserHistoryAdapter();
 const browserHistory: BrowserHistoryAdapter = memoryHistory;
 const navigateOptions: BrowserNavigateOptions = { replace: true };
@@ -664,6 +670,9 @@ void routeSegmentsMatch;
 void routePrefix;
 void routeMatch;
 void builtRoutePath;
+void browserRouterKernelDisposeEffect;
+void browserRouterHostController;
+void browserRouterHostDisposeEffect;
 void routeHref;
 void projectRouteParams;
 void renderKey;

@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 230:
+Latest full gate on May 17, 2026 after Review 231:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 411 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1141 tests;
+- 53 root test files / 1146 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, and project console packages;
 - starter-suite packaging for basic (19 app files / 5 local packages), React
@@ -86,6 +86,18 @@ Latest full gate on May 17, 2026 after Review 230:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 231 closed the post-Review230 sweep findings: Browser Router Kernel
+  and Host Controller now expose Effect-first `disposeEffect()` teardown for
+  active route preload lifetimes; Resource UI Binding cleanup resets retained
+  ref state so StrictMode-style same-ref rebinds retain again; React runtime,
+  component, and route scopes are replay-safe under StrictMode while route
+  scopes use the React commit-gated Seam instead of direct Core frames; the
+  public API inventory audit now requires `sourceSurface` for local root
+  re-exports and pins React DB/Solid DB `collection` and `live-query`; and
+  `Collection.*` namespace values have hover-policy and type-test ownership.
+  The active Thirty-Sweep clean counter remains 0/30 until a fresh
+  post-Review231 sweep is clean; DB Query Stage Planning remains the next
+  recorded deepening candidate.
 - Review 230 closed the post-Review229 sweep findings: public `Query.Builder`
   is now branded so the Type Interface matches runtime fake-builder rejection;
   `ResourceUiBindingController` exposes Effect-first `disposeEffect()` for
@@ -94,8 +106,8 @@ Latest full gate on May 17, 2026 after Review 230:
   abandoned renders cannot start scoped work; Core/React/Solid source surfaces
   live in the public manifest; DB persistence/background-sync root helpers have
   LSP/type-test ownership; and DB D2 locality docs no longer overstate
-  unordered grouped windows. The active Thirty-Sweep clean counter remains
-  0/30 until a fresh post-Review230 sweep is clean.
+  unordered grouped windows. The active Thirty-Sweep clean counter remained
+  0/30; a later post-Review230 sweep found Review231 work.
 - Review 229 closed the post-Review228 sweep findings: Start action request,
   form, and client helpers now have root-export, hover-policy, inventory, and
   type-test ownership; the Effect command runner owns stdout/stderr collectors
@@ -398,9 +410,9 @@ Latest full gate on May 17, 2026 after Review 230:
   sweep found Review224 work, the post-Review224 sweep found Review225 work,
   the post-Review225 sweep found Review226 work, the post-Review226 sweep
   found Review227 work, the post-Review227 sweep found Review228 work, and the
-  post-Review228 sweep found Review229 work, and the post-Review229 sweep
-  found Review230 work.
-  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review230
+  post-Review228 sweep found Review229 work, the post-Review229 sweep
+  found Review230 work, and the post-Review230 sweep found Review231 work.
+  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review231
   sweep reports no
   actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
@@ -1341,10 +1353,10 @@ Latest full gate on May 17, 2026 after Review 230:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 230 branded query builders,
-  Effect-first Resource UI Binding disposal, React commit-gated scope Locality,
-  manifest-owned source surfaces, DB persistence/background-sync pins, and D2
-  docs wording.
+- The latest full `pnpm verify` passed after Review 231 Browser Router
+  disposal Effects, Resource UI Binding replay cleanup, React StrictMode
+  runtime/route scope Locality, manifest-owned source surfaces, and Collection
+  namespace pins.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1365,10 +1377,11 @@ Latest full gate on May 17, 2026 after Review 230:
   Review225 work, the post-Review225 sweep found Review226 work, the
   post-Review226 sweep found Review227 work, the post-Review227 sweep found
   Review228 work, the post-Review228 sweep found Review229 work, and the
-  post-Review229 sweep found Review230 work, so the active counter is 0/30.
+  post-Review229 sweep found Review230 work, and the post-Review230 sweep found
+  Review231 work, so the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 411 physical/virtual files, 53 root test files / 1141
+  Effect-first audit over 411 physical/virtual files, 53 root test files / 1146
   tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console

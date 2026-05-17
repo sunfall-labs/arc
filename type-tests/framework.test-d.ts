@@ -808,7 +808,7 @@ const projectBrowserRouter: BrowserRouter<readonly [typeof ProjectRoute]> = crea
 );
 const projectBrowserRouterCoreProjection: Omit<
   BrowserRouterHostController<readonly [typeof ProjectRoute]>,
-  "state" | "match" | "start" | "dispose"
+  "state" | "match" | "start" | "dispose" | "disposeEffect"
 > = projectBrowserRouter;
 const projectBrowserRouterState: BrowserRouterState<readonly [typeof ProjectRoute]> =
   projectBrowserRouter.state();
