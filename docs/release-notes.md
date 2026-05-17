@@ -922,10 +922,12 @@ Latest full gate on May 17, 2026 after Review 218:
   opaque while carrying a generic runtime error channel with `never` defaults,
   so public seams no longer publish `unknown` as an error type.
 - `pnpm verify` passed after the opaque runtime option wildcard cleanup.
-- Start trace/finalizer helpers and Solid runtime provider/router surfaces now
-  use opaque runtime/source types; the only remaining
+- Start trace/finalizer helpers and Solid runtime provider/runtime-context
+  surfaces now use opaque runtime/source types; the remaining exact
   `EffectUiRuntime<any, any>` source hits are core ambient runtime accessors
-  that preserve caller error typing.
+  that preserve caller error typing. React/Solid router and Start host seams
+  still use named `EffectUiRuntime<any, ER>` adapter bounds where they infer or
+  erase runtime services at framework boundaries.
 - `pnpm verify` passed after the runtime helper wildcard cleanup.
 - Conditional helper types now use inferred placeholder parameters instead of
   ignored `any`, arbitrary route params/search constraints use opaque

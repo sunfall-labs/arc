@@ -792,10 +792,12 @@ interruption.
   `pnpm --filter @effect-ui/solid-db typecheck`, and `pnpm typecheck:types`
   passed after tightening Start trace/finalizer helpers, Solid runtime
   provider/router surfaces, `useRuntime()`, and the Solid-DB subscription helper
-  to opaque runtime/source types. The only remaining
+  to opaque runtime/source types. The remaining exact
   `EffectUiRuntime<any, any>` source hits are the core ambient runtime accessors
   that preserve caller error typing for `runFork`, `runPromiseExit`, and
-  resource/action workflows.
+  resource/action workflows; public router and Start host seams still name
+  `EffectUiRuntime<any, ER>` adapter bounds where they infer or erase runtime
+  services at framework boundaries.
 - Full `pnpm verify` passed after the runtime helper wildcard cleanup: 9
   package builds, workspace typecheck, type tests, 38 root test files / 320
   tests, devtools-panel verify, devtools-extension verify with 1 extension test

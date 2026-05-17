@@ -51,6 +51,22 @@ export interface DisposeRuntimeProviderLifecycleOptions {
 }
 
 /**
+ * Disposes provider-owned runtimes with the runtime's typed disposal failure.
+ *
+ * Host-owned runtimes are left untouched. Use this lower-level Effect when a
+ * host can compose or report `RuntimeDisposeError` directly. Framework cleanup
+ * hooks should use `disposeRuntimeProviderLifecycleEffect(...)` so disposal
+ * failures are routed through their observer seam instead of throwing during
+ * unmount.
+ */
+export const disposeRuntimeProviderLifecycleEntryEffect = <ER>(
+  entry: RuntimeProviderLifecycleEntry<ER>
+): Effect.Effect<void, RuntimeDisposeError> =>
+  entry.ownsRuntime
+    ? entry.runtime.disposeEffect
+    : Effect.void;
+
+/**
  * Disposes provider-owned runtimes and reports failures through an EffectInput observer.
  *
  * Host-owned runtimes are left untouched. Observer failures, including
@@ -61,15 +77,13 @@ export const disposeRuntimeProviderLifecycleEffect = <ER>(
   entry: RuntimeProviderLifecycleEntry<ER>,
   options: DisposeRuntimeProviderLifecycleOptions
 ): Effect.Effect<void> =>
-  entry.ownsRuntime
-    ? entry.runtime.disposeEffect.pipe(
-        Effect.catch((error) =>
-          options.onDisposeFailure === undefined
-            ? Effect.void
-            : invokeEffectInput(options.observerOperation, options.onDisposeFailure, error).pipe(
-                Effect.catchCause(() => Effect.void),
-                Effect.asVoid
-              )
-        )
+  disposeRuntimeProviderLifecycleEntryEffect(entry).pipe(
+    Effect.catch((error) =>
+      options.onDisposeFailure === undefined
+        ? Effect.void
+        : invokeEffectInput(options.observerOperation, options.onDisposeFailure, error).pipe(
+            Effect.catchCause(() => Effect.void),
+            Effect.asVoid
+          )
       )
-    : Effect.void;
+  );

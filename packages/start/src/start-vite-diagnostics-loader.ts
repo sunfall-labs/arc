@@ -210,7 +210,14 @@ const closeStartDiagnosticsViteServerEffect = (
     Effect.asVoid
   );
 
-const loadStartAppGraphDiagnosticsFromServerEffect = (
+/**
+ * Loads diagnostics from a caller-owned Vite server without closing it.
+ *
+ * Use this when tests, CLIs, or dev integrations already own the server
+ * lifetime. Temporary diagnostics servers are acquired and released by
+ * `loadStartAppGraphDiagnosticsEffect(...)` instead.
+ */
+export const loadStartAppGraphDiagnosticsFromServerEffect = (
   server: StartDiagnosticsViteServer
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
   Effect.gen(function* () {
@@ -229,8 +236,14 @@ const loadStartAppGraphDiagnosticsFromServerEffect = (
 export const loadStartAppGraphDiagnosticsWithServerEffect = (
   server: StartDiagnosticsViteServer
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
+  loadStartAppGraphDiagnosticsFromServerEffect(server);
+
+/** Loads diagnostics from an explicitly acquired server and releases it afterward. */
+export const loadStartAppGraphDiagnosticsWithOwnedServerEffect = (
+  acquireServer: Effect.Effect<StartDiagnosticsViteServer, StartAppGraphDiagnosticsLoadError>
+): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
   Effect.acquireUseRelease(
-    Effect.succeed(server),
+    acquireServer,
     loadStartAppGraphDiagnosticsFromServerEffect,
     closeStartDiagnosticsViteServerEffect
   );
@@ -399,11 +412,7 @@ const loadStartAppGraphDiagnosticsRawEffect = (
         ...(options.start.actionPath === undefined ? {} : { actionPath: options.start.actionPath })
       });
     }
-    return yield* Effect.acquireUseRelease(
-      startDiagnosticsViteServerEffect(options),
-      loadStartAppGraphDiagnosticsFromServerEffect,
-      closeStartDiagnosticsViteServerEffect
-    );
+    return yield* loadStartAppGraphDiagnosticsWithOwnedServerEffect(startDiagnosticsViteServerEffect(options));
   });
 
 /**

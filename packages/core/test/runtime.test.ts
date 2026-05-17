@@ -2,6 +2,7 @@ import { Cause, Context, Deferred, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   Action,
+  disposeRuntimeProviderLifecycleEntryEffect,
   disposeRuntimeProviderLifecycleEffect,
   disposeResourceStoreEffect,
   makeRuntimeProviderLifecycleEntry,
@@ -245,6 +246,27 @@ describe("Effect UI runtime", () => {
           expect(entry.ownsRuntime).toBe(true);
           expect(disposals).toBe(1);
         });
+      })
+    ));
+
+  it("exposes typed provider-owned runtime lifecycle disposal failures", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const hostOwnedRuntime = makeRuntime();
+        const hostOwnedEntry = makeRuntimeProviderLifecycleEntry({ runtime: hostOwnedRuntime });
+        const providerOwnedEntry = makeRuntimeProviderLifecycleEntry();
+        providerOwnedEntry.runtime.resourceStore.moduleRegistry.register(Symbol("typed-runtime-provider-failure"), {
+          disposeEffect: Effect.fail("typed dispose failed")
+        });
+
+        yield* disposeRuntimeProviderLifecycleEntryEffect(hostOwnedEntry);
+        const failure = yield* Effect.flip(disposeRuntimeProviderLifecycleEntryEffect(providerOwnedEntry));
+
+        yield* Effect.sync(() => {
+          expect(failure).toBeInstanceOf(RuntimeDisposeError);
+          expect(failure.phase).toBe("resource-store");
+        });
+        yield* hostOwnedRuntime.disposeEffect;
       })
     ));
 

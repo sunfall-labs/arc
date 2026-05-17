@@ -569,7 +569,13 @@ export const makeSQLitePersistenceStorage = <E = never, R = never>(
   ): Effect.Effect<void, E | EffectInputCallbackError, R> =>
     table.ensure ? runStorageCallback("ensure", () => table.ensure!()) : Effect.void;
 
-  const rowKey = (key: string): SQLitePersistenceKey => ({ namespace, key });
+  const rowKeyEffect = (key: string): Effect.Effect<SQLitePersistenceKey, SQLitePersistenceInvalidRow> =>
+    Effect.gen(function* () {
+      return {
+        namespace: yield* statementRowString("namespace", namespace),
+        key: yield* statementRowString("key", key)
+      };
+    });
 
   const storage = {
     getItem: (key: string) =>
@@ -577,7 +583,8 @@ export const makeSQLitePersistenceStorage = <E = never, R = never>(
         const table = yield* tableEffect();
         yield* ensureTable(table);
         const currentSchemaVersion = yield* statementRowNumber("schema_version", schemaVersion);
-        const row = yield* runStorageCallback("get", () => table.get(rowKey(key)));
+        const rowKey = yield* rowKeyEffect(key);
+        const row = yield* runStorageCallback("get", () => table.get(rowKey));
         const validRow = row == null ? null : yield* sqlitePersistenceRowEffect(row);
         return validRow?.schemaVersion === currentSchemaVersion ? validRow.value : null;
       }),
@@ -588,12 +595,14 @@ export const makeSQLitePersistenceStorage = <E = never, R = never>(
         const currentSchemaVersion = yield* statementRowNumber("schema_version", schemaVersion);
         const updatedAt = yield* runStorageCallback("now", now);
         const validUpdatedAt = yield* statementRowNumber("updated_at", updatedAt);
-        yield* runStorageCallback("upsert", () => table.upsert({
-          ...rowKey(key),
+        const rowKey = yield* rowKeyEffect(key);
+        const row = yield* sqlitePersistenceRowEffect({
+          ...rowKey,
           schemaVersion: currentSchemaVersion,
           value,
           updatedAt: validUpdatedAt
-        }));
+        });
+        yield* runStorageCallback("upsert", () => table.upsert(row));
       })
   } satisfies Omit<
     CollectionPersistenceStorage<E | EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName, R>,
@@ -609,7 +618,8 @@ export const makeSQLitePersistenceStorage = <E = never, R = never>(
           return;
         }
         yield* ensureTable(table);
-        yield* runStorageCallback("delete", () => table.delete!(rowKey(key)));
+        const rowKey = yield* rowKeyEffect(key);
+        yield* runStorageCallback("delete", () => table.delete!(rowKey));
       })
   };
 };

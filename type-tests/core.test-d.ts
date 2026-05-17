@@ -30,6 +30,7 @@ import {
   createBrowserRouterKernel,
   createBrowserRouterHostController,
   defineApp,
+  disposeRuntimeProviderLifecycleEntryEffect,
   disposeRuntimeProviderLifecycleEffect,
   disposeResourceStoreEffect,
   forkScoped,
@@ -136,6 +137,8 @@ const runtimeProviderDisposeOptions: DisposeRuntimeProviderLifecycleOptions = {
 };
 const runtimeProviderLifecycleDisposeEffect: Effect.Effect<void> =
   disposeRuntimeProviderLifecycleEffect(runtimeProviderLifecycleEntry, runtimeProviderDisposeOptions);
+const runtimeProviderLifecycleTypedDisposeEffect: Effect.Effect<void, RuntimeDisposeError> =
+  disposeRuntimeProviderLifecycleEntryEffect(runtimeProviderLifecycleEntry);
 class CoreAdapterCleanupError {
   readonly _tag = "CoreAdapterCleanupError";
 }

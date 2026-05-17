@@ -178,6 +178,7 @@ export const publicHoverDocGroups = [
       "RuntimeProviderLifecycleEntry",
       "makeRuntimeProviderLifecycleEntry",
       "DisposeRuntimeProviderLifecycleOptions",
+      "disposeRuntimeProviderLifecycleEntryEffect",
       "disposeRuntimeProviderLifecycleEffect"
     ]
   },

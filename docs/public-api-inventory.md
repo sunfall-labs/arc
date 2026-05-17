@@ -105,9 +105,13 @@ Golden-path public groups:
 - `Signal`, `Form`, `Capability`, `UiScope`
 - `makeRuntime`, `runWithRuntime`, `runFork`, `EffectUiRuntime.provide(...)`,
   `AnyEffectUiRuntime`
-- `makeRuntimeProviderLifecycleEntry(...)` and
-  `disposeRuntimeProviderLifecycleEffect(...)` for framework Runtime Provider
-  adapters that normalize host-owned versus provider-owned lifecycle.
+- Runtime Provider lifecycle vocabulary:
+  `RuntimeProviderDisposeObserver`, `RuntimeProviderLifecycleOptions`,
+  `RuntimeProviderLifecycleEntry`, `makeRuntimeProviderLifecycleEntry(...)`,
+  `disposeRuntimeProviderLifecycleEntryEffect(...)`, and
+  `disposeRuntimeProviderLifecycleEffect(...)`. Core callers can compose the
+  typed `RuntimeDisposeError` disposal path directly; framework adapters use
+  the observer/swallow helper for host cleanup hooks.
 - `Resource.requestFamily` for Resource state backed by Effect
   `RequestResolver` batching/deduping.
 - `Resource.deleteEffect(ref)` for explicit Effect-first removal from the

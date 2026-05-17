@@ -17,6 +17,10 @@
         "ActionTypeId",
         "ActionUseOptions",
         "DisposeRuntimeProviderLifecycleOptions",
+        "RuntimeProviderDisposeObserver",
+        "RuntimeProviderLifecycleEntry",
+        "RuntimeProviderLifecycleOptions",
+        "disposeRuntimeProviderLifecycleEntryEffect",
         "isActionDefinition"
       ]
     },

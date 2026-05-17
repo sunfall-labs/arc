@@ -75,6 +75,8 @@ import {
 } from "../src/request-trace.js";
 import {
   effectUiStartVirtualModules,
+  loadStartAppGraphDiagnosticsFromServerEffect,
+  loadStartAppGraphDiagnosticsWithOwnedServerEffect,
   loadStartAppGraphDiagnosticsWithServerEffect
 } from "../src/start-vite-diagnostics-loader.js";
 import {
@@ -6969,11 +6971,37 @@ describe("Effect UI Start", () => {
     }
   }, 20000);
 
-  it("reports Vite diagnostics server close failures as typed load errors", async () => {
+  it("borrows caller-owned Vite diagnostics servers without closing them", async () => {
+    const graph = JSON.parse(serializeStartAppGraph({ fileRoutes: [] }));
+    let closeCalls = 0;
+    const server = {
+      ssrLoadModule: async () => ({
+        graph,
+        diagnostics: describeStartAppGraph(graph),
+        diagnosticsPolicyViolations: []
+      }),
+      close: async () => {
+        closeCalls += 1;
+      }
+    };
+
+    const loaded = await Effect.runPromise(
+      loadStartAppGraphDiagnosticsFromServerEffect(server)
+    );
+    const withServerLoaded = await Effect.runPromise(
+      loadStartAppGraphDiagnosticsWithServerEffect(server)
+    );
+
+    expect(loaded.diagnostics.routeCount).toBe(0);
+    expect(withServerLoaded.diagnostics.routeCount).toBe(0);
+    expect(closeCalls).toBe(0);
+  });
+
+  it("reports owned Vite diagnostics server close failures as typed load errors", async () => {
     const graph = JSON.parse(serializeStartAppGraph({ fileRoutes: [] }));
     let closeCalls = 0;
     const exit = await Effect.runPromiseExit(
-      loadStartAppGraphDiagnosticsWithServerEffect({
+      loadStartAppGraphDiagnosticsWithOwnedServerEffect(Effect.succeed({
         ssrLoadModule: async () => ({
           graph,
           diagnostics: describeStartAppGraph(graph),
@@ -6983,7 +7011,7 @@ describe("Effect UI Start", () => {
           closeCalls += 1;
           throw new Error("diagnostics close failed");
         }
-      })
+      }))
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 

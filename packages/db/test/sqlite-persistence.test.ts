@@ -728,4 +728,71 @@ describe("SQLite persistence storage", () => {
         expect(fake.table().row("workspace:a", "projects-cache")).toBeUndefined();
       })
     ));
+
+  it("rejects malformed direct-driver string fields before table callbacks observe them", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        let getCalls = 0;
+        let upsertCalls = 0;
+        let deleteCalls = 0;
+        const table: SQLitePersistenceTable<never, never> = {
+          get: () => {
+            getCalls += 1;
+            return null;
+          },
+          upsert: () => {
+            upsertCalls += 1;
+          },
+          delete: () => {
+            deleteCalls += 1;
+          }
+        };
+        const driver: SQLitePersistenceDriver<never, never> = {
+          table: () => table
+        };
+        const invalidNamespaceStorage = makeSQLitePersistenceStorage(driver, {
+          namespace: 123 as unknown as string,
+          schemaVersion: 1
+        });
+        const storage = makeSQLitePersistenceStorage(driver, {
+          namespace: "workspace:a",
+          schemaVersion: 1
+        });
+
+        const namespaceFailure = yield* Effect.flip(toEffect(invalidNamespaceStorage.getItem("projects-cache")));
+        const getKeyFailure = yield* Effect.flip(toEffect(storage.getItem(123 as unknown as string)));
+        const setKeyFailure = yield* Effect.flip(toEffect(storage.setItem(123 as unknown as string, "{}")));
+        const valueFailure = yield* Effect.flip(toEffect(storage.setItem("projects-cache", 123 as unknown as string)));
+        const deleteKeyFailure = yield* Effect.flip(toEffect(storage.removeItem!(123 as unknown as string)));
+
+        expect(namespaceFailure).toMatchObject({
+          _tag: "SQLitePersistenceInvalidRow",
+          field: "namespace",
+          expected: "string"
+        });
+        expect(getKeyFailure).toMatchObject({
+          _tag: "SQLitePersistenceInvalidRow",
+          field: "key",
+          expected: "string"
+        });
+        expect(setKeyFailure).toMatchObject({
+          _tag: "SQLitePersistenceInvalidRow",
+          field: "key",
+          expected: "string"
+        });
+        expect(valueFailure).toMatchObject({
+          _tag: "SQLitePersistenceInvalidRow",
+          field: "value",
+          expected: "string"
+        });
+        expect(deleteKeyFailure).toMatchObject({
+          _tag: "SQLitePersistenceInvalidRow",
+          field: "key",
+          expected: "string"
+        });
+        expect(getCalls).toBe(0);
+        expect(upsertCalls).toBe(0);
+        expect(deleteCalls).toBe(0);
+      })
+    ));
 });
