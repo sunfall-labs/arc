@@ -96,7 +96,8 @@ are easiest to regress while refactoring internals toward Effect primitives.
   definitions require a browser router runtime carrying the preload service
   layer, and focused adapter tests directly import/use adapter-root core
   re-exports, runtime helpers, `RouterLink`, `RouterOutlet`, `useRouter`,
-  router errors, and route/path helper types.
+  `isPlainLeftClick`, `BrowserNavigateOptions`, router errors, and route/path
+  helper types.
 - Solid resource and Solid DB hook type tests pin runtime-bound returned
   Effects, optional runtime-error generics, and the fact that Solid DB handles
   no longer expose service requirements already provided by the Solid runtime.

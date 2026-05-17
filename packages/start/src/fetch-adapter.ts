@@ -152,8 +152,9 @@ export function createFetchHandler<Handler extends StartRequestHandlerInput<any,
     return runStartHostPromise(
       responseWithScopeLifetimeEffect(effectHandler(request), {
         abortSignal: merged.abortSignal,
-        abortTeardownReason: "request-abort"
-      }).pipe(Effect.ensuring(Effect.sync(merged.cleanup))),
+        abortTeardownReason: "request-abort",
+        onCleanup: merged.cleanup
+      }),
       {
         ...options,
         runOptions: merged.runOptions

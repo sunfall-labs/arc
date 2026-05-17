@@ -11,14 +11,15 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review202, the post-Review201 sweep
-fixing adapter-root public pins, DB persistence/query contract parity, and
-workspace package verification/payload hygiene. The newest full verification
-checkpoint is Review202. Clean
+The newest completed focused review is Review203, the post-Review202 sweep
+fixing adapter router public pins, fetch facade merged-abort stream lifetime,
+Effect v4 verify failure handling, package-local no-emit typecheck commands,
+and current evidence metadata. The newest full verification checkpoint is
+Review203. Clean
 Sweep 1 after Review190 remains
 historical evidence, but later sweeps found Review191, Review192, Review193,
 Review194, Review195, Review196, Review197, Review198, Review199, and
-Review200, Review201, and Review202 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review202 sweep reports no actionable
+Review200, Review201, Review202, and Review203 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review203 sweep reports no actionable
 findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
@@ -47,8 +48,96 @@ Solid/React DB/Start work, the first post-Review199 sweep found Review200
 Core/React/Solid, DB, and Start work, and the first post-Review200 sweep found
 Review201 script/docs, Core/React/Solid public surface, and DB contract work.
 The first post-Review201 sweep found Review202 adapter-root, DB, scripts, and
-docs work. The counter remains inactive until a fresh post-Review202 sweep is
-clean.
+docs work. The first post-Review202 sweep found Review203 adapter router,
+Start fetch abort-lifetime, package typecheck, verify failure-path, and docs
+metadata work. The counter remains inactive until a fresh post-Review203 sweep
+is clean.
+
+## Review 203: Adapter Router Pins, Fetch Abort Lifetime, And Verify Commands
+
+Review203 fixed actionable findings from the fresh post-Review202 sweep. The
+Core/React/Solid lane found two router exports missing from focused public type
+pins. The Start lane found fallback merged abort listeners could be cleaned
+before a streamed fetch facade response finished. The docs/scripts lane found
+stale evidence metadata, and an attempted sandbox verification exposed an
+Effect v4 `verify.mjs` failure-path call to a non-existent `Effect.zipRight`
+helper plus a package-local `tsgo -b --noEmit` reference-mode hazard.
+
+1. React/Solid Router Public Pins
+   - Status: fixed.
+   - Files: `type-tests/react.test-d.ts`, `type-tests/solid.test-d.ts`,
+     `type-tests/public-api.manifest.json`,
+     `docs/public-api-inventory.md`,
+     `docs/type-test-coverage-audit.md`.
+   - Problem: React and Solid roots publicly exported `isPlainLeftClick` and
+     `BrowserNavigateOptions`, but the focused public type tests and manifest
+     did not require direct adapter-root imports.
+   - Fix: React and Solid type tests now import and exercise
+     `isPlainLeftClick` and `BrowserNavigateOptions` from the adapter roots,
+     and the manifest requires those symbols.
+   - Benefits: router click-policy and navigation-option hovers cannot drift
+     away from the documented adapter roots while public API audits stay green.
+
+2. Fetch Facade Merged Abort Lifetime
+   - Status: fixed.
+   - Files: `packages/start/src/fetch-adapter.ts`,
+     `packages/start/src/response-lifetime.ts`,
+     `packages/start/test/adapters.test.ts`.
+   - Problem: `createFetchHandler(...)` merged `options.runOptions.signal`
+     with `request.signal`, but when native `AbortSignal.any(...)` was
+     unavailable, fallback listeners were removed as soon as the handler
+     produced a `Response`. A later request abort could miss streamed response
+     cancellation.
+   - Fix: `responseWithScopeLifetimeEffect(...)` now accepts a synchronous
+     lifecycle cleanup hook and runs it exactly once when the response Scope
+     closes, whether the handler fails, returns a bodyless response, or the
+     body closes/errors/cancels. `createFetchHandler(...)` ties merged abort
+     cleanup to that lifetime instead of an outer handler Effect. A regression
+     disables native `AbortSignal.any(...)`, merges both host signals, aborts
+     after response creation, and proves the upstream body cancellation plus
+     Scope finalization still occur.
+   - Benefits: fetch host compatibility keeps request abort propagation alive
+     for the whole streamed body lifetime without moving application code back
+     to Promise-owned semantics.
+
+3. Effect v4 Verify Failure Path And Package Typecheck Commands
+   - Status: fixed.
+   - Files: `scripts/verify.mjs`, `packages/*/package.json`,
+     `docs/package-hygiene-audit.md`, `docs/effect-first-audit.md`.
+   - Problem: the workspace verify command failure path used
+     `Effect.zipRight(...)`, which is not present in the pinned Effect v4 beta,
+     and package-local no-emit build-mode typechecks could hit TypeScript
+     project-reference `noEmit` constraints.
+   - Fix: `verify.mjs` now flushes command output and raises
+     `VerifyCommandError` through `Effect.gen(...)`. Package-local typechecks
+     use `tsgo -p tsconfig.json --pretty false --noEmit`, while the root
+     workspace typecheck remains the project-reference build gate.
+   - Benefits: verification failures stay typed and printable on Effect v4,
+     and package-local typecheck commands remain read-only without colliding
+     with build-mode reference rules.
+
+4. Current Evidence Metadata
+   - Status: fixed.
+   - Files: `docs/public-api-inventory.md`,
+     `docs/ultimate-goal-checklist.md`, release ledgers.
+   - Problem: the public API inventory and ultimate-goal checklist still
+     carried May 16 evidence metadata while already documenting Review202
+     content from May 17.
+   - Fix: evidence dates now match the current Review203 ledger, and the
+     current-gate docs name the post-Review202 findings honestly.
+   - Benefits: LSP/public API docs and release ledgers report the same current
+     verification window.
+
+Focused verification for Review203 passed: `pnpm typecheck`,
+`pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over
+408 files, all 11 package-local `typecheck` scripts, focused Start fetch abort
+regressions, and Start adapters/streaming/start/rpc regressions with 4 files /
+223 tests under network-enabled local listener permissions. Full `pnpm verify`
+passed after Review203: 11 package builds, workspace typecheck, public type
+tests, public API audit, Effect-first audit over 408 files, 53 root test files
+/ 1062 tests, package-level verifies, generated starter packaging, 16-target
+package dry-run gate, project-console checks, and leak scans. This sweep found
+work, so the active clean counter remains 0/30.
 
 ## Review 202: Adapter Root Pins, DB Persistence, And Package Hygiene
 

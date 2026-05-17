@@ -1,6 +1,6 @@
 # Public API Inventory
 
-Last updated: 2026-05-16.
+Last updated: 2026-05-17.
 
 This is the first release-candidate inventory required by the framework
 perfection charter. It tracks only import paths exported by package manifests;
@@ -988,7 +988,8 @@ The root export includes:
 - `RuntimeProvider`, `createEffectRuntime`, `useRuntime`, component scopes, and
   core re-exports used by React apps;
 - router APIs: `createBrowserRouter`, `RouterProvider`, `RouterOutlet`,
-  `RouterLink`, `useRouter`, `BrowserRouterState`, `RouterContextMissing`,
+  `RouterLink`, `useRouter`, `isPlainLeftClick`, `BrowserRouterState`,
+  `BrowserNavigateOptions`, `RouterContextMissing`,
   `RouterRouteNotRegistered`, route/path helper types, and typed route failure
   renderers;
 - hooks for signals, streams, programs, resources, suspense, and actions.
@@ -1094,7 +1095,8 @@ The root export includes:
 - `RuntimeProvider`, `createEffectRuntime`, `useRuntime`, component scopes, and
   core re-exports used by Solid apps;
 - router APIs: `createBrowserRouter`, `RouterProvider`, `RouterOutlet`,
-  `RouterLink`, `useRouter`, `BrowserRouterState`, `RouterContextMissing`,
+  `RouterLink`, `useRouter`, `isPlainLeftClick`, `BrowserRouterState`,
+  `BrowserNavigateOptions`, `RouterContextMissing`,
   `RouterRouteNotRegistered`, route/path helper types, and typed route failure
   renderers;
 - hooks for signals, streams, programs, resources, suspense, and actions.

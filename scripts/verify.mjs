@@ -77,18 +77,17 @@ const run = (label, args, options = {}) =>
         writePrefixedChunk(label, (text) => process.stderr.write(text), output.stderr, chunk)
     }).pipe(
       Effect.catch((error) =>
-        Effect.sync(flushOutput).pipe(
-          Effect.zipRight(
-            Effect.fail(new VerifyCommandError({
-              label,
-              command: commandText,
-              message: error.code === undefined
-                ? `Failed to start ${label}.`
-                : `${label} failed with ${error.signal === null ? "exit code " + error.code : "signal " + error.signal}.`,
-              cause: error.cause
-            }))
-          )
-        )
+        Effect.gen(function* () {
+          yield* Effect.sync(flushOutput);
+          return yield* Effect.fail(new VerifyCommandError({
+            label,
+            command: commandText,
+            message: error.code === undefined
+              ? `Failed to start ${label}.`
+              : `${label} failed with ${error.signal === null ? "exit code " + error.code : "signal " + error.signal}.`,
+            cause: error.cause
+          }));
+        })
       )
     );
     flushOutput();

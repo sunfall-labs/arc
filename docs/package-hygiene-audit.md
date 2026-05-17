@@ -127,13 +127,19 @@ exports. It supports the release-engineering charter workstream.
   all 16 package payloads: 11 framework dist packages, 19 basic starter files,
   24 React starter files, 30 project-console files, 10 devtools panel files,
   and 15 devtools extension files.
-- The current full `pnpm verify` passed after Review202 with 11 package builds,
+- The current full `pnpm verify` passed after Review203 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 408 files, 53 root test files / 1061 tests, derived
+  Effect-first audit over 408 files, 53 root test files / 1062 tests, derived
   package-level verifies for the five copyable source packages, generated
   starter packaging, and the 16-target dry-run gate. Review179 remains the
   focused package-hygiene evidence for concrete source-map artifact validation
   and source-package verify-script enforcement.
+- Review203 focused package hygiene kept all 11 package-local typecheck scripts
+  no-emit while moving them to `tsgo -p tsconfig.json --pretty false --noEmit`;
+  the root workspace typecheck remains the project-reference build gate. The
+  same slice fixed `scripts/verify.mjs` failure handling to use Effect v4
+  generator composition instead of an unavailable `Effect.zipRight(...)`
+  helper.
 - Review202 focused package hygiene passed `pnpm example:pack-dry-run` across
   all 16 package payloads and fast generated starter packaging/verifies after
   sharing the dist/declaration payload policy with starter local package

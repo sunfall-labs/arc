@@ -23,6 +23,7 @@ import {
   createComponentScope,
   createEffectRuntime,
   forkScoped,
+  isPlainLeftClick,
   onDispose,
   read,
   useAction,
@@ -40,6 +41,7 @@ import {
   watch,
   type ActionHandle,
   type BrowserNavigateArgs,
+  type BrowserNavigateOptions,
   type BrowserRouter,
   type BrowserRouterPath,
   type BrowserRouterOptions,
@@ -79,6 +81,14 @@ type SolidRouteForHome = BrowserRouterRouteForPath<typeof solidRoutes, typeof so
 const solidRouteForPath: SolidRouteForHome = solidRoutes[0];
 const solidRouteHref: string = Route.href(solidRoutes[0]);
 const solidNavigateArgs: BrowserNavigateArgs<typeof solidRoutes[0]> = [];
+const solidNavigateOptions: BrowserNavigateOptions = { replace: true };
+const solidPlainLeftClick: boolean = isPlainLeftClick({
+  button: 0,
+  metaKey: false,
+  altKey: false,
+  ctrlKey: false,
+  shiftKey: false
+});
 const solidRouterLinkProps: RouterLinkProps<typeof solidRoutes[0]> = {
   route: solidRoutes[0],
   children: "Home"
@@ -178,6 +188,7 @@ const solidExports: Array<unknown> = [
   createComponentScope,
   createEffectRuntime,
   forkScoped,
+  isPlainLeftClick,
   onDispose,
   read,
   useAction,
@@ -200,6 +211,8 @@ const solidExports: Array<unknown> = [
   solidRouteForPath,
   solidRouteHref,
   solidNavigateArgs,
+  solidNavigateOptions,
+  solidPlainLeftClick,
   solidRouterLinkProps,
   solidRouterLinkNode,
   solidRouterOutletNode,
@@ -232,6 +245,7 @@ const solidExports: Array<unknown> = [
 type SolidRouter = BrowserRouter | RouterOutletProps;
 type SolidRouterLinkProps = RouterLinkProps<typeof solidRoutes[0]>;
 type SolidBrowserNavigateArgs = BrowserNavigateArgs<typeof solidRoutes[0]>;
+type SolidBrowserNavigateOptions = BrowserNavigateOptions;
 type SolidBrowserRouterPath = BrowserRouterPath<typeof solidRoutes>;
 type SolidBrowserRouterRouteForPath = BrowserRouterRouteForPath<typeof solidRoutes, "/">;
 type SolidBrowserRouterState = BrowserRouterState<typeof solidRoutes>;
@@ -249,6 +263,7 @@ void solidExports;
 type _SolidRouter = SolidRouter;
 type _SolidRouterLinkProps = SolidRouterLinkProps;
 type _SolidBrowserNavigateArgs = SolidBrowserNavigateArgs;
+type _SolidBrowserNavigateOptions = SolidBrowserNavigateOptions;
 type _SolidBrowserRouterPath = SolidBrowserRouterPath;
 type _SolidBrowserRouterRouteForPath = SolidBrowserRouterRouteForPath;
 type _SolidBrowserRouterState = SolidBrowserRouterState;

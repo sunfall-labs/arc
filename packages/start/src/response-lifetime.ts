@@ -9,6 +9,7 @@ export interface ResponseScopeLifetimeOptions {
   readonly runEffect?: StartResponseStreamRunner;
   readonly abortSignal?: AbortSignal;
   readonly abortTeardownReason?: string;
+  readonly onCleanup?: () => void;
 }
 
 const streamFinalizeExit = (
@@ -27,6 +28,15 @@ export const responseWithScopeLifetimeEffect = <E, R>(
   Effect.gen(function* () {
     const scope = yield* Scope.make("sequential");
     let closed = false;
+    let cleaned = false;
+    const runCleanup = Effect.sync(() => {
+      if (cleaned) {
+        return;
+      }
+
+      cleaned = true;
+      options.onCleanup?.();
+    });
     const closeScope = (exit: Exit.Exit<unknown, unknown>): Effect.Effect<void> =>
       Effect.suspend(() => {
         if (closed) {
@@ -34,7 +44,7 @@ export const responseWithScopeLifetimeEffect = <E, R>(
         }
 
         closed = true;
-        return Scope.close(scope, exit);
+        return Scope.close(scope, exit).pipe(Effect.ensuring(runCleanup));
       });
 
     const responseExit = yield* Effect.exit(Scope.provide(effect, scope));

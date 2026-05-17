@@ -22,6 +22,7 @@ import {
   createBrowserRouter,
   createEffectRuntime,
   forkScoped,
+  isPlainLeftClick,
   onDispose,
   read,
   useAction,
@@ -41,6 +42,7 @@ import {
   watch,
   type ActionHandle,
   type BrowserNavigateArgs,
+  type BrowserNavigateOptions,
   type BrowserRouter,
   type BrowserRouterPath,
   type BrowserRouterOptions,
@@ -80,6 +82,14 @@ type ReactRouteForHome = BrowserRouterRouteForPath<typeof reactRoutes, typeof re
 const reactRouteForPath: ReactRouteForHome = reactRoutes[0];
 const reactRouteHref: string = Route.href(reactRoutes[0]);
 const reactNavigateArgs: BrowserNavigateArgs<typeof reactRoutes[0]> = [];
+const reactNavigateOptions: BrowserNavigateOptions = { replace: true };
+const reactPlainLeftClick: boolean = isPlainLeftClick({
+  button: 0,
+  metaKey: false,
+  altKey: false,
+  ctrlKey: false,
+  shiftKey: false
+});
 const reactRouterLinkProps: RouterLinkProps<typeof reactRoutes[0]> = {
   route: reactRoutes[0],
   children: "Home"
@@ -179,6 +189,7 @@ const reactExports: Array<unknown> = [
   createBrowserRouter,
   createEffectRuntime,
   forkScoped,
+  isPlainLeftClick,
   onDispose,
   read,
   useAction,
@@ -203,6 +214,8 @@ const reactExports: Array<unknown> = [
   reactRouteForPath,
   reactRouteHref,
   reactNavigateArgs,
+  reactNavigateOptions,
+  reactPlainLeftClick,
   reactRouterLinkProps,
   reactRouterLinkNode,
   reactRouterOutletNode,
@@ -236,6 +249,7 @@ const reactExports: Array<unknown> = [
 type ReactRouter = BrowserRouter | RouterOutletProps;
 type ReactRouterLinkProps = RouterLinkProps<typeof reactRoutes[0]>;
 type ReactBrowserNavigateArgs = BrowserNavigateArgs<typeof reactRoutes[0]>;
+type ReactBrowserNavigateOptions = BrowserNavigateOptions;
 type ReactBrowserRouterPath = BrowserRouterPath<typeof reactRoutes>;
 type ReactBrowserRouterRouteForPath = BrowserRouterRouteForPath<typeof reactRoutes, "/">;
 type ReactBrowserRouterState = BrowserRouterState<typeof reactRoutes>;
@@ -253,6 +267,7 @@ void reactExports;
 type _ReactRouter = ReactRouter;
 type _ReactRouterLinkProps = ReactRouterLinkProps;
 type _ReactBrowserNavigateArgs = ReactBrowserNavigateArgs;
+type _ReactBrowserNavigateOptions = ReactBrowserNavigateOptions;
 type _ReactBrowserRouterPath = ReactBrowserRouterPath;
 type _ReactBrowserRouterRouteForPath = ReactBrowserRouterRouteForPath;
 type _ReactBrowserRouterState = ReactBrowserRouterState;

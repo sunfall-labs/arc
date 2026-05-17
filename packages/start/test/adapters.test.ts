@@ -698,6 +698,70 @@ describe("Start deployment adapters", () => {
     expect(finalized).toBe(true);
   });
 
+  it("keeps fallback merged abort listeners until fetch facade streams finish", async () => {
+    const originalAny = Object.getOwnPropertyDescriptor(AbortSignal, "any");
+    Object.defineProperty(AbortSignal, "any", {
+      configurable: true,
+      value: undefined
+    });
+
+    try {
+      const requestController = new AbortController();
+      const runController = new AbortController();
+      const bodyCancelled = Effect.runSync(Deferred.make<unknown>());
+      const scopeFinalized = Effect.runSync(Deferred.make<void>());
+      let finalized = false;
+      const promiseHandler = createFetchHandler(
+        () =>
+          Effect.acquireRelease(
+            Effect.succeed(
+              new Response(
+                new ReadableStream<Uint8Array>({
+                  pull(streamController) {
+                    streamController.enqueue(new TextEncoder().encode("chunk"));
+                  },
+                  cancel(reason) {
+                    Effect.runFork(Deferred.succeed(bodyCancelled, reason));
+                  }
+                })
+              )
+            ),
+            () =>
+              Effect.sync(() => {
+                finalized = true;
+              }).pipe(Effect.andThen(Deferred.succeed(scopeFinalized, undefined)))
+          ),
+        {
+          runOptions: {
+            signal: runController.signal
+          }
+        }
+      );
+
+      const response = await promiseHandler(new Request("https://example.com/abort-stream", {
+        signal: requestController.signal
+      }));
+
+      expect(response.body).toBeDefined();
+      expect(finalized).toBe(false);
+      requestController.abort("fallback-fetch-client-left");
+
+      await expect(
+        Effect.runPromise(Deferred.await(bodyCancelled).pipe(Effect.timeout("1 second")))
+      ).resolves.toBe("fallback-fetch-client-left");
+      await expect(
+        Effect.runPromise(Deferred.await(scopeFinalized).pipe(Effect.timeout("1 second")))
+      ).resolves.toBeUndefined();
+      expect(finalized).toBe(true);
+    } finally {
+      if (originalAny === undefined) {
+        delete (AbortSignal as typeof AbortSignal & { any?: typeof AbortSignal.any }).any;
+      } else {
+        Object.defineProperty(AbortSignal, "any", originalAny);
+      }
+    }
+  });
+
   it("exposes host facade packages over the tested adapter implementation", async () => {
     const nodeRequest = {
       headers: {
