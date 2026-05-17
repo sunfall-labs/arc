@@ -91,8 +91,10 @@ describe("docs site", () => {
         const pairs = resourcePairs(streamHydrationChunksFrom(html));
 
         expect(response.status).toBe(200);
-        expect(html).toContain("Full-stack TypeScript should be easier to reason about.");
-        expect(html).toContain("The value is composure");
+        expect(html).toContain("One typed graph for your full-stack TypeScript app.");
+        expect(html).toContain("The unique value prop");
+        expect(html).toContain("A guided slice: route, resource, and UI");
+        expect(html).toContain("sunfall-arc-start graph route /projects/:id");
         expect(html).toContain("Resource from a server function");
         expect([...pairs]).toContain(
           JSON.stringify([RecipeIndexRef.family.options.name, RecipeIndexRef.key]),

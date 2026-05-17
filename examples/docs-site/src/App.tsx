@@ -191,69 +191,178 @@ function CookbookIndexView() {
   );
 }
 
+const blogContractExample = `export const GetProject = Server.contract<
+  { readonly id: ProjectId },
+  Project,
+  ProjectError
+>("Project.get", {
+  input: Schema.Struct({ id: ProjectId }),
+  output: ProjectSchema,
+  error: ProjectErrorSchema,
+});`;
+
+const blogResourceExample = `export const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
+
+export const ProjectById = Resource.family({
+  name: "Project.byId",
+  input: ProjectId,
+  output: ProjectSchema,
+  load: (id) => ProjectApi.use((api) => api.get(id)),
+  provides: (project) => [ProjectTag({ id: project.id })],
+});`;
+
+const blogRouteExample = `const RouteBuilder = defineFileRoute("/projects/:id");
+
+export const Route = RouteBuilder.preload({
+  params: ProjectRouteParams,
+  resources: ({ resource }) => [
+    resource(ProjectById, ({ params }) => params.id),
+  ],
+}).route();`;
+
+const blogUiExample = `function ProjectPage(props: Route.Props<typeof ProjectRoute>) {
+  const project = useResource(() => ProjectById(props.params.id));
+
+  return project.match({
+    success: (value) => <ProjectView project={value} />,
+    pending: (previous) => previous ? <ProjectView project={previous} refreshing /> : <Skeleton />,
+    failure: (error) => <ProjectError error={error} />,
+  });
+}`;
+
+const blogActionExample = `export const RenameProject = Action.define({
+  name: "Project.rename",
+  input: RenameProjectInput,
+  output: ProjectSchema,
+  run: (input) => ProjectApi.use((api) => api.rename(input)),
+  invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
+});`;
+
+const blogGraphExample = `sunfall-arc-start graph route /projects/:id
+sunfall-arc-start impact action Project.rename --json`;
+
+function BlogCode(props: { readonly code: string }) {
+  return (
+    <pre class="codeBlock">
+      <code>{props.code}</code>
+    </pre>
+  );
+}
+
 function BlogPostView() {
   return (
     <article class="blogPost">
       <header class="pageHeader">
         <p class="eyebrow">Introducing Sunfall Arc</p>
-        <h1>Full-stack TypeScript should be easier to reason about.</h1>
+        <h1>One typed graph for your full-stack TypeScript app.</h1>
         <p>
-          Sunfall Arc is an experimental framework for teams who want the ergonomics of a modern app
-          stack without losing the ability to see what the app is doing.
+          Sunfall Arc is an experimental framework for teams who want modern app ergonomics without
+          losing the ability to see what the app is doing. The core value is not another cache, not
+          another router, and not another local store. It is one shared vocabulary for the important
+          facts in your application.
         </p>
       </header>
 
       <section class="recipeBody">
         <p>
-          Most full-stack apps begin cleanly. A route loads data, a form mutates it, a component
-          renders it, and a server endpoint keeps the sensitive work on the server. Then the app
-          grows. Cache keys spread through components. Promise boundaries multiply. Server contracts
-          drift from clients. Tests know one version of the app graph, production knows another, and
+          Most full-stack apps begin with a clean story. A route loads data, a form mutates it, a
+          component renders it, and a server endpoint protects the sensitive work. Then the app
+          grows. Cache keys spread through components. Promise boundaries hide dependencies and
+          failure modes. Server contracts drift from clients. Local stores grow their own
+          invalidation rules. Tests know one version of the app, production knows another, and
           diagnostics arrive only after something has already gone sideways.
         </p>
         <p>
-          Sunfall Arc is built around a different bet: the framework should preserve the shape of
-          the application as typed, inspectable facts. Routes, Resources, Actions, server functions,
-          Collections, and Capabilities are not just runtime helpers. They are the vocabulary the
-          app uses to explain itself.
+          Sunfall Arc is built around a different bet: framework behavior should be preserved as
+          typed, inspectable facts. Routes, Resources, Actions, server functions, Collections, and
+          Capabilities are not just runtime helpers. They are the nouns the app uses to explain
+          itself to the renderer, the server, tests, devtools, CI, and agents.
         </p>
 
-        <h2>The value is composure</h2>
+        <h2>The unique value prop</h2>
         <p>
-          Arc makes async work explicit without making product code feel ceremonial. Public async
-          APIs return Effect values, so failures, dependencies, cancellation, request-local runtime
-          state, and cleanup stay part of the program instead of becoming side effects hidden behind
-          a Promise chain.
+          Arc turns the full-stack app into a typed graph that can execute, hydrate, invalidate, and
+          explain itself. That graph has a few core concepts:
         </p>
+        <ul>
+          <li>Resources are named, schema-checked units of async data.</li>
+          <li>Actions are named mutations with typed input, output, and invalidation.</li>
+          <li>Capabilities are dependency seams for live services, server calls, and tests.</li>
+          <li>File routes declare the Resources they own before render.</li>
+          <li>
+            Collections model local-first data, persistence, optimistic queues, and live queries.
+          </li>
+          <li>Start emits deterministic route, resource, action, collection, and module facts.</li>
+        </ul>
         <p>
-          That matters when an app crosses boundaries. The same Resource can be preloaded by a
-          route, read by a UI adapter, serialized into streamed hydration, invalidated by an Action,
-          and inspected by devtools without each layer inventing a private story about it.
-        </p>
-
-        <h2>The app graph becomes useful</h2>
-        <p>
-          Start can emit a deterministic graph of routes, resources, actions, collections, modules,
-          and diagnostics. That graph is useful to humans reading a codebase, CI jobs enforcing
-          architecture rules, and agents trying to make focused edits without guessing how files fit
-          together.
-        </p>
-        <p>
-          Instead of treating diagnostics as an afterthought, Arc tries to make them a native output
-          of the framework. The goal is not only to render HTML; it is to explain why the rendered
-          app has the shape it has.
+          The result is composure. The same Resource can be preloaded by a route, read by a UI
+          adapter, serialized into streamed hydration, invalidated by an Action, mocked through a
+          Capability, and inspected by devtools without each layer inventing a private story about
+          it.
         </p>
 
-        <h2>Local-first data gets a framework seam</h2>
+        <h2>A guided slice: route, resource, and UI</h2>
         <p>
-          Arc Collections give local data the same level of structure as route data. Live queries,
-          persistence, optimistic mutation queues, flush policy, and sync adapter boundaries are
-          modeled as framework concepts rather than ad hoc stores that every feature has to
-          rediscover.
+          Start with the browser-safe contract. The client can import the schema and typed handle;
+          the handler stays in a server-only module.
+        </p>
+        <BlogCode code={blogContractExample} />
+
+        <p>
+          Expose that contract through a Capability, then define a Resource around the domain fact
+          the UI needs. The Resource owns the input schema, output schema, loading Effect, cache
+          identity, and semantic tags it provides.
+        </p>
+        <BlogCode code={blogResourceExample} />
+
+        <p>
+          A file route declares that it owns that Resource. During SSR, Start runs the preload in
+          the request runtime, renders with the Resource available, and streams hydration data for
+          the client runtime.
+        </p>
+        <BlogCode code={blogRouteExample} />
+
+        <p>
+          The component reads the same Resource. It does not need to know whether the value came
+          from SSR preload, client navigation, a refresh, or a hydrated action response.
+        </p>
+        <BlogCode code={blogUiExample} />
+
+        <h2>Mutations stay attached to meaning</h2>
+        <p>
+          Actions keep write behavior in the same graph. A mutation has a stable name, a schema, an
+          Effect, and an invalidation plan expressed as domain tags rather than stringly cache keys.
+        </p>
+        <BlogCode code={blogActionExample} />
+        <p>
+          Start action forms can submit through enhanced clients or plain form posts. Either path
+          runs the same Action through the request runtime and can return refreshed Resource
+          payloads to the browser.
+        </p>
+
+        <h2>The graph becomes a release artifact</h2>
+        <p>
+          Because routes, Resources, Actions, server functions, Collections, and modules are named
+          facts, Start can emit a deterministic graph. Humans can read it, CI can enforce it, and
+          agents can use it to make focused edits without guessing how files fit together.
+        </p>
+        <BlogCode code={blogGraphExample} />
+        <p>
+          This is the part that makes Arc unusual. The framework is not only trying to render HTML
+          or give components nice hooks. It is trying to make the shape of the app available as a
+          public, typed artifact before something breaks.
+        </p>
+
+        <h2>Local-first data gets the same treatment</h2>
+        <p>
+          Collections extend the same idea to local data. Live queries, persistence, optimistic row
+          mutations, flush policy, and sync adapter boundaries are framework concepts rather than
+          stores every feature has to reinvent.
         </p>
         <p>
-          That gives product code a quieter job. Components read rows, Actions describe intent, and
-          the runtime owns the mechanics of materialization, invalidation, and durable state.
+          Components read rows, Actions describe intent, and the runtime owns materialization,
+          invalidation, durable state, and sync edges. The product code gets quieter because the
+          framework has more of the domain graph in view.
         </p>
 
         <h2>This alpha is intentionally honest</h2>
