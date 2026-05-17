@@ -15,12 +15,13 @@ import type {
   LiveQueryState
 } from "./query-builder.js";
 import {
+  compileQueryStagePlan,
   toQueryEvaluationError,
-  type QueryEvaluationError
+  type QueryEvaluationError,
+  type QueryStagePlan
 } from "./query-plan.js";
 import {
-  preloadQueryExecutionPlanEffect,
-  queryExecutionPlanSourceAdapters
+  preloadQueryExecutionPlanEffect
 } from "./query-execution-plan.js";
 
 /**
@@ -34,7 +35,16 @@ import {
 export const makeLiveQueryState = <T, E = never, R = never>(
   builder: AnyQueryBuilder<T, E, R>
 ): LiveQuery<T, E, R> => {
-  const sourceAdapters = queryExecutionPlanSourceAdapters(builder);
+  const initialStagePlan = (() => {
+    try {
+      return { stagePlan: compileQueryStagePlan(builder) };
+    } catch (cause) {
+      return { error: toQueryEvaluationError("evaluate", cause) };
+    }
+  })();
+  const stagePlan = initialStagePlan.stagePlan as QueryStagePlan<any> | undefined;
+  const stagePlanError = initialStagePlan.error;
+  const sourceAdapters = stagePlan?.sourceAdapters ?? [];
   const sources = sourceAdapters.map((source) => source.collection);
   interface StoreEvaluationState {
     engine: LiveQueryRuntime<T> | undefined;
@@ -107,7 +117,10 @@ export const makeLiveQueryState = <T, E = never, R = never>(
         }
 
         try {
-          storeEvaluation.engine ??= makeLiveQueryRuntime(builder);
+          if (stagePlanError !== undefined) {
+            throw stagePlanError;
+          }
+          storeEvaluation.engine ??= makeLiveQueryRuntime(builder, stagePlan);
           storeEvaluation.latestData = storeEvaluation.engine.evaluate();
           storeEvaluation.latestEvaluationVersion = versions;
           storeEvaluation.latestEvaluation = { data: storeEvaluation.latestData, error: undefined };

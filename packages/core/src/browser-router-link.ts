@@ -134,6 +134,8 @@ export interface BrowserRouterLinkPreloader {
   /** Starts a fresh preload, interrupting any previous hover preload first. */
   preload(): void;
   /** Interrupts the active hover preload, when one is running. */
+  interruptEffect(): Effect.Effect<void>;
+  /** Runtime-owned synchronous convenience for UI adapter cleanup hooks. */
   interrupt(): void;
 }
 
@@ -211,15 +213,18 @@ export const makeBrowserRouterLinkPreloader = <ER>(
   let preloadIdentity: BrowserRouterLinkPreloadIdentity | undefined;
   let preloadFiber: Fiber.Fiber<void, unknown> | undefined;
 
+  const interruptEffect = (): Effect.Effect<void> =>
+    Effect.suspend(() => {
+      const fiber = preloadFiber;
+      if (!fiber) {
+        return Effect.void;
+      }
+      preloadFiber = undefined;
+      return Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void));
+    });
+
   const interrupt = (): void => {
-    const fiber = preloadFiber;
-    if (!fiber) {
-      return;
-    }
-    preloadFiber = undefined;
-    void options.runtime.runFork(
-      Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void))
-    );
+    void options.runtime.runFork(interruptEffect());
   };
 
   const bindPreloadIdentity = (nextIdentity: BrowserRouterLinkPreloadIdentity): void => {
@@ -251,5 +256,5 @@ export const makeBrowserRouterLinkPreloader = <ER>(
     );
   };
 
-  return { bindPreloadIdentity, interrupt, preload };
+  return { bindPreloadIdentity, interruptEffect, interrupt, preload };
 };

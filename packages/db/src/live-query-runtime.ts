@@ -152,8 +152,11 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
   readonly #sources: ReadonlyArray<IvmSource>;
   readonly #rows = new Map<string, { context: TContext; count: number; order: string | undefined }>();
 
-  constructor(readonly builder: LiveQueryRuntimeBuilder<TContext, TResult>) {
-    this.#stagePlan = compileQueryStagePlan(builder);
+  constructor(
+    readonly builder: LiveQueryRuntimeBuilder<TContext, TResult>,
+    stagePlan?: QueryStagePlan<TContext>
+  ) {
+    this.#stagePlan = stagePlan ?? compileQueryStagePlan(builder);
     this.#sources = this.#stagePlan.sources.map((source) => ({
       alias: source.alias,
       source: source.adapter,
@@ -386,7 +389,8 @@ const mergeContexts = (left: IvmContext | null, right: IvmContext | null): IvmCo
   mergeQueryContextRecords(left, right);
 
 export const makeLiveQueryRuntime = <TContext extends AnyQueryContext, TResult>(
-  builder: LiveQueryRuntimeBuilder<TContext, TResult>
+  builder: LiveQueryRuntimeBuilder<TContext, TResult>,
+  stagePlan?: QueryStagePlan<TContext>
 ): LiveQueryRuntime<TResult> => {
-  return new IvmLiveQueryRuntime(builder);
+  return new IvmLiveQueryRuntime(builder, stagePlan);
 };

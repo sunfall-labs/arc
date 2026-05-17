@@ -2,8 +2,7 @@ import { stableStringify } from "@effect-ui/core";
 import type { CollectionKey } from "./collection-contract.js";
 import type {
   AnyCollectionRow,
-  AnyQueryContext,
-  QueryPlanBuilder
+  AnyQueryContext
 } from "./query-plan.js";
 
 declare const QueryContextIdentityBrand: unique symbol;
@@ -38,29 +37,17 @@ export const mergeQueryContextIdentities = (
 ): QueryContextIdentity =>
   makeQueryContextIdentity([left, right]);
 
-const queryContextOrderAliases = (
-  builder: QueryPlanBuilder<any>
-): ReadonlyArray<string> => {
-  const joinAliases = new Set(builder.joins.map((join) => join.alias));
-  return [
-    ...builder.sources
-      .filter(([alias]) => !joinAliases.has(alias))
-      .map(([alias]) => alias),
-    ...builder.joins.map((join) => join.alias)
-  ];
-};
-
 const rowKey = (value: unknown): CollectionKey | undefined =>
   typeof value === "object" && value !== null && "$key" in value
     ? (value as { readonly $key: CollectionKey }).$key
     : undefined;
 
 export const queryContextOrderIdentity = (
-  builder: QueryPlanBuilder<any>,
+  aliases: ReadonlyArray<string>,
   context: AnyQueryContext
 ): QueryContextIdentity | undefined => {
   let identity: QueryContextIdentity | undefined;
-  for (const alias of queryContextOrderAliases(builder)) {
+  for (const alias of aliases) {
     const key = rowKey(context[alias]);
     if (key === undefined) {
       continue;

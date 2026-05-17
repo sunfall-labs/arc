@@ -422,7 +422,7 @@ export const useResourceSuspense = <I, A, E, R = unknown>(ref: ResourceInput<I, 
   const state = useResourceResult(getRef);
   return createComponentScope((scope) => {
     const preloadController = makeResourceUiSuspensePreloadController<I, A, E, R, unknown, unknown>(runtime);
-    scope.addFinalizer(() => Effect.sync(preloadController.dispose));
+    scope.addFinalizer(() => preloadController.disposeEffect());
 
     return () => {
       const currentRef = getRef();

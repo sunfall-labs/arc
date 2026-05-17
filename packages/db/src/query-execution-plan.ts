@@ -8,7 +8,6 @@ import {
   evaluateQueryOperation,
   evaluateQueryStructuredOperation,
   projectCurrentContext,
-  querySourceAdapters,
   toQueryEvaluationError,
   validateQueryPlan,
   type AnyQueryContext,
@@ -41,7 +40,7 @@ export interface QueryExecutionPlanBuilder<TContext extends AnyQueryContext, TRe
 export const queryExecutionPlanSourceAdapters = (
   builder: QueryPlanBuilder<any>
 ): ReadonlyArray<QueryCollectionSourceAdapter> =>
-  querySourceAdapters(builder);
+  compileQueryStagePlan(builder).sourceAdapters;
 
 /** Validates alias, join, offset, and limit invariants for a query execution plan. */
 export const validateQueryExecutionPlan = <TContext extends AnyQueryContext>(
@@ -99,7 +98,7 @@ export const projectQueryContexts = <TContext extends AnyQueryContext, TResult>(
   if (shouldOrder && stagePlan.orders.length > 0) {
     filtered = filtered
       .map((row, index) => {
-        const identity = queryContextOrderIdentity(builder, row);
+        const identity = queryContextOrderIdentity(stagePlan.identityAliases, row);
         return identity === undefined
           ? { row, index }
           : { row, index, identity };
@@ -158,12 +157,12 @@ export const preloadQueryExecutionPlanEffect = <E, R>(
   force: boolean
 ): Effect.Effect<void, E | QueryEvaluationError, R> =>
   Effect.gen(function* () {
-    yield* Effect.try({
-      try: () => validateQueryExecutionPlan(builder),
+    const stagePlan = yield* Effect.try({
+      try: () => compileQueryStagePlan(builder),
       catch: (cause) => toQueryEvaluationError("evaluate", cause)
     });
     yield* preloadQueryExecutionPlanSourcesEffect<E, R>(
-      queryExecutionPlanSourceAdapters(builder),
+      stagePlan.sourceAdapters,
       force
     );
   });

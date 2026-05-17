@@ -501,9 +501,9 @@ export const useResourceSuspense = <I, A, E, R = unknown>(
 
   useEffect(() => {
     return () => {
-      preloadController.dispose();
+      void runtime.runFork(preloadController.disposeEffect());
     };
-  }, [preloadController]);
+  }, [preloadController, runtime]);
 
   const suspensePreload = (nextRef: ResourceRef<I, A, E, R>) => {
     return preloadController.hostToken(nextRef, {

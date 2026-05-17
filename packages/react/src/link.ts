@@ -96,7 +96,9 @@ export const RouterLink = <R extends AnyRoute>(
   useEffect(() => {
     preloader.bindPreloadIdentity(preloadIdentity);
   }, [preloadIdentity.key, preloadIdentity.enabled, preloader]);
-  useEffect(() => preloader.interrupt, [preloader]);
+  useEffect(() => () => {
+    void router.runtime.runFork(preloader.interruptEffect());
+  }, [preloader, router.runtime]);
 
   return createElement("a", {
     ...anchorProps,

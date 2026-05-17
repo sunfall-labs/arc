@@ -11,10 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review232 Shared DB Query Stage Plan,
-the post-Review231 DB pass that deepened the DB Query Stage Plan Module so
-snapshot execution and Live Query Runtime consume the same compiled stage
-facts. The newest full verification checkpoint is Review232.
+The newest completed focused review is Review233 Stage Plan And UI Cleanup
+Effects, the fresh post-Review232 sweep that deepened DB Query Stage Plan
+Locality, added awaitable UI preload cleanup Effects, and closed React
+commit-scope public export drift. The newest full verification checkpoint is
+Review233.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -37,7 +38,8 @@ and the post-Review228 sweep found Review229 work,
 and the post-Review229 sweep found Review230 work,
 and the post-Review230 sweep found Review231 work,
 and the post-Review231 DB pass found Review232 Shared DB Query Stage Plan work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review232
+and the fresh post-Review232 sweep found Review233 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review233
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -46,7 +48,7 @@ Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, Review219,
 Review220, Review221, Review222, Review223, Review224, Review225,
 Review226, Review227, Review228, Review229, Review230, Review231, and
-Review232 Shared DB Query Stage Plan work.
+Review232 Shared DB Query Stage Plan work, and Review233 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -125,8 +127,94 @@ Resource UI Binding, DB query/public-surface, and docs/LSP ownership work, and
 the post-Review230 sweep found Review231 Core/React/Solid browser-router,
 Resource UI Binding replay, React route-scope, and DB public source ownership
 work, and the post-Review231 DB pass found Review232 Shared DB Query Stage
-Plan work,
+Plan work, and the fresh post-Review232 sweep found Review233 Stage Plan and
+UI cleanup work,
 so the counter remains 0/30.
+
+## Review 233: Stage Plan And UI Cleanup Effects
+
+Review233 fixed the actionable findings from the fresh post-Review232 sweep.
+
+1. Query Stage Plan Source And Identity Locality
+   - Status: fixed.
+   - Files: `CONTEXT.md`, `packages/db/src/query-plan.ts`,
+     `packages/db/src/query-execution-plan.ts`,
+     `packages/db/src/query-context-identity.ts`,
+     `packages/db/src/live-query-state.ts`,
+     `packages/db/src/live-query-runtime.ts`,
+     `packages/db/test/query-context-identity.test.ts`,
+     and `packages/db/test/collection.test.ts`.
+   - Problem: the DB Query Stage Plan owned source roles and window facts, but
+     Query Context Identity and Live Query State still recomputed identity
+     aliases and source adapters from the raw Query Builder.
+   - Fix: `QueryStagePlan` now carries unique source adapters and identity
+     alias order. Projection, preload/refetch, Live Query State, Live Query
+     Runtime, and tie-break identity consume plan-derived facts.
+   - Benefits: Query stage behavior has stronger Locality and more Leverage:
+     future source-role or ordering policy changes now pass through the compiled
+     stage plan instead of reappearing in sibling Modules.
+
+2. Query Namespace Type-Test Ownership
+   - Status: fixed.
+   - Files: `type-tests/db.test-d.ts`.
+   - Problem: docs described the public `Query.*` namespace aliases more
+     broadly than the focused type-test pins.
+   - Fix: DB public type tests now pin `Query.Factory`, `Query.Live`,
+     `Query.LiveState`, `Query.EvaluationError`, `Query.JoinStrategy`,
+     `Query.Plan*`, `Query.Root`, and aggregate aliases.
+   - Benefits: the public Query Interface, LSP hovers, and type-test Seam now
+     move together without exposing internal Query Stage Plan storage.
+
+3. Resource Suspense Preload Cleanup Effect
+   - Status: fixed.
+   - Files: `CONTEXT.md`, `packages/core/src/resource-ui-binding.ts`,
+     `packages/core/test/resource-ui-binding.test.ts`,
+     `packages/react/src/hooks.ts`, `packages/solid/src/hooks.ts`, and
+     `type-tests/core.test-d.ts`.
+   - Problem: `ResourceUiSuspensePreloadController` owned preload join fibers
+     and observer cleanup, but exposed only sync `interrupt()`/`dispose()`.
+   - Fix: the controller now exposes `interruptEffect()` and `disposeEffect()`.
+     React and Solid adapters run the Effect cleanup at their host cleanup
+     seams, while sync methods remain runtime-owned conveniences.
+   - Benefits: Suspense preload lifetime now has an awaitable Effect Interface
+     with deterministic cleanup tests.
+
+4. Browser Router Link Preload Cleanup Effect
+   - Status: fixed.
+   - Files: `CONTEXT.md`, `packages/core/src/browser-router-link.ts`,
+     `packages/core/test/browser-router.test.ts`, `packages/react/src/link.ts`,
+     `packages/solid/src/link.ts`, and `type-tests/core.test-d.ts`.
+   - Problem: `BrowserRouterLinkPreloader` owned hover preload fibers and stale
+     identity interruption, but cleanup completion was not part of its Core
+     Interface.
+   - Fix: the preloader now exposes `interruptEffect()` and framework adapters
+     run that Effect from cleanup hooks while retaining sync `interrupt()`.
+   - Benefits: router hover preload teardown now has the same Effect-first
+     Depth as Browser Router and Resource UI Binding teardown.
+
+5. React Commit Scope Root Export Locality
+   - Status: fixed.
+   - Files: `packages/react/src/index.ts`, `type-tests/react.test-d.ts`, and
+     `docs/public-api-inventory.md`.
+   - Problem: React commit-scope helper types and
+     `makeReactRuntimeUiScopeFrame(...)` were root-exported accidentally through
+     the React runtime star export even though docs described them as adapter
+     internals.
+   - Fix: the React root now explicitly re-exports only the intended runtime
+     Interface, and type tests assert commit-scope frame helpers are not root
+     public.
+   - Benefits: React commit-scope policy keeps Locality inside the React
+     Adapter, so future StrictMode or route-scope work is not constrained by an
+     accidental public Interface.
+
+Focused workspace evidence for this pass: Core/DB/React/Solid typechecks,
+public type tests, public API audit, focused Core Resource UI Binding and
+Browser Router tests, focused DB Query Context Identity, collection, and
+live-query collection tests, React/Solid package builds, and `git diff --check`
+passed before the full Review233 gate. Full `pnpm verify` passed after
+Review233 with 53 root test files / 1147 tests and the 411-file Effect-first
+audit. This sweep found work, so the active clean counter remains 0/30 until a
+fresh post-Review233 sweep is clean.
 
 ## Review 232: Shared DB Query Stage Plan
 
@@ -152,8 +240,8 @@ Focused workspace evidence for this pass: DB typecheck, public type tests,
 public API audit, focused DB collection tests, focused live-query collection
 tests, and `git diff --check` passed before the full Review232 gate. Full
 `pnpm verify` passed after Review232 with 53 root test files / 1146 tests and
-the 411-file Effect-first audit. This sweep found work, so the active clean
-counter remains 0/30 until a fresh post-Review232 sweep is clean.
+the 411-file Effect-first audit. This sweep found work, and the later fresh
+post-Review232 sweep found Review233 Stage Plan And UI Cleanup Effects work.
 
 ## Review 231: Replay-Safe UI Lifetimes And Source Ownership
 
@@ -1962,9 +2050,10 @@ post-Review225 sweep found Review226 work, the post-Review226 sweep found
 Review227 work, the post-Review227 sweep found Review228 work, and the
 post-Review228 sweep found Review229 work, the post-Review229 sweep found
 Review230 work, the post-Review230 sweep found Review231 work, and the
-post-Review231 DB pass found Review232 Shared DB Query Stage Plan work. The
-active counter is 0/30 until a fresh post-Review232 sweep reports no
-actionable findings.
+post-Review231 DB pass found Review232 Shared DB Query Stage Plan work, and
+the fresh post-Review232 sweep found Review233 Stage Plan And UI Cleanup
+Effects work. The active counter is 0/30 until a fresh post-Review233 sweep
+reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 

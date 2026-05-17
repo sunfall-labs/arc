@@ -273,12 +273,8 @@ describe("browser router kernel", () => {
           preloader.preload();
           expect(starts).toEqual([1, 2]);
 
-          preloader.interrupt();
-          yield* Effect.promise(() =>
-            vi.waitFor(() => {
-              expect(finalizers).toEqual([1, 2]);
-            })
-          );
+          yield* preloader.interruptEffect();
+          expect(finalizers).toEqual([1, 2]);
         })
       )
     ));

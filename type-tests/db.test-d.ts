@@ -181,6 +181,9 @@ const sqliteRow: SQLitePersistenceRow = {
 const collectionAlias: typeof Collection.define = createCollection;
 const liveQueryAlias: typeof Query.live = createLiveQuery;
 const liveQueryCollectionAlias: typeof Collection.liveQuery = createLiveQueryCollection;
+const publicQueryRoot: Query.Root = Query;
+const publicQueryFactory: Query.Factory<Project, any, any> = (query) =>
+  query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project);
 const publicQueryBuilder: Query.Builder<any, Project, any, any> =
   Query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project);
 const publicQueryRows: ReadonlyArray<Project> = publicQueryBuilder.execute();
@@ -204,6 +207,27 @@ const structuralQueryBuilder: Query.Builder<any, Project, any, any> = {
 const publicLiveQuery = Query.live((query) =>
   query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project)
 );
+const publicQueryLive: Query.Live<Project, any, any> = publicLiveQuery;
+const publicQueryLiveState: Query.LiveState<Project, any> = publicLiveQuery.state.get();
+declare const publicQueryEvaluationError: Query.EvaluationError;
+const directQueryEvaluationError: QueryEvaluationError = publicQueryEvaluationError;
+const publicQueryPlanDiagnostics: Query.PlanDiagnostics = Query.diagnostics(publicQueryFactory);
+const publicQueryPlanSource: Query.PlanSourceDiagnostics =
+  publicQueryPlanDiagnostics.sources[0]!;
+declare const publicQueryPlanJoin: Query.PlanJoinDiagnostics;
+const publicQueryJoinStrategy: Query.JoinStrategy = publicQueryPlanJoin.strategy;
+const publicQueryGroupKey: Query.GroupKey<{ readonly status: string }> = { status: "active" };
+const publicQueryAggregate: Query.Aggregate<{ readonly project: Project }, number, number> =
+  Query.sum(({ project }) => project.id.length);
+const publicQueryAggregates = {
+  count: Query.count(({ project }: { readonly project: Project }) => project.id)
+} satisfies Query.Aggregates<{ readonly project: Project }>;
+declare const publicQueryAggregateResult: Query.AggregateResult<
+  typeof publicQueryGroupKey,
+  typeof publicQueryAggregates
+>;
+const publicQueryAggregateCount: number = publicQueryAggregateResult.count;
+publicQueryRoot.from({ project: dbStaticProjectsCollection });
 // @ts-expect-error public LiveQuery handles do not expose their internal builder.
 publicLiveQuery.builder;
 const directLiveQueryCollection = makeLiveQueryCollection<Project, string, unknown>({

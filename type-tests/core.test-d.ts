@@ -453,6 +453,10 @@ const resourceUiSuspensePreloadOptions: ResourceUiSuspensePreloadOptions<
 };
 const resourceUiSuspensePreloadFiber =
   resourceUiSuspensePreloadController.hostToken(typeTestResourceRef, resourceUiSuspensePreloadOptions);
+const resourceUiSuspenseInterruptEffect: Effect.Effect<void> =
+  resourceUiSuspensePreloadController.interruptEffect();
+const resourceUiSuspenseDisposeEffect: Effect.Effect<void> =
+  resourceUiSuspensePreloadController.disposeEffect();
 type RuntimeShape = EffectUiRuntime;
 type AnyRuntimeShape = AnyEffectUiRuntime;
 type RouterKernelShape = BrowserRouterKernel<typeof coreRoutes>;
@@ -592,6 +596,8 @@ const coreLinkPreloadIdentity: BrowserRouterLinkPreloadIdentity = {
   enabled: true
 };
 coreLinkPreloaderShape.bindPreloadIdentity(coreLinkPreloadIdentity);
+const coreLinkPreloaderInterruptEffect: Effect.Effect<void> =
+  coreLinkPreloaderShape.interruptEffect();
 // @ts-expect-error Core Router Link Preloader exposes only full preload identity ownership facts
 coreLinkPreloaderShape.bindTarget("/projects/atlas");
 const coreLinkPreloaderRuntime: BrowserRouterLinkPreloaderRuntime = runtime;

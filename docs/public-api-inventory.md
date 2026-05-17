@@ -819,11 +819,12 @@ Release decisions:
   preload/refetch, snapshot execution, diagnostics, and projection stages shared
   by `Query.build(...).execute()`, `Query.onceEffect(...)`,
   `Query.diagnostics(...)`, and live-query state. The internal Query Stage Plan
-  compiles source roles, base-source ordering, join sources, grouping, filters,
-  ordering, and window facts once so snapshot execution and Live Query Runtime
-  share stage policy. The internal Query Stage Plan is exported only for
-  sibling DB modules and is not re-exported from `@effect-ui/db`; public Query
-  APIs stay unchanged.
+  compiles source roles, unique source adapters, base-source ordering, identity
+  alias ordering, join sources, grouping, filters, ordering, and window facts
+  once so snapshot execution, projection, preload/refetch, Live Query State,
+  and Live Query Runtime share stage policy. The internal Query Stage Plan is
+  exported only for sibling DB modules and is not re-exported from
+  `@effect-ui/db`; public Query APIs stay unchanged.
 - The internal Query Context Identity Module owns source alias/key identity,
   collection row delta identity, merged context identity, ordered tie-break
   identity, and IVM context metadata shared by Query Execution Plan and Live
@@ -1121,7 +1122,8 @@ Release decisions:
   `UiScope`: render-time reads can observe the Runtime Spine, but scoped
   finalizers and forks are rejected until React commits the component so
   abandoned renders cannot leak Effect work. Cleanup uses the same replay-aware
-  microtask policy as `RuntimeProvider`.
+  microtask policy as `RuntimeProvider`. The commit-scope frame helper remains
+  a React Adapter internal and is not root-exported from `@effect-ui/react`.
 - React router helpers mirror the Solid route helper surface while exposing
   state through Effect UI `Signal` values that React components consume via
   `useSignal(...)`.

@@ -1,7 +1,17 @@
 export * from "./hooks.js";
 export * from "./link.js";
 export * from "./router.js";
-export * from "./runtime.js";
+export {
+  RuntimeContext,
+  RuntimeProvider,
+  createEffectRuntime,
+  useComponentScope,
+  useRuntime,
+  useScoped
+} from "./runtime.js";
+export type {
+  RuntimeProviderProps
+} from "./runtime.js";
 
 export {
   Action,

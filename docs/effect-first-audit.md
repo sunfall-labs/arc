@@ -20,6 +20,12 @@ interruption.
 
 ## Current Sweep Results
 
+- Review233 Stage Plan And UI Cleanup Effects kept the follow-up fixes
+  Effect-first: Resource Suspense and Browser Router Link preload controllers
+  now expose awaitable cleanup Effects, React/Solid adapters run those Effects
+  from host cleanup hooks, Query Stage Plan source/identity facts stay
+  synchronous and local to DB internals, and React export hygiene adds no
+  Promise surfaces.
 - Review232 Shared DB Query Stage Plan kept the DB fix Effect-first: the new
   compiled Query Stage Plan centralizes synchronous query stage facts for
   snapshot and live execution without adding Promise surfaces.
@@ -667,10 +673,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 232 `pnpm verify` run recorded in
+- The current full gate is the Review 233 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 411 files, 53 root test files / 1146 tests, package-level verifies,
+  over 411 files, 53 root test files / 1147 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
@@ -1491,14 +1497,16 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after Review 232 Shared DB Query Stage Plan:
-  snapshot execution and Live Query Runtime now consume one compiled Query
-  Stage Plan for source roles, joins, grouping, filters, ordering, and windows:
+- The current full `pnpm verify` passed after Review 233 Stage Plan And UI
+  Cleanup Effects: Query Stage Plan now owns unique source adapters and
+  identity alias ordering, Resource Suspense and Browser Router Link preload
+  cleanup expose awaitable Effects, and React root exports hide commit-scope
+  internals:
   11 package builds, workspace
   typecheck, type tests, public API
   inventory audit, Effect-first audit over 411
   package/example/config/script/type-test/generated/docs files, 53 root test
-  files / 1146 tests, package-level verifies for copyable/source packages,
+  files / 1147 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans. The Effect-first audit now

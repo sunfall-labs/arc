@@ -10,7 +10,6 @@ import type {
 } from "./collection-contract.js";
 import {
   makeQuerySourceAdapter,
-  makeQuerySourceAdapters,
   type QueryCollectionSourceAdapter
 } from "./query-source-adapter.js";
 
@@ -184,7 +183,9 @@ export interface QueryStageWindow {
 export interface QueryStagePlan<TContext extends AnyQueryContext> {
   readonly sources: ReadonlyArray<QueryStageSource>;
   readonly baseSources: ReadonlyArray<QueryStageSource>;
+  readonly sourceAdapters: ReadonlyArray<QueryCollectionSourceAdapter>;
   readonly sourceByAlias: ReadonlyMap<string, QueryStageSource>;
+  readonly identityAliases: ReadonlyArray<string>;
   readonly joins: ReadonlyArray<QueryJoin>;
   readonly grouping: AnyQueryGrouping | undefined;
   readonly filters: ReadonlyArray<(row: TContext) => boolean>;
@@ -658,17 +659,34 @@ export const compileQueryStagePlan = <TContext extends AnyQueryContext>(
 ): QueryStagePlan<TContext> => {
   validateQueryPlan(builder);
   const joinAliases = new Set(builder.joins.map((join) => join.alias));
+  const adapterByCollection = new Map<AnyCollection, QueryCollectionSourceAdapter>();
+  const sourceAdapter = (collection: AnyCollection): QueryCollectionSourceAdapter => {
+    const existing = adapterByCollection.get(collection);
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    const adapter = makeQuerySourceAdapter(collection);
+    adapterByCollection.set(collection, adapter);
+    return adapter;
+  };
   const sources = builder.sources.map(([alias, collection]): QueryStageSource => ({
     alias,
     collection,
-    adapter: makeQuerySourceAdapter(collection),
+    adapter: sourceAdapter(collection),
     role: joinAliases.has(alias) ? "join" : "base"
   }));
+  const baseSources = sources.filter((source) => source.role === "base");
   const sourceByAlias = new Map(sources.map((source) => [source.alias, source]));
   return {
     sources,
-    baseSources: sources.filter((source) => source.role === "base"),
+    baseSources,
+    sourceAdapters: Array.from(adapterByCollection.values()),
     sourceByAlias,
+    identityAliases: [
+      ...baseSources.map((source) => source.alias),
+      ...builder.joins.map((join) => join.alias)
+    ],
     joins: builder.joins,
     grouping: builder.grouping,
     filters: builder.filters,
@@ -678,38 +696,6 @@ export const compileQueryStagePlan = <TContext extends AnyQueryContext>(
       ...(builder.limitCount === undefined ? {} : { limit: builder.limitCount })
     }
   };
-};
-
-export const buildContexts = <TContext extends AnyQueryContext>(
-  sources: ReadonlyArray<readonly [string, AnyCollection]>
-): Array<TContext> => {
-  if (sources.length === 0) {
-    throw new UnsupportedLiveQuery({ reason: "Live queries require at least one source collection." });
-  }
-
-  const contexts: Array<TContext> = [];
-  const visit = (index: number, current: Record<string, unknown>): void => {
-    if (index >= sources.length) {
-      contexts.push({ ...current } as TContext);
-      return;
-    }
-
-    const source = sources[index];
-    if (!source) {
-      return;
-    }
-
-    const [alias, collection] = source;
-    const adapter = makeQuerySourceAdapter(collection);
-    for (const row of adapter.rows()) {
-      current[alias] = row;
-      visit(index + 1, current);
-    }
-    delete current[alias];
-  };
-
-  visit(0, {});
-  return contexts;
 };
 
 const buildStageSourceContexts = <TContext extends AnyQueryContext>(
@@ -741,11 +727,6 @@ const buildStageSourceContexts = <TContext extends AnyQueryContext>(
   visit(0, {});
   return contexts;
 };
-
-export const buildQueryContexts = <TContext extends AnyQueryContext>(
-  builder: QueryPlanBuilder<TContext>
-): Array<TContext> =>
-  buildQueryExecution(builder).contexts;
 
 export const buildQueryExecutionFromStagePlan = <TContext extends AnyQueryContext>(
   stagePlan: QueryStagePlan<TContext>
@@ -904,9 +885,3 @@ export const compareRows = <TContext>(
 
   return leftIndex - rightIndex;
 };
-
-export const querySources = (builder: QueryPlanBuilder<any>): ReadonlyArray<AnyCollection> =>
-  querySourceAdapters(builder).map((source) => source.collection);
-
-export const querySourceAdapters = (builder: QueryPlanBuilder<any>): ReadonlyArray<QueryCollectionSourceAdapter> =>
-  makeQuerySourceAdapters(builder.sources);

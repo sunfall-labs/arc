@@ -120,8 +120,12 @@ export interface ResourceUiSuspensePreloadController<I, A, E, R, ER, Token> {
   /** Interrupts the current preload join when it belongs to a stale ref. */
   interruptStale(ref: ResourceRef<I, A, E, R>): void;
   /** Interrupts the current preload join fiber, if any. */
+  interruptEffect(): Effect.Effect<void>;
+  /** Runtime-owned synchronous convenience for UI adapter interrupt hooks. */
   interrupt(): void;
-  /** Disposes controller-owned preload join work. */
+  /** Disposes controller-owned preload join work as an Effect. */
+  disposeEffect(): Effect.Effect<void>;
+  /** Runtime-owned synchronous convenience for UI adapter cleanup hooks. */
   dispose(): void;
 }
 
@@ -375,15 +379,20 @@ export const makeResourceUiSuspensePreloadController = <I, A, E, R = unknown, ER
       }
     | undefined;
 
-  const interrupt = (): void => {
-    const current = preload;
-    preload = undefined;
-    if (current !== undefined) {
+  const interruptEffect = (): Effect.Effect<void> =>
+    Effect.suspend(() => {
+      const current = preload;
+      preload = undefined;
+      if (current === undefined) {
+        return Effect.void;
+      }
+
       current.removeObserver();
-      void runtime.runFork(
-        Fiber.interrupt(current.fiber).pipe(Effect.catch(() => Effect.void))
-      );
-    }
+      return Fiber.interrupt(current.fiber).pipe(Effect.catch(() => Effect.void));
+    });
+
+  const interrupt = (): void => {
+    void runtime.runFork(interruptEffect());
   };
 
   const clearCompleted = (fiber: ResourceUiSuspensePreloadFiber<A, E, ER>): void => {
@@ -421,7 +430,9 @@ export const makeResourceUiSuspensePreloadController = <I, A, E, R = unknown, ER
         interrupt();
       }
     },
+    interruptEffect,
     interrupt,
+    disposeEffect: interruptEffect,
     dispose: interrupt
   };
 };

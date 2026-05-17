@@ -59,6 +59,10 @@ import {
   type RuntimeProviderProps,
   type UseResourceOptions
 } from "@effect-ui/react";
+// @ts-expect-error React commit-scope frames are adapter internals, not root public exports.
+type ReactCommitScopeFactoryIsInternal = typeof import("@effect-ui/react").makeReactRuntimeUiScopeFrame;
+// @ts-expect-error React commit-scope frame types are adapter internals, not root public exports.
+type ReactCommitScopeFrameIsInternal = import("@effect-ui/react").ReactRuntimeUiScopeFrame<never>;
 
 interface ReactProject {
   readonly id: string;

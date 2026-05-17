@@ -1,4 +1,4 @@
-import { Context, Effect, Fiber, Layer, Scope } from "effect";
+import { Context, Deferred, Effect, Fiber, Layer, Scope } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   makeResourceUiBindingController,
@@ -298,6 +298,43 @@ describe("Resource UI Binding Controller", () => {
     controller.dispose();
     return Effect.runPromise(runtime.disposeEffect);
   });
+
+  it("disposes Suspense preload joins through an awaitable Effect", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const runtime = makeRuntime();
+        const started = yield* Deferred.make<void>();
+        let releases = 0;
+        const ProjectById = Resource.family<string, Project>({
+          name: "ResourceUiBinding.suspense-dispose-effect",
+          load: (id) =>
+            Effect.acquireRelease(
+              Deferred.succeed(started, undefined).pipe(Effect.as({ id, name: id })),
+              () => Effect.sync(() => {
+                releases++;
+              })
+            ).pipe(Effect.andThen(Effect.never))
+        });
+        const ref = ProjectById("atlas");
+        const controller = makeResourceUiSuspensePreloadController<
+          string,
+          Project,
+          never,
+          never,
+          never,
+          Fiber.Fiber<Project, Resource.LoadError<never>>
+        >(runtime);
+
+        controller.hostToken(ref, {
+          toHostToken: (preloadFiber) => preloadFiber
+        });
+        yield* Deferred.await(started);
+        yield* controller.disposeEffect();
+
+        expect(releases).toBe(1);
+        yield* runtime.disposeEffect;
+      })
+    ));
 
   it("clears completed Suspense preload tokens before same-ref reloads", () => {
     const runtime = makeRuntime();
