@@ -138,7 +138,14 @@ export const createBrowserRouterHostController = <
 
       started = true;
       stopHistory = history.listen(kernel.navigateHref);
-      kernel.navigateHref(initialHref);
+      const initialState = kernel.state.get();
+      if (
+        options.initialMatchedState === undefined ||
+        initialState._tag !== "Ready" ||
+        initialState.href !== initialHref
+      ) {
+        kernel.navigateHref(initialHref);
+      }
 
       return controller.dispose;
     },

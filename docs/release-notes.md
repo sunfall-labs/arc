@@ -66,27 +66,39 @@ metadata, and final npm publication are selected.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 240:
+Latest full gate on May 17, 2026 after Review 492:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 415 package/example/config/script/type-test/generated
+- Effect-first audit over 449 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1170 tests;
+- 58 root test files / 1223 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
-  starter, React starter, and project console packages;
+  starter, React starter, docs site, and project console packages;
 - starter-suite packaging for basic (20 app files / 5 local packages), React
   (25 app files / 4 local packages), and project console (31 app files / 6
   local packages);
-- 16-target package dry-run gate for all framework packages plus the basic
-  starter, React starter, project console, devtools panel, and devtools
+- 17-target package dry-run gate for all framework packages plus the basic
+  starter, React starter, project console, docs site, devtools panel, and devtools
   extension, including the `@effect-ui/start/virtual` declaration byte check
   and 149-file `@effect-ui/db` package rehearsal;
 - project console typecheck;
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 492 Route Suspense Runtime And Prerender Callback Pins moved lazy
+  route Suspense pending classification and preload launch into Core, leaving
+  React/Solid with only host Suspense token conversion, and avoids duplicate
+  initial Ready hydration preloads when the browser host starts. Start
+  prerender now rejects Promise-shaped `onSuccess`/`onError` callback returns,
+  response body reads run through the stream-finalizer Effect, Vite
+  `closeBundle` prerendering has direct behavioral coverage, resource GC
+  timers unref in Node, Start diagnostics drops its inactive-server unref
+  workaround, docs-site static prerender output is verified, and TSRX
+  dependency-discovery policy is pinned to the dev server. The active
+  Thirty-Sweep clean counter remains 0/30 until a fresh post-Review492 sweep
+  reports no actionable findings.
 - Review 491 Prerender Effect Interface And Lazy Route Suspense Probes removed
   the new Start prerender Promise facade, kept `runStartPrerenderEffect(...)`
   as the public runner, moved retry delay and host IO through Effect
@@ -95,8 +107,9 @@ Latest full gate on May 17, 2026 after Review 240:
   Start route-code-splitting tests typecheck generated lazy-loader output so
   Effect v4 `tryPromise(...)` contract drift is caught. Package payload policy
   also self-tests package-local `LICENSE` content drift against the workspace
-  MIT license. The active Thirty-Sweep clean counter remains 0/30 until a fresh
-  post-Review491 sweep reports no actionable findings.
+  MIT license. The active Thirty-Sweep clean counter remained 0/30; the later
+  fresh post-Review491 sweep found Review492 route Suspense runtime and
+  prerender callback pin work.
 - Review 490 Effect-First Lazy Route Components And Formatter-Tolerant Public
   API Inventory closed the dirty-lane follow-up: Core `Route.lazyComponent(...)`
   now accepts an Effect loader, exposes `preloadEffect()`, caches the detached
@@ -1516,11 +1529,11 @@ Latest full gate on May 17, 2026 after Review 240:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 240 Effect-First Cleanup,
-  Suspense, And Public API Pins: best-effort cleanup, Start CLI/response
-  lifetime tooling, command-runner/starter scripts, framework Suspense and
-  Solid Resource preload seams, DB sync/materialization locality, and dotted
-  namespace public API ownership now match the Effect-first ownership model.
+- The latest full `pnpm verify` passed after Review 492 Route Suspense Runtime
+  And Prerender Callback Pins: lazy route Suspense launch, browser initial
+  Ready hydration, Start prerender callbacks, resource GC timers, docs-site
+  prerendering, TSRX dev-server policy, and current docs evidence now match
+  the Effect-first ownership model.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1563,15 +1576,21 @@ Latest full gate on May 17, 2026 after Review 240:
   current-evidence policy work, the fresh post-Review244 sweep found
   Review245 public API symbol reachability and router Adapter parity work, and
   the fresh post-Review245 sweep found Review246 Effect cleanup capture and
-  Vite middleware lifecycle work, so
+  Vite middleware lifecycle work, the fresh post-Review246 sweep found
+  Review247 Scope cleanup capture and namespace public pin work, the
+  dirty-lane follow-up found Review490 lazy route Effect Interface and
+  formatter-tolerant inventory work, the fresh post-Review490 sweep found
+  Review491 prerender Effect Interface and lazy route probe work, and the
+  fresh post-Review491 sweep found Review492 route Suspense runtime and
+  prerender callback pin work, so
   the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 415 physical/virtual files, 53 root test files / 1170
+  Effect-first audit over 449 physical/virtual files, 58 root test files / 1223
   tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console at
   20/25/31 app files,
-  16-target package dry-run gate, project-console typecheck, 4 project-console
+  17-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans.
 - The previous full `pnpm verify` passed after Review 64 store-owned Resource
   load ownership, Start stream/manifest walls, DB hydration/dehydrate preflight,

@@ -1282,6 +1282,27 @@ export const publicHoverDocGroups = [
     ],
   },
   {
+    file: "packages/start/src/start-prerender.ts",
+    declarations: [
+      "StartPrerenderPageOptions",
+      "StartPrerenderPage",
+      "StartPrerenderPageInput",
+      "StartPrerenderPageContext",
+      "StartPrerenderSuccessEvent",
+      "StartPrerenderFailureEvent",
+      "StartPrerenderOptions",
+      "StartPrerenderConfig",
+      "StartPrerenderRunOptions",
+      "StartPrerenderResult",
+      "StartPrerenderError",
+      "ResolvedStartPrerenderOptions",
+      "StartPrerenderPlannedPage",
+      "resolveStartPrerenderOptions",
+      "planStartPrerenderPages",
+      "runStartPrerenderEffect",
+    ],
+  },
+  {
     file: "packages/start/src/start-virtual-modules.ts",
     declarations: [
       "serverFunctionManifestVirtualModuleId",
@@ -1392,22 +1413,23 @@ export const namespaceBackedSurfaceModules = new Map([
 ]);
 
 export const currentDocsEvidencePolicy = {
-  latestFocusedReview: 491,
-  latestFocusedTitle: "Prerender Effect Interface And Lazy Route Suspense Probes",
-  latestFullGateReview: 240,
-  rootTestFiles: 53,
-  rootTestCount: 1170,
+  latestFocusedReview: 492,
+  latestFocusedTitle: "Route Suspense Runtime And Prerender Callback Pins",
+  latestFullGateReview: 492,
+  rootTestFiles: 58,
+  rootTestCount: 1223,
   effectFirstFiles: 449,
   activeCleanCounter: "0/30",
 };
 
 const staleFocusedReviewPattern =
-  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0])\b/;
-const staleAsOfReviewPattern = /As of Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0]), the latest full/;
+  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-1])\b/;
+const staleAsOfReviewPattern =
+  /As of Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-1]), the latest full/;
 const staleFullGateReviewPattern =
-  /(?:The latest full verification gate is green after Review|Latest full gate[^.\n]*after Review|latest full `pnpm verify` passed after Review|current full gate is the Review) ?(?:1\d\d|2[0-3]\d)\b/;
+  /(?:The latest full verification gate is green after Review|Latest full gate[^.\n]*after Review|latest full `pnpm verify` passed after Review|current full gate is the Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-1])\b/;
 const stalePostReviewWaitPattern =
-  /until a fresh post-Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0])\s+sweep reports no actionable findings/;
+  /until a fresh post-Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-1])\s+sweep reports no actionable findings/;
 
 export const currentDocsTextPolicies = [
   {
@@ -1441,18 +1463,18 @@ export const currentDocsTextPolicies = [
     file: "docs/architecture-deepening-review.md",
     required: [
       {
-        name: "Architecture tip must name the current focused Review491",
+        name: "Architecture tip must name the current focused Review492",
         pattern:
-          /newest focused review is Review491 Prerender Effect Interface\s+And\s+Lazy\s+Route\s+Suspense\s+Probes/,
+          /newest focused review is Review492 Route Suspense Runtime\s+And\s+Prerender Callback Pins/,
       },
       {
-        name: "Architecture tip must keep Review240 as the newest full checkpoint",
-        pattern: /newest full verification checkpoint remains Review240/,
+        name: "Architecture tip must keep Review492 as the newest full checkpoint",
+        pattern: /newest full verification checkpoint is Review492/,
       },
       {
-        name: "Architecture tip must wait on the post-Review491 clean sweep",
+        name: "Architecture tip must wait on the post-Review492 clean sweep",
         pattern:
-          /active Thirty-Sweep clean counter is 0\/30 until a fresh post-Review491\s+sweep reports no actionable findings/,
+          /active Thirty-Sweep clean counter is 0\/30 until a fresh post-Review492\s+sweep reports no actionable findings/,
       },
     ],
     banned: [
@@ -1471,17 +1493,16 @@ export const currentDocsTextPolicies = [
     required: [
       {
         name: "Perfection progress must name the current focused review from currentDocsEvidencePolicy",
-        pattern:
-          /latest focused Review491 Prerender Effect Interface\s+And\s+Lazy\s+Route\s+Suspense\s+Probes/,
+        pattern: /latest focused Review492 Route Suspense Runtime\s+And\s+Prerender Callback Pins/,
       },
       {
-        name: "Perfection progress must keep the Review240 full gate as current full evidence",
-        pattern: /latest full verification gate is green after Review240/,
+        name: "Perfection progress must keep the Review492 full gate as current full evidence",
+        pattern: /latest full verification gate is green after Review492/,
       },
       {
-        name: "Perfection progress must keep the active Thirty-Sweep counter at 0/30 after Review491 work",
+        name: "Perfection progress must keep the active Thirty-Sweep counter at 0/30 after Review492 work",
         pattern:
-          /active Thirty-Sweep clean counter remains 0\/30 until\s+a fresh post-Review491 sweep reports no actionable findings/,
+          /active Thirty-Sweep clean counter remains 0\/30 until\s+a fresh post-Review492 sweep reports no\s+actionable findings/,
       },
     ],
     banned: [
@@ -1515,16 +1536,16 @@ export const currentDocsTextPolicies = [
     file: "docs/release-notes.md",
     required: [
       {
-        name: "Release notes must include the current focused Review491 entry",
-        pattern: /Review 491 Prerender Effect Interface And Lazy Route Suspense Probes/,
+        name: "Release notes must include the current focused Review492 entry",
+        pattern: /Review 492 Route Suspense Runtime And Prerender Callback Pins/,
       },
       {
-        name: "Release notes must keep the Review240 full gate snapshot",
-        pattern: /Latest full gate on May 17, 2026 after Review 240/,
+        name: "Release notes must keep the Review492 full gate snapshot",
+        pattern: /Latest full gate on May 17, 2026 after Review 492/,
       },
       {
-        name: "Release notes must wait on the post-Review491 clean sweep",
-        pattern: /until a fresh\s+post-Review491\s+sweep reports no actionable\s+findings/,
+        name: "Release notes must wait on the post-Review492 clean sweep",
+        pattern: /until a fresh\s+post-Review492\s+sweep\s+reports no actionable findings/,
       },
     ],
     banned: [
@@ -1554,16 +1575,16 @@ export const currentDocsTextPolicies = [
     file: "docs/docs-drift-audit.md",
     required: [
       {
-        name: "Docs drift audit must name the current focused Review491 evidence",
-        pattern: /As of Review491, the latest full/,
+        name: "Docs drift audit must name the current focused Review492 evidence",
+        pattern: /As of Review492, the latest full/,
       },
       {
-        name: "Docs drift audit must keep Review240 full gate counts",
-        pattern: /Review240 run with 53 root test files \/ 1170 tests/,
+        name: "Docs drift audit must keep Review492 full gate counts",
+        pattern: /Review492 run with 58 root test files \/ 1223 tests/,
       },
       {
-        name: "Docs drift audit must wait on the post-Review491 clean sweep",
-        pattern: /counter is 0\/30 until a fresh post-Review491 sweep reports no actionable/,
+        name: "Docs drift audit must wait on the post-Review492 clean sweep",
+        pattern: /counter is 0\/30 until a fresh post-Review492 sweep reports no actionable/,
       },
     ],
     banned: [
@@ -1589,13 +1610,13 @@ export const currentDocsTextPolicies = [
     file: "docs/type-test-coverage-audit.md",
     required: [
       {
-        name: "Type-test audit must name Review491 public type-test pins",
-        pattern: /Review491 Prerender Effect Interface And Lazy Route Suspense Probes/,
+        name: "Type-test audit must name Review492 public type-test pins",
+        pattern: /Review492 Route Suspense Runtime And Prerender Callback Pins/,
       },
       {
-        name: "Type-test audit must keep Review240 full gate counts",
+        name: "Type-test audit must keep Review492 full gate counts",
         pattern:
-          /Full `pnpm verify` passed after Review240 with\s+53 root test files \/ 1170 tests/,
+          /Full `pnpm verify` passed after Review492 with\s+58 root test files \/ 1223 tests/,
       },
     ],
     banned: [
@@ -1609,16 +1630,16 @@ export const currentDocsTextPolicies = [
     file: "docs/effect-first-audit.md",
     required: [
       {
-        name: "Effect-first audit must name Review491 as current sweep work",
-        pattern: /Review491 Prerender Effect Interface And Lazy Route Suspense Probes/,
+        name: "Effect-first audit must name Review492 as current sweep work",
+        pattern: /Review492 Route Suspense Runtime And Prerender Callback Pins/,
       },
       {
         name: "Effect-first audit must keep the 449-file audit count",
         pattern: /Effect-first audit\s+over 449 physical and virtual files/,
       },
       {
-        name: "Effect-first audit must keep the Review240 full gate as current full evidence",
-        pattern: /current full gate is the Review 240/,
+        name: "Effect-first audit must keep the Review492 full gate as current full evidence",
+        pattern: /current full gate is the Review 492/,
       },
     ],
     banned: [
@@ -1634,6 +1655,13 @@ export const currentDocsTextPolicies = [
   },
   {
     file: "docs/package-hygiene-audit.md",
+    required: [
+      {
+        name: "Package hygiene audit must keep the Review491 license drift self-test evidence",
+        pattern:
+          /Review491 added a package payload policy self-test[\s\S]*mismatched package-local `LICENSE`[\s\S]*workspace MIT license text/,
+      },
+    ],
     banned: [
       {
         name: "Package hygiene audit must not call Review239 the current full gate",
@@ -1662,15 +1690,15 @@ export const currentDocsTextPolicies = [
     file: "docs/ultimate-goal-checklist.md",
     required: [
       {
-        name: "Ultimate goal checklist must name Review491 as latest focused evidence",
-        pattern: /Latest focused evidence: Review 491/,
+        name: "Ultimate goal checklist must name Review492 as latest focused evidence",
+        pattern: /Latest focused evidence: Review 492/,
       },
       {
-        name: "Ultimate goal checklist must keep Review240 as latest full evidence",
-        pattern: /Review240 records the latest full gate/,
+        name: "Ultimate goal checklist must keep Review492 as latest full evidence",
+        pattern: /Review492 records the latest full gate/,
       },
       {
-        name: "Ultimate goal checklist must keep active clean counter at 0/30 after Review491",
+        name: "Ultimate goal checklist must keep active clean counter at 0/30 after Review492",
         pattern: /leaving the active counter at 0\/30/,
       },
     ],

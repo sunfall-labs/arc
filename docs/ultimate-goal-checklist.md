@@ -681,13 +681,14 @@ diagnostics`, devtools summary tests, and generated virtual modules.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 491 passed focused React/Solid router and
-    Start route-code-splitting/prerender tests 4 files / 81 tests,
+  - Latest focused evidence: Review 492 passed focused Core/React/Solid/Start/
+    TSRX tests 6 files / 113 tests, `pnpm --filter @effect-ui/core build`,
     `pnpm typecheck`, `pnpm audit:effect-first` over 449 files,
-    `pnpm audit:public-api`, `pnpm format:check`, `pnpm lint`, and
-    `git diff --check` while closing the prerender Effect Interface and lazy
-    route Suspense probe work. Latest full verification evidence remains
-    Review 240.
+    `pnpm audit:public-api`, `pnpm verify:package-payload-policy`, and
+    `pnpm --filter @effect-ui/example-docs-site verify` while closing the
+    route Suspense runtime, initial Ready hydration preload, prerender
+    callback, resource GC timer, and TSRX dev-server policy work. Latest full
+    verification evidence is Review 492.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
@@ -754,12 +755,14 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     and Vite middleware lifecycle work, and the fresh post-Review246 sweep
     found Review247 Scope cleanup capture and namespace public pin work, the
     dirty-lane follow-up found Review490 lazy route Effect Interface and
-    formatter-tolerant inventory work, and the fresh post-Review490 sweep found
-    Review491 prerender Effect Interface and lazy route probe work,
+    formatter-tolerant inventory work, the fresh post-Review490 sweep found
+    Review491 prerender Effect Interface and lazy route probe work, and the
+    fresh post-Review491 sweep found Review492 route Suspense runtime and
+    prerender callback pin work,
     leaving the active counter at 0/30.
     Latest full evidence:
-    `pnpm verify` ran after Review 240 with 53 root
-    test files / 1170
+    `pnpm verify` ran after Review 492 with 58 root
+    test files / 1223
     tests, plus 4 project-console test files / 27 tests in the package-level
     gate.
 - [x] Type tests pass after compile-time API changes.
@@ -908,21 +911,20 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
   - Evidence: root `pnpm verify` passed on May 17,
-    2026 after Review 240 Effect-First Cleanup, Suspense, And Public API Pins:
+    2026 after Review 492 Route Suspense Runtime And Prerender Callback Pins:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    415 physical/virtual files, 53 root test files / 1170 tests,
+    449 physical/virtual files, 58 root test files / 1223 tests,
     package-level verifies for the devtools/starter/example packages,
     generated starter-suite packaging/verifies for basic/react/project-console
     at 20/25/31 app files,
-    16-target package dry-run gate, project-console typecheck, 4 project-console
+    17-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 491 records focused React/Solid router and Start
-    route-code-splitting/prerender tests, workspace typecheck, Effect-first
-    audit, public API audit, format, lint, and diff hygiene after closing
-    prerender Effect Interface and lazy route Suspense probe findings.
-    Review240 records the latest full gate. Clean
+  - Evidence: Review 492 records focused Core/React/Solid/Start/TSRX tests,
+    workspace typecheck, Effect-first audit, public API audit, package policy,
+    docs-site verify, and full `pnpm verify` after closing route Suspense
+    runtime and prerender callback findings. Review492 records the latest full gate. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
@@ -986,8 +988,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     and Vite middleware lifecycle work, and the fresh post-Review246 sweep
     found Review247 Scope cleanup capture and namespace public pin work, the
     dirty-lane follow-up found Review490 lazy route Effect Interface and
-    formatter-tolerant inventory work, and the fresh post-Review490 sweep found
-    Review491 prerender Effect Interface and lazy route probe work,
+    formatter-tolerant inventory work, the fresh post-Review490 sweep found
+    Review491 prerender Effect Interface and lazy route probe work, and the
+    fresh post-Review491 sweep found Review492 route Suspense runtime and
+    prerender callback pin work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 

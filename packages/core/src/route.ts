@@ -232,6 +232,28 @@ export const routeLazyComponentPendingEffect = (
 ): Effect.Effect<unknown, unknown> | undefined =>
   value instanceof RouteLazyComponentPending ? value.preloadEffect : undefined;
 
+/** Runtime capability needed to launch lazy route component Suspense preload work. */
+export interface RouteLazyComponentSuspenseRuntime<RuntimeError = never> {
+  /** Forks the lazy component preload Effect in the active UI runtime. */
+  readonly runFork: <A, E, R>(effect: Effect.Effect<A, E, R>) => Fiber.Fiber<A, E | RuntimeError>;
+}
+
+/**
+ * Converts a thrown lazy route pending marker into a runtime-owned preload fiber.
+ *
+ * UI adapters keep the final host Suspense token conversion, but Core owns the
+ * lazy route pending classification and preload launch policy.
+ */
+export const forkRouteLazyComponentSuspense = <RuntimeError>(
+  value: unknown,
+  runtime: RouteLazyComponentSuspenseRuntime<RuntimeError>,
+): Fiber.Fiber<void, unknown | RuntimeError> | undefined => {
+  const pendingEffect = routeLazyComponentPendingEffect(value);
+  return pendingEffect === undefined
+    ? undefined
+    : runtime.runFork(pendingEffect.pipe(Effect.asVoid));
+};
+
 /**
  * Route configuration with optional schema decoding and Effect-first preload work.
  *
@@ -694,6 +716,9 @@ export namespace Route {
 
   /** Reads a route component, throwing tagged lazy load states for UI adapters. */
   export const readComponent = readRouteComponent;
+
+  /** Forks a pending lazy component preload for framework Suspense adapters. */
+  export const forkLazyComponentSuspense = forkRouteLazyComponentSuspense;
 
   /** Builds an href for a route from typed params and optional search values. */
   export const href = <R extends Definition<string, unknown, unknown, any>>(

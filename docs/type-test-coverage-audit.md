@@ -175,13 +175,12 @@ are easiest to regress while refactoring internals toward Effect primitives.
   type-test bindings, then pinned `Collection.validateHydrationPayloadEffect`,
   `Query.diagnostics`, and `SQLitePersistence.storage` so namespace-backed
   public surfaces cannot be satisfied by shallow top-level imports alone. It
-  moved the current full verification evidence to the Review240 gate.
+  moved the then-current full verification evidence to the Review240 gate.
 - Review243 Browser Router And DB Public Interface Pins added direct public
   type-test and manifest ownership for top-level Query type mirrors
   (`QueryRoot`, `QueryFactory`, `LiveQuery`, `LiveQueryState`, plan diagnostics,
   join/sort scalar types, and aggregate types) plus SQLite default constants.
-  The latest full verification evidence still remains the Review240 gate until
-  the next full `pnpm verify` run.
+  The latest full verification evidence is now the Review492 gate.
 - Review244 Effect Cleanup Ownership, DB Pins, And Evidence Policy added
   namespace Query scalar alias pins for `Query.JoinKey`, `Query.SortDirection`,
   and `Query.SortValue`, React/Solid DB handle Effect channel pins, and the
@@ -200,6 +199,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   DB namespace-local error-channel pins, and direct Start Vite dev SSR
   middleware/helper imports so LSP-facing public concepts cannot drift behind
   root-only symbols.
+- Review492 Route Suspense Runtime And Prerender Callback Pins added Start
+  prerender hover-policy pins for exported prerender option, event, result,
+  error, planning, and Effect runner declarations, while keeping lazy route
+  Suspense runtime ownership behind Core's public `Route` namespace.
 - Review491 Prerender Effect Interface And Lazy Route Suspense Probes removed
   the public `runStartPrerender(...)` Promise facade from Start Vite type
   pins, kept `runStartPrerenderEffect(...)` as the public runner, and added a
@@ -331,8 +334,8 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 - `pnpm typecheck:types` passed after Review244 with Query scalar namespace
   aliases, DB handle Effect channel pins, and Devtools typed failure pins.
-  Full `pnpm verify` passed after Review240 with
-  53 root test files / 1170 tests, including dotted namespace public API
+  Full `pnpm verify` passed after Review492 with
+  58 root test files / 1223 tests, including dotted namespace public API
   type-test ownership for `Collection.validateHydrationPayloadEffect`,
   `Query.diagnostics`, and `SQLitePersistence.storage`, DB query-sync and live
   query materialization regressions, Solid Resource preload option reactivity,

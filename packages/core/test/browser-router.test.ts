@@ -310,6 +310,82 @@ describe("browser router kernel", () => {
       }),
     ));
 
+  it("forks lazy route component pending work for framework Suspense adapters", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+          const release = yield* Deferred.make<void>();
+          const component = () => undefined;
+          let imports = 0;
+          const lazyComponent = Route.lazyComponent(
+            Effect.gen(function* () {
+              imports++;
+              yield* Deferred.await(release);
+              return { default: component };
+            }),
+          );
+
+          let thrown: unknown;
+          try {
+            Route.readComponent(lazyComponent);
+          } catch (error) {
+            thrown = error;
+          }
+
+          const firstFiber = Route.forkLazyComponentSuspense(thrown, runtime);
+          const secondFiber = Route.forkLazyComponentSuspense(thrown, runtime);
+          expect(firstFiber).toBeDefined();
+          expect(secondFiber).toBeDefined();
+          expect(
+            Route.forkLazyComponentSuspense(new Error("not lazy pending"), runtime),
+          ).toBeUndefined();
+          expect(imports).toBe(1);
+
+          yield* Deferred.succeed(release, undefined);
+          yield* Fiber.join(firstFiber!);
+          yield* Fiber.join(secondFiber!);
+          expect(Route.readComponent(lazyComponent)).toBe(component);
+        }),
+      ),
+    ));
+
+  it("does not fork lazy route component Suspense work after load failure", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+          const lazyComponent = Route.lazyComponent(
+            Effect.fail(new Error("chunk failed")) as Effect.Effect<
+              Route.LazyComponentModule<() => undefined>,
+              unknown
+            >,
+          );
+
+          let pending: unknown;
+          try {
+            Route.readComponent(lazyComponent);
+          } catch (error) {
+            pending = error;
+          }
+
+          const fiber = Route.forkLazyComponentSuspense(pending, runtime);
+          expect(fiber).toBeDefined();
+          yield* Effect.exit(Fiber.join(fiber!));
+
+          let failed: unknown;
+          try {
+            Route.readComponent(lazyComponent);
+          } catch (error) {
+            failed = error;
+          }
+          expect(Route.forkLazyComponentSuspense(failed, runtime)).toBeUndefined();
+        }),
+      ),
+    ));
+
   it("shares initial matched state policy across framework adapters", () => {
     const Project = route("/initial-projects/:id");
     const routes = [Project] as const;
@@ -339,6 +415,40 @@ describe("browser router kernel", () => {
       }),
     ).toMatchObject({ _tag: "Pending" });
   });
+
+  it("does not re-preload an initial Ready hydration state when host listening starts", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          let preloads = 0;
+          const Project = route("/hydrated-router", {
+            preload: () =>
+              Effect.sync(() => {
+                preloads++;
+              }),
+          });
+          const history = makeMemoryBrowserHistoryAdapter({ initialHref: "/hydrated-router" });
+          const router = createBrowserRouterHostController([Project] as const, {
+            history,
+            runtime,
+            initialMatchedState: (href, match) => ({ _tag: "Ready", href, match }),
+          });
+          yield* Effect.addFinalizer(() => router.disposeEffect());
+
+          router.start();
+          yield* Effect.sleep("10 millis");
+
+          expect(router.state.get()).toMatchObject({
+            _tag: "Ready",
+            href: "/hydrated-router",
+          });
+          expect(preloads).toBe(0);
+        }),
+      ),
+    ));
 
   it("shares router link hover preload interruption across framework adapters", () =>
     Effect.runPromise(

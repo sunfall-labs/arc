@@ -152,11 +152,14 @@ exports. It supports the release-engineering charter workstream.
 - Review491 added a package payload policy self-test that creates a temporary
   workspace/package pair and verifies mismatched package-local `LICENSE`
   contents fail against the workspace MIT license text.
-- The current full `pnpm verify` passed after Review240 with 11 package builds,
+- Review492 promotes that Review491 license-drift self-test to current docs
+  policy, so future evidence updates must keep the package-local `LICENSE`
+  mismatch rehearsal visible.
+- The current full `pnpm verify` passed after Review492 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 415 files, 53 root test files / 1170 tests, derived
-  package-level verifies for the five copyable source packages, generated
-  starter packaging at 20/25/31 app files, and the 16-target dry-run gate.
+  Effect-first audit over 449 files, 58 root test files / 1223 tests, derived
+  package-level verifies for the six copyable source packages, generated
+  starter packaging at 20/25/31 app files, and the 17-target dry-run gate.
   Review220 also records
   that generated starter packaging and package dry-runs share the same tested
   dist package payload policy Interface. Review240 preserved that package

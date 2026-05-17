@@ -1400,6 +1400,9 @@ Release decisions:
 The root export includes:
 
 - `effectUiTsrx(options)` and the default export for TSRX/Solid Vite setup.
+  Its dependency-discovery policy plugin is scoped to Vite's dev server
+  (`apply: "serve"`) so production builds use the transform plugins without
+  carrying dev-only optimize-deps policy.
 
 Release decisions:
 

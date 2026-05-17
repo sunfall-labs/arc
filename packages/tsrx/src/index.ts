@@ -8,9 +8,9 @@ export interface EffectUiTsrxOptions {
   readonly tsrx?: Parameters<typeof tsrxSolid>[0];
   /** Options passed through to `vite-plugin-solid`. */
   readonly solid?: Parameters<typeof solid>[0];
-  /** Vite dependency pre-bundling defaults used by the preset. */
+  /** Vite dev-server dependency pre-bundling defaults used by the preset. */
   readonly optimizeDeps?: {
-    /** Disable Vite dependency discovery. Defaults to `true` for TSRX projects. */
+    /** Disable Vite dev-server dependency discovery. Defaults to `true` for TSRX projects. */
     readonly noDiscovery?: boolean;
   };
 }
@@ -18,8 +18,9 @@ export interface EffectUiTsrxOptions {
 /**
  * Creates the standard Effect UI TSRX/Solid Vite plugin chain.
  *
- * The preset installs a small dependency-discovery policy plugin, then TSRX's
- * Solid transform, then `vite-plugin-solid` in the order expected by starters.
+ * The preset installs a dev-server dependency-discovery policy plugin, then
+ * TSRX's Solid transform, then `vite-plugin-solid` in the order expected by
+ * starters.
  */
 export const effectUiTsrx = (options: EffectUiTsrxOptions = {}): PluginOption[] => {
   const noDiscovery = options.optimizeDeps?.noDiscovery ?? true;
@@ -27,6 +28,7 @@ export const effectUiTsrx = (options: EffectUiTsrxOptions = {}): PluginOption[] 
   return [
     {
       name: "effect-ui-tsrx-deps",
+      apply: "serve",
       config() {
         return noDiscovery
           ? {

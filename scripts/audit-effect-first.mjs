@@ -271,12 +271,12 @@ const allowed = [
       seam(
         "packages/react/src/route-render-scope.ts",
         "React lazy route component Suspense token Adapter",
-        /const fiber = props\.runtime\.runFork\(pendingLazyComponent\.pipe\(Effect\.asVoid\)\);\s*throw Effect\.runPromise\(Fiber\.join\(fiber\)\);/,
+        /const pendingLazyComponent = forkRouteLazyComponentSuspense\(error, props\.runtime\);\s*if \(pendingLazyComponent !== undefined\) {\s*const fiber = pendingLazyComponent;\s*throw Effect\.runPromise\(Fiber\.join\(fiber\)\);/,
       ),
       seam(
         "packages/solid/src/route-render-scope.ts",
         "Solid lazy route component Suspense token Adapter",
-        /const fiber = runtime\.runFork\(effect\.pipe\(Effect\.asVoid\)\);\s*return Effect\.runPromise\(Fiber\.join\(fiber\)\);/,
+        /const fiber = forkRouteLazyComponentSuspense\(error, runtime\);\s*return fiber === undefined \? undefined : Effect\.runPromise\(Fiber\.join\(fiber\)\);/,
       ),
       seam(
         "packages/start/src/request-runtime-response.ts",

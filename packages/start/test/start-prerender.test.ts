@@ -10,6 +10,7 @@ import {
   runStartPrerenderEffect,
   StartPrerenderError,
 } from "../src/start-prerender.js";
+import { effectUiStart } from "../src/vite.js";
 
 const manifest = generateFileRouteManifestArtifact(
   [
@@ -20,6 +21,55 @@ const manifest = generateFileRouteManifestArtifact(
   ],
   { routeDirectory: "src/routes" },
 );
+
+const writePrerenderFixture = (
+  root: string,
+  options: {
+    readonly body?: string;
+    readonly status?: number;
+  } = {},
+): string => {
+  const outDir = join(root, "dist");
+  mkdirSync(join(root, "src"), { recursive: true });
+  mkdirSync(outDir, { recursive: true });
+  writeFileSync(
+    join(outDir, "index.html"),
+    [
+      "<!doctype html>",
+      '<html><head><link rel="stylesheet" href="/assets/app-abc.css" /></head>',
+      '<body><script type="module" src="/assets/app-abc.js"></script></body></html>',
+    ].join("\n"),
+  );
+  writeFileSync(
+    join(root, "src/server.ts"),
+    [
+      "export default function handleRequest() {",
+      "  return new Response(",
+      `    ${JSON.stringify(
+        options.body ??
+          [
+            "<!doctype html>",
+            "<html>",
+            "  <head>",
+            '    <link rel="stylesheet" href="/src/styles.css" data-effect-ui-docs-dev-style />',
+            "  </head>",
+            "  <body>",
+            "    <main>Prerendered page</main>",
+            '    <script type="module" src="/src/main.tsx"></script>',
+            "  </body>",
+            "</html>",
+          ].join("\n"),
+      )},`,
+      `    { status: ${options.status ?? 200} }`,
+      "  );",
+      "}",
+      "",
+    ].join("\n"),
+  );
+  return outDir;
+};
+
+const promiseLikeCallbackResult = { then() {} } as never;
 
 describe("Start prerender planning", () => {
   it("discovers static file routes and keeps dynamic routes explicit", () => {
@@ -67,39 +117,9 @@ describe("Start prerender planning", () => {
 
   it("replaces dev asset tags with production assets when writing pages", async () => {
     const root = mkdtempSync(join(tmpdir(), "effect-ui-start-prerender-"));
-    const outDir = join(root, "dist");
 
     try {
-      mkdirSync(join(root, "src"), { recursive: true });
-      mkdirSync(outDir, { recursive: true });
-      writeFileSync(
-        join(outDir, "index.html"),
-        [
-          "<!doctype html>",
-          '<html><head><link rel="stylesheet" href="/assets/app-abc.css" /></head>',
-          '<body><script type="module" src="/assets/app-abc.js"></script></body></html>',
-        ].join("\n"),
-      );
-      writeFileSync(
-        join(root, "src/server.ts"),
-        [
-          "export default function handleRequest() {",
-          "  return new Response(",
-          "    `<!doctype html>",
-          "<html>",
-          "  <head>",
-          '    <link rel="stylesheet" href="/src/styles.css" data-effect-ui-docs-dev-style />',
-          "  </head>",
-          "  <body>",
-          "    <main>Prerendered page</main>",
-          '    <script type="module" src="/src/main.tsx"></script>',
-          "  </body>",
-          "</html>`",
-          "  );",
-          "}",
-          "",
-        ].join("\n"),
-      );
+      const outDir = writePrerenderFixture(root);
 
       const result = await Effect.runPromise(
         Effect.scoped(
@@ -125,6 +145,118 @@ describe("Start prerender planning", () => {
       expect(html).toContain('src="/assets/app-abc.js"');
       expect(html).not.toContain("/src/styles.css");
       expect(html).not.toContain("/src/main.tsx");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects Promise-shaped onSuccess callback work", async () => {
+    const root = mkdtempSync(join(tmpdir(), "effect-ui-start-prerender-"));
+
+    try {
+      const outDir = writePrerenderFixture(root);
+      const error = await Effect.runPromise(
+        Effect.flip(
+          Effect.scoped(
+            runStartPrerenderEffect({
+              root,
+              outDir,
+              manifest,
+              configFile: false,
+              serverEntry: "/src/server.ts",
+              prerender: {
+                enabled: true,
+                autoStaticPathsDiscovery: false,
+                crawlLinks: false,
+                onSuccess: () => promiseLikeCallbackResult,
+              },
+            }),
+          ),
+        ),
+      );
+
+      expect(error).toMatchObject({
+        operation: "callback",
+        path: "/",
+      });
+      expect(error.message).toContain("onSuccess callback returned Promise-shaped work");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects Promise-shaped onError callback work", async () => {
+    const root = mkdtempSync(join(tmpdir(), "effect-ui-start-prerender-"));
+
+    try {
+      const outDir = writePrerenderFixture(root, { status: 500 });
+      const error = await Effect.runPromise(
+        Effect.flip(
+          Effect.scoped(
+            runStartPrerenderEffect({
+              root,
+              outDir,
+              manifest,
+              configFile: false,
+              serverEntry: "/src/server.ts",
+              prerender: {
+                enabled: true,
+                autoStaticPathsDiscovery: false,
+                crawlLinks: false,
+                failOnError: false,
+                onError: () => promiseLikeCallbackResult,
+              },
+            }),
+          ),
+        ),
+      );
+
+      expect(error).toMatchObject({
+        operation: "callback",
+        path: "/",
+      });
+      expect(error.message).toContain("onError callback returned Promise-shaped work");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("runs prerendering from the Vite closeBundle host seam", async () => {
+    const root = mkdtempSync(join(tmpdir(), "effect-ui-start-prerender-vite-"));
+
+    try {
+      const outDir = writePrerenderFixture(root);
+      mkdirSync(join(root, "src/routes"), { recursive: true });
+      writeFileSync(join(root, "src/routes/index.tsx"), "export default function Index() {}\n");
+
+      const plugin = effectUiStart({
+        fileRoutes: ["src/routes/index.tsx"],
+        fileRouteOptions: {
+          routeDirectory: "src/routes",
+        },
+        serverEntry: "/src/server.ts",
+        prerender: {
+          enabled: true,
+          autoStaticPathsDiscovery: false,
+          crawlLinks: false,
+        },
+      });
+
+      plugin.config({ root });
+      plugin.configResolved({
+        root,
+        command: "build",
+        mode: "production",
+        configFile: false,
+        build: { outDir },
+      });
+      const result = plugin.closeBundle();
+      expect(result).toBeDefined();
+      await result;
+
+      const html = readFileSync(join(outDir, "index.html"), "utf8");
+      expect(html).toContain("Prerendered page");
+      expect(html).toContain('href="/assets/app-abc.css"');
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

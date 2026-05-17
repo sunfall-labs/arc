@@ -80,6 +80,34 @@ export const isResourceStateCollected = <A, E, RefError>(
 const deadline = (updatedAt: number | undefined, duration: number): number | undefined =>
   updatedAt === undefined || duration <= 0 ? undefined : updatedAt + duration;
 
+const maxTimerMillis = 2 ** 31 - 1;
+
+const unrefTimer = (timer: ReturnType<typeof setTimeout>): void => {
+  if (typeof timer !== "object" || timer === null) {
+    return;
+  }
+  const unref = (timer as { readonly unref?: () => void }).unref;
+  if (typeof unref === "function") {
+    unref.call(timer);
+  }
+};
+
+const sleepResourceGcEffect = (milliseconds: number): Effect.Effect<void> =>
+  milliseconds <= 0
+    ? Effect.void
+    : Effect.callback<void, never>((resume) => {
+        const delay = Math.min(milliseconds, maxTimerMillis);
+        const timer = setTimeout(() => resume(Effect.void), delay);
+        unrefTimer(timer);
+        return Effect.sync(() => clearTimeout(timer));
+      }).pipe(
+        Effect.andThen(() =>
+          milliseconds > maxTimerMillis
+            ? sleepResourceGcEffect(milliseconds - maxTimerMillis)
+            : Effect.void,
+        ),
+      );
+
 const remaining = (deadlineAt: number | undefined, now: number): number | undefined =>
   deadlineAt === undefined ? undefined : Math.max(0, deadlineAt - now);
 
@@ -270,7 +298,7 @@ export const scheduleResourceGc = <I, A, E, R, RefError = E>(
 
     const fiber = yield* Effect.forkDetach(
       Effect.gen(function* () {
-        yield* Effect.sleep(gcFor);
+        yield* sleepResourceGcEffect(gcFor);
         entry.gcFiber = undefined;
         store.fiberRegistry.untrack(resourceStoreFiber(fiber));
         if (isRetained()) {

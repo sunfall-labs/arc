@@ -146,24 +146,6 @@ const pluginOptionArray = (
   : readonly unknown[] =>
   plugins === undefined ? [] : Array.isArray(plugins) ? plugins : [plugins];
 
-const unrefInactiveNodeServers = (): void => {
-  const getActiveHandles = (
-    process as typeof process & {
-      _getActiveHandles?: () => readonly unknown[];
-    }
-  )._getActiveHandles;
-  for (const handle of getActiveHandles?.() ?? []) {
-    const server = handle as {
-      readonly constructor?: { readonly name?: string };
-      readonly listening?: boolean;
-      unref?: () => void;
-    };
-    if (server.constructor?.name === "Server" && server.listening === false) {
-      server.unref?.();
-    }
-  }
-};
-
 export const startDiagnosticsInlineConfig = (
   config: UserConfig,
   root: string,
@@ -232,10 +214,7 @@ const closeStartDiagnosticsViteServerEffect = (
         "Could not close the temporary Vite server for Effect UI app graph diagnostics.",
         cause,
       ),
-  }).pipe(
-    Effect.tap(() => Effect.sync(unrefInactiveNodeServers)),
-    Effect.asVoid,
-  );
+  }).pipe(Effect.asVoid);
 
 /**
  * Loads diagnostics from a caller-owned Vite server without closing it.

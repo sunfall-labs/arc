@@ -381,7 +381,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
         normalizedOptions.devSsr?.runOptions === undefined
           ? {}
           : { runOptions: normalizedOptions.devSsr.runOptions };
-      const promise = runStartHostPromise(
+      return runStartHostPromise(
         runStartPrerenderEffect({
           root: viteRoot,
           outDir: viteOutDir,
@@ -396,52 +396,9 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
           ...(normalizedOptions.nodeRequest === undefined
             ? {}
             : { nodeRequest: normalizedOptions.nodeRequest }),
-        }).pipe(
-          Effect.tap(() =>
-            Effect.sync(() => {
-              console.log("Start prerender complete.");
-              const processDebug = process as typeof process & {
-                _getActiveHandles?: () => readonly unknown[];
-                _getActiveRequests?: () => readonly unknown[];
-                getActiveResourcesInfo?: () => readonly string[];
-              };
-              console.log(
-                "Start prerender active resources:",
-                processDebug.getActiveResourcesInfo?.(),
-              );
-              console.log(
-                "Start prerender active handles:",
-                processDebug._getActiveHandles?.().map((handle) => ({
-                  name: (handle as { readonly constructor?: { readonly name?: string } })
-                    .constructor?.name,
-                })),
-              );
-              console.log(
-                "Start prerender active requests:",
-                processDebug._getActiveRequests?.().map((request) => ({
-                  name: (request as { readonly constructor?: { readonly name?: string } })
-                    .constructor?.name,
-                })),
-              );
-            }),
-          ),
-          Effect.asVoid,
-        ),
+        }).pipe(Effect.asVoid),
         prerenderRunnerOptions,
       );
-      return promise.then((value) => {
-        console.log("Start prerender promise resolved.");
-        setTimeout(() => {
-          const processDebug = process as typeof process & {
-            getActiveResourcesInfo?: () => readonly string[];
-          };
-          console.log(
-            "Start prerender delayed resources:",
-            processDebug.getActiveResourcesInfo?.(),
-          );
-        }, 1000);
-        return value;
-      });
     },
     resolveId(id) {
       return resolveStartRouteComponentSplitModuleId(id) ?? resolveStartVirtualModuleId(id);

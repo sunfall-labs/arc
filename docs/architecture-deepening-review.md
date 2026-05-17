@@ -11,12 +11,13 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review491 Prerender Effect Interface And Lazy
-Route Suspense Probes, the post-Review490 follow-up that removed the new
-Promise-shaped prerender runner Interface, kept Start prerender internals
-Effect-first, added direct lazy route Suspense Adapter tests, and typechecked
-Start route-splitting generated code instead of relying on string-shape tests.
-The newest full verification checkpoint remains Review240.
+The newest focused review is Review492 Route Suspense Runtime And Prerender Callback Pins,
+the post-Review491 follow-up that moved lazy route Suspense
+launch policy into Core, avoided duplicate initial Ready hydration preloads,
+rejected Promise-shaped Start prerender callbacks, proved the Vite closeBundle
+prerender Adapter, unrefed resource GC timers, and pinned TSRX dev-server
+dependency-discovery docs.
+The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -54,9 +55,9 @@ and the fresh post-Review243 sweep found Review244 work,
 and the fresh post-Review244 sweep found Review245 work,
 and the fresh post-Review245 sweep found Review246 work,
 and the fresh post-Review246 sweep found Review247 work, the dirty-lane
-follow-up found Review490 work, and the fresh post-Review490 sweep found
-Review491 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review491
+follow-up found Review490 work, the fresh post-Review490 sweep found
+Review491 work, and the fresh post-Review491 sweep found Review492 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review492
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -69,7 +70,7 @@ Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
 Review235 work, Review236 work, Review237 work, Review238 work, Review239
 work, Review240 work, Review241 work, Review242 work, Review243 work,
 Review244 work, Review245 work, Review246 work, Review247 work, Review490
-work, and Review491 work.
+work, Review491 work, and Review492 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -177,7 +178,105 @@ and the dirty-lane follow-up found Review490 lazy route Effect Interface and
 formatter-tolerant inventory work,
 and the fresh post-Review490 sweep found Review491 prerender Effect Interface
 and lazy route probe work,
+and the fresh post-Review491 sweep found Review492 route Suspense runtime and
+prerender callback pin work,
 so the counter remains 0/30.
+
+## Review 492: Route Suspense Runtime And Prerender Callback Pins
+
+Review492 fixes the actionable findings from the fresh post-Review491
+subagent sweep.
+
+1. Lazy Route Suspense Runtime Module
+   - Status: fixed.
+   - Files: `packages/core/src/route.ts`,
+     `packages/core/src/browser-router-host-controller.ts`,
+     `packages/core/test/browser-router.test.ts`,
+     `packages/react/src/route-render-scope.ts`,
+     `packages/solid/src/route-render-scope.ts`, and
+     `scripts/audit-effect-first.mjs`.
+   - Problem: React and Solid both classified Core lazy route pending markers
+     and launched preload work locally before converting the resulting fiber to
+     a host Suspense token. That made each Adapter know too much about lazy
+     route pending state and weakened Locality for the route loading policy.
+     The browser host controller also re-navigated an already Ready initial
+     hydration state, causing duplicate preload work at the host start seam.
+   - Solution: add Core-owned `forkRouteLazyComponentSuspense(...)` and the
+     `Route.forkLazyComponentSuspense(...)` namespace alias. Framework
+     Adapters now pass the thrown value and runtime capability into Core, then
+     keep only the final `Effect.runPromise(Fiber.join(...))` host Suspense
+     conversion. Host controller start now skips the initial navigate when a
+     supplied initial Ready state already matches the initial href.
+   - Benefits: the lazy route Suspense Module has better Depth because Core
+     owns pending classification and preload launch behavior. React and Solid
+     regain Locality as thin host Adapters, focused Core tests now prove shared
+     import/failure behavior once, and hydration start avoids work that the
+     initial state Interface already completed.
+
+2. Start Prerender Callback And Vite Adapter Pins
+   - Status: fixed.
+   - Files: `packages/start/src/start-prerender.ts`,
+     `packages/start/src/vite.ts`,
+     `packages/start/test/start-prerender.test.ts`,
+     `packages/start/src/streaming.ts`, and
+     `scripts/public-api-symbol-policy.mjs`.
+   - Problem: Start prerender callbacks were typed as synchronous void hooks,
+     but TypeScript still allowed Promise-shaped work to be returned from
+     erased callbacks. The Vite `closeBundle` Adapter also had no direct test
+     proving it executed the prerender Effect from the host seam.
+   - Solution: reject Promise-shaped `onSuccess` and `onError` callback
+     results with typed `StartPrerenderError` failures, wrap prerender response
+     body reads in the existing stream-finalizer Effect, remove debug Promise
+     chaining from `closeBundle`, add a Vite lifecycle test, and pin Start
+     prerender public declarations with hover docs.
+   - Benefits: the public Start prerender Interface remains Effect-first even
+     when callers try to smuggle async host work through callbacks. The Vite
+     Adapter has better test Locality, and stream teardown behavior stays
+     concentrated in the streaming Module.
+
+3. Resource GC And Example Build Lifetime
+   - Status: fixed.
+   - Files: `packages/core/src/resource-lifetime.ts`,
+     `packages/core/test/resource-store.test.ts`, and
+     `packages/start/src/start-vite-diagnostics-loader.ts`.
+   - Problem: long resource GC sleeps used regular host timers that could keep
+     Node processes alive after prerender/build verification. Start diagnostics
+     also carried a shallow inactive-server `unref` workaround at server close.
+   - Solution: schedule resource GC sleeps through an Effect callback that
+     unrefs Node timers when available, chunks huge timer delays within the host
+     limit, and clears timers on interruption. Remove the diagnostics-loader
+     inactive-server workaround so lifetime ownership stays at the scheduling
+     seam.
+   - Benefits: resource lifetime keeps Effect-owned interruption semantics
+     while no longer pinning Node lifetimes.
+
+4. TSRX And Evidence Policy
+   - Status: fixed.
+   - Files: `packages/tsrx/src/index.ts`, `packages/tsrx/test/index.test.ts`,
+     `examples/docs-site/README.md`, `examples/docs-site/src/routeTree.gen.ts`,
+     `docs/public-api-inventory.md`,
+     `docs/package-hygiene-audit.md`, and
+     `scripts/public-api-symbol-policy.mjs`.
+   - Problem: TSRX dependency-discovery policy was dev-server-only in code but
+     not pinned by tests or docs, docs-site README omitted the now-proved
+     prerender/static output capability, and the Review491 license-drift
+     package self-test was not yet required by current docs policy.
+   - Solution: keep the TSRX dependency-discovery plugin scoped to
+     `apply: "serve"`, add tests for plugin order and opt-out behavior,
+     document the dev-server scope in the public API inventory, mention
+     docs-site prerender/static output, and require the package-hygiene
+     self-test evidence in policy.
+   - Benefits: TSRX has a sharper Interface because production builds do not
+     inherit dev-only optimize-deps policy. Current evidence docs are harder to
+     stale, improving LSP-facing trust in the package and example surfaces.
+
+Full `pnpm verify` passed after Review492: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect command-runner
+policy, package payload policy, Effect-first audit over 449 physical and
+virtual files, 58 root test files / 1223 tests, package-level verifies for
+devtools panel, devtools extension, docs site, project console, basic starter,
+and React starter, generated starter packaging at 20/25/31 app files, and the
+17-target package dry-run gate.
 
 ## Review 491: Prerender Effect Interface And Lazy Route Suspense Probes
 

@@ -12,6 +12,7 @@ import {
   type StartViteDevServer,
 } from "./start-vite-dev-ssr.js";
 import { responseWithScopeLifetimeEffect } from "./response-lifetime.js";
+import { suspendResponseStreamSuccessFinalizerEffect } from "./streaming.js";
 import { defaultServerEntry } from "./start-manifest-wall.js";
 import {
   extractStartStaticHtmlLinks,
@@ -19,6 +20,7 @@ import {
   startStaticPageOutputPath,
 } from "./static-export.js";
 
+/** Per-page prerender override for explicit pages. */
 export interface StartPrerenderPageOptions {
   /** Whether this explicit page should be prerendered. Defaults to true. */
   readonly enabled?: boolean;
@@ -26,6 +28,7 @@ export interface StartPrerenderPageOptions {
   readonly outputPath?: string;
 }
 
+/** Explicit page entry added to the static prerender plan. */
 export interface StartPrerenderPage {
   /** Root-relative page path to prerender. */
   readonly path: string;
@@ -35,25 +38,30 @@ export interface StartPrerenderPage {
   readonly prerender?: boolean | StartPrerenderPageOptions;
 }
 
+/** Explicit prerender page input accepted by `StartPrerenderOptions.pages`. */
 export type StartPrerenderPageInput = string | StartPrerenderPage;
 
+/** Planned page identity passed through filters and prerender callbacks. */
 export interface StartPrerenderPageContext {
   readonly path: string;
   readonly source: "static-route" | "page" | "crawl" | "root";
 }
 
+/** Event emitted after one prerender page is written successfully. */
 export interface StartPrerenderSuccessEvent {
   readonly page: StartPrerenderPageContext;
   readonly outputPath: string;
   readonly status: number;
 }
 
+/** Event emitted after one prerender page exhausts its render attempts. */
 export interface StartPrerenderFailureEvent {
   readonly page: StartPrerenderPageContext;
   readonly error: unknown;
   readonly attempts: number;
 }
 
+/** Static prerender options consumed by the Start Vite build hook. */
 export interface StartPrerenderOptions {
   /** Enables static prerendering after a production Vite build. */
   readonly enabled?: boolean;
@@ -81,8 +89,10 @@ export interface StartPrerenderOptions {
   readonly onError?: (event: StartPrerenderFailureEvent) => void;
 }
 
+/** Boolean shorthand or option object for configuring Start prerendering. */
 export type StartPrerenderConfig = boolean | StartPrerenderOptions;
 
+/** Runtime input for executing the Start prerender Effect. */
 export interface StartPrerenderRunOptions {
   readonly root: string;
   readonly outDir: string;
@@ -97,11 +107,13 @@ export interface StartPrerenderRunOptions {
   readonly nodeRequest?: StartNodeRequestOptions;
 }
 
+/** Summary returned by `runStartPrerenderEffect(...)`. */
 export interface StartPrerenderResult {
   readonly pages: readonly StartPrerenderSuccessEvent[];
   readonly failures: readonly StartPrerenderFailureEvent[];
 }
 
+/** Typed failure reported by Start prerender planning, rendering, writing, and callbacks. */
 export class StartPrerenderError extends Data.TaggedError("StartPrerenderError")<{
   readonly operation:
     | "read-assets"
@@ -117,6 +129,7 @@ export class StartPrerenderError extends Data.TaggedError("StartPrerenderError")
   readonly cause?: unknown;
 }> {}
 
+/** Fully defaulted prerender options used by the Start prerender runner. */
 export interface ResolvedStartPrerenderOptions {
   readonly origin: string;
   readonly autoSubfolderIndex: boolean;
@@ -131,29 +144,12 @@ export interface ResolvedStartPrerenderOptions {
   readonly onError?: (event: StartPrerenderFailureEvent) => void;
 }
 
+/** Concrete page selected for a prerender run. */
 export interface StartPrerenderPlannedPage extends StartPrerenderPageContext {
   readonly outputPath?: string;
 }
 
 type StartPrerenderViteServer = StartViteDevServer & Pick<ViteDevServer, "close" | "hot" | "ws">;
-
-const unrefInactiveNodeServers = (): void => {
-  const getActiveHandles = (
-    process as typeof process & {
-      _getActiveHandles?: () => readonly unknown[];
-    }
-  )._getActiveHandles;
-  for (const handle of getActiveHandles?.() ?? []) {
-    const server = handle as {
-      readonly constructor?: { readonly name?: string };
-      readonly listening?: boolean;
-      unref?: () => void;
-    };
-    if (server.constructor?.name === "Server" && server.listening === false) {
-      server.unref?.();
-    }
-  }
-};
 
 const closePrerenderServerHandle = (
   close: (() => unknown) | undefined,
@@ -214,6 +210,7 @@ const startPrerenderHostError =
 const positiveInteger = (value: number | undefined, fallback: number): number =>
   value === undefined || !Number.isFinite(value) || value < 0 ? fallback : Math.floor(value);
 
+/** Resolves boolean or partial prerender config into defaulted options. */
 export const resolveStartPrerenderOptions = (
   config: StartPrerenderConfig | undefined,
 ): ResolvedStartPrerenderOptions | undefined => {
@@ -266,6 +263,7 @@ const staticRoutePages = (manifest: FileRouteManifest): readonly StartPrerenderP
       source: "static-route" as const,
     }));
 
+/** Builds the ordered static prerender queue from file routes and explicit pages. */
 export const planStartPrerenderPages = (
   manifest: FileRouteManifest,
   config: StartPrerenderConfig | undefined,
@@ -485,7 +483,6 @@ const closePrerenderServer = (server: StartPrerenderViteServer): Effect.Effect<v
       server.close.bind(server),
       "Could not close the Vite prerender server.",
     );
-    yield* Effect.sync(unrefInactiveNodeServers);
   });
 
 const sleepEffect = (milliseconds: number): Effect.Effect<void> =>
@@ -589,27 +586,52 @@ const callSuccess = (
   event: StartPrerenderSuccessEvent,
 ): Effect.Effect<void, StartPrerenderError> =>
   Effect.try({
-    try: () => options.onSuccess?.(event),
+    try: () => options.onSuccess?.(event) as unknown,
     catch: (cause) =>
       startPrerenderError("callback", "Start prerender onSuccess callback failed.", {
         path: event.page.path,
         cause,
       }),
-  }).pipe(Effect.asVoid);
+  }).pipe(
+    Effect.flatMap((result) =>
+      isPromiseLikeValue(result)
+        ? Effect.fail(
+            startPrerenderError(
+              "callback",
+              "Start prerender onSuccess callback returned Promise-shaped work; wrap async host work in Effect.tryPromise(...) before prerendering.",
+              { path: event.page.path, cause: result },
+            ),
+          )
+        : Effect.void,
+    ),
+  );
 
 const callError = (
   options: ResolvedStartPrerenderOptions,
   event: StartPrerenderFailureEvent,
 ): Effect.Effect<void, StartPrerenderError> =>
   Effect.try({
-    try: () => options.onError?.(event),
+    try: () => options.onError?.(event) as unknown,
     catch: (cause) =>
       startPrerenderError("callback", "Start prerender onError callback failed.", {
         path: event.page.path,
         cause,
       }),
-  }).pipe(Effect.asVoid);
+  }).pipe(
+    Effect.flatMap((result) =>
+      isPromiseLikeValue(result)
+        ? Effect.fail(
+            startPrerenderError(
+              "callback",
+              "Start prerender onError callback returned Promise-shaped work; wrap async host work in Effect.tryPromise(...) before prerendering.",
+              { path: event.page.path, cause: result },
+            ),
+          )
+        : Effect.void,
+    ),
+  );
 
+/** Runs static prerendering as an Effect for Vite and test host adapters. */
 export const runStartPrerenderEffect = (
   runOptions: StartPrerenderRunOptions,
 ): Effect.Effect<StartPrerenderResult, StartPrerenderError> =>
@@ -683,14 +705,27 @@ export const runStartPrerenderEffect = (
           continue;
         }
 
-        const rawHtml = yield* Effect.tryPromise({
-          try: () => renderOutcome.response.text(),
-          catch: startPrerenderHostError(
-            "render-page",
-            `Could not read prerendered HTML for ${page.path}.`,
-            page.path,
-          ),
-        });
+        const rawHtml = yield* suspendResponseStreamSuccessFinalizerEffect(
+          renderOutcome.response,
+          Effect.tryPromise({
+            try: () => renderOutcome.response.text(),
+            catch: startPrerenderHostError(
+              "render-page",
+              `Could not read prerendered HTML for ${page.path}.`,
+              page.path,
+            ),
+          }),
+          {
+            stream: {
+              name: "response",
+              state: "errored",
+              chunkCount: 0,
+            },
+            status: "failure",
+            failureKind: "transport",
+            teardownReason: "prerender-read-error",
+          },
+        );
         const html = yield* injectProductionAssets(rawHtml, assets);
         const outputPath = outputPathForPage(page, options);
         const absoluteOutputPath = yield* resolveOutputPath(outDir, outputPath);

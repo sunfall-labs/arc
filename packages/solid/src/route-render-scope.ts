@@ -1,10 +1,10 @@
 import {
   browserRouteRenderIdentity,
   browserRouteRenderDecision,
+  forkRouteLazyComponentSuspense,
   isPromiseLikeValue,
   makeRuntimeUiScopeFrame,
   readRouteComponent,
-  routeLazyComponentPendingEffect,
   type AnyEffectUiRuntime,
   type AnyBrowserRoute,
   type BrowserRouterState,
@@ -79,9 +79,9 @@ const renderInRouteScope = <ER>(
   let disposeSolid: (() => void) | undefined;
   let renderFailure: { readonly error: unknown } | undefined;
   let renderThenable: unknown;
-  const routeLazyComponentSuspenseToken = (effect: Effect.Effect<unknown, unknown>): unknown => {
-    const fiber = runtime.runFork(effect.pipe(Effect.asVoid));
-    return Effect.runPromise(Fiber.join(fiber));
+  const routeLazyComponentSuspenseToken = (error: unknown): unknown | undefined => {
+    const fiber = forkRouteLazyComponentSuspense(error, runtime);
+    return fiber === undefined ? undefined : Effect.runPromise(Fiber.join(fiber));
   };
   const dispose = Effect.andThen(
     Effect.sync(() => {
@@ -107,9 +107,9 @@ const renderInRouteScope = <ER>(
             renderThenable = error;
             return undefined;
           }
-          const pendingLazyComponent = routeLazyComponentPendingEffect(error);
+          const pendingLazyComponent = routeLazyComponentSuspenseToken(error);
           if (pendingLazyComponent !== undefined) {
-            renderThenable = routeLazyComponentSuspenseToken(pendingLazyComponent);
+            renderThenable = pendingLazyComponent;
             return undefined;
           }
           renderFailure = { error };
@@ -121,12 +121,9 @@ const renderInRouteScope = <ER>(
     if (isPromiseLikeValue(error)) {
       throw new SolidRouteRenderSuspension(error, dispose);
     }
-    const pendingLazyComponent = routeLazyComponentPendingEffect(error);
+    const pendingLazyComponent = routeLazyComponentSuspenseToken(error);
     if (pendingLazyComponent !== undefined) {
-      throw new SolidRouteRenderSuspension(
-        routeLazyComponentSuspenseToken(pendingLazyComponent),
-        dispose,
-      );
+      throw new SolidRouteRenderSuspension(pendingLazyComponent, dispose);
     }
     throw new SolidRouteRenderFailure(error, dispose);
   }

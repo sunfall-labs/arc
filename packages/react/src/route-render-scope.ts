@@ -1,9 +1,9 @@
 import {
   browserRouteRenderDecision,
   browserRouteRenderIdentity,
+  forkRouteLazyComponentSuspense,
   isPromiseLikeValue,
   readRouteComponent,
-  routeLazyComponentPendingEffect,
   type AnyEffectUiRuntime,
   type AnyBrowserRoute,
   type BrowserRouterState,
@@ -96,9 +96,9 @@ const RouteRenderFrame = <ER>(props: RouteRenderFrameProps<ER>): ReactNode => {
     if (isPromiseLikeValue(error)) {
       throw error;
     }
-    const pendingLazyComponent = routeLazyComponentPendingEffect(error);
+    const pendingLazyComponent = forkRouteLazyComponentSuspense(error, props.runtime);
     if (pendingLazyComponent !== undefined) {
-      const fiber = props.runtime.runFork(pendingLazyComponent.pipe(Effect.asVoid));
+      const fiber = pendingLazyComponent;
       throw Effect.runPromise(Fiber.join(fiber));
     }
     scopeRef.current = undefined;

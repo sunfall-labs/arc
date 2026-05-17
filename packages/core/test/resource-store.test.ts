@@ -245,4 +245,41 @@ describe("Resource Store disposal", () => {
       }).pipe(Effect.ensuring(runtime.disposeEffect)),
     );
   });
+
+  it("unrefs resource gc timers when the host timer supports it", async () => {
+    const originalSetTimeout = globalThis.setTimeout;
+    let unrefCalls = 0;
+
+    globalThis.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
+      const timer = originalSetTimeout(handler, timeout, ...args);
+      if (typeof timer === "object" && timer !== null && "unref" in timer) {
+        const originalUnref = timer.unref.bind(timer);
+        timer.unref = () => {
+          unrefCalls++;
+          return originalUnref();
+        };
+      }
+      return timer;
+    }) as typeof globalThis.setTimeout;
+
+    const runtime = makeRuntime();
+    const Count = Resource.family({
+      name: "ResourceStore.unref-gc-timer",
+      load: () => Effect.succeed(1),
+      policy: {
+        gcFor: "10 minutes",
+      },
+    });
+
+    try {
+      await Effect.runPromise(
+        runtime
+          .provide(Resource.prefetchEffect(Count(undefined)))
+          .pipe(Effect.ensuring(runtime.disposeEffect)),
+      );
+      expect(unrefCalls).toBeGreaterThan(0);
+    } finally {
+      globalThis.setTimeout = originalSetTimeout;
+    }
+  });
 });

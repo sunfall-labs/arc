@@ -20,6 +20,14 @@ interruption.
 
 ## Current Sweep Results
 
+- Review492 Route Suspense Runtime And Prerender Callback Pins keeps the
+  post-Review491 fixes Effect-first: Core owns lazy route Suspense preload
+  launch as an Effect/Fiber helper, React and Solid keep only their final host
+  Suspense Promise tokens, Start prerender rejects Promise-shaped callback
+  returns before they can become library async work, stream body reads use the
+  streaming finalizer Effect, resource GC timers sleep through an interruptible
+  Effect callback, and the Effect-first audit over 449 physical and virtual
+  files is green.
 - Review491 Prerender Effect Interface And Lazy Route Suspense Probes keeps
   the post-Review490 fixes Effect-first: Start prerender exposes
   `runStartPrerenderEffect(...)` as the public runner, removes the
@@ -770,12 +778,12 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 240 `pnpm verify` run recorded in
+- The current full gate is the Review 492 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 415 files, 53 root test files / 1170 tests, package-level verifies,
-  generated starter packaging, 16-target package dry-run gate, project-console
-  checks, and leak scans. Review 185 remains historical focused evidence for
+  over 449 files, 58 root test files / 1223 tests, package-level verifies,
+  generated starter packaging, 17-target package dry-run gate, project-console,
+  docs-site, starter, and devtools checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
   evidence for the expression-position Promise static cleanup slice.
 - Review 203 focused verification kept `pnpm audit:effect-first` green over
