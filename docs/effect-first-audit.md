@@ -20,6 +20,9 @@ interruption.
 
 ## Current Sweep Results
 
+- Review507 Lazy Component Namespace Error Generic keeps the Route namespace
+  Effect-first by forwarding lazy component importer errors through
+  `Route.LazyComponent<Component, E>` instead of dropping the typed channel.
 - Review506 Lazy Route Suspense Error Pins keeps the lazy route pending marker
   and Core Suspense helper Effect-first: they preserve
   `RouteLazyComponentLoadError` plus importer/runtime errors instead of

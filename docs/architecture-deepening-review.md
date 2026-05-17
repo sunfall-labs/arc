@@ -11,9 +11,9 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review506 Lazy Route Suspense Error Pins, the
-post-Review505 follow-up that preserves typed lazy route component preload
-failures through the pending marker and Core Suspense helper Seam.
+The newest focused review is Review507 Lazy Component Namespace Error Generic,
+the post-Review506 follow-up that exposes lazy route importer errors through
+the preferred `Route.LazyComponent<..., E>` namespace Interface.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -65,9 +65,9 @@ work, the fresh post-Review502 sweep found Review503 work, and the fresh
 post-Review503 sweep found Review504 work, the fresh post-Review504 sweep
 found no actionable work across Core/React/Solid, DB/public API,
 Start/docs/package, and evidence lanes, creating Clean Sweep 1 after Review504,
-the next fresh sweep found Review505 work, and the fresh post-Review505 sweep
-found Review506 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review506
+the next fresh sweep found Review505 work, the fresh post-Review505 sweep
+found Review506 work, and the fresh post-Review506 sweep found Review507 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review507
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -83,8 +83,8 @@ Review244 work, Review245 work, Review246 work, Review247 work, Review490
 work, Review491 work, Review492 work, Review493 work, Review494 work,
 Review495 work, Review496 work, Review497 work, Review498 work, Review499
 work, Review500 work, Review501 work, Review502 work, Review503 work,
-Review504 work, Review505 work after Clean Sweep 1 after Review504, and
-Review506 work.
+Review504 work, Review505 work after Clean Sweep 1 after Review504,
+Review506 work, and Review507 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -224,6 +224,24 @@ Clean Sweep 1 after Review504. The next fresh sweep found Review505 lazy route
 typed error and DB type-test pin work, and the fresh post-Review505 sweep found
 Review506 lazy route Suspense typed-error work, keeping the active counter at
 0/30.
+
+## Review 507: Lazy Component Namespace Error Generic
+
+Review507 fixes the actionable finding from the fresh post-Review506
+Core/React/Solid sweep.
+
+1. Route Namespace Lazy Component Error Generic
+   - Status: fixed.
+   - Files: `packages/core/src/route.ts` and `type-tests/core.test-d.ts`.
+   - Problem: the root `RouteLazyComponent<Component, E>` Interface preserved
+     importer errors, but the preferred namespace alias
+     `Route.LazyComponent<Component>` dropped the `E` generic.
+   - Solution: `Route.LazyComponent<Component, E>` now forwards the importer
+     error parameter, and public type tests pin a namespace-shaped lazy
+     component preserving `CoreLazyRouteImportError | Route.LazyComponentLoadError`.
+   - Benefits: the namespace Interface has the same Depth and type Leverage as
+     the root type, improving LSP and compile-time Locality for callers using
+     the `Route.*` vocabulary.
 
 ## Review 506: Lazy Route Suspense Error Pins
 

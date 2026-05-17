@@ -87,6 +87,11 @@ Latest full gate on May 17, 2026 after Review 492:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 507 Lazy Component Namespace Error Generic forwards lazy component
+  importer errors through `Route.LazyComponent<Component, E>` and pins the
+  namespace alias in public type tests. The active Thirty-Sweep clean counter
+  remains 0/30 until a fresh post-Review507 sweep reports no actionable
+  findings.
 - Review 506 Lazy Route Suspense Error Pins preserves typed lazy route load
   failures through `RouteLazyComponentPending`, `Route.lazyComponentPendingEffect(...)`,
   and `Route.forkLazyComponentSuspense(...)` instead of erasing that Seam back

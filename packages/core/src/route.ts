@@ -713,7 +713,10 @@ export namespace Route {
     props: Props<R>,
   ) => unknown;
 
-  export type LazyComponent<ComponentValue = unknown> = RouteLazyComponent<ComponentValue>;
+  export type LazyComponent<ComponentValue = unknown, E = never> = RouteLazyComponent<
+    ComponentValue,
+    E
+  >;
 
   export type LazyComponentLoadError = RouteLazyComponentLoadError;
 

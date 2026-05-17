@@ -190,6 +190,10 @@ const coreLazyRouteComponentWithImportError = Route.lazyComponent<
 >(Effect.fail(new CoreLazyRouteImportError()));
 const coreLazyRouteComponentShape: Route.LazyComponent<Route.Component<(typeof coreRoutes)[0]>> =
   coreLazyRouteComponent;
+const coreLazyRouteComponentWithImportErrorShape: Route.LazyComponent<
+  Route.Component<(typeof coreRoutes)[0]>,
+  CoreLazyRouteImportError
+> = coreLazyRouteComponentWithImportError;
 const coreLazyRouteComponentPreloadEffect: Effect.Effect<
   Route.Component<(typeof coreRoutes)[0]>,
   Route.LazyComponentLoadError
@@ -223,6 +227,7 @@ const coreLazyRouteSuspenseFiber:
 Route.isLazyComponent(coreLazyRouteComponent);
 Route.readComponent(coreNamedLazyRouteComponent);
 Route.withComponent(coreRoutes[0], coreLazyRouteComponent);
+void coreLazyRouteComponentWithImportErrorShape;
 void coreLazyRouteComponentImportErrorPreloadEffect;
 void coreLazyRoutePendingEffect;
 void coreLazyRoutePendingExtractedEffect;

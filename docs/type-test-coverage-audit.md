@@ -7,6 +7,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Current Sweep Results
 
+- Review507 Lazy Component Namespace Error Generic pins
+  `Route.LazyComponent<Component, E>` so namespace users keep importer error
+  channels on lazy route components.
 - Review506 Lazy Route Suspense Error Pins adds compile-time coverage for
   `Route.LazyComponentPending`, `Route.lazyComponentPendingEffect(...)`, and
   `Route.forkLazyComponentSuspense(...)` preserving typed lazy load failures.
