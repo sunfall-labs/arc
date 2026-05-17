@@ -82,7 +82,8 @@ import {
   type DevtoolsStoreOptions,
   type DevtoolsSummary,
   type DevtoolsSummaryInput,
-  type DevtoolsSummaryRuntimeEvent
+  type DevtoolsSummaryRuntimeEvent,
+  type NormalizeDevtoolsAppGraphDiagnosticsOptions
 } from "@effect-ui/devtools";
 
 const devtoolsStoreOptions: DevtoolsStoreOptions = {
@@ -109,6 +110,9 @@ const devtoolsPanelsEffect: Effect.Effect<DevtoolsPanels> = devtoolsStore.getPan
 const devtoolsCausalGraph: DevtoolsCausalGraph = devtoolsStore.getCausalGraph();
 const devtoolsCausalGraphEffect: Effect.Effect<DevtoolsCausalGraph> =
   devtoolsStore.getCausalGraphEffect();
+const devtoolsNormalizeAppGraphOptions: NormalizeDevtoolsAppGraphDiagnosticsOptions = {
+  preserveDerivedPreloadFacts: true
+};
 declare const devtoolsActionInstance: Parameters<DevtoolsStore["recordActionEffect"]>[0];
 declare const devtoolsStartActionInstance: Parameters<DevtoolsStore["recordStartActionEffect"]>[0];
 declare const devtoolsRoutePlanInput: Parameters<DevtoolsStore["recordRoutePlanEffect"]>[0];
@@ -582,6 +586,7 @@ void normalizedBridgePayload;
 void devtoolsBridgeInstallEffect;
 void devtoolsSetAppGraphDiagnosticsEffect;
 void devtoolsClearAppGraphDiagnosticsEffect;
+void devtoolsNormalizeAppGraphOptions;
 void devtoolsActionInvalidationPlanConflict;
 void normalizedDevtoolsAppGraph;
 void normalizedAppGraphCollections;

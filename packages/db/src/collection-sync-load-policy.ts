@@ -422,28 +422,36 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         ),
         Effect.catch((error: E | EffectInputCallbackError) => failCurrentLoad(error))
       );
-      const rows = yield* ingestCollectionOutputRowsEffect(definition, values, {
-        operation: "load",
-        path: `$.collections[${definition.name}].rows`,
-        synced: true,
-        origin: "remote"
+      yield* Effect.gen(function* () {
+        const rows = yield* ingestCollectionOutputRowsEffect(definition, values, {
+          operation: "load",
+          path: `$.collections[${definition.name}].rows`,
+          synced: true,
+          origin: "remote"
+        }).pipe(
+          Effect.catch((error) => failCurrentLoad(error))
+        );
+
+        if (!isCurrentLoadAttempt(state, attempt)) {
+          return;
+        }
+
+        const updatedAt = yield* Clock.currentTimeMillis;
+        yield* commitLoadedCollectionRowsEffect(
+          definition,
+          state,
+          store,
+          attempt,
+          rows,
+          previousLoadState,
+          updatedAt
+        );
       }).pipe(
-        Effect.catch((error) => failCurrentLoad(error))
-      );
-
-      if (!isCurrentLoadAttempt(state, attempt)) {
-        return;
-      }
-
-      const updatedAt = yield* Clock.currentTimeMillis;
-      yield* commitLoadedCollectionRowsEffect(
-        definition,
-        state,
-        store,
-        attempt,
-        rows,
-        previousLoadState,
-        updatedAt
+        Effect.onExit((exit) =>
+          Exit.isFailure(exit) && isInterruptedCause(exit.cause)
+            ? restoreLoadStateIfCurrentEffect(state, attempt, previousLoadState)
+            : Effect.void
+        )
       );
     }).pipe(
       Effect.exit,

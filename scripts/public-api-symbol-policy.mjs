@@ -161,6 +161,28 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/core/src/resource.ts",
+    declarations: [
+      "Resource"
+    ],
+    namespaceDeclarations: {
+      Resource: [
+        "Tag",
+        "TagDefinition",
+        "Invalidation",
+        "InvalidationTarget",
+        "InvalidationCause",
+        "InvalidationPlanEntry",
+        "InvalidationPlan",
+        "Snapshot",
+        "HydrationPayload",
+        "HydrationInput",
+        "HydrationOptions",
+        "Status"
+      ]
+    }
+  },
+  {
     file: "packages/core/src/resource-ui-binding.ts",
     declarations: [
       "ResourceUiInput",

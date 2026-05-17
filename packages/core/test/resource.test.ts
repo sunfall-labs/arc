@@ -176,6 +176,54 @@ describe("Resource", () => {
     }
   });
 
+  it("rejects erased Effect-shaped and non-string custom resource keys before constructing identities", () => {
+    const EffectKeyProject = Resource.family<string, string>({
+      name: "ResourceKey.effect-family-key",
+      key: () => Effect.succeed("atlas") as never,
+      load: () => "ok"
+    });
+    const NumericKeyProject = Resource.family<string, string>({
+      name: "ResourceKey.numeric-family-key",
+      key: () => 42 as never,
+      load: () => "ok"
+    });
+    const EffectKeyTag = Resource.tag<string>("ResourceKey.effect-tag-key", {
+      key: () => Effect.succeed("atlas") as never
+    });
+    const ObjectKeyTag = Resource.tag<string>("ResourceKey.object-tag-key", {
+      key: () => ({ id: "atlas" }) as never
+    });
+
+    expect(() => EffectKeyProject("atlas")).toThrow(ResourceKeyError);
+    expect(() => NumericKeyProject("atlas")).toThrow(ResourceKeyError);
+    expect(() => EffectKeyTag("atlas")).toThrow(ResourceKeyError);
+    expect(() => ObjectKeyTag("atlas")).toThrow(ResourceKeyError);
+
+    try {
+      EffectKeyProject("atlas");
+      expect.fail("Expected Effect-shaped family key to fail");
+    } catch (error) {
+      expect(error).toMatchObject({
+        _tag: "ResourceKeyError",
+        operation: "Resource.family.ref",
+        name: "ResourceKey.effect-family-key",
+        reason: "EffectLikeKey"
+      });
+    }
+
+    try {
+      NumericKeyProject("atlas");
+      expect.fail("Expected non-string family key to fail");
+    } catch (error) {
+      expect(error).toMatchObject({
+        _tag: "ResourceKeyError",
+        operation: "Resource.family.ref",
+        name: "ResourceKey.numeric-family-key",
+        reason: "NonStringKey"
+      });
+    }
+  });
+
   it("exposes resource family and tag diagnostics", () => {
     const ProjectTag = Resource.tag<{ readonly id: string }>("Project.diagnostics-tag", {
       key: ({ id }) => id

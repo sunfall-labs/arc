@@ -590,10 +590,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 215 `pnpm verify` run recorded in
+- The current full gate is the Review 216 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 408 files, 53 root test files / 1100 tests, package-level verifies,
+  over 408 files, 53 root test files / 1108 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
@@ -1335,9 +1335,9 @@ interruption.
 - Start diagnostics CLI parser compatibility now also runs the Effect v4 command
   tree and interprets `CliError.ShowHelp` instead of hand-sniffing argv for
   command names, help flags, or unknown subcommands.
-- Start diagnostics CLI graph/impact query kinds now live as nested Effect v4
-  `Command` subcommands, with graph `--verbose` inherited through
-  `Command.withSharedFlags(...)` and kind query text still validated by Effect
+- Start diagnostics CLI graph/impact query kinds now live in variadic Effect v4
+  `Argument` values, with graph `--verbose` inherited through
+  `Command.withSharedFlags(...)` and kind query text validated by Effect
   `Argument` parsers.
 - Start Diagnostics CLI Contract now owns the graph/impact query-kind catalog,
   `CliError.InvalidValue` expected text, and shell-safe impact verify command
@@ -1413,13 +1413,13 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 215 plain-data,
-  metadata-entry, DB load recovery, nested query projection, Devtools preload
-  fact, and docs/LSP fixes: 11 package builds, workspace
+- The current full `pnpm verify` passed after the Review 216 plain sync,
+  Resource key/Form validation, DB query/row ingress, Devtools preserved
+  preload fact, and docs/API fixes: 11 package builds, workspace
   typecheck, type tests, public API
   inventory audit, Effect-first audit over 408
   package/example/config/script/type-test/generated/docs files, 53 root test
-  files / 1100 tests, package-level verifies for copyable/source packages,
+  files / 1108 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans. The Effect-first audit now

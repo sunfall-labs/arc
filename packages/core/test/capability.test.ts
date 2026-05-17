@@ -102,6 +102,30 @@ describe("Capability", () => {
       )
     ));
 
+  it("rejects Effect-shaped useSync return values as EffectInput defects", () =>
+    Effect.runPromise(
+      Effect.exit(
+        Numbers.provide(
+          Numbers.useSync((numbers) => numbers.get("kepler") as never),
+          {
+            get: (id) => Effect.succeed(id.length),
+            save: (value) => Effect.succeed(value + 1)
+          }
+        )
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(exit._tag).toBe("Failure");
+            if (exit._tag === "Failure") {
+              const defect = exit.cause.reasons.find((reason) => reason._tag === "Die");
+              expect(defect?.defect).toBeInstanceOf(EffectInputCallbackError);
+            }
+          })
+        ),
+        Effect.asVoid
+      )
+    ));
+
   it("exposes mock layers for tests", () => {
     const TestNumbers = Numbers.mock({
       get: (id) => Effect.succeed(id.length * 2),

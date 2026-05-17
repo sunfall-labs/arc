@@ -6,7 +6,7 @@ import type {
   CollectionOrigin
 } from "./collection-contract.js";
 import type { StoredRow } from "./collection-state.js";
-import { cloneCollectionValue } from "./collection-value-detachment.js";
+import { cloneCollectionValue, collectionExecutableValuePath } from "./collection-value-detachment.js";
 import {
   CollectionSnapshotCodecError,
   decodeCollectionOutputValuesEffect,
@@ -64,6 +64,37 @@ const collectionIngressKeyEffect = <A extends object, K extends CollectionKey, E
         : collectionIngressCallbackError(definition, operation, path, cause)
   });
 
+const validateCollectionPlainRowValue = (
+  value: unknown,
+  operation: CollectionSnapshotCodecOperation,
+  path: string
+): void => {
+  const executable = collectionExecutableValuePath(value, path);
+  if (executable !== undefined) {
+    throw new CollectionSnapshotCodecError({
+      operation,
+      path: executable.path,
+      reason: executable.reason
+    });
+  }
+};
+
+const validateCollectionPlainRowValueEffect = (
+  value: unknown,
+  operation: CollectionSnapshotCodecOperation,
+  path: string
+): Effect.Effect<void, CollectionSnapshotCodecError> =>
+  Effect.suspend(() => {
+    const executable = collectionExecutableValuePath(value, path);
+    return executable === undefined
+      ? Effect.void
+      : Effect.fail(new CollectionSnapshotCodecError({
+          operation,
+          path: executable.path,
+          reason: executable.reason
+        }));
+  });
+
 const storedRowsFromDecodedValuesEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   values: ReadonlyArray<A>,
@@ -72,6 +103,7 @@ const storedRowsFromDecodedValuesEffect = <A extends object, K extends Collectio
   Effect.gen(function* () {
     const rows: Array<StoredRow<A, K>> = [];
     for (const [index, decoded] of values.entries()) {
+      yield* validateCollectionPlainRowValueEffect(decoded, options.operation, `${options.path}[${index}]`);
       const value = cloneCollectionValue(decoded);
       const key = yield* collectionIngressKeyEffect(
         definition,
@@ -96,6 +128,7 @@ const storedRowsFromDecodedValuesSync = <A extends object, K extends CollectionK
 ): ReadonlyArray<StoredRow<A, K>> => {
   const rows: Array<StoredRow<A, K>> = [];
   for (const [index, decoded] of values.entries()) {
+    validateCollectionPlainRowValue(decoded, options.operation, `${options.path}[${index}]`);
     const value = cloneCollectionValue(decoded);
     const key = collectionIngressKey(
       definition,

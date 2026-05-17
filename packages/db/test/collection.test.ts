@@ -793,6 +793,42 @@ describe("Collection", () => {
     });
   });
 
+  it("does not expose Promise-shaped or Effect-shaped row values", () => {
+    const PromiseRows = Collection.define<Project>({
+      name: "Projects.initial-data-promise-row-ingress",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: Promise.resolve("Atlas"), status: "active", progress: 72 } as never
+      ]
+    });
+    const EffectRows = Collection.define<Project>({
+      name: "Projects.initial-data-effect-row-ingress",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: Effect.succeed("Atlas"), status: "active", progress: 72 } as never
+      ]
+    });
+
+    expect(PromiseRows.rows()).toEqual([]);
+    expect(PromiseRows.state().get()).toMatchObject({
+      _tag: "Failure",
+      error: {
+        _tag: "CollectionSnapshotCodecError",
+        operation: "load",
+        reason: "PromiseLikeValue"
+      }
+    });
+    expect(EffectRows.rows()).toEqual([]);
+    expect(EffectRows.state().get()).toMatchObject({
+      _tag: "Failure",
+      error: {
+        _tag: "CollectionSnapshotCodecError",
+        operation: "load",
+        reason: "EffectLikeValue"
+      }
+    });
+  });
+
   it("canonicalizes transform-schema initialData for live reads", () => {
     const WireProjectSchema = Schema.Array(Schema.Struct({
       id: Schema.String,
@@ -2890,6 +2926,83 @@ describe("Collection", () => {
         expect(runWithRuntime(runtime, () => Collection.dehydrate([Projects]).collections[0]?.rows)).toEqual([]);
         const payload = yield* runtime.provide(Collection.dehydrateEffect([Projects]));
         expect(payload.collections[0]?.rows).toEqual([]);
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("rejects executable-shaped row values at load, write, change-feed, and hydrate ingress", () => {
+    const runtime = makeRuntime();
+    const LoadingProjects = Collection.define<Project>({
+      name: "Projects.executable-row-load-ingress",
+      getKey: (project) => project.id,
+      refetch: () =>
+        Effect.succeed([
+          { id: "atlas", name: Effect.succeed("Atlas"), status: "active", progress: 72 } as never
+        ])
+    });
+    const Projects = Collection.define<Project>({
+      name: "Projects.executable-row-write-ingress",
+      getKey: (project) => project.id
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const loadFailure = yield* Effect.flip(runtime.provide(LoadingProjects.preloadEffect()));
+        const writeFailure = yield* Effect.flip(runtime.provide(Projects.writeInsertEffect({
+          id: "atlas",
+          name: Effect.succeed("Atlas") as never,
+          status: "active",
+          progress: 72
+        })));
+        const changeFailure = yield* Effect.flip(runtime.provide(Collection.applyChangesEffect(Projects, [
+          {
+            _tag: "Upsert",
+            value: {
+              id: "atlas",
+              name: Promise.resolve("Atlas") as never,
+              status: "active",
+              progress: 72
+            }
+          }
+        ])));
+        const hydrateFailure = yield* Effect.flip(runtime.provide(Projects.hydrateEffect({
+          name: "Projects.executable-row-write-ingress",
+          rows: [
+            {
+              key: "atlas",
+              value: {
+                id: "atlas",
+                name: Effect.succeed("Atlas") as never,
+                status: "active",
+                progress: 72
+              },
+              synced: true,
+              origin: "remote"
+            }
+          ],
+          pendingMutations: [],
+          updatedAt: 1
+        })));
+
+        expect(loadFailure).toMatchObject({
+          _tag: "CollectionSnapshotCodecError",
+          reason: "EffectLikeValue"
+        });
+        expect(writeFailure).toMatchObject({
+          _tag: "CollectionSnapshotCodecError",
+          reason: "EffectLikeValue"
+        });
+        expect(changeFailure).toMatchObject({
+          _tag: "CollectionSnapshotCodecError",
+          reason: "PromiseLikeValue"
+        });
+        expect(hydrateFailure).toMatchObject({
+          _tag: "CollectionSnapshotCodecError",
+          reason: "EffectLikeValue"
+        });
+        expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
       }).pipe(
         Effect.ensuring(runtime.disposeEffect)
       )
@@ -6847,6 +6960,73 @@ describe("Query", () => {
           _tag: "QueryEvaluationError",
           operation: testCase.operation,
           cause: { _tag: "QueryCallbackPromiseRejected" }
+        }
+      });
+    }
+  });
+
+  it("rejects Effect-shaped query callback values as typed evaluation errors", async () => {
+    const Projects = Collection.define<Project>({
+      name: "Projects.effect-query-callbacks",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ]
+    });
+    const cases: ReadonlyArray<{
+      readonly operation: "projection" | "aggregate";
+      readonly factory: (query: Query.Root) => Query.Builder<any, any, any, any>;
+    }> = [
+      {
+        operation: "projection",
+        factory: (query) =>
+          query
+            .from({ project: Projects })
+            .select((() => ({ nested: { value: Effect.succeed("Atlas") } })) as never)
+      },
+      {
+        operation: "aggregate",
+        factory: (query) =>
+          query
+            .from({ project: Projects })
+            .groupBy(
+              (({ project }) => ({ status: project.status, effectKey: Effect.succeed("active") })) as never,
+              { count: Query.count() }
+            )
+            .select((group) => group.count)
+      },
+      {
+        operation: "aggregate",
+        factory: (query) =>
+          query
+            .from({ project: Projects })
+            .groupBy(
+              ({ project }) => ({ status: project.status }),
+              { count: Query.count((() => Effect.succeed("present")) as never) }
+            )
+            .select((group) => group.count)
+      }
+    ];
+
+    for (const testCase of cases) {
+      const onceExit = await Effect.runPromiseExit(Query.onceEffect(testCase.factory));
+      expect(Exit.isFailure(onceExit), testCase.operation).toBe(true);
+      if (Exit.isFailure(onceExit)) {
+        const error = onceExit.cause.reasons.find(Cause.isFailReason)?.error;
+        expect(error).toBeInstanceOf(QueryEvaluationError);
+        expect(error).toMatchObject({
+          operation: testCase.operation,
+          cause: { _tag: "QueryCallbackEffectRejected" }
+        });
+      }
+
+      const live = Query.live(testCase.factory);
+      expect(live.state.get()).toMatchObject({
+        _tag: "Failure",
+        error: {
+          _tag: "QueryEvaluationError",
+          operation: testCase.operation,
+          cause: { _tag: "QueryCallbackEffectRejected" }
         }
       });
     }

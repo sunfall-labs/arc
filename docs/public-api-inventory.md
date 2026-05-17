@@ -109,6 +109,10 @@ Golden-path public groups:
 - `Resource.deleteEffect(ref)` for explicit Effect-first removal from the
   active Resource Store when tests, adapters, or cache policies need to drop a
   ref before GC.
+- Resource namespace aliases such as `Resource.Tag`,
+  `Resource.InvalidationTarget`, `Resource.HydrationPayload`, and
+  `Resource.Status` are public LSP vocabulary for invalidation, hydration, and
+  diagnostics adapters.
 - `Action.planInvalidationEffect(...)` for adapters/tests that need action
   invalidation planning with synchronous `invalidates` callback throws reported
   as `EffectInputCallbackError`.
@@ -968,6 +972,9 @@ Release decisions:
   root import path so extension bridges, generated diagnostics, and tests can
   accept older Start app-graph DTOs while receiving detached current-shape
   copies.
+- `NormalizeDevtoolsAppGraphDiagnosticsOptions` is root-exported with the
+  normalizer so snapshot-copy and summary code can preserve already-derived
+  preload facts without relying on an unimportable options type.
 - `normalizeEffectUiDevtoolsBridgePayload(...)` returns detached panel DTOs, not
   inspected-window object references. Hostile getters/proxies can invalidate a
   payload, but a valid normalized payload is bounded and safe for renderers to

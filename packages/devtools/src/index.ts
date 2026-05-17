@@ -27,6 +27,7 @@ export {
   normalizeDevtoolsAppGraphDiagnostics,
   normalizeRouteModulePreloadCollections
 } from "./app-graph-normalizer.js";
+export type { NormalizeDevtoolsAppGraphDiagnosticsOptions } from "./app-graph-normalizer.js";
 export { devtoolsPanelStyles } from "./panel-renderer.js";
 export {
   DevtoolsUnknownInvalidationTarget,

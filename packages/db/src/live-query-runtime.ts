@@ -233,7 +233,7 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
       const keyedRight = source.input.pipe(
         ivmFlatMap(([_, context]) => {
           const row = context[join.alias] as AnyCollectionRow;
-          return evaluateQueryOperation("join", () => join.rightKeys(row)).map((rightKey) =>
+          return evaluateQueryStructuredOperation("join", () => join.rightKeys(row)).map((rightKey) =>
             [evaluateQueryJoinKey(rightKey), context] satisfies KeyValue<string, IvmContext>
           );
         })

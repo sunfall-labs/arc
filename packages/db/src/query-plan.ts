@@ -1,4 +1,4 @@
-import { stableStringify, type RejectPromiseLikeValue } from "@effect-ui/core";
+import { isEffectLike, stableStringify, type PlainValue } from "@effect-ui/core";
 import { Data } from "effect";
 import type {
   AnyCollection,
@@ -47,6 +47,12 @@ export class QueryEvaluationError extends Data.TaggedError("QueryEvaluationError
 
 class QueryCallbackPromiseRejected extends Data.TaggedError(
   "QueryCallbackPromiseRejected"
+)<{
+  readonly guidance: string;
+}> {}
+
+class QueryCallbackEffectRejected extends Data.TaggedError(
+  "QueryCallbackEffectRejected"
 )<{
   readonly guidance: string;
 }> {}
@@ -153,33 +159,33 @@ export interface QueryExecution<TContext> {
  * Aggregate definition used by `Query.groupBy`.
  */
 export interface QueryAggregate<TContext, R, V = unknown> {
-  readonly preMap: (row: TContext) => V & RejectPromiseLikeValue<V>;
-  readonly reduce: (values: Array<[V, number]>) => V & RejectPromiseLikeValue<V>;
-  readonly postMap?: (value: V) => R & RejectPromiseLikeValue<R>;
+  readonly preMap: (row: TContext) => V & RejectPlainQueryRecord<V>;
+  readonly reduce: (values: Array<[V, number]>) => V & RejectPlainQueryRecord<V>;
+  readonly postMap?: (value: V) => R & RejectPlainQueryRecord<R>;
 }
 
 export type QueryAggregateRecord<TContext> = Record<string, QueryAggregate<TContext, any, any>>;
 export type AnyQueryAggregateRecord = QueryAggregateRecord<any>;
-/** Recursively rejects Promise-shaped values inside query result data structures. */
-export type RejectPromiseLikeRecord<Value> =
-  [RejectPromiseLikeValue<Value>] extends [never]
+/** Recursively rejects executable-shaped values inside query result data structures. */
+export type RejectPlainQueryRecord<Value> =
+  [PlainValue<Value>] extends [never]
     ? never
     : Value extends (...args: any) => unknown
       ? Value
       : Value extends Date | URL | ArrayBuffer | DataView
         ? Value
     : Value extends readonly (infer Item)[]
-      ? readonly RejectPromiseLikeRecord<Item>[]
+      ? readonly RejectPlainQueryRecord<Item>[]
       : Value extends ReadonlyMap<infer Key, infer Item>
-        ? ReadonlyMap<RejectPromiseLikeRecord<Key>, RejectPromiseLikeRecord<Item>>
+        ? ReadonlyMap<RejectPlainQueryRecord<Key>, RejectPlainQueryRecord<Item>>
         : Value extends ReadonlySet<infer Item>
-          ? ReadonlySet<RejectPromiseLikeRecord<Item>>
+          ? ReadonlySet<RejectPlainQueryRecord<Item>>
       : Value extends object
-        ? { readonly [Key in keyof Value]: RejectPromiseLikeRecord<Value[Key]> }
+        ? { readonly [Key in keyof Value]: RejectPlainQueryRecord<Value[Key]> }
         : Value;
 /** Public grouped-query key shape accepted by `Query.groupBy(...)`. */
 export type QueryGroupKey<TKey extends Record<string, unknown> = Record<string, unknown>> =
-  TKey & RejectPromiseLikeRecord<TKey>;
+  TKey & RejectPlainQueryRecord<TKey>;
 export type QueryAggregateResult<
   TKey extends Record<string, unknown>,
   Aggregates extends AnyQueryAggregateRecord
@@ -251,6 +257,9 @@ const isPromiseShapedQueryValue = (value: unknown): boolean => {
 
   return typeof Reflect.get(value as object, "then") === "function";
 };
+
+const isEffectShapedQueryValue = (value: unknown): boolean =>
+  value instanceof Error ? false : isEffectLike(value);
 
 const queryGroupKeyPathSegment = (key: string): string =>
   /^[A-Za-z_$][\w$]*$/.test(key)
@@ -337,6 +346,86 @@ const promiseShapedQueryValuePath = (
   }
 };
 
+const effectShapedQueryValuePath = (
+  value: unknown,
+  path = "$",
+  active = new WeakSet<object>()
+): string | undefined => {
+  if (isEffectShapedQueryValue(value)) {
+    return path;
+  }
+  if (value === null || typeof value !== "object") {
+    return undefined;
+  }
+  if (
+    value instanceof Date ||
+    value instanceof URL ||
+    value instanceof ArrayBuffer ||
+    value instanceof DataView ||
+    ArrayBuffer.isView(value)
+  ) {
+    return undefined;
+  }
+  if (active.has(value)) {
+    return undefined;
+  }
+
+  active.add(value);
+  try {
+    if (Array.isArray(value)) {
+      for (let index = 0; index < value.length; index++) {
+        const found = effectShapedQueryValuePath(value[index], `${path}[${index}]`, active);
+        if (found !== undefined) {
+          return found;
+        }
+      }
+      return undefined;
+    }
+    if (value instanceof Map) {
+      let index = 0;
+      for (const [key, entryValue] of value.entries()) {
+        const keyPath = effectShapedQueryValuePath(key, `${path}.<key:${index}>`, active);
+        if (keyPath !== undefined) {
+          return keyPath;
+        }
+        const valuePath = effectShapedQueryValuePath(entryValue, `${path}.<value:${index}>`, active);
+        if (valuePath !== undefined) {
+          return valuePath;
+        }
+        index++;
+      }
+      return undefined;
+    }
+    if (value instanceof Set) {
+      let index = 0;
+      for (const entryValue of value.values()) {
+        const found = effectShapedQueryValuePath(entryValue, `${path}.<value:${index}>`, active);
+        if (found !== undefined) {
+          return found;
+        }
+        index++;
+      }
+      return undefined;
+    }
+
+    const object = value as Record<string, unknown>;
+    for (const key of Object.keys(object)) {
+      const propertyPath = `${path}${queryGroupKeyPathSegment(key)}`;
+      const found = effectShapedQueryValuePath(
+        Reflect.get(object, key),
+        propertyPath,
+        active
+      );
+      if (found !== undefined) {
+        return found;
+      }
+    }
+    return undefined;
+  } finally {
+    active.delete(value);
+  }
+};
+
 const promiseShapedQueryCallbackError = (
   operation: QueryEvaluationOperation,
   path = "$"
@@ -349,6 +438,18 @@ const promiseShapedQueryCallbackError = (
     message: `Query ${operation} callbacks must return synchronous values, not Promise-shaped values at ${path}.`
   });
 
+const effectShapedQueryCallbackError = (
+  operation: QueryEvaluationOperation,
+  path = "$"
+): QueryEvaluationError =>
+  new QueryEvaluationError({
+    operation,
+    cause: new QueryCallbackEffectRejected({
+      guidance: "Query callbacks are synchronous data projections. Return Effect work from collection load/refetch/sync adapters before it reaches Query evaluation."
+    }),
+    message: `Query ${operation} callbacks must return plain data, not Effect-shaped values at ${path}.`
+  });
+
 export const evaluateQueryOperation = <A>(
   operation: QueryEvaluationOperation,
   evaluate: () => A
@@ -357,6 +458,9 @@ export const evaluateQueryOperation = <A>(
     const value = evaluate();
     if (isPromiseShapedQueryValue(value)) {
       throw promiseShapedQueryCallbackError(operation);
+    }
+    if (isEffectShapedQueryValue(value)) {
+      throw effectShapedQueryCallbackError(operation);
     }
     return value;
   } catch (cause) {
@@ -374,6 +478,10 @@ export const evaluateQueryStructuredOperation = <A>(
     if (promisePath !== undefined) {
       throw promiseShapedQueryCallbackError(operation, promisePath);
     }
+    const effectPath = effectShapedQueryValuePath(value);
+    if (effectPath !== undefined) {
+      throw effectShapedQueryCallbackError(operation, effectPath);
+    }
     return value;
   });
 
@@ -388,6 +496,10 @@ export const evaluateQueryGroupKey = (value: Record<string, unknown>): string =>
     const promisePath = promiseShapedQueryValuePath(value);
     if (promisePath !== undefined) {
       throw promiseShapedQueryCallbackError("aggregate", promisePath);
+    }
+    const effectPath = effectShapedQueryValuePath(value);
+    if (effectPath !== undefined) {
+      throw effectShapedQueryCallbackError("aggregate", effectPath);
     }
     return stableStringify(value);
   });
@@ -535,7 +647,7 @@ export const buildQueryExecution = <TContext extends AnyQueryContext>(
         ? evaluateQueryOperation("join", () => source.indexRows(join.rightIndex!, leftValue))
         : source.rows();
       for (const row of rows) {
-        const rightKeys = evaluateQueryOperation("join", () => join.rightKeys(row));
+        const rightKeys = evaluateQueryStructuredOperation("join", () => join.rightKeys(row));
         if (rightKeys.some((rightValue) => left === evaluateQueryJoinKey(rightValue))) {
           joined.push({
             ...context,

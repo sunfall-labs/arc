@@ -14,7 +14,7 @@ import type {
   EnsureEffectInputValue
 } from "./effect-like.js";
 import { EffectInputCallbackError, EffectInputPromiseRejected } from "./effect-like.js";
-import { isPromiseLikeValue } from "./effect-input-sync.js";
+import { isEffectLikeValue, isPromiseLikeValue } from "./effect-input-sync.js";
 import type { DurationInput } from "./resource-duration.js";
 import { ResourceKeyError, type ResourceFailure, type ResourcePending } from "./resource-errors.js";
 import { ResourceTagIdentityTypeId, ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
@@ -320,13 +320,46 @@ const resourceKeyCallbackPromiseError = (
     guidance: "Resource key callbacks must return stable string keys synchronously. Promise-shaped keys would create unstable Resource identities."
   });
 
+const resourceKeyCallbackEffectError = (
+  operation: string,
+  name: string
+): ResourceKeyError =>
+  new ResourceKeyError({
+    operation,
+    name,
+    path: "$",
+    reason: "EffectLikeKey",
+    cause: new TypeError("Resource key callbacks must return strings, not Effect values."),
+    guidance: "Resource key callbacks must return stable string keys synchronously. Use Effects before Resource ref/tag construction when identity requires executable work."
+  });
+
+const resourceKeyCallbackNonStringError = (
+  operation: string,
+  name: string,
+  value: unknown
+): ResourceKeyError =>
+  new ResourceKeyError({
+    operation,
+    name,
+    path: "$",
+    reason: "NonStringKey",
+    cause: value,
+    guidance: "Resource key callbacks must return stable string keys. Return a string explicitly instead of relying on implicit coercion."
+  });
+
 const customResourceKey = (
   operation: string,
   name: string,
-  value: string
+  value: unknown
 ): string => {
   if (isPromiseLikeValue(value)) {
     throw resourceKeyCallbackPromiseError(operation, name);
+  }
+  if (isEffectLikeValue(value)) {
+    throw resourceKeyCallbackEffectError(operation, name);
+  }
+  if (typeof value !== "string") {
+    throw resourceKeyCallbackNonStringError(operation, name, value);
   }
 
   return value;
@@ -404,29 +437,53 @@ const makeResourceFamily = <I, A, E, R>(
  * Resource helpers for cached Effect data, synchronous reads, invalidation, and hydration.
  */
 export namespace Resource {
+  /** Typed reference to one cached Resource input/value pair. */
   export type Ref<I, A, E = never, R = never> = ResourceRef<I, A, E, R>;
+  /** Erased Resource ref used by diagnostics, invalidation, and collection helpers. */
   export type AnyRef<R = any> = AnyResourceRef<R>;
+  /** Public load state for one Resource ref. */
   export type State<A, E = never> = ResourceState<A, E>;
+  /** Invalidation tag emitted by Resources and consumed by Actions. */
   export type Tag = ResourceTag;
+  /** Callable tag factory created with `Resource.tag(...)`. */
   export type TagDefinition<Input> = ResourceTagDefinition<Input>;
+  /** Resource ref or tag target that an Action can invalidate. */
   export type Invalidation<R = any> = ResourceInvalidation<R>;
+  /** Concrete Resource invalidation target after tag/ref normalization. */
   export type InvalidationTarget<R = any> = ResourceInvalidationTarget<R>;
+  /** Source metadata explaining why a Resource invalidation occurred. */
   export type InvalidationCause = ResourceInvalidationCause;
+  /** One planned invalidation target plus its cause. */
   export type InvalidationPlanEntry<R = any> = ResourceInvalidationPlanEntry<R>;
+  /** Complete invalidation plan produced from Resource refs and tags. */
   export type InvalidationPlan<R = any> = ResourceInvalidationPlan<R>;
+  /** Serializable snapshot for one Resource ref. */
   export type Snapshot<I = unknown, A = unknown, E = never> = ResourceHydrationSnapshot<I, A, E>;
+  /** Serializable collection of Resource snapshots for hydration. */
   export type HydrationPayload = ResourceHydrationPayload;
+  /** Hydration input accepted by `Resource.hydrate(...)`. */
   export type HydrationInput = ResourceHydrationInput;
+  /** Options that control Resource hydration replacement and failure behavior. */
   export type HydrationOptions = ResourceHydrationOptions;
+  /** Typed error raised when Resource hydration payloads cannot be decoded. */
   export type SnapshotCodecError = ResourceSnapshotCodecError;
+  /** Typed error raised when a decoded Resource hydration payload cannot apply. */
   export type HydrationApplyError = ResourceHydrationApplyError;
+  /** Public Resource load error channel after callback normalization. */
   export type LoadError<E> = ResourceLoadError<E>;
+  /** Error thrown by synchronous Resource reads when data is pending or failed. */
   export type ReadError<I, A, E = never, R = never> = ResourceReadError<I, A, E, R>;
+  /** Diagnostic status for one Resource ref, including stale/previous data. */
   export type Status<I, A, E = never, R = never, RefError = E> = ResourceStatus<I, A, E, R, RefError>;
+  /** Resource store lifecycle event used by devtools and tests. */
   export type StoreEvent = ResourceStoreEvent;
+  /** Diagnostics for one registered Resource family. */
   export type FamilyDiagnostics = ResourceFamilyDiagnostics;
+  /** Diagnostics for one registered Resource tag. */
   export type TagDiagnostics = ResourceTagDiagnostics;
+  /** Complete Resource registry/cache diagnostics snapshot. */
   export type Diagnostics = ResourceDiagnostics;
+  /** Options for defining a Resource family backed by an Effect RequestResolver. */
   export type RequestFamilyOptions<I, Req extends EffectRequest.Any, EX = never, RX = never> =
     ResourceRequestFamilyOptions<I, Req, EX, RX>;
   /** Value returned from `collectEffect(...)` with the Resource refs touched by preload/read work. */

@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 215:
+Latest full gate on May 17, 2026 after Review 216:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 408 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1100 tests;
+- 53 root test files / 1108 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, and project console packages;
 - starter-suite packaging for basic (19 app files / 5 local packages), React
@@ -86,16 +86,14 @@ Latest full gate on May 17, 2026 after Review 215:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
-- Review 215 closed the post-Review214 sweep findings: Program and
-  ActionResult plain-data seams reject erased Effect-shaped values, Resource
-  provided tags and Resource/Action invalidation metadata validate every entry,
-  interrupted collection owner loads restore their previous visible state,
-  query projections reject nested Promise-shaped structures, Devtools route
-  preload facts use Start's `preload === "present"` semantics, and docs/LSP
-  hovers explain Effect-valued domain data must be wrapped with
-  `Effect.succeed(effectValue)`.
+- Review 216 closed the post-Review215 sweep findings: Core synchronous
+  plain-data seams reject erased Effect-shaped values, Resource custom keys are
+  stable strings, Form validation errors stay plain, DB query/row data rejects
+  executable-shaped values, Devtools preserved preload facts are not recomputed
+  into stale warnings, and docs/API hovers match the current Effect v4 CLI and
+  app-graph normalizer shape.
   The active Thirty-Sweep clean counter remains 0/30 until a fresh
-  post-Review215 sweep is clean.
+  post-Review216 sweep is clean.
 - Review 212 closed the post-Review211 sweep findings: `ActionResult`
   success/failure helpers reject nested Promise-shaped payloads, Program
   command/dispatch/subscription/story message seams reject Promise-shaped
@@ -269,9 +267,10 @@ Latest full gate on May 17, 2026 after Review 215:
   post-Review210 sweep found Review211 work, and the first post-Review211
   sweep found Review212 work, and the first post-Review212 sweep found
   Review213 work, the first post-Review213 sweep found Review214 work, and the
-  first post-Review214 sweep found Review215 work. The active Thirty-Sweep
-  clean counter is 0/30 until a fresh post-Review215 sweep reports no
-  actionable findings.
+  first post-Review214 sweep found Review215 work, and the first
+  post-Review215 sweep found Review216 work. The active Thirty-Sweep clean
+  counter is 0/30 until a fresh post-Review216 sweep reports no actionable
+  findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
 - Review 190 tightened `Server.fn(...)` so union-shaped Promise handler returns
@@ -685,10 +684,10 @@ Latest full gate on May 17, 2026 after Review 215:
 - Review 110 made `parseStartDiagnosticsCliArgsEffect(...)` reuse that same
   Effect v4 command tree and interpret `CliError.ShowHelp` results instead of
   maintaining local argv sniffing for help and unknown commands.
-- Review 114 made graph/impact query kinds real nested Effect v4 `Command`
-  subcommands while keeping query text validation in Effect `Argument`
-  parsers; graph `--verbose` is now inherited through the graph command's
-  shared flag context.
+- Review 114 explored graph/impact query-kind parsing; later sweeps settled the
+  current shape on variadic Effect v4 `Argument` values under the graph/impact
+  commands, with graph `--verbose` inherited through the graph command's shared
+  flag context.
 - Review 115 extracted the Start Vite Diagnostics Loader Module, so temporary
   Vite server acquire/release, diagnostics virtual-module loading, graph DTO
   decoding, and build-gate diagnostics execution live behind a focused
@@ -1207,9 +1206,9 @@ Latest full gate on May 17, 2026 after Review 215:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 215 plain-data,
-  metadata-entry, DB load recovery, nested query projection, Devtools preload
-  fact, and docs/LSP fixes.
+- The latest full `pnpm verify` passed after Review 216 plain sync, Resource
+  key/Form validation, DB query/row ingress, Devtools preserved preload fact,
+  and docs/API fixes.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1219,11 +1218,11 @@ Latest full gate on May 17, 2026 after Review 215:
   the first post-Review210 sweep found Review211 work, the first
   post-Review211 sweep found Review212 work, the first post-Review212 sweep
   found Review213 work, the first post-Review213 sweep found Review214 work,
-  and the first post-Review214 sweep found Review215 work, so the active
-  counter is 0/30.
+  the first post-Review214 sweep found Review215 work, and the first
+  post-Review215 sweep found Review216 work, so the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 408 physical/virtual files, 53 root test files / 1100
+  Effect-first audit over 408 physical/virtual files, 53 root test files / 1108
   tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console

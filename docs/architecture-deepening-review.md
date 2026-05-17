@@ -11,24 +11,25 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review215, the post-Review214 sweep
-fixing Core plain-data Effect-shaped value leaks, Resource/Action metadata
-entry validation, DB interrupted-load and nested query projection seams,
-Devtools route-preload derivation drift, and current docs/LSP wording. The
-newest full verification checkpoint is Review215. Clean Sweep 1 after
+The newest completed focused review is Review216, the post-Review215 sweep
+fixing Core synchronous plain-data seams, Resource key and Form validation data
+contracts, DB Effect-shaped query/row ingress leaks, Devtools preserved preload
+facts, and current docs/LSP wording. The newest full verification checkpoint is
+Review216. Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
 post-Review210 sweep found Review211 work, the first post-Review211 sweep
 found Review212 work, the first post-Review212 sweep found Review213 work, and
 the first post-Review213 sweep found Review214 work, and the first
-post-Review214 sweep found Review215 work, so the active Thirty-Sweep clean
-counter is 0/30 until a fresh post-Review215
+post-Review214 sweep found Review215 work, and the first post-Review215 sweep
+found Review216 work, so the active Thirty-Sweep clean counter is 0/30 until a
+fresh post-Review216
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
-Review213, Review214, and Review215 work.
+Review213, Review214, Review215, and Review216 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -80,7 +81,96 @@ docs/LSP, and evidence work. The first post-Review212 sweep found Review213
 Core, DB, Start CLI, adapter, docs, and evidence work. The first
 post-Review213 sweep found Review214 Core, Devtools, LSP/adapter cleanup, and
 root verification gate work. The first post-Review214 sweep found Review215
-Core, DB, Devtools, and docs/LSP work, so the counter remains 0/30.
+Core, DB, Devtools, and docs/LSP work. The first post-Review215 sweep found
+Review216 Core, DB, Devtools, and docs/API work, so the counter remains 0/30.
+
+## Review 216: Plain Sync Seams, Query Data, And Preserved Devtools Facts
+
+Review216 fixed actionable findings from the fresh post-Review215 sweep.
+
+1. Core Plain Sync And Validation Contracts
+   - Status: fixed.
+   - Files: `packages/core/src/capability.ts`, `packages/core/src/resource.ts`,
+     `packages/core/src/resource-errors.ts`, `packages/core/src/form.ts`,
+     `packages/core/src/action-result.ts`, `packages/core/test/capability.test.ts`,
+     `packages/core/test/resource.test.ts`, `packages/core/test/form.test.ts`,
+     `packages/core/test/action-result.test.ts`, `scripts/public-api-symbol-policy.mjs`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: synchronous public data seams still had narrow leaks:
+     `Capability.useSync(...)` could return erased direct Effect values,
+     custom Resource keys could be erased Effect/non-string values, Form
+     validation errors could store Promise/Effect-shaped payloads, and
+     `ActionResult.fromEffect(...)` allowed Effect-shaped successes at the type
+     seam.
+   - Fix: synchronous data seams now use or enforce `PlainValue`, Resource
+     custom keys reject Promise-shaped, Effect-shaped, and non-string identity
+     values with typed `ResourceKeyError` reasons, Form validation tools reject
+     non-plain validation data before committing state, and Resource namespace
+     aliases now have LSP hover docs and public hover-policy pins.
+   - Benefits: executable work stays behind Effect-returning Interfaces, cache
+     identity stays stable and string-only, and validation state remains plain
+     UI data.
+
+2. DB Query And Row Ingress Plain Data
+   - Status: fixed.
+   - Files: `packages/db/src/query-plan.ts`, `packages/db/src/query-builder.ts`,
+     `packages/db/src/live-query-runtime.ts`,
+     `packages/db/src/collection-value-detachment.ts`,
+     `packages/db/src/collection-row-ingress.ts`,
+     `packages/db/src/collection-snapshot-codec.ts`,
+     `packages/db/src/collection-sync-load-policy.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/live-query-collection.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: Review215 made query projections reject nested Promise-shaped
+     values, but Effect-shaped projection, group-key, aggregate, and collection
+     row values could still cross as data. Collection owner-load restoration
+     also only covered the loader and persistence slices, not the full
+     ingestion-through-commit window.
+   - Fix: query structured guards now reject nested Effect-shaped values,
+     query type helpers recursively reject Effect-shaped data, live-query joins
+     validate nested right-key arrays, collection row ingress rejects
+     Promise/Effect-shaped fields across initial data, load, direct write,
+     change-feed, and hydration paths, and owner-load interruption recovery now
+     wraps ingestion through commit.
+   - Benefits: DB rows, query results, group keys, aggregates, and materialized
+     live-query collections remain plain data, while load interruption recovery
+     has one local policy seam.
+
+3. Devtools Source-Of-Truth And Docs/API Drift
+   - Status: fixed.
+   - Files: `packages/devtools/src/app-graph-normalizer.ts`,
+     `packages/devtools/src/summary-app-graph.ts`,
+     `packages/devtools/src/summary.ts`, `packages/devtools/src/panels.ts`,
+     `packages/devtools/src/index.ts`, `packages/devtools/test/devtools.test.ts`,
+     `type-tests/devtools.test-d.ts`, `docs/effect-first-audit.md`,
+     `docs/release-notes.md`, `docs/package-hygiene-audit.md`,
+     `docs/sharp-cast-audit.md`, `docs/type-test-coverage-audit.md`,
+     `docs/public-api-inventory.md`.
+   - Problem: stored Devtools snapshots could preserve derived preload facts
+     during copy but have summaries recompute them later, panel severity warned
+     for static/unknown routes instead of Start's `preload === "present"`
+     source-of-truth rule, the normalizer options type was not root-exported,
+     and current docs still had Review215/old CLI-shape drift.
+   - Fix: snapshot summary normalization preserves both resource and collection
+     derived preload facts, app-graph panel severity follows Start preload
+     semantics, `NormalizeDevtoolsAppGraphDiagnosticsOptions` is root-exported
+     and type-tested, CLI docs describe variadic Effect v4 `Argument` query
+     parsing, and current ledgers now name Review216.
+   - Benefits: Devtools projections stop inventing stale facts, public
+     diagnostics helpers have importable option types, and LSP/docs stay aligned
+     with the current Effect v4 command shape.
+
+Focused verification for Review216 passed: Core/DB/Devtools package
+typechecks, public type tests, public API audit, Effect-first audit over 408
+files, focused Core tests 4 files / 107 tests, focused DB tests 2 files / 184
+tests, focused Devtools app-graph tests 7 tests, and root `pnpm test` with 53
+files / 1108 tests. Full `pnpm verify` passed after Review216 with 11 package
+builds, workspace typecheck, public type tests, public API audit, Effect-first
+audit over 408 files, 53 root test files / 1108 tests, package-level verifies,
+generated starter packaging, 16-target package dry-run gate, project-console
+checks, and leak scans. This sweep found work, so the active clean counter
+remains 0/30.
 
 ## Review 215: Plain Data Contracts, DB Load Recovery, And Devtools Preload Facts
 
@@ -656,9 +746,9 @@ Clean Sweep 2 later found Review209 work and the post-Review209 sweep found
 Review210 work, and the first post-Review210 sweep found Review211 work, so
 the first post-Review211 sweep found Review212 work, and the first
 post-Review212 sweep found Review213 work, and the first post-Review213 sweep
-found Review214 work, and the first post-Review214 sweep found Review215 work.
-The active counter is 0/30 until a fresh post-Review215 sweep reports no
-actionable findings.
+found Review214 work, the first post-Review214 sweep found Review215 work, and
+the first post-Review215 sweep found Review216 work. The active counter is
+0/30 until a fresh post-Review216 sweep reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 

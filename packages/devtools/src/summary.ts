@@ -74,7 +74,7 @@ export const describeDevtoolsSummary = (
       causalNodeCount: causalGraph.nodes.length,
       causalEdgeCount: causalGraph.edges.length
     },
-    graph: graphSummary(normalized.appGraph),
+    graph: graphSummary(normalized.appGraph, { preserveDerivedPreloadFacts: true }),
     runtime: {
       resources: normalized.snapshot.resources.map((resource) => ({ ...resource })),
       actions: normalized.snapshot.actions.map((action) => ({

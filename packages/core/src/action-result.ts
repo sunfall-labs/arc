@@ -196,10 +196,10 @@ const freezeFormErrors = <E>(
     : Object.freeze(formErrors.map((error) => rejectActionResultValidationError(error as E)));
 
 const actionResultSuccessPromiseGuidance =
-  "ActionResult success values must be plain data. Move host Promise work into the action run Effect with Effect.tryPromise(...) before building the result. If the domain value itself is an Effect, wrap it with Effect.succeed(effectValue).";
+  "ActionResult success values must be plain data. Move host Promise work into the action run Effect with Effect.tryPromise(...) before building the result. Direct Effect values are executable work, not result data.";
 
 const actionResultFailurePromiseGuidance =
-  "ActionResult failure values must be plain data. Move host Promise work into the action run Effect with Effect.tryPromise(...) before building the result. If the domain error itself is an Effect, wrap it with Effect.succeed(effectValue).";
+  "ActionResult failure values must be plain data. Move host Promise work into the action run Effect with Effect.tryPromise(...) before building the result. Direct Effect values are executable work, not failure data.";
 
 const actionResultValidationPromiseGuidance =
   "ActionResult validation errors must be plain data. Move host Promise work into validation Effects with Effect.tryPromise(...) before building the result. Direct Effect values are executable work, not validation data.";
@@ -418,9 +418,9 @@ const validationEffect = <Values extends object, E, R = never>(
 ): Effect.Effect<ActionResultValidationFailure<Values, E, R>> =>
   Effect.succeed(validation(input, options));
 
-/** Converts an Effect into an `ActionResult`; Promise-shaped successes or errors are rejected. */
+/** Converts an Effect into an `ActionResult`; successes and errors must be plain data. */
 const fromEffect = <A, E = never, R = never>(
-  effect: EffectInput<A, PlainValue<E>, R>
+  effect: PlainValue<A> | Effect.Effect<PlainValue<A>, PlainValue<E>, R>
 ): Effect.Effect<ActionResult<A, never, never, E>, never, R> =>
   toEffect(effect as never).pipe(
     Effect.map((value) => success<A>(value as PlainValue<A>)),

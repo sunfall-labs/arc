@@ -197,6 +197,34 @@ describe("Form", () => {
     );
   });
 
+  it("rejects Promise-shaped and Effect-shaped validator errors before committing them", () => {
+    for (const makeForm of [
+      () =>
+        Form.make<typeof RenameInput, string>({
+          schema: RenameInput,
+          initial: { id: "atlas", name: "Atlas Billing" },
+          validate: (_values, validation) =>
+            Effect.fail(validation.field("name", Promise.resolve("required") as never))
+        }),
+      () =>
+        Form.make<typeof RenameInput, string>({
+          schema: RenameInput,
+          initial: { id: "atlas", name: "Atlas Billing" },
+          validate: (_values, validation) =>
+            Effect.fail(validation.form(Effect.succeed("invalid") as never))
+        })
+    ]) {
+      const form = makeForm();
+      const exit = Effect.runSync(Effect.exit(form.validateEffect()));
+
+      expect(Exit.isFailure(exit)).toBe(true);
+      const state = read(form.state);
+      expect(state.status).toBe("Invalid");
+      expect(state.fieldErrors).toEqual({});
+      expect(state.formErrors[0]).toBeInstanceOf(EffectInputCallbackError);
+    }
+  });
+
   it("captures synchronous validator throws in the Effect error channel", async () => {
     const thrown = new Error("validator failed");
     const form = Form.make({

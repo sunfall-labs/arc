@@ -25,6 +25,7 @@ import {
 } from "./collection-state.js";
 import {
   cloneCollectionValue,
+  collectionExecutableValuePath,
   cloneFrozenCollectionTransaction,
   collectionValueChanges
 } from "./collection-value-detachment.js";
@@ -548,6 +549,22 @@ const validateCollectionValueKeyEffect = <A extends object, K extends Collection
     }
   });
 
+const validateCollectionPlainSnapshotValueEffect = (
+  value: unknown,
+  operation: CollectionSnapshotCodecOperation,
+  path: string
+): Effect.Effect<void, CollectionSnapshotCodecError> =>
+  Effect.suspend(() => {
+    const executable = collectionExecutableValuePath(value, path);
+    return executable === undefined
+      ? Effect.void
+      : Effect.fail(new CollectionSnapshotCodecError({
+          operation,
+          path: executable.path,
+          reason: executable.reason
+        }));
+  });
+
 export const validateCollectionSnapshotDefinitionEffect = <A extends object, K extends CollectionKey>(
   definition: CollectionSnapshotDefinition<A, K>,
   value: CollectionSnapshot<A, K>,
@@ -602,6 +619,7 @@ export const validateCollectionSnapshotDefinitionEffect = <A extends object, K e
     for (const [rowIndex, row] of snapshot.rows.entries()) {
       const value = nextValue();
       const rowPath = `${path}.rows[${rowIndex}]`;
+      yield* validateCollectionPlainSnapshotValueEffect(value, operation, `${rowPath}.value`);
       yield* validateCollectionValueKeyEffect(
         definition,
         row.key,
@@ -629,6 +647,7 @@ export const validateCollectionSnapshotDefinitionEffect = <A extends object, K e
         switch (mutation._tag) {
           case "Insert": {
             const value = nextValue();
+            yield* validateCollectionPlainSnapshotValueEffect(value, operation, `${mutationPath}.value`);
             yield* validateCollectionValueKeyEffect(
               definition,
               mutation.key,
@@ -641,6 +660,7 @@ export const validateCollectionSnapshotDefinitionEffect = <A extends object, K e
               mutations.push({ ...mutation, value });
             } else {
               const previous = nextValue();
+              yield* validateCollectionPlainSnapshotValueEffect(previous, operation, `${mutationPath}.previous`);
               yield* validateCollectionValueKeyEffect(
                 definition,
                 mutation.key,
@@ -656,6 +676,8 @@ export const validateCollectionSnapshotDefinitionEffect = <A extends object, K e
           case "Update": {
             const previous = nextValue();
             const value = nextValue();
+            yield* validateCollectionPlainSnapshotValueEffect(previous, operation, `${mutationPath}.previous`);
+            yield* validateCollectionPlainSnapshotValueEffect(value, operation, `${mutationPath}.value`);
             yield* validateCollectionValueKeyEffect(
               definition,
               mutation.key,
@@ -682,6 +704,7 @@ export const validateCollectionSnapshotDefinitionEffect = <A extends object, K e
           }
           case "Delete": {
             const previous = nextValue();
+            yield* validateCollectionPlainSnapshotValueEffect(previous, operation, `${mutationPath}.previous`);
             yield* validateCollectionValueKeyEffect(
               definition,
               mutation.key,
@@ -705,6 +728,7 @@ export const validateCollectionSnapshotDefinitionEffect = <A extends object, K e
 
         const value = nextValue();
         const rollbackPath = `${pendingPath}.rollbackRows[${rollbackIndex}].row`;
+        yield* validateCollectionPlainSnapshotValueEffect(value, operation, `${rollbackPath}.value`);
         yield* validateCollectionValueKeyEffect(
           definition,
           rollback.row.key,

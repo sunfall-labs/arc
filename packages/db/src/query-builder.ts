@@ -1,4 +1,4 @@
-import type { ReadableSignal, RejectPromiseLikeValue } from "@effect-ui/core";
+import type { PlainValue, ReadableSignal } from "@effect-ui/core";
 import { Effect } from "effect";
 import { makeLiveQueryState } from "./live-query-state.js";
 import {
@@ -21,7 +21,7 @@ import {
   type QueryPlanDiagnostics,
   type QueryPlanJoinDiagnostics,
   type QueryPlanSourceDiagnostics,
-  type RejectPromiseLikeRecord,
+  type RejectPlainQueryRecord,
   type QuerySourcesError,
   type QuerySourcesRequirements,
   type QuerySortDirection,
@@ -96,7 +96,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
 
   /** Returns a new query that projects each matching context to a result value. */
   select<Next>(
-    projector: (row: TContext) => Next & RejectPromiseLikeRecord<Next>
+    projector: (row: TContext) => Next & RejectPlainQueryRecord<Next>
   ): QueryBuilder<TContext, Next, E, R> {
     return new QueryBuilder<TContext, Next, E, R>(
       this.sources,
@@ -389,8 +389,8 @@ export const not = (value: boolean): boolean => !value;
 export const includes = <A>(values: ReadonlyArray<A>, value: A): boolean => values.includes(value);
 
 const aggregateCount = <TContext, A = unknown>(
-  value: (row: TContext) => A & RejectPromiseLikeValue<A> =
-    (row) => row as A & RejectPromiseLikeValue<A>
+  value: (row: TContext) => A & PlainValue<A> =
+    (row) => row as A & PlainValue<A>
 ): QueryAggregate<TContext, number, number> => ({
   preMap: (row) =>
     evaluateQueryOperation("aggregate", () => value(row)) == null ? 0 : 1,
@@ -438,7 +438,8 @@ const aggregateAvg = <TContext>(
 const aggregateMin = <TContext, V extends number | string | Date | bigint>(
   value: (row: TContext) => V
 ): QueryAggregate<TContext, V | undefined, V | undefined> => ({
-  preMap: (row) => evaluateQueryOperation("aggregate", () => value(row)),
+  preMap: (row) =>
+    evaluateQueryOperation("aggregate", () => value(row)) as (V | undefined) & RejectPlainQueryRecord<V | undefined>,
   reduce: (values) => {
     let min: V | undefined;
     for (const [candidate, multiplicity] of values) {
@@ -449,14 +450,15 @@ const aggregateMin = <TContext, V extends number | string | Date | bigint>(
         min = candidate;
       }
     }
-    return min;
+    return min as (V | undefined) & RejectPlainQueryRecord<V | undefined>;
   }
 });
 
 const aggregateMax = <TContext, V extends number | string | Date | bigint>(
   value: (row: TContext) => V
 ): QueryAggregate<TContext, V | undefined, V | undefined> => ({
-  preMap: (row) => evaluateQueryOperation("aggregate", () => value(row)),
+  preMap: (row) =>
+    evaluateQueryOperation("aggregate", () => value(row)) as (V | undefined) & RejectPlainQueryRecord<V | undefined>,
   reduce: (values) => {
     let max: V | undefined;
     for (const [candidate, multiplicity] of values) {
@@ -467,7 +469,7 @@ const aggregateMax = <TContext, V extends number | string | Date | bigint>(
         max = candidate;
       }
     }
-    return max;
+    return max as (V | undefined) & RejectPlainQueryRecord<V | undefined>;
   }
 });
 

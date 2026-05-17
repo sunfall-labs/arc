@@ -131,6 +131,24 @@ describe("ActionResult", () => {
     }
   });
 
+  it("rejects Effect-shaped successes from ActionResult.fromEffect", () =>
+    Effect.runPromise(
+      Effect.exit(
+        ActionResult.fromEffect(Effect.succeed(Effect.succeed({ id: "atlas" })) as never)
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit)).toBe(true);
+            if (Exit.isFailure(exit)) {
+              const defect = exit.cause.reasons.find((reason) => reason._tag === "Die");
+              expect(defect?.defect).toBeInstanceOf(EffectInputCallbackError);
+            }
+          })
+        ),
+        Effect.asVoid
+      )
+    ));
+
   it("rejects Promise-shaped and Effect-shaped invalidation entries", () => {
     const Project = Resource.family({
       name: "Project.action-result-invalidations",

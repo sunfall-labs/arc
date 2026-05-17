@@ -195,10 +195,11 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types`, full `pnpm verify`, and full `pnpm verify:serial`
-  passed after adding Review213 PromiseSafeValue pins for broad `any`/`unknown`
-  values, ActionResult validation/failure values, Program initial/reset
-  models, and React/Solid ProgramHandle dispatch messages.
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review216 with
+  53 root test files / 1108 tests, including the latest plain-data pins for
+  Program models/messages, ActionResult payloads/errors, Resource and Action
+  metadata entries, Form validation errors, Capability sync reads, collection
+  row ingress, and nested query projection/group/aggregate values.
 - `pnpm typecheck:types` passed after the explicit request-trace teardown and
   Promise-return rejection assertions were added.
 - `pnpm typecheck:types` and full `pnpm verify` passed after replacing

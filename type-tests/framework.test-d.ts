@@ -563,6 +563,8 @@ invokeEffectInput<[], unknown>("Project.promiseUnknown", () => promisedProject);
 ActionResult.fromEffect(promisedProject);
 // @ts-expect-error ActionResult.fromEffect rejects Effect successes that are Promise-shaped
 ActionResult.fromEffect(Effect.succeed(promisedProject));
+// @ts-expect-error ActionResult.fromEffect successes must be plain data, not Effect-shaped
+ActionResult.fromEffect(Effect.succeed(effectNumberValue));
 // @ts-expect-error ActionResult.fromEffect rejects Effect successes hidden behind explicit unknown
 ActionResult.fromEffect<unknown>(Effect.succeed(promisedProject));
 // @ts-expect-error ActionResult.fromEffect rejects Effect failures that are Promise-shaped
@@ -1650,8 +1652,26 @@ const resourceDehydrateEffect: Effect.Effect<ReadonlyArray<Resource.Snapshot>, R
   Resource.dehydrateEffect([]);
 const resourceHydrationPayloadEffect: Effect.Effect<Resource.HydrationPayload, ResourceSnapshotCodecError> =
   Resource.hydrationPayloadEffect([]);
+declare const frameworkResourceTagAlias: Resource.Tag;
+declare const frameworkResourceInvalidationAlias: Resource.Invalidation;
+declare const frameworkResourceInvalidationTargetAlias: Resource.InvalidationTarget;
+declare const frameworkResourceInvalidationCauseAlias: Resource.InvalidationCause;
+declare const frameworkResourceInvalidationPlanEntryAlias: Resource.InvalidationPlanEntry;
+declare const frameworkResourceInvalidationPlanAlias: Resource.InvalidationPlan;
+declare const frameworkResourceHydrationInputAlias: Resource.HydrationInput;
+declare const frameworkResourceHydrationOptionsAlias: Resource.HydrationOptions;
+declare const frameworkResourceStatusAlias: Resource.Status<string, Project>;
 void resourceDehydrateEffect;
 void resourceHydrationPayloadEffect;
+void frameworkResourceTagAlias;
+void frameworkResourceInvalidationAlias;
+void frameworkResourceInvalidationTargetAlias;
+void frameworkResourceInvalidationCauseAlias;
+void frameworkResourceInvalidationPlanEntryAlias;
+void frameworkResourceInvalidationPlanAlias;
+void frameworkResourceHydrationInputAlias;
+void frameworkResourceHydrationOptionsAlias;
+void frameworkResourceStatusAlias;
 
 interface ProjectRequest extends EffectRequest.Request<Project, ProjectError> {
   readonly _tag: "ProjectRequest";
@@ -3272,6 +3292,20 @@ Query.live((query) =>
 Query.live((query) =>
   query
     .from({ project: ProjectsCollection })
+    // @ts-expect-error Query projections must not contain direct Effect-shaped values
+    .select(() => effectNumberValue)
+);
+
+Query.live((query) =>
+  query
+    .from({ project: ProjectsCollection })
+    // @ts-expect-error Query projections must not contain nested Effect-shaped values
+    .select(() => ({ nested: { value: effectNumberValue } }))
+);
+
+Query.live((query) =>
+  query
+    .from({ project: ProjectsCollection })
     .groupBy(
       ({ project }) => ({ name: project.name }),
       {
@@ -3287,6 +3321,18 @@ Query.live((query) =>
     .groupBy(
       // @ts-expect-error Query group keys must not contain nested Promise-shaped values
       ({ project }) => ({ name: project.name, asyncKey: promisedString }),
+      {
+        count: Query.count()
+      }
+    )
+);
+
+Query.live((query) =>
+  query
+    .from({ project: ProjectsCollection })
+    .groupBy(
+      // @ts-expect-error Query group keys must not contain Effect-shaped values
+      ({ project }) => ({ name: project.name, effectKey: effectNumberValue }),
       {
         count: Query.count()
       }
@@ -3313,6 +3359,18 @@ Query.live((query) =>
       ({ project }) => ({ name: project.name, values: new Set([promisedString]) }),
       {
         count: Query.count()
+      }
+    )
+);
+
+Query.live((query) =>
+  query
+    .from({ project: ProjectsCollection })
+    .groupBy(
+      ({ project }) => ({ name: project.name }),
+      {
+        // @ts-expect-error aggregate value callbacks must not return Effect-shaped values
+        count: Query.count(() => effectNumberValue)
       }
     )
 );
@@ -3375,6 +3433,8 @@ ProjectApi.layer({
 ProjectApi.use((api) => api.get("atlas"));
 ProjectApi.useEffect((api) => api.get("atlas"));
 ProjectApi.useEffect(() => ({ id: "atlas", name: "Pure Project" }));
+// @ts-expect-error synchronous capability callbacks must not return direct Effect values; use useEffect instead
+ProjectApi.useSync(() => effectNumberValue);
 const projectProgramRuntime = makeRuntime(
   ProjectApi.layer({
     get: (id) => Effect.succeed({ id, name: "Runtime Project" }),
@@ -4638,6 +4698,22 @@ Form.make({
   initial: { id: "atlas", name: "Atlas Billing", spend: 1200 },
   // @ts-expect-error form validation must return Effect or a pure value, not Promise
   validate: () => promisedVoid
+});
+
+Form.make<typeof ProjectFormSchema, ProjectFormValues, string>({
+  schema: ProjectFormSchema,
+  initial: { id: "atlas", name: "Atlas Billing", spend: 1200 },
+  validate: (_values, validation) =>
+    // @ts-expect-error form validation errors must be plain data, not Promise-shaped
+    Effect.fail(validation.field("name", promisedString))
+});
+
+Form.make<typeof ProjectFormSchema, ProjectFormValues, string>({
+  schema: ProjectFormSchema,
+  initial: { id: "atlas", name: "Atlas Billing", spend: 1200 },
+  validate: (_values, validation) =>
+    // @ts-expect-error form validation errors must be plain data, not Effect-shaped
+    Effect.fail(validation.form(effectNumberValue))
 });
 
 projectForm.setField("name", "Atlas Revenue");

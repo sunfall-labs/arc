@@ -15,6 +15,7 @@ import {
   normalizeDevtoolsAppGraphDiagnostics,
   normalizeRouteModulePreloadCollections
 } from "./app-graph-normalizer.js";
+import type { NormalizeDevtoolsAppGraphDiagnosticsOptions } from "./app-graph-normalizer.js";
 
 const valueCounts = <Value extends string>(
   values: Iterable<Value>
@@ -84,7 +85,8 @@ export const routeModulePreloadCollections = (
   normalizeRouteModulePreloadCollections(routeModule);
 
 export const graphSummary = (
-  appGraph: DevtoolsStartAppGraphDiagnostics | undefined
+  appGraph: DevtoolsStartAppGraphDiagnostics | undefined,
+  options: NormalizeDevtoolsAppGraphDiagnosticsOptions = {}
 ): DevtoolsSummary["graph"] => {
   if (!appGraph) {
     return {
@@ -92,7 +94,7 @@ export const graphSummary = (
     };
   }
 
-  const detached = normalizeDevtoolsAppGraphDiagnostics(appGraph);
+  const detached = normalizeDevtoolsAppGraphDiagnostics(appGraph, options);
   const collections = appGraphCollectionDefinitions(detached);
 
   return {

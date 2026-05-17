@@ -289,6 +289,9 @@ export const normalizeDevtoolsAppGraphDiagnostics = (
   const suppliedUnknownRoutePreloadCollections = (appGraph as {
     readonly unknownRoutePreloadCollections?: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[];
   }).unknownRoutePreloadCollections ?? [];
+  const suppliedUnknownRoutePreloadResources = (appGraph as {
+    readonly unknownRoutePreloadResources?: readonly DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry[];
+  }).unknownRoutePreloadResources ?? [];
   const normalizedAppGraph = {
     version: appGraph.version,
     routeCount: routeModules.length,
@@ -314,13 +317,26 @@ export const normalizeDevtoolsAppGraphDiagnostics = (
     },
     missingSchemas: missingSchemasForModules(serverFunctionModules, actionModules),
     unknownActionBehavior: normalizeAppGraphUnknownActionBehavior(actionModules),
-    unknownRoutePreloadResources: [] as readonly DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry[],
+    unknownRoutePreloadResources: suppliedUnknownRoutePreloadResources,
     unknownRoutePreloadCollections: suppliedUnknownRoutePreloadCollections
   };
 
   return {
     ...normalizedAppGraph,
-    unknownRoutePreloadResources: normalizeAppGraphUnknownRoutePreloadResources(normalizedAppGraph),
+    unknownRoutePreloadResources: options.preserveDerivedPreloadFacts
+      ? suppliedUnknownRoutePreloadResources.map((entry) => ({
+          kind: "route" as const,
+          routeId: entry.routeId,
+          routePath: entry.routePath,
+          moduleId: entry.moduleId,
+          filePath: entry.filePath,
+          preload: entry.preload,
+          preloadResources: {
+            status: entry.preloadResources.status,
+            families: [...entry.preloadResources.families]
+          }
+        }))
+      : normalizeAppGraphUnknownRoutePreloadResources(normalizedAppGraph),
     unknownRoutePreloadCollections: options.preserveDerivedPreloadFacts
       ? suppliedUnknownRoutePreloadCollections.map((entry) => ({
           kind: "route" as const,

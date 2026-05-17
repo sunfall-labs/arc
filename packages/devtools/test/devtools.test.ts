@@ -2181,6 +2181,9 @@ describe("devtools invalidation plans", () => {
     }
     expect(summary.graph.routes.unknownPreloadResources.map((entry) => entry.routePath)).toEqual(["/users/:id"]);
     expect(summary.graph.routes.unknownPreloadCollections.map((entry) => entry.routePath)).toEqual(["/users/:id"]);
+    const appGraphItems = store.getPanels().panels.find((panel) => panel.id === "app-graph")?.items ?? [];
+    expect(appGraphItems.find((item) => item.label === "/users/:id")?.severity).toBe("warning");
+    expect(appGraphItems.find((item) => item.label === "/static")?.severity).toBe("ok");
     const diagnostics = store.getPanels().panels.find((panel) => panel.id === "diagnostics")?.items ?? [];
     expect(diagnostics).toEqual(expect.arrayContaining([
       expect.objectContaining({
@@ -2193,6 +2196,43 @@ describe("devtools invalidation plans", () => {
         label: "/static"
       })
     ]));
+
+    const { preloadCollections: _legacyCollectionsField, ...legacyRoute } = presentUnknownCollections;
+    void _legacyCollectionsField;
+    const preservedStore = makeDevtoolsStore();
+    preservedStore.setSnapshot({
+      resources: [],
+      actions: [],
+      invalidations: [],
+      routePlans: [],
+      appGraph: {
+        ...appGraphDiagnostics,
+        routeModules: [legacyRoute as never],
+        unknownRoutePreloadResources: [],
+        unknownRoutePreloadCollections: []
+      }
+    });
+    expect(preservedStore.getSnapshot().appGraph).toMatchObject({
+      unknownRoutePreloadResources: [],
+      unknownRoutePreloadCollections: []
+    });
+    const preservedSummary = preservedStore.getSummary();
+    expect(preservedSummary.overview).toMatchObject({
+      unknownRoutePreloadResourcesCount: 0,
+      unknownRoutePreloadCollectionsCount: 0
+    });
+    expect(preservedSummary.graph._tag).toBe("Available");
+    if (preservedSummary.graph._tag !== "Available") {
+      expect.fail("Expected preserved app graph summary.");
+    }
+    expect(preservedSummary.graph.routes.unknownPreloadResources).toEqual([]);
+    expect(preservedSummary.graph.routes.unknownPreloadCollections).toEqual([]);
+    expect(preservedStore.getPanels().panels.find((panel) => panel.id === "diagnostics")?.items)
+      .not.toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          id: expect.stringContaining("unknown-preload")
+        })
+      ]));
   });
 
   it("derives a deterministic causal graph from routes, resources, actions, schemas, and runtime events", async () => {

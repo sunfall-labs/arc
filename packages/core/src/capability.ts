@@ -1,5 +1,6 @@
 import { Context, Effect, Layer } from "effect";
-import type { EffectInput, PromiseSafeValue } from "./effect-like.js";
+import type { EffectInput, PlainValue, PromiseSafeValue } from "./effect-like.js";
+import { isEffectLikeValue } from "./effect-input-sync.js";
 import {
   EffectInputCallbackError,
   EffectInputPromiseRejected,
@@ -24,7 +25,12 @@ export interface Capability<Identifier, Shape> {
   readonly mock: (service: Shape) => Layer.Layer<Identifier>;
   /** Accesses the provided service inside an Effect. */
   readonly use: <A, E, R>(f: (service: Shape) => Effect.Effect<A, E, R>) => Effect.Effect<A, E, R | Identifier>;
-  /** Accesses the service with a callback that may return a plain value or Effect. */
+  /**
+   * Accesses the service with a callback that may return a plain value or Effect.
+   *
+   * Direct Effect values are executable work. If the domain value itself is an
+   * Effect, return it from an Effect with `Effect.succeed(effectValue)`.
+   */
   readonly useEffect: {
     <A, E, R>(
       f: (service: Shape) => Effect.Effect<PromiseSafeValue<A>, E, R>
@@ -33,10 +39,15 @@ export interface Capability<Identifier, Shape> {
       f: (service: Shape) => PromiseSafeValue<A>
     ): Effect.Effect<PromiseSafeValue<A>, EffectInputCallbackError, Identifier>;
   };
-  /** Synchronously reads the provided service and returns the callback value. */
+  /**
+   * Synchronously reads the provided service and returns plain data.
+   *
+   * Promise-shaped values and direct Effect values are rejected. Use
+   * `useEffect(...)` when the service access performs Effect work.
+   */
   readonly useSync: <A>(
-    f: (service: Shape) => PromiseSafeValue<A>
-  ) => Effect.Effect<PromiseSafeValue<A>, never, Identifier>;
+    f: (service: Shape) => PlainValue<A>
+  ) => Effect.Effect<PlainValue<A>, never, Identifier>;
   readonly provide: <A, E, R>(
     effect: Effect.Effect<A, E, R>,
     service: Shape
@@ -109,6 +120,12 @@ export namespace Capability {
               ? Effect.die(new EffectInputPromiseRejected({
                   guidance: `Capability.useSync(${key}) callbacks must return synchronous values, not Promises. Use Capability.useEffect(...) with Effect.tryPromise(...) at the host adapter seam.`
                 }))
+              : isEffectLikeValue(value)
+                ? Effect.die(new EffectInputCallbackError({
+                    operation: `Capability.useSync(${key})`,
+                    cause: new TypeError("Capability.useSync callbacks must return plain data, not Effect values."),
+                    guidance: `Capability.useSync(${key}) callbacks must return plain data. Use Capability.useEffect(...) for Effect work.`
+                  }))
               : Effect.succeed(value)
           )
         ),

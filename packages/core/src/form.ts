@@ -1,5 +1,6 @@
 import { Data, Effect, Schema, type SchemaIssue } from "effect";
-import type { EffectInput, EffectInputCallbackError } from "./effect-like.js";
+import { rejectPlainSyncCallbackValue } from "./effect-input-sync.js";
+import type { EffectInput, EffectInputCallbackError, PlainValue } from "./effect-like.js";
 import { invokeEffectInput } from "./effect-like.js";
 import { Signal, type ReadableSignal } from "./signal.js";
 
@@ -30,10 +31,10 @@ export type FormSchemaServices<S extends Schema.Top> = Schema.Codec.DecodingServ
 export interface FormValidationTools<Values extends object, E> {
   field<K extends FormFieldKey<Values>>(
     field: K,
-    error: E
+    error: PlainValue<E>
   ): FormValidationError<Values, E>;
-  fields(fieldErrors: FormFieldErrors<Values, E>): FormValidationError<Values, E>;
-  form(error: E): FormValidationError<Values, E>;
+  fields(fieldErrors: FormFieldErrors<Values, PlainValue<E>>): FormValidationError<Values, E>;
+  form(error: PlainValue<E>): FormValidationError<Values, E>;
 }
 
 /** Validation lifecycle state for a form controller. */
@@ -361,22 +362,52 @@ const singleFieldError = <Values extends object, E>(
   return fieldErrors;
 };
 
+const formValidationErrorGuidance =
+  "Form validation errors must be plain data. Move host Promise work into the validator Effect with Effect.tryPromise(...), and do not store direct Effect values as validation data.";
+
+const rejectFormValidationError = <E>(error: E): E =>
+  rejectPlainSyncCallbackValue(
+    "Form.validate",
+    error,
+    formValidationErrorGuidance
+  );
+
+const cloneValidatedFieldErrors = <Values extends object, E>(
+  fieldErrors: FormFieldErrors<Values, E>
+): FormFieldErrors<Values, E> => {
+  const cloned: Partial<Record<FormFieldKey<Values>, ReadonlyArray<E>>> = {};
+  for (const field in fieldErrors) {
+    const errors = fieldErrors[field as FormFieldKey<Values>];
+    if (errors !== undefined) {
+      cloned[field as FormFieldKey<Values>] = errors.map((error) =>
+        rejectFormValidationError(error)
+      );
+    }
+  }
+  return cloned;
+};
+
+const cloneValidatedFormErrors = <E>(
+  formErrors: ReadonlyArray<E>
+): ReadonlyArray<E> =>
+  formErrors.map((error) => rejectFormValidationError(error));
+
 const makeError = <Values extends object, E>(
   fieldErrors: FormFieldErrors<Values, E>,
   formErrors: ReadonlyArray<E> = [],
   cause?: unknown
 ): FormValidationError<Values, E> =>
   new FormValidationError({
-    fieldErrors: cloneFieldErrors(fieldErrors),
-    formErrors: [...formErrors],
+    fieldErrors: cloneValidatedFieldErrors(fieldErrors),
+    formErrors: cloneValidatedFormErrors(formErrors),
     cause
   });
 
 const validationTools = <Values extends object, E>(): FormValidationTools<Values, E> => ({
   field: (field, error) =>
-    makeError<Values, E>(singleFieldError(field, error)),
-  fields: (fieldErrors) => makeError(fieldErrors),
-  form: (error) => makeError({}, [error])
+    makeError<Values, E>(singleFieldError(field, error as E)),
+  fields: (fieldErrors) => makeError(fieldErrors as FormFieldErrors<Values, E>),
+  form: (error) => makeError<Values, E>({}, [error as E])
 });
 
 const issuePaths = (

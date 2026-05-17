@@ -1,3 +1,4 @@
+import { isEffectLike } from "@effect-ui/core";
 import type {
   CollectionKey,
   CollectionMutation,
@@ -6,6 +7,100 @@ import type {
   CollectionTransaction,
   CollectionUpdate
 } from "./collection-contract.js";
+
+export interface CollectionExecutableValuePath {
+  readonly path: string;
+  readonly reason: "PromiseLikeValue" | "EffectLikeValue";
+}
+
+const collectionValuePathSegment = (key: string): string =>
+  /^[A-Za-z_$][\w$]*$/.test(key)
+    ? `.${key}`
+    : `[${JSON.stringify(key)}]`;
+
+const isPromiseLikeCollectionValue = (value: unknown): boolean =>
+  value !== null &&
+  (typeof value === "object" || typeof value === "function") &&
+  typeof Reflect.get(value as object, "then") === "function";
+
+const isEffectLikeCollectionValue = (value: unknown): boolean =>
+  value instanceof Error ? false : isEffectLike(value);
+
+export const collectionExecutableValuePath = (
+  value: unknown,
+  path = "$",
+  active = new WeakSet<object>()
+): CollectionExecutableValuePath | undefined => {
+  if (isPromiseLikeCollectionValue(value)) {
+    return { path, reason: "PromiseLikeValue" };
+  }
+  if (isEffectLikeCollectionValue(value)) {
+    return { path, reason: "EffectLikeValue" };
+  }
+  if (value === null || typeof value !== "object") {
+    return undefined;
+  }
+  if (
+    value instanceof Date ||
+    value instanceof URL ||
+    value instanceof ArrayBuffer ||
+    value instanceof DataView ||
+    ArrayBuffer.isView(value)
+  ) {
+    return undefined;
+  }
+  if (active.has(value)) {
+    return undefined;
+  }
+
+  active.add(value);
+  try {
+    if (Array.isArray(value)) {
+      for (let index = 0; index < value.length; index++) {
+        const found = collectionExecutableValuePath(value[index], `${path}[${index}]`, active);
+        if (found !== undefined) {
+          return found;
+        }
+      }
+      return undefined;
+    }
+    if (value instanceof Map) {
+      let index = 0;
+      for (const [key, entry] of value.entries()) {
+        const keyPath = collectionExecutableValuePath(key, `${path}.<key:${index}>`, active);
+        if (keyPath !== undefined) {
+          return keyPath;
+        }
+        const valuePath = collectionExecutableValuePath(entry, `${path}.<value:${index}>`, active);
+        if (valuePath !== undefined) {
+          return valuePath;
+        }
+        index++;
+      }
+      return undefined;
+    }
+    if (value instanceof Set) {
+      let index = 0;
+      for (const entry of value.values()) {
+        const found = collectionExecutableValuePath(entry, `${path}.<value:${index}>`, active);
+        if (found !== undefined) {
+          return found;
+        }
+        index++;
+      }
+      return undefined;
+    }
+    for (const [key, entry] of Object.entries(value)) {
+      const found = collectionExecutableValuePath(entry, `${path}${collectionValuePathSegment(key)}`, active);
+      if (found !== undefined) {
+        return found;
+      }
+    }
+    return undefined;
+  } finally {
+    active.delete(value);
+  }
+};
 
 export const cloneCollectionValue = <A>(value: A, seen = new WeakMap<object, unknown>()): A => {
   if (typeof value !== "object" || value === null) {

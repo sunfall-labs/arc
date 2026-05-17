@@ -314,8 +314,10 @@ export const describeDevtoolsPanels = (
                 id: devtoolsRoutePanelItemId(routeModule.routeId),
                 label: routeModule.routePath,
                 detail: routeModule.moduleId,
-                severity: routeModule.preloadResources.status === "unknown" ||
-                  preloadCollections.status === "unknown"
+                severity: routeModule.preload === "present" && (
+                    routeModule.preloadResources.status === "unknown" ||
+                    preloadCollections.status === "unknown"
+                  )
                   ? "warning"
                   : "ok",
                 metrics: [
