@@ -10,6 +10,7 @@ type PromiseShapedMember<Out> = Out extends unknown
 type HasPromiseLike<Out> = [unknown] extends [Out]
   ? false
   : [PromiseShapedMember<Out>] extends [never] ? false : true;
+type IsAny<T> = 0 extends (1 & T) ? true : false;
 
 type NonPromiseLikeUnknown =
   | null
@@ -26,19 +27,28 @@ export type RejectPromiseLikeValue<A> =
     ? NonPromiseLikeUnknown
     : HasPromiseLike<A> extends true ? never : unknown;
 
+export type PromiseSafeValue<A> =
+  IsAny<A> extends true
+    ? NonPromiseLikeUnknown
+    : [unknown] extends [A]
+      ? NonPromiseLikeUnknown
+      : HasPromiseLike<A> extends true ? never : A;
+
 /**
  * Input accepted by convenience APIs that can run either a plain value or an Effect.
  *
  * Public core APIs prefer Effect-returning variants. EffectInput exists so definitions
  * can stay ergonomic while still being normalized before execution.
+ * Promise-shaped values are rejected; adapt host Promise work explicitly with
+ * `Effect.tryPromise(...)` before returning from an EffectInput boundary.
  */
 export type EffectInput<A, E = never, R = never> =
-  | (A & RejectPromiseLikeValue<A>)
-  | Effect.Effect<A & RejectPromiseLikeValue<A>, E, R>;
+  | PromiseSafeValue<A>
+  | Effect.Effect<PromiseSafeValue<A>, E, R>;
 
 export type EffectInputValue<Out> = Out extends Effect.Effect<infer A, infer _E, infer _R>
-  ? HasPromiseLike<A> extends true ? never : A & RejectPromiseLikeValue<A>
-  : HasPromiseLike<Out> extends true ? never : Out & RejectPromiseLikeValue<Out>;
+  ? PromiseSafeValue<A>
+  : PromiseSafeValue<Out>;
 
 export type EffectInputError<Out> = Out extends Effect.Effect<infer _A, infer E, infer _R> ? E : never;
 
@@ -48,8 +58,8 @@ export type EnsureEffectInputValue<Out, A> =
   EffectInputValue<Out> extends A ? EnsureEffectInput<Out> : never;
 
 export type EnsureEffectInput<Out> = Out extends Effect.Effect<infer A, infer E, infer R>
-  ? HasPromiseLike<A> extends true ? never : Effect.Effect<A & RejectPromiseLikeValue<A>, E, R>
-  : HasPromiseLike<Out> extends true ? never : Out & RejectPromiseLikeValue<Out>;
+  ? PromiseSafeValue<A> extends never ? never : Effect.Effect<PromiseSafeValue<A>, E, R>
+  : PromiseSafeValue<Out> extends never ? never : PromiseSafeValue<Out>;
 
 export function isEffectLike<A, E, R>(value: unknown): value is Effect.Effect<A, E, R>;
 export function isEffectLike(value: unknown): value is Effect.Effect<unknown, never, never>;

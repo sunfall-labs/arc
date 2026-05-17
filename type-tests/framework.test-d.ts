@@ -495,6 +495,8 @@ declare const optionalThenableProject: { readonly then?: () => void; readonly id
 toEffect(promisedProject);
 // @ts-expect-error direct EffectInput values cannot hide Promise-shaped values behind explicit unknown
 toEffect<unknown>(promisedProject);
+// @ts-expect-error direct EffectInput values cannot hide Promise-shaped values behind explicit any
+toEffect<any>(promisedProject);
 // @ts-expect-error direct EffectInput values cannot be callable-then-shaped
 toEffect(thenableProject);
 // @ts-expect-error direct EffectInput values cannot be optional callable-then-shaped
@@ -521,6 +523,14 @@ Program.dispatch(promisedProject);
 Program.subscription(Stream.succeed(promisedProject));
 // @ts-expect-error Program message types cannot be Promise-shaped
 Program.define<number, typeof promisedNumber>({ initial: 0, update: (model: number) => model });
+// @ts-expect-error Program initial models cannot be Promise-shaped
+Program.define<typeof promisedNumber, "noop">({ initial: promisedNumber, update: (model) => model });
+const promiseResetStory = Program.story(Program.define<number, "noop">({
+  initial: 0,
+  update: (model) => model
+}));
+// @ts-expect-error Program story resets cannot be Promise-shaped
+promiseResetStory.reset(promisedNumber);
 // @ts-expect-error EffectInput callbacks cannot hide Promise-shaped values behind explicit unknown
 invokeEffectInput<[], unknown>("Project.promiseUnknown", () => promisedProject);
 // @ts-expect-error ActionResult.fromEffect rejects Promise-shaped direct values
@@ -529,6 +539,8 @@ ActionResult.fromEffect(promisedProject);
 ActionResult.fromEffect(Effect.succeed(promisedProject));
 // @ts-expect-error ActionResult.fromEffect rejects Effect successes hidden behind explicit unknown
 ActionResult.fromEffect<unknown>(Effect.succeed(promisedProject));
+// @ts-expect-error ActionResult.fromEffect rejects Effect failures that are Promise-shaped
+ActionResult.fromEffect<Project, typeof promisedProject>(Effect.fail(promisedProject));
 // @ts-expect-error ActionResult.fromValidationEffect rejects Promise-shaped direct values
 ActionResult.fromValidationEffect(promisedProject);
 // @ts-expect-error ActionResult.fromValidationEffect rejects Effect successes that are Promise-shaped
@@ -537,6 +549,8 @@ ActionResult.fromValidationEffect(Effect.succeed(promisedProject));
 ActionResult.success(promisedProject);
 // @ts-expect-error ActionResult.success rejects Promise-shaped payloads hidden behind explicit unknown
 ActionResult.success<unknown>(promisedProject);
+// @ts-expect-error ActionResult.success rejects Promise-shaped payloads hidden behind explicit any
+ActionResult.success<any>(promisedProject);
 // @ts-expect-error ActionResult.successEffect rejects Promise-shaped payloads
 ActionResult.successEffect(promisedProject);
 // @ts-expect-error ActionResult.failure rejects Promise-shaped errors
@@ -545,6 +559,14 @@ ActionResult.failure(promisedProject);
 ActionResult.fail(promisedProject);
 // @ts-expect-error ActionResult.failureEffect rejects Promise-shaped errors
 ActionResult.failureEffect(promisedProject);
+// @ts-expect-error ActionResult field validation errors cannot be Promise-shaped
+ActionResult.fieldError<{ readonly name: string }, "name", Project>("name", promisedProject);
+// @ts-expect-error ActionResult form validation errors cannot be Promise-shaped
+ActionResult.formError<{ readonly name: string }, Project>(promisedProject);
+// @ts-expect-error ActionResult field error maps cannot contain Promise-shaped errors
+ActionResult.fields<{ readonly name: string }, Project>({ name: [promisedProject] });
+// @ts-expect-error ActionResult validation inputs cannot contain Promise-shaped form errors
+ActionResult.validation<{ readonly name: string }, Project>({ formErrors: [promisedProject] });
 
 type ProjectError = {
   readonly _tag: "ProjectError";
@@ -3514,9 +3536,9 @@ Program.define<number, "bad">({
   subscriptions: () => Effect.succeed(promisedProject)
 });
 
+// @ts-expect-error Program model types cannot be Promise-shaped
 Program.define<typeof promisedNumber, "bad">({
   initial: promisedNumber,
-  // @ts-expect-error Program updates cannot return Effects that preserve Promise-shaped model values
   update: () => Effect.succeed(promisedNumber)
 });
 

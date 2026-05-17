@@ -4,7 +4,7 @@ import type {
   EffectInputCallbackError,
   EffectInputError,
   EffectInputRequirements,
-  RejectPromiseLikeValue
+  PromiseSafeValue
 } from "./effect-like.js";
 import type { ReadableSignal } from "./signal.js";
 
@@ -19,7 +19,10 @@ export const ProgramSubscriptionTypeId: unique symbol = Symbol.for("@effect-ui/c
 export type ProgramPhase = "Update" | "Command" | "Subscription";
 
 /** Plain Program message value. Promise-shaped messages must be adapted through Effects first. */
-export type ProgramMessageValue<Message> = Message & RejectPromiseLikeValue<Message>;
+export type ProgramMessageValue<Message> = PromiseSafeValue<Message>;
+
+/** Plain Program model value. Promise-shaped models must be resolved inside Effects first. */
+export type ProgramModelValue<Model> = PromiseSafeValue<Model>;
 
 /** Failure reported by a running Program without tearing down the UI loop. */
 export interface ProgramFailure<Message, E> {
@@ -52,7 +55,7 @@ export interface ProgramStep<Model, Message, E = never, R = never> {
 
 /** Value returned by an update callback: a model or a model plus commands. */
 export type ProgramUpdate<Model, Message, E = never, R = never> =
-  | (Model & RejectPromiseLikeValue<Model>)
+  | ProgramModelValue<Model>
   | ProgramStep<Model, Message, E, R>;
 
 /** Stream subscription that emits messages into a Program. */
@@ -83,7 +86,7 @@ export type ProgramSubscriptionRequirements<Out> = EffectInputRequirements<Out>;
 export interface ProgramDefinition<Model, Message, E = never, R = never> {
   /** Optional stable name used by timeline/devtools events. */
   readonly name?: string;
-  readonly initial: Model;
+  readonly initial: ProgramModelValue<Model>;
   readonly update: (
     model: Model,
     message: ProgramMessageValue<Message>
@@ -230,12 +233,12 @@ export interface ProgramStory<Model, Message, E = never, R = never> {
     R
   >;
   /** Resets the story to a known model and clears history. */
-  reset(model?: Model): void;
+  reset(model?: ProgramModelValue<Model>): void;
 }
 
 /** Options for creating a deterministic Program story. */
 export interface ProgramStoryOptions<Model> {
-  readonly initial?: Model;
+  readonly initial?: ProgramModelValue<Model>;
 }
 
 /** Running Program handle with model state, dispatch, failure, timeline, and disposal APIs. */

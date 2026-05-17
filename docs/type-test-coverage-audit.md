@@ -72,6 +72,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
 - Review212 added ActionResult success/failure Promise payload rejection pins
   and Program command, dispatch, subscription, and Promise-shaped message type
   rejection pins.
+- Review213 added Promise-safe broad-value pins for `toEffect<any>(...)`,
+  Program initial models and story resets, ActionResult success and validation
+  values, ActionResult failure errors from Effects, and React/Solid
+  ProgramHandle dispatch/dispatchEffect messages.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -191,6 +195,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
+- `pnpm typecheck:types`, full `pnpm verify`, and full `pnpm verify:serial`
+  passed after adding Review213 PromiseSafeValue pins for broad `any`/`unknown`
+  values, ActionResult validation/failure values, Program initial/reset
+  models, and React/Solid ProgramHandle dispatch messages.
 - `pnpm typecheck:types` passed after the explicit request-trace teardown and
   Promise-return rejection assertions were added.
 - `pnpm typecheck:types` and full `pnpm verify` passed after replacing

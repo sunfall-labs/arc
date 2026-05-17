@@ -139,7 +139,8 @@ Last evidence pass: May 16, 2026.
     `@effect-ui/start/cli` `runStartDiagnosticsCliEffect` export are covered by
     source exports and tests.
 - [x] Promise boundaries are documented as host/platform adapters.
-  - Evidence: `docs/effect-style.md` and `docs/architecture.md`.
+  - Evidence: `docs/effect-style.md`, `docs/architecture.md`, and
+    `docs/framework-perfection-charter.md`.
 - [x] Resource public preload/refresh APIs are Effect-native and track
   in-flight lifecycle with fibers.
   - Evidence: `packages/core/src/resource.ts`; `packages/core/test/resource.test.ts`
@@ -660,22 +661,26 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 212 passed focused typechecks, public API
+  - Latest focused evidence: Review 213 passed focused typechecks, public API
     and Effect-first audits, Core ActionResult/Program and DB sync-adapter
-    runtime tests, and docs/evidence greps after closing ActionResult nested
-    Promise payload gates, Program message Promise gates, DB change-feed setup
-    and direct-emit cleanup, Start/Core LSP docs, and evidence wording
-    precision.
+    runtime tests, Start CLI help tests, example typechecks, and docs/evidence
+    greps after closing Promise-safe broad values, Program model/message gates,
+    ActionResult validation/failure gates, DB queued direct-emit shutdown
+    interruption, Start CLI help, and host-only Promise boundary wording.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
-    Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, and Review212 work.
+    Review196, Review197, Review198, Review199, Review200, Review201,
+    Review202, Review203, Review204, Review205, Review206, Review207,
+    Review208, Review209, Review210, Review211, Review212, and Review213 work.
     Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
     Sweep 2 found Review209 work and the local post-Review209 pass found
     Review210 work; the first post-Review210 sweep found Review211 work, and
-    the first post-Review211 sweep found Review212 work, leaving the active
-    counter at 0/30.
+    the first post-Review211 sweep found Review212 work; the first
+    post-Review212 sweep found Review213 work, leaving the active counter at
+    0/30.
     Latest full evidence:
-    `pnpm verify` ran after Review 212 with 53 root test files / 1076
+    `pnpm verify` and `pnpm verify:serial` ran after Review 213 with 53 root
+    test files / 1080
     tests, plus 4 project-console test files / 27 tests in the package-level
     gate.
 - [x] Type tests pass after compile-time API changes.
@@ -816,38 +821,41 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 212 ActionResult payload,
-    Program message, DB change-feed setup/direct-emit cleanup, Start/Core LSP,
-    and evidence precision fixes.
+  - Evidence: no new ADR required for the Review 213 Promise-safe broad value,
+    Program model/message, ActionResult validation/failure, DB queued
+    direct-emit shutdown, Start CLI help, and host-only Promise boundary
+    wording fixes.
     Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
   - Evidence: root `pnpm verify` and `pnpm verify:serial` passed on May 16,
-    2026 after the Review 212 ActionResult payload, Program message, DB
-    change-feed setup/direct-emit cleanup, Start/Core LSP, and evidence
-    precision fixes:
+    2026 after the Review 213 Promise-safe broad value, Program model/message,
+    ActionResult validation/failure, DB queued direct-emit shutdown, Start CLI
+    help, and host-only Promise boundary wording fixes:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    408 physical/virtual files, 53 root test files / 1076 tests,
+    408 physical/virtual files, 53 root test files / 1080 tests,
     package-level verifies for the devtools/starter/example packages,
     generated starter-suite packaging/verifies for basic/react/project-console,
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 212 records
+  - Evidence: Review 213 records
     `pnpm typecheck:types`, Core/DB/Start/React/Solid typechecks, public API
-    and Effect-first audits, focused Core ActionResult/Program and DB
-    sync-adapter tests, and docs/evidence greps after closing the Review212
-    findings. Clean
+    and Effect-first audits, focused Core ActionResult/Program, DB
+    sync-adapter, and Start CLI tests, example typechecks, and docs/evidence
+    greps after closing the Review213 findings. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
-    Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, and Review212 work. Clean
+    Review197, Review198, Review199, Review200, Review201, Review202,
+    Review203, Review204, Review205, Review206, Review207, Review208,
+    Review209, Review210, Review211, Review212, and Review213 work. Clean
     Sweep 1 after Review208 remains historical 1/30 evidence, but Clean Sweep
     2 found Review209 work and the local post-Review209 pass found Review210
     work; the first post-Review210 sweep found Review211 work, and the first
-    post-Review211 sweep found Review212 work, leaving the active counter at
-    0/30.
+    post-Review211 sweep found Review212 work; the first post-Review212 sweep
+    found Review213 work, leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

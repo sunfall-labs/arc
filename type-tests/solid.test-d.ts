@@ -138,6 +138,16 @@ const SolidProgram = Program.define<number, "tick">({
 const solidProgramHandle: ProgramHandle<number, "tick", EffectInputCallbackError, EffectInputCallbackError | Program.Disposed> =
   useProgram<number, "tick">(SolidProgram);
 solidProgramHandle.clearTimeline();
+const solidUnknownProgramHandle = solidProgramHandle as ProgramHandle<
+  number,
+  unknown,
+  EffectInputCallbackError,
+  EffectInputCallbackError | Program.Disposed
+>;
+// @ts-expect-error Solid Program handles cannot dispatch Promise-shaped messages
+solidUnknownProgramHandle.dispatch(solidRuntimeProviderObserverPromise);
+// @ts-expect-error Solid Program handles cannot Effect-dispatch Promise-shaped messages
+solidUnknownProgramHandle.dispatchEffect(solidRuntimeProviderObserverPromise);
 const SolidProjectById = Resource.family<string, SolidProject>({
   name: "Solid.type-test.project",
   load: (id) => Effect.succeed({ id, name: "Atlas" })

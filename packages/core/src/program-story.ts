@@ -3,6 +3,7 @@ import {
   type ProgramCommand,
   type ProgramDefinition,
   type ProgramFailure,
+  type ProgramModelValue,
   type ProgramMessageValue,
   type ProgramRuntimeError,
   type ProgramStory,
@@ -12,6 +13,7 @@ import {
 import {
   makeProgramFailure,
   programStepEffect,
+  validateProgramModelSync,
   validateProgramMessageEffect
 } from "./program-primitives.js";
 import { Signal } from "./signal.js";
@@ -21,12 +23,15 @@ export const makeProgramStory = <Model, Message, E = never, R = never>(
   definition: ProgramDefinition<Model, Message, E, R>,
   options: ProgramStoryOptions<Model> = {}
 ): ProgramStory<Model, Message, E, R> => {
-  const initial = "initial" in options ? options.initial : definition.initial;
-  const model = Signal.make(initial);
+  const initial = validateProgramModelSync(
+    "Program.story.initial",
+    "initial" in options ? options.initial : definition.initial
+  );
+  const model = Signal.make(initial as Model);
   const history = Signal.make<ReadonlyArray<ProgramStoryEntry<Model, Message, E, R>>>([]);
 
   const send = (
-    message: Message
+    message: ProgramMessageValue<Message>
   ): Effect.Effect<
     ProgramStoryEntry<Model, Message, E, R>,
     ProgramFailure<Message, ProgramRuntimeError<E>>,
@@ -34,20 +39,20 @@ export const makeProgramStory = <Model, Message, E = never, R = never>(
   > =>
     Effect.gen(function* () {
       const before = Signal.peek(model);
-      const validMessage = yield* validateProgramMessageEffect("Program.story.send", message).pipe(
+      const validMessage = yield* validateProgramMessageEffect<Message>("Program.story.send", message as Message).pipe(
         Effect.mapError((error) =>
-          makeProgramFailure<Message, ProgramRuntimeError<E>>("Update", error, message)
+          makeProgramFailure<Message, ProgramRuntimeError<E>>("Update", error, message as Message)
         )
       );
       const step = yield* programStepEffect(definition, before, validMessage);
       const entry: ProgramStoryEntry<Model, Message, E, R> = {
-        message: validMessage,
+        message: validMessage as Message,
         before,
-        after: step.model,
+        after: step.model as Model,
         commands: step.commands
       };
       yield* Effect.sync(() => {
-        model.set(step.model);
+        model.set(step.model as Model);
         history.update((current) => [...current, entry]);
       });
       return entry;
@@ -60,7 +65,7 @@ export const makeProgramStory = <Model, Message, E = never, R = never>(
       Effect.flatMap((message) =>
         message === undefined
           ? Effect.succeed(undefined)
-          : validateProgramMessageEffect("Program.story.run", message).pipe(
+          : validateProgramMessageEffect<Message>("Program.story.run", message as Message).pipe(
               Effect.mapError((error) =>
                 makeProgramFailure<Message, ProgramRuntimeError<E>>("Command", error)
               )
@@ -84,8 +89,9 @@ export const makeProgramStory = <Model, Message, E = never, R = never>(
         const message = yield* run(command);
         return message === undefined ? undefined : yield* send(message);
       }),
-    reset: (next = definition.initial) => {
-      model.set(next);
+    reset: (next: ProgramModelValue<Model> = definition.initial) => {
+      const validNext = validateProgramModelSync("Program.story.reset", next);
+      model.set(validNext as Model);
       history.set([]);
     }
   };

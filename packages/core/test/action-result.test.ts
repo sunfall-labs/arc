@@ -97,11 +97,11 @@ describe("ActionResult", () => {
     );
   });
 
-  it("rejects Promise-shaped success and failure result payloads", () => {
-    for (const build of [
-      () => ActionResult.success(Promise.resolve({ id: "atlas" }) as never),
-      () => ActionResult.successEffect(Promise.resolve({ id: "atlas" }) as never),
-      () => ActionResult.failure(Promise.resolve("failed") as never),
+	  it("rejects Promise-shaped success and failure result payloads", () => {
+	    for (const build of [
+	      () => ActionResult.success(Promise.resolve({ id: "atlas" }) as never),
+	      () => ActionResult.successEffect(Promise.resolve({ id: "atlas" }) as never),
+	      () => ActionResult.failure(Promise.resolve("failed") as never),
       () => ActionResult.failureEffect(Promise.resolve("failed") as never)
     ]) {
       try {
@@ -110,11 +110,32 @@ describe("ActionResult", () => {
       } catch (error) {
         expect(error).toBeInstanceOf(EffectInputCallbackError);
         expect((error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
-      }
-    }
-  });
+	      }
+	    }
+	  });
 
-  it("reports erased Promise-shaped ActionResult payloads from action runs as typed failures", () =>
+	  it("rejects Promise-shaped validation error payloads", () => {
+	    for (const build of [
+	      () => ActionResult.fieldError<{ readonly name: string }, "name", string>("name", Promise.resolve("too short") as never),
+	      () => ActionResult.formError<{ readonly name: string }, string>(Promise.resolve("invalid") as never),
+	      () => ActionResult.fields<{ readonly name: string }, string>({
+	        name: [Promise.resolve("too short") as never]
+	      }),
+	      () => ActionResult.validation<{ readonly name: string }, string>({
+	        formErrors: [Promise.resolve("invalid") as never]
+	      })
+	    ]) {
+	      try {
+	        build();
+	        throw new Error("expected ActionResult Promise validation rejection");
+	      } catch (error) {
+	        expect(error).toBeInstanceOf(EffectInputCallbackError);
+	        expect((error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+	      }
+	    }
+	  });
+
+	  it("reports erased Promise-shaped ActionResult payloads from action runs as typed failures", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const SubmitProject = Action.define<string, ActionResultValue<unknown>>({

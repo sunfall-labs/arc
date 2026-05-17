@@ -7609,19 +7609,37 @@ describe("Effect UI Start", () => {
     expect(helpStdout.join("\n")).toContain("USAGE");
     expect(helpStdout.join("\n")).toContain("effect-ui-start <subcommand> [flags]");
 
-    const graphRouteHelpStdout: string[] = [];
-    const graphRouteHelpStderr: string[] = [];
-    const graphRouteHelpResult = await Effect.runPromise(
-      runStartDiagnosticsCliEffect(["graph", "route", "--help"], {
-        stdout: (text) => graphRouteHelpStdout.push(text),
-        stderr: (text) => graphRouteHelpStderr.push(text),
-        loadDiagnosticsEffect: () => Effect.die("unreachable")
-      })
-    );
-    expect(graphRouteHelpResult.exitCode).toBe(0);
-    expect(graphRouteHelpStderr).toEqual([]);
-    expect(graphRouteHelpStdout.join("\n")).toContain("effect-ui-start graph route [flags] <query...>");
-    expect(graphRouteHelpStdout.join("\n")).toContain("Optional graph query text.");
+	    const graphHelpStdout: string[] = [];
+	    const graphHelpStderr: string[] = [];
+	    const graphHelpResult = await Effect.runPromise(
+	      runStartDiagnosticsCliEffect(["graph", "--help"], {
+	        stdout: (text) => graphHelpStdout.push(text),
+	        stderr: (text) => graphHelpStderr.push(text),
+	        loadDiagnosticsEffect: () => Effect.die("unreachable")
+	      })
+	    );
+	    expect(graphHelpResult.exitCode).toBe(0);
+	    expect(graphHelpStderr).toEqual([]);
+	    const graphHelp = graphHelpStdout.join("\n");
+	    expect(graphHelp).toContain("effect-ui-start graph [flags] <query...>");
+	    expect(graphHelp).toContain("Optional graph kind and query text.");
+	    expect(graphHelp).not.toContain("graph <subcommand>");
+
+	    const impactHelpStdout: string[] = [];
+	    const impactHelpStderr: string[] = [];
+	    const impactHelpResult = await Effect.runPromise(
+	      runStartDiagnosticsCliEffect(["impact", "--help"], {
+	        stdout: (text) => impactHelpStdout.push(text),
+	        stderr: (text) => impactHelpStderr.push(text),
+	        loadDiagnosticsEffect: () => Effect.die("unreachable")
+	      })
+	    );
+	    expect(impactHelpResult.exitCode).toBe(0);
+	    expect(impactHelpStderr).toEqual([]);
+	    const impactHelp = impactHelpStdout.join("\n");
+	    expect(impactHelp).toContain("effect-ui-start impact [flags] <query...>");
+	    expect(impactHelp).toContain("Required impact query text with optional kind");
+	    expect(impactHelp).not.toContain("impact <subcommand>");
 
     const versionStdout: string[] = [];
     const versionStderr: string[] = [];

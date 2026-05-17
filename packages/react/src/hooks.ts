@@ -127,9 +127,9 @@ export interface ProgramHandle<Model, Message, E = never, DispatchE = E> {
   /** Bounded runtime timeline for messages, commands, subscriptions, and failures. */
   readonly timeline: ReadonlyArray<ProgramEvent<Model, Message, E>>;
   /** Fire-and-forget dispatch for event handlers. */
-  dispatch(message: Message): void;
+  readonly dispatch: Program.Instance<Model, Message, E, DispatchE>["dispatch"];
   /** Effect dispatch that completes after the update commits, or fails if disposal drops it. */
-  dispatchEffect(message: Message): Effect.Effect<void, ProgramFailure<Message, DispatchE>>;
+  readonly dispatchEffect: Program.Instance<Model, Message, E, DispatchE>["dispatchEffect"];
   /** Clears accumulated failures. */
   clearFailures(): void;
   /** Clears retained timeline events without changing model or failures. */
@@ -283,8 +283,10 @@ const makeProgramBinding = <Model, Message, RuntimeError>(
     dispatch: (message) => {
       binding.current?.dispatch(message);
     },
-    dispatchEffect: (message) =>
-      Effect.suspend(() => binding.current?.dispatchEffect(message) ?? Effect.fail(disposedDispatchFailure(message))),
+	    dispatchEffect: (message) =>
+	      Effect.suspend(() =>
+	        binding.current?.dispatchEffect(message) ?? Effect.fail(disposedDispatchFailure(message as Message))
+	      ),
     clearFailures: () => {
       binding.failures.set([]);
       binding.current?.clearFailures();
@@ -310,7 +312,7 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
   const scope = useComponentScope();
   type RuntimeError = ReactProgramRuntimeError<E, ER>;
   const binding = useMemo(
-    () => makeProgramBinding<Model, Message, RuntimeError>(definition.initial),
+	    () => makeProgramBinding<Model, Message, RuntimeError>(definition.initial as Model),
     [definition, runtime, scope]
   );
 

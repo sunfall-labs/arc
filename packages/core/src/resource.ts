@@ -546,11 +546,11 @@ export namespace Resource {
   >(
     options: Definition & CheckedResourceLoad<I, Definition>
   ): ResourceRefFactory<I, A, E, R>;
-  export function family(
-    options: ResourceFamilyOptions<unknown, unknown, unknown, unknown>
-  ): ResourceRefFactory<unknown, unknown, unknown, unknown> {
-    return makeResourceFamily(options);
-  }
+	  export function family(
+	    options: unknown
+	  ): any {
+	    return makeResourceFamily(options as ResourceFamilyOptions<unknown, unknown, unknown, unknown>);
+	  }
 
   /**
    * Defines a resource family backed by an Effect RequestResolver.

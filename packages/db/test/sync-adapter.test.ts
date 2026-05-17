@@ -874,10 +874,10 @@ describe("Collection.syncOptions", () => {
       )
     ));
 
-  it("drops host-callback change-feed emissions after dispatcher shutdown", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const dispatcher = yield* makeCollectionChangeFeedDispatcherEffect<Project, string>();
+	  it("drops host-callback change-feed emissions after dispatcher shutdown", () =>
+	    Effect.runPromise(
+	      Effect.gen(function* () {
+	        const dispatcher = yield* makeCollectionChangeFeedDispatcherEffect<Project, string>();
 
         expect(dispatcher.emitChanges([
           { _tag: "Upsert", value: { id: "atlas", name: "Atlas", archived: false } }
@@ -893,10 +893,37 @@ describe("Collection.syncOptions", () => {
         expect(dispatcher.emitChanges([
           { _tag: "Upsert", value: { id: "late", name: "Late", archived: true } }
         ])).toBe(false);
-      })
-    ));
+	      })
+	    ));
 
-  it("ignores late host-callback change-feed emissions after subscription scope release", () =>
+	  it("interrupts queued direct change-feed emitters during dispatcher shutdown", () =>
+	    Effect.runPromise(
+	      Effect.gen(function* () {
+	        const dispatcher = yield* makeCollectionChangeFeedDispatcherEffect<Project, string>();
+	        const fiberScope = yield* Scope.make();
+	        const emitFiber = yield* Effect.forkIn(
+	          dispatcher.emitEffect([
+	            { _tag: "Upsert", value: { id: "queued", name: "Queued", archived: false } }
+	          ]).pipe(Effect.exit),
+	          fiberScope
+	        );
+
+	        yield* Effect.sleep("0 millis");
+	        yield* dispatcher.shutdownEffect();
+
+	        const completed = yield* Fiber.join(emitFiber).pipe(
+	          Effect.timeoutOption("20 millis")
+	        );
+
+	        expect(Option.isSome(completed)).toBe(true);
+	        if (Option.isSome(completed)) {
+	          expect(Exit.isFailure(completed.value)).toBe(true);
+	        }
+	        yield* Scope.close(fiberScope, Exit.succeed(undefined));
+	      })
+	    ));
+
+	  it("ignores late host-callback change-feed emissions after subscription scope release", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const Projects = Collection.define<Project>({

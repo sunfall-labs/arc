@@ -52,8 +52,10 @@ Effect UI is ready when all of these are true:
   right abstraction.
 - Push async lifecycle, teardown, tracing, retries, streams, and host adapter
   work down into Effect primitives wherever possible. Promises should be host
-  boundaries only: browser event handlers, Web Stream callbacks, Node/fetch
-  adapters, and public convenience APIs.
+  boundaries only: browser event handlers, Web Stream callbacks, Suspense
+  thenable seams, Vite/Node/fetch adapters, and package facades whose host
+  contract requires Promise or callback shapes. Public library APIs should
+  expose Effect-returning surfaces.
 - Make diagnostics and devtools consume public facts, not private maps.
 - Mark uncertainty as unfinished work.
 

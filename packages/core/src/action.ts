@@ -421,9 +421,9 @@ export namespace Action {
   >(
     definition: Definition & CheckedActionRun<I, Definition>
   ): ActionDefinition<I, A, E, R | NormalizeRequirements<InvalidationRequirements> | ActionResultInvalidationRequirements<A>>;
-  export function define(
-    definition: ActionOptions<any, any, any, any>
-  ): ActionDefinition<unknown, unknown, unknown, unknown> {
+	  export function define(
+	    definition: unknown
+	  ): any {
     const options = definition as Omit<ActionOptions<any, any, any, any>, "run" | "optimistic"> & {
       readonly run: (input: any) => EffectInput<any, any, any>;
       readonly optimistic?: (

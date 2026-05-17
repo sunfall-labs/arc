@@ -1,8 +1,7 @@
 import { Effect, Stream } from "effect";
 import {
   EffectInputCallbackError,
-  invokeEffectInput,
-  type RejectPromiseLikeValue
+  invokeEffectInput
 } from "./effect-like.js";
 import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
 import {
@@ -13,6 +12,7 @@ import {
   type ProgramCommandInput,
   type ProgramDefinition,
   type ProgramFailure,
+  type ProgramModelValue,
   type ProgramMessageValue,
   type ProgramPhase,
   type ProgramRuntimeError,
@@ -85,7 +85,8 @@ export const makeProgramFailure = <Message, E>(
 /** Defines a reusable Program with centralized model, messages, commands, and subscriptions. */
 export const defineProgram = <Model, Message, E = never, R = never>(
   definition: ProgramDefinition<Model, Message, E, R> &
-    (RejectPromiseLikeValue<Message> extends never ? never : unknown)
+    ([ProgramModelValue<Model>] extends [never] ? never : unknown) &
+    ([ProgramMessageValue<Message>] extends [never] ? never : unknown)
 ): ProgramDefinition<Model, Message, E, R> => definition;
 
 /** Runs one Program update and normalizes the result into a ProgramStep. */
@@ -106,7 +107,7 @@ export const programStepEffect = <Model, Message, E = never, R = never>(
           : programNext<Model, Message, E, R>(update)
       )
     ),
-    Effect.mapError((error) => makeProgramFailure("Update", error, message))
+    Effect.mapError((error) => makeProgramFailure<Message, ProgramRuntimeError<E>>("Update", error, message as Message))
   );
 
 const programModelPromiseGuidance =
@@ -120,11 +121,7 @@ export const validateProgramStepModelEffect = <Model, Message, E, R>(
 ): Effect.Effect<ProgramStep<Model, Message, E, R>, EffectInputCallbackError> =>
   Effect.try({
     try: () => {
-      rejectPromiseLikeSyncCallbackValue(
-        "Program.update",
-        step.model,
-        programModelPromiseGuidance
-      );
+      validateProgramModelSync("Program.update", step.model);
       return step;
     },
     catch: (cause) =>
@@ -135,7 +132,17 @@ export const validateProgramStepModelEffect = <Model, Message, E, R>(
             cause,
             guidance: programModelPromiseGuidance
           })
-  });
+    });
+
+export const validateProgramModelSync = <Model>(
+  operation: string,
+  model: Model
+): ProgramModelValue<Model> =>
+  rejectPromiseLikeSyncCallbackValue(
+    operation,
+    model,
+    programModelPromiseGuidance
+  ) as ProgramModelValue<Model>;
 
 export const validateProgramMessageEffect = <Message>(
   operation: string,
@@ -160,11 +167,11 @@ export const validateProgramMessageEffect = <Message>(
 
 /** Builds a state transition, optionally with commands to run after the model is written. */
 export const programNext = <Model, Message, E = never, R = never>(
-  model: Model & RejectPromiseLikeValue<Model>,
+  model: ProgramModelValue<Model>,
   commands?: ProgramCommandInput<Message, E, R>
 ): ProgramStep<Model, Message, E, R> => ({
   [ProgramStepTypeId]: ProgramStepTypeId,
-  model,
+  model: model as Model,
   commands: normalizeProgramCommands(commands)
 });
 

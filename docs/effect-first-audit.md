@@ -20,6 +20,15 @@ interruption.
 
 ## Current Sweep Results
 
+- Review213 closed the post-Review212 Effect boundary findings:
+  `PromiseSafeValue` now keeps broad `any` and `unknown` values from smuggling
+  Promise-shaped successes through `EffectInput`, Program initial
+  models/messages, `ActionResult` payloads/validation/failure errors,
+  Capability callbacks, and React/Solid ProgramHandle dispatch. Runtime guards
+  reject Promise-shaped Program initial/story reset/step models before state
+  writes, DB queued direct emitters are interrupted on dispatcher shutdown, and
+  the Start diagnostics CLI help now reflects the Effect v4 variadic
+  `graph`/`impact` commands without fake query-kind subcommands.
 - Review210 closed the post-Review209 Effect boundary findings: `EffectInput`
   now rejects returned Effects that succeed with Promise-shaped or
   callable-`then` values, broad unknown non-thenable detection no longer
@@ -418,11 +427,10 @@ interruption.
   - The Promise-returning CLI helpers now only run that Effect program at the
     bin/host boundary.
 - `packages/start/src/vite.ts`
-  - Moved the app graph diagnostics loader's create-server/load-module/close
-    lifecycle into `loadStartAppGraphDiagnosticsRawEffect`.
-  - The Promise API now runs that Effect program, while
-    `loadStartAppGraphDiagnosticsEffect` maps failures into
-    `StartAppGraphDiagnosticsRunnerError`.
+  - `loadStartAppGraphDiagnostics(...)` and
+    `loadStartAppGraphDiagnosticsEffect(...)` both expose the diagnostics load
+    Effect program with `StartAppGraphDiagnosticsLoadError`; Vite plugin hooks
+    are the host Promise boundary.
   - Moved Vite dev middleware request conversion, SSR handler loading,
     response writing, and error forwarding into `handleSsrDevMiddlewareEffect`;
     the Vite middleware callback now only launches that Effect program.
@@ -582,10 +590,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 212 `pnpm verify` run recorded in
+- The current full gate is the Review 213 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 408 files, 53 root test files / 1076 tests, package-level verifies,
+  over 408 files, 53 root test files / 1080 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
@@ -964,8 +972,8 @@ interruption.
 - `pnpm --filter @effect-ui/core typecheck` and
   `pnpm exec vitest run packages/core/test/action-result.test.ts` passed after
   converting ActionResult tests to returned Effect programs. Expected
-  success-channel exits are captured through `Effect.exit(...)`, and public
-  Action/Resource Promise boundaries under test stay behind
+  success-channel exits are captured through `Effect.exit(...)`, and host
+  Promise conversion fixtures under test stay behind
   `Effect.promise(...)`.
 - Full `pnpm verify` passed after the core ActionResult async test cleanup: 9
   package builds, workspace typecheck, type tests, 39 root test files / 321
@@ -976,8 +984,8 @@ interruption.
 - `pnpm --filter @effect-ui/core typecheck` and
   `pnpm exec vitest run packages/core/test/route-server.test.ts` passed after
   converting route preload/navigation and Server contract tests to returned
-  Effect programs. Public route/server/Response Promise APIs under test stay
-  behind `Effect.promise(...)`, and expected schema failures are captured
+  Effect programs. Route/server/platform Response Promise fixtures under test
+  stay behind `Effect.promise(...)`, and expected schema failures are captured
   through `Effect.exit(...)`.
 - Full `pnpm verify` passed after the core route/server async test cleanup: 9
   package builds, workspace typecheck, type tests, 39 root test files / 321
@@ -1009,8 +1017,9 @@ interruption.
   project-console build, and leak scan.
 - `pnpm --filter @effect-ui/db typecheck` and
   `pnpm exec vitest run packages/db/test/server-collection.test.ts` passed
-  after converting server-collection tests to returned Effect programs. Public
-  collection Promise APIs under test stay behind `Effect.promise(...)`, with
+  after converting server-collection tests to returned Effect programs.
+  Collection host/storage Promise fixtures under test stay behind
+  `Effect.promise(...)`, with
   payload assertions inside `Effect.sync(...)`.
 - Full `pnpm verify` passed after the DB server-collection async test cleanup:
   9 package builds, workspace typecheck, type tests, 39 root test files / 321
@@ -1404,13 +1413,14 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 212 ActionResult
-  payload, Program message, DB change-feed setup/direct-emit cleanup,
-  Start/Core LSP, and evidence precision fixes: 11 package builds, workspace
+- The current full `pnpm verify` passed after the Review 213 Promise-safe broad
+  value, Program model/message, ActionResult validation/failure,
+  DB queued direct-emit shutdown, Start CLI help, and host-only Promise
+  boundary wording fixes: 11 package builds, workspace
   typecheck, type tests, public API
   inventory audit, Effect-first audit over 408
   package/example/config/script/type-test/generated/docs files, 53 root test
-  files / 1076 tests, package-level verifies for copyable/source packages,
+  files / 1080 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans. The Effect-first audit now

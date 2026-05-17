@@ -77,7 +77,7 @@ export const makeCollectionChangeFeedDispatcherEffect = <
           break;
         }
         if (pending.value.completed) {
-          yield* Deferred.succeed(pending.value.completed, undefined).pipe(Effect.asVoid);
+          yield* Deferred.interrupt(pending.value.completed).pipe(Effect.asVoid);
         }
       }
       yield* Queue.shutdown(queue).pipe(Effect.asVoid);

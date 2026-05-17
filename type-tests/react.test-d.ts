@@ -140,6 +140,16 @@ const ReactProgram = Program.define<number, "tick">({
 const reactProgramHandle: ProgramHandle<number, "tick", EffectInputCallbackError, EffectInputCallbackError | Program.Disposed> =
   useProgram<number, "tick">(ReactProgram);
 reactProgramHandle.clearTimeline();
+const reactUnknownProgramHandle = reactProgramHandle as ProgramHandle<
+  number,
+  unknown,
+  EffectInputCallbackError,
+  EffectInputCallbackError | Program.Disposed
+>;
+// @ts-expect-error React Program handles cannot dispatch Promise-shaped messages
+reactUnknownProgramHandle.dispatch(reactRuntimeProviderObserverPromise);
+// @ts-expect-error React Program handles cannot Effect-dispatch Promise-shaped messages
+reactUnknownProgramHandle.dispatchEffect(reactRuntimeProviderObserverPromise);
 const ReactProjectById = Resource.family<string, ReactProject>({
   name: "React.type-test.project",
   load: (id) => Effect.succeed({ id, name: "Atlas" })

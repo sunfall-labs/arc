@@ -123,9 +123,9 @@ export interface ProgramHandle<Model, Message, E = never, DispatchE = E> {
   /** Bounded runtime timeline for messages, commands, subscriptions, and failures. */
   readonly timeline: Accessor<ReadonlyArray<ProgramEvent<Model, Message, E>>>;
   /** Fire-and-forget dispatch for event handlers. */
-  dispatch(message: Message): void;
+  readonly dispatch: Program.Instance<Model, Message, E, DispatchE>["dispatch"];
   /** Effect dispatch that completes after the update commits, or fails if disposal drops it. */
-  dispatchEffect(message: Message): Effect.Effect<void, ProgramFailure<Message, DispatchE>>;
+  readonly dispatchEffect: Program.Instance<Model, Message, E, DispatchE>["dispatchEffect"];
   /** Clears accumulated failures. */
   clearFailures(): void;
   /** Clears retained timeline events without changing model or failures. */

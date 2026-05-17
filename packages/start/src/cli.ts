@@ -16,13 +16,9 @@ import {
 import type { EffectInput } from "@effect-ui/core";
 import { Argument, CliError, Command, Flag } from "effect/unstable/cli";
 import { ChildProcessSpawner } from "effect/unstable/process";
-import {
-  type StartAgentGraphQuery,
-  type StartAgentGraphQueryKind
-} from "./agent-graph.js";
+import type { StartAgentGraphQuery } from "./agent-graph.js";
 import {
   isStartAgentGraphQueryKind,
-  startAgentGraphQueryKinds,
   startAgentGraphQueryKindsText
 } from "./start-diagnostics-cli-contract.js";
 import type {
@@ -218,67 +214,6 @@ const requiredQueryFromCliInputEffect = (
     )
   );
 
-const optionalKindQueryFromPositionalsEffect = (
-  kind: StartAgentGraphQueryKind,
-  positionals: readonly string[]
-): Effect.Effect<StartAgentGraphQuery, CliError.CliError> => {
-  if (positionals.length > 1) {
-    return Effect.fail(tooManyGraphQueryValuesError([kind, ...positionals]));
-  }
-
-  const [text] = positionals;
-  return Effect.succeed({
-    kind,
-    ...(text === undefined ? {} : { text })
-  });
-};
-
-const optionalKindQueryFromCliInputEffect = (
-  kind: StartAgentGraphQueryKind,
-  positionals: readonly string[],
-  queryTextOption: Option.Option<string>
-): Effect.Effect<StartAgentGraphQuery, CliError.CliError> => {
-  const queryText = Option.getOrUndefined(queryTextOption);
-  if (queryText === undefined) {
-    return optionalKindQueryFromPositionalsEffect(kind, positionals);
-  }
-  if (positionals.length > 0) {
-    return Effect.fail(queryFlagConflictError([kind, ...positionals], queryText));
-  }
-  return Effect.succeed({ kind, text: queryText });
-};
-
-const requiredKindQueryFromPositionalsEffect = (
-  kind: StartAgentGraphQueryKind,
-  positionals: readonly string[]
-): Effect.Effect<StartAgentGraphQuery, CliError.CliError> => {
-  if (positionals.length > 1) {
-    return Effect.fail(tooManyGraphQueryValuesError([kind, ...positionals]));
-  }
-
-  const [text] = positionals;
-  return text === undefined || text.trim().length === 0
-    ? Effect.fail(missingImpactQueryError(kind))
-    : Effect.succeed({ kind, text });
-};
-
-const requiredKindQueryFromCliInputEffect = (
-  kind: StartAgentGraphQueryKind,
-  positionals: readonly string[],
-  queryTextOption: Option.Option<string>
-): Effect.Effect<StartAgentGraphQuery, CliError.CliError> => {
-  const queryText = Option.getOrUndefined(queryTextOption);
-  if (queryText === undefined) {
-    return requiredKindQueryFromPositionalsEffect(kind, positionals);
-  }
-  if (positionals.length > 0) {
-    return Effect.fail(queryFlagConflictError([kind, ...positionals], queryText));
-  }
-  return queryText.trim().length === 0
-    ? Effect.fail(missingImpactQueryError(kind))
-    : Effect.succeed({ kind, text: queryText });
-};
-
 const makeUsageError = (
   message: string,
   guidance: string = startDiagnosticsCliUsage
@@ -386,20 +321,8 @@ const graphQueryArgument = Argument.string("query").pipe(
 
 const impactQueryArgument = Argument.string("query").pipe(
   Argument.variadic(),
-  Argument.withDescription("Required impact kind and query text.")
+  Argument.withDescription("Required impact query text with optional kind, for example `route /projects/:id`.")
 );
-
-const graphKindQueryArgument = (kind: StartAgentGraphQueryKind) =>
-  Argument.string("query").pipe(
-    Argument.variadic(),
-    Argument.withDescription("Optional graph query text.")
-  );
-
-const impactKindQueryArgument = (kind: StartAgentGraphQueryKind) =>
-  Argument.string("query").pipe(
-    Argument.variadic(),
-    Argument.withDescription("Required impact query text.")
-  );
 
 const graphSharedFlags = {
   verbose: Flag.boolean("verbose").pipe(
@@ -455,12 +378,10 @@ const makeStartDiagnosticsCliCommand = (
     }
   ).pipe(
     Command.withSharedFlags(graphSharedFlags),
-    Command.withDescription("Print the agent-readable semantic app graph.")
+    Command.withDescription("Print the agent-readable semantic app graph, optionally filtered by kind.")
   );
 
-  let graph: Command.Command.Any = graphBase;
-
-  graph = graphBase.pipe(
+  const graph = graphBase.pipe(
     Command.withHandler((config) =>
       Effect.gen(function* () {
         const common = yield* root;
@@ -474,37 +395,6 @@ const makeStartDiagnosticsCliCommand = (
           }
         });
       })
-    ),
-    Command.withSubcommands(
-      startAgentGraphQueryKinds.map((kind) =>
-        Command.make(
-          kind,
-          {
-            query: graphKindQueryArgument(kind),
-            queryText: queryTextFlag
-          },
-          (config) =>
-            Effect.gen(function* () {
-              const common = yield* root;
-              const graphCommon = yield* graph;
-              const query = yield* optionalKindQueryFromCliInputEffect(
-                kind,
-                config.query,
-                config.queryText
-              );
-              yield* handleCommand({
-                _tag: "Graph",
-                options: {
-                  ...commonOptionsFromCliConfig(common),
-                  verbose: graphCommon.verbose,
-                  query
-                }
-              });
-            })
-        ).pipe(
-          Command.withDescription(`Print ${kind} entries from the semantic app graph.`)
-        )
-      )
     )
   );
 
@@ -527,40 +417,10 @@ const makeStartDiagnosticsCliCommand = (
         });
       })
   ).pipe(
-    Command.withDescription("Print edit impact for one route/action/resource/module.")
+    Command.withDescription("Print edit impact for one query, for example an action or endpoint.")
   );
 
-  const impact = impactBase.pipe(
-    Command.withSubcommands(
-      startAgentGraphQueryKinds.map((kind) =>
-        Command.make(
-          kind,
-          {
-            query: impactKindQueryArgument(kind),
-            queryText: queryTextFlag
-          },
-          (config) =>
-            Effect.gen(function* () {
-              const common = yield* root;
-              const query = yield* requiredKindQueryFromCliInputEffect(
-                kind,
-                config.query,
-                config.queryText
-              );
-              yield* handleCommand({
-                _tag: "Impact",
-                options: {
-                  ...commonOptionsFromCliConfig(common),
-                  query
-                }
-              });
-            })
-        ).pipe(
-          Command.withDescription(`Print edit impact for a ${kind}.`)
-        )
-      )
-    )
-  );
+  const impact = impactBase;
 
   return root.pipe(
     Command.withDescription("Inspect Effect UI Start app graph diagnostics."),

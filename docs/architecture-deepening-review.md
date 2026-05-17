@@ -11,20 +11,21 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review212, the post-Review211 sweep
-fixing ActionResult nested Promise payload gates, Program message Promise
-gates, DB change-feed setup/emit cleanup, Start/Core LSP docs, and evidence
-wording. The newest full verification checkpoint is Review212. Clean Sweep 1 after
-Review208 remains historical 1/30 evidence, but later sweeps found Review209
-and Review210 work, and the first post-Review210 sweep found Review211 work,
-and the first post-Review211 sweep found Review212 work, so the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review212 sweep reports
-no actionable findings. Clean Sweep 1 after
+The newest completed focused review is Review213, the post-Review212 sweep
+fixing Promise-safe broad values, Program model/message gates, ActionResult
+validation/failure gates, DB queued direct-emit shutdown interruption, Start
+CLI help, and host-only Promise boundary wording. The newest full verification
+checkpoint is Review213. Clean Sweep 1 after Review208 remains historical 1/30
+evidence, but later sweeps found Review209 and Review210 work, the first
+post-Review210 sweep found Review211 work, the first post-Review211 sweep
+found Review212 work, and the first post-Review212 sweep found Review213 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review213
+sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, and
-Review212 work.
+Review212 and Review213 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -72,7 +73,68 @@ Promise callback rejection work, and the post-Review209 sweep found Review210
 Core, DB, scripts, docs, and Start evidence work, so the counter stayed at
 0/30. The first post-Review210 sweep found Review211 Core, DB, docs/LSP, and
 evidence work, and the first post-Review211 sweep found Review212 Core, DB,
-docs/LSP, and evidence work, so the counter remains 0/30.
+docs/LSP, and evidence work. The first post-Review212 sweep found Review213
+Core, DB, Start CLI, adapter, docs, and evidence work, so the counter remains
+0/30.
+
+## Review 213: Promise-Safe Broad Values, Queued Emit Shutdown, And CLI Help
+
+Review213 fixed actionable findings from the fresh post-Review212 sweep. Core
+found broad `any`/`unknown` Promise-shaped value holes, DB found one queued
+direct emitter shutdown gap, and Start/docs found a diagnostics CLI help and
+Promise-boundary wording mismatch.
+
+1. Broad Promise-Shaped Values In Core Interfaces
+   - Status: fixed.
+   - Files: `packages/core/src/effect-like.ts`,
+     `packages/core/src/action-result.ts`,
+     `packages/core/src/capability.ts`,
+     `packages/core/src/program-contract.ts`,
+     `packages/core/src/program-primitives.ts`,
+     `packages/core/src/program-runtime.ts`,
+     `packages/core/src/program-story.ts`,
+     `packages/react/src/hooks.ts`, `packages/solid/src/hooks.ts`,
+     `type-tests/framework.test-d.ts`, `type-tests/react.test-d.ts`,
+     `type-tests/solid.test-d.ts`.
+   - Problem: `any` and `unknown` annotations could still hide
+     Promise-shaped values at important public Interfaces.
+   - Fix: `PromiseSafeValue` now protects `EffectInput`, Program
+     initial/message/reset values, ActionResult payloads/validation/failure
+     errors, Capability callbacks, and adapter ProgramHandle dispatch methods.
+     Runtime guards reject erased Program models before state writes.
+   - Benefits: host Promise work has to be made explicit with
+     `Effect.tryPromise(...)`; framework state and messages stay plain.
+
+2. Change-Feed Queued Direct Emit Shutdown
+   - Status: fixed.
+   - Files: `packages/db/src/change-feed-dispatcher.ts`,
+     `packages/db/test/sync-adapter.test.ts`.
+   - Problem: direct emitters waiting in the serialized dispatcher queue could
+     survive shutdown without a typed interruption signal.
+   - Fix: dispatcher shutdown now interrupts queued direct emit waiters.
+   - Benefits: teardown remains Effect-interruptible and callers do not wait on
+     work that can no longer run.
+
+3. Start Diagnostics CLI Help Shape
+   - Status: fixed.
+   - Files: `packages/start/src/cli.ts`, `packages/start/test/start.test.ts`.
+   - Problem: `graph` and `impact` modeled query kinds as required
+     subcommands even though the commands parse variadic `[kind] [query]`
+     arguments at the parent command.
+   - Fix: removed those fake query-kind subcommands and pinned the Effect v4
+     CLI help for the parent commands.
+   - Benefits: CLI users and LSP/docs consumers see the actual invocation
+     shape.
+
+Focused evidence for Review213 passed: `pnpm typecheck:types`, Core/DB/Start/
+React/Solid package typechecks, focused Core ActionResult/Program and DB
+sync-adapter tests, focused Start CLI tests, public API audit, Effect-first
+audit over 408 files, example typechecks, and `git diff --check`. Full
+`pnpm verify` and `pnpm verify:serial` passed after Review213 with 11 package
+builds, workspace typecheck, public type tests, public API audit, Effect-first
+audit over 408 files, 53 root test files / 1080 tests, package-level verifies,
+starter packaging for basic/react/project-console at 19/24/30 app files,
+16-target package dry-runs, project-console checks, and leak scans.
 
 ## Review 212: ActionResult Payloads, Program Messages, Change-Feed Setup, And LSP Precision
 
@@ -426,8 +488,9 @@ four review lanes.
 At the Clean Sweep 1 checkpoint, the Thirty-Sweep clean counter reached 1/30.
 Clean Sweep 2 later found Review209 work and the post-Review209 sweep found
 Review210 work, and the first post-Review210 sweep found Review211 work, so
-the first post-Review211 sweep found Review212 work. The active counter is
-0/30 until a fresh post-Review212 sweep reports no actionable findings.
+the first post-Review211 sweep found Review212 work, and the first
+post-Review212 sweep found Review213 work. The active counter is 0/30 until a
+fresh post-Review213 sweep reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 

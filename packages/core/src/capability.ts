@@ -1,5 +1,5 @@
 import { Context, Effect, Layer } from "effect";
-import type { EffectInput, RejectPromiseLikeValue } from "./effect-like.js";
+import type { EffectInput, PromiseSafeValue } from "./effect-like.js";
 import {
   EffectInputCallbackError,
   EffectInputPromiseRejected,
@@ -27,16 +27,16 @@ export interface Capability<Identifier, Shape> {
   /** Accesses the service with a callback that may return a plain value or Effect. */
   readonly useEffect: {
     <A, E, R>(
-      f: (service: Shape) => Effect.Effect<A, E, R>
-    ): Effect.Effect<A, E | EffectInputCallbackError, R | Identifier>;
+      f: (service: Shape) => Effect.Effect<PromiseSafeValue<A>, E, R>
+    ): Effect.Effect<PromiseSafeValue<A>, E | EffectInputCallbackError, R | Identifier>;
     <A>(
-      f: (service: Shape) => A & RejectPromiseLikeValue<A>
-    ): Effect.Effect<A, EffectInputCallbackError, Identifier>;
+      f: (service: Shape) => PromiseSafeValue<A>
+    ): Effect.Effect<PromiseSafeValue<A>, EffectInputCallbackError, Identifier>;
   };
   /** Synchronously reads the provided service and returns the callback value. */
   readonly useSync: <A>(
-    f: (service: Shape) => A & RejectPromiseLikeValue<A>
-  ) => Effect.Effect<A, never, Identifier>;
+    f: (service: Shape) => PromiseSafeValue<A>
+  ) => Effect.Effect<PromiseSafeValue<A>, never, Identifier>;
   readonly provide: <A, E, R>(
     effect: Effect.Effect<A, E, R>,
     service: Shape
@@ -77,11 +77,11 @@ export namespace Capability {
     const tag = Context.Service<Shape>(key);
 
     function useEffect<A, E, R>(
-      f: (service: Shape) => Effect.Effect<A, E, R>
-    ): Effect.Effect<A, E | EffectInputCallbackError, R | Shape>;
+      f: (service: Shape) => Effect.Effect<PromiseSafeValue<A>, E, R>
+    ): Effect.Effect<PromiseSafeValue<A>, E | EffectInputCallbackError, R | Shape>;
     function useEffect<A>(
-      f: (service: Shape) => A & RejectPromiseLikeValue<A>
-    ): Effect.Effect<A, EffectInputCallbackError, Shape>;
+      f: (service: Shape) => PromiseSafeValue<A>
+    ): Effect.Effect<PromiseSafeValue<A>, EffectInputCallbackError, Shape>;
     function useEffect<A, E, R>(
       f: (service: Shape) => Effect.Effect<A, E, R> | A
     ): Effect.Effect<A, E | EffectInputCallbackError, R | Shape> {
