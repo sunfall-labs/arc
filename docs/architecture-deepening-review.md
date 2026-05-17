@@ -11,10 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review500 Devtools Trace Docs And Lint Evidence,
-the post-Review499 follow-up that aligns Devtools request trace resource docs
-with Start's SSR route-plan resource semantics and restores lint coverage for
-script policy changes.
+The newest focused review is Review501 Start Action Trace Invalidation And
+Manifest Pins, the post-Review500 follow-up that populates Start action request
+trace invalidation indexes from real action response metadata and expands the
+Start root type-test manifest pins for observability, action response metadata,
+and transport helper exports.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -59,9 +60,10 @@ post-Review492 sweep found Review493 work, the fresh post-Review493 sweep
 found Review494 work, the fresh post-Review494 sweep found Review495 work, and
 the fresh post-Review495 sweep found Review496 work, the fresh
 post-Review496 sweep found Review497 work, the fresh post-Review497 sweep
-found Review498 work, the fresh post-Review498 sweep found Review499 work, and
-the fresh post-Review499 sweep found Review500 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review500
+found Review498 work, the fresh post-Review498 sweep found Review499 work, the
+fresh post-Review499 sweep found Review500 work, and the fresh post-Review500
+sweep found Review501 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review501
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -76,7 +78,7 @@ work, Review240 work, Review241 work, Review242 work, Review243 work,
 Review244 work, Review245 work, Review246 work, Review247 work, Review490
 work, Review491 work, Review492 work, Review493 work, Review494 work,
 Review495 work, Review496 work, Review497 work, Review498 work, Review499
-work, and Review500 work.
+work, Review500 work, and Review501 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -202,7 +204,42 @@ and the fresh post-Review498 sweep found Review499 request metrics, public
 inventory parity, request trace resource docs, and current-evidence policy work,
 and the fresh post-Review499 sweep found Review500 Devtools trace docs and lint
 evidence work,
+and the fresh post-Review500 sweep found Review501 Start action trace
+invalidation and manifest pin work,
 so the counter remains 0/30.
+
+## Review 501: Start Action Trace Invalidation And Manifest Pins
+
+Review501 fixes the actionable findings from the fresh post-Review500 sweep.
+
+1. Start Action Trace Invalidation Facts
+   - Status: fixed.
+   - Files: `packages/start/src/start-request-endpoints.ts` and
+     `packages/start/test/start.test.ts`.
+   - Problem: `StartRequestTraceAction.invalidationIndexes` was part of the
+     public request trace Interface, but the Start action endpoint
+     Implementation never populated it from action response metadata.
+   - Solution: the action endpoint now derives invalidation indexes from the
+     successful `StartActionResponseMeta.invalidation.entries` payload while
+     recording the action trace, and a runtime test covers an invalidating
+     action request trace.
+   - Benefits: the request trace Module now has real Depth and Leverage: the
+     public observability field corresponds to concrete runtime facts at the
+     Start action Adapter Seam.
+
+2. Start Root Public Type-Test Manifest Pins
+   - Status: fixed.
+   - Files: `type-tests/public-api.manifest.json` and
+     `type-tests/start.test-d.ts`.
+   - Problem: the Start root manifest omitted public observability metrics,
+     request trace/action response metadata, and transport helper exports even
+     though the public API inventory documents those Interfaces.
+   - Solution: the root Start type-test manifest now requires those symbols as
+     direct imports, and `type-tests/start.test-d.ts` exercises the matching
+     value and type identifiers.
+   - Benefits: public Interface drift now fails at the manifest Seam instead of
+     relying on broad barrel imports, improving Locality for future Start
+     export changes.
 
 ## Review 500: Devtools Trace Docs And Lint Evidence
 

@@ -20,6 +20,10 @@ interruption.
 
 ## Current Sweep Results
 
+- Review501 Start Action Trace Invalidation And Manifest Pins keeps the
+  post-Review500 fixes Effect-first: Start action traces derive invalidation
+  indexes from already-produced action response metadata inside the action
+  endpoint Effect, and root type-test manifest pins add no Promise surface.
 - Review500 Devtools Trace Docs And Lint Evidence is a docs/static-policy fix:
   Devtools trace resource hovers now align with Start's SSR route-plan resource
   semantics, and unused script policy bindings were removed. It adds no Promise

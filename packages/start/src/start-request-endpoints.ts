@@ -63,6 +63,18 @@ const actionResponseTraceFailureKind = (
 ): StartRequestTraceFailureKind | undefined =>
   failureKind === "interruption" ? failureKind : response.status >= 500 ? "defect" : failureKind;
 
+const actionTraceInvalidationIndexes = (
+  invalidation: { readonly entries: ReadonlyArray<unknown> } | undefined,
+): ReadonlyArray<number> | undefined =>
+  invalidation === undefined ? undefined : invalidation.entries.map((_, index) => index);
+
+const actionTraceInvalidationIndexesEntry = (
+  invalidation: { readonly entries: ReadonlyArray<unknown> } | undefined,
+): { readonly invalidationIndexes: ReadonlyArray<number> } | {} => {
+  const invalidationIndexes = actionTraceInvalidationIndexes(invalidation);
+  return invalidationIndexes === undefined ? {} : { invalidationIndexes };
+};
+
 export const createServerRpcResponseEffectWithRuntime = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   Client,
@@ -335,6 +347,7 @@ export const createServerActionResponseEffectWithRuntime = <
             name: action.name,
             state: responseFailureKind === undefined ? "Success" : "Failure",
             ...(responseFailureKind === undefined ? {} : { failureKind: responseFailureKind }),
+            ...actionTraceInvalidationIndexesEntry(metaExit.value.invalidation),
           });
           return response;
         }),

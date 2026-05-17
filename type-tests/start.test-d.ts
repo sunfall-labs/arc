@@ -48,9 +48,42 @@ import {
   startRequestCountMetric,
   startRequestDurationMetric,
   startRequestStatusMetric,
+  acceptsMediaType,
+  describeStartActionInvalidationPlan,
+  hasContentType,
+  isServerActionRequest,
+  isServerRpcRequest,
+  makeStartRequestId,
+  makeStartRequestIdEffect,
+  mediaTypeOf,
+  negotiateAcceptedMediaType,
   resolveStartTransportEndpointsEffect,
+  serverActionPath,
+  serverRpcPath,
+  startBaggageHeader,
+  startFormUrlEncodedMediaType,
+  startHtmlMediaType,
+  startJsonMediaType,
+  startMultipartFormDataMediaType,
+  startRequestIdHeader,
+  startTraceparentHeader,
+  startTransportDiagnosticsEffect,
+  startTransportEndpointEnvelopeEffect,
+  startTransportKindHeader,
+  startTransportProtocolHeader,
+  startTransportProtocolVersion,
+  startTransportRequestHeaders,
+  startTransportResponseHeaders,
   stableServerFunctionId,
   validateStartEndpointPathEffect,
+  validateStartActionRequestEffect,
+  validateStartActionResponseEffect,
+  validateStartRpcRequestEffect,
+  validateStartRpcResponseEffect,
+  validateStartTransportAcceptEffect,
+  validateStartTransportContentTypeEffect,
+  validateStartTransportMethodEffect,
+  withStartTransportDiagnostics,
   ServerFunctionManifestDuplicateExport,
   ServerFunctionManifestDuplicateId,
   ServerFunctionManifestDuplicateName,
@@ -66,6 +99,7 @@ import {
   StartAppGraphParseError,
   StartTransportEndpointConflictError,
   StartTransportEndpointPathError,
+  StartTransportRequestError,
   StartStaticPathError,
   FileRoutePreloadError,
   StartAction,
@@ -100,10 +134,21 @@ import {
   type StartAppGraphRoutePreloadCollectionsPolicy,
   type StartAppGraphRoutePreloadResourcesPolicy,
   type StartActionDefinition,
+  type ActionDefinitionErrorValue,
+  type ActionDefinitionInputValue,
+  type ActionDefinitionOutputValue,
+  type StartActionClientOptions,
   type StartActionForm,
   type StartActionFormField,
   type StartActionFormOptions,
+  type StartActionInvalidationCause,
+  type StartActionInvalidationPlan,
+  type StartActionInvalidationTarget,
   type StartActionRequest,
+  type StartActionResponseBody,
+  type StartActionResponseMeta,
+  type StartActionResult,
+  type StartActionResultFor,
   type StartEndpointConflictErrorInput,
   type StartEndpointPathErrorInput,
   type StartFetch,
@@ -174,6 +219,11 @@ import {
   type StartRequestTrace,
   type StartStaticLinkExtractionOptions,
   type StartStaticOutputPathOptions,
+  type StartTransportDiagnostics,
+  type StartTransportDiagnosticsOptions,
+  type StartTransportEndpointEnvelope,
+  type StartTransportKind,
+  type StartTransportRequestHeadersOptions,
 } from "@sunfall/arc-start";
 import type { ActionDefinition, SunfallArcRuntime } from "@sunfall/arc-core";
 
@@ -226,9 +276,42 @@ const startExports: Array<unknown> = [
   startRequestCountMetric,
   startRequestDurationMetric,
   startRequestStatusMetric,
+  acceptsMediaType,
+  describeStartActionInvalidationPlan,
+  hasContentType,
+  isServerActionRequest,
+  isServerRpcRequest,
+  makeStartRequestId,
+  makeStartRequestIdEffect,
+  mediaTypeOf,
+  negotiateAcceptedMediaType,
   resolveStartTransportEndpointsEffect,
+  serverActionPath,
+  serverRpcPath,
+  startBaggageHeader,
+  startFormUrlEncodedMediaType,
+  startHtmlMediaType,
+  startJsonMediaType,
+  startMultipartFormDataMediaType,
+  startRequestIdHeader,
+  startTraceparentHeader,
+  startTransportDiagnosticsEffect,
+  startTransportEndpointEnvelopeEffect,
+  startTransportKindHeader,
+  startTransportProtocolHeader,
+  startTransportProtocolVersion,
+  startTransportRequestHeaders,
+  startTransportResponseHeaders,
   stableServerFunctionId,
   validateStartEndpointPathEffect,
+  validateStartActionRequestEffect,
+  validateStartActionResponseEffect,
+  validateStartRpcRequestEffect,
+  validateStartRpcResponseEffect,
+  validateStartTransportAcceptEffect,
+  validateStartTransportContentTypeEffect,
+  validateStartTransportMethodEffect,
+  withStartTransportDiagnostics,
   ServerFunctionManifestDuplicateExport,
   ServerFunctionManifestDuplicateId,
   ServerFunctionManifestDuplicateName,
@@ -247,6 +330,7 @@ const startExports: Array<unknown> = [
   StartAppGraphParseError,
   StartTransportEndpointConflictError,
   StartTransportEndpointPathError,
+  StartTransportRequestError,
   StartStaticPathError,
   StartAppGraphUnknownActionBehavior,
   encodeStartActionFormInputEffect,
@@ -280,10 +364,21 @@ type StartTypes =
   | StartAppGraphRoutePreloadCollectionsPolicy
   | StartAppGraphRoutePreloadResourcesPolicy
   | StartActionDefinition
+  | ActionDefinitionErrorValue<StartActionDefinition>
+  | ActionDefinitionInputValue<StartActionDefinition>
+  | ActionDefinitionOutputValue<StartActionDefinition>
+  | StartActionClientOptions
   | StartActionForm
   | StartActionFormField
   | StartActionFormOptions<{ readonly id: string }>
+  | StartActionInvalidationCause
+  | StartActionInvalidationPlan
+  | StartActionInvalidationTarget
   | StartActionRequest
+  | StartActionResponseBody
+  | StartActionResponseMeta
+  | StartActionResult<string>
+  | StartActionResultFor<StartActionDefinition>
   | StartEndpointConflictErrorInput
   | StartEndpointPathErrorInput
   | ActionBehaviorMetadata
@@ -353,7 +448,12 @@ type StartTypes =
   | StartRequestHandler
   | StartRequestTrace
   | StartStaticLinkExtractionOptions
-  | StartStaticOutputPathOptions;
+  | StartStaticOutputPathOptions
+  | StartTransportDiagnostics
+  | StartTransportDiagnosticsOptions
+  | StartTransportEndpointEnvelope
+  | StartTransportKind
+  | StartTransportRequestHeadersOptions;
 void startExports;
 type _StartTypes = StartTypes;
 

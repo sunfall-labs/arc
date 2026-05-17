@@ -203,6 +203,11 @@ are easiest to regress while refactoring internals toward Effect primitives.
   prerender hover-policy pins for exported prerender option, event, result,
   error, planning, and Effect runner declarations, while keeping lazy route
   Suspense runtime ownership behind Core's public `Route` namespace.
+- Review501 Start Action Trace Invalidation And Manifest Pins expands the
+  `@sunfall/arc-start` root manifest-required imports for observability
+  metrics, request trace/action response metadata, and transport helper
+  symbols, so those public Interfaces are directly exercised in
+  `type-tests/start.test-d.ts`.
 - Review500 Devtools Trace Docs And Lint Evidence changes public hover copy and
   script lint hygiene only; it adds no new type-test contract and keeps the
   Review499 request metrics evidence current.

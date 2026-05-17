@@ -87,12 +87,19 @@ Latest full gate on May 17, 2026 after Review 492:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 501 Start Action Trace Invalidation And Manifest Pins populates Start
+  action request trace invalidation indexes from successful action response
+  metadata, adds a runtime trace regression for invalidating actions, and pins
+  Start root observability/action metadata/transport helper exports in the
+  public type-test manifest. The active Thirty-Sweep clean counter remains
+  0/30 until a fresh post-Review501 sweep reports no actionable findings.
 - Review 500 Devtools Trace Docs And Lint Evidence aligns Devtools request trace
   resource docs with Start's SSR route-plan resource semantics, keeps compatible
   non-Start producers structurally possible, removes unused script policy
   bindings, and records lint as focused evidence for script policy changes. The
-  active Thirty-Sweep clean counter remains 0/30 until a fresh post-Review500
-  sweep reports no actionable findings.
+  active Thirty-Sweep clean counter remained 0/30; the later fresh
+  post-Review500 sweep found Review501 Start action trace invalidation and
+  manifest pin work.
 - Review 499 Request Metrics And Evidence Policy moves Start request count,
   duration, and status metrics onto one finalization path with SSR route-template
   labels, narrows request trace resource docs to SSR route-plan resources,

@@ -2715,6 +2715,99 @@ describe("Sunfall Arc Start", () => {
     ]);
   });
 
+  it("records Start action invalidation indexes in request traces", async () => {
+    const traces: DevtoolsRequestTrace[] = [];
+    const ProjectSchema = Schema.Struct({
+      id: Schema.String,
+      name: Schema.String,
+    });
+    let project = {
+      id: "atlas",
+      name: "Initial",
+    };
+    const Project = Resource.family({
+      name: "Start.action.trace.Project",
+      input: Schema.String,
+      output: ProjectSchema,
+      load: () => Effect.succeed(project),
+    });
+    const RenameProject = Action.define<
+      { readonly id: string; readonly name: string },
+      typeof ProjectSchema.Type
+    >({
+      name: "Start.action.trace.rename",
+      input: Schema.Struct({ id: Schema.String, name: Schema.String }),
+      output: ProjectSchema,
+      run: ({ id, name }) =>
+        Effect.sync(() => {
+          project = { id, name };
+          return project;
+        }),
+      invalidates: (_project, input) => [Project(input.id)],
+    });
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {},
+    });
+    const handler = createRequestHandler(app, {
+      actions: [RenameProject],
+      onRequestTrace: (trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        }),
+    });
+    const ref = Project("atlas");
+
+    const response = await Effect.runPromise(
+      handler(
+        new Request(`https://example.com${serverActionPath}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-sunfall-arc-request-id": "req-action-invalidation-trace",
+          },
+          body: JSON.stringify({
+            name: RenameProject.name,
+            input: { id: "atlas", name: "Renamed" },
+          }),
+        }),
+      ),
+    );
+
+    await expect(response.json()).resolves.toMatchObject({
+      _tag: "Success",
+      value: { id: "atlas", name: "Renamed" },
+      invalidation: {
+        entries: [
+          {
+            ref: {
+              key: ref.key,
+              family: "Start.action.trace.Project",
+              input: "atlas",
+            },
+          },
+        ],
+      },
+    });
+    expect(traces).toEqual([
+      expect.objectContaining({
+        request: expect.objectContaining({
+          id: "req-action-invalidation-trace",
+          transport: "action",
+          path: serverActionPath,
+        }),
+        actions: [
+          {
+            name: RenameProject.name,
+            state: "Success",
+            invalidationIndexes: [0],
+          },
+        ],
+        status: "success",
+      }),
+    ]);
+  });
+
   it("uses one generated request id for transport diagnostics and request traces", async () => {
     const traces: DevtoolsRequestTrace[] = [];
     const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
