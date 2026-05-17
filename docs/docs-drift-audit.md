@@ -3,9 +3,9 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review223, the latest full
-`pnpm verify` gate passed with 53 root test files / 1130 tests, and the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review223 sweep reports
+and `docs/perfection-progress.md`. As of Review224, the latest full
+`pnpm verify` gate passed with 53 root test files / 1131 tests, and the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review224 sweep reports
 no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -149,6 +149,12 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Review222 refreshed current ledgers after the fresh post-Review221 sweep
   found Resource hydration public/LSP ownership, DB query diagnostics envelope,
   and valid-Date/comparable hover guidance work.
+- Review223 refreshed current ledgers after the post-Review222 local sweep
+  found query build/execute envelope, Resource hydration payload validation,
+  starter dependency-error normalization, and public LSP policy work.
+- Review224 refreshed current ledgers after the post-Review223 sweep found
+  erased query factory-result validation and stale Current Sweep Results
+  bullets.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

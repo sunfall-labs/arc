@@ -11,11 +11,9 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review223, the post-Review222 local
-sweep fixing query build/execute failure envelopes, Resource hydration payload
-validation/type-test ownership, starter transitive workspace dependency errors,
-and public LSP docs/policy. The newest full verification checkpoint is
-Review223.
+The newest completed focused review is Review224, the post-Review223 sweep
+fixing erased query factory-result validation and current audit-doc evidence.
+The newest full verification checkpoint is Review224.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -29,14 +27,15 @@ post-Review218 sweep found Review219 work, the fresh post-Review219 sweep
 found Review220 work, the fresh post-Review220 sweep found Review221 work, and
 the fresh post-Review221 sweep found Review222 work,
 and the post-Review222 local sweep found Review223 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review223
+and the post-Review223 sweep found Review224 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review224
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, Review219,
-Review220, Review221, Review222, and Review223 work.
+Review220, Review221, Review222, Review223, and Review224 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -100,7 +99,43 @@ Review221 Core, DB, and script work, and the fresh post-Review221 sweep found
 Review222 Core, DB, and docs/LSP work,
 and the post-Review222 local sweep found Review223 Core, DB, starter package,
 and docs/LSP work,
+and the post-Review223 sweep found Review224 DB and docs/current-evidence work,
 so the counter remains 0/30.
+
+## Review 224: Query Factory Result And Current Evidence Envelope
+
+Review224 fixed actionable findings from the fresh post-Review223 sweep.
+
+1. Query Factory Result Validation
+   - Status: fixed.
+   - Files: `packages/db/src/query-builder.ts`,
+     `packages/db/test/collection.test.ts`, `docs/db.md`, and
+     `docs/public-api-inventory.md`.
+   - Problem: erased Promise-shaped, Effect-shaped, or non-builder query
+     factory results could pass the factory call and fail later as raw or vague
+     shape errors across build/live/diagnostics/once entrypoints.
+   - Fix: the shared `Query.build(...)` path now validates that factories
+     return a real `QueryBuilder` synchronously. Promise-shaped, Effect-shaped,
+     and non-builder results fail immediately as `QueryEvaluationError`
+     operation `"evaluate"` with `QueryFactoryResultRejected` cause details.
+   - Benefits: every public query entrypoint rejects async or Effect-valued
+     factory work at the boundary and keeps the Query API Effect-first.
+
+2. Current Audit Evidence Refresh
+   - Status: fixed.
+   - Files: `docs/effect-first-audit.md`,
+     `docs/docs-drift-audit.md`, and release ledgers.
+   - Problem: fresh docs/LSP review found two Current Sweep Results sections
+     that still stopped at Review222 even though Review223 was the latest full
+     verification gate.
+   - Fix: added Review223/Review224 current-sweep bullets and moved the active
+     release evidence to Review224.
+   - Benefits: audit docs, release ledgers, and verification evidence tell one
+     current story.
+
+Focused verification for Review224 passed: DB typecheck, focused DB query
+factory regression tests, public API audit, Effect-first audit, and docs drift
+greps.
 
 ## Review 223: Query, Hydration Payload, Starter, And LSP Envelope
 
@@ -1340,8 +1375,9 @@ sweep found Review217 work, the first post-Review217 sweep found Review218
 work, the first post-Review218 sweep found Review219 work, and the fresh
 post-Review219 sweep found Review220 work, and the fresh post-Review220 sweep
 found Review221 work, the fresh post-Review221 sweep found Review222 work, and
-the post-Review222 local sweep found Review223 work. The active counter is
-0/30 until a fresh post-Review223 sweep reports no actionable findings.
+the post-Review222 local sweep found Review223 work, and the post-Review223
+sweep found Review224 work. The active counter is 0/30 until a fresh
+post-Review224 sweep reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 

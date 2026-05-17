@@ -20,6 +20,15 @@ interruption.
 
 ## Current Sweep Results
 
+- Review224 kept the post-Review223 fixes Effect-first: erased
+  Promise-shaped, Effect-shaped, and non-builder query factory results now fail
+  immediately as typed `QueryEvaluationError` values, and current audit docs
+  name the Review223/Review224 verification story consistently.
+- Review223 kept the post-Review222 fixes Effect-first: query build/execute
+  paths share the typed query failure envelope, Resource hydration payload
+  constructors validate before returning, starter transitive workspace
+  dependency discovery fails through `StarterPackageError`, and public LSP
+  policy stays audit-owned without adding Promise internals.
 - Review222 kept the post-Review221 fixes Effect-first: Resource hydration
   remains payload-only at the public boundary, query diagnostics now normalize
   plan-validation failures into the typed `QueryEvaluationError` envelope, and
@@ -613,10 +622,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 223 `pnpm verify` run recorded in
+- The current full gate is the Review 224 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 411 files, 53 root test files / 1130 tests, package-level verifies,
+  over 411 files, 53 root test files / 1131 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
@@ -1438,14 +1447,13 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after Review 223 query build/execute
-  envelope normalization, Resource hydration payload validation, starter
-  package dependency-error normalization, and public LSP policy coverage:
+- The current full `pnpm verify` passed after Review 224 query factory-result
+  validation and current audit-doc refresh:
   11 package builds, workspace
   typecheck, type tests, public API
   inventory audit, Effect-first audit over 411
   package/example/config/script/type-test/generated/docs files, 53 root test
-  files / 1130 tests, package-level verifies for copyable/source packages,
+  files / 1131 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans. The Effect-first audit now

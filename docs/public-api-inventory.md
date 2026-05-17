@@ -856,7 +856,8 @@ Release decisions:
   query collections cannot hide collection failures or service requirements.
   `Query.build(...).execute()`, `Query.diagnostics(...)`,
   `Query.onceEffect(...)`, and `Query.live(...)` normalize synchronous factory
-  and plan-validation throws as `QueryEvaluationError` values, and invalid
+  failures, Promise-shaped, Effect-shaped, or non-builder factory results, and
+  plan-validation throws as `QueryEvaluationError` values. Invalid
   `orderBy(...)` comparables such as `NaN` or invalid Dates fail with operation
   `"order"`.
 - `QueryGroupKey` and `Query.GroupKey` are the public grouped-query key

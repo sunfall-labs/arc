@@ -1,5 +1,5 @@
-import type { PlainValue, ReadableSignal } from "@effect-ui/core";
-import { Effect } from "effect";
+import { isEffectLike, type PlainValue, type ReadableSignal } from "@effect-ui/core";
+import { Data, Effect } from "effect";
 import { makeLiveQueryState } from "./live-query-state.js";
 import {
   type AnyCollectionRow,
@@ -317,6 +317,46 @@ export type AnyQueryBuilder<TResult = any, E = any, R = any> = QueryBuilder<any,
 
 export type QueryFactory<TResult, E = never, R = never> = (query: QueryRoot) => AnyQueryBuilder<TResult, E, R>;
 
+class QueryFactoryResultRejected extends Data.TaggedError("QueryFactoryResultRejected")<{
+  readonly reason: "promise" | "effect" | "builder";
+  readonly guidance: string;
+}> {}
+
+const isPromiseLikeQueryFactoryResult = (value: unknown): boolean => {
+  if (value === null) {
+    return false;
+  }
+
+  const valueType = typeof value;
+  return (valueType === "object" || valueType === "function") && typeof Reflect.get(value as object, "then") === "function";
+};
+
+const queryFactoryResultRejected = (
+  reason: "promise" | "effect" | "builder"
+): QueryFactoryResultRejected =>
+  new QueryFactoryResultRejected({
+    reason,
+    guidance:
+      reason === "promise"
+        ? "Query factories must return a QueryBuilder synchronously. Move async work into collection Effects before building the query."
+        : reason === "effect"
+          ? "Query factories must return a QueryBuilder, not an Effect. Move Effect work into collection sources and keep the factory synchronous."
+          : "Query factories must return the QueryBuilder produced by Query.from(...)."
+  });
+
+const validateQueryFactoryResult = <T, E, R>(value: unknown): AnyQueryBuilder<T, E, R> => {
+  if (value instanceof QueryBuilder) {
+    return value as AnyQueryBuilder<T, E, R>;
+  }
+  if (isPromiseLikeQueryFactoryResult(value)) {
+    throw queryFactoryResultRejected("promise");
+  }
+  if (!(value instanceof Error) && isEffectLike(value)) {
+    throw queryFactoryResultRejected("effect");
+  }
+  throw queryFactoryResultRejected("builder");
+};
+
 /**
  * Root query DSL entrypoint passed to query factories.
  */
@@ -543,12 +583,12 @@ export namespace Query {
   /**
    * Build a query without executing or preloading it.
    *
-   * Synchronous factory throws are normalized and thrown as
-   * `QueryEvaluationError` with operation `"evaluate"`.
+   * Synchronous factory throws and non-builder factory results are normalized
+   * and thrown as `QueryEvaluationError` with operation `"evaluate"`.
    */
   export const build = <T, E = never, R = never>(factory: QueryFactory<T, E, R>): AnyQueryBuilder<T, E, R> => {
     try {
-      return factory(queryRoot);
+      return validateQueryFactoryResult<T, E, R>(factory(queryRoot));
     } catch (cause) {
       throw toQueryEvaluationError("evaluate", cause);
     }
@@ -567,8 +607,9 @@ export namespace Query {
   /**
    * Return query plan diagnostics for joins, filters, ordering, and row counts.
    *
-   * Synchronous factory and plan-validation throws are normalized and thrown as
-   * `QueryEvaluationError` with operation `"evaluate"`.
+   * Synchronous factory failures, non-builder factory results, and
+   * plan-validation throws are normalized and thrown as `QueryEvaluationError`
+   * with operation `"evaluate"`.
    */
   export const diagnostics = <T, E = never, R = never>(
     factory: QueryFactory<T, E, R>
@@ -585,9 +626,9 @@ export namespace Query {
    * Preload source collections once, then execute the query.
    *
    * Source collection errors and requirements are preserved in the returned
-   * Effect. Synchronous factory throws are normalized as
-   * `QueryEvaluationError` with operation `"evaluate"` in the Effect error
-   * channel.
+   * Effect. Synchronous factory failures and non-builder factory results are
+   * normalized as `QueryEvaluationError` with operation `"evaluate"` in the
+   * Effect error channel.
    */
   export const onceEffect = <T, E = never, R = never>(
     factory: QueryFactory<T, E, R>
@@ -609,8 +650,8 @@ export namespace Query {
    * Create a reactive live query over collection rows.
    *
    * The returned signals update when source collection versions change.
-   * Synchronous factory throws are normalized and thrown as
-   * `QueryEvaluationError` with operation `"evaluate"`.
+   * Synchronous factory failures and non-builder factory results are normalized
+   * and thrown as `QueryEvaluationError` with operation `"evaluate"`.
    *
    * @example
    * const openTodos = Query.live((query) =>

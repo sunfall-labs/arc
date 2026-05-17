@@ -6609,6 +6609,74 @@ describe("Query", () => {
     }
   });
 
+  it("rejects invalid query factory results at the factory boundary", async () => {
+    const promised = Effect.runPromise(
+      Effect.succeed(Query.from({ project: Collection.define<Project>({
+        name: "Projects.promise-query-factory",
+        getKey: (project) => project.id,
+        initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }]
+      }) }))
+    );
+    const cases: ReadonlyArray<{
+      readonly label: string;
+      readonly reason: "promise" | "effect" | "builder";
+      readonly factory: Query.Factory<string>;
+    }> = [
+      {
+        label: "promise",
+        reason: "promise",
+        factory: (() => promised) as never
+      },
+      {
+        label: "effect",
+        reason: "effect",
+        factory: (() => Effect.succeed(Query.from({}))) as never
+      },
+      {
+        label: "non-builder",
+        reason: "builder",
+        factory: (() => ({ execute: () => [] })) as never
+      }
+    ];
+
+    for (const testCase of cases) {
+      for (const evaluate of [
+        () => Query.build(testCase.factory).execute(),
+        () => Query.live(testCase.factory),
+        () => Query.diagnostics(testCase.factory)
+      ]) {
+        expect(evaluate, testCase.label).toThrow(QueryEvaluationError);
+        try {
+          evaluate();
+          expect.fail(`Expected ${testCase.label} query factory result to reject.`);
+        } catch (error) {
+          expect(error).toMatchObject({
+            _tag: "QueryEvaluationError",
+            operation: "evaluate",
+            cause: {
+              _tag: "QueryFactoryResultRejected",
+              reason: testCase.reason
+            }
+          });
+        }
+      }
+
+      const onceExit = await Effect.runPromiseExit(Query.onceEffect(testCase.factory));
+      expect(Exit.isFailure(onceExit), testCase.label).toBe(true);
+      if (Exit.isFailure(onceExit)) {
+        const error = onceExit.cause.reasons.find(Cause.isFailReason)?.error;
+        expect(error).toBeInstanceOf(QueryEvaluationError);
+        expect(error).toMatchObject({
+          operation: "evaluate",
+          cause: {
+            _tag: "QueryFactoryResultRejected",
+            reason: testCase.reason
+          }
+        });
+      }
+    }
+  });
+
   it("keeps a live single-collection query updated through the IVM adapter", async () => {
     const Projects = Collection.define<Project>({
       name: "Projects.live-filter",
