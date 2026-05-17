@@ -2,7 +2,13 @@
 
 Last updated: 2026-05-16.
 
-This audit checks release-tracking docs for claims that no longer match the
+Current release-tracking truth lives in `docs/architecture-deepening-review.md`
+and `docs/perfection-progress.md`. As of Review201, the latest full
+`pnpm verify` gate passed with 53 root test files / 1060 tests, and the active
+Thirty-Sweep clean counter remains 0/30 until a fresh post-Review201 sweep
+reports no actionable findings.
+
+This historical audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
 hygiene, generated-artifact, public-API, example cleanup, starter packaging,
 devtools extension, inspected-window bridge, release metadata, Start lifecycle,
@@ -84,6 +90,13 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 
 ## Current Sweep Results
 
+- Review200 refreshed the current release ledgers after the public runtime and
+  host-boundary pin sweep; post-Review200 sweeps are tracked in the architecture
+  review tip instead of extending the historical enumeration above.
+- Review201 refreshed the current release ledgers after script command,
+  Resource public-surface, React/Solid router LSP, DB erased-channel, and
+  generated-starter README guardrail fixes; the historical enumeration above
+  intentionally stops at older review clusters.
 - Updated request-trace docs that still described richer teardown facts as a
   future gap.
 - Updated devtools panel docs after request items started carrying full

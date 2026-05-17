@@ -10,6 +10,7 @@ import {
   type QueryAggregateRecord,
   type QueryAggregateResult,
   type QueryContext,
+  type QueryGroupKey,
   type QueryJoin,
   type QueryJoinKey,
   type QueryJoinResult,
@@ -215,15 +216,15 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
     TKey extends Record<string, unknown>,
     Aggregates extends QueryAggregateRecord<TContext>
   >(
-    key: (row: TContext) => TKey,
+    key: (row: TContext) => QueryGroupKey<TKey>,
     aggregates: Aggregates
   ): QueryBuilder<
-    QueryAggregateResult<TKey, Aggregates>,
-    QueryAggregateResult<TKey, Aggregates>,
+    QueryAggregateResult<QueryGroupKey<TKey>, Aggregates>,
+    QueryAggregateResult<QueryGroupKey<TKey>, Aggregates>,
     E,
     R
   > {
-    type Grouped = QueryAggregateResult<TKey, Aggregates>;
+    type Grouped = QueryAggregateResult<QueryGroupKey<TKey>, Aggregates>;
     return new QueryBuilder<Grouped, Grouped, E, R>(
       this.sources,
       [],
@@ -497,6 +498,9 @@ export namespace Query {
   export type PlanDiagnostics = QueryPlanDiagnostics;
   /** Root DSL object passed to query factories. */
   export type Root = QueryRoot;
+  /** Group key object accepted by `groupBy(...)`; nested Promise-shaped values are rejected. */
+  export type GroupKey<TKey extends Record<string, unknown> = Record<string, unknown>> =
+    QueryGroupKey<TKey>;
   /** Aggregate definition consumed by `groupBy(...)`. */
   export type Aggregate<TContext, R, V = unknown> = QueryAggregate<TContext, R, V>;
   /** Named aggregate map consumed by `groupBy(...)`. */

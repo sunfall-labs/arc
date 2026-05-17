@@ -34,6 +34,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   dehydrate failures in typed error channels, and Review 68 keeps the
   `Resource.readEffect(...)` public type pinned while runtime tests prove it
   participates in Resource touch collection.
+- Core Resource type tests now pin `Resource.collectEffect(...)` and
+  `Resource.Collected<A>` as the public preload/read collection seam, with
+  negative assertions that the internal `ResourceCollector` service and flat
+  `ResourceCollected` alias are not root exports.
 - Core Resource Store type tests pin that the public `ResourceStore` Interface
   can be consumed for diagnostics but not structurally implemented as a fake
   root-exported store, and that mutable store constructors/unsafe accessors stay
@@ -88,9 +92,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
 - Solid action hook type tests pin the runtime-bound submit Effect and the
   optional runtime-error generic for apps with a fallible Solid Runtime
   Provider.
-- Solid router type tests pin that serviceful route preload definitions require
-  a browser router runtime carrying the preload service layer when a runtime is
-  passed explicitly, including the `RouterProvider` shorthand.
+- React and Solid router type tests pin that serviceful route preload
+  definitions require a browser router runtime carrying the preload service
+  layer, and focused adapter tests directly import/use `RouterLink`,
+  `RouterOutlet`, `useRouter`, router errors, and route/path helper types.
 - Solid resource and Solid DB hook type tests pin runtime-bound returned
   Effects, optional runtime-error generics, and the fact that Solid DB handles
   no longer expose service requirements already provided by the Solid runtime.
@@ -108,6 +113,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
 - Query factory type tests pin that public `Query.Factory<TResult>` defaults to
   `never` error/requirement channels and rejects serviceful builders unless
   their `E/R` parameters are explicit.
+- DB query and collection type tests pin `QueryGroupKey`/`Query.GroupKey`
+  against nested Promise-shaped group keys, concrete `CollectionError` and
+  `CollectionRequirements` extraction, bare `AnyCollection` erasure to
+  `unknown`, and serviceful change-feed unsubscribe cleanup.
 - DB multi-collection flush and background sync type tests pin
   `CollectionSnapshotCodecError` in the coordination error channel.
 - DB root type tests pin package-root SQLite helpers, the `SQLitePersistence`

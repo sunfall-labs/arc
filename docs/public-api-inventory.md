@@ -267,6 +267,11 @@ Release decisions:
 - `Resource.readEffect(...)` is the public Effect-first read Interface for
   already-loaded refs. Missing, pending, collected, and failed states stay in
   typed Effect failure channels instead of escaping as render-control throws.
+- `Resource.collectEffect(...)` is the public preload/read collection seam for
+  route planners and adapters that need the value plus touched Resource refs.
+  The result type is exposed as `Resource.Collected<A>`; the internal
+  `ResourceCollector` service and flat `ResourceCollected` alias are not root
+  exports.
 - Resource dehydrate and hydration payload Effects now schema-encode inputs and
   success values before they cross snapshot seams, so Start, Solid, and tests
   observe the same wire policy as hydrate.
@@ -812,6 +817,21 @@ Release decisions:
   `Query.diagnostics(...)` and `Query.live(...)` normalize synchronous factory
   throws as `QueryEvaluationError` values, matching the one-shot query
   diagnostic seam instead of leaking raw defects through tooling.
+- `QueryGroupKey` and `Query.GroupKey` are the public grouped-query key
+  contracts for `Query.groupBy(...)`. They reject Promise-shaped values inside
+  nested records/arrays at the type seam, and runtime evaluation reports
+  nested Promise-shaped keys with the failing group-key path before stable
+  stringification.
+- Bare `AnyCollection` erases error and requirement channels to `unknown` so
+  adapter helpers cannot accidentally treat heterogeneous collections as
+  service-free or string-error-only. `CollectionError<C>` and
+  `CollectionRequirements<C>` still preserve concrete collection channels.
+- `Collection.ChangeFeedUnsubscribe<E, R>` and
+  `Collection.ChangeFeedSubscription<E, R>` preserve serviceful cleanup
+  Effects, so scoped change-feed release remains part of the adapter's typed
+  Effect channel. `CollectionPersistenceConfig.hydrate` explicitly accepts
+  `false` for definitions that enable persistence but disable restore
+  hydration.
 - The collection reactive binding helpers exported from the DB root are
   expert-public Adapter helpers for React DB, Solid DB, and future framework
   adapters. They own collection source subscription, runtime-bound Effects,

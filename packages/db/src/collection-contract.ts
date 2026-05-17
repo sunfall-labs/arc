@@ -259,18 +259,31 @@ export interface CollectionDefinition<A extends object, K extends CollectionKey 
  * Erased Collection definition used by adapters over heterogeneous collection
  * lists while preserving error and requirement channels where possible.
  */
-export type AnyCollection<E = any, R = any> =
+export type AnyCollection<E = unknown, R = unknown> =
   Omit<CollectionDefinition<any, any, E, R>, "options"> & {
-    readonly options: any;
+    readonly options: Omit<CollectionOptions<any, any, E, R>, "policy" | "persistence"> & {
+      readonly policy?: { readonly retry?: unknown };
+      readonly persistence?: CollectionPersistenceConfig<any, any>;
+    };
   };
 /** Extracts the domain value type from a Collection definition. */
 export type CollectionValue<C> = C extends CollectionDefinition<infer A, infer _K, infer _E, infer _R> ? A : never;
 /** Extracts the public row type, including `$key` metadata, from a Collection definition. */
 export type CollectionRowValue<C> = C extends CollectionDefinition<infer A, infer K, infer _E, infer _R> ? CollectionRow<A, K> : never;
 /** Extracts the declared loader/mutation error channel from a Collection definition. */
-export type CollectionError<C> = C extends CollectionDefinition<infer _A, infer _K, infer E, infer _R> ? E : never;
+export type CollectionError<C> =
+  C extends AnyCollection<infer E, infer _R>
+    ? E
+    : C extends CollectionDefinition<infer _A, infer _K, infer E, infer _R>
+      ? E
+      : never;
 /** Extracts the declared service requirements from a Collection definition. */
-export type CollectionRequirements<C> = C extends CollectionDefinition<infer _A, infer _K, infer _E, infer R> ? R : never;
+export type CollectionRequirements<C> =
+  C extends AnyCollection<infer _E, infer R>
+    ? R
+    : C extends CollectionDefinition<infer _A, infer _K, infer _E, infer R>
+      ? R
+      : never;
 
 /**
  * Update input for `updateEffect`.
@@ -347,7 +360,7 @@ export interface CollectionPersistOptions {
  */
 export interface CollectionPersistenceConfig<E = never, R = never> extends CollectionPersistOptions {
   readonly storage: CollectionPersistenceStorage<E, R>;
-  readonly hydrate?: CollectionHydrateOptions;
+  readonly hydrate?: CollectionHydrateOptions | false;
   readonly restoreOnPreload?: boolean;
   readonly loadAfterRestore?: boolean;
   readonly persistOnLoad?: boolean;

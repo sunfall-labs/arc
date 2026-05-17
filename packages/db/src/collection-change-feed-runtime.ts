@@ -53,9 +53,9 @@ const collectionChangeFeedInputCallbackEffect = <A, E, R>(
 ): Effect.Effect<A, E | EffectInputCallbackError, R> =>
   invokeEffectInput("collection callback", callback);
 
-const changeFeedUnsubscribe = (
-  subscription: CollectionChangeFeedSubscription
-): CollectionChangeFeedUnsubscribe | undefined =>
+const changeFeedUnsubscribe = <E, R>(
+  subscription: CollectionChangeFeedSubscription<E, R>
+): CollectionChangeFeedUnsubscribe<E, R> | undefined =>
   typeof subscription === "function"
     ? subscription
     : subscription?.unsubscribe;
@@ -104,7 +104,7 @@ export const subscribeCollectionChangeFeedRuntimeEffect = <
     );
 
     yield* Effect.acquireRelease(
-      collectionChangeFeedInputCallbackEffect<CollectionChangeFeedSubscription, FeedError, FeedRequirements>(() =>
+      collectionChangeFeedInputCallbackEffect<CollectionChangeFeedSubscription<FeedError, FeedRequirements>, FeedError, FeedRequirements>(() =>
         runtime.adapter.subscribe({
           collection: runtime.collection,
           emit: (changes, writeOptions) => dispatcher.emitEffect(changes, writeOptions),
@@ -116,7 +116,7 @@ export const subscribeCollectionChangeFeedRuntimeEffect = <
       (subscription) => {
         const unsubscribe = changeFeedUnsubscribe(subscription);
         return unsubscribe
-          ? collectionChangeFeedInputCallbackEffect(() => unsubscribe()).pipe(
+          ? collectionChangeFeedInputCallbackEffect<void, FeedError, FeedRequirements>(() => unsubscribe()).pipe(
               Effect.catch((error) =>
                 runtime.publishFailure(error).pipe(Effect.catch(() => Effect.void))
               )

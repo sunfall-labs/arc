@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { spawn } from "node:child_process";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
+import { runScriptCommandEffect } from "./effect-command-runner.mjs";
 import { workspaceVerifyPackageTargetsEffect } from "./workspace-verification-plan.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -50,77 +50,48 @@ const flushPrefixedChunk = (label, write, state) => {
   }
 };
 
-const attachPrefixedOutput = (label, stream, write) => {
-  const state = { buffer: "" };
-  stream.setEncoding("utf8");
-  stream.on("data", (chunk) => {
-    writePrefixedChunk(label, write, state, chunk);
-  });
-  stream.on("end", () => {
-    flushPrefixedChunk(label, write, state);
-  });
-};
-
 const run = (label, args, options = {}) =>
-  Effect.callback((resume) => {
+  Effect.gen(function* () {
     const startedAt = Date.now();
     const commandText = `${pnpmCommand} ${args.join(" ")}`;
-    let completed = false;
+    const output = {
+      stdout: { buffer: "" },
+      stderr: { buffer: "" }
+    };
+    const flushOutput = () => {
+      flushPrefixedChunk(label, (text) => process.stdout.write(text), output.stdout);
+      flushPrefixedChunk(label, (text) => process.stderr.write(text), output.stderr);
+    };
 
     console.log(`▶ ${label}`);
-    const child = spawn(pnpmCommand, args, {
+    yield* runScriptCommandEffect(pnpmCommand, args, {
       cwd: workspaceRoot,
       env: {
         ...process.env,
         ...options.env
       },
-      stdio: ["ignore", "pipe", "pipe"]
-    });
-
-    if (child.stdout) {
-      attachPrefixedOutput(label, child.stdout, (text) => process.stdout.write(text));
-    }
-    if (child.stderr) {
-      attachPrefixedOutput(label, child.stderr, (text) => process.stderr.write(text));
-    }
-
-    child.on("error", (cause) => {
-      if (completed) {
-        return;
-      }
-      completed = true;
-      resume(Effect.fail(new VerifyCommandError({
-        label,
-        command: commandText,
-        message: `Failed to start ${label}.`,
-        cause
-      })));
-    });
-
-    child.on("close", (code, signal) => {
-      if (completed) {
-        return;
-      }
-      completed = true;
-      if (code === 0) {
-        console.log(`✓ ${label} (${formatDuration(startedAt)})`);
-        resume(Effect.void);
-        return;
-      }
-
-      resume(Effect.fail(new VerifyCommandError({
-        label,
-        command: commandText,
-        message: `${label} failed with ${signal === null ? "exit code " + code : "signal " + signal}.`,
-        cause: { code, signal }
-      })));
-    });
-
-    return Effect.sync(() => {
-      if (!completed && !child.killed) {
-        child.kill("SIGTERM");
-      }
-    });
+      onStdoutChunk: (chunk) =>
+        writePrefixedChunk(label, (text) => process.stdout.write(text), output.stdout, chunk),
+      onStderrChunk: (chunk) =>
+        writePrefixedChunk(label, (text) => process.stderr.write(text), output.stderr, chunk)
+    }).pipe(
+      Effect.catch((error) =>
+        Effect.sync(flushOutput).pipe(
+          Effect.zipRight(
+            Effect.fail(new VerifyCommandError({
+              label,
+              command: commandText,
+              message: error.code === undefined
+                ? `Failed to start ${label}.`
+                : `${label} failed with ${error.signal === null ? "exit code " + error.code : "signal " + error.signal}.`,
+              cause: error.cause
+            }))
+          )
+        )
+      )
+    );
+    flushOutput();
+    console.log(`✓ ${label} (${formatDuration(startedAt)})`);
   });
 
 const runAll = (label, effects) =>

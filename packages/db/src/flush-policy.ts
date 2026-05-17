@@ -244,7 +244,11 @@ export const flushCollectionsPendingMutationsEffect = <
     }
 
     return results;
-  });
+  }) as Effect.Effect<
+    ReadonlyArray<FlushCollectionPendingMutationsResult>,
+    FlushCollectionsPendingMutationsError<Collections, SkipError>,
+    FlushCollectionsPendingMutationsRequirements<Collections, SkipRequirements>
+  >;
 
 /**
  * Decide whether to flush pending mutations for a background sync trigger.
@@ -309,4 +313,8 @@ export const backgroundSyncCollectionsPendingMutationsEffect = <
       pending,
       results
     } satisfies CollectionBackgroundSyncFlushedResult;
-  });
+  }) as Effect.Effect<
+    CollectionBackgroundSyncResult,
+    CollectionBackgroundSyncError<Collections, AdapterError, SkipError>,
+    CollectionBackgroundSyncRequirements<Collections, AdapterRequirements, SkipRequirements>
+  >;

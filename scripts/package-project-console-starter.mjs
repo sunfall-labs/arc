@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import { spawn } from "node:child_process";
 import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
+import { runScriptCommandEffect } from "./effect-command-runner.mjs";
 import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
 import {
   copyableStarterEntries,
@@ -40,60 +40,35 @@ const fsEffect = (description, evaluate) =>
   });
 
 const commandEffect = (description, command, args, options = {}) =>
-  Effect.callback((resume) => {
-    const child = spawn(command, args, {
+  Effect.gen(function* () {
+    console.log(`▶ ${description}`);
+    const result = yield* runScriptCommandEffect(command, args, {
       cwd: options.cwd ?? workspaceRoot,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderr += chunk;
-    });
-    child.on("error", (cause) =>
-      resume(
-        Effect.fail(
-          fail(
-            `Failed to run ${description}.`,
-            "Ensure pnpm is available on PATH and the generated starter has valid package metadata.",
-            cause,
-          ),
-        ),
-      ),
+      env: {
+        ...process.env,
+        CI: process.env.CI ?? "1",
+        ...options.env,
+      },
+    }).pipe(
+      Effect.mapError((error) =>
+        fail(
+          error.code === undefined
+            ? `Failed to run ${description}.`
+            : `Command failed while running ${description}.`,
+          error.code === undefined
+            ? "Ensure pnpm is available on PATH and the generated starter has valid package metadata."
+            : [
+                `Command: ${error.commandText}`,
+                `Exit code: ${error.code}`,
+                error.stdout.trim() === "" ? undefined : `stdout: ${error.stdout.trim()}`,
+                error.stderr.trim() === "" ? undefined : `stderr: ${error.stderr.trim()}`,
+              ].filter(Boolean).join(" "),
+          error,
+        )
+      )
     );
-    child.on("close", (code) => {
-      if (code === 0) {
-        resume(Effect.succeed({ stdout, stderr }));
-        return;
-      }
-
-      resume(
-        Effect.fail(
-          fail(
-            `Command failed while running ${description}.`,
-            [
-              `Command: ${command} ${args.join(" ")}`,
-              `Exit code: ${code}`,
-              stdout.trim() === "" ? undefined : `stdout: ${stdout.trim()}`,
-              stderr.trim() === "" ? undefined : `stderr: ${stderr.trim()}`,
-            ].filter(Boolean).join(" "),
-            { code, stdout, stderr },
-          ),
-        ),
-      );
-    });
-
-    return Effect.sync(() => {
-      if (!child.killed) {
-        child.kill();
-      }
-    });
+    console.log(`✓ ${description}`);
+    return result;
   });
 
 const parseJsonEffect = (filePath, text) =>
@@ -132,6 +107,12 @@ const forbiddenGeneratedReadmeFragments = [
   "pnpm example:",
   "pnpm starter:package",
   ".test-dist/starters",
+  "@latest",
+  "dlx shadcn@latest",
+];
+const forbiddenSourceReadmeFragments = [
+  "@latest",
+  "dlx shadcn@latest",
 ];
 const toPosixPath = (filePath) => filePath.split(sep).join("/");
 
@@ -699,6 +680,26 @@ const assertStandaloneReadme = (starter) =>
     }
   });
 
+const assertCopyableSourceReadme = (starter) =>
+  Effect.gen(function* () {
+    const readmePath = resolve(starter.sourceDir, "README.md");
+    const text = yield* fsEffect(
+      `read source ${starter.displayName} README`,
+      () => readFile(readmePath, "utf8"),
+    );
+    const forbidden = forbiddenSourceReadmeFragments.filter((fragment) =>
+      text.includes(fragment)
+    );
+    if (forbidden.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `Source ${starter.displayName} README contains unpinned CLI instructions.`,
+          `Keep copyable starter docs reproducible; remove: ${forbidden.join(", ")}.`,
+        ),
+      );
+    }
+  });
+
 const parsePackDryRunOutput = (starter, stdout) =>
   Effect.gen(function* () {
     const parsed = yield* Effect.try({
@@ -1073,6 +1074,7 @@ const packageStarter = (workspacePackages, builtPackageNames, starter) =>
     const sourcePackageJson = yield* readPackageJson(sourcePackageJsonPath);
     const internalPackageNames = internalPackageClosure(sourcePackageJson, workspacePackages);
 
+    yield* assertCopyableSourceReadme(starter);
     yield* fsEffect(`remove the previous generated ${starter.displayName}`, () =>
       rm(starter.outputDir, { force: true, recursive: true }),
     );

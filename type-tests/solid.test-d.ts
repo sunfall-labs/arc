@@ -10,7 +10,11 @@ import {
 } from "@effect-ui/core";
 import { Effect, Stream } from "effect";
 import {
+  RouterContextMissing,
+  RouterLink,
+  RouterOutlet,
   RouterProvider,
+  RouterRouteNotRegistered,
   RuntimeProvider,
   createBrowserRouter,
   useAction,
@@ -20,17 +24,23 @@ import {
   useResourceResult,
   useResourceSuspense,
   useResourceValue,
+  useRouter,
   useRuntime,
   useRuntimeEffect,
   useSignal,
   useStream,
   type ActionHandle,
+  type BrowserNavigateArgs,
   type BrowserRouter,
+  type BrowserRouterPath,
   type BrowserRouterOptions,
+  type BrowserRouterRouteForPath,
+  type BrowserRouterState,
   type ProgramHandle,
   type ResourceHandle,
   type ResourceMatch,
   type ResourceSuccessMeta,
+  type RouterLinkProps,
   type RouterProviderProps,
   type RouterOutletProps,
   type RuntimeEffectRunner,
@@ -48,6 +58,24 @@ const solidBrowserOptions: BrowserRouterOptions<typeof solidRoutes> = {
   history: solidHistory,
   hydrating: true
 };
+const solidRouter: BrowserRouter<typeof solidRoutes> = createBrowserRouter(solidRoutes, {
+  history: solidHistory,
+  hydrating: true
+});
+const solidRouterFromHook: BrowserRouter<typeof solidRoutes> = useRouter<typeof solidRoutes>();
+const solidRouterState: BrowserRouterState<typeof solidRoutes> = solidRouter.state();
+const solidRoutePath: BrowserRouterPath<typeof solidRoutes> = "/";
+type SolidRouteForHome = BrowserRouterRouteForPath<typeof solidRoutes, typeof solidRoutePath>;
+const solidRouteForPath: SolidRouteForHome = solidRoutes[0];
+const solidNavigateArgs: BrowserNavigateArgs<typeof solidRoutes[0]> = [];
+const solidRouterLinkProps: RouterLinkProps<typeof solidRoutes[0]> = {
+  route: solidRoutes[0],
+  children: "Home"
+};
+const solidRouterLinkNode = RouterLink(solidRouterLinkProps);
+const solidRouterOutletNode = RouterOutlet<typeof solidRoutes>({});
+const solidContextMissing = new RouterContextMissing({ hook: "useRouter" });
+const solidRouteNotRegistered = new RouterRouteNotRegistered({ path: "/" });
 const solidProviderProps: RouterProviderProps<typeof solidRoutes> = {
   routes: solidRoutes,
   history: solidHistory,
@@ -115,7 +143,11 @@ const solidActionStateTag:
 solidAction.instance.state.get()._tag;
 solidAction.invalidationPlan()?.entries.map((entry) => entry.ref.key);
 const solidExports: Array<unknown> = [
+  RouterContextMissing,
+  RouterLink,
+  RouterOutlet,
   RouterProvider,
+  RouterRouteNotRegistered,
   RuntimeProvider,
   createBrowserRouter,
   useAction,
@@ -125,10 +157,22 @@ const solidExports: Array<unknown> = [
   useResourceError,
   useResourceResult,
   useResourceValue,
+  useRouter,
   useRuntime,
   useRuntimeEffect,
   useSignal,
   useStream,
+  solidRouter,
+  solidRouterFromHook,
+  solidRouterState,
+  solidRoutePath,
+  solidRouteForPath,
+  solidNavigateArgs,
+  solidRouterLinkProps,
+  solidRouterLinkNode,
+  solidRouterOutletNode,
+  solidContextMissing,
+  solidRouteNotRegistered,
   solidRuntime,
   solidRuntimeFiber,
   solidProgramHandle,
@@ -147,6 +191,11 @@ const solidExports: Array<unknown> = [
   solidProviderProps
 ];
 type SolidRouter = BrowserRouter | RouterOutletProps;
+type SolidRouterLinkProps = RouterLinkProps<typeof solidRoutes[0]>;
+type SolidBrowserNavigateArgs = BrowserNavigateArgs<typeof solidRoutes[0]>;
+type SolidBrowserRouterPath = BrowserRouterPath<typeof solidRoutes>;
+type SolidBrowserRouterRouteForPath = BrowserRouterRouteForPath<typeof solidRoutes, "/">;
+type SolidBrowserRouterState = BrowserRouterState<typeof solidRoutes>;
 type SolidBrowserRouterOptions = BrowserRouterOptions;
 type SolidRouterProviderProps = RouterProviderProps<typeof solidRoutes>;
 type SolidActionHandle = ActionHandle<{ readonly id: string }, { readonly ok: boolean }>;
@@ -156,6 +205,11 @@ type SolidUseResourceOptions = UseResourceOptions<never>;
 type SolidRuntimeEffectRunner = RuntimeEffectRunner;
 void solidExports;
 type _SolidRouter = SolidRouter;
+type _SolidRouterLinkProps = SolidRouterLinkProps;
+type _SolidBrowserNavigateArgs = SolidBrowserNavigateArgs;
+type _SolidBrowserRouterPath = SolidBrowserRouterPath;
+type _SolidBrowserRouterRouteForPath = SolidBrowserRouterRouteForPath;
+type _SolidBrowserRouterState = SolidBrowserRouterState;
 type _SolidBrowserRouterOptions = SolidBrowserRouterOptions;
 type _SolidRouterProviderProps = SolidRouterProviderProps;
 type _SolidActionHandle = SolidActionHandle;

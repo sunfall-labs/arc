@@ -659,17 +659,18 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 200 ran React/Solid/DB/Start/React DB/Solid
-    DB package typechecks, public type tests, public API audit, Effect-first
-    audit over 406 files, focused Start dev SSR/CLI regressions, focused
-    Core/React/Solid router regressions, and whitespace checks after tightening
-    public runtime and host boundary pins.
+  - Latest focused evidence: Review 201 ran workspace typecheck, public type
+    tests, public API audit, Effect-first audit over 407 files, DB collection
+    tests with 141 tests, the 16-target package dry-run gate, and fast
+    generated starter packaging/verifies after tightening script command
+    execution, Core Resource public surface, React/Solid router LSP pins, and
+    DB erased-channel/group-key contracts.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
-    Review196, Review197, Review198, Review199, and Review200 work, leaving the
+    Review196, Review197, Review198, Review199, Review200, and Review201 work, leaving the
     active counter at 0/30.
     Latest full evidence:
-    `pnpm verify` ran after Review 200 with 53 test files / 1060 tests.
+    `pnpm verify` ran after Review 201 with 53 test files / 1060 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -808,27 +809,27 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 200 public runtime and host
-    boundary pins.
+  - Evidence: no new ADR required for the Review 201 script command, Resource
+    public-surface, router LSP, and DB contract pins.
     Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 200
-    public runtime and host boundary pins:
+  - Evidence: root `pnpm verify` passed on May 17, 2026 after the Review 201
+    script command, Resource public-surface, router LSP, and DB contract pins:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    406 physical/virtual files, 53 root test files / 1060 tests,
+    407 physical/virtual files, 53 root test files / 1060 tests,
     package-level verifies for the devtools/starter/example packages,
     generated starter-suite packaging/verifies for basic/react/project-console,
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 200 records React/Solid/DB/Start/React DB/Solid DB
-    typechecks, public type tests, public API audit, Effect-first audit, focused
-    Start/router regressions, and whitespace checks. Clean Sweep 1 after
+  - Evidence: Review 201 records workspace typecheck, public type tests, public
+    API audit, Effect-first audit, focused DB tests, package dry-runs, and
+    generated starter packaging/verifies. Clean Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
-    Review197, Review198, Review199, and Review200 work, leaving the active
+    Review197, Review198, Review199, Review200, and Review201 work, leaving the active
     counter at 0/30.
     Full verification is recorded in the latest full gate above.
 

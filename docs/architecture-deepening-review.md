@@ -11,14 +11,14 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review200, the post-Review199 sweep
-fixing browser-router preload runtime requiredness, DB facade/LSP pins, and
-Start Vite/CLI host-seam containment. The newest full verification checkpoint
-is Review200. Clean
+The newest completed focused review is Review201, the post-Review200 sweep
+fixing script command ownership, Core Resource public-surface leakage,
+React/Solid router LSP pins, and DB erased-channel/nested query callback
+contracts. The newest full verification checkpoint is Review201. Clean
 Sweep 1 after Review190 remains
 historical evidence, but later sweeps found Review191, Review192, Review193,
 Review194, Review195, Review196, Review197, Review198, Review199, and
-Review200 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review200 sweep reports no actionable
+Review200 and Review201 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review201 sweep reports no actionable
 findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
@@ -42,10 +42,121 @@ post-Review194 sweep found Review195 Core/Start/example/docs work, so the
 counter stayed inactive. The first post-Review195 sweep found Review196
 Core/Start/DB/devtools/starter work, and the first post-Review196 sweep found
 Review197 Core/Start/DB work, and the first post-Review197 sweep found
-Review198 DB/Start work, so the counter remains inactive until the
-post-Review200 sweep is clean. The first post-Review198 sweep found Review199
-Solid/React DB/Start work, and the first post-Review199 sweep found Review200
-Core/React/Solid, DB, and Start work.
+Review198 DB/Start work. The first post-Review198 sweep found Review199
+Solid/React DB/Start work, the first post-Review199 sweep found Review200
+Core/React/Solid, DB, and Start work, and the first post-Review200 sweep found
+Review201 script/docs, Core/React/Solid public surface, and DB contract work.
+The counter remains inactive until a fresh post-Review201 sweep is clean.
+
+## Review 201: Script Commands, Resource Surface, And DB Erasure Pins
+
+Review201 fixed actionable findings from the fresh post-Review200 subagent
+sweep. The Core/React/Solid lane found internal Resource exports and router
+type-test/LSP holes, the DB lane found nested Promise-shaped group keys plus
+erased-channel leaks, and the scripts/docs lane found duplicated child-process
+Adapters and stale generated-starter README guardrails.
+
+1. Effect V4 Script Command Runner
+   - Status: fixed.
+   - Files: `scripts/effect-command-runner.mjs`, `scripts/verify.mjs`,
+     `scripts/package-project-console-starter.mjs`,
+     `scripts/verify-package-dry-runs.mjs`, `.gitignore`.
+   - Problem: release scripts each owned a small child-process Effect Adapter,
+     so completion guards, stdout/stderr capture, cancellation, and command
+     error metadata could drift. Starter packaging also failed silently for a
+     long time when sandboxed DNS blocked generated-starter installs.
+   - Fix: added a shared runner that builds Effect v4
+     `ChildProcess.Command` values and runs them through the local Node host
+     Adapter with one completion guard, captured stdout/stderr, typed
+     `ScriptCommandError`, and cleanup kill policy. `verify`, starter
+     packaging, and package dry-runs now use that runner; starter packaging
+     logs child-command progress and ignores local `.pnpm-store/` artifacts.
+   - Benefits: scripts now have one Effect-owned command seam, and package
+     verification failures show which generated-starter command is blocked.
+
+2. Core Resource Public Surface Boundary
+   - Status: fixed.
+   - Files: `packages/core/src/resource.ts`,
+     `type-tests/core.test-d.ts`, `docs/public-api-inventory.md`.
+   - Problem: the internal `ResourceCollector` service and flat
+     `ResourceCollected` type were reachable from the Core root, even though
+     app/adapter code should use `Resource.collectEffect(...)` and
+     `Resource.Collected<A>`.
+   - Fix: removed the flat exports, kept the internal collector local to
+     Resource planning, added hover docs for `Resource.Collected<A>`, and
+     pinned the intended public names plus negative root-export assertions in
+     the Core type test.
+   - Benefits: preload/read collection remains a documented Resource facade
+     instead of exposing the planning service as a public integration seam.
+
+3. React And Solid Router LSP Pins
+   - Status: fixed.
+   - Files: `type-tests/react.test-d.ts`, `type-tests/solid.test-d.ts`,
+     `type-tests/public-api.manifest.json`,
+     `scripts/public-api-symbol-policy.mjs`,
+     `docs/type-test-coverage-audit.md`.
+   - Problem: focused adapter type tests and hover policy did not pin
+     `RouterLink`, `RouterOutlet`, `useRouter`, router errors, route/path
+     helper types, or router state/options strongly enough.
+   - Fix: direct type tests now import and exercise those values/types for
+     React and Solid, and the public hover-doc policy requires the relevant
+     router/link declarations.
+   - Benefits: LSP hovers now cover the user-facing router concepts that app
+     authors actually touch instead of only the provider-level surface.
+
+4. DB Query And Erased Collection Contracts
+   - Status: fixed.
+   - Files: `packages/db/src/query-plan.ts`,
+     `packages/db/src/query-builder.ts`, `packages/db/src/index.ts`,
+     `packages/db/src/sync-adapter.ts`,
+     `packages/db/src/collection-change-feed-runtime.ts`,
+     `packages/db/src/collection-contract.ts`,
+     `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/collection-snapshot-codec.ts`,
+     `packages/db/src/flush-policy.ts`, `packages/db/test/collection.test.ts`,
+     `type-tests/db.test-d.ts`, `type-tests/framework.test-d.ts`.
+   - Problem: `Query.groupBy(...)` rejected only top-level Promise-shaped key
+     values before stable stringification; `AnyCollection` defaulted erased
+     error/requirement channels through `any`; change-feed unsubscribe cleanup
+     could not carry service requirements; and the persistence config allowed
+     `hydrate: false` at diagnostics/runtime use sites without typing it.
+   - Fix: group keys now use `QueryGroupKey` plus recursive runtime detection
+     for arrays, Maps, Sets, and plain objects with failure paths. Bare
+     `AnyCollection` now erases channels to `unknown` while preserving concrete
+     channel extraction. Change-feed unsubscribe/subscription types carry
+     `E/R`, persistence explicitly accepts `hydrate: false`, and type tests pin
+     concrete and erased collection channels plus serviceful unsubscribe
+     cleanup.
+   - Benefits: DB public contracts no longer leak `any`, nested async query
+     key mistakes fail at both type and runtime seams, and cleanup work stays
+     inside the Effect channel model.
+
+5. Starter README And Docs Drift Guardrails
+   - Status: fixed.
+   - Files: `examples/react-starter/README.md`,
+     `scripts/package-project-console-starter.mjs`,
+     `docs/docs-drift-audit.md`,
+     `docs/type-test-coverage-audit.md`.
+   - Problem: the React starter source README still documented a
+     `shadcn@latest` command, and docs drift ledgers still suggested older
+     release-tracking enumerations were current.
+   - Fix: removed the unpinned README command and added source/generated README
+     guards so copyable starters reject unpinned `@latest` CLI instructions.
+     Current docs now point at the Review200/Review201 ledgers instead of the
+     stale Review151 enumeration.
+   - Benefits: generated starter docs stay reproducible, and release-tracking
+     docs make the active 0/30 state explicit.
+
+Focused verification for Review201 passed: `pnpm typecheck`, `pnpm
+audit:public-api`, `pnpm audit:effect-first`, `pnpm vitest run
+packages/db/test/collection.test.ts` with 141 tests, `pnpm example:pack-dry-run`
+across all 16 package payloads, and fast generated starter packaging with
+network access for the generated non-workspace installs. Full `pnpm verify`
+passed after Review201: 11 package builds, workspace typecheck, public type
+tests, public API audit, Effect-first audit over 407 files, 53 root test files
+/ 1060 tests, package-level verifies, generated starter packaging, 16-target
+package dry-run gate, project-console checks, and leak scans. This sweep found
+work, so the active clean counter remains 0/30.
 
 ## Review 200: Public Runtime And Host Boundary Pins
 

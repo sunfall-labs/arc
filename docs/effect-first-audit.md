@@ -544,14 +544,19 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 200 `pnpm verify` run recorded in
+- The current full gate is the Review 201 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 406 files, 53 root test files / 1060 tests, package-level verifies,
+  over 407 files, 53 root test files / 1060 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
   evidence for the expression-position Promise static cleanup slice.
+- Review 201 focused verification kept `pnpm audit:effect-first` green over 407
+  package/example/config/script/type-test/docs/generated virtual files after
+  moving duplicated script child-process runners behind one Effect v4
+  `ChildProcess.Command` host Adapter and reusing Core's Promise rejection type
+  helper for DB nested group-key types.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
   passed after the first cleanup pass.
 - `pnpm exec vitest run packages/db/test/live-query-collection.test.ts packages/solid-db/test/solid-db.test.ts`
@@ -1347,10 +1352,10 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 200 public runtime and
-  host boundary pins: 11 package
+- The current full `pnpm verify` passed after the Review 201 script command,
+  Resource public-surface, router LSP, and DB contract pins: 11 package
   builds, workspace typecheck, type tests,
-  public API inventory audit, Effect-first audit over 406
+  public API inventory audit, Effect-first audit over 407
   package/example/config/script/type-test/generated/docs files, 53 root test
   files / 1060 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,

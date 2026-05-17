@@ -6683,6 +6683,17 @@ describe("Query", () => {
               { count: Query.count((() => promised("present")) as never) }
             )
             .select((group) => group.count)
+      },
+      {
+        operation: "aggregate",
+        factory: (query) =>
+          query
+            .from({ project: Projects })
+            .groupBy(
+              (({ project }) => ({ status: project.status, asyncKey: promised("active") })) as never,
+              { count: Query.count() }
+            )
+            .select((group) => group.count)
       }
     ];
 

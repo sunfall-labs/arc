@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import { spawn } from "node:child_process";
 import { readFile, readdir, stat } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
+import { runScriptCommandEffect } from "./effect-command-runner.mjs";
 import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
 import {
   starterCatalogConsistencyEffect,
@@ -681,61 +681,30 @@ const workspacePackageTargets = collectWorkspacePackageManifests(workspaceRoot).
 );
 
 const commandEffect = (description, command, args, options = {}) =>
-  Effect.callback((resume) => {
-    const child = spawn(command, args, {
-      cwd: options.cwd ?? workspaceRoot,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    let stdout = "";
-    let stderr = "";
-
-    child.stdout?.setEncoding("utf8");
-    child.stderr?.setEncoding("utf8");
-    child.stdout?.on("data", (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr?.on("data", (chunk) => {
-      stderr += chunk;
-    });
-    child.on("error", (cause) =>
-      resume(
-        Effect.fail(
-          fail(
-            `Failed to run ${description}.`,
-            "Ensure pnpm is available on PATH and package metadata is valid.",
-            cause,
-          ),
-        ),
-      ),
-    );
-    child.on("close", (code) => {
-      if (code === 0) {
-        resume(Effect.succeed({ stdout, stderr }));
-        return;
-      }
-
-      resume(
-        Effect.fail(
-          fail(
-            `Command failed while running ${description}.`,
-            [
-              `Command: ${command} ${args.join(" ")}`,
-              `Exit code: ${code}`,
-              stdout.trim() === "" ? undefined : `stdout: ${stdout.trim()}`,
-              stderr.trim() === "" ? undefined : `stderr: ${stderr.trim()}`,
+  runScriptCommandEffect(command, args, {
+    cwd: options.cwd ?? workspaceRoot,
+    env: {
+      ...process.env,
+      ...options.env,
+    },
+  }).pipe(
+    Effect.mapError((error) =>
+      fail(
+        error.code === undefined
+          ? `Failed to run ${description}.`
+          : `Command failed while running ${description}.`,
+        error.code === undefined
+          ? "Ensure pnpm is available on PATH and package metadata is valid."
+          : [
+              `Command: ${error.commandText}`,
+              `Exit code: ${error.code}`,
+              error.stdout.trim() === "" ? undefined : `stdout: ${error.stdout.trim()}`,
+              error.stderr.trim() === "" ? undefined : `stderr: ${error.stderr.trim()}`,
             ].filter(Boolean).join(" "),
-            { code, stdout, stderr },
-          ),
-        ),
-      );
-    });
-
-    return Effect.sync(() => {
-      if (!child.killed) {
-        child.kill();
-      }
-    });
-  });
+        error,
+      )
+    )
+  );
 
 const parsePackOutput = (target, stdout) =>
   Effect.gen(function* () {

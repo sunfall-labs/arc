@@ -436,7 +436,8 @@ export const publicHoverDocGroups = [
       "QueryPlanJoinDiagnostics",
       "QueryPlanDiagnostics",
       "QueryExecution",
-      "QueryAggregate"
+      "QueryAggregate",
+      "QueryGroupKey"
     ]
   },
   {
@@ -453,6 +454,7 @@ export const publicHoverDocGroups = [
         "PlanJoinDiagnostics",
         "PlanDiagnostics",
         "Root",
+        "GroupKey",
         "Aggregate",
         "Aggregates",
         "AggregateResult"
@@ -635,8 +637,23 @@ export const publicHoverDocGroups = [
   {
     file: "packages/react/src/router.ts",
     declarations: [
+      "BrowserRouter",
       "BrowserRouterOptions",
-      "RouterProviderProps"
+      "RouterProviderProps",
+      "RouterOutletProps",
+      "RouterContextMissing",
+      "createBrowserRouter",
+      "useRouter",
+      "RouterOutlet",
+      "RouterProvider"
+    ]
+  },
+  {
+    file: "packages/react/src/link.ts",
+    declarations: [
+      "RouterLinkProps",
+      "isPlainLeftClick",
+      "RouterLink"
     ]
   },
   {
@@ -654,8 +671,23 @@ export const publicHoverDocGroups = [
   {
     file: "packages/solid/src/router.ts",
     declarations: [
+      "BrowserRouter",
       "BrowserRouterOptions",
-      "RouterProviderProps"
+      "RouterProviderProps",
+      "RouterOutletProps",
+      "RouterContextMissing",
+      "createBrowserRouter",
+      "useRouter",
+      "RouterOutlet",
+      "RouterProvider"
+    ]
+  },
+  {
+    file: "packages/solid/src/link.ts",
+    declarations: [
+      "RouterLinkProps",
+      "isPlainLeftClick",
+      "RouterLink"
     ]
   },
   {

@@ -65,12 +65,12 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 200:
+Latest full gate on May 17, 2026 after Review 201:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 406 package/example/config/script/type-test/generated
+- Effect-first audit over 407 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
 - 53 root test files / 1060 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
@@ -94,6 +94,15 @@ Latest full gate on May 16, 2026 after Review 200:
   fork/listener setup failures and rejects invalid erased handler values as
   typed `StartDevServerError`; Start CLI process writers are owned by `cli.ts`;
   and Start Vite expert host seam types are pinned in public type tests.
+- Review 201 closed the first post-Review200 sweep findings: workspace scripts
+  share an Effect v4 `ChildProcess.Command` runner behind one Node host Adapter;
+  generated starter docs reject unpinned `@latest` CLI instructions; Core keeps
+  the internal `ResourceCollector` out of the root export while pinning
+  `Resource.collectEffect(...)` / `Resource.Collected`; React and Solid router
+  type tests plus hover policy now cover links, outlets, `useRouter`, errors,
+  state, and route/path helper types; DB group keys reject nested
+  Promise-shaped values, bare `AnyCollection` erases to `unknown`, and
+  change-feed unsubscribe cleanup preserves serviceful Effects.
 - Review 199 closed the first post-Review198 sweep findings: Solid browser
   router derives its public host controller Interface from the Core controller
   projection while keeping Solid accessors local; React DB public docs/type
@@ -162,9 +171,9 @@ Latest full gate on May 16, 2026 after Review 200:
   first post-Review196 sweep found Review197 work, and the first
   post-Review197 sweep found Review198 work, and the first post-Review198 sweep
   found Review199 work, and the first post-Review199 sweep found Review200
-  work. The
+  work, and the first post-Review200 sweep found Review201 work. The
   active Thirty-Sweep clean counter is reset to
-  0/30 until a fresh post-Review200 sweep reports no
+  0/30 until a fresh post-Review201 sweep reports no
   actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
@@ -1100,15 +1109,15 @@ Latest full gate on May 16, 2026 after Review 200:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 200 public runtime and host
-  boundary pins.
+- The latest full `pnpm verify` passed after Review 201 script command,
+  Resource public-surface, router LSP, and DB contract pins.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
-  Review196, Review197, Review198, Review199, and Review200 work, leaving the
+  Review196, Review197, Review198, Review199, Review200, and Review201 work, leaving the
   active counter at 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 406 physical/virtual files, 53 root test files / 1060
+  Effect-first audit over 407 physical/virtual files, 53 root test files / 1060
   tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console

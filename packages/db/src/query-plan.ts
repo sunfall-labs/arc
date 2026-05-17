@@ -160,6 +160,18 @@ export interface QueryAggregate<TContext, R, V = unknown> {
 
 export type QueryAggregateRecord<TContext> = Record<string, QueryAggregate<TContext, any, any>>;
 export type AnyQueryAggregateRecord = QueryAggregateRecord<any>;
+/** Recursively rejects Promise-shaped values inside a `Query.groupBy(...)` key object. */
+export type RejectPromiseLikeRecord<Value> =
+  [RejectPromiseLikeValue<Value>] extends [never]
+    ? never
+    : Value extends readonly (infer Item)[]
+      ? readonly RejectPromiseLikeRecord<Item>[]
+      : Value extends Record<string, unknown>
+        ? { readonly [Key in keyof Value]: RejectPromiseLikeRecord<Value[Key]> }
+        : Value;
+/** Public grouped-query key shape accepted by `Query.groupBy(...)`. */
+export type QueryGroupKey<TKey extends Record<string, unknown> = Record<string, unknown>> =
+  TKey & RejectPromiseLikeRecord<TKey>;
 export type QueryAggregateResult<
   TKey extends Record<string, unknown>,
   Aggregates extends AnyQueryAggregateRecord
@@ -232,15 +244,101 @@ const isPromiseShapedQueryValue = (value: unknown): boolean => {
   return typeof Reflect.get(value as object, "then") === "function";
 };
 
+const queryGroupKeyPathSegment = (key: string): string =>
+  /^[A-Za-z_$][\w$]*$/.test(key)
+    ? `.${key}`
+    : `[${JSON.stringify(key)}]`;
+
+const promiseShapedQueryValuePath = (
+  value: unknown,
+  path = "$",
+  active = new WeakSet<object>()
+): string | undefined => {
+  if (isPromiseShapedQueryValue(value)) {
+    return path;
+  }
+  if (value === null || typeof value !== "object") {
+    return undefined;
+  }
+  if (
+    value instanceof Date ||
+    value instanceof URL ||
+    value instanceof ArrayBuffer ||
+    value instanceof DataView ||
+    ArrayBuffer.isView(value)
+  ) {
+    return undefined;
+  }
+  if (active.has(value)) {
+    return undefined;
+  }
+
+  active.add(value);
+  try {
+    if (Array.isArray(value)) {
+      for (let index = 0; index < value.length; index++) {
+        const found = promiseShapedQueryValuePath(value[index], `${path}[${index}]`, active);
+        if (found !== undefined) {
+          return found;
+        }
+      }
+      return undefined;
+    }
+    if (value instanceof Map) {
+      let index = 0;
+      for (const [key, entryValue] of value.entries()) {
+        const keyPath = promiseShapedQueryValuePath(key, `${path}.<key:${index}>`, active);
+        if (keyPath !== undefined) {
+          return keyPath;
+        }
+        const valuePath = promiseShapedQueryValuePath(entryValue, `${path}.<value:${index}>`, active);
+        if (valuePath !== undefined) {
+          return valuePath;
+        }
+        index++;
+      }
+      return undefined;
+    }
+    if (value instanceof Set) {
+      let index = 0;
+      for (const entryValue of value.values()) {
+        const found = promiseShapedQueryValuePath(entryValue, `${path}.<value:${index}>`, active);
+        if (found !== undefined) {
+          return found;
+        }
+        index++;
+      }
+      return undefined;
+    }
+
+    const object = value as Record<string, unknown>;
+    for (const key of Object.keys(object)) {
+      const propertyPath = `${path}${queryGroupKeyPathSegment(key)}`;
+      const found = promiseShapedQueryValuePath(
+        Reflect.get(object, key),
+        propertyPath,
+        active
+      );
+      if (found !== undefined) {
+        return found;
+      }
+    }
+    return undefined;
+  } finally {
+    active.delete(value);
+  }
+};
+
 const promiseShapedQueryCallbackError = (
-  operation: QueryEvaluationOperation
+  operation: QueryEvaluationOperation,
+  path = "$"
 ): QueryEvaluationError =>
   new QueryEvaluationError({
     operation,
     cause: new QueryCallbackPromiseRejected({
       guidance: "Query callbacks are synchronous. Move async work into collection load/refetch/sync adapters, or wrap host Promise work in an Effect before it reaches Query evaluation."
     }),
-    message: `Query ${operation} callbacks must return synchronous values, not Promise-shaped values.`
+    message: `Query ${operation} callbacks must return synchronous values, not Promise-shaped values at ${path}.`
   });
 
 export const evaluateQueryOperation = <A>(
@@ -265,7 +363,13 @@ export const evaluateQueryJoinKey = (value: QueryJoinKey): string =>
   evaluateQueryOperation("join", () => joinKey(value));
 
 export const evaluateQueryGroupKey = (value: Record<string, unknown>): string =>
-  evaluateQueryOperation("aggregate", () => stableStringify(value));
+  evaluateQueryOperation("aggregate", () => {
+    const promisePath = promiseShapedQueryValuePath(value);
+    if (promisePath !== undefined) {
+      throw promiseShapedQueryCallbackError("aggregate", promisePath);
+    }
+    return stableStringify(value);
+  });
 
 const reservedQuerySourceAliases = new Set(["__proto__", "constructor", "prototype"]);
 

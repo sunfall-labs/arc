@@ -34,12 +34,16 @@ import {
   serverCollectionSyncAdapter,
   snapshotCollectionReactiveDeps,
   subscribeCollectionReactiveSource,
+  type AnyCollection,
   type CollectionBackgroundSyncResult,
+  type CollectionError,
+  type CollectionRequirements,
   type CollectionReactiveLiveQueryInput,
   type CollectionReactiveLiveQuerySelection,
   type CollectionReactivePreloadController,
   type CollectionReactivePreloadControllerOptions,
   type FlushCollectionPendingMutationsResult,
+  type QueryGroupKey,
   type ServerCollectionDeletePayload,
   type ServerCollectionInsertPayload,
   type ServerCollectionOperation,
@@ -73,6 +77,10 @@ interface DbAdapterService {
 declare const sqliteStatementDatabase: SQLiteStatementDatabase<SQLitePersistenceInvalidRow>;
 declare const sqlitePreparedStatementDatabase: SQLitePreparedStatementDatabase;
 declare const dbProjectsCollection: Collection.Definition<Project, string, "load", DbRuntimeService>;
+declare const erasedCollection: AnyCollection;
+declare const erasedCollectionError: CollectionError<typeof erasedCollection>;
+declare const erasedCollectionRequirements: CollectionRequirements<typeof erasedCollection>;
+declare const dbAdapterCleanupEffect: Effect.Effect<void, "unsubscribe", DbAdapterService>;
 const sqliteStorage = makeSQLitePersistenceStorage(
   makeSQLiteStatementPersistenceDriver(sqliteStatementDatabase)
 );
@@ -159,6 +167,11 @@ type DbReactivePins =
   | CollectionReactiveLiveQuerySelection<Project, never, never, unknown>
   | CollectionReactivePreloadController<never>
   | CollectionReactivePreloadControllerOptions<never>;
+type DbErasedCollectionPins =
+  | AnyCollection
+  | CollectionError<typeof dbProjectsCollection>
+  | CollectionRequirements<typeof dbProjectsCollection>
+  | QueryGroupKey<{ readonly status: string; readonly meta: { readonly active: boolean } }>;
 type DbServerPins =
   | ServerCollectionOptions<Project>
   | ServerCollectionOperation<void, ReadonlyArray<Project>>
@@ -202,12 +215,43 @@ const collectionBackgroundSyncErrorPin:
   | EffectInputCallbackError = collectionBackgroundSyncError;
 const collectionBackgroundSyncRequirementsPin: DbRuntimeService | DbAdapterService | DbSkipService =
   collectionBackgroundSyncRequirements;
+const concreteCollectionErrorPin: "load" = null as never as CollectionError<typeof dbProjectsCollection>;
+const concreteCollectionRequirementsPin: DbRuntimeService =
+  null as never as CollectionRequirements<typeof dbProjectsCollection>;
+// @ts-expect-error erased collection errors default to unknown, not an arbitrary string.
+const erasedCollectionErrorString: string = erasedCollectionError;
+// @ts-expect-error erased collection requirements default to unknown, not an arbitrary service.
+const erasedCollectionRequirementsService: DbRuntimeService = erasedCollectionRequirements;
+const changeFeedUnsubscribeWithServices: Collection.ChangeFeedUnsubscribe<"unsubscribe", DbAdapterService> = () =>
+  dbAdapterCleanupEffect;
+const servicefulChangeFeedAdapter: Collection.ChangeFeedAdapter<
+  Project,
+  string,
+  "feed" | "unsubscribe",
+  DbAdapterService,
+  "load",
+  DbRuntimeService
+> = {
+  name: "projects-serviceful-feed",
+  subscribe: () => ({
+    unsubscribe: changeFeedUnsubscribeWithServices
+  })
+};
+const servicefulChangeFeedEffect: Effect.Effect<
+  void,
+  Collection.RuntimeError<"load"> | "feed" | "unsubscribe",
+  DbRuntimeService | DbAdapterService | Scope.Scope
+> = Collection.subscribeChangesEffect(dbProjectsCollection, servicefulChangeFeedAdapter);
 void dbExports;
 void collectionFlushErrorPin;
 void collectionFlushRequirementsPin;
 void collectionBackgroundSyncErrorPin;
 void collectionBackgroundSyncRequirementsPin;
+void concreteCollectionErrorPin;
+void concreteCollectionRequirementsPin;
+void servicefulChangeFeedEffect;
 type _DbErrors = DbErrors;
 type _DbReactivePins = DbReactivePins;
+type _DbErasedCollectionPins = DbErasedCollectionPins;
 type _DbServerPins = DbServerPins;
 type _DbFlushPins = DbFlushPins;

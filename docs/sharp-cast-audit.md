@@ -56,6 +56,12 @@ zero hits.
   and Solid-DB delayed-cleanup runtime test helpers, project-console runtime
   helpers, and public type-test assertion fixtures. Treat those as explicit
   review targets, not as hidden cleanup debt.
+- DB flush/background-sync helpers retain a named Effect result assertion at
+  the heterogeneous collection coordination boundary. The loop yields
+  `AnyCollection` handles while the public return type computes the precise
+  union from the caller's `Collections` iterable, so the cast is localized to
+  the boundary where TypeScript cannot connect the erased iteration value back
+  to the conditional public channel aliases.
 - DB query builder variance no longer appears in the broad `as unknown as`
   sweep: `QueryBuilder` carries predicate and ordering functions across
   context-widening joins through `NextContext extends TContext`, and its
@@ -147,9 +153,9 @@ zero hits.
 
 ## Verification Evidence
 
-The current full verification gate is recorded in the Review 200 ledgers: 11
+The current full verification gate is recorded in the Review 201 ledgers: 11
 package builds, workspace typecheck, type tests, public API inventory audit,
-Effect-first audit over 406 files, 53 root test files / 1060 tests,
+Effect-first audit over 407 files, 53 root test files / 1060 tests,
 package-level verifies, generated starter-suite packaging/verifies for
 basic/react/project-console, 16-target package dry-run gate, project-console
 typecheck, 4 project-console test files / 27 tests, build, and leak scans. The

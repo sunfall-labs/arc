@@ -1,7 +1,6 @@
 import { EffectInputCallbackError } from "@effect-ui/core";
 import { Effect, Data, Schema } from "effect";
 import type {
-  CollectionDefinition,
   CollectionHydrateOptions,
   CollectionHydrationPayload,
   CollectionKey,
@@ -29,6 +28,14 @@ import {
   cloneFrozenCollectionTransaction,
   collectionValueChanges
 } from "./collection-value-detachment.js";
+
+interface CollectionSnapshotDefinition<A extends object, K extends CollectionKey> {
+  readonly name: string;
+  readonly options: {
+    readonly output?: unknown;
+  };
+  getKey(value: A): K;
+}
 
 export type CollectionSnapshotCodecOperation =
   | "decode"
@@ -495,8 +502,8 @@ export const decodeCollectionOutputValuesSync = <A extends object>(
   }
 };
 
-const decodeCollectionDefinitionValuesEffect = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
+const decodeCollectionDefinitionValuesEffect = <A extends object, K extends CollectionKey>(
+  definition: CollectionSnapshotDefinition<A, K>,
   values: ReadonlyArray<A>,
   operation: CollectionSnapshotCodecOperation,
   path: string
@@ -506,8 +513,8 @@ const decodeCollectionDefinitionValuesEffect = <A extends object, K extends Coll
 const describeCollectionKey = (key: CollectionKey): string =>
   typeof key === "string" ? JSON.stringify(key) : String(key);
 
-const collectionDefinitionKeyEffect = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
+const collectionDefinitionKeyEffect = <A extends object, K extends CollectionKey>(
+  definition: CollectionSnapshotDefinition<A, K>,
   value: A,
   operation: CollectionSnapshotCodecOperation,
   path: string
@@ -522,8 +529,8 @@ const collectionDefinitionKeyEffect = <A extends object, K extends CollectionKey
       })
   });
 
-const validateCollectionValueKeyEffect = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
+const validateCollectionValueKeyEffect = <A extends object, K extends CollectionKey>(
+  definition: CollectionSnapshotDefinition<A, K>,
   snapshotKey: K,
   value: A,
   operation: CollectionSnapshotCodecOperation,
@@ -541,8 +548,8 @@ const validateCollectionValueKeyEffect = <A extends object, K extends Collection
     }
   });
 
-export const validateCollectionSnapshotDefinitionEffect = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
+export const validateCollectionSnapshotDefinitionEffect = <A extends object, K extends CollectionKey>(
+  definition: CollectionSnapshotDefinition<A, K>,
   value: CollectionSnapshot<A, K>,
   operation: CollectionSnapshotCodecOperation = "hydrate",
   path = "$"

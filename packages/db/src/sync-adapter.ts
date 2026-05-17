@@ -157,15 +157,15 @@ export interface CollectionQuerySyncAdapterOptions<
 /**
  * Effect-aware unsubscribe callback for change-feed subscriptions.
  */
-export type CollectionChangeFeedUnsubscribe = () => EffectInput<void, never, never>;
+export type CollectionChangeFeedUnsubscribe<E = never, R = never> = () => EffectInput<void, E, R>;
 
 /**
  * Value returned by a change-feed subscribe call.
  */
-export type CollectionChangeFeedSubscription =
-  | CollectionChangeFeedUnsubscribe
+export type CollectionChangeFeedSubscription<E = never, R = never> =
+  | CollectionChangeFeedUnsubscribe<E, R>
   | {
-      readonly unsubscribe: CollectionChangeFeedUnsubscribe;
+      readonly unsubscribe: CollectionChangeFeedUnsubscribe<E, R>;
     }
   | void;
 
@@ -214,7 +214,7 @@ export interface CollectionChangeFeedAdapter<
   readonly name: string;
   readonly subscribe: (
     context: CollectionChangeFeedContext<A, K, CollectionError, CollectionRequirements>
-  ) => EffectInput<CollectionChangeFeedSubscription, E, R>;
+  ) => EffectInput<CollectionChangeFeedSubscription<E, R>, E, R>;
 }
 
 /**
@@ -441,8 +441,8 @@ export namespace CollectionSync {
   export type QueryAdapterOptions<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionQuerySyncAdapterOptions<A, K, E, R>;
   export type QueryMutationInvalidationPolicy = CollectionQuerySyncMutationInvalidationPolicy;
-  export type ChangeFeedUnsubscribe = CollectionChangeFeedUnsubscribe;
-  export type ChangeFeedSubscription = CollectionChangeFeedSubscription;
+  export type ChangeFeedUnsubscribe<E = never, R = never> = CollectionChangeFeedUnsubscribe<E, R>;
+  export type ChangeFeedSubscription<E = never, R = never> = CollectionChangeFeedSubscription<E, R>;
   export type ChangeFeedContext<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionChangeFeedContext<A, K, E, R>;
   export type ChangeFeedAdapter<

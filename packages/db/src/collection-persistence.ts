@@ -380,10 +380,17 @@ export const restoreCollectionEffect = <A extends object, K extends CollectionKe
 ): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR> =>
   Effect.asVoid(restoreCollectionSnapshotEffect(definition, storage, options, storeEffect, store));
 
-export const collectionPersistenceConfig = <A extends object, K extends CollectionKey, E, R>(
+export function collectionPersistenceConfig<A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>
-): CollectionPersistenceConfig<E, R> | undefined =>
-  definition.options.persistence;
+): CollectionPersistenceConfig<E, R> | undefined;
+export function collectionPersistenceConfig(
+  definition: AnyCollection
+): CollectionPersistenceConfig<any, any> | undefined;
+export function collectionPersistenceConfig(
+  definition: AnyCollection
+): CollectionPersistenceConfig<any, any> | undefined {
+  return definition.options.persistence;
+}
 
 export const collectionPersistencePersistOptions = <E, R>(
   config: CollectionPersistenceConfig<E, R>
@@ -395,7 +402,7 @@ export const collectionPersistenceRestoreOptions = <E, R>(
   config: CollectionPersistenceConfig<E, R>
 ): CollectionPersistOptions & CollectionHydrateOptions => ({
   ...collectionPersistencePersistOptions(config),
-  ...(config.hydrate ?? {})
+  ...(config.hydrate === false ? {} : config.hydrate ?? {})
 });
 
 /**

@@ -103,6 +103,10 @@ import {
   type ResourceUiSuspensePreloadOptions,
   type RuntimeUiScopeFrame
 } from "@effect-ui/core";
+// @ts-expect-error ResourceCollector is an internal preload planning service, not a root export.
+type ResourceCollectorIsInternal = typeof import("@effect-ui/core").ResourceCollector;
+// @ts-expect-error ResourceCollected is exposed as Resource.Collected, not as a root export.
+type ResourceCollectedIsNamespaced = import("@effect-ui/core").ResourceCollected;
 
 const runtime = makeRuntime();
 const requestRuntime = withResourceStore(runtime, makeResourceStore());
@@ -251,6 +255,13 @@ const typeTestResource = Resource.family<string, string, string>({
   load: (id) => Effect.succeed(id)
 });
 const typeTestResourceRef = typeTestResource("atlas");
+const collectedResourceEffect: Effect.Effect<Resource.Collected<string>, Resource.LoadError<string>> =
+  Resource.collectEffect(Resource.prefetchEffect(typeTestResourceRef));
+Effect.map(collectedResourceEffect, (collected) => {
+  const value: string = collected.value;
+  collected.refs.map((ref) => ref.key);
+  return value;
+});
 const resourceUiBindingControllerOptions: ResourceUiBindingControllerOptions<string, string, string, never, never> = {
   runtime: browserRouterKernelRuntime,
   onPreloadFailureChange: () => undefined

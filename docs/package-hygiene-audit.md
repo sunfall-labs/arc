@@ -127,13 +127,19 @@ exports. It supports the release-engineering charter workstream.
   all 16 package payloads: 11 framework dist packages, 19 basic starter files,
   24 React starter files, 30 project-console files, 10 devtools panel files,
   and 15 devtools extension files.
-- The current full `pnpm verify` passed after Review200 with 11 package builds,
+- The current full `pnpm verify` passed after Review201 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 406 files, 53 root test files / 1060 tests, derived
+  Effect-first audit over 407 files, 53 root test files / 1060 tests, derived
   package-level verifies for the five copyable source packages, generated
   starter packaging, and the 16-target dry-run gate. Review179 remains the
   focused package-hygiene evidence for concrete source-map artifact validation
   and source-package verify-script enforcement.
+- Review201 focused package hygiene passed `pnpm example:pack-dry-run` across
+  all 16 package payloads and fast generated starter packaging/verifies for the
+  basic/react/project-console starters after moving script command execution to
+  the shared Effect v4 command runner, adding generated-starter child-command
+  progress, and guarding source/generated starter READMEs against unpinned
+  `@latest` CLI instructions.
 - Review179 focused `pnpm example:pack-dry-run` passed across all 16 package
   payloads after adding concrete source-map artifact validation and source
   package verify-script enforcement: core 201 files, db 149, devtools 65,

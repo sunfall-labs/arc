@@ -3127,6 +3127,18 @@ Query.live((query) =>
     )
 );
 
+Query.live((query) =>
+  query
+    .from({ project: ProjectsCollection })
+    .groupBy(
+      // @ts-expect-error Query group keys must not contain nested Promise-shaped values
+      ({ project }) => ({ name: project.name, asyncKey: promisedString }),
+      {
+        count: Query.count()
+      }
+    )
+);
+
 const projectsHandle = useCollection(ProjectsCollection);
 projectsHandle.rows().map((project) => project.name);
 projectsHandle.get("atlas")?.name.toUpperCase();

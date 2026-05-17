@@ -331,6 +331,7 @@ export type {
   QueryAggregateRecord,
   QueryAggregateResult,
   QueryEvaluationOperation,
+  QueryGroupKey,
   QueryJoinKey,
   QueryJoinStrategy,
   QueryPlanDiagnostics,
@@ -519,9 +520,9 @@ export namespace Collection {
   /** Policy for invalidating query-sync caches after mutations. */
   export type QuerySyncMutationInvalidationPolicy = CollectionQuerySyncMutationInvalidationPolicy;
   /** Cleanup callback returned by collection change feeds. */
-  export type ChangeFeedUnsubscribe = CollectionChangeFeedUnsubscribe;
+  export type ChangeFeedUnsubscribe<E = never, R = never> = CollectionChangeFeedUnsubscribe<E, R>;
   /** Active remote change-feed subscription. */
-  export type ChangeFeedSubscription = CollectionChangeFeedSubscription;
+  export type ChangeFeedSubscription<E = never, R = never> = CollectionChangeFeedSubscription<E, R>;
   /** Context passed to change-feed adapters. */
   export type ChangeFeedContext<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionChangeFeedContext<A, K, E, R>;

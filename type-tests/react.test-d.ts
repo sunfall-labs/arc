@@ -10,7 +10,11 @@ import {
 } from "@effect-ui/core";
 import { Effect, Stream } from "effect";
 import {
+  RouterContextMissing,
+  RouterLink,
+  RouterOutlet,
   RouterProvider,
+  RouterRouteNotRegistered,
   RuntimeProvider,
   createBrowserRouter,
   useAction,
@@ -20,17 +24,23 @@ import {
   useResourceResult,
   useResourceSuspense,
   useResourceValue,
+  useRouter,
   useRuntime,
   useRuntimeEffect,
   useSignal,
   useStream,
   type ActionHandle,
+  type BrowserNavigateArgs,
   type BrowserRouter,
+  type BrowserRouterPath,
   type BrowserRouterOptions,
+  type BrowserRouterRouteForPath,
+  type BrowserRouterState,
   type ProgramHandle,
   type ResourceHandle,
   type ResourceMatch,
   type ResourceSuccessMeta,
+  type RouterLinkProps,
   type RouterProviderProps,
   type RouterOutletProps,
   type RuntimeEffectRunner,
@@ -48,6 +58,24 @@ const reactBrowserOptions: BrowserRouterOptions<typeof reactRoutes> = {
   history: reactHistory,
   hydrating: true
 };
+const reactRouter: BrowserRouter<typeof reactRoutes> = createBrowserRouter(reactRoutes, {
+  history: reactHistory,
+  hydrating: true
+});
+const reactRouterFromHook: BrowserRouter<typeof reactRoutes> = useRouter<typeof reactRoutes>();
+const reactRouterState: BrowserRouterState<typeof reactRoutes> = reactRouter.state.get();
+const reactRoutePath: BrowserRouterPath<typeof reactRoutes> = "/";
+type ReactRouteForHome = BrowserRouterRouteForPath<typeof reactRoutes, typeof reactRoutePath>;
+const reactRouteForPath: ReactRouteForHome = reactRoutes[0];
+const reactNavigateArgs: BrowserNavigateArgs<typeof reactRoutes[0]> = [];
+const reactRouterLinkProps: RouterLinkProps<typeof reactRoutes[0]> = {
+  route: reactRoutes[0],
+  children: "Home"
+};
+const reactRouterLinkNode = RouterLink(reactRouterLinkProps);
+const reactRouterOutletNode = RouterOutlet<typeof reactRoutes>({});
+const reactContextMissing = new RouterContextMissing({ hook: "useRouter" });
+const reactRouteNotRegistered = new RouterRouteNotRegistered({ path: "/" });
 const reactProviderProps: RouterProviderProps<typeof reactRoutes> = {
   routes: reactRoutes,
   history: reactHistory,
@@ -115,7 +143,11 @@ const reactActionStateTag:
 reactAction.instance.state.get()._tag;
 reactAction.invalidationPlan?.entries.map((entry) => entry.ref.key);
 const reactExports: Array<unknown> = [
+  RouterContextMissing,
+  RouterLink,
+  RouterOutlet,
   RouterProvider,
+  RouterRouteNotRegistered,
   RuntimeProvider,
   createBrowserRouter,
   useAction,
@@ -125,10 +157,22 @@ const reactExports: Array<unknown> = [
   useResourceError,
   useResourceResult,
   useResourceValue,
+  useRouter,
   useRuntime,
   useRuntimeEffect,
   useSignal,
   useStream,
+  reactRouter,
+  reactRouterFromHook,
+  reactRouterState,
+  reactRoutePath,
+  reactRouteForPath,
+  reactNavigateArgs,
+  reactRouterLinkProps,
+  reactRouterLinkNode,
+  reactRouterOutletNode,
+  reactContextMissing,
+  reactRouteNotRegistered,
   reactRuntime,
   reactRuntimeFiber,
   reactProgramHandle,
@@ -147,6 +191,11 @@ const reactExports: Array<unknown> = [
   reactProviderProps
 ];
 type ReactRouter = BrowserRouter | RouterOutletProps;
+type ReactRouterLinkProps = RouterLinkProps<typeof reactRoutes[0]>;
+type ReactBrowserNavigateArgs = BrowserNavigateArgs<typeof reactRoutes[0]>;
+type ReactBrowserRouterPath = BrowserRouterPath<typeof reactRoutes>;
+type ReactBrowserRouterRouteForPath = BrowserRouterRouteForPath<typeof reactRoutes, "/">;
+type ReactBrowserRouterState = BrowserRouterState<typeof reactRoutes>;
 type ReactBrowserRouterOptions = BrowserRouterOptions;
 type ReactRouterProviderProps = RouterProviderProps<typeof reactRoutes>;
 type ReactActionHandle = ActionHandle<{ readonly id: string }, { readonly ok: boolean }>;
@@ -156,6 +205,11 @@ type ReactUseResourceOptions = UseResourceOptions<never>;
 type ReactRuntimeEffectRunner = RuntimeEffectRunner;
 void reactExports;
 type _ReactRouter = ReactRouter;
+type _ReactRouterLinkProps = ReactRouterLinkProps;
+type _ReactBrowserNavigateArgs = ReactBrowserNavigateArgs;
+type _ReactBrowserRouterPath = ReactBrowserRouterPath;
+type _ReactBrowserRouterRouteForPath = ReactBrowserRouterRouteForPath;
+type _ReactBrowserRouterState = ReactBrowserRouterState;
 type _ReactBrowserRouterOptions = ReactBrowserRouterOptions;
 type _ReactRouterProviderProps = ReactRouterProviderProps;
 type _ReactActionHandle = ReactActionHandle;

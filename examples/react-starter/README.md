@@ -13,12 +13,6 @@ pnpm verify
 pnpm dev
 ```
 
-The project is ready for shadcn components:
-
-```sh
-pnpm dlx shadcn@latest add button
-```
-
 The checked starter includes a shadcn CLI-installed `Badge`, a Base UI
 primitive, file routes, route-owned Resource preload, SSR, browser hydration,
 and a production leak scan for server-only sentinels.

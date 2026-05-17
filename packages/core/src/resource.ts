@@ -67,8 +67,6 @@ export { isResourceRef, isResourceTag } from "./resource-dependency-graph.js";
 export { UnsupportedDuration } from "./resource-duration.js";
 export type { DurationInput } from "./resource-duration.js";
 export { ResourceTagIdentityTypeId, ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
-export { ResourceCollector } from "./resource-collector.js";
-export type { ResourceCollected } from "./resource-collector.js";
 export { MissingResourceInput, ResourceFailure, ResourceKeyError, ResourcePending } from "./resource-errors.js";
 
 /** Cache lifecycle policy for a resource family. */
@@ -425,6 +423,7 @@ export namespace Resource {
   export type Diagnostics = ResourceDiagnostics;
   export type RequestFamilyOptions<I, Req extends EffectRequest.Any, EX = never, RX = never> =
     ResourceRequestFamilyOptions<I, Req, EX, RX>;
+  /** Value returned from `collectEffect(...)` with the Resource refs touched by preload/read work. */
   export type Collected<A> = ResourceCollected<A>;
 
   /**
