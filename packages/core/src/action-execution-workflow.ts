@@ -21,7 +21,7 @@ import {
   invokeEffectInput,
   toEffect
 } from "./effect-like.js";
-import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
+import { validateResourceInvalidationsArraySync } from "./resource-dependency-graph.js";
 import type { ResourceInvalidation, ResourceInvalidationPlan } from "./resource.js";
 import {
   planResourceInvalidationEffect,
@@ -57,10 +57,10 @@ export const invalidationsFor = <I, A, E, R>(
   try {
     const invalidations = definition.invalidates === undefined
       ? []
-      : rejectPromiseLikeSyncCallbackValue(
+      : validateResourceInvalidationsArraySync(
           operation,
           definition.invalidates(value, input),
-          "Action invalidates callbacks must return invalidation metadata synchronously. Move host Promise work into the action run Effect."
+          "Action invalidates callbacks must return Resource refs or tags synchronously. Move host Promise work into the action run Effect."
         );
     return [
       ...invalidations,
@@ -85,10 +85,10 @@ export const invalidationsForEffect = <I, A, E, R>(
         const operation = `Action.invalidates(${definition.name})`;
         return definition.invalidates === undefined
           ? []
-          : rejectPromiseLikeSyncCallbackValue(
+          : validateResourceInvalidationsArraySync(
               operation,
               definition.invalidates(value, input),
-              "Action invalidates callbacks must return invalidation metadata synchronously. Move host Promise work into the action run Effect."
+              "Action invalidates callbacks must return Resource refs or tags synchronously. Move host Promise work into the action run Effect."
             );
       },
       catch: (cause) => actionCallbackError(`Action.invalidates(${definition.name})`, cause)

@@ -2128,6 +2128,73 @@ describe("devtools invalidation plans", () => {
     );
   });
 
+  it("uses Start preload semantics when deriving unknown route preload facts", () => {
+    const presentUnknownCollections: DevtoolsStartAppGraphDiagnostics["routeModules"][number] = {
+      ...appGraphDiagnostics.routeModules[0]!,
+      preload: "present",
+      preloadResources: {
+        status: "unknown",
+        families: []
+      },
+      preloadCollections: {
+        status: "unknown",
+        collections: []
+      }
+    };
+    const staticUnknownFacts: DevtoolsStartAppGraphDiagnostics["routeModules"][number] = {
+      ...appGraphDiagnostics.routeModules[0]!,
+      routeId: "route_static_unknown",
+      routePath: "/static",
+      moduleId: "src/routes/static.tsx",
+      filePath: "src/routes/static.tsx",
+      preload: "unknown",
+      preloadResources: {
+        status: "unknown",
+        families: ["Static.family"]
+      },
+      preloadCollections: {
+        status: "unknown",
+        collections: ["Static.collection"]
+      }
+    };
+    const staleAppGraph: DevtoolsStartAppGraphDiagnostics = {
+      ...appGraphDiagnostics,
+      routeModules: [presentUnknownCollections, staticUnknownFacts],
+      unknownRoutePreloadResources: [],
+      unknownRoutePreloadCollections: []
+    };
+    const store = makeDevtoolsStore();
+
+    store.setAppGraphDiagnostics(staleAppGraph);
+
+    const snapshotAppGraph = store.getSnapshot().appGraph;
+    expect(snapshotAppGraph?.unknownRoutePreloadResources.map((entry) => entry.routePath)).toEqual(["/users/:id"]);
+    expect(snapshotAppGraph?.unknownRoutePreloadCollections.map((entry) => entry.routePath)).toEqual(["/users/:id"]);
+    const summary = store.getSummary();
+    expect(summary.overview).toMatchObject({
+      unknownRoutePreloadResourcesCount: 1,
+      unknownRoutePreloadCollectionsCount: 1
+    });
+    expect(summary.graph._tag).toBe("Available");
+    if (summary.graph._tag !== "Available") {
+      expect.fail("Expected normalized app graph summary.");
+    }
+    expect(summary.graph.routes.unknownPreloadResources.map((entry) => entry.routePath)).toEqual(["/users/:id"]);
+    expect(summary.graph.routes.unknownPreloadCollections.map((entry) => entry.routePath)).toEqual(["/users/:id"]);
+    const diagnostics = store.getPanels().panels.find((panel) => panel.id === "diagnostics")?.items ?? [];
+    expect(diagnostics).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "unknown-preload-collections:route_users_$id",
+        label: "/users/:id"
+      })
+    ]));
+    expect(diagnostics).not.toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        label: "/static"
+      })
+    ]));
+  });
+
   it("derives a deterministic causal graph from routes, resources, actions, schemas, and runtime events", async () => {
     const UserTag = Resource.tag<{ readonly id: string }>("User.causal-devtools", {
       key: ({ id }) => id

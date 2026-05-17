@@ -1,11 +1,11 @@
 # Docs Drift Audit
 
-Last updated: 2026-05-16.
+Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review212, the latest full
-`pnpm verify` gate passed with 53 root test files / 1076 tests, and the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review212 sweep reports
+and `docs/perfection-progress.md`. As of Review215, the latest full
+`pnpm verify` gate passed with 53 root test files / 1100 tests, and the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review215 sweep reports
 no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -550,8 +550,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   Codec extraction. Current docs now record that JSON/form action request
   encoding and decoding live in `start-action-request-codec.ts`.
 - Added Review 114 and progress entry 353 evidence for the Start diagnostics
-  CLI query-kind subcommand cleanup. Current docs now record that graph/impact
-  query kinds are real nested Effect v4 `Command` values.
+  CLI query-kind cleanup. Current docs now record that graph/impact query kinds
+  are parser vocabulary for variadic `[kind] [query]` arguments, while the CLI
+  Command tree stays at graph/impact.
 - Added Review 115 and progress entry 354 evidence for the Start Vite
   Diagnostics Loader extraction. Current docs now record that temporary Vite
   diagnostics loading lives in `start-vite-diagnostics-loader.ts`.

@@ -394,6 +394,42 @@ describe("Collection.liveQuery", () => {
       })
     ));
 
+  it("rejects nested Promise-shaped live query collection projections", () => {
+    const Projects = Collection.define<Project>({
+      name: "Projects.live-query-collection.nested-promise-projection",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ]
+    });
+    const promised = <A,>(value: A): A =>
+      Effect.runPromise(Effect.succeed(value)) as never;
+    const ProjectCards = Collection.liveQuery<{
+      readonly id: string;
+      readonly nested: { readonly value: string };
+    }, string>({
+      name: "ProjectCards.live-query-collection.nested-promise-projection",
+      getKey: (card) => card.id,
+      query: (query) =>
+        query
+          .from({ project: Projects })
+          .select((({ project }) => ({
+            id: project.id,
+            nested: { value: promised(project.name) }
+          })) as never)
+    });
+
+    expect(ProjectCards.rows()).toEqual([]);
+    expect(ProjectCards.state().get()).toMatchObject({
+      _tag: "Failure",
+      waiting: false,
+      error: {
+        _tag: "QueryEvaluationError",
+        operation: "projection"
+      }
+    });
+  });
+
   it("exposes live query results as a read-only collection", () => {
     const Projects = Collection.define<Project>({
       name: "Projects.live-query-collection.source",

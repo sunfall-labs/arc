@@ -7,7 +7,7 @@ type PromiseShapedMember<Out> = Out extends unknown
   ? Out extends PromiseLike<unknown> ? Out : CallableThenableMember<Out>
   : never;
 type EffectShapedMember<Out> = Out extends unknown
-  ? Out extends Effect.Effect<unknown, unknown, unknown> ? Out : never
+  ? Out extends Error ? never : Out extends Effect.Effect<unknown, unknown, unknown> ? Out : never
   : never;
 
 type HasPromiseLike<Out> = [unknown] extends [Out]
@@ -50,12 +50,25 @@ type DirectEffectInputValue<A> =
         : HasEffectLike<A> extends true ? never : A;
 
 /**
+ * Plain data accepted by non-executable public seams.
+ *
+ * Promise-shaped values must be adapted through `Effect.tryPromise(...)`.
+ * Direct Effect values are interpreted as executable work at EffectInput seams,
+ * so a domain value that is itself an Effect must be wrapped in
+ * `Effect.succeed(effectValue)` before it crosses as data.
+ */
+export type PlainValue<A> = DirectEffectInputValue<A>;
+
+/**
  * Input accepted by convenience APIs that can run either a plain value or an Effect.
  *
  * Public core APIs prefer Effect-returning variants. EffectInput exists so definitions
  * can stay ergonomic while still being normalized before execution.
  * Promise-shaped values are rejected; adapt host Promise work explicitly with
  * `Effect.tryPromise(...)` before returning from an EffectInput boundary.
+ * Direct Effect values are interpreted as work; if the domain value itself is
+ * an Effect, wrap it with `Effect.succeed(effectValue)` so it crosses this
+ * Interface as data.
  */
 export type EffectInput<A, E = never, R = never> =
   | DirectEffectInputValue<A>

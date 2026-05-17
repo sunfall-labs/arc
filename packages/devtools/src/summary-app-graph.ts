@@ -63,7 +63,20 @@ export const appGraphCollectionDefinitions = (
 export const appGraphUnknownRoutePreloadCollections = (
   appGraph: DevtoolsStartAppGraphDiagnostics
 ): readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[] =>
-  normalizeAppGraphUnknownRoutePreloadCollections(appGraph);
+  (appGraph as {
+    readonly unknownRoutePreloadCollections?: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[];
+  }).unknownRoutePreloadCollections?.map((entry) => ({
+    kind: "route" as const,
+    routeId: entry.routeId,
+    routePath: entry.routePath,
+    moduleId: entry.moduleId,
+    filePath: entry.filePath,
+    preload: entry.preload,
+    preloadCollections: {
+      status: entry.preloadCollections.status,
+      collections: [...entry.preloadCollections.collections]
+    }
+  })) ?? normalizeAppGraphUnknownRoutePreloadCollections(appGraph);
 
 export const routeModulePreloadCollections = (
   routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics

@@ -1347,6 +1347,46 @@ describe("Resource", () => {
     expect(status.error).toBeInstanceOf(EffectInputCallbackError);
   });
 
+  it("captures erased Promise-shaped resource provides entries in the Effect error channel", async () => {
+    const UserTag = Resource.tag("User.provides-entry-promise");
+    const User = Resource.family({
+      name: "User.provides-entry-promise",
+      load: (id: string) => Effect.succeed({ id }),
+      provides: () => [Promise.resolve(UserTag) as never]
+    });
+    const ref = User("1");
+
+    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
+      _tag: "EffectInputCallbackError",
+      operation: "Resource.provides(User.provides-entry-promise)[0]",
+      cause: expect.any(EffectInputPromiseRejected)
+    });
+
+    const status = Resource.status(ref);
+    expect(status._tag).toBe("Failure");
+    expect(status.error).toBeInstanceOf(EffectInputCallbackError);
+  });
+
+  it("captures erased Effect-shaped resource provides entries in the Effect error channel", async () => {
+    const UserTag = Resource.tag("User.provides-entry-effect");
+    const User = Resource.family({
+      name: "User.provides-entry-effect",
+      load: (id: string) => Effect.succeed({ id }),
+      provides: () => [Effect.succeed(UserTag) as never]
+    });
+    const ref = User("1");
+
+    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
+      _tag: "EffectInputCallbackError",
+      operation: "Resource.provides(User.provides-entry-effect)[0]",
+      cause: expect.any(TypeError)
+    });
+
+    const status = Resource.status(ref);
+    expect(status._tag).toBe("Failure");
+    expect(status.error).toBeInstanceOf(EffectInputCallbackError);
+  });
+
   it("keeps previous resource value and tag facts when provides fails during refresh", async () => {
     const UserTag = Resource.tag<{ readonly id: string }>("User.provides-refresh-atomicity", {
       key: ({ id }) => id

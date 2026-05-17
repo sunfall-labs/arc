@@ -21,6 +21,7 @@ import {
   type QueryPlanDiagnostics,
   type QueryPlanJoinDiagnostics,
   type QueryPlanSourceDiagnostics,
+  type RejectPromiseLikeRecord,
   type QuerySourcesError,
   type QuerySourcesRequirements,
   type QuerySortDirection,
@@ -95,7 +96,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
 
   /** Returns a new query that projects each matching context to a result value. */
   select<Next>(
-    projector: (row: TContext) => Next & RejectPromiseLikeValue<Next>
+    projector: (row: TContext) => Next & RejectPromiseLikeRecord<Next>
   ): QueryBuilder<TContext, Next, E, R> {
     return new QueryBuilder<TContext, Next, E, R>(
       this.sources,

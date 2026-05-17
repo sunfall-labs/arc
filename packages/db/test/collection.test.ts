@@ -191,6 +191,10 @@ describe("Collection", () => {
       await Effect.runPromise(Deferred.await(started));
       await Effect.runPromise(Fiber.interrupt(preload));
       await Effect.runPromise(Deferred.await(interrupted));
+      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+        _tag: "Initial",
+        waiting: false
+      });
 
       const retry = await Effect.runPromise(
         runtime.provide(Projects.preloadEffect().pipe(Effect.timeoutOption("1 second")))
@@ -534,6 +538,58 @@ describe("Collection", () => {
       expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Refetched 2"]);
     } finally {
       Effect.runSync(Deferred.succeed(releasePersist, undefined).pipe(Effect.ignore));
+      if (refetch !== undefined) {
+        await Effect.runPromise(Fiber.await(refetch));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("restores ready load state when interrupted during a forced refetch load", async () => {
+    const runtime = makeRuntime();
+    const refetchStarted = Effect.runSync(Deferred.make<void>());
+    const interrupted = Effect.runSync(Deferred.make<void>());
+    const Projects = Collection.define<Project>({
+      name: "Projects.refetch-load-interrupt-restore",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Initial", status: "active", progress: 1 }
+      ],
+      refetch: () =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(refetchStarted, undefined).pipe(Effect.ignore);
+          yield* Effect.never.pipe(
+            Effect.onInterrupt(() =>
+              Deferred.succeed(interrupted, undefined).pipe(Effect.asVoid)
+            )
+          );
+          return [] satisfies ReadonlyArray<Project>;
+        })
+    });
+    let refetch: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+        _tag: "Ready",
+        waiting: false
+      });
+
+      refetch = runtime.runFork(Projects.refetchEffect());
+      await Effect.runPromise(Deferred.await(refetchStarted));
+      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+        _tag: "Pending",
+        waiting: true
+      });
+
+      await Effect.runPromise(Fiber.interrupt(refetch));
+      await Effect.runPromise(Deferred.await(interrupted));
+
+      expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.name))).toEqual(["Initial"]);
+      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+        _tag: "Ready",
+        waiting: false
+      });
+    } finally {
       if (refetch !== undefined) {
         await Effect.runPromise(Fiber.await(refetch));
       }
@@ -6724,6 +6780,13 @@ describe("Query", () => {
           query
             .from({ project: Projects })
             .select((() => promised("Atlas")) as never)
+      },
+      {
+        operation: "projection",
+        factory: (query) =>
+          query
+            .from({ project: Projects })
+            .select((() => ({ nested: { value: promised("Atlas") } })) as never)
       },
       {
         operation: "join",

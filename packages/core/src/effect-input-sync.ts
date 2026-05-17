@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import { EffectInputCallbackError, EffectInputPromiseRejected } from "./effect-like.js";
 
 export const isPromiseLikeValue = (value: unknown): boolean => {
@@ -25,6 +26,19 @@ export const promiseLikeSyncCallbackError = (
     guidance
   });
 
+export const isEffectLikeValue = (value: unknown): boolean =>
+  !(value instanceof Error) && Effect.isEffect(value);
+
+export const effectLikeSyncCallbackError = (
+  operation: string,
+  guidance: string
+): EffectInputCallbackError =>
+  new EffectInputCallbackError({
+    operation,
+    cause: new TypeError("Plain data metadata must not be an Effect value."),
+    guidance
+  });
+
 export const rejectPromiseLikeSyncCallbackValue = <A>(
   operation: string,
   value: A,
@@ -36,3 +50,26 @@ export const rejectPromiseLikeSyncCallbackValue = <A>(
 
   return value;
 };
+
+export const rejectEffectLikeSyncCallbackValue = <A>(
+  operation: string,
+  value: A,
+  guidance: string
+): A => {
+  if (isEffectLikeValue(value)) {
+    throw effectLikeSyncCallbackError(operation, guidance);
+  }
+
+  return value;
+};
+
+export const rejectPlainSyncCallbackValue = <A>(
+  operation: string,
+  value: A,
+  guidance: string
+): A =>
+  rejectEffectLikeSyncCallbackValue(
+    operation,
+    rejectPromiseLikeSyncCallbackValue(operation, value, guidance),
+    guidance
+  );

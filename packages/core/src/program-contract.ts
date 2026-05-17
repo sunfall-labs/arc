@@ -4,7 +4,7 @@ import type {
   EffectInputCallbackError,
   EffectInputError,
   EffectInputRequirements,
-  PromiseSafeValue
+  PlainValue
 } from "./effect-like.js";
 import type { ReadableSignal } from "./signal.js";
 
@@ -19,7 +19,7 @@ export const ProgramSubscriptionTypeId: unique symbol = Symbol.for("@effect-ui/c
 export type ProgramPhase = "Update" | "Command" | "Subscription";
 
 type IsAny<T> = 0 extends (1 & T) ? true : false;
-type ProgramUnknownMessageValue = Exclude<PromiseSafeValue<unknown>, undefined>;
+type ProgramUnknownMessageValue = Exclude<PlainValue<unknown>, undefined>;
 type NonUndefinedProgramMessage<Message> =
   IsAny<Message> extends true
     ? ProgramUnknownMessageValue
@@ -27,13 +27,26 @@ type NonUndefinedProgramMessage<Message> =
       ? ProgramUnknownMessageValue
       : [Message] extends [void]
         ? never
-        : undefined extends Message ? never : PromiseSafeValue<Message>;
+        : undefined extends Message ? never : PlainValue<Message>;
 
-/** Plain Program message value. Promise-shaped messages must be adapted through Effects first. */
+/**
+ * Plain Program message value.
+ *
+ * Promise-shaped messages must be adapted through Effects first. Program
+ * messages cannot be `undefined` or `void`; command Effects reserve
+ * `undefined`/`void` as the no-message sentinel. Direct Effect values are
+ * executable work, not messages.
+ */
 export type ProgramMessageValue<Message> = NonUndefinedProgramMessage<Message>;
 
-/** Plain Program model value. Promise-shaped models must be resolved inside Effects first. */
-export type ProgramModelValue<Model> = PromiseSafeValue<Model>;
+/**
+ * Plain Program model value.
+ *
+ * Promise-shaped models must be resolved inside Effects first. Direct Effect
+ * values are executable work, not model data; wrap Effect-valued domain data in
+ * `Effect.succeed(effectValue)` before returning it from an update.
+ */
+export type ProgramModelValue<Model> = PlainValue<Model>;
 
 /** Failure reported by a running Program without tearing down the UI loop. */
 export interface ProgramFailure<Message, E> {

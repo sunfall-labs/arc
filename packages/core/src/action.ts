@@ -87,7 +87,13 @@ export interface ActionDefinition<I, A, E = never, R = never> {
   readonly error?: unknown;
   /** Concurrency and retry policy for stateful submissions. */
   readonly policy?: ActionPolicy<E>;
-  /** Effect-first action implementation. */
+  /**
+   * Effect-first action implementation.
+   *
+   * Direct Effect values are interpreted as work. If the domain value itself is
+   * an Effect, wrap it with `Effect.succeed(effectValue)` so it crosses this
+   * Interface as data.
+   */
   readonly run: (input: I) => EffectInput<A, E, R>;
   /** Applies an optimistic patch and returns the rollback Effect. */
   readonly optimistic?: (
@@ -118,7 +124,13 @@ export interface ActionOptions<I, A, E = never, R = never> {
   readonly error?: unknown;
   /** Concurrency and retry policy for stateful submissions. */
   readonly policy?: ActionPolicy<E>;
-  /** Effect-first action implementation. */
+  /**
+   * Effect-first action implementation.
+   *
+   * Direct Effect values are interpreted as work. If the domain value itself is
+   * an Effect, wrap it with `Effect.succeed(effectValue)` so it crosses this
+   * Interface as data.
+   */
   readonly run: (input: I) => EffectInput<A, E, R>;
   /** Applies an optimistic patch and returns the rollback Effect. */
   readonly optimistic?: (

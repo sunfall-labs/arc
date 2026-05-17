@@ -1272,16 +1272,19 @@ export const copyDevtoolsRuntimeEvent = (
 
 /** Deep-copies Start app graph diagnostics for panel-safe storage. */
 export const copyAppGraphDiagnostics = (
-  appGraph: DevtoolsStartAppGraphDiagnostics
+  appGraph: DevtoolsStartAppGraphDiagnostics,
+  options: { readonly preserveDerivedPreloadFacts?: boolean } = {}
 ): DevtoolsStartAppGraphDiagnostics =>
-  normalizeDevtoolsAppGraphDiagnostics(appGraph);
+  normalizeDevtoolsAppGraphDiagnostics(appGraph, options);
 
 /** Deep-copies a complete Devtools snapshot for bridge or panel consumption. */
 export const copyDevtoolsSnapshot = (
   snapshot: DevtoolsSnapshot,
   policy?: DevtoolsSerializationPolicy
 ): DevtoolsSnapshot => ({
-  ...(snapshot.appGraph === undefined ? {} : { appGraph: copyAppGraphDiagnostics(snapshot.appGraph) }),
+  ...(snapshot.appGraph === undefined
+    ? {}
+    : { appGraph: copyAppGraphDiagnostics(snapshot.appGraph, { preserveDerivedPreloadFacts: true }) }),
   resources: snapshot.resources.map((resource) => ({ ...resource })),
   actions: snapshot.actions.map((action) => ({
     ...action,

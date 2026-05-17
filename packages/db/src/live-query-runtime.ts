@@ -21,6 +21,7 @@ import {
   evaluateQueryGroupKey,
   evaluateQueryJoinKey,
   evaluateQueryOperation,
+  evaluateQueryStructuredOperation,
   type AnyCollectionRow,
   type AnyQueryAggregateRecord,
   type AnyQueryContext,
@@ -89,13 +90,13 @@ const wrapIvmGrouping = (grouping: AnyQueryGrouping): AnyQueryGrouping => ({
       name,
       {
         preMap: (row: AnyQueryContext) =>
-          evaluateQueryOperation("aggregate", () => aggregate.preMap(row)),
+          evaluateQueryStructuredOperation("aggregate", () => aggregate.preMap(row)),
         reduce: (values: Array<[unknown, number]>) =>
-          evaluateQueryOperation("aggregate", () => aggregate.reduce(values)),
+          evaluateQueryStructuredOperation("aggregate", () => aggregate.reduce(values)),
         ...(aggregate.postMap
           ? {
             postMap: (value: unknown) =>
-              evaluateQueryOperation("aggregate", () => aggregate.postMap!(value))
+              evaluateQueryStructuredOperation("aggregate", () => aggregate.postMap!(value))
           }
           : {})
       }

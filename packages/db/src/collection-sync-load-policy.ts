@@ -415,6 +415,11 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         state.loadState.set({ _tag: "Pending", waiting: true });
       }
       const values = yield* withCollectionPolicyRetry(definition, load).pipe(
+        Effect.onExit((exit) =>
+          Exit.isFailure(exit) && isInterruptedCause(exit.cause)
+            ? restoreLoadStateIfCurrentEffect(state, attempt, previousLoadState)
+            : Effect.void
+        ),
         Effect.catch((error: E | EffectInputCallbackError) => failCurrentLoad(error))
       );
       const rows = yield* ingestCollectionOutputRowsEffect(definition, values, {

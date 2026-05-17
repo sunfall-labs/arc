@@ -2,10 +2,11 @@ import { Effect, type Schema } from "effect";
 import type {
   EffectInput,
   EffectInputCallbackError,
-  PromiseSafeValue
+  PlainValue
 } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
-import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
+import { rejectPlainSyncCallbackValue } from "./effect-input-sync.js";
+import { validateResourceInvalidationsArraySync } from "./resource-dependency-graph.js";
 import {
   FormValidationError,
   type FormFieldErrors,
@@ -40,9 +41,9 @@ export interface ActionResultRedirectOptions<R = never> extends ActionResultOpti
 /** Input used to build a field/form validation failure result. */
 export interface ActionResultValidationInput<Values extends object, E> {
   /** Per-field errors keyed by known form field names. */
-  readonly fieldErrors?: FormFieldErrors<Values, PromiseSafeValue<E>>;
+  readonly fieldErrors?: FormFieldErrors<Values, PlainValue<E>>;
   /** Errors that apply to the whole form rather than one field. */
-  readonly formErrors?: ReadonlyArray<PromiseSafeValue<E>>;
+  readonly formErrors?: ReadonlyArray<PlainValue<E>>;
   /** Original validation cause retained for diagnostics. */
   readonly cause?: unknown;
 }
@@ -150,7 +151,13 @@ const optionalInvalidates = (
   options: ActionResultOptions<any> = {}
 ): Pick<ActionResultBase<string, any>, "invalidates"> =>
   options.invalidates && options.invalidates.length > 0
-    ? { invalidates: Object.freeze([...options.invalidates]) }
+    ? {
+        invalidates: validateResourceInvalidationsArraySync(
+          "ActionResult.invalidates",
+          options.invalidates,
+          "ActionResult invalidation metadata must be Resource refs or tags. Move host Promise work into the action run Effect before building the result."
+        )
+      }
     : {};
 
 const emptyInvalidations = Object.freeze([]) as ReadonlyArray<ResourceInvalidation<never>>;
@@ -163,7 +170,7 @@ const freezeHeaders = (
   Object.freeze({ ...headers });
 
 const freezeFieldErrors = <Values extends object, E>(
-  fieldErrors: FormFieldErrors<Values, PromiseSafeValue<E>> | undefined
+  fieldErrors: FormFieldErrors<Values, PlainValue<E>> | undefined
 ): FormFieldErrors<Values, E> => {
   if (fieldErrors === undefined) {
     return emptyFieldErrors as FormFieldErrors<Values, E>;
@@ -182,36 +189,36 @@ const freezeFieldErrors = <Values extends object, E>(
 };
 
 const freezeFormErrors = <E>(
-  formErrors: ReadonlyArray<PromiseSafeValue<E>> | undefined
+  formErrors: ReadonlyArray<PlainValue<E>> | undefined
 ): ReadonlyArray<E> =>
   formErrors === undefined
     ? emptyFormErrors as ReadonlyArray<E>
     : Object.freeze(formErrors.map((error) => rejectActionResultValidationError(error as E)));
 
 const actionResultSuccessPromiseGuidance =
-  "ActionResult success values must be plain data. Move host Promise work into the action run Effect with Effect.tryPromise(...) before building the result.";
+  "ActionResult success values must be plain data. Move host Promise work into the action run Effect with Effect.tryPromise(...) before building the result. If the domain value itself is an Effect, wrap it with Effect.succeed(effectValue).";
 
 const actionResultFailurePromiseGuidance =
-  "ActionResult failure values must be plain data. Move host Promise work into the action run Effect with Effect.tryPromise(...) before building the result.";
+  "ActionResult failure values must be plain data. Move host Promise work into the action run Effect with Effect.tryPromise(...) before building the result. If the domain error itself is an Effect, wrap it with Effect.succeed(effectValue).";
 
 const actionResultValidationPromiseGuidance =
-  "ActionResult validation errors must be plain data. Move host Promise work into validation Effects with Effect.tryPromise(...) before building the result.";
+  "ActionResult validation errors must be plain data. Move host Promise work into validation Effects with Effect.tryPromise(...) before building the result. Direct Effect values are executable work, not validation data.";
 
 const rejectActionResultValidationError = <E>(error: E): E =>
-  rejectPromiseLikeSyncCallbackValue(
+  rejectPlainSyncCallbackValue(
     "ActionResult.validation",
     error,
     actionResultValidationPromiseGuidance
   );
 
-/** Builds a successful action result with plain data; Promise-shaped payloads are rejected. */
+/** Builds a successful action result with plain data; Promise-shaped and Effect-shaped payloads are rejected. */
 const success = <A, R = never>(
-  value: PromiseSafeValue<A>,
+  value: PlainValue<A>,
   options: ActionResultOptions<R> = {}
 ): ActionResultSuccess<A, R> => ({
   [ActionResultTypeId]: ActionResultTypeId,
   _tag: "Success",
-  value: rejectPromiseLikeSyncCallbackValue(
+  value: rejectPlainSyncCallbackValue(
     "ActionResult.success",
     value,
     actionResultSuccessPromiseGuidance
@@ -219,14 +226,14 @@ const success = <A, R = never>(
   ...optionalInvalidates(options)
 });
 
-/** Builds a typed action failure with plain error data; Promise-shaped errors are rejected. */
+/** Builds a typed action failure with plain error data; Promise-shaped and Effect-shaped errors are rejected. */
 const failure = <E, R = never>(
-  error: PromiseSafeValue<E>,
+  error: PlainValue<E>,
   options: ActionResultOptions<R> = {}
 ): ActionResultFailure<E, R> => ({
   [ActionResultTypeId]: ActionResultTypeId,
   _tag: "Failure",
-  error: rejectPromiseLikeSyncCallbackValue(
+  error: rejectPlainSyncCallbackValue(
     "ActionResult.failure",
     error,
     actionResultFailurePromiseGuidance
@@ -267,8 +274,8 @@ const validation = <Values extends object, E, R = never>(
 ): ActionResultValidationFailure<Values, E, R> => {
   const source: ActionResultValidationInput<Values, E> = isFormValidationError<Values, E>(input)
     ? {
-        fieldErrors: input.fieldErrors as FormFieldErrors<Values, PromiseSafeValue<E>>,
-        formErrors: input.formErrors as ReadonlyArray<PromiseSafeValue<E>>,
+        fieldErrors: input.fieldErrors as FormFieldErrors<Values, PlainValue<E>>,
+        formErrors: input.formErrors as ReadonlyArray<PlainValue<E>>,
         cause: input.cause
       }
     : input;
@@ -285,7 +292,7 @@ const validation = <Values extends object, E, R = never>(
 
 /** Builds a validation failure from a field-error map of plain errors. */
 const fields = <Values extends object, E, R = never>(
-  fieldErrors: FormFieldErrors<Values, PromiseSafeValue<E>>,
+  fieldErrors: FormFieldErrors<Values, PlainValue<E>>,
   options: Omit<ActionResultValidationInput<Values, E>, "fieldErrors"> &
     ActionResultOptions<R> = {}
 ): ActionResultValidationFailure<Values, E, R> =>
@@ -301,18 +308,18 @@ const fields = <Values extends object, E, R = never>(
 /** Builds a validation failure for one field using plain error data. */
 const fieldError = <Values extends object, K extends FormFieldKey<Values>, E, R = never>(
   field: K,
-  error: PromiseSafeValue<E>,
+  error: PlainValue<E>,
   options: Omit<ActionResultValidationInput<Values, E>, "fieldErrors"> &
     ActionResultOptions<R> = {}
 ): ActionResultValidationFailure<Values, E, R> => {
-  const fieldErrors: FormFieldErrors<Values, PromiseSafeValue<E>> = {};
+  const fieldErrors: FormFieldErrors<Values, PlainValue<E>> = {};
   fieldErrors[field] = [error];
   return fields(fieldErrors, options);
 };
 
 /** Builds a validation failure for one form-level plain error. */
 const formError = <Values extends object, E, R = never>(
-  error: PromiseSafeValue<E>,
+  error: PlainValue<E>,
   options: Omit<ActionResultValidationInput<Values, E>, "formErrors"> &
     ActionResultOptions<R> = {}
 ): ActionResultValidationFailure<Values, E, R> =>
@@ -332,7 +339,11 @@ const withInvalidation = <Result extends AnyActionResult, R = never>(
 ): WithActionResultInvalidation<Result, R> =>
   ({
     ...result,
-    invalidates: Object.freeze([...(result.invalidates ?? []), ...invalidates])
+    invalidates: validateResourceInvalidationsArraySync(
+      "ActionResult.withInvalidation",
+      [...(result.invalidates ?? []), ...invalidates],
+      "ActionResult invalidation metadata must be Resource refs or tags. Move host Promise work into the action run Effect before appending invalidations."
+    )
   }) as unknown as WithActionResultInvalidation<Result, R>;
 
 /** Reads invalidations from any action result, returning an empty array when none are present. */
@@ -383,14 +394,14 @@ const match = <A, Values extends object, ValidationError, E, B, R = never>(
 
 /** Effect constructor for a successful action result with plain, non-Promise data. */
 const successEffect = <A, R = never>(
-  value: PromiseSafeValue<A>,
+  value: PlainValue<A>,
   options: ActionResultOptions<R> = {}
 ): Effect.Effect<ActionResultSuccess<A, R>> =>
   Effect.succeed(success<A, R>(value, options));
 
 /** Effect constructor for a failure action result with plain, non-Promise error data. */
 const failureEffect = <E, R = never>(
-  error: PromiseSafeValue<E>,
+  error: PlainValue<E>,
   options: ActionResultOptions<R> = {}
 ): Effect.Effect<ActionResultFailure<E, R>> =>
   Effect.succeed(failure<E, R>(error, options));
@@ -409,11 +420,11 @@ const validationEffect = <Values extends object, E, R = never>(
 
 /** Converts an Effect into an `ActionResult`; Promise-shaped successes or errors are rejected. */
 const fromEffect = <A, E = never, R = never>(
-  effect: EffectInput<A, PromiseSafeValue<E>, R>
+  effect: EffectInput<A, PlainValue<E>, R>
 ): Effect.Effect<ActionResult<A, never, never, E>, never, R> =>
   toEffect(effect as never).pipe(
-    Effect.map((value) => success<A>(value as PromiseSafeValue<A>)),
-    Effect.catch((error) => Effect.succeed(failure<E>(error as PromiseSafeValue<E>)))
+    Effect.map((value) => success<A>(value as PlainValue<A>)),
+    Effect.catch((error) => Effect.succeed(failure<E>(error as PlainValue<E>)))
   ) as Effect.Effect<ActionResult<A, never, never, E>, never, R>;
 
 /** Converts a form validation Effect into plain success or validation-failure results. */
@@ -421,7 +432,7 @@ const fromValidationEffect = <Values extends object, E, R = never>(
   effect: EffectInput<Values, FormValidationError<Values, E>, R>
 ): Effect.Effect<ActionResult<Values, Values, E, never>, never, R> =>
   toEffect(effect as never).pipe(
-    Effect.map((value) => success<Values>(value as PromiseSafeValue<Values>)),
+    Effect.map((value) => success<Values>(value as PlainValue<Values>)),
     Effect.catch((error) => Effect.succeed(validation(error)))
   ) as Effect.Effect<ActionResult<Values, Values, E, never>, never, R>;
 

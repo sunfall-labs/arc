@@ -101,7 +101,13 @@ export interface ResourceFamilyOptions<I, A, E = never, R = never> {
   readonly policy?: ResourcePolicy<E>;
   /** Optional stable key override. Defaults to a stable stringify of the input. */
   readonly key?: (input: I) => string;
-  /** Loads one value. May return a plain value or an Effect. */
+  /**
+   * Loads one value. May return a plain value or an Effect.
+   *
+   * Direct Effect values are interpreted as work. If the domain value itself is
+   * an Effect, wrap it with `Effect.succeed(effectValue)` so it crosses this
+   * Interface as data.
+   */
   readonly load: (input: I) => EffectInput<A, E, R>;
   /** Tags provided by a successful value for later invalidation. */
   readonly provides?: (value: A, input: I) => ReadonlyArray<ResourceTag>;

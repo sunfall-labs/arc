@@ -3,7 +3,7 @@ import {
   EffectInputCallbackError,
   invokeEffectInput
 } from "./effect-like.js";
-import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
+import { rejectPlainSyncCallbackValue } from "./effect-input-sync.js";
 import {
   ProgramCommandTypeId,
   ProgramStepTypeId,
@@ -114,10 +114,10 @@ export const programStepEffect = <Model, Message, E = never, R = never>(
   );
 
 const programModelPromiseGuidance =
-  "Program update models must be plain values. Move host Promise work into Program.command(Effect.tryPromise(...)) and dispatch a follow-up message with the resolved value.";
+  "Program update models must be plain values. Move host Promise work into Program.command(Effect.tryPromise(...)) and dispatch a follow-up message with the resolved value. If the domain model itself is an Effect, wrap it with Effect.succeed(effectValue).";
 
 const programMessagePromiseGuidance =
-  "Program messages must be plain values. Move host Promise work into Effect.tryPromise(...) inside Program.command(...) or a subscription stream before emitting a resolved follow-up message.";
+  "Program messages must be plain values. Move host Promise work into Effect.tryPromise(...) inside Program.command(...) or a subscription stream before emitting a resolved follow-up message. Direct Effect values are executable work, not messages.";
 
 const programMessageUndefinedGuidance =
   "Program messages cannot be undefined because undefined is reserved for command Effects that intentionally emit no follow-up message. Use a tagged message value instead.";
@@ -144,7 +144,7 @@ export const validateProgramModelSync = <Model>(
   operation: string,
   model: Model
 ): ProgramModelValue<Model> =>
-  rejectPromiseLikeSyncCallbackValue(
+  rejectPlainSyncCallbackValue(
     operation,
     model,
     programModelPromiseGuidance
@@ -164,7 +164,7 @@ export const validateProgramMessageEffect = <Message>(
         });
       }
 
-      return rejectPromiseLikeSyncCallbackValue(
+      return rejectPlainSyncCallbackValue(
         operation,
         message,
         programMessagePromiseGuidance

@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { EffectInputCallbackError } from "./effect-like.js";
-import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
+import { rejectPlainSyncCallbackValue } from "./effect-input-sync.js";
 import { ResourceTagIdentityTypeId, ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
 import type {
   AnyResourceRef,
@@ -71,6 +71,84 @@ export const removeResourceRefFromTagIndex = (ref: AnyResourceRef<any>, store: R
   store.refTags.delete(storeKey);
 };
 
+const resourceMetadataArraySync = <A>(
+  operation: string,
+  value: ReadonlyArray<A>,
+  guidance: string
+): ReadonlyArray<A> => {
+  const metadata = rejectPlainSyncCallbackValue(operation, value, guidance);
+  if (!Array.isArray(metadata)) {
+    throw new EffectInputCallbackError({
+      operation,
+      cause: new TypeError("Resource metadata callbacks must return arrays."),
+      guidance
+    });
+  }
+  return metadata;
+};
+
+const resourceMetadataEntrySync = <A>(
+  operation: string,
+  value: A,
+  guidance: string
+): A =>
+  rejectPlainSyncCallbackValue(operation, value, guidance);
+
+export const validateResourceProvidedTagsSync = (
+  operation: string,
+  tags: ReadonlyArray<ResourceTag>,
+  guidance = "Resource provides callbacks must return Resource.tag(...) metadata synchronously. Move host Promise work into the resource load Effect."
+): readonly ResourceTag[] =>
+  Object.freeze(
+    resourceMetadataArraySync(operation, tags, guidance).map((tag, index) => {
+      const entry = resourceMetadataEntrySync(`${operation}[${index}]`, tag, guidance);
+      if (!isResourceTag(entry)) {
+        throw new EffectInputCallbackError({
+          operation: `${operation}[${index}]`,
+          cause: new TypeError("Resource.provides entries must be Resource tags."),
+          guidance
+        });
+      }
+      return entry;
+    })
+  );
+
+export const validateResourceInvalidationsArraySync = <R = never>(
+  operation: string,
+  invalidations: ReadonlyArray<ResourceInvalidation<R>>,
+  guidance = "Resource invalidation metadata must be Resource refs or tags synchronously. Move host Promise work into the Effect that prepares the metadata."
+): readonly ResourceInvalidation<R>[] =>
+  Object.freeze(
+    resourceMetadataArraySync(operation, invalidations, guidance).map((invalidation, index) => {
+      const entry = resourceMetadataEntrySync(`${operation}[${index}]`, invalidation, guidance);
+      if (!isResourceRef(entry) && !isResourceTag(entry)) {
+        throw new EffectInputCallbackError({
+          operation: `${operation}[${index}]`,
+          cause: new TypeError("Resource invalidation entries must be Resource refs or tags."),
+          guidance
+        });
+      }
+      return entry;
+    })
+  );
+
+export const validateResourceInvalidationTargetSync = <R = never>(
+  operation: string,
+  target: ResourceInvalidationTarget<R>,
+  guidance?: string
+): readonly ResourceInvalidation<R>[] => {
+  const resolvedGuidance =
+    guidance ?? "Resource invalidation targets must be Resource refs or tags. Move host Promise work into the Effect that prepares the invalidation.";
+  const value = rejectPlainSyncCallbackValue(operation, target, resolvedGuidance);
+  return Array.isArray(value)
+    ? validateResourceInvalidationsArraySync(operation, value, resolvedGuidance)
+    : validateResourceInvalidationsArraySync(
+        operation,
+        [value] as ReadonlyArray<ResourceInvalidation<R>>,
+        resolvedGuidance
+      );
+};
+
 export const recordResourceProvidedTags = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   tags: readonly ResourceTag[],
@@ -107,10 +185,10 @@ export const resourceProvidedTagsEffect = <I, A, E, R>(
       const operation = `Resource.provides(${ref.family.options.name})`;
       return ref.family.options.provides === undefined
         ? []
-        : rejectPromiseLikeSyncCallbackValue(
+        : validateResourceProvidedTagsSync(
             operation,
             ref.family.options.provides(value, ref.input),
-            "Resource provides callbacks must return tag metadata synchronously. Move host Promise work into the resource load Effect."
+            "Resource provides callbacks must return Resource.tag(...) metadata synchronously. Move host Promise work into the resource load Effect."
           );
     },
     catch: (cause) =>
@@ -146,7 +224,9 @@ export const planResourceInvalidationTargets = <R = never>(
   target: ResourceInvalidationTarget<R>,
   store: ResourceStoreState
 ): ResourceInvalidationPlan<R> => {
-  const targets = freezeArray(Array.isArray(target) ? target : [target]) as ReadonlyArray<ResourceInvalidation<R>>;
+  const targets = freezeArray(
+    validateResourceInvalidationTargetSync("Resource.planInvalidation", target)
+  ) as ReadonlyArray<ResourceInvalidation<R>>;
   const entries = new Map<string, { readonly ref: AnyResourceRef<R>; readonly causes: Array<ResourceInvalidationCause> }>();
   const addCause = (ref: AnyResourceRef<R>, cause: ResourceInvalidationCause): void => {
     const storeKey = resourceRefStoreKey(ref);

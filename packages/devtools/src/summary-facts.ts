@@ -560,9 +560,10 @@ export const normalizeDevtoolsSummaryInput = (
 ): NormalizedDevtoolsSummaryInput => {
   const snapshot = input.snapshot ?? emptySnapshot();
   const appGraphInput = input.appGraph ?? snapshot.appGraph;
+  const preserveDerivedPreloadFacts = input.appGraph === undefined && snapshot.appGraph !== undefined;
   const appGraph = appGraphInput === undefined
     ? undefined
-    : normalizeDevtoolsAppGraphDiagnostics(appGraphInput);
+    : normalizeDevtoolsAppGraphDiagnostics(appGraphInput, { preserveDerivedPreloadFacts });
   const invalidationPlans = input.invalidations ?? snapshot.invalidations;
   const routePlanInputs = input.routePlans ?? snapshot.routePlans;
   const requestTraceInputs = input.requestTraces ?? snapshot.requestTraces ?? [];

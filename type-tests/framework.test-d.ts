@@ -515,6 +515,16 @@ toEffect<Effect.Effect<number>>(effectNumberValue);
 const wrappedEffectValue = toEffect<Effect.Effect<number>>(Effect.succeed(effectNumberValue));
 const wrappedEffectValueCheck: Effect.Effect<Effect.Effect<number>> = wrappedEffectValue;
 void wrappedEffectValueCheck;
+// @ts-expect-error Program.next models cannot be Effect-shaped values; wrap domain Effects in Effect.succeed(...)
+Program.next(effectNumberValue);
+// @ts-expect-error Program dispatch commands cannot accept Effect-shaped messages
+Program.dispatch(effectNumberValue);
+// @ts-expect-error Program commands cannot emit Effect-shaped messages
+Program.command<Effect.Effect<number>>(Effect.succeed(effectNumberValue));
+// @ts-expect-error Program subscriptions cannot emit Effect-shaped messages
+Program.subscription(Stream.succeed(effectNumberValue));
+// @ts-expect-error Program initial models cannot be Effect-shaped values
+Program.define<Effect.Effect<number>, "noop">({ initial: effectNumberValue, update: (model) => model });
 // @ts-expect-error Program.next models cannot be Promise-shaped values
 Program.next(promisedProject);
 // @ts-expect-error Program.next models cannot hide Promise-shaped values behind explicit unknown
@@ -545,6 +555,8 @@ const promiseResetStory = Program.story(Program.define<number, "noop">({
 }));
 // @ts-expect-error Program story resets cannot be Promise-shaped
 promiseResetStory.reset(promisedNumber);
+// @ts-expect-error Program story resets cannot be Effect-shaped model values
+promiseResetStory.reset(effectNumberValue);
 // @ts-expect-error EffectInput callbacks cannot hide Promise-shaped values behind explicit unknown
 invokeEffectInput<[], unknown>("Project.promiseUnknown", () => promisedProject);
 // @ts-expect-error ActionResult.fromEffect rejects Promise-shaped direct values
@@ -555,12 +567,16 @@ ActionResult.fromEffect(Effect.succeed(promisedProject));
 ActionResult.fromEffect<unknown>(Effect.succeed(promisedProject));
 // @ts-expect-error ActionResult.fromEffect rejects Effect failures that are Promise-shaped
 ActionResult.fromEffect<Project, typeof promisedProject>(Effect.fail(promisedProject));
+// @ts-expect-error ActionResult.fromEffect rejects Effect failures that are Effect-shaped
+ActionResult.fromEffect<Project, typeof effectNumberValue>(Effect.fail(effectNumberValue));
 // @ts-expect-error ActionResult.fromValidationEffect rejects Promise-shaped direct values
 ActionResult.fromValidationEffect(promisedProject);
 // @ts-expect-error ActionResult.fromValidationEffect rejects Effect successes that are Promise-shaped
 ActionResult.fromValidationEffect(Effect.succeed(promisedProject));
 // @ts-expect-error ActionResult.success rejects Promise-shaped payloads
 ActionResult.success(promisedProject);
+// @ts-expect-error ActionResult.success rejects Effect-shaped payloads
+ActionResult.success(effectNumberValue);
 // @ts-expect-error ActionResult.success rejects Promise-shaped payloads hidden behind explicit unknown
 ActionResult.success<unknown>(promisedProject);
 // @ts-expect-error ActionResult.success rejects Promise-shaped payloads hidden behind explicit any
@@ -569,12 +585,16 @@ ActionResult.success<any>(promisedProject);
 ActionResult.successEffect(promisedProject);
 // @ts-expect-error ActionResult.failure rejects Promise-shaped errors
 ActionResult.failure(promisedProject);
+// @ts-expect-error ActionResult.failure rejects Effect-shaped errors
+ActionResult.failure(effectNumberValue);
 // @ts-expect-error ActionResult.fail rejects Promise-shaped errors
 ActionResult.fail(promisedProject);
 // @ts-expect-error ActionResult.failureEffect rejects Promise-shaped errors
 ActionResult.failureEffect(promisedProject);
 // @ts-expect-error ActionResult field validation errors cannot be Promise-shaped
 ActionResult.fieldError<{ readonly name: string }, "name", Project>("name", promisedProject);
+// @ts-expect-error ActionResult field validation errors cannot be Effect-shaped
+ActionResult.fieldError<{ readonly name: string }, "name", Effect.Effect<number>>("name", effectNumberValue);
 // @ts-expect-error ActionResult form validation errors cannot be Promise-shaped
 ActionResult.formError<{ readonly name: string }, Project>(promisedProject);
 // @ts-expect-error ActionResult field error maps cannot contain Promise-shaped errors
@@ -3240,6 +3260,13 @@ Query.live((query) =>
     .from({ project: ProjectsCollection })
     // @ts-expect-error Query projections must stay synchronous
     .select(() => promisedProject)
+);
+
+Query.live((query) =>
+  query
+    .from({ project: ProjectsCollection })
+    // @ts-expect-error Query projections must not contain nested Promise-shaped values
+    .select(() => ({ nested: { value: promisedProject } }))
 );
 
 Query.live((query) =>

@@ -461,6 +461,60 @@ describe("Action", () => {
     }
   });
 
+  it("captures erased Promise-shaped invalidation entries in the Effect error channel", async () => {
+    const Project = Resource.family({
+      name: "Project.invalidates-entry-promise",
+      load: (id: string) => Effect.succeed({ id })
+    });
+    const ref = Project("atlas");
+    const Rename = Action.define<string, string>({
+      name: "rename.invalidates-entry-promise",
+      run: (name) => Effect.succeed(name),
+      invalidates: () => [Promise.resolve(ref) as never]
+    });
+    const action = Action.use(Rename);
+
+    const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
+
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag === "Failure") {
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+      expect(failure?.error).toMatchObject({
+        _tag: "EffectInputCallbackError",
+        operation: "Action.invalidates(rename.invalidates-entry-promise)[0]",
+        cause: expect.any(EffectInputPromiseRejected)
+      });
+      expect(action.state.get()).toMatchObject({
+        _tag: "Failure",
+        input: "Ada"
+      });
+    }
+  });
+
+  it("captures erased Effect-shaped invalidation entries from sync planning", () => {
+    const Project = Resource.family({
+      name: "Project.invalidates-entry-effect",
+      load: (id: string) => Effect.succeed({ id })
+    });
+    const Rename = Action.define<string, string>({
+      name: "rename.invalidates-entry-effect",
+      run: (name) => Effect.succeed(name),
+      invalidates: () => [Effect.succeed(Project("atlas")) as never]
+    });
+
+    expect(() => Action.planInvalidation(Rename, "Ada", "Ada")).toThrow(EffectInputCallbackError);
+    try {
+      Action.planInvalidation(Rename, "Ada", "Ada");
+      expect.fail("Expected Action.planInvalidation to throw a typed callback error");
+    } catch (error) {
+      expect(error).toMatchObject({
+        _tag: "EffectInputCallbackError",
+        operation: "Action.invalidates(rename.invalidates-entry-effect)[0]",
+        cause: expect.any(TypeError)
+      });
+    }
+  });
+
   it("invalidates typed resource refs on success", async () => {
     let value = 0;
     const load = vi.fn(() => Effect.succeed(value));

@@ -1,6 +1,6 @@
 # Public API Inventory
 
-Last updated: 2026-05-16.
+Last updated: 2026-05-17.
 
 This is the first release-candidate inventory required by the framework
 perfection charter. It tracks only import paths exported by package manifests;
@@ -69,7 +69,8 @@ must have an explicit audit allowance and a root-barrel import, curated hover
 declaration groups must be reachable from a package export or re-exported
 source module, and those declarations must keep JSDoc for LSP hovers. Together
 these checks keep hover/LSP docs from drifting away from exported source files.
-The curated hover declarations currently cover the Core Program,
+The curated hover declarations currently cover the Core Action and Program
+Interfaces,
 browser-router/router Adapter, React/Solid runtime and hook Adapter seams,
 Start diagnostics, generated file-route module, fetch, and Node Adapter seams,
 Devtools DTO/normalizer/panel contract seams, and the DB Collection contract,
@@ -111,6 +112,10 @@ Golden-path public groups:
 - `Action.planInvalidationEffect(...)` for adapters/tests that need action
   invalidation planning with synchronous `invalidates` callback throws reported
   as `EffectInputCallbackError`.
+- `PlainValue` is the expert-public type vocabulary for non-executable data
+  seams. Promise-shaped values must be adapted through `Effect.tryPromise(...)`,
+  and direct Effect values are executable work unless wrapped as
+  `Effect.succeed(effectValue)` to cross as domain data.
 - Action direct root symbols such as `ActionPolicy`, `ActionDefinition`,
   `ActionOptions`, `ActionInstance`, `ActionUseOptions`, `ActionTypeId`, and
   `isActionDefinition(...)` are expert-public LSP vocabulary for adapters,
@@ -214,6 +219,11 @@ Release decisions:
   `Program.start(definition, { runtime })`, which adds runtime
   startup/provision errors to the failure channel and rejects runtimes that do
   not provide the Program's update, command, and subscription requirements.
+  Program models and messages are plain data: Promise-shaped values,
+  Effect-shaped values, and `undefined`/`void` messages are rejected. Commands
+  that intentionally emit nothing reserve `undefined`/`void` as the no-message
+  sentinel; host Promise work belongs in `Program.command(Effect.tryPromise(...))`
+  or a subscription before emitting a resolved message.
   Started Programs report typed update/command/subscription failures through a
   signal, expose a bounded `timeline` signal for message, command,
   subscription, failure, and disposal events, and keep `dispatchEffect(...)`
@@ -518,8 +528,9 @@ Subpath exports:
 - `./virtual` owns virtual module typings only.
 - `effect-ui-start` owns diagnostics and agent graph CLI execution. Its
   bin/host wrapper defines the command tree with Effect v4 `Command`, `Flag`,
-  and `Argument` primitives, including graph/impact query-kind subcommands and
-  inherited graph `--verbose` shared-flag context. The `@effect-ui/start/cli`
+  and `Argument` primitives, including variadic graph/impact `[kind] [query]`
+  arguments and inherited graph `--verbose` shared-flag context. The
+  `@effect-ui/start/cli`
   subpath's manifest-pinned Source Surface Module is
   `start-diagnostics-cli-runner`. The internal Start Agent Graph Vocabulary
   Module owns query kinds, query-to-node mapping, and node-to-impact-relation
@@ -1058,7 +1069,9 @@ Release decisions:
   remains Effect-returning and uses `Program.DispatchError` so
   `ProgramDisposed` appears only when disposal drops a queued update;
   `clearTimeline()` clears retained timeline events without touching model or
-  failures.
+  failures. Both dispatch methods accept only concrete Program messages;
+  Promise-shaped messages, Effect-shaped messages, and `undefined` are
+  rejected.
 
 ### `@effect-ui/react-db`
 
@@ -1160,7 +1173,9 @@ Release decisions:
   appears only when disposal drops a queued update. This is the simple
   model/message/update surface for views that want Elm/Foldkit-style clarity
   without giving up Effect services, commands, streams, fibers, or scoped
-  cleanup.
+  cleanup. Both dispatch methods accept only concrete Program messages;
+  Promise-shaped messages, Effect-shaped messages, and `undefined` are
+  rejected.
 - `useResource<..., ER>(...)` follows the same runtime-bound pattern for
   `prefetchEffect(...)` and `refreshEffect(...)`. Automatic prefetches are
   Resource Store-owned; Solid owner cleanup and reactive ref changes detach the

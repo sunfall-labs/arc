@@ -160,17 +160,21 @@ export interface QueryAggregate<TContext, R, V = unknown> {
 
 export type QueryAggregateRecord<TContext> = Record<string, QueryAggregate<TContext, any, any>>;
 export type AnyQueryAggregateRecord = QueryAggregateRecord<any>;
-/** Recursively rejects Promise-shaped values inside a `Query.groupBy(...)` key object. */
+/** Recursively rejects Promise-shaped values inside query result data structures. */
 export type RejectPromiseLikeRecord<Value> =
   [RejectPromiseLikeValue<Value>] extends [never]
     ? never
+    : Value extends (...args: any) => unknown
+      ? Value
+      : Value extends Date | URL | ArrayBuffer | DataView
+        ? Value
     : Value extends readonly (infer Item)[]
       ? readonly RejectPromiseLikeRecord<Item>[]
       : Value extends ReadonlyMap<infer Key, infer Item>
         ? ReadonlyMap<RejectPromiseLikeRecord<Key>, RejectPromiseLikeRecord<Item>>
         : Value extends ReadonlySet<infer Item>
           ? ReadonlySet<RejectPromiseLikeRecord<Item>>
-      : Value extends Record<string, unknown>
+      : Value extends object
         ? { readonly [Key in keyof Value]: RejectPromiseLikeRecord<Value[Key]> }
         : Value;
 /** Public grouped-query key shape accepted by `Query.groupBy(...)`. */
@@ -359,6 +363,19 @@ export const evaluateQueryOperation = <A>(
     throw toQueryEvaluationError(operation, cause);
   }
 };
+
+export const evaluateQueryStructuredOperation = <A>(
+  operation: QueryEvaluationOperation,
+  evaluate: () => A
+): A =>
+  evaluateQueryOperation(operation, () => {
+    const value = evaluate();
+    const promisePath = promiseShapedQueryValuePath(value);
+    if (promisePath !== undefined) {
+      throw promiseShapedQueryCallbackError(operation, promisePath);
+    }
+    return value;
+  });
 
 export const joinKey = (value: QueryJoinKey): string =>
   value instanceof Date ? `Date:${value.toISOString()}` : stableStringify(value);
@@ -592,11 +609,11 @@ export const groupContexts = (
     const result: Record<string, unknown> = { ...group.key };
     for (const [name, aggregate] of Object.entries(grouping.aggregates)) {
       const values = group.values.map((value) =>
-        [evaluateQueryOperation("aggregate", () => aggregate.preMap(value)), 1] as [unknown, number]
+        [evaluateQueryStructuredOperation("aggregate", () => aggregate.preMap(value)), 1] as [unknown, number]
       );
-      const reduced = evaluateQueryOperation("aggregate", () => aggregate.reduce(values));
+      const reduced = evaluateQueryStructuredOperation("aggregate", () => aggregate.reduce(values));
       result[name] = aggregate.postMap
-        ? evaluateQueryOperation("aggregate", () => aggregate.postMap!(reduced))
+        ? evaluateQueryStructuredOperation("aggregate", () => aggregate.postMap!(reduced))
         : reduced;
     }
     return result;

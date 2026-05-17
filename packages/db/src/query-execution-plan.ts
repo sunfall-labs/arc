@@ -5,6 +5,7 @@ import {
   compareRows,
   compareValue,
   evaluateQueryOperation,
+  evaluateQueryStructuredOperation,
   projectCurrentContext,
   querySourceAdapters,
   toQueryEvaluationError,
@@ -110,7 +111,7 @@ export const projectQueryContexts = <TContext extends AnyQueryContext, TResult>(
 
   const projector = builder.projector ?? projectCurrentContext<TContext, TResult>;
   return filtered.map((row) =>
-    evaluateQueryOperation("projection", () => projector(row))
+    evaluateQueryStructuredOperation("projection", () => projector(row))
   );
 };
 

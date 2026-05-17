@@ -114,6 +114,44 @@ describe("ActionResult", () => {
 	    }
 	  });
 
+  it("rejects Effect-shaped success and failure result payloads", () => {
+    for (const build of [
+      () => ActionResult.success(Effect.succeed({ id: "atlas" }) as never),
+      () => ActionResult.successEffect(Effect.succeed({ id: "atlas" }) as never),
+      () => ActionResult.failure(Effect.succeed("failed") as never),
+      () => ActionResult.failureEffect(Effect.succeed("failed") as never)
+    ]) {
+      try {
+        build();
+        throw new Error("expected ActionResult Effect payload rejection");
+      } catch (error) {
+        expect(error).toBeInstanceOf(EffectInputCallbackError);
+        expect((error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
+      }
+    }
+  });
+
+  it("rejects Promise-shaped and Effect-shaped invalidation entries", () => {
+    const Project = Resource.family({
+      name: "Project.action-result-invalidations",
+      load: (id: string) => Effect.succeed({ id })
+    });
+    const ref = Project("atlas");
+
+    for (const build of [
+      () => ActionResult.success("ok", { invalidates: [Promise.resolve(ref) as never] }),
+      () => ActionResult.failure("failed", { invalidates: [Effect.succeed(ref) as never] }),
+      () => ActionResult.withInvalidation(ActionResult.success("ok"), [Promise.resolve(ref) as never])
+    ]) {
+      try {
+        build();
+        throw new Error("expected ActionResult invalidation rejection");
+      } catch (error) {
+        expect(error).toBeInstanceOf(EffectInputCallbackError);
+      }
+    }
+  });
+
 	  it("rejects Promise-shaped validation error payloads", () => {
 	    for (const build of [
 	      () => ActionResult.fieldError<{ readonly name: string }, "name", string>("name", Promise.resolve("too short") as never),
@@ -134,6 +172,27 @@ describe("ActionResult", () => {
 	      }
 	    }
 	  });
+
+  it("rejects Effect-shaped validation error payloads", () => {
+    for (const build of [
+      () => ActionResult.fieldError<{ readonly name: string }, "name", string>("name", Effect.succeed("too short") as never),
+      () => ActionResult.formError<{ readonly name: string }, string>(Effect.succeed("invalid") as never),
+      () => ActionResult.fields<{ readonly name: string }, string>({
+        name: [Effect.succeed("too short") as never]
+      }),
+      () => ActionResult.validation<{ readonly name: string }, string>({
+        formErrors: [Effect.succeed("invalid") as never]
+      })
+    ]) {
+      try {
+        build();
+        throw new Error("expected ActionResult Effect validation rejection");
+      } catch (error) {
+        expect(error).toBeInstanceOf(EffectInputCallbackError);
+        expect((error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
+      }
+    }
+  });
 
 	  it("reports erased Promise-shaped ActionResult payloads from action runs as typed failures", () =>
     Effect.runPromise(
