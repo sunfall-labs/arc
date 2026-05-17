@@ -41,10 +41,11 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused Review207 slice is green for Action LSP/public API pins
-  and starter/DB hydration wording found during the first post-Review206 sweep.
+- The latest focused Review208 slice is green for RuntimeProvider observer
+  typing, Start CLI direct-bin rehearsal, stale package-hygiene ledger wording,
+  and Solid match callback docs found during the first post-Review207 sweep.
 - The latest implementation and full verification gate is green after
-  Review207:
+  Review208:
   `pnpm verify` completed with 53 root test files / 1062 tests, public API
   inventory audit, Effect-first audit over 408 physical/virtual files,
   package-level verifies, parallel example package verifies and leak scans,
@@ -75,8 +76,10 @@ or command result that proves it.
   sweep found Review205 local evidence-date and historical serial-ledger drift.
   The first post-Review205 sweep found Review206 Start CLI symlink bin and
   hydration-doc drift. The first post-Review206 sweep found Review207 Action
-  LSP/public API pins and starter/DB hydration wording drift. The active counter
-  remains 0/30 until a fresh post-Review207 sweep is clean.
+  LSP/public API pins and starter/DB hydration wording drift. The first
+  post-Review207 sweep found Review208 RuntimeProvider observer, CLI direct bin,
+  package-hygiene ledger, and Solid match docs work. The active counter remains
+  0/30 until a fresh post-Review208 sweep is clean.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -654,6 +657,7 @@ or command result that proves it.
 | 445 | Review 205 local evidence dates and serial ledger drift | `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md` | Fixed post-Review204 docs findings. Current evidence dates now match the local May 16, 2026 repo clock and Review204 commit timestamp instead of future-dating the gate as May 17. The historical Review410 row now says `verify:serial` was later moved onto the Workspace Verification Plan with `--concurrency=1`, instead of claiming the old exact command still exists. | Focused verification passed: local date and HEAD timestamp checks, stale May 17 / old serial wording greps, syntax checks for `scripts/verify.mjs` and `scripts/workspace-verification-plan.mjs`, public API audit, Effect-first audit over 408 files, workspace typecheck, and `git diff --check`. Full `pnpm verify` and `pnpm verify:serial` passed after Review205: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 408 files, 53 root test files / 1062 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
 | 446 | Review 206 Start CLI symlink bin and hydration docs | `docs/architecture-deepening-review.md`; `docs/architecture.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/effect-style.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `packages/start/src/cli.ts`; `scripts/verify-package-dry-runs.mjs` | Fixed post-Review205 findings. The Start CLI bin main guard now compares real filesystem paths so package-manager symlink entrypoints run the diagnostics CLI, and the package dry-run verifier creates a temporary `effect-ui-start` symlink and checks `--version`. Hydration docs now teach `hydrateFromDocumentEffect(...)` / `hydrateStartPayloadEffect(...)` and lower-level `Resource.hydrateEffect(payload)` first, while describing `Resource.hydrate(payload)` as the synchronous current-runtime facade. | Focused verification passed: Start build/typecheck, syntax checks for the CLI and package dry-run verifier, `pnpm example:pack-dry-run` including the symlinked CLI bin check, Effect-first hydration-doc greps, public API audit, Effect-first audit over 408 files, workspace typecheck, and `git diff --check`. Full `pnpm verify` and `pnpm verify:serial` passed after Review206: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 408 files, 53 root test files / 1062 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
 | 447 | Review 207 Action LSP pins and starter hydration wording | `docs/architecture-deepening-review.md`; `docs/db.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/starter.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `examples/basic-starter/README.md`; `packages/core/src/action.ts`; `scripts/public-api-symbol-policy.mjs`; `scripts/starter-template-content.mjs`; `type-tests/core.test-d.ts`; `type-tests/public-api.manifest.json` | Fixed post-Review206 findings. Action `exhaust` hover docs now describe joining the in-flight submission, direct Action root symbols are public-hover and manifest/type-test pinned, and starter/DB hydration docs now either show `hydrateFromDocumentEffect(...)` through the browser runtime first or explicitly label `hydrateFromDocument(...)` as the synchronous pre-mount host facade. | Focused verification passed: Core typecheck, public type tests, public API audit, Effect-first audit over 408 files, focused Core action tests, starter README hydration wording greps, generated starter package dry-run, workspace typecheck, and `git diff --check`. Full `pnpm verify` and `pnpm verify:serial` passed after Review207: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 408 files, 53 root test files / 1062 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
+| 448 | Review 208 RuntimeProvider observers and CLI direct bin | `docs/adapter-differences.md`; `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/react/src/runtime.ts`; `packages/solid/src/runtime.ts`; `packages/start/package.json`; `scripts/audit-effect-first.mjs`; `scripts/verify-package-dry-runs.mjs`; `type-tests/react.test-d.ts`; `type-tests/solid.test-d.ts` | Fixed post-Review207 findings. React and Solid `RuntimeProvider` disposal observers now expose `EffectInput<void, unknown>` so typed observer failures are accepted while Promise-shaped observers and host-owned runtime observers stay rejected, with the Promise negative fixtures anchored in the Effect-first audit. The package dry-run verifier executes the linked `effect-ui-start` bin directly on POSIX and the Start build marks `dist/cli.js` executable. Solid `ResourceMatch` docs now use plain callback values, and stale current-gate ledgers name Review208. | Focused verification passed: React typecheck, Solid typecheck, Start build, public type tests, package dry-run verification with the direct linked CLI bin, public API audit, Effect-first audit, focused React/Solid hook tests, workspace typecheck, stale docs greps, and `git diff --check`. Full `pnpm verify` and `pnpm verify:serial` passed after Review208: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 408 files, 53 root test files / 1062 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
 
 ## Thirty-Sweep Gate
 
@@ -679,9 +683,11 @@ LSP policy and adapter resource alias work. The first post-Review204 sweep
 found Review205 local evidence-date and historical serial-ledger drift. The
 first post-Review205 sweep found Review206 Start CLI symlink bin and
 hydration-doc drift. The first post-Review206 sweep found Review207 Action
-LSP/public API pins and starter/DB hydration wording drift. The active counter
-is therefore 0/30 until a fresh post-Review207 sweep reports no actionable
-findings.
+LSP/public API pins and starter/DB hydration wording drift. The first
+post-Review207 sweep found Review208 RuntimeProvider observer typing, Start
+CLI direct-bin rehearsal, stale package-hygiene ledger wording, and Solid match
+docs work. The active counter is therefore 0/30 until a fresh post-Review208
+sweep reports no actionable findings.
 
 - Re-run the Promise and docs drift audits after each single-command full
   verification.

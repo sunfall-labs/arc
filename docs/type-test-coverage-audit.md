@@ -53,6 +53,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   `ActionTypeId`, `ActionState`, `ActionConcurrency`, and
   `isActionDefinition(...)`, so adapters cannot accidentally rely only on the
   `Action` namespace import.
+- Review208 added React and Solid `RuntimeProvider` observer pins proving
+  provider-owned disposal observers may return typed failing Effects,
+  Promise-shaped observers are rejected, and host-owned runtime props cannot
+  install disposal observers.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them

@@ -39,7 +39,7 @@ interface RuntimeProviderSourceProps<RuntimeServices = never, ER = never> extend
    * Promise-shaped observers are rejected by `EffectInput`; observer failures
    * are ignored after the disposal failure has been reported.
    */
-  readonly onDisposeFailure?: (error: RuntimeDisposeError) => EffectInput<void>;
+  readonly onDisposeFailure?: (error: RuntimeDisposeError) => EffectInput<void, unknown>;
 }
 
 interface RuntimeProviderDefaultProps extends RuntimeProviderChildren {
@@ -51,7 +51,7 @@ interface RuntimeProviderDefaultProps extends RuntimeProviderChildren {
    * Promise-shaped observers are rejected by `EffectInput`; observer failures
    * are ignored after the disposal failure has been reported.
    */
-  readonly onDisposeFailure?: (error: RuntimeDisposeError) => EffectInput<void>;
+  readonly onDisposeFailure?: (error: RuntimeDisposeError) => EffectInput<void, unknown>;
 }
 
 /** Props accepted by Solid `RuntimeProvider` for host-owned or provider-owned runtimes. */
@@ -123,7 +123,7 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
 const RuntimeProviderInstance = <ER>(
   props: {
     readonly entry: RuntimeProviderEntry<ER>;
-    readonly onDisposeFailure?: ((error: RuntimeDisposeError) => EffectInput<void>) | undefined;
+    readonly onDisposeFailure?: ((error: RuntimeDisposeError) => EffectInput<void, unknown>) | undefined;
     readonly children?: JSX.Element;
   }
 ): JSX.Element => {

@@ -20,6 +20,12 @@ interruption.
 
 ## Current Sweep Results
 
+- Review208 kept RuntimeProvider disposal observers Effect-first by widening
+  React and Solid `onDisposeFailure(...)` to `EffectInput<void, unknown>` while
+  preserving Promise-shaped observer rejection, anchoring the two Promise
+  negative type-test fixtures as deliberate public-boundary assertions, and
+  tightened the Start package dry-run gate so POSIX installed-bin verification
+  executes the linked `effect-ui-start` executable directly.
 - Review207 kept copyable starter entrypoints on the synchronous browser host
   facade while updating DB/starter docs to teach `hydrateFromDocumentEffect(...)`
   first or explicitly name `hydrateFromDocument(...)` as the pre-mount facade
@@ -558,7 +564,7 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 207 `pnpm verify` run recorded in
+- The current full gate is the Review 208 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
   over 408 files, 53 root test files / 1062 tests, package-level verifies,
@@ -1380,8 +1386,8 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 207 Action LSP and
-  starter hydration wording fix: 11 package
+- The current full `pnpm verify` passed after the Review 208 RuntimeProvider
+  observer and CLI direct-bin fix: 11 package
   builds, workspace typecheck, type tests,
   public API inventory audit, Effect-first audit over 408
   package/example/config/script/type-test/generated/docs files, 53 root test

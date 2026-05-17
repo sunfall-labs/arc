@@ -11,15 +11,16 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review207, the post-Review206 sweep
-fixing Action LSP/public API pins and remaining starter/DB hydration wording.
-The newest full verification checkpoint is Review207. Clean
+The newest completed focused review is Review208, the post-Review207 sweep
+fixing RuntimeProvider observer typing, direct CLI bin rehearsal, stale
+evidence wording, and Solid match callback docs.
+The newest full verification checkpoint is Review208. Clean
 Sweep 1 after Review190 remains
 historical evidence, but later sweeps found Review191, Review192, Review193,
 Review194, Review195, Review196, Review197, Review198, Review199, and
 Review200, Review201, Review202, Review203, Review204, Review205, and
-Review206 and Review207 work, so the active Thirty-Sweep clean counter is 0/30
-until a fresh post-Review207 sweep reports no actionable
+Review206, Review207, and Review208 work, so the active Thirty-Sweep clean counter is 0/30
+until a fresh post-Review208 sweep reports no actionable
 findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
@@ -55,8 +56,79 @@ LSP policy and adapter-root resource alias pin work. The first post-Review204
 sweep found Review205 local evidence-date and historical serial-ledger drift,
 and the first post-Review205 sweep found Review206 Start CLI symlink bin and
 hydration-doc drift. The first post-Review206 sweep found Review207 Action
-JSDoc/public API pins and starter/DB hydration wording drift. The counter
-remains inactive until a fresh post-Review207 sweep is clean.
+JSDoc/public API pins and starter/DB hydration wording drift. The first
+post-Review207 sweep found Review208 RuntimeProvider observer typing, CLI
+direct-bin rehearsal, stale package-hygiene ledger wording, and Solid match
+docs work. The counter remains inactive until a fresh post-Review208 sweep is
+clean.
+
+## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
+
+Review208 fixed actionable findings from the fresh post-Review207 sweep. The DB
+lane reported no actionable findings. The Core/React/Solid lane found that
+React and Solid `RuntimeProvider` disposal observers were implemented as
+fallible Effect inputs but typed as infallible. The Start/verification lane
+found the installed-bin rehearsal still invoked the symlink through `node`
+instead of executing the linked package-manager bin directly. The docs lane
+found stale current-gate package hygiene wording and a Solid `ResourceMatch`
+example that treated plain callback values as accessors.
+
+1. RuntimeProvider Observer Error Typing
+   - Status: fixed.
+   - Files: `packages/react/src/runtime.ts`,
+     `packages/solid/src/runtime.ts`, `type-tests/react.test-d.ts`,
+     `type-tests/solid.test-d.ts`, `scripts/audit-effect-first.mjs`.
+   - Problem: `onDisposeFailure(...)` observers are deliberately invoked
+     through `EffectInput` and have their own failures swallowed after observing
+     the runtime disposal failure, but the public prop type only allowed
+     `EffectInput<void>` and hid typed observer failures from LSP/type-test
+     evidence.
+   - Fix: React and Solid provider-owned runtime props now accept
+     `EffectInput<void, unknown>` observers, the Solid internal provider
+     instance carries the same type, and focused adapter type tests pin that
+     typed observer failures are allowed, Promise-shaped observers are rejected,
+     and host-owned `runtime` props still cannot install disposal observers.
+     The Effect-first audit anchors the two Promise negative fixtures as
+     deliberate public-boundary assertions.
+   - Benefits: hover docs, implementation, and type tests agree on the
+     Effect-first observer contract without reopening Promise-shaped callbacks.
+
+2. Start CLI Direct Bin Rehearsal
+   - Status: fixed.
+   - Files: `scripts/verify-package-dry-runs.mjs`,
+     `packages/start/package.json`.
+   - Problem: Review206 added a symlinked `effect-ui-start` dry-run check, but
+     the verifier ran `node <symlink> --version`, which still bypassed the
+     executable/shebang path used by package-manager bins on POSIX hosts.
+   - Fix: the package dry-run verifier now executes the linked bin directly on
+     POSIX while retaining the Node fallback for Windows, and the Start package
+     build marks `dist/cli.js` executable after compilation.
+   - Benefits: release rehearsal now covers the installed CLI path apps
+     actually receive from npm/pnpm-style package managers.
+
+3. Docs And Ledger Drift
+   - Status: fixed.
+   - Files: `docs/adapter-differences.md`,
+     `docs/package-hygiene-audit.md`, and current evidence ledgers.
+   - Problem: the Solid `ResourceMatch` docs showed callback parameters as
+     accessors even though `project.match(...)` callbacks receive plain values,
+     and the package-hygiene audit still named Review206 as the current full
+     gate.
+   - Fix: the Solid example now uses `previous?.name`, `value.name`, and
+     `String(error)`, while current-facing ledgers name Review208 as the latest
+     gate and preserve Review207 as historical evidence.
+   - Benefits: copyable adapter docs match the typed API, and future sweeps
+     start from one current evidence story.
+
+Focused verification for Review208 passed: React typecheck, Solid typecheck,
+Start build with executable `dist/cli.js`, public type tests, package dry-run
+verification with the linked CLI bin executed directly on POSIX, public API
+audit, Effect-first audit, focused React/Solid hook tests, workspace typecheck,
+and `git diff --check`. Full `pnpm verify` and `pnpm verify:serial` passed
+after Review208 with 11 package builds, workspace typecheck, public type tests,
+public API inventory audit, Effect-first audit over 408 files, 53 root test
+files / 1062 tests, package-level verifies, generated starter packaging, the
+16-target package dry-run gate, project-console checks, and leak scans.
 
 ## Review 207: Action LSP Pins And Starter Hydration Wording
 

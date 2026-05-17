@@ -106,6 +106,22 @@ const solidCountSignal = Signal.make(0);
 const solidReadSignalValue: number = read(solidCountSignal);
 const solidUiScope = new UiScope();
 const solidEffectRuntime = createEffectRuntime();
+class SolidRuntimeProviderObserverError {
+  readonly _tag = "SolidRuntimeProviderObserverError";
+}
+declare const solidRuntimeProviderObserverPromise: Promise<void>;
+const solidRuntimeProviderFailingObserverProps: RuntimeProviderProps = {
+  onDisposeFailure: () => Effect.fail(new SolidRuntimeProviderObserverError())
+};
+const solidRuntimeProviderPromiseObserverProps: RuntimeProviderProps = {
+  // @ts-expect-error RuntimeProvider disposal observers must return void or an Effect, not a Promise.
+  onDisposeFailure: () => solidRuntimeProviderObserverPromise
+};
+// @ts-expect-error host-owned RuntimeProvider instances do not accept disposal observers.
+const solidRuntimeProviderHostOwnedObserverProps: RuntimeProviderProps = {
+  runtime: solidEffectRuntime,
+  onDisposeFailure: () => Effect.void
+};
 const solidForkScoped: typeof forkScoped = forkScoped;
 const solidOnDispose: typeof onDispose = onDispose;
 const solidWatch: typeof watch = watch;
@@ -221,6 +237,9 @@ const solidExports: Array<unknown> = [
   solidReadSignalValue,
   solidUiScope,
   solidEffectRuntime,
+  solidRuntimeProviderFailingObserverProps,
+  solidRuntimeProviderPromiseObserverProps,
+  solidRuntimeProviderHostOwnedObserverProps,
   solidForkScoped,
   solidOnDispose,
   solidWatch,

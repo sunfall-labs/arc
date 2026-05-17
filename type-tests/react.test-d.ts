@@ -107,6 +107,22 @@ const reactCountSignal = Signal.make(0);
 const reactReadSignalValue: number = read(reactCountSignal);
 const reactUiScope = new UiScope();
 const reactEffectRuntime = createEffectRuntime();
+class ReactRuntimeProviderObserverError {
+  readonly _tag = "ReactRuntimeProviderObserverError";
+}
+declare const reactRuntimeProviderObserverPromise: Promise<void>;
+const reactRuntimeProviderFailingObserverProps: RuntimeProviderProps = {
+  onDisposeFailure: () => Effect.fail(new ReactRuntimeProviderObserverError())
+};
+const reactRuntimeProviderPromiseObserverProps: RuntimeProviderProps = {
+  // @ts-expect-error RuntimeProvider disposal observers must return void or an Effect, not a Promise.
+  onDisposeFailure: () => reactRuntimeProviderObserverPromise
+};
+// @ts-expect-error host-owned RuntimeProvider instances do not accept disposal observers.
+const reactRuntimeProviderHostOwnedObserverProps: RuntimeProviderProps = {
+  runtime: reactEffectRuntime,
+  onDisposeFailure: () => Effect.void
+};
 const reactForkScoped: typeof forkScoped = forkScoped;
 const reactOnDispose: typeof onDispose = onDispose;
 const reactWatch: typeof watch = watch;
@@ -224,6 +240,9 @@ const reactExports: Array<unknown> = [
   reactReadSignalValue,
   reactUiScope,
   reactEffectRuntime,
+  reactRuntimeProviderFailingObserverProps,
+  reactRuntimeProviderPromiseObserverProps,
+  reactRuntimeProviderHostOwnedObserverProps,
   reactForkScoped,
   reactOnDispose,
   reactWatch,

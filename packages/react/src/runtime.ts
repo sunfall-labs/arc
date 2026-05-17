@@ -47,7 +47,7 @@ interface RuntimeProviderSourceProps<RuntimeServices = never, ER = never> extend
    * Promise-shaped observers are rejected by `EffectInput`; observer failures
    * are ignored after the disposal failure has been reported.
    */
-  readonly onDisposeFailure?: (error: RuntimeDisposeError) => EffectInput<void>;
+  readonly onDisposeFailure?: (error: RuntimeDisposeError) => EffectInput<void, unknown>;
 }
 
 interface RuntimeProviderDefaultProps extends RuntimeProviderChildren {
@@ -59,7 +59,7 @@ interface RuntimeProviderDefaultProps extends RuntimeProviderChildren {
    * Promise-shaped observers are rejected by `EffectInput`; observer failures
    * are ignored after the disposal failure has been reported.
    */
-  readonly onDisposeFailure?: (error: RuntimeDisposeError) => EffectInput<void>;
+  readonly onDisposeFailure?: (error: RuntimeDisposeError) => EffectInput<void, unknown>;
 }
 
 /** Props accepted by React `RuntimeProvider` for host-owned or provider-owned runtimes. */

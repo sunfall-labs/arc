@@ -49,7 +49,7 @@
     }
   },
   "scripts": {
-    "build": "rm -rf dist .tsbuildinfo && tsgo -p tsconfig.json && cp src/virtual-modules.d.ts dist/virtual.d.ts && rm -f dist/virtual.d.ts.map",
+    "build": "rm -rf dist .tsbuildinfo && tsgo -p tsconfig.json && cp src/virtual-modules.d.ts dist/virtual.d.ts && rm -f dist/virtual.d.ts.map && chmod +x dist/cli.js",
     "typecheck": "tsgo -p tsconfig.json --pretty false --noEmit"
   },
   "dependencies": {

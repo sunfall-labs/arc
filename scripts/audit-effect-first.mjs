@@ -301,6 +301,8 @@ const allowed = [
       seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedSqliteRow", /declare const promisedSqliteRow:\s*Promise<Collection\.SQLiteStorageRow\s*\|\s*null>;/),
       seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedChangeFeedSubscription", /declare const promisedChangeFeedSubscription:\s*Promise<Collection\.ChangeFeedSubscription>;/),
       seam("type-tests/framework.test-d.ts", "Promise negative fixture startResponsePromise", /declare const startResponsePromise:\s*Promise<Response>;/),
+      seam("type-tests/react.test-d.ts", "React RuntimeProvider Promise observer negative fixture", /declare const reactRuntimeProviderObserverPromise:\s*Promise<void>;/),
+      seam("type-tests/solid.test-d.ts", "Solid RuntimeProvider Promise observer negative fixture", /declare const solidRuntimeProviderObserverPromise:\s*Promise<void>;/),
       seam("type-tests/framework.test-d.ts", "Start fetch package Promise facade assertion", /const rootFetchPromise:\s*Promise<Response>\s*=\s*rootFetchPromiseHandler/)
     ]
   },

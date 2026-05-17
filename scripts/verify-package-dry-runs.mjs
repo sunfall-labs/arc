@@ -684,8 +684,8 @@ const verifyStartCliSymlinkBinEffect = (target) => {
 
       const { stdout } = yield* commandEffect(
         "@effect-ui/start symlinked CLI bin version check",
-        process.execPath,
-        [linkedBin, "--version"],
+        process.platform === "win32" ? process.execPath : linkedBin,
+        process.platform === "win32" ? [linkedBin, "--version"] : ["--version"],
       );
       const expected = `effect-ui-start v${target.packageJson.version}`;
       if (stdout.trim() !== expected) {

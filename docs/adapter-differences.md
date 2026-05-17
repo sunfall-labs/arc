@@ -65,9 +65,9 @@ const project = useResource(ProjectById("atlas"));
 
 return project.match({
   initial: () => <p>Loading</p>,
-  pending: (previous) => <p>{previous()?.name ?? "Loading"}</p>,
-  success: (value) => <h1>{value().name}</h1>,
-  failure: (error) => <p>{String(error())}</p>
+  pending: (previous) => <p>{previous?.name ?? "Loading"}</p>,
+  success: (value) => <h1>{value.name}</h1>,
+  failure: (error) => <p>{String(error)}</p>
 });
 ```
 

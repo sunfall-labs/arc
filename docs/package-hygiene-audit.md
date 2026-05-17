@@ -82,6 +82,10 @@ exports. It supports the release-engineering charter workstream.
   `@effect-ui/start` now creates a temporary package-manager-style symlink to
   the built `dist/cli.js` and verifies `effect-ui-start --version` executes
   through that symlink.
+- Review208 tightened that installed-bin rehearsal so POSIX verification runs
+  the linked `effect-ui-start` executable directly instead of invoking the
+  symlink through `node`, and `@effect-ui/start` marks `dist/cli.js` executable
+  during package build.
 
 ## Verification Evidence
 
@@ -131,7 +135,7 @@ exports. It supports the release-engineering charter workstream.
   all 16 package payloads: 11 framework dist packages, 19 basic starter files,
   24 React starter files, 30 project-console files, 10 devtools panel files,
   and 15 devtools extension files.
-- The current full `pnpm verify` passed after Review206 with 11 package builds,
+- The current full `pnpm verify` passed after Review208 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
   Effect-first audit over 408 files, 53 root test files / 1062 tests, derived
   package-level verifies for the five copyable source packages, generated
