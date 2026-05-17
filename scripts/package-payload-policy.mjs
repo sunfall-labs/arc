@@ -35,6 +35,8 @@ export const workspaceDistPackagePayloadPolicies = new Map([
 
 export const knownPayloadPolicies = new Set(["dist-package", "source-package"]);
 
+const forbiddenDistPayloadTokens = ["@effect-ui", "Effect UI", "EffectUiRuntime", "AnyEffectUiRuntime"];
+
 const fail = (message, repair, cause) => new PackagePayloadPolicyError({ message, repair, cause });
 
 const toPosixPath = (filePath) => filePath.split(sep).join("/");
@@ -310,6 +312,39 @@ export const declarationArtifactContentFailuresEffect = ({ target, workspaceRoot
     return failures;
   });
 
+export const legacyDistPayloadTokenFailuresEffect = ({ target, files, workspaceRoot }) =>
+  Effect.gen(function* () {
+    const failures = [];
+    const textFiles = files.filter(
+      (file) =>
+        file.startsWith("dist/") &&
+        (file.endsWith(".js") ||
+          file.endsWith(".d.ts") ||
+          file.endsWith(".js.map") ||
+          file.endsWith(".d.ts.map")),
+    );
+
+    for (const file of textFiles) {
+      const absolutePath = join(target.directory, file);
+      if (!(yield* pathExistsEffect(workspaceRoot, absolutePath))) {
+        continue;
+      }
+      const text = yield* fsEffect(
+        workspaceRoot,
+        `read ${relative(workspaceRoot, absolutePath)}`,
+        () => readFile(absolutePath, "utf8"),
+      );
+      const found = forbiddenDistPayloadTokens.filter((token) => text.includes(token));
+      if (found.length > 0) {
+        failures.push(
+          `${target.label} package dry-run ${file} contains legacy Effect UI payload tokens: ${found.join(", ")}.`,
+        );
+      }
+    }
+
+    return failures;
+  });
+
 /**
  * Validates a dist-package payload against the shared package policy.
  *
@@ -352,6 +387,11 @@ export const validateDistPackagePayloadEffect = ({
       workspaceRoot,
       packageJson,
     });
+    const legacyDistPayloadTokenDrift = yield* legacyDistPayloadTokenFailuresEffect({
+      target,
+      files,
+      workspaceRoot,
+    });
 
     return [
       ...licensePayloadDrift,
@@ -359,5 +399,6 @@ export const validateDistPackagePayloadEffect = ({
       ...declarationArtifactPackDrift,
       ...declarationArtifactContentDrift,
       ...missingManifestTargets,
+      ...legacyDistPayloadTokenDrift,
     ];
   });

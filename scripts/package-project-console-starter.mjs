@@ -991,7 +991,7 @@ const verifyStandaloneConfigs = (starter) =>
       return yield* Effect.fail(
         fail(
           `Generated ${starter.displayName} Vite config still contains monorepo aliases.`,
-          "Rewrite the generated Vite config so it uses local file-package @sunfall-arc imports without monorepo aliases.",
+          "Rewrite the generated Vite config so it uses local file-package @sunfall/arc imports without monorepo aliases.",
         ),
       );
     }

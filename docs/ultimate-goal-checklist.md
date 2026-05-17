@@ -681,11 +681,11 @@ diagnostics`, devtools summary tests, and generated virtual modules.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 493 passed focused Start prerender tests,
+  - Latest focused evidence: Review 494 passed focused Start prerender tests,
     Start package typecheck, public API inventory audit, Effect-first audit,
-    targeted format checks, and `git diff --check` while closing the
-    prerender server release failure and current evidence policy work. Latest
-    full verification evidence is Review 492.
+    package payload policy self-test, targeted format checks, and
+    `git diff --check` while closing the Effect callback and package interface
+    policy work. Latest full verification evidence is Review 492.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
@@ -755,8 +755,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     formatter-tolerant inventory work, the fresh post-Review490 sweep found
     Review491 prerender Effect Interface and lazy route probe work, the fresh
     post-Review491 sweep found Review492 route Suspense runtime and prerender
-    callback pin work, and the fresh post-Review492 sweep found Review493
-    prerender server release and current evidence policy work,
+    callback pin work, the fresh post-Review492 sweep found Review493
+    prerender server release and current evidence policy work, and the fresh
+    post-Review493 sweep found Review494 Effect callback and package interface
+    policy work,
     leaving the active counter at 0/30.
     Latest full evidence:
     `pnpm verify` ran after Review 492 with 58 root
@@ -919,10 +921,11 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     17-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 493 records focused Start prerender tests, Start
-    typecheck, public API inventory audit, Effect-first audit, targeted format
-    checks, and diff hygiene after closing prerender server release and current
-    evidence policy findings. Review492 records the latest full gate. Clean
+  - Evidence: Review 494 records focused Start prerender tests, Start
+    typecheck, public API inventory audit, Effect-first audit, package payload
+    policy self-test, targeted format checks, and diff hygiene after closing
+    Effect callback and package interface policy findings. Review492 records the
+    latest full gate. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
@@ -989,8 +992,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     formatter-tolerant inventory work, the fresh post-Review490 sweep found
     Review491 prerender Effect Interface and lazy route probe work, the fresh
     post-Review491 sweep found Review492 route Suspense runtime and prerender
-    callback pin work, and the fresh post-Review492 sweep found Review493
-    prerender server release and current evidence policy work,
+    callback pin work, the fresh post-Review492 sweep found Review493
+    prerender server release and current evidence policy work, and the fresh
+    post-Review493 sweep found Review494 Effect callback and package interface
+    policy work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 

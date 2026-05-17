@@ -1,6 +1,6 @@
 import { sunfallArcTsrx } from "@sunfall/arc-tsrx";
 import { defineConfig } from "vite";
-import { sunfallArcStart } from "../../packages/start/src/vite.js";
+import { sunfallArcStart } from "@sunfall/arc-start/vite";
 import { docsSiteStartOptions } from "./src/start-options.js";
 
 const fromRoot = (path: string): string => new URL(`../../${path}`, import.meta.url).pathname;

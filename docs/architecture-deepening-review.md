@@ -11,10 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review493 Prerender Server Release And Current
-Evidence Policy, the post-Review492 follow-up that made Start prerender server
-close failures observable through the typed `close-server` error operation and
-tightened current-docs policy against stale full-gate evidence.
+The newest focused review is Review494 Effect Callback And Package Interface
+Policy, the post-Review493 follow-up that lets Start prerender callbacks return
+Effects, pins docs-site to the package Start Vite Interface, and tightens stale
+post-review evidence policy.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -54,9 +54,10 @@ and the fresh post-Review244 sweep found Review245 work,
 and the fresh post-Review245 sweep found Review246 work,
 and the fresh post-Review246 sweep found Review247 work, the dirty-lane
 follow-up found Review490 work, the fresh post-Review490 sweep found
-Review491 work, the fresh post-Review491 sweep found Review492 work, and the
-fresh post-Review492 sweep found Review493 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review493
+Review491 work, the fresh post-Review491 sweep found Review492 work, the fresh
+post-Review492 sweep found Review493 work, and the fresh post-Review493 sweep
+found Review494 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review494
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -69,7 +70,7 @@ Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
 Review235 work, Review236 work, Review237 work, Review238 work, Review239
 work, Review240 work, Review241 work, Review242 work, Review243 work,
 Review244 work, Review245 work, Review246 work, Review247 work, Review490
-work, Review491 work, Review492 work, and Review493 work.
+work, Review491 work, Review492 work, Review493 work, and Review494 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -182,6 +183,47 @@ prerender callback pin work,
 and the fresh post-Review492 sweep found Review493 prerender release and
 current evidence policy work,
 so the counter remains 0/30.
+
+## Review 494: Effect Callback And Package Interface Policy
+
+Review494 fixes the actionable findings from the fresh post-Review493
+subagent sweep.
+
+1. Start Prerender Callback Effect Interface
+   - Status: fixed.
+   - Files: `packages/start/src/start-prerender.ts` and
+     `packages/start/test/start-prerender.test.ts`.
+   - Problem: `onSuccess` and `onError` rejected Promise-shaped work but
+     silently ignored returned Effects, making the callback Interface less
+     Effect-first than its surrounding Module.
+   - Solution: callbacks now accept `EffectInput<void, unknown, never>`, execute
+     returned Effects, reject Promise-shaped work, and report failed callback
+     Effects through typed `StartPrerenderError` `callback` failures.
+   - Benefits: the callback Seam is deeper and more idiomatic: user work can
+     be modeled as Effect without being dropped by the Implementation.
+
+2. Docs Site Package Interface
+   - Status: fixed.
+   - Files: `examples/docs-site/vite.config.ts` and
+     `scripts/package-project-console-starter.mjs`.
+   - Problem: the docs-site example imported the Start Vite Implementation
+     directly instead of the package Interface.
+   - Solution: docs-site imports `sunfallArcStart` through
+     `@sunfall/arc-start/vite`.
+   - Benefits: the docs-site example keeps copyable package Interface Locality.
+
+3. Current Evidence Policy
+   - Status: fixed.
+   - Files: `docs/perfection-progress.md`,
+     `docs/generated-artifact-audit.md`, and
+     `scripts/public-api-symbol-policy.mjs`.
+   - Problem: one progress paragraph still waited on a post-Review492 clean
+     sweep, and the stale wait-pattern policy failed to catch wrapped Markdown.
+   - Solution: current ledgers now wait on a fresh post-Review494 sweep, and
+     the stale post-review policy tolerates Markdown wrapping around
+     "actionable findings".
+   - Benefits: the Thirty-Sweep counter remains honest when a follow-up sweep
+     finds real work, and the docs policy has better Leverage for future drift.
 
 ## Review 493: Prerender Server Release And Current Evidence Policy
 

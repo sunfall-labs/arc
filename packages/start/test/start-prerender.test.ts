@@ -221,6 +221,76 @@ describe("Start prerender planning", () => {
     }
   });
 
+  it("runs Effect-returning onSuccess callback work", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-start-prerender-"));
+    let callbackCount = 0;
+
+    try {
+      const outDir = writePrerenderFixture(root);
+      const result = await Effect.runPromise(
+        Effect.scoped(
+          runStartPrerenderEffect({
+            root,
+            outDir,
+            manifest,
+            configFile: false,
+            serverEntry: "/src/server.ts",
+            prerender: {
+              enabled: true,
+              autoStaticPathsDiscovery: false,
+              crawlLinks: false,
+              onSuccess: () =>
+                Effect.sync(() => {
+                  callbackCount += 1;
+                }),
+            },
+          }),
+        ),
+      );
+
+      expect(result.pages.map((page) => page.page.path)).toEqual(["/"]);
+      expect(callbackCount).toBe(1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("reports failed Effect-returning onError callback work", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-start-prerender-"));
+
+    try {
+      const outDir = writePrerenderFixture(root, { status: 500 });
+      const error = await Effect.runPromise(
+        Effect.flip(
+          Effect.scoped(
+            runStartPrerenderEffect({
+              root,
+              outDir,
+              manifest,
+              configFile: false,
+              serverEntry: "/src/server.ts",
+              prerender: {
+                enabled: true,
+                autoStaticPathsDiscovery: false,
+                crawlLinks: false,
+                failOnError: false,
+                onError: () => Effect.fail(new Error("callback effect failed")),
+              },
+            }),
+          ),
+        ),
+      );
+
+      expect(error).toMatchObject({
+        operation: "callback",
+        path: "/",
+      });
+      expect(error.message).toContain("onError callback Effect failed");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("runs prerendering from the Vite closeBundle host seam", async () => {
     const root = mkdtempSync(join(tmpdir(), "sunfall-arc-start-prerender-vite-"));
 

@@ -87,14 +87,23 @@ Latest full gate on May 17, 2026 after Review 492:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 494 Effect Callback And Package Interface Policy makes Start prerender
+  callbacks Effect-first by executing returned Effects, preserving
+  Promise-shaped rejection, and surfacing failed callback Effects as typed
+  `callback` errors. Docs-site now imports Start Vite through
+  `@sunfall/arc-start/vite`, and current evidence policy catches wrapped stale
+  post-review waits. The active Thirty-Sweep clean counter
+  remains 0/30 until a fresh post-Review494 sweep reports no actionable
+  findings.
 - Review 493 Prerender Server Release And Current Evidence Policy makes Start
   prerender server release failures observable as typed `close-server` errors:
   websocket, hot-channel, and server close handles are all attempted, successful
   prerender work fails when release fails, and body failure still wins over
   cleanup failure. Current evidence policy now records Review493 as the latest
   focused sweep, keeps Review492 as the latest full gate, and rejects stale
-  older "current full" claims. The active Thirty-Sweep clean counter remains
-  0/30 until a fresh post-Review493 sweep reports no actionable findings.
+  older "current full" claims. The active Thirty-Sweep clean counter remained
+  0/30; the later fresh post-Review493 sweep found Review494 Effect callback
+  and package interface policy work.
 - Review 492 Route Suspense Runtime And Prerender Callback Pins moved lazy
   route Suspense pending classification and preload launch into Core, leaving
   React/Solid with only host Suspense token conversion, and avoids duplicate

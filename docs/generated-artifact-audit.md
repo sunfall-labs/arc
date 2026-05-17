@@ -111,8 +111,9 @@ repeating stale package/test totals.
   `packages/start/test/start.test.ts`.
 - Review166 full `pnpm verify` passed with 53 root test files / 1021 tests,
   the then-current generated starter-suite packaging/verifies, and the
-  16-target package dry-run gate. Current starter file counts are recorded in
-  the latest Review240 evidence above.
+  16-target package dry-run gate. Those starter file counts are historical;
+  current generated starter counts are recorded in the Review492 full gate and
+  protected by the Review494 current evidence policy.
 - Review173 focused Start artifact verification passed: `pnpm --filter
 @sunfall/arc-start build` and `pnpm example:pack-dry-run` with the copied
   virtual declaration Adapter byte check and stale declaration-map rejection

@@ -23,7 +23,7 @@ export interface ReactDbReactiveBinding<E, ER = never> {
   readonly runtime: AnySunfallArcRuntime<ER>;
   readonly preloadFailure: E | ER | undefined;
   read<A>(read: () => A): A;
-  bindEffect<A, Error, R>(effect: Effect.Effect<A, Error, R>): Effect.Effect<A, Error | ER>;
+  bindEffect<A, E2, R>(effect: Effect.Effect<A, E2, R>): Effect.Effect<A, E2 | ER>;
 }
 
 export interface ReactDbReactiveBindingOptions<E, R = never, ER = never> {
@@ -139,8 +139,10 @@ export const useReactDbReactiveBinding = <E, R = never, ER = never>(
         void tick;
         return runWithRuntime(runtime, read);
       },
-      bindEffect: <A, Error, Requirements>(effect: Effect.Effect<A, Error, Requirements>) =>
-        bindCollectionRuntimeEffect(runtime, effect),
+      bindEffect: <A, E2, Requirements>(
+        effect: Effect.Effect<A, E2, Requirements>,
+      ): Effect.Effect<A, E2 | ER> =>
+        bindCollectionRuntimeEffect<A, E2, Requirements, ER>(runtime, effect),
     }),
     [runtime, preloadFailure, tick],
   );

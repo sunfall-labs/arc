@@ -20,6 +20,11 @@ interruption.
 
 ## Current Sweep Results
 
+- Review494 Effect Callback And Package Interface Policy keeps the post-Review493
+  fixes Effect-first: Start prerender callbacks now execute returned Effects
+  instead of dropping them, failed callback Effects surface as typed callback
+  failures, and Promise-shaped callback work remains rejected at the callback
+  Seam.
 - Review493 Prerender Server Release And Current Evidence Policy keeps the
   post-Review492 fixes Effect-first: Start prerender server release now runs
   websocket, hot-channel, and server close handles as typed Effects, reports

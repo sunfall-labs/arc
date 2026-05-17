@@ -24,7 +24,7 @@ export interface SolidDbReactiveBinding<E, ER = never> {
   readonly tick: Accessor<number>;
   readonly preloadFailure: Accessor<E | ER | undefined>;
   read<A>(read: () => A): A;
-  bindEffect<A, Error, R>(effect: Effect.Effect<A, Error, R>): Effect.Effect<A, Error | ER>;
+  bindEffect<A, E2, R>(effect: Effect.Effect<A, E2, R>): Effect.Effect<A, E2 | ER>;
   refreshSources(): void;
 }
 

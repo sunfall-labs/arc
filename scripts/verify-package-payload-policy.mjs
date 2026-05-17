@@ -189,6 +189,14 @@ const selfTest = Effect.gen(function* () {
       ["missing LICENSE"],
     ),
   );
+  yield* withTempPackageEffect(
+    "legacy dist payload token",
+    { indexText: 'export { old } from "@effect-ui/core";\n' },
+    (directory) =>
+      expectFailuresEffect("legacy dist payload token", validateEffect(directory), [
+        "legacy Effect UI payload tokens",
+      ]),
+  );
   yield* Effect.scoped(
     Effect.gen(function* () {
       const workspaceRoot = yield* fsEffect("create temp workspace for license drift", () =>

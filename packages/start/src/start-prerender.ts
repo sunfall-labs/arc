@@ -1,5 +1,10 @@
 import { Cause, Data, Effect, Exit, Scope } from "effect";
-import { isPromiseLikeValue, toEffect, type EffectInput } from "@sunfall/arc-core";
+import {
+  EffectInputPromiseRejected,
+  isPromiseLikeValue,
+  toEffect,
+  type EffectInput,
+} from "@sunfall/arc-core";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createServer, type InlineConfig, type ViteDevServer } from "vite";
@@ -83,10 +88,10 @@ export interface StartPrerenderOptions {
   readonly retryDelay?: number;
   /** Reject the build when any prerender page fails. Defaults to true. */
   readonly failOnError?: boolean;
-  /** Called after a page is successfully written. */
-  readonly onSuccess?: (event: StartPrerenderSuccessEvent) => void;
-  /** Called after all attempts for a page fail. */
-  readonly onError?: (event: StartPrerenderFailureEvent) => void;
+  /** Called after a page is successfully written; returned Effects are executed. */
+  readonly onSuccess?: (event: StartPrerenderSuccessEvent) => EffectInput<void, unknown, never>;
+  /** Called after all attempts for a page fail; returned Effects are executed. */
+  readonly onError?: (event: StartPrerenderFailureEvent) => EffectInput<void, unknown, never>;
 }
 
 /** Boolean shorthand or option object for configuring Start prerendering. */
@@ -630,7 +635,25 @@ const callSuccess = (
               { path: event.page.path, cause: result },
             ),
           )
-        : Effect.void,
+        : toEffect(result as EffectInput<void, unknown, never>).pipe(
+            Effect.mapError((cause) =>
+              startPrerenderError("callback", "Start prerender onSuccess callback Effect failed.", {
+                path: event.page.path,
+                cause,
+              }),
+            ),
+            Effect.catchDefect((defect) =>
+              Effect.fail(
+                startPrerenderError(
+                  "callback",
+                  defect instanceof EffectInputPromiseRejected
+                    ? "Start prerender onSuccess callback returned Promise-shaped work; wrap async host work in Effect.tryPromise(...) before prerendering."
+                    : "Start prerender onSuccess callback Effect defected.",
+                  { path: event.page.path, cause: defect },
+                ),
+              ),
+            ),
+          ),
     ),
   );
 
@@ -655,7 +678,25 @@ const callError = (
               { path: event.page.path, cause: result },
             ),
           )
-        : Effect.void,
+        : toEffect(result as EffectInput<void, unknown, never>).pipe(
+            Effect.mapError((cause) =>
+              startPrerenderError("callback", "Start prerender onError callback Effect failed.", {
+                path: event.page.path,
+                cause,
+              }),
+            ),
+            Effect.catchDefect((defect) =>
+              Effect.fail(
+                startPrerenderError(
+                  "callback",
+                  defect instanceof EffectInputPromiseRejected
+                    ? "Start prerender onError callback returned Promise-shaped work; wrap async host work in Effect.tryPromise(...) before prerendering."
+                    : "Start prerender onError callback Effect defected.",
+                  { path: event.page.path, cause: defect },
+                ),
+              ),
+            ),
+          ),
     ),
   );
 
