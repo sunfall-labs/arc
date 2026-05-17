@@ -166,6 +166,30 @@ describe("Program", () => {
       })
     ));
 
+  it("reports erased Promise-shaped Program.next models as typed failures", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const program = Program.start(Program.define<number, "promise-step">({
+          initial: 0,
+          update: () => Program.next(Promise.resolve(1) as never)
+        }));
+
+        const failure = yield* Effect.flip(program.dispatchEffect("promise-step"));
+
+        expect(read(program.model)).toBe(0);
+        expect(failure).toMatchObject({
+          _tag: "ProgramFailure",
+          phase: "Update",
+          message: "promise-step",
+          error: expect.any(EffectInputCallbackError)
+        });
+        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+        expect(read(program.failures)).toEqual([failure]);
+
+        yield* program.disposeEffect;
+      })
+    ));
+
   it("reports runtime provision failures as typed dispatch failures", () =>
     Effect.runPromise(
       Effect.gen(function* () {

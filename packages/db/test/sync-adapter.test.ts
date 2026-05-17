@@ -644,6 +644,38 @@ describe("Collection.syncOptions", () => {
       )
     ));
 
+  it("publishes change-feed unsubscribe defects before swallowing them", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const Projects = Collection.define<Project>({
+            name: "Projects.sync.feed-unsubscribe-defect",
+            getKey: (project) => project.id
+          });
+          const feed: Collection.ChangeFeedAdapter<Project> = {
+            name: "projects-unsubscribe-defect-feed",
+            subscribe: () => ({
+              unsubscribe: () => Effect.die("cleanup-defect")
+            })
+          };
+
+          const subscription = yield* Collection.subscribeEventsEffect();
+          yield* Effect.scoped(Collection.subscribeChangesEffect(Projects, feed));
+
+          const event = yield* PubSub.take(subscription).pipe(
+            Effect.timeoutOption("20 millis")
+          );
+
+          expect(Option.isSome(event)).toBe(true);
+          expect(event.value).toMatchObject({
+            _tag: "CollectionChangeFeedFailure",
+            collection: "Projects.sync.feed-unsubscribe-defect"
+          });
+          expect(String(event.value.error)).toContain("cleanup-defect");
+        })
+      )
+    ));
+
   it("binds Effect change-feed emitters to the subscribed Collection store", () => {
     const first = makeRuntime();
     const second = makeRuntime();

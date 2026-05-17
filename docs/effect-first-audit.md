@@ -578,10 +578,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 210 `pnpm verify` run recorded in
+- The current full gate is the Review 211 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 408 files, 53 root test files / 1064 tests, package-level verifies,
+  over 408 files, 53 root test files / 1068 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
@@ -1400,17 +1400,19 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 210 Effect success
-  Promise gates, verify argv validation, DB cleanup docs, React/Solid DB option
-  pins, and Start CLI shared-flag parser fixes: 11 package builds, workspace
-  typecheck, type tests, public API inventory audit, Effect-first audit over
-  408 package/example/config/script/type-test/generated/docs files, 53 root
-  test files / 1064 tests, package-level verifies for copyable/source packages,
+- The current full `pnpm verify` passed after the Review 211 Program step,
+  optimistic signal, DB cleanup defect, adapter docs, and evidence precision
+  fixes: 11 package builds, workspace typecheck, type tests, public API
+  inventory audit, Effect-first audit over 408
+  package/example/config/script/type-test/generated/docs files, 53 root test
+  files / 1068 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans. The Effect-first audit now
-  anchors 26 Promise negative fixtures, 6 `PromiseLike` occurrences, and 8
-  structural thenable guard/type-surface occurrences.
+  anchors 26 Promise return-type allowances: 8 host/facade seams, 17 Promise
+  negative fixtures, and 1 Start fetch Promise facade assertion. It also
+  anchors 6 `PromiseLike` occurrences and 8 structural thenable
+  guard/type-surface occurrences.
   Review 185 remains historical
   evidence for starter catalog typed-error validation, and Review 165 remains
   historical evidence for the Effect-first seams, atomic hydration, route

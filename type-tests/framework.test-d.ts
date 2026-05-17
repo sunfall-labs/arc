@@ -507,6 +507,12 @@ toEffect<unknown>(Effect.succeed(promisedProject));
 toEffect(Effect.succeed(thenableProject));
 // @ts-expect-error EffectInput Effects cannot succeed with optional callable-then-shaped values
 toEffect(Effect.succeed(optionalThenableProject));
+// @ts-expect-error Program.next models cannot be Promise-shaped values
+Program.next(promisedProject);
+// @ts-expect-error Program.next models cannot hide Promise-shaped values behind explicit unknown
+Program.next<unknown, "bad">(promisedProject);
+// @ts-expect-error Effects cannot hide Program.next Promise-shaped model values
+Effect.succeed(Program.next(promisedProject));
 // @ts-expect-error EffectInput callbacks cannot hide Promise-shaped values behind explicit unknown
 invokeEffectInput<[], unknown>("Project.promiseUnknown", () => promisedProject);
 // @ts-expect-error ActionResult.fromEffect rejects Promise-shaped direct values
@@ -3884,9 +3890,14 @@ const TouchProject = Action.define<{ readonly id: string }, Project>({
   optimistic: ({ id }, transaction) =>
     Effect.gen(function* () {
       const label = Signal.make("idle");
+      const unknownLabel = Signal.make<unknown>("idle");
       yield* transaction.signal(label, id);
       // @ts-expect-error optimistic patches must match the target signal value type
       yield* transaction.signal(label, 123);
+      // @ts-expect-error optimistic signal values cannot hide Promise-shaped values behind unknown
+      yield* transaction.signal(unknownLabel, promisedProject);
+      // @ts-expect-error optimistic signal updaters cannot hide Promise-shaped returns behind unknown
+      yield* transaction.signal<unknown>(unknownLabel, () => promisedProject);
       return Effect.void;
     }),
   run: ({ id }) => Effect.succeed({ id, name: "Touched" }),

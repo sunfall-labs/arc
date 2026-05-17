@@ -1,13 +1,26 @@
 import { Effect } from "effect";
-import { EffectInputCallbackError } from "./effect-like.js";
+import {
+  EffectInputCallbackError,
+  type RejectPromiseLikeValue
+} from "./effect-like.js";
+import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
 import { Signal, type WritableSignal } from "./signal.js";
 
 export type ActionRollback<R = never> = Effect.Effect<void, EffectInputCallbackError, R>;
 
+type ActionOptimisticSignalValue<A> =
+  A
+  & RejectPromiseLikeValue<A>
+  & { readonly call?: never; readonly apply?: never; readonly bind?: never };
+
+type ActionOptimisticSignalUpdate<A> =
+  | ActionOptimisticSignalValue<A>
+  | ((current: A) => ActionOptimisticSignalValue<A>);
+
 export interface ActionOptimisticTransaction {
   readonly signal: <A>(
     signal: WritableSignal<A>,
-    update: A | ((current: A) => A)
+    update: ActionOptimisticSignalUpdate<A>
   ) => Effect.Effect<void, EffectInputCallbackError>;
 }
 
@@ -46,11 +59,26 @@ const optimisticSignalPatchError = (
   actionName: string,
   cause: unknown
 ): EffectInputCallbackError =>
-  new EffectInputCallbackError({
-    operation: `Action.optimistic(${actionName}).signal`,
-    cause,
-    guidance: "Optimistic signal update functions must be pure and total. Synchronous throws are reported in the Effect error channel."
-  });
+  cause instanceof EffectInputCallbackError
+    ? cause
+    : new EffectInputCallbackError({
+        operation: `Action.optimistic(${actionName}).signal`,
+        cause,
+        guidance: "Optimistic signal update functions must be pure and total. Synchronous throws are reported in the Effect error channel."
+      });
+
+const optimisticSignalPromiseGuidance =
+  "Optimistic signal updates must return plain values. Move host Promise work into the action run Effect with Effect.tryPromise(...) before patching local signal state.";
+
+const rejectOptimisticSignalPatchValue = <A>(
+  actionName: string,
+  value: A
+): A =>
+  rejectPromiseLikeSyncCallbackValue(
+    `Action.optimistic(${actionName}).signal`,
+    value,
+    optimisticSignalPromiseGuidance
+  );
 
 const applySignalPatchEffect = <A>(
   actionName: string,
@@ -58,7 +86,7 @@ const applySignalPatchEffect = <A>(
   value: A
 ): Effect.Effect<A, EffectInputCallbackError> =>
   Effect.try({
-    try: () => patch.apply(value),
+    try: () => rejectOptimisticSignalPatchValue(actionName, patch.apply(value)),
     catch: (cause) => optimisticSignalPatchError(actionName, cause)
   });
 
@@ -130,7 +158,7 @@ export const makeActionOptimisticTransactionRuntime = <R>(
   const api: ActionOptimisticTransaction = {
     signal: <A>(
       signal: WritableSignal<A>,
-      update: A | ((current: A) => A)
+      update: ActionOptimisticSignalUpdate<A>
     ): Effect.Effect<void, EffectInputCallbackError> =>
       Effect.gen(function* () {
         const existing = signalPatchStates.get(signal) as SignalPatchState<A> | undefined;

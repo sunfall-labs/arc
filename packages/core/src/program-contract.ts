@@ -3,7 +3,8 @@ import type {
   EffectInput,
   EffectInputCallbackError,
   EffectInputError,
-  EffectInputRequirements
+  EffectInputRequirements,
+  RejectPromiseLikeValue
 } from "./effect-like.js";
 import type { ReadableSignal } from "./signal.js";
 
@@ -48,7 +49,7 @@ export interface ProgramStep<Model, Message, E = never, R = never> {
 
 /** Value returned by an update callback: a model or a model plus commands. */
 export type ProgramUpdate<Model, Message, E = never, R = never> =
-  | Model
+  | (Model & RejectPromiseLikeValue<Model>)
   | ProgramStep<Model, Message, E, R>;
 
 /** Stream subscription that emits messages into a Program. */

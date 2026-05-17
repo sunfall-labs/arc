@@ -14,7 +14,8 @@ import {
   isProgramStep,
   makeProgramFailure,
   normalizeProgramSubscriptions,
-  programNext
+  programNext,
+  validateProgramStepModelEffect
 } from "./program-primitives.js";
 import {
   makeProgramRuntimeTimeline,
@@ -179,44 +180,62 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
             yield* completeAck(queued, reportFailure ? failure : disposedFailure(queued.message));
           }),
         onSuccess: (update) =>
-          Effect.gen(function* () {
-            const before = Signal.peek(model);
-            const step = isProgramStep(update)
+          validateProgramStepModelEffect(
+            isProgramStep(update)
               ? update
-              : programNext<Model, Message, E, R>(update);
+              : programNext<Model, Message, E, R>(update)
+          ).pipe(
+            Effect.matchEffect({
+              onFailure: (error) =>
+                Effect.gen(function* () {
+                  const failure = makeProgramFailure("Update", error, queued.message);
+                  const reportFailure = yield* Effect.sync(() => {
+                    if (disposed) {
+                      return false;
+                    }
+                    appendFailure(failure);
+                    recordTimeline({ _tag: "UpdateFailed", failure });
+                    return true;
+                  });
+                  yield* completeAck(queued, reportFailure ? failure : disposedFailure(queued.message));
+                }),
+              onSuccess: (step) =>
+                Effect.gen(function* () {
+                  const before = Signal.peek(model);
+                  const committed = yield* Effect.sync(() => {
+                    if (disposed) {
+                      return false;
+                    }
+                    recordTimeline({
+                      _tag: "Message",
+                      message: queued.message,
+                      before,
+                      after: step.model,
+                      commandCount: step.commands.length
+                    });
+                    committedDispatches.add(queued);
+                    model.set(step.model);
+                    if (!Object.is(before, step.model)) {
+                      restartSubscriptions(step.model);
+                    }
+                    return true;
+                  });
 
-            const committed = yield* Effect.sync(() => {
-              if (disposed) {
-                return false;
-              }
-              recordTimeline({
-                _tag: "Message",
-                message: queued.message,
-                before,
-                after: step.model,
-                commandCount: step.commands.length
-              });
-              committedDispatches.add(queued);
-              model.set(step.model);
-              if (!Object.is(before, step.model)) {
-                restartSubscriptions(step.model);
-              }
-              return true;
-            });
+                  if (!committed) {
+                    yield* completeAck(queued, disposedFailure(queued.message));
+                    return;
+                  }
 
-            if (!committed) {
-              yield* completeAck(queued, disposedFailure(queued.message));
-              return;
-            }
+                  if (disposed) {
+                    yield* completeAck(queued);
+                    return;
+                  }
 
-            if (disposed) {
-              yield* completeAck(queued);
-              return;
-            }
-
-            yield* runCommands(step.commands, queued.message);
-            yield* completeAck(queued);
-          })
+                  yield* runCommands(step.commands, queued.message);
+                  yield* completeAck(queued);
+                })
+            })
+          )
       })
     );
 

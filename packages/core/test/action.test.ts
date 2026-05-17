@@ -213,6 +213,68 @@ describe("Action", () => {
     }
   });
 
+  it("captures erased Promise-shaped optimistic signal values in the Effect error channel", async () => {
+    const title = Signal.make<unknown>("Draft");
+    const Rename = Action.define<string, string>({
+      name: "rename.optimistic-signal-promise-value",
+      optimistic: (_next, transaction) =>
+        Effect.gen(function* () {
+          yield* transaction.signal(title, Promise.resolve("Ada") as never);
+          return Effect.void;
+        }),
+      run: (name) => Effect.succeed(name)
+    });
+    const action = Action.use(Rename);
+
+    const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
+
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag === "Failure") {
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+      expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
+      expect(failure?.error).toMatchObject({
+        operation: "Action.optimistic(rename.optimistic-signal-promise-value).signal",
+        cause: expect.any(EffectInputPromiseRejected)
+      });
+      expect(read(title)).toBe("Draft");
+      expect(action.state.get()).toMatchObject({
+        _tag: "Failure",
+        input: "Ada"
+      });
+    }
+  });
+
+  it("captures erased Promise-shaped optimistic signal updater returns in the Effect error channel", async () => {
+    const title = Signal.make<unknown>("Draft");
+    const Rename = Action.define<string, string>({
+      name: "rename.optimistic-signal-promise-updater",
+      optimistic: (_next, transaction) =>
+        Effect.gen(function* () {
+          yield* transaction.signal(title, () => Promise.resolve("Ada") as never);
+          return Effect.void;
+        }),
+      run: (name) => Effect.succeed(name)
+    });
+    const action = Action.use(Rename);
+
+    const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
+
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag === "Failure") {
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+      expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
+      expect(failure?.error).toMatchObject({
+        operation: "Action.optimistic(rename.optimistic-signal-promise-updater).signal",
+        cause: expect.any(EffectInputPromiseRejected)
+      });
+      expect(read(title)).toBe("Draft");
+      expect(action.state.get()).toMatchObject({
+        _tag: "Failure",
+        input: "Ada"
+      });
+    }
+  });
+
   it("captures optimistic signal updater throws during transaction rebase", () =>
     Effect.runPromise(
       Effect.gen(function* () {

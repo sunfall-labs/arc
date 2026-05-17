@@ -60,7 +60,7 @@ const changeFeedUnsubscribe = <E, R>(
     ? subscription
     : subscription?.unsubscribe;
 
-const changeFeedFailureError = <E>(cause: Cause.Cause<CollectionRuntimeError<E>>): unknown =>
+const changeFeedFailureError = (cause: Cause.Cause<unknown>): unknown =>
   cause.reasons.find(Cause.isFailReason)?.error ?? Cause.squash(cause);
 
 /**
@@ -117,8 +117,10 @@ export const subscribeCollectionChangeFeedRuntimeEffect = <
         const unsubscribe = changeFeedUnsubscribe(subscription);
         return unsubscribe
           ? collectionChangeFeedInputCallbackEffect<void, FeedError, FeedRequirements>(() => unsubscribe()).pipe(
-              Effect.catch((error) =>
-                runtime.publishFailure(error).pipe(Effect.catch(() => Effect.void))
+              Effect.catchCause((cause) =>
+                runtime.publishFailure(changeFeedFailureError(cause)).pipe(
+                  Effect.catchCause(() => Effect.void)
+                )
               )
             )
           : Effect.void;

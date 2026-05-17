@@ -66,6 +66,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
   Program subscriptions, and Action runs, plus callable-`then` negative
   fixtures and React/Solid DB option imports with Promise-returning observer
   rejection pins.
+- Review211 added `Program.next(...)` Promise-shaped model rejection pins and
+  optimistic action signal patch pins for direct values and updater returns
+  hidden behind `Signal<unknown>`.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them

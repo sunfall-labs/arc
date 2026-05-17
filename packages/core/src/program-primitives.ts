@@ -1,5 +1,10 @@
 import { Effect, Stream } from "effect";
-import { invokeEffectInput } from "./effect-like.js";
+import {
+  EffectInputCallbackError,
+  invokeEffectInput,
+  type RejectPromiseLikeValue
+} from "./effect-like.js";
+import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
 import {
   ProgramCommandTypeId,
   ProgramStepTypeId,
@@ -92,17 +97,44 @@ export const programStepEffect = <Model, Message, E = never, R = never>(
   R
 > =>
   invokeEffectInput("Program.update", definition.update, model, message).pipe(
-    Effect.map((update) =>
-      isProgramStep(update)
-        ? update
-        : programNext<Model, Message, E, R>(update)
+    Effect.flatMap((update) =>
+      validateProgramStepModelEffect(
+        isProgramStep(update)
+          ? update
+          : programNext<Model, Message, E, R>(update)
+      )
     ),
     Effect.mapError((error) => makeProgramFailure("Update", error, message))
   );
 
+const programModelPromiseGuidance =
+  "Program update models must be plain values. Move host Promise work into Program.command(Effect.tryPromise(...)) and dispatch a follow-up message with the resolved value.";
+
+export const validateProgramStepModelEffect = <Model, Message, E, R>(
+  step: ProgramStep<Model, Message, E, R>
+): Effect.Effect<ProgramStep<Model, Message, E, R>, EffectInputCallbackError> =>
+  Effect.try({
+    try: () => {
+      rejectPromiseLikeSyncCallbackValue(
+        "Program.update",
+        step.model,
+        programModelPromiseGuidance
+      );
+      return step;
+    },
+    catch: (cause) =>
+      cause instanceof EffectInputCallbackError
+        ? cause
+        : new EffectInputCallbackError({
+            operation: "Program.update",
+            cause,
+            guidance: programModelPromiseGuidance
+          })
+  });
+
 /** Builds a state transition, optionally with commands to run after the model is written. */
 export const programNext = <Model, Message, E = never, R = never>(
-  model: Model,
+  model: Model & RejectPromiseLikeValue<Model>,
   commands?: ProgramCommandInput<Message, E, R>
 ): ProgramStep<Model, Message, E, R> => ({
   [ProgramStepTypeId]: ProgramStepTypeId,

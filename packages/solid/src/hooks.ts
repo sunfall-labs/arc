@@ -62,7 +62,10 @@ export interface UseResourceOptions<E = never, ER = never> {
    *
    * The error is `Resource.LoadError<E> | ER`, so callback throws and runtime
    * startup/provision failures are reported beside the resource's own error
-   * channel. If this observer throws, the hook ignores that throw after
+   * channel. Observers may return a plain value or Effect; Promise-shaped
+   * observers are rejected at the EffectInput boundary, so host Promise work
+   * must be wrapped with `Effect.tryPromise(...)`. If this observer throws or
+   * returns a failing Effect, the hook ignores that observer failure after
    * updating `preloadFailure`.
    */
   readonly onPreloadFailure?: (error: Resource.LoadError<E> | ER) => EffectInput<void, unknown>;

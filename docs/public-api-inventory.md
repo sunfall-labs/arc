@@ -1076,8 +1076,8 @@ Release decisions:
   when they are adapter-independent.
 - The focused React DB type test and public API manifest pin `Collection`,
   `Query`, `useCollection`, `useLiveQuery`, `CollectionHandle`, and
-  `LiveQueryHandle` as direct imports so this Adapter re-export Interface cannot
-  drift silently.
+  `LiveQueryHandle`, plus `UseCollectionOptions` and `UseLiveQueryOptions`, as
+  direct imports so this Adapter re-export Interface cannot drift silently.
 - `useCollection(...)` and `useLiveQuery(...)` share one internal React DB
   Reactive Binding Module for runtime capture, source subscriptions, cleanup,
   automatic preload, and runtime-bound returned Effects. The public handles
@@ -1191,8 +1191,8 @@ Release decisions:
   adapter-independent domain modules.
 - The focused Solid DB type test and public API manifest pin `Collection`,
   `Query`, `useCollection`, `useLiveQuery`, `CollectionHandle`, and
-  `LiveQueryHandle` as direct imports so this Adapter re-export Interface cannot
-  drift silently.
+  `LiveQueryHandle`, plus `UseCollectionOptions` and `UseLiveQueryOptions`, as
+  direct imports so this Adapter re-export Interface cannot drift silently.
 - `useCollection(...)` and `useLiveQuery(...)` share one internal Solid DB
   Reactive Binding Module for runtime capture, source subscriptions, cleanup,
   automatic preload, and runtime-bound returned Effects. The public handles
