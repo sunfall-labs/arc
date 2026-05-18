@@ -233,11 +233,13 @@ button:focus-visible {
   text-transform: uppercase;
 }
 
-h1,
-h2,
-h3,
-p {
-  margin: 0;
+@layer base {
+  h1,
+  h2,
+  h3,
+  p {
+    margin: 0;
+  }
 }
 
 h1 {
