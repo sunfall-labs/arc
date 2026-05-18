@@ -10,6 +10,13 @@ first public alpha version is `0.1.0-alpha.0`.
 
 - Core runtime primitives: Signals, Programs, Resources, Actions, Forms, Routes,
   Capabilities, server contracts, scoped UI work, and request-local runtimes.
+- Programs now have a compact tagged-handler front door:
+  `Program.define({ initial, on })`, `Program.update(...)`, and
+  `Program.emit(...)` turn exhaustive `_tag` handlers plus immediate or
+  Effect-produced follow-up messages into the same Effect-owned model/message
+  loop used by stories, timelines, subscriptions, and UI adapters.
+  `Program.emit(...)` is the emits-on-success helper; no-message background
+  work stays in `Program.effect(...)` or lower-level `Program.command(...)`.
 - Public async library APIs return Effect v4 values; Promise-shaped entrypoints
   are reserved for explicit runtime, Suspense, stream, CLI, Vite, or host
   compatibility boundaries.

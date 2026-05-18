@@ -1,7 +1,8 @@
 # Competitiveness Bar
 
-Sunfall Arc is trying to compete with full-stack frameworks on product completeness
-and beat them on correctness, observability, and Effect-native composition.
+Sunfall Arc is trying to compete with full-stack frameworks on product
+completeness and differentiate on correctness, observability, and Effect-native
+composition.
 
 The product strategy is detailed in
 [Best Full-Stack Framework Plan](./best-framework-plan.md). This document is the
@@ -10,6 +11,9 @@ points show we are no longer merely experimental.
 
 ## Competitive Bar
 
+- Program loops support centralized model state, tagged messages, exhaustive
+  update handlers, commands, subscriptions, deterministic stories, and runtime
+  timelines.
 - File routes generate typed route modules and server route manifests.
 - Server functions have a production manifest with stable ids, duplicate
   detection, browser/server split enforcement, and typed client references.
@@ -37,16 +41,21 @@ points show we are no longer merely experimental.
   private framework state.
 - Tests can replace app behavior with Capability layers and server mocks without
   importing server-only modules.
+- Program commands and subscriptions share the same Effect services, scopes,
+  failure channel, and devtools event model as resources, actions, and request
+  work.
 
-## How We Beat The Current Stack
+## Where Arc Must Be Better
 
-| Current tool category | Why teams use it                               | Sunfall Arc winning replacement                                                                                                              |
+| Current tool category | Why teams use it                               | Sunfall Arc target                                                                                                                           |
 | --------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | React state libraries | Local reactive values and derived state        | `Signal`, `Signal.derive`, scoped `watch`, and Effect `Stream` adapters with component-owned scopes                                          |
+| Foldkit / Elm loops   | Central model/message/update architecture      | `Program.define({ initial, on })`, `Program.update`, `Program.emit`, Effect commands, Stream subscriptions, stories, timelines, and scopes   |
 | TanStack Query        | Async reads, stale data, retries, invalidation | `Resource.family`, Effect `Cache`, `Schedule`, semantic `Resource.tag`, invalidation plans, hydration, and resource event streams            |
 | Mutation helpers      | Pending state, optimistic updates, retries     | `Action.define`, typed concurrency, optimistic transactions, result-carried invalidation, typed failure state, and Effect retry/interruption |
+| Next.js / Remix       | App routes, server actions, forms, hosting     | Progressive `Action.define` endpoints, server contracts, response services, request runtimes, no-JS forms, manifests, and deploy adapters    |
 | TanStack Router/Start | Typed routes, SSR, server functions            | Schema routes, file-route generation, request runtimes, server contracts, manifests, Start actions, and strict app graph diagnostics         |
-| TanStack DB           | Normalized client data and live queries        | `Collection`, runtime-local stores, secondary indexes, optimistic queues, persistence, sync adapters, D2 live queries, and Start hydration   |
+| TanStack DB           | Normalized client data and live queries        | `Collection`, runtime-local stores, secondary indexes, optimistic queues, persistence, sync adapters, live queries, and Start hydration      |
 | Form libraries        | Field state and validation                     | `Form` with schema-derived field names and values, typed validation errors, and `ActionResult` progressive action results                    |
 | RPC layers            | Type-safe client/server calls                  | `Server.contract`, `Server.client`, `Server.implement`, deterministic manifests, schema validation, and server-only module walls             |
 | Test mocking tools    | Swap services and server behavior              | `Capability` layers, `Server.mock`, `Server.mockLayer`, request runtimes, and type-preserving schema validation                              |
@@ -63,7 +72,8 @@ Sunfall Arc is competitive when these are true:
   intervention;
 - the reference app proves SSR, hydration, route preload, collections, actions,
   validation, redirect, optimistic updates, and no-JS fallback;
-- the docs show the golden path and the escape hatches;
+- the docs show the Program front door, the full-stack golden path, and the
+  escape hatches;
 - package exports are stable enough for external users;
 - diagnostics make common mistakes obvious.
 
@@ -87,6 +97,9 @@ Sunfall Arc is winning when these are also true:
 - Resource/data ergonomics: Resource and Action should feel better than
   TanStack Query by making refresh state, invalidation plans, stale data,
   retries, and optimistic work explicit Effect-native values.
+- Program ergonomics: the first loop should feel as compact as Foldkit while
+  preserving Effect services, typed command failures, scoped subscriptions, and
+  inspectable timelines.
 - Devtools causality: app graph diagnostics, route plans, invalidation plans,
   resource events, and request traces should collapse into one inspectable
   panel model.
@@ -95,6 +108,9 @@ Sunfall Arc is winning when these are also true:
 
 ## First Slices Landed
 
+- Program front door: `Program.define({ initial, on })`, `Program.update(...)`,
+  `Program.emit(...)`, deterministic stories, UI adapters, typed failures,
+  scoped subscriptions, and bounded timelines.
 - Streaming SSR core: `createHtmlStreamEffect`, hydration chunks, typed stream
   errors, Web `Response` adapter, and request runtime cleanup on body close or
   cancellation.
@@ -186,8 +202,9 @@ Sunfall Arc is winning when these are also true:
 
 - A single example proves the whole full-stack story without hidden server
   imports or hand-waved progressive enhancement.
-- A core resource/action API exposes enough query lifecycle information that
-  app code does not reach for TanStack Query mental models.
+- A Program/resource/action API exposes enough loop and query lifecycle
+  information that app code does not reach for Foldkit plus TanStack Query
+  mental models.
 - A devtools data model can explain what route, action, resource, server
   function, schema, and invalidation edge caused the current UI state.
 - The Start build layer can turn graph diagnostics into CI failures with

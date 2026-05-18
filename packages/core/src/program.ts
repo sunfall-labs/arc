@@ -10,6 +10,8 @@ import {
   type ProgramEvent,
   type ProgramEventBase,
   type ProgramFailure,
+  type ProgramHandlerDefinition,
+  type ProgramHandlerMap,
   type ProgramInstance,
   type ProgramMessageEvent,
   type ProgramPhase,
@@ -24,6 +26,7 @@ import {
   type ProgramSubscriptionFailedEvent,
   type ProgramSubscriptionInput,
   type ProgramSubscriptionStartedEvent,
+  type ProgramTaggedMessage,
   type ProgramTimelineOptions,
   type ProgramUpdate,
   type ProgramUpdateFailedEvent,
@@ -44,6 +47,8 @@ export {
   type ProgramEvent,
   type ProgramEventBase,
   type ProgramFailure,
+  type ProgramHandlerDefinition,
+  type ProgramHandlerMap,
   type ProgramInstance,
   type ProgramMessageEvent,
   type ProgramPhase,
@@ -57,6 +62,7 @@ export {
   type ProgramSubscriptionFailedEvent,
   type ProgramSubscriptionInput,
   type ProgramSubscriptionStartedEvent,
+  type ProgramTaggedMessage,
   type ProgramTimelineOptions,
   type ProgramUpdate,
   type ProgramUpdateError,
@@ -71,9 +77,11 @@ import {
   programCommands,
   programDispatch,
   programEffect,
+  programEmit,
   programNext,
   programStepEffect,
   programSubscription,
+  programUpdate,
 } from "./program-primitives.js";
 export {
   defineProgram,
@@ -81,9 +89,11 @@ export {
   programCommands,
   programDispatch,
   programEffect,
+  programEmit,
   programNext,
   programStepEffect,
   programSubscription,
+  programUpdate,
 } from "./program-primitives.js";
 import { makeProgramRuntimeInstance } from "./program-runtime.js";
 import { makeProgramStory } from "./program-story.js";
@@ -216,6 +226,22 @@ export namespace Program {
   export type DispatchError<E, ER = never> = ProgramDispatchError<E, ER>;
   /** Error reported when an Effect dispatch cannot apply because the Program was disposed. */
   export type Disposed = ProgramDisposed;
+  /** Plain message shape for tag-indexed Program handler maps. */
+  export type TaggedMessage = ProgramTaggedMessage;
+  /** Exhaustive handlers keyed by each tagged message `_tag`. */
+  export type HandlerMap<
+    Model,
+    Message extends ProgramTaggedMessage,
+    E = never,
+    R = never,
+  > = ProgramHandlerMap<Model, Message, E, R>;
+  /** Definition shorthand that replaces `update` with an exhaustive `on` handler map. */
+  export type HandlerDefinition<
+    Model,
+    Message extends ProgramTaggedMessage,
+    E = never,
+    R = never,
+  > = ProgramHandlerDefinition<Model, Message, E, R>;
   /** Options for starting a Program on an explicit typed Runtime Spine. */
   export type StartOptions<RRuntime = never, ER = never> = ProgramStartOptions<RRuntime, ER>;
   /** Services still required after applying a typed Runtime Spine to a Program. */
@@ -284,6 +310,8 @@ export namespace Program {
    * and messages are rejected so async work stays in the Effect runtime.
    */
   export const define = defineProgram;
+  /** Builds an update callback from exhaustive tagged-message handlers. */
+  export const update = programUpdate;
   /** Runs one Program update deterministically without starting subscriptions. */
   export const step = programStepEffect;
   /** Creates a deterministic Program story for tests and examples. */
@@ -294,17 +322,28 @@ export namespace Program {
    * Returns a pure model update step, optionally with commands.
    *
    * The model must be plain. Promise-shaped models are rejected; move host
-   * Promise work into `Program.command(Effect.tryPromise(...))` and dispatch a
+   * Promise work into `Program.emit(Effect.tryPromise(...))` and emit a
    * follow-up message with the resolved value.
    */
   export const next = programNext;
   /**
    * Creates a command that can emit a follow-up message through Effect.
    *
+   * Prefer `Program.emit(...)` when every successful run emits a message;
+   * `Program.command(...)` is the lower-level form for commands that may
+   * intentionally complete without one.
+   *
    * Emitted messages must be plain values. Use `Effect.tryPromise(...)` inside
    * the command for host Promise work before mapping to a resolved message.
    */
   export const command = programCommand;
+  /**
+   * Creates a command from an immediate or Effect-produced follow-up message.
+   *
+   * Emitted messages must be plain values. Use `Effect.tryPromise(...)` inside
+   * the Effect for host Promise work before mapping to a resolved message.
+   */
+  export const emit = programEmit;
   /** Creates a command from an Effect that may fail through the Program error channel. */
   export const effect = programEffect;
   /**

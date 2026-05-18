@@ -5,8 +5,8 @@ feel of modern TypeScript app frameworks, while making the important facts
 typed, Effect-native, inspectable, and hard to accidentally drift.
 
 It is not trying to replace every good idea in React, Solid, Next, Remix,
-TanStack Start, TanStack Query, TanStack DB, Relay, or Jotai. It borrows the
-jobs people hire those tools for, then asks one extra question:
+TanStack Start, TanStack Query, TanStack DB, Relay, Jotai, or Foldkit. It
+borrows the jobs people hire those tools for, then asks one extra question:
 
 > Can the compiler, runtime, server, cache, mutation layer, diagnostics, tests,
 > devtools, and agents all agree on the same application graph?
@@ -18,6 +18,7 @@ That is the core difference.
 | What teams reach for    | What it does well                      | Sunfall Arc's bet                                                                                                             |
 | ----------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | React / Solid           | Component model and reactive UI        | Keep fine-grained UI ergonomics, but attach async work to Effect scopes and runtime ownership.                                |
+| Foldkit                 | Model/message/update program loop      | Match the loop with `Program.define`, `Program.update`, and `Program.emit`, then run commands through the Arc runtime graph.  |
 | Next / Remix            | Full-stack routes, forms, server work  | Keep progressive enhancement, but make server contracts, schemas, request runtimes, and manifests explicit.                   |
 | TanStack Start / Router | Typed routes and full-stack wiring     | Add Schema-branded params, request-local Effect runtimes, app graph diagnostics, and stricter build gates.                    |
 | TanStack Query          | Async reads, retries, invalidation     | Replace cache keys with typed resources, semantic tags, Effect `Schedule`, hydration, and public lifecycle events.            |
@@ -76,8 +77,10 @@ can explain what changed and why.
 
 ## Compared With Next And Remix
 
-Next and Remix made full-stack web apps feel practical again. Their route
-handlers and form actions are direct, and that is a good thing.
+Next and Remix made full-stack web apps feel practical again. Next's App Router
+now has a mature Server Action and Form story, and Remix's route action model is
+still one of the clearest progressive-enhancement baselines. That is the bar Arc
+has to meet. A Remix-style action captures the shape:
 
 ```ts
 export async function action({ request }: ActionFunctionArgs) {
@@ -117,6 +120,11 @@ JavaScript, the same `Action.define` handles the form post. Validation,
 redirects, success, domain failures, invalidation, services, retries, and
 schemas stay in one path.
 
+The competitive claim is narrow: Sunfall Arc should not win by merely having
+server actions or form posts. It wins only if the action contract, runtime
+requirements, typed result, invalidation plan, response facts, and no-JS path
+are one inspectable definition instead of adjacent conventions.
+
 ## Compared With TanStack Start And Typed Routers
 
 Typed routers help catch bad links. Sunfall Arc leans into that, but keeps schemas
@@ -144,11 +152,20 @@ resources, collections, server functions, actions, schemas, and modules.
 That makes "what does this route touch?" a generated fact instead of an import
 hunt.
 
+TanStack Start deserves particular respect here. `createServerFn` gives typed
+server functions with validators, serializable boundaries, FormData handling,
+redirects, request context helpers, and generated function ids. Sunfall Arc
+should not claim "typed RPC" as the differentiator. The differentiator is the
+combination of Schema-branded route facts, request-local Effect services,
+server/action manifests, preload ownership, and CI-enforceable app graph
+diagnostics.
+
 ## Compared With TanStack DB
 
 TanStack DB points at an important future: normalized local data with live
-queries. Sunfall Arc's DB layer heads in the same direction, but plugs row state
-into the active Sunfall Arc runtime/resource store:
+queries, sync adapters, and optimistic local writes. Sunfall Arc's DB layer
+heads in the same direction, but plugs row state into the active Sunfall Arc
+runtime/resource store:
 
 ```ts
 export const ProjectSummaries = Collection.define(
@@ -220,28 +237,46 @@ mental model from server state and mutation state.
 
 Foldkit's strongest product idea is the frontend program loop: one model, typed
 messages, an update function, subscriptions, and a view that can stay boring.
-Sunfall Arc now keeps that clarity as a headless Core primitive while routing the
-hard parts through Effect:
+Sunfall Arc now meets that surface directly with `Program.define({ initial, on })`,
+keeps `Program.update(...)` for conventional update definitions, and uses
+`Program.emit(...)` for immediate or Effect-produced follow-up messages.
+
+The bet is not to out-Foldkit Foldkit's renderer. It is to make that same loop
+the front door to Arc's Effect runtime, resources, actions, SSR, tests, and
+devtools:
 
 ```ts
-const ProjectProgram = Program.define({
+const ProjectProgram = Program.define<ProjectModel, ProjectMessage>({
   initial: { selected: undefined as Project | undefined, loading: false },
-  update: (model, message: ProjectMessage) => {
-    switch (message._tag) {
-      case "Load":
-        return Program.next(
-          { ...model, loading: true },
-          Program.command(
-            ProjectApi.use((api) =>
-              Effect.map(api.get(message.id), (project) => ({ _tag: "Loaded", project })),
-            ),
+  on: {
+    Load: (model, message) =>
+      Program.next(
+        { ...model, loading: true },
+        Program.emit(
+          ProjectApi.use((api) =>
+            Effect.map(api.get(message.id), (project) => ({ _tag: "Loaded", project })),
           ),
-        );
-      case "Loaded":
-        return { selected: message.project, loading: false };
-    }
+        ),
+      ),
+    Loaded: (_model, message) => ({ selected: message.project, loading: false }),
   },
   subscriptions: (model) => (model.selected ? ProjectEvents.changes(model.selected.id) : undefined),
+});
+```
+
+If a team prefers the explicit `update` slot, the same exhaustive handlers can
+sit behind it:
+
+```ts
+const loadProjectMessageEffect = (id: ProjectId) =>
+  ProjectApi.use((api) =>
+    Effect.map(api.get(id), (project) => ({ _tag: "Loaded", project }) as const),
+  );
+
+const update = Program.update<ProjectModel, ProjectMessage>({
+  Load: (model, message) =>
+    Program.next({ ...model, loading: true }, Program.emit(loadProjectMessageEffect(message.id))),
+  Loaded: (_model, message) => ({ selected: message.project, loading: false }),
 });
 ```
 
@@ -257,7 +292,7 @@ return (
 );
 ```
 
-So the public shape is Foldkit-simple, but commands can require app services,
+So the public shape is Foldkit-compact, but commands can require app services,
 subscriptions are Effect streams, failures are typed state, and cleanup follows
 the active UI scope/runtime rather than becoming a separate frontend runtime.
 
@@ -283,12 +318,12 @@ program.timeline().map((event) => event._tag);
 // ["Message", "CommandStarted", "CommandCompleted", "Message"]
 ```
 
-That closes the biggest remaining frontend-architecture polish gap: apps and
-devtools can watch the Program think without reaching into private state.
-Devtools does that through the public Effect API:
+That closes a real frontend-architecture gap: apps and devtools can watch the
+Program loop without reaching into private state. Devtools does that through the
+public Effect API:
 
 ```ts
-yield * store.trackProgramEffect(program);
+yield * store.trackProgramEffect(program.instance);
 ```
 
 Those rows go through the same bounded/redacted Devtools serialization contract
@@ -339,7 +374,11 @@ Sunfall Arc already has a few unusually useful proof points:
 ## Where The Incumbents Still Deserve Respect
 
 The honest answer is that the mature tools still win on ecosystem size,
-templates, third-party examples, hosting guides, and production miles.
+templates, third-party examples, hosting guides, and production miles. Foldkit
+also sets a visible bar for Scene-style UI tests and built-in time travel.
+Next.js sets the deployment, RSC, and framework-docs bar. TanStack Start and
+Router set the typed routing and server-function ergonomics bar. TanStack DB
+sets the normalized live-query and sync-adapter bar.
 
 Sunfall Arc's advantage is not "more packages." Its advantage is coherence. The
 same domain facts can be visible to TypeScript, Effect, the server runtime,

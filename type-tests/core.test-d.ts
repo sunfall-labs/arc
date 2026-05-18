@@ -618,6 +618,52 @@ const counterInstance: Program.Instance<
   Program.RuntimeError<never>,
   Program.DispatchError<never>
 > = Program.start(counterProgram);
+type TaggedCounterModel = { readonly count: number; readonly loading: boolean };
+type TaggedCounterMessage =
+  | { readonly _tag: "Increment" }
+  | { readonly _tag: "Load" }
+  | { readonly _tag: "Loaded"; readonly amount: number };
+const taggedCounterHandlers: Program.HandlerMap<TaggedCounterModel, TaggedCounterMessage> = {
+  Increment: (model) => ({ ...model, count: model.count + 1 }),
+  Load: (model) =>
+    Program.next(
+      { ...model, loading: true },
+      Program.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
+    ),
+  Loaded: (model, message) => ({
+    count: model.count + message.amount,
+    loading: false,
+  }),
+};
+const taggedCounterDefinition: Program.HandlerDefinition<TaggedCounterModel, TaggedCounterMessage> =
+  {
+    initial: { count: 0, loading: false },
+    on: taggedCounterHandlers,
+  };
+const taggedCounterProgram = Program.define<TaggedCounterModel, TaggedCounterMessage>(
+  taggedCounterDefinition,
+);
+const taggedCounterProgramFromUpdate = Program.define<TaggedCounterModel, TaggedCounterMessage>({
+  initial: { count: 0, loading: false },
+  update: Program.update<TaggedCounterModel, TaggedCounterMessage>(taggedCounterHandlers),
+});
+const taggedCounterImmediateCommand = Program.emit({ _tag: "Increment" } as const);
+const taggedCounterImmediateStep: Program.Step<TaggedCounterModel, TaggedCounterMessage> =
+  Program.next({ count: 0, loading: false }, Program.emit({ _tag: "Increment" } as const));
+const taggedCounterStory = Program.story(taggedCounterProgramFromUpdate);
+// @ts-expect-error Program handler maps must cover every tagged message.
+const incompleteTaggedCounterHandlers: Program.HandlerMap<
+  TaggedCounterModel,
+  TaggedCounterMessage
+> = {
+  Increment: (model) => model,
+  Load: (model) => model,
+};
+void taggedCounterProgram;
+void taggedCounterImmediateCommand;
+void taggedCounterImmediateStep;
+void taggedCounterStory;
+void incompleteTaggedCounterHandlers;
 
 const uiScope = new UiScope();
 const runtimeUiScope = makeRuntimeUiScope(browserRouterKernelRuntime);

@@ -1,12 +1,13 @@
 # Framework Perfection Charter
 
-This is the several-week cleanup, hardening, and iteration goal for moving
-Sunfall Arc from "impressive internal framework" to "basically perfect for a
-serious first public release."
+This charter records the release-candidate bar for moving Sunfall Arc from
+"impressive internal framework" to "basically perfect for a serious first
+public release."
 
 The goal is not literal perfection. The goal is that a strong TypeScript team
 can build, debug, test, deploy, and extend a real full-stack app without needing
-the framework author in the room.
+the framework author in the room. The plan below also serves as an evidence map:
+checked items should point to tests, generated artifacts, docs, or examples.
 
 ## Mission
 
@@ -14,6 +15,8 @@ Over the next dedicated push, make Sunfall Arc feel coherent, boringly reliable,
 and unusually inspectable across its whole surface:
 
 - every public API has a clear reason to exist;
+- the first stateful example starts with `Program.define({ initial, on })`, then
+  grows into Resources, Actions, Routes, Capabilities, and diagnostics;
 - every async path preserves Effect semantics;
 - every major guarantee is covered by behavior tests or type tests;
 - every generated artifact is deterministic and useful to humans and agents;
@@ -45,6 +48,10 @@ Sunfall Arc is ready when all of these are true:
 
 - Prefer small vertical slices over sweeping rewrites.
 - Keep APIs boring unless the extra power is backed by tests and docs.
+- Teach the compact Program front door first. Prefer
+  `Program.define({ initial, on })` for tagged message examples, and use
+  `Program.update(...)` or a manual `update` callback only when that shape is
+  clearer.
 - Treat type tests as product tests.
 - Fix confusing names before external users learn them.
 - Keep server-only and browser-safe boundaries explicit.
@@ -59,14 +66,14 @@ Sunfall Arc is ready when all of these are true:
 - Make diagnostics and devtools consume public facts, not private maps.
 - Mark uncertainty as unfinished work.
 
-## Historical Overnight Operating Requirement
+## Historical Push Note
 
-For the May 14, 2026 push, keep working until 8:00 AM America/Denver on May 14,
-2026, unless blocked by required user input or an environment limitation. The
-local timezone is MDT (`America/Denver`, UTC-06:00) on this date; use the
-concrete timezone instead of the ambiguous "MST" label when recording evidence.
+The May 14, 2026 push used an overnight operating window that ended at 8:00 AM
+America/Denver on May 14, 2026. The local timezone was MDT
+(`America/Denver`, UTC-06:00), so evidence from that window should use the
+concrete timezone instead of the ambiguous "MST" label.
 
-During this overnight window:
+During that window, the team used these rules:
 
 - prioritize implementation slices over prose-only planning;
 - keep code Effect-first and move Promise code back to the smallest possible
@@ -74,7 +81,7 @@ During this overnight window:
 - run focused tests after each slice and `pnpm verify` after meaningful code
   changes;
 - update `docs/perfection-progress.md` with each sweep and remaining concern;
-- do not mark the goal complete until the 30 clean-sweep completion gate is
+- do not mark the goal complete until the clean-sweep completion gate is
   actually satisfied.
 
 ## Team Shape
@@ -93,7 +100,7 @@ Run the effort as seven coordinated workstreams:
 Each workstream owns implementation, tests, docs, and checklist evidence for
 its changes.
 
-## Several-Week Plan
+## Release Candidate Plan
 
 ### Week 1: Audit And Cleanup
 
@@ -339,7 +346,7 @@ Every day:
 
 ## Final Completion Audit
 
-Before calling the several-week push done, the team must produce:
+Before calling the release-candidate push done, the team must produce:
 
 - shipped capability summary;
 - package/docs/examples changed;

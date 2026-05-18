@@ -12,7 +12,8 @@ edge.
 
 - Public async APIs expose Effect v4 values; Promise interop belongs only at explicit compatibility host/runtime boundaries.
 - Framework callbacks should return `Effect` or a pure value, not `Promise`. Use `Effect.tryPromise` at the edge that talks to a Promise-shaped host API.
-- `async` framework callbacks are a type error for resources, actions, route preloads, Start renderers, server implementations, DB collections, capabilities, and form validators.
+- `async` framework callbacks are a type error for programs, resources, actions, route preloads, Start renderers, server implementations, DB collections, capabilities, and form validators.
+- Program update/on handlers return plain models, `Program.next(...)`, or Effects that produce those values. Use `Program.emit(...)` for follow-up messages and `Program.effect(...)` or lower-level `Program.command(...)` for work that may complete without a message.
 - Domain failures use tagged errors so callers can recover with `Effect.catchTag`.
 - Server request data is provided through Effect services, not globals.
 - Signals are latest-value cells. Use `Signal.values` / `Signal.changes` when temporal semantics matter.

@@ -19,6 +19,50 @@ interface CounterApi {
 const CounterApi = Context.Service<CounterApi>("@sunfall/arc-core/test/CounterApi");
 
 describe("Program", () => {
+  it("defines tagged message handlers as a compact Program front door", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        type Model = { readonly count: number; readonly loading: boolean };
+        type Message =
+          | { readonly _tag: "Increment" }
+          | { readonly _tag: "QueueIncrement" }
+          | { readonly _tag: "Load" }
+          | { readonly _tag: "Loaded"; readonly amount: number };
+
+        const story = Program.story(
+          Program.define<Model, Message>({
+            initial: { count: 0, loading: false },
+            on: {
+              Increment: (model) => ({ ...model, count: model.count + 1 }),
+              QueueIncrement: (model) =>
+                Program.next(model, Program.emit({ _tag: "Increment" } as const)),
+              Load: (model) =>
+                Program.next(
+                  { ...model, loading: true },
+                  Program.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
+                ),
+              Loaded: (model, message) => ({
+                count: model.count + message.amount,
+                loading: false,
+              }),
+            },
+          }),
+        );
+
+        yield* story.send({ _tag: "Increment" });
+        const queued = yield* story.send({ _tag: "QueueIncrement" });
+        yield* story.resolve(queued.commands[0]!);
+        const load = yield* story.send({ _tag: "Load" });
+
+        expect(read(story.model)).toEqual({ count: 2, loading: true });
+        expect(load.commands).toHaveLength(1);
+
+        yield* story.resolve(load.commands[0]!);
+
+        expect(read(story.model)).toEqual({ count: 4, loading: false });
+      }),
+    ));
+
   it("updates centralized model state and runs Effect commands with services", () =>
     Effect.runPromise(
       Effect.gen(function* () {
@@ -599,7 +643,7 @@ describe("Program", () => {
                 case "Load":
                   return Program.next(
                     { ...model, loading: true },
-                    Program.command(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
+                    Program.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
                   );
                 case "Loaded":
                   return Deferred.succeed(loaded, undefined).pipe(
@@ -673,7 +717,7 @@ describe("Program", () => {
                 case "Load":
                   return Program.next(
                     { ...model, loading: true },
-                    Program.command(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
+                    Program.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
                   );
                 case "Loaded":
                   return {

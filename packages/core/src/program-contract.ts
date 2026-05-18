@@ -90,6 +90,19 @@ export type ProgramUpdate<Model, Message, E = never, R = never> =
   | ProgramModelValue<Model>
   | ProgramStep<Model, Message, E, R>;
 
+/** Tagged Program message shape accepted by handler-map definitions. */
+export interface ProgramTaggedMessage {
+  readonly _tag: PropertyKey;
+}
+
+/** Exhaustive tag-indexed handlers for Program message unions. */
+export type ProgramHandlerMap<Model, Message extends ProgramTaggedMessage, E = never, R = never> = {
+  readonly [Tag in Message["_tag"] & PropertyKey]: (
+    model: Model,
+    message: ProgramMessageValue<Extract<Message, { readonly _tag: Tag }>>,
+  ) => EffectInput<ProgramUpdate<Model, Message, E, R>, E, R>;
+};
+
 /** Stream subscription that emits messages into a Program. */
 export interface ProgramSubscription<Message, E = never, R = never> {
   readonly [ProgramSubscriptionTypeId]: typeof ProgramSubscriptionTypeId;
@@ -123,6 +136,25 @@ export interface ProgramDefinition<Model, Message, E = never, R = never> {
     model: Model,
     message: ProgramMessageValue<Message>,
   ) => EffectInput<ProgramUpdate<Model, Message, E, R>, E, R>;
+  readonly subscriptions?: (
+    model: Model,
+  ) => EffectInput<ProgramSubscriptionInput<Message, E, R>, E, R>;
+  /** Bounded runtime event retention. Set to `false` to disable timeline storage. */
+  readonly timeline?: false | ProgramTimelineOptions;
+}
+
+/** Definition shorthand for tagged-message Programs. */
+export interface ProgramHandlerDefinition<
+  Model,
+  Message extends ProgramTaggedMessage,
+  E = never,
+  R = never,
+> {
+  /** Optional stable name used by timeline/devtools events. */
+  readonly name?: string;
+  readonly initial: ProgramModelValue<Model>;
+  /** Exhaustive message handlers keyed by each message `_tag`. */
+  readonly on: ProgramHandlerMap<Model, Message, E, R>;
   readonly subscriptions?: (
     model: Model,
   ) => EffectInput<ProgramSubscriptionInput<Message, E, R>, E, R>;

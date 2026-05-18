@@ -668,134 +668,131 @@ const useProjectActionsProgram = (project: () => Project) => {
   const actions = useProgram(
     Program.define<ProjectActionsModel, ProjectActionsMessage>({
       initial: projectActionsInitial(project()),
-      update: (model, message) => {
-        switch (message._tag) {
-          case "ProjectChanged":
-            return message.project.id === model.project.id
-              ? { ...model, project: message.project }
-              : projectActionsInitial(message.project);
-          case "SubmitRename":
-            if (model.renamePending) {
-              return model;
-            }
+      on: {
+        ProjectChanged: (model, message) =>
+          message.project.id === model.project.id
+            ? { ...model, project: message.project }
+            : projectActionsInitial(message.project),
+        SubmitRename: (model, message) => {
+          if (model.renamePending) {
+            return model;
+          }
 
-            return Program.next(
-              {
-                project: model.project,
-                renamePending: true,
-                advancePending: model.advancePending,
-              },
-              Program.command<ProjectActionsMessage>(
-                StartAction.decodeFormDataEffect(ProjectNameFormInput, message.formData).pipe(
-                  Effect.flatMap(({ name }) =>
-                    rename.submitEffect({
-                      id: model.project.id,
-                      name,
-                      redirectTo: makeProjectReturnTo(projectHref(model.project.id, "activity")),
-                    }),
-                  ),
-                  Effect.match({
-                    onFailure: (error): ProjectActionsMessage => ({ _tag: "RenameFailed", error }),
-                    onSuccess: (result): ProjectActionsMessage => ({
-                      _tag: "RenameFinished",
-                      result,
-                    }),
+          return Program.next(
+            {
+              project: model.project,
+              renamePending: true,
+              advancePending: model.advancePending,
+            },
+            Program.emit(
+              StartAction.decodeFormDataEffect(ProjectNameFormInput, message.formData).pipe(
+                Effect.flatMap(({ name }) =>
+                  rename.submitEffect({
+                    id: model.project.id,
+                    name,
+                    redirectTo: makeProjectReturnTo(projectHref(model.project.id, "activity")),
                   }),
                 ),
+                Effect.match({
+                  onFailure: (error): ProjectActionsMessage => ({ _tag: "RenameFailed", error }),
+                  onSuccess: (result): ProjectActionsMessage => ({
+                    _tag: "RenameFinished",
+                    result,
+                  }),
+                }),
               ),
-            );
-          case "RenameFinished": {
-            const result = message.result;
-            switch (result._tag) {
-              case "Success":
-                return {
-                  project: result.value,
-                  renamePending: false,
-                  advancePending: model.advancePending,
-                };
-              case "ValidationFailure":
-                const validation = renameValidationMessage(result);
-                return validation === undefined
-                  ? {
-                      project: model.project,
-                      renamePending: false,
-                      advancePending: model.advancePending,
-                    }
-                  : {
-                      project: model.project,
-                      renamePending: false,
-                      advancePending: model.advancePending,
-                      validation,
-                    };
-              case "Failure":
-                return {
-                  project: model.project,
-                  renamePending: false,
-                  advancePending: model.advancePending,
-                  error: result.error,
-                };
-              case "Redirect":
-                return Program.next(
-                  {
+            ),
+          );
+        },
+        RenameFinished: (model, message) => {
+          const result = message.result;
+          switch (result._tag) {
+            case "Success":
+              return {
+                project: result.value,
+                renamePending: false,
+                advancePending: model.advancePending,
+              };
+            case "ValidationFailure":
+              const validation = renameValidationMessage(result);
+              return validation === undefined
+                ? {
                     project: model.project,
                     renamePending: false,
                     advancePending: model.advancePending,
-                  },
-                  Program.effect(
-                    Effect.sync(() =>
-                      router.navigateHref(
-                        result.location,
-                        result.replace === undefined ? undefined : { replace: result.replace },
-                      ),
+                  }
+                : {
+                    project: model.project,
+                    renamePending: false,
+                    advancePending: model.advancePending,
+                    validation,
+                  };
+            case "Failure":
+              return {
+                project: model.project,
+                renamePending: false,
+                advancePending: model.advancePending,
+                error: result.error,
+              };
+            case "Redirect":
+              return Program.next(
+                {
+                  project: model.project,
+                  renamePending: false,
+                  advancePending: model.advancePending,
+                },
+                Program.effect(
+                  Effect.sync(() =>
+                    router.navigateHref(
+                      result.location,
+                      result.replace === undefined ? undefined : { replace: result.replace },
                     ),
                   ),
-                );
-            }
-          }
-          case "RenameFailed":
-            return {
-              project: model.project,
-              renamePending: false,
-              advancePending: model.advancePending,
-              error: message.error,
-            };
-          case "Advance":
-            if (model.advancePending) {
-              return model;
-            }
-
-            return Program.next(
-              {
-                project: model.project,
-                renamePending: model.renamePending,
-                advancePending: true,
-              },
-              Program.command<ProjectActionsMessage>(
-                advance.submitEffect({ id: model.project.id }).pipe(
-                  Effect.match({
-                    onFailure: (error): ProjectActionsMessage => ({ _tag: "AdvanceFailed", error }),
-                    onSuccess: (project): ProjectActionsMessage => ({
-                      _tag: "AdvanceFinished",
-                      project,
-                    }),
-                  }),
                 ),
-              ),
-            );
-          case "AdvanceFinished":
-            return {
-              project: message.project,
-              renamePending: model.renamePending,
-              advancePending: false,
-            };
-          case "AdvanceFailed":
-            return {
+              );
+          }
+        },
+        RenameFailed: (model, message) => ({
+          project: model.project,
+          renamePending: false,
+          advancePending: model.advancePending,
+          error: message.error,
+        }),
+        Advance: (model) => {
+          if (model.advancePending) {
+            return model;
+          }
+
+          return Program.next(
+            {
               project: model.project,
               renamePending: model.renamePending,
-              advancePending: false,
-              error: message.error,
-            };
-        }
+              advancePending: true,
+            },
+            Program.emit(
+              advance.submitEffect({ id: model.project.id }).pipe(
+                Effect.match({
+                  onFailure: (error): ProjectActionsMessage => ({ _tag: "AdvanceFailed", error }),
+                  onSuccess: (project): ProjectActionsMessage => ({
+                    _tag: "AdvanceFinished",
+                    project,
+                  }),
+                }),
+              ),
+            ),
+          );
+        },
+        AdvanceFinished: (model, message) => ({
+          project: message.project,
+          renamePending: model.renamePending,
+          advancePending: false,
+        }),
+        AdvanceFailed: (model, message) => ({
+          project: model.project,
+          renamePending: model.renamePending,
+          advancePending: false,
+          error: message.error,
+        }),
       },
     }),
   );

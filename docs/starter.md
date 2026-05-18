@@ -1,8 +1,21 @@
 # Starters
 
+Use the smallest starter that proves the path you need:
+
+| Starter                                                   | Use it when                                                                        | Run                      | Verify                                                      |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------ | ----------------------------------------------------------- |
+| [`examples/basic-starter`](../examples/basic-starter)     | You want the smallest copyable full-stack app shell.                               | `pnpm starter:dev`       | `pnpm starter:verify`                                       |
+| [`examples/react-starter`](../examples/react-starter)     | You want the checked React, Tailwind v4, Base UI, and shadcn-compatible path.      | `pnpm react-starter:dev` | `pnpm react-starter:verify`                                 |
+| [`examples/project-console`](../examples/project-console) | You want the golden path with actions, forms, collections, mocks, and diagnostics. | `pnpm example:dev`       | `pnpm --filter @sunfall/arc-example-project-console verify` |
+| [`examples/docs-site`](../examples/docs-site)             | You want the cookbook/docs-site dogfood path.                                      | `pnpm docs-site:dev`     | `pnpm docs-site:verify`                                     |
+
+The source examples are workspace packages for framework development.
+`pnpm starter:package` writes standalone copies of the basic, React, and
+project-console starters under `.test-dist/starters/*`.
+
 The smallest checked starter lives at
-[`examples/basic-starter`](../examples/basic-starter). It is a full-stack
-starter, not a marketing demo.
+[`examples/basic-starter`](../examples/basic-starter). It is the minimal
+checked full-stack path: SSR, hydration, route preload, and leak scan.
 
 Run it locally:
 
@@ -68,7 +81,8 @@ pnpm docs-site:verify
 See [Solid and React adapters](adapter-differences.md) for the renderer-level
 API differences.
 
-Package the copyable starter suite:
+Package the copyable starter suite when you want standalone payloads outside the
+workspace:
 
 ```sh
 pnpm starter:package

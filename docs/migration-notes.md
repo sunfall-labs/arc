@@ -4,6 +4,31 @@ These notes map common full-stack app patterns onto the Sunfall Arc golden path.
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From Reducers And Effect Queues
+
+Reducer loops often split model transitions, async work queues, and component
+effects across several files. In Sunfall Arc, move that loop into a Program:
+
+- The reducer state becomes `initial`.
+- The action union becomes a Program message union, preferably tagged with
+  `_tag`.
+- The reducer switch becomes `Program.define({ initial, on })` for tagged
+  messages, or `Program.update(handlers)` when an existing definition still
+  wants an `update(model, message)` callback.
+- A handler returns the next model directly, or `Program.next(model, commands)`
+  when work should run after the model commits.
+- Work that always emits a follow-up message uses `Program.emit(message)` or
+  `Program.emit(Effect.tryPromise(...).pipe(Effect.map(...)))`.
+- Work that intentionally emits no message uses `Program.effect(...)`; reserve
+  lower-level `Program.command(...)` for Effects that may emit a message or may
+  complete empty.
+- Long-lived external inputs become `Stream` subscriptions attached to the
+  Program definition.
+
+The migration is done when models and messages are plain values, Promise work is
+wrapped at the Effect edge before a follow-up message is emitted, and
+`Program.story(...)` can exercise the transitions without mounting a UI.
+
 ## From TanStack Query
 
 TanStack Query usually spreads data behavior across query keys, query functions,

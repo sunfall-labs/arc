@@ -1,8 +1,10 @@
 import { Effect, Stream } from "effect";
-import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
+import { EffectInputCallbackError, invokeEffectInput, type EffectInput } from "./effect-like.js";
 import { rejectPlainSyncCallbackValue } from "./effect-input-sync.js";
 import {
   ProgramCommandTypeId,
+  type ProgramHandlerDefinition,
+  type ProgramHandlerMap,
   ProgramStepTypeId,
   ProgramSubscriptionTypeId,
   type ProgramCommand,
@@ -16,6 +18,7 @@ import {
   type ProgramStep,
   type ProgramSubscription,
   type ProgramSubscriptionInput,
+  type ProgramTaggedMessage,
   type ProgramUpdate,
 } from "./program-contract.js";
 
@@ -81,15 +84,70 @@ export const makeProgramFailure = <Message, E>(
   error,
 });
 
-/** Defines a reusable Program with centralized model, messages, commands, and subscriptions. */
-export const defineProgram = <Model, Message, E = never, R = never>(
+/** Builds an update callback from exhaustive tagged-message handlers. */
+export const programUpdate = <Model, Message extends ProgramTaggedMessage, E = never, R = never>(
+  handlers: ProgramHandlerMap<Model, Message, E, R>,
+): ProgramDefinition<Model, Message, E, R>["update"] => {
+  type Tag = Message["_tag"] & PropertyKey;
+  type Handler = (
+    model: Model,
+    message: ProgramMessageValue<Message>,
+  ) => EffectInput<ProgramUpdate<Model, Message, E, R>, E, R>;
+
+  return (model, message) => {
+    const tag = (message as ProgramTaggedMessage)._tag as Tag;
+    const handler = handlers[tag] as unknown as Handler | undefined;
+    if (handler === undefined) {
+      throw new TypeError(`Program.update has no handler for message tag ${String(tag)}.`);
+    }
+
+    return handler(model, message as ProgramMessageValue<Message>);
+  };
+};
+
+const isProgramHandlerDefinition = (
+  definition: unknown,
+): definition is ProgramHandlerDefinition<unknown, ProgramTaggedMessage, unknown, unknown> =>
+  typeof definition === "object" && definition !== null && "on" in definition;
+
+/**
+ * Defines a reusable Program with centralized model, messages, commands, and subscriptions.
+ */
+export function defineProgram<Model, Message extends ProgramTaggedMessage, E = never, R = never>(
+  definition: ProgramHandlerDefinition<Model, Message, E, R> &
+    ([ProgramModelValue<Model>] extends [never] ? never : unknown) &
+    ([ProgramMessageValue<Message>] extends [never] ? never : unknown),
+): ProgramDefinition<Model, Message, E, R>;
+export function defineProgram<Model, Message, E = never, R = never>(
   definition: ProgramDefinition<Model, Message, E, R> &
     ([ProgramModelValue<Model>] extends [never] ? never : unknown) &
     ([ProgramMessageValue<Message>] extends [never] ? never : unknown),
-): ProgramDefinition<Model, Message, E, R> => {
+): ProgramDefinition<Model, Message, E, R>;
+export function defineProgram<Model, Message, E = never, R = never>(
+  definition:
+    | (ProgramDefinition<Model, Message, E, R> &
+        ([ProgramModelValue<Model>] extends [never] ? never : unknown) &
+        ([ProgramMessageValue<Message>] extends [never] ? never : unknown))
+    | (ProgramHandlerDefinition<Model, Extract<Message, ProgramTaggedMessage>, E, R> &
+        ([ProgramModelValue<Model>] extends [never] ? never : unknown) &
+        ([ProgramMessageValue<Message>] extends [never] ? never : unknown)),
+): ProgramDefinition<Model, Message, E, R> {
   validateProgramModelSync("Program.initial", definition.initial);
-  return definition;
-};
+  if (isProgramHandlerDefinition(definition)) {
+    const { on, ...rest } = definition as ProgramHandlerDefinition<
+      Model,
+      Extract<Message, ProgramTaggedMessage>,
+      E,
+      R
+    >;
+    return {
+      ...rest,
+      update: programUpdate(on) as ProgramDefinition<Model, Message, E, R>["update"],
+    } as ProgramDefinition<Model, Message, E, R>;
+  }
+
+  return definition as ProgramDefinition<Model, Message, E, R>;
+}
 
 /** Runs one Program update and normalizes the result into a ProgramStep. */
 export const programStepEffect = <Model, Message, E = never, R = never>(
@@ -113,10 +171,10 @@ export const programStepEffect = <Model, Message, E = never, R = never>(
   );
 
 const programModelPromiseGuidance =
-  "Program update models must be plain values. Move host Promise work into Program.command(Effect.tryPromise(...)) and dispatch a follow-up message with the resolved value. If the domain model itself is an Effect, wrap it with Effect.succeed(effectValue).";
+  "Program update models must be plain values. Move host Promise work into Program.emit(Effect.tryPromise(...)) and emit a follow-up message with the resolved value. If the domain model itself is an Effect, wrap it with Effect.succeed(effectValue).";
 
 const programMessagePromiseGuidance =
-  "Program messages must be plain values. Move host Promise work into Effect.tryPromise(...) inside Program.command(...) or a subscription stream before emitting a resolved follow-up message. Direct Effect values are executable work, not messages.";
+  "Program messages must be plain values. Move host Promise work into Effect.tryPromise(...) inside Program.emit(...) or a subscription stream before emitting a resolved follow-up message. Direct Effect values are executable work, not messages.";
 
 const programMessageUndefinedGuidance =
   "Program messages cannot be undefined because undefined is reserved for command Effects that intentionally emit no follow-up message. Use a tagged message value instead.";
@@ -180,13 +238,21 @@ export const validateProgramMessageEffect = <Message>(
   });
 
 /** Builds a state transition, optionally with commands to run after the model is written. */
-export const programNext = <Model, Message, E = never, R = never>(
+export const programNext = <
+  Model,
+  Message,
+  E = never,
+  R = never,
+  CommandMessage extends Message = Message,
+>(
   model: ProgramModelValue<Model>,
-  commands?: ProgramCommandInput<Message, E, R>,
+  commands?: ProgramCommandInput<CommandMessage, E, R>,
 ): ProgramStep<Model, Message, E, R> => ({
   [ProgramStepTypeId]: ProgramStepTypeId,
   model: model as Model,
-  commands: normalizeProgramCommands(commands),
+  commands: normalizeProgramCommands(commands) as unknown as ReadonlyArray<
+    ProgramCommand<Message, E, R>
+  >,
 });
 
 /** Effect command that emits its successful value as the next message. */
@@ -199,6 +265,28 @@ export const programCommand = <Message, E = never, R = never>(
   [ProgramCommandTypeId]: ProgramCommandTypeId,
   effect,
 });
+
+/** Command that emits an immediate or Effect-produced follow-up message. */
+export function programEmit<Message>(
+  message: ProgramMessageValue<Message>,
+  ..._invalidMessageType: [ProgramMessageValue<Message>] extends [never]
+    ? ["Program message types cannot be undefined or void."]
+    : []
+): ProgramCommand<Message>;
+export function programEmit<Message, E = never, R = never>(
+  effect: Effect.Effect<ProgramMessageValue<Message>, E, R>,
+  ..._invalidMessageType: [ProgramMessageValue<Message>] extends [never]
+    ? ["Program message types cannot be undefined or void."]
+    : []
+): ProgramCommand<Message, E, R>;
+export function programEmit<Message, E = never, R = never>(
+  input: ProgramMessageValue<Message> | Effect.Effect<ProgramMessageValue<Message>, E, R>,
+): ProgramCommand<Message, E, R> {
+  return {
+    [ProgramCommandTypeId]: ProgramCommandTypeId,
+    effect: Effect.isEffect(input) ? input : Effect.succeed(input),
+  };
+}
 
 /** Command that immediately dispatches a message. */
 export const programDispatch = <Message>(

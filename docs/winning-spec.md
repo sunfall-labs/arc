@@ -2,10 +2,11 @@
 
 ## Problem Statement
 
-Sunfall Arc is trying to become the best full-stack framework for agent-operated
-applications and compile-time correctness. The current core has a strong
-Effect-native Runtime Spine, request-local Resource Stores, typed resources,
-actions, routes, capabilities, server contracts, and a developing Start layer.
+Sunfall Arc is trying to compete at the top of full-stack frameworks for
+agent-operated applications and compile-time correctness. The current core has a
+strong Effect-native Runtime Spine, request-local Resource Stores, typed
+resources, actions, programs, routes, capabilities, server contracts, and a
+maturing Start layer.
 
 The remaining problem is not a lack of primitives. The problem is turning those
 primitives into a framework-level correctness system where the compiler, build
@@ -17,12 +18,12 @@ generated, inspectable, and testable.
 
 ## Solution
 
-Sunfall Arc should win by becoming the framework where an agent can safely inspect,
-modify, and verify a full-stack app through a single coherent model:
+Sunfall Arc should compete by becoming the framework where an agent can safely
+inspect, modify, and verify a full-stack app through a single coherent model:
 
 - A typed app graph covering routes, resources, actions, forms, capabilities,
-  server functions, schemas, invalidation tags, hydration payloads, and runtime
-  ownership.
+  programs, server functions, schemas, invalidation tags, hydration payloads,
+  and runtime ownership.
 - A build-time wall that proves client/server boundaries, route manifests,
   server function manifests, schema availability, and duplicate detection before
   production bundling.
@@ -34,13 +35,13 @@ modify, and verify a full-stack app through a single coherent model:
 - Agent-readable conventions and generated artifacts that let agents make small,
   correct changes without reverse-engineering the application.
 
-The strategic bet is narrow: do not chase framework breadth first. Win by making
-the app graph explicit, typed, generated, inspectable, and explainable.
+The strategic bet is narrow: do not chase framework breadth first. Make the app
+graph explicit, typed, generated, inspectable, and explainable.
 
 The comprehensive product plan lives in
 [Best Full-Stack Framework Plan](./best-framework-plan.md). This spec is the
-execution contract for that plan: the product only counts as "best in class"
-when the strategy is backed by generated artifacts, compile-time rejection,
+execution contract for that plan: the product only counts as top-tier when the
+strategy is backed by generated artifacts, compile-time rejection,
 Effect-native runtime behavior, tests, diagnostics, and a reference app.
 
 ## Breakthrough Thesis
@@ -63,8 +64,8 @@ that drift is visible before production:
   scenarios, manifest snapshots, and negative type tests.
 
 The innovation is not one API. It is making the compiler, runtime, server,
-cache, form layer, router, mutation system, hydration, diagnostics, and agent
-surface speak the same domain language.
+program loop, cache, form layer, router, mutation system, hydration,
+diagnostics, and agent surface speak the same domain language.
 
 ## Experience Promise
 
@@ -74,6 +75,8 @@ The app authoring experience should be calm and compact:
 - define services as capabilities and layers;
 - define server contracts in shared modules and handlers in `.server.ts`
   modules;
+- define programs for model/message loops, Effect commands, subscriptions,
+  stories, and timelines;
 - define resources for typed async reads and semantic tags;
 - define collections for normalized indexed data and live queries;
 - define actions for mutations, optimistic updates, retries, typed results, and
@@ -143,19 +146,27 @@ devtools snapshots, diagnostics reports, and testable failure paths.
 25. As an agent, I want server RPC traces to separate domain failures, protocol
     errors, transport errors, defects, and interruption, so that fixes target the
     right layer.
-26. As a maintainer, I want one verification command, so that package builds,
+26. As an app developer, I want Program definitions with exhaustive message
+    handlers, so that local UI state has the same explicit architecture as
+    resources, actions, and routes.
+27. As an app developer, I want Program commands and subscriptions to run
+    through Effect, so that service requirements, typed failures, retries,
+    interruption, and cleanup do not become a second frontend runtime.
+28. As an agent, I want Program timelines and stories, so that I can reproduce
+    UI state transitions without driving the whole DOM.
+29. As a maintainer, I want one verification command, so that package builds,
     runtime tests, example tests, and type tests form the release bar.
 
 ## Implementation Decisions
 
 ### Phase 0: Restore Trust
 
-- Fix the currently failing streamed response lifecycle behavior so request
-  runtime fibers are interrupted after streamed bodies close.
-- Add a single verification command that runs package build, runtime tests,
+- Keep streamed response lifecycle behavior covered so request runtime fibers
+  are interrupted after streamed bodies close.
+- Keep a single verification command that runs package build, runtime tests,
   typecheck, type-level negative tests, example tests, example typecheck, and
   example build.
-- Add continuous integration around that verification command.
+- Keep continuous integration around that verification command.
 - Document the core invariants that must never regress.
 - Treat type tests as product tests.
 
@@ -170,8 +181,8 @@ and compile-time rejection behavior.
   inspectable data structure.
 - Enforce browser-safe client references and server-only module isolation.
 - Generate a machine-readable app graph containing route, resource, collection,
-  action, capability, server function, schema, hydration, and invalidation
-  metadata.
+  action, program, capability, server function, schema, hydration, and
+  invalidation metadata.
 - Keep resource/collection/action graph facts source-attributable: static
   diagnostics can prove declared resource families, tags, collection schemas and
   persistence policy, retry/stale/GC policy, and action
@@ -190,6 +201,9 @@ application topology.
   interruption, cancellation, and client disconnects.
 - Complete resource lifecycle coverage for stale state, GC, refresh
   interruption, failures, hydration cache population, and event streams.
+- Prove Program lifecycle coverage for update rejection, command failure,
+  subscription restart, disposal, story execution, and bounded timeline
+  retention.
 - Harden action concurrency semantics for latest, parallel, and exhaust modes.
 - Ensure optimistic updates commit or roll back correctly under success,
   failure, interruption, and concurrent submissions.
@@ -219,6 +233,8 @@ guarantees than mainstream full-stack frameworks.
 ### Phase 4: Devtools And Diagnostics
 
 - Build a resource event timeline.
+- Build a Program timeline panel that can correlate messages, commands,
+  subscriptions, failures, and owning UI scope.
 - Build an invalidation graph explorer that explains which action invalidated
   which tags and refreshed which resource refs.
 - Build a route preload and hydration inspector.
@@ -275,6 +291,9 @@ framework author in the room.
 - Resource tests should cover cache hits, forced refresh, stale refresh, GC,
   hydration, failure retention, tag recording, invalidation planning, and event
   publication.
+- Program tests should cover exhaustive handler definitions, plain model/message
+  rejection, Effect command emission, subscription restart, story execution,
+  disposal races, failures, and timeline retention.
 - Action tests should cover concurrency, retry, optimistic commit, optimistic
   rollback, invalidation planning, typed failures, and interruption.
 - Form/action tests should cover schema typing, validation failure, redirect
@@ -284,23 +303,27 @@ framework author in the room.
 
 ## Priority Order
 
-1. Fix streamed response lifecycle behavior.
-2. Add the verification command.
-3. Add continuous integration.
-4. Write the invariant document.
+1. Keep the verification command green.
+2. Preserve streamed response lifecycle coverage.
+3. Keep continuous integration on the release gate.
+4. Keep the invariant document current.
 5. Land generated file-route manifests.
 6. Harden server function manifests into bundling behavior.
 7. Generate the app graph.
-8. Expand compile-time tests around route, server, resource, action, and form
-   misuse.
-9. Finish progressive forms and action results.
-10. Build runtime event and devtools timelines.
-11. Add diagnostics.
-12. Ship the reference app as the proof.
+8. Keep Program front-door ergonomics competitive with Foldkit while preserving
+   Effect services, typed failures, and scoped subscriptions.
+9. Expand compile-time tests around route, server, resource, action, program,
+   and form misuse.
+10. Finish progressive forms and action results.
+11. Build runtime event and devtools timelines.
+12. Add diagnostics.
+13. Ship the reference app as the proof.
 
 ## Success Metrics
 
 - The full verification command passes from a clean checkout.
+- A new feature can start with `Program.define({ initial, on })` and grow into
+  resources, actions, routes, and devtools without changing runtime model.
 - Every public async API is Effect v4.
 - Every host/UI Promise-shaped entrypoint is documented as a compatibility
   adapter.
@@ -341,6 +364,8 @@ framework author in the room.
 - Building decorative devtools before causal diagnostics exist.
 - Supporting every possible data fetching style instead of making Resource,
   Action, Capability, Server, and Route excellent.
+- Claiming parity with Foldkit's Scene tests or built-in time travel before
+  Program stories, timelines, and devtools panels prove the same workflows.
 
 ## Further Notes
 

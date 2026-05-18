@@ -273,19 +273,29 @@ Release decisions:
   Effect-returning overloads; Promise-returning callbacks remain rejected so
   host async work is routed through Effect primitives.
 - `Program` is the public facade for the headless frontend loop around
-  centralized model/message
-  state. `Program.define(...)` accepts a pure initial model, an
-  Effect-returning `update(model, message)` callback, Effect commands, and
-  Stream subscriptions. `Program.start(...)` runs service-free Programs against
-  the active Runtime Spine and UI scope. Serviceful Programs must use
+  centralized model/message state. `Program.define(...)` accepts either a plain
+  initial model with a pure-or-Effect `update(model, message)` callback or, for
+  tagged messages, an exhaustive `on` handler map keyed by every message `_tag`.
+  `Program.update(...)` builds the same callback from a handler map when callers
+  want the compact handlers inside a conventional definition. `Program.emit(...)`
+  creates a command that emits one immediate or Effect-produced follow-up
+  message on success; `Program.command(...)` is the lower-level command for
+  Effects that may emit a message or intentionally complete empty, and
+  `Program.effect(...)` is the no-message background-work helper.
+  `Program.next(...)` widens variant commands through the Program's message
+  union so handlers do not need command-level union generics. Both definition
+  surfaces use the same Effect commands and Stream subscriptions.
+  `Program.start(...)` runs service-free Programs against the active Runtime
+  Spine and UI scope. Serviceful Programs must use
   `Program.start(definition, { runtime })`, which adds runtime
   startup/provision errors to the failure channel and rejects runtimes that do
   not provide the Program's update, command, and subscription requirements.
   Program models and messages are plain data: Promise-shaped values,
   Effect-shaped values, and `undefined`/`void` messages are rejected. Commands
   that intentionally emit nothing reserve `undefined`/`void` as the no-message
-  sentinel; host Promise work belongs in `Program.command(Effect.tryPromise(...))`
-  or a subscription before emitting a resolved message.
+  sentinel; host Promise work that emits a message belongs inside
+  `Program.emit(...)`, while no-message background work belongs in
+  `Program.effect(...)` or lower-level `Program.command(...)`.
   Started Programs report typed update/command/subscription failures through a
   signal, expose a bounded `timeline` signal for message, command,
   subscription, failure, and disposal events, and keep `dispatchEffect(...)`

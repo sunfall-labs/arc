@@ -4,9 +4,9 @@ Sunfall Arc should become the framework where TypeScript, Effect, the compiler,
 the runtime, devtools, tests, and agents all agree on one application model.
 
 The goal is not to clone React, Solid, Next, Remix, TanStack Start, TanStack
-Query, TanStack DB, Jotai, or Relay. The goal is to absorb the useful work they
-do and replace the missing guarantees with a system that is more explicit, more
-typed, more inspectable, and more honest about where effects run.
+Query, TanStack DB, Jotai, Relay, or Foldkit. The goal is to absorb the useful
+work they do and replace the missing guarantees with a system that is more
+explicit, more typed, more inspectable, and more honest about where effects run.
 
 ## North Star
 
@@ -16,6 +16,8 @@ An app developer should be able to define domain facts once and have the whole
 stack understand them:
 
 - schemas define the wire format and nominal domain meaning;
+- programs define local model/message loops, commands, subscriptions, and
+  inspectable UI runtime facts;
 - routes define typed navigation and preload ownership;
 - resources define cached async reads and semantic tags;
 - collections define normalized local data, indexes, persistence, and sync;
@@ -33,6 +35,8 @@ framework, but the hard parts should be owned by Effect:
 - retries through `Schedule`;
 - cancellation through fiber interruption;
 - cleanup through `Scope`;
+- program commands and subscriptions through the same runtime rather than a
+  separate frontend effect system;
 - request isolation through request-local runtimes and stores;
 - streaming through `Stream`;
 - observability through event streams and causal graphs.
@@ -65,9 +69,9 @@ The product should make the correct path the ergonomic path.
 ### 1. One Typed App Graph
 
 The app graph is the center of the framework. It should contain the static facts
-about routes, resources, collections, actions, forms, server functions,
-capabilities, schemas, preload ownership, invalidation vocabulary, endpoints,
-and module ownership.
+about programs, routes, resources, collections, actions, forms, server
+functions, capabilities, schemas, preload ownership, invalidation vocabulary,
+endpoints, and module ownership.
 
 The graph must serve many callers:
 
@@ -130,6 +134,8 @@ framework.
 Client-only apps get:
 
 - fine-grained signals;
+- `Program` loops for centralized model/message state, Effect commands, Stream
+  subscriptions, deterministic stories, and timelines;
 - resources, collections, actions, forms, and router scopes;
 - Effect runtime services and test layers;
 - devtools event streams and causal summaries.
@@ -250,7 +256,38 @@ If an agent can safely add a full-stack feature, a human team can too.
 
 ## Ergonomic Target
 
-The end-state API should feel like this:
+The first screen of the API should be a small loop, not a framework lecture:
+
+```ts
+type ProjectMessage =
+  | { readonly _tag: "Rename"; readonly name: string }
+  | { readonly _tag: "Renamed"; readonly project: Project };
+
+export const ProjectProgram = Program.define<ProjectModel, ProjectMessage>({
+  initial: { project, saving: false },
+  on: {
+    Rename: (model, message) =>
+      Program.next(
+        { ...model, saving: true },
+        Program.emit(
+          ProjectApi.use((api) =>
+            api
+              .rename(model.project.id, message.name)
+              .pipe(Effect.map((project) => ({ _tag: "Renamed", project }) as const)),
+          ),
+        ),
+      ),
+    Renamed: (_model, message) => ({ project: message.project, saving: false }),
+  },
+});
+```
+
+That should be the Foldkit-class front door: model, messages, exhaustive
+handlers, commands, subscriptions, and stories. The difference is where the loop
+can grow. Program commands can require services, publish failures, run in UI
+scopes, and feed devtools timelines without leaving the Effect runtime model.
+
+The full-stack API should then feel like this:
 
 ```ts
 export const ProjectId = Schema.String.pipe(Schema.brand("ProjectId"));
@@ -316,7 +353,7 @@ The alpha proves the model works end to end.
 
 - Keep `pnpm verify` green as the release gate.
 - Stabilize core `Signal`, `Resource`, `Action`, `Route`, `Server`,
-  `Capability`, and `Form` APIs.
+  `Capability`, `Program`, and `Form` APIs.
 - Keep TSRX support through the Solid target and `tsrx-tsc`.
 - Keep resource/action APIs Effect-native, with UI code running or forking
   Effects explicitly.
@@ -381,8 +418,9 @@ This is where the framework becomes more than a safer clone.
   defects, and interruption.
 - Let diagnostics compare static declarations with runtime observations and
   report drift.
-- Give agents stable machine-readable plans for common edits: add route, add
-  resource, add action, add form, add server contract, add collection.
+- Give agents stable machine-readable plans for common edits: add program, add
+  route, add resource, add action, add form, add server contract, add
+  collection.
 
 ### Phase F: Local-First And Distributed Apps
 
@@ -402,8 +440,14 @@ Sunfall Arc replaces multiple libraries with one coherent model:
 
 - React state libraries become `Signal`, `Signal.derive`, scoped `watch`, and
   Effect `Stream` adapters.
+- Foldkit-style frontend architecture becomes `Program.define`,
+  `Program.update`, `Program.emit`, Effect commands, Stream subscriptions,
+  deterministic stories, and runtime timelines.
 - React Query becomes `Resource`, `Action`, semantic tags, invalidation plans,
   retry schedules, and hydration.
+- Next/Remix full-stack conventions become progressive `Action.define` flows,
+  response services, server contracts, manifests, request runtimes, and deploy
+  adapters.
 - TanStack Router/Start become schema routes, file-route generation, SSR request
   runtimes, server contracts, Start actions, and typed hydration.
 - TanStack DB becomes `Collection`, secondary indexes, live queries, optimistic
@@ -429,6 +473,8 @@ combination.
 - Server-only code cannot leak into browser bundles.
 - Invalidation uses semantic tags or refs, never route names or cache-key
   strings.
+- Program models and messages are plain data; async work runs through Effect
+  commands or Stream subscriptions.
 - Generated artifacts are deterministic and source-attributed.
 - Every compile-time rule has a type test.
 - Every lifecycle promise has a runtime test.

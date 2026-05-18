@@ -44,9 +44,9 @@ documented as outside the current release bar.
 - Promise-shaped entrypoints are compatibility adapters for UI, browser, and
   host boundaries only.
 - Framework internals keep Effect forms for async work.
-- Framework callbacks, including resources, actions, routes, server functions,
-  collections, capabilities, and forms, reject `Promise` return values at
-  type-check time; app code uses `Effect.tryPromise` explicitly at the
+- Framework callbacks, including programs, resources, actions, routes, server
+  functions, collections, capabilities, and forms, reject `Promise` return
+  values at type-check time; app code uses `Effect.tryPromise` explicitly at the
   host/library seam instead.
 - Request work uses a fresh Request Runtime with the app services and a
   request-local Resource Store.
@@ -54,6 +54,28 @@ documented as outside the current release bar.
   teardown run through the Request Runtime.
 - Request Runtime disposal interrupts resource lifetime fibers and any tracked
   request fibers.
+
+## Programs
+
+- Program definitions are headless model/message loops; UI adapters read the
+  public signals and dispatch messages instead of owning hidden reducer state.
+- Program models and messages are plain values. Promise-shaped values,
+  Effect-shaped values, and `undefined`/`void` messages are rejected because
+  command Effects reserve `undefined`/`void` as the no-message sentinel.
+- Tagged Program definitions can use `Program.define({ initial, on })`; the
+  `on` map and `Program.update(...)` helper are keyed by each message `_tag`.
+  Non-tagged loops use the conventional `update(model, message)` callback.
+- `Program.emit(...)` is the follow-up-message helper for immediate or
+  Effect-produced messages. `Program.effect(...)` represents no-message
+  background work, and lower-level `Program.command(...)` is reserved for
+  Effects that may emit a message or intentionally complete empty.
+- Update, command, and subscription failures are reported as typed
+  `ProgramFailure` values without replacing the current model.
+- Subscriptions are tied to committed model generations; stale generations
+  cannot emit follow-up messages or timeline facts after a restart.
+- `dispatchEffect(...)` acknowledges only updates that commit. Disposal before
+  commit fails the acknowledgement with `ProgramDisposed`; disposal after commit
+  preserves the committed model.
 
 ## Resource Store
 

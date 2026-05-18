@@ -1,11 +1,13 @@
 # Sunfall Arc Architecture
 
-Sunfall Arc is a client-first, server-capable framework built around Effect v4 and TSRX.
+Sunfall Arc is a client-first, server-capable framework built around Effect v4,
+typed application definitions, and TSRX where component templates need it.
 
 The v0 implementation deliberately uses TSRX's Solid target instead of a custom compiler
 target. The public API is owned by Sunfall Arc:
 
 - `Signal` for fine-grained client state.
+- `Program` for headless model/message loops with Effect-owned work.
 - `Resource` for typed async/cache state.
 - `Collection` / `Query` for normalized client data, optimistic row mutations,
   and live materialized queries.
@@ -30,19 +32,20 @@ The end-state architecture has four layers that intentionally share the same
 domain vocabulary.
 
 1. Definition layer: schemas, branded ids, capabilities, server contracts,
-   resources, collections, actions, forms, and routes are stable typed
+   programs, resources, collections, actions, forms, and routes are stable typed
    definitions. Definitions are safe to import broadly when they do not include
    server handlers.
 2. Generated graph layer: file-route manifests, server function manifests,
    action manifests, generated route definitions, and Start app graph
    diagnostics turn definitions into deterministic machine-readable artifacts.
 3. Runtime layer: `SunfallArcRuntime`, request runtimes, `ResourceStore`,
-   `Collection.Store`, UI scopes, route scopes, action fibers, server clients,
-   response context, hydration, and event streams execute the graph through
-   Effect services and scopes.
+   `Collection.Store`, UI scopes, route scopes, Program fibers, action fibers,
+   server clients, response context, hydration, and event streams execute the
+   graph through Effect services and scopes.
 4. Inspection layer: diagnostics, devtools summaries, causal graphs, repair
-   reports, type tests, integration tests, and agent workflows consume public
-   graph/runtime facts rather than private maps.
+   reports, Program timelines, request traces, type tests, integration tests,
+   and agent workflows consume public graph/runtime facts rather than private
+   maps.
 
 The architectural rule is simple: every important runtime fact should have a
 definition-time owner when possible, a generated diagnostic fact when useful, an
@@ -57,6 +60,8 @@ Sunfall Arc should stay unusually strict in these places:
 - route preload is typed, interruptible, and declared for diagnostics;
 - resources and collections live in the active runtime/store, never global
   process state;
+- Program updates return plain model data or `Program.next(...)`; async work
+  leaves the update through Effect commands and Stream subscriptions;
 - actions own mutation policy, optimistic work, invalidation, and result shape;
 - public async APIs return Effect v4 values;
 - Promise boundaries are compatibility adapters for host or platform contracts,
@@ -124,6 +129,64 @@ export type ProjectId = typeof ProjectId.Type;
 
 export const makeProjectId = (id: string): ProjectId => Schema.decodeUnknownSync(ProjectId)(id);
 ```
+
+## Program Loop
+
+The smallest Sunfall Arc unit is a named model/message loop. Prefer the compact
+handler-map front door for tagged message unions:
+
+```ts
+type CounterModel = { readonly count: number; readonly loading: boolean };
+type CounterMessage =
+  | { readonly _tag: "Increment" }
+  | { readonly _tag: "Load" }
+  | { readonly _tag: "Loaded"; readonly amount: number };
+
+export const CounterProgram = Program.define<CounterModel, CounterMessage>({
+  name: "Counter",
+  initial: { count: 0, loading: false },
+  on: {
+    Increment: (model) => ({ ...model, count: model.count + 1 }),
+    Load: (model) =>
+      Program.next(
+        { ...model, loading: true },
+        Program.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
+      ),
+    Loaded: (model, message) => ({
+      count: model.count + message.amount,
+      loading: false,
+    }),
+  },
+});
+```
+
+`on` is exhaustive by message `_tag` and compiles to
+`update: Program.update({ ... })`. Use the lower-level `update` callback when
+messages are not a tagged union or when a local switch is genuinely clearer.
+
+An update writes a plain model value or `Program.next(model, commandInput)`.
+Commands are Effects that may emit one follow-up message. `Program.emit(...)`
+is the common case when successful work always produces a message;
+`Program.effect(...)` is for background Effects that intentionally emit none;
+`Program.subscription(stream)` connects model-dependent Streams to the same
+message loop. Promise-shaped host work belongs inside `Effect.tryPromise(...)`
+before the command or subscription emits a plain message.
+
+Started Programs run on the Runtime Spine and expose a readable model signal,
+typed `dispatchEffect(...)`, failures, disposal, and a bounded timeline:
+
+```ts
+const counter = Program.start(CounterProgram);
+```
+
+A serviceful Program must start with an explicit typed runtime:
+
+```ts
+const project = Program.start(ProjectProgram, { runtime });
+```
+
+That keeps service requirements visible to TypeScript while devtools and tests
+can inspect the same public timeline facts.
 
 ## Runtime Spine
 

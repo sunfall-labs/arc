@@ -1,9 +1,40 @@
 # Sunfall Arc
 
-Sunfall Arc is an experimental agent-native TypeScript framework for
-correctness by construction in full-stack apps. It is built around Effect,
-typed app definitions, request-scoped runtimes, React and Solid adapters,
-local-first collections, and deterministic app graph diagnostics.
+Sunfall Arc is an experimental, Effect-native TypeScript framework for
+correctness by construction in full-stack apps. It treats application behavior
+as typed definitions that humans, tests, devtools, and agents can all inspect.
+
+The front door is small: a model, typed messages, exhaustive message handlers,
+and Effect commands.
+
+```ts
+type CounterModel = { readonly count: number; readonly loading: boolean };
+type CounterMessage =
+  | { readonly _tag: "Increment" }
+  | { readonly _tag: "Load" }
+  | { readonly _tag: "Loaded"; readonly amount: number };
+
+const Counter = Program.define<CounterModel, CounterMessage>({
+  initial: { count: 0, loading: false },
+  on: {
+    Increment: (model) => ({ ...model, count: model.count + 1 }),
+    Load: (model) =>
+      Program.next(
+        { ...model, loading: true },
+        Program.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
+      ),
+    Loaded: (model, message) => ({
+      count: model.count + message.amount,
+      loading: false,
+    }),
+  },
+});
+```
+
+That same loop can grow into typed Capabilities, Resources, Actions, Routes,
+server contracts, request-scoped runtimes, React and Solid adapters,
+local-first Collections, and deterministic app graph diagnostics without
+leaving the Effect runtime model.
 
 The project is still pre-release. Framework packages are MIT-licensed and
 configured for public alpha publication; the workspace root and copyable
@@ -12,6 +43,9 @@ while examples, diagnostics, and release gates are hardened.
 
 ## What This Repo Proves
 
+- A small `Program.define({ initial, on })` loop can be the first stateful unit,
+  while serviceful work, subscriptions, timelines, and devtools facts stay
+  Effect-owned.
 - Humans and agents can co-develop against explicit app structure: typed
   definitions, generated route artifacts, app graph diagnostics, and verification
   gates.
@@ -27,19 +61,23 @@ while examples, diagnostics, and release gates are hardened.
   inspected-window bridge.
 - Deterministic Start manifests and build diagnostics with repair guidance.
 - Copyable basic, React, and project console starters with SSR, hydration,
-  route-owned Resource preload, checked rich-starter packaging, and server-only
+  route-owned Resource preload, checked standalone packaging, and server-only
   leak scans.
 
 ## Start Here
 
-- [Architecture](docs/architecture.md)
+Read in this order when you are new to the repo:
+
+1. [Basic, React, and project-console starters](docs/starter.md)
+2. [Architecture](docs/architecture.md)
+3. [Effect style guide](docs/effect-style.md)
+4. [Deployment](docs/deployment.md)
+5. [Solid and React adapters](docs/adapter-differences.md)
+
+Useful deeper references:
+
 - [Design reference](Design.md)
-- [Effect style guide](docs/effect-style.md)
-- [Deployment](docs/deployment.md)
 - [Framework perfection charter](docs/framework-perfection-charter.md)
-- [Solid and React adapters](docs/adapter-differences.md)
-- [Basic starter](docs/starter.md)
-- [React starter](examples/react-starter/README.md)
 - [Migration notes](docs/migration-notes.md)
 - [Public API inventory](docs/public-api-inventory.md)
 - [Public release readiness](docs/public-release-readiness.md)
