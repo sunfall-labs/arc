@@ -28,6 +28,7 @@ while examples, diagnostics, and release gates are hardened.
 ## Start Here
 
 - [Architecture](docs/architecture.md)
+- [Design reference](Design.md)
 - [Effect style guide](docs/effect-style.md)
 - [Deployment](docs/deployment.md)
 - [Framework perfection charter](docs/framework-perfection-charter.md)
