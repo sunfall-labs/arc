@@ -29,6 +29,7 @@ import {
 } from "./docs-content.js";
 import type { RecipeCategory, RecipeSlug } from "./content.contract.js";
 import { codeLanguageLabel, highlightCode } from "./code-highlighting.js";
+import { docsSiteHref, makeDocsSiteHistoryAdapter } from "./site-base.js";
 import "./styles.css";
 
 const HomeUiRoute = Route.withComponent(HomeRoute, HomeView);
@@ -79,7 +80,7 @@ const categoryLabel = (category: RecipeCategory): string => {
   }
 };
 
-const recipeHref = (slug: RecipeSlug): string => `/cookbook/${slug}`;
+const recipeHref = (slug: RecipeSlug): string => docsSiteHref(`/cookbook/${slug}`);
 
 const slugifyHeading = (text: string): string => {
   const slug = text
@@ -148,8 +149,8 @@ export default function App<RuntimeServices = DocsContentApi>(
   >;
   const routerProps =
     props.initialHref === undefined
-      ? { routes, runtime }
-      : { routes, runtime, initialHref: props.initialHref };
+      ? { routes, runtime, history: makeDocsSiteHistoryAdapter() }
+      : { routes, runtime, initialHref: props.initialHref, history: makeDocsSiteHistoryAdapter() };
 
   return (
     <RouterProvider {...routerProps}>
@@ -162,20 +163,28 @@ function DocsShell() {
   return (
     <main class="docsShell">
       <header class="siteTopbar">
-        <a href={Route.href(HomeUiRoute)} class="topbarBrand" aria-label="Sunfall Arc home">
+        <a
+          href={docsSiteHref(Route.href(HomeUiRoute))}
+          class="topbarBrand"
+          aria-label="Sunfall Arc home"
+        >
           <span class="brandWordmark">Sunfall Arc</span>
         </a>
         <nav class="topbarTabs" aria-label="Primary navigation">
-          <a href={Route.href(HomeUiRoute)} class="topbarTab">
+          <a href={docsSiteHref(Route.href(HomeUiRoute))} class="topbarTab">
             Readme
           </a>
-          <a href={Route.href(DocsOverviewUiRoute)} class="topbarTab active" aria-current="page">
+          <a
+            href={docsSiteHref(Route.href(DocsOverviewUiRoute))}
+            class="topbarTab active"
+            aria-current="page"
+          >
             Docs
           </a>
-          <a href={Route.href(CookbookUiRoute)} class="topbarTab">
+          <a href={docsSiteHref(Route.href(CookbookUiRoute))} class="topbarTab">
             Cookbook
           </a>
-          <a href={Route.href(BlogPostUiRoute)} class="topbarTab">
+          <a href={docsSiteHref(Route.href(BlogPostUiRoute))} class="topbarTab">
             Why Arc
           </a>
         </nav>
@@ -192,13 +201,13 @@ function DocsShell() {
       <aside class="docsSidebar">
         <div class="sidebarMeta" aria-label="Docs metadata">
           <span class="sidebarVersion">v0 alpha</span>
-          <a href={Route.href(DocsOverviewUiRoute)} class="sidebarMetaLink">
+          <a href={docsSiteHref(Route.href(DocsOverviewUiRoute))} class="sidebarMetaLink">
             Documentation index
           </a>
         </div>
         <DocsNav />
         <RecipeNav />
-        <a href={Route.href(BlogPostUiRoute)} class="navSectionLink">
+        <a href={docsSiteHref(Route.href(BlogPostUiRoute))} class="navSectionLink">
           Why Sunfall Arc
         </a>
       </aside>
@@ -218,13 +227,13 @@ function DocsNav() {
   return (
     <nav class="sidebarSection" aria-label="Documentation">
       <p class="navHeading">Docs</p>
-      <a href={Route.href(DocsOverviewUiRoute)} class="navSectionLink">
+      <a href={docsSiteHref(Route.href(DocsOverviewUiRoute))} class="navSectionLink">
         Overview
       </a>
       <div class="navList">
         {docsPages.map((page) => (
           <a
-            href={Route.href(DocsPageUiRoute, { params: { slug: page.slug } })}
+            href={docsSiteHref(Route.href(DocsPageUiRoute, { params: { slug: page.slug } }))}
             class="navRecipeLink"
           >
             <span>{page.title}</span>
@@ -256,13 +265,13 @@ function RecipeNav() {
 function RecipeNavList(props: { readonly recipes: ReadonlyArray<RecipeSummary> }) {
   return (
     <>
-      <a href={Route.href(CookbookUiRoute)} class="navSectionLink">
+      <a href={docsSiteHref(Route.href(CookbookUiRoute))} class="navSectionLink">
         All recipes
       </a>
       <div class="navList">
         {props.recipes.map((recipe) => (
           <a
-            href={Route.href(RecipeUiRoute, { params: { slug: recipe.slug } })}
+            href={docsSiteHref(Route.href(RecipeUiRoute, { params: { slug: recipe.slug } }))}
             class="navRecipeLink"
           >
             <span>{recipe.title}</span>
@@ -349,10 +358,10 @@ function HomeView() {
           This site is a small Arc app: recipes load through server functions, pass through a
           Capability-backed Resource, preload from file routes, and hydrate before the UI mounts.
         </p>
-        <a href={Route.href(CookbookUiRoute)} class="primaryLink">
+        <a href={docsSiteHref(Route.href(CookbookUiRoute))} class="primaryLink">
           Browse cookbook
         </a>
-        <a href={Route.href(DocsOverviewUiRoute)} class="secondaryLink">
+        <a href={docsSiteHref(Route.href(DocsOverviewUiRoute))} class="secondaryLink">
           Read the docs
         </a>
       </header>
@@ -365,7 +374,7 @@ function HomeView() {
           routes, resources, actions, server boundaries, and local-first state become typed
           definitions that humans and agents can inspect, edit, and verify.
         </p>
-        <a href={Route.href(BlogPostUiRoute)} class="primaryLink">
+        <a href={docsSiteHref(Route.href(BlogPostUiRoute))} class="primaryLink">
           Read the introduction
         </a>
       </section>
@@ -382,7 +391,7 @@ function HomeView() {
 }
 
 const docsPageHref = (page: DocsPage): string =>
-  Route.href(DocsPageUiRoute, { params: { slug: page.slug } });
+  docsSiteHref(Route.href(DocsPageUiRoute, { params: { slug: page.slug } }));
 
 const docsSectionLabel = (section: DocsSection): string => section;
 
@@ -421,7 +430,7 @@ function DocsOverviewView() {
           Each recipe is intentionally small, but the shape is real: Effect-first callbacks, typed
           schemas, route-owned preload, explicit invalidation, and testable boundaries.
         </p>
-        <a href={Route.href(CookbookUiRoute)} class="primaryLink">
+        <a href={docsSiteHref(Route.href(CookbookUiRoute))} class="primaryLink">
           Browse cookbook
         </a>
       </section>
@@ -936,7 +945,10 @@ function RecipeGrid(props: { readonly recipes: ReadonlyArray<RecipeSummary> }) {
   return (
     <section class="recipeGrid" aria-label="Recipes">
       {props.recipes.map((recipe) => (
-        <a href={Route.href(RecipeUiRoute, { params: { slug: recipe.slug } })} class="recipeCard">
+        <a
+          href={docsSiteHref(Route.href(RecipeUiRoute, { params: { slug: recipe.slug } }))}
+          class="recipeCard"
+        >
           <span class="recipeCategory">{categoryLabel(recipe.category)}</span>
           <h2>{recipe.title}</h2>
           <p>{recipe.summary}</p>
@@ -1106,7 +1118,7 @@ function RelatedRecipeList(props: {
       <div class="relatedList">
         {related.map((recipe) => (
           <a
-            href={Route.href(RecipeUiRoute, { params: { slug: recipe.slug } })}
+            href={docsSiteHref(Route.href(RecipeUiRoute, { params: { slug: recipe.slug } }))}
             class="relatedLink"
           >
             {recipe.title}

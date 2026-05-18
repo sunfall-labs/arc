@@ -1,6 +1,23 @@
+import { readdirSync } from "node:fs";
 import type { ServerFunctionManifestSource } from "@sunfall/arc-start";
+import { normalizeDocsSiteBasePath } from "./base-path.js";
 import { getRecipe, listRecipeSummaries } from "./content.contract.js";
 import { getRecipeServer, listRecipeSummariesServer } from "./content.server.js";
+import { docsPages } from "./docs-content.js";
+
+const docsSiteBasePath = normalizeDocsSiteBasePath(
+  process.env.DOCS_SITE_BASE_PATH ?? process.env.VITE_DOCS_SITE_BASE_PATH ?? "/",
+);
+const recipeContentDirectory = new URL("./content/cookbook/", import.meta.url);
+const docsSiteRecipePrerenderPages = readdirSync(recipeContentDirectory)
+  .filter((fileName) => fileName.endsWith(".md"))
+  .sort()
+  .map((fileName) => `/cookbook/${fileName.replace(/\.md$/u, "")}`);
+
+export const docsSitePrerenderPages = [
+  ...docsPages.map((page) => `/docs/${page.slug}`),
+  ...docsSiteRecipePrerenderPages,
+];
 
 export const docsSiteServerFunctionSources = [
   {
@@ -38,7 +55,8 @@ export const docsSiteStartOptions = {
     enabled: true,
     autoSubfolderIndex: true,
     autoStaticPathsDiscovery: true,
-    crawlLinks: true,
+    crawlLinks: docsSiteBasePath === "/",
+    pages: docsSitePrerenderPages,
     failOnError: true,
   },
   buildPolicy: {

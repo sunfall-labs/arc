@@ -179,9 +179,9 @@ const closePrerenderServerHandle = (
 const defaultPrerenderOrigin = "https://sunfall-arc.static";
 
 const assetScriptPattern =
-  /<script\b(?=[^>]*\btype="module")(?=[^>]*\bsrc="\/assets\/[^"]+\.js")[^>]*><\/script>/g;
+  /<script\b(?=[^>]*\btype="module")(?=[^>]*\bsrc="(?:\/[^"]*)?\/assets\/[^"]+\.js")[^>]*><\/script>/g;
 const assetStylesheetPattern =
-  /<link\b(?=[^>]*\brel="stylesheet")(?=[^>]*\bhref="\/assets\/[^"]+\.css")[^>]*>/g;
+  /<link\b(?=[^>]*\brel="stylesheet")(?=[^>]*\bhref="(?:\/[^"]*)?\/assets\/[^"]+\.css")[^>]*>/g;
 const devStylesheetPattern =
   /<link\b(?=[^>]*\brel="stylesheet")(?=[^>]*\bhref="\/(?:src|@fs)\/[^"]+\.css(?:\?[^"]*)?")[^>]*>/g;
 const devModuleScriptPattern =

@@ -17,7 +17,12 @@ import {
   type FileRouteHrefOptionsById,
 } from "./routeTree.gen.js";
 import { handleRequest, serverApp } from "./server.js";
-import { docsSiteStartOptions } from "./start-options.js";
+import {
+  normalizeDocsSiteBasePath,
+  stripDocsSiteBasePath,
+  withDocsSiteBasePath,
+} from "./base-path.js";
+import { docsSitePrerenderPages, docsSiteStartOptions } from "./start-options.js";
 
 const htmlJsonScriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script>/g;
 
@@ -254,6 +259,14 @@ describe("docs site", () => {
           crawlLinks: true,
           failOnError: true,
         });
+        expect(docsSitePrerenderPages).toEqual(
+          expect.arrayContaining([
+            "/docs/getting-started",
+            "/docs/troubleshooting",
+            "/cookbook/resource-from-server-function",
+            "/cookbook/route-preload-hydration",
+          ]),
+        );
         expect(response.status).toBe(200);
         expect(html).toContain("Resource from a server function");
         expect(links).toEqual(
@@ -276,10 +289,24 @@ describe("docs site", () => {
       }),
     ));
 
+  it("maps typed route hrefs to the GitHub Pages project base path", () => {
+    const basePath = "/project-docs/";
+
+    expect(normalizeDocsSiteBasePath("project-docs")).toBe(basePath);
+    expect(normalizeDocsSiteBasePath("/project-docs")).toBe(basePath);
+    expect(withDocsSiteBasePath("/", basePath)).toBe(basePath);
+    expect(withDocsSiteBasePath("/docs/getting-started", basePath)).toBe(
+      "/project-docs/docs/getting-started",
+    );
+    expect(stripDocsSiteBasePath("/project-docs/docs/getting-started?tab=install", basePath)).toBe(
+      "/docs/getting-started?tab=install",
+    );
+  });
+
   it("keeps internal docs navigation on native typed anchors", () => {
     const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
 
-    expect(source).toMatch(/<a\s+href={Route\.href/);
+    expect(source).toMatch(/href={docsSiteHref\(Route\.href/);
     expect(source).not.toContain("RouterLink");
   });
 });

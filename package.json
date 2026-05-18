@@ -27,6 +27,8 @@
     "docs-site:build": "pnpm --filter @sunfall/arc-example-docs-site build",
     "docs-site:dev": "pnpm --filter @sunfall/arc-example-docs-site dev",
     "docs-site:leak-scan": "pnpm --filter @sunfall/arc-example-docs-site leak-scan",
+    "docs-site:pages:smoke": "pnpm --filter @sunfall/arc-example-docs-site pages:smoke",
+    "docs-site:pages:verify": "pnpm --filter @sunfall/arc-example-docs-site pages:verify",
     "docs-site:test": "pnpm --filter @sunfall/arc-example-docs-site test",
     "docs-site:typecheck": "pnpm --filter @sunfall/arc-example-docs-site typecheck",
     "docs-site:verify": "pnpm --filter @sunfall/arc-example-docs-site verify",

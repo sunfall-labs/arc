@@ -2,11 +2,16 @@ import tailwindcss from "@tailwindcss/vite";
 import { sunfallArcTsrx } from "@sunfall/arc-tsrx";
 import { defineConfig } from "vite";
 import { sunfallArcStart } from "@sunfall/arc-start/vite";
+import { normalizeDocsSiteBasePath } from "./src/base-path.js";
 import { docsSiteStartOptions } from "./src/start-options.js";
 
 const fromRoot = (path: string): string => new URL(`../../${path}`, import.meta.url).pathname;
+const docsSiteBasePath = normalizeDocsSiteBasePath(
+  process.env.DOCS_SITE_BASE_PATH ?? process.env.VITE_DOCS_SITE_BASE_PATH ?? "/",
+);
 
 export default defineConfig({
+  base: docsSiteBasePath,
   plugins: [
     ...sunfallArcTsrx({ solid: { ssr: true } }),
     tailwindcss(),

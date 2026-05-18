@@ -25,19 +25,22 @@ const manifest = generateFileRouteManifestArtifact(
 const writePrerenderFixture = (
   root: string,
   options: {
+    readonly assetBase?: string;
     readonly body?: string;
     readonly status?: number;
   } = {},
 ): string => {
   const outDir = join(root, "dist");
+  const assetBase = options.assetBase ?? "";
+  const assetPrefix = assetBase.endsWith("/") ? assetBase.slice(0, -1) : assetBase;
   mkdirSync(join(root, "src"), { recursive: true });
   mkdirSync(outDir, { recursive: true });
   writeFileSync(
     join(outDir, "index.html"),
     [
       "<!doctype html>",
-      '<html><head><link rel="stylesheet" href="/assets/app-abc.css" /></head>',
-      '<body><script type="module" src="/assets/app-abc.js"></script></body></html>',
+      `<html><head><link rel="stylesheet" href="${assetPrefix}/assets/app-abc.css" /></head>`,
+      `<body><script type="module" src="${assetPrefix}/assets/app-abc.js"></script></body></html>`,
     ].join("\n"),
   );
   writeFileSync(
@@ -143,6 +146,41 @@ describe("Start prerender planning", () => {
       expect(result.pages.map((page) => page.page.path)).toEqual(["/"]);
       expect(html).toContain('href="/assets/app-abc.css"');
       expect(html).toContain('src="/assets/app-abc.js"');
+      expect(html).not.toContain("/src/styles.css");
+      expect(html).not.toContain("/src/main.tsx");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("replaces dev asset tags with production assets under a Vite base path", async () => {
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-start-prerender-"));
+
+    try {
+      const outDir = writePrerenderFixture(root, { assetBase: "/arc" });
+
+      const result = await Effect.runPromise(
+        Effect.scoped(
+          runStartPrerenderEffect({
+            root,
+            outDir,
+            manifest,
+            configFile: false,
+            serverEntry: "/src/server.ts",
+            prerender: {
+              enabled: true,
+              autoStaticPathsDiscovery: false,
+              crawlLinks: false,
+            },
+          }),
+        ),
+      );
+      const html = readFileSync(join(outDir, "index.html"), "utf8");
+
+      expect(result.failures).toEqual([]);
+      expect(result.pages.map((page) => page.page.path)).toEqual(["/"]);
+      expect(html).toContain('href="/arc/assets/app-abc.css"');
+      expect(html).toContain('src="/arc/assets/app-abc.js"');
       expect(html).not.toContain("/src/styles.css");
       expect(html).not.toContain("/src/main.tsx");
     } finally {

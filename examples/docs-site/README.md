@@ -16,6 +16,19 @@ Verify it:
 pnpm --filter @sunfall/arc-example-docs-site verify
 ```
 
+Build it the same way GitHub Pages does:
+
+```sh
+pnpm build
+DOCS_SITE_BASE_PATH="/<repository-name>/" pnpm --filter @sunfall/arc-example-docs-site build
+DOCS_SITE_BASE_PATH="/<repository-name>/" pnpm --filter @sunfall/arc-example-docs-site pages:verify
+DOCS_SITE_BASE_PATH="/<repository-name>/" pnpm --filter @sunfall/arc-example-docs-site pages:smoke
+```
+
+The Pages workflow derives `DOCS_SITE_BASE_PATH` from the repository name,
+uploads `dist` as the artifact, keeps `.nojekyll` in the build, and smoke-tests
+the artifact through a local project-site path before deployment.
+
 The example proves:
 
 - browser-safe docs contracts and branded recipe slugs;

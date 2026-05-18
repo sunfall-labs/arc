@@ -8,6 +8,7 @@
     ".gitignore",
     "README.md",
     "index.html",
+    "public",
     "scripts",
     "src",
     "tsconfig.json",
@@ -20,6 +21,8 @@
     "typecheck": "tsrx-tsc -p tsconfig.json --noEmit",
     "test": "vitest run src/*.test.ts",
     "leak-scan": "node scripts/leak-scan.mjs",
+    "pages:verify": "node scripts/verify-pages-build.mjs",
+    "pages:smoke": "node scripts/smoke-pages-build.mjs",
     "verify": "pnpm typecheck && pnpm test && pnpm build && pnpm leak-scan"
   },
   "dependencies": {
