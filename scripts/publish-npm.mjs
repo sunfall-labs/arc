@@ -414,10 +414,16 @@ const removeLatestDistTagEffect = (target) =>
     Effect.as(true),
     Effect.catch((error) => {
       const facts = commandErrorFacts(error);
-      if (facts.includes("E400") && facts.includes("/dist-tags/latest")) {
+      if (
+        facts.includes("/dist-tags/latest") &&
+        (facts.includes("E400") ||
+          facts.includes("E401") ||
+          facts.includes("E403") ||
+          facts.includes("ENEEDAUTH"))
+      ) {
         return Effect.sync(() => {
           console.warn(
-            `npm refused to remove latest from ${target.packageJson.name}; leaving the first prerelease tagged latest until a stable release can replace it.`,
+            `npm refused or could not authenticate latest cleanup for ${target.packageJson.name}; leaving the first prerelease tagged latest until a stable release can replace it.`,
           );
           return false;
         });
