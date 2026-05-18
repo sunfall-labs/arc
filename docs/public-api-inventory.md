@@ -381,7 +381,8 @@ The root export includes:
   `start-action-client`, `start-action-request-codec`,
   `start-collection-resolution`, `start-fetch`, `start-request-handler`,
   `start-rpc-client`, `start-transport-endpoints`,
-  `start-transport-protocol`, `static-export`, and `streaming`.
+  `start-transport-protocol`, `static-client-navigation`, `static-export`, and
+  `streaming`.
 - hydration, streaming, server-function manifest, action manifest, app graph,
   agent graph, diagnostics report, file-route module helpers, and file-route
   definitions;

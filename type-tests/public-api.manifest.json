@@ -451,6 +451,7 @@
         "start-rpc-client",
         "start-transport-endpoints",
         "start-transport-protocol",
+        "static-client-navigation",
         "streaming"
       ],
       "requiredTypeTestImports": [
