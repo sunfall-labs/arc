@@ -125,13 +125,13 @@ const recipePageRailItems = (blocks: ReadonlyArray<RecipeBlock>): readonly PageR
   );
 
 const blogRailItems = createPageRailItems([
-  { blockIndex: 0, level: 2, text: "The comparison in one sentence" },
-  { blockIndex: 1, level: 2, text: "What TanStack Query would do" },
-  { blockIndex: 2, level: 2, text: "What React, Solid, Zustand, and Jotai would do" },
-  { blockIndex: 3, level: 2, text: "What Arc gives you instead" },
-  { blockIndex: 4, level: 2, text: "A guided slice: route, resource, and UI" },
-  { blockIndex: 5, level: 2, text: "Mutations, forms, and local-first state" },
-  { blockIndex: 6, level: 2, text: "The graph becomes a release artifact" },
+  { blockIndex: 0, level: 2, text: "The problem: agents inherit implicit apps" },
+  { blockIndex: 1, level: 2, text: "What agent-native means" },
+  { blockIndex: 2, level: 2, text: "Correctness by construction" },
+  { blockIndex: 3, level: 2, text: "The hero slice: route, resource, action, graph" },
+  { blockIndex: 4, level: 2, text: "What conventional stacks would do" },
+  { blockIndex: 5, level: 2, text: "What Arc replaces" },
+  { blockIndex: 6, level: 2, text: "Built by an agent, with receipts" },
   { blockIndex: 7, level: 2, text: "What this alpha does not claim" },
 ]);
 
@@ -333,9 +333,9 @@ function HomeView() {
         <p class="eyebrow">From the blog</p>
         <h2>Why Sunfall Arc exists</h2>
         <p>
-          The first public alpha is about making full-stack TypeScript feel inspectable: data
-          loading, mutations, routing, server boundaries, and local state all become named typed
-          definitions instead of scattered conventions.
+          The first public alpha is about correctness by construction for agent-operated apps:
+          routes, resources, actions, server boundaries, and local-first state become typed
+          definitions that humans and agents can inspect, edit, and verify.
         </p>
         <a href={Route.href(BlogPostUiRoute)} class="primaryLink">
           Read the introduction
@@ -363,10 +363,10 @@ function DocsOverviewView() {
     <article class="pageStack">
       <header class="pageHeader">
         <p class="eyebrow">Documentation</p>
-        <h1>Public alpha docs for Arc's typed app definitions.</h1>
+        <h1>Public alpha docs for agent-native app correctness.</h1>
         <p>
-          Start here when you want to understand what Arc is, how to try it, and where each core
-          concept fits before reaching for the cookbook.
+          Start here when you want to understand how Arc turns full-stack TypeScript apps into
+          typed, inspectable definitions that can be checked by humans, CI, and agents.
         </p>
       </header>
 
@@ -593,12 +593,12 @@ function BlogPostView() {
     <article class="blogPost articleWithRail">
       <header class="pageHeader">
         <p class="eyebrow">Introducing Sunfall Arc</p>
-        <h1>One typed graph for your full-stack TypeScript app.</h1>
+        <h1>Correctness by construction for agent-operated TypeScript apps.</h1>
         <p>
-          Sunfall Arc is easiest to understand by comparing it to the stack it can collapse:
-          TanStack Query for server state, React or Solid primitives for local reactivity, Zustand
-          or Jotai for shared app state, route preload glue, form action plumbing, typed API
-          clients, and a pile of diagnostics that usually arrive too late.
+          Sunfall Arc is an agent-native, Effect-first framework for full-stack TypeScript. It turns
+          routes, resources, actions, forms, collections, capabilities, and server contracts into
+          typed definitions that can be checked at type time, verified at build time, and explained
+          at runtime.
         </p>
       </header>
 
@@ -606,128 +606,100 @@ function BlogPostView() {
 
       <section class={articleBodyClass}>
         <p>
-          Modern TypeScript apps do not lack good libraries. TanStack Query is excellent at server
-          state. React and Solid have strong local reactivity stories. Zustand and Jotai are small,
-          productive ways to share client state. The hard part is that each tool owns a different
-          map of the app.
+          Agents are powerful when the app is explicit. They are risky when the app is a maze of
+          conventions: route loaders over here, query keys over there, server-only handlers in
+          another directory, form validation in a component, invalidation hidden in a callback, and
+          tests rebuilding the missing context by hand.
+        </p>
+        <p>
+          Humans can eventually learn those conventions. Agents have to infer them every time. Arc
+          exists to reduce that guessing. If a route loads data, an action mutates it, a server
+          boundary protects it, a form submits it, or a collection persists it, Arc wants that
+          behavior represented as a typed definition the framework can inspect.
+        </p>
+        <p>
+          That is the meaning of agent-native here: not magic code generation, and not a vague AI
+          label. Arc gives humans and agents a typed map of the app, stable definitions to edit, and
+          verification gates that can prove the change.
+        </p>
+
+        <h2 id={blogHeadingId(0)}>The problem: agents inherit implicit apps</h2>
+        <p>
+          In a conventional app, the shape of the system is scattered. Next, Remix, TanStack Start,
+          TanStack Query, Zustand, Jotai, fetch clients, form libraries, and custom devtools can all
+          be good choices on their own. The problem is that each one owns a different piece of the
+          truth.
         </p>
         <p>
           A route knows it needs a project. A query key knows how to cache it. A mutation knows how
-          to rename it. A store knows what the sidebar has selected. A server handler knows the real
-          permission boundary. Tests know a mock. Devtools know whatever the runtime exposes. Those
-          pieces are related, but in most apps they are not one thing.
+          to rename it. A store knows what the sidebar selected. A server handler knows the real
+          permission boundary. Tests know a mock. Devtools know whatever the runtime happened to
+          expose. Those pieces are related, but they usually cannot explain themselves as one
+          system.
         </p>
         <p>
-          Arc is built around a different bet: framework behavior should be modeled as typed
-          definitions the runtime and tooling can both understand. Routes, Resources, Actions,
-          server functions, Collections, Forms, and Capabilities are not just helpers. They are the
-          nouns the app uses to explain itself to the renderer, the server, tests, devtools, CI, and
-          agents.
-        </p>
-
-        <h2 id={blogHeadingId(0)}>The comparison in one sentence</h2>
-        <p>
-          If a value is a private UI detail, keep using React state, Solid signals, or ordinary
-          component state. If it is domain state or behavior that loads, mutates, hydrates,
-          persists, invalidates, crosses the server boundary, or needs to be inspected by tooling,
-          Arc wants a named definition for it.
-        </p>
-        <p>
-          In Arc, a definition is a named typed declaration the framework can run and inspect: a
-          Route, Resource, Action, Form, Collection, Capability, Signal, or server contract. The app
-          graph is the map Arc builds from those definitions.
-        </p>
-        <p>That means Arc is trying to replace much of the glue where teams normally combine:</p>
-        <ul>
-          <li>TanStack Query for async server data and invalidation.</li>
-          <li>Zustand or Jotai for shared domain state that outgrows component state.</li>
-          <li>Hand-rolled typed fetch clients and server-only handler conventions.</li>
-          <li>Route preload, SSR hydration, action forms, optimistic queues, and test mocks.</li>
-          <li>Ad hoc diagnostics that have to rediscover the app after it has already shipped.</li>
-        </ul>
-        <p>
-          The point is not that those tools are weak. The point is that Arc gives the important
-          definitions one typed owner before they scatter.
+          That is where agents get into trouble. If the route, cache, mutation, store, server
+          boundary, and test seam are implicit agreements, an agent has to reverse-engineer them
+          before it can make a safe edit.
         </p>
 
-        <h2 id={blogHeadingId(1)}>What TanStack Query would do</h2>
+        <h2 id={blogHeadingId(1)}>What agent-native means</h2>
         <p>
-          In a TanStack Query app, the project read would usually be a query keyed by project id,
-          and the rename would be a mutation that invalidates or updates related query keys.
-        </p>
-        <BlogCode code={blogTanstackExample} />
-        <p>
-          That is a good model for server state. It handles the hard client cache problems:
-          asynchronous fetches, staleness, request deduping, refetching, mutation state, retries,
-          cache garbage collection, and render optimization.
+          Arc is agent-native because the app is made of named typed definitions. In Arc, a
+          definition is a named typed declaration the framework can run and inspect: a Route,
+          Resource, Action, Form, Collection, Capability, Signal, or server contract. The app graph
+          is the map Arc builds from those definitions.
         </p>
         <p>
-          Arc overlaps with that job, but pushes the boundary outward. A Resource is not only a
-          cache entry. It is a named, schema-checked, Effect-powered graph node that can be
-          preloaded by a route, hydrated through Start, invalidated by an Action, tested through a
-          Capability, and emitted as a build artifact.
-        </p>
-        <p>
-          In other words: TanStack Query is a superb server-state cache. Arc wants the server-state
-          cache, the route data contract, the server function contract, the invalidation plan, and
-          the diagnostic graph to be connected through the same typed definitions.
-        </p>
-
-        <h2 id={blogHeadingId(2)}>What React, Solid, Zustand, and Jotai would do</h2>
-        <p>
-          With vanilla React or Solid, you would keep local UI state close to the component:
-          selected tabs, open panels, draft text, hover intent, optimistic disclosure state. That is
-          still the right place for local state.
-        </p>
-        <p>
-          When the same project data has to be read across distant screens, updated by multiple
-          actions, persisted, hydrated, and tested, teams often reach for Zustand or Jotai. A store
-          or atom graph can centralize state and reduce prop drilling.
-        </p>
-        <BlogCode code={blogStoreExample} />
-        <p>
-          That works, but now the store owns some behavior the framework cannot understand. Which
-          route needs this data before render? Which server function is safe to call from the
-          browser? Which Resources or Collections should refresh after a mutation? What does SSR
-          need to serialize? Which mock should tests provide? The store can answer these questions
-          only if you build more conventions around it.
-        </p>
-        <p>
-          Arc is meant to replace Zustand and Jotai for domain state, not for every tiny UI toggle.
-          If the state represents durable app behavior - projects, sessions, local-first rows,
-          pending writes, resource lifetimes, form submissions, permissioned server calls - Arc
-          wants a typed Signal, Resource, Action, Form, Collection, Route, or Capability instead of
-          an opaque global store.
-        </p>
-
-        <h2 id={blogHeadingId(3)}>What Arc gives you instead</h2>
-        <p>
-          Arc turns the full-stack app into a typed graph that can execute, hydrate, invalidate,
-          persist, and explain itself. That graph has a few core concepts:
+          The practical promise is simple: an agent can read what the app owns, change the stable
+          definition that owns it, and verify the result through type tests, build diagnostics,
+          graph impact output, leak scans, and runtime tests.
         </p>
         <ul>
-          <li>Signals are named pieces of app state when a value needs framework visibility.</li>
-          <li>Resources are named, schema-checked units of async or external data.</li>
-          <li>Actions are named mutations with typed input, output, effects, and invalidation.</li>
-          <li>Forms bind progressive submissions to the same Action definition.</li>
-          <li>Capabilities are dependency seams for live services, server clients, and tests.</li>
-          <li>Routes declare the Resources and Collections they own before render.</li>
+          <li>Read: generated route trees, Start app graphs, diagnostics reports, and devtools.</li>
+          <li>Change: stable Resources, Actions, Forms, Collections, Routes, and Capabilities.</li>
           <li>
-            Collections model local-first data, persistence, optimistic queues, and live queries.
+            Verify: TypeScript gates, schema checks, build policy, graph impact, and pnpm verify.
+          </li>
+        </ul>
+
+        <h2 id={blogHeadingId(2)}>Correctness by construction</h2>
+        <p>
+          Compile-time correctness is the headline, but Arc's model is broader than TypeScript
+          alone. Arc prevents drift where it can, and explains it where it cannot.
+        </p>
+        <ul>
+          <li>
+            TypeScript catches invalid route params, field names, branded ids, and callback shapes.
           </li>
           <li>
-            Start emits deterministic route, resource, action, collection, endpoint, and module
-            metadata.
+            Effect keeps async work explicit: services, retries, interruption, scopes, and typed
+            errors.
+          </li>
+          <li>
+            Build diagnostics catch duplicate routes, missing schemas, unknown preload ownership,
+            and server/client boundary drift.
+          </li>
+          <li>
+            Runtime scopes isolate requests, resources, collections, action submissions, and
+            streamed responses.
+          </li>
+          <li>
+            Devtools and graph output explain route plans, invalidation, request traces, and
+            resource lifetimes.
           </li>
         </ul>
         <p>
-          The result is composure. The same Resource can be preloaded by a route, read by a UI
-          adapter, serialized into streamed hydration, invalidated by an Action, mocked through a
-          Capability, and inspected by devtools without each layer inventing a private story about
-          it.
+          This is why Arc is not just a nicer fetch wrapper. The core product is a layered
+          correctness system: type-time contracts, build-time graph checks, runtime ownership, and
+          diagnostics that preserve enough structure for humans and agents to trust.
         </p>
 
-        <h2 id={blogHeadingId(4)}>A guided slice: route, resource, and UI</h2>
+        <h2 id={blogHeadingId(3)}>The hero slice: route, resource, action, graph</h2>
+        <p>
+          The smallest useful example is a route that owns a Resource, an Action that mutates the
+          same domain, and a graph artifact that can explain the relationship.
+        </p>
         <p>
           Start with the browser-safe contract. The client can import the schema and typed handle;
           the handler stays in a server-only module.
@@ -754,59 +726,92 @@ function BlogPostView() {
         </p>
         <BlogCode code={blogUiExample} />
 
-        <h2 id={blogHeadingId(5)}>Mutations, forms, and local-first state</h2>
         <p>
-          Actions keep write behavior in the same graph. A mutation has a stable name, a schema, an
+          The Action keeps write behavior in the same graph. It has a stable name, a schema, an
           Effect, and an invalidation plan expressed as domain tags rather than stringly cache keys.
         </p>
         <BlogCode code={blogActionExample} />
-        <p>
-          Start action forms can submit through enhanced clients or plain form posts. Either path
-          runs the same Action through the request runtime and can return refreshed Resource
-          payloads to the browser.
-        </p>
-        <p>
-          Collections extend the same treatment to local-first data. Live queries, persistence,
-          optimistic row mutations, flush policy, and sync adapter boundaries are framework concepts
-          rather than store conventions every feature has to reinvent.
-        </p>
-        <p>
-          This is where Arc most directly competes with global state libraries. For domain state, it
-          should feel more useful to define a Collection or Resource than to build a Zustand slice
-          or atom family, because Arc can also connect that state to routing, hydration,
-          invalidation, tests, and graph output.
-        </p>
 
-        <h2 id={blogHeadingId(6)}>The graph becomes a release artifact</h2>
         <p>
-          Because routes, Resources, Actions, server functions, Collections, and modules are named
-          definitions, Start can emit a deterministic graph. Humans can read it, CI can enforce it,
-          and agents can use it to make focused edits without guessing how files fit together.
+          Now the framework can explain the slice. The graph and impact commands show what a route
+          owns and what an action may affect before an agent edits the next file.
         </p>
         <BlogCode code={blogGraphExample} language="shellscript" />
+
+        <h2 id={blogHeadingId(4)}>What conventional stacks would do</h2>
         <p>
-          This is the part that makes Arc unusual. The framework is not only trying to render HTML
-          or give components nice hooks. It is trying to make the shape of the app available as a
-          public, typed artifact before something breaks.
+          Next, Remix, and TanStack Start make full-stack apps productive. Arc asks for a stricter
+          contract: can every route, server boundary, resource, action, collection, and runtime
+          effect be typed, generated, inspected, and verified?
+        </p>
+        <p>
+          TanStack Query is excellent at async reads and mutations. A common project page would use
+          a query keyed by project id and a mutation that invalidates or updates related query keys.
+        </p>
+        <BlogCode code={blogTanstackExample} />
+        <p>
+          That handles the client cache well. Arc pushes the boundary outward: the cache entry,
+          route data contract, server function contract, invalidation plan, SSR hydration payload,
+          mock seam, and diagnostic graph all connect through the same typed definitions.
+        </p>
+
+        <h2 id={blogHeadingId(5)}>What Arc replaces</h2>
+        <p>
+          Arc overlaps with state and data libraries, but the honest boundary matters. React state,
+          Solid signals, refs, memos, and component props are still right for private UI details.
+          Arc starts to earn its keep when state becomes durable app behavior.
+        </p>
+        <p>
+          Zustand and Jotai are productive ways to share domain state, but stores and atoms are
+          opaque to the framework unless you build conventions around them. Which route needs this
+          value before render? Which server function is browser-safe? Which Resources or Collections
+          should refresh after a mutation? Which mock should tests provide?
+        </p>
+        <BlogCode code={blogStoreExample} />
+        <p>
+          For durable app behavior - projects, sessions, local-first rows, pending writes, resource
+          lifetimes, form submissions, permissioned server calls - Arc wants a typed Signal,
+          Resource, Action, Form, Collection, Route, or Capability instead of an opaque global
+          store.
+        </p>
+        <p>
+          In practice, Arc replaces much of the glue where teams combine TanStack Query,
+          Zustand/Jotai, typed fetch clients, form action plumbing, route preload, SSR hydration,
+          optimistic queues, mocks, and custom diagnostics. It does not replace the renderer's local
+          state model.
+        </p>
+
+        <h2 id={blogHeadingId(6)}>Built by an agent, with receipts</h2>
+        <p>
+          Arc was built by an agent working inside this model. That is not the headline value; it is
+          the receipt. The repo is full of generated route artifacts, graph diagnostics, public API
+          manifests, type tests, package dry runs, leak scans, architecture docs, and release gates
+          because the framework has to stay legible to the next agent that edits it.
+        </p>
+        <p>
+          The ambition is not that agents should write code unchecked. It is the opposite: agentic
+          development needs stronger structure than human-only development. Arc makes the structure
+          public enough that humans, CI, devtools, and agents can all ask the same questions before
+          a change ships.
         </p>
 
         <h2 id={blogHeadingId(7)}>What this alpha does not claim</h2>
         <p>
           Sunfall Arc is not pretending to be a finished ecosystem. Platform-specific packages for
           every host can wait until real deployments demand them. The first public alpha is about
-          the core spine: typed resources and actions, Start SSR and hydration, Solid and React
-          adapters, local-first collections, devtools contracts, starters, package gates, and docs
-          that are themselves built with the framework.
+          the core spine: typed definitions, Effect runtimes, Start SSR and hydration, Solid and
+          React adapters, local-first collections, app graph diagnostics, devtools contracts,
+          starters, package gates, and docs that are themselves built with the framework.
         </p>
         <p>
-          It also should not replace every primitive your renderer already gives you. React state,
-          Solid signals, refs, memos, and ordinary component props are still perfect for local UI.
-          Arc starts to earn its keep when the state is no longer merely local.
+          It also should not be read as a mature Next, Remix, or TanStack Start replacement for
+          every team today. Those ecosystems have production miles, examples, integrations, and
+          hosting stories Arc has not earned yet.
         </p>
         <p>
-          The promise is simple: keep the best ideas from modern state tools, but stop forcing the
-          application to explain itself in five disconnected dialects. Fewer invisible seams, more
-          typed boundaries, and a framework that can tell you what it knows.
+          The promise is narrower and sharper: correctness by construction for agent-operated
+          full-stack TypeScript apps. Prevent drift where the framework can prove it. Explain drift
+          where runtime behavior is the only honest source of truth.
         </p>
       </section>
     </article>

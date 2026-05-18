@@ -41,11 +41,12 @@ export const docsPages = [
     slug: "getting-started",
     section: "Start here",
     title: "Getting started",
-    summary: "Install the alpha packages, choose a starter shape, and run the first docs checks.",
+    summary:
+      "Install the alpha packages, choose a starter shape, and run the first correctness checks.",
     blocks: [
       {
         _tag: "Paragraph",
-        text: "Sunfall Arc is a public alpha. The fastest way to learn it is to run a checked starter, then follow the guided tour and cookbook recipes.",
+        text: "Sunfall Arc is a public alpha for agent-operated TypeScript apps. The fastest way to learn it is to run a checked starter, then follow the guided tour and cookbook recipes.",
       },
       {
         _tag: "Heading",
@@ -84,11 +85,19 @@ export const docsPages = [
     slug: "core-concepts",
     section: "Learn",
     title: "Core concepts",
-    summary: "The vocabulary behind Arc's typed app definitions.",
+    summary: "The vocabulary behind Arc's agent-readable app graph.",
     blocks: [
       {
         _tag: "Paragraph",
-        text: "Arc is organized around named definitions: typed declarations that can run at runtime and remain visible to tooling.",
+        text: "Arc is organized around named definitions: typed declarations that can run at runtime and remain visible to tooling, CI, devtools, and agents.",
+      },
+      {
+        _tag: "Heading",
+        text: "Correctness by construction",
+      },
+      {
+        _tag: "Paragraph",
+        text: "Arc prevents drift where it can and explains drift where it cannot. TypeScript catches invalid shapes early, build diagnostics verify the generated app graph, and the runtime preserves scoped Effect lifetimes across client, server, tests, and agents.",
       },
       {
         _tag: "List",
@@ -104,11 +113,11 @@ export const docsPages = [
       },
       {
         _tag: "Heading",
-        text: "The rule of thumb",
+        text: "The agent-native rule of thumb",
       },
       {
         _tag: "Paragraph",
-        text: "If state or behavior matters to rendering, mutation, caching, testing, deployment, or diagnostics, it should have a typed owner instead of living as an ad hoc convention inside component code.",
+        text: "If state or behavior matters to rendering, mutation, caching, testing, deployment, or diagnostics, it should have a typed owner instead of living as an ad hoc convention inside component code. That gives humans and agents one stable place to inspect, edit, and verify the behavior.",
       },
     ],
   },
@@ -117,11 +126,11 @@ export const docsPages = [
     section: "Learn",
     title: "Guided tour",
     summary:
-      "Build the smallest useful full-stack slice: server contract, Capability, Resource, route preload, UI, and Action.",
+      "Build the smallest useful correctness slice: server contract, Capability, Resource, route preload, UI, Action, and graph impact.",
     blocks: [
       {
         _tag: "Paragraph",
-        text: "A typical Arc feature starts with a domain contract and ends with a route that can explain what it needs before it renders.",
+        text: "A typical Arc feature starts with a domain contract and ends with definitions that can explain what the route loads, what the action mutates, and what an agent should verify before shipping.",
       },
       {
         _tag: "Heading",
@@ -202,6 +211,15 @@ return project.match({
   run: (input) => ProjectApi.use((api) => api.rename(input)),
   invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
 });`,
+      },
+      {
+        _tag: "Heading",
+        text: "6. Inspect the graph before changing code",
+      },
+      {
+        _tag: "Code",
+        language: "shellscript",
+        code: "sunfall-arc-start graph route /projects/:id\nsunfall-arc-start impact action Project.rename --json",
       },
     ],
   },

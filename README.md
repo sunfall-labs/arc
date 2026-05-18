@@ -1,7 +1,9 @@
 # Sunfall Arc
 
-Sunfall Arc is an experimental full-stack TypeScript framework built around
-Effect, Solid, React, TSRX, and deterministic app graph diagnostics.
+Sunfall Arc is an experimental agent-native TypeScript framework for
+correctness by construction in full-stack apps. It is built around Effect,
+typed app definitions, request-scoped runtimes, React and Solid adapters,
+local-first collections, and deterministic app graph diagnostics.
 
 The project is still pre-release. Framework packages are MIT-licensed and
 configured for public alpha publication; the workspace root and copyable
@@ -10,6 +12,9 @@ while examples, diagnostics, and release gates are hardened.
 
 ## What This Repo Proves
 
+- Humans and agents can co-develop against explicit app structure: typed
+  definitions, generated route artifacts, app graph diagnostics, and verification
+  gates.
 - Effect-first Resources, Actions, Programs, Forms, Routes, Capabilities, and
   server contracts across Solid and React adapters.
 - Request-local runtimes and resource stores for SSR, RPC, Start actions, and

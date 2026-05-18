@@ -102,14 +102,16 @@ describe("docs site", () => {
         const pairs = resourcePairs(streamHydrationChunksFrom(html));
 
         expect(response.status).toBe(200);
-        expect(html).toContain("One typed graph for your full-stack TypeScript app.");
-        expect(html).toContain("What TanStack Query would do");
-        expect(html).toContain('href="#what-tanstack-query-would-do"');
+        expect(html).toContain("Correctness by construction for agent-operated TypeScript apps.");
+        expect(html).toContain("What conventional stacks would do");
+        expect(html).toContain('href="#what-conventional-stacks-would-do"');
         expect(html).toContain("In Arc, a definition is a named typed declaration");
-        expect(html).toContain("What React, Solid, Zustand, and Jotai would do");
-        expect(html).toContain('href="#what-arc-gives-you-instead"');
-        expect(html).toContain("A guided slice: route, resource, and UI");
-        expect(html).toContain("Arc is meant to replace Zustand and Jotai for domain state");
+        expect(html).toContain("What Arc replaces");
+        expect(html).toContain('href="#what-arc-replaces"');
+        expect(html).toContain("The hero slice: route, resource, action, graph");
+        expect(html).toContain('href="#the-hero-slice-route-resource-action-graph"');
+        expect(html).toContain("Built by an agent, with receipts");
+        expect(html).toContain("For durable app behavior");
         expect(html).toContain('class="shiki github-dark-default"');
         expect(html).toContain('data-language="Shell"');
         expect(visibleText).toContain("queryClient.invalidateQueries");
@@ -142,7 +144,7 @@ describe("docs site", () => {
         const referenceHtml = yield* Effect.tryPromise(() => referenceResponse.text());
 
         expect(overviewResponse.status).toBe(200);
-        expect(overviewHtml).toContain("Public alpha docs for Arc's typed app definitions.");
+        expect(overviewHtml).toContain("Public alpha docs for agent-native app correctness.");
         expect(overviewHtml).toContain("Getting started");
         expect(overviewHtml).toContain("Troubleshooting");
         expect(gettingStartedResponse.status).toBe(200);
