@@ -126,6 +126,10 @@ describe("docs site", () => {
         );
         const gettingStartedHtml = yield* Effect.tryPromise(() => gettingStartedResponse.text());
         const gettingStartedText = visibleTextFromHtml(gettingStartedHtml);
+        const referenceResponse = yield* Effect.scoped(
+          serverApp.runtime.provide(handleRequest(new Request("https://docs.test/docs/reference"))),
+        );
+        const referenceHtml = yield* Effect.tryPromise(() => referenceResponse.text());
 
         expect(overviewResponse.status).toBe(200);
         expect(overviewHtml).toContain("Public alpha docs for the typed app graph.");
@@ -138,6 +142,9 @@ describe("docs site", () => {
           "pnpm add @sunfall/arc-core @sunfall/arc-start @sunfall/arc-solid effect solid-js",
         );
         expect(gettingStartedHtml).toContain("Use the project console example");
+        expect(referenceResponse.status).toBe(200);
+        expect(referenceHtml).toMatch(/<code[^>]*class="inlineCode"[^>]*>@sunfall\/arc-core/);
+        expect(referenceHtml).toMatch(/<code[^>]*class="inlineCode"[^>]*>@sunfall\/arc-react/);
       }),
     ));
 

@@ -46,6 +46,7 @@ const routes = [
   RecipeUiRoute,
 ] as const;
 const articleBodyClass = "recipeBody prose prose-stone max-w-none";
+const packageListItemPattern = /^(@sunfall\/[a-z0-9-]+(?: and @sunfall\/[a-z0-9-]+)*):\s(.+)$/u;
 type DocsSiteRuntime<RuntimeServices = DocsContentApi> = [DocsContentApi] extends [RuntimeServices]
   ? SunfallArcRuntime<RuntimeServices, never>
   : never;
@@ -305,13 +306,35 @@ function DocsBlockView(props: { readonly block: DocsBlock }) {
       return (
         <ul>
           {(props.block.items ?? []).map((item) => (
-            <li>{item}</li>
+            <DocsListItem item={item} />
           ))}
         </ul>
       );
     case "Code":
       return <CodeBlock code={props.block.code ?? ""} language={props.block.language} />;
   }
+}
+
+function DocsListItem(props: { readonly item: string }) {
+  const match = packageListItemPattern.exec(props.item);
+  if (!match) {
+    return <li>{props.item}</li>;
+  }
+
+  const packageNames = match[1]?.split(" and ") ?? [];
+  const description = match[2] ?? "";
+
+  return (
+    <li>
+      {packageNames.map((packageName, index) => (
+        <>
+          {index > 0 ? " and " : null}
+          <code class="inlineCode">{packageName}</code>
+        </>
+      ))}
+      : {description}
+    </li>
+  );
 }
 
 function CookbookIndexView() {
