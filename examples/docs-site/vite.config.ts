@@ -1,3 +1,4 @@
+import tailwindcss from "@tailwindcss/vite";
 import { sunfallArcTsrx } from "@sunfall/arc-tsrx";
 import { defineConfig } from "vite";
 import { sunfallArcStart } from "@sunfall/arc-start/vite";
@@ -6,7 +7,11 @@ import { docsSiteStartOptions } from "./src/start-options.js";
 const fromRoot = (path: string): string => new URL(`../../${path}`, import.meta.url).pathname;
 
 export default defineConfig({
-  plugins: [...sunfallArcTsrx({ solid: { ssr: true } }), sunfallArcStart(docsSiteStartOptions)],
+  plugins: [
+    ...sunfallArcTsrx({ solid: { ssr: true } }),
+    tailwindcss(),
+    sunfallArcStart(docsSiteStartOptions),
+  ],
   build: {
     manifest: true,
   },
