@@ -130,6 +130,8 @@ describe("docs site", () => {
         expect(html).toContain('href="#what-arc-replaces"');
         expect(html).toContain("The hero slice: route, resource, action, graph");
         expect(html).toContain('href="#the-hero-slice-route-resource-action-graph"');
+        expect(html).toContain("The running demo is a project console");
+        expect(visibleText).toContain("export const ProjectId");
         expect(html).toContain("Built by an agent, verified in public");
         expect(html).toContain("For durable app behavior");
         expect(html).toContain('class="shiki github-dark-default"');

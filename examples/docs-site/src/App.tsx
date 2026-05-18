@@ -500,6 +500,22 @@ function CookbookIndexView() {
   );
 }
 
+const blogDomainExample = `export const ProjectId = Schema.String.pipe(Schema.brand("ProjectId"));
+export type ProjectId = typeof ProjectId.Type;
+
+export const ProjectSchema = Schema.Struct({
+  id: ProjectId,
+  name: Schema.String,
+  ownerId: Schema.String,
+  updatedAt: Schema.DateFromString,
+});
+export type Project = typeof ProjectSchema.Type;
+
+export const RenameProjectInput = Schema.Struct({
+  id: ProjectId,
+  name: Schema.String,
+});`;
+
 const blogContractExample = `export const GetProject = Server.contract<
   { readonly id: ProjectId },
   Project,
@@ -631,11 +647,18 @@ function BlogPostView() {
           truth.
         </p>
         <p>
-          A route knows it needs a project. A query key knows how to cache it. A mutation knows how
-          to rename it. A store knows what the sidebar selected. A server handler knows the real
-          permission boundary. Tests know a mock. Devtools know whatever the runtime happened to
-          expose. Those pieces are related, but they usually cannot explain themselves as one
-          system.
+          The running demo is a project console for an agent-operated workspace. A Project is the
+          durable workspace record the UI is showing: it has a branded id, a display name, an owner,
+          and a server-backed source of truth. The route reads one project, the UI renders it, the
+          user renames it, and the framework should know exactly which cached data and route output
+          that rename can affect.
+        </p>
+        <p>
+          In a conventional stack, those facts are usually split apart. A route knows it needs the
+          project. A query key knows how to cache it. A mutation knows how to rename it. A store
+          knows what the sidebar selected. A server handler knows the real permission boundary.
+          Tests know a mock. Devtools know whatever the runtime happened to expose. Those pieces are
+          related, but they usually cannot explain themselves as one system.
         </p>
         <p>
           That is where agents get into trouble. If the route, cache, mutation, store, server
@@ -698,38 +721,46 @@ function BlogPostView() {
 
         <h2 id={blogHeadingId(3)}>The hero slice: route, resource, action, graph</h2>
         <p>
-          The smallest useful example is a route that owns a Resource, an Action that mutates the
-          same domain, and a graph artifact that can explain the relationship.
+          The smallest useful example is the Project detail page: a route that owns the Project
+          Resource, an Action that renames the same Project, and a graph artifact that can explain
+          the relationship before code changes ship.
         </p>
         <p>
-          Start with the browser-safe contract. The client can import the schema and typed handle;
-          the handler stays in a server-only module.
+          Here is the domain shape the rest of the examples are using. The branded id prevents a
+          random string from being passed where a Project id is required, and the schema is reused
+          by the server contract, Resource, Action, tests, and hydration payload.
+        </p>
+        <BlogCode code={blogDomainExample} />
+        <p>
+          Start with the browser-safe contract for loading one Project. The client can import the
+          schema and typed handle; the handler stays in a server-only module.
         </p>
         <BlogCode code={blogContractExample} />
 
         <p>
-          Expose that contract through a Capability, then define a Resource around the domain value
+          Expose that contract through a Capability, then define a Resource around the Project value
           the UI needs. The Resource owns the input schema, output schema, loading Effect, cache
           identity, and semantic tags it provides.
         </p>
         <BlogCode code={blogResourceExample} />
 
         <p>
-          A file route declares that it owns that Resource. During SSR, Start runs the preload in
-          the request runtime, renders with the Resource available, and streams hydration data for
-          the client runtime.
+          The file route declares that the Project detail page owns that Resource. During SSR, Start
+          runs the preload in the request runtime, renders with the Resource available, and streams
+          hydration data for the client runtime.
         </p>
         <BlogCode code={blogRouteExample} />
 
         <p>
-          The component reads the same Resource. It does not need to know whether the value came
-          from SSR preload, client navigation, a refresh, or a hydrated action response.
+          The component reads the same Project Resource. It does not need to know whether the value
+          came from SSR preload, client navigation, a refresh, or a hydrated action response.
         </p>
         <BlogCode code={blogUiExample} />
 
         <p>
-          The Action keeps write behavior in the same graph. It has a stable name, a schema, an
-          Effect, and an invalidation plan expressed as domain tags rather than string cache keys.
+          The rename Action keeps write behavior in the same graph. It has a stable name, a schema,
+          an Effect, and an invalidation plan expressed as domain tags rather than string cache
+          keys.
         </p>
         <BlogCode code={blogActionExample} />
 
