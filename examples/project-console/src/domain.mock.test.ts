@@ -6,12 +6,14 @@ import {
   Resource,
   runWithRuntime,
 } from "@sunfall/arc-core";
+import { Query } from "@sunfall/arc-db";
 import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
-import { type Project, type ProjectRemoteError } from "./domain.contract.js";
+import { type Project, type ProjectRemoteError, type ProjectWorkItem } from "./domain.contract.js";
 import {
   makeProjectId,
   makeProjectReturnTo,
+  makeWorkItemId,
   preloadProjectRouteEffect,
   projectNameActionTarget,
   ProjectApi,
@@ -21,7 +23,12 @@ import {
   SubmitProjectName,
   SubmitProjectNameInput,
 } from "./domain.js";
-import { ProjectSummaries, RenameProjectFromCollection } from "./project-collections.js";
+import {
+  ProjectSummaries,
+  ProjectWorkItems,
+  RenameProjectFromCollection,
+  projectWorkQueueQuery,
+} from "./project-collections.js";
 
 const mockProject = (overrides: Partial<Project> = {}): Project => ({
   id: makeProjectId("mocked"),
@@ -38,13 +45,37 @@ const mockProject = (overrides: Partial<Project> = {}): Project => ({
   ...overrides,
 });
 
+const mockWorkItem = (overrides: Partial<ProjectWorkItem> = {}): ProjectWorkItem => ({
+  id: makeWorkItemId("mocked-task"),
+  projectId: makeProjectId("mocked"),
+  title: "Mocked work item",
+  owner: "Test",
+  status: "queued",
+  priority: "high",
+  impact: 8,
+  updatedAt: "test",
+  ...overrides,
+});
+
+const mockWorkItems = (): ProjectWorkItem[] => [
+  mockWorkItem(),
+  mockWorkItem({
+    id: makeWorkItemId("mocked-done"),
+    title: "Already shipped",
+    status: "done",
+    priority: "low",
+  }),
+];
+
 describe("project console contract mocks", () => {
   const ProjectApiTest = ProjectApi.mock({
     list: () => Effect.succeed([]),
+    listWorkItems: () => Effect.succeed([]),
     get: (id) => Effect.succeed(mockProject({ id, name: "Mocked Resource" })),
     rename: ({ id, name }) => Effect.succeed(mockProject({ id, name })),
     submitName: ({ id, name }) => Effect.succeed(ActionResult.success(mockProject({ id, name }))),
     advance: ({ id }) => Effect.succeed(mockProject({ id, progress: 51 })),
+    updateWorkItemStatus: ({ id, status }) => Effect.succeed(mockWorkItem({ id, status })),
   });
 
   it("loads resources without importing server handlers", () =>
@@ -121,9 +152,44 @@ describe("project console contract mocks", () => {
     );
   });
 
+  it("materializes an indexed live-query work queue without server handlers", () => {
+    const id = makeProjectId("mocked");
+    const ProjectApiWorkQueue = ProjectApi.mock({
+      list: () => Effect.succeed([mockProject({ id, name: "Mocked Project" })]),
+      listWorkItems: () => Effect.succeed(mockWorkItems()),
+      get: (projectId) => Effect.succeed(mockProject({ id: projectId })),
+      rename: ({ id: projectId, name }) => Effect.succeed(mockProject({ id: projectId, name })),
+      submitName: ({ id: projectId, name }) =>
+        Effect.succeed(ActionResult.success(mockProject({ id: projectId, name }))),
+      advance: ({ id: projectId }) => Effect.succeed(mockProject({ id: projectId, progress: 51 })),
+      updateWorkItemStatus: ({ id: workItemId, status }) =>
+        Effect.succeed(mockWorkItem({ id: workItemId, status })),
+    });
+    const runtime = makeRuntime(ProjectApiWorkQueue);
+
+    return Effect.runPromise(
+      runtime.provide(Query.onceEffect(projectWorkQueueQuery(id))).pipe(
+        Effect.tap((rows) =>
+          Effect.sync(() => {
+            expect(rows).toEqual([
+              expect.objectContaining({
+                id: makeWorkItemId("mocked-task"),
+                projectName: "Mocked Project",
+                status: "queued",
+                synced: true,
+              }),
+            ]);
+          }),
+        ),
+        Effect.ensuring(runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void))),
+      ),
+    );
+  });
+
   it("keeps progressive validation in the success channel", () => {
     const ProjectApiValidation = ProjectApi.mock({
       list: () => Effect.succeed([]),
+      listWorkItems: () => Effect.succeed([]),
       get: (id) => Effect.succeed(mockProject({ id })),
       rename: ({ id, name }) => Effect.succeed(mockProject({ id, name })),
       submitName: () =>
@@ -136,6 +202,7 @@ describe("project console contract mocks", () => {
           }),
         ),
       advance: ({ id }) => Effect.succeed(mockProject({ id, progress: 51 })),
+      updateWorkItemStatus: ({ id, status }) => Effect.succeed(mockWorkItem({ id, status })),
     });
     const action = Action.use(SubmitProjectName);
 
@@ -161,6 +228,7 @@ describe("project console contract mocks", () => {
     let name = "Mocked Resource";
     const ProjectApiStateful = ProjectApi.mock({
       list: () => Effect.succeed([mockProject({ name })]),
+      listWorkItems: () => Effect.succeed(mockWorkItems()),
       get: (id) => Effect.succeed(mockProject({ id, name })),
       rename: ({ id, name: nextName }) =>
         Effect.sync(() => {
@@ -173,6 +241,7 @@ describe("project console contract mocks", () => {
           return ActionResult.success(mockProject({ id, name }));
         }),
       advance: ({ id }) => Effect.succeed(mockProject({ id, name, progress: 51 })),
+      updateWorkItemStatus: ({ id, status }) => Effect.succeed(mockWorkItem({ id, status })),
     });
     const ref = ProjectById(makeProjectId("mocked"));
     const action = Action.use(SubmitProjectName);
@@ -203,11 +272,14 @@ describe("project console contract mocks", () => {
     const id = makeProjectId("mocked");
     const ProjectApiPlainError = ProjectApi.mock({
       list: () => Effect.succeed([mockProject({ id })]),
+      listWorkItems: () => Effect.succeed(mockWorkItems()),
       get: (projectId) => Effect.succeed(mockProject({ id: projectId })),
       rename: () => Effect.fail({ _tag: "InvalidProjectName", name: "At" } as ProjectRemoteError),
       submitName: ({ id: projectId, name }) =>
         Effect.succeed(ActionResult.success(mockProject({ id: projectId, name }))),
       advance: ({ id: projectId }) => Effect.succeed(mockProject({ id: projectId, progress: 51 })),
+      updateWorkItemStatus: ({ id: workItemId, status }) =>
+        Effect.succeed(mockWorkItem({ id: workItemId, status })),
     });
     const runtime = makeRuntime(ProjectApiPlainError);
     const action = Action.use(RenameProjectFromCollection, { runtime });
@@ -245,6 +317,7 @@ describe("project console contract mocks", () => {
     let submission: Fiber.Fiber<unknown, unknown> | undefined;
     const ProjectApiOptimistic = ProjectApi.mock({
       list: () => Effect.succeed([mockProject({ id, name })]),
+      listWorkItems: () => Effect.succeed(mockWorkItems()),
       get: (projectId) => Effect.succeed(mockProject({ id: projectId, name })),
       rename: ({ id: projectId, name: nextName }) =>
         Effect.gen(function* () {
@@ -260,6 +333,8 @@ describe("project console contract mocks", () => {
         }),
       advance: ({ id: projectId }) =>
         Effect.succeed(mockProject({ id: projectId, name, progress: 51 })),
+      updateWorkItemStatus: ({ id: workItemId, status }) =>
+        Effect.succeed(mockWorkItem({ id: workItemId, status })),
     });
     const runtime = makeRuntime(ProjectApiOptimistic);
     const ref = ProjectById(id);
@@ -305,6 +380,79 @@ describe("project console contract mocks", () => {
         expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toContain(
           ref.key,
         );
+      }).pipe(
+        Effect.ensuring(
+          Effect.gen(function* () {
+            yield* Deferred.succeed(release, undefined);
+            if (submission !== undefined) {
+              yield* Fiber.await(submission);
+            }
+            yield* runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void));
+          }),
+        ),
+      ),
+    );
+  });
+
+  it("shows optimistic work-item collection updates in the live query", () => {
+    const id = makeProjectId("mocked");
+    const workItemId = makeWorkItemId("mocked-task");
+    const release = Effect.runSync(Deferred.make<void>());
+    let status: ProjectWorkItem["status"] = "queued";
+    let started = false;
+    let submission: Fiber.Fiber<unknown, unknown> | undefined;
+    const ProjectApiWorkItemOptimistic = ProjectApi.mock({
+      list: () => Effect.succeed([mockProject({ id, name: "Mocked Project" })]),
+      listWorkItems: () => Effect.succeed([mockWorkItem({ id: workItemId, status })]),
+      get: (projectId) => Effect.succeed(mockProject({ id: projectId })),
+      rename: ({ id: projectId, name }) => Effect.succeed(mockProject({ id: projectId, name })),
+      submitName: ({ id: projectId, name }) =>
+        Effect.succeed(ActionResult.success(mockProject({ id: projectId, name }))),
+      advance: ({ id: projectId }) => Effect.succeed(mockProject({ id: projectId, progress: 51 })),
+      updateWorkItemStatus: ({ id: nextId, status: nextStatus }) =>
+        Effect.gen(function* () {
+          started = true;
+          yield* Deferred.await(release);
+          status = nextStatus;
+          return mockWorkItem({ id: nextId, status });
+        }),
+    });
+    const runtime = makeRuntime(ProjectApiWorkItemOptimistic);
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* runtime.provide(
+          Effect.all([ProjectSummaries.preloadEffect(), ProjectWorkItems.preloadEffect()]),
+        );
+
+        const running = runtime.runFork(
+          ProjectWorkItems.updateEffect(workItemId, { status: "running" }),
+        );
+        submission = running;
+        yield* Effect.sleep("10 millis");
+
+        expect(started).toBe(true);
+        expect(runWithRuntime(runtime, () => ProjectWorkItems.get(workItemId))).toMatchObject({
+          status: "running",
+          $synced: false,
+        });
+        expect(
+          runWithRuntime(runtime, () => Query.build(projectWorkQueueQuery(id)).execute()),
+        ).toEqual([
+          expect.objectContaining({
+            id: workItemId,
+            status: "running",
+            synced: false,
+          }),
+        ]);
+
+        yield* Deferred.succeed(release, undefined);
+        yield* Fiber.join(running);
+
+        expect(runWithRuntime(runtime, () => ProjectWorkItems.get(workItemId))).toMatchObject({
+          status: "running",
+          $synced: true,
+        });
       }).pipe(
         Effect.ensuring(
           Effect.gen(function* () {

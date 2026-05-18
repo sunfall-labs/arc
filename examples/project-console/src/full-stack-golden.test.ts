@@ -76,6 +76,7 @@ describe("project console full-stack golden path", () => {
     expect(html).toContain("Recent activity");
     expect(html).toContain("Dehydrate report cache into the first SSR payload.");
     expect(html).toContain("Projects.collection");
+    expect(html).toContain("Project.workItems");
     expect(resources.map((resource) => resource.key)).toEqual(
       expect.arrayContaining([ProjectsRef.key, ProjectById(projectId).key]),
     );
@@ -127,6 +128,7 @@ describe("project console full-stack golden path", () => {
     expect(actionResponse.headers.get("location")).toBe("/projects/meridian?tab=activity");
     expect(followUpHtml).toContain("Meridian Golden Path");
     expect(followUpHtml).toContain("Projects.collection");
+    expect(followUpHtml).toContain("Project.workItems");
     expect(updatedProjectResource).toMatchObject({
       state: {
         _tag: "Success",

@@ -105,12 +105,14 @@ import {
   StartAction,
   StartAppGraphUnknownActionBehavior,
   StartActionFormEncodeError,
+  decodeStartActionFormDataEffect,
   encodeStartActionFormInputEffect,
   encodeStartActionInputEffect,
   encodeStartActionPartialInputEffect,
   encodeStartActionRequestEffect,
   readStartActionRequestEffect,
   startActionForm,
+  startActionFormDataDecodeOptions,
   startActionInputField,
   startActionNameField,
   submitStartActionEffect,
@@ -225,6 +227,7 @@ import {
   type StartTransportKind,
   type StartTransportRequestHeadersOptions,
 } from "@sunfall/arc-start";
+import { Schema } from "effect";
 import type { ActionDefinition, SunfallArcRuntime } from "@sunfall/arc-core";
 
 const startExports: Array<unknown> = [
@@ -333,12 +336,14 @@ const startExports: Array<unknown> = [
   StartTransportRequestError,
   StartStaticPathError,
   StartAppGraphUnknownActionBehavior,
+  decodeStartActionFormDataEffect,
   encodeStartActionFormInputEffect,
   encodeStartActionInputEffect,
   encodeStartActionPartialInputEffect,
   encodeStartActionRequestEffect,
   readStartActionRequestEffect,
   startActionForm,
+  startActionFormDataDecodeOptions,
   startActionInputField,
   startActionNameField,
   submitStartActionEffect,
@@ -552,6 +557,22 @@ const encodedStartActionRequestEffect = encodeStartActionRequestEffect(startActi
 const encodedStartActionFormInputEffect = encodeStartActionFormInputEffect(startActionDefinition, {
   id: "atlas",
 });
+declare const startActionBrowserFormData: FormData;
+const startActionFormDecodeSchema = Schema.Struct({
+  id: Schema.String,
+});
+const startActionFormDataDecodeOptionsPin = startActionFormDataDecodeOptions({
+  omitFields: ["_intent"],
+});
+const decodedStartActionFormDataEffect = decodeStartActionFormDataEffect(
+  startActionFormDecodeSchema,
+  startActionBrowserFormData,
+);
+const namespaceDecodedStartActionFormDataEffect = StartAction.decodeFormDataEffect(
+  startActionFormDecodeSchema,
+  startActionBrowserFormData,
+  startActionFormDataDecodeOptionsPin,
+);
 const readStartActionRequest = readStartActionRequestEffect(
   new Request("https://example.com/_actions", {
     method: "POST",
@@ -570,6 +591,9 @@ void encodedStartActionInputEffect;
 void encodedStartActionPartialInputEffect;
 void encodedStartActionRequestEffect;
 void encodedStartActionFormInputEffect;
+void startActionFormDataDecodeOptionsPin;
+void decodedStartActionFormDataEffect;
+void namespaceDecodedStartActionFormDataEffect;
 void readStartActionRequest;
 void startActionSubmitEffect;
 void startActionInstance;

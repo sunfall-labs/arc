@@ -22,6 +22,7 @@ import {
 } from "./start-action-response-application.js";
 import { resolveStartActionEndpoint } from "./start-transport-endpoints.js";
 import {
+  decodeStartActionFormDataEffect,
   encodeStartActionRequestEffect,
   startActionForm,
   type StartActionDefinition,
@@ -223,6 +224,14 @@ export namespace StartAction {
     definition: ActionDefinition<I, A, E, R>,
     options: StartActionFormOptions<I> = {},
   ): StartActionForm => startActionForm(definition, options);
+
+  /**
+   * Decode user-authored fields from a Start action FormData payload.
+   *
+   * Hidden Start transport fields emitted by `StartAction.form(...)` are omitted
+   * automatically before the schema decoder runs.
+   */
+  export const decodeFormDataEffect = decodeStartActionFormDataEffect;
 
   /**
    * Creates a stateful Start action client.

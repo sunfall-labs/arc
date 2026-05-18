@@ -10,7 +10,7 @@ import { createComponent, generateHydrationScript, renderToString } from "solid-
 import App from "./App.js";
 import { ProjectApiLive } from "./domain.js";
 import { ProjectDemoStoreLive } from "./domain.server.js";
-import { ProjectSummaries } from "./project-collections.js";
+import { ProjectSummaries, ProjectWorkItems } from "./project-collections.js";
 import { isRoutePathMatch } from "./routeTree.gen.js";
 import { projectConsoleAppBaseOptions } from "./app-definition.js";
 import { projectConsoleStartGraphHeader, projectConsoleStartGraphSummary } from "./start-graph.js";
@@ -47,7 +47,7 @@ const shellClose = (hydrationScript: string): string => `</div>
 </html>`;
 
 export const handleRequest = createRequestHandler(serverApp, {
-  collections: [ProjectSummaries],
+  collections: [ProjectSummaries, ProjectWorkItems],
   render: ({ request, match, hydrationPlan, runtime }) => {
     return Effect.gen(function* () {
       const url = new URL(request.url);

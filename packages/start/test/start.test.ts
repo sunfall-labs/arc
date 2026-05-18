@@ -3616,6 +3616,37 @@ describe("Sunfall Arc Start", () => {
     expect(JSON.parse(formInput?.value ?? "{}")).toEqual(jsonRequest.input);
   });
 
+  it("decodes progressive action FormData without exposing hidden transport fields", async () => {
+    const UserFields = Schema.Struct({
+      name: Schema.String,
+    });
+    const Submit = Action.define<
+      { readonly id: string; readonly name: string },
+      { readonly ok: boolean }
+    >({
+      name: "Start.action.codec.user-form-fields",
+      input: Schema.Struct({
+        id: Schema.String,
+        name: Schema.String,
+      }),
+      output: Schema.Struct({ ok: Schema.Boolean }),
+      run: () => Effect.succeed({ ok: true }),
+    });
+    const form = StartAction.form(Submit, { input: { id: "atlas" } });
+    const formData = new FormData();
+
+    for (const field of form.hiddenFields) {
+      formData.set(field.name, field.value);
+    }
+    formData.set("name", "Atlas Forms");
+
+    await expect(
+      Effect.runPromise(StartAction.decodeFormDataEffect(UserFields, formData)),
+    ).resolves.toEqual({
+      name: "Atlas Forms",
+    });
+  });
+
   it("fails progressive form default encoding with typed errors for circular and BigInt inputs", () => {
     const Submit = Action.define<Record<string, unknown>, { readonly ok: boolean }>({
       name: "Start.action.codec.form-failure",

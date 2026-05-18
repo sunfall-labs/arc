@@ -46,7 +46,7 @@ Enhanced clients can intercept submit and call the same Action through `submitEf
 const rename = StartAction.use(SubmitProjectName);
 
 const submit = (formData: FormData) =>
-  Form.decodeFormDataEffect(ProjectNameFormInput, formData).pipe(
+  StartAction.decodeFormDataEffect(ProjectNameFormInput, formData).pipe(
     Effect.flatMap(({ name }) => rename.submitEffect({ id: project.id, name })),
   );
 ```

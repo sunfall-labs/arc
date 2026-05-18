@@ -37,6 +37,8 @@ export const formatProjectError = (error: unknown): string => {
       return `Project "${projectError.id}" was not found.`;
     case "InvalidProjectName":
       return "Project names need at least three meaningful characters.";
+    case "WorkItemNotFound":
+      return `Work item "${projectError.id}" was not found.`;
   }
 
   if (error instanceof Error) {

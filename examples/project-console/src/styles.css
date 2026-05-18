@@ -97,6 +97,7 @@ svg {
 h1,
 h2,
 h3,
+h4,
 p {
   margin-top: 0;
 }
@@ -467,6 +468,42 @@ h3 {
   border-top-color: #738799;
 }
 
+.workQueueSummary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid #d7dfe7;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 16px 18px;
+}
+
+.workQueueSummary h3 {
+  margin-bottom: 0;
+}
+
+.queueStats {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.queueStats span,
+.statusChip,
+.priorityChip {
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.queueStats span {
+  background: #eef3f7;
+  color: #40515f;
+}
+
 .detailLayout {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(280px, 0.6fr);
@@ -474,7 +511,8 @@ h3 {
 }
 
 .primaryPanel,
-.riskPanel {
+.riskPanel,
+.taskPanel {
   border: 1px solid #d7dfe7;
   border-radius: 8px;
   background: #ffffff;
@@ -508,6 +546,92 @@ h3 {
 .activityPanel p {
   border-left: 3px solid #5f9ccf;
   padding-left: 10px;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.taskList {
+  display: grid;
+  gap: 10px;
+}
+
+.taskRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  border: 1px solid #dbe3ea;
+  border-radius: 8px;
+  background: #fbfcfd;
+  padding: 14px;
+}
+
+.taskRow.syncing {
+  border-color: #d7c58e;
+  background: #fffaf0;
+}
+
+.taskRow h4 {
+  margin: 0 0 6px;
+  color: #172530;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.taskMeta {
+  margin: 0;
+  color: #687988;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.taskControls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.statusChip.queued {
+  background: #e8eef3;
+  color: #40515f;
+}
+
+.statusChip.running {
+  background: #dfeeff;
+  color: #1d5b92;
+}
+
+.statusChip.blocked {
+  background: #ffe1df;
+  color: #9a2d24;
+}
+
+.statusChip.done {
+  background: #d8f2e3;
+  color: #16613c;
+}
+
+.priorityChip.high {
+  background: #ffe1df;
+  color: #9a2d24;
+}
+
+.priorityChip.medium {
+  background: #fff0c7;
+  color: #795100;
+}
+
+.priorityChip.low {
+  background: #e8eef3;
+  color: #40515f;
 }
 
 .progressTrack {
@@ -678,15 +802,23 @@ h3 {
   }
 
   .topBar,
-  .detailHeader {
+  .detailHeader,
+  .workQueueSummary,
+  .panelHeader {
     align-items: stretch;
     flex-direction: column;
   }
 
   .metricGrid,
   .detailLayout,
+  .taskRow,
   .renameForm {
     grid-template-columns: 1fr;
+  }
+
+  .queueStats,
+  .taskControls {
+    justify-content: flex-start;
   }
 
   .presencePill {

@@ -1,4 +1,10 @@
-import { Server, ServerRpcProtocolError, type ActionDefinition } from "@sunfall/arc-core";
+import {
+  Form,
+  Server,
+  ServerRpcProtocolError,
+  type ActionDefinition,
+  type FormDataDecodeOptions,
+} from "@sunfall/arc-core";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
 import { hasContentType, startJsonMediaType } from "./rpc.js";
 import {
@@ -66,6 +72,46 @@ export type StartActionDefinition =
 export const startActionNameField = "__sunfall_arc_action";
 /** Hidden form field that carries the JSON-serialized action input. */
 export const startActionInputField = "__sunfall_arc_input";
+
+const startActionTransportFields = [startActionNameField, startActionInputField] as const;
+
+const startActionOmittedFormFields = (
+  omitFields: FormDataDecodeOptions["omitFields"],
+): ReadonlySet<string> => {
+  const fields = new Set<string>(startActionTransportFields);
+
+  if (omitFields !== undefined) {
+    for (const field of omitFields) {
+      fields.add(field);
+    }
+  }
+
+  return fields;
+};
+
+/**
+ * Build `Form.decodeFormDataEffect(...)` options that omit Start's hidden
+ * transport fields while preserving any app-level omitted fields.
+ */
+export const startActionFormDataDecodeOptions = (
+  options: FormDataDecodeOptions = {},
+): FormDataDecodeOptions => ({
+  ...options,
+  omitFields: startActionOmittedFormFields(options.omitFields),
+});
+
+/**
+ * Decode only user-authored fields from a Start action FormData payload.
+ *
+ * This is a convenience wrapper around `Form.decodeFormDataEffect(...)` that
+ * automatically ignores the hidden action name and encoded-default-input fields
+ * emitted by `StartAction.form(...)`.
+ */
+export const decodeStartActionFormDataEffect = <S extends Schema.Top>(
+  schema: S,
+  formData: FormData,
+  options: FormDataDecodeOptions = {},
+) => Form.decodeFormDataEffect(schema, formData, startActionFormDataDecodeOptions(options));
 
 /** Error raised by the synchronous progressive form encoding facade. */
 export class StartActionFormEncodeError extends Data.TaggedError("StartActionFormEncodeError")<{

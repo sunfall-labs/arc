@@ -17,10 +17,10 @@ import {
   useRuntimeEffect,
   watch,
 } from "@sunfall/arc-solid";
-import { Form, type SunfallArcRuntime } from "@sunfall/arc-core";
+import type { SunfallArcRuntime } from "@sunfall/arc-core";
 import type { CollectionRow } from "@sunfall/arc-db";
-import { useCollection } from "@sunfall/arc-solid-db";
-import { StartAction, startActionInputField, startActionNameField } from "@sunfall/arc-start";
+import { useCollection, useLiveQuery } from "@sunfall/arc-solid-db";
+import { StartAction } from "@sunfall/arc-start";
 import { Effect, Schema } from "effect";
 import { For, Show, createEffect, onMount } from "solid-js";
 import { isServer } from "solid-js/web";
@@ -40,12 +40,20 @@ import {
   type ProjectApi,
   type ProjectHealth,
   type ProjectId,
+  type ProjectWorkItem,
   type ProjectTab,
   type ProjectStatus,
   type ProjectSummary,
+  type WorkItemId,
+  type WorkItemStatus,
 } from "./domain.js";
 import { HomeRoute, ProjectRoute, ProjectsRoute, app } from "./app-definition.js";
-import { ProjectSummaries } from "./project-collections.js";
+import {
+  ProjectSummaries,
+  ProjectWorkItems,
+  projectWorkQueueQuery,
+  type ProjectWorkQueueItem,
+} from "./project-collections.js";
 import { hrefByPath, isRoutePathMatch } from "./routeTree.gen.js";
 import { HealthBadge, Metric, PresencePill } from "./ui.tsrx";
 
@@ -58,6 +66,7 @@ type ProjectConsoleRuntime<RuntimeServices = ProjectApi> = [ProjectApi] extends 
   ? SunfallArcRuntime<RuntimeServices, never>
   : never;
 type ProjectSummaryRow = CollectionRow<ProjectSummary, ProjectId>;
+type ProjectWorkItemRow = CollectionRow<ProjectWorkItem, WorkItemId>;
 type ProjectNameSubmissionClientResult = StartAction.Result<typeof SubmitProjectName>;
 
 const ProjectNameFormInput = Schema.Struct({
@@ -101,6 +110,35 @@ const healthLabel = (health: ProjectHealth): string => {
       return "Red";
   }
 };
+
+const workItemStatusLabel = (status: WorkItemStatus): string => {
+  switch (status) {
+    case "queued":
+      return "Queued";
+    case "running":
+      return "Running";
+    case "blocked":
+      return "Blocked";
+    case "done":
+      return "Done";
+  }
+};
+
+const nextWorkItemStatus = (status: WorkItemStatus): WorkItemStatus => {
+  switch (status) {
+    case "queued":
+      return "running";
+    case "running":
+      return "done";
+    case "blocked":
+      return "running";
+    case "done":
+      return "queued";
+  }
+};
+
+const workItemCommandLabel = (status: WorkItemStatus): string =>
+  status === "done" ? "Reopen" : status === "blocked" ? "Resume" : "Advance";
 
 const formatSpend = (spend: number): string => `${spend}%`;
 
@@ -422,6 +460,8 @@ function ProjectDetailContent(props: {
         <Metric label="Updated" value={props.project.updatedAt} tone="slate" />
       </section>
 
+      <WorkQueueSummary project={props.project} />
+
       <ProjectTabPanel project={props.project} tab={props.tab} />
     </article>
   );
@@ -431,6 +471,7 @@ function ProjectTabs(props: { readonly project: Project; readonly selected: Proj
   const tabs: ReadonlyArray<{ readonly id: ProjectTab; readonly label: string }> = [
     { id: "overview", label: "Overview" },
     { id: "activity", label: "Activity" },
+    { id: "tasks", label: "Tasks" },
     { id: "settings", label: "Settings" },
   ];
 
@@ -458,6 +499,98 @@ function ProjectTabs(props: { readonly project: Project; readonly selected: Proj
   );
 }
 
+function WorkQueueSummary(props: { readonly project: Project }) {
+  const queue = useLiveQuery((query) => projectWorkQueueQuery(props.project.id)(query), {
+    deps: () => props.project.id,
+  });
+  const items = () => queue.data();
+  const blocked = () => items().filter((item) => item.status === "blocked").length;
+  const unsynced = () => items().filter((item) => !item.synced).length;
+
+  return (
+    <section class="workQueueSummary" aria-label="Live work queue summary">
+      <div>
+        <p class="eyebrow">Live query</p>
+        <h3>Indexed work queue</h3>
+      </div>
+      <div class="queueStats">
+        <span>{items().length} open</span>
+        <span>{blocked()} blocked</span>
+        <span>{unsynced()} syncing</span>
+      </div>
+    </section>
+  );
+}
+
+function ProjectWorkQueue(props: { readonly project: Project }) {
+  const runEffect = useRuntimeEffect();
+  const collection = useCollection(ProjectWorkItems, { preload: false });
+  const queue = useLiveQuery((query) => projectWorkQueueQuery(props.project.id)(query), {
+    deps: () => props.project.id,
+  });
+  const moveItem = (id: WorkItemId, status: WorkItemStatus) => {
+    runEffect(collection.updateEffect(id, { status }).pipe(Effect.catchCause(() => Effect.void)));
+  };
+
+  return (
+    <section class="taskPanel">
+      <div class="panelHeader">
+        <div>
+          <p class="eyebrow">Collection + Query.live</p>
+          <h3>{props.project.name} work queue</h3>
+        </div>
+        <Show when={queue.waiting()}>
+          <p class="inlineStatus">Refreshing work items</p>
+        </Show>
+      </div>
+
+      <div class="taskList">
+        <For each={queue.data()}>
+          {(item) => (
+            <WorkQueueRow
+              item={item}
+              source={collection.get(item.id)}
+              onMove={() => moveItem(item.id, nextWorkItemStatus(item.status))}
+            />
+          )}
+        </For>
+        <Show when={queue.data().length === 0}>
+          <p class="emptyState">No open work items for this project.</p>
+        </Show>
+      </div>
+    </section>
+  );
+}
+
+function WorkQueueRow(props: {
+  readonly item: ProjectWorkQueueItem;
+  readonly source: ProjectWorkItemRow | undefined;
+  readonly onMove: () => void;
+}) {
+  return (
+    <article class="taskRow" classList={{ syncing: props.source?.$synced === false }}>
+      <div>
+        <p class="taskMeta">
+          {props.item.owner} · {props.item.projectName}
+        </p>
+        <h4>{props.item.title}</h4>
+        <p class="taskMeta">
+          Impact {props.item.impact} · updated {props.item.updatedAt}
+        </p>
+      </div>
+      <div class="taskControls">
+        <span class={`statusChip ${props.item.status}`}>
+          {workItemStatusLabel(props.item.status)}
+        </span>
+        <span class={`priorityChip ${props.item.priority}`}>{props.item.priority}</span>
+        <button class="commandButton secondary" type="button" onClick={props.onMove}>
+          {workItemCommandLabel(props.item.status)}
+        </button>
+      </div>
+    </article>
+  );
+}
+
 function ProjectTabPanel(props: { readonly project: Project; readonly tab: ProjectTab }) {
   if (props.tab === "activity") {
     return (
@@ -473,6 +606,10 @@ function ProjectTabPanel(props: { readonly project: Project; readonly tab: Proje
         </p>
       </section>
     );
+  }
+
+  if (props.tab === "tasks") {
+    return <ProjectWorkQueue project={props.project} />;
   }
 
   return (
@@ -549,9 +686,7 @@ const useProjectActionsProgram = (project: () => Project) => {
                 advancePending: model.advancePending,
               },
               Program.command<ProjectActionsMessage>(
-                Form.decodeFormDataEffect(ProjectNameFormInput, message.formData, {
-                  omitFields: [startActionNameField, startActionInputField],
-                }).pipe(
+                StartAction.decodeFormDataEffect(ProjectNameFormInput, message.formData).pipe(
                   Effect.flatMap(({ name }) =>
                     rename.submitEffect({
                       id: model.project.id,

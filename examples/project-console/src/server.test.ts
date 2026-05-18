@@ -102,7 +102,7 @@ describe("project console SSR", () => {
     expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(response.headers.get("x-sunfall-arc-render")).toBe("streaming");
     expect(response.headers.get("x-sunfall-arc-start-graph")).toBe(
-      "routes=3; server-functions=5; actions=2",
+      "routes=3; server-functions=7; actions=2",
     );
     expect(response.headers.get("x-sunfall-arc-start-routes")).toBe("/,/projects,/projects/:id");
     expect(chunks[0]).toContain("<!doctype html>");
@@ -110,6 +110,7 @@ describe("project console SSR", () => {
     expect(html).toContain("Atlas Billing");
     expect(html).toContain("Kepler Search");
     expect(html).toContain("Next milestone");
+    expect(html).toContain("Indexed work queue");
     expect(html).toContain("sunfall-arc-start-graph");
     expect(html).toContain("window._$HY");
     expect(html).toContain("__SUNFALL_ARC_HYDRATION__");
@@ -117,6 +118,7 @@ describe("project console SSR", () => {
     expect(html).toContain('data-sunfall-arc-hydration-sequence="0"');
     expect(html).toContain('"_tag":"StartHydrationChunk"');
     expect(html).toContain("Projects.collection");
+    expect(html).toContain("Project.workItems");
     expect(html).toContain("Projects.list");
     expect(html).toContain("Project.byId");
     expect(html).toContain('"id":"atlas"');
@@ -139,6 +141,8 @@ describe("project console SSR", () => {
       "Project.list",
       "Project.name.submit",
       "Project.rename",
+      "Project.workItem.status",
+      "Project.workItems.list",
     ]);
     expect(projectConsoleStartGraphSummary).toEqual({
       routes: ["/", "/projects", "/projects/:id"],
@@ -146,8 +150,10 @@ describe("project console SSR", () => {
         "Project.advance",
         "Project.get",
         "Project.list",
+        "Project.workItems.list",
         "Project.name.submit",
         "Project.rename",
+        "Project.workItem.status",
       ],
       actions: ["Project.collection.rename", "Project.name.submit"],
     });

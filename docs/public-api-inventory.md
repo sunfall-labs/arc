@@ -484,7 +484,9 @@ The root export includes:
   Status Policy so semantic transport bodies and HTTP statuses cannot drift
   between server functions and actions.
 - form bridge APIs: `startActionForm`, `StartAction`, Start action request
-  encode/decode helpers such as `encodeStartAction*Effect(...)` and
+  encode/decode helpers such as `encodeStartAction*Effect(...)`,
+  `decodeStartActionFormDataEffect(...)`,
+  `startActionFormDataDecodeOptions(...)`, and
   `readStartActionRequestEffect(...)`, hidden-field constants, and transport
   result types.
 - `StartActionFormEncodeError` is public hover vocabulary for the synchronous

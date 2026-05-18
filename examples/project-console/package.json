@@ -43,7 +43,9 @@
     "dist": "dist",
     "patterns": [
       "seedProjects",
+      "seedWorkItems",
       "Move invoice preview",
+      "Wire retry telemetry",
       "Webhook replay",
       "domain\\.server",
       "/src/domain\\.server\\.ts"

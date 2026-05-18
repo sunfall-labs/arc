@@ -140,6 +140,7 @@ export type {
 } from "./request-trace.js";
 
 export {
+  decodeStartActionFormDataEffect,
   encodeStartActionFormInputEffect,
   encodeStartActionInputEffect,
   encodeStartActionPartialInputEffect,
@@ -147,6 +148,7 @@ export {
   readStartActionRequestEffect,
   StartActionFormEncodeError,
   startActionForm,
+  startActionFormDataDecodeOptions,
   startActionInputField,
   startActionNameField,
   type StartActionDefinition,

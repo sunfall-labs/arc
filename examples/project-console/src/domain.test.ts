@@ -6,12 +6,15 @@ import {
   ProjectNotFound,
   formatProjectError,
   getProject,
+  listProjectWorkItems,
   listProjects,
   makeProjectId,
   makeProjectReturnTo,
+  makeWorkItemId,
   normalizeProjectError,
   renameProject,
   submitProjectName,
+  updateWorkItemStatus,
 } from "./domain.js";
 import { ProjectDemoStoreLive } from "./domain.server.js";
 import { Route as ProjectRoute } from "./routes/projects/$id.js";
@@ -72,6 +75,36 @@ describe("project console domain", () => {
 
           expect(projects.length).toBeGreaterThan(0);
         }),
+      ),
+    ));
+
+  it("loads and updates work items through server functions", () =>
+    Effect.runPromise(
+      provideProjectDemoStore(
+        provideRequest(
+          new Request("https://example.com/projects/atlas?tab=tasks", {
+            headers: {
+              "x-sunfall-arc-now-label": "request scoped task update",
+            },
+          }),
+        )(
+          Effect.gen(function* () {
+            const workItems = yield* withLocalServer(listProjectWorkItems.effect("all"));
+            const updated = yield* withLocalServer(
+              updateWorkItemStatus.effect({
+                id: makeWorkItemId("atlas-retry"),
+                status: "done",
+              }),
+            );
+
+            expect(workItems.map((item) => item.id)).toContain(makeWorkItemId("atlas-retry"));
+            expect(updated).toMatchObject({
+              id: makeWorkItemId("atlas-retry"),
+              status: "done",
+              updatedAt: "request scoped task update",
+            });
+          }),
+        ),
       ),
     ));
 

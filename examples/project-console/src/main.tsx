@@ -4,7 +4,7 @@ import { Data, Layer } from "effect";
 import { hydrate, render } from "solid-js/web";
 import App from "./App.js";
 import { ProjectApiLive } from "./domain.js";
-import { ProjectSummaries } from "./project-collections.js";
+import { ProjectSummaries, ProjectWorkItems } from "./project-collections.js";
 import "./styles.css";
 
 class ProjectConsoleRootMissing extends Data.TaggedError("ProjectConsoleRootMissing")<{
@@ -24,7 +24,7 @@ if (!root) {
 const runtime = createEffectRuntime(Layer.mergeAll(BrowserRpcLive, ProjectApiLive));
 hydrateFromDocument(document, undefined, {
   runtime,
-  collections: [ProjectSummaries],
+  collections: [ProjectSummaries, ProjectWorkItems],
 });
 
 const Root = () => (

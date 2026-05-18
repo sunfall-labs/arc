@@ -9,11 +9,14 @@ import {
   ProjectNameSubmissionResultSchema,
   RenameProjectInput,
   SubmitProjectNameInput,
+  UpdateWorkItemStatusInput,
   advanceProject,
   getProject,
+  listProjectWorkItems,
   listProjects,
   renameProject,
   submitProjectName,
+  updateWorkItemStatus,
   type Project,
   type ProjectId as ProjectIdType,
   type ProjectNameSubmissionResult,
@@ -21,25 +24,33 @@ import {
   type ProjectRemoteError,
   type ProjectRouteParams as ProjectRouteParamsType,
   type ProjectSummary,
+  type ProjectWorkItem,
 } from "./domain.contract.js";
 
 export {
   AdvanceProjectInput,
   InvalidProjectName,
+  ListProjectWorkItemsContract,
   ProjectErrorSchema,
   ProjectSchema,
   ProjectSummarySchema,
+  ProjectWorkItemSchema,
   ProjectNotFound,
   ProjectNameSubmissionResultSchema,
   RenameProjectInput,
   SubmitProjectNameInput,
+  UpdateWorkItemStatusInput,
+  WorkItemNotFound,
   advanceProject,
   getProject,
+  listProjectWorkItems,
   listProjects,
   renameProject,
   submitProjectName,
+  updateWorkItemStatus,
   makeProjectId,
   makeProjectReturnTo,
+  makeWorkItemId,
   type Project,
   type ProjectError,
   type ProjectHealth,
@@ -50,6 +61,10 @@ export {
   type ProjectStatus,
   type ProjectTab,
   type ProjectSummary,
+  type ProjectWorkItem,
+  type WorkItemId,
+  type WorkItemPriority,
+  type WorkItemStatus,
 } from "./domain.contract.js";
 
 export {
@@ -73,6 +88,7 @@ export interface PresenceEvent {
 
 export interface ProjectApi {
   readonly list: () => Effect.Effect<ProjectSummary[], Server.ClientError>;
+  readonly listWorkItems: () => Effect.Effect<ProjectWorkItem[], Server.ClientError>;
   readonly get: (id: ProjectIdType) => Effect.Effect<Project, ProjectRemoteError>;
   readonly rename: (
     input: typeof RenameProjectInput.Type,
@@ -83,6 +99,9 @@ export interface ProjectApi {
   readonly advance: (
     input: typeof AdvanceProjectInput.Type,
   ) => Effect.Effect<Project, ProjectRemoteError>;
+  readonly updateWorkItemStatus: (
+    input: typeof UpdateWorkItemStatusInput.Type,
+  ) => Effect.Effect<ProjectWorkItem, ProjectRemoteError>;
 }
 
 export const ProjectApi = Capability.define<ProjectApi>(
@@ -113,11 +132,13 @@ export const normalizeProjectNameSubmissionResult = (
 
 export const ProjectApiLive = ProjectApi.layer({
   list: () => listProjects.effect("all"),
+  listWorkItems: () => listProjectWorkItems.effect("all"),
   get: (id) => getProject.effect({ id }),
   rename: renameProject.effect,
   submitName: (input) =>
     submitProjectName.effect(input).pipe(Effect.map(normalizeProjectNameSubmissionResult)),
   advance: advanceProject.effect,
+  updateWorkItemStatus: updateWorkItemStatus.effect,
 });
 
 export const ProjectsTag = Resource.tag("Projects");
