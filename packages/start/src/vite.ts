@@ -47,6 +47,12 @@ import {
 } from "./route-code-splitting.js";
 import { runStartPrerenderEffect } from "./start-prerender.js";
 
+const forbiddenStaticClientRpcImports = new Set([
+  "BrowserRpcLive",
+  "makeRpcClient",
+  "makeRpcClientLayer",
+]);
+
 export {
   defaultFileRouteDirectory,
   defaultFileRouteGeneratedFile,
@@ -75,6 +81,7 @@ export type {
   StartAppGraphError,
   StartBuildPolicy,
   StartBuildPolicyError,
+  StartStaticClientPolicy,
   StartViteDevSsrOptions,
   StartManifestDirectReferenceKind,
 } from "./start-manifest-wall.js";
@@ -236,6 +243,48 @@ export interface SunfallArcStartPlugin {
 export class StartServerOnlyModuleError extends Data.TaggedError("StartServerOnlyModuleError")<{
   readonly id: string;
 }> {}
+
+/** Error thrown when a static browser build imports Start client transport helpers. */
+export class StartStaticClientPolicyError extends Data.TaggedError("StartStaticClientPolicyError")<{
+  readonly id: string;
+  readonly imports: readonly string[];
+  readonly guidance: string;
+}> {}
+
+const forbiddenStaticClientRpcImportNames = (code: string): readonly string[] => {
+  const imports = new Set<string>();
+  const namedImportPattern =
+    /import\s+(?:type\s+)?\{(?<specifiers>[\s\S]*?)\}\s+from\s+["']@sunfall\/arc-start["']/gu;
+  for (const match of code.matchAll(namedImportPattern)) {
+    const specifiers = match.groups?.specifiers ?? "";
+    for (const rawSpecifier of specifiers.split(",")) {
+      const imported = rawSpecifier
+        .trim()
+        .replace(/^type\s+/u, "")
+        .split(/\s+as\s+/iu)[0]
+        ?.trim();
+      if (imported !== undefined && forbiddenStaticClientRpcImports.has(imported)) {
+        imports.add(imported);
+      }
+    }
+  }
+
+  return [...imports].sort();
+};
+
+const shouldEnforceStaticClientPolicy = (
+  command: "build" | "serve" | undefined,
+  options: SunfallArcStartOptions,
+): boolean => {
+  const policy = normalizeStartBuildPolicy(options.buildPolicy)?.staticClient;
+  return (
+    command === "build" &&
+    policy !== undefined &&
+    policy !== false &&
+    policy.target === "static" &&
+    policy.forbidBrowserRpc !== false
+  );
+};
 
 /**
  * Creates the Sunfall Arc Start Vite plugin.
@@ -416,6 +465,17 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
         throw new StartServerOnlyModuleError({ id });
       }
       const activeOptions = currentOptions();
+      if (!options?.ssr && shouldEnforceStaticClientPolicy(viteCommand, activeOptions)) {
+        const imports = forbiddenStaticClientRpcImportNames(code);
+        if (imports.length > 0) {
+          throw new StartStaticClientPolicyError({
+            id,
+            imports,
+            guidance:
+              "Static browser builds cannot import Start RPC client helpers. Use makeStartStaticHistoryAdapter(...) for prerendered static navigation and keep BrowserRpcLive in dev-only code that is not statically imported by the production browser graph.",
+          });
+        }
+      }
       if (!options?.ssr && activeOptions.autoCodeSplitting !== false && isFileRouteUpdate(id)) {
         return transformStartRouteAutoCodeSplitting(code, id, { root: viteRoot });
       }

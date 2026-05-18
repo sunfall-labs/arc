@@ -15,6 +15,7 @@ export * from "./agent-graph.js";
 export * from "./effect-rpc-compat.js";
 export * from "./diagnostics-report.js";
 export * from "./static-export.js";
+export * from "./static-client-navigation.js";
 export * from "./file-route-modules.js";
 export * from "./file-route.js";
 

@@ -60,8 +60,15 @@ export const docsSiteStartOptions = {
     failOnError: true,
   },
   buildPolicy: {
+    staticClient: {
+      target: "static",
+      forbidBrowserRpc: true,
+    },
     diagnostics: {
       routePreloadResources: {
+        requireDeclaredForPreload: true,
+      },
+      routePreloadCollections: {
         requireDeclaredForPreload: true,
       },
     },

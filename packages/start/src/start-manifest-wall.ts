@@ -134,8 +134,18 @@ export interface SunfallArcStartOptions {
 export interface StartBuildPolicy {
   readonly wireSchemas?: StartAppGraphWireSchemaPolicy | false;
   readonly actionBehavior?: StartAppGraphActionBehaviorPolicy | false;
+  /** Browser-client policy for fully static deployments. Enforced by the Vite plugin. */
+  readonly staticClient?: StartStaticClientPolicy | false;
   /** Resolved runtime diagnostics policy, enforced by the Vite diagnostics gate. */
   readonly diagnostics?: StartAppGraphDiagnosticsPolicy | false;
+}
+
+/** Build-time browser-client policy for static Start deployments. */
+export interface StartStaticClientPolicy {
+  /** Enable static-client restrictions for a static deployment target. */
+  readonly target?: "static";
+  /** Reject direct browser imports of Start RPC client helpers. Defaults to true. */
+  readonly forbidBrowserRpc?: boolean;
 }
 
 /** Failure channel for static Start build policy validation. */

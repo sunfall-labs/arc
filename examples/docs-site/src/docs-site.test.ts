@@ -431,11 +431,10 @@ describe("docs site", () => {
 
     expect(source).toContain("RouterLink");
     expect(source).not.toMatch(/href={docsSiteHref\(Route\.href/);
-    expect(historySource).toContain("createHref: docsSiteHref");
-    expect(historySource).toContain("prepareHrefEffect");
-    expect(historySource).toContain("Route.preloadResourceFamilies(match.route)");
-    expect(historySource).toContain("hydratedHrefs.delete(href)");
-    expect(historySource).not.toContain("WeakMap<DocsHydrationRuntime");
+    expect(historySource).toContain("docsSiteHref");
+    expect(historySource).toContain("makeStartStaticHistoryAdapter");
+    expect(historySource).toContain("basePath: docsSiteBasePath");
+    expect(historySource).not.toContain("hydrateFromDocumentEffect");
     expect(historySource).not.toContain('"Docs.recipe"');
     expect(mainSource).toContain("import.meta.env.DEV");
     expect(mainSource).toContain("BrowserRpcLive");

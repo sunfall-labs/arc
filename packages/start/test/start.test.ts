@@ -163,6 +163,7 @@ import {
   StartHandlerNotFound,
   StartManifestDirectReferenceError,
   StartServerOnlyModuleError,
+  StartStaticClientPolicyError,
   validateStartBuildPolicyEffect,
   shouldHandleSsrRequest,
 } from "../src/vite.js";
@@ -9222,6 +9223,40 @@ describe("Sunfall Arc Start", () => {
     expect(() => {
       plugin.config();
     }).toThrow(StartAppGraphMissingWireSchemas);
+  });
+
+  it("rejects direct Start RPC client imports for static browser builds", () => {
+    const plugin = sunfallArcStart({
+      buildPolicy: {
+        wireSchemas: false,
+        staticClient: {
+          target: "static",
+          forbidBrowserRpc: true,
+        },
+      },
+    });
+    plugin.config({ root: process.cwd() });
+    plugin.configResolved({
+      root: process.cwd(),
+      command: "build",
+      mode: "production",
+      build: { outDir: "dist" },
+    });
+
+    expect(() =>
+      plugin.transform(
+        `import { BrowserRpcLive, hydrateFromDocument } from "@sunfall/arc-start";`,
+        "/src/main.tsx",
+        { ssr: false },
+      ),
+    ).toThrow(StartStaticClientPolicyError);
+    expect(
+      plugin.transform(
+        `import { hydrateFromDocument } from "@sunfall/arc-start";`,
+        "/src/main.tsx",
+        { ssr: false },
+      ),
+    ).toBeNull();
   });
 
   it("resolves default and named Start handlers", async () => {

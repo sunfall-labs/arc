@@ -1,5 +1,5 @@
 import { createEffectRuntime } from "@sunfall/arc-solid";
-import { BrowserRpcLive, hydrateFromDocument } from "@sunfall/arc-start";
+import { hydrateFromDocument } from "@sunfall/arc-start";
 import { Data, Layer } from "effect";
 import { render } from "solid-js/web";
 import App from "./App.js";
@@ -20,9 +20,10 @@ if (!root) {
   });
 }
 
-const runtime = createEffectRuntime(
-  import.meta.env.DEV ? Layer.mergeAll(BrowserRpcLive, DocsContentApiLive) : DocsContentApiLive,
-);
+const runtimeLayer = import.meta.env.DEV
+  ? Layer.mergeAll((await import("@sunfall/arc-start")).BrowserRpcLive, DocsContentApiLive)
+  : DocsContentApiLive;
+const runtime = createEffectRuntime(runtimeLayer);
 hydrateFromDocument(document, undefined, { runtime });
 
 const hydratedHref = currentDocsSiteHref();
