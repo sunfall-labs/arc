@@ -605,16 +605,16 @@ const blogTanstackExample = `function IssuePage({ id }: { readonly id: IssueId }
 const blogStoreExample = `const useIssueStore = create<IssueStore>((set, get) => ({
   issuesById: {},
   pendingById: {},
-  async loadIssue(id) {
+  markIssueLoading(id) {
     set((state) => ({ pendingById: { ...state.pendingById, [id]: true } }));
-    const issue = await fetchIssue(id);
+  },
+  loadIssueSucceeded(issue) {
     set((state) => ({
-      issuesById: { ...state.issuesById, [id]: issue },
-      pendingById: { ...state.pendingById, [id]: false },
+      issuesById: { ...state.issuesById, [issue.id]: issue },
+      pendingById: { ...state.pendingById, [issue.id]: false },
     }));
   },
-  async updateIssueStatus(input) {
-    const issue = await updateIssueStatus(input);
+  updateIssueStatusSucceeded(issue) {
     set((state) => ({
       issuesById: { ...state.issuesById, [issue.id]: issue },
     }));
@@ -728,7 +728,7 @@ function BlogPostView() {
             TypeScript catches invalid route params, field names, branded ids, and callback shapes.
           </li>
           <li>
-            Effect keeps async work explicit: services, retries, interruption, scopes, and typed
+            Effect keeps effectful work explicit: services, retries, interruption, scopes, and typed
             errors.
           </li>
           <li>
@@ -768,7 +768,7 @@ function BlogPostView() {
         <p>
           Effect also carries typed failures, retries, interruption, and lifetime cleanup through
           the same execution model. Arc does not need to invent a separate dependency-injection
-          container or async runtime; it exposes those Effect guarantees through framework-level
+          container or host runtime; it exposes those Effect guarantees through framework-level
           definitions that agents can inspect.
         </p>
 
@@ -830,9 +830,9 @@ function BlogPostView() {
           effect be typed, generated, inspected, and verified?
         </p>
         <p>
-          TanStack Query is excellent at async reads and mutations. A common issue detail page would
-          use a query keyed by issue id and a mutation that invalidates or updates related query
-          keys.
+          TanStack Query is excellent at server reads and mutations. A common issue detail page
+          would use a query keyed by issue id and a mutation that invalidates or updates related
+          query keys.
         </p>
         <BlogCode code={blogTanstackExample} />
         <p>
@@ -1012,9 +1012,17 @@ function CodeBlock(props: { readonly code: string; readonly language?: string | 
     }
   };
 
-  const copyCode = async () => {
+  const markCodeCopied = () => {
+    window.clearTimeout(copiedTimeout);
+    setCopied(true);
+    copiedTimeout = window.setTimeout(() => setCopied(false), 1400);
+  };
+
+  const copyCode = () => {
     if (typeof navigator !== "undefined" && navigator.clipboard !== undefined) {
-      await navigator.clipboard.writeText(props.code);
+      void navigator.clipboard.writeText(props.code);
+      markCodeCopied();
+      return;
     } else if (typeof document !== "undefined") {
       if (!copyCodeWithSelection()) {
         return;
@@ -1023,9 +1031,7 @@ function CodeBlock(props: { readonly code: string; readonly language?: string | 
       return;
     }
 
-    window.clearTimeout(copiedTimeout);
-    setCopied(true);
-    copiedTimeout = window.setTimeout(() => setCopied(false), 1400);
+    markCodeCopied();
   };
 
   return (

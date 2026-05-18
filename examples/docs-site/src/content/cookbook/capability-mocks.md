@@ -28,7 +28,7 @@ Run the same Resource through a runtime with the test layer.
 ```ts
 const runtime = makeRuntime(ProjectApiTest);
 
-const project = yield* runtime.provide(
+const projectEffect = runtime.provide(
   Effect.gen(function* () {
     yield* Resource.prefetchEffect(ProjectById(makeProjectId("atlas")));
     return Resource.read(ProjectById(makeProjectId("atlas")));
