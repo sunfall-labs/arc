@@ -335,25 +335,83 @@ h3 {
   --tw-prose-pre-bg: #14241f;
 }
 
-.recipeBody.prose .codeBlock {
-  margin-top: 0;
-  margin-bottom: 0;
+.codeFrame {
+  max-width: 100%;
+  margin: 24px 0;
+  overflow: auto;
+  border: 1px solid #223d35;
+  border-radius: 8px;
+  background: #0d1117;
+  color: #e9f4ec;
+  box-shadow: 0 18px 38px rgb(20 36 31 / 10%);
+}
+
+.codeToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 42px;
+  border-bottom: 1px solid rgb(233 244 236 / 10%);
+  background: #14241f;
+  padding: 0 12px 0 14px;
+  color: #b7cbc3;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.codeToolbar span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codeCopyButton {
+  flex: 0 0 auto;
+  min-width: 64px;
+  border: 1px solid rgb(233 244 236 / 16%);
+  border-radius: 6px;
+  background: rgb(233 244 236 / 7%);
+  color: #edf6f1;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.codeCopyButton:hover,
+.codeCopyButton:focus-visible {
+  border-color: rgb(233 244 236 / 32%);
+  background: rgb(233 244 236 / 13%);
+  outline: none;
 }
 
 .codeBlock {
   max-width: 100%;
   overflow: auto;
-  border: 1px solid #223d35;
-  border-radius: 8px;
-  background: #14241f;
-  color: #e9f4ec;
+}
+
+.codeBlock .shiki {
+  margin: 0;
+  overflow: visible;
+  background: transparent !important;
   padding: 18px;
   font-size: 0.92rem;
+  line-height: 1.65;
 }
 
 .codeBlock code {
+  display: grid;
+  min-width: max-content;
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   white-space: pre;
+}
+
+.codeBlock .line {
+  min-height: 1.65em;
 }
 
 .relatedPanel {

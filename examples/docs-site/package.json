@@ -23,11 +23,14 @@
     "verify": "pnpm typecheck && pnpm test && pnpm build && pnpm leak-scan"
   },
   "dependencies": {
+    "@shikijs/langs": "^4.0.2",
+    "@shikijs/themes": "^4.0.2",
     "@sunfall/arc-core": "workspace:*",
     "@sunfall/arc-solid": "workspace:*",
     "@sunfall/arc-start": "workspace:*",
     "@sunfall/arc-tsrx": "workspace:*",
     "effect": "^4.0.0-beta.66",
+    "shiki": "^4.0.2",
     "solid-js": "^1.9.12"
   },
   "devDependencies": {

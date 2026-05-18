@@ -25,6 +25,7 @@ export interface DocsBlock {
   readonly text?: string;
   readonly items?: readonly string[];
   readonly code?: string;
+  readonly language?: string;
 }
 
 export interface DocsPage {
@@ -52,6 +53,7 @@ export const docsPages = [
       },
       {
         _tag: "Code",
+        language: "shellscript",
         code: "pnpm add @sunfall/arc-core @sunfall/arc-start @sunfall/arc-solid effect solid-js",
       },
       {
@@ -64,6 +66,7 @@ export const docsPages = [
       },
       {
         _tag: "Code",
+        language: "shellscript",
         code: "pnpm starter:dev\npnpm starter:verify\npnpm react-starter:dev\npnpm react-starter:verify",
       },
       {
@@ -126,6 +129,7 @@ export const docsPages = [
       },
       {
         _tag: "Code",
+        language: "tsx",
         code: `export const GetProject = Server.contract<
   { readonly id: ProjectId },
   Project,
@@ -142,6 +146,7 @@ export const docsPages = [
       },
       {
         _tag: "Code",
+        language: "tsx",
         code: `export const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
 
 export const ProjectById = Resource.family({
@@ -158,6 +163,7 @@ export const ProjectById = Resource.family({
       },
       {
         _tag: "Code",
+        language: "tsx",
         code: `const RouteBuilder = defineFileRoute("/projects/:id");
 
 export const Route = RouteBuilder.preload({
@@ -173,6 +179,7 @@ export const Route = RouteBuilder.preload({
       },
       {
         _tag: "Code",
+        language: "tsx",
         code: `const project = useResource(() => ProjectById(props.params.id));
 
 return project.match({
@@ -187,6 +194,7 @@ return project.match({
       },
       {
         _tag: "Code",
+        language: "tsx",
         code: `export const RenameProject = Action.define({
   name: "Project.rename",
   input: RenameProjectInput,
@@ -242,6 +250,7 @@ return project.match({
       },
       {
         _tag: "Code",
+        language: "tsx",
         code: `import { createRequestHandlerEffect } from "@sunfall/arc-start";
 import { createFetchHandler } from "@sunfall/arc-start-fetch";
 import { app } from "./app-definition.js";
@@ -258,6 +267,7 @@ export default {
       },
       {
         _tag: "Code",
+        language: "tsx",
         code: `import { createServer } from "node:http";
 import { createRequestHandlerEffect } from "@sunfall/arc-start";
 import { createNodeServerHandler } from "@sunfall/arc-start-node";
@@ -321,6 +331,7 @@ createServer(
       },
       {
         _tag: "Code",
+        language: "shellscript",
         code: "sunfall-arc-start diagnostics --root .\nsunfall-arc-start graph route /projects/:id\nsunfall-arc-start impact action Project.rename --json",
       },
     ],
@@ -343,6 +354,7 @@ createServer(
       },
       {
         _tag: "Code",
+        language: "shellscript",
         code: "pnpm starter:verify\npnpm react-starter:verify\npnpm project-console:verify\npnpm docs-site:verify\npnpm devtools-panel:verify\npnpm devtools-extension:verify",
       },
     ],

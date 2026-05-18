@@ -14,6 +14,18 @@ export default defineConfig({
   ],
   build: {
     manifest: true,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: "syntax-highlighting",
+              test: /node_modules\/(?:\.pnpm\/)?(?:@shikijs|shiki)/,
+            },
+          ],
+        },
+      },
+    },
   },
   resolve: {
     alias: [

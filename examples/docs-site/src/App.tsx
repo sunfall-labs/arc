@@ -1,5 +1,6 @@
 import { Route, RouterOutlet, RouterProvider, useResource } from "@sunfall/arc-solid";
 import type { SunfallArcRuntime } from "@sunfall/arc-core";
+import { createSignal } from "solid-js";
 import {
   BlogPostRoute,
   CookbookRoute,
@@ -27,6 +28,7 @@ import {
   type DocsSection,
 } from "./docs-content.js";
 import type { RecipeCategory, RecipeSlug } from "./content.contract.js";
+import { codeLanguageLabel, highlightCode } from "./code-highlighting.js";
 import "./styles.css";
 
 const HomeUiRoute = Route.withComponent(HomeRoute, HomeView);
@@ -308,11 +310,7 @@ function DocsBlockView(props: { readonly block: DocsBlock }) {
         </ul>
       );
     case "Code":
-      return (
-        <pre class="codeBlock">
-          <code>{props.block.code}</code>
-        </pre>
-      );
+      return <CodeBlock code={props.block.code ?? ""} language={props.block.language} />;
   }
 }
 
@@ -391,12 +389,8 @@ const blogActionExample = `export const RenameProject = Action.define({
 const blogGraphExample = `sunfall-arc-start graph route /projects/:id
 sunfall-arc-start impact action Project.rename --json`;
 
-function BlogCode(props: { readonly code: string }) {
-  return (
-    <pre class="codeBlock">
-      <code>{props.code}</code>
-    </pre>
-  );
+function BlogCode(props: { readonly code: string; readonly language?: string }) {
+  return <CodeBlock code={props.code} language={props.language ?? "tsx"} />;
 }
 
 function BlogPostView() {
@@ -496,7 +490,7 @@ function BlogPostView() {
           facts, Start can emit a deterministic graph. Humans can read it, CI can enforce it, and
           agents can use it to make focused edits without guessing how files fit together.
         </p>
-        <BlogCode code={blogGraphExample} />
+        <BlogCode code={blogGraphExample} language="shellscript" />
         <p>
           This is the part that makes Arc unusual. The framework is not only trying to render HTML
           or give components nice hooks. It is trying to make the shape of the app available as a
@@ -602,12 +596,58 @@ function RecipeBlockView(props: { readonly block: RecipeBlock }) {
         </ul>
       );
     case "Code":
-      return (
-        <pre class="codeBlock">
-          <code>{props.block.code}</code>
-        </pre>
-      );
+      return <CodeBlock code={props.block.code} language={props.block.language} />;
   }
+}
+
+function CodeBlock(props: { readonly code: string; readonly language?: string | undefined }) {
+  const [copied, setCopied] = createSignal(false);
+  let copiedTimeout: number | undefined;
+
+  const copyCodeWithSelection = () => {
+    const textarea = document.createElement("textarea");
+    textarea.value = props.code;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "fixed";
+    textarea.style.top = "-9999px";
+    textarea.style.opacity = "0";
+    document.body.append(textarea);
+    textarea.select();
+
+    try {
+      return document.execCommand("copy");
+    } finally {
+      textarea.remove();
+    }
+  };
+
+  const copyCode = async () => {
+    if (typeof navigator !== "undefined" && navigator.clipboard !== undefined) {
+      await navigator.clipboard.writeText(props.code);
+    } else if (typeof document !== "undefined") {
+      if (!copyCodeWithSelection()) {
+        return;
+      }
+    } else {
+      return;
+    }
+
+    window.clearTimeout(copiedTimeout);
+    setCopied(true);
+    copiedTimeout = window.setTimeout(() => setCopied(false), 1400);
+  };
+
+  return (
+    <figure class="codeFrame not-prose" data-language={codeLanguageLabel(props.language)}>
+      <figcaption class="codeToolbar">
+        <span>{codeLanguageLabel(props.language)}</span>
+        <button type="button" class="codeCopyButton" onClick={copyCode}>
+          {copied() ? "Copied" : "Copy"}
+        </button>
+      </figcaption>
+      <div class="codeBlock" innerHTML={highlightCode(props.code, props.language)} />
+    </figure>
+  );
 }
 
 function RelatedRecipes(props: { readonly recipe: Recipe }) {

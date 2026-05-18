@@ -21,6 +21,13 @@ import { docsSiteStartOptions } from "./start-options.js";
 
 const htmlJsonScriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script>/g;
 
+const visibleTextFromHtml = (html: string): string =>
+  html
+    .replace(htmlJsonScriptPattern, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
 const streamHydrationChunksFrom = (html: string): ReadonlyArray<StartHydrationChunk> =>
   Array.from(html.matchAll(htmlJsonScriptPattern))
     .filter((match) => match[1]?.includes(streamHydrationAttribute))
@@ -88,13 +95,16 @@ describe("docs site", () => {
           ),
         );
         const html = yield* Effect.tryPromise(() => response.text());
+        const visibleText = visibleTextFromHtml(html);
         const pairs = resourcePairs(streamHydrationChunksFrom(html));
 
         expect(response.status).toBe(200);
         expect(html).toContain("One typed graph for your full-stack TypeScript app.");
         expect(html).toContain("The unique value prop");
         expect(html).toContain("A guided slice: route, resource, and UI");
-        expect(html).toContain("sunfall-arc-start graph route /projects/:id");
+        expect(html).toContain('class="shiki github-dark-default"');
+        expect(html).toContain('data-language="Shell"');
+        expect(visibleText).toContain("sunfall-arc-start graph route /projects/:id");
         expect(html).toContain("Resource from a server function");
         expect([...pairs]).toContain(
           JSON.stringify([RecipeIndexRef.family.options.name, RecipeIndexRef.key]),
@@ -115,6 +125,7 @@ describe("docs site", () => {
           ),
         );
         const gettingStartedHtml = yield* Effect.tryPromise(() => gettingStartedResponse.text());
+        const gettingStartedText = visibleTextFromHtml(gettingStartedHtml);
 
         expect(overviewResponse.status).toBe(200);
         expect(overviewHtml).toContain("Public alpha docs for the typed app graph.");
@@ -122,7 +133,8 @@ describe("docs site", () => {
         expect(overviewHtml).toContain("Troubleshooting");
         expect(gettingStartedResponse.status).toBe(200);
         expect(gettingStartedHtml).toContain("Install the alpha packages");
-        expect(gettingStartedHtml).toContain(
+        expect(gettingStartedHtml).toContain('class="shiki github-dark-default"');
+        expect(gettingStartedText).toContain(
           "pnpm add @sunfall/arc-core @sunfall/arc-start @sunfall/arc-solid effect solid-js",
         );
         expect(gettingStartedHtml).toContain("Use the project console example");
