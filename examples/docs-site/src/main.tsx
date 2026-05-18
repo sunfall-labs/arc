@@ -1,9 +1,9 @@
 import { createEffectRuntime } from "@sunfall/arc-solid";
 import { hydrateFromDocument } from "@sunfall/arc-start";
 import { Data, Layer } from "effect";
-import { render } from "solid-js/web";
+import { hydrate, render } from "solid-js/web";
 import App from "./App.js";
-import { DocsContentApiLive } from "./content.js";
+import { DocsContentApiStaticClient } from "./content.js";
 import { currentDocsSiteHref } from "./site-base.js";
 
 class DocsSiteRootMissing extends Data.TaggedError("DocsSiteRootMissing")<{
@@ -21,13 +21,19 @@ if (!root) {
 }
 
 const runtimeLayer = import.meta.env.DEV
-  ? Layer.mergeAll((await import("@sunfall/arc-start")).BrowserRpcLive, DocsContentApiLive)
-  : DocsContentApiLive;
+  ? Layer.mergeAll(
+      (await import("@sunfall/arc-start")).BrowserRpcLive,
+      (await import("./content-live.js")).DocsContentApiLive,
+    )
+  : DocsContentApiStaticClient;
 const runtime = createEffectRuntime(runtimeLayer);
 hydrateFromDocument(document, undefined, { runtime });
 
 const hydratedHref = currentDocsSiteHref();
 const Root = () => <App runtime={runtime} hydratedHref={hydratedHref} />;
 
-root.textContent = "";
-render(Root, root);
+if (root.hasChildNodes()) {
+  hydrate(Root, root);
+} else {
+  render(Root, root);
+}

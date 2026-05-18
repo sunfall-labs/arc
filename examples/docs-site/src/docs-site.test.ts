@@ -30,7 +30,7 @@ import {
   withDocsSiteBasePath,
 } from "./base-path.js";
 import { docsSitePrerenderPages, docsSiteStartOptions } from "./start-options.js";
-import { DocsContentApiLive } from "./content.js";
+import { DocsContentApiLive } from "./content-live.js";
 import { makeDocsSiteHistoryAdapter } from "./site-base.js";
 
 const htmlJsonScriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script>/g;
@@ -53,6 +53,11 @@ const resourcePairs = (chunks: ReadonlyArray<StartHydrationChunk>): ReadonlySet<
       chunk.payload.resources.map((resource) => JSON.stringify([resource.name, resource.key])),
     ),
   );
+
+const expectedDocsSiteCrawlLinks = (): boolean =>
+  normalizeDocsSiteBasePath(
+    process.env.DOCS_SITE_BASE_PATH ?? process.env.VITE_DOCS_SITE_BASE_PATH ?? "/",
+  ) === "/";
 
 describe("docs site", () => {
   it("renders the home page with public-facing Arc copy", () =>
@@ -265,7 +270,7 @@ describe("docs site", () => {
           enabled: true,
           autoSubfolderIndex: true,
           autoStaticPathsDiscovery: true,
-          crawlLinks: true,
+          crawlLinks: expectedDocsSiteCrawlLinks(),
           failOnError: true,
         });
         expect(docsSitePrerenderPages).toEqual(
@@ -438,6 +443,11 @@ describe("docs site", () => {
     expect(historySource).not.toContain('"Docs.recipe"');
     expect(mainSource).toContain("import.meta.env.DEV");
     expect(mainSource).toContain("BrowserRpcLive");
+    expect(mainSource).toContain("DocsContentApiStaticClient");
+    expect(mainSource).toContain('await import("./content-live.js")');
     expect(mainSource).toContain("hydratedHref={hydratedHref}");
+    expect(mainSource).toContain('import { hydrate, render } from "solid-js/web";');
+    expect(mainSource).toContain("hydrate(Root, root)");
+    expect(mainSource).not.toContain("root.textContent =");
   });
 });

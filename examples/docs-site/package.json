@@ -21,19 +21,17 @@
     "typecheck": "tsrx-tsc -p tsconfig.json --noEmit",
     "test": "vitest run src/*.test.ts",
     "leak-scan": "node scripts/leak-scan.mjs",
+    "performance-budget": "node scripts/performance-budget.mjs",
     "pages:verify": "node scripts/verify-pages-build.mjs",
     "pages:smoke": "node scripts/smoke-pages-build.mjs",
-    "verify": "pnpm typecheck && pnpm test && pnpm build && pnpm leak-scan"
+    "verify": "pnpm typecheck && pnpm test && pnpm build && pnpm leak-scan && pnpm performance-budget"
   },
   "dependencies": {
-    "@shikijs/langs": "^4.0.2",
-    "@shikijs/themes": "^4.0.2",
     "@sunfall/arc-core": "workspace:*",
     "@sunfall/arc-solid": "workspace:*",
     "@sunfall/arc-start": "workspace:*",
     "@sunfall/arc-tsrx": "workspace:*",
     "effect": "^4.0.0-beta.66",
-    "shiki": "^4.0.2",
     "solid-js": "^1.9.12"
   },
   "devDependencies": {

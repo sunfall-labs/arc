@@ -9,7 +9,7 @@ import { Effect, Stream } from "effect";
 import { createComponent, generateHydrationScript, renderToString } from "solid-js/web";
 import App from "./App.js";
 import { docsSiteAppBaseOptions } from "./app-definition.js";
-import { DocsContentApiLive } from "./content.js";
+import { DocsContentApiLive } from "./content-live.js";
 import { docsSiteServerRegistry } from "./start-options.js";
 import "./styles.css";
 
