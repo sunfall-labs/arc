@@ -126,12 +126,15 @@ describe("docs site", () => {
         expect(html).toContain("What conventional stacks would do");
         expect(html).toContain('href="#what-conventional-stacks-would-do"');
         expect(html).toContain("In Arc, a definition is a named typed declaration");
+        expect(html).toContain("Effect gives Arc dependency injection and testability");
+        expect(html).toContain('href="#effect-gives-arc-dependency-injection-and-testability"');
         expect(html).toContain("What Arc replaces");
         expect(html).toContain('href="#what-arc-replaces"');
         expect(html).toContain("The hero slice: route, resource, action, graph");
         expect(html).toContain('href="#the-hero-slice-route-resource-action-graph"');
         expect(html).toContain("The running demo is an issue tracker");
         expect(visibleText).toContain("export const IssueId");
+        expect(visibleText).toContain("const IssueApiTest = IssueApi.layer");
         expect(html).toContain("Built by an agent, verified in public");
         expect(html).toContain("For durable app behavior");
         expect(html).toContain('class="shiki github-dark-default"');

@@ -128,11 +128,12 @@ const blogRailItems = createPageRailItems([
   { blockIndex: 0, level: 2, text: "The problem: agents inherit implicit apps" },
   { blockIndex: 1, level: 2, text: "What agent-native means" },
   { blockIndex: 2, level: 2, text: "Correctness by construction" },
-  { blockIndex: 3, level: 2, text: "The hero slice: route, resource, action, graph" },
-  { blockIndex: 4, level: 2, text: "What conventional stacks would do" },
-  { blockIndex: 5, level: 2, text: "What Arc replaces" },
-  { blockIndex: 6, level: 2, text: "Built by an agent, verified in public" },
-  { blockIndex: 7, level: 2, text: "What this alpha does not claim" },
+  { blockIndex: 3, level: 2, text: "Effect gives Arc dependency injection and testability" },
+  { blockIndex: 4, level: 2, text: "The hero slice: route, resource, action, graph" },
+  { blockIndex: 5, level: 2, text: "What conventional stacks would do" },
+  { blockIndex: 6, level: 2, text: "What Arc replaces" },
+  { blockIndex: 7, level: 2, text: "Built by an agent, verified in public" },
+  { blockIndex: 8, level: 2, text: "What this alpha does not claim" },
 ]);
 
 const blogHeadingId = (index: number): string =>
@@ -539,6 +540,32 @@ export const IssueById = Resource.family({
   provides: (issue) => [IssueTag({ id: issue.id })],
 });`;
 
+const blogEffectTestExample = `const IssueApiTest = IssueApi.layer({
+  get: (id) =>
+    Effect.succeed({
+      id,
+      title: "Search filters drop assignees",
+      status: "triaged",
+      assigneeId: "ada",
+      updatedAt: new Date(),
+    }),
+  updateStatus: (input) =>
+    Effect.succeed({
+      id: input.id,
+      title: "Search filters drop assignees",
+      status: input.status,
+      assigneeId: "ada",
+      updatedAt: new Date(),
+    }),
+});
+
+const issue = yield* makeRuntime(IssueApiTest).provide(
+  Effect.gen(function* () {
+    yield* Resource.prefetchEffect(IssueById(makeIssueId("ISSUE-42")));
+    return Resource.read(IssueById(makeIssueId("ISSUE-42")));
+  }),
+);`;
+
 const blogRouteExample = `const RouteBuilder = defineFileRoute("/issues/:id");
 
 export const Route = RouteBuilder.preload({
@@ -723,7 +750,29 @@ function BlogPostView() {
           diagnostics that preserve enough structure for humans and agents to trust.
         </p>
 
-        <h2 id={blogHeadingId(3)}>The hero slice: route, resource, action, graph</h2>
+        <h2 id={blogHeadingId(3)}>Effect gives Arc dependency injection and testability</h2>
+        <p>
+          Arc's Capability definitions are the app-facing names for dependency injection. Effect
+          supplies the machinery underneath: services live in a typed Context, implementations are
+          assembled with Layers, request and component work runs in scoped runtimes, and tests can
+          replace live services without changing the Resource, Action, Route, or component under
+          test.
+        </p>
+        <p>
+          That gives Arc useful testability by construction. A test can provide an in-memory
+          IssueApi layer, run the same Resource and Action definitions the browser uses, assert the
+          typed values and invalidation plan, and never import the server-only handler. The mock is
+          not a parallel code path; it is another implementation of the same Capability.
+        </p>
+        <BlogCode code={blogEffectTestExample} />
+        <p>
+          Effect also carries typed failures, retries, interruption, and lifetime cleanup through
+          the same execution model. Arc does not need to invent a separate dependency-injection
+          container or async runtime; it exposes those Effect guarantees through framework-level
+          definitions that agents can inspect.
+        </p>
+
+        <h2 id={blogHeadingId(4)}>The hero slice: route, resource, action, graph</h2>
         <p>
           The smallest useful example is the Issue detail page: a route that owns the Issue
           Resource, an Action that updates the same Issue, and a graph artifact that can explain the
@@ -774,7 +823,7 @@ function BlogPostView() {
         </p>
         <BlogCode code={blogGraphExample} language="shellscript" />
 
-        <h2 id={blogHeadingId(4)}>What conventional stacks would do</h2>
+        <h2 id={blogHeadingId(5)}>What conventional stacks would do</h2>
         <p>
           Next, Remix, and TanStack Start make full-stack apps productive. Arc asks for a stricter
           contract: can every route, server boundary, resource, action, collection, and runtime
@@ -792,7 +841,7 @@ function BlogPostView() {
           mock boundary, and diagnostic graph all connect through the same typed definitions.
         </p>
 
-        <h2 id={blogHeadingId(5)}>What Arc replaces</h2>
+        <h2 id={blogHeadingId(6)}>What Arc replaces</h2>
         <p>
           Arc overlaps with state and data libraries, but the honest boundary matters. React state,
           Solid signals, refs, memos, and component props are still right for private UI details.
@@ -818,7 +867,7 @@ function BlogPostView() {
           state model.
         </p>
 
-        <h2 id={blogHeadingId(6)}>Built by an agent, verified in public</h2>
+        <h2 id={blogHeadingId(7)}>Built by an agent, verified in public</h2>
         <p>
           Arc was built by an agent working inside this model. That is not the headline value; it is
           a proof point for the framework itself. The repo includes generated route artifacts, graph
@@ -833,7 +882,7 @@ function BlogPostView() {
           a change ships.
         </p>
 
-        <h2 id={blogHeadingId(7)}>What this alpha does not claim</h2>
+        <h2 id={blogHeadingId(8)}>What this alpha does not claim</h2>
         <p>
           Sunfall Arc is not pretending to be a finished ecosystem. Platform-specific packages for
           every host can wait until real deployments demand them. The first public alpha is about
