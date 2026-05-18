@@ -63,6 +63,7 @@ type DocsSiteRuntime<RuntimeServices = DocsContentApi> = [DocsContentApi] extend
 
 export interface AppProps<RuntimeServices = DocsContentApi> {
   readonly initialHref?: string;
+  readonly hydratedHref?: string;
   readonly runtime?: DocsSiteRuntime<RuntimeServices>;
 }
 
@@ -146,10 +147,20 @@ export default function App<RuntimeServices = DocsContentApi>(
     DocsContentApi | RuntimeServices,
     never
   >;
+  const history = makeDocsSiteHistoryAdapter({
+    runtime,
+    routes,
+    ...(props.hydratedHref === undefined ? {} : { hydratedHrefs: [props.hydratedHref] }),
+  });
   const routerProps =
     props.initialHref === undefined
-      ? { routes, runtime, history: makeDocsSiteHistoryAdapter() }
-      : { routes, runtime, initialHref: props.initialHref, history: makeDocsSiteHistoryAdapter() };
+      ? { routes, runtime, history }
+      : {
+          routes,
+          runtime,
+          initialHref: props.initialHref,
+          history,
+        };
 
   return (
     <RouterProvider {...routerProps}>

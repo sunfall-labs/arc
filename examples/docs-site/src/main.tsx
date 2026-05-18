@@ -4,6 +4,7 @@ import { Data, Layer } from "effect";
 import { render } from "solid-js/web";
 import App from "./App.js";
 import { DocsContentApiLive } from "./content.js";
+import { currentDocsSiteHref } from "./site-base.js";
 
 class DocsSiteRootMissing extends Data.TaggedError("DocsSiteRootMissing")<{
   readonly id: string;
@@ -19,10 +20,13 @@ if (!root) {
   });
 }
 
-const runtime = createEffectRuntime(Layer.mergeAll(BrowserRpcLive, DocsContentApiLive));
+const runtime = createEffectRuntime(
+  import.meta.env.DEV ? Layer.mergeAll(BrowserRpcLive, DocsContentApiLive) : DocsContentApiLive,
+);
 hydrateFromDocument(document, undefined, { runtime });
 
-const Root = () => <App runtime={runtime} />;
+const hydratedHref = currentDocsSiteHref();
+const Root = () => <App runtime={runtime} hydratedHref={hydratedHref} />;
 
 root.textContent = "";
 render(Root, root);

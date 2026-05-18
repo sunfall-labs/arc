@@ -106,6 +106,9 @@ export const createBrowserRouterHostController = <
   const kernelOptions: BrowserRouterKernelOptions<Routes, ER> = {
     runtime,
     initialHref,
+    ...(history.prepareHrefEffect === undefined
+      ? {}
+      : { prepareHrefEffect: history.prepareHrefEffect }),
     ...(options.initialMatchedState === undefined
       ? {}
       : { initialMatchedState: options.initialMatchedState }),

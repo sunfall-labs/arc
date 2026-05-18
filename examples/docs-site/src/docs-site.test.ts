@@ -1,5 +1,12 @@
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import {
+  Resource,
+  createBrowserRouterHostController,
+  makeRuntime,
+  type AnySunfallArcRuntime,
+} from "@sunfall/arc-core";
+import { Window } from "happy-dom";
+import { describe, expect, it, vi } from "vitest";
 import { Effect } from "effect";
 import {
   extractStartStaticHtmlLinks,
@@ -23,6 +30,8 @@ import {
   withDocsSiteBasePath,
 } from "./base-path.js";
 import { docsSitePrerenderPages, docsSiteStartOptions } from "./start-options.js";
+import { DocsContentApiLive } from "./content.js";
+import { makeDocsSiteHistoryAdapter } from "./site-base.js";
 
 const htmlJsonScriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script>/g;
 
@@ -303,12 +312,133 @@ describe("docs site", () => {
     );
   });
 
+  it("hydrates static recipe documents before browser route preload needs recipe data", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const slug = makeRecipeSlug("resource-from-server-function");
+          const response = yield* Effect.scoped(
+            serverApp.runtime.provide(
+              handleRequest(
+                new Request("https://docs.test/cookbook/resource-from-server-function"),
+              ),
+            ),
+          );
+          const html = yield* Effect.tryPromise(() => response.text());
+          const window = new Window({ url: "https://docs.test/cookbook" });
+          const fetch = vi.fn(
+            async (_input: RequestInfo | URL) => new Response(html, { status: 200 }),
+          );
+          const runtime = makeRuntime(DocsContentApiLive);
+          yield* Effect.addFinalizer(() =>
+            runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
+          );
+
+          vi.stubGlobal("window", window);
+          vi.stubGlobal("document", window.document);
+          vi.stubGlobal("DOMParser", window.DOMParser);
+          vi.stubGlobal("fetch", fetch);
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => {
+              vi.unstubAllGlobals();
+            }),
+          );
+
+          const history = makeDocsSiteHistoryAdapter({ runtime, routes });
+          yield* history.prepareHrefEffect!("/cookbook/resource-from-server-function");
+          const recipe = yield* runtime.provide(Resource.prefetchEffect(RecipeBySlug(slug)));
+
+          expect(fetch).toHaveBeenCalledTimes(1);
+          expect(String(fetch.mock.calls[0]?.[0])).toBe(
+            "https://docs.test/cookbook/resource-from-server-function",
+          );
+          expect(recipe.title).toBe("Resource from a server function");
+        }),
+      ),
+    ));
+
+  it("uses static page hydration for recipe-to-recipe router navigation without production RPC", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const slug = makeRecipeSlug("resource-from-server-function");
+          const targetHref = "/cookbook/resource-from-server-function";
+          const currentHref = "/cookbook/semantic-invalidation";
+          const currentResponse = yield* Effect.scoped(
+            serverApp.runtime.provide(
+              handleRequest(new Request(`https://docs.test${currentHref}`)),
+            ),
+          );
+          const currentHtml = yield* Effect.tryPromise(() => currentResponse.text());
+          const recipeResponse = yield* Effect.scoped(
+            serverApp.runtime.provide(handleRequest(new Request(`https://docs.test${targetHref}`))),
+          );
+          const recipeHtml = yield* Effect.tryPromise(() => recipeResponse.text());
+          const window = new Window({ url: `https://docs.test${currentHref}` });
+          window.document.write(currentHtml);
+          window.document.close();
+          const fetch = vi.fn(
+            async (_input: RequestInfo | URL) => new Response(recipeHtml, { status: 200 }),
+          );
+          const runtime = makeRuntime(DocsContentApiLive);
+          yield* Effect.addFinalizer(() =>
+            runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
+          );
+
+          vi.stubGlobal("window", window);
+          vi.stubGlobal("document", window.document);
+          vi.stubGlobal("DOMParser", window.DOMParser);
+          vi.stubGlobal("fetch", fetch);
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => {
+              vi.unstubAllGlobals();
+            }),
+          );
+
+          const routerRuntime = runtime as unknown as AnySunfallArcRuntime;
+          const history = makeDocsSiteHistoryAdapter({ runtime: routerRuntime, routes });
+          const router = createBrowserRouterHostController(routes, {
+            history,
+            initialHref: currentHref,
+            runtime: routerRuntime,
+          });
+          yield* Effect.addFinalizer(() =>
+            router.disposeEffect().pipe(Effect.catchCause(() => Effect.void)),
+          );
+
+          router.navigateHref(targetHref);
+          yield* Effect.promise(() =>
+            vi.waitFor(() =>
+              expect(router.state.get()).toMatchObject({ _tag: "Ready", href: targetHref }),
+            ),
+          );
+          const recipe = yield* runtime.provide(Resource.prefetchEffect(RecipeBySlug(slug)));
+
+          expect(fetch).toHaveBeenCalledTimes(1);
+          expect(String(fetch.mock.calls[0]?.[0])).toBe(
+            "https://docs.test/cookbook/resource-from-server-function",
+          );
+          expect(window.location.pathname).toBe(targetHref);
+          expect(recipe.title).toBe("Resource from a server function");
+        }),
+      ),
+    ));
+
   it("keeps internal docs navigation on router-owned typed links", () => {
     const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
     const historySource = readFileSync(new URL("./site-base.ts", import.meta.url), "utf8");
+    const mainSource = readFileSync(new URL("./main.tsx", import.meta.url), "utf8");
 
     expect(source).toContain("RouterLink");
     expect(source).not.toMatch(/href={docsSiteHref\(Route\.href/);
     expect(historySource).toContain("createHref: docsSiteHref");
+    expect(historySource).toContain("prepareHrefEffect");
+    expect(historySource).toContain("Route.preloadResourceFamilies(match.route)");
+    expect(historySource).toContain("hydratedHrefs.delete(href)");
+    expect(historySource).not.toContain("WeakMap<DocsHydrationRuntime");
+    expect(historySource).not.toContain('"Docs.recipe"');
+    expect(mainSource).toContain("import.meta.env.DEV");
+    expect(mainSource).toContain("BrowserRpcLive");
+    expect(mainSource).toContain("hydratedHref={hydratedHref}");
   });
 });

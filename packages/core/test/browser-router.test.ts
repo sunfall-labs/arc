@@ -436,6 +436,110 @@ describe("browser router kernel", () => {
     router.dispose();
   });
 
+  it("prepares router hrefs before route preload and navigation", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const events: string[] = [];
+          const Project = route("/prepared-projects/:id", {
+            preload: ({ params }) =>
+              Effect.sync(() => {
+                events.push(`preload:${params.id}`);
+              }),
+          });
+          const memory = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
+          const history: BrowserHistoryAdapter = {
+            ...memory,
+            prepareHrefEffect: (href) =>
+              Effect.sync(() => {
+                events.push(`prepare:${href}`);
+              }),
+          };
+          const router = createBrowserRouterHostController([Project] as const, {
+            history,
+            runtime,
+          });
+          yield* Effect.addFinalizer(() => router.disposeEffect());
+
+          yield* router.preloadEffect(Project, { params: { id: "atlas" } });
+          expect(events).toEqual(["prepare:/prepared-projects/atlas", "preload:atlas"]);
+
+          router.navigate(Project, { params: { id: "curie" } });
+          yield* Effect.promise(() =>
+            vi.waitFor(() =>
+              expect(router.state.get()).toMatchObject({
+                _tag: "Ready",
+                href: "/prepared-projects/curie",
+              }),
+            ),
+          );
+
+          expect(events).toEqual([
+            "prepare:/prepared-projects/atlas",
+            "preload:atlas",
+            "prepare:/prepared-projects/curie",
+            "preload:curie",
+          ]);
+          expect(memory.entries()).toEqual(["/", "/prepared-projects/curie"]);
+        }),
+      ),
+    ));
+
+  it("fails navigation without running route preload when href preparation fails", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const preparationFailure = new Error("static hydration missing");
+          let preloads = 0;
+          const Project = route("/prepare-failure-projects/:id", {
+            preload: () =>
+              Effect.sync(() => {
+                preloads++;
+              }),
+          });
+          const history: BrowserHistoryAdapter = {
+            ...makeMemoryBrowserHistoryAdapter({ initialHref: "/" }),
+            prepareHrefEffect: () => Effect.fail(preparationFailure),
+          };
+          const router = createBrowserRouterHostController([Project] as const, {
+            history,
+            runtime,
+          });
+          yield* Effect.addFinalizer(() => router.disposeEffect());
+
+          const preloadExit = yield* Effect.exit(
+            router.preloadEffect(Project, { params: { id: "atlas" } }),
+          );
+          expect(preloads).toBe(0);
+          expect(preloadExit._tag).toBe("Failure");
+          if (preloadExit._tag === "Failure") {
+            const error = preloadExit.cause.reasons.find(Cause.isFailReason)?.error;
+            expect(error).toBeInstanceOf(RouteNavigationError);
+            expect((error as RouteNavigationError).cause).toBe(preparationFailure);
+          }
+
+          router.navigate(Project, { params: { id: "atlas" } });
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              const state = router.state.get();
+              expect(state._tag).toBe("Failure");
+              if (state._tag === "Failure") {
+                expect(state.error).toBeInstanceOf(RouteNavigationError);
+                expect((state.error as RouteNavigationError).cause).toBe(preparationFailure);
+              }
+            }),
+          );
+          expect(preloads).toBe(0);
+        }),
+      ),
+    ));
+
   it("does not re-preload an initial Ready hydration state when host listening starts", () =>
     Effect.runPromise(
       Effect.scoped(

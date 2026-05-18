@@ -70,6 +70,8 @@ export class RouterRouteNotRegistered extends Data.TaggedError("RouterRouteNotRe
 export interface BrowserRouterKernelOptions<Routes extends readonly AnyBrowserRoute[], ER> {
   readonly runtime: AnySunfallArcRuntime<ER>;
   readonly initialHref: string;
+  /** Host preparation run before route preload for a router-owned href. */
+  readonly prepareHrefEffect?: (href: string) => Effect.Effect<void, unknown>;
   readonly initialMatchedState?: (
     href: string,
     match: Route.Match<Routes[number]>,
@@ -125,18 +127,28 @@ export interface BrowserRouterKernel<
   ): Effect.Effect<void, Route.NavigationError | ER>;
 }
 
+const prepareHrefFailure = (href: string, cause: unknown): RouteNavigationError =>
+  new RouteNavigationError({
+    input: href,
+    cause,
+  });
+
 const provideRouterPreloadEffect = <ER, R extends AnyBrowserRoute>(
   runtime: AnySunfallArcRuntime<ER>,
   match: Route.Match<R>,
-): Effect.Effect<void, Route.PreloadError | ER> =>
+  prepareHrefEffect: (href: string) => Effect.Effect<void, RouteNavigationError>,
+): Effect.Effect<void, Route.NavigationError | ER> =>
   runtime.provide(
     Effect.scoped(
-      Effect.all([Route.preloadEffect(match), Route.preloadComponentEffect(match)], {
-        discard: true,
-      }),
+      prepareHrefEffect(match.href).pipe(
+        Effect.andThen(
+          Effect.all([Route.preloadEffect(match), Route.preloadComponentEffect(match)], {
+            discard: true,
+          }),
+        ),
+      ),
     ),
   );
-
 const routeOutsideRouterError = (definition: AnyBrowserRoute): RouteNavigationError =>
   new RouteNavigationError({
     input: definition.path,
@@ -202,6 +214,10 @@ export const createBrowserRouterKernel = <
   options: BrowserRouterKernelOptions<Routes, ER>,
 ): BrowserRouterKernel<Routes, ER> => {
   const { runtime, initialHref } = options;
+  const prepareHrefEffect = (href: string): Effect.Effect<void, RouteNavigationError> =>
+    (options.prepareHrefEffect?.(href) ?? Effect.void).pipe(
+      Effect.mapError((cause) => prepareHrefFailure(href, cause)),
+    );
   const initialMatchedState = options.initialMatchedState ?? defaultInitialMatchedState<Routes, ER>;
   const initialRouterState = (): BrowserRouterState<Routes, ER> => {
     const matchExit = Effect.runSyncExit(Route.matchEffect(routes, initialHref));
@@ -293,7 +309,7 @@ export const createBrowserRouterKernel = <
       setState({ _tag: "Pending", href, match: nextMatch });
     }
 
-    const fiber = scope.fork(provideRouterPreloadEffect(runtime, nextMatch));
+    const fiber = scope.fork(provideRouterPreloadEffect(runtime, nextMatch, prepareHrefEffect));
 
     void runtime.runFork(
       Effect.gen(function* () {
@@ -345,7 +361,9 @@ export const createBrowserRouterKernel = <
     return hrefEffect.pipe(
       Effect.flatMap((href) => Route.matchEffect(routes, href)),
       Effect.flatMap((routeMatch) =>
-        routeMatch ? provideRouterPreloadEffect(runtime, routeMatch) : Effect.void,
+        routeMatch
+          ? provideRouterPreloadEffect(runtime, routeMatch, prepareHrefEffect)
+          : Effect.void,
       ),
     );
   };

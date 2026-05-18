@@ -1,3 +1,5 @@
+import type { Effect } from "effect";
+
 /** Options for router navigation history behavior. */
 export interface BrowserNavigateOptions {
   /** Replace the current history entry instead of pushing a new one. */
@@ -32,6 +34,13 @@ export interface BrowserHistoryAdapter {
   listen(onChange: (href: string) => void): () => void;
   /** Maps a router-owned href to the browser-visible href used by anchors. */
   createHref?(href: string): string;
+  /**
+   * Runs host preparation before route preload for a router-owned href.
+   *
+   * Static hosts can use this to hydrate prerendered Resource payloads before
+   * the normal route preload runs. Dynamic hosts usually leave this undefined.
+   */
+  prepareHrefEffect?(href: string): Effect.Effect<void, unknown>;
   /** Applies a programmatic navigation and returns the href to process. */
   commit(href: string, options?: BrowserNavigateOptions): string;
 }
