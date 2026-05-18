@@ -642,6 +642,10 @@ describe("createBrowserRouter", () => {
         Effect.gen(function* () {
           const preloaded: Array<string> = [];
           const runtime = makeRuntime();
+          const history = {
+            ...makeMemoryBrowserHistoryAdapter({ initialHref: "/missing" }),
+            createHref: (href: string) => `/project-docs${href}`,
+          };
           yield* Effect.addFinalizer(() => runtime.disposeEffect);
 
           const ProjectRoute = route("/link-projects/:id", {
@@ -660,11 +664,13 @@ describe("createBrowserRouter", () => {
             });
           };
           const container = document.createElement("div");
+          document.body.append(container);
+          yield* Effect.addFinalizer(() => Effect.sync(() => container.remove()));
           const dispose = render(
             () =>
               createComponent(RouterProvider, {
                 routes: [ProjectRoute] as const,
-                initialHref: "/missing",
+                history,
                 runtime,
                 get children() {
                   return createComponent(LinkView, {});
@@ -675,7 +681,7 @@ describe("createBrowserRouter", () => {
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
 
           const anchor = container.querySelector("a");
-          expect(anchor?.getAttribute("href")).toBe("/link-projects/atlas");
+          expect(anchor?.getAttribute("href")).toBe("/project-docs/link-projects/atlas");
 
           anchor?.dispatchEvent(new MouseEvent("mouseenter", { cancelable: true }));
           yield* Effect.promise(() => vi.waitFor(() => expect(preloaded).toEqual(["atlas"])));
@@ -705,6 +711,7 @@ describe("createBrowserRouter", () => {
               }),
             ),
           );
+          expect(history.entries()).toEqual(["/missing", "/link-projects/atlas"]);
           expect(preloaded).toEqual(["atlas", "atlas"]);
         }),
       ),
@@ -745,6 +752,8 @@ describe("createBrowserRouter", () => {
             ] as unknown as JSX.Element;
           };
           const container = document.createElement("div");
+          document.body.append(container);
+          yield* Effect.addFinalizer(() => Effect.sync(() => container.remove()));
           const dispose = render(
             () =>
               createComponent(RouterProvider, {

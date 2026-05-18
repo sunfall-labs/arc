@@ -30,6 +30,8 @@ export interface BrowserHistoryAdapter {
   currentHref(fallback?: string): string;
   /** Subscribes to external history changes such as `popstate`. */
   listen(onChange: (href: string) => void): () => void;
+  /** Maps a router-owned href to the browser-visible href used by anchors. */
+  createHref?(href: string): string;
   /** Applies a programmatic navigation and returns the href to process. */
   commit(href: string, options?: BrowserNavigateOptions): string;
 }
@@ -72,6 +74,7 @@ export const makeWindowBrowserHistoryAdapter = (
       windowLike.removeEventListener("popstate", listener);
     };
   },
+  createHref: (href) => href,
   commit: (href, options = {}) => {
     const windowLike = getWindow();
     if (windowLike === undefined) {
@@ -127,6 +130,7 @@ export const makeMemoryBrowserHistoryAdapter = (
       }
       return href;
     },
+    createHref: (nextHref) => nextHref,
     externalNavigate: (nextHref) => {
       href = nextHref;
       entries.push(href);

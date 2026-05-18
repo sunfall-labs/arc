@@ -60,9 +60,10 @@ export const RouterLink = <R extends AnyRoute>(props: RouterLinkProps<R>): React
   const routeValue = route as R;
   const currentHrefArgs = (): Route.HrefArgs<R> =>
     hrefArgs(options as Route.HrefOptions<R> | undefined);
-  const href = Route.href<R>(routeValue, ...currentHrefArgs());
+  const routeHref = Route.href<R>(routeValue, ...currentHrefArgs());
+  const browserHref = router.createHref(routeHref);
   const preloadIdentity = browserRouterLinkPreloadIdentity({
-    href,
+    href: routeHref,
     preload: preloadOption !== false,
     canHandleRoute: router.canHandleRoute(routeValue),
     target: anchorProps.target,
@@ -108,7 +109,7 @@ export const RouterLink = <R extends AnyRoute>(props: RouterLinkProps<R>): React
 
   return createElement("a", {
     ...anchorProps,
-    href,
+    href: browserHref,
     onMouseEnter: (event: MouseEvent<HTMLAnchorElement>) => {
       onMouseEnter?.(event);
       const preloadDecision = browserRouterLinkPreloadDecision({
@@ -126,7 +127,7 @@ export const RouterLink = <R extends AnyRoute>(props: RouterLinkProps<R>): React
       onClick?.(event);
       const clickDecision = browserRouterLinkClickDecision({
         event,
-        href,
+        href: routeHref,
         replace: replace === true,
         canHandleRoute: router.canHandleRoute(routeValue),
         target: anchorProps.target,

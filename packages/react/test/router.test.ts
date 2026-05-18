@@ -390,15 +390,19 @@ describe("react router", () => {
         ),
     });
     const routes = [Home, Project] as const;
+    const history = {
+      ...makeMemoryBrowserHistoryAdapter({ initialHref: "/" }),
+      createHref: (href: string) => `/project-docs${href}`,
+    };
 
     await withReactRoot(async (root, container) => {
       await act(async () => {
-        root.render(createElement(RouterProvider, { routes, initialHref: "/" }));
+        root.render(createElement(RouterProvider, { routes, history }));
       });
       await flushReact();
 
       const anchor = container.querySelector("a")!;
-      expect(anchor.getAttribute("href")).toBe("/projects/atlas");
+      expect(anchor.getAttribute("href")).toBe("/project-docs/projects/atlas");
 
       await act(async () => {
         anchor.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
@@ -412,6 +416,7 @@ describe("react router", () => {
       await flushReact();
 
       expect(container.textContent).toBe("Project atlas");
+      expect(history.entries()).toEqual(["/", "/projects/atlas"]);
     });
   });
 

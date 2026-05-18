@@ -6,8 +6,24 @@ import {
   isPlainLeftClick as coreIsPlainLeftClick,
   makeBrowserRouterLinkPreloader,
 } from "@sunfall/arc-core";
-import { createMemo, createRenderEffect, onCleanup, splitProps, type JSX } from "solid-js";
-import { createComponent, Dynamic, type DynamicProps } from "solid-js/web";
+import {
+  createMemo,
+  createRenderEffect,
+  onCleanup,
+  sharedConfig,
+  splitProps,
+  type JSX,
+} from "solid-js";
+import {
+  createComponent,
+  Dynamic,
+  getNextElement,
+  insert,
+  isServer,
+  spread,
+  template,
+  type DynamicProps,
+} from "solid-js/web";
 import { useRouter } from "./router.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
@@ -25,6 +41,15 @@ type AnchorMouseEvent = MouseEvent & {
 type AnchorMouseHandler =
   | JSX.AnchorHTMLAttributes<HTMLAnchorElement>["onClick"]
   | JSX.AnchorHTMLAttributes<HTMLAnchorElement>["onMouseEnter"];
+
+let anchorTemplate: ReturnType<typeof template> | undefined;
+
+const createAnchorElement = (): HTMLAnchorElement => {
+  anchorTemplate ??= template("<a></a>");
+  return (
+    sharedConfig.context ? getNextElement(anchorTemplate) : anchorTemplate()
+  ) as HTMLAnchorElement;
+};
 
 /** Props for a typed router-owned anchor. */
 export type RouterLinkProps<R extends AnyRoute> = Omit<
@@ -72,16 +97,18 @@ export const RouterLink = <R extends AnyRoute>(props: RouterLinkProps<R>): JSX.E
     "preload",
     "onClick",
     "onMouseEnter",
+    "ref",
   ]);
   const router = useRouter();
   const route = (): R => local.route as R;
   const currentHrefArgs = (): Route.HrefArgs<R> =>
     hrefArgs(local.options as Route.HrefOptions<R> | undefined);
-  const href = createMemo(() => Route.href<R>(route(), ...currentHrefArgs()));
+  const routeHref = createMemo(() => Route.href<R>(route(), ...currentHrefArgs()));
+  const browserHref = createMemo(() => router.createHref(routeHref()));
   let anchorElement: HTMLAnchorElement | undefined;
   const assignAnchorRef = (element: HTMLAnchorElement): void => {
     anchorElement = element;
-    const ref = anchorProps.ref;
+    const ref = local.ref;
     if (typeof ref === "function") {
       ref(element);
     }
@@ -104,7 +131,7 @@ export const RouterLink = <R extends AnyRoute>(props: RouterLinkProps<R>): JSX.E
     const preload = local.preload !== false;
     preloader.bindPreloadIdentity(
       browserRouterLinkPreloadIdentity({
-        href: href(),
+        href: routeHref(),
         preload,
         canHandleRoute,
         target: anchorProps.target,
@@ -113,7 +140,23 @@ export const RouterLink = <R extends AnyRoute>(props: RouterLinkProps<R>): JSX.E
     );
   });
   createRenderEffect(() => {
-    anchorElement?.setAttribute("href", href());
+    anchorElement?.setAttribute("href", browserHref());
+  });
+  createRenderEffect(() => {
+    const className = anchorProps.class;
+    if (className === undefined || className === null) {
+      anchorElement?.removeAttribute("class");
+    } else {
+      anchorElement?.setAttribute("class", String(className));
+    }
+  });
+  createRenderEffect(() => {
+    const ariaCurrent = anchorProps["aria-current"];
+    if (ariaCurrent === undefined || ariaCurrent === null || ariaCurrent === false) {
+      anchorElement?.removeAttribute("aria-current");
+    } else {
+      anchorElement?.setAttribute("aria-current", String(ariaCurrent));
+    }
   });
   onCleanup(() => {
     preloader.interrupt();
@@ -136,7 +179,7 @@ export const RouterLink = <R extends AnyRoute>(props: RouterLinkProps<R>): JSX.E
     callAnchorMouseHandler(local.onClick, event);
     const clickDecision = browserRouterLinkClickDecision({
       event,
-      href: href(),
+      href: routeHref(),
       replace: local.replace === true,
       canHandleRoute: router.canHandleRoute(route()),
       target: anchorProps.target,
@@ -150,16 +193,31 @@ export const RouterLink = <R extends AnyRoute>(props: RouterLinkProps<R>): JSX.E
     router.navigateHref(clickDecision.href, clickDecision.options);
   };
 
-  const dynamicProps = {
+  const anchorElementProps = {
     ...anchorProps,
-    component: "a",
     ref: assignAnchorRef,
     get href() {
-      return href();
+      return browserHref();
     },
-    "on:click": onClick,
-    "on:mouseenter": onMouseEnter,
-  } as unknown as DynamicProps<"a">;
+    onClick,
+    onMouseEnter,
+  } as unknown as Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "href"> & {
+    readonly href: string;
+  };
 
-  return createComponent(Dynamic as (props: DynamicProps<"a">) => JSX.Element, dynamicProps);
+  if (isServer) {
+    return createComponent(
+      Dynamic as (props: DynamicProps<"a">) => JSX.Element,
+      {
+        ...anchorElementProps,
+        component: "a",
+      } as unknown as DynamicProps<"a">,
+    );
+  }
+
+  const anchor = createAnchorElement();
+
+  spread(anchor, anchorElementProps, false, true);
+  insert(anchor, () => anchorProps.children);
+  return anchor;
 };

@@ -29,6 +29,7 @@ export const makeDocsSiteHistoryAdapter = (): BrowserHistoryAdapter => ({
       window.removeEventListener("popstate", listener);
     };
   },
+  createHref: docsSiteHref,
   commit: (href, options = {}) => {
     if (typeof window === "undefined") {
       return href;

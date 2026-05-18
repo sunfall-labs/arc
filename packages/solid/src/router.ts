@@ -164,15 +164,6 @@ export type RouterProviderProps<
     readonly children?: JSX.Element;
   };
 
-interface RouterProviderEntry<Routes extends readonly AnyRoute[], ER> {
-  readonly routes: Routes;
-  readonly runtime: AnySunfallArcRuntime<ER>;
-  readonly routerRuntime: SunfallArcRuntime<Route.PreloadRequirements<Routes[number]>, ER>;
-  readonly history?: BrowserHistoryAdapter;
-  readonly initialHref?: string;
-  readonly hydrating?: boolean;
-}
-
 /**
  * Render fallbacks for route pending, failure, and not-found states.
  *
@@ -196,6 +187,15 @@ const canUseBrowser = (): boolean => !isServer && typeof window !== "undefined";
 const isHydratingExistingDom = (): boolean => canUseBrowser() && sharedConfig.context != null;
 
 const RouterContext = createContext<BrowserRouter<readonly AnyRoute[], unknown>>();
+
+interface RouterProviderEntry<Routes extends readonly AnyRoute[], ER> {
+  readonly routes: Routes;
+  readonly runtime: AnySunfallArcRuntime<ER>;
+  readonly routerRuntime: SunfallArcRuntime<Route.PreloadRequirements<Routes[number]>, ER>;
+  readonly history?: BrowserHistoryAdapter;
+  readonly initialHref?: string;
+  readonly hydrating?: boolean;
+}
 
 const routerOutletRenderers = <Routes extends readonly AnyRoute[], ER>(
   props: TypedRouterOutletProps<Routes, ER>,
@@ -277,6 +277,7 @@ export const createBrowserRouter = <
     match,
     canHandleRoute: controller.canHandleRoute,
     href: controller.href,
+    createHref: controller.createHref,
     hrefByPath: controller.hrefByPath,
     navigate: controller.navigate,
     navigateByPath: controller.navigateByPath,
@@ -393,6 +394,14 @@ export const RouterProvider = <
       ...(props.hydrating === undefined ? {} : { hydrating: props.hydrating }),
     };
   });
+
+  if (props.hydrating === true || isHydratingExistingDom()) {
+    return createComponent(RouterProviderInstance, {
+      entry: entry(),
+      props,
+    });
+  }
+
   const [view, setView] = createSignal<JSX.Element>();
   let disposeEntry: (() => void) | undefined;
 
@@ -441,6 +450,7 @@ const RouterProviderInstance = <
     ...(entry.initialHref === undefined ? {} : { initialHref: entry.initialHref }),
     ...(entry.hydrating === undefined ? {} : { hydrating: entry.hydrating }),
   });
+
   return createComponent(RuntimeContext.Provider, {
     value: entry.runtime as AnySunfallArcRuntime<never>,
     get children() {

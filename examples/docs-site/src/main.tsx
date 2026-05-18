@@ -1,7 +1,7 @@
-import { RuntimeProvider, createEffectRuntime } from "@sunfall/arc-solid";
+import { createEffectRuntime } from "@sunfall/arc-solid";
 import { BrowserRpcLive, hydrateFromDocument } from "@sunfall/arc-start";
 import { Data, Layer } from "effect";
-import { hydrate, render } from "solid-js/web";
+import { render } from "solid-js/web";
 import App from "./App.js";
 import { DocsContentApiLive } from "./content.js";
 
@@ -22,14 +22,7 @@ if (!root) {
 const runtime = createEffectRuntime(Layer.mergeAll(BrowserRpcLive, DocsContentApiLive));
 hydrateFromDocument(document, undefined, { runtime });
 
-const Root = () => (
-  <RuntimeProvider runtime={runtime}>
-    <App runtime={runtime} />
-  </RuntimeProvider>
-);
+const Root = () => <App runtime={runtime} />;
 
-if (root.hasChildNodes()) {
-  hydrate(Root, root);
-} else {
-  render(Root, root);
-}
+root.textContent = "";
+render(Root, root);

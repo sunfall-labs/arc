@@ -1,0 +1,73 @@
+name: Publish npm packages
+
+on:
+  workflow_dispatch:
+    inputs:
+      dist-tag:
+        description: npm dist-tag to publish
+        required: true
+        default: alpha
+        type: choice
+        options:
+          - alpha
+          - beta
+          - next
+          - latest
+      dry-run:
+        description: Run npm publish --dry-run only
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish npm packages
+    runs-on: ubuntu-latest
+    environment: npm-publish
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 25
+
+      - name: Install npm with trusted publishing support
+        run: npm install -g npm@^11.10.0
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify
+        run: pnpm verify
+
+      - name: Configure temporary npm token fallback
+        run: |
+          if [ -n "${NPM_TOKEN:-}" ]; then
+            npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN" --location=project
+          fi
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish
+        run: |
+          if [ "${{ inputs.dry-run }}" = "true" ]; then
+            pnpm publish:npm -- --tag "${{ inputs.dist-tag }}" --dry-run
+          else
+            pnpm publish:npm -- --tag "${{ inputs.dist-tag }}"
+          fi

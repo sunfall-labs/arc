@@ -63,6 +63,7 @@
     "format:check": "oxfmt . --check",
     "lint": "oxlint . --deny-warnings --no-error-on-unmatched-pattern",
     "lint:fix": "oxlint . --fix --no-error-on-unmatched-pattern",
+    "publish:npm": "node scripts/publish-npm.mjs",
     "verify": "node scripts/verify.mjs",
     "verify:serial": "node scripts/verify.mjs --concurrency=1"
   },

@@ -1,14 +1,53 @@
-import { access, readdir, readFile } from "node:fs/promises";
+import { access, readdir, readFile } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import { Data, Effect } from "effect";
+import { runScriptMainEffect } from "./effect-main-runner.mjs";
 
 const docsRoot = fileURLToPath(new URL("..", import.meta.url));
 const distRoot = join(docsRoot, "dist");
 
+class PagesBuildVerifyError extends Data.TaggedError("PagesBuildVerifyError") {}
+
+const fail = (message, repair, cause) => new PagesBuildVerifyError({ message, repair, cause });
+
+const fsEffect = (description, register) =>
+  Effect.callback((resume) => {
+    register((cause, value) => {
+      if (cause) {
+        resume(
+          Effect.fail(
+            fail(
+              `Failed to ${description}.`,
+              "Run the docs-site GitHub Pages build before verification.",
+              cause,
+            ),
+          ),
+        );
+        return;
+      }
+      resume(Effect.succeed(value));
+    });
+  });
+
+const accessEffect = (filePath) =>
+  fsEffect(`access ${relative(distRoot, filePath)}`, (resume) => access(filePath, resume)).pipe(
+    Effect.asVoid,
+  );
+
+const readDirEffect = (directory) =>
+  fsEffect(`read ${relative(distRoot, directory)}`, (resume) =>
+    readdir(directory, { withFileTypes: true }, resume),
+  );
+
+const readTextEffect = (filePath) =>
+  fsEffect(`read ${relative(distRoot, filePath)}`, (resume) => readFile(filePath, "utf8", resume));
+
 const pageBasePathFromEnvironment = () => {
   const value = process.env.DOCS_SITE_BASE_PATH ?? process.env.VITE_DOCS_SITE_BASE_PATH;
   if (value === undefined || value.trim().length === 0) {
-    throw new Error(
+    throw fail(
+      "Missing DOCS_SITE_BASE_PATH.",
       "Set DOCS_SITE_BASE_PATH before verifying a GitHub Pages build, such as '/repository-name/'.",
     );
   }
@@ -21,7 +60,10 @@ const normalizeBasePath = (input) => {
     return "/";
   }
   if (value.includes("?") || value.includes("#") || /^[a-zA-Z][a-zA-Z\d+.-]*:/u.test(value)) {
-    throw new Error(`Invalid DOCS_SITE_BASE_PATH: ${input}`);
+    throw fail(
+      `Invalid DOCS_SITE_BASE_PATH: ${input}`,
+      "Use a path prefix such as '/repository-name/'.",
+    );
   }
 
   const withLeadingSlash = value.startsWith("/") ? value : `/${value}`;
@@ -29,24 +71,36 @@ const normalizeBasePath = (input) => {
   return normalized.endsWith("/") ? normalized : `${normalized}/`;
 };
 
-const expectedBasePath = normalizeBasePath(pageBasePathFromEnvironment());
+const expectedBasePathEffect = Effect.try({
+  try: () => normalizeBasePath(pageBasePathFromEnvironment()),
+  catch: (cause) =>
+    cause instanceof PagesBuildVerifyError
+      ? cause
+      : fail(
+          "Failed to read GitHub Pages base path.",
+          "Set DOCS_SITE_BASE_PATH before verification.",
+          cause,
+        ),
+});
 
-const collectHtmlFiles = async (directory) => {
-  const entries = await readdir(directory, { withFileTypes: true });
-  const files = await Promise.all(
-    entries.map((entry) => {
+const collectHtmlFilesEffect = (directory) =>
+  Effect.gen(function* () {
+    const entries = yield* readDirEffect(directory);
+    const files = [];
+    for (const entry of entries) {
       const path = join(directory, entry.name);
-      return entry.isDirectory()
-        ? collectHtmlFiles(path)
-        : entry.isFile() && entry.name.endsWith(".html")
-          ? [path]
-          : [];
-    }),
-  );
-  return files.flat();
-};
+      if (entry.isDirectory()) {
+        files.push(...(yield* collectHtmlFilesEffect(path)));
+        continue;
+      }
+      if (entry.isFile() && entry.name.endsWith(".html")) {
+        files.push(path);
+      }
+    }
+    return files;
+  });
 
-const findRootAbsoluteAttributeFailures = (html, file) => {
+const findRootAbsoluteAttributeFailures = (expectedBasePath, html, file) => {
   if (expectedBasePath === "/") {
     return [];
   }
@@ -64,25 +118,45 @@ const findRootAbsoluteAttributeFailures = (html, file) => {
   return failures;
 };
 
-await access(join(distRoot, "index.html"));
-await access(join(distRoot, ".nojekyll"));
+const mainEffect = Effect.gen(function* () {
+  const expectedBasePath = yield* expectedBasePathEffect;
+  yield* accessEffect(join(distRoot, "index.html"));
+  yield* accessEffect(join(distRoot, ".nojekyll"));
 
-const htmlFiles = await collectHtmlFiles(distRoot);
-const failures = [];
-for (const file of htmlFiles) {
-  const html = await readFile(file, "utf8");
-  failures.push(...findRootAbsoluteAttributeFailures(html, file));
-}
+  const htmlFiles = yield* collectHtmlFilesEffect(distRoot);
+  const failures = [];
+  for (const file of htmlFiles) {
+    const html = yield* readTextEffect(file);
+    failures.push(...findRootAbsoluteAttributeFailures(expectedBasePath, html, file));
+  }
 
-if (failures.length > 0) {
-  throw new Error(
-    [
-      `GitHub Pages build contains root-absolute links outside ${expectedBasePath}:`,
-      ...failures.map((failure) => `- ${failure}`),
-    ].join("\n"),
+  if (failures.length > 0) {
+    return yield* Effect.fail(
+      fail(
+        [
+          `GitHub Pages build contains root-absolute links outside ${expectedBasePath}:`,
+          ...failures.map((failure) => `- ${failure}`),
+        ].join("\n"),
+        "Use the docs site base-path helper for generated href and src attributes.",
+      ),
+    );
+  }
+
+  console.log(
+    `Verified ${htmlFiles.length} GitHub Pages HTML files for base path ${expectedBasePath}.`,
   );
-}
+});
 
-console.log(
-  `Verified ${htmlFiles.length} GitHub Pages HTML files for base path ${expectedBasePath}.`,
+runScriptMainEffect(
+  mainEffect.pipe(
+    Effect.catch((error) =>
+      Effect.sync(() => {
+        console.error(error.message);
+        if (error.repair !== undefined && error.repair !== "") {
+          console.error(error.repair);
+        }
+        process.exitCode = 1;
+      }),
+    ),
+  ),
 );

@@ -303,10 +303,12 @@ describe("docs site", () => {
     );
   });
 
-  it("keeps internal docs navigation on native typed anchors", () => {
+  it("keeps internal docs navigation on router-owned typed links", () => {
     const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
+    const historySource = readFileSync(new URL("./site-base.ts", import.meta.url), "utf8");
 
-    expect(source).toMatch(/href={docsSiteHref\(Route\.href/);
-    expect(source).not.toContain("RouterLink");
+    expect(source).toContain("RouterLink");
+    expect(source).not.toMatch(/href={docsSiteHref\(Route\.href/);
+    expect(historySource).toContain("createHref: docsSiteHref");
   });
 });

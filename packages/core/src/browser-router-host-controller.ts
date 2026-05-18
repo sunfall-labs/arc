@@ -61,6 +61,8 @@ export interface BrowserRouterHostController<
   dispose(): void;
   canHandleRoute(definition: AnyBrowserRoute): definition is Routes[number];
   href<R extends Routes[number]>(definition: R, ...args: Route.HrefArgs<R>): string;
+  /** Maps a router-owned href to the browser-visible href used by anchors. */
+  createHref(href: string): string;
   hrefByPath<Path extends BrowserRouterPath<Routes>>(
     path: Path,
     ...args: Route.HrefArgs<BrowserRouterRouteForPath<Routes, Path>>
@@ -153,6 +155,7 @@ export const createBrowserRouterHostController = <
     dispose,
     canHandleRoute: kernel.canHandleRoute,
     href: kernel.href,
+    createHref: (href) => history.createHref?.(href) ?? href,
     hrefByPath: kernel.hrefByPath,
     navigate: (definition, ...args) => {
       kernel.navigate(definition, controller.navigateHref, ...args);

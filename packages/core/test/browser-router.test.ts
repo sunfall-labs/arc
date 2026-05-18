@@ -416,6 +416,26 @@ describe("browser router kernel", () => {
     ).toMatchObject({ _tag: "Pending" });
   });
 
+  it("maps router hrefs through the history adapter for browser-visible anchors", () => {
+    const Project = route("/browser-href-projects/:id");
+    const memory = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
+    const history: BrowserHistoryAdapter = {
+      ...memory,
+      createHref: (href) => `/project-docs${href}`,
+    };
+    const router = createBrowserRouterHostController([Project] as const, {
+      history,
+      runtime: makeRuntime(),
+    });
+    const href = router.href(Project, { params: { id: "atlas" } });
+
+    expect(href).toBe("/browser-href-projects/atlas");
+    expect(router.createHref(href)).toBe("/project-docs/browser-href-projects/atlas");
+    router.navigate(Project, { params: { id: "atlas" } });
+    expect(memory.entries()).toEqual(["/", "/browser-href-projects/atlas"]);
+    router.dispose();
+  });
+
   it("does not re-preload an initial Ready hydration state when host listening starts", () =>
     Effect.runPromise(
       Effect.scoped(
