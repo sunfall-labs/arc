@@ -10,6 +10,8 @@
 
 # Capability mocks in tests
 
+## Depend on a Capability
+
 Application definitions should depend on a Capability. Tests can provide a layer that satisfies the same interface.
 
 ```ts
@@ -18,6 +20,8 @@ const ProjectApiTest = ProjectApi.layer({
   list: () => Effect.succeed([{ id: makeProjectId("atlas"), name: "Atlas" }]),
 });
 ```
+
+## Run the Resource with a test layer
 
 Run the same Resource through a runtime with the test layer.
 
@@ -33,5 +37,7 @@ const project =
     }),
   );
 ```
+
+## Keep tests browser-safe
 
 This keeps tests browser-safe. They exercise the public app seam without importing `.server.ts` modules.

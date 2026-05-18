@@ -10,6 +10,8 @@
 
 # Progressive Start action form
 
+## Define one Action
+
 Define the mutation once as an Action. Validation failure, domain failure, redirect, and success are values, not hidden thrown control flow.
 
 ```ts
@@ -23,6 +25,8 @@ export const SubmitProjectName = Action.define({
 });
 ```
 
+## Generate a plain form target
+
 Generate the form target from the Action. The hidden fields carry the Action name and encoded input for no-JS posts.
 
 ```ts
@@ -33,6 +37,8 @@ const form = StartAction.form(SubmitProjectName, {
   },
 });
 ```
+
+## Enhance without changing semantics
 
 Enhanced clients can intercept submit and call the same Action through `submitEffect`.
 

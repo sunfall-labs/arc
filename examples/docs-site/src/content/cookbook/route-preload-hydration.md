@@ -10,6 +10,8 @@
 
 # Route preload and hydration
 
+## Declare route-owned data
+
 File routes should declare the data they own. The app graph can then explain what a page needs before rendering it.
 
 ```ts
@@ -20,6 +22,8 @@ export const Route = RouteBuilder.preload({
   resources: ({ resource }) => [resource(ProjectById, ({ params }) => params.id)],
 }).route();
 ```
+
+## Render with preload data
 
 On the server, Start runs preload through the request runtime before rendering. The response carries streamed hydration chunks for the touched Resources.
 
@@ -42,6 +46,8 @@ export const handleRequest = createRequestHandler(app, {
     })
 });
 ```
+
+## Hydrate before mount
 
 On the client, hydrate the payload before mounting the UI. Components can read synchronously from the hydrated Resource state.
 

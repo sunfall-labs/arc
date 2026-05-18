@@ -78,6 +78,9 @@ describe("docs site", () => {
         expect(response.status).toBe(200);
         expect(html).toContain("Semantic invalidation tags");
         expect(html).toContain("Tags describe domain facts");
+        expect(html).toContain('aria-label="On this page"');
+        expect(html).toContain('href="#describe-domain-facts"');
+        expect(html).toContain('id="invalidate-after-mutation"');
         expect(html).toContain("Related recipes");
         expect([...pairs]).toContain(
           JSON.stringify([RecipeIndexRef.family.options.name, RecipeIndexRef.key]),
@@ -100,10 +103,16 @@ describe("docs site", () => {
 
         expect(response.status).toBe(200);
         expect(html).toContain("One typed graph for your full-stack TypeScript app.");
-        expect(html).toContain("The unique value prop");
+        expect(html).toContain("What TanStack Query would do");
+        expect(html).toContain('href="#what-tanstack-query-would-do"');
+        expect(html).toContain("What React, Solid, Zustand, and Jotai would do");
+        expect(html).toContain('href="#what-arc-gives-you-instead"');
         expect(html).toContain("A guided slice: route, resource, and UI");
+        expect(html).toContain("Arc is meant to replace Zustand and Jotai for domain state");
         expect(html).toContain('class="shiki github-dark-default"');
         expect(html).toContain('data-language="Shell"');
+        expect(visibleText).toContain("queryClient.invalidateQueries");
+        expect(visibleText).toContain("const useProjectStore = create");
         expect(visibleText).toContain("sunfall-arc-start graph route /projects/:id");
         expect(html).toContain("Resource from a server function");
         expect([...pairs]).toContain(
@@ -137,6 +146,8 @@ describe("docs site", () => {
         expect(overviewHtml).toContain("Troubleshooting");
         expect(gettingStartedResponse.status).toBe(200);
         expect(gettingStartedHtml).toContain("Install the alpha packages");
+        expect(gettingStartedHtml).toContain('href="#install-the-core-packages"');
+        expect(gettingStartedHtml).toContain('id="run-a-checked-starter"');
         expect(gettingStartedHtml).toContain('class="shiki github-dark-default"');
         expect(gettingStartedText).toContain(
           "pnpm add @sunfall/arc-core @sunfall/arc-start @sunfall/arc-solid effect solid-js",

@@ -10,6 +10,8 @@
 
 # Semantic invalidation tags
 
+## Describe domain facts
+
 Tags describe domain facts. They are typed values with stable identity, not cache-key conventions.
 
 ```ts
@@ -18,6 +20,8 @@ export const ProjectTag = Resource.tag<{ readonly id: ProjectId }>("Project", {
   key: ({ id }) => id,
 });
 ```
+
+## Publish provided facts
 
 Resources publish the facts they provide after a successful load.
 
@@ -30,6 +34,8 @@ export const ProjectById = Resource.family({
   provides: (project) => [ProjectTag({ id: project.id })],
 });
 ```
+
+## Invalidate after mutation
 
 Actions invalidate facts after mutation success. Devtools and tests can inspect the plan before refresh work runs.
 

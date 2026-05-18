@@ -10,6 +10,8 @@
 
 # Resource from a server function
 
+## Define the browser-safe contract
+
 Start with a shared contract. This module is safe for the browser because it only exports schemas, error types, and the typed client handle.
 
 ```ts
@@ -24,6 +26,8 @@ export const GetProjectContract = Server.contract<
 });
 ```
 
+## Keep implementation server-only
+
 Keep the real implementation in a `.server.ts` module. Host work stays behind the server function boundary, and application code sees an Effect.
 
 ```ts
@@ -32,6 +36,8 @@ export const getProject = Server.implement(GetProjectContract, ({ id }) =>
 );
 ```
 
+## Expose a Capability
+
 Expose the contract through a named Capability. Resources and actions depend on the capability, not on a transport detail.
 
 ```ts
@@ -39,6 +45,8 @@ export const ProjectApiLive = ProjectApi.layer({
   get: (id) => getProjectClient.effect({ id }),
 });
 ```
+
+## Wrap it in a Resource
 
 The Resource owns schema output, cache state, semantic tags, and retry policy.
 
