@@ -161,14 +161,41 @@ export default function App<RuntimeServices = DocsContentApi>(
 function DocsShell() {
   return (
     <main class="docsShell">
-      <aside class="docsSidebar">
-        <a href={Route.href(HomeUiRoute)} class="brandLink">
-          <span class="brandMark">A</span>
-          <span>
-            <strong>Sunfall Arc</strong>
-            <small>Docs</small>
-          </span>
+      <header class="siteTopbar">
+        <a href={Route.href(HomeUiRoute)} class="topbarBrand" aria-label="Sunfall Arc home">
+          <span class="brandWordmark">Sunfall Arc</span>
         </a>
+        <nav class="topbarTabs" aria-label="Primary navigation">
+          <a href={Route.href(HomeUiRoute)} class="topbarTab">
+            Readme
+          </a>
+          <a href={Route.href(DocsOverviewUiRoute)} class="topbarTab active" aria-current="page">
+            Docs
+          </a>
+          <a href={Route.href(CookbookUiRoute)} class="topbarTab">
+            Cookbook
+          </a>
+          <a href={Route.href(BlogPostUiRoute)} class="topbarTab">
+            Why Arc
+          </a>
+        </nav>
+        <a
+          href="https://github.com/sunfall-labs/arc"
+          class="topbarCta"
+          rel="noreferrer"
+          target="_blank"
+        >
+          GitHub
+        </a>
+      </header>
+
+      <aside class="docsSidebar">
+        <div class="sidebarMeta" aria-label="Docs metadata">
+          <span class="sidebarVersion">v0 alpha</span>
+          <a href={Route.href(DocsOverviewUiRoute)} class="sidebarMetaLink">
+            Documentation index
+          </a>
+        </div>
         <DocsNav />
         <RecipeNav />
         <a href={Route.href(BlogPostUiRoute)} class="navSectionLink">

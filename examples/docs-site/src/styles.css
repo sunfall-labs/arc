@@ -3,44 +3,59 @@
 
 @theme {
   --color-canvas: #000000;
-  --color-surface: #0b0e14;
-  --color-overlay: #1b1b1b;
-  --color-rail: #292d30;
-  --color-smoke: #464a4d;
-  --color-ash: #6c6c6c;
-  --color-steel: #6e727a;
-  --color-fog: #a1a4a5;
-  --color-mist: #abafb4;
-  --color-frost: #f0f0f0;
+  --color-page: #050505;
+  --color-surface: #0c0a09;
+  --color-muted: #292524;
+  --color-border: #292524;
+  --color-border-soft: #ffffff0f;
+  --color-foreground: #fafaf9;
+  --color-muted-text: #a6a09b;
+  --color-dim-text: #79716b;
+  --color-inverse: #1c1917;
+  --color-info: #3080ff;
+  --color-success: #00c758;
+  --color-warning: #f99c00;
+  --color-error: #fb2c36;
+
+  --color-overlay: #050505;
+  --color-rail: #292524;
+  --color-smoke: #44403c;
+  --color-ash: #79716b;
+  --color-steel: #8a817a;
+  --color-fog: #a6a09b;
+  --color-mist: #d6d3d1;
+  --color-frost: #fafaf9;
   --color-white: #ffffff;
-  --color-action: #3b9eff;
-  --color-code-violet: #9281f7;
-  --color-delivered: #3ad389;
-  --color-bounced: #ff9592;
-  --color-complained: #ffca16;
-  --color-opened: #70b8ff;
-  --color-clicked: #baa7ff;
+  --color-action: #fafaf9;
+  --color-code-violet: #a6a09b;
+  --color-delivered: #00c758;
+  --color-bounced: #fb2c36;
+  --color-complained: #f99c00;
+  --color-opened: #3080ff;
+  --color-clicked: #a685ff;
 
   --font-sans:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-display: "DM Serif Display", "Playfair Display", serif;
-  --font-mono: "CommitMono", "JetBrains Mono", "Fira Code", "SFMono-Regular", monospace;
+    Geist, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  --font-mono: "Geist Mono", CommitMono, "JetBrains Mono", "Fira Code", "SFMono-Regular", monospace;
 
-  --radius-button: 6px;
-  --radius-badge: 6px;
-  --radius-tag: 10px;
-  --radius-card: 16px;
-  --radius-large: 24px;
+  --radius-button: 4px;
+  --radius-badge: 4px;
+  --radius-tag: 4px;
+  --radius-card: 6px;
+  --radius-large: 6px;
 }
 
 :root {
-  color: var(--color-frost);
+  color: var(--color-foreground);
   background: var(--color-canvas);
   font-family: var(--font-sans);
   font-weight: 400;
   line-height: 1.5;
   color-scheme: dark;
   text-rendering: optimizeLegibility;
+  --topbar-height: 44px;
+  --sidebar-width: clamp(248px, 22vw, 300px);
 }
 
 * {
@@ -57,11 +72,12 @@ body {
   min-height: 100vh;
   margin: 0;
   background: var(--color-canvas);
+  overflow-x: hidden;
 }
 
 ::selection {
-  background: rgb(59 158 255 / 30%);
-  color: var(--color-white);
+  background: var(--color-foreground);
+  color: var(--color-canvas);
 }
 
 a {
@@ -71,75 +87,181 @@ a {
 
 a:focus-visible,
 button:focus-visible {
-  outline: 2px solid var(--color-action);
+  outline: 2px solid var(--color-foreground);
   outline-offset: 3px;
 }
 
 .docsShell {
   display: grid;
   min-height: 100vh;
-  grid-template-columns: minmax(248px, 312px) minmax(0, 1fr);
+  grid-template-areas:
+    "topbar topbar"
+    "sidebar main";
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  grid-template-rows: var(--topbar-height) minmax(0, 1fr);
   background: var(--color-canvas);
-  color: var(--color-frost);
+  color: var(--color-foreground);
+}
+
+.siteTopbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: grid;
+  grid-area: topbar;
+  min-width: 0;
+  height: var(--topbar-height);
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr) auto;
+  border-bottom: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-canvas) 92%, transparent);
+  backdrop-filter: blur(12px);
+}
+
+.topbarBrand,
+.topbarTab,
+.topbarCta {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.topbarBrand {
+  justify-content: flex-start;
+  border-right: 1px solid var(--color-border);
+  padding: 0 18px;
+}
+
+.brandWordmark {
+  overflow: hidden;
+  color: var(--color-foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbarTabs {
+  display: flex;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.topbarTabs::-webkit-scrollbar {
+  display: none;
+}
+
+.topbarTab {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 112px;
+  border-right: 1px solid var(--color-border-soft);
+  color: var(--color-muted-text);
+  padding: 0 18px;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.topbarTab:hover,
+.topbarTab:focus-visible,
+.topbarTab.active {
+  background: rgb(250 250 249 / 0.035);
+  color: var(--color-foreground);
+  outline: none;
+}
+
+.topbarTab.active::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: var(--color-foreground);
+  content: "";
+}
+
+.topbarCta {
+  border-left: 1px solid var(--color-border);
+  background: var(--color-foreground);
+  color: var(--color-inverse);
+  padding: 0 20px;
+  transition: opacity 150ms ease;
+}
+
+.topbarCta:hover,
+.topbarCta:focus-visible {
+  opacity: 0.88;
+  outline: none;
 }
 
 .docsSidebar {
   position: sticky;
-  top: 0;
+  top: var(--topbar-height);
   display: flex;
-  height: 100vh;
+  height: calc(100vh - var(--topbar-height));
+  grid-area: sidebar;
+  min-width: 0;
   flex-direction: column;
-  gap: 28px;
+  gap: 24px;
   overflow: auto;
-  border-right: 1px solid var(--color-rail);
+  border-right: 1px solid var(--color-border);
   background: var(--color-canvas);
-  padding: 32px 24px;
+  padding: 22px 18px 32px;
 }
 
-.brandLink {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding-bottom: 8px;
-}
-
-.brandMark {
+.sidebarMeta {
   display: grid;
-  width: 40px;
-  height: 40px;
-  place-items: center;
-  border: 1px solid var(--color-rail);
-  border-radius: 10px;
-  background: var(--color-surface);
-  color: var(--color-action);
+  gap: 8px;
+}
+
+.sidebarVersion,
+.sidebarMetaLink {
+  display: flex;
+  min-height: 32px;
+  align-items: center;
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-button);
+  background: var(--color-page);
+  color: var(--color-muted-text);
+  padding: 0 10px;
   font-family: var(--font-mono);
-  font-size: 0.92rem;
-  font-weight: 700;
-}
-
-.brandLink strong,
-.brandLink small {
-  display: block;
-}
-
-.brandLink strong {
-  color: var(--color-white);
-  font-size: 0.98rem;
+  font-size: 0.72rem;
   font-weight: 600;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
-.brandLink small,
-.muted {
-  color: var(--color-steel);
+.sidebarMetaLink {
+  border-color: transparent;
+  background: transparent;
+  color: var(--color-dim-text);
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.sidebarMetaLink:hover,
+.sidebarMetaLink:focus-visible {
+  background: var(--color-muted);
+  color: var(--color-foreground);
+  outline: none;
 }
 
 .sidebarSection {
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .navHeading {
-  color: var(--color-ash);
+  margin: 0;
+  color: var(--color-dim-text);
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0;
@@ -148,29 +270,29 @@ button:focus-visible {
 
 .navSectionLink {
   width: fit-content;
-  color: var(--color-frost);
-  font-size: 0.92rem;
+  color: var(--color-foreground);
+  font-size: 0.88rem;
   font-weight: 600;
   transition: color 150ms ease;
 }
 
 .navSectionLink:hover,
 .navSectionLink:focus-visible {
-  color: var(--color-action);
+  color: var(--color-white);
   outline: none;
 }
 
 .navList {
   display: grid;
-  gap: 6px;
+  gap: 2px;
 }
 
 .navRecipeLink {
   display: grid;
-  gap: 3px;
+  gap: 2px;
   border: 1px solid transparent;
-  border-radius: 10px;
-  padding: 10px 12px;
+  border-radius: var(--radius-button);
+  padding: 8px 10px;
   transition:
     background-color 150ms ease,
     border-color 150ms ease,
@@ -179,37 +301,34 @@ button:focus-visible {
 
 .navRecipeLink:hover,
 .navRecipeLink:focus-visible {
-  border-color: var(--color-rail);
-  background: var(--color-surface);
+  border-color: var(--color-border-soft);
+  background: var(--color-muted);
   outline: none;
 }
 
 .navRecipeLink span {
-  color: var(--color-frost);
-  font-size: 0.9rem;
+  color: var(--color-foreground);
+  font-size: 0.86rem;
   font-weight: 500;
 }
 
-.navRecipeLink:hover span,
-.navRecipeLink:focus-visible span {
-  color: var(--color-white);
-}
-
-.navRecipeLink small {
-  color: var(--color-ash);
-  font-size: 0.75rem;
+.navRecipeLink small,
+.muted {
+  color: var(--color-dim-text);
+  font-size: 0.74rem;
 }
 
 .docsMain {
   min-width: 0;
+  grid-area: main;
   background: var(--color-canvas);
-  padding: 56px clamp(24px, 5vw, 80px);
+  padding: 52px clamp(24px, 5vw, 72px) 72px;
 }
 
 .pageStack {
   display: grid;
+  max-width: 900px;
   gap: 32px;
-  max-width: 1120px;
 }
 
 .heroBand,
@@ -217,18 +336,20 @@ button:focus-visible {
   display: grid;
   width: 100%;
   min-width: 0;
-  gap: 16px;
+  gap: 14px;
 }
 
 .heroBand {
   max-width: 900px;
-  padding: 32px 0 12px;
+  border-bottom: 1px dashed var(--color-border);
+  padding: 14px 0 28px;
 }
 
 .eyebrow {
   margin: 0;
-  color: var(--color-mist);
-  font-size: 0.76rem;
+  color: var(--color-dim-text);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -244,37 +365,49 @@ button:focus-visible {
 }
 
 h1 {
-  max-width: min(920px, 100%);
-  color: var(--color-white);
-  font-size: clamp(2.35rem, 5vw, 3.5rem);
-  font-weight: 500;
-  line-height: 1;
+  max-width: min(900px, 100%);
+  color: var(--color-foreground);
+  font-size: 2rem;
+  font-weight: 600;
+  line-height: 1.15;
   letter-spacing: 0;
   overflow-wrap: break-word;
 }
 
+.heroBand h1,
+.pageStack > .pageHeader h1 {
+  font-size: 3rem;
+  line-height: 1.04;
+}
+
 h2 {
-  color: var(--color-frost);
-  font-size: 1.5rem;
-  font-weight: 500;
-  line-height: 1.3;
+  color: var(--color-foreground);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.35;
   letter-spacing: 0;
 }
 
 h3 {
-  color: var(--color-frost);
-  font-size: 1.08rem;
-  font-weight: 500;
+  color: var(--color-foreground);
+  font-size: 1rem;
+  font-weight: 600;
   letter-spacing: 0;
 }
 
 .heroBand p,
 .pageHeader p,
 .recipeCard p,
+.docsCard p,
 .statusView p {
   max-width: min(760px, 100%);
-  color: var(--color-fog);
+  color: var(--color-muted-text);
   font-size: 1rem;
+  line-height: 1.7;
+}
+
+.pageHeader p {
+  font-size: 1.08rem;
 }
 
 .primaryLink,
@@ -285,60 +418,94 @@ h3 {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-button);
-  font-size: 0.9rem;
+  font-size: 0.86rem;
   font-weight: 600;
   line-height: 1.25;
   transition:
     border-color 150ms ease,
     background-color 150ms ease,
-    color 150ms ease;
+    color 150ms ease,
+    opacity 150ms ease;
 }
 
-.primaryLink,
-.recipeCta {
-  border: 1px solid var(--color-action);
-  background: transparent;
-  color: var(--color-white);
+.primaryLink {
+  border: 1px solid var(--color-foreground);
+  background: var(--color-foreground);
+  color: var(--color-inverse);
   padding: 9px 12px;
 }
 
 .primaryLink:hover,
-.primaryLink:focus-visible,
-.recipeCta:hover,
-.recipeCta:focus-visible {
-  background: rgb(59 158 255 / 10%);
+.primaryLink:focus-visible {
+  opacity: 0.88;
   outline: none;
 }
 
 .secondaryLink {
-  color: var(--color-fog);
+  color: var(--color-muted-text);
   padding: 2px 0;
 }
 
 .secondaryLink:hover,
 .secondaryLink:focus-visible {
-  color: var(--color-white);
+  color: var(--color-foreground);
   outline: none;
+}
+
+.recipeCta {
+  border: 1px solid var(--color-border-soft);
+  background: rgb(250 250 249 / 0.035);
+  color: var(--color-foreground);
+  padding: 8px 10px;
+}
+
+.featureCallout,
+.docsCard,
+.recipeCard {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+
+.featureCallout::before,
+.docsCard::before,
+.recipeCard::before {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(250 250 249 / 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(250 250 249 / 0.055) 1px, transparent 1px);
+  background-size: 28px 28px;
+  content: "";
+  mask-image: linear-gradient(to bottom, black, transparent 68%);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.featureCallout > *,
+.docsCard > *,
+.recipeCard > * {
+  position: relative;
+  z-index: 1;
 }
 
 .featureCallout {
   display: grid;
   max-width: 860px;
-  gap: 14px;
-  border: 1px solid var(--color-rail);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  padding: 32px;
+  gap: 12px;
+  padding: 28px;
 }
 
 .featureCallout p {
   max-width: 760px;
-  color: var(--color-fog);
+  color: var(--color-muted-text);
 }
 
 .docsSectionGrid {
   display: grid;
-  gap: 32px;
+  gap: 36px;
 }
 
 .docsSection {
@@ -348,77 +515,65 @@ h3 {
 
 .docsCardList {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(248px, 1fr));
+  gap: 12px;
 }
 
 .docsCard {
   display: grid;
-  min-height: 158px;
+  min-height: 152px;
   align-content: start;
   gap: 10px;
-  border: 1px solid var(--color-rail);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  padding: 24px;
+  padding: 22px;
   transition:
     border-color 150ms ease,
-    transform 150ms ease;
+    background-color 150ms ease;
 }
 
 .docsCard:hover,
-.docsCard:focus-visible {
-  border-color: var(--color-action);
+.docsCard:focus-visible,
+.recipeCard:hover,
+.recipeCard:focus-visible {
+  border-color: color-mix(in srgb, var(--color-foreground) 36%, var(--color-border));
+  background: color-mix(in srgb, var(--color-surface) 82%, var(--color-muted));
   outline: none;
-  transform: translateY(-1px);
 }
 
 .docsCard span {
-  color: var(--color-white);
-  font-size: 1.05rem;
+  color: var(--color-foreground);
+  font-size: 1rem;
   font-weight: 600;
-}
-
-.docsCard p {
-  color: var(--color-fog);
 }
 
 .recipeGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(236px, 1fr));
+  gap: 12px;
 }
 
 .recipeCard {
   display: grid;
-  min-height: 214px;
+  min-height: 210px;
   align-content: start;
   gap: 12px;
-  border: 1px solid var(--color-rail);
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  padding: 24px;
+  padding: 22px;
   transition:
     border-color 150ms ease,
-    transform 150ms ease;
-}
-
-.recipeCard:hover,
-.recipeCard:focus-visible {
-  border-color: var(--color-action);
-  outline: none;
-  transform: translateY(-1px);
+    background-color 150ms ease;
 }
 
 .recipeCategory {
   width: fit-content;
-  border: 1px solid var(--color-rail);
+  border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-tag);
-  background: var(--color-canvas);
-  color: var(--color-mist);
-  padding: 4px 8px;
-  font-size: 0.75rem;
-  font-weight: 500;
+  background: var(--color-page);
+  color: var(--color-muted-text);
+  padding: 4px 7px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .blogPost,
@@ -429,18 +584,20 @@ h3 {
 .articleWithRail {
   display: grid;
   width: 100%;
-  max-width: 1120px;
-  grid-template-columns: minmax(0, 760px) minmax(176px, 220px);
+  max-width: 1180px;
+  grid-template-columns: minmax(0, 900px) minmax(180px, 240px);
   grid-template-areas:
     "header rail"
     "body rail"
     "footer rail";
   align-items: start;
-  gap: 32px clamp(32px, 4vw, 56px);
+  gap: 30px clamp(32px, 4vw, 52px);
 }
 
 .articleWithRail > .pageHeader {
   grid-area: header;
+  border-bottom: 1px dashed var(--color-border);
+  padding-bottom: 26px;
 }
 
 .articleWithRail > .recipeBody {
@@ -458,50 +615,103 @@ h3 {
 .recipeBody {
   width: 100%;
   min-width: 0;
-  max-width: 780px;
+  max-width: 900px;
 }
 
 .recipeBody.prose {
-  --tw-prose-body: var(--color-fog);
-  --tw-prose-headings: var(--color-white);
-  --tw-prose-lead: var(--color-fog);
-  --tw-prose-links: var(--color-action);
-  --tw-prose-bold: var(--color-frost);
-  --tw-prose-counters: var(--color-code-violet);
-  --tw-prose-bullets: var(--color-code-violet);
-  --tw-prose-hr: var(--color-rail);
-  --tw-prose-quotes: var(--color-frost);
-  --tw-prose-quote-borders: var(--color-rail);
-  --tw-prose-captions: var(--color-ash);
-  --tw-prose-code: var(--color-frost);
-  --tw-prose-pre-code: var(--color-frost);
-  --tw-prose-pre-bg: var(--color-canvas);
-  --tw-prose-th-borders: var(--color-rail);
-  --tw-prose-td-borders: var(--color-rail);
+  --tw-prose-body: var(--color-muted-text);
+  --tw-prose-headings: var(--color-foreground);
+  --tw-prose-lead: var(--color-muted-text);
+  --tw-prose-links: var(--color-foreground);
+  --tw-prose-bold: var(--color-foreground);
+  --tw-prose-counters: var(--color-muted-text);
+  --tw-prose-bullets: var(--color-muted-text);
+  --tw-prose-hr: var(--color-border);
+  --tw-prose-quotes: var(--color-foreground);
+  --tw-prose-quote-borders: var(--color-border);
+  --tw-prose-captions: var(--color-dim-text);
+  --tw-prose-code: var(--color-foreground);
+  --tw-prose-pre-code: var(--color-foreground);
+  --tw-prose-pre-bg: var(--color-page);
+  --tw-prose-th-borders: var(--color-border);
+  --tw-prose-td-borders: var(--color-border);
+  color: var(--color-muted-text);
   font-size: 1rem;
+  line-height: 1.75;
 }
 
 .recipeBody.prose h2,
 .recipeBody.prose h3 {
-  scroll-margin-top: 72px;
+  scroll-margin-top: calc(var(--topbar-height) + 24px);
   letter-spacing: 0;
+}
+
+.recipeBody.prose h2 {
+  margin-top: 2.35em;
+  margin-bottom: 0.75em;
+  padding-top: 0.9em;
+  border-top: 1px dashed var(--color-border);
+  font-size: 1.35rem;
+}
+
+.recipeBody.prose h3 {
+  margin-top: 1.9em;
+  margin-bottom: 0.55em;
+  font-size: 1.02rem;
+}
+
+.recipeBody.prose p,
+.recipeBody.prose ul,
+.recipeBody.prose ol {
+  margin-top: 1.05em;
+  margin-bottom: 1.05em;
+}
+
+.recipeBody.prose a {
+  font-weight: 600;
+  text-decoration-color: rgb(250 250 249 / 0.38);
+  text-underline-offset: 3px;
+}
+
+.recipeBody.prose strong {
+  font-weight: 600;
+}
+
+.recipeBody.prose :not(pre) > code,
+.recipeBody.prose .inlineCode {
+  border: 1px solid var(--color-border-soft);
+  border-radius: var(--radius-badge);
+  background: var(--color-page);
+  color: var(--color-foreground);
+  padding: 0.08em 0.34em;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.recipeBody.prose :not(pre) > code::before,
+.recipeBody.prose :not(pre) > code::after,
+.recipeBody.prose .inlineCode::before,
+.recipeBody.prose .inlineCode::after {
+  content: none;
 }
 
 .pageRail {
   position: sticky;
-  top: 56px;
+  top: calc(var(--topbar-height) + 32px);
   display: grid;
   grid-area: rail;
-  max-height: calc(100vh - 112px);
+  max-height: calc(100vh - var(--topbar-height) - 64px);
   align-self: start;
   gap: 10px;
   overflow: auto;
-  border-left: 1px solid var(--color-rail);
+  border-left: 1px solid var(--color-border);
   padding: 4px 0 4px 18px;
 }
 
 .pageRailTitle {
-  color: var(--color-ash);
+  color: var(--color-dim-text);
+  font-family: var(--font-mono);
   font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0;
@@ -517,9 +727,9 @@ h3 {
   position: relative;
   display: block;
   border-radius: var(--radius-button);
-  color: var(--color-steel);
+  color: var(--color-dim-text);
   padding: 6px 0;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 500;
   line-height: 1.35;
   transition:
@@ -543,7 +753,7 @@ h3 {
   left: -22px;
   width: 7px;
   height: 7px;
-  border: 1px solid var(--color-rail);
+  border: 1px solid var(--color-border);
   border-radius: 999px;
   background: var(--color-canvas);
   content: "";
@@ -555,85 +765,53 @@ h3 {
 
 .pageRailLink.nested {
   padding-left: 12px;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
 }
 
 .pageRailLink:hover,
 .pageRailLink:focus-visible,
 .pageRailLink.active {
-  color: var(--color-white);
+  color: var(--color-foreground);
   outline: none;
 }
 
 .pageRailLink:hover::after,
 .pageRailLink:focus-visible::after,
 .pageRailLink.active::after {
-  border-color: var(--color-action);
+  border-color: var(--color-foreground);
 }
 
 .pageRailLink.active {
   padding-left: 8px;
 }
 
-.pageRailLink.active::before {
-  background: var(--color-action);
-}
-
+.pageRailLink.active::before,
 .pageRailLink.active::after {
-  background: var(--color-action);
-}
-
-.recipeBody.prose a {
-  font-weight: 600;
-  text-decoration-color: rgb(59 158 255 / 45%);
-  text-underline-offset: 3px;
-}
-
-.recipeBody.prose strong {
-  font-weight: 600;
-}
-
-.recipeBody.prose :not(pre) > code,
-.recipeBody.prose .inlineCode {
-  border: 1px solid var(--color-rail);
-  border-radius: var(--radius-badge);
-  background: var(--color-surface);
-  color: var(--color-frost);
-  padding: 0.08em 0.34em;
-  font-family: var(--font-mono);
-  font-size: 0.9em;
-  font-weight: 600;
-}
-
-.recipeBody.prose :not(pre) > code::before,
-.recipeBody.prose :not(pre) > code::after,
-.recipeBody.prose .inlineCode::before,
-.recipeBody.prose .inlineCode::after {
-  content: none;
+  background: var(--color-foreground);
 }
 
 .codeFrame {
   max-width: 100%;
   margin: 24px 0;
   overflow: hidden;
-  border: 1px solid var(--color-rail);
-  border-radius: var(--radius-card);
-  background: var(--color-canvas);
-  color: var(--color-frost);
+  border: 1px solid var(--color-border-soft);
+  border-radius: 0;
+  background: var(--color-page);
+  color: var(--color-foreground);
 }
 
 .codeToolbar {
   display: flex;
-  min-height: 42px;
+  min-height: 38px;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border-bottom: 1px solid var(--color-rail);
-  background: var(--color-overlay);
+  border-bottom: 1px solid var(--color-border-soft);
+  background: var(--color-page);
   padding: 0 12px 0 14px;
-  color: var(--color-ash);
+  color: var(--color-dim-text);
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 600;
   letter-spacing: 0;
   text-transform: uppercase;
@@ -648,22 +826,22 @@ h3 {
 
 .codeCopyButton {
   flex: 0 0 auto;
-  min-width: 64px;
-  border: 1px solid var(--color-rail);
+  min-width: 58px;
+  border: 1px solid transparent;
   border-radius: var(--radius-button);
   background: transparent;
-  color: var(--color-frost);
-  padding: 5px 10px;
-  font-size: 0.78rem;
+  color: var(--color-muted-text);
+  padding: 4px 8px;
+  font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
 }
 
 .codeCopyButton:hover,
 .codeCopyButton:focus-visible {
-  border-color: var(--color-action);
-  background: rgb(59 158 255 / 10%);
-  color: var(--color-white);
+  border-color: var(--color-border-soft);
+  background: rgb(250 250 249 / 0.05);
+  color: var(--color-foreground);
   outline: none;
 }
 
@@ -677,7 +855,7 @@ h3 {
   overflow: visible;
   background: transparent !important;
   padding: 20px;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   line-height: 1.7;
 }
 
@@ -695,7 +873,7 @@ h3 {
 .relatedPanel {
   display: grid;
   gap: 12px;
-  border-top: 1px solid var(--color-rail);
+  border-top: 1px dashed var(--color-border);
   padding-top: 24px;
 }
 
@@ -706,20 +884,22 @@ h3 {
 }
 
 .relatedLink {
-  border: 1px solid var(--color-rail);
+  border: 1px solid var(--color-border-soft);
   border-radius: var(--radius-button);
-  background: var(--color-surface);
-  color: var(--color-frost);
+  background: var(--color-page);
+  color: var(--color-foreground);
   padding: 8px 10px;
   font-weight: 600;
   transition:
+    background-color 150ms ease,
     border-color 150ms ease,
     color 150ms ease;
 }
 
 .relatedLink:hover,
 .relatedLink:focus-visible {
-  border-color: var(--color-action);
+  border-color: var(--color-border);
+  background: var(--color-muted);
   color: var(--color-white);
   outline: none;
 }
@@ -732,14 +912,14 @@ h3 {
 }
 
 .statusView.failure h1 {
-  color: var(--color-bounced);
+  color: var(--color-error);
 }
 
 .skeleton {
   background: linear-gradient(
     90deg,
     var(--color-surface) 25%,
-    var(--color-overlay) 37%,
+    var(--color-muted) 37%,
     var(--color-surface) 63%
   );
   background-size: 400% 100%;
@@ -752,27 +932,6 @@ h3 {
   }
   100% {
     background-position: 0 0;
-  }
-}
-
-@media (max-width: 820px) {
-  .docsShell {
-    grid-template-columns: 1fr;
-  }
-
-  .docsSidebar {
-    position: static;
-    height: auto;
-    border-right: 0;
-    border-bottom: 1px solid var(--color-rail);
-  }
-
-  .docsMain {
-    padding: 32px 18px 48px;
-  }
-
-  h1 {
-    font-size: 2.35rem;
   }
 }
 
@@ -790,5 +949,98 @@ h3 {
   .pageRail {
     position: static;
     max-height: none;
+  }
+}
+
+@media (max-width: 820px) {
+  :root {
+    --topbar-height: 48px;
+  }
+
+  .docsShell {
+    grid-template-areas:
+      "topbar"
+      "main";
+    grid-template-columns: 1fr;
+    grid-template-rows: var(--topbar-height) minmax(0, 1fr);
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: clip;
+  }
+
+  .siteTopbar {
+    width: 100%;
+    max-width: 100vw;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .topbarBrand {
+    border-right: 1px solid var(--color-border);
+    padding: 0 14px;
+  }
+
+  .brandWordmark {
+    max-width: 132px;
+  }
+
+  .topbarTab {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 0 8px;
+  }
+
+  .topbarTabs {
+    overflow-x: hidden;
+  }
+
+  .topbarTab:nth-child(4) {
+    display: none;
+  }
+
+  .topbarCta {
+    display: none;
+  }
+
+  .docsSidebar {
+    display: none;
+  }
+
+  .docsMain {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: clip;
+    padding: 32px 18px 52px;
+  }
+
+  .pageStack,
+  .articleWithRail {
+    width: min(100%, calc(100vw - 36px));
+    max-width: calc(100vw - 36px);
+  }
+
+  .pageHeader,
+  .recipeBody,
+  .pageRail,
+  .codeFrame {
+    width: 100%;
+    max-width: calc(100vw - 36px);
+  }
+
+  .pageHeader p,
+  .recipeBody.prose,
+  .recipeBody.prose p,
+  .recipeBody.prose li {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .heroBand h1,
+  .pageStack > .pageHeader h1 {
+    font-size: 2.35rem;
+  }
+
+  h1 {
+    font-size: 1.8rem;
   }
 }
