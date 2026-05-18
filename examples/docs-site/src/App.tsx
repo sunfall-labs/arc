@@ -43,6 +43,7 @@ const routes = [
   CookbookUiRoute,
   RecipeUiRoute,
 ] as const;
+const articleBodyClass = "recipeBody prose prose-stone max-w-none";
 type DocsSiteRuntime<RuntimeServices = DocsContentApi> = [DocsContentApi] extends [RuntimeServices]
   ? SunfallArcRuntime<RuntimeServices, never>
   : never;
@@ -283,7 +284,7 @@ function DocsPageView(props: Route.Props<typeof DocsPageRoute>) {
         <p>{page.summary}</p>
       </header>
 
-      <section class="recipeBody">
+      <section class={articleBodyClass}>
         {page.blocks.map((block) => (
           <DocsBlockView block={block} />
         ))}
@@ -412,7 +413,7 @@ function BlogPostView() {
         </p>
       </header>
 
-      <section class="recipeBody">
+      <section class={articleBodyClass}>
         <p>
           Most full-stack apps begin with a clean story. A route loads data, a form mutates it, a
           component renders it, and a server endpoint protects the sensitive work. Then the app
@@ -575,7 +576,7 @@ function RecipeDetail(props: { readonly recipe: Recipe; readonly refreshing: boo
         <p>{props.recipe.summary}</p>
       </header>
 
-      <section class="recipeBody">
+      <section class={articleBodyClass}>
         {props.recipe.blocks.map((block) => (
           <RecipeBlockView block={block} />
         ))}
