@@ -18,6 +18,11 @@ on:
         required: true
         default: true
         type: boolean
+      use-token-bootstrap:
+        description: Use the NPM_TOKEN fallback for first-time package bootstrap
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -31,21 +36,26 @@ jobs:
   publish:
     name: Publish npm packages
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     environment: npm-publish
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
         with:
           version: 10.33.2
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
           node-version: 25
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
 
       - name: Install npm with trusted publishing support
         run: npm install -g npm@^11.10.0
@@ -56,18 +66,42 @@ jobs:
       - name: Verify
         run: pnpm verify
 
-      - name: Configure temporary npm token fallback
+      - name: Publish preflight
         run: |
+          set -euo pipefail
+          if [ "$DRY_RUN" != "true" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Real npm publishes must run from refs/heads/main, not $GITHUB_REF."
+            exit 1
+          fi
+          if [ "$DRY_RUN" = "true" ] && [ "$USE_TOKEN_BOOTSTRAP" = "true" ]; then
+            echo "::error::Token bootstrap is only allowed for real publishes."
+            exit 1
+          fi
+        env:
+          DRY_RUN: ${{ inputs.dry-run }}
+          USE_TOKEN_BOOTSTRAP: ${{ inputs.use-token-bootstrap }}
+
+      - name: Configure temporary npm token fallback
+        if: ${{ inputs.dry-run == false && inputs.use-token-bootstrap == true }}
+        run: |
+          set -euo pipefail
           if [ -n "${NPM_TOKEN:-}" ]; then
             npm config set //registry.npmjs.org/:_authToken "$NPM_TOKEN" --location=project
+          else
+            echo "::error::use-token-bootstrap was enabled but the NPM_TOKEN environment secret is missing."
+            exit 1
           fi
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish
         run: |
-          if [ "${{ inputs.dry-run }}" = "true" ]; then
-            pnpm publish:npm -- --tag "${{ inputs.dist-tag }}" --dry-run
+          set -euo pipefail
+          if [ "$DRY_RUN" = "true" ]; then
+            pnpm publish:npm -- --tag "$DIST_TAG" --dry-run
           else
-            pnpm publish:npm -- --tag "${{ inputs.dist-tag }}"
+            pnpm publish:npm -- --tag "$DIST_TAG"
           fi
+        env:
+          DIST_TAG: ${{ inputs.dist-tag }}
+          DRY_RUN: ${{ inputs.dry-run }}

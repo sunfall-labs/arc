@@ -27,6 +27,7 @@ const normalizeError = (cause, message, repair) =>
 const defaultDistTag = "alpha";
 const packageScope = "@sunfall/";
 const publishWorkflowName = "publish-npm.yml";
+const expectedRepositoryUrlFragment = "github.com/sunfall-labs/arc";
 
 const usage = `USAGE
   pnpm publish:npm -- [--tag <dist-tag>] [--dry-run] [--package <name>] [--no-skip-existing] [--no-provenance]
@@ -327,6 +328,16 @@ const packageTargetsEffect = (options) =>
                 "Keep scoped Sunfall Arc packages explicitly public before publishing.",
               );
             }
+            const repositoryUrl = target.packageJson.repository?.url;
+            if (
+              typeof repositoryUrl !== "string" ||
+              !repositoryUrl.includes(expectedRepositoryUrlFragment)
+            ) {
+              throw fail(
+                `${name} must declare a repository.url under ${expectedRepositoryUrlFragment}.`,
+                "Keep npm provenance package metadata aligned with the GitHub repository.",
+              );
+            }
           }
 
           return topologicalPackageOrder(selected);
@@ -340,6 +351,25 @@ const packageTargetsEffect = (options) =>
       }),
     ),
   );
+
+const validatePublishPlanEffect = (options, targets) =>
+  Effect.gen(function* () {
+    if (options.distTag !== "latest") {
+      return;
+    }
+
+    const prereleaseTargets = targets.filter((target) => target.packageJson.version.includes("-"));
+    if (prereleaseTargets.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `Refusing to publish prerelease versions with the latest dist-tag: ${prereleaseTargets
+            .map((target) => `${target.packageJson.name}@${target.packageJson.version}`)
+            .join(", ")}.`,
+          "Use the alpha, beta, or next dist-tag for prerelease package versions.",
+        ),
+      );
+    }
+  });
 
 const npmVersionExistsEffect = (target) =>
   commandEffect(`${target.packageJson.name}@${target.packageJson.version} registry lookup`, "npm", [
@@ -423,6 +453,7 @@ const mainEffect = Effect.gen(function* () {
   const nodeVersion = process.versions.node;
   const npmVersion = yield* validateNpmCliEffect(options);
   const targets = yield* packageTargetsEffect(options);
+  yield* validatePublishPlanEffect(options, targets);
   const packDirectory = yield* Effect.tryPromise({
     try: () => mkdtemp(join(tmpdir(), "sunfall-arc-npm-publish-")),
     catch: (cause) =>
