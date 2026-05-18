@@ -371,6 +371,8 @@ const validatePublishPlanEffect = (options, targets) =>
     }
   });
 
+const isPrereleaseVersion = (version) => version.includes("-");
+
 const npmVersionExistsEffect = (target) =>
   commandEffect(`${target.packageJson.name}@${target.packageJson.version} registry lookup`, "npm", [
     "view",
@@ -386,6 +388,62 @@ const npmVersionExistsEffect = (target) =>
         : Effect.fail(error);
     }),
   );
+
+const npmDistTagsEffect = (target) =>
+  commandEffect(`${target.packageJson.name} dist-tag lookup`, "npm", [
+    "view",
+    target.packageJson.name,
+    "dist-tags",
+    "--json",
+  ]).pipe(
+    Effect.flatMap((result) =>
+      parseJsonEffect(`${target.packageJson.name} dist-tag lookup`, result.stdout),
+    ),
+  );
+
+const ensurePrereleaseIsNotLatestEffect = (target, options) =>
+  Effect.gen(function* () {
+    if (
+      options.dryRun ||
+      options.distTag === "latest" ||
+      !isPrereleaseVersion(target.packageJson.version)
+    ) {
+      return;
+    }
+
+    const distTags = yield* npmDistTagsEffect(target);
+    if (distTags.latest !== target.packageJson.version) {
+      return;
+    }
+    if (distTags[options.distTag] !== target.packageJson.version) {
+      return yield* Effect.fail(
+        fail(
+          `${target.packageJson.name}@${target.packageJson.version} is tagged latest, but ${options.distTag} does not point to it.`,
+          `Add the ${options.distTag} dist-tag before removing latest from this prerelease.`,
+        ),
+      );
+    }
+
+    console.log(
+      `Removing accidental latest dist-tag from ${target.packageJson.name}@${target.packageJson.version}; ${options.distTag} remains.`,
+    );
+    yield* runLoggedCommand(`${target.packageJson.name} latest dist-tag cleanup`, "npm", [
+      "dist-tag",
+      "rm",
+      target.packageJson.name,
+      "latest",
+    ]);
+
+    const updatedDistTags = yield* npmDistTagsEffect(target);
+    if (updatedDistTags.latest === target.packageJson.version) {
+      return yield* Effect.fail(
+        fail(
+          `${target.packageJson.name}@${target.packageJson.version} is still tagged latest after cleanup.`,
+          "Remove the latest dist-tag manually before treating this prerelease publish as complete.",
+        ),
+      );
+    }
+  });
 
 const packPackageEffect = (target, packDirectory) =>
   Effect.gen(function* () {
@@ -431,6 +489,7 @@ const publishTargetEffect = (target, options, packDirectory) =>
         console.log(
           `Skipping ${target.packageJson.name}@${target.packageJson.version}; version already exists on npm.`,
         );
+        yield* ensurePrereleaseIsNotLatestEffect(target, options);
         return { label: target.packageJson.name, status: "skipped" };
       }
     }
@@ -440,6 +499,7 @@ const publishTargetEffect = (target, options, packDirectory) =>
     );
     const tarball = yield* packPackageEffect(target, packDirectory);
     yield* publishTarballEffect(target, tarball, options);
+    yield* ensurePrereleaseIsNotLatestEffect(target, options);
     return { label: target.packageJson.name, status: options.dryRun ? "dry-run" : "published" };
   });
 
