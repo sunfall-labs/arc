@@ -500,105 +500,110 @@ function CookbookIndexView() {
   );
 }
 
-const blogDomainExample = `export const ProjectId = Schema.String.pipe(Schema.brand("ProjectId"));
-export type ProjectId = typeof ProjectId.Type;
+const blogDomainExample = `export const IssueId = Schema.String.pipe(Schema.brand("IssueId"));
+export type IssueId = typeof IssueId.Type;
 
-export const ProjectSchema = Schema.Struct({
-  id: ProjectId,
-  name: Schema.String,
-  ownerId: Schema.String,
+export const IssueStatus = Schema.Literals("open", "triaged", "in_progress", "done");
+
+export const IssueSchema = Schema.Struct({
+  id: IssueId,
+  title: Schema.String,
+  status: IssueStatus,
+  assigneeId: Schema.NullOr(Schema.String),
   updatedAt: Schema.DateFromString,
 });
-export type Project = typeof ProjectSchema.Type;
+export type Issue = typeof IssueSchema.Type;
 
-export const RenameProjectInput = Schema.Struct({
-  id: ProjectId,
-  name: Schema.String,
+export const UpdateIssueStatusInput = Schema.Struct({
+  id: IssueId,
+  status: IssueStatus,
 });`;
 
-const blogContractExample = `export const GetProject = Server.contract<
-  { readonly id: ProjectId },
-  Project,
-  ProjectError
->("Project.get", {
-  input: Schema.Struct({ id: ProjectId }),
-  output: ProjectSchema,
-  error: ProjectErrorSchema,
+const blogContractExample = `export const GetIssue = Server.contract<
+  { readonly id: IssueId },
+  Issue,
+  IssueError
+>("Issue.get", {
+  input: Schema.Struct({ id: IssueId }),
+  output: IssueSchema,
+  error: IssueErrorSchema,
 });`;
 
-const blogResourceExample = `export const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
+const blogResourceExample = `export const IssueApi = Capability.define<IssueApi>("IssueApi");
 
-export const ProjectById = Resource.family({
-  name: "Project.byId",
-  input: ProjectId,
-  output: ProjectSchema,
-  load: (id) => ProjectApi.use((api) => api.get(id)),
-  provides: (project) => [ProjectTag({ id: project.id })],
+export const IssueById = Resource.family({
+  name: "Issue.byId",
+  input: IssueId,
+  output: IssueSchema,
+  load: (id) => IssueApi.use((api) => api.get(id)),
+  provides: (issue) => [IssueTag({ id: issue.id })],
 });`;
 
-const blogRouteExample = `const RouteBuilder = defineFileRoute("/projects/:id");
+const blogRouteExample = `const RouteBuilder = defineFileRoute("/issues/:id");
 
 export const Route = RouteBuilder.preload({
-  params: ProjectRouteParams,
+  params: IssueRouteParams,
   resources: ({ resource }) => [
-    resource(ProjectById, ({ params }) => params.id),
+    resource(IssueById, ({ params }) => params.id),
   ],
 }).route();`;
 
-const blogUiExample = `function ProjectPage(props: Route.Props<typeof ProjectRoute>) {
-  const project = useResource(() => ProjectById(props.params.id));
+const blogUiExample = `function IssuePage(props: Route.Props<typeof IssueRoute>) {
+  const issue = useResource(() => IssueById(props.params.id));
 
-  return project.match({
-    success: (value) => <ProjectView project={value} />,
-    pending: (previous) => previous ? <ProjectView project={previous} refreshing /> : <Skeleton />,
-    failure: (error) => <ProjectError error={error} />,
+  return issue.match({
+    success: (value) => <IssueView issue={value} />,
+    pending: (previous) => previous ? <IssueView issue={previous} refreshing /> : <Skeleton />,
+    failure: (error) => <IssueError error={error} />,
   });
 }`;
 
-const blogTanstackExample = `function ProjectPage({ id }: { readonly id: ProjectId }) {
+const blogTanstackExample = `function IssuePage({ id }: { readonly id: IssueId }) {
   const queryClient = useQueryClient();
-  const project = useQuery({
-    queryKey: ["project", id],
-    queryFn: () => fetchProject(id),
+  const issue = useQuery({
+    queryKey: ["issue", id],
+    queryFn: () => fetchIssue(id),
   });
-  const rename = useMutation({
-    mutationFn: renameProject,
-    onSuccess: (project) =>
-      queryClient.invalidateQueries({ queryKey: ["project", project.id] }),
+  const updateStatus = useMutation({
+    mutationFn: updateIssueStatus,
+    onSuccess: (issue) => {
+      queryClient.invalidateQueries({ queryKey: ["issue", issue.id] });
+      queryClient.invalidateQueries({ queryKey: ["issues"] });
+    },
   });
 
-  return <ProjectView project={project.data} rename={rename.mutate} />;
+  return <IssueView issue={issue.data} updateStatus={updateStatus.mutate} />;
 }`;
 
-const blogStoreExample = `const useProjectStore = create<ProjectStore>((set, get) => ({
-  projectsById: {},
+const blogStoreExample = `const useIssueStore = create<IssueStore>((set, get) => ({
+  issuesById: {},
   pendingById: {},
-  async loadProject(id) {
+  async loadIssue(id) {
     set((state) => ({ pendingById: { ...state.pendingById, [id]: true } }));
-    const project = await fetchProject(id);
+    const issue = await fetchIssue(id);
     set((state) => ({
-      projectsById: { ...state.projectsById, [id]: project },
+      issuesById: { ...state.issuesById, [id]: issue },
       pendingById: { ...state.pendingById, [id]: false },
     }));
   },
-  async renameProject(input) {
-    const project = await renameProject(input);
+  async updateIssueStatus(input) {
+    const issue = await updateIssueStatus(input);
     set((state) => ({
-      projectsById: { ...state.projectsById, [project.id]: project },
+      issuesById: { ...state.issuesById, [issue.id]: issue },
     }));
   },
 }));`;
 
-const blogActionExample = `export const RenameProject = Action.define({
-  name: "Project.rename",
-  input: RenameProjectInput,
-  output: ProjectSchema,
-  run: (input) => ProjectApi.use((api) => api.rename(input)),
-  invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
+const blogActionExample = `export const UpdateIssueStatus = Action.define({
+  name: "Issue.updateStatus",
+  input: UpdateIssueStatusInput,
+  output: IssueSchema,
+  run: (input) => IssueApi.use((api) => api.updateStatus(input)),
+  invalidates: (issue) => [IssuesTag, IssueTag({ id: issue.id })],
 });`;
 
-const blogGraphExample = `sunfall-arc-start graph route /projects/:id
-sunfall-arc-start impact action Project.rename --json`;
+const blogGraphExample = `sunfall-arc-start graph route /issues/:id
+sunfall-arc-start impact action Issue.updateStatus --json`;
 
 function BlogCode(props: { readonly code: string; readonly language?: string }) {
   return <CodeBlock code={props.code} language={props.language ?? "tsx"} />;
@@ -647,18 +652,17 @@ function BlogPostView() {
           truth.
         </p>
         <p>
-          The running demo is a project console for an agent-operated workspace. A Project is the
-          durable workspace record the UI is showing: it has a branded id, a display name, an owner,
-          and a server-backed source of truth. The route reads one project, the UI renders it, the
-          user renames it, and the framework should know exactly which cached data and route output
-          that rename can affect.
+          The running demo is an issue tracker. An Issue is the durable record the UI is showing: it
+          has a branded id, a title, a status, an optional assignee, and a server-backed source of
+          truth. The route reads one issue, the UI renders it, the user changes its status, and the
+          framework should know exactly which cached data and route output that change can affect.
         </p>
         <p>
           In a conventional stack, those facts are usually split apart. A route knows it needs the
-          project. A query key knows how to cache it. A mutation knows how to rename it. A store
-          knows what the sidebar selected. A server handler knows the real permission boundary.
-          Tests know a mock. Devtools know whatever the runtime happened to expose. Those pieces are
-          related, but they usually cannot explain themselves as one system.
+          issue. A query key knows how to cache it. A mutation knows how to update it. A store knows
+          what the sidebar selected. A server handler knows the real permission boundary. Tests know
+          a mock. Devtools know whatever the runtime happened to expose. Those pieces are related,
+          but they usually cannot explain themselves as one system.
         </p>
         <p>
           That is where agents get into trouble. If the route, cache, mutation, store, server
@@ -721,46 +725,46 @@ function BlogPostView() {
 
         <h2 id={blogHeadingId(3)}>The hero slice: route, resource, action, graph</h2>
         <p>
-          The smallest useful example is the Project detail page: a route that owns the Project
-          Resource, an Action that renames the same Project, and a graph artifact that can explain
-          the relationship before code changes ship.
+          The smallest useful example is the Issue detail page: a route that owns the Issue
+          Resource, an Action that updates the same Issue, and a graph artifact that can explain the
+          relationship before code changes ship.
         </p>
         <p>
           Here is the domain shape the rest of the examples are using. The branded id prevents a
-          random string from being passed where a Project id is required, and the schema is reused
-          by the server contract, Resource, Action, tests, and hydration payload.
+          random string from being passed where an Issue id is required, and the schema is reused by
+          the server contract, Resource, Action, tests, and hydration payload.
         </p>
         <BlogCode code={blogDomainExample} />
         <p>
-          Start with the browser-safe contract for loading one Project. The client can import the
+          Start with the browser-safe contract for loading one Issue. The client can import the
           schema and typed handle; the handler stays in a server-only module.
         </p>
         <BlogCode code={blogContractExample} />
 
         <p>
-          Expose that contract through a Capability, then define a Resource around the Project value
+          Expose that contract through a Capability, then define a Resource around the Issue value
           the UI needs. The Resource owns the input schema, output schema, loading Effect, cache
           identity, and semantic tags it provides.
         </p>
         <BlogCode code={blogResourceExample} />
 
         <p>
-          The file route declares that the Project detail page owns that Resource. During SSR, Start
+          The file route declares that the Issue detail page owns that Resource. During SSR, Start
           runs the preload in the request runtime, renders with the Resource available, and streams
           hydration data for the client runtime.
         </p>
         <BlogCode code={blogRouteExample} />
 
         <p>
-          The component reads the same Project Resource. It does not need to know whether the value
+          The component reads the same Issue Resource. It does not need to know whether the value
           came from SSR preload, client navigation, a refresh, or a hydrated action response.
         </p>
         <BlogCode code={blogUiExample} />
 
         <p>
-          The rename Action keeps write behavior in the same graph. It has a stable name, a schema,
-          an Effect, and an invalidation plan expressed as domain tags rather than string cache
-          keys.
+          The status update Action keeps write behavior in the same graph. It has a stable name, a
+          schema, an Effect, and an invalidation plan expressed as domain tags rather than string
+          cache keys.
         </p>
         <BlogCode code={blogActionExample} />
 
@@ -777,8 +781,9 @@ function BlogPostView() {
           effect be typed, generated, inspected, and verified?
         </p>
         <p>
-          TanStack Query is excellent at async reads and mutations. A common project page would use
-          a query keyed by project id and a mutation that invalidates or updates related query keys.
+          TanStack Query is excellent at async reads and mutations. A common issue detail page would
+          use a query keyed by issue id and a mutation that invalidates or updates related query
+          keys.
         </p>
         <BlogCode code={blogTanstackExample} />
         <p>
@@ -801,7 +806,7 @@ function BlogPostView() {
         </p>
         <BlogCode code={blogStoreExample} />
         <p>
-          For durable app behavior - projects, sessions, local-first rows, pending writes, resource
+          For durable app behavior - issues, sessions, local-first rows, pending writes, resource
           lifetimes, form submissions, permissioned server calls - Arc wants a typed Signal,
           Resource, Action, Form, Collection, Route, or Capability instead of an opaque global
           store.

@@ -130,15 +130,15 @@ describe("docs site", () => {
         expect(html).toContain('href="#what-arc-replaces"');
         expect(html).toContain("The hero slice: route, resource, action, graph");
         expect(html).toContain('href="#the-hero-slice-route-resource-action-graph"');
-        expect(html).toContain("The running demo is a project console");
-        expect(visibleText).toContain("export const ProjectId");
+        expect(html).toContain("The running demo is an issue tracker");
+        expect(visibleText).toContain("export const IssueId");
         expect(html).toContain("Built by an agent, verified in public");
         expect(html).toContain("For durable app behavior");
         expect(html).toContain('class="shiki github-dark-default"');
         expect(html).toContain('data-language="Shell"');
         expect(visibleText).toContain("queryClient.invalidateQueries");
-        expect(visibleText).toContain("const useProjectStore = create");
-        expect(visibleText).toContain("sunfall-arc-start graph route /projects/:id");
+        expect(visibleText).toContain("const useIssueStore = create");
+        expect(visibleText).toContain("sunfall-arc-start graph route /issues/:id");
         expect(html).toContain("Resource from a server function");
         expect([...pairs]).toContain(
           JSON.stringify([RecipeIndexRef.family.options.name, RecipeIndexRef.key]),
