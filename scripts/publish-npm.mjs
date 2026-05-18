@@ -401,6 +401,31 @@ const npmDistTagsEffect = (target) =>
     ),
   );
 
+const commandErrorFacts = (error) =>
+  `${error.message ?? ""} ${error.repair ?? ""} ${error.cause?.stderr ?? ""} ${error.cause?.stdout ?? ""}`;
+
+const removeLatestDistTagEffect = (target) =>
+  runLoggedCommand(`${target.packageJson.name} latest dist-tag cleanup`, "npm", [
+    "dist-tag",
+    "rm",
+    target.packageJson.name,
+    "latest",
+  ]).pipe(
+    Effect.as(true),
+    Effect.catch((error) => {
+      const facts = commandErrorFacts(error);
+      if (facts.includes("E400") && facts.includes("/dist-tags/latest")) {
+        return Effect.sync(() => {
+          console.warn(
+            `npm refused to remove latest from ${target.packageJson.name}; leaving the first prerelease tagged latest until a stable release can replace it.`,
+          );
+          return false;
+        });
+      }
+      return Effect.fail(error);
+    }),
+  );
+
 const ensurePrereleaseIsNotLatestEffect = (target, options) =>
   Effect.gen(function* () {
     if (
@@ -427,12 +452,10 @@ const ensurePrereleaseIsNotLatestEffect = (target, options) =>
     console.log(
       `Removing accidental latest dist-tag from ${target.packageJson.name}@${target.packageJson.version}; ${options.distTag} remains.`,
     );
-    yield* runLoggedCommand(`${target.packageJson.name} latest dist-tag cleanup`, "npm", [
-      "dist-tag",
-      "rm",
-      target.packageJson.name,
-      "latest",
-    ]);
+    const removed = yield* removeLatestDistTagEffect(target);
+    if (!removed) {
+      return;
+    }
 
     const updatedDistTags = yield* npmDistTagsEffect(target);
     if (updatedDistTags.latest === target.packageJson.version) {
