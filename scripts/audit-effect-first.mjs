@@ -1077,6 +1077,11 @@ const banned = [
         "React Router comparison mutation await",
         /await renameProject\(name\)/,
       ),
+      seam(
+        "examples/docs-site/src/main.tsx",
+        "docs-site dev-only BrowserRpcLive dynamic import",
+        /Layer\.mergeAll\(\(await import\(\)\)\.BrowserRpcLive,\s*DocsContentApiLive\)/,
+      ),
     ],
   },
   {

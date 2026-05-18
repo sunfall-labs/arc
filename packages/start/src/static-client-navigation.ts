@@ -51,7 +51,7 @@ export interface StartStaticHistoryAdapterOptions<
   readonly basePath?: string;
   readonly hydratedHrefs?: string | readonly string[];
   readonly getWindow?: () => StartStaticHistoryWindow | undefined;
-  readonly fetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+  readonly fetch?: typeof globalThis.fetch;
   readonly parseDocument?: (html: string) => Document;
   readonly shouldHydrateHref?: (match: Route.Match<Routes[number]>) => boolean;
 }
