@@ -95,10 +95,10 @@ function DocsShell() {
     <main class="docsShell">
       <aside class="docsSidebar">
         <a href={Route.href(HomeUiRoute)} class="brandLink">
-          <span class="brandMark">E</span>
+          <span class="brandMark">A</span>
           <span>
             <strong>Sunfall Arc</strong>
-            <small>Cookbook</small>
+            <small>Docs</small>
           </span>
         </a>
         <DocsNav />
