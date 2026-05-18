@@ -415,11 +415,11 @@ const removeLatestDistTagEffect = (target) =>
     Effect.catch((error) => {
       const facts = commandErrorFacts(error);
       if (
-        facts.includes("/dist-tags/latest") &&
-        (facts.includes("E400") ||
-          facts.includes("E401") ||
-          facts.includes("E403") ||
-          facts.includes("ENEEDAUTH"))
+        (facts.includes("E400") && facts.includes("/dist-tags/latest")) ||
+        facts.includes("E401") ||
+        facts.includes("E403") ||
+        facts.includes("ENEEDAUTH") ||
+        facts.includes("Unable to authenticate")
       ) {
         return Effect.sync(() => {
           console.warn(
