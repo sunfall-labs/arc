@@ -12,7 +12,7 @@
 
 ## Define one Action
 
-Define the mutation once as an Action. Validation failure, domain failure, redirect, and success are values, not hidden thrown control flow.
+Define the mutation once as an Action. Validation failure, domain failure, redirect, and success are typed values, not hidden control flow.
 
 ```ts
 export const SubmitProjectName = Action.define({
@@ -27,7 +27,7 @@ export const SubmitProjectName = Action.define({
 
 ## Generate a plain form target
 
-Generate the form target from the Action. The hidden fields carry the Action name and encoded input for no-JS posts.
+Generate the form target from the Action. The hidden fields carry the Action name and encoded input for plain HTML posts.
 
 ```ts
 const form = StartAction.form(SubmitProjectName, {

@@ -46,7 +46,7 @@ export const docsPages = [
     blocks: [
       {
         _tag: "Paragraph",
-        text: "Sunfall Arc is a public alpha for agent-operated TypeScript apps. The fastest way to learn it is to run a checked starter, then follow the guided tour and cookbook recipes.",
+        text: "Sunfall Arc is a public alpha for agent-operated TypeScript apps. Start with a checked starter, then use the guided tour and cookbook to see the same contracts in small slices.",
       },
       {
         _tag: "Heading",
@@ -59,7 +59,7 @@ export const docsPages = [
       },
       {
         _tag: "Paragraph",
-        text: "React apps use the React adapter packages instead of the Solid adapter. Start apps add the host facade they deploy through, such as @sunfall/arc-start-fetch or @sunfall/arc-start-node.",
+        text: "React apps use the React adapter packages instead of the Solid adapter. Start apps also add the host facade they deploy through, such as @sunfall/arc-start-fetch or @sunfall/arc-start-node.",
       },
       {
         _tag: "Heading",
@@ -73,8 +73,8 @@ export const docsPages = [
       {
         _tag: "List",
         items: [
-          "Use the basic starter for the smallest full-stack app shell.",
-          "Use the React starter for the shadcn-compatible React path.",
+          "Basic starter: the smallest checked full-stack app shell.",
+          "React starter: the React adapter path with Tailwind v4 and shadcn-compatible structure.",
           "Use the project console example when you want actions, collections, mocks, and diagnostics together.",
           "Use this docs site when you want to see server functions, Capabilities, Resources, file-route preload, SSR, prerendering, and hydration in one small app.",
         ],
@@ -85,7 +85,7 @@ export const docsPages = [
     slug: "core-concepts",
     section: "Learn",
     title: "Core concepts",
-    summary: "The vocabulary behind Arc's agent-readable app graph.",
+    summary: "The vocabulary behind Arc's typed, agent-readable app graph.",
     blocks: [
       {
         _tag: "Paragraph",
@@ -102,7 +102,7 @@ export const docsPages = [
       {
         _tag: "List",
         items: [
-          "Capability: a named service seam for live APIs, server clients, and test layers.",
+          "Capability: a named service boundary for live APIs, server clients, and test layers.",
           "Server contract: a schema-described boundary between browser-safe clients and server-only handlers.",
           "Resource: a named async data family with input/output schemas, cache state, retry policy, and semantic tags.",
           "Action: a named mutation with typed input/output, Effect execution, and invalidation policy.",
@@ -113,7 +113,7 @@ export const docsPages = [
       },
       {
         _tag: "Heading",
-        text: "The agent-native rule of thumb",
+        text: "The ownership rule",
       },
       {
         _tag: "Paragraph",
@@ -244,7 +244,7 @@ return project.match({
       },
       {
         _tag: "Heading",
-        text: "Current alpha expectation",
+        text: "Alpha expectations",
       },
       {
         _tag: "Paragraph",
@@ -337,7 +337,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Convert host Promise work with Effect.tryPromise at the adapter seam. Resource.load, Action.run, Server.implement handlers, and route preload should stay Effect-first.",
+        text: "Convert host Promise work with Effect.tryPromise at the adapter boundary. Resource.load, Action.run, Server.implement handlers, and route preload should stay Effect-first.",
       },
       {
         _tag: "Heading",
@@ -358,7 +358,7 @@ createServer(
     slug: "examples",
     section: "Reference",
     title: "Examples and starters",
-    summary: "Choose the smallest example that matches the question you are trying to answer.",
+    summary: "Choose the smallest checked example that matches the question you are answering.",
     blocks: [
       {
         _tag: "List",
@@ -366,14 +366,14 @@ createServer(
           "Basic starter: the smallest checked full-stack shell with SSR, hydration, route-owned Resource preload, and leak scanning.",
           "React starter: the React adapter path with Tailwind v4, Base UI, shadcn-compatible structure, file routes, SSR, hydration, and leak scanning.",
           "Project console: the larger golden path for actions, local-first Collections, optimistic work, mocks, and diagnostics.",
-          "Docs site: the dogfooded cookbook and public alpha docs app you are reading now.",
+          "Docs site: the live cookbook and public alpha docs app you are reading now.",
           "Devtools panel and extension examples: checked hosts for JSON-safe runtime summaries and inspected-window bridge contracts.",
         ],
       },
       {
         _tag: "Code",
         language: "shellscript",
-        code: "pnpm starter:verify\npnpm react-starter:verify\npnpm project-console:verify\npnpm docs-site:verify\npnpm devtools-panel:verify\npnpm devtools-extension:verify",
+        code: "pnpm starter:verify\npnpm react-starter:verify\npnpm --filter @sunfall/arc-example-project-console verify\npnpm docs-site:verify\npnpm devtools-panel:verify\npnpm devtools-extension:verify",
       },
     ],
   },

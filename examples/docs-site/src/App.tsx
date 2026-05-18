@@ -131,7 +131,7 @@ const blogRailItems = createPageRailItems([
   { blockIndex: 3, level: 2, text: "The hero slice: route, resource, action, graph" },
   { blockIndex: 4, level: 2, text: "What conventional stacks would do" },
   { blockIndex: 5, level: 2, text: "What Arc replaces" },
-  { blockIndex: 6, level: 2, text: "Built by an agent, with receipts" },
+  { blockIndex: 6, level: 2, text: "Built by an agent, verified in public" },
   { blockIndex: 7, level: 2, text: "What this alpha does not claim" },
 ]);
 
@@ -315,11 +315,11 @@ function HomeView() {
   return (
     <article class="pageStack">
       <header class="heroBand">
-        <p class="eyebrow">Dogfooded docs</p>
-        <h1>Cookbook recipes backed by Sunfall Arc Resources.</h1>
+        <p class="eyebrow">Built with Arc</p>
+        <h1>Sunfall Arc docs and cookbook.</h1>
         <p>
-          This docs site is itself a Start app: content is loaded through server functions, exposed
-          through a Capability, preloaded by file routes, and hydrated before the UI mounts.
+          This site is a small Arc app: recipes load through server functions, pass through a
+          Capability-backed Resource, preload from file routes, and hydrate before the UI mounts.
         </p>
         <a href={Route.href(CookbookUiRoute)} class="primaryLink">
           Browse cookbook
@@ -363,10 +363,10 @@ function DocsOverviewView() {
     <article class="pageStack">
       <header class="pageHeader">
         <p class="eyebrow">Documentation</p>
-        <h1>Public alpha docs for agent-native app correctness.</h1>
+        <h1>Docs for agent-operated TypeScript apps.</h1>
         <p>
-          Start here when you want to understand how Arc turns full-stack TypeScript apps into
-          typed, inspectable definitions that can be checked by humans, CI, and agents.
+          Start here to learn how Arc turns full-stack TypeScript behavior into typed, inspectable
+          definitions that humans, CI, and agents can check before release.
         </p>
       </header>
 
@@ -388,11 +388,10 @@ function DocsOverviewView() {
 
       <section class="featureCallout" aria-label="Cookbook next step">
         <p class="eyebrow">Next step</p>
-        <h2>Use the cookbook once the concepts click</h2>
+        <h2>Use the cookbook for working slices</h2>
         <p>
-          The cookbook recipes are intentionally small, but each one follows the same public
-          contracts: Effect-first callbacks, typed schemas, route-owned preload, and explicit
-          invalidation.
+          Each recipe is intentionally small, but the shape is real: Effect-first callbacks, typed
+          schemas, route-owned preload, explicit invalidation, and testable boundaries.
         </p>
         <a href={Route.href(CookbookUiRoute)} class="primaryLink">
           Browse cookbook
@@ -482,10 +481,11 @@ function CookbookIndexView() {
     <article class="pageStack">
       <header class="pageHeader">
         <p class="eyebrow">Cookbook</p>
-        <h1>Idiomatic Sunfall Arc examples</h1>
+        <h1>Working Sunfall Arc recipes</h1>
         <p>
-          Each recipe is intentionally small enough to copy, but still follows the framework rules:
-          Effect-first callbacks, typed schemas, and explicit route data ownership.
+          Each recipe is small enough to copy, but it still follows the framework contracts:
+          Effect-first callbacks, typed schemas, route-owned data, and checks that explain what
+          changed.
         </p>
       </header>
 
@@ -639,7 +639,7 @@ function BlogPostView() {
         </p>
         <p>
           That is where agents get into trouble. If the route, cache, mutation, store, server
-          boundary, and test seam are implicit agreements, an agent has to reverse-engineer them
+          boundary, and test boundary are implicit agreements, an agent has to reverse-engineer them
           before it can make a safe edit.
         </p>
 
@@ -659,7 +659,8 @@ function BlogPostView() {
           <li>Read: generated route trees, Start app graphs, diagnostics reports, and devtools.</li>
           <li>Change: stable Resources, Actions, Forms, Collections, Routes, and Capabilities.</li>
           <li>
-            Verify: TypeScript gates, schema checks, build policy, graph impact, and pnpm verify.
+            Verify: TypeScript gates, schema checks, build policy, graph impact, and{" "}
+            <code class="inlineCode">pnpm verify</code>.
           </li>
         </ul>
 
@@ -728,7 +729,7 @@ function BlogPostView() {
 
         <p>
           The Action keeps write behavior in the same graph. It has a stable name, a schema, an
-          Effect, and an invalidation plan expressed as domain tags rather than stringly cache keys.
+          Effect, and an invalidation plan expressed as domain tags rather than string cache keys.
         </p>
         <BlogCode code={blogActionExample} />
 
@@ -752,7 +753,7 @@ function BlogPostView() {
         <p>
           That handles the client cache well. Arc pushes the boundary outward: the cache entry,
           route data contract, server function contract, invalidation plan, SSR hydration payload,
-          mock seam, and diagnostic graph all connect through the same typed definitions.
+          mock boundary, and diagnostic graph all connect through the same typed definitions.
         </p>
 
         <h2 id={blogHeadingId(5)}>What Arc replaces</h2>
@@ -781,12 +782,13 @@ function BlogPostView() {
           state model.
         </p>
 
-        <h2 id={blogHeadingId(6)}>Built by an agent, with receipts</h2>
+        <h2 id={blogHeadingId(6)}>Built by an agent, verified in public</h2>
         <p>
           Arc was built by an agent working inside this model. That is not the headline value; it is
-          the receipt. The repo is full of generated route artifacts, graph diagnostics, public API
-          manifests, type tests, package dry runs, leak scans, architecture docs, and release gates
-          because the framework has to stay legible to the next agent that edits it.
+          a proof point for the framework itself. The repo includes generated route artifacts, graph
+          diagnostics, public API manifests, type tests, package dry runs, leak scans, architecture
+          docs, and release gates because the framework has to stay legible to the next agent that
+          edits it.
         </p>
         <p>
           The ambition is not that agents should write code unchecked. It is the opposite: agentic
@@ -799,8 +801,8 @@ function BlogPostView() {
         <p>
           Sunfall Arc is not pretending to be a finished ecosystem. Platform-specific packages for
           every host can wait until real deployments demand them. The first public alpha is about
-          the core spine: typed definitions, Effect runtimes, Start SSR and hydration, Solid and
-          React adapters, local-first collections, app graph diagnostics, devtools contracts,
+          the core foundation: typed definitions, Effect runtimes, Start SSR and hydration, Solid
+          and React adapters, local-first collections, app graph diagnostics, devtools contracts,
           starters, package gates, and docs that are themselves built with the framework.
         </p>
         <p>

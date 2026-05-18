@@ -2,7 +2,7 @@
 {
   "title": "Route preload and hydration",
   "category": "routing",
-  "summary": "Declare the Resources a route owns so SSR, streamed hydration, diagnostics, and agents agree on the same data edge.",
+  "summary": "Declare the Resources a route owns so SSR, streamed hydration, diagnostics, and agents share the same route-data contract.",
   "order": 2,
   "related": ["resource-from-server-function"],
 }
@@ -12,7 +12,7 @@
 
 ## Declare route-owned data
 
-File routes should declare the data they own. Arc can then explain what a page needs before rendering it.
+File routes should declare the data they own. Arc can then explain and verify what a page needs before rendering it.
 
 ```ts
 const RouteBuilder = defineFileRoute("/projects/:id");
@@ -41,9 +41,9 @@ export const handleRequest = createRequestHandler(app, {
         shell: htmlChunk("<!doctype html><div id=\"root\">"),
         chunks: Stream.make(htmlChunk(body)),
         hydrationPlan,
-        tail: htmlChunk("</div>")
+        tail: htmlChunk("</div>"),
       });
-    })
+    }),
 });
 ```
 

@@ -12,7 +12,7 @@
 
 ## Depend on a Capability
 
-Application definitions should depend on a Capability. Tests can provide a layer that satisfies the same interface.
+Application definitions should depend on a Capability. Tests can provide a layer that satisfies the same interface, so the Resource or Action stays unchanged.
 
 ```ts
 const ProjectApiTest = ProjectApi.layer({
@@ -28,16 +28,14 @@ Run the same Resource through a runtime with the test layer.
 ```ts
 const runtime = makeRuntime(ProjectApiTest);
 
-const project =
-  yield *
-  runtime.provide(
-    Effect.gen(function* () {
-      yield* Resource.prefetchEffect(ProjectById(makeProjectId("atlas")));
-      return Resource.read(ProjectById(makeProjectId("atlas")));
-    }),
-  );
+const project = yield* runtime.provide(
+  Effect.gen(function* () {
+    yield* Resource.prefetchEffect(ProjectById(makeProjectId("atlas")));
+    return Resource.read(ProjectById(makeProjectId("atlas")));
+  }),
+);
 ```
 
 ## Keep tests browser-safe
 
-This keeps tests browser-safe. They exercise the public app seam without importing `.server.ts` modules.
+This keeps tests browser-safe. They exercise the public app boundary without importing `.server.ts` modules.

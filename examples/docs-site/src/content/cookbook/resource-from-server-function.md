@@ -38,7 +38,7 @@ export const getProject = Server.implement(GetProjectContract, ({ id }) =>
 
 ## Expose a Capability
 
-Expose the contract through a named Capability. Resources and actions depend on the capability, not on a transport detail.
+Expose the contract through a named Capability. Resources and Actions depend on the Capability, not on a transport detail.
 
 ```ts
 export const ProjectApiLive = ProjectApi.layer({

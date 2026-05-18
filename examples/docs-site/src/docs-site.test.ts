@@ -41,6 +41,26 @@ const resourcePairs = (chunks: ReadonlyArray<StartHydrationChunk>): ReadonlySet<
   );
 
 describe("docs site", () => {
+  it("renders the home page with public-facing Arc copy", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const response = yield* Effect.scoped(
+          serverApp.runtime.provide(handleRequest(new Request("https://docs.test/"))),
+        );
+        const html = yield* Effect.tryPromise(() => response.text());
+        const pairs = resourcePairs(streamHydrationChunksFrom(html));
+
+        expect(response.status).toBe(200);
+        expect(html).toContain("Built with Arc");
+        expect(html).toContain("Sunfall Arc docs and cookbook.");
+        expect(html).toContain("Capability-backed Resource");
+        expect(html).not.toContain("Dogfooded");
+        expect([...pairs]).toContain(
+          JSON.stringify([RecipeIndexRef.family.options.name, RecipeIndexRef.key]),
+        );
+      }),
+    ));
+
   it("renders the cookbook index through route-owned Resource preload", () =>
     Effect.runPromise(
       Effect.gen(function* () {
@@ -53,7 +73,7 @@ describe("docs site", () => {
         expect(response.status).toBe(200);
         expect(response.headers.get("x-sunfall-arc-docs")).toBe("cookbook");
         expect(html).toContain('href="/src/styles.css"');
-        expect(html).toContain("Idiomatic Sunfall Arc examples");
+        expect(html).toContain("Working Sunfall Arc recipes");
         expect(html).toContain("Resource from a server function");
         expect(html).toContain("Progressive Start action form");
         expect([...pairs]).toContain(
@@ -110,7 +130,7 @@ describe("docs site", () => {
         expect(html).toContain('href="#what-arc-replaces"');
         expect(html).toContain("The hero slice: route, resource, action, graph");
         expect(html).toContain('href="#the-hero-slice-route-resource-action-graph"');
-        expect(html).toContain("Built by an agent, with receipts");
+        expect(html).toContain("Built by an agent, verified in public");
         expect(html).toContain("For durable app behavior");
         expect(html).toContain('class="shiki github-dark-default"');
         expect(html).toContain('data-language="Shell"');
@@ -144,7 +164,7 @@ describe("docs site", () => {
         const referenceHtml = yield* Effect.tryPromise(() => referenceResponse.text());
 
         expect(overviewResponse.status).toBe(200);
-        expect(overviewHtml).toContain("Public alpha docs for agent-native app correctness.");
+        expect(overviewHtml).toContain("Docs for agent-operated TypeScript apps.");
         expect(overviewHtml).toContain("Getting started");
         expect(overviewHtml).toContain("Troubleshooting");
         expect(gettingStartedResponse.status).toBe(200);
