@@ -12,7 +12,7 @@
 
 ## Declare route-owned data
 
-File routes should declare the data they own. The app graph can then explain what a page needs before rendering it.
+File routes should declare the data they own. Arc can then explain what a page needs before rendering it.
 
 ```ts
 const RouteBuilder = defineFileRoute("/projects/:id");

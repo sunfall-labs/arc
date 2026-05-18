@@ -2,7 +2,7 @@
 {
   "title": "Semantic invalidation tags",
   "category": "resources",
-  "summary": "Model invalidation as domain facts so actions refresh Resources by meaning instead of by string cache keys.",
+  "summary": "Model invalidation with domain tags so actions refresh Resources by meaning instead of by string cache keys.",
   "order": 4,
   "related": ["start-action-form", "resource-from-server-function"],
 }
@@ -10,9 +10,9 @@
 
 # Semantic invalidation tags
 
-## Describe domain facts
+## Describe domain tags
 
-Tags describe domain facts. They are typed values with stable identity, not cache-key conventions.
+Tags describe domain concepts. They are typed values with stable identity, not cache-key conventions.
 
 ```ts
 export const ProjectsTag = Resource.tag("Projects");
@@ -21,9 +21,9 @@ export const ProjectTag = Resource.tag<{ readonly id: ProjectId }>("Project", {
 });
 ```
 
-## Publish provided facts
+## Publish provided tags
 
-Resources publish the facts they provide after a successful load.
+Resources publish the tags they provide after a successful load.
 
 ```ts
 export const ProjectById = Resource.family({
@@ -37,7 +37,7 @@ export const ProjectById = Resource.family({
 
 ## Invalidate after mutation
 
-Actions invalidate facts after mutation success. Devtools and tests can inspect the plan before refresh work runs.
+Actions invalidate tags after mutation success. Devtools and tests can inspect the plan before refresh work runs.
 
 ```ts
 export const RenameProject = Action.define({

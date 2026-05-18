@@ -77,9 +77,9 @@ describe("docs site", () => {
 
         expect(response.status).toBe(200);
         expect(html).toContain("Semantic invalidation tags");
-        expect(html).toContain("Tags describe domain facts");
+        expect(html).toContain("Tags describe domain concepts");
         expect(html).toContain('aria-label="On this page"');
-        expect(html).toContain('href="#describe-domain-facts"');
+        expect(html).toContain('href="#describe-domain-tags"');
         expect(html).toContain('id="invalidate-after-mutation"');
         expect(html).toContain("Related recipes");
         expect([...pairs]).toContain(
@@ -105,6 +105,7 @@ describe("docs site", () => {
         expect(html).toContain("One typed graph for your full-stack TypeScript app.");
         expect(html).toContain("What TanStack Query would do");
         expect(html).toContain('href="#what-tanstack-query-would-do"');
+        expect(html).toContain("In Arc, a definition is a named typed declaration");
         expect(html).toContain("What React, Solid, Zustand, and Jotai would do");
         expect(html).toContain('href="#what-arc-gives-you-instead"');
         expect(html).toContain("A guided slice: route, resource, and UI");
@@ -141,7 +142,7 @@ describe("docs site", () => {
         const referenceHtml = yield* Effect.tryPromise(() => referenceResponse.text());
 
         expect(overviewResponse.status).toBe(200);
-        expect(overviewHtml).toContain("Public alpha docs for the typed app graph.");
+        expect(overviewHtml).toContain("Public alpha docs for Arc's typed app definitions.");
         expect(overviewHtml).toContain("Getting started");
         expect(overviewHtml).toContain("Troubleshooting");
         expect(gettingStartedResponse.status).toBe(200);

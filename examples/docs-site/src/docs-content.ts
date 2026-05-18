@@ -84,11 +84,11 @@ export const docsPages = [
     slug: "core-concepts",
     section: "Learn",
     title: "Core concepts",
-    summary: "The vocabulary behind Arc's typed app graph.",
+    summary: "The vocabulary behind Arc's typed app definitions.",
     blocks: [
       {
         _tag: "Paragraph",
-        text: "Arc is organized around named definitions that can run at runtime and remain inspectable as framework facts.",
+        text: "Arc is organized around named definitions: typed declarations that can run at runtime and remain visible to tooling.",
       },
       {
         _tag: "List",
@@ -99,7 +99,7 @@ export const docsPages = [
           "Action: a named mutation with typed input/output, Effect execution, and invalidation policy.",
           "Route: a typed URL definition that can declare the Resources and Collections it owns before render.",
           "Collection: a local-first data definition for persistence, optimistic queues, sync adapters, and live queries.",
-          "Start graph: deterministic route, resource, action, collection, endpoint, and module facts for diagnostics, CI, devtools, and agents.",
+          "Start graph: deterministic metadata about routes, resources, actions, collections, endpoints, and modules for diagnostics, CI, devtools, and agents.",
         ],
       },
       {
@@ -108,7 +108,7 @@ export const docsPages = [
       },
       {
         _tag: "Paragraph",
-        text: "If a fact matters to rendering, mutation, caching, testing, deployment, or diagnostics, it should have a typed owner instead of living as an ad hoc convention inside component code.",
+        text: "If state or behavior matters to rendering, mutation, caching, testing, deployment, or diagnostics, it should have a typed owner instead of living as an ad hoc convention inside component code.",
       },
     ],
   },

@@ -334,8 +334,8 @@ function HomeView() {
         <h2>Why Sunfall Arc exists</h2>
         <p>
           The first public alpha is about making full-stack TypeScript feel inspectable: data
-          loading, mutations, routing, server boundaries, and local state all become typed framework
-          facts instead of scattered conventions.
+          loading, mutations, routing, server boundaries, and local state all become named typed
+          definitions instead of scattered conventions.
         </p>
         <a href={Route.href(BlogPostUiRoute)} class="primaryLink">
           Read the introduction
@@ -363,7 +363,7 @@ function DocsOverviewView() {
     <article class="pageStack">
       <header class="pageHeader">
         <p class="eyebrow">Documentation</p>
-        <h1>Public alpha docs for the typed app graph.</h1>
+        <h1>Public alpha docs for Arc's typed app definitions.</h1>
         <p>
           Start here when you want to understand what Arc is, how to try it, and where each core
           concept fits before reaching for the cookbook.
@@ -598,7 +598,7 @@ function BlogPostView() {
           Sunfall Arc is easiest to understand by comparing it to the stack it can collapse:
           TanStack Query for server state, React or Solid primitives for local reactivity, Zustand
           or Jotai for shared app state, route preload glue, form action plumbing, typed API
-          clients, and a pile of diagnostics that arrive after the fact.
+          clients, and a pile of diagnostics that usually arrive too late.
         </p>
       </header>
 
@@ -615,21 +615,27 @@ function BlogPostView() {
           A route knows it needs a project. A query key knows how to cache it. A mutation knows how
           to rename it. A store knows what the sidebar has selected. A server handler knows the real
           permission boundary. Tests know a mock. Devtools know whatever the runtime exposes. Those
-          facts are related, but in most apps they are not one thing.
+          pieces are related, but in most apps they are not one thing.
         </p>
         <p>
-          Arc is built around a different bet: framework behavior should be preserved as typed,
-          inspectable facts. Routes, Resources, Actions, server functions, Collections, Forms, and
-          Capabilities are not just helpers. They are the nouns the app uses to explain itself to
-          the renderer, the server, tests, devtools, CI, and agents.
+          Arc is built around a different bet: framework behavior should be modeled as typed
+          definitions the runtime and tooling can both understand. Routes, Resources, Actions,
+          server functions, Collections, Forms, and Capabilities are not just helpers. They are the
+          nouns the app uses to explain itself to the renderer, the server, tests, devtools, CI, and
+          agents.
         </p>
 
         <h2 id={blogHeadingId(0)}>The comparison in one sentence</h2>
         <p>
           If a value is a private UI detail, keep using React state, Solid signals, or ordinary
-          component state. If it is a domain fact that loads, mutates, hydrates, persists,
-          invalidates, crosses the server boundary, or needs to be inspected by tooling, Arc wants
-          it in the app graph.
+          component state. If it is domain state or behavior that loads, mutates, hydrates,
+          persists, invalidates, crosses the server boundary, or needs to be inspected by tooling,
+          Arc wants a named definition for it.
+        </p>
+        <p>
+          In Arc, a definition is a named typed declaration the framework can run and inspect: a
+          Route, Resource, Action, Form, Collection, Capability, Signal, or server contract. The app
+          graph is the map Arc builds from those definitions.
         </p>
         <p>That means Arc is trying to replace much of the glue where teams normally combine:</p>
         <ul>
@@ -641,7 +647,7 @@ function BlogPostView() {
         </ul>
         <p>
           The point is not that those tools are weak. The point is that Arc gives the important
-          facts one typed owner before they scatter.
+          definitions one typed owner before they scatter.
         </p>
 
         <h2 id={blogHeadingId(1)}>What TanStack Query would do</h2>
@@ -664,7 +670,7 @@ function BlogPostView() {
         <p>
           In other words: TanStack Query is a superb server-state cache. Arc wants the server-state
           cache, the route data contract, the server function contract, the invalidation plan, and
-          the diagnostic graph to be the same typed fact.
+          the diagnostic graph to be connected through the same typed definitions.
         </p>
 
         <h2 id={blogHeadingId(2)}>What React, Solid, Zustand, and Jotai would do</h2>
@@ -682,16 +688,16 @@ function BlogPostView() {
         <p>
           That works, but now the store owns some behavior the framework cannot understand. Which
           route needs this data before render? Which server function is safe to call from the
-          browser? Which mutation invalidates which facts? What does SSR need to serialize? Which
-          mock should tests provide? The store can answer these questions only if you build more
-          conventions around it.
+          browser? Which Resources or Collections should refresh after a mutation? What does SSR
+          need to serialize? Which mock should tests provide? The store can answer these questions
+          only if you build more conventions around it.
         </p>
         <p>
           Arc is meant to replace Zustand and Jotai for domain state, not for every tiny UI toggle.
-          If the state represents app facts - projects, sessions, local-first rows, pending writes,
-          resource lifetimes, form submissions, permissioned server calls - Arc wants it as a
-          Signal, Resource, Action, Form, Collection, Route, or Capability instead of an opaque
-          global store.
+          If the state represents durable app behavior - projects, sessions, local-first rows,
+          pending writes, resource lifetimes, form submissions, permissioned server calls - Arc
+          wants a typed Signal, Resource, Action, Form, Collection, Route, or Capability instead of
+          an opaque global store.
         </p>
 
         <h2 id={blogHeadingId(3)}>What Arc gives you instead</h2>
@@ -711,7 +717,7 @@ function BlogPostView() {
           </li>
           <li>
             Start emits deterministic route, resource, action, collection, endpoint, and module
-            facts.
+            metadata.
           </li>
         </ul>
         <p>
@@ -729,7 +735,7 @@ function BlogPostView() {
         <BlogCode code={blogContractExample} />
 
         <p>
-          Expose that contract through a Capability, then define a Resource around the domain fact
+          Expose that contract through a Capability, then define a Resource around the domain value
           the UI needs. The Resource owns the input schema, output schema, loading Effect, cache
           identity, and semantic tags it provides.
         </p>
@@ -774,8 +780,8 @@ function BlogPostView() {
         <h2 id={blogHeadingId(6)}>The graph becomes a release artifact</h2>
         <p>
           Because routes, Resources, Actions, server functions, Collections, and modules are named
-          facts, Start can emit a deterministic graph. Humans can read it, CI can enforce it, and
-          agents can use it to make focused edits without guessing how files fit together.
+          definitions, Start can emit a deterministic graph. Humans can read it, CI can enforce it,
+          and agents can use it to make focused edits without guessing how files fit together.
         </p>
         <BlogCode code={blogGraphExample} language="shellscript" />
         <p>
