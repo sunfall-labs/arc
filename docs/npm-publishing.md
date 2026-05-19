@@ -12,7 +12,7 @@ Publishing is manual-only and runs from `.github/workflows/publish-npm.yml`.
 - Pack packages with `pnpm pack` first so `workspace:*` dependencies are rewritten to concrete package versions, then publish those tarballs with `npm publish`.
 - Keep the default dist-tag at `alpha` while package versions are prerelease versions.
 - Do not publish prerelease versions with the `latest` dist-tag.
-- First-time prerelease publishes may cause npm to create `latest` alongside the requested prerelease tag; the publish script removes any prerelease `latest` tag after confirming the requested prerelease tag points at the current version, and reports when npm refuses or cannot authenticate `latest` cleanup until a stable release can replace it.
+- First-time prerelease publishes may cause npm to create `latest` alongside the requested prerelease tag; the publish script removes any prerelease `latest` tag after confirming the requested prerelease tag points at the current version. If npm refuses to delete `latest`, the script moves `latest` to the current prerelease so default installs do not receive a stale alpha until a stable release can replace it.
 
 The workflow grants `id-token: write`, uses npm 11.10 or newer, pins release-job actions to full commit SHAs, does not persist checkout credentials, and explicitly disables dependency caching in the release job.
 

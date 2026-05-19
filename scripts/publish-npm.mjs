@@ -411,11 +411,13 @@ const removeLatestDistTagEffect = (target) =>
     target.packageJson.name,
     "latest",
   ]).pipe(
-    Effect.as(true),
+    Effect.as("removed"),
     Effect.catch((error) => {
       const facts = commandErrorFacts(error);
+      if (facts.includes("E400") && facts.includes("/dist-tags/latest")) {
+        return Effect.succeed("refused-latest-delete");
+      }
       if (
-        (facts.includes("E400") && facts.includes("/dist-tags/latest")) ||
         facts.includes("E401") ||
         facts.includes("E403") ||
         facts.includes("ENEEDAUTH") ||
@@ -425,12 +427,20 @@ const removeLatestDistTagEffect = (target) =>
           console.warn(
             `npm refused or could not authenticate latest cleanup for ${target.packageJson.name}; leaving a prerelease tagged latest until a stable release can replace it.`,
           );
-          return false;
+          return "unauthorized";
         });
       }
       return Effect.fail(error);
     }),
   );
+
+const addCurrentPrereleaseLatestDistTagEffect = (target) =>
+  runLoggedCommand(`${target.packageJson.name} latest dist-tag fallback`, "npm", [
+    "dist-tag",
+    "add",
+    `${target.packageJson.name}@${target.packageJson.version}`,
+    "latest",
+  ]);
 
 const ensurePrereleaseIsNotLatestEffect = (target, options) =>
   Effect.gen(function* () {
@@ -459,17 +469,33 @@ const ensurePrereleaseIsNotLatestEffect = (target, options) =>
     console.log(
       `Removing prerelease latest dist-tag from ${target.packageJson.name}; latest pointed at ${latestVersion} and ${options.distTag} remains ${target.packageJson.version}.`,
     );
-    const removed = yield* removeLatestDistTagEffect(target);
-    if (!removed) {
+    const cleanup = yield* removeLatestDistTagEffect(target);
+    if (cleanup === "unauthorized") {
       return;
+    }
+    if (cleanup === "refused-latest-delete") {
+      if (latestVersion === target.packageJson.version) {
+        console.warn(
+          `npm refused to remove latest for ${target.packageJson.name}; latest already points at the current prerelease.`,
+        );
+      } else {
+        console.warn(
+          `npm refused to remove latest for ${target.packageJson.name}; moving latest from ${latestVersion} to current prerelease ${target.packageJson.version}.`,
+        );
+        yield* addCurrentPrereleaseLatestDistTagEffect(target);
+      }
     }
 
     const updatedDistTags = yield* npmDistTagsEffect(target);
-    if (typeof updatedDistTags.latest === "string" && isPrereleaseVersion(updatedDistTags.latest)) {
+    if (
+      typeof updatedDistTags.latest === "string" &&
+      isPrereleaseVersion(updatedDistTags.latest) &&
+      updatedDistTags.latest !== target.packageJson.version
+    ) {
       return yield* Effect.fail(
         fail(
-          `${target.packageJson.name} still has prerelease latest dist-tag ${updatedDistTags.latest} after cleanup.`,
-          "Remove the latest dist-tag manually before treating this prerelease publish as complete.",
+          `${target.packageJson.name} still has stale prerelease latest dist-tag ${updatedDistTags.latest} after cleanup.`,
+          "Move latest to the current prerelease or publish a stable version before treating this prerelease publish as complete.",
         ),
       );
     }
