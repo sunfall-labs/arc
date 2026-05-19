@@ -442,6 +442,28 @@ const addCurrentPrereleaseLatestDistTagEffect = (target) =>
     "latest",
   ]);
 
+const latestTagIsStalePrerelease = (target, distTags) =>
+  typeof distTags.latest === "string" &&
+  isPrereleaseVersion(distTags.latest) &&
+  distTags.latest !== target.packageJson.version;
+
+const waitForLatestDistTagPropagationEffect = (target) =>
+  Effect.gen(function* () {
+    let distTags = yield* npmDistTagsEffect(target);
+    for (
+      let attempt = 1;
+      attempt <= 6 && latestTagIsStalePrerelease(target, distTags);
+      attempt += 1
+    ) {
+      console.log(
+        `Waiting for ${target.packageJson.name} latest dist-tag propagation (${attempt}/6); registry still reports ${distTags.latest}.`,
+      );
+      yield* Effect.sleep("2 seconds");
+      distTags = yield* npmDistTagsEffect(target);
+    }
+    return distTags;
+  });
+
 const ensurePrereleaseIsNotLatestEffect = (target, options) =>
   Effect.gen(function* () {
     if (
@@ -486,12 +508,8 @@ const ensurePrereleaseIsNotLatestEffect = (target, options) =>
       }
     }
 
-    const updatedDistTags = yield* npmDistTagsEffect(target);
-    if (
-      typeof updatedDistTags.latest === "string" &&
-      isPrereleaseVersion(updatedDistTags.latest) &&
-      updatedDistTags.latest !== target.packageJson.version
-    ) {
+    const updatedDistTags = yield* waitForLatestDistTagPropagationEffect(target);
+    if (latestTagIsStalePrerelease(target, updatedDistTags)) {
       return yield* Effect.fail(
         fail(
           `${target.packageJson.name} still has stale prerelease latest dist-tag ${updatedDistTags.latest} after cleanup.`,
