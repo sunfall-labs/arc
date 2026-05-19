@@ -404,13 +404,23 @@ const npmDistTagsEffect = (target) =>
 const commandErrorFacts = (error) =>
   `${error.message ?? ""} ${error.repair ?? ""} ${error.cause?.stderr ?? ""} ${error.cause?.stdout ?? ""}`;
 
+const writeCommandOutput = (result) => {
+  if (result.stdout !== "") {
+    process.stdout.write(result.stdout);
+  }
+  if (result.stderr !== "") {
+    process.stderr.write(result.stderr);
+  }
+};
+
 const removeLatestDistTagEffect = (target) =>
-  runLoggedCommand(`${target.packageJson.name} latest dist-tag cleanup`, "npm", [
+  commandEffect(`${target.packageJson.name} latest dist-tag cleanup`, "npm", [
     "dist-tag",
     "rm",
     target.packageJson.name,
     "latest",
   ]).pipe(
+    Effect.tap((result) => Effect.sync(() => writeCommandOutput(result))),
     Effect.as("removed"),
     Effect.catch((error) => {
       const facts = commandErrorFacts(error);

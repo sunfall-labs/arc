@@ -1,6 +1,9 @@
 name: Publish npm packages
 
 on:
+  push:
+    tags:
+      - v*
   workflow_dispatch:
     inputs:
       dist-tag:
@@ -27,6 +30,11 @@ on:
 permissions:
   contents: read
   id-token: write
+
+env:
+  RELEASE_DIST_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.dist-tag || (contains(github.ref_name, '-alpha') && 'alpha' || contains(github.ref_name, '-beta') && 'beta' || contains(github.ref_name, '-rc') && 'next' || 'latest') }}
+  RELEASE_DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry-run || false }}
+  RELEASE_USE_TOKEN_BOOTSTRAP: ${{ github.event_name == 'workflow_dispatch' && inputs.use-token-bootstrap || false }}
 
 concurrency:
   group: npm-publish
@@ -69,20 +77,25 @@ jobs:
       - name: Publish preflight
         run: |
           set -euo pipefail
-          if [ "$DRY_RUN" != "true" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "::error::Real npm publishes must run from refs/heads/main, not $GITHUB_REF."
-            exit 1
+          if [ "$DRY_RUN" != "true" ]; then
+            case "$GITHUB_REF" in
+              refs/heads/main | refs/tags/v*) ;;
+              *)
+                echo "::error::Real npm publishes must run from refs/heads/main or refs/tags/v*, not $GITHUB_REF."
+                exit 1
+                ;;
+            esac
           fi
           if [ "$DRY_RUN" = "true" ] && [ "$USE_TOKEN_BOOTSTRAP" = "true" ]; then
             echo "::error::Token bootstrap is only allowed for real publishes."
             exit 1
           fi
         env:
-          DRY_RUN: ${{ inputs.dry-run }}
-          USE_TOKEN_BOOTSTRAP: ${{ inputs.use-token-bootstrap }}
+          DRY_RUN: ${{ env.RELEASE_DRY_RUN }}
+          USE_TOKEN_BOOTSTRAP: ${{ env.RELEASE_USE_TOKEN_BOOTSTRAP }}
 
       - name: Configure temporary npm token fallback
-        if: ${{ inputs.dry-run == false && inputs.use-token-bootstrap == true }}
+        if: ${{ env.RELEASE_DRY_RUN == 'false' && env.RELEASE_USE_TOKEN_BOOTSTRAP == 'true' }}
         run: |
           set -euo pipefail
           if [ -n "${NPM_TOKEN:-}" ]; then
@@ -103,5 +116,5 @@ jobs:
             pnpm publish:npm -- --tag "$DIST_TAG"
           fi
         env:
-          DIST_TAG: ${{ inputs.dist-tag }}
-          DRY_RUN: ${{ inputs.dry-run }}
+          DIST_TAG: ${{ env.RELEASE_DIST_TAG }}
+          DRY_RUN: ${{ env.RELEASE_DRY_RUN }}
