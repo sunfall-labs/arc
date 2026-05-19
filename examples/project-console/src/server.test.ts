@@ -10,6 +10,7 @@ import {
   type StartHydrationPayload,
 } from "@sunfall/arc-start";
 import { Effect } from "effect";
+import { Window } from "happy-dom";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
 import { makeProjectId, makeProjectReturnTo, SubmitProjectName } from "./domain.js";
@@ -115,6 +116,12 @@ describe("project console SSR", () => {
     expect(html).toContain("window._$HY");
     expect(html).toContain("__SUNFALL_ARC_HYDRATION__");
     expect(html).toContain("data-sunfall-arc-hydration-chunk");
+    const document = new Window().document;
+    document.write(html);
+    document.close();
+    const root = document.getElementById("root");
+    expect(root?.querySelector(`[${streamHydrationAttribute}]`)).toBeNull();
+    expect(document.querySelector(`[${streamHydrationAttribute}]`)).not.toBeNull();
     expect(html).toContain('data-sunfall-arc-hydration-sequence="0"');
     expect(html).toContain('"_tag":"StartHydrationChunk"');
     expect(html).toContain("Projects.collection");

@@ -839,6 +839,11 @@ export const hydrateResourcesEffect = (
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
     const snapshots = yield* validateResourceHydrationInputEffect(input, "hydrate");
+    const now =
+      options.updatedAt === "now" || options.skipFresh === true
+        ? yield* Clock.currentTimeMillis
+        : undefined;
+    const updatedAt = options.updatedAt === "now" ? now : undefined;
     const plan: ResourceHydrationPlanEntry[] = [];
     let index = 0;
     for (const snapshot of snapshots) {
@@ -891,7 +896,18 @@ export const hydrateResourcesEffect = (
         "hydrate",
         `${path}.state.value`,
       );
-      const successState = state as Extract<ResourceState<any, any>, { readonly _tag: "Success" }>;
+      const decodedState = state as Extract<ResourceState<any, any>, { readonly _tag: "Success" }>;
+      if (options.skipFresh === true && now !== undefined) {
+        const current = peekResourceEntry(ref, store)?.state.get() ?? {
+          _tag: "Initial" as const,
+          waiting: false,
+        };
+        const status = inspectResourceStatus(ref, current, now);
+        if (status.isSuccess && !status.isStale && !status.isGcExpired) {
+          continue;
+        }
+      }
+      const successState = updatedAt === undefined ? decodedState : { ...decodedState, updatedAt };
       const tags = yield* resourceProvidedTagsEffect(ref, successState.value);
       plan.push({ ref, state: successState, tags });
     }

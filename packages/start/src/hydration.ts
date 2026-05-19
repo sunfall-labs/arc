@@ -8,6 +8,7 @@ import {
   type ResourceHydrationApplyError,
   type ResourceSnapshotCodecError,
   type ResourceHydrationPayload,
+  type ResourceHydrationOptions,
 } from "@sunfall/arc-core";
 import {
   Collection,
@@ -152,7 +153,7 @@ export interface StartCollectionHydrationOptions extends StartCollectionResoluti
 
 /** Effect-first options for applying a Start hydration payload. */
 export interface HydrateStartPayloadEffectOptions
-  extends StartCollectionHydrationOptions, CollectionHydrateOptions {}
+  extends StartCollectionHydrationOptions, CollectionHydrateOptions, ResourceHydrationOptions {}
 
 /** Synchronous host-seam options for applying a Start hydration payload. */
 export interface HydrateStartPayloadOptions<
@@ -680,7 +681,7 @@ export const hydrateStartPayloadEffect = (
         collections: payload.collections,
       });
     }
-    yield* Resource.hydrateEffect(payload);
+    yield* Resource.hydrateEffect(payload, options);
     if (payload.collections && collections.length > 0) {
       yield* Collection.hydratePayloadEffect(
         collections,

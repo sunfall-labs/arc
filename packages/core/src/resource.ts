@@ -274,6 +274,18 @@ export interface ResourceHydrationOptions {
    * than the serialized key. Defaults to fail.
    */
   readonly keyMismatch?: "fail" | "skip";
+  /**
+   * How to timestamp hydrated success snapshots. `preserve` keeps the snapshot
+   * timestamp, while `now` treats the active hydration pass as the freshness
+   * boundary.
+   */
+  readonly updatedAt?: "preserve" | "now";
+  /**
+   * Skip applying snapshots for refs that are already successful, fresh, and
+   * not garbage-collection expired. This lets target-page hydration warm
+   * missing data without replacing equivalent fresh data already on screen.
+   */
+  readonly skipFresh?: boolean;
 }
 
 interface ResourceStatusBase<I, A, E, R, RefError = E> {

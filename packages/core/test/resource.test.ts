@@ -1588,6 +1588,140 @@ describe("Resource", () => {
     expect(load).not.toHaveBeenCalled();
   });
 
+  it("can rebase hydrated resource timestamps to the hydration time", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(120_000);
+    try {
+      const load = vi.fn((id: string) => Effect.succeed({ id, name: "Loaded" }));
+      const User = Resource.family({
+        name: "User.hydrate-now",
+        load,
+        policy: {
+          staleFor: "1 minute",
+        },
+      });
+      const ref = User("1");
+
+      await Effect.runPromise(
+        Resource.hydrateEffect(
+          {
+            resources: [
+              {
+                name: "User.hydrate-now",
+                key: ref.key,
+                input: "1",
+                state: {
+                  _tag: "Success",
+                  waiting: false,
+                  value: { id: "1", name: "Hydrated" },
+                  updatedAt: 0,
+                },
+              },
+            ],
+          },
+          { updatedAt: "now" },
+        ),
+      );
+      const status = await Effect.runPromise(Resource.statusEffect(ref));
+
+      expect(status.updatedAt).toBe(120_000);
+      expect(status.isStale).toBe(false);
+      await expect(Effect.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({
+        id: "1",
+        name: "Hydrated",
+      });
+      expect(load).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("can skip hydrated snapshots for refs that are already fresh", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(120_000);
+    try {
+      const User = Resource.family({
+        name: "User.hydrate-skip-fresh",
+        load: (id: string) => Effect.succeed({ id, name: "Loaded" }),
+        policy: {
+          staleFor: "1 minute",
+        },
+      });
+      const ref = User("1");
+
+      await Effect.runPromise(
+        Resource.hydrateEffect(
+          {
+            resources: [
+              {
+                name: "User.hydrate-skip-fresh",
+                key: ref.key,
+                input: "1",
+                state: {
+                  _tag: "Success",
+                  waiting: false,
+                  value: { id: "1", name: "Current" },
+                  updatedAt: 0,
+                },
+              },
+            ],
+          },
+          { updatedAt: "now" },
+        ),
+      );
+
+      vi.setSystemTime(121_000);
+      await Effect.runPromise(
+        Resource.hydrateEffect(
+          {
+            resources: [
+              {
+                name: "User.hydrate-skip-fresh",
+                key: ref.key,
+                input: "1",
+                state: {
+                  _tag: "Success",
+                  waiting: false,
+                  value: { id: "1", name: "Target" },
+                  updatedAt: 0,
+                },
+              },
+            ],
+          },
+          { updatedAt: "now", skipFresh: true },
+        ),
+      );
+
+      expect(read(ref)).toEqual({ id: "1", name: "Current" });
+
+      vi.setSystemTime(181_001);
+      await Effect.runPromise(
+        Resource.hydrateEffect(
+          {
+            resources: [
+              {
+                name: "User.hydrate-skip-fresh",
+                key: ref.key,
+                input: "1",
+                state: {
+                  _tag: "Success",
+                  waiting: false,
+                  value: { id: "1", name: "Target" },
+                  updatedAt: 0,
+                },
+              },
+            ],
+          },
+          { updatedAt: "now", skipFresh: true },
+        ),
+      );
+
+      expect(read(ref)).toEqual({ id: "1", name: "Target" });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("does not commit hydrated resource state when provides throws", async () => {
     const thrown = new Error("hydrate provides exploded");
     const load = vi.fn((id: string) => Effect.succeed({ id, name: "Loaded" }));

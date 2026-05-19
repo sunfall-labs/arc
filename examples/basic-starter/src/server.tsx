@@ -22,8 +22,7 @@ const shellOpen = (solidHydrationScript: string): string => `<!doctype html>
   <body>
     <div id="root">`;
 
-const shellClose = (hydrationScript: string): string => `</div>
-    ${hydrationScript}
+const shellClose = (hydrationScript: string): string => `    ${hydrationScript}
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>`;
@@ -42,7 +41,7 @@ export const handleRequest = createRequestHandler(app, {
 
       return yield* createStartStreamedHtmlResponseEffect({
         shell: htmlChunk(shellOpen(generateHydrationScript())),
-        chunks: Stream.make(htmlChunk(body)),
+        chunks: Stream.make(htmlChunk(`${body}</div>\n`)),
         hydrationPlan,
         tail: htmlChunk(shellClose(hydrationRootScript)),
         headers: {

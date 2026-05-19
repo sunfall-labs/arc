@@ -107,6 +107,12 @@ describe("react starter", () => {
         expect(html).toContain("Hello, React.");
         expect(html).toContain("__SUNFALL_ARC_HYDRATION__");
         expect(html).toContain("data-sunfall-arc-hydration-chunk");
+        const document = new Window().document;
+        document.write(html);
+        document.close();
+        const root = document.getElementById("root");
+        expect(root?.querySelector(`[${streamHydrationAttribute}]`)).toBeNull();
+        expect(document.querySelector(`[${streamHydrationAttribute}]`)).not.toBeNull();
         expect([...rootPairs]).toEqual([]);
         expect(streamHydrationChunksFrom(html)).toHaveLength(1);
         expect([...streamedPairs]).toContain(

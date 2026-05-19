@@ -3,14 +3,17 @@
 import { Route } from "@sunfall/arc-core";
 
 import { Route as route_root } from "./routes/index.js";
-import { Route as route_blog_introducing_sunfall_arc } from "./routes/blog/introducing-sunfall-arc.js";
+import {
+  Route as route_blog_introducing_sunfall_arc,
+} from "./routes/blog/introducing-sunfall-arc.js";
 import { Route as route_cookbook } from "./routes/cookbook/index.js";
 import { Route as route_cookbook_$slug } from "./routes/cookbook/$slug.js";
 import { Route as route_docs } from "./routes/docs/index.js";
 import { Route as route_docs_$slug } from "./routes/docs/$slug.js";
 
 const route_root_path: "/" = route_root.path;
-const route_blog_introducing_sunfall_arc_path: "/blog/introducing-sunfall-arc" =
+const route_blog_introducing_sunfall_arc_path:
+  "/blog/introducing-sunfall-arc" =
   route_blog_introducing_sunfall_arc.path;
 const route_cookbook_path: "/cookbook" = route_cookbook.path;
 const route_cookbook_$slug_path: "/cookbook/:slug" = route_cookbook_$slug.path;

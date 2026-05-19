@@ -102,6 +102,12 @@ describe("docs site", () => {
         expect(html).toContain("Working Sunfall Arc recipes");
         expect(html).toContain("Resource from a server function");
         expect(html).toContain("Progressive Start action form");
+        const document = new Window().document;
+        document.write(html);
+        document.close();
+        const root = document.getElementById("root");
+        expect(root?.querySelector(`[${streamHydrationAttribute}]`)).toBeNull();
+        expect(document.querySelector(`[${streamHydrationAttribute}]`)).not.toBeNull();
         expect([...pairs]).toContain(
           JSON.stringify([RecipeIndexRef.family.options.name, RecipeIndexRef.key]),
         );
@@ -322,6 +328,10 @@ describe("docs site", () => {
     expect(stripDocsSiteBasePath("/project-docs/docs/getting-started?tab=install", basePath)).toBe(
       "/docs/getting-started?tab=install",
     );
+    expect(stripDocsSiteBasePath("/project-docs/docs/getting-started/?tab=install", basePath)).toBe(
+      "/docs/getting-started?tab=install",
+    );
+    expect(stripDocsSiteBasePath("/project-docs/", basePath)).toBe("/");
   });
 
   it("hydrates static recipe documents before browser route preload needs recipe data", () =>
@@ -368,6 +378,87 @@ describe("docs site", () => {
         }),
       ),
     ));
+
+  it("keeps stale GitHub Pages recipe hover preloads cacheable", async () => {
+    const slug = makeRecipeSlug("route-preload-hydration");
+    const currentHref = "/cookbook";
+    const targetHref = "/cookbook/route-preload-hydration";
+    const currentResponse = await Effect.runPromise(
+      Effect.scoped(
+        serverApp.runtime.provide(handleRequest(new Request(`https://docs.test${currentHref}`))),
+      ),
+    );
+    const currentHtml = await currentResponse.text();
+    const recipeResponse = await Effect.runPromise(
+      Effect.scoped(
+        serverApp.runtime.provide(handleRequest(new Request(`https://docs.test${targetHref}`))),
+      ),
+    );
+    const recipeHtml = await recipeResponse.text();
+    const hydrationNow = Date.now() + 120_000;
+    const targetHydrationNow = hydrationNow + 1_000;
+
+    vi.useFakeTimers();
+    vi.setSystemTime(hydrationNow);
+    try {
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const window = new Window({ url: "https://docs.test/cookbook/" });
+            window.document.write(currentHtml);
+            window.document.close();
+            const fetch = vi.fn(
+              async (_input: RequestInfo | URL) => new Response(recipeHtml, { status: 200 }),
+            );
+            const runtime = makeRuntime(DocsContentApiStaticClient);
+            yield* Effect.addFinalizer(() =>
+              runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
+            );
+
+            vi.stubGlobal("window", window);
+            vi.stubGlobal("document", window.document);
+            vi.stubGlobal("DOMParser", window.DOMParser);
+            vi.stubGlobal("fetch", fetch);
+            yield* Effect.addFinalizer(() =>
+              Effect.sync(() => {
+                vi.unstubAllGlobals();
+              }),
+            );
+
+            yield* runtime.provide(
+              hydrateFromDocumentEffect(
+                window.document as unknown as StartHydrationDocument,
+                undefined,
+                {
+                  updatedAt: "now",
+                },
+              ),
+            );
+            const indexStatusBefore = yield* runtime.provide(Resource.statusEffect(RecipeIndexRef));
+            yield* Effect.sync(() => vi.setSystemTime(targetHydrationNow));
+
+            const routerRuntime = runtime as unknown as AnySunfallArcRuntime;
+            const history = makeDocsSiteHistoryAdapter({ runtime: routerRuntime, routes });
+            yield* history.prepareHrefEffect!(targetHref);
+            yield* history.prepareHrefEffect!(targetHref);
+            const recipe = yield* runtime.provide(Resource.prefetchEffect(RecipeBySlug(slug)));
+            const recipeStatus = yield* runtime.provide(Resource.statusEffect(RecipeBySlug(slug)));
+            const indexStatus = yield* runtime.provide(Resource.statusEffect(RecipeIndexRef));
+
+            expect(fetch).toHaveBeenCalledTimes(1);
+            expect(recipe.title).toBe("Route preload and hydration");
+            expect(indexStatusBefore.updatedAt).toBe(hydrationNow);
+            expect(recipeStatus.updatedAt).toBe(targetHydrationNow);
+            expect(recipeStatus.isStale).toBe(false);
+            expect(indexStatus.updatedAt).toBe(hydrationNow);
+            expect(indexStatus.isStale).toBe(false);
+          }),
+        ),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it("uses static page hydration for recipe-to-recipe router navigation without production RPC", () =>
     Effect.runPromise(
@@ -475,7 +566,13 @@ describe("docs site", () => {
           );
 
           yield* runtime.provide(
-            hydrateFromDocumentEffect(window.document as unknown as StartHydrationDocument),
+            hydrateFromDocumentEffect(
+              window.document as unknown as StartHydrationDocument,
+              undefined,
+              {
+                updatedAt: "now",
+              },
+            ),
           );
 
           const routerRuntime = runtime as unknown as AnySunfallArcRuntime;
@@ -523,6 +620,7 @@ describe("docs site", () => {
     expect(mainSource).toContain("BrowserRpcLive");
     expect(mainSource).toContain("DocsContentApiStaticClient");
     expect(mainSource).toContain('await import("./content-live.js")');
+    expect(mainSource).toContain('updatedAt: "now"');
     expect(mainSource).toContain("hydratedHref={hydratedHref}");
     expect(mainSource).toContain('import { hydrate, render } from "solid-js/web";');
     expect(mainSource).toContain("hydrate(Root, root)");

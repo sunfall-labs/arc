@@ -30,6 +30,11 @@ describe("Start static client navigation", () => {
     expect(
       stripStartStaticBasePath("/project-docs/docs/getting-started?tab=install", "/project-docs/"),
     ).toBe("/docs/getting-started?tab=install");
+    expect(
+      stripStartStaticBasePath("/project-docs/docs/getting-started/?tab=install", "/project-docs/"),
+    ).toBe("/docs/getting-started?tab=install");
+    expect(stripStartStaticBasePath("/project-docs/", "/project-docs/")).toBe("/");
+    expect(stripStartStaticBasePath("/docs/getting-started/", "/")).toBe("/docs/getting-started");
   });
 
   it("creates a base-path aware browser history adapter", () =>
@@ -155,6 +160,71 @@ describe("Start static client navigation", () => {
         }),
       ),
     ));
+
+  it("rebases static document hydration timestamps so repeated hover preloads stay cacheable", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(120_000);
+    try {
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const ProjectById = Resource.family({
+              name: "Start.Static.Project.fresh-static-preparation",
+              load: (
+                _id: string,
+              ): Effect.Effect<{ readonly id: string; readonly name: string }, Error> =>
+                Effect.fail(new Error("static host has no RPC loader")),
+              policy: {
+                staleFor: "1 minute",
+              },
+            });
+            const ProjectRoute = route("/projects/:id", {
+              preloadResources: [ProjectById],
+              preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id)),
+            });
+            const runtime = makeRuntime();
+            yield* Effect.addFinalizer(() => runtime.disposeEffect);
+            const window = new Window({ url: "https://docs.test/app/" });
+            const ref = ProjectById("1");
+            const html = `<!doctype html><html><body>${createHydrationScript({
+              resources: [
+                {
+                  name: ref.family.options.name,
+                  key: ref.key,
+                  input: "1",
+                  state: {
+                    _tag: "Success",
+                    waiting: false,
+                    value: { id: "1", name: "Hydrated project" },
+                    updatedAt: 0,
+                  },
+                },
+              ],
+            })}</body></html>`;
+            const fetch = vi.fn(async () => new Response(html));
+            const history = makeStartStaticHistoryAdapter({
+              runtime,
+              routes: [ProjectRoute] as const,
+              basePath: "/app/",
+              getWindow: () => asHistoryWindow(window),
+              fetch,
+              parseDocument: parseWithWindow(window),
+            });
+
+            yield* history.prepareHrefEffect!("/projects/1");
+            yield* history.prepareHrefEffect!("/projects/1");
+            const status = yield* runtime.provide(Resource.statusEffect(ref));
+
+            expect(fetch).toHaveBeenCalledTimes(1);
+            expect(status.updatedAt).toBe(120_000);
+            expect(status.isStale).toBe(false);
+          }),
+        ),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   it("coalesces, caches, and survives interrupted target static document hydration per href", () =>
     Effect.runPromise(

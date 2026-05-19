@@ -27,7 +27,10 @@ const runtimeLayer = import.meta.env.DEV
     )
   : DocsContentApiStaticClient;
 const runtime = createEffectRuntime(runtimeLayer);
-hydrateFromDocument(document, undefined, { runtime });
+hydrateFromDocument(document, undefined, {
+  runtime,
+  ...(import.meta.env.DEV ? {} : { updatedAt: "now" as const }),
+});
 
 const hydratedHref = currentDocsSiteHref();
 const Root = () => <App runtime={runtime} hydratedHref={hydratedHref} />;

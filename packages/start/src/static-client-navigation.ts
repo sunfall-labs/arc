@@ -80,22 +80,30 @@ export const withStartStaticBasePath = (href: string, basePath = "/"): string =>
   return normalizedBasePath === "/" ? href : `${normalizedBasePath.slice(0, -1)}${href}`;
 };
 
+const normalizeStartStaticRouterPath = (pathname: string): string => {
+  const path = pathname.length === 0 ? "/" : pathname.startsWith("/") ? pathname : `/${pathname}`;
+  return path.length > 1 ? path.replace(/\/+$/u, "") : path;
+};
+
+const startStaticRouterHref = (pathname: string, search: string): string =>
+  `${normalizeStartStaticRouterPath(pathname)}${search}`;
+
 export const stripStartStaticBasePath = (href: string, basePath = "/"): string => {
   const normalizedBasePath = normalizeStartStaticBasePath(basePath);
+  const url = new URL(href, "https://sunfall-arc.local");
   if (normalizedBasePath === "/") {
-    return href;
+    return startStaticRouterHref(url.pathname, url.search);
   }
 
-  const url = new URL(href, "https://sunfall-arc.local");
   const basePathWithoutTrailingSlash = normalizedBasePath.slice(0, -1);
   if (url.pathname === basePathWithoutTrailingSlash || url.pathname === normalizedBasePath) {
-    return `/${url.search}`;
+    return startStaticRouterHref("/", url.search);
   }
   if (url.pathname.startsWith(normalizedBasePath)) {
-    return `/${url.pathname.slice(normalizedBasePath.length)}${url.search}`;
+    return startStaticRouterHref(url.pathname.slice(normalizedBasePath.length), url.search);
   }
 
-  return `${url.pathname}${url.search}`;
+  return startStaticRouterHref(url.pathname, url.search);
 };
 
 const defaultStaticWindow = (): StartStaticHistoryWindow | undefined =>

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Effect } from "effect";
+import { Window } from "happy-dom";
 import {
   hydrationScriptId,
   streamHydrationAttribute,
@@ -57,6 +58,12 @@ describe("basic starter", () => {
         expect(html).toContain("Hello, Sunfall Arc.");
         expect(html).toContain("__SUNFALL_ARC_HYDRATION__");
         expect(html).toContain("data-sunfall-arc-hydration-chunk");
+        const document = new Window().document;
+        document.write(html);
+        document.close();
+        const root = document.getElementById("root");
+        expect(root?.querySelector(`[${streamHydrationAttribute}]`)).toBeNull();
+        expect(document.querySelector(`[${streamHydrationAttribute}]`)).not.toBeNull();
         expect([...rootPairs]).toEqual([]);
         expect(streamHydrationChunksFrom(html)).toHaveLength(1);
         expect([...streamedPairs]).toContain(
