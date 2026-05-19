@@ -5,15 +5,18 @@ import {
   type BrowserNavigateOptions,
 } from "@sunfall/arc-core";
 import { Data, Effect } from "effect";
-import { hydrateFromDocumentEffect } from "./hydration.js";
 import {
   makeStartStaticHrefPreparationCache,
-  startStaticHydratedHrefPreparationOutcomeEffect,
   type StartStaticHrefPreparationOutcome,
   type StartStaticNavigationHydrationRuntime,
 } from "./static-href-preparation-cache.js";
+import {
+  hydrateStartStaticTargetDocumentEffect,
+  type StartStaticNavigationHydrationError,
+} from "./static-target-document-hydration.js";
 
 export type { StartStaticNavigationHydrationRuntime } from "./static-href-preparation-cache.js";
+export { StartStaticNavigationHydrationError } from "./static-target-document-hydration.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
 
@@ -26,24 +29,6 @@ export interface StartStaticHistoryWindow extends BrowserHistoryWindow {
 
 export class StartStaticBasePathError extends Data.TaggedError("StartStaticBasePathError")<{
   readonly input: string;
-  readonly guidance: string;
-}> {}
-
-export class StartStaticNavigationHydrationError extends Data.TaggedError(
-  "StartStaticNavigationHydrationError",
-)<{
-  readonly href: string;
-  readonly browserHref: string;
-  readonly reason:
-    | "FetchUnavailable"
-    | "FetchFailed"
-    | "HttpStatus"
-    | "ReadFailed"
-    | "ParseUnavailable"
-    | "ParseFailed"
-    | "HydrateFailed";
-  readonly status?: number;
-  readonly cause?: unknown;
   readonly guidance: string;
 }> {}
 
@@ -137,22 +122,6 @@ const routeNeedsStaticHydration = <R extends AnyRoute>(match: Route.Match<R>): b
   Route.describePreloadResources(match.route).status !== "none" ||
   Route.describePreloadCollections(match.route).status !== "none";
 
-const staticHydrationError = (
-  href: string,
-  browserHref: string,
-  reason: StartStaticNavigationHydrationError["reason"],
-  options: { readonly status?: number; readonly cause?: unknown } = {},
-): StartStaticNavigationHydrationError =>
-  new StartStaticNavigationHydrationError({
-    href,
-    browserHref,
-    reason,
-    ...(options.status === undefined ? {} : { status: options.status }),
-    ...(options.cause === undefined ? {} : { cause: options.cause }),
-    guidance:
-      "Static prerendered client navigation must hydrate route-owned payloads from the target HTML before route preload runs.",
-  });
-
 const hydratedHrefSet = (
   hrefs: string | readonly string[] | undefined,
   basePath: string,
@@ -162,18 +131,6 @@ const hydratedHrefSet = (
       stripStartStaticBasePath(href, basePath),
     ),
   );
-
-const documentFetchBaseUrl = (windowLike: StartStaticHistoryWindow): string =>
-  windowLike.location.href ??
-  `${windowLike.location.origin ?? "https://sunfall-arc.local"}${staticWindowHref(windowLike)}`;
-
-const defaultFetch = (): StartStaticHistoryAdapterOptions["fetch"] | undefined =>
-  typeof fetch === "function" ? fetch.bind(globalThis) : undefined;
-
-const defaultParseDocument = (): StartStaticHistoryAdapterOptions["parseDocument"] | undefined =>
-  typeof DOMParser === "undefined"
-    ? undefined
-    : (html) => new DOMParser().parseFromString(html, "text/html");
 
 export const makeStartStaticHrefPreparationEffect = <
   const Routes extends readonly AnyRoute[],
@@ -202,51 +159,14 @@ export const makeStartStaticHrefPreparationEffect = <
       }
 
       const browserHref = withStartStaticBasePath(href, basePath);
-      const fetchDocument = options.fetch ?? defaultFetch();
-      if (!fetchDocument) {
-        return yield* Effect.fail(staticHydrationError(href, browserHref, "FetchUnavailable"));
-      }
-
-      const response = yield* Effect.tryPromise({
-        try: () =>
-          fetchDocument(new URL(browserHref, documentFetchBaseUrl(windowLike)), {
-            credentials: "same-origin",
-            headers: { accept: "text/html" },
-          }),
-        catch: (cause) => staticHydrationError(href, browserHref, "FetchFailed", { cause }),
+      return yield* hydrateStartStaticTargetDocumentEffect({
+        runtime: options.runtime,
+        href,
+        browserHref,
+        window: windowLike,
+        ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+        ...(options.parseDocument === undefined ? {} : { parseDocument: options.parseDocument }),
       });
-
-      if (!response.ok) {
-        return yield* Effect.fail(
-          staticHydrationError(href, browserHref, "HttpStatus", {
-            status: response.status,
-          }),
-        );
-      }
-
-      const html = yield* Effect.tryPromise({
-        try: () => response.text(),
-        catch: (cause) => staticHydrationError(href, browserHref, "ReadFailed", { cause }),
-      });
-      const parseDocument = options.parseDocument ?? defaultParseDocument();
-      if (!parseDocument) {
-        return yield* Effect.fail(staticHydrationError(href, browserHref, "ParseUnavailable"));
-      }
-
-      const staticDocument = yield* Effect.try({
-        try: () => parseDocument(html),
-        catch: (cause) => staticHydrationError(href, browserHref, "ParseFailed", { cause }),
-      });
-      const hydrateEffect = options.runtime.provide(
-        hydrateFromDocumentEffect(staticDocument).pipe(
-          Effect.flatMap(startStaticHydratedHrefPreparationOutcomeEffect),
-        ),
-      ) as Effect.Effect<StartStaticHrefPreparationOutcome, unknown>;
-      return yield* hydrateEffect.pipe(
-        Effect.mapError((cause) =>
-          staticHydrationError(href, browserHref, "HydrateFailed", { cause }),
-        ),
-      );
     });
 
   return makeStartStaticHrefPreparationCache({
