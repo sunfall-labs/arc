@@ -423,7 +423,7 @@ const removeLatestDistTagEffect = (target) =>
       ) {
         return Effect.sync(() => {
           console.warn(
-            `npm refused or could not authenticate latest cleanup for ${target.packageJson.name}; leaving the first prerelease tagged latest until a stable release can replace it.`,
+            `npm refused or could not authenticate latest cleanup for ${target.packageJson.name}; leaving a prerelease tagged latest until a stable release can replace it.`,
           );
           return false;
         });
@@ -443,20 +443,21 @@ const ensurePrereleaseIsNotLatestEffect = (target, options) =>
     }
 
     const distTags = yield* npmDistTagsEffect(target);
-    if (distTags.latest !== target.packageJson.version) {
+    const latestVersion = typeof distTags.latest === "string" ? distTags.latest : undefined;
+    if (latestVersion === undefined || !isPrereleaseVersion(latestVersion)) {
       return;
     }
     if (distTags[options.distTag] !== target.packageJson.version) {
       return yield* Effect.fail(
         fail(
-          `${target.packageJson.name}@${target.packageJson.version} is tagged latest, but ${options.distTag} does not point to it.`,
+          `${target.packageJson.name} latest points at prerelease ${latestVersion}, but ${options.distTag} does not point at current version ${target.packageJson.version}.`,
           `Add the ${options.distTag} dist-tag before removing latest from this prerelease.`,
         ),
       );
     }
 
     console.log(
-      `Removing accidental latest dist-tag from ${target.packageJson.name}@${target.packageJson.version}; ${options.distTag} remains.`,
+      `Removing prerelease latest dist-tag from ${target.packageJson.name}; latest pointed at ${latestVersion} and ${options.distTag} remains ${target.packageJson.version}.`,
     );
     const removed = yield* removeLatestDistTagEffect(target);
     if (!removed) {
@@ -464,10 +465,10 @@ const ensurePrereleaseIsNotLatestEffect = (target, options) =>
     }
 
     const updatedDistTags = yield* npmDistTagsEffect(target);
-    if (updatedDistTags.latest === target.packageJson.version) {
+    if (typeof updatedDistTags.latest === "string" && isPrereleaseVersion(updatedDistTags.latest)) {
       return yield* Effect.fail(
         fail(
-          `${target.packageJson.name}@${target.packageJson.version} is still tagged latest after cleanup.`,
+          `${target.packageJson.name} still has prerelease latest dist-tag ${updatedDistTags.latest} after cleanup.`,
           "Remove the latest dist-tag manually before treating this prerelease publish as complete.",
         ),
       );
