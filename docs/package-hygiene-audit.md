@@ -256,7 +256,7 @@ exports. It supports the release-engineering charter workstream.
 
 - Re-run this audit after adding a new package export path, adapter, or runtime
   dependency.
-- Before actual npm publication, confirm the selected `0.1.0-alpha.0` package
+- Before actual npm publication, confirm the selected `0.1.0-alpha.1` package
   version, verify package repository/homepage/bugs metadata still points at
   `https://github.com/sunfall-labs/arc`, and revisit whether framework package
   dependencies should be direct dependencies or peer dependencies.

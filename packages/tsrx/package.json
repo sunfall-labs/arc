@@ -1,6 +1,6 @@
 {
   "name": "@sunfall/arc-tsrx",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "TSRX and Solid Vite preset for Sunfall Arc apps and starters.",
   "keywords": [
     "framework",

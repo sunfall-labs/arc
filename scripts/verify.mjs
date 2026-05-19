@@ -15,7 +15,7 @@ const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 class VerifyCommandError extends Data.TaggedError("VerifyCommandError") {}
 
-const verifyCliVersion = "0.1.0-alpha.0";
+const verifyCliVersion = "0.1.0-alpha.1";
 
 const noopConsole = {
   assert: () => undefined,

@@ -1,6 +1,6 @@
 {
   "name": "@sunfall/arc-react-db",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "React bindings for Sunfall Arc collections and live queries.",
   "keywords": [
     "collections",

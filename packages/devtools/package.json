@@ -1,6 +1,6 @@
 {
   "name": "@sunfall/arc-devtools",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Serializable Sunfall Arc devtools snapshots, summaries, causal graphs, traces, and panel rendering.",
   "keywords": [
     "devtools",

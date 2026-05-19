@@ -1,6 +1,6 @@
 {
   "name": "@sunfall/arc-react",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "React runtime provider, router, resource, action, program, stream, and scope bindings for Sunfall Arc.",
   "keywords": [
     "effect",

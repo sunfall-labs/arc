@@ -18,10 +18,10 @@ under `packages/*` are the publishable artifacts.
 - Public package manifests include descriptions, MIT license metadata, author
   metadata, public scoped-package access, package entrypoints, file payload
   policy, package keywords, GitHub repository links, issue links, and the
-  selected `0.1.0-alpha.0` version.
-- npm registry lookup returned `E404` for all eleven public package names, so
-  no public package with those exact names is currently visible on the registry.
-  This does not prove `@sunfall` org publish access.
+  selected `0.1.0-alpha.1` version.
+- npm registry lookup found the previous `0.1.0-alpha.0` package set. The
+  current release candidate is `0.1.0-alpha.1` because npm package versions are
+  immutable and the current tarballs differ from the already-published alpha.
 
 ## Human Decisions Still Required
 
@@ -32,7 +32,7 @@ under `packages/*` are the publishable artifacts.
 
 ## Step-By-Step Release
 
-1. Confirm `0.1.0-alpha.0` remains the final first public alpha version.
+1. Confirm `0.1.0-alpha.1` remains the final first public alpha version.
 2. Replace `workspace:*` internal package dependencies with the selected
    published version range during packaging or before publish.
 3. Confirm package `repository`, `homepage`, and `bugs` metadata points at

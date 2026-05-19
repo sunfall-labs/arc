@@ -8114,7 +8114,7 @@ describe("Sunfall Arc Start", () => {
     );
     expect(versionResult.exitCode).toBe(0);
     expect(versionStderr).toEqual([]);
-    expect(versionStdout.join("\n")).toContain("sunfall-arc-start v0.1.0-alpha.0");
+    expect(versionStdout.join("\n")).toContain("sunfall-arc-start v0.1.0-alpha.1");
 
     const stdout: string[] = [];
     const stderr: string[] = [];

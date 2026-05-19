@@ -1,6 +1,6 @@
 {
   "name": "@sunfall/arc-start",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Sunfall Arc full-stack Start layer for SSR, hydration, transports, diagnostics, and app graphs.",
   "keywords": [
     "effect",

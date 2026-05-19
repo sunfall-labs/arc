@@ -161,7 +161,7 @@ writes ordinary HTML files into Vite's output directory, using
 - Static prerendering is built into the Start Vite plugin. Host-specific static
   packages can still add deploy-provider details later.
 - Framework package manifests are publishable public scoped packages versioned
-  `0.1.0-alpha.0`, with package keywords and repository/homepage/bugs metadata
+  `0.1.0-alpha.1`, with package keywords and repository/homepage/bugs metadata
   pointing at `https://github.com/sunfall-labs/arc`.
 
 Until platform-specific packages exist, keep those deployment integrations as

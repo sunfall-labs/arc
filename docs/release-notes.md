@@ -4,7 +4,7 @@ This is the current release-candidate snapshot for the pre-release Sunfall Arc
 framework. Framework package manifests are configured for public MIT alpha
 publication under `https://github.com/sunfall-labs/arc`; this remains a
 release-candidate draft until final npm publication is selected. The selected
-first public alpha version is `0.1.0-alpha.0`.
+first public alpha version is `0.1.0-alpha.1`.
 
 ## Stable For The First External App
 
@@ -1893,7 +1893,7 @@ release-readiness:
 ## Notable Limits
 
 - Framework packages are publishable public scoped packages versioned
-  `0.1.0-alpha.0`.
+  `0.1.0-alpha.1`.
 - Package manifests include pre-release descriptions, MIT license metadata,
   author metadata, public scoped-package access, package keywords, and build
   metadata plus GitHub repository/homepage/bugs links. Final npm publication

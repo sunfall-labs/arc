@@ -1,6 +1,6 @@
 {
   "name": "@sunfall/arc-start-node",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Node HTTP facade for the tested Sunfall Arc Start adapter surface.",
   "keywords": [
     "effect",

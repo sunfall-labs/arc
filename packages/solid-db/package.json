@@ -1,6 +1,6 @@
 {
   "name": "@sunfall/arc-solid-db",
-  "version": "0.1.0-alpha.0",
+  "version": "0.1.0-alpha.1",
   "description": "Solid bindings for Sunfall Arc collections and live queries.",
   "keywords": [
     "collections",
