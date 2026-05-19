@@ -100,7 +100,7 @@ describe("file route definition module generation", () => {
         (fileRouteErrorBoundaryById as Partial<Record<RouteId, unknown>>)[
           id
         ] as FileRouteErrorBoundary<Id>;
-      /** Returns the nearest error boundary module for a generated route path pattern, when one exists. */
+      /** Returns the nearest error boundary module for a generated route path, when one exists. */
       export const errorBoundaryByPath = <Path extends RoutePath>(
         path: Path,
       ): FileRouteErrorBoundary<RouteIdByPath[Path]> => errorBoundaryById(routeIdByPath[path]);
@@ -455,6 +455,44 @@ describe("file route definition module generation", () => {
     expect(generated).toContain("export default routes;");
   });
 
+  it("keeps long generated route definitions formatter-stable by construction", () => {
+    const manifest = generateFileRouteManifestArtifact(
+      [
+        "src/routes/index.tsx",
+        "src/routes/blog/introducing-sunfall-arc-and-its-very-long-static-navigation-story.tsx",
+      ],
+      { routeDirectory: "src/routes" },
+    );
+    const generated = createFileRouteDefinitionsModule(manifest);
+    const longRouteIdentifier =
+      "route_blog_introducing_sunfall_arc_and_its_very_long_static_navigation_story";
+    const longRoutePath = "/blog/introducing-sunfall-arc-and-its-very-long-static-navigation-story";
+
+    expect(generated.split("\n").every((line) => line.length <= 100)).toBe(true);
+    expect(generated).toContain(
+      [
+        `const ${longRouteIdentifier}_path:`,
+        `  "${longRoutePath}" =`,
+        `  ${longRouteIdentifier}.path;`,
+      ].join("\n"),
+    );
+    expect(generated).toContain(`export { route_root, ${longRouteIdentifier} };`);
+    expect(generated).toContain(
+      ["export const routes = [", "  route_root,", `  ${longRouteIdentifier},`, "] as const;"].join(
+        "\n",
+      ),
+    );
+    expect(generated).toContain(
+      [`  ${longRouteIdentifier}:`, `    ${longRouteIdentifier},`].join("\n"),
+    );
+    expect(generated).toContain(
+      [`  "${longRoutePath}":`, `    ${longRouteIdentifier},`].join("\n"),
+    );
+    expect(generated).toContain(
+      [`  "${longRoutePath}":`, `    "${longRouteIdentifier}",`].join("\n"),
+    );
+  });
+
   it("emits deterministic typed metadata for layout, error, and metadata modules", () => {
     const manifest = generateFileRouteManifestArtifact(
       [
@@ -545,7 +583,7 @@ describe("file route definition module generation", () => {
         (fileRouteErrorBoundaryById as Partial<Record<RouteId, unknown>>)[
           id
         ] as FileRouteErrorBoundary<Id>;
-      /** Returns the nearest error boundary module for a generated route path pattern, when one exists. */
+      /** Returns the nearest error boundary module for a generated route path, when one exists. */
       export const errorBoundaryByPath = <Path extends RoutePath>(
         path: Path,
       ): FileRouteErrorBoundary<RouteIdByPath[Path]> => errorBoundaryById(routeIdByPath[path]);

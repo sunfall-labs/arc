@@ -370,6 +370,19 @@ export const runResourceEffect = <I, A, E, R>(
       yield* interruptResourceInFlight(entry, store);
     }
 
+    const current = entry.state.get();
+    const now = yield* Clock.currentTimeMillis;
+    const retained = isResourceRefRetained(ref as AnyResourceRef, store);
+    if (
+      !options.force &&
+      current._tag === "Success" &&
+      !isResourceStateStale(ref as ResourceRef<unknown, A, E, unknown>, current, now) &&
+      (retained ||
+        !isResourceStateCollected(ref as ResourceRef<unknown, A, E, unknown>, current, now))
+    ) {
+      return current.value;
+    }
+
     const token = {};
     const loadEffect = Effect.gen(function* () {
       const current = entry.state.get();

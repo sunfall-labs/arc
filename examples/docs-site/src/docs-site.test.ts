@@ -10,11 +10,18 @@ import { describe, expect, it, vi } from "vitest";
 import { Effect } from "effect";
 import {
   extractStartStaticHtmlLinks,
+  hydrateFromDocumentEffect,
   startStaticPageOutputPath,
   streamHydrationAttribute,
   type StartHydrationChunk,
+  type StartHydrationDocument,
 } from "@sunfall/arc-start";
-import { makeRecipeSlug, RecipeBySlug, RecipeIndexRef } from "./content.js";
+import {
+  DocsContentApiStaticClient,
+  makeRecipeSlug,
+  RecipeBySlug,
+  RecipeIndexRef,
+} from "./content.js";
 import {
   hrefById,
   hrefByPath,
@@ -398,6 +405,77 @@ describe("docs site", () => {
             Effect.sync(() => {
               vi.unstubAllGlobals();
             }),
+          );
+
+          const routerRuntime = runtime as unknown as AnySunfallArcRuntime;
+          const history = makeDocsSiteHistoryAdapter({ runtime: routerRuntime, routes });
+          const router = createBrowserRouterHostController(routes, {
+            history,
+            initialHref: currentHref,
+            runtime: routerRuntime,
+          });
+          yield* Effect.addFinalizer(() =>
+            router.disposeEffect().pipe(Effect.catchCause(() => Effect.void)),
+          );
+
+          router.navigateHref(targetHref);
+          yield* Effect.promise(() =>
+            vi.waitFor(() =>
+              expect(router.state.get()).toMatchObject({ _tag: "Ready", href: targetHref }),
+            ),
+          );
+          const recipe = yield* runtime.provide(Resource.prefetchEffect(RecipeBySlug(slug)));
+
+          expect(fetch).toHaveBeenCalledTimes(1);
+          expect(String(fetch.mock.calls[0]?.[0])).toBe(
+            "https://docs.test/cookbook/resource-from-server-function",
+          );
+          expect(window.location.pathname).toBe(targetHref);
+          expect(recipe.title).toBe("Resource from a server function");
+        }),
+      ),
+    ));
+
+  it("uses static page hydration for cookbook index-to-recipe router navigation without production RPC", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const slug = makeRecipeSlug("resource-from-server-function");
+          const targetHref = "/cookbook/resource-from-server-function";
+          const currentHref = "/cookbook";
+          const currentResponse = yield* Effect.scoped(
+            serverApp.runtime.provide(
+              handleRequest(new Request(`https://docs.test${currentHref}`)),
+            ),
+          );
+          const currentHtml = yield* Effect.tryPromise(() => currentResponse.text());
+          const recipeResponse = yield* Effect.scoped(
+            serverApp.runtime.provide(handleRequest(new Request(`https://docs.test${targetHref}`))),
+          );
+          const recipeHtml = yield* Effect.tryPromise(() => recipeResponse.text());
+          const window = new Window({ url: `https://docs.test${currentHref}` });
+          window.document.write(currentHtml);
+          window.document.close();
+          const fetch = vi.fn(
+            async (_input: RequestInfo | URL) => new Response(recipeHtml, { status: 200 }),
+          );
+          const runtime = makeRuntime(DocsContentApiStaticClient);
+          yield* Effect.addFinalizer(() =>
+            runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
+          );
+
+          vi.stubGlobal("window", window);
+          vi.stubGlobal("document", window.document);
+          vi.stubGlobal("DOMParser", window.DOMParser);
+          vi.stubGlobal("fetch", fetch);
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => {
+              vi.unstubAllGlobals();
+            }),
+          );
+
+          yield* runtime.provide(
+            hydrateFromDocumentEffect(window.document as unknown as StartHydrationDocument),
           );
 
           const routerRuntime = runtime as unknown as AnySunfallArcRuntime;

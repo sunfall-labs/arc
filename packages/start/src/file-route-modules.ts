@@ -129,6 +129,76 @@ const stringLiteral = (value: string): string => JSON.stringify(value);
 const propertyKeyLiteral = (value: string): string =>
   identifierPattern.test(value) ? value : stringLiteral(value);
 
+const generatedLineMaxLength = 100;
+
+const generatedOneLineOrSplit = (
+  oneLine: string,
+  splitLines: readonly string[],
+): readonly string[] => (oneLine.length <= generatedLineMaxLength ? [oneLine] : splitLines);
+
+const generatedObjectEntryLines = (key: string, value: string): readonly string[] =>
+  generatedOneLineOrSplit(`  ${key}: ${value},`, [`  ${key}:`, `    ${value},`]);
+
+const generatedArrayEntryLines = (key: string, values: readonly string[]): readonly string[] => {
+  const oneLine = `  ${key}: [${values.join(", ")}],`;
+  return generatedOneLineOrSplit(oneLine, [
+    `  ${key}: [`,
+    ...values.map((value) => `    ${value},`),
+    "  ],",
+  ]);
+};
+
+const generatedImportLines = (
+  importName: string,
+  identifier: string,
+  importSpecifier: string,
+): readonly string[] => {
+  const oneLine = `import { ${importName} as ${identifier} } from ${stringLiteral(importSpecifier)};`;
+  return generatedOneLineOrSplit(oneLine, [
+    "import {",
+    `  ${importName} as ${identifier},`,
+    `} from ${stringLiteral(importSpecifier)};`,
+  ]);
+};
+
+const routePathCheckLines = (
+  entry: FileRouteManifestEntry,
+  identifier: string,
+): readonly string[] => {
+  const oneLine = `const ${identifier}_path: ${stringLiteral(entry.routePath)} = ${identifier}.path;`;
+  return generatedOneLineOrSplit(oneLine, [
+    `const ${identifier}_path:`,
+    `  ${stringLiteral(entry.routePath)} =`,
+    `  ${identifier}.path;`,
+  ]);
+};
+
+const namedRouteExportLines = (routeIdentifiers: readonly string[]): readonly string[] => {
+  if (routeIdentifiers.length === 0) {
+    return [];
+  }
+
+  const oneLine = `export { ${routeIdentifiers.join(", ")} };`;
+  return generatedOneLineOrSplit(oneLine, [
+    "export {",
+    ...routeIdentifiers.map((identifier) => `  ${identifier},`),
+    "};",
+  ]);
+};
+
+const routeTreeDefinitionLines = (routeIdentifiers: readonly string[]): readonly string[] => {
+  if (routeIdentifiers.length === 0) {
+    return ["export const routes = [] as const;"];
+  }
+
+  const oneLine = `export const routes = [${routeIdentifiers.join(", ")}] as const;`;
+  return generatedOneLineOrSplit(oneLine, [
+    "export const routes = [",
+    ...routeIdentifiers.map((identifier) => `  ${identifier},`),
+    "] as const;",
+  ]);
+};
+
 const typeScriptLiteral = (value: unknown, depth: number = 0): string => {
   if (typeof value === "string") {
     return stringLiteral(value);
@@ -157,10 +227,17 @@ const typeScriptLiteral = (value: unknown, depth: number = 0): string => {
     const currentIndent = "  ".repeat(depth);
     return [
       "{",
-      ...entries.map(
-        ([key, entryValue]) =>
-          `${childIndent}${propertyKeyLiteral(key)}: ${typeScriptLiteral(entryValue, depth + 1)},`,
-      ),
+      ...entries.map(([key, entryValue]) => {
+        const propertyKey = propertyKeyLiteral(key);
+        const propertyValue = typeScriptLiteral(entryValue, depth + 1);
+        const oneLine = `${childIndent}${propertyKey}: ${propertyValue},`;
+        return propertyValue.includes("\n")
+          ? oneLine
+          : generatedOneLineOrSplit(oneLine, [
+              `${childIndent}${propertyKey}:`,
+              `${childIndent}  ${propertyValue},`,
+            ]).join("\n");
+      }),
       `${currentIndent}}`,
     ].join("\n");
   }
@@ -345,28 +422,27 @@ export const createFileRouteDefinitionsModule = (
   const companionReferenceByModuleId = new Map(
     companionReferences.map((reference) => [reference.module.moduleId, reference]),
   );
-  const routeImports = references.map(
-    ({ importName, identifier, importSpecifier }) =>
-      `import { ${importName} as ${identifier} } from ${stringLiteral(importSpecifier)};`,
+  const routeImports = references.flatMap(({ importName, identifier, importSpecifier }) =>
+    generatedImportLines(importName, identifier, importSpecifier),
   );
-  const companionImports = companionReferences.map(
+  const companionImports = companionReferences.flatMap(
     ({ importName, identifier, importSpecifier }) =>
-      `import { ${importName} as ${identifier} } from ${stringLiteral(importSpecifier)};`,
+      generatedImportLines(importName, identifier, importSpecifier),
   );
-  const routePathChecks = references.map(
-    ({ entry, identifier }) =>
-      `const ${identifier}_path: ${stringLiteral(entry.routePath)} = ${identifier}.path;`,
+  const routePathChecks = references.map(({ entry, identifier }) =>
+    routePathCheckLines(entry, identifier),
   );
   const routeIdentifiers = references.map(({ identifier }) => identifier);
-  const routeByIdEntries = references.map(
-    ({ identifier }) => `  ${propertyKeyLiteral(identifier)}: ${identifier},`,
+  const routeExports = namedRouteExportLines(routeIdentifiers);
+  const routeTreeDefinition = routeTreeDefinitionLines(routeIdentifiers);
+  const routeByIdEntries = references.flatMap(({ identifier }) =>
+    generatedObjectEntryLines(propertyKeyLiteral(identifier), identifier),
   );
-  const routeByPathEntries = references.map(
-    ({ entry, identifier }) => `  ${propertyKeyLiteral(entry.routePath)}: ${identifier},`,
+  const routeByPathEntries = references.flatMap(({ entry, identifier }) =>
+    generatedObjectEntryLines(propertyKeyLiteral(entry.routePath), identifier),
   );
-  const routeIdByPathEntries = references.map(
-    ({ entry, identifier }) =>
-      `  ${propertyKeyLiteral(entry.routePath)}: ${stringLiteral(identifier)},`,
+  const routeIdByPathEntries = references.flatMap(({ entry, identifier }) =>
+    generatedObjectEntryLines(propertyKeyLiteral(entry.routePath), stringLiteral(identifier)),
   );
   const routeModules = typeScriptLiteral(manifest.modules);
   const describedRouteMetadata = describeFileRouteManifest(manifest);
@@ -381,20 +457,27 @@ export const createFileRouteDefinitionsModule = (
     }
     return reference.identifier;
   };
-  const layoutEntries = describedRouteMetadata.map(
-    (entry) =>
-      `  ${propertyKeyLiteral(String(entry.routeId))}: [${entry.layouts.map(identifierForCompanionModule).join(", ")}],`,
+  const layoutEntries = describedRouteMetadata.flatMap((entry) =>
+    generatedArrayEntryLines(
+      propertyKeyLiteral(String(entry.routeId)),
+      entry.layouts.map(identifierForCompanionModule),
+    ),
   );
   const errorBoundaryEntries = describedRouteMetadata.flatMap((entry) =>
     entry.errorBoundary === undefined
       ? []
       : [
-          `  ${propertyKeyLiteral(String(entry.routeId))}: ${identifierForCompanionModule(entry.errorBoundary)},`,
+          ...generatedObjectEntryLines(
+            propertyKeyLiteral(String(entry.routeId)),
+            identifierForCompanionModule(entry.errorBoundary),
+          ),
         ],
   );
-  const metadataEntries = describedRouteMetadata.map(
-    (entry) =>
-      `  ${propertyKeyLiteral(String(entry.routeId))}: [${entry.metadataModules.map(identifierForCompanionModule).join(", ")}],`,
+  const metadataEntries = describedRouteMetadata.flatMap((entry) =>
+    generatedArrayEntryLines(
+      propertyKeyLiteral(String(entry.routeId)),
+      entry.metadataModules.map(identifierForCompanionModule),
+    ),
   );
   const fileRouteErrorBoundaryById =
     errorBoundaryEntries.length === 0
@@ -411,11 +494,11 @@ export const createFileRouteDefinitionsModule = (
     ...routeImports,
     ...companionImports,
     ...(routeImports.length + companionImports.length > 0 ? [""] : []),
-    ...routePathChecks,
+    ...routePathChecks.flat(),
     ...(routePathChecks.length > 0 ? [""] : []),
-    ...(routeIdentifiers.length > 0 ? [`export { ${routeIdentifiers.join(", ")} };`, ""] : []),
+    ...(routeExports.length > 0 ? [...routeExports, ""] : []),
     "/** Ordered app-specific route definitions discovered from Start file routes. */",
-    `export const routes = [${routeIdentifiers.join(", ")}] as const;`,
+    ...routeTreeDefinition,
     "/** Alias for `routes`, kept for router-style naming and generated-file ergonomics. */",
     "export const routeTree = routes;",
     "/** Map from generated route id to the exact route definition for that file route. */",
@@ -463,7 +546,7 @@ export const createFileRouteDefinitionsModule = (
     "  (fileRouteErrorBoundaryById as Partial<Record<RouteId, unknown>>)[",
     "    id",
     "  ] as FileRouteErrorBoundary<Id>;",
-    "/** Returns the nearest error boundary module for a generated route path pattern, when one exists. */",
+    "/** Returns the nearest error boundary module for a generated route path, when one exists. */",
     "export const errorBoundaryByPath = <Path extends RoutePath>(",
     "  path: Path,",
     "): FileRouteErrorBoundary<RouteIdByPath[Path]> => errorBoundaryById(routeIdByPath[path]);",

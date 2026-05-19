@@ -71,7 +71,7 @@ export const errorBoundaryById = <Id extends RouteId>(id: Id): FileRouteErrorBou
   (fileRouteErrorBoundaryById as Partial<Record<RouteId, unknown>>)[
     id
   ] as FileRouteErrorBoundary<Id>;
-/** Returns the nearest error boundary module for a generated route path pattern, when one exists. */
+/** Returns the nearest error boundary module for a generated route path, when one exists. */
 export const errorBoundaryByPath = <Path extends RoutePath>(
   path: Path,
 ): FileRouteErrorBoundary<RouteIdByPath[Path]> => errorBoundaryById(routeIdByPath[path]);

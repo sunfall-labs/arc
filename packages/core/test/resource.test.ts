@@ -367,6 +367,43 @@ describe("Resource", () => {
     expect(count).toBe(2);
   });
 
+  it("does not republish lifecycle events for fresh prefetches", async () => {
+    const runtime = makeRuntime();
+    let count = 0;
+    const Count = Resource.family({
+      name: "Count.fresh-prefetch-noop",
+      load: () => Effect.sync(() => ++count),
+      policy: {
+        staleFor: "1 minute",
+      },
+    });
+    const ref = Count(undefined);
+
+    try {
+      const extraEvent = await Effect.runPromise(
+        runtime.provide(
+          Effect.scoped(
+            Effect.gen(function* () {
+              const subscription = yield* Resource.subscribeEventsEffect();
+              yield* Resource.prefetchEffect(ref);
+              yield* PubSub.take(subscription);
+              yield* PubSub.take(subscription);
+
+              yield* Resource.prefetchEffect(ref);
+              return yield* PubSub.take(subscription).pipe(Effect.timeoutOption("20 millis"));
+            }),
+          ),
+        ),
+      );
+
+      expect(Option.isNone(extraEvent)).toBe(true);
+      await expect(Effect.runPromise(runtime.provide(Resource.readEffect(ref)))).resolves.toBe(1);
+      expect(count).toBe(1);
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("scopes resource cache entries to the current runtime store", async () => {
     const first = makeRuntime();
     const second = makeRuntime();

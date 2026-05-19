@@ -10,16 +10,31 @@ import { Route as route_docs } from "./routes/docs/index.js";
 import { Route as route_docs_$slug } from "./routes/docs/$slug.js";
 
 const route_root_path: "/" = route_root.path;
-const route_blog_introducing_sunfall_arc_path: "/blog/introducing-sunfall-arc" = route_blog_introducing_sunfall_arc.path;
+const route_blog_introducing_sunfall_arc_path: "/blog/introducing-sunfall-arc" =
+  route_blog_introducing_sunfall_arc.path;
 const route_cookbook_path: "/cookbook" = route_cookbook.path;
 const route_cookbook_$slug_path: "/cookbook/:slug" = route_cookbook_$slug.path;
 const route_docs_path: "/docs" = route_docs.path;
 const route_docs_$slug_path: "/docs/:slug" = route_docs_$slug.path;
 
-export { route_root, route_blog_introducing_sunfall_arc, route_cookbook, route_cookbook_$slug, route_docs, route_docs_$slug };
+export {
+  route_root,
+  route_blog_introducing_sunfall_arc,
+  route_cookbook,
+  route_cookbook_$slug,
+  route_docs,
+  route_docs_$slug,
+};
 
 /** Ordered app-specific route definitions discovered from Start file routes. */
-export const routes = [route_root, route_blog_introducing_sunfall_arc, route_cookbook, route_cookbook_$slug, route_docs, route_docs_$slug] as const;
+export const routes = [
+  route_root,
+  route_blog_introducing_sunfall_arc,
+  route_cookbook,
+  route_cookbook_$slug,
+  route_docs,
+  route_docs_$slug,
+] as const;
 /** Alias for `routes`, kept for router-style naming and generated-file ergonomics. */
 export const routeTree = routes;
 /** Map from generated route id to the exact route definition for that file route. */
@@ -92,7 +107,7 @@ export const errorBoundaryById = <Id extends RouteId>(id: Id): FileRouteErrorBou
   (fileRouteErrorBoundaryById as Partial<Record<RouteId, unknown>>)[
     id
   ] as FileRouteErrorBoundary<Id>;
-/** Returns the nearest error boundary module for a generated route path pattern, when one exists. */
+/** Returns the nearest error boundary module for a generated route path, when one exists. */
 export const errorBoundaryByPath = <Path extends RoutePath>(
   path: Path,
 ): FileRouteErrorBoundary<RouteIdByPath[Path]> => errorBoundaryById(routeIdByPath[path]);
