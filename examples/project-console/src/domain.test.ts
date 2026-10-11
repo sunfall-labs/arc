@@ -1,5 +1,12 @@
-import { ResourceFailure, provideRequest, Server, ServerClient } from "@sunfall/arc-core";
-import { Effect } from "effect";
+import {
+  ResourceFailure,
+  Route,
+  RoutePreloadError,
+  provideRequest,
+  Server,
+  ServerClient,
+} from "@sunfall/arc-core";
+import { Cause, Effect } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
 import {
@@ -13,7 +20,6 @@ import {
   makeProjectReturnTo,
   makeWorkItemId,
   normalizeProjectError,
-  renameProject,
   submitProjectName,
   updateWorkItemStatus,
 } from "./domain.js";
@@ -66,6 +72,28 @@ describe("project console domain", () => {
     expect(formatProjectError(failure)).toBe('Project "kepler" was not found.');
   });
 
+  it("unwraps route preload failures before formatting project errors", () => {
+    const failure = new RoutePreloadError({
+      path: "/projects/:id",
+      href: "/projects/kepler",
+      cause: new ProjectNotFound({ id: makeProjectId("kepler") }),
+    });
+
+    expect(formatProjectError(failure)).toBe('Project "kepler" was not found.');
+  });
+
+  it("decodes the project route's hydrated preload failure with its error schema", () => {
+    const cause = Route.preloadFailureCauseFromSnapshot(ProjectRoute, {
+      path: "/projects/:id",
+      href: "/projects/kepler",
+      failure: { _tag: "Encoded", value: { _tag: "ProjectNotFound", id: "kepler" } },
+    });
+    const failure = cause.reasons.find(Cause.isFailReason)?.error;
+
+    expect(failure?.cause).toBeInstanceOf(ProjectNotFound);
+    expect(formatProjectError(failure)).toBe('Project "kepler" was not found.');
+  });
+
   it("loads projects through server functions", () =>
     Effect.runPromise(
       provideProjectDemoStore(
@@ -111,12 +139,12 @@ describe("project console domain", () => {
     Effect.runPromise(
       provideProjectDemoStore(
         Effect.gen(function* () {
-          const renamed = yield* withLocalServer(
-            renameProject.effect({ id: makeProjectId("atlas"), name: "Atlas Revenue" }),
+          const submitted = yield* withLocalServer(
+            submitProjectName.effect({ id: makeProjectId("atlas"), name: "Atlas Revenue" }),
           );
           const loaded = yield* withLocalServer(getProject.effect({ id: makeProjectId("atlas") }));
 
-          expect(renamed.name).toBe("Atlas Revenue");
+          expect(submitted._tag === "Success" && submitted.value.name).toBe("Atlas Revenue");
           expect(loaded.name).toBe("Atlas Revenue");
         }),
       ),
@@ -125,7 +153,7 @@ describe("project console domain", () => {
   it("uses request-scoped context inside server mutations", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const renamed = yield* provideProjectDemoStore(
+        const submitted = yield* provideProjectDemoStore(
           provideRequest(
             new Request("https://example.com/projects/meridian", {
               headers: {
@@ -134,12 +162,15 @@ describe("project console domain", () => {
             }),
           )(
             withLocalServer(
-              renameProject.effect({ id: makeProjectId("meridian"), name: "Meridian Insights" }),
+              submitProjectName.effect({
+                id: makeProjectId("meridian"),
+                name: "Meridian Insights",
+              }),
             ),
           ),
         );
 
-        expect(renamed.updatedAt).toBe("request scoped");
+        expect(submitted._tag === "Success" && submitted.value.updatedAt).toBe("request scoped");
       }),
     ));
 

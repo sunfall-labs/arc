@@ -1,14 +1,19 @@
-import { ResourceFailure } from "@sunfall/arc-core";
+import { ResourceFailure, RouteNavigationError, RoutePreloadError } from "@sunfall/arc-core";
 import { Cause, Effect, Exit, Schema } from "effect";
 import { ProjectErrorSchema, type ProjectError } from "./domain.contract.js";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
-const unwrapResourceFailure = (error: unknown): unknown => {
+/** Peels framework wrappers (route preload/navigation, Resource reads) down to the domain error. */
+const unwrapFailure = (error: unknown): unknown => {
   if (error instanceof ResourceFailure) {
     // The failure Cause holds the typed error (or a defect); squash picks it.
-    return unwrapResourceFailure(Cause.squash(error.result.cause));
+    return unwrapFailure(Cause.squash(error.result.cause));
+  }
+
+  if (error instanceof RoutePreloadError || error instanceof RouteNavigationError) {
+    return unwrapFailure(error.cause);
   }
 
   return error;
@@ -17,7 +22,7 @@ const unwrapResourceFailure = (error: unknown): unknown => {
 /** Decodes class instances and plain transport objects into the ProjectError contract. */
 export const normalizeProjectError = (error: unknown): ProjectError | undefined => {
   const decoded = Effect.runSyncExit(
-    Schema.decodeUnknownEffect(ProjectErrorSchema)(unwrapResourceFailure(error)),
+    Schema.decodeUnknownEffect(ProjectErrorSchema)(unwrapFailure(error)),
   );
 
   return Exit.isSuccess(decoded) ? decoded.value : undefined;
@@ -26,7 +31,8 @@ export const normalizeProjectError = (error: unknown): ProjectError | undefined 
 export const isInvalidProjectName = (error: unknown): boolean =>
   normalizeProjectError(error)?._tag === "InvalidProjectName";
 
-export const formatProjectError = (error: unknown): string => {
+export const formatProjectError = (failure: unknown): string => {
+  const error = unwrapFailure(failure);
   const projectError = normalizeProjectError(error);
 
   switch (projectError?._tag) {
@@ -38,7 +44,7 @@ export const formatProjectError = (error: unknown): string => {
       return `Work item "${projectError.id}" was not found.`;
   }
 
-  if (error instanceof Error) {
+  if (error instanceof Error && error.message.length > 0) {
     return `${error.name}: ${error.message}`;
   }
 

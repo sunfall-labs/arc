@@ -7,7 +7,7 @@ import {
   type ServerClientError,
 } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
-import { Deferred, Effect, Exit, Fiber, Option, PubSub, Scope } from "effect";
+import { Deferred, Effect, Exit, Fiber, Option, PubSub, Schema, Scope, Stream } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { makeCollectionChangeFeedDispatcherEffect } from "../src/change-feed-dispatcher.js";
 import { subscribeCollectionChangeFeedRuntimeEffect } from "../src/collection-change-feed-runtime.js";
@@ -1222,4 +1222,224 @@ describe("Collection.syncOptions", () => {
         expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
       }),
     ));
+});
+
+const eventually = (check: () => boolean): Effect.Effect<void> =>
+  Effect.gen(function* () {
+    for (let attempt = 0; attempt < 200; attempt++) {
+      if (check()) {
+        return;
+      }
+      yield* Effect.sleep("1 millis");
+    }
+    expect(check()).toBe(true);
+  });
+
+describe("Collection.resourceSyncAdapter follow", () => {
+  const ProjectSchema = Schema.Struct({
+    id: Schema.String,
+    name: Schema.String,
+    archived: Schema.Boolean,
+  });
+
+  const makeProjects = (name: string) => {
+    let rows: ReadonlyArray<Project> = [{ id: "atlas", name: "Atlas", archived: false }];
+    const loads = { count: 0 };
+    const Tag = Resource.tag(`${name}.tag`);
+    const Family = Resource.family({
+      name: `${name}.resource`,
+      input: Schema.Literal("all"),
+      output: Schema.Array(ProjectSchema),
+      load: () =>
+        Effect.sync(() => {
+          loads.count++;
+          return rows;
+        }),
+      provides: () => [Tag],
+    });
+    const ref = Family("all");
+    const updates: Array<Collection.SyncUpdatePayload<Project, string>> = [];
+    const gate = { deferred: undefined as Deferred.Deferred<void> | undefined };
+    const Projects = Collection.define(
+      Collection.syncOptions<Project, string, Resource.LoadError<never>>({
+        name: `${name}.collection`,
+        getKey: (project) => project.id,
+        sync: Collection.resourceSyncAdapter({
+          ref,
+          update: (payload) =>
+            Effect.gen(function* () {
+              updates.push(payload);
+              if (gate.deferred !== undefined) {
+                yield* Deferred.await(gate.deferred);
+              }
+            }),
+        }),
+      }),
+    );
+    return {
+      Tag,
+      ref,
+      Projects,
+      loads,
+      updates,
+      gate,
+      setRows: (next: ReadonlyArray<Project>) => {
+        rows = next;
+      },
+    };
+  };
+
+  it("reconciles rows when the Resource reloads after tag invalidation", () => {
+    const runtime = makeRuntime();
+    const fixture = makeProjects("Projects.follow.invalidate");
+    const names = () =>
+      runtime.runSync(Effect.sync(() => fixture.Projects.rows().map((row) => row.name)));
+
+    return Effect.runPromise(
+      runtime
+        .provide(
+          Effect.gen(function* () {
+            yield* fixture.Projects.preloadEffect();
+            expect(names()).toEqual(["Atlas"]);
+            expect(fixture.loads.count).toBe(1);
+
+            fixture.setRows([{ id: "atlas", name: "Atlas Prime", archived: false }]);
+            yield* Resource.invalidateEffect(fixture.Tag);
+
+            yield* eventually(() => names()[0] === "Atlas Prime");
+            // The Resource reload fed the collection; the collection did not fetch again.
+            expect(fixture.loads.count).toBe(2);
+            expect(fixture.Projects.rows()).toMatchObject([{ id: "atlas", $synced: true }]);
+
+            fixture.setRows([{ id: "lumen", name: "Lumen", archived: true }]);
+            yield* Resource.refreshEffect(fixture.ref);
+            yield* eventually(() => names()[0] === "Lumen");
+            expect(fixture.loads.count).toBe(3);
+          }),
+        )
+        .pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+    );
+  });
+
+  it("keeps pending optimistic updates on top of followed snapshots", () => {
+    const runtime = makeRuntime();
+    const fixture = makeProjects("Projects.follow.optimistic");
+    const rows = () => runtime.runSync(Effect.sync(() => fixture.Projects.rows()));
+
+    return Effect.runPromise(
+      runtime
+        .provide(
+          Effect.gen(function* () {
+            yield* fixture.Projects.preloadEffect();
+            fixture.gate.deferred = yield* Deferred.make<void>();
+            const mutation = yield* Effect.forkChild(
+              fixture.Projects.updateEffect("atlas", { name: "Atlas Local" }),
+            );
+            yield* eventually(() => fixture.updates.length === 1);
+
+            fixture.setRows([{ id: "atlas", name: "Atlas Remote", archived: true }]);
+            yield* Resource.invalidateEffect(fixture.Tag);
+            yield* eventually(() => fixture.loads.count === 2 && rows()[0]?.archived === true);
+            // The followed snapshot rebases the pending patch instead of clobbering it.
+            expect(rows()).toMatchObject([{ name: "Atlas Local", archived: true, $synced: false }]);
+
+            yield* Deferred.succeed(fixture.gate.deferred, undefined);
+            yield* Fiber.join(mutation);
+            expect(rows()).toMatchObject([{ name: "Atlas Local", archived: true, $synced: true }]);
+          }),
+        )
+        .pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+    );
+  });
+
+  it("follows hydrated state without fetching again on the client", () => {
+    const server = makeRuntime();
+    const client = makeRuntime();
+    const fixture = makeProjects("Projects.follow.hydrate");
+    const names = () =>
+      client.runSync(Effect.sync(() => fixture.Projects.rows().map((row) => row.name)));
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const { resources, collection } = yield* server.provide(
+          Effect.gen(function* () {
+            yield* fixture.Projects.preloadEffect();
+            return {
+              resources: yield* Resource.hydrationPayloadEffect([fixture.ref]),
+              collection: yield* fixture.Projects.snapshotEffect(),
+            };
+          }),
+        );
+        expect(fixture.loads.count).toBe(1);
+
+        yield* client.provide(
+          Effect.gen(function* () {
+            yield* Resource.hydrateEffect(resources);
+            yield* fixture.Projects.hydrateEffect(collection);
+            yield* fixture.Projects.preloadEffect();
+            yield* Effect.sleep("5 millis");
+            expect(fixture.loads.count).toBe(1);
+            expect(names()).toEqual(["Atlas"]);
+
+            fixture.setRows([{ id: "atlas", name: "Atlas Prime", archived: false }]);
+            yield* Resource.invalidateEffect(fixture.Tag);
+            yield* eventually(() => names()[0] === "Atlas Prime");
+            expect(fixture.loads.count).toBe(2);
+          }),
+        );
+      }).pipe(
+        Effect.ensuring(
+          Effect.gen(function* () {
+            yield* Effect.orDie(server.disposeEffect);
+            yield* Effect.orDie(client.disposeEffect);
+          }),
+        ),
+      ),
+    );
+  });
+
+  it("stops following when the runtime that owns the collection store is disposed", () => {
+    const runtime = makeRuntime();
+    const lifecycle = { started: 0, stopped: 0 };
+    const source = Effect.runSync(PubSub.unbounded<ReadonlyArray<Project>>());
+    const Projects = Collection.define(
+      Collection.syncOptions<Project>({
+        name: "Projects.follow.dispose",
+        getKey: (project) => project.id,
+        sync: {
+          name: "follow-dispose",
+          load: () => [{ id: "atlas", name: "Atlas", archived: false }],
+          follow: () =>
+            Stream.fromPubSub(source).pipe(
+              Stream.onStart(
+                Effect.sync(() => {
+                  lifecycle.started++;
+                }),
+              ),
+              Stream.ensuring(
+                Effect.sync(() => {
+                  lifecycle.stopped++;
+                }),
+              ),
+            ),
+        },
+      }),
+    );
+    const names = () => runtime.runSync(Effect.sync(() => Projects.rows().map((row) => row.name)));
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* runtime.provide(Projects.preloadEffect());
+        yield* runtime.provide(Projects.preloadEffect());
+        yield* runtime.provide(Projects.refetchEffect());
+        yield* eventually(() => lifecycle.started === 1);
+
+        yield* PubSub.publish(source, [{ id: "atlas", name: "Atlas Live", archived: false }]);
+        yield* eventually(() => names()[0] === "Atlas Live");
+
+        yield* Effect.orDie(runtime.disposeEffect);
+        expect(lifecycle).toEqual({ started: 1, stopped: 1 });
+      }),
+    );
+  });
 });

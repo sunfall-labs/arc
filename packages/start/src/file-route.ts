@@ -3,30 +3,18 @@ import {
   isPromiseLikeValue,
   route,
   toEffect,
+  type CheckedRouteOptions,
   type EffectInputRequirements,
   type EnsureEffectInput,
   type ParamsForPath,
   type Route,
+  type RouteDefinitionFromOptions,
   type RouteOptionsInput,
 } from "@sunfall/arc-core";
 import { Collection, type AnyCollection } from "@sunfall/arc-db";
 import { Data, Effect } from "effect";
 
-type CheckedFileRoutePreload<Options> = Options extends {
-  readonly preload: (...args: infer Args) => infer Out;
-}
-  ? { readonly preload: (...args: Args) => EnsureEffectInput<Out> }
-  : {};
-
 type SchemaType<S> = S extends { readonly Type: infer A } ? A : unknown;
-
-type FileRouteOptionsParams<Options, Fallback> = Options extends { readonly params: infer Schema }
-  ? SchemaType<Schema>
-  : Fallback;
-
-type FileRouteOptionsSearch<Options, Fallback> = Options extends { readonly search: infer Schema }
-  ? SchemaType<Schema>
-  : Fallback;
 
 type FileRouteContext<Path extends string, Params, Search> = Route.Context<
   Route.Definition<Path, Params, Search, any>
@@ -76,11 +64,13 @@ type FileRoutePreloadRequirements<Options> =
  *
  * Preload-owned fields are intentionally omitted so schemas, declared preload
  * resources, declared collections, and preload requirements stay attached to
- * the builder output.
+ * the builder output. `error` is omitted because the builder's preload can
+ * fail with framework errors (`FileRoutePreloadError`, resource failures)
+ * that no route error schema describes.
  */
 export type FileRoutePreloadRouteOptions = Omit<
   RouteOptionsInput,
-  "params" | "search" | "preload" | "preloadResources" | "preloadCollections"
+  "params" | "search" | "error" | "preload" | "preloadResources" | "preloadCollections"
 >;
 
 type FileRoutePreloadDefinition<Path extends string, Params, Search, Requirements> = {
@@ -222,15 +212,8 @@ const customPreloadEffect = <Path extends string>(
 /** Builder returned from `defineFileRoute(path)` with preload ergonomics helpers. */
 export interface DefineFileRouteBuilder<Path extends string> {
   <const Options extends RouteOptionsInput>(
-    options: Options & CheckedFileRoutePreload<Options>,
-  ): Route.Definition<
-    Path,
-    FileRouteOptionsParams<Options, ParamsForPath<Path>>,
-    FileRouteOptionsSearch<Options, Record<string, never>>,
-    Options extends { readonly preload: (...args: any) => infer Out }
-      ? EffectInputRequirements<Out>
-      : never
-  >;
+    options: CheckedRouteOptions<Options>,
+  ): RouteDefinitionFromOptions<Path, Options>;
   /**
    * Declares one static resource preload hint from typed route params/search.
    *
@@ -387,7 +370,7 @@ const makeDefineFileRouteBuilder = <const Path extends string>(
   path: Path,
 ): DefineFileRouteBuilder<Path> => {
   const builder = (<const Options extends RouteOptionsInput>(
-    options: Options & CheckedFileRoutePreload<Options>,
+    options: CheckedRouteOptions<Options>,
   ) => route<Path, Options>(path, options)) as DefineFileRouteBuilder<Path>;
 
   const makeResource = <const Family extends ResourceRefFactory>(

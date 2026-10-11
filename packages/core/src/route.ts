@@ -1,14 +1,23 @@
 import { Cause, Data, Effect, Exit, Fiber, Schema } from "effect";
-import type { EffectInputRequirements, EnsureEffectInput } from "./effect-like.js";
-import { catchEffectInputPromiseDefect, toEffect } from "./effect-like.js";
+import type {
+  EffectInputError,
+  EffectInputRequirements,
+  EnsureEffectInput,
+} from "./effect-like.js";
+import { toEffect } from "./effect-like.js";
 import {
   isResourceRef,
   type AnyResourceFamily,
   type AnyResourceRef,
   type ResourceHydrationPayload,
 } from "./resource.js";
-import { collectResourceEffect, resourceHydrationPayloadEffect } from "./resource-runtime.js";
+import {
+  collectResourceEffect,
+  resourceHydrationPayloadEffect,
+  resourceStoreEffect,
+} from "./resource-runtime.js";
 import type { ResourceSnapshotCodecError } from "./resource-snapshot-codec.js";
+import { hydrateRoutePreloadFailure } from "./route-preload-failure-hydration.js";
 import {
   buildRoutePath,
   compareRoutePathSpecificity,
@@ -70,11 +79,21 @@ export interface RoutePreloadCollectionDiagnostics {
  * interruption. Promise-shaped returns are rejected at the type and runtime
  * EffectInput seam.
  */
-export type RoutePreloadResult<Requirements = never> = void | Effect.Effect<
+export type RoutePreloadResult<Requirements = never, E = unknown> = void | Effect.Effect<
   unknown,
-  unknown,
+  E,
   Requirements
 >;
+
+/**
+ * Schema for a route's typed preload failure, like Effect RPC's `error`.
+ *
+ * Start encodes a failure the server rendered with this schema (as JSON) and
+ * the hydrating client decodes it back into the same typed value, so both
+ * renders show the real failure with its declared fields. Encoding and
+ * decoding run synchronously, so the schema cannot require services.
+ */
+export type RouteErrorSchema<E = unknown> = Schema.Codec<E, unknown, never, never>;
 
 export const RouteLazyComponentTypeId: unique symbol = Symbol.for(
   "@sunfall/arc-core/RouteLazyComponent",
@@ -146,14 +165,14 @@ const lazyRouteComponentMissingExport = (exportName: string): RouteLazyComponent
     cause: new Error(`Lazy route component module did not export ${JSON.stringify(exportName)}.`),
   });
 
-export function lazyRouteComponent<Component, E = never>(
+function lazyRouteComponent<Component, E = never>(
   importer: Effect.Effect<RouteLazyComponentModule<Component>, E>,
 ): RouteLazyComponent<Component, E>;
-export function lazyRouteComponent<const ExportName extends string, Component, E = never>(
+function lazyRouteComponent<const ExportName extends string, Component, E = never>(
   importer: Effect.Effect<RouteLazyComponentModule<Component, ExportName>, E>,
   exportName: ExportName,
 ): RouteLazyComponent<Component, E>;
-export function lazyRouteComponent<Component, E = never>(
+function lazyRouteComponent<Component, E = never>(
   importer: Effect.Effect<Record<string, Component>, E>,
   exportName = "default",
 ): RouteLazyComponent<Component, E> {
@@ -231,16 +250,16 @@ export function lazyRouteComponent<Component, E = never>(
   };
 }
 
-export const isRouteLazyComponent = (value: unknown): value is RouteLazyComponent =>
+const isRouteLazyComponent = (value: unknown): value is RouteLazyComponent =>
   value !== null &&
   typeof value === "object" &&
   (value as { readonly [RouteLazyComponentTypeId]?: unknown })[RouteLazyComponentTypeId] ===
     RouteLazyComponentTypeId;
 
-export const readRouteComponent = (component: unknown): unknown =>
+const readRouteComponent = (component: unknown): unknown =>
   isRouteLazyComponent(component) ? component.read() : component;
 
-export const routeLazyComponentPendingEffect = <E = never>(
+const routeLazyComponentPendingEffect = <E = never>(
   value: unknown,
 ): Effect.Effect<unknown, E | RouteLazyComponentLoadError> | undefined =>
   value instanceof RouteLazyComponentPending
@@ -259,7 +278,7 @@ export interface RouteLazyComponentSuspenseRuntime<RuntimeError = never> {
  * UI adapters keep the final host Suspense token conversion, but Core owns the
  * lazy route pending classification and preload launch policy.
  */
-export const forkRouteLazyComponentSuspense = <RuntimeError, E = never>(
+const forkRouteLazyComponentSuspense = <RuntimeError, E = never>(
   value: unknown,
   runtime: RouteLazyComponentSuspenseRuntime<RuntimeError>,
 ): Fiber.Fiber<void, E | RouteLazyComponentLoadError | RuntimeError> | undefined => {
@@ -276,15 +295,31 @@ export const forkRouteLazyComponentSuspense = <RuntimeError, E = never>(
  * Declare `preloadResources` or `preloadCollections` when adapters need static
  * preload hints.
  */
-export interface RouteOptions<Path extends string, Params, Search, PreloadRequirements = never> {
+export interface RouteOptions<
+  Path extends string,
+  Params,
+  Search,
+  PreloadRequirements = never,
+  PreloadError = unknown,
+> {
   /** Optional schema that decodes path params after route matching. */
   readonly params?: AnySchema<Params>;
   /** Optional schema that decodes URL search values after route matching. */
   readonly search?: AnySchema<Search>;
-  /** Effect-first work run before navigation/render. Promise returns are rejected. */
+  /**
+   * Optional schema for the typed preload failure. When present, `preload`
+   * may fail only with this schema's type, and Start sends a server-rendered
+   * failure to the client encoded with it. Without it only the failure `_tag`
+   * crosses the wire.
+   */
+  readonly error?: RouteErrorSchema<PreloadError>;
+  /**
+   * Effect-first work run before navigation/render. Promise returns are
+   * rejected; synchronous throws are defects, not typed failures.
+   */
   readonly preload?: (
     context: RouteContext<RouteDefinition<Path, Params, Search, PreloadRequirements>>,
-  ) => RoutePreloadResult<PreloadRequirements>;
+  ) => RoutePreloadResult<PreloadRequirements, PreloadError>;
   /** Static resource preload hints used by Start diagnostics and devtools. */
   readonly preloadResources?: readonly RoutePreloadResourceInput[];
   /** Static collection preload hints used by Start diagnostics and devtools. */
@@ -296,16 +331,29 @@ export interface RouteOptions<Path extends string, Params, Search, PreloadRequir
 export interface RouteOptionsInput {
   readonly params?: AnySchema<unknown>;
   readonly search?: AnySchema<unknown>;
+  readonly error?: RouteErrorSchema;
   readonly preload?: (context: any) => RoutePreloadResult<unknown>;
   readonly preloadResources?: readonly RoutePreloadResourceInput[];
   readonly preloadCollections?: readonly RoutePreloadCollectionInput[];
   readonly component?: unknown;
 }
 
-/** Runtime route object produced by `route`. */
-export interface RouteDefinition<Path extends string, Params, Search, PreloadRequirements = never> {
+/**
+ * Runtime route object produced by `route`.
+ *
+ * `PreloadError` is the typed preload failure: `never` for routes without
+ * `preload`, the `error` schema's type when one is declared, and `unknown`
+ * for preloads without an `error` schema.
+ */
+export interface RouteDefinition<
+  Path extends string,
+  Params,
+  Search,
+  PreloadRequirements = never,
+  PreloadError = unknown,
+> {
   readonly path: Path;
-  readonly options: RouteOptions<Path, Params, Search, PreloadRequirements>;
+  readonly options: RouteOptions<Path, Params, Search, PreloadRequirements, PreloadError>;
   /** Builds an href from typed path params and optional search values. */
   build(params: Params, search?: Partial<Search>): string;
   /**
@@ -334,6 +382,12 @@ type PreloadRequirementsFromOptions<Options> = Options extends {
   ? EffectInputRequirements<Out>
   : never;
 
+type PreloadErrorFromOptions<Options> = Options extends { readonly preload: unknown }
+  ? Options extends { readonly error: infer ErrorSchema }
+    ? SchemaType<ErrorSchema>
+    : unknown
+  : never;
+
 /** Params type carried by a route definition. */
 export type RouteParams<R> =
   R extends RouteDefinition<infer _Path, infer Params, infer _Search, infer _PreloadRequirements>
@@ -350,6 +404,18 @@ export type RouteSearch<R> =
 export type RoutePreloadRequirements<R> =
   R extends RouteDefinition<infer _Path, infer _Params, infer _Search, infer PreloadRequirements>
     ? PreloadRequirements
+    : never;
+
+/** Typed preload failure of a route definition (distributes over route unions). */
+export type RoutePreloadFailure<R> =
+  R extends RouteDefinition<
+    infer _Path,
+    infer _Params,
+    infer _Search,
+    infer _PreloadRequirements,
+    infer PreloadError
+  >
+    ? PreloadError
     : never;
 
 /** Context passed to route preload callbacks and route matches. */
@@ -423,26 +489,112 @@ export type RouteHrefOptions<R extends RouteDefinition<string, unknown, unknown,
 export type RouteHrefArgs<R extends RouteDefinition<string, unknown, unknown, unknown>> =
   {} extends RouteParams<R> ? [options?: RouteHrefOptions<R>] : [options: RouteHrefOptions<R>];
 
-export class RoutePreloadError extends Data.TaggedError("RoutePreloadError")<{
+const routePreloadCauseTag = (cause: unknown): string | undefined =>
+  typeof cause === "object" && cause !== null && "_tag" in cause && typeof cause._tag === "string"
+    ? cause._tag
+    : undefined;
+
+const routePreloadCauseSummary = (cause: unknown): string | undefined =>
+  routePreloadCauseTag(cause) ??
+  (cause instanceof Error && cause.message.length > 0 ? cause.message : undefined);
+
+/** A matched route's preload failed; `cause` is the typed preload failure. */
+export class RoutePreloadError<E = unknown> extends Data.TaggedError("RoutePreloadError")<{
   readonly path: string;
   readonly href: string;
-  readonly cause: unknown;
-}> {}
+  readonly cause: E;
+}> {
+  /** Names the route, the href, and the failure so logs and fallback views say what failed. */
+  override get message(): string {
+    const summary = routePreloadCauseSummary(this.cause);
+    return `Route "${this.path}" failed to preload "${this.href}"${summary === undefined ? "" : `: ${summary}`}`;
+  }
+}
+
+/**
+ * Wire form of a route preload failure.
+ *
+ * - `Encoded`: the route declares an `error` schema; `value` is the failure
+ *   encoded as JSON by that schema, decoded back into the typed failure.
+ * - `Untyped`: the route has no `error` schema; only the failure `_tag`
+ *   crosses the wire and the rebuilt cause is `{ _tag }`.
+ * - `Unencodable`: the failure did not encode with the route's `error`
+ *   schema; it is rendered as a `RoutePreloadFailureCodecError` defect.
+ */
+export type RoutePreloadFailureEncoding =
+  | { readonly _tag: "Encoded"; readonly value: Schema.Json }
+  | { readonly _tag: "Untyped"; readonly tag?: string }
+  | { readonly _tag: "Unencodable" };
+
+/**
+ * Serializable record of a route preload failure that a server render shows,
+ * so the hydrating client starts in the same router `Failure` state.
+ *
+ * Both the server render and the client render the failure decoded from this
+ * snapshot, so their output agrees. Failure data crosses the wire only as the
+ * route's `error` schema encodes it.
+ */
+export interface RoutePreloadFailureSnapshot {
+  readonly path: string;
+  readonly href: string;
+  readonly failure: RoutePreloadFailureEncoding;
+}
+
+/**
+ * Defect for a route preload failure that could not cross the wire with the
+ * route's `error` schema: encoding failed on the server, or decoding failed
+ * on the client. It carries no failure data.
+ */
+export class RoutePreloadFailureCodecError extends Data.TaggedError(
+  "RoutePreloadFailureCodecError",
+)<{
+  readonly path: string;
+  readonly href: string;
+  readonly operation: "encode" | "decode";
+}> {
+  override get message(): string {
+    return `Route "${this.path}" preload failure for "${this.href}" could not ${this.operation} with the route error schema`;
+  }
+}
 
 export class RouteNavigationError extends Data.TaggedError("RouteNavigationError")<{
   readonly input: string;
   readonly cause: unknown;
 }> {}
 
-export type RoutePreloadPlanError = RoutePreloadError | ResourceSnapshotCodecError;
+export type RoutePreloadPlanError<E = unknown> = RoutePreloadError<E> | ResourceSnapshotCodecError;
 
-export type RouteNavigationPlanError = RouteNavigationError | RoutePreloadPlanError;
+export type RouteNavigationPlanError<E = unknown> = RouteNavigationError | RoutePreloadPlanError<E>;
+
+type CheckedRoutePreloadOutput<Out, Options> = Options extends {
+  readonly error: infer ErrorSchema;
+}
+  ? [EffectInputError<Out>] extends [SchemaType<ErrorSchema>]
+    ? EnsureEffectInput<Out>
+    : Effect.Effect<unknown, SchemaType<ErrorSchema>, EffectInputRequirements<Out>>
+  : EnsureEffectInput<Out>;
 
 type CheckedRoutePreload<Options> = Options extends {
   readonly preload: (...args: infer Args) => infer Out;
 }
-  ? { readonly preload: (...args: Args) => EnsureEffectInput<Out> }
+  ? { readonly preload: (...args: Args) => CheckedRoutePreloadOutput<Out, Options> }
   : {};
+
+/**
+ * Route options checked against their preload callback: Promise returns are
+ * rejected, and with an `error` schema the preload may fail only with that
+ * schema's type.
+ */
+export type CheckedRouteOptions<Options> = Options & CheckedRoutePreload<Options>;
+
+/** Route definition that `route(path, options)` returns for `Options`. */
+export type RouteDefinitionFromOptions<Path extends string, Options> = RouteDefinition<
+  Path,
+  ParamsFromOptions<Path, Options>,
+  SearchFromOptions<Options>,
+  PreloadRequirementsFromOptions<Options>,
+  PreloadErrorFromOptions<Options>
+>;
 
 const appendSearch = (path: string, search: Record<string, unknown> | undefined): string => {
   if (!search) {
@@ -547,14 +699,12 @@ const uniqueSortedCollectionNames = (
     ),
   ).sort();
 
-const routePreloadError = (match: RouteMatch, cause: unknown): RoutePreloadError =>
-  cause instanceof RoutePreloadError
-    ? cause
-    : new RoutePreloadError({
-        path: match.route.path,
-        href: match.href,
-        cause,
-      });
+const routePreloadError = <E>(match: RouteMatch, cause: E): RoutePreloadError<E> =>
+  new RoutePreloadError({
+    path: match.route.path,
+    href: match.href,
+    cause,
+  });
 
 const routeNavigationError = (input: string | URL, cause: unknown): RouteNavigationError =>
   new RouteNavigationError({
@@ -595,32 +745,29 @@ const orderedRouteDefinitions = <
  */
 export function route<const Path extends string>(
   path: Path,
-): RouteDefinition<Path, ParamsForPath<Path>, Record<string, never>>;
+): RouteDefinition<Path, ParamsForPath<Path>, Record<string, never>, never, never>;
 export function route<const Path extends string, const Options extends RouteOptionsInput>(
   path: Path,
-  options: Options & CheckedRoutePreload<Options>,
+  options: CheckedRouteOptions<Options>,
 ): RouteDefinition<
   Path,
   ParamsFromOptions<Path, Options>,
   SearchFromOptions<Options>,
-  PreloadRequirementsFromOptions<Options>
+  PreloadRequirementsFromOptions<Options>,
+  PreloadErrorFromOptions<Options>
 >;
 export function route<const Path extends string, const Options extends RouteOptionsInput>(
   path: Path,
-  options: Options & CheckedRoutePreload<Options> = {} as Options & CheckedRoutePreload<Options>,
-): RouteDefinition<
-  Path,
-  ParamsFromOptions<Path, Options>,
-  SearchFromOptions<Options>,
-  PreloadRequirementsFromOptions<Options>
-> {
+  options: CheckedRouteOptions<Options> = {} as CheckedRouteOptions<Options>,
+): RouteDefinitionFromOptions<Path, Options> {
   type Params = ParamsFromOptions<Path, Options>;
   type Search = SearchFromOptions<Options>;
   type PreloadRequirements = PreloadRequirementsFromOptions<Options>;
+  type PreloadError = PreloadErrorFromOptions<Options>;
 
-  const definition: RouteDefinition<Path, Params, Search, PreloadRequirements> = {
+  const definition: RouteDefinition<Path, Params, Search, PreloadRequirements, PreloadError> = {
     path,
-    options: options as RouteOptions<Path, Params, Search, PreloadRequirements>,
+    options: options as RouteOptions<Path, Params, Search, PreloadRequirements, PreloadError>,
     build(params, search) {
       const record = params as Record<string, unknown>;
       const compiled = buildRoutePath(path, record);
@@ -654,7 +801,8 @@ export namespace Route {
     Params = unknown,
     Search = unknown,
     PreloadRequirements = never,
-  > = RouteDefinition<Path, Params, Search, PreloadRequirements>;
+    PreloadError = unknown,
+  > = RouteDefinition<Path, Params, Search, PreloadRequirements, PreloadError>;
 
   export type Match<
     R extends Definition<string, unknown, unknown, any> = Definition<string, unknown, unknown, any>,
@@ -678,6 +826,9 @@ export namespace Route {
   /** Service requirements needed by a route preload callback. */
   export type PreloadRequirements<R> = RoutePreloadRequirements<R>;
 
+  /** Typed preload failure of a route: its `error` schema type, `unknown` without one, `never` without preload. */
+  export type PreloadFailure<R> = RoutePreloadFailure<R>;
+
   export type HrefOptions<R extends Definition<string, unknown, unknown, any>> =
     RouteHrefOptions<R>;
 
@@ -696,9 +847,10 @@ export namespace Route {
   export type PreloadCollectionDiagnostics = RoutePreloadCollectionDiagnostics;
 
   /** Error union for running route preload and resource hydration planning. */
-  export type PreloadError = RoutePreloadPlanError;
+  export type PreloadError<R = Definition> = RoutePreloadPlanError<PreloadFailure<R>>;
 
-  export type NavigationError = RouteNavigationPlanError;
+  /** Error union for matching and preloading a navigation to one of the routes `R`. */
+  export type NavigationError<R = Definition> = RouteNavigationPlanError<PreloadFailure<R>>;
 
   export type Props<R> =
     R extends RouteDefinition<infer _Path, infer Params, infer Search, infer _PreloadRequirements>
@@ -717,16 +869,6 @@ export namespace Route {
     ComponentValue,
     E
   >;
-
-  export type LazyComponentLoadError = RouteLazyComponentLoadError;
-
-  /** Typed failure used when a lazy component module does not contain the requested export. */
-  export const LazyComponentLoadError = RouteLazyComponentLoadError;
-
-  export type LazyComponentPending<E = never> = RouteLazyComponentPending<E>;
-
-  /** Tagged pending marker thrown while a lazy route component is loading. */
-  export const LazyComponentPending = RouteLazyComponentPending;
 
   export type LazyComponentSuspenseRuntime<RuntimeError = never> =
     RouteLazyComponentSuspenseRuntime<RuntimeError>;
@@ -784,11 +926,17 @@ export namespace Route {
   >(
     definition: R,
     component: RouteComponent,
-  ): Definition<R["path"], Params<R>, Search<R>, PreloadRequirements<R>> =>
+  ): Definition<R["path"], Params<R>, Search<R>, PreloadRequirements<R>, PreloadFailure<R>> =>
     route(definition.path, {
       ...definition.options,
       component,
-    }) as unknown as Definition<R["path"], Params<R>, Search<R>, PreloadRequirements<R>>;
+    }) as unknown as Definition<
+      R["path"],
+      Params<R>,
+      Search<R>,
+      PreloadRequirements<R>,
+      PreloadFailure<R>
+    >;
 
   /**
    * Returns the first matching route for a URL, or undefined when none match.
@@ -830,39 +978,34 @@ export namespace Route {
   /**
    * Runs a matched route's preload function as an Effect.
    *
-   * Prefer this when composing preload with resources or server calls.
+   * Typed preload failures become `RoutePreloadError<Route.PreloadFailure<R>>`.
+   * Synchronous throws and Promise returns break the preload contract and are
+   * defects.
    */
   export const preloadEffect = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>,
-  ): Effect.Effect<void, RoutePreloadError, PreloadRequirements<R>> =>
-    Effect.try({
-      try: (): RoutePreloadResult<PreloadRequirements<R>> | undefined => {
-        const preload = match.route.options.preload;
-        return preload?.(match);
-      },
-      catch: (cause) => routePreloadError(match, cause),
+  ): Effect.Effect<void, RoutePreloadError<PreloadFailure<R>>, PreloadRequirements<R>> =>
+    Effect.suspend(() => {
+      const input = match.route.options.preload?.(match);
+      return input === undefined
+        ? Effect.void
+        : (toEffect(input as never) as Effect.Effect<
+            unknown,
+            PreloadFailure<R>,
+            PreloadRequirements<R>
+          >);
     }).pipe(
-      Effect.flatMap((input) =>
-        input === undefined
-          ? Effect.void
-          : catchEffectInputPromiseDefect(
-              `Route.preload(${match.route.path})`,
-              toEffect(input as never) as Effect.Effect<void, unknown, PreloadRequirements<R>>,
-            ).pipe(
-              Effect.asVoid,
-              Effect.mapError((cause) => routePreloadError(match, cause)),
-            ),
-      ),
+      Effect.asVoid,
+      Effect.mapError((cause) => routePreloadError(match, cause)),
     );
 
-  export const preload = <R extends Definition<string, unknown, unknown, any>>(
-    match: Match<R>,
-  ): Effect.Effect<void, RoutePreloadError, PreloadRequirements<R>> => preloadEffect(match);
-
-  /** Preloads a lazy route component chunk, when the route component is lazy. */
+  /**
+   * Preloads a lazy route component chunk, when the route component is lazy.
+   * A failed load fails with `RouteLazyComponentFailed`.
+   */
   export const preloadComponentEffect = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>,
-  ): Effect.Effect<void, RoutePreloadError> => {
+  ): Effect.Effect<void, RouteLazyComponentFailed<unknown>> => {
     const component = match.route.options.component;
     if (!isRouteLazyComponent(component)) {
       return Effect.void;
@@ -870,7 +1013,11 @@ export namespace Route {
 
     return component.preloadEffect().pipe(
       Effect.asVoid,
-      Effect.catchCause((cause) => Effect.fail(routePreloadError(match, cause))),
+      Effect.catchCause((cause) =>
+        Effect.fail(
+          new RouteLazyComponentFailed<unknown>({ exportName: component.exportName, cause }),
+        ),
+      ),
     );
   };
 
@@ -940,10 +1087,108 @@ export namespace Route {
         };
   };
 
+  /**
+   * Captures the wire snapshot of a preload failure of `definition`.
+   *
+   * With an `error` schema the failure is encoded as JSON by that schema; a
+   * failure that does not encode is logged and sent as `Unencodable`, without
+   * its data. Without an `error` schema only the failure `_tag` is sent.
+   */
+  export const preloadFailureSnapshotEffect = <R extends Definition<string, unknown, unknown, any>>(
+    definition: R,
+    error: RoutePreloadError<PreloadFailure<R>>,
+  ): Effect.Effect<RoutePreloadFailureSnapshot> => {
+    const snapshot = (failure: RoutePreloadFailureEncoding): RoutePreloadFailureSnapshot => ({
+      path: error.path,
+      href: error.href,
+      failure,
+    });
+    const schema = definition.options.error;
+    if (schema === undefined) {
+      const tag = routePreloadCauseTag(error.cause);
+      return Effect.succeed(snapshot({ _tag: "Untyped", ...(tag === undefined ? {} : { tag }) }));
+    }
+    return Schema.encodeUnknownEffect(Schema.toCodecJson(schema))(error.cause).pipe(
+      Effect.map((value) => snapshot({ _tag: "Encoded", value })),
+      Effect.catch((schemaError) =>
+        Effect.logWarning(
+          `Route "${error.path}" preload failure for "${error.href}" did not encode with the route error schema`,
+          schemaError,
+        ).pipe(Effect.as(snapshot({ _tag: "Unencodable" }))),
+      ),
+    );
+  };
+
+  /**
+   * Rebuilds the router failure a snapshot describes for `definition`.
+   *
+   * An `Encoded` failure decodes with the route's `error` schema into the
+   * typed `RoutePreloadError` cause; an `Untyped` one rebuilds `cause` as
+   * `{ _tag }`. A failure that cannot cross the wire with the route's schema
+   * (unencodable, undecodable, or mismatched with the route) is a
+   * `RoutePreloadFailureCodecError` defect.
+   */
+  export const preloadFailureCauseFromSnapshot = <
+    R extends Definition<string, unknown, unknown, any>,
+  >(
+    definition: R,
+    snapshot: RoutePreloadFailureSnapshot,
+  ): Cause.Cause<RoutePreloadError<PreloadFailure<R>>> => {
+    const codecDefect = (operation: "encode" | "decode") =>
+      Cause.die(
+        new RoutePreloadFailureCodecError({
+          path: snapshot.path,
+          href: snapshot.href,
+          operation,
+        }),
+      );
+    const fail = (cause: PreloadFailure<R>) =>
+      Cause.fail(new RoutePreloadError({ path: snapshot.path, href: snapshot.href, cause }));
+    const schema = definition.options.error;
+    const failure = snapshot.failure;
+    if (snapshot.path !== definition.path) {
+      return codecDefect("decode");
+    }
+    switch (failure._tag) {
+      case "Unencodable":
+        return codecDefect("encode");
+      case "Untyped":
+        // Without an `error` schema the route's failure type is `unknown`.
+        return schema === undefined
+          ? fail(
+              (failure.tag === undefined ? undefined : { _tag: failure.tag }) as PreloadFailure<R>,
+            )
+          : codecDefect("decode");
+      case "Encoded": {
+        if (schema === undefined) {
+          return codecDefect("decode");
+        }
+        const decoded = Schema.decodeUnknownExit(Schema.toCodecJson(schema))(failure.value);
+        return Exit.isSuccess(decoded)
+          ? fail(decoded.value as PreloadFailure<R>)
+          : codecDefect("decode");
+      }
+    }
+  };
+
+  /**
+   * Starts the next router created on the active runtime for `snapshot.href`
+   * in the `Failure` state the snapshot describes, instead of `Ready`.
+   *
+   * Start runs this in the server request runtime when route preload fails and
+   * in the browser runtime while hydrating that document, so both renders show
+   * the outlet's failure view. The record is consumed by the first router that
+   * reads it; later navigations to the href run its preload again.
+   */
+  export const hydratePreloadFailureEffect = (
+    snapshot: RoutePreloadFailureSnapshot,
+  ): Effect.Effect<void> =>
+    Effect.map(resourceStoreEffect, (store) => hydrateRoutePreloadFailure(store, snapshot));
+
   /** Runs matched route preload and captures touched resources for hydration. */
   export const planPreloadEffect = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>,
-  ): Effect.Effect<PreloadPlan<R>, RoutePreloadPlanError, PreloadRequirements<R>> =>
+  ): Effect.Effect<PreloadPlan<R>, PreloadError<R>, PreloadRequirements<R>> =>
     collectResourceEffect(preloadEffect(match)).pipe(
       Effect.flatMap((collected) =>
         resourceHydrationPayloadEffect(collected.refs).pipe(
@@ -955,12 +1200,6 @@ export namespace Route {
         ),
       ),
     );
-
-  /** Alias for `planPreloadEffect`; kept Effect-first for adapters and tests. */
-  export const planPreload = <R extends Definition<string, unknown, unknown, any>>(
-    match: Match<R>,
-  ): Effect.Effect<PreloadPlan<R>, RoutePreloadPlanError, PreloadRequirements<R>> =>
-    planPreloadEffect(match);
 
   /**
    * Matches a URL and produces a navigation plan with collected resource hydration.
@@ -975,7 +1214,7 @@ export namespace Route {
     input: string | URL,
   ): Effect.Effect<
     NavigationPlan<Routes[number]>,
-    RouteNavigationPlanError,
+    NavigationError<Routes[number]>,
     PreloadRequirements<Routes[number]>
   > =>
     Effect.try({
@@ -991,7 +1230,7 @@ export namespace Route {
           matched,
         }): Effect.Effect<
           NavigationPlan<Routes[number]>,
-          RouteNavigationPlanError,
+          NavigationError<Routes[number]>,
           PreloadRequirements<Routes[number]>
         > => {
           if (!matched) {
@@ -1019,15 +1258,4 @@ export namespace Route {
         },
       ),
     );
-
-  export const planNavigation = <
-    const Routes extends readonly Definition<string, unknown, unknown, any>[],
-  >(
-    routes: Routes,
-    input: string | URL,
-  ): Effect.Effect<
-    NavigationPlan<Routes[number]>,
-    RouteNavigationPlanError,
-    PreloadRequirements<Routes[number]>
-  > => planNavigationEffect(routes, input);
 }

@@ -151,22 +151,29 @@ Effect methods; `useLiveQuery(...)` returns `data`, `result`, `preloadFailure`,
 
 ```tsx
 const projects = useCollection(Projects);
+const result = () => projects.result();
 
-return () =>
-  AsyncResult.builder(projects.result())
-    .onInitial(() => <ProjectSkeleton />)
-    // Put onFailure before onSuccess: onSuccess narrows the success type, so a
-    // later onFailure would see `previousSuccess` typed as never.
-    .onFailure((cause, failed) => (
-      <ProjectList
-        rows={projects.rows()}
-        cause={cause}
-        stale={Option.isSome(failed.previousSuccess)}
-      />
-    ))
-    .onSuccess((_, loaded) => <ProjectList rows={projects.rows()} refreshing={loaded.waiting} />)
-    .exhaustive();
+// Rows are their own signal: render them once, keyed by id, and let the load
+// result drive only the status chrome around them.
+return (
+  <Show when={result()._tag !== "Initial"} fallback={<ProjectSkeleton />}>
+    <For each={projects.rows()} keyed={(project) => project.id}>
+      {(project) => <ProjectRow project={project()} />}
+    </For>
+    <Show when={result().waiting}>
+      <p class="status">Refreshing</p>
+    </Show>
+    <Show when={Option.getOrUndefined(AsyncResult.cause(result()))}>
+      {(cause) => <ProjectError cause={cause()} />}
+    </Show>
+  </Show>
+);
 ```
+
+Rendering rows inside a builder branch would rebuild the whole list on every
+load transition; keying `<For>` by id keeps rows mounted when a refetch hands
+back new row objects (see
+[Solid Adapter](solid-adapter.md#keep-content-mounted-across-refreshes)).
 
 ## Query Engine Shape
 
@@ -469,6 +476,30 @@ const Projects = Collection.define(
 The Resource remains responsible for Effect cache behavior and tag facts; the
 Collection Store owns row metadata, optimistic mutation queues, indexes,
 persistence, and live-query participation.
+
+A resource-backed collection follows its Resource. Preload calls
+`Resource.prefetchEffect(ref)` and refetch calls `Resource.refreshEffect(ref)`;
+once either succeeds, the collection subscribes to `Resource.changes(ref)` for
+the lifetime of its Collection Store. Every later success of the Resource (a
+reload triggered by an Action's invalidation tags, a refresh or prefetch
+anywhere else, a hydration) reconciles the collection's synced rows. An Action
+that invalidates the Resource's tags therefore updates both Resource readers
+and collection readers, with no second fetch and no collection-specific action.
+
+The general seam is the optional `follow` stream on `CollectionOptions` and on
+sync adapters: a `Stream` of authoritative row snapshots. It is started once
+per Collection Store after the first successful preload or refetch, runs in the
+store's scope (runtime disposal interrupts it), and each emission goes through
+the same load policy as a forced refetch, so stale in-flight loads are
+superseded and pending optimistic mutations stay rebased on top of the new
+synced rows. An emission that is the very snapshot the rows were last loaded
+from is skipped, so a refetch is not applied twice. A follow stream failure is
+recorded like a load failure, and the next successful preload or refetch starts
+it again. `follow` never loads by itself: `Resource.changes(ref)` only reports
+settled successes and retains the ref against garbage collection while it runs,
+so tag invalidation keeps refreshing it. After SSR hydration, the client's
+preload finds the collection already loaded and starts following the hydrated
+Resource without a fetch.
 
 TanStack Query-shaped clients can provide the read side without adding a
 TanStack Query dependency to `@sunfall/arc-db`:

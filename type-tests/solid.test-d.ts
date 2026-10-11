@@ -42,17 +42,20 @@ import {
   type BrowserNavigateArgs,
   type BrowserNavigateOptions,
   type BrowserRouter,
+  type BrowserRouterError,
   type BrowserRouterPath,
   type BrowserRouterOptions,
   type BrowserRouterRouteForPath,
   type BrowserRouterState,
   type ProgramHandle,
+  type ProgramModelView,
   type ResourceHandle,
   type RouterLinkProps,
   type RouterProviderProps,
   type RouterOutletProps,
   type RuntimeEffectRunner,
   type RuntimeProviderProps,
+  type UseProgramOptions,
   type UseResourceOptions,
 } from "@sunfall/arc-solid";
 
@@ -90,8 +93,10 @@ solidRouter.navigateByPath(
   solidNavigateOptions,
 );
 const solidMatchByPath = solidRouter.matchByPath("/projects/:id");
-const solidPreloadByPathEffect: Effect.Effect<void, Route.NavigationError> =
-  solidRouter.preloadByPathEffect("/projects/:id", { params: { id: "atlas" } });
+const solidPreloadByPathEffect: Effect.Effect<
+  void,
+  BrowserRouterError<typeof solidRoutes>
+> = solidRouter.preloadByPathEffect("/projects/:id", { params: { id: "atlas" } });
 const solidPlainLeftClick: boolean = isPlainLeftClick({
   button: 0,
   metaKey: false,
@@ -158,6 +163,67 @@ const solidUnknownProgramHandle = solidProgramHandle as ProgramHandle<
   EffectInputCallbackError,
   EffectInputCallbackError | Program.Disposed
 >;
+const solidProgramCount: number = solidProgramHandle.model();
+void solidProgramCount;
+
+type SolidTypeEquals<A, B> =
+  (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
+const solidTypeEquals = <A, B>(proof: SolidTypeEquals<A, B>): typeof proof => proof;
+
+interface SolidBoardModel {
+  title: string;
+  tags: Array<string>;
+  rows: Array<{ id: number; label: string; meta: { done: boolean } }>;
+  pair: [number, { at: Date }];
+  owners: Map<string, { name: string }>;
+  seen: Set<number>;
+  selected: { id: number } | null;
+  format: (value: number) => string;
+}
+type SolidBoardView = ProgramModelView<SolidBoardModel>;
+solidTypeEquals<
+  SolidBoardView,
+  {
+    readonly title: string;
+    readonly tags: ReadonlyArray<string>;
+    readonly rows: ReadonlyArray<{
+      readonly id: number;
+      readonly label: string;
+      readonly meta: { readonly done: boolean };
+    }>;
+    readonly pair: readonly [number, { readonly at: Date }];
+    readonly owners: ReadonlyMap<string, { name: string }>;
+    readonly seen: ReadonlySet<number>;
+    readonly selected: { readonly id: number } | null;
+    readonly format: (value: number) => string;
+  }
+>(true);
+solidTypeEquals<ProgramModelView<number>, number>(true);
+solidTypeEquals<ProgramModelView<"idle" | "busy">, "idle" | "busy">(true);
+solidTypeEquals<ProgramModelView<string | undefined>, string | undefined>(true);
+solidTypeEquals<ProgramModelView<unknown>, unknown>(true);
+declare const solidBoardProgram: Program.Definition<SolidBoardModel, { readonly _tag: "Noop" }>;
+const solidBoardOptions: UseProgramOptions = { key: (row) => ("id" in row ? row.id : undefined) };
+const solidBoardHandle = useProgram(solidBoardProgram, solidBoardOptions);
+const solidBoardView: SolidBoardView = solidBoardHandle.model();
+const solidBoardLabel: string = solidBoardView.rows[0]!.label;
+const solidBoardModelSignal: Signal.Readable<SolidBoardModel> = solidBoardHandle.instance.model;
+// @ts-expect-error Program model views are read-only
+solidBoardView.title = "renamed";
+// @ts-expect-error nested Program model objects are read-only
+solidBoardView.rows[0]!.meta.done = true;
+// @ts-expect-error Program model arrays are read-only
+solidBoardView.tags.push("new");
+// @ts-expect-error Program model Maps are read-only
+solidBoardView.owners.set("a", { name: "Ada" });
+// @ts-expect-error Program model reconcile keys are property names, key functions, or null
+const solidInvalidBoardOptions: UseProgramOptions = { key: 1 };
+void solidBoardLabel;
+void solidBoardModelSignal;
+void solidInvalidBoardOptions;
+useProgram(solidBoardProgram, { key: "id" });
+useProgram(solidBoardProgram, { key: null });
+
 // @ts-expect-error Solid Program handles cannot dispatch Promise-shaped messages
 solidUnknownProgramHandle.dispatch(solidRuntimeProviderObserverPromise);
 // @ts-expect-error Solid Program handles cannot Effect-dispatch Promise-shaped messages

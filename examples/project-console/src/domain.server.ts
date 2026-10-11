@@ -10,7 +10,6 @@ import {
   makeWorkItemId,
   SubmitProjectNameContract,
   ProjectNotFound,
-  RenameProjectContract,
   UpdateWorkItemStatusContract,
   WorkItemNotFound,
   type Project,
@@ -424,8 +423,6 @@ export const listProjectWorkItems = Server.implement(
 
 export const getProject = Server.implement(GetProjectContract, ({ id }) => getProjectEffect(id));
 
-export const renameProject = Server.implement(RenameProjectContract, renameProjectEffect);
-
 export const submitProjectName = Server.implement(
   SubmitProjectNameContract,
   submitProjectNameEffect,
@@ -443,7 +440,6 @@ export const serverFunctions = [
   listProjects,
   listProjectWorkItems,
   getProject,
-  renameProject,
   submitProjectName,
   advanceProject,
   updateWorkItemStatus,

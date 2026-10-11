@@ -1,5 +1,5 @@
 import { EffectInputCallbackError, type EffectInput } from "@sunfall/arc-core";
-import { Cause, Clock, Deferred, Effect, Exit, Option } from "effect";
+import { Cause, Clock, Deferred, Effect, Exit, Option, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import type {
   AnyCollection,
@@ -38,9 +38,15 @@ import { collectionSnapshotFromState } from "./collection-snapshot-codec.js";
 import { withCollectionPolicyRetry } from "./collection-policy.js";
 
 /** Options for one Collection Sync Load Policy invocation. */
-export interface CollectionSyncLoadPolicyOptions {
+export interface CollectionSyncLoadPolicyOptions<A> {
   /** Forces a fresh `refetch`/`load` attempt even when the collection is already ready. */
   readonly force: boolean;
+  /**
+   * Source snapshot already in hand (a `follow` emission). The policy commits
+   * it like a loaded result without calling `load`/`refetch`, retrying, or
+   * marking the load state `waiting`.
+   */
+  readonly source?: ReadonlyArray<A>;
 }
 
 const publishStoreEvent = (
@@ -285,6 +291,7 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
   store: RuntimeCollectionStore,
   attempt: CollectionLoadAttempt,
   rows: ReadonlyArray<StoredRow<A, K>>,
+  source: ReadonlyArray<A>,
   previousLoadState: AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>,
   updatedAt: number,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
@@ -333,6 +340,7 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
         }
 
         replaceLoadedCollectionRows(state, rows);
+        state.syncedSource = source;
         state.initialDataError = undefined;
         state.loadState.set(AsyncResult.success(undefined, { timestamp: updatedAt }));
         yield* publishStoreEvent(store, {
@@ -355,7 +363,7 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
  */
 export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  options: CollectionSyncLoadPolicyOptions,
+  options: CollectionSyncLoadPolicyOptions<A>,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
     const store = yield* collectionStoreEffect;
@@ -381,7 +389,11 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         return;
       }
       const current = state.loadState.get();
-      const operation = collectionLoadOperation(definition, options.force);
+      const source = options.source;
+      const operation =
+        source === undefined
+          ? collectionLoadOperation(definition, options.force)
+          : () => Effect.succeed(source);
       const shouldLoadAfterRestore =
         restored &&
         collectionPersistenceConfig(definition)?.loadAfterRestore === true &&
@@ -404,10 +416,12 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
 
       const load = collectionCallbackEffect(operation);
       const previousLoadState = state.loadState.get();
-      if (isCurrentLoadAttempt(state, attempt)) {
+      if (source === undefined && isCurrentLoadAttempt(state, attempt)) {
         state.loadState.set(AsyncResult.waiting(previousLoadState));
       }
-      const values = yield* withCollectionPolicyRetry(definition, load).pipe(
+      const values = yield* (
+        source === undefined ? withCollectionPolicyRetry(definition, load) : load
+      ).pipe(
         Effect.onExit((exit) =>
           Exit.isFailure(exit) && isInterruptedCause(exit.cause)
             ? restoreLoadStateIfCurrentEffect(state, attempt, previousLoadState)
@@ -434,6 +448,7 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
           store,
           attempt,
           rows,
+          values,
           previousLoadState,
           updatedAt,
         );
@@ -467,5 +482,49 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
             )
           : Effect.void,
       ),
+    );
+  });
+
+/**
+ * Starts the definition's `follow` stream for the active Collection Store.
+ *
+ * Runs once per store after a successful preload/refetch. The fiber lives in
+ * the store's scope, so store (runtime) disposal interrupts it. Each emission
+ * goes through the load policy as a forced attempt, which supersedes stale
+ * in-flight loads and rebases pending optimistic mutations exactly like a
+ * refetch; an emission that is the snapshot the rows were last loaded from is
+ * skipped. A follow failure is recorded like a load failure and clears the
+ * running flag, so the next successful preload or refetch restarts it.
+ */
+export const followCollectionSyncEffect = <A extends object, K extends CollectionKey, E, R>(
+  definition: CollectionDefinition<A, K, E, R>,
+): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
+  Effect.gen(function* () {
+    const follow = definition.options.follow;
+    if (follow === undefined) {
+      return;
+    }
+    const store = yield* collectionStoreEffect;
+    const state = yield* collectionStateEffect(definition, store);
+    if (state.following) {
+      return;
+    }
+    state.following = true;
+    yield* Stream.runForEach(follow(), (source) =>
+      source === state.syncedSource
+        ? Effect.void
+        : runCollectionSyncLoadPolicyEffect(definition, { force: true, source }).pipe(
+            // The policy already recorded the failure on the load state.
+            Effect.catch(() => Effect.void),
+          ),
+    ).pipe(
+      Effect.catch((error: E) => failCollectionLoadEffect(store, definition, state, error)),
+      Effect.ignore,
+      Effect.ensuring(
+        Effect.sync(() => {
+          state.following = false;
+        }),
+      ),
+      Effect.forkIn(store.scope),
     );
   });

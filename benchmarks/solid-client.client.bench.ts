@@ -78,6 +78,41 @@ describe("Sunfall Arc client render", () => {
     view.dispose();
   });
 
+  // Batched variants: real apps write several times per frame and render once.
+  // Flushing after every write (above) charges Solid 2's per-flush cost each time.
+  bench("baseline (raw Solid): 1k readers of one signal, 50 updates, one flush", () => {
+    const [shared, setShared] = createSignal(0);
+    const view = mount(() => Array.from({ length: 1000 }, () => textCell(() => String(shared()))));
+    for (let update = 1; update <= 50; update++) {
+      setShared(update);
+    }
+    flush();
+    expectText(view.container, "50".repeat(1000));
+    view.dispose();
+  });
+
+  bench("fan-out: 1k components read one shared signal, 50 updates, one flush", () => {
+    const shared = Signal.make(0);
+    const Reader = () => textCell(() => String(shared.get()));
+    const view = mount(() =>
+      createComponent(
+        RuntimeProvider as never,
+        {
+          runtime,
+          get children() {
+            return Array.from({ length: 1000 }, () => createComponent(Reader as never, {}));
+          },
+        } as never,
+      ),
+    );
+    for (let update = 1; update <= 50; update++) {
+      shared.set(update);
+    }
+    flush();
+    expectText(view.container, "50".repeat(1000));
+    view.dispose();
+  });
+
   bench("keyed list: create 1k rows from an Arc signal", () => {
     const rows = Signal.make(makeRows(1000));
     const view = mount(() => {
@@ -183,6 +218,90 @@ describe("Sunfall Arc client render", () => {
     );
     flush();
     expectText(view.container, "1000");
+    view.dispose();
+  });
+
+  interface Board {
+    readonly rows: ReadonlyArray<Row>;
+  }
+  type BoardMessage = { readonly _tag: "Relabel"; readonly id: number; readonly label: string };
+  const Board = Program.define<Board, BoardMessage>({
+    initial: { rows: makeRows(1000) },
+    on: {
+      Relabel: (model, message) => ({
+        rows: model.rows.map((row) =>
+          row.id === message.id ? { ...row, label: message.label } : row,
+        ),
+      }),
+    },
+  });
+  const relabelRounds = 20;
+  const expectedBoardText = (): string =>
+    makeRows(1000)
+      .map((row, index) =>
+        index % 50 === 0 && index < relabelRounds * 50 ? `edit ${index}` : row.label,
+      )
+      .join("");
+
+  const mountBoard = (
+    view: (board: ReturnType<typeof useProgram<Board, BoardMessage>>) => unknown,
+  ): {
+    readonly container: HTMLElement;
+    readonly board: ReturnType<typeof useProgram<Board, BoardMessage>>;
+    dispose(): void;
+  } => {
+    let board: ReturnType<typeof useProgram<Board, BoardMessage>> | undefined;
+    const View = () => {
+      board = useProgram(Board);
+      return view(board);
+    };
+    const mounted = mount(() =>
+      createComponent(
+        RuntimeProvider as never,
+        {
+          runtime,
+          get children() {
+            return createComponent(View as never, {});
+          },
+        } as never,
+      ),
+    );
+    return { ...mounted, board: board! };
+  };
+
+  const relabelOneRowPerRound = async (
+    board: ReturnType<typeof useProgram<Board, BoardMessage>>,
+  ): Promise<void> => {
+    for (let round = 0; round < relabelRounds; round++) {
+      const id = round * 50;
+      await Effect.runPromise(board.dispatchEffect({ _tag: "Relabel", id, label: `edit ${id}` }));
+      flush();
+    }
+  };
+
+  bench("program: update one row's field in a 1k-row model, 1k row readers", async () => {
+    const view = mountBoard((board) =>
+      Array.from({ length: 1000 }, (_, index) => textCell(() => board.model().rows[index]!.label)),
+    );
+    await relabelOneRowPerRound(view.board);
+    expectText(view.container, expectedBoardText());
+    view.dispose();
+  });
+
+  bench("program: update one row's field in a 1k-row model, keyed <For> rows", async () => {
+    const view = mountBoard((board) =>
+      createComponent(
+        For as never,
+        {
+          get each() {
+            return board.model().rows;
+          },
+          children: (row: Row) => textCell(() => row.label),
+        } as never,
+      ),
+    );
+    await relabelOneRowPerRound(view.board);
+    expectText(view.container, expectedBoardText());
     view.dispose();
   });
 

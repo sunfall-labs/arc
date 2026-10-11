@@ -9,6 +9,7 @@ import {
   Option,
   PubSub,
   Scope,
+  Stream,
 } from "effect";
 import {
   planResourceInvalidationTargets,
@@ -321,6 +322,40 @@ export const subscribeResourceEventsEffect = (): Effect.Effect<
   never,
   Scope.Scope
 > => Effect.flatMap(resourceStoreEffect, (store) => store.eventBus.subscribeEffect);
+
+const isSettledResourceEvent = (ref: AnyResourceRef, event: ResourceStoreEvent): boolean =>
+  (event._tag === "ResourceSuccess" || event._tag === "ResourceHydrated") &&
+  event.name === ref.family.options.name &&
+  event.key === ref.key;
+
+/**
+ * Streams a ref's settled success values: the current value (when one is
+ * cached), then every later success from a load, refresh, invalidation, or
+ * hydration. The stream never starts a load, and it retains the ref against
+ * garbage collection while it runs so tag invalidation keeps reaching it.
+ */
+export const resourceChangesStream = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Stream.Stream<A> =>
+  Stream.unwrap(
+    Effect.gen(function* () {
+      const store = yield* resourceStoreEffect;
+      yield* Effect.acquireRelease(retainResourceRefEffect(ref), () =>
+        releaseResourceRefEffect(ref),
+      );
+      const subscription = yield* store.eventBus.subscribeEffect;
+      const settled = Stream.fromSubscription(subscription).pipe(
+        Stream.filter((event) => isSettledResourceEvent(ref as AnyResourceRef, event)),
+      );
+      return Stream.concat(Stream.succeed(undefined), settled).pipe(
+        Stream.map(() => peekResourceEntry(ref, store)?.state.get()),
+        Stream.filter(
+          (result): result is AsyncResult.Success<A, ResourceLoadError<E>> =>
+            result?._tag === "Success",
+        ),
+        Stream.map((result) => result.value),
+        Stream.changesWith((left, right) => left === right),
+      );
+    }),
+  );
 
 export const resourceResult = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,

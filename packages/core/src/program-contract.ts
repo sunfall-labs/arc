@@ -274,8 +274,6 @@ export interface ProgramStoryEntry<Model, Message, E = never, R = never> {
 export interface ProgramStory<Model, Message, E = never, R = never> {
   /** Current model after all story messages that have been applied. */
   readonly model: ReadableSignal<Model>;
-  /** Alias for `model`, useful in state-oriented tests. */
-  readonly state: ReadableSignal<Model>;
   /** Applied transitions, including returned commands that have not run implicitly. */
   readonly history: ReadableSignal<ReadonlyArray<ProgramStoryEntry<Model, Message, E, R>>>;
   /** Applies one message through `update` and records the resulting transition. */
@@ -315,8 +313,6 @@ export interface ProgramStoryOptions<Model> {
 export interface ProgramInstance<Model, Message, E = never, DispatchE = E> {
   /** Centralized model signal for adapter-neutral reads and derived state. */
   readonly model: ReadableSignal<Model>;
-  /** Alias for `model`, useful in UI code that prefers state vocabulary. */
-  readonly state: ReadableSignal<Model>;
   /** Accumulated typed failures from updates, commands, and subscriptions. */
   readonly failures: ReadableSignal<ReadonlyArray<ProgramFailure<Message, E>>>;
   /** Bounded runtime timeline for messages, commands, subscriptions, and failures. */

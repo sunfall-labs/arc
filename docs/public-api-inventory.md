@@ -201,8 +201,19 @@ Release decisions:
   the Core root barrel intentionally does not export `MutableResourceStore`,
   `makeMutableResourceStore(...)`, or `unsafeMutableResourceStore(...)`.
 - `Route.preloadEffect(...)`, `Route.planPreloadEffect(...)`, and
-  `Route.planNavigationEffect(...)` preserve the service requirements declared
-  by route preload Effects. Planning Effects also expose
+  `Route.planNavigationEffect(...)` preserve the service requirements and the
+  typed preload failure (`Route.PreloadFailure<R>`) declared by routes. A
+  route's `error` option (`RouteErrorSchema<E>`, a service-free Schema codec)
+  types its preload failure as `RoutePreloadError<E>`; preloads that fail with
+  anything else are compile errors. `BrowserRouterError<Routes>` is the typed
+  failure union in router `Failure` state. `Route.preloadFailureSnapshotEffect`
+  and `Route.preloadFailureCauseFromSnapshot` own the
+  `RoutePreloadFailureSnapshot` wire form (`RoutePreloadFailureEncoding`):
+  schema-encoded JSON with an `error` schema, the failure `_tag` only without
+  one, and a `RoutePreloadFailureCodecError` defect when the failure cannot
+  cross with the schema. `CheckedRouteOptions<Options>` and
+  `RouteDefinitionFromOptions<Path, Options>` let builders such as Start file
+  routes reuse `route(...)` option checking and inference. Planning Effects also expose
   `ResourceSnapshotCodecError` when touched resources cannot be serialized into
   hydration payloads. Solid and Start adapters may discharge service
   requirements only by running through a Runtime Spine.
@@ -970,6 +981,12 @@ Release decisions:
 - `Collection.resourceSyncAdapter(...)` returns a sync adapter whose load and
   refetch errors use `Resource.LoadError<E>`, because Resource callbacks can
   fail before the underlying user error channel `E` is reached.
+  Its `follow` stream is `Resource.changes(ref)`, so a loaded collection
+  reconciles its synced rows on every later success of the Resource.
+- `Resource.changes(ref)` streams a ref's settled success values (the cached
+  value, then each later load, refresh, invalidation reload, or hydration). It
+  never starts a load and retains the ref against garbage collection while it
+  runs.
 - The internal Collection Projection Callback Policy Module owns Effect-visible
   state/projection callback normalization for `getKey`, functional
   `CollectionUpdate` bodies, and row-key preservation. Effect APIs report
@@ -1180,8 +1197,9 @@ The root export includes:
 
 - Local source modules: `component`, `hooks`, `link`, `router`, and `runtime`.
 - `Component`: typed component definitions (`Component.make`, `resource`,
-  `catchTags`, `loading`, `provide`, `mount`, `embed`) whose services and
-  render failures flow through `yield*` in setup instead of JSX;
+  `catchTags`, `loading`, `provide`, `mount`, `launch`, `embed`) whose services
+  and render failures flow through `yield*` in setup instead of JSX; `launch`
+  is the app entry point, `mount` its composable scoped primitive;
 - `RuntimeProvider`, `createEffectRuntime`, `useRuntime`, component scopes, and
   core re-exports used by Solid apps;
 - router APIs: `createBrowserRouter`, `RouterProvider`, `RouterOutlet`,
@@ -1243,7 +1261,12 @@ Release decisions:
   `submitEffect(...)`.
 - `useProgram(...)` starts a Core `Program` under the nearest Solid runtime and
   owner scope, exposing `model()`, `state()`, `failures()`, `dispatch(...)`, and
-  `dispatchEffect(...)`. It also exposes `timeline()` and `clearTimeline()`;
+  `dispatchEffect(...)`. `model()` (and its `state()` alias) returns the
+  model as a fine-grained, deeply read-only Solid projection
+  (`ProgramModelView<Model>`) reconciled from `instance.model`, so readers
+  re-run only for the parts they read; `UseProgramOptions.key` (default
+  `"id"`, `null` for positional) sets the array reconcile identity. It also
+  exposes `timeline()` and `clearTimeline()`;
   `dispatchEffect(...)` uses `Program.DispatchError` so `ProgramDisposed`
   appears only when disposal drops a queued update. This is the simple
   model/message/update surface for views that want Elm/Foldkit-style clarity

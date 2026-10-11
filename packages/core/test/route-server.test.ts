@@ -1,4 +1,4 @@
-import { Effect, Exit, Schema } from "effect";
+import { Cause, Effect, Exit, Schema } from "effect";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import {
   buildRoutePath,
@@ -18,6 +18,8 @@ import {
   Route,
   RouteNavigationError,
   RoutePreloadError,
+  RoutePreloadFailureCodecError,
+  type RoutePreloadFailureEncoding,
   routeParamsFromSegments,
   routePathFromSegments,
   routePathSlug,
@@ -175,7 +177,7 @@ describe("route", () => {
     );
   });
 
-  it("captures synchronous preload failures inside the returned Effect", () => {
+  it("reports synchronous preload throws as defects inside the returned Effect", () => {
     const ProjectRoute = route("/projects/:id", {
       preload: () => {
         throw "preload-failed";
@@ -190,11 +192,14 @@ describe("route", () => {
     }).not.toThrow();
 
     return Effect.runPromise(
-      Effect.flip(effect!).pipe(
-        Effect.tap((error) =>
+      Effect.exit(effect!).pipe(
+        Effect.tap((exit) =>
           Effect.sync(() => {
-            expect(error).toBeInstanceOf(RoutePreloadError);
-            expect(error.cause).toBe("preload-failed");
+            expect(Exit.isFailure(exit)).toBe(true);
+            if (Exit.isFailure(exit)) {
+              expect(Cause.hasFails(exit.cause)).toBe(false);
+              expect(Cause.squash(exit.cause)).toBe("preload-failed");
+            }
           }),
         ),
         Effect.asVoid,
@@ -202,7 +207,7 @@ describe("route", () => {
     );
   });
 
-  it("captures erased Promise-shaped preload returns as typed preload failures", () => {
+  it("reports erased Promise-shaped preload returns as defects", () => {
     const ProjectRoute = route("/projects/:id", {
       preload: () => Promise.resolve(undefined) as never,
     });
@@ -211,20 +216,134 @@ describe("route", () => {
     expect(match).toBeDefined();
 
     return Effect.runPromise(
-      Effect.flip(Route.preloadEffect(match!)).pipe(
-        Effect.tap((error) =>
+      Effect.exit(Route.preloadEffect(match!)).pipe(
+        Effect.tap((exit) =>
           Effect.sync(() => {
-            expect(error).toBeInstanceOf(RoutePreloadError);
-            expect(error.cause).toMatchObject({
-              _tag: "EffectInputCallbackError",
-              operation: "Route.preload(/projects/:id)",
-              cause: expect.any(EffectInputPromiseRejected),
-            });
+            expect(Exit.isFailure(exit)).toBe(true);
+            if (Exit.isFailure(exit)) {
+              expect(Cause.hasFails(exit.cause)).toBe(false);
+              expect(Cause.squash(exit.cause)).toBeInstanceOf(EffectInputPromiseRejected);
+            }
           }),
         ),
         Effect.asVoid,
       ),
     );
+  });
+
+  it("fails preload with the route's typed error", () =>
+    Effect.gen(function* () {
+      class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
+        id: Schema.String,
+      }) {}
+      const ProjectRoute = route("/projects/:id", {
+        error: ProjectNotFound,
+        preload: ({ params }) => Effect.fail(new ProjectNotFound({ id: params.id })),
+      });
+      const match = ProjectRoute.match("/projects/atlas")!;
+
+      const error = yield* Effect.flip(Route.preloadEffect(match));
+      expectTypeOf(error).toEqualTypeOf<RoutePreloadError<ProjectNotFound>>();
+      expect(error.cause).toBeInstanceOf(ProjectNotFound);
+      expect(error.cause.id).toBe("atlas");
+      expect(error.message).toBe(
+        'Route "/projects/:id" failed to preload "/projects/atlas": ProjectNotFound',
+      );
+    }).pipe(Effect.runPromise));
+
+  it("round-trips a typed preload failure through its error schema snapshot", () =>
+    Effect.gen(function* () {
+      class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
+        id: Schema.String,
+        at: Schema.Date,
+      }) {}
+      const ProjectRoute = route("/projects/:id", {
+        error: ProjectNotFound,
+        preload: ({ params }) =>
+          Effect.fail(new ProjectNotFound({ id: params.id, at: new Date(0) })),
+      });
+      const match = ProjectRoute.match("/projects/atlas")!;
+      const error = yield* Effect.flip(Route.preloadEffect(match));
+
+      const snapshot = yield* Route.preloadFailureSnapshotEffect(ProjectRoute, error);
+      expect(snapshot).toEqual({
+        path: "/projects/:id",
+        href: "/projects/atlas",
+        failure: {
+          _tag: "Encoded",
+          value: { _tag: "ProjectNotFound", id: "atlas", at: "1970-01-01T00:00:00.000Z" },
+        },
+      });
+
+      const wire = JSON.parse(JSON.stringify(snapshot)) as typeof snapshot;
+      const cause = Route.preloadFailureCauseFromSnapshot(ProjectRoute, wire);
+      const decoded = cause.reasons.find(Cause.isFailReason)?.error;
+      expect(decoded).toBeInstanceOf(RoutePreloadError);
+      expect(decoded?.cause).toBeInstanceOf(ProjectNotFound);
+      expect(decoded?.cause).toMatchObject({ id: "atlas", at: new Date(0) });
+    }).pipe(Effect.runPromise));
+
+  it("keeps only the failure tag for routes without an error schema", () =>
+    Effect.gen(function* () {
+      class ProjectMissing extends Schema.TaggedError<ProjectMissing>()("ProjectMissing", {
+        secret: Schema.String,
+      }) {}
+      const ProjectRoute = route("/projects/:id", {
+        preload: () => Effect.fail(new ProjectMissing({ secret: "db-host" })),
+      });
+      const error = yield* Effect.flip(Route.preloadEffect(ProjectRoute.match("/projects/atlas")!));
+
+      const snapshot = yield* Route.preloadFailureSnapshotEffect(ProjectRoute, error);
+      expect(snapshot.failure).toEqual({ _tag: "Untyped", tag: "ProjectMissing" });
+      const decoded = Route.preloadFailureCauseFromSnapshot(ProjectRoute, snapshot).reasons.find(
+        Cause.isFailReason,
+      )?.error;
+      expect(decoded?.cause).toEqual({ _tag: "ProjectMissing" });
+    }).pipe(Effect.runPromise));
+
+  it("turns failures that cannot cross the wire with the error schema into codec defects", () =>
+    Effect.gen(function* () {
+      class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
+        id: Schema.String,
+      }) {}
+      const ProjectRoute = route("/projects/:id", {
+        error: ProjectNotFound,
+        preload: () => Effect.fail("not-a-project-not-found" as never),
+      });
+      const error = yield* Effect.flip(Route.preloadEffect(ProjectRoute.match("/projects/atlas")!));
+
+      const snapshot = yield* Route.preloadFailureSnapshotEffect(ProjectRoute, error);
+      expect(snapshot.failure).toEqual({ _tag: "Unencodable" });
+      expect(JSON.stringify(snapshot)).not.toContain("not-a-project-not-found");
+
+      const defect = (failure: RoutePreloadFailureEncoding) =>
+        Cause.squash(Route.preloadFailureCauseFromSnapshot(ProjectRoute, { ...snapshot, failure }));
+      expect(defect({ _tag: "Unencodable" })).toEqual(
+        new RoutePreloadFailureCodecError({
+          path: "/projects/:id",
+          href: "/projects/atlas",
+          operation: "encode",
+        }),
+      );
+      expect(defect({ _tag: "Encoded", value: { _tag: "ProjectNotFound" } })).toMatchObject({
+        _tag: "RoutePreloadFailureCodecError",
+        operation: "decode",
+      });
+      expect(defect({ _tag: "Untyped", tag: "ProjectNotFound" })).toMatchObject({
+        _tag: "RoutePreloadFailureCodecError",
+        operation: "decode",
+      });
+    }).pipe(Effect.runPromise));
+
+  it("rejects preload failures outside the route error schema at compile time", () => {
+    class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
+      id: Schema.String,
+    }) {}
+    route("/projects/:id", {
+      error: ProjectNotFound,
+      // @ts-expect-error preload may fail only with the route error schema's type
+      preload: () => Effect.fail("missing"),
+    });
   });
 
   it("plans route preload resources and hydration payloads", () => {

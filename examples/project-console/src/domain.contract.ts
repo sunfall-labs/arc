@@ -135,11 +135,6 @@ export const ProjectWorkItemSchema = Schema.Struct({
   updatedAt: Schema.String,
 });
 
-export const RenameProjectInput = Schema.Struct({
-  id: ProjectId,
-  name: Schema.String,
-});
-
 export const SubmitProjectNameInput = Schema.Struct({
   id: ProjectId,
   name: Schema.String,
@@ -212,16 +207,6 @@ export const ListProjectWorkItemsContract = Server.contract<"all", ProjectWorkIt
   },
 );
 
-export const RenameProjectContract = Server.contract<
-  { readonly id: ProjectId; readonly name: string },
-  Project,
-  ProjectError
->("Project.rename", {
-  input: RenameProjectInput,
-  output: ProjectSchema,
-  error: ProjectErrorSchema,
-});
-
 export const SubmitProjectNameContract = Server.contract<
   SubmitProjectNameInput,
   ProjectNameSubmissionResult,
@@ -255,7 +240,6 @@ export const UpdateWorkItemStatusContract = Server.contract<
 export const listProjects = Server.client(ListProjectsContract);
 export const listProjectWorkItems = Server.client(ListProjectWorkItemsContract);
 export const getProject = Server.client(GetProjectContract);
-export const renameProject = Server.client(RenameProjectContract);
 export const submitProjectName = Server.client(SubmitProjectNameContract);
 export const advanceProject = Server.client(AdvanceProjectContract);
 export const updateWorkItemStatus = Server.client(UpdateWorkItemStatusContract);

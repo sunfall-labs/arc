@@ -3,7 +3,9 @@ import {
   validateResourceHydrationInputEffect,
   type EffectInputCallbackError,
   Resource,
+  Route,
   type AnySunfallArcRuntime,
+  type RoutePreloadFailureSnapshot,
   type SunfallArcRuntime,
   type ResourceHydrationApplyError,
   type ResourceSnapshotCodecError,
@@ -125,6 +127,8 @@ export type StartHydrationError =
 export interface StartHydrationPayload extends ResourceHydrationPayload {
   /** Collection snapshots fail hydration with `CollectionSnapshotCodecError` when malformed. */
   readonly collections?: CollectionHydrationPayload["collections"];
+  /** Route preload failure the server rendered; the hydrating router starts in that `Failure` state. */
+  readonly routeFailure?: RoutePreloadFailureSnapshot;
 }
 
 /** One ordered hydration payload emitted during streamed HTML rendering. */
@@ -374,18 +378,35 @@ export const collectionHydrationPayloadEffect = (
 export const createStartHydrationPayload = (
   resources: ResourceHydrationPayload,
   collections: CollectionHydrationPayload = emptyCollectionHydrationPayload,
+  routeFailure?: RoutePreloadFailureSnapshot,
 ): StartHydrationPayload => ({
   resources: resources.resources,
   ...(collections.collections.length > 0 ? { collections: collections.collections } : {}),
+  ...(routeFailure === undefined ? {} : { routeFailure }),
 });
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
+const isRoutePreloadFailureEncoding = (value: unknown): boolean =>
+  isRecord(value) &&
+  (value._tag === "Encoded"
+    ? "value" in value
+    : value._tag === "Untyped"
+      ? value.tag === undefined || typeof value.tag === "string"
+      : value._tag === "Unencodable");
+
+const isRoutePreloadFailureSnapshot = (value: unknown): value is RoutePreloadFailureSnapshot =>
+  isRecord(value) &&
+  typeof value.path === "string" &&
+  typeof value.href === "string" &&
+  isRoutePreloadFailureEncoding(value.failure);
+
 const isStartHydrationPayload = (value: unknown): value is StartHydrationPayload =>
   isRecord(value) &&
   Array.isArray(value.resources) &&
-  (value.collections === undefined || Array.isArray(value.collections));
+  (value.collections === undefined || Array.isArray(value.collections)) &&
+  (value.routeFailure === undefined || isRoutePreloadFailureSnapshot(value.routeFailure));
 
 /** Narrow an unknown value to the current streamed hydration chunk wire format. */
 export const isStartHydrationChunk = (value: unknown): value is StartHydrationChunk =>
@@ -534,17 +555,20 @@ export const mergeStartHydrationPayloads = (
 ): StartHydrationPayload => {
   const resources: Array<StartHydrationPayload["resources"][number]> = [];
   const collections: Array<NonNullable<StartHydrationPayload["collections"]>[number]> = [];
+  let routeFailure: RoutePreloadFailureSnapshot | undefined;
 
   for (const payload of payloads) {
     resources.push(...payload.resources);
     if (payload.collections) {
       collections.push(...payload.collections);
     }
+    routeFailure = payload.routeFailure ?? routeFailure;
   }
 
   return {
     resources,
     ...(collections.length > 0 ? { collections } : {}),
+    ...(routeFailure === undefined ? {} : { routeFailure }),
   };
 };
 
@@ -688,6 +712,9 @@ export const hydrateStartPayloadEffect = (
         { collections: payload.collections },
         collectionHydrateOptions(options),
       );
+    }
+    if (payload.routeFailure !== undefined) {
+      yield* Route.hydratePreloadFailureEffect(payload.routeFailure);
     }
   });
 

@@ -190,21 +190,22 @@ export const Route = RouteBuilder.preload({
         language: "tsx",
         code: `import { Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
+import { Show } from "solid-js";
 
 const project = useResource(() => ProjectById(props.params.id));
+// Current or stale value: the view mounts once and refreshes update it in place.
+const current = () => Option.getOrUndefined(AsyncResult.value(project.result()));
 
-return () =>
-  AsyncResult.builder(project.result())
-    .onInitial(() => <Skeleton />)
-    // onFailure before onSuccess keeps \`previousSuccess\` typed as a Project.
-    .onFailure((cause, failed) =>
-      Option.match(failed.previousSuccess, {
-        onNone: () => <ProjectError cause={cause} />,
-        onSome: (stale) => <ProjectView project={stale.value} stale />,
-      }),
-    )
-    .onSuccess((value, success) => <ProjectView project={value} refreshing={success.waiting} />)
-    .exhaustive();`,
+return (
+  <Show
+    when={current()}
+    fallback={AsyncResult.builder(project.result())
+      .onFailure((cause) => <ProjectError cause={cause} />)
+      .orElse(() => <Skeleton />)}
+  >
+    {(value) => <ProjectView project={value()} refreshing={project.result().waiting} />}
+  </Show>
+);`,
       },
       {
         _tag: "Heading",

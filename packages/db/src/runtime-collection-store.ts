@@ -3,7 +3,7 @@ import {
   ResourceStore,
   type ResourceStore as ResourceStoreState,
 } from "@sunfall/arc-core";
-import { Effect, Option, PubSub, Scope } from "effect";
+import { Effect, Exit, Option, PubSub, Scope } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { CollectionStoreTypeId } from "./collection-ids.js";
 import {
@@ -79,7 +79,11 @@ export class RuntimeCollectionStore implements CollectionStore {
   readonly #states = new WeakMap<object, AnyCollectionState>();
   readonly #definitions = new Set<AnyCollection>();
   readonly #events = Effect.runSync(PubSub.sliding<CollectionStoreEvent>(1024));
-  readonly disposeEffect = PubSub.shutdown(this.#events);
+  /** Lifetime of store-owned background work such as `follow` streams. */
+  readonly scope: Scope.Closeable = Effect.runSync(Scope.make());
+  readonly disposeEffect = Scope.close(this.scope, Exit.void).pipe(
+    Effect.ensuring(PubSub.shutdown(this.#events)),
+  );
   readonly diagnostics = {
     snapshot: (): CollectionStoreDiagnosticsSnapshot => this.diagnosticsSnapshot(),
     snapshotEffect: Effect.sync(() => this.diagnosticsSnapshot()),

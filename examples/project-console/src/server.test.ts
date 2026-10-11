@@ -103,7 +103,7 @@ describe("project console SSR", () => {
     expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
     expect(response.headers.get("x-sunfall-arc-render")).toBe("streaming");
     expect(response.headers.get("x-sunfall-arc-start-graph")).toBe(
-      "routes=3; server-functions=7; actions=2",
+      "routes=3; server-functions=6; actions=1",
     );
     expect(response.headers.get("x-sunfall-arc-start-routes")).toBe("/,/projects,/projects/:id");
     expect(chunks[0]).toContain("<!doctype html>");
@@ -138,16 +138,12 @@ describe("project console SSR", () => {
     expect(serverApp.fullStack).toBe(app.fullStack);
     expect(app.registry.actions.size).toBe(0);
     expect(app.registry.serverFunctions.size).toBe(0);
-    expect(Array.from(serverApp.registry.actions.keys()).sort()).toEqual([
-      "Project.collection.rename",
-      "Project.name.submit",
-    ]);
+    expect(Array.from(serverApp.registry.actions.keys()).sort()).toEqual(["Project.name.submit"]);
     expect(Array.from(serverApp.registry.serverFunctions.keys()).sort()).toEqual([
       "Project.advance",
       "Project.get",
       "Project.list",
       "Project.name.submit",
-      "Project.rename",
       "Project.workItem.status",
       "Project.workItems.list",
     ]);
@@ -159,10 +155,9 @@ describe("project console SSR", () => {
         "Project.list",
         "Project.workItems.list",
         "Project.name.submit",
-        "Project.rename",
         "Project.workItem.status",
       ],
-      actions: ["Project.collection.rename", "Project.name.submit"],
+      actions: ["Project.name.submit"],
     });
     expect("fileRoutes" in projectConsoleStartOptions).toBe(false);
   });

@@ -473,7 +473,6 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
 
   return {
     model,
-    state: model,
     failures,
     timeline,
     dispatch: (message) => {

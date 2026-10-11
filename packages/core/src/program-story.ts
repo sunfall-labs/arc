@@ -90,7 +90,6 @@ export const makeProgramStory = <Model, Message, E = never, R = never>(
 
   return {
     model,
-    state: model,
     history,
     send,
     run,

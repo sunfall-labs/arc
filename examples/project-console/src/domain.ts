@@ -7,14 +7,12 @@ import {
   ProjectSummarySchema,
   ProjectId as ProjectIdSchema,
   ProjectNameSubmissionResultSchema,
-  RenameProjectInput,
   SubmitProjectNameInput,
   UpdateWorkItemStatusInput,
   advanceProject,
   getProject,
   listProjectWorkItems,
   listProjects,
-  renameProject,
   submitProjectName,
   updateWorkItemStatus,
   type Project,
@@ -37,7 +35,6 @@ export {
   ProjectWorkItemSchema,
   ProjectNotFound,
   ProjectNameSubmissionResultSchema,
-  RenameProjectInput,
   SubmitProjectNameInput,
   UpdateWorkItemStatusInput,
   WorkItemNotFound,
@@ -45,7 +42,6 @@ export {
   getProject,
   listProjectWorkItems,
   listProjects,
-  renameProject,
   submitProjectName,
   updateWorkItemStatus,
   makeProjectId,
@@ -90,9 +86,6 @@ export interface ProjectApi {
   readonly list: () => Effect.Effect<ProjectSummary[], Server.ClientError>;
   readonly listWorkItems: () => Effect.Effect<ProjectWorkItem[], Server.ClientError>;
   readonly get: (id: ProjectIdType) => Effect.Effect<Project, ProjectRemoteError>;
-  readonly rename: (
-    input: typeof RenameProjectInput.Type,
-  ) => Effect.Effect<Project, ProjectRemoteError>;
   readonly submitName: (
     input: typeof SubmitProjectNameInput.Type,
   ) => Effect.Effect<ProjectNameSubmissionResult, Server.ClientError>;
@@ -134,7 +127,6 @@ export const ProjectApiLive = ProjectApi.layer({
   list: () => listProjects.effect("all"),
   listWorkItems: () => listProjectWorkItems.effect("all"),
   get: (id) => getProject.effect({ id }),
-  rename: renameProject.effect,
   submitName: (input) =>
     submitProjectName.effect(input).pipe(Effect.map(normalizeProjectNameSubmissionResult)),
   advance: advanceProject.effect,
@@ -189,18 +181,6 @@ export const preloadProjectRouteEffect = (
       Resource.prefetchEffect(ProjectById(params.id)),
     ]),
   );
-
-export const RenameProject = Action.define({
-  name: "Project.rename",
-  input: RenameProjectInput,
-  output: ProjectSchema,
-  policy: {
-    concurrency: "latest",
-    retry: Schedule.recurs(1),
-  },
-  run: (input) => ProjectApi.use((api) => api.rename(input)),
-  invalidates: (project) => projectResourceInvalidations(project.id),
-});
 
 export const SubmitProjectName = Action.define({
   name: "Project.name.submit",

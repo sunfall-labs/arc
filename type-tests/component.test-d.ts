@@ -2,7 +2,7 @@
 // component definitions and `yield*`, never through JSX.
 import { Context, Data, Effect, Layer, pipe, Scope } from "effect";
 import { Component, Resource } from "@sunfall/arc-solid";
-import type { SunfallArcRuntime } from "@sunfall/arc-core";
+import type { AnySunfallArcRuntime, SunfallArcRuntime } from "@sunfall/arc-core";
 import type { JSX } from "@solidjs/web";
 
 class ProjectApi extends Context.Service<
@@ -25,7 +25,8 @@ const ProjectById = Resource.family({
   load: (id: string) => ProjectApi.use((api) => api.get(id)),
 });
 
-// Leaf: a service plus a resource whose load error joins E and services join R.
+// Leaf: a resource whose typed load error joins E and services join R. A
+// throwing load callback (EffectInputCallbackError) is a defect, not part of E.
 const ProjectCard = Component.make("ProjectCard", function* () {
   const project = yield* Component.resource(ProjectById);
   return (props: { readonly id: string }): JSX.Element => project(props.id);
@@ -35,7 +36,7 @@ type _card = Assert<
     Parts<typeof ProjectCard>,
     {
       P: { readonly id: string };
-      E: Resource.LoadError<ProjectNotFound | Forbidden>;
+      E: ProjectNotFound | Forbidden;
       R: ProjectApi;
     }
   >
@@ -53,10 +54,7 @@ type _feed = Assert<Eq<Parts<typeof ActivityFeed>, { P: {}; E: never; R: Realtim
 // Parent: children's R accumulates, handled tags leave E, yielded children are plain renders.
 const Dashboard = Component.make("Dashboard", function* () {
   const Card = yield* ProjectCard.pipe(
-    Component.catchTags({
-      ProjectNotFound: (error) => `gone ${error.id}`,
-      EffectInputCallbackError: (error) => error.operation,
-    }),
+    Component.catchTags({ ProjectNotFound: (error) => `gone ${error.id}` }),
     Component.loading(() => "loading"),
   );
   const Feed = yield* ActivityFeed;
@@ -103,6 +101,15 @@ type _ok = Assert<Eq<Parts<typeof Ok>, { P: { readonly selected: string }; E: ne
 
 declare const root: HTMLElement;
 
+// The binding itself: the reader returns the value; E is the family's typed error only.
+const bound = Component.resource(ProjectById);
+type _bound = Assert<
+  Eq<
+    typeof bound,
+    Effect.Effect<(input: string) => string, ProjectNotFound | Forbidden, ProjectApi>
+  >
+>;
+
 // Fully handled and provided: mounts as a scoped acquisition.
 const mounted: Effect.Effect<void, never, Scope.Scope> = Component.mount(Ok, root, {
   props: { selected: "atlas" },
@@ -123,6 +130,34 @@ const mountedInHost: Effect.Effect<void, HostStartupError, Scope.Scope> = Compon
   { runtime: hostRuntime, props: { selected: "atlas" } },
 );
 void mountedInHost;
+// The app entry point runs until interrupted and fails only with a host runtime's startup error.
+const launched: Effect.Effect<never, never> = Component.launch(Ok, root, {
+  props: { selected: "atlas" },
+});
+const launchedInHost: Effect.Effect<never, HostStartupError> = Component.launch(Ok, root, {
+  runtime: hostRuntime,
+  props: { selected: "atlas" },
+  hydrate: true,
+});
+void launched;
+void launchedInHost;
+// A host runtime's services satisfy what the component leaves unprovided.
+const HandledDashboard = Dashboard.pipe(Component.catchTags({ Forbidden: () => "no" }));
+declare const appRuntime: SunfallArcRuntime<ProjectApi | Realtime, HostStartupError>;
+declare const apiRuntime: SunfallArcRuntime<ProjectApi>;
+declare const erasedRuntime: AnySunfallArcRuntime;
+const mountedOnAppRuntime: Effect.Effect<void, HostStartupError, Scope.Scope> = Component.mount(
+  HandledDashboard,
+  root,
+  { runtime: appRuntime, props: { selected: "atlas" } },
+);
+const launchedOnAppRuntime: Effect.Effect<never, HostStartupError> = Component.launch(
+  HandledDashboard.pipe(Component.provide(RealtimeLive)),
+  root,
+  { runtime: appRuntime, props: { selected: "atlas" } },
+);
+void mountedOnAppRuntime;
+void launchedOnAppRuntime;
 const embedded: Component.Render<{ readonly selected: string }> = Component.embed(Ok);
 void mounted;
 void mountedNoProps;
@@ -152,6 +187,25 @@ export function negatives() {
 
   // @ts-expect-error required root props must be passed
   Component.mount(Ok, root);
+
+  const HandledDashboard = Dashboard.pipe(Component.catchTags({ Forbidden: () => "no" }));
+  // @ts-expect-error R = Realtime is not in the runtime's services
+  Component.mount(HandledDashboard, root, { runtime: apiRuntime, props: { selected: "x" } });
+
+  // @ts-expect-error an erased runtime satisfies no requirements
+  Component.mount(HandledDashboard, root, { runtime: erasedRuntime, props: { selected: "x" } });
+
+  // @ts-expect-error E = Forbidden is unhandled even when the runtime provides every service
+  Component.launch(Dashboard, root, { runtime: appRuntime, props: { selected: "x" } });
+
+  // @ts-expect-error launching also requires a fully handled, fully provided component
+  Component.launch(Dashboard, root, { props: { selected: "x" } });
+
+  // @ts-expect-error required root props must be passed to launch too
+  Component.launch(Ok, root);
+
+  // @ts-expect-error a throwing load callback is a defect, so it has no handler
+  ProjectCard.pipe(Component.catchTags({ EffectInputCallbackError: () => "callback" }));
 
   // @ts-expect-error embedding also requires a fully handled, fully provided component
   Component.embed(Dashboard);
