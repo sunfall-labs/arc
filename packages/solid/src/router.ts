@@ -21,6 +21,7 @@ import {
   getOwner,
   isHydrating,
   onCleanup,
+  untrack,
   useContext,
   type Accessor,
 } from "solid-js";
@@ -53,6 +54,7 @@ type RouterRuntime<
 export type {
   BrowserNavigateArgs,
   BrowserNavigateOptions,
+  BrowserRouterError,
   BrowserRouterPath,
   BrowserRouterRouteForPath,
   BrowserRouterState,
@@ -174,7 +176,8 @@ export type RouterProviderProps<
  * Render fallbacks for route pending, failure, and not-found states.
  *
  * The `failure` renderer receives the same typed `BrowserRouterState.Failure`
- * shape as `router.state()`, including `Cause<Route.NavigationError | ER>`.
+ * shape as `router.state()`, including `Cause<BrowserRouterError<Routes> | ER>`; a
+ * route's typed preload failure arrives as `RoutePreloadError<Route.PreloadFailure<R>>`.
  */
 export interface RouterOutletProps<RoutesOrError = readonly AnyRoute[], ER = never> {
   readonly pending?: (
@@ -314,23 +317,20 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
   // and writes stay plain committed values during server rendering.
   const node = Signal.make<JSX.Element>(undefined);
   const renderError = Signal.make<unknown>(undefined);
+  const input = () => ({ state: router.state(), renderers: renderers() });
   const routeRenderScope = makeSolidRouteRenderScopeController({
-    initialInput: {
-      state: router.state(),
-      renderers: renderers(),
-    },
+    // The first render is synchronous (server rendering runs no effects); the
+    // render effect below owns every later input.
+    initialInput: untrack(input),
     runtime,
     owner: getOwner(),
     node,
     renderError,
   });
 
-  createRenderEffect(
-    () => ({ state: router.state(), renderers: renderers() }),
-    (input) => {
-      routeRenderScope.update(input);
-    },
-  );
+  createRenderEffect(input, (next) => {
+    routeRenderScope.update(next);
+  });
 
   onCleanup(() => {
     routeRenderScope.dispose();

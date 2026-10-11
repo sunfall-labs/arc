@@ -15,6 +15,7 @@ describe("sunfallArcTsrx", () => {
     expect(dependencyPolicy.apply).toBe("serve");
     expect(dependencyPolicy.config?.()).toEqual({
       optimizeDeps: {
+        include: ["solid-js > @solidjs/signals"],
         noDiscovery: true,
       },
     });
@@ -41,7 +42,7 @@ describe("sunfallArcTsrx", () => {
     expect(environmentPolicy.config?.({}, { mode: "development" })).toEqual({});
   });
 
-  it("lets callers opt back into Vite dependency discovery", () => {
+  it("lets callers opt back into Vite dependency discovery without splitting Solid's runtime", () => {
     const dependencyPolicy = sunfallArcTsrx({
       optimizeDeps: {
         noDiscovery: false,
@@ -50,6 +51,10 @@ describe("sunfallArcTsrx", () => {
       readonly config?: () => unknown;
     };
 
-    expect(dependencyPolicy.config?.()).toEqual({});
+    expect(dependencyPolicy.config?.()).toEqual({
+      optimizeDeps: {
+        include: ["solid-js > @solidjs/signals"],
+      },
+    });
   });
 });

@@ -1306,6 +1306,35 @@ describe("createBrowserRouter", () => {
       ),
     ));
 
+  it("mounts the outlet without strict untracked-read warnings", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const runtime = makeRuntime();
+    const HomeRoute = route("/", { component: () => "home" });
+    const container = document.createElement("div");
+    const dispose = render(
+      () =>
+        createComponent(RouterProvider, {
+          routes: [HomeRoute] as const,
+          initialHref: "/",
+          runtime: eraseRuntime(runtime),
+          get children() {
+            return createComponent(RouterOutlet, { pending: () => "pending" });
+          },
+        }),
+      container,
+    );
+    try {
+      const strictReads = warn.mock.calls.filter((call) =>
+        String(call[0]).includes("STRICT_READ_UNTRACKED"),
+      );
+      expect(strictReads).toEqual([]);
+    } finally {
+      dispose();
+      warn.mockRestore();
+      await Effect.runPromise(Effect.orDie(runtime.disposeEffect));
+    }
+  });
+
   it("rerenders pending outlet renderers without navigation", () =>
     Effect.runPromise(
       Effect.scoped(

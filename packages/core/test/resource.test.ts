@@ -11,6 +11,7 @@ import {
   RequestResolver,
   Schedule,
   Schema,
+  Stream,
 } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vitest";
@@ -2361,5 +2362,48 @@ describe("Resource", () => {
 
     expect(collected.value).toEqual({ id: "atlas" });
     expect(collected.refs.map((touched) => touched.key)).toEqual([ref.key]);
+  });
+
+  it("streams settled values without loading and retains the ref while followed", async () => {
+    const runtime = makeRuntime();
+    let loads = 0;
+    const Tag = Resource.tag("Count.changes.tag");
+    const Count = Resource.family<void, number>({
+      name: "Count.changes",
+      load: () => Effect.sync(() => ++loads),
+      provides: () => [Tag],
+    });
+    const ref = Count(undefined);
+    const store = unsafeMutableResourceStore(runtime.resourceStore);
+    const retained = () => [...store.retainedRefs.values()].reduce((sum, count) => sum + count, 0);
+
+    try {
+      await Effect.runPromise(
+        runtime.provide(
+          Effect.gen(function* () {
+            const seen: Array<number> = [];
+            const follower = yield* Resource.changes(ref).pipe(
+              Stream.runForEach((value) => Effect.sync(() => seen.push(value))),
+              Effect.forkChild,
+            );
+            yield* Effect.sleep("1 millis");
+            // Following never starts a load on its own.
+            expect(loads).toBe(0);
+            expect(seen).toEqual([]);
+            expect(retained()).toBe(1);
+
+            yield* Resource.prefetchEffect(ref);
+            yield* Resource.invalidateEffect(Tag);
+            yield* Effect.sleep("1 millis");
+            expect(seen).toEqual([1, 2]);
+
+            yield* Fiber.interrupt(follower);
+            expect(retained()).toBe(0);
+          }),
+        ),
+      );
+    } finally {
+      await Effect.runPromise(Effect.orDie(runtime.disposeEffect));
+    }
   });
 });

@@ -323,6 +323,7 @@ export const publicHoverDocGroups = [
         "refsForTag",
         "result",
         "status",
+        "changes",
         "hydrationPayload",
         "hydrationPayloadEffect",
       ],
@@ -922,7 +923,7 @@ export const publicHoverDocGroups = [
   },
   {
     file: "packages/core/src/browser-router-state.ts",
-    declarations: ["BrowserRouterPath", "BrowserRouterRouteForPath"],
+    declarations: ["BrowserRouterError", "BrowserRouterPath", "BrowserRouterRouteForPath"],
   },
   {
     file: "packages/core/src/browser-router-history-adapter.ts",
@@ -998,6 +999,7 @@ export const publicHoverDocGroups = [
         "loading",
         "provide",
         "mount",
+        "launch",
         "embed",
       ],
     },
@@ -1008,6 +1010,8 @@ export const publicHoverDocGroups = [
       "UseResourceOptions",
       "ResourceHandle",
       "RuntimeEffectRunner",
+      "ProgramModelView",
+      "UseProgramOptions",
       "ProgramHandle",
       "ActionHandle",
       "useStream",

@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false,
+    "noEmit": true,
+    "jsx": "preserve",
+    "jsxImportSource": "@solidjs/web",
+    "plugins": [{ "name": "@tsrx/typescript-plugin" }],
+    "types": ["node", "vite/client"]
+  },
+  "include": ["benchmarks/framework-baseline.bench.ts"]
+}

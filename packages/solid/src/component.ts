@@ -1,10 +1,10 @@
 import {
+  EffectInputCallbackError,
   eraseRuntime,
   makeRuntime,
   ResourceFailure,
   RuntimeTypeId,
   type AnySunfallArcRuntime,
-  type Resource,
   type ResourceRef,
   type ResourceStoreModule,
   type SunfallArcRuntime,
@@ -23,7 +23,7 @@ import {
   runWithOwner,
   type Accessor,
 } from "solid-js";
-import { render as renderSolid, type JSX } from "@solidjs/web";
+import { hydrate as hydrateSolid, render as renderSolid, type JSX } from "@solidjs/web";
 import { createResourceSuspense } from "./resource-binding.js";
 import { RuntimeProvider, useRuntime } from "./runtime.js";
 
@@ -273,6 +273,44 @@ const withSetupContext = (
   };
 };
 
+const isCallbackFailure = <E>(reason: Cause.Reason<E>): reason is Cause.Fail<E> =>
+  Cause.isFailReason(reason) && reason.error instanceof EffectInputCallbackError;
+
+/**
+ * A load callback that throws synchronously is a programming defect, not a
+ * typed load failure: re-cause it as `Die`, so no `catchTags` handler can match
+ * it and it reaches an outer `<Errored>` as a defect.
+ */
+const callbackErrorsAsDefects = <I, A, E, R, RefError>(
+  failure: ResourceFailure<I, A, E, R, RefError>,
+): ResourceFailure<I, A, E, R, RefError> => {
+  const { cause, previousSuccess } = failure.result;
+  return cause.reasons.some(isCallbackFailure)
+    ? new ResourceFailure({
+        ref: failure.ref,
+        result: AsyncResult.failure(
+          Cause.fromReasons(
+            cause.reasons.map((reason) =>
+              isCallbackFailure(reason) ? Cause.makeDieReason(reason.error) : reason,
+            ),
+          ),
+          { previousSuccess },
+        ),
+      })
+    : failure;
+};
+
+/** A reader whose `ResourceFailure`s carry only the family's typed error. */
+const readTyped =
+  <A>(read: Accessor<A>): Accessor<A> =>
+  () => {
+    try {
+      return read();
+    } catch (error) {
+      throw error instanceof ResourceFailure ? callbackErrorsAsDefects(error) : error;
+    }
+  };
+
 interface ResourceReaderEntry<A> {
   readonly read: Accessor<A>;
   readonly dispose: () => void;
@@ -282,37 +320,48 @@ interface ResourceReaderEntry<A> {
 /**
  * Render-time reader shared by every instance in one runtime. Each ref key gets
  * one fiber-backed async memo in a detached Solid root, reference-counted by
- * the owners that read it and disposed when the last one cleans up.
+ * the owners that read it.
+ *
+ * Releasing the last claim defers disposal to a microtask: Solid cleans up a
+ * recomputing owner (or a suspended read's aborted run) and re-runs it in the
+ * same flush, so the re-run re-acquires the same binding, while a binding
+ * still unclaimed after the flush is disposed.
  */
 const makeResourceReader = <I, A, E, R>(
   runtime: AnySunfallArcRuntime<unknown>,
   family: (input: I) => ResourceRef<I, A, E, R>,
 ) => {
   const entries = new Map<string, ResourceReaderEntry<A>>();
+  const release = (key: string, entry: ResourceReaderEntry<A>) => (): void => {
+    if (entry.users === 0 && entries.get(key) === entry) {
+      entries.delete(key);
+      entry.dispose();
+    }
+  };
+  const bind = (ref: ResourceRef<I, A, E, R>): ResourceReaderEntry<A> =>
+    runWithOwner(null, () =>
+      createRoot(
+        (dispose): ResourceReaderEntry<A> => ({
+          read: readTyped(createResourceSuspense(runtime, ref)),
+          dispose,
+          users: 0,
+        }),
+      ),
+    );
   const read = (input: I): A => {
     const ref = family(input);
     let entry = entries.get(ref.key);
     if (entry === undefined) {
-      const created = runWithOwner(null, () =>
-        createRoot(
-          (dispose): ResourceReaderEntry<A> => ({
-            read: createResourceSuspense(runtime, ref),
-            dispose,
-            users: 0,
-          }),
-        ),
-      );
-      entries.set(ref.key, created);
-      entry = created;
+      entry = bind(ref);
+      entries.set(ref.key, entry);
     }
     if (getOwner() !== null) {
       const current = entry;
       current.users++;
       onCleanup(() => {
         current.users--;
-        if (current.users === 0 && entries.get(ref.key) === current) {
-          entries.delete(ref.key);
-          current.dispose();
+        if (current.users === 0) {
+          queueMicrotask(release(ref.key, current));
         }
       });
     }
@@ -341,8 +390,24 @@ const tagOf = (value: unknown): string | undefined =>
     ? (value as { readonly _tag: string })._tag
     : undefined;
 
-/** Server-safe empty render for Solid's `render` target type. */
+/** Solid's `render`/`hydrate` target type. */
 type MountTarget = Parameters<typeof renderSolid>[1];
+
+/**
+ * Runs `effect` in a child of the caller's Scope that is closed right away if
+ * `effect` fails or is interrupted, so a failed acquisition releases what it
+ * already acquired instead of holding it until the caller's Scope closes.
+ */
+const releaseOnFailure = <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E, R | Scope.Scope> =>
+  Effect.gen(function* () {
+    const inner = yield* Scope.fork(yield* Scope.Scope);
+    return yield* effect.pipe(
+      Scope.provide(inner),
+      Effect.onExit((exit) => (Exit.isFailure(exit) ? Scope.close(inner, exit) : Effect.void)),
+    );
+  });
 
 type MountArgs<P, RuntimeServices, ER> = {} extends P
   ? [options?: Component.MountOptions<P, RuntimeServices, ER>]
@@ -380,17 +445,26 @@ export namespace Component {
     ) => JSX.Element;
   };
 
-  /** Options for `Component.mount`. */
+  /** Options for `Component.mount` and `Component.launch`. */
   export interface MountOptions<P, RuntimeServices = never, ER = never> {
     /**
      * Host-owned runtime to mount into. Omit it to let the mount own a fresh
-     * runtime, disposed when the mount's Scope closes. Services still come from
-     * `Component.provide`; this only shares Resource Store state and lifetime.
-     * Its startup failures (`ER`) fail the mount.
+     * runtime, disposed when the mount's Scope closes. The runtime's services
+     * (`RuntimeServices`) satisfy the component's remaining requirements, so a
+     * component may leave them to the host instead of `Component.provide`. An
+     * erased runtime (`AnySunfallArcRuntime`) satisfies none. Its startup
+     * failures (`ER`) fail the mount.
      */
     readonly runtime?: SunfallArcRuntime<RuntimeServices, ER> | AnySunfallArcRuntime<ER>;
     /** Root props; required when the root component has required props. */
     readonly props?: P;
+    /**
+     * Hydrate server-rendered markup in the container (Solid's `hydrate`)
+     * instead of rendering fresh. The server renders the same tree with
+     * `Component.embed(component)` under a `RuntimeProvider`; restore the
+     * server's Resource snapshot into `runtime` first so reads stay synchronous.
+     */
+    readonly hydrate?: boolean;
   }
 
   /**
@@ -423,16 +497,20 @@ export namespace Component {
   /**
    * Binds a Resource family in setup and returns a render-time reader.
    *
-   * The family's load error joins the component's `E` and its services join
-   * `R` (satisfied by the setup's context, including `Component.provide`).
-   * Reading a pending value suspends the nearest Solid `<Loading>`; a failed
-   * load throws `ResourceFailure` (its `result` holds the failure `Cause`) to
-   * the nearest `<Errored>`, which `catchTags` matches by the typed error's `_tag`. Reads share the
-   * fiber-backed async memo of `useResourceSuspense`.
+   * The family's typed load error `E` joins the component's `E` and its
+   * services join `R` (satisfied by the setup's context, including
+   * `Component.provide`). Reading a pending value suspends the nearest Solid
+   * `<Loading>`; a failed load throws `ResourceFailure` (its `result` holds the
+   * failure `Cause`) to the nearest `<Errored>`, which `catchTags` matches by
+   * the typed error's `_tag`. A load callback that throws synchronously
+   * (`EffectInputCallbackError`) is a defect: it is re-caused as `Die`, never
+   * matched by `catchTags`, and reaches outer boundaries untyped. Reads share
+   * the fiber-backed async memo of `useResourceSuspense`; a preloaded or
+   * hydrated value reads synchronously.
    */
   export const resource = <I, A, E, R>(
     family: (input: I) => ResourceRef<I, A, E, R>,
-  ): Effect.Effect<(input: I) => A, Resource.LoadError<E>, R> =>
+  ): Effect.Effect<(input: I) => A, E, R> =>
     Effect.gen(function* () {
       const runtime = yield* SetupRuntime;
       if (runtime === undefined) {
@@ -531,27 +609,33 @@ export namespace Component {
       ) as Component<P, E | LE, Exclude<R, ROut> | RIn>;
 
   /**
-   * Mounts a fully provided, fully handled component into a DOM container.
+   * Mounts a fully provided, fully handled component into a DOM container: the
+   * composable, scoped primitive under `Component.launch`.
    *
    * Only `Component<P, never, never>` is accepted: every service provided and
-   * every typed failure handled. The result is a scoped acquisition, the
-   * Effect-native shape for "something that lives until released": the Solid
+   * every typed failure handled. The result is a scoped acquisition: the Solid
    * tree (and an owned runtime) stay mounted while the caller's `Scope` is open
    * and are disposed, tree first, when it closes. Setup completes before the
    * first render; interrupting the mount while setup runs interrupts the setup
-   * and renders nothing.
+   * and renders nothing. If the mount fails (runtime startup, interruption, or
+   * a render that throws), everything it acquired is released immediately
+   * rather than when the caller's Scope closes.
+   *
+   * Use it to compose a mount into a larger scoped program (or a test); use
+   * `Component.launch` as the app entry point.
    *
    * @example
    * ```ts
-   * Component.mount(App.pipe(Component.provide(AppLive)), root).pipe(
-   *   Effect.andThen(Effect.never),
-   *   Effect.scoped,
-   *   Effect.runFork,
+   * Effect.scoped(
+   *   Effect.gen(function* () {
+   *     yield* Component.mount(App, root);
+   *     yield* runUntilDone;
+   *   }),
    * );
    * ```
    */
   export const mount = <P, RuntimeServices = never, ER = never>(
-    component: Component<P, never, never>,
+    component: Component<P, never, NoInfer<RuntimeServices>>,
     container: MountTarget,
     ...[options]: MountArgs<P, RuntimeServices, ER>
   ): Effect.Effect<void, ER, Scope.Scope> =>
@@ -562,16 +646,21 @@ export namespace Component {
           Effect.sync(() => eraseRuntime(makeRuntime())),
           (owned) => owned.disposeEffect.pipe(Effect.ignore({ log: true })),
         ));
-      const render = yield* awaitSetup<P, ER>(component, runtime);
+      // The runtime provides `RuntimeServices` to setup (it runs via `runtime.runFork`).
+      const provided = component as Component<P, never, never>;
+      yield* awaitSetup<P, ER>(provided, runtime);
+      // The tree `embed` renders, so server markup from `embed` hydrates as-is.
+      const Root = embed(provided);
       const props = (options?.props ?? {}) as P;
+      const attach = options?.hydrate === true ? hydrateSolid : renderSolid;
       yield* Effect.acquireRelease(
         Effect.sync(() =>
-          renderSolid(
+          attach(
             () =>
               createComponent(RuntimeProvider, {
                 runtime,
                 get children() {
-                  return instantiate(render, props);
+                  return instantiate(Root, props);
                 },
               }),
             container,
@@ -579,14 +668,37 @@ export namespace Component {
         ),
         (dispose) => Effect.sync(dispose),
       );
-    });
+    }).pipe(releaseOnFailure);
+
+  /**
+   * The app entry point: mounts a fully provided, fully handled component and
+   * keeps it mounted until the returned Effect is interrupted, like
+   * `Layer.launch`. Interrupting it disposes the Solid tree, then any runtime
+   * it owns. It fails only with a host runtime's startup error (`ER`).
+   *
+   * @example
+   * ```ts
+   * Effect.runFork(Component.launch(App.pipe(Component.provide(AppLive)), root));
+   * ```
+   */
+  export const launch = <P, RuntimeServices = never, ER = never>(
+    component: Component<P, never, NoInfer<RuntimeServices>>,
+    container: MountTarget,
+    ...options: MountArgs<P, RuntimeServices, ER>
+  ): Effect.Effect<never, ER> =>
+    Effect.scoped(
+      Effect.andThen(mount<P, RuntimeServices, ER>(component, container, ...options), Effect.never),
+    );
 
   /**
    * Embeds a fully provided, fully handled component in an existing Solid tree.
    *
    * The returned Solid component runs setup in the nearest `RuntimeProvider`
    * runtime (once per runtime, shared with `mount`). While an asynchronous setup
-   * is still running it suspends the nearest `<Loading>`.
+   * is still running it suspends the nearest `<Loading>`. It is also the server
+   * render path: under a request runtime's `RuntimeProvider`, `renderToString`
+   * runs setup once per request, and `launch(..., { hydrate: true })` hydrates
+   * the markup on the client.
    */
   export const embed =
     <P>(component: Component<P, never, never>): Render<P> =>

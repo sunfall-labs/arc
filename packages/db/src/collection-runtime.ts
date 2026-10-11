@@ -52,7 +52,10 @@ import type {
   CollectionChangeFeedSubscribeOptions,
 } from "./sync-adapter.js";
 import { commitCollectionWriteEffect } from "./collection-write-commit.js";
-import { runCollectionSyncLoadPolicyEffect } from "./collection-sync-load-policy.js";
+import {
+  followCollectionSyncEffect,
+  runCollectionSyncLoadPolicyEffect,
+} from "./collection-sync-load-policy.js";
 import {
   collectionStoreEffect,
   currentCollectionStore,
@@ -461,11 +464,13 @@ export const defineCollection = <
       Effect.gen(function* () {
         yield* recordCollectionPreload(definition);
         yield* runCollectionSyncLoadPolicyEffect(definition, { force: false });
+        yield* followCollectionSyncEffect(definition);
       }),
     refetchEffect: () =>
       Effect.gen(function* () {
         yield* recordCollectionPreload(definition);
         yield* runCollectionSyncLoadPolicyEffect(definition, { force: true });
+        yield* followCollectionSyncEffect(definition);
       }),
     pendingMutationsEffect: () => collectionPendingMutationsEffect(definition),
     pendingMutations: () => collectionPendingMutations(definition),

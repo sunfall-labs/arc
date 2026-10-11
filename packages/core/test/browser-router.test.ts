@@ -1,5 +1,5 @@
-import { Cause, Context, Deferred, Effect, Fiber, Layer } from "effect";
-import { describe, expect, it, vi } from "vitest";
+import { Cause, Context, Deferred, Effect, Fiber, Layer, Schema } from "effect";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import {
   browserRouterLinkClickDecision,
   browserRouterLinkPreloadDecision,
@@ -11,7 +11,6 @@ import {
   createBrowserRouterHostController,
   createBrowserRouterKernel,
   eraseRuntime,
-  EffectInputCallbackError,
   EffectInputPromiseRejected,
   isPlainLeftClick,
   makeBrowserRouterLinkPreloader,
@@ -1457,7 +1456,45 @@ describe("browser router kernel", () => {
       ),
     ));
 
-  it("keeps erased Promise-shaped preload failures in router state", () =>
+  it("keeps a route's schema-typed preload failure in router state", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
+            id: Schema.String,
+          }) {}
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+
+          const Project = route("/typed-failure-projects/:id", {
+            error: ProjectNotFound,
+            preload: ({ params }) => Effect.fail(new ProjectNotFound({ id: params.id })),
+          });
+          const router = createBrowserRouterKernel([Project] as const, {
+            initialHref: "/typed-failure-projects/atlas",
+            runtime: eraseRuntime(runtime),
+          });
+          yield* Effect.addFinalizer(() => router.disposeEffect());
+
+          router.navigateHref("/typed-failure-projects/atlas");
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              const state = router.state.get();
+              expect(state._tag).toBe("Failure");
+              if (state._tag === "Failure" && state.error?._tag === "RoutePreloadError") {
+                expectTypeOf(state.error.cause).toEqualTypeOf<ProjectNotFound>();
+                expect(state.error.cause).toBeInstanceOf(ProjectNotFound);
+                expect(state.error.cause.id).toBe("atlas");
+              } else {
+                expect.fail("Expected a RoutePreloadError failure.");
+              }
+            }),
+          );
+        }),
+      ),
+    ));
+
+  it("keeps erased Promise-shaped preload defects in router state", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
@@ -1479,13 +1516,8 @@ describe("browser router kernel", () => {
               const state = router.state.get();
               expect(state._tag).toBe("Failure");
               if (state._tag === "Failure") {
-                expect(state.error).toBeInstanceOf(RoutePreloadError);
-                expect((state.error as RoutePreloadError).cause).toBeInstanceOf(
-                  EffectInputCallbackError,
-                );
-                expect(
-                  ((state.error as RoutePreloadError).cause as EffectInputCallbackError).cause,
-                ).toBeInstanceOf(EffectInputPromiseRejected);
+                expect(state.error).toBeUndefined();
+                expect(Cause.squash(state.cause)).toBeInstanceOf(EffectInputPromiseRejected);
               }
             }),
           );

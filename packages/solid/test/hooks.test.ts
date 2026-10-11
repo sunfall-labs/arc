@@ -714,7 +714,7 @@ describe("solid hooks", () => {
     );
   });
 
-  it("exposes Sunfall Arc Programs as Solid accessors bound to the runtime", () =>
+  it("exposes Sunfall Arc Programs to Solid bound to the runtime", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         let dispose: (() => void) | undefined;
@@ -773,6 +773,7 @@ describe("solid hooks", () => {
         expect(program?.model()).toEqual({ name: "idle" });
         yield* program!.dispatchEffect({ _tag: "Load" });
         yield* Deferred.await(loaded);
+        flush();
         expect(program?.model()).toEqual({ name: "Atlas" });
         expect(program?.timeline().map((event) => event._tag)).toContain("Message");
         program!.clearTimeline();

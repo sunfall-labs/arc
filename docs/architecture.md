@@ -92,20 +92,26 @@ exposes its state as Effect's `AsyncResult` plus an Effect API:
 
 ```tsx
 const project = useResource(() => ProjectById(props.id));
+const current = () => Option.getOrUndefined(AsyncResult.value(project.result()));
 
-return () =>
-  AsyncResult.builder(project.result())
-    .onInitial(() => <ProjectSkeleton />)
-    // onFailure before onSuccess keeps `previousSuccess` typed.
-    .onFailure((cause, failed) =>
-      Option.match(failed.previousSuccess, {
-        onNone: () => <ProjectError cause={cause} />,
-        onSome: (stale) => <ProjectView project={stale.value} cause={cause} />,
-      }),
-    )
-    .onSuccess((value, success) => <ProjectView project={value} refreshing={success.waiting} />)
-    .exhaustive();
+return (
+  <Show
+    when={current()}
+    fallback={AsyncResult.builder(project.result())
+      .onFailure((cause) => <ProjectError cause={cause} />)
+      .orElse(() => (
+        <ProjectSkeleton />
+      ))}
+  >
+    {(value) => <ProjectView project={value()} refreshing={project.result().waiting} />}
+  </Show>
+);
 ```
+
+Content is gated on having a value (current or stale), not on each result
+transition, so a refresh updates `ProjectView` in place instead of remounting
+it and whatever forms or Programs it owns; the builder renders only the small
+status fallback. See [Solid Adapter](solid-adapter.md#keep-content-mounted-across-refreshes).
 
 ### AsyncResult Is The Async-State Vocabulary
 
@@ -230,6 +236,14 @@ const project = Program.start(ProjectProgram, { runtime });
 
 That keeps service requirements visible to TypeScript while devtools and tests
 can inspect the same public timeline facts.
+
+The model signal is the Effect-side source of truth: every update commits one
+immutable model. Renderers must not turn that single value into coarse
+re-renders, so the Solid adapter's `useProgram(...)` reconciles each commit into
+a fine-grained read-only projection: unchanged subtrees keep their identity,
+arrays reconcile by key (`"id"` by default), and a reader re-runs only when the
+part of the model it read changes. Foldkit-style centralized state, Solid-style
+granular updates.
 
 ## Runtime Spine
 
@@ -472,7 +486,7 @@ generator:
 
 ```tsx
 const ProjectCard = Component.make("ProjectCard", function* () {
-  const project = yield* Component.resource(ProjectById); // E += load error, R += its services
+  const project = yield* Component.resource(ProjectById); // E += typed load error, R += its services
   return (props: { readonly id: ProjectId }) => <article>{project(props.id).name}</article>;
 });
 
@@ -491,8 +505,11 @@ phantom at the Effect level; setup failures, provided-Layer failures, and failed
 resource reads surface when the component renders, by throwing to the nearest
 Solid `<Errored>`. `catchTags` installs that boundary and removes handled tags
 from `E` (matching a `ResourceFailure` by the `_tag` of `AsyncResult.error(failure.result)`); unmatched
-failures rethrow outward. `provide` removes services from `R`; `mount` accepts
-only `Component<P, never, never>`.
+failures rethrow outward. `Component.resource` contributes only the family's
+typed load error: a load callback that throws synchronously
+(`EffectInputCallbackError`) is a programming defect, re-caused as `Die` so no
+handler can (or must) match it. `provide` removes services from `R`; `launch`,
+`mount`, and `embed` accept only `Component<P, never, never>`.
 
 Two phases keep the cost model honest:
 
@@ -503,12 +520,24 @@ Two phases keep the cost model honest:
 - **Render runs per instance** under a Solid owner, exactly like a Solid
   component. Resource reads share one fiber-backed async memo per ref per
   runtime (the `useResourceSuspense` path); pending reads suspend `<Loading>`.
+  Releasing the last reader defers disposal to a microtask, so an owner that
+  recomputes (or a suspended read re-run) in the same flush keeps the binding.
 
-`Component.mount(...)` is a scoped acquisition (`Effect<void, ER, Scope>`):
-setup completes before the first render, interrupting the mount interrupts
-setup, and closing the Scope disposes the Solid tree, then any runtime the
-mount owns. `Component.embed(...)` renders a component inside an existing
-`RuntimeProvider` tree, sharing the same per-runtime setup.
+`Component.launch(App, root, options?)` is the app entry point: an
+`Effect<never, ER>` that keeps the tree mounted until interrupted, like
+`Layer.launch` (`Effect.runFork(Component.launch(App, root))`). It is
+`Effect.scoped` over `Component.mount(...)`, the composable scoped acquisition
+(`Effect<void, ER, Scope>`): setup completes before the first render,
+interrupting the mount interrupts setup, closing the Scope disposes the Solid
+tree, then any runtime the mount owns, and a failed mount releases what it
+acquired immediately. `Component.embed(...)` renders a component inside an
+existing `RuntimeProvider` tree, sharing the same per-runtime setup.
+
+On the server, `embed` under a Start request runtime runs setup once per
+request and reads route-preloaded Resources synchronously. On the client,
+`launch(App, root, { runtime, hydrate: true })` hydrates that markup with
+Solid's `hydrate`, rendering the same tree `embed` renders, after the Resource
+snapshot is restored into `runtime`.
 
 ## Component Runtime
 
@@ -630,6 +659,29 @@ mounts the matched route component in a fresh route `UiScope`. Navigating away
 runs Solid cleanup inside that route runtime/scope before disposing the route
 scope, so cleanup callbacks, streams, watches, actions, and scoped fibers close
 with the page they belong to.
+A route's preload failure is typed. Like an Effect RPC `error` schema, a route
+can declare `error`; its `preload` must then fail only with that schema's type
+(other failures are compile errors), and the failure flows into router state as
+`RoutePreloadError<E>`:
+
+```ts
+class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
+  id: Schema.String,
+}) {}
+
+export const ProjectRoute = route("/projects/:id", {
+  error: ProjectNotFound,
+  preload: ({ params }) => loadProjectOrFail(params.id), // Effect<void, ProjectNotFound>
+});
+```
+
+`Route.PreloadFailure<R>` is the error schema's type, `unknown` for a preload
+without `error`, and `never` for a route without preload. The router's
+`Failure` state carries `Cause<BrowserRouterError<Routes> | ER>`, where
+`BrowserRouterError` is `Route.NavigationError<Routes[number]>` (navigation,
+`RoutePreloadError<Route.PreloadFailure<...>>`, resource snapshot codec
+failures) plus `RouteLazyComponentFailed` for lazy component loads. Synchronous
+throws and Promise returns from `preload` break its contract and are defects.
 Router navigation, link preload, and click interception share one route
 membership policy: unregistered links are allowed to behave as normal anchors,
 while programmatic navigation reports `RouterRouteNotRegistered`.
@@ -762,6 +814,20 @@ and Effect `Cache` entry update in the same Runtime Spine. The synchronous
 `Resource.hydrate(payload)` helper is the host/UI-context facade for callers
 that are already inside the current runtime, not the path Start hydration docs
 should teach first.
+
+A failed route preload is a render outcome in Start: the request renders with
+status 500 and every router on the request runtime starts in the `Failure`
+state, so the outlet's failure view renders. The failure crosses to the client
+as a `RoutePreloadFailureSnapshot` in the hydration payload, and the hydrating
+router starts in the same `Failure` state without re-running the preload. With
+an `error` schema, `Route.preloadFailureSnapshotEffect(...)` encodes the
+failure as JSON with that schema and `Route.preloadFailureCauseFromSnapshot(...)`
+decodes it back into the typed value (a genuine `ProjectNotFound` with its
+fields). Both the server render and the client render use the decoded value, so
+their output agrees, and only fields the schema declares leave the server.
+Without an `error` schema only the failure `_tag` crosses and the rebuilt cause
+is `{ _tag }`. A failure that does not encode (or decode) with the schema
+renders as a `RoutePreloadFailureCodecError` defect, without its data.
 
 Preload dehydration has both sync and Effect forms. Runtime/request work should
 prefer `Resource.hydrationPayloadEffect(refs)` so the payload is read from the

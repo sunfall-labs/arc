@@ -190,19 +190,21 @@ already inside the current runtime.
 
 ```tsx
 const user = useResource(() => UserById(props.id));
+// Current or stale value: the view mounts once and refreshes update it in place.
+const current = () => Option.getOrUndefined(AsyncResult.value(user.result()));
 
-return () =>
-  AsyncResult.builder(user.result())
-    .onInitial(() => <UserSkeleton />)
-    // onFailure before onSuccess keeps `previousSuccess` typed.
-    .onFailure((cause, failed) =>
-      Option.match(failed.previousSuccess, {
-        onNone: () => <UserError cause={cause} />,
-        onSome: (stale) => <UserView user={stale.value} cause={cause} />,
-      }),
-    )
-    .onSuccess((value, success) => <UserView user={value} refreshing={success.waiting} />)
-    .exhaustive();
+return (
+  <Show
+    when={current()}
+    fallback={AsyncResult.builder(user.result())
+      .onFailure((cause) => <UserError cause={cause} />)
+      .orElse(() => (
+        <UserSkeleton />
+      ))}
+  >
+    {(value) => <UserView user={value()} refreshing={user.result().waiting} />}
+  </Show>
+);
 ```
 
 Async state is always Effect's `AsyncResult` (`effect/reactivity`): Resources,

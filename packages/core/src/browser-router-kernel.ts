@@ -1,5 +1,6 @@
 import { Cause, Data, Effect, Exit, Fiber } from "effect";
 import { Route, RouteNavigationError } from "./route.js";
+import { takeHydratedRoutePreloadFailure } from "./route-preload-failure-hydration.js";
 import type { AnySunfallArcRuntime } from "./runtime.js";
 import { Signal, type ReadableSignal } from "./signal.js";
 import { makeRuntimeUiScope, type UiScope } from "./scope.js";
@@ -8,6 +9,7 @@ import {
   browserRouterFailureState,
   routeStateMatch,
   type AnyBrowserRoute,
+  type BrowserRouterError,
   type BrowserRouterPath,
   type BrowserRouterRouteForPath,
   type BrowserRouterState,
@@ -119,11 +121,11 @@ export interface BrowserRouterKernel<
   preloadEffect<R extends Routes[number]>(
     definition: R,
     ...args: Route.HrefArgs<R>
-  ): Effect.Effect<void, Route.NavigationError | ER>;
+  ): Effect.Effect<void, BrowserRouterError<Routes> | ER>;
   preloadByPathEffect<Path extends BrowserRouterPath<Routes>>(
     path: Path,
     ...args: Route.HrefArgs<BrowserRouterRouteForPath<Routes, Path>>
-  ): Effect.Effect<void, Route.NavigationError | ER>;
+  ): Effect.Effect<void, BrowserRouterError<Routes> | ER>;
 }
 
 const prepareHrefFailure = (href: string, cause: unknown): RouteNavigationError =>
@@ -136,7 +138,7 @@ const provideRouterPreloadEffect = <ER, R extends AnyBrowserRoute>(
   runtime: AnySunfallArcRuntime<ER>,
   match: Route.Match<R>,
   prepareHrefEffect: (href: string) => Effect.Effect<void, RouteNavigationError>,
-): Effect.Effect<void, Route.NavigationError | ER> =>
+): Effect.Effect<void, BrowserRouterError<readonly [R]> | ER> =>
   runtime.provide(
     Effect.scoped(
       prepareHrefEffect(match.href).pipe(
@@ -171,7 +173,7 @@ const routeMembershipFailureState = <Routes extends readonly AnyBrowserRoute[], 
 ): Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }> =>
   browserRouterFailureState<Routes, ER>(
     href,
-    Cause.fail(routeOutsideRouterError(definition)) as Cause.Cause<Route.NavigationError | ER>,
+    Cause.fail(routeOutsideRouterError(definition)) as Cause.Cause<BrowserRouterError<Routes> | ER>,
   );
 
 const routePathMembershipFailureState = <Routes extends readonly AnyBrowserRoute[], ER>(
@@ -180,7 +182,7 @@ const routePathMembershipFailureState = <Routes extends readonly AnyBrowserRoute
 ): Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }> =>
   browserRouterFailureState<Routes, ER>(
     href,
-    Cause.fail(routePathOutsideRouterError(path)) as Cause.Cause<Route.NavigationError | ER>,
+    Cause.fail(routePathOutsideRouterError(path)) as Cause.Cause<BrowserRouterError<Routes> | ER>,
   );
 
 const splitNavigateArgs = <R extends AnyBrowserRoute>(
@@ -223,13 +225,28 @@ export const createBrowserRouterKernel = <
     if (Exit.isFailure(matchExit)) {
       return browserRouterFailureState(
         initialHref,
-        matchExit.cause as Cause.Cause<Route.NavigationError | ER>,
+        matchExit.cause as Cause.Cause<BrowserRouterError<Routes> | ER>,
       );
     }
 
-    return matchExit.value
-      ? initialMatchedState(initialHref, matchExit.value)
-      : { _tag: "NotFound", href: initialHref };
+    const initialMatch = matchExit.value;
+    if (!initialMatch) {
+      return { _tag: "NotFound", href: initialHref };
+    }
+
+    // A server render that showed this route's preload failure hands it to the
+    // router rendering (server) or hydrating (client) that output.
+    const hydratedFailure = takeHydratedRoutePreloadFailure(
+      runtime.resourceStore,
+      initialMatch.href,
+    );
+    return hydratedFailure === undefined
+      ? initialMatchedState(initialHref, initialMatch)
+      : browserRouterFailureState(
+          initialHref,
+          Route.preloadFailureCauseFromSnapshot(initialMatch.route, hydratedFailure),
+          initialMatch,
+        );
   };
   const state = Signal.make<BrowserRouterState<Routes, ER>>(initialRouterState());
   const match = Signal.derive(() => routeStateMatch(state.get()));
@@ -291,7 +308,10 @@ export const createBrowserRouterKernel = <
 
     if (Exit.isFailure(matchExit)) {
       setState(
-        browserRouterFailureState(href, matchExit.cause as Cause.Cause<Route.NavigationError | ER>),
+        browserRouterFailureState(
+          href,
+          matchExit.cause as Cause.Cause<BrowserRouterError<Routes> | ER>,
+        ),
       );
       return;
     }
@@ -328,7 +348,7 @@ export const createBrowserRouterKernel = <
           setState(
             browserRouterFailureState(
               href,
-              exit.cause as Cause.Cause<Route.NavigationError | ER>,
+              exit.cause as Cause.Cause<BrowserRouterError<Routes> | ER>,
               nextMatch,
             ),
           );
@@ -348,7 +368,7 @@ export const createBrowserRouterKernel = <
   const preloadRouteEffect = <R extends Routes[number]>(
     definition: R,
     args: Route.HrefArgs<R>,
-  ): Effect.Effect<void, Route.NavigationError | ER> => {
+  ): Effect.Effect<void, BrowserRouterError<Routes> | ER> => {
     const hrefEffect = Effect.try({
       try: () => Route.href(definition, ...args),
       catch: (cause) =>

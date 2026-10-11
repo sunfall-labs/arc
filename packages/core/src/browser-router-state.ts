@@ -1,5 +1,5 @@
 import { Cause } from "effect";
-import type { Route } from "./route.js";
+import type { Route, RouteLazyComponentFailed } from "./route.js";
 
 export type AnyBrowserRoute = Route.Definition<string, unknown, unknown, any>;
 
@@ -11,6 +11,16 @@ export type BrowserRouterRouteForPath<
   Routes extends readonly AnyBrowserRoute[],
   Path extends BrowserRouterPath<Routes>,
 > = Extract<Routes[number], { readonly path: Path }>;
+
+/**
+ * Typed failures a Browser Router reports for its routes: navigation and
+ * preload failures, with each route's typed preload failure
+ * (`RoutePreloadError<Route.PreloadFailure<Routes[number]>>`), plus lazy
+ * route component load failures.
+ */
+export type BrowserRouterError<Routes extends readonly AnyBrowserRoute[]> =
+  | Route.NavigationError<Routes[number]>
+  | RouteLazyComponentFailed<unknown>;
 
 /**
  * Reactive browser router state emitted while matching and preloading routes.
@@ -29,8 +39,8 @@ export type BrowserRouterState<
       readonly _tag: "Failure";
       readonly href: string;
       readonly match?: Route.Match<Routes[number]>;
-      readonly cause: Cause.Cause<Route.NavigationError | ER>;
-      readonly error?: Route.NavigationError | ER;
+      readonly cause: Cause.Cause<BrowserRouterError<Routes> | ER>;
+      readonly error?: BrowserRouterError<Routes> | ER;
     }
   | { readonly _tag: "NotFound"; readonly href: string };
 
@@ -46,7 +56,7 @@ const firstFailure = <E>(cause: Cause.Cause<E>): E | undefined =>
 
 export const browserRouterFailureState = <Routes extends readonly AnyBrowserRoute[], ER>(
   href: string,
-  cause: Cause.Cause<Route.NavigationError | ER>,
+  cause: Cause.Cause<BrowserRouterError<Routes> | ER>,
   match?: Route.Match<Routes[number]>,
 ): Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }> => {
   const error = firstFailure(cause);

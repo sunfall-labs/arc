@@ -1,4 +1,11 @@
-import { Effect, Request as EffectRequest, RequestResolver, Schema, type Schedule } from "effect";
+import {
+  Effect,
+  Request as EffectRequest,
+  RequestResolver,
+  Schema,
+  type Schedule,
+  type Stream,
+} from "effect";
 import type { AsyncResult } from "effect/reactivity";
 import type {
   EffectInput,
@@ -53,6 +60,7 @@ import {
   refreshResourceEffect,
   resourceHydrationPayload,
   resourceHydrationPayloadEffect,
+  resourceChangesStream,
   resourceResult,
   resourceStatus,
   resourceStatusEffect,
@@ -772,6 +780,17 @@ export namespace Resource {
   ): Effect.Effect<ResourceInvalidationPlan<R>> => planResourceInvalidationEffect(target);
 
   export const subscribeEventsEffect = subscribeResourceEventsEffect;
+
+  /**
+   * Streams a ref's settled success values.
+   *
+   * Emits the current value when one is cached, then each later success from a
+   * load, refresh, invalidation-triggered reload, or hydration. It never starts
+   * a load itself, and it retains the ref against garbage collection while the
+   * stream runs, so invalidation keeps refreshing what it follows.
+   */
+  export const changes = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Stream.Stream<A> =>
+    resourceChangesStream(ref);
 
   /**
    * Reactive `AsyncResult` signal for a Resource ref, including callback failures.

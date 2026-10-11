@@ -27,6 +27,7 @@ import {
   ResourceSnapshotCodecError,
   ResponseContext,
   Route,
+  RoutePreloadError,
   RuntimeDisposeError,
   Server,
   Signal,
@@ -125,6 +126,7 @@ import {
   useStream,
   type BrowserNavigateArgs,
   type BrowserRouter,
+  type BrowserRouterError,
   type BrowserRouterPath,
   type BrowserRouterRouteForPath,
   type BrowserRouterState,
@@ -757,8 +759,10 @@ declare const projectRouterFailure: Extract<
   BrowserRouterState<readonly [typeof ProjectRoute]>,
   { readonly _tag: "Failure" }
 >;
-const projectRouterFailureCause: Cause.Cause<Route.NavigationError> = projectRouterFailure.cause;
-const projectRouterFailureError: Route.NavigationError | undefined = projectRouterFailure.error;
+const projectRouterFailureCause: Cause.Cause<BrowserRouterError<readonly [typeof ProjectRoute]>> =
+  projectRouterFailure.cause;
+const projectRouterFailureError: BrowserRouterError<readonly [typeof ProjectRoute]> | undefined =
+  projectRouterFailure.error;
 void projectRouterFailureCause;
 void projectRouterFailureError;
 const routerContextMissing = new RouterContextMissing({ hook: "useRouter" });
@@ -789,8 +793,13 @@ void browserHistoryCommittedHref;
 const projectRouterFailureRenderer: NonNullable<RouterOutletProps<ProjectError>["failure"]> = (
   state,
 ) => {
-  const cause: Cause.Cause<Route.NavigationError | ProjectError> = state.cause;
-  const error: Route.NavigationError | ProjectError | undefined = state.error;
+  const cause: Cause.Cause<
+    BrowserRouterError<readonly Route.Definition<string, unknown, unknown, any>[]> | ProjectError
+  > = state.cause;
+  const error:
+    | BrowserRouterError<readonly Route.Definition<string, unknown, unknown, any>[]>
+    | ProjectError
+    | undefined = state.error;
   void cause;
   void error;
   return undefined;
@@ -804,12 +813,76 @@ const projectRouterOutletProps: RouterOutletProps<readonly [typeof ProjectRoute]
   },
   failure: (state) => {
     const match: Route.Match<typeof ProjectRoute> | undefined = state.match;
-    const cause: Cause.Cause<Route.NavigationError | ProjectError> = state.cause;
+    const cause: Cause.Cause<BrowserRouterError<readonly [typeof ProjectRoute]> | ProjectError> =
+      state.cause;
     match?.params.id.toUpperCase();
     void cause;
     return undefined;
   },
 };
+// Route `error` schemas type the preload failure end to end.
+class TypedProjectNotFound extends Schema.TaggedError<TypedProjectNotFound>()(
+  "TypedProjectNotFound",
+  { id: Schema.String },
+) {}
+class TypedProjectForbidden extends Schema.TaggedError<TypedProjectForbidden>()(
+  "TypedProjectForbidden",
+  { id: Schema.String },
+) {}
+const TypedProjectRoute = route("/typed-projects/:id", {
+  error: Schema.Union([TypedProjectNotFound, TypedProjectForbidden]),
+  preload: ({ params }) =>
+    params.id === "secret"
+      ? Effect.fail(new TypedProjectForbidden({ id: params.id }))
+      : Effect.fail(new TypedProjectNotFound({ id: params.id })),
+});
+const typedProjectRouteFailure: Route.PreloadFailure<typeof TypedProjectRoute> =
+  new TypedProjectNotFound({ id: "atlas" });
+// @ts-expect-error the route failure is exactly the error schema's type
+const typedProjectRouteFailureWrong: Route.PreloadFailure<typeof TypedProjectRoute> = "missing";
+const untypedPreloadRoute = route("/untyped-projects/:id", { preload: () => Effect.fail("x") });
+const untypedProjectRouteFailure: unknown extends Route.PreloadFailure<typeof untypedPreloadRoute>
+  ? true
+  : false = true;
+const staticRoute = route("/static");
+const staticRouteFailure: [Route.PreloadFailure<typeof staticRoute>] extends [never]
+  ? true
+  : false = true;
+const typedProjectPreload: Effect.Effect<
+  void,
+  RoutePreloadError<TypedProjectNotFound | TypedProjectForbidden>
+> = Route.preloadEffect(TypedProjectRoute.match("/typed-projects/atlas")!);
+route("/typed-projects/:id", {
+  error: TypedProjectNotFound,
+  // @ts-expect-error preload may fail only with the route error schema's type
+  preload: () => Effect.fail(new TypedProjectForbidden({ id: "atlas" })),
+});
+route("/typed-projects/:id", {
+  error: TypedProjectNotFound,
+  // @ts-expect-error untyped failures are rejected when the route declares an error schema
+  preload: () => Effect.fail("missing"),
+});
+route("/typed-projects/:id", {
+  error: TypedProjectNotFound,
+  preload: () => Effect.void,
+});
+const typedProjectOutletProps: RouterOutletProps<readonly [typeof TypedProjectRoute]> = {
+  failure: (state) => {
+    if (state.error?._tag === "RoutePreloadError") {
+      const failure: TypedProjectNotFound | TypedProjectForbidden = state.error.cause;
+      const id: string = state.error.cause.id;
+      void failure;
+      void id;
+    }
+    return undefined;
+  },
+};
+void typedProjectRouteFailure;
+void typedProjectRouteFailureWrong;
+void untypedProjectRouteFailure;
+void staticRouteFailure;
+void typedProjectPreload;
+void typedProjectOutletProps;
 const projectBrowserRouter: BrowserRouter<readonly [typeof ProjectRoute]> = createBrowserRouter(
   [ProjectRoute] as const,
   { initialHref: "/projects/atlas", history: browserHistoryAdapter },
@@ -830,11 +903,13 @@ projectBrowserRouter.navigate(ProjectRoute, {
   params: { id: "atlas" },
   search: {},
 });
-const projectBrowserRouterPreload: Effect.Effect<void, Route.NavigationError> =
-  projectBrowserRouter.preloadEffect(ProjectRoute, {
-    params: { id: "atlas" },
-    search: {},
-  });
+const projectBrowserRouterPreload: Effect.Effect<
+  void,
+  BrowserRouterError<readonly [typeof ProjectRoute]>
+> = projectBrowserRouter.preloadEffect(ProjectRoute, {
+  params: { id: "atlas" },
+  search: {},
+});
 const coreRouterLinkPreloadDecision: BrowserRouterLinkPreloadDecision =
   browserRouterLinkPreloadDecision({
     defaultPrevented: false,
@@ -909,11 +984,13 @@ mixedProjectBrowserRouter.navigateByPath(
   },
   { replace: true },
 );
-const mixedProjectBrowserRouterPreload: Effect.Effect<void, Route.NavigationError> =
-  mixedProjectBrowserRouter.preloadByPathEffect("/projects/:id", {
-    params: { id: "atlas" },
-    search: {},
-  });
+const mixedProjectBrowserRouterPreload: Effect.Effect<
+  void,
+  BrowserRouterError<readonly [typeof StaticProjectRoute, typeof ProjectRoute]>
+> = mixedProjectBrowserRouter.preloadByPathEffect("/projects/:id", {
+  params: { id: "atlas" },
+  search: {},
+});
 const mixedProjectBrowserRouterMatch = mixedProjectBrowserRouter.matchByPath("/projects/:id");
 if (mixedProjectBrowserRouterMatch) {
   const id: string = mixedProjectBrowserRouterMatch.params.id;

@@ -13,6 +13,10 @@ import {
   ResourceSnapshotCodecError,
   ResponseContext,
   Route,
+  RouteLazyComponentLoadError,
+  RouteLazyComponentPending,
+  RoutePreloadError,
+  RoutePreloadFailureCodecError,
   RuntimeDisposeError,
   Server,
   Signal,
@@ -139,6 +143,10 @@ import {
   type RuntimeProviderLifecycleEntry,
   type RuntimeProviderLifecycleOptions,
   type RuntimeUiScopeFrame,
+  type BrowserRouterError,
+  type RouteErrorSchema,
+  type RoutePreloadFailureEncoding,
+  type RoutePreloadFailureSnapshot,
 } from "@sunfall/arc-core";
 // @ts-expect-error ResourceCollector is an internal preload planning service, not a root export.
 type ResourceCollectorIsInternal = typeof import("@sunfall/arc-core").ResourceCollector;
@@ -194,29 +202,29 @@ const coreLazyRouteComponentWithImportErrorShape: Route.LazyComponent<
 > = coreLazyRouteComponentWithImportError;
 const coreLazyRouteComponentPreloadEffect: Effect.Effect<
   Route.Component<(typeof coreRoutes)[0]>,
-  Route.LazyComponentLoadError
+  RouteLazyComponentLoadError
 > = coreLazyRouteComponent.preloadEffect();
 const coreLazyRouteComponentImportErrorPreloadEffect: Effect.Effect<
   Route.Component<(typeof coreRoutes)[0]>,
-  CoreLazyRouteImportError | Route.LazyComponentLoadError
+  CoreLazyRouteImportError | RouteLazyComponentLoadError
 > = coreLazyRouteComponentWithImportError.preloadEffect();
-const coreLazyRoutePending = new Route.LazyComponentPending<CoreLazyRouteImportError>({
+const coreLazyRoutePending = new RouteLazyComponentPending<CoreLazyRouteImportError>({
   exportName: "default",
   preloadEffect: coreLazyRouteComponentWithImportError.preloadEffect(),
 });
 const coreLazyRoutePendingEffect: Effect.Effect<
   unknown,
-  CoreLazyRouteImportError | Route.LazyComponentLoadError
+  CoreLazyRouteImportError | RouteLazyComponentLoadError
 > = coreLazyRoutePending.preloadEffect;
 const coreLazyRoutePendingExtractedEffect: Effect.Effect<
   unknown,
-  CoreLazyRouteImportError | Route.LazyComponentLoadError
+  CoreLazyRouteImportError | RouteLazyComponentLoadError
 > = Route.lazyComponentPendingEffect<CoreLazyRouteImportError>(coreLazyRoutePending)!;
 declare const coreLazyRouteSuspenseRuntime: Route.LazyComponentSuspenseRuntime<CoreAdapterCleanupError>;
 const coreLazyRouteSuspenseFiber:
   | Fiber.Fiber<
       void,
-      CoreLazyRouteImportError | Route.LazyComponentLoadError | CoreAdapterCleanupError
+      CoreLazyRouteImportError | RouteLazyComponentLoadError | CoreAdapterCleanupError
     >
   | undefined = Route.forkLazyComponentSuspense<CoreAdapterCleanupError, CoreLazyRouteImportError>(
   coreLazyRoutePending,
@@ -231,6 +239,41 @@ void coreLazyRouteComponentImportErrorPreloadEffect;
 void coreLazyRoutePendingEffect;
 void coreLazyRoutePendingExtractedEffect;
 void coreLazyRouteSuspenseFiber;
+
+class CoreProjectNotFound extends Schema.TaggedError<CoreProjectNotFound>()("CoreProjectNotFound", {
+  id: Schema.String,
+}) {}
+const coreProjectNotFoundSchema: RouteErrorSchema<CoreProjectNotFound> = CoreProjectNotFound;
+const CoreTypedRoute = route("/core-typed/:id", {
+  error: coreProjectNotFoundSchema,
+  preload: ({ params }) => Effect.fail(new CoreProjectNotFound({ id: params.id })),
+});
+declare const coreTypedPreloadError: RoutePreloadError<CoreProjectNotFound>;
+const coreTypedFailureSnapshot: Effect.Effect<RoutePreloadFailureSnapshot> =
+  Route.preloadFailureSnapshotEffect(CoreTypedRoute, coreTypedPreloadError);
+declare const coreTypedSnapshot: RoutePreloadFailureSnapshot;
+const coreTypedSnapshotEncoding: RoutePreloadFailureEncoding = coreTypedSnapshot.failure;
+const coreTypedFailureCause: Cause.Cause<RoutePreloadError<CoreProjectNotFound>> =
+  Route.preloadFailureCauseFromSnapshot(CoreTypedRoute, coreTypedSnapshot);
+const coreTypedRouterError: BrowserRouterError<readonly [typeof CoreTypedRoute]> =
+  coreTypedPreloadError;
+const coreRouteFailureCodecError = new RoutePreloadFailureCodecError({
+  path: "/core-typed/:id",
+  href: "/core-typed/atlas",
+  operation: "decode",
+});
+// @ts-expect-error route error schemas must decode and encode without services
+const coreServiceErrorSchema: RouteErrorSchema = null as unknown as Schema.Codec<
+  CoreProjectNotFound,
+  unknown,
+  "Service"
+>;
+void coreTypedFailureSnapshot;
+void coreTypedSnapshotEncoding;
+void coreTypedFailureCause;
+void coreTypedRouterError;
+void coreRouteFailureCodecError;
+void coreServiceErrorSchema;
 declare const browserRouterKernelRuntime: AnySunfallArcRuntime<never>;
 const browserRouterKernelOptions: BrowserRouterKernelOptions<typeof coreRoutes, never> = {
   runtime: browserRouterKernelRuntime,

@@ -5,11 +5,9 @@ import {
   getProject,
   listProjectWorkItems,
   listProjects,
-  renameProject,
   submitProjectName,
   updateWorkItemStatus,
 } from "./domain.server.js";
-import { RenameProjectFromCollection } from "./project-collections.js";
 
 export const projectConsoleServerFunctionSources = [
   {
@@ -48,13 +46,6 @@ export const projectConsoleServerFunctionSources = [
     clientExportName: "submitProjectName",
   },
   {
-    fn: renameProject,
-    module: "/src/domain.server.ts",
-    exportName: "renameProject",
-    clientModule: "/src/domain.contract.ts",
-    clientExportName: "renameProject",
-  },
-  {
     fn: updateWorkItemStatus,
     module: "/src/domain.server.ts",
     exportName: "updateWorkItemStatus",
@@ -64,13 +55,6 @@ export const projectConsoleServerFunctionSources = [
 ] as const satisfies readonly ServerFunctionManifestSource[];
 
 export const projectConsoleActionSources = [
-  {
-    action: RenameProjectFromCollection,
-    module: "/src/project-collections.ts",
-    exportName: "RenameProjectFromCollection",
-    clientModule: "/src/project-collections.ts",
-    clientExportName: "RenameProjectFromCollection",
-  },
   {
     action: SubmitProjectName,
     module: "/src/domain.ts",

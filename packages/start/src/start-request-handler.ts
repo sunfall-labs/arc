@@ -21,7 +21,10 @@ import {
 } from "./request-runtime.js";
 import { startRequestTraceFactsEffect, type StartRequestTraceHandler } from "./request-trace.js";
 import { runRequestRuntimeLifecycleEffect } from "./request-runtime-lifecycle.js";
-import { recordStartRequestTracePreload } from "./request-trace-recorder.js";
+import {
+  recordStartRequestTraceFailure,
+  recordStartRequestTracePreload,
+} from "./request-trace-recorder.js";
 import {
   createStartRenderHydrationPlanEffect,
   type StartRenderHydrationPlan,
@@ -244,6 +247,7 @@ export const createRequestHandlerEffect = <
           requestRuntime,
           requestOptions,
           responseContext,
+          "render",
         );
         recordStartRequestTracePreload(
           traceFacts,
@@ -254,7 +258,14 @@ export const createRequestHandlerEffect = <
         const hydrationPlan = yield* createStartRenderHydrationPlanEffect({
           resources: preloaded.resources,
           collections: preloaded.collections,
+          ...(preloaded.routeFailure === undefined ? {} : { routeFailure: preloaded.routeFailure }),
         });
+        if (preloaded.routeFailure !== undefined) {
+          // The page renders the route's failure view; `render` may still set
+          // a more specific status through `ResponseContext`.
+          recordStartRequestTraceFailure(traceFacts, "domain");
+          yield* responseContext.setStatus(500);
+        }
         const context = {
           app,
           request,
@@ -264,6 +275,7 @@ export const createRequestHandlerEffect = <
           collectionPreload: preloaded.collectionPreload,
           hydration: preloaded.hydration,
           routePlan: preloaded.routePlan,
+          ...(preloaded.routeFailure === undefined ? {} : { routeFailure: preloaded.routeFailure }),
           runtime: requestRuntime,
           resourceStore: requestRuntime.resourceStore,
           hydrationRootScript: hydrationPlan.root.script,

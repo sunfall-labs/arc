@@ -4,7 +4,7 @@ import {
   invokeEffectInput,
   type EffectInput,
 } from "@sunfall/arc-core";
-import { Effect } from "effect";
+import { Effect, type Stream } from "effect";
 import type {
   CollectionIndexRecord,
   CollectionKey,
@@ -69,6 +69,8 @@ export interface CollectionSyncAdapter<
   readonly name: string;
   readonly load?: () => EffectInput<ReadonlyArray<A>, E, R>;
   readonly refetch?: () => EffectInput<ReadonlyArray<A>, E, R>;
+  /** Authoritative snapshots to reconcile while loaded; see `CollectionOptions.follow`. */
+  readonly follow?: () => Stream.Stream<ReadonlyArray<A>, E, R>;
   readonly insert?: (payload: CollectionSyncInsertPayload<A, K>) => EffectInput<void, E, R>;
   readonly update?: (payload: CollectionSyncUpdatePayload<A, K>) => EffectInput<void, E, R>;
   readonly delete?: (payload: CollectionSyncDeletePayload<A, K>) => EffectInput<void, E, R>;
@@ -399,6 +401,7 @@ export const collectionSyncOptions = <
         }
       : {}),
     ...(hasRefetch ? { refetch: () => runSyncCallback(() => options.sync.refetch!()) } : {}),
+    ...(options.sync.follow === undefined ? {} : { follow: options.sync.follow }),
     ...(options.sync.insert === undefined
       ? {}
       : {
@@ -439,8 +442,11 @@ export const collectionSyncOptions = <
  * Build a sync adapter from an `@sunfall/arc-core` Resource ref.
  *
  * Preload calls `Resource.prefetchEffect`; refetch calls
- * `Resource.refreshEffect`. Optional mutation callbacks can still write through
- * to a remote system.
+ * `Resource.refreshEffect`. Once loaded, the collection follows
+ * `Resource.changes(ref)`, so every later success of the Resource (an
+ * invalidation-triggered reload, a refresh or prefetch elsewhere, hydration)
+ * reconciles the collection's synced rows. Optional mutation callbacks can
+ * still write through to a remote system.
  */
 export const collectionResourceSyncAdapter = <
   I,
@@ -454,6 +460,7 @@ export const collectionResourceSyncAdapter = <
   name: options.name ?? `resource:${options.ref.family.options.name}`,
   load: () => Resource.prefetchEffect(options.ref),
   refetch: () => Resource.refreshEffect(options.ref),
+  follow: () => Resource.changes(options.ref),
   ...(options.insert === undefined ? {} : { insert: options.insert }),
   ...(options.update === undefined ? {} : { update: options.update }),
   ...(options.delete === undefined ? {} : { delete: options.delete }),

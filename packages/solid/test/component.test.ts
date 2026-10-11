@@ -1,8 +1,33 @@
-import { makeRuntime, Resource } from "@sunfall/arc-core";
-import { Context, Data, Deferred, Effect, Exit, Fiber, Layer, Scope } from "effect";
-import { createComponent, Loading, render, type JSX } from "@solidjs/web";
+import {
+  makeRuntime,
+  Resource,
+  ResourceFailure,
+  type AnySunfallArcRuntime,
+  type ResourceUiInput,
+} from "@sunfall/arc-core";
+import { Cause, Context, Data, Deferred, Effect, Exit, Fiber, Layer, Option, Scope } from "effect";
+import { AsyncResult } from "effect/reactivity";
+import { createComponent, Errored, Loading, render, Show } from "@solidjs/web";
+import { createSignal, resetErrorHalt } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
 import { Component, RuntimeProvider } from "../src/index.js";
+import { reactive, ssrApp, ssrMarkup } from "./component-ssr-fixture.js";
+
+// Counts reader bindings Components create, to observe binding reuse.
+const bindings = vi.hoisted(() => ({ created: 0 }));
+vi.mock("../src/resource-binding.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/resource-binding.js")>();
+  return {
+    ...actual,
+    createResourceSuspense: <I, A, E, R, ER>(
+      runtime: AnySunfallArcRuntime<ER>,
+      ref: ResourceUiInput<I, A, E, R>,
+    ) => {
+      bindings.created++;
+      return actual.createResourceSuspense(runtime, ref);
+    },
+  };
+});
 
 class ProjectApi extends Context.Service<
   ProjectApi,
@@ -10,9 +35,6 @@ class ProjectApi extends Context.Service<
 >()("@sunfall/arc-solid/test/Component/ProjectApi") {}
 class ProjectNotFound extends Data.TaggedError("ProjectNotFound")<{ readonly id: string }> {}
 class Forbidden extends Data.TaggedError("Forbidden")<{}> {}
-
-/** A reactive text child, as JSX compiles `{project(id)}`. */
-const reactive = (read: () => string): JSX.Element => read as unknown as JSX.Element;
 
 const waitForText = (container: Element, text: string) =>
   Effect.promise(() => vi.waitFor(() => expect(container.textContent).toBe(text)));
@@ -106,11 +128,7 @@ describe("Component", () => {
           });
           const App = Component.make("App", function* () {
             const Loaded = yield* Card.pipe(
-              Component.catchTags({
-                ProjectNotFound: () => "gone",
-                Forbidden: () => "no",
-                EffectInputCallbackError: () => "callback",
-              }),
+              Component.catchTags({ ProjectNotFound: () => "gone", Forbidden: () => "no" }),
               Component.loading(() => "loading"),
             );
             return () => Loaded({ id: "atlas" });
@@ -153,7 +171,6 @@ describe("Component", () => {
               Component.catchTags({
                 ProjectNotFound: (error) => `missing ${error.id}`,
                 Forbidden: () => "no",
-                EffectInputCallbackError: () => "callback",
               }),
               Component.loading(() => "loading"),
             );
@@ -210,11 +227,7 @@ describe("Component", () => {
           const project = yield* Component.resource(ProjectById);
           return () => reactive(() => project("atlas"));
         }).pipe(
-          Component.catchTags({
-            ProjectNotFound: () => "gone",
-            Forbidden: () => "no",
-            EffectInputCallbackError: () => "callback",
-          }),
+          Component.catchTags({ ProjectNotFound: () => "gone", Forbidden: () => "no" }),
           Component.loading(() => "loading"),
           Component.provide(ScopedApi),
         );
@@ -300,6 +313,237 @@ describe("Component", () => {
 
           yield* Deferred.succeed(gate, undefined);
           yield* waitForText(container, "embedded atlas");
+        }),
+      ),
+    ));
+
+  it("treats a throwing load callback as a defect that no typed handler matches", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const Broken = Resource.family({
+            name: `SolidComponent.Broken.${familyId++}`,
+            load: (_id: string): Effect.Effect<string, ProjectNotFound> => {
+              throw new Error("callback bug");
+            },
+          });
+          const Card = Component.make("Card", function* () {
+            const project = yield* Component.resource(Broken);
+            return () => reactive(() => project("atlas"));
+          });
+          const App = Component.make("App", function* () {
+            // Only the typed load error needs a handler; the callback bug is not typed.
+            const Safe = yield* Card.pipe(
+              Component.catchTags({ ProjectNotFound: () => "gone" }),
+              Component.loading(() => "loading"),
+            );
+            return () =>
+              createComponent(Errored, {
+                fallback: (error) => {
+                  const thrown = error();
+                  return thrown instanceof ResourceFailure &&
+                    Option.isNone(AsyncResult.error(thrown.result)) &&
+                    Cause.findDefect(thrown.result.cause) !== undefined
+                    ? "defect"
+                    : "typed";
+                },
+                get children() {
+                  return Safe({});
+                },
+              });
+          });
+
+          const container = document.createElement("div");
+          yield* Component.mount(App, container);
+          yield* waitForText(container, "defect");
+        }),
+      ),
+    ));
+
+  it("launches until interrupted, then disposes the tree and its owned runtime", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const events: Array<string> = [];
+        const Greeting = Component.make("Greeting", function* () {
+          yield* Effect.addFinalizer(() => Effect.sync(() => events.push("setup finalized")));
+          return (props: { readonly name: string }) => `Hello ${props.name}`;
+        });
+        const container = document.createElement("div");
+
+        const app = Effect.runFork(
+          Component.launch(Greeting, container, { props: { name: "Arc" } }),
+        );
+        yield* waitForText(container, "Hello Arc");
+        expect(events).toEqual([]);
+
+        yield* Fiber.interrupt(app);
+        expect(container.textContent).toBe("");
+        expect(events).toEqual(["setup finalized"]);
+      }),
+    ));
+
+  it("satisfies unprovided services from the host runtime", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const ProjectName = Resource.family({
+            name: "test/Component/hostRuntime/ProjectName",
+            load: (id: string) => ProjectApi.use((api) => api.get(id)),
+          });
+          const App = Component.make("HostServicesApp", function* () {
+            const api = yield* ProjectApi;
+            const prefix = yield* api.get("prefix");
+            const name = yield* Component.resource(ProjectName);
+            return (props: { readonly id: string }) => `${prefix}:${name(props.id)}`;
+          }).pipe(Component.catchTags({ ProjectNotFound: () => "missing", Forbidden: () => "no" }));
+          const runtime = makeRuntime(
+            Layer.succeed(ProjectApi, { get: (id: string) => Effect.succeed(id.toUpperCase()) }),
+          );
+          yield* Effect.addFinalizer(() => runtime.disposeEffect.pipe(Effect.orDie));
+
+          const container = document.createElement("div");
+          yield* Component.mount(App, container, { runtime, props: { id: "atlas" } });
+          yield* waitForText(container, "PREFIX:ATLAS");
+        }),
+      ),
+    ));
+
+  it("renders preloaded resources synchronously, without a Loading flash", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const { App, ProjectById, events } = ssrApp();
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect.pipe(Effect.orDie));
+          yield* runtime.provide(Resource.prefetchEffect(ProjectById("atlas")));
+
+          const container = document.createElement("div");
+          yield* Component.mount(App, container, { runtime, props: { id: "atlas" } });
+          expect(container.textContent).toBe(ssrMarkup);
+          expect(events).toMatchObject({ setups: 1, loads: 1, fallbacks: 0 });
+        }),
+      ),
+    ));
+
+  it("hydrates server markup from a Resource snapshot without re-running work", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const { App, ProjectById, events } = ssrApp();
+          // The server side: load in a request runtime and serialize its snapshot.
+          const server = makeRuntime();
+          yield* Effect.addFinalizer(() => server.disposeEffect.pipe(Effect.orDie));
+          yield* server.provide(Resource.prefetchEffect(ProjectById("atlas")));
+          const encoded = yield* server.provide(
+            Effect.flatMap(
+              Resource.hydrationPayloadEffect([ProjectById("atlas")]),
+              Resource.encodeHydrationPayloadEffect,
+            ),
+          );
+          expect(events.loads).toBe(1);
+
+          // The client side: restore the snapshot, then hydrate the server markup.
+          const hydrationGlobal = globalThis as { _$HY?: unknown };
+          hydrationGlobal._$HY = { events: [], completed: new WeakSet(), r: {} };
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => {
+              delete hydrationGlobal._$HY;
+            }),
+          );
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect.pipe(Effect.orDie));
+          yield* runtime.provide(
+            Effect.flatMap(Resource.decodeHydrationPayloadEffect(encoded), Resource.hydrateEffect),
+          );
+          const container = document.createElement("div");
+          container.innerHTML = ssrMarkup;
+          const serverText = container.firstChild;
+
+          yield* Component.mount(App, container, {
+            runtime,
+            props: { id: "atlas" },
+            hydrate: true,
+          });
+          expect(container.textContent).toBe(ssrMarkup);
+          expect(container.firstChild).toBe(serverText);
+          // One client setup, no reload, no Loading flash.
+          expect(events).toMatchObject({ setups: 1, loads: 1, fallbacks: 0 });
+        }),
+      ),
+    ));
+
+  it("keeps a reader binding through suspense and releases it once unobserved", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const release = yield* Deferred.make<void>();
+          const ProjectById = projectFamily();
+          const [shown, setShown] = createSignal(true);
+          const Card = Component.make("Card", function* () {
+            const project = yield* Component.resource(ProjectById);
+            return () => reactive(() => project("atlas"));
+          });
+          const App = Component.make("App", function* () {
+            const Loaded = yield* Card.pipe(
+              Component.catchTags({ ProjectNotFound: () => "gone", Forbidden: () => "no" }),
+              Component.loading(() => "loading"),
+            );
+            return () =>
+              createComponent(Show, {
+                get when() {
+                  return shown();
+                },
+                children: () => Loaded({}),
+              });
+          }).pipe(
+            Component.provide(
+              projectApi((id) => Effect.as(Deferred.await(release), `Project ${id}`)),
+            ),
+          );
+
+          const container = document.createElement("div");
+          const before = bindings.created;
+          yield* Component.mount(App, container);
+          yield* waitForText(container, "loading");
+          expect(bindings.created).toBe(before + 1);
+
+          // The suspended read dropped its claim when Solid aborted the run; it
+          // re-acquires the same binding once the value settles.
+          yield* Deferred.succeed(release, undefined);
+          yield* waitForText(container, "Project atlas");
+          expect(bindings.created).toBe(before + 1);
+
+          // Unmounting the only reader releases the binding, so showing it again rebinds.
+          setShown(false);
+          yield* waitForText(container, "");
+          yield* Effect.sleep("1 millis");
+          setShown(true);
+          yield* waitForText(container, "Project atlas");
+          expect(bindings.created).toBe(before + 2);
+        }),
+      ),
+    ));
+
+  it("releases a partial mount and its owned runtime when render throws", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          // An uncaught render error halts Solid's reactive system; restore it for later tests.
+          yield* Effect.addFinalizer(() => Effect.sync(resetErrorHalt));
+          const events: Array<string> = [];
+          const Throws = Component.make("Throws", function* () {
+            yield* Effect.addFinalizer(() => Effect.sync(() => events.push("setup finalized")));
+            return (): string => {
+              throw new Error("render bug");
+            };
+          });
+          const container = document.createElement("div");
+
+          // The caller's Scope stays open: the failed mount must not hold resources until it closes.
+          const exit = yield* Effect.exit(Component.mount(Throws, container));
+          expect(Exit.hasDies(exit)).toBe(true);
+          expect(container.textContent).toBe("");
+          expect(events).toEqual(["setup finalized"]);
         }),
       ),
     ));

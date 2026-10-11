@@ -16,6 +16,20 @@ export interface SunfallArcTsrxOptions {
 }
 
 /**
+ * Solid's reactive core, pre-bundled through `solid-js` so the dev server
+ * serves one runtime. `@solidjs/vite-plugin` pre-bundles `solid-js` and
+ * `@solidjs/web` with `@solidjs/signals` inlined; Arc core imports
+ * `@solidjs/signals` directly (it needs the client graph's `getObserver`, which
+ * Solid's server build does not share). Without this entry Vite serves that
+ * import as a separate raw module, so Arc signals would observe a second,
+ * idle reactive runtime and never track in Solid computations. The nested
+ * `solid-js > ...` form resolves through `solid-js` (pnpm does not hoist
+ * signals to the app root) and joins the same optimizer pass, so the shared
+ * core lands in one chunk that every importer resolves to.
+ */
+const solidReactiveCoreDependency = "solid-js > @solidjs/signals";
+
+/**
  * Creates the standard Sunfall Arc TSRX/Solid Vite plugin chain.
  *
  * The preset installs a dev-server dependency-discovery policy plugin and a
@@ -35,13 +49,12 @@ export const sunfallArcTsrx = (options: SunfallArcTsrxOptions = {}): PluginOptio
       name: "sunfall-arc-tsrx-deps",
       apply: "serve",
       config() {
-        return noDiscovery
-          ? {
-              optimizeDeps: {
-                noDiscovery: true,
-              },
-            }
-          : {};
+        return {
+          optimizeDeps: {
+            include: [solidReactiveCoreDependency],
+            ...(noDiscovery ? { noDiscovery: true } : {}),
+          },
+        };
       },
     },
     {

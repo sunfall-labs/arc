@@ -1,4 +1,4 @@
-import type { ResourceHydrationPayload } from "@sunfall/arc-core";
+import type { ResourceHydrationPayload, RoutePreloadFailureSnapshot } from "@sunfall/arc-core";
 import type { CollectionHydrationPayload } from "@sunfall/arc-db";
 import { Effect } from "effect";
 import {
@@ -33,6 +33,8 @@ export interface CreateStartRenderHydrationPlanOptions {
   readonly resources: ResourceHydrationPayload;
   /** Collection hydration payload captured for the request runtime. */
   readonly collections: CollectionHydrationPayload;
+  /** Route preload failure the request renders; carried by the root payload. */
+  readonly routeFailure?: RoutePreloadFailureSnapshot;
 }
 
 const emptyResourceHydrationPayload: ResourceHydrationPayload = { resources: [] };
@@ -51,9 +53,14 @@ export const createStartRenderHydrationPlanEffect = (
     const rootPayload = createStartHydrationPayload(
       emptyResourceHydrationPayload,
       options.collections,
+      options.routeFailure,
     );
     const rootScript = yield* createHydrationScriptEffect(rootPayload);
-    const legacyPayload = createStartHydrationPayload(options.resources, options.collections);
+    const legacyPayload = createStartHydrationPayload(
+      options.resources,
+      options.collections,
+      options.routeFailure,
+    );
     const streamedResourceChunks =
       options.resources.resources.length === 0
         ? []

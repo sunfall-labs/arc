@@ -21,7 +21,7 @@ import {
 } from "@sunfall/arc-core";
 import { Effect, Fiber, Stream, type Option } from "effect";
 import type { AsyncResult } from "effect/reactivity";
-import { onCleanup, type Accessor } from "solid-js";
+import { createProjection, onCleanup, type Accessor } from "solid-js";
 import { createResourceBinding, createResourceSuspense } from "./resource-binding.js";
 import { createComponentScope, useRuntime } from "./runtime.js";
 
@@ -82,13 +82,63 @@ export interface RuntimeEffectRunner<ER = never> {
   <A, E, R>(effect: Effect.Effect<A, E, R>, options?: ForkScopedOptions): Fiber.Fiber<A, E | ER>;
 }
 
+type ProgramModelLeaf =
+  | string
+  | number
+  | bigint
+  | boolean
+  | symbol
+  | null
+  | undefined
+  | Date
+  | RegExp
+  | ((...args: never) => unknown);
+
+/**
+ * Deeply read-only view of a Program model as Solid renders it.
+ *
+ * Plain objects and arrays become read-only at every level. `Map` and `Set`
+ * values become `ReadonlyMap` / `ReadonlySet`; primitives, functions, `Date`,
+ * and `RegExp` pass through unchanged.
+ */
+export type ProgramModelView<Model> = unknown extends Model
+  ? Model
+  : Model extends ProgramModelLeaf
+    ? Model
+    : Model extends ReadonlyMap<infer K, infer V>
+      ? ReadonlyMap<K, V>
+      : Model extends ReadonlySet<infer V>
+        ? ReadonlySet<V>
+        : { readonly [Key in keyof Model]: ProgramModelView<Model[Key]> };
+
+/** Options for exposing a Program model to Solid. */
+export interface UseProgramOptions {
+  /**
+   * Identity used to reconcile model updates into the fine-grained view: a
+   * property name or a function of each plain object in the model.
+   *
+   * Array items whose key matches keep their view identity across inserts,
+   * removals, and reorders, and an object whose key changes is treated as a
+   * different entity. Defaults to `"id"` (Solid's projection default); items
+   * without the key fall back to position. `null` reconciles positionally.
+   */
+  readonly key?: string | ((item: object) => unknown) | null;
+}
+
 /** Solid-facing handle for an Sunfall Arc Program. */
 export interface ProgramHandle<Model, Message, E = never, DispatchE = E> {
+  /** Underlying Core Program; `instance.model` is the Effect-side source of truth. */
   readonly instance: Program.Instance<Model, Message, E, DispatchE>;
-  /** Current centralized Program model. */
-  readonly model: Accessor<Model>;
-  /** Alias for `model`, useful in state-oriented UI code. */
-  readonly state: Accessor<Model>;
+  /**
+   * Current Program model as a fine-grained, read-only Solid view.
+   *
+   * Each committed model is reconciled into a Solid projection, so a
+   * computation re-runs only when the parts of the model it reads change:
+   * reading `model().filter` does not re-run when `model().items[3].done`
+   * changes. Unchanged subtrees keep their identity, and array items keep it
+   * across reorders by `UseProgramOptions.key`.
+   */
+  readonly model: Accessor<ProgramModelView<Model>>;
   /** Typed update, command, and subscription failures reported by the Program loop. */
   readonly failures: Accessor<ReadonlyArray<ProgramFailure<Message, E>>>;
   /** Bounded runtime timeline for messages, commands, subscriptions, and failures. */
@@ -195,11 +245,49 @@ export const useRuntimeEffect = <ER = never>(): RuntimeEffectRunner<ER> => {
 };
 
 /**
- * Starts an Sunfall Arc Program and exposes its model, failures, and timeline as
- * Solid accessors.
+ * Projects a Program model signal into a fine-grained Solid view owned by the
+ * current component.
+ *
+ * The model is boxed so primitive, nullable, and union models share one
+ * path: `box.value` re-notifies only when the root changes identity (a
+ * primitive change, an object/array swap, or a different keyed entity),
+ * while reconcile adopts each committed model as the store's backing and
+ * notifies only the leaves that changed.
+ *
+ * A projection (not a plain store) is required: plain stores share one proxy
+ * per raw object across every store, so two instances of a Program, whose
+ * immutable models share objects such as `initial`, would see each other's
+ * reconciles. A projection's proxies belong to its own family.
+ */
+const projectModel = <Model>(
+  model: ReadableSignal<Model>,
+  key: UseProgramOptions["key"],
+): Accessor<ProgramModelView<Model>> => {
+  const view = createProjection<{ value: ProgramModelView<Model> }>(
+    () => ({ value: model.get() as ProgramModelView<Model> }),
+    {},
+    { key: key === undefined ? "id" : key },
+  );
+  return () => view.value;
+};
+
+/**
+ * Starts an Sunfall Arc Program and exposes its model as a fine-grained
+ * read-only Solid view, plus failures and timeline as Solid accessors.
+ *
+ * @example
+ * ```tsx
+ * const todos = useProgram(TodosProgram);
+ * return (
+ *   <For each={todos.model().items}>
+ *     {(item) => <li>{item.title}</li>}
+ *   </For>
+ * );
+ * ```
  */
 export const useProgram = <Model, Message, E = never, R = never, ER = never>(
   definition: Program.Definition<Model, Message, E, R>,
+  options?: UseProgramOptions,
 ): ProgramHandle<Model, Message, Program.RuntimeError<E, ER>, Program.DispatchError<E, ER>> => {
   const runtime = useRuntime<ER>();
   const instance = createComponentScope(() =>
@@ -209,14 +297,13 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
       }),
     ),
   );
-  const model = accessor(instance.model);
+  const model = projectModel(instance.model, options?.key);
   const failures = accessor(instance.failures);
   const timeline = accessor(instance.timeline);
 
   return {
     instance,
     model,
-    state: model,
     failures,
     timeline,
     dispatch: instance.dispatch,
@@ -241,22 +328,21 @@ export const useResourceResult = <I, A, E, R = unknown, ER = never>(
  * exposes Effect-returning refresh/prefetch methods for event handlers or
  * composed workflows.
  *
+ * Render content from the value, not from each `result()` change: a refresh
+ * moves Success → waiting → Success, and rebuilding JSX per change remounts
+ * the subtree (losing form state and in-flight Programs). Gate content on the
+ * value with a non-keyed `<Show>` and drive status UI from `result()`, or read
+ * with `useResourceSuspense` inside `<Loading>`/`<Errored>`.
+ *
  * @example
  * ```tsx
  * const project = useResource(() => ProjectResource(params.id));
- * return () =>
- *   AsyncResult.builder(project.result())
- *     .onInitial(() => "Loading")
- *     // Handle failure before success: `onSuccess` narrows the success type,
- *     // so `previousSuccess` is only typed when `onFailure` comes first.
- *     .onFailure((_cause, failed) =>
- *       Option.match(failed.previousSuccess, {
- *         onNone: () => "Could not load",
- *         onSome: (stale) => `${stale.value.name} (stale)`,
- *       }),
- *     )
- *     .onSuccess((value, success) => (success.waiting ? `${value.name}…` : value.name))
- *     .exhaustive();
+ * const current = () => Option.getOrUndefined(AsyncResult.value(project.result()));
+ * return (
+ *   <Show when={current()} fallback={<Skeleton />}>
+ *     {(value) => <ProjectView project={value()} refreshing={project.result().waiting} />}
+ *   </Show>
+ * );
  * ```
  */
 export const useResource = <I, A, E, R = unknown, ER = never>(

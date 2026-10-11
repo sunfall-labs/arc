@@ -13,6 +13,7 @@ import {
   type BrowserRouterKernelOptions,
 } from "./browser-router-kernel.js";
 import type {
+  BrowserRouterError,
   AnyBrowserRoute,
   BrowserRouterPath,
   BrowserRouterRouteForPath,
@@ -79,11 +80,11 @@ export interface BrowserRouterHostController<
   preloadEffect<R extends Routes[number]>(
     definition: R,
     ...args: Route.HrefArgs<R>
-  ): Effect.Effect<void, Route.NavigationError | ER>;
+  ): Effect.Effect<void, BrowserRouterError<Routes> | ER>;
   preloadByPathEffect<Path extends BrowserRouterPath<Routes>>(
     path: Path,
     ...args: Route.HrefArgs<BrowserRouterRouteForPath<Routes, Path>>
-  ): Effect.Effect<void, Route.NavigationError | ER>;
+  ): Effect.Effect<void, BrowserRouterError<Routes> | ER>;
 }
 
 /**
@@ -142,12 +143,15 @@ export const createBrowserRouterHostController = <
 
       started = true;
       stopHistory = history.listen(kernel.navigateHref);
+      // Skip the initial preload when the first state is already settled for
+      // this href: a host-chosen `Ready` (server output being hydrated) or a
+      // `Failure` (unmatchable href, or a hydrated server preload failure).
       const initialState = kernel.state.get();
-      if (
-        options.initialMatchedState === undefined ||
-        initialState._tag !== "Ready" ||
-        initialState.href !== initialHref
-      ) {
+      const settled =
+        initialState.href === initialHref &&
+        (initialState._tag === "Failure" ||
+          (initialState._tag === "Ready" && options.initialMatchedState !== undefined));
+      if (!settled) {
         kernel.navigateHref(initialHref);
       }
 

@@ -1,16 +1,28 @@
 import { defineFileRoute } from "@sunfall/arc-start";
-import { ProjectById, ProjectList } from "../../domain.js";
-import { ProjectRouteParams, ProjectRouteSearch } from "../../domain.contract.js";
+import { Effect } from "effect";
+import { ProjectById, ProjectList, preloadProjectRouteEffect } from "../../domain.js";
+import { ProjectNotFound, ProjectRouteParams, ProjectRouteSearch } from "../../domain.contract.js";
 import { ProjectSummaries, ProjectWorkItems } from "../../project-collections.js";
 
-const RouteBuilder = defineFileRoute("/projects/:id");
-
-export const Route = RouteBuilder.preload({
+export const Route = defineFileRoute("/projects/:id")({
   params: ProjectRouteParams,
   search: ProjectRouteSearch,
-  resources: ({ resource }) => [
-    resource(ProjectList, () => "all" as const),
-    resource(ProjectById, ({ params }) => params.id),
-  ],
-  collections: [ProjectSummaries, ProjectWorkItems],
-}).route();
+  // A missing project is this route's typed preload failure: Start encodes it
+  // with this schema, so the hydrated failure view reads its `id`.
+  error: ProjectNotFound,
+  preloadResources: [ProjectList, ProjectById],
+  preloadCollections: [ProjectSummaries, ProjectWorkItems],
+  preload: ({ params }) =>
+    Effect.all(
+      [
+        preloadProjectRouteEffect(params),
+        ProjectSummaries.preloadEffect(),
+        ProjectWorkItems.preloadEffect(),
+      ],
+      { discard: true },
+    ).pipe(
+      Effect.catch((error) =>
+        error instanceof ProjectNotFound ? Effect.fail(error) : Effect.die(error),
+      ),
+    ),
+});

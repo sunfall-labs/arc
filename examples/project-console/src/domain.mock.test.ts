@@ -9,7 +9,7 @@ import {
 import { Query } from "@sunfall/arc-db";
 import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
-import { type Project, type ProjectRemoteError, type ProjectWorkItem } from "./domain.contract.js";
+import { type Project, type ProjectWorkItem } from "./domain.contract.js";
 import {
   makeProjectId,
   makeProjectReturnTo,
@@ -19,14 +19,12 @@ import {
   ProjectApi,
   ProjectById,
   ProjectsRef,
-  RenameProject,
   SubmitProjectName,
   SubmitProjectNameInput,
 } from "./domain.js";
 import {
   ProjectSummaries,
   ProjectWorkItems,
-  RenameProjectFromCollection,
   projectWorkQueueQuery,
 } from "./project-collections.js";
 
@@ -72,7 +70,6 @@ describe("project console contract mocks", () => {
     list: () => Effect.succeed([]),
     listWorkItems: () => Effect.succeed([]),
     get: (id) => Effect.succeed(mockProject({ id, name: "Mocked Resource" })),
-    rename: ({ id, name }) => Effect.succeed(mockProject({ id, name })),
     submitName: ({ id, name }) => Effect.succeed(ActionResult.success(mockProject({ id, name }))),
     advance: ({ id }) => Effect.succeed(mockProject({ id, progress: 51 })),
     updateWorkItemStatus: ({ id, status }) => Effect.succeed(mockWorkItem({ id, status })),
@@ -127,38 +124,12 @@ describe("project console contract mocks", () => {
     });
   });
 
-  it("runs actions without importing server handlers", () => {
-    const ref = ProjectById(makeProjectId("mocked"));
-    const action = Action.use(RenameProject);
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const value = yield* Effect.provide(
-          Effect.gen(function* () {
-            yield* Resource.refreshEffect(ref);
-            return yield* action.submitEffect({
-              id: makeProjectId("mocked"),
-              name: "Mocked Action",
-            });
-          }),
-          ProjectApiTest,
-        );
-
-        expect(value.name).toBe("Mocked Action");
-        expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toContain(
-          ref.key,
-        );
-      }),
-    );
-  });
-
   it("materializes an indexed live-query work queue without server handlers", () => {
     const id = makeProjectId("mocked");
     const ProjectApiWorkQueue = ProjectApi.mock({
       list: () => Effect.succeed([mockProject({ id, name: "Mocked Project" })]),
       listWorkItems: () => Effect.succeed(mockWorkItems()),
       get: (projectId) => Effect.succeed(mockProject({ id: projectId })),
-      rename: ({ id: projectId, name }) => Effect.succeed(mockProject({ id: projectId, name })),
       submitName: ({ id: projectId, name }) =>
         Effect.succeed(ActionResult.success(mockProject({ id: projectId, name }))),
       advance: ({ id: projectId }) => Effect.succeed(mockProject({ id: projectId, progress: 51 })),
@@ -191,7 +162,6 @@ describe("project console contract mocks", () => {
       list: () => Effect.succeed([]),
       listWorkItems: () => Effect.succeed([]),
       get: (id) => Effect.succeed(mockProject({ id })),
-      rename: ({ id, name }) => Effect.succeed(mockProject({ id, name })),
       submitName: () =>
         Effect.succeed(
           ActionResult.validation<typeof SubmitProjectNameInput.Type, string>({
@@ -231,11 +201,6 @@ describe("project console contract mocks", () => {
       list: () => Effect.succeed([mockProject({ name })]),
       listWorkItems: () => Effect.succeed(mockWorkItems()),
       get: (id) => Effect.succeed(mockProject({ id, name })),
-      rename: ({ id, name: nextName }) =>
-        Effect.sync(() => {
-          name = nextName;
-          return mockProject({ id, name });
-        }),
       submitName: ({ id, name: nextName }) =>
         Effect.sync(() => {
           name = nextName;
@@ -269,129 +234,67 @@ describe("project console contract mocks", () => {
     );
   });
 
-  it("normalizes plain ProjectError objects from collection rename failures", () => {
+  it("reconciles the sidebar collection from the rename action's invalidations", () => {
     const id = makeProjectId("mocked");
-    const ProjectApiPlainError = ProjectApi.mock({
-      list: () => Effect.succeed([mockProject({ id })]),
-      listWorkItems: () => Effect.succeed(mockWorkItems()),
-      get: (projectId) => Effect.succeed(mockProject({ id: projectId })),
-      rename: () => Effect.fail({ _tag: "InvalidProjectName", name: "At" } as ProjectRemoteError),
-      submitName: ({ id: projectId, name }) =>
-        Effect.succeed(ActionResult.success(mockProject({ id: projectId, name }))),
-      advance: ({ id: projectId }) => Effect.succeed(mockProject({ id: projectId, progress: 51 })),
-      updateWorkItemStatus: ({ id: workItemId, status }) =>
-        Effect.succeed(mockWorkItem({ id: workItemId, status })),
-    });
-    const runtime = makeRuntime(ProjectApiPlainError);
-    const action = Action.use(RenameProjectFromCollection, { runtime });
-
-    return Effect.runPromise(
-      runtime
-        .provide(
-          action.submitEffect({
-            id,
-            name: "Atlas Rename",
-            redirectTo: makeProjectReturnTo("/projects/mocked?tab=activity"),
-          }),
-        )
-        .pipe(
-          Effect.tap((result) =>
-            Effect.sync(() => {
-              expect(result).toMatchObject({
-                _tag: "ValidationFailure",
-                fieldErrors: {
-                  name: ["Use at least three meaningful characters."],
-                },
-              });
-            }),
-          ),
-          Effect.ensuring(runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void))),
-        ),
-    );
-  });
-
-  it("uses the collection action for optimistic client renames", () => {
-    const id = makeProjectId("mocked");
-    const release = Effect.runSync(Deferred.make<void>());
     let name = "Mocked Resource";
-    let started = false;
-    let submission: Fiber.Fiber<unknown, unknown> | undefined;
-    const ProjectApiOptimistic = ProjectApi.mock({
-      list: () => Effect.succeed([mockProject({ id, name })]),
+    let lists = 0;
+    const ProjectApiStateful = ProjectApi.mock({
+      list: () =>
+        Effect.sync(() => {
+          lists++;
+          return [mockProject({ id, name })];
+        }),
       listWorkItems: () => Effect.succeed(mockWorkItems()),
       get: (projectId) => Effect.succeed(mockProject({ id: projectId, name })),
-      rename: ({ id: projectId, name: nextName }) =>
-        Effect.gen(function* () {
-          started = true;
-          yield* Deferred.await(release);
-          name = nextName;
-          return mockProject({ id: projectId, name });
-        }),
-      submitName: ({ id: projectId, name: nextName }) =>
+      submitName: ({ name: nextName, redirectTo }) =>
         Effect.sync(() => {
           name = nextName;
-          return ActionResult.success(mockProject({ id: projectId, name }));
+          return redirectTo === undefined
+            ? ActionResult.success(mockProject({ id, name }))
+            : ActionResult.redirect(redirectTo, { status: 303, replace: true });
         }),
       advance: ({ id: projectId }) =>
         Effect.succeed(mockProject({ id: projectId, name, progress: 51 })),
       updateWorkItemStatus: ({ id: workItemId, status }) =>
         Effect.succeed(mockWorkItem({ id: workItemId, status })),
     });
-    const runtime = makeRuntime(ProjectApiOptimistic);
+    const runtime = makeRuntime(ProjectApiStateful);
     const ref = ProjectById(id);
-    const action = Action.use(RenameProjectFromCollection, { runtime });
+    const action = Action.use(SubmitProjectName, { runtime });
+    const rowName = () => runWithRuntime(runtime, () => ProjectSummaries.get(id)?.name);
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* Effect.scoped(
-          runtime.provide(
-            Effect.all([Resource.refreshEffect(ref), ProjectSummaries.preloadEffect()]),
-          ),
+        yield* runtime.provide(
+          Effect.all([
+            Resource.prefetchEffect(ProjectsRef),
+            Resource.prefetchEffect(ref),
+            ProjectSummaries.preloadEffect(),
+          ]),
         );
+        // The collection loads through the ProjectList Resource: one list fetch.
+        expect(lists).toBe(1);
+        expect(rowName()).toBe("Mocked Resource");
 
-        const running = runtime.runFork(
+        const result = yield* runtime.provide(
           action.submitEffect({
             id,
-            name: "Collection Rename",
+            name: "Renamed Once",
             redirectTo: makeProjectReturnTo("/projects/mocked?tab=activity"),
           }),
         );
-        submission = running;
-        yield* Effect.sleep("10 millis");
-
-        expect(started).toBe(true);
-        expect(runWithRuntime(runtime, () => ProjectSummaries.get(id))).toMatchObject({
-          name: "Collection Rename",
-          $synced: false,
-        });
-
-        yield* Deferred.succeed(release, undefined);
-        const result = yield* Fiber.join(running);
 
         expect(result).toMatchObject({
           _tag: "Redirect",
           location: "/projects/mocked?tab=activity",
-          replace: true,
         });
-        expect(runWithRuntime(runtime, () => ProjectSummaries.get(id))).toMatchObject({
-          name: "Collection Rename",
-          $synced: true,
-        });
-        expect(runWithRuntime(runtime, () => Resource.read(ref)).name).toBe("Collection Rename");
-        expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toContain(
-          ref.key,
-        );
-      }).pipe(
-        Effect.ensuring(
-          Effect.gen(function* () {
-            yield* Deferred.succeed(release, undefined);
-            if (submission !== undefined) {
-              yield* Fiber.await(submission);
-            }
-            yield* runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void));
-          }),
-        ),
-      ),
+        expect(runWithRuntime(runtime, () => Resource.read(ref)).name).toBe("Renamed Once");
+        for (let attempt = 0; attempt < 50 && rowName() !== "Renamed Once"; attempt++) {
+          yield* Effect.sleep("1 millis");
+        }
+        expect(rowName()).toBe("Renamed Once");
+        expect(lists).toBe(2);
+      }).pipe(Effect.ensuring(runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)))),
     );
   });
 
@@ -406,7 +309,6 @@ describe("project console contract mocks", () => {
       list: () => Effect.succeed([mockProject({ id, name: "Mocked Project" })]),
       listWorkItems: () => Effect.succeed([mockWorkItem({ id: workItemId, status })]),
       get: (projectId) => Effect.succeed(mockProject({ id: projectId })),
-      rename: ({ id: projectId, name }) => Effect.succeed(mockProject({ id: projectId, name })),
       submitName: ({ id: projectId, name }) =>
         Effect.succeed(ActionResult.success(mockProject({ id: projectId, name }))),
       advance: ({ id: projectId }) => Effect.succeed(mockProject({ id: projectId, progress: 51 })),

@@ -1,9 +1,8 @@
 import {
   browserRouteRenderIdentity,
   browserRouteRenderDecision,
-  forkRouteLazyComponentSuspense,
   makeRuntimeUiScopeFrame,
-  readRouteComponent,
+  Route,
   type AnySunfallArcRuntime,
   type WritableSignal,
   type AnyBrowserRoute,
@@ -76,15 +75,17 @@ const renderRouteComponent = <ER>(
 ): JSX.Element => {
   let ready: RouteComponent;
   try {
-    ready = readRouteComponent(component) as RouteComponent;
+    ready = Route.readComponent(component) as RouteComponent;
   } catch (error) {
-    const preload = forkRouteLazyComponentSuspense(error, runtime);
+    const preload = Route.forkLazyComponentSuspense(error, runtime);
     if (preload === undefined) {
       throw error;
     }
     const loaded = createMemo<RouteComponent>(() =>
       Effect.runPromise(
-        Fiber.join(preload).pipe(Effect.map(() => readRouteComponent(component) as RouteComponent)),
+        Fiber.join(preload).pipe(
+          Effect.map(() => Route.readComponent(component) as RouteComponent),
+        ),
       ),
     );
     return createMemo(() => createComponent(loaded(), props)) as unknown as JSX.Element;

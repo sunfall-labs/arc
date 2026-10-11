@@ -2,6 +2,7 @@ import {
   Action,
   createBrowserRouterHostController,
   defineApp,
+  eraseRuntime,
   makeMemoryBrowserHistoryAdapter,
   makeRuntime,
   Resource,
@@ -10,6 +11,7 @@ import {
   runWithRuntime,
   Server,
   type BrowserRouterHostController,
+  type SunfallArcRuntime,
 } from "@sunfall/arc-core";
 import { Collection, eq } from "@sunfall/arc-db";
 import {
@@ -130,9 +132,9 @@ const BenchProjects = Collection.define<Project>({
   }),
 });
 
-const BenchProjectCards = Collection.liveQuery<ProjectCard, string>({
+const BenchProjectCards = Collection.liveQuery({
   name: "Benchmark.ProjectCards.live-query",
-  getKey: (project) => project.id,
+  getKey: (project: ProjectCard) => project.id,
   query: (query) =>
     query
       .from({ project: BenchProjects })
@@ -159,22 +161,20 @@ const taggedRefs = Array.from({ length: 50 }, (_, index) =>
   BenchTaggedProject(`tagged-${String(index).padStart(3, "0")}`),
 );
 
-let hotRuntime: ReturnType<typeof makeRuntime>;
+let hotRuntime: SunfallArcRuntime;
 let hotResourceRef: Resource.Ref<string, { readonly id: string; readonly name: string }>;
-let tagRuntime: ReturnType<typeof makeRuntime>;
+let tagRuntime: SunfallArcRuntime;
 let hydrationPayload: StartHydrationPayload;
-let hydrationRuntime: ReturnType<typeof makeRuntime>;
-let routerRuntime: ReturnType<typeof makeRuntime>;
+let hydrationRuntime: SunfallArcRuntime;
+let routerRuntime: SunfallArcRuntime;
 let router: BrowserRouterHostController<typeof routerRoutes>;
 let routerHrefIndex = 0;
-let actionRuntime: ReturnType<typeof makeRuntime>;
+let actionRuntime: SunfallArcRuntime;
 let action: ReturnType<
   typeof Action.use<{ readonly id: string; readonly name: string }, ProjectCard>
 >;
 
-const disposeRuntime = async (
-  runtime: ReturnType<typeof makeRuntime> | undefined,
-): Promise<void> => {
+const disposeRuntime = async (runtime: SunfallArcRuntime | undefined): Promise<void> => {
   if (runtime) {
     await Effect.runPromise(runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)));
   }
@@ -243,9 +243,11 @@ beforeAll(async () => {
     ),
   );
   router = createBrowserRouterHostController(routerRoutes, {
-    history: makeMemoryBrowserHistoryAdapter({ initialHref: "/bench/router/projects/atlas" }),
+    history: makeMemoryBrowserHistoryAdapter({
+      initialHref: "/bench/router/projects/atlas",
+    }),
     initialHref: "/bench/router/projects/atlas",
-    runtime: routerRuntime,
+    runtime: eraseRuntime(routerRuntime),
   });
   router.start();
   await waitForRouterReady(router, "/bench/router/projects/atlas");
@@ -404,19 +406,21 @@ describe("Sunfall Arc release baseline", () => {
     "Start RPC transport success",
     async () => {
       const response = await Effect.runPromise(
-        createServerRpcResponseEffect(
-          benchRpcApp,
-          new Request(`https://example.test${serverRpcPath}`, {
-            method: "POST",
-            headers: {
-              accept: startJsonMediaType,
-              "content-type": startJsonMediaType,
-            },
-            body: JSON.stringify({
-              name: echo.name,
-              input: { value: "atlas" },
+        Effect.scoped(
+          createServerRpcResponseEffect(
+            benchRpcApp,
+            new Request(`https://example.test${serverRpcPath}`, {
+              method: "POST",
+              headers: {
+                accept: startJsonMediaType,
+                "content-type": startJsonMediaType,
+              },
+              body: JSON.stringify({
+                name: echo.name,
+                input: { value: "atlas" },
+              }),
             }),
-          }),
+          ),
         ),
       );
       const body = (await response.json()) as {
@@ -436,7 +440,9 @@ describe("Sunfall Arc release baseline", () => {
     async () => {
       const response = await Effect.runPromise(
         serverApp.runtime.provide(
-          handleRequest(new Request("https://example.test/projects/atlas?tab=activity")),
+          Effect.scoped(
+            handleRequest(new Request("https://example.test/projects/atlas?tab=activity")),
+          ),
         ),
       );
       const html = await response.text();

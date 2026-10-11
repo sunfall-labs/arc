@@ -7,7 +7,7 @@ import {
   type ReadableSignal,
   runFork,
 } from "@sunfall/arc-core";
-import { Effect, Option, PubSub, Schema, Scope } from "effect";
+import { Effect, Option, PubSub, Schema, Scope, type Stream } from "effect";
 import type { AsyncResult } from "effect/reactivity";
 import {
   backgroundSyncCollectionsPendingMutationsEffect,
@@ -216,12 +216,24 @@ type CollectionEffectOutputs<Definition> =
   | CollectionOptionalReturn<Definition, "onUpdate">
   | CollectionOptionalReturn<Definition, "onDelete">;
 
+type CollectionFollowError<Definition> =
+  CollectionOptionalReturn<Definition, "follow"> extends Stream.Stream<any, infer E, any>
+    ? E
+    : never;
+
+type CollectionFollowRequirements<Definition> =
+  CollectionOptionalReturn<Definition, "follow"> extends Stream.Stream<any, any, infer R>
+    ? R
+    : never;
+
 type CollectionErrorFromDefinition<Definition> =
   | EffectInputError<CollectionEffectOutputs<Definition>>
+  | CollectionFollowError<Definition>
   | CollectionPersistenceError<Definition>;
 
 type CollectionRequirementsFromDefinition<Definition> =
   | EffectInputRequirements<CollectionEffectOutputs<Definition>>
+  | CollectionFollowRequirements<Definition>
   | CollectionPersistenceRequirements<Definition>;
 
 type RejectCollectionPromiseOutput<Out> = [Out] extends [never]

@@ -1,6 +1,7 @@
 import {
   Cause,
   Context,
+  Data,
   Deferred,
   Effect,
   Exit,
@@ -44,10 +45,14 @@ import {
   ResourceTypeId,
   RequestContext,
   ResponseContext,
+  createBrowserRouterHostController,
+  createBrowserRouterKernel,
+  makeMemoryBrowserHistoryAdapter,
   route,
   Route,
   RoutePreloadError,
   runWithRuntime,
+  type BrowserRouterState,
   Server,
   ServerClient,
   ServerTransportError,
@@ -102,6 +107,7 @@ import {
   StartTransportEndpointPathError,
   FileRoutePreloadError,
   type StartFetch,
+  type StartHydrationPayload,
   type FileRoutePreloadResource,
   submitStartActionEffect,
   encodeStartActionRequestEffect,
@@ -925,6 +931,45 @@ describe("Sunfall Arc Start", () => {
     expect(secondHtml).toContain("<main>atlas:2</main>");
   });
 
+  it("leaves registered collections the request never loaded out of the hydration payload", async () => {
+    let loads = 0;
+    const Projects = Collection.define<{ readonly id: string }>({
+      name: "Start.Collection.unloaded-registered",
+      getKey: (project) => project.id,
+      load: () =>
+        Effect.sync(() => {
+          loads++;
+          return [{ id: "atlas" }];
+        }),
+    });
+    const ProjectsRoute = route("/projects", {
+      preload: () => Projects.preloadEffect(),
+    });
+    const app = defineApp({
+      routes: [ProjectsRoute] as const,
+      client: {},
+    });
+    const handler = createRequestHandler(app, {
+      collections: [Projects],
+      render: ({ collections }) =>
+        JSON.stringify(collections.collections.map((snapshot) => snapshot.name)),
+    });
+
+    // An unmatched URL runs no preload: the client must load the collection
+    // itself rather than hydrate it as loaded-and-empty.
+    const unmatched = await Effect.runPromise(
+      Effect.scoped(handler(new Request("https://example.com/nope"))),
+    );
+    await expect(unmatched.text()).resolves.toBe("[]");
+    expect(loads).toBe(0);
+
+    const matched = await Effect.runPromise(
+      Effect.scoped(handler(new Request("https://example.com/projects"))),
+    );
+    await expect(matched.text()).resolves.toBe(JSON.stringify([Projects.name]));
+    expect(loads).toBe(1);
+  });
+
   it("automatically dehydrates route-touched collection preloads", async () => {
     let projectLoads = 0;
     let taskLoads = 0;
@@ -1263,6 +1308,168 @@ describe("Sunfall Arc Start", () => {
     expect(result.collections.collections.map((collection) => collection.name)).toEqual([
       Projects.name,
     ]);
+  });
+
+  it("renders a failed route preload as the router Failure state on server and hydrating client", async () => {
+    class ProjectMissing extends Data.TaggedError("ProjectMissing")<{
+      readonly id: string;
+      readonly secret: string;
+    }> {}
+    let preloads = 0;
+    const ProjectRoute = route("/projects/:id", {
+      params: Schema.Struct({ id: Schema.String }),
+      preload: ({ params }) =>
+        Effect.suspend(() => {
+          preloads++;
+          return Effect.fail(new ProjectMissing({ id: params.id, secret: "db-host-10.0.0.1" }));
+        }),
+    });
+    const routes = [ProjectRoute] as const;
+    const app = defineApp({ routes, client: {} });
+    let serverState: BrowserRouterState<typeof routes> | undefined;
+    const handler = createRequestHandler(app, {
+      render: ({ runtime, routeFailure, legacyHydrationScript }) => {
+        // A router rendered on the request runtime (what `RouterProvider` does).
+        serverState = createBrowserRouterKernel(routes, {
+          runtime: eraseRuntime(runtime),
+          initialHref: "/projects/missing",
+        }).state.get();
+        const tag = routeFailure?.failure._tag === "Untyped" ? routeFailure.failure.tag : "";
+        return `<main>${tag}</main>${legacyHydrationScript}`;
+      },
+    });
+
+    const response = await Effect.runPromise(
+      Effect.scoped(handler(new Request("https://example.com/projects/missing"))),
+    );
+    const html = await response.text();
+
+    expect(response.status).toBe(500);
+    expect(html).toContain("<main>ProjectMissing</main>");
+    // Only the failure tag crosses the wire; failure data stays on the server.
+    expect(html).not.toContain("db-host-10.0.0.1");
+    expect(serverState).toMatchObject({ _tag: "Failure", href: "/projects/missing" });
+    const serverError = serverState?._tag === "Failure" ? serverState.error : undefined;
+    expect(serverError).toBeInstanceOf(RoutePreloadError);
+    expect(serverError?.message).toBe(
+      'Route "/projects/:id" failed to preload "/projects/missing": ProjectMissing',
+    );
+
+    const payload = JSON.parse(
+      html.slice(html.indexOf("{"), html.lastIndexOf("}") + 1),
+    ) as StartHydrationPayload;
+    expect(payload.routeFailure).toEqual({
+      path: "/projects/:id",
+      href: "/projects/missing",
+      failure: { _tag: "Untyped", tag: "ProjectMissing" },
+    });
+
+    // The hydrating client starts in the same Failure state without re-running
+    // the preload, and the record is consumed by that first router.
+    const clientRuntime = makeRuntime();
+    try {
+      await Effect.runPromise(clientRuntime.provide(hydrateStartPayloadEffect(payload)));
+      const controller = createBrowserRouterHostController(routes, {
+        runtime: eraseRuntime(clientRuntime),
+        history: makeMemoryBrowserHistoryAdapter({ initialHref: "/projects/missing" }),
+        initialMatchedState: (href, match) => ({ _tag: "Ready", href, match }),
+      });
+      const stop = controller.start();
+      const clientState = controller.state.get();
+      stop();
+      expect(clientState).toMatchObject({ _tag: "Failure", href: "/projects/missing" });
+      expect(clientState._tag === "Failure" ? clientState.error?.message : undefined).toBe(
+        serverError?.message,
+      );
+      expect(preloads).toBe(1);
+
+      const remounted = createBrowserRouterKernel(routes, {
+        runtime: eraseRuntime(clientRuntime),
+        initialHref: "/projects/missing",
+      });
+      expect(remounted.state.get()._tag).toBe("Ready");
+    } finally {
+      await Effect.runPromise(Effect.orDie(clientRuntime.disposeEffect));
+    }
+  });
+
+  it("sends a failure declared by the route error schema to the client as the typed error", async () => {
+    class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
+      id: Schema.String,
+    }) {}
+    const ProjectRoute = route("/projects/:id", {
+      params: Schema.Struct({ id: Schema.String }),
+      error: ProjectNotFound,
+      preload: ({ params }) => Effect.fail(new ProjectNotFound({ id: params.id })),
+    });
+    const routes = [ProjectRoute] as const;
+    const app = defineApp({ routes, client: {} });
+    const failureView = (state: BrowserRouterState<typeof routes>): string => {
+      if (state._tag !== "Failure" || state.error?._tag !== "RoutePreloadError") {
+        return "no failure";
+      }
+      // The typed failure, decoded from the wire on both server and client.
+      const notFound: ProjectNotFound = state.error.cause;
+      return notFound instanceof ProjectNotFound ? `Project "${notFound.id}" was not found.` : "";
+    };
+    let serverView: string | undefined;
+    const handler = createRequestHandler(app, {
+      render: ({ runtime, legacyHydrationScript }) => {
+        serverView = failureView(
+          createBrowserRouterKernel(routes, {
+            runtime: eraseRuntime(runtime),
+            initialHref: "/projects/missing",
+          }).state.get(),
+        );
+        return `<main>${serverView}</main>${legacyHydrationScript}`;
+      },
+    });
+
+    const response = await Effect.runPromise(
+      Effect.scoped(handler(new Request("https://example.com/projects/missing"))),
+    );
+    const html = await response.text();
+
+    expect(response.status).toBe(500);
+    expect(serverView).toBe('Project "missing" was not found.');
+    const payload = JSON.parse(
+      html.slice(html.indexOf("{", html.indexOf("</main>")), html.lastIndexOf("}") + 1),
+    ) as StartHydrationPayload;
+    expect(payload.routeFailure).toEqual({
+      path: "/projects/:id",
+      href: "/projects/missing",
+      failure: { _tag: "Encoded", value: { _tag: "ProjectNotFound", id: "missing" } },
+    });
+
+    const clientRuntime = makeRuntime();
+    try {
+      await Effect.runPromise(clientRuntime.provide(hydrateStartPayloadEffect(payload)));
+      const clientState = createBrowserRouterKernel(routes, {
+        runtime: eraseRuntime(clientRuntime),
+        initialHref: "/projects/missing",
+      }).state.get();
+      expect(clientState._tag === "Failure" ? clientState.error?.cause : undefined).toEqual(
+        new ProjectNotFound({ id: "missing" }),
+      );
+      expect(failureView(clientState)).toBe(serverView);
+    } finally {
+      await Effect.runPromise(Effect.orDie(clientRuntime.disposeEffect));
+    }
+  });
+
+  it("keeps failing standalone preloadRequest when route preload fails", async () => {
+    const ProjectRoute = route("/projects/:id", {
+      params: Schema.Struct({ id: Schema.String }),
+      preload: () => Effect.fail("missing"),
+    });
+    const app = defineApp({ routes: [ProjectRoute] as const, client: {} });
+
+    const failure = await Effect.runPromise(
+      Effect.flip(preloadRequest(app, new Request("https://example.com/projects/atlas"))),
+    );
+
+    expect(failure).toBeInstanceOf(StartPreloadError);
+    expect(failure.cause).toBeInstanceOf(RoutePreloadError);
   });
 
   it("rejects Promise-shaped file route preload helper work as typed preload failure", async () => {

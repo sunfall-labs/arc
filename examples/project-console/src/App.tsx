@@ -22,7 +22,7 @@ import { useCollection, useLiveQuery } from "@sunfall/arc-solid-db";
 import { StartAction } from "@sunfall/arc-start";
 import { Cause, Effect, Option, Schema } from "effect";
 import { AsyncResult } from "effect/reactivity";
-import { For, Show, createEffect, onSettled } from "solid-js";
+import { For, Show, createEffect, onSettled, untrack } from "solid-js";
 import { isServer } from "@solidjs/web";
 import {
   AdvanceProject,
@@ -142,6 +142,10 @@ const workItemCommandLabel = (status: WorkItemStatus): string =>
 
 const formatSpend = (spend: number): string => `${spend}%`;
 
+/** The failure `Cause` once a load settles; a retry in flight reads as `waiting` instead. */
+const settledFailure = <A, E>(result: AsyncResult.AsyncResult<A, E>): Cause.Cause<E> | undefined =>
+  result._tag === "Failure" && !result.waiting ? result.cause : undefined;
+
 const SearchIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true">
     <path d="m21 21-4.6-4.6" />
@@ -242,10 +246,9 @@ function AppShell() {
     const refreshVisibleData = () => {
       const id = projectIdFromMatch(router.match());
       runEffect(
-        Effect.gen(function* () {
-          yield* Resource.invalidateEffect(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef);
-          yield* ProjectSummaries.refetchEffect();
-        }).pipe(Effect.catchCause(() => Effect.void)),
+        // ProjectSummaries follows ProjectsRef, so refreshing the Resource
+        // refreshes the sidebar rows too.
+        Resource.invalidateEffect(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef),
       );
     };
 
@@ -277,7 +280,7 @@ function AppShell() {
             </div>
           </header>
 
-          <RouterOutlet
+          <RouterOutlet<AppRoutes>
             pending={() => <ProjectSkeleton />}
             failure={(state) => <FailureView error={state.error} />}
             notFound={() => <NotFoundView />}
@@ -312,7 +315,7 @@ function ProjectRows(props: {
   readonly selectedId: ProjectId | undefined;
   readonly search: string;
 }) {
-  const projects = useCollection(ProjectSummaries, { preload: false });
+  const projects = useCollection(ProjectSummaries);
   const filteredProjects = (currentProjects: ReadonlyArray<ProjectSummaryRow>) => {
     const query = props.search.trim().toLowerCase();
     if (query.length === 0) {
@@ -325,58 +328,40 @@ function ProjectRows(props: {
       ),
     );
   };
-  const renderRows = (items: ReadonlyArray<ProjectSummaryRow>) => {
-    const filtered = filteredProjects(items);
-
-    return (
-      <>
-        <For each={filtered}>
-          {(project) => <ProjectRow project={project} selected={project.id === props.selectedId} />}
-        </For>
-
-        <Show when={filtered.length === 0}>
-          <p class="emptyState">No projects match that filter.</p>
-        </Show>
-      </>
-    );
-  };
+  const rows = () => filteredProjects(projects.rows());
+  const result = () => projects.result();
+  const failure = () => settledFailure(result());
+  // Rows are their own signal: the load result only decides the chrome around
+  // them, so a refresh never remounts the list.
+  const hasRows = () =>
+    projects.rows().length > 0 || (result()._tag === "Success" && !result().waiting);
 
   return (
     <div class="projectList">
-      {(() => {
-        // Rows are their own signal: the load result only decides the chrome.
-        const rows = projects.rows();
-        const result = projects.result();
-
-        if (result.waiting) {
-          return rows.length > 0 ? (
-            <>
-              {renderRows(rows)}
-              <p class="inlineStatus">Refreshing projects</p>
-            </>
-          ) : (
+      <Show
+        when={hasRows()}
+        fallback={
+          <Show when={failure() === undefined}>
             <ProjectListSkeleton />
-          );
+          </Show>
         }
+      >
+        {/* Keyed by id: a refetch hands back new row objects, the same rows stay mounted. */}
+        <For each={rows()} keyed={(project) => project.id}>
+          {(project) => (
+            <ProjectRow project={project()} selected={project().id === props.selectedId} />
+          )}
+        </For>
 
-        if (result._tag === "Initial") {
-          return <ProjectListSkeleton />;
-        }
+        <Show when={rows().length === 0}>
+          <p class="emptyState">No projects match that filter.</p>
+        </Show>
+      </Show>
 
-        if (result._tag === "Failure") {
-          const error = Cause.squash(result.cause);
-          return rows.length > 0 ? (
-            <>
-              {renderRows(rows)}
-              <InlineFailure error={error} />
-            </>
-          ) : (
-            <InlineFailure error={error} />
-          );
-        }
-
-        return renderRows(rows);
-      })()}
+      <Show when={hasRows() && result().waiting}>
+        <p class="inlineStatus">Refreshing projects</p>
+      </Show>
+      <Show when={failure()}>{(cause) => <InlineFailure error={Cause.squash(cause())} />}</Show>
     </div>
   );
 }
@@ -407,33 +392,32 @@ function ProjectRow(props: { readonly project: ProjectSummaryRow; readonly selec
 
 function ProjectDetail(props: { readonly id: ProjectId; readonly tab: ProjectTab }) {
   const project = useResource(() => ProjectById(props.id));
-  const renderProject = (currentProject: Project, refreshing: boolean) => (
-    <ProjectDetailContent project={currentProject} tab={props.tab} refreshing={refreshing} />
-  );
+  // Current or stale value. The content below is keyed on *having* a value, not
+  // on each AsyncResult transition, so refreshes (Success -> waiting -> Success)
+  // update it in place instead of remounting the rename form and its Program.
+  const current = () => Option.getOrUndefined(AsyncResult.value(project.result()));
+  const failure = () => settledFailure(project.result());
 
   return (
-    <>
-      {AsyncResult.builder(project.result())
-        .onInitial(() => <ProjectSkeleton />)
-        // Failure before success: `previousSuccess` keeps its `Project` type.
-        .onFailure((cause, failed) =>
-          Option.match(failed.previousSuccess, {
-            onNone: () =>
-              failed.waiting ? <ProjectSkeleton /> : <FailureView error={Cause.squash(cause)} />,
-            onSome: (stale) =>
-              failed.waiting ? (
-                renderProject(stale.value, true)
-              ) : (
-                <>
-                  {renderProject(stale.value, false)}
-                  <InlineFailure error={Cause.squash(cause)} />
-                </>
-              ),
-          }),
-        )
-        .onSuccess((value, success) => renderProject(value, success.waiting))
-        .exhaustive()}
-    </>
+    <Show
+      when={current()}
+      fallback={
+        <Show when={failure()} fallback={<ProjectSkeleton />}>
+          {(cause) => <FailureView error={Cause.squash(cause())} />}
+        </Show>
+      }
+    >
+      {(value) => (
+        <>
+          <ProjectDetailContent
+            project={value()}
+            tab={props.tab}
+            refreshing={project.result().waiting}
+          />
+          <Show when={failure()}>{(cause) => <InlineFailure error={Cause.squash(cause())} />}</Show>
+        </>
+      )}
+    </Show>
   );
 }
 
@@ -665,11 +649,15 @@ const renameValidationMessage = (result: ProjectNameSubmissionClientResult): str
 
 const useProjectActionsProgram = (project: () => Project) => {
   const router = useRouter<AppRoutes>();
+  // The same action the no-JS form posts. Its invalidations refresh the
+  // ProjectById header and the ProjectList Resource the sidebar collection
+  // follows, so both show the new name before the redirect lands.
   const rename = StartAction.use(SubmitProjectName);
   const advance = useAction(AdvanceProject);
   const actions = useProgram(
     Program.define<ProjectActionsModel, ProjectActionsMessage>({
-      initial: projectActionsInitial(project()),
+      // Seed once; later project values arrive as ProjectChanged messages.
+      initial: projectActionsInitial(untrack(project)),
       on: {
         ProjectChanged: (model, message) =>
           message.project.id === model.project.id

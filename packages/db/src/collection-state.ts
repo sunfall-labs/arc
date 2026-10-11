@@ -69,6 +69,10 @@ export interface CollectionState<A extends object, K extends CollectionKey, E> {
   initialized: boolean;
   initialDataError: CollectionRuntimeError<E> | undefined;
   persistenceRestored: boolean;
+  /** True while this store runs the definition's `follow` stream. */
+  following: boolean;
+  /** Source snapshot (by reference) that the synced rows were last loaded from. */
+  syncedSource: unknown;
 }
 
 export const makeCollectionState = <
@@ -91,6 +95,8 @@ export const makeCollectionState = <
   initialized: false,
   initialDataError: undefined,
   persistenceRestored: false,
+  following: false,
+  syncedSource: undefined,
 });
 
 export const bumpCollectionState = (state: CollectionState<any, any, any>): void => {

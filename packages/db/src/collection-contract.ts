@@ -4,7 +4,7 @@ import {
   type ReadableSignal,
   type RetrySchedule,
 } from "@sunfall/arc-core";
-import { Effect, type PubSub, type Scope } from "effect";
+import { Effect, type PubSub, type Scope, type Stream } from "effect";
 import type { AsyncResult } from "effect/reactivity";
 import { CollectionStoreTypeId, CollectionTypeId } from "./collection-ids.js";
 import type { CollectionRowKeyChanged, CollectionRowNotFound } from "./collection-errors.js";
@@ -124,7 +124,9 @@ export type CollectionIndexRecord<A extends object> = Record<string, CollectionI
  * Defines a local-first collection.
  *
  * `load` fills rows on first preload. `refetch` forces a fresh remote read
- * when available; otherwise refetch falls back to `load`. `onInsert`,
+ * when available; otherwise refetch falls back to `load`. `follow` streams
+ * later authoritative snapshots that the collection reconciles while it is
+ * loaded. `onInsert`,
  * `onUpdate`, and `onDelete` run after optimistic local changes. Handler
  * failures use the Effect error channel `E` and roll back affected rows;
  * required services are carried in `R`.
@@ -167,6 +169,16 @@ export interface CollectionOptions<
   readonly load?: () => EffectInput<ReadonlyArray<A>, E, R>;
   /** Fresh loader used by `refetchEffect`; falls back to `load` when omitted. */
   readonly refetch?: () => EffectInput<ReadonlyArray<A>, E, R>;
+  /**
+   * Authoritative row snapshots to follow after the collection loads.
+   *
+   * The first successful `preloadEffect`/`refetchEffect` in a Collection Store
+   * starts the stream on that store's lifetime. Each emission reconciles synced
+   * rows exactly like a refetch (pending optimistic mutations stay applied on
+   * top), and the store's disposal interrupts it. A failed stream records a
+   * load failure and restarts on the next successful preload or refetch.
+   */
+  readonly follow?: () => Stream.Stream<ReadonlyArray<A>, E, R>;
   /** Commits optimistic inserts to the backing service. */
   readonly onInsert?: (
     input: ReadonlyArray<A>,

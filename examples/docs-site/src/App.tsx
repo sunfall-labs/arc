@@ -2,7 +2,7 @@ import { Route, RouterLink, RouterProvider, useResource, useRouter } from "@sunf
 import type { SunfallArcRuntime } from "@sunfall/arc-core";
 import { Cause, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
-import { createSignal, onCleanup, onSettled } from "solid-js";
+import { Show, createMemo, createSignal, onSettled, untrack, type Accessor } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import {
   BlogPostRoute,
@@ -329,21 +329,13 @@ function RecipeNav() {
   return (
     <nav class="sidebarSection" aria-label="Cookbook recipes">
       <p class="navHeading">Cookbook</p>
-      {AsyncResult.builder(recipes.result())
-        .onInitial(() => <p class="muted">Loading recipes</p>)
-        .onFailure((_cause, failed) =>
-          Option.match(retryingValue(failed), {
-            onNone: () =>
-              failed.waiting ? (
-                <p class="muted">Loading recipes</p>
-              ) : (
-                <p class="muted">Recipe index unavailable</p>
-              ),
-            onSome: (stale) => <RecipeNavList recipes={stale} />,
-          }),
-        )
-        .onSuccess((value) => <RecipeNavList recipes={value} />)
-        .exhaustive()}
+      <ResultContent
+        result={recipes.result()}
+        loading={<p class="muted">Loading recipes</p>}
+        failure={() => <p class="muted">Recipe index unavailable</p>}
+      >
+        {(value) => <RecipeNavList recipes={value()} />}
+      </ResultContent>
     </nav>
   );
 }
@@ -371,7 +363,7 @@ function RecipeNavList(props: { readonly recipes: ReadonlyArray<RecipeSummary> }
 }
 
 function PageRail(props: { readonly items: ReadonlyArray<PageRailItem> }) {
-  const [activeId, setActiveId] = createSignal(props.items[0]?.id ?? "");
+  const [activeId, setActiveId] = createSignal(untrack(() => props.items[0]?.id ?? ""));
 
   onSettled(() => {
     const headings = props.items
@@ -401,37 +393,36 @@ function PageRail(props: { readonly items: ReadonlyArray<PageRailItem> }) {
     window.addEventListener("scroll", updateActiveHeading, { passive: true });
     window.addEventListener("resize", updateActiveHeading);
 
-    onCleanup(() => {
+    // Solid 2: settled callbacks return their cleanup (onCleanup is forbidden here).
+    return () => {
       window.removeEventListener("scroll", updateActiveHeading);
       window.removeEventListener("resize", updateActiveHeading);
-    });
+    };
   });
 
-  if (props.items.length === 0) {
-    return null;
-  }
-
   return (
-    <aside class="pageRail" aria-label="On this page">
-      <p class="pageRailTitle">On this page</p>
-      <nav class="pageRailNav">
-        {props.items.map((item) => (
-          <a
-            href={`#${item.id}`}
-            class={[
-              "pageRailLink",
-              {
-                active: activeId() === item.id,
-                nested: item.level > 2,
-              },
-            ]}
-            aria-current={activeId() === item.id ? "location" : undefined}
-          >
-            {item.text}
-          </a>
-        ))}
-      </nav>
-    </aside>
+    <Show when={props.items.length > 0}>
+      <aside class="pageRail" aria-label="On this page">
+        <p class="pageRailTitle">On this page</p>
+        <nav class="pageRailNav">
+          {props.items.map((item) => (
+            <a
+              href={`#${item.id}`}
+              class={[
+                "pageRailLink",
+                {
+                  active: activeId() === item.id,
+                  nested: item.level > 2,
+                },
+              ]}
+              aria-current={activeId() === item.id ? "location" : undefined}
+            >
+              {item.text}
+            </a>
+          ))}
+        </nav>
+      </aside>
+    </Show>
   );
 }
 
@@ -468,17 +459,13 @@ function HomeView() {
         </RouterLink>
       </section>
 
-      {AsyncResult.builder(recipes.result())
-        .onInitial(() => <RecipeGridSkeleton />)
-        .onFailure((cause, failed) =>
-          Option.match(retryingValue(failed), {
-            onNone: () =>
-              failed.waiting ? <RecipeGridSkeleton /> : <FailureView error={Cause.squash(cause)} />,
-            onSome: (stale) => <RecipeGrid recipes={stale.slice(0, 3)} />,
-          }),
-        )
-        .onSuccess((value) => <RecipeGrid recipes={value.slice(0, 3)} />)
-        .exhaustive()}
+      <ResultContent
+        result={recipes.result()}
+        loading={<RecipeGridSkeleton />}
+        failure={(cause) => <FailureView error={Cause.squash(cause)} />}
+      >
+        {(value) => <RecipeGrid recipes={value().slice(0, 3)} />}
+      </ResultContent>
     </article>
   );
 }
@@ -620,17 +607,13 @@ function CookbookIndexView() {
         </p>
       </header>
 
-      {AsyncResult.builder(recipes.result())
-        .onInitial(() => <RecipeGridSkeleton />)
-        .onFailure((cause, failed) =>
-          Option.match(retryingValue(failed), {
-            onNone: () =>
-              failed.waiting ? <RecipeGridSkeleton /> : <FailureView error={Cause.squash(cause)} />,
-            onSome: (stale) => <RecipeGrid recipes={stale} />,
-          }),
-        )
-        .onSuccess((value) => <RecipeGrid recipes={value} />)
-        .exhaustive()}
+      <ResultContent
+        result={recipes.result()}
+        loading={<RecipeGridSkeleton />}
+        failure={(cause) => <FailureView error={Cause.squash(cause)} />}
+      >
+        {(value) => <RecipeGrid recipes={value()} />}
+      </ResultContent>
     </article>
   );
 }
@@ -711,19 +694,19 @@ export const Route = RouteBuilder.preload({
 
 const blogUiExample = `function IssuePage(props: Route.Props<typeof IssueRoute>) {
   const issue = useResource(() => IssueById(props.params.id));
+  // Current or stale value: the view mounts once and refreshes update it in place.
+  const current = () => Option.getOrUndefined(AsyncResult.value(issue.result()));
 
-  return () =>
-    AsyncResult.builder(issue.result())
-      .onInitial(() => <Skeleton />)
-      // onFailure before onSuccess keeps \`previousSuccess\` typed as an Issue.
-      .onFailure((cause, failed) =>
-        Option.match(failed.previousSuccess, {
-          onNone: () => <IssueError cause={cause} />,
-          onSome: (stale) => <IssueView issue={stale.value} stale />,
-        }),
-      )
-      .onSuccess((value, success) => <IssueView issue={value} refreshing={success.waiting} />)
-      .exhaustive();
+  return (
+    <Show
+      when={current()}
+      fallback={AsyncResult.builder(issue.result())
+        .onFailure((cause) => <IssueError cause={cause} />)
+        .orElse(() => <Skeleton />)}
+    >
+      {(value) => <IssueView issue={value()} refreshing={issue.result().waiting} />}
+    </Show>
+  );
 }`;
 
 const blogTanstackExample = `function IssuePage({ id }: { readonly id: IssueId }) {
@@ -1069,32 +1052,19 @@ function RecipeRouteView(props: Route.Props<typeof RecipeRoute>) {
   const recipe = useResource(() => RecipeBySlug(props.params.slug));
 
   return (
-    AsyncResult.builder(recipe.result())
-      .onInitial(() => <LoadingView />)
-      // onFailure before onSuccess keeps `previousSuccess` typed as a Recipe.
-      .onFailure((cause, failed) =>
-        Option.match(failed.previousSuccess, {
-          onNone: () =>
-            failed.waiting ? <LoadingView /> : <FailureView error={Cause.squash(cause)} />,
-          onSome: (stale) =>
-            failed.waiting ? (
-              <RecipeDetail recipe={stale.value} refreshing />
-            ) : (
-              <>
-                <RecipeDetail recipe={stale.value} refreshing={false} />
-                <FailureView error={Cause.squash(cause)} />
-              </>
-            ),
-        }),
-      )
-      .onSuccess((value, success) => <RecipeDetail recipe={value} refreshing={success.waiting} />)
-      .exhaustive()
+    <ResultContent
+      result={recipe.result()}
+      loading={<LoadingView />}
+      failure={(cause) => <FailureView error={Cause.squash(cause)} />}
+    >
+      {(value) => <RecipeDetail recipe={value()} refreshing={recipe.result().waiting} />}
+    </ResultContent>
   );
 }
 
 function RecipeDetail(props: { readonly recipe: Recipe; readonly refreshing: boolean }) {
-  const railItems = recipePageRailItems(props.recipe.blocks);
-  const headingIds = pageRailIdsByBlockIndex(railItems);
+  const railItems = createMemo(() => recipePageRailItems(props.recipe.blocks));
+  const headingIds = createMemo(() => pageRailIdsByBlockIndex(railItems()));
 
   return (
     <article class={["recipeDetail articleWithRail", { refreshing: props.refreshing }]}>
@@ -1104,11 +1074,11 @@ function RecipeDetail(props: { readonly recipe: Recipe; readonly refreshing: boo
         <p>{props.recipe.summary}</p>
       </header>
 
-      <PageRail items={railItems} />
+      <PageRail items={railItems()} />
 
       <section class={articleBodyClass}>
         {props.recipe.blocks.map((block, blockIndex) => (
-          <RecipeBlockView block={block} headingId={headingIds.get(blockIndex)} />
+          <RecipeBlockView block={block} headingId={headingIds().get(blockIndex)} />
         ))}
       </section>
 
@@ -1202,46 +1172,39 @@ function CodeBlock(props: { readonly code: string; readonly language?: string | 
 function RelatedRecipes(props: { readonly recipe: Recipe }) {
   const recipes = useResource(RecipeIndexRef);
 
-  if (props.recipe.related.length === 0) {
-    return null;
-  }
-
-  return AsyncResult.builder(recipes.result())
-    .onFailure((_cause, failed) =>
-      Option.match(retryingValue(failed), {
-        onNone: () => null,
-        onSome: (stale) => <RelatedRecipeList recipe={props.recipe} recipes={stale} />,
-      }),
-    )
-    .onSuccess((value) => <RelatedRecipeList recipe={props.recipe} recipes={value} />)
-    .render();
+  return (
+    <Show when={props.recipe.related.length > 0}>
+      <ResultContent result={recipes.result()}>
+        {(value) => <RelatedRecipeList recipe={props.recipe} recipes={value()} />}
+      </ResultContent>
+    </Show>
+  );
 }
 
 function RelatedRecipeList(props: {
   readonly recipe: Recipe;
   readonly recipes: ReadonlyArray<RecipeSummary>;
 }) {
-  const related = props.recipes.filter((recipe) => props.recipe.related.includes(recipe.slug));
-
-  if (related.length === 0) {
-    return null;
-  }
+  const related = () =>
+    props.recipes.filter((recipe) => props.recipe.related.includes(recipe.slug));
 
   return (
-    <aside class="relatedPanel" aria-label="Related recipes">
-      <h2>Related recipes</h2>
-      <div class="relatedList">
-        {related.map((recipe) => (
-          <RouterLink
-            route={RecipeUiRoute}
-            options={{ params: { slug: recipe.slug } }}
-            class="relatedLink"
-          >
-            {recipe.title}
-          </RouterLink>
-        ))}
-      </div>
-    </aside>
+    <Show when={related().length > 0}>
+      <aside class="relatedPanel" aria-label="Related recipes">
+        <h2>Related recipes</h2>
+        <div class="relatedList">
+          {related().map((recipe) => (
+            <RouterLink
+              route={RecipeUiRoute}
+              options={{ params: { slug: recipe.slug } }}
+              class="relatedLink"
+            >
+              {recipe.title}
+            </RouterLink>
+          ))}
+        </div>
+      </aside>
+    </Show>
   );
 }
 
@@ -1264,9 +1227,36 @@ function LoadingView() {
   );
 }
 
-/** Stale value to keep rendering while a retry after a failed load is in flight. */
-const retryingValue = <A, E>(failed: AsyncResult.Failure<A, E>): Option.Option<A> =>
-  failed.waiting ? Option.map(failed.previousSuccess, (stale) => stale.value) : Option.none();
+/**
+ * Renders a Resource's current (or stale) value through a non-keyed `<Show>`:
+ * the content mounts once and refreshes update it in place, so a reload never
+ * rebuilds the subtree. `loading` covers the first load (and a retry with
+ * nothing to show); `failure` covers a settled failure with nothing to show.
+ */
+function ResultContent<A extends object, E>(props: {
+  readonly result: AsyncResult.AsyncResult<A, E>;
+  readonly loading?: JSX.Element;
+  readonly failure?: (cause: Cause.Cause<E>) => JSX.Element;
+  readonly children: (value: Accessor<A>) => JSX.Element;
+}) {
+  const failure = () => {
+    const result = props.result;
+    return result._tag === "Failure" && !result.waiting ? result.cause : undefined;
+  };
+
+  return (
+    <Show
+      when={Option.getOrUndefined(AsyncResult.value(props.result))}
+      fallback={
+        <Show when={failure()} fallback={props.loading}>
+          {(cause) => props.failure?.(cause())}
+        </Show>
+      }
+    >
+      {(value) => props.children(value)}
+    </Show>
+  );
+}
 
 function FailureView(props: { readonly error: unknown }) {
   return (
