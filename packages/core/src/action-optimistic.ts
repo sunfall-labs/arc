@@ -5,12 +5,19 @@ import { Signal, type WritableSignal } from "./signal.js";
 
 export type ActionRollback<R = never> = Effect.Effect<void, EffectInputCallbackError, R>;
 
-type ActionOptimisticSignalValue<A> = A &
-  RejectPromiseLikeValue<A> & {
-    readonly call?: never;
-    readonly apply?: never;
-    readonly bind?: never;
-  };
+type Primitive = null | undefined | string | number | boolean | bigint | symbol;
+
+// Applied per union member: the function guard (`call`/`apply`/`bind`) keeps
+// updater functions from passing as values (including behind `unknown`), but
+// intersecting it with a primitive such as `undefined` would yield `never`.
+type ActionOptimisticSignalValue<A> = A extends Primitive
+  ? A & RejectPromiseLikeValue<A>
+  : A &
+      RejectPromiseLikeValue<A> & {
+        readonly call?: never;
+        readonly apply?: never;
+        readonly bind?: never;
+      };
 
 type ActionOptimisticSignalUpdate<A> =
   | ActionOptimisticSignalValue<A>
@@ -33,7 +40,8 @@ export interface ActionOptimisticTransaction {
    */
   readonly signal: <A>(
     signal: WritableSignal<A>,
-    update: ActionOptimisticSignalUpdate<A>,
+    // The signal fixes `A`; the update is checked against it, never inferred from.
+    update: ActionOptimisticSignalUpdate<NoInfer<A>>,
   ) => Effect.Effect<void, EffectInputCallbackError>;
 }
 

@@ -4,6 +4,7 @@ import {
   Route,
   currentOrDefaultRuntime,
   runWithRuntime,
+  RuntimeTypeId,
   Signal,
   type AnySunfallArcRuntime,
   type BrowserHistoryAdapter,
@@ -31,12 +32,18 @@ import {
 import { RuntimeContext, useRuntime } from "./runtime.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
+// Any typed or erased runtime whose error channel is `ER`. Service coverage is
+// checked separately by `RouterRuntime` against the routes' preload requirements.
+type RouterRuntimeShape<ER> = Pick<
+  AnySunfallArcRuntime<ER>,
+  typeof RuntimeTypeId | "managed" | "resourceStore"
+>;
 type RouterRuntimeServices<Runtime> =
   Runtime extends SunfallArcRuntime<infer Services, any> ? Services : never;
 type RouterRuntime<
   Routes extends readonly AnyRoute[],
   ER,
-  Runtime extends SunfallArcRuntime<any, ER>,
+  Runtime extends RouterRuntimeShape<ER>,
 > = [Exclude<Route.PreloadRequirements<Routes[number]>, RouterRuntimeServices<Runtime>>] extends [
   never,
 ]
@@ -63,7 +70,7 @@ interface BrowserRouterOptionsBase {
 type BrowserRouterRuntimeOptions<
   Routes extends readonly AnyRoute[] = readonly AnyRoute[],
   ER = never,
-  Runtime extends SunfallArcRuntime<any, ER> = SunfallArcRuntime<
+  Runtime extends RouterRuntimeShape<ER> = SunfallArcRuntime<
     Route.PreloadRequirements<Routes[number]>,
     ER
   >,
@@ -81,7 +88,7 @@ type BrowserRouterRuntimeOptions<
 export type BrowserRouterOptions<
   Routes extends readonly AnyRoute[] = readonly AnyRoute[],
   ER = never,
-  Runtime extends SunfallArcRuntime<any, ER> = SunfallArcRuntime<
+  Runtime extends RouterRuntimeShape<ER> = SunfallArcRuntime<
     Route.PreloadRequirements<Routes[number]>,
     ER
   >,
@@ -90,7 +97,7 @@ export type BrowserRouterOptions<
 type BrowserRouterOptionsArgs<
   Routes extends readonly AnyRoute[],
   ER,
-  Runtime extends SunfallArcRuntime<any, ER>,
+  Runtime extends RouterRuntimeShape<ER>,
 > = [Route.PreloadRequirements<Routes[number]>] extends [never]
   ? [options?: BrowserRouterOptions<Routes, ER, Runtime>]
   : [options: BrowserRouterOptions<Routes, ER, Runtime>];
@@ -137,7 +144,7 @@ type TypedRouterOutletProps<Routes extends readonly AnyRoute[], ER> = {
 type RouterProviderRuntimeProps<
   Routes extends readonly AnyRoute[],
   ER,
-  Runtime extends SunfallArcRuntime<any, ER>,
+  Runtime extends RouterRuntimeShape<ER>,
 > = [Route.PreloadRequirements<Routes[number]>] extends [never]
   ? { readonly runtime?: RouterRuntime<Routes, ER, Runtime> }
   : { readonly runtime: RouterRuntime<Routes, ER, Runtime> };
@@ -146,7 +153,7 @@ type RouterProviderRuntimeProps<
 export type RouterProviderProps<
   Routes extends readonly AnyRoute[],
   ER = never,
-  Runtime extends SunfallArcRuntime<any, ER> = SunfallArcRuntime<
+  Runtime extends RouterRuntimeShape<ER> = SunfallArcRuntime<
     Route.PreloadRequirements<Routes[number]>,
     ER
   >,
@@ -227,7 +234,7 @@ export { RouterRouteNotRegistered } from "@sunfall/arc-core";
 export const createBrowserRouter = <
   const Routes extends readonly AnyRoute[],
   ER = never,
-  Runtime extends SunfallArcRuntime<any, ER> = SunfallArcRuntime<
+  Runtime extends RouterRuntimeShape<ER> = SunfallArcRuntime<
     Route.PreloadRequirements<Routes[number]>,
     ER
   >,
@@ -349,7 +356,7 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
 export const RouterProvider = <
   const Routes extends readonly AnyRoute[],
   ER = never,
-  Runtime extends SunfallArcRuntime<any, ER> = SunfallArcRuntime<
+  Runtime extends RouterRuntimeShape<ER> = SunfallArcRuntime<
     Route.PreloadRequirements<Routes[number]>,
     ER
   >,
@@ -388,7 +395,7 @@ export const RouterProvider = <
 const RouterProviderInstance = <
   const Routes extends readonly AnyRoute[],
   ER = never,
-  Runtime extends SunfallArcRuntime<any, ER> = SunfallArcRuntime<
+  Runtime extends RouterRuntimeShape<ER> = SunfallArcRuntime<
     Route.PreloadRequirements<Routes[number]>,
     ER
   >,

@@ -9,7 +9,7 @@ interface Project {
 const projectOptions = (
   name: string,
   status: Project["status"] = "active",
-): CollectionOptions<Project> => ({
+): CollectionOptions<Project, string> => ({
   name,
   getKey: (project) => project.id,
   initialData: [{ id: status, status }],

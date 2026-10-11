@@ -4,6 +4,7 @@ import {
   Server,
   makeRuntime,
   toEffect,
+  type ServerClientError,
 } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
 import { Deferred, Effect, Exit, Fiber, Option, PubSub, Scope } from "effect";
@@ -246,8 +247,8 @@ describe("Collection.syncOptions", () => {
       }).pipe(
         Effect.ensuring(
           Effect.gen(function* () {
-            yield* first.disposeEffect;
-            yield* second.disposeEffect;
+            yield* Effect.orDie(first.disposeEffect);
+            yield* Effect.orDie(second.disposeEffect);
           }),
         ),
       ),
@@ -264,7 +265,7 @@ describe("Collection.syncOptions", () => {
             ]),
         });
         const Projects = Collection.define(
-          Collection.syncOptions<Project>({
+          Collection.syncOptions<Project, string, ServerClientError | EffectInputCallbackError>({
             name: "Projects.sync.server",
             getKey: (project) => project.id,
             sync: Collection.serverSyncAdapter<Project>({
@@ -298,7 +299,7 @@ describe("Collection.syncOptions", () => {
         });
         const updates: Array<Collection.SyncUpdatePayload<Project, string>> = [];
         const Projects = Collection.define(
-          Collection.syncOptions<Project>({
+          Collection.syncOptions<Project, string, EffectInputCallbackError>({
             name: "Projects.sync.resource",
             getKey: (project) => project.id,
             sync: Collection.resourceSyncAdapter({
@@ -356,7 +357,7 @@ describe("Collection.syncOptions", () => {
         const updates: Array<Collection.SyncUpdatePayload<Project, string>> = [];
 
         const Projects = Collection.define(
-          Collection.syncOptions<Project>({
+          Collection.syncOptions<Project, string, EffectInputCallbackError>({
             name: "Projects.sync.query",
             getKey: (project) => project.id,
             sync: Collection.querySyncAdapter({
@@ -445,7 +446,7 @@ describe("Collection.syncOptions", () => {
         filter.archived = true;
 
         const Projects = Collection.define(
-          Collection.syncOptions<Project>({
+          Collection.syncOptions<Project, string, EffectInputCallbackError>({
             name: "Projects.sync.query-key-owned",
             getKey: (project) => project.id,
             sync,
@@ -554,7 +555,7 @@ describe("Collection.syncOptions", () => {
           },
         });
         const Projects = Collection.define(
-          Collection.syncOptions<Project>({
+          Collection.syncOptions<Project, string, EffectInputCallbackError>({
             name: "Projects.sync.query-key-throwing-then",
             getKey: (project) => project.id,
             sync,
@@ -596,7 +597,7 @@ describe("Collection.syncOptions", () => {
         queryKey.push("later");
 
         const Projects = Collection.define(
-          Collection.syncOptions<Project>({
+          Collection.syncOptions<Project, string, EffectInputCallbackError>({
             name: "Projects.sync.query-key-invalid-owned",
             getKey: (project) => project.id,
             sync,
@@ -635,7 +636,7 @@ describe("Collection.syncOptions", () => {
           },
         });
         const Projects = Collection.define(
-          Collection.syncOptions<Project>({
+          Collection.syncOptions<Project, string, EffectInputCallbackError>({
             name: "Projects.sync.query-key-throwing-read",
             getKey: (project) => project.id,
             sync,
@@ -674,7 +675,7 @@ describe("Collection.syncOptions", () => {
           },
         };
         const Projects = Collection.define(
-          Collection.syncOptions<Project>({
+          Collection.syncOptions<Project, string, EffectInputCallbackError>({
             name: "Projects.sync.query-method-receiver",
             getKey: (project) => project.id,
             sync: Collection.querySyncAdapter(options),
@@ -694,11 +695,11 @@ describe("Collection.syncOptions", () => {
         const queryKey = ["projects", "invalidate-fails"] as const;
         const updates: Array<Collection.SyncUpdatePayload<Project, string>> = [];
         const Projects = Collection.define(
-          Collection.syncOptions<Project, string, string>({
+          Collection.syncOptions<Project, string, string | EffectInputCallbackError>({
             name: "Projects.sync.query-invalidate-fails",
             getKey: (project) => project.id,
             initialData: [{ id: "atlas", name: "Atlas", archived: false }],
-            sync: Collection.querySyncAdapter({
+            sync: Collection.querySyncAdapter<Project, string, string>({
               queryKey,
               queryFn: () => [{ id: "atlas", name: "Atlas", archived: false }],
               queryClient: {
@@ -731,11 +732,11 @@ describe("Collection.syncOptions", () => {
         const queryKey = ["projects", "invalidate-dies"] as const;
         const updates: Array<Collection.SyncUpdatePayload<Project, string>> = [];
         const Projects = Collection.define(
-          Collection.syncOptions<Project, string, string>({
+          Collection.syncOptions<Project, string, string | EffectInputCallbackError>({
             name: "Projects.sync.query-invalidate-dies",
             getKey: (project) => project.id,
             initialData: [{ id: "atlas", name: "Atlas", archived: false }],
-            sync: Collection.querySyncAdapter({
+            sync: Collection.querySyncAdapter<Project>({
               queryKey,
               queryFn: () => [{ id: "atlas", name: "Atlas", archived: false }],
               queryClient: {
@@ -768,11 +769,11 @@ describe("Collection.syncOptions", () => {
         const queryKey = ["projects", "rollback-invalidate-fails"] as const;
         const updates: Array<Collection.SyncUpdatePayload<Project, string>> = [];
         const Projects = Collection.define(
-          Collection.syncOptions<Project, string, string>({
+          Collection.syncOptions<Project, string, string | EffectInputCallbackError>({
             name: "Projects.sync.query-rollback-invalidate-fails",
             getKey: (project) => project.id,
             initialData: [{ id: "atlas", name: "Atlas", archived: false }],
-            sync: Collection.querySyncAdapter({
+            sync: Collection.querySyncAdapter<Project, string, string>({
               queryKey,
               queryFn: () => [{ id: "atlas", name: "Atlas", archived: false }],
               mutationInvalidation: "rollback-on-failure",
@@ -876,12 +877,16 @@ describe("Collection.syncOptions", () => {
           const event = yield* PubSub.take(subscription).pipe(Effect.timeoutOption("20 millis"));
 
           expect(Option.isSome(event)).toBe(true);
-          expect(event.value).toMatchObject({
+          const observed = Option.getOrThrow(event);
+          if (observed._tag !== "CollectionChangeFeedFailure") {
+            throw new Error(`Expected a change feed failure event, received ${observed._tag}`);
+          }
+          expect(observed).toMatchObject({
             _tag: "CollectionChangeFeedFailure",
             collection: "Projects.sync.feed-unsubscribe-failure",
           });
-          expect(event.value.error).toBeInstanceOf(EffectInputCallbackError);
-          expect((event.value.error as EffectInputCallbackError).cause).toBe(unsubscribeFailure);
+          expect(observed.error).toBeInstanceOf(EffectInputCallbackError);
+          expect((observed.error as EffectInputCallbackError).cause).toBe(unsubscribeFailure);
         }),
       ),
     ));
@@ -907,11 +912,15 @@ describe("Collection.syncOptions", () => {
           const event = yield* PubSub.take(subscription).pipe(Effect.timeoutOption("20 millis"));
 
           expect(Option.isSome(event)).toBe(true);
-          expect(event.value).toMatchObject({
+          const observed = Option.getOrThrow(event);
+          if (observed._tag !== "CollectionChangeFeedFailure") {
+            throw new Error(`Expected a change feed failure event, received ${observed._tag}`);
+          }
+          expect(observed).toMatchObject({
             _tag: "CollectionChangeFeedFailure",
             collection: "Projects.sync.feed-unsubscribe-defect",
           });
-          expect(String(event.value.error)).toContain("cleanup-defect");
+          expect(String(observed.error)).toContain("cleanup-defect");
         }),
       ),
     ));
@@ -1027,8 +1036,8 @@ describe("Collection.syncOptions", () => {
       }).pipe(
         Effect.ensuring(
           Effect.gen(function* () {
-            yield* first.disposeEffect;
-            yield* second.disposeEffect;
+            yield* Effect.orDie(first.disposeEffect);
+            yield* Effect.orDie(second.disposeEffect);
           }),
         ),
       ),

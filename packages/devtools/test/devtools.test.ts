@@ -701,7 +701,12 @@ describe("devtools invalidation plans", () => {
   });
 
   it("records Program timeline events as serializable runtime panel facts", () => {
-    const before: { readonly count: number; readonly password: string; self?: unknown } = {
+    const before: {
+      readonly count: number;
+      readonly password?: string;
+      readonly nested?: unknown;
+      self?: unknown;
+    } = {
       count: 0,
       password: "open-sesame",
     };
@@ -887,7 +892,7 @@ describe("devtools invalidation plans", () => {
       load: (id: string) => Effect.succeed({ id }),
     });
     const UserRoute = route("/users/:id", {
-      preload: ({ params }) => Resource.prefetchEffect(User(params.id)),
+      preload: ({ params }) => Resource.prefetchEffect(User(params.id)).pipe(Effect.asVoid),
     });
     const plan = await Effect.runPromise(
       Route.planNavigationEffect([UserRoute] as const, "/users/1"),
@@ -1435,7 +1440,8 @@ describe("devtools invalidation plans", () => {
       },
     };
     const normalized = normalizeSunfallArcDevtoolsBridgePayload(lateThrowingPayload);
-    sourcePanels.panels[0]!.title = "Mutated";
+    // Deliberately mutate the readonly source after normalization to prove it was detached.
+    Object.assign(sourcePanels.panels[0]!, { title: "Mutated" });
 
     expect(sourcePanelReads).toBe(1);
     expect(normalized?.panels.panels.find((panel) => panel.id === "requests")?.title).toBe(
@@ -2859,8 +2865,8 @@ describe("devtools invalidation plans", () => {
         Route.planNavigationEffect([RequestTargetRoute] as const, "/request-route-targets/1/2"),
       ),
     );
-    const requestRoutePlan =
-      routePlan._tag === "Matched"
+    const requestRoutePlan: DevtoolsRoutePlan =
+      routePlan._tag === "Matched" && routePlan.match !== undefined
         ? {
             ...routePlan,
             match: {
@@ -3787,7 +3793,7 @@ describe("devtools invalidation plans", () => {
     error.message = "mutated";
 
     const snapshot = store.getSnapshot();
-    const event = snapshot.events[0];
+    const event = snapshot.events?.[0];
 
     expect(event).toMatchObject({
       _tag: "CollectionStoreEvent",
@@ -4876,7 +4882,7 @@ describe("devtools invalidation plans", () => {
     const store = makeDevtoolsStore({
       requestTraceLimit: 1,
     });
-    const droppedTrace = {
+    const droppedTrace: DevtoolsRequestTrace = {
       request: {
         method: "GET",
         url: "https://example.test/dropped",
@@ -4885,16 +4891,19 @@ describe("devtools invalidation plans", () => {
       },
       response: { status: 200 },
       services: [],
-      get resources() {
-        throw new Error("dropped trace should not be detached");
-      },
+      resources: [],
       collections: [],
       serverFunctions: [],
       actions: [],
       fibers: [],
       streams: [],
       status: "success",
-    } as DevtoolsRequestTrace;
+    };
+    Object.defineProperty(droppedTrace, "resources", {
+      get() {
+        throw new Error("dropped trace should not be detached");
+      },
+    });
     const retainedTrace: DevtoolsRequestTrace = {
       request: {
         method: "GET",
@@ -5290,7 +5299,8 @@ describe("devtools invalidation plans", () => {
     const reorderedRoutePlan: DevtoolsRoutePlan = {
       ...routePlan,
       match: {
-        ...routePlan.match,
+        path: "/ordered",
+        href: "/ordered",
         params: { b: "2", a: "1" },
         search: { y: "2", x: "1" },
       },
@@ -5712,7 +5722,7 @@ describe("devtools invalidation plans", () => {
 
           return yield* Effect.all([store.getSummaryEffect(), store.getCausalGraphEffect()]);
         }),
-      ).pipe(Effect.ensuring(runtime.disposeEffect)),
+      ).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
 
     expect(summary.overview).toMatchObject({

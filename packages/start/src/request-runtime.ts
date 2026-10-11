@@ -30,7 +30,8 @@ export const makeRequestRuntime = <
 ): SunfallArcRuntime<ServerServices, ServerError> =>
   withResourceStore(app.runtime, makeResourceStore());
 
-type RequestRuntimeProvidedRequirements<RuntimeServices> =
+/** Services a Request Runtime provides to render, preload, RPC, and action Effects. */
+export type RequestRuntimeProvidedRequirements<RuntimeServices> =
   | RuntimeServices
   | ResourceStoreState
   | RequestContext

@@ -76,131 +76,139 @@ const readRpcFailureBodyEffect = (
 describe("Start RPC transport", () => {
   it("rejects RPC requests with unsupported content-type as typed protocol failures", () => {
     return Effect.runPromise(
-      Effect.gen(function* () {
-        const response = yield* createServerRpcResponseEffect(
-          app,
-          new Request(`https://example.com${serverRpcPath}`, {
-            method: "POST",
-            headers: {
-              accept: startJsonMediaType,
-              "content-type": "text/plain",
-              [startRequestIdHeader]: "req-rpc-content-type",
-              [startTraceparentHeader]: traceparent,
-            },
-            body: JSON.stringify({ name: "missing", input: {} }),
-          }),
-        );
-        const body = yield* readRpcFailureBodyEffect(response);
-
-        yield* Effect.sync(() => {
-          expect(response.status).toBe(415);
-          expect(response.headers.get(startRequestIdHeader)).toBe("req-rpc-content-type");
-          expect(response.headers.get(startTraceparentHeader)).toBe(traceparent);
-          expect(response.headers.get(startTransportKindHeader)).toBe("rpc");
-          expect(response.headers.get(startTransportProtocolHeader)).toBe(
-            startTransportProtocolVersion,
-          );
-          expect(body).toMatchObject({
-            _tag: "ServerError",
-            error: {
-              _tag: "ServerRpcProtocolError",
-              payload: {
-                contentType: "text/plain",
+      Effect.scoped(
+        Effect.gen(function* () {
+          const response = yield* createServerRpcResponseEffect(
+            app,
+            new Request(`https://example.com${serverRpcPath}`, {
+              method: "POST",
+              headers: {
+                accept: startJsonMediaType,
+                "content-type": "text/plain",
+                [startRequestIdHeader]: "req-rpc-content-type",
+                [startTraceparentHeader]: traceparent,
               },
-            },
+              body: JSON.stringify({ name: "missing", input: {} }),
+            }),
+          );
+          const body = yield* readRpcFailureBodyEffect(response);
+
+          yield* Effect.sync(() => {
+            expect(response.status).toBe(415);
+            expect(response.headers.get(startRequestIdHeader)).toBe("req-rpc-content-type");
+            expect(response.headers.get(startTraceparentHeader)).toBe(traceparent);
+            expect(response.headers.get(startTransportKindHeader)).toBe("rpc");
+            expect(response.headers.get(startTransportProtocolHeader)).toBe(
+              startTransportProtocolVersion,
+            );
+            expect(body).toMatchObject({
+              _tag: "ServerError",
+              error: {
+                _tag: "ServerRpcProtocolError",
+                payload: {
+                  contentType: "text/plain",
+                },
+              },
+            });
+            expect(body.error.message).toContain("Expected content-type application/json");
           });
-          expect(body.error.message).toContain("Expected content-type application/json");
-        });
-      }),
+        }),
+      ),
     );
   });
 
   it("rejects RPC requests whose accept header does not allow JSON", () => {
     return Effect.runPromise(
-      Effect.gen(function* () {
-        const response = yield* createServerRpcResponseEffect(
-          app,
-          new Request(`https://example.com${serverRpcPath}`, {
-            method: "POST",
-            headers: {
-              accept: "text/html",
-              "content-type": startJsonMediaType,
-            },
-            body: JSON.stringify({ name: "missing", input: {} }),
-          }),
-        );
-        const body = yield* readRpcFailureBodyEffect(response);
+      Effect.scoped(
+        Effect.gen(function* () {
+          const response = yield* createServerRpcResponseEffect(
+            app,
+            new Request(`https://example.com${serverRpcPath}`, {
+              method: "POST",
+              headers: {
+                accept: "text/html",
+                "content-type": startJsonMediaType,
+              },
+              body: JSON.stringify({ name: "missing", input: {} }),
+            }),
+          );
+          const body = yield* readRpcFailureBodyEffect(response);
 
-        yield* Effect.sync(() => {
-          expect(response.status).toBe(406);
-          expect(body.error).toMatchObject({
-            _tag: "ServerRpcProtocolError",
-            payload: {
-              accept: "text/html",
-            },
+          yield* Effect.sync(() => {
+            expect(response.status).toBe(406);
+            expect(body.error).toMatchObject({
+              _tag: "ServerRpcProtocolError",
+              payload: {
+                accept: "text/html",
+              },
+            });
           });
-        });
-      }),
+        }),
+      ),
     );
   });
 
   it("rejects invalid RPC methods before parsing the body", () => {
     return Effect.runPromise(
-      Effect.gen(function* () {
-        const response = yield* createServerRpcResponseEffect(
-          app,
-          new Request(`https://example.com${serverRpcPath}`, {
-            method: "GET",
-            headers: {
-              accept: startJsonMediaType,
-            },
-          }),
-        );
-        const body = yield* readRpcFailureBodyEffect(response);
+      Effect.scoped(
+        Effect.gen(function* () {
+          const response = yield* createServerRpcResponseEffect(
+            app,
+            new Request(`https://example.com${serverRpcPath}`, {
+              method: "GET",
+              headers: {
+                accept: startJsonMediaType,
+              },
+            }),
+          );
+          const body = yield* readRpcFailureBodyEffect(response);
 
-        yield* Effect.sync(() => {
-          expect(response.status).toBe(405);
-          expect(response.headers.get("allow")).toBe("POST");
-          expect(body.error).toMatchObject({
-            _tag: "ServerRpcProtocolError",
+          yield* Effect.sync(() => {
+            expect(response.status).toBe(405);
+            expect(response.headers.get("allow")).toBe("POST");
+            expect(body.error).toMatchObject({
+              _tag: "ServerRpcProtocolError",
+            });
+            expect(body.error.message).toContain("Server functions require POST requests");
           });
-          expect(body.error.message).toContain("Server functions require POST requests");
-        });
-      }),
+        }),
+      ),
     );
   });
 
   it("rejects action posts with unsupported content-type as typed protocol failures", () => {
     return Effect.runPromise(
-      Effect.gen(function* () {
-        const response = yield* createServerActionResponseEffect(
-          app,
-          new Request(`https://example.com${serverActionPath}`, {
-            method: "POST",
-            headers: {
-              accept: startJsonMediaType,
-              "content-type": "text/plain",
-              [startRequestIdHeader]: "req-action-content-type",
-            },
-            body: "not a supported action body",
-          }),
-          [],
-        );
-        const body = yield* readRpcFailureBodyEffect(response);
+      Effect.scoped(
+        Effect.gen(function* () {
+          const response = yield* createServerActionResponseEffect(
+            app,
+            new Request(`https://example.com${serverActionPath}`, {
+              method: "POST",
+              headers: {
+                accept: startJsonMediaType,
+                "content-type": "text/plain",
+                [startRequestIdHeader]: "req-action-content-type",
+              },
+              body: "not a supported action body",
+            }),
+            [],
+          );
+          const body = yield* readRpcFailureBodyEffect(response);
 
-        yield* Effect.sync(() => {
-          expect(response.status).toBe(415);
-          expect(response.headers.get(startRequestIdHeader)).toBe("req-action-content-type");
-          expect(response.headers.get(startTransportKindHeader)).toBe("action");
-          expect(body.error).toMatchObject({
-            _tag: "ServerRpcProtocolError",
-            payload: {
-              contentType: "text/plain",
-            },
+          yield* Effect.sync(() => {
+            expect(response.status).toBe(415);
+            expect(response.headers.get(startRequestIdHeader)).toBe("req-action-content-type");
+            expect(response.headers.get(startTransportKindHeader)).toBe("action");
+            expect(body.error).toMatchObject({
+              _tag: "ServerRpcProtocolError",
+              payload: {
+                contentType: "text/plain",
+              },
+            });
+            expect(body.error.message).toContain("application/x-www-form-urlencoded");
           });
-          expect(body.error.message).toContain("application/x-www-form-urlencoded");
-        });
-      }),
+        }),
+      ),
     );
   });
 
@@ -234,140 +242,146 @@ describe("Start RPC transport", () => {
 
   it("maps request and response body reader failures as typed transport errors", () =>
     Effect.runPromise(
-      Effect.gen(function* () {
-        const rpcRequestResponse = yield* createServerRpcResponseEffect(
-          app,
-          new Request(
-            `https://example.com${serverRpcPath}`,
-            requestStreamInit({
+      Effect.scoped(
+        Effect.gen(function* () {
+          const rpcRequestResponse = yield* createServerRpcResponseEffect(
+            app,
+            new Request(
+              `https://example.com${serverRpcPath}`,
+              requestStreamInit({
+                method: "POST",
+                headers: {
+                  accept: startJsonMediaType,
+                  "content-type": startJsonMediaType,
+                },
+                body: erroringBodyStream(),
+              }),
+            ),
+          );
+          const actionRequestResponse = yield* createServerActionResponseEffect(
+            app,
+            new Request(
+              `https://example.com${serverActionPath}`,
+              requestStreamInit({
+                method: "POST",
+                headers: {
+                  accept: startJsonMediaType,
+                  "content-type": "application/x-www-form-urlencoded",
+                },
+                body: erroringBodyStream(),
+              }),
+            ),
+            [],
+          );
+          const rpcRequestFailureBody = yield* readRpcFailureBodyEffect(rpcRequestResponse);
+          const actionRequestFailureBody = yield* readRpcFailureBodyEffect(actionRequestResponse);
+          const rpcResponseExit = yield* Effect.exit(
+            parseRpcResponse(
+              new Response(erroringBodyStream(), {
+                status: 200,
+                headers: { "content-type": startJsonMediaType },
+              }),
+            ),
+          );
+          const actionResponseExit = yield* Effect.exit(
+            parseStartActionResponse(
+              new Response(erroringBodyStream(), {
+                status: 200,
+                headers: { "content-type": startJsonMediaType },
+              }),
+            ),
+          );
+
+          yield* Effect.sync(() => {
+            const rpcResponseFailure = Exit.isFailure(rpcResponseExit)
+              ? firstFailure(rpcResponseExit.cause)
+              : undefined;
+            const actionResponseFailure = Exit.isFailure(actionResponseExit)
+              ? firstFailure(actionResponseExit.cause)
+              : undefined;
+
+            expect(rpcRequestFailureBody.error).toMatchObject({
+              _tag: "ServerRpcProtocolError",
+              message: "Expected a JSON server function request body.",
+            });
+            expect(actionRequestFailureBody.error).toMatchObject({
+              _tag: "ServerRpcProtocolError",
+              message: "Expected an action form body.",
+            });
+            expect(rpcResponseFailure).toBeInstanceOf(ServerTransportError);
+            expect(rpcResponseFailure).toMatchObject({
+              reason: "InvalidResponse",
+              status: 200,
+              message: "Could not read the server function response body.",
+            });
+            expect(actionResponseFailure).toBeInstanceOf(ServerTransportError);
+            expect(actionResponseFailure).toMatchObject({
+              reason: "InvalidResponse",
+              status: 200,
+              message: "Could not read the action response body.",
+            });
+          });
+        }),
+      ),
+    ));
+
+  it("rejects malformed JSON action payloads as typed protocol failures", () => {
+    return Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const response = yield* createServerActionResponseEffect(
+            app,
+            new Request(`https://example.com${serverActionPath}`, {
               method: "POST",
               headers: {
                 accept: startJsonMediaType,
                 "content-type": startJsonMediaType,
               },
-              body: erroringBodyStream(),
+              body: JSON.stringify({ input: { value: "missing action name" } }),
             }),
-          ),
-        );
-        const actionRequestResponse = yield* createServerActionResponseEffect(
-          app,
-          new Request(
-            `https://example.com${serverActionPath}`,
-            requestStreamInit({
-              method: "POST",
-              headers: {
-                accept: startJsonMediaType,
-                "content-type": "application/x-www-form-urlencoded",
-              },
-              body: erroringBodyStream(),
-            }),
-          ),
-          [],
-        );
-        const rpcRequestFailureBody = yield* readRpcFailureBodyEffect(rpcRequestResponse);
-        const actionRequestFailureBody = yield* readRpcFailureBodyEffect(actionRequestResponse);
-        const rpcResponseExit = yield* Effect.exit(
-          parseRpcResponse(
-            new Response(erroringBodyStream(), {
-              status: 200,
-              headers: { "content-type": startJsonMediaType },
-            }),
-          ),
-        );
-        const actionResponseExit = yield* Effect.exit(
-          parseStartActionResponse(
-            new Response(erroringBodyStream(), {
-              status: 200,
-              headers: { "content-type": startJsonMediaType },
-            }),
-          ),
-        );
+            [],
+          );
+          const body = yield* readRpcFailureBodyEffect(response);
 
-        yield* Effect.sync(() => {
-          const rpcResponseFailure = Exit.isFailure(rpcResponseExit)
-            ? firstFailure(rpcResponseExit.cause)
-            : undefined;
-          const actionResponseFailure = Exit.isFailure(actionResponseExit)
-            ? firstFailure(actionResponseExit.cause)
-            : undefined;
-
-          expect(rpcRequestFailureBody.error).toMatchObject({
-            _tag: "ServerRpcProtocolError",
-            message: "Expected a JSON server function request body.",
+          yield* Effect.sync(() => {
+            expect(response.status).toBe(400);
+            expect(body.error).toMatchObject({
+              _tag: "ServerRpcProtocolError",
+            });
+            expect(body.error.message).toContain("Expected an action request with string name");
           });
-          expect(actionRequestFailureBody.error).toMatchObject({
-            _tag: "ServerRpcProtocolError",
-            message: "Expected an action form body.",
-          });
-          expect(rpcResponseFailure).toBeInstanceOf(ServerTransportError);
-          expect(rpcResponseFailure).toMatchObject({
-            reason: "InvalidResponse",
-            status: 200,
-            message: "Could not read the server function response body.",
-          });
-          expect(actionResponseFailure).toBeInstanceOf(ServerTransportError);
-          expect(actionResponseFailure).toMatchObject({
-            reason: "InvalidResponse",
-            status: 200,
-            message: "Could not read the action response body.",
-          });
-        });
-      }),
-    ));
-
-  it("rejects malformed JSON action payloads as typed protocol failures", () => {
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const response = yield* createServerActionResponseEffect(
-          app,
-          new Request(`https://example.com${serverActionPath}`, {
-            method: "POST",
-            headers: {
-              accept: startJsonMediaType,
-              "content-type": startJsonMediaType,
-            },
-            body: JSON.stringify({ input: { value: "missing action name" } }),
-          }),
-          [],
-        );
-        const body = yield* readRpcFailureBodyEffect(response);
-
-        yield* Effect.sync(() => {
-          expect(response.status).toBe(400);
-          expect(body.error).toMatchObject({
-            _tag: "ServerRpcProtocolError",
-          });
-          expect(body.error.message).toContain("Expected an action request with string name");
-        });
-      }),
+        }),
+      ),
     );
   });
 
   it("labels malformed JSON action request bodies as action request failures", () => {
     return Effect.runPromise(
-      Effect.gen(function* () {
-        const response = yield* createServerActionResponseEffect(
-          app,
-          new Request(`https://example.com${serverActionPath}`, {
-            method: "POST",
-            headers: {
-              accept: startJsonMediaType,
-              "content-type": startJsonMediaType,
-            },
-            body: "{",
-          }),
-          [],
-        );
-        const body = yield* readRpcFailureBodyEffect(response);
+      Effect.scoped(
+        Effect.gen(function* () {
+          const response = yield* createServerActionResponseEffect(
+            app,
+            new Request(`https://example.com${serverActionPath}`, {
+              method: "POST",
+              headers: {
+                accept: startJsonMediaType,
+                "content-type": startJsonMediaType,
+              },
+              body: "{",
+            }),
+            [],
+          );
+          const body = yield* readRpcFailureBodyEffect(response);
 
-        yield* Effect.sync(() => {
-          expect(response.status).toBe(400);
-          expect(body.error).toMatchObject({
-            _tag: "ServerRpcProtocolError",
-            message: "Expected a JSON action request body.",
+          yield* Effect.sync(() => {
+            expect(response.status).toBe(400);
+            expect(body.error).toMatchObject({
+              _tag: "ServerRpcProtocolError",
+              message: "Expected a JSON action request body.",
+            });
           });
-        });
-      }),
+        }),
+      ),
     );
   });
 
@@ -581,7 +595,7 @@ describe("Start RPC transport", () => {
 
         globalThis.fetch = ((_input, init) => {
           const signal = init?.signal;
-          if (signal === undefined) {
+          if (signal === undefined || signal === null) {
             return Effect.runPromise(Effect.fail(new Error("missing fetch abort signal")));
           }
           Effect.runFork(Deferred.succeed(started, signal));
@@ -646,20 +660,28 @@ describe("Start RPC transport", () => {
           configurable: true,
           value: undefined,
         });
-        externalAbort.signal.addEventListener = ((type, listener, options) => {
+        externalAbort.signal.addEventListener = ((
+          type: string,
+          listener: EventListenerOrEventListenerObject,
+          options?: boolean | AddEventListenerOptions,
+        ) => {
           if (type === "abort") {
             abortListenersAdded += 1;
           }
           addEventListener(type, listener, options);
         }) as AbortSignal["addEventListener"];
-        externalAbort.signal.removeEventListener = ((type, listener, options) => {
+        externalAbort.signal.removeEventListener = ((
+          type: string,
+          listener: EventListenerOrEventListenerObject,
+          options?: boolean | EventListenerOptions,
+        ) => {
           if (type === "abort") {
             abortListenersRemoved += 1;
           }
           removeEventListener(type, listener, options);
         }) as AbortSignal["removeEventListener"];
         globalThis.fetch = ((_input, init) => {
-          observedSignal = init?.signal;
+          observedSignal = init?.signal ?? undefined;
           return Effect.runPromise(Effect.succeed(new Response("ok")));
         }) as typeof globalThis.fetch;
 

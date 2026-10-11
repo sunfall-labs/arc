@@ -472,7 +472,7 @@ describe("Program", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const program = Program.start(
-          Program.define<number, "load">({
+          Program.define<number, "load", string>({
             initial: 0,
             update: (model, message) =>
               message === "load"
@@ -515,7 +515,9 @@ describe("Program", () => {
             initial: 0,
             update: (model) => model + 1,
             subscriptions: () =>
-              Program.subscription(Stream.succeed(Promise.resolve("increment") as never)),
+              Program.subscription<"increment">(
+                Stream.succeed(Promise.resolve("increment") as never),
+              ),
           }),
         );
 
@@ -544,7 +546,9 @@ describe("Program", () => {
             initial: 0,
             update: (model) => model + 1,
             subscriptions: () =>
-              Program.subscription(Stream.succeed(Effect.succeed("increment") as never)),
+              Program.subscription<"increment">(
+                Stream.succeed(Effect.succeed("increment") as never),
+              ),
           }),
         );
 
@@ -792,7 +796,7 @@ describe("Program", () => {
               model.ticks === 0
                 ? [
                     Stream.succeed<Message>({ _tag: "Tick" }),
-                    Program.subscription(
+                    Program.subscription<Message>(
                       Stream.fromEffect(
                         Effect.never.pipe(
                           Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined)),
@@ -822,7 +826,7 @@ describe("Program", () => {
             initial: 0,
             update: (model) => model,
             subscriptions: () =>
-              Program.subscription(
+              Program.subscription<Message>(
                 Stream.fromEffect(
                   Deferred.succeed(started, undefined).pipe(
                     Effect.flatMap(() => Effect.never),
@@ -954,7 +958,7 @@ describe("Program", () => {
         if (Option.isSome(result)) {
           expect(Exit.isFailure(result.value[0])).toBe(true);
           expect(Exit.isFailure(result.value[1])).toBe(true);
-          for (const exit of result.value.slice(0, 2)) {
+          for (const exit of [result.value[0], result.value[1]]) {
             if (Exit.isFailure(exit)) {
               const failure = exit.cause.reasons.find(Cause.isFailReason)?.error;
               expect(failure).toMatchObject({

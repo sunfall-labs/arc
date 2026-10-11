@@ -82,9 +82,18 @@ export interface ResourcePolicy<E = never> {
   readonly staleFor?: DurationInput;
   /** How long a successful value remains cached before it can be collected. */
   readonly gcFor?: DurationInput;
-  /** Retry schedule applied to the family load Effect. */
-  readonly retry?: Schedule.Schedule<unknown, E>;
+  /**
+   * Retry schedule applied to the family load Effect; it observes the load's
+   * errors (`E`). The input is typed `any` because a Schedule's input is
+   * contravariant: a precise `E` would stop never-failing families from being
+   * assignable to erased `AnyResourceFamily`/`AnyResourceRef`.
+   */
+  readonly retry?: RetrySchedule<E>;
 }
+
+/** Retry schedule observing errors of type `E`; see `ResourcePolicy.retry`. */
+// oxlint-disable-next-line no-unused-vars -- `E` documents what the schedule observes.
+export type RetrySchedule<E> = Schedule.Schedule<unknown, any>;
 
 /**
  * Configuration for a typed resource family.

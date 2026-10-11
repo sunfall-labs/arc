@@ -147,7 +147,11 @@ describe("Server contracts", () => {
         Server.provideMocks(
           failingUser.effect(undefined),
           Server.mock(FailingUser, () =>
-            Effect.fail({ code: 500 } as unknown as { readonly code: string }),
+            Effect.as(
+              // Deliberately invalid failure payload: the schema check must reject it at runtime.
+              Effect.fail({ code: 500 } as unknown as { readonly code: string }),
+              "unreachable",
+            ),
           ),
         ),
       ).pipe(
@@ -175,7 +179,11 @@ describe("Server contracts", () => {
     );
     const failingUser = Server.client(FailingUser);
     Server.implement(FailingUser, () =>
-      Effect.fail({ code: 500 } as unknown as { readonly code: string }),
+      Effect.as(
+        // Deliberately invalid failure payload: the schema check must reject it at runtime.
+        Effect.fail({ code: 500 } as unknown as { readonly code: string }),
+        "unreachable",
+      ),
     );
 
     return Effect.runPromise(

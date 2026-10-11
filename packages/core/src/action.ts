@@ -1,4 +1,4 @@
-import { Effect, Schema, type Schedule } from "effect";
+import { Effect, Schema } from "effect";
 import type { ActionResultInvalidationRequirements } from "./action-result.js";
 import {
   ActionInterrupted,
@@ -26,7 +26,12 @@ import type {
   EnsureEffectInput,
 } from "./effect-like.js";
 import { EffectInputCallbackError } from "./effect-like.js";
-import { Resource, type ResourceInvalidation, type ResourceInvalidationPlan } from "./resource.js";
+import {
+  Resource,
+  type ResourceInvalidation,
+  type ResourceInvalidationPlan,
+  type RetrySchedule,
+} from "./resource.js";
 import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
 import { currentOrDefaultRuntime, getCurrentRuntime, type SunfallArcRuntime } from "./runtime.js";
 import type { ReadableSignal } from "./signal.js";
@@ -55,7 +60,7 @@ export interface ActionPolicy<E = never> {
    */
   readonly concurrency?: ActionConcurrency;
   /** Effect retry schedule applied around the action `run` Effect. */
-  readonly retry?: Schedule.Schedule<unknown, E>;
+  readonly retry?: RetrySchedule<E>;
 }
 
 /**

@@ -51,7 +51,7 @@
     "verify:command-runner": "node scripts/verify-effect-command-runner.mjs",
     "verify:package-payload-policy": "node scripts/verify-package-payload-policy.mjs",
     "test": "vitest run",
-    "typecheck": "pnpm -r --filter './packages/*' typecheck && pnpm typecheck:types",
+    "typecheck": "pnpm -r --filter './packages/*' typecheck && pnpm typecheck:types && pnpm typecheck:tests",
     "typecheck:types": "tsgo -p tsconfig.type-tests.json --noEmit --pretty false",
     "format": "oxfmt . --write",
     "format:check": "oxfmt . --check",
@@ -59,7 +59,8 @@
     "lint:fix": "oxlint . --fix --no-error-on-unmatched-pattern",
     "publish:npm": "node scripts/publish-npm.mjs",
     "verify": "node scripts/verify.mjs",
-    "verify:serial": "node scripts/verify.mjs --concurrency=1"
+    "verify:serial": "node scripts/verify.mjs --concurrency=1",
+    "typecheck:tests": "tsgo -p tsconfig.tests.json --noEmit --pretty false"
   },
   "dependencies": {
     "effect": "4.0.3"

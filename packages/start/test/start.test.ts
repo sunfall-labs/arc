@@ -23,7 +23,8 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { IncomingMessage, type ServerResponse } from "node:http";
+import { Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "vite";
@@ -34,6 +35,7 @@ import {
   defaultRuntime,
   defineApp,
   EffectInputCallbackError,
+  eraseRuntime,
   EffectInputPromiseRejected,
   makeRuntime,
   read,
@@ -112,6 +114,7 @@ import {
   createStartDiagnosticsReport,
   formatStartDiagnosticsReport,
 } from "../src/diagnostics-report.js";
+import { StartAppGraphDiagnosticsPolicyException } from "../src/start-app-graph-diagnostics-policy.js";
 import { completeRequestRuntimeWithResponse, makeRequestRuntime } from "../src/request-runtime.js";
 import { buildStartRequestTrace, requestRuntimeTeardownSnapshot } from "../src/request-trace.js";
 import {
@@ -173,9 +176,9 @@ import {
 const scriptText = (script: string): string =>
   script.replace(/^<script[^>]*>/, "").replace("</script>", "");
 
-const runInRuntime = <A, E, R, RuntimeError>(
-  runtime: SunfallArcRuntime<unknown, RuntimeError>,
-  effect: Effect.Effect<A, E, R>,
+const runInRuntime = <A, E, Services, RuntimeError>(
+  runtime: SunfallArcRuntime<Services, RuntimeError>,
+  effect: Effect.Effect<A, E, Services>,
 ): Promise<A> => Effect.runPromise(runtime.provide(effect));
 
 const startAgentGraphCliQueryTextByKind = {
@@ -335,7 +338,9 @@ describe("Sunfall Arc Start", () => {
       render: () => new Response(null, { status: 204 }),
     });
 
-    const response = await Effect.runPromise(handler(new Request("https://example.com/")));
+    const response = await Effect.runPromise(
+      Effect.scoped(handler(new Request("https://example.com/"))),
+    );
 
     expect(response.status).toBe(204);
   });
@@ -395,7 +400,7 @@ describe("Sunfall Arc Start", () => {
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)).pipe(Effect.asVoid),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
@@ -430,7 +435,7 @@ describe("Sunfall Arc Start", () => {
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)).pipe(Effect.asVoid),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
@@ -451,7 +456,7 @@ describe("Sunfall Arc Start", () => {
     });
 
     const response = await Effect.runPromise(
-      handler(new Request("https://example.com/projects/kepler")),
+      Effect.scoped(handler(new Request("https://example.com/projects/kepler"))),
     );
     const html = await response.text();
 
@@ -471,7 +476,7 @@ describe("Sunfall Arc Start", () => {
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)).pipe(Effect.asVoid),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
@@ -487,7 +492,7 @@ describe("Sunfall Arc Start", () => {
     });
 
     const response = await Effect.runPromise(
-      handler(new Request("https://example.com/projects/atlas")),
+      Effect.scoped(handler(new Request("https://example.com/projects/atlas"))),
     );
     const html = await response.text();
 
@@ -503,7 +508,7 @@ describe("Sunfall Arc Start", () => {
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)).pipe(Effect.asVoid),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
@@ -515,7 +520,7 @@ describe("Sunfall Arc Start", () => {
     });
 
     const response = await Effect.runPromise(
-      handler(new Request("https://example.com/projects/atlas")),
+      Effect.scoped(handler(new Request("https://example.com/projects/atlas"))),
     );
     const html = await response.text();
 
@@ -533,8 +538,10 @@ describe("Sunfall Arc Start", () => {
           key: "Start.Project.render-plan:atlas",
           input: "atlas",
           state: {
-            _tag: "Success",
+            _tag: "Success" as const,
             value: { id: "atlas", name: "Atlas" },
+            waiting: false as const,
+            timestamp: 1,
           },
         },
       ],
@@ -548,10 +555,11 @@ describe("Sunfall Arc Start", () => {
               key: "atlas",
               value: { id: "atlas", name: "Atlas" },
               synced: true,
-              origin: "remote",
+              origin: "remote" as const,
             },
           ],
           pendingMutations: [],
+          updatedAt: 1,
         },
       ],
     };
@@ -618,10 +626,11 @@ describe("Sunfall Arc Start", () => {
               key: "bigint",
               value: { count: 1n },
               synced: true,
-              origin: "remote",
+              origin: "remote" as const,
             },
           ],
           pendingMutations: [],
+          updatedAt: 1,
         },
       ],
     };
@@ -647,7 +656,7 @@ describe("Sunfall Arc Start", () => {
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)).pipe(Effect.asVoid),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
@@ -662,15 +671,17 @@ describe("Sunfall Arc Start", () => {
     });
 
     const response = await Effect.runPromise(
-      handler(
-        new Request("https://example.com/projects/atlas?tab=activity", {
-          headers: {
-            "x-sunfall-arc-request-id": "req-ssr-atlas",
-            authorization: "Bearer top-secret",
-            cookie: "session=s3cr3t",
-            "x-api-key": "key-secret",
-          },
-        }),
+      Effect.scoped(
+        handler(
+          new Request("https://example.com/projects/atlas?tab=activity", {
+            headers: {
+              "x-sunfall-arc-request-id": "req-ssr-atlas",
+              authorization: "Bearer top-secret",
+              cookie: "session=s3cr3t",
+              "x-api-key": "key-secret",
+            },
+          }),
+        ),
       ),
     );
 
@@ -764,7 +775,7 @@ describe("Sunfall Arc Start", () => {
 
   it("uses a fresh resource store for each SSR request", async () => {
     let loads = 0;
-    const Project = Resource.family({
+    const Project = Resource.family<string, { readonly id: string; readonly sequence: number }>({
       name: "Start.Project.request-store",
       load: (id: string) =>
         Effect.sync(() => ({
@@ -774,7 +785,7 @@ describe("Sunfall Arc Start", () => {
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)).pipe(Effect.asVoid),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
@@ -789,10 +800,10 @@ describe("Sunfall Arc Start", () => {
     });
 
     const first = await Effect.runPromise(
-      handler(new Request("https://example.com/projects/atlas")),
+      Effect.scoped(handler(new Request("https://example.com/projects/atlas"))),
     );
     const second = await Effect.runPromise(
-      handler(new Request("https://example.com/projects/atlas")),
+      Effect.scoped(handler(new Request("https://example.com/projects/atlas"))),
     );
 
     await expect(first.text()).resolves.toContain("atlas:1");
@@ -845,7 +856,7 @@ describe("Sunfall Arc Start", () => {
     });
 
     const response = await Effect.runPromise(
-      handler(new Request("https://example.com/local-server-client/atlas")),
+      Effect.scoped(handler(new Request("https://example.com/local-server-client/atlas"))),
     );
 
     expect(calls).toEqual(["atlas:/local-server-client/atlas"]);
@@ -891,10 +902,10 @@ describe("Sunfall Arc Start", () => {
     });
 
     const first = await Effect.runPromise(
-      handler(new Request("https://example.com/projects/atlas")),
+      Effect.scoped(handler(new Request("https://example.com/projects/atlas"))),
     );
     const second = await Effect.runPromise(
-      handler(new Request("https://example.com/projects/atlas")),
+      Effect.scoped(handler(new Request("https://example.com/projects/atlas"))),
     );
     const firstHtml = await first.text();
     const secondHtml = await second.text();
@@ -977,7 +988,7 @@ describe("Sunfall Arc Start", () => {
         `<html><body><main>${collectionPreload.routeTouchedCollections.map((collection) => collection.name).join(",")}</main><aside>${collections.collections.length}</aside>${legacyHydrationScript}</body></html>`,
     });
     const response = await Effect.runPromise(
-      handler(new Request("https://example.com/projects/atlas")),
+      Effect.scoped(handler(new Request("https://example.com/projects/atlas"))),
     );
     const html = await response.text();
 
@@ -1036,7 +1047,8 @@ describe("Sunfall Arc Start", () => {
     });
     const ProjectCards = Collection.liveQuery<
       { readonly id: string; readonly name: string },
-      string
+      string,
+      CollectionSnapshotCodecError | EffectInputCallbackError
     >({
       name: "Start.Collection.live-query-derived.cards",
       getKey: (project) => project.id,
@@ -1139,7 +1151,7 @@ describe("Sunfall Arc Start", () => {
         `<html><body><main>${collectionPreload.routeDeclaredCollections.map((collection) => collection.name).join(",")}</main><aside>${collections.collections.length}</aside>${legacyHydrationScript}</body></html>`,
     });
     const response = await Effect.runPromise(
-      handler(new Request("https://example.com/declared-projects")),
+      Effect.scoped(handler(new Request("https://example.com/declared-projects"))),
     );
     const html = await response.text();
 
@@ -1394,7 +1406,10 @@ describe("Sunfall Arc Start", () => {
       load: (id) => Effect.succeed({ id }),
     });
     const ProjectRouteBuilder = defineFileRoute("/file-helper-promise-resource-refs");
-    const resource: FileRoutePreloadResource<"/file-helper-promise-resource-refs"> = {
+    const resource: FileRoutePreloadResource<
+      "/file-helper-promise-resource-refs",
+      Resource.AnyRef<never>
+    > = {
       family: { name: ProjectById.family.options.name },
       refs: (() => Effect.runPromise(Effect.succeed([ProjectById("atlas")]))) as never,
     };
@@ -1432,7 +1447,10 @@ describe("Sunfall Arc Start", () => {
       load: (id) => Effect.succeed({ id }),
     });
     const ProjectRouteBuilder = defineFileRoute("/file-helper-malformed-resource-refs");
-    const resource: FileRoutePreloadResource<"/file-helper-malformed-resource-refs"> = {
+    const resource: FileRoutePreloadResource<
+      "/file-helper-malformed-resource-refs",
+      Resource.AnyRef<never>
+    > = {
       family: { name: ProjectById.family.options.name },
       refs: (() => ({ key: ProjectById("atlas").key })) as never,
     };
@@ -1642,7 +1660,7 @@ describe("Sunfall Arc Start", () => {
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)).pipe(Effect.asVoid),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
@@ -1654,10 +1672,18 @@ describe("Sunfall Arc Start", () => {
       preloadRequestEffect(app, new Request("https://example.com/projects/atlas")),
     );
     const response = await Effect.runPromise(
-      createRequestHandlerEffect(app, {
-        render: ({ resources }) =>
-          Effect.succeed(`<html><body>${resources.resources[0]?.state.value.name}</body></html>`),
-      })(new Request("https://example.com/projects/atlas")),
+      Effect.scoped(
+        createRequestHandlerEffect(app, {
+          render: ({ resources }) => {
+            const value: unknown = resources.resources[0]?.state.value;
+            const name =
+              typeof value === "object" && value !== null && "name" in value
+                ? value.name
+                : undefined;
+            return Effect.succeed(`<html><body>${name}</body></html>`);
+          },
+        })(new Request("https://example.com/projects/atlas")),
+      ),
     );
 
     expect(result.resources.resources[0]?.state.value).toEqual({
@@ -1707,7 +1733,9 @@ describe("Sunfall Arc Start", () => {
         }),
     });
 
-    const response = await Effect.runPromise(handler(new Request("https://example.com/")));
+    const response = await Effect.runPromise(
+      Effect.scoped(handler(new Request("https://example.com/"))),
+    );
 
     expect(interrupted).toBe(false);
     expect(fiberCount?.()).toBe(1);
@@ -1749,12 +1777,14 @@ describe("Sunfall Arc Start", () => {
     });
 
     const response = await Effect.runPromise(
-      handler(
-        new Request("https://example.com/", {
-          headers: {
-            "x-sunfall-arc-request-id": "req-cancel",
-          },
-        }),
+      Effect.scoped(
+        handler(
+          new Request("https://example.com/", {
+            headers: {
+              "x-sunfall-arc-request-id": "req-cancel",
+            },
+          }),
+        ),
       ),
     );
     const reader = response.body!.getReader();
@@ -1819,12 +1849,14 @@ describe("Sunfall Arc Start", () => {
     });
 
     const response = await Effect.runPromise(
-      handler(
-        new Request("https://example.com/", {
-          headers: {
-            "x-sunfall-arc-request-id": "req-stream-failure",
-          },
-        }),
+      Effect.scoped(
+        handler(
+          new Request("https://example.com/", {
+            headers: {
+              "x-sunfall-arc-request-id": "req-stream-failure",
+            },
+          }),
+        ),
       ),
     );
     await expect(response.text()).rejects.toBeDefined();
@@ -1880,25 +1912,29 @@ describe("Sunfall Arc Start", () => {
     });
 
     return Effect.runPromise(
-      Effect.gen(function* () {
-        const beforeCount = yield* Metric.value(requestCount);
-        const beforeDuration = yield* Metric.value(requestDuration);
-        const beforeStatus = yield* Metric.value(requestStatus);
-        const beforeSuccessCount = beforeStatus.occurrences.get("success") ?? 0;
+      Effect.scoped(
+        Effect.gen(function* () {
+          const beforeCount = yield* Metric.value(requestCount);
+          const beforeDuration = yield* Metric.value(requestDuration);
+          const beforeStatus = yield* Metric.value(requestStatus);
+          const beforeSuccessCount = beforeStatus.occurrences.get("success") ?? 0;
 
-        const response = yield* handler(new Request("https://example.com/observed-metrics/atlas"));
-        const text = yield* Effect.tryPromise(() => response.text());
-        const afterCount = yield* Metric.value(requestCount);
-        const afterDuration = yield* Metric.value(requestDuration);
-        const afterStatus = yield* Metric.value(requestStatus);
+          const response = yield* handler(
+            new Request("https://example.com/observed-metrics/atlas"),
+          );
+          const text = yield* Effect.tryPromise(() => response.text());
+          const afterCount = yield* Metric.value(requestCount);
+          const afterDuration = yield* Metric.value(requestDuration);
+          const afterStatus = yield* Metric.value(requestStatus);
 
-        yield* Effect.sync(() => {
-          expect(text).toContain("/observed-metrics/atlas");
-          expect(afterCount.count).toBe(beforeCount.count + 1);
-          expect(afterDuration.count).toBe(beforeDuration.count + 1);
-          expect(afterStatus.occurrences.get("success")).toBe(beforeSuccessCount + 1);
-        });
-      }),
+          yield* Effect.sync(() => {
+            expect(text).toContain("/observed-metrics/atlas");
+            expect(afterCount.count).toBe(beforeCount.count + 1);
+            expect(afterDuration.count).toBe(beforeDuration.count + 1);
+            expect(afterStatus.occurrences.get("success")).toBe(beforeSuccessCount + 1);
+          });
+        }),
+      ),
     );
   });
 
@@ -1911,7 +1947,10 @@ describe("Sunfall Arc Start", () => {
         error: Schema.String,
       },
     );
-    Server.implement(FailsDomain, () => Effect.fail("metrics-domain-failed"));
+    Server.implement(
+      FailsDomain,
+      (): Effect.Effect<string, string> => Effect.fail("metrics-domain-failed"),
+    );
     const app = defineApp({
       routes: [route("/", {})] as const,
       client: {},
@@ -1933,38 +1972,40 @@ describe("Sunfall Arc Start", () => {
     });
 
     return Effect.runPromise(
-      Effect.gen(function* () {
-        const beforeDuration = yield* Metric.value(requestDuration);
-        const beforeSuccess = yield* Metric.value(requestSuccessStatus);
-        const beforeFailure = yield* Metric.value(requestFailureStatus);
-        const beforeSuccessCount = beforeSuccess.occurrences.get("success") ?? 0;
-        const beforeFailureCount = beforeFailure.occurrences.get("failure") ?? 0;
+      Effect.scoped(
+        Effect.gen(function* () {
+          const beforeDuration = yield* Metric.value(requestDuration);
+          const beforeSuccess = yield* Metric.value(requestSuccessStatus);
+          const beforeFailure = yield* Metric.value(requestFailureStatus);
+          const beforeSuccessCount = beforeSuccess.occurrences.get("success") ?? 0;
+          const beforeFailureCount = beforeFailure.occurrences.get("failure") ?? 0;
 
-        const response = yield* handler(
-          new Request(`https://example.com${serverRpcPath}`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              name: FailsDomain.name,
-              input: { value: "atlas" },
+          const response = yield* handler(
+            new Request(`https://example.com${serverRpcPath}`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                name: FailsDomain.name,
+                input: { value: "atlas" },
+              }),
             }),
-          }),
-        );
-        const body = yield* Effect.tryPromise(() => response.json());
-        const afterDuration = yield* Metric.value(requestDuration);
-        const afterSuccess = yield* Metric.value(requestSuccessStatus);
-        const afterFailure = yield* Metric.value(requestFailureStatus);
+          );
+          const body = yield* Effect.tryPromise(() => response.json());
+          const afterDuration = yield* Metric.value(requestDuration);
+          const afterSuccess = yield* Metric.value(requestSuccessStatus);
+          const afterFailure = yield* Metric.value(requestFailureStatus);
 
-        yield* Effect.sync(() => {
-          expect(body).toEqual({
-            _tag: "Failure",
-            error: "metrics-domain-failed",
+          yield* Effect.sync(() => {
+            expect(body).toEqual({
+              _tag: "Failure",
+              error: "metrics-domain-failed",
+            });
+            expect(afterDuration.count).toBe(beforeDuration.count + 1);
+            expect(afterSuccess.occurrences.get("success") ?? 0).toBe(beforeSuccessCount);
+            expect(afterFailure.occurrences.get("failure")).toBe(beforeFailureCount + 1);
           });
-          expect(afterDuration.count).toBe(beforeDuration.count + 1);
-          expect(afterSuccess.occurrences.get("success") ?? 0).toBe(beforeSuccessCount);
-          expect(afterFailure.occurrences.get("failure")).toBe(beforeFailureCount + 1);
-        });
-      }),
+        }),
+      ),
     );
   });
 
@@ -2002,33 +2043,35 @@ describe("Sunfall Arc Start", () => {
     });
 
     return Effect.runPromise(
-      Effect.gen(function* () {
-        const beforeCount = yield* Metric.value(requestCount);
-        const beforeDuration = yield* Metric.value(requestDuration);
-        const beforeCancelled = yield* Metric.value(requestCancelledStatus);
-        const beforeCancelledCount = beforeCancelled.occurrences.get("cancelled") ?? 0;
+      Effect.scoped(
+        Effect.gen(function* () {
+          const beforeCount = yield* Metric.value(requestCount);
+          const beforeDuration = yield* Metric.value(requestDuration);
+          const beforeCancelled = yield* Metric.value(requestCancelledStatus);
+          const beforeCancelledCount = beforeCancelled.occurrences.get("cancelled") ?? 0;
 
-        const response = yield* handler(new Request("https://example.com/metrics-cancel"));
-        const midCount = yield* Metric.value(requestCount);
-        const midDuration = yield* Metric.value(requestDuration);
-        const midCancelled = yield* Metric.value(requestCancelledStatus);
-        const midCancelledCount = midCancelled.occurrences.get("cancelled") ?? 0;
-        const reader = response.body!.getReader();
-        yield* Effect.tryPromise(() => reader.read());
-        yield* Effect.tryPromise(() => reader.cancel("metrics-client-left"));
-        const afterCount = yield* Metric.value(requestCount);
-        const afterDuration = yield* Metric.value(requestDuration);
-        const afterCancelled = yield* Metric.value(requestCancelledStatus);
+          const response = yield* handler(new Request("https://example.com/metrics-cancel"));
+          const midCount = yield* Metric.value(requestCount);
+          const midDuration = yield* Metric.value(requestDuration);
+          const midCancelled = yield* Metric.value(requestCancelledStatus);
+          const midCancelledCount = midCancelled.occurrences.get("cancelled") ?? 0;
+          const reader = response.body!.getReader();
+          yield* Effect.tryPromise(() => reader.read());
+          yield* Effect.tryPromise(() => reader.cancel("metrics-client-left"));
+          const afterCount = yield* Metric.value(requestCount);
+          const afterDuration = yield* Metric.value(requestDuration);
+          const afterCancelled = yield* Metric.value(requestCancelledStatus);
 
-        yield* Effect.sync(() => {
-          expect(midCount.count).toBe(beforeCount.count);
-          expect(midDuration.count).toBe(beforeDuration.count);
-          expect(midCancelledCount).toBe(beforeCancelledCount);
-          expect(afterCount.count).toBe(beforeCount.count + 1);
-          expect(afterDuration.count).toBe(beforeDuration.count + 1);
-          expect(afterCancelled.occurrences.get("cancelled")).toBe(beforeCancelledCount + 1);
-        });
-      }),
+          yield* Effect.sync(() => {
+            expect(midCount.count).toBe(beforeCount.count);
+            expect(midDuration.count).toBe(beforeDuration.count);
+            expect(midCancelledCount).toBe(beforeCancelledCount);
+            expect(afterCount.count).toBe(beforeCount.count + 1);
+            expect(afterDuration.count).toBe(beforeDuration.count + 1);
+            expect(afterCancelled.occurrences.get("cancelled")).toBe(beforeCancelledCount + 1);
+          });
+        }),
+      ),
     );
   });
 
@@ -2044,17 +2087,20 @@ describe("Sunfall Arc Start", () => {
         Effect.sync(() => {
           traces.push(trace);
         }),
-      render: () => Effect.fail("render-failed"),
+      // Deliberately fails with a typed error the render contract does not admit, to test failure handling.
+      render: () => Effect.fail("render-failed") as Effect.Effect<never>,
     });
 
     await expect(
       Effect.runPromise(
-        handler(
-          new Request("https://example.com/", {
-            headers: {
-              "x-sunfall-arc-request-id": "req-failure",
-            },
-          }),
+        Effect.scoped(
+          handler(
+            new Request("https://example.com/", {
+              headers: {
+                "x-sunfall-arc-request-id": "req-failure",
+              },
+            }),
+          ),
         ),
       ),
     ).rejects.toMatchObject({
@@ -2104,23 +2150,26 @@ describe("Sunfall Arc Start", () => {
         Effect.sync(() => {
           traces.push(trace);
         }),
+      // Deliberately fails with a typed error the render contract does not admit, to test failure handling.
       render: ({ runtime }) =>
         Effect.gen(function* () {
           runtime.resourceStore.moduleRegistry.register(Symbol("cleanup-failure"), {
             disposeEffect: Effect.fail("cleanup-failed"),
           });
           return yield* Effect.fail("render-failed");
-        }),
+        }) as Effect.Effect<never>,
     });
 
     await expect(
       Effect.runPromise(
-        handler(
-          new Request("https://example.com/", {
-            headers: {
-              "x-sunfall-arc-request-id": "req-cleanup-failure",
-            },
-          }),
+        Effect.scoped(
+          handler(
+            new Request("https://example.com/", {
+              headers: {
+                "x-sunfall-arc-request-id": "req-cleanup-failure",
+              },
+            }),
+          ),
         ),
       ),
     ).rejects.toMatchObject({
@@ -2161,12 +2210,14 @@ describe("Sunfall Arc Start", () => {
     });
 
     const exit = await Effect.runPromiseExit(
-      handler(
-        new Request("https://example.com/", {
-          headers: {
-            "x-sunfall-arc-request-id": "req-interrupted",
-          },
-        }),
+      Effect.scoped(
+        handler(
+          new Request("https://example.com/", {
+            headers: {
+              "x-sunfall-arc-request-id": "req-interrupted",
+            },
+          }),
+        ),
       ),
     );
 
@@ -2294,7 +2345,7 @@ describe("Sunfall Arc Start", () => {
     const handler = createRequestHandler(app);
 
     await expect(
-      Effect.runPromise(handler(new Request("https://example.com/"))),
+      Effect.runPromise(Effect.scoped(handler(new Request("https://example.com/")))),
     ).resolves.toBeInstanceOf(Response);
   });
 
@@ -2312,7 +2363,7 @@ describe("Sunfall Arc Start", () => {
     });
 
     const failure = await Effect.runPromise(
-      Effect.flip(handler(new Request("https://example.com/"))),
+      Effect.scoped(Effect.flip(handler(new Request("https://example.com/")))),
     );
 
     expect(failure).toMatchObject({
@@ -2332,21 +2383,25 @@ describe("Sunfall Arc Start", () => {
     });
     const handler = createRequestHandler(app, {
       render: () =>
-        ResponseContext.use((response) =>
-          Effect.gen(function* () {
-            yield* response.setStatus(202);
-            yield* response.setHeader("x-sunfall-arc-render-context", "yes");
-            yield* response.setCookie("theme", "dark", {
-              path: "/",
-              secure: true,
-              sameSite: "None",
-            });
-            return "<html><body>context</body></html>";
-          }),
+        Effect.orDie(
+          ResponseContext.use((response) =>
+            Effect.gen(function* () {
+              yield* response.setStatus(202);
+              yield* response.setHeader("x-sunfall-arc-render-context", "yes");
+              yield* response.setCookie("theme", "dark", {
+                path: "/",
+                secure: true,
+                sameSite: "None",
+              });
+              return "<html><body>context</body></html>";
+            }),
+          ),
         ),
     });
 
-    const response = await Effect.runPromise(handler(new Request("https://example.com/")));
+    const response = await Effect.runPromise(
+      Effect.scoped(handler(new Request("https://example.com/"))),
+    );
 
     expect(response.status).toBe(202);
     expect(response.headers.get("x-sunfall-arc-render-context")).toBe("yes");
@@ -2368,16 +2423,18 @@ describe("Sunfall Arc Start", () => {
           traces.push(trace);
         }),
       render: () =>
-        ResponseContext.use((response) =>
-          Effect.gen(function* () {
-            yield* response.setStatus(99);
-            return "<html><body>invalid status</body></html>";
-          }),
+        Effect.orDie(
+          ResponseContext.use((response) =>
+            Effect.gen(function* () {
+              yield* response.setStatus(99);
+              return "<html><body>invalid status</body></html>";
+            }),
+          ),
         ),
     });
 
     const failure = await Effect.runPromise(
-      Effect.flip(handler(new Request("https://example.com/invalid-status"))),
+      Effect.scoped(Effect.flip(handler(new Request("https://example.com/invalid-status")))),
     );
 
     expect(failure).toMatchObject({
@@ -2410,7 +2467,7 @@ describe("Sunfall Arc Start", () => {
       load: (id) => Effect.succeed({ id, name: `Project ${id}` }),
     });
     const ProjectRoute = route("/projects/:id", {
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)).pipe(Effect.asVoid),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
@@ -2425,7 +2482,7 @@ describe("Sunfall Arc Start", () => {
     });
 
     const response = await Effect.runPromise(
-      handler(new Request("https://example.com/projects/atlas")),
+      Effect.scoped(handler(new Request("https://example.com/projects/atlas"))),
     );
 
     await expect(response.text()).resolves.toContain("Project atlas");
@@ -2440,12 +2497,14 @@ describe("Sunfall Arc Start", () => {
       },
     );
     const echo = Server.implement(Echo, ({ value }) =>
-      ResponseContext.use((response) =>
-        Effect.gen(function* () {
-          yield* response.setHeader("x-sunfall-arc-rpc-context", "yes");
-          yield* response.setCookie("rpc", value, { path: "/rpc" });
-          return { value: value.toUpperCase() };
-        }),
+      Effect.orDie(
+        ResponseContext.use((response) =>
+          Effect.gen(function* () {
+            yield* response.setHeader("x-sunfall-arc-rpc-context", "yes");
+            yield* response.setCookie("rpc", value, { path: "/rpc" });
+            return { value: value.toUpperCase() };
+          }),
+        ),
       ),
     );
     const app = defineApp({
@@ -2453,16 +2512,18 @@ describe("Sunfall Arc Start", () => {
       client: {},
     });
     const response = await Effect.runPromise(
-      createServerRpcResponseEffect(
-        app,
-        new Request(`https://example.com${serverRpcPath}`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            name: echo.name,
-            input: { value: "ada" },
+      Effect.scoped(
+        createServerRpcResponseEffect(
+          app,
+          new Request(`https://example.com${serverRpcPath}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: echo.name,
+              input: { value: "ada" },
+            }),
           }),
-        }),
+        ),
       ),
     );
 
@@ -2492,18 +2553,26 @@ describe("Sunfall Arc Start", () => {
         }),
       ),
     );
-    const SpoofAction = Action.define<{ readonly value: string }, { readonly value: string }>({
+    // `run` writes response headers, so it requires the ResponseContext Start provides.
+    const SpoofAction = Action.define<
+      { readonly value: string },
+      { readonly value: string },
+      never,
+      ResponseContext
+    >({
       name: "Start.action.transport-diagnostics",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
       run: ({ value }) =>
-        ResponseContext.use((response) =>
-          Effect.gen(function* () {
-            yield* response.setHeader(startRequestIdHeader, "spoofed-action");
-            yield* response.setHeader(startTransportKindHeader, "spoofed-action");
-            yield* response.setHeader(startTransportProtocolHeader, "spoofed-action");
-            return { value: value.toUpperCase() };
-          }),
+        Effect.orDie(
+          ResponseContext.use((response) =>
+            Effect.gen(function* () {
+              yield* response.setHeader(startRequestIdHeader, "spoofed-action");
+              yield* response.setHeader(startTransportKindHeader, "spoofed-action");
+              yield* response.setHeader(startTransportProtocolHeader, "spoofed-action");
+              return { value: value.toUpperCase() };
+            }),
+          ),
         ),
     });
     const app = defineApp({
@@ -2512,36 +2581,40 @@ describe("Sunfall Arc Start", () => {
     });
 
     const rpcResponse = await Effect.runPromise(
-      createServerRpcResponseEffect(
-        app,
-        new Request(`https://example.com${serverRpcPath}`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            [startRequestIdHeader]: "req-rpc-authoritative",
-          },
-          body: JSON.stringify({
-            name: spoofRpc.name,
-            input: { value: "ada" },
+      Effect.scoped(
+        createServerRpcResponseEffect(
+          app,
+          new Request(`https://example.com${serverRpcPath}`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              [startRequestIdHeader]: "req-rpc-authoritative",
+            },
+            body: JSON.stringify({
+              name: spoofRpc.name,
+              input: { value: "ada" },
+            }),
           }),
-        }),
+        ),
       ),
     );
     const actionResponse = await Effect.runPromise(
-      createServerActionResponseEffect(
-        app,
-        new Request(`https://example.com${serverActionPath}`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            [startRequestIdHeader]: "req-action-authoritative",
-          },
-          body: JSON.stringify({
-            name: SpoofAction.name,
-            input: { value: "grace" },
+      Effect.scoped(
+        createServerActionResponseEffect(
+          app,
+          new Request(`https://example.com${serverActionPath}`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              [startRequestIdHeader]: "req-action-authoritative",
+            },
+            body: JSON.stringify({
+              name: SpoofAction.name,
+              input: { value: "grace" },
+            }),
           }),
-        }),
-        [SpoofAction],
+          [SpoofAction],
+        ),
       ),
     );
 
@@ -2578,30 +2651,34 @@ describe("Sunfall Arc Start", () => {
       client: {},
     });
     const rpcResponse = await Effect.runPromise(
-      createServerRpcResponseEffect(
-        app,
-        new Request(`https://example.com${serverRpcPath}`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            name: bigRpc.name,
-            input: null,
+      Effect.scoped(
+        createServerRpcResponseEffect(
+          app,
+          new Request(`https://example.com${serverRpcPath}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: bigRpc.name,
+              input: null,
+            }),
           }),
-        }),
+        ),
       ),
     );
     const actionResponse = await Effect.runPromise(
-      createServerActionResponseEffect(
-        app,
-        new Request(`https://example.com${serverActionPath}`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            name: BigAction.name,
-            input: null,
+      Effect.scoped(
+        createServerActionResponseEffect(
+          app,
+          new Request(`https://example.com${serverActionPath}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: BigAction.name,
+              input: null,
+            }),
           }),
-        }),
-        [BigAction],
+          [BigAction],
+        ),
       ),
     );
 
@@ -2646,18 +2723,20 @@ describe("Sunfall Arc Start", () => {
     });
 
     const rpcResponse = await Effect.runPromise(
-      handler(
-        new Request(`https://example.com${serverRpcPath}`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-sunfall-arc-request-id": "req-rpc-trace",
-          },
-          body: JSON.stringify({
-            name: echo.name,
-            input: { value: "ada" },
+      Effect.scoped(
+        handler(
+          new Request(`https://example.com${serverRpcPath}`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-sunfall-arc-request-id": "req-rpc-trace",
+            },
+            body: JSON.stringify({
+              name: echo.name,
+              input: { value: "ada" },
+            }),
           }),
-        }),
+        ),
       ),
     );
     await expect(rpcResponse.json()).resolves.toEqual({
@@ -2667,18 +2746,20 @@ describe("Sunfall Arc Start", () => {
     expect(rpcResponse.headers.get(startRequestIdHeader)).toBe("req-rpc-trace");
 
     const actionResponse = await Effect.runPromise(
-      handler(
-        new Request(`https://example.com${serverActionPath}`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-sunfall-arc-request-id": "req-action-trace",
-          },
-          body: JSON.stringify({
-            name: Ping.name,
-            input: { value: "pong" },
+      Effect.scoped(
+        handler(
+          new Request(`https://example.com${serverActionPath}`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-sunfall-arc-request-id": "req-action-trace",
+            },
+            body: JSON.stringify({
+              name: Ping.name,
+              input: { value: "pong" },
+            }),
           }),
-        }),
+        ),
       ),
     );
     await expect(actionResponse.json()).resolves.toEqual({
@@ -2765,18 +2846,20 @@ describe("Sunfall Arc Start", () => {
     const ref = Project("atlas");
 
     const response = await Effect.runPromise(
-      handler(
-        new Request(`https://example.com${serverActionPath}`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-sunfall-arc-request-id": "req-action-invalidation-trace",
-          },
-          body: JSON.stringify({
-            name: RenameProject.name,
-            input: { id: "atlas", name: "Renamed" },
+      Effect.scoped(
+        handler(
+          new Request(`https://example.com${serverActionPath}`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-sunfall-arc-request-id": "req-action-invalidation-trace",
+            },
+            body: JSON.stringify({
+              name: RenameProject.name,
+              input: { id: "atlas", name: "Renamed" },
+            }),
           }),
-        }),
+        ),
       ),
     );
 
@@ -2836,17 +2919,19 @@ describe("Sunfall Arc Start", () => {
     });
 
     const response = await Effect.runPromise(
-      handler(
-        new Request(`https://example.com${serverRpcPath}`, {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            name: echo.name,
-            input: { value: "ada" },
+      Effect.scoped(
+        handler(
+          new Request(`https://example.com${serverRpcPath}`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+            },
+            body: JSON.stringify({
+              name: echo.name,
+              input: { value: "ada" },
+            }),
           }),
-        }),
+        ),
       ),
     );
     await expect(response.json()).resolves.toEqual({
@@ -2894,7 +2979,7 @@ describe("Sunfall Arc Start", () => {
     const fetcher: StartFetch = (input, init) => {
       const url =
         input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
-      return handler(new Request(url, init));
+      return Effect.orDie(Effect.scoped(handler(new Request(url, init))));
     };
     const rpcRuntime = Layer.succeed(ServerClient)(
       makeRpcClient({
@@ -3017,13 +3102,17 @@ describe("Sunfall Arc Start", () => {
       StartTransportEndpointConflictError,
     );
     const invalidPathHandlerExit = await Effect.runPromiseExit(
-      createRequestHandlerEffect(app, { rpcPath: "/__sunfall-arc/rpc\nx" })(
-        new Request("https://example.com/"),
+      Effect.scoped(
+        createRequestHandlerEffect(app, { rpcPath: "/__sunfall-arc/rpc\nx" })(
+          new Request("https://example.com/"),
+        ),
       ),
     );
     const collidingHandlerExit = await Effect.runPromiseExit(
-      createRequestHandlerEffect(app, { rpcPath: "/same", actionPath: "/same" })(
-        new Request("https://example.com/"),
+      Effect.scoped(
+        createRequestHandlerEffect(app, { rpcPath: "/same", actionPath: "/same" })(
+          new Request("https://example.com/"),
+        ),
       ),
     );
     const invalidPathHandlerFailure = Exit.isFailure(invalidPathHandlerExit)
@@ -3124,7 +3213,10 @@ describe("Sunfall Arc Start", () => {
         error: Schema.String,
       },
     );
-    const failsDomain = Server.implement(FailsDomain, () => Effect.fail("domain-failed"));
+    const failsDomain = Server.implement(
+      FailsDomain,
+      (): Effect.Effect<string, string> => Effect.fail("domain-failed"),
+    );
     const ActionFailsDomain = Action.define<{ readonly value: string }, string, string>({
       name: "Start.trace.action.failure.domain",
       input: Schema.Struct({ value: Schema.String }),
@@ -3164,11 +3256,13 @@ describe("Sunfall Arc Start", () => {
       });
 
     const rpcDomain = await Effect.runPromise(
-      handler(
-        rpcRequest("req-rpc-domain-failure", {
-          name: failsDomain.name,
-          input: { value: "ada" },
-        }),
+      Effect.scoped(
+        handler(
+          rpcRequest("req-rpc-domain-failure", {
+            name: failsDomain.name,
+            input: { value: "ada" },
+          }),
+        ),
       ),
     );
     await expect(rpcDomain.json()).resolves.toEqual({
@@ -3177,46 +3271,54 @@ describe("Sunfall Arc Start", () => {
     });
 
     const rpcValidation = await Effect.runPromise(
-      handler(
-        rpcRequest("req-rpc-validation-failure", {
-          name: failsDomain.name,
-          input: { value: 1 },
-        }),
+      Effect.scoped(
+        handler(
+          rpcRequest("req-rpc-validation-failure", {
+            name: failsDomain.name,
+            input: { value: 1 },
+          }),
+        ),
       ),
     );
     expect(rpcValidation.status).toBe(400);
     await rpcValidation.text();
 
     const rpcProtocol = await Effect.runPromise(
-      handler(
-        rpcRequest("req-rpc-protocol-failure", {
-          name: "Start.trace.missing",
-          input: {},
-        }),
+      Effect.scoped(
+        handler(
+          rpcRequest("req-rpc-protocol-failure", {
+            name: "Start.trace.missing",
+            input: {},
+          }),
+        ),
       ),
     );
     expect(rpcProtocol.status).toBe(404);
     await rpcProtocol.text();
 
     const rpcTransport = await Effect.runPromise(
-      handler(
-        new Request(`https://example.com${serverRpcPath}`, {
-          method: "GET",
-          headers: {
-            "x-sunfall-arc-request-id": "req-rpc-transport-failure",
-          },
-        }),
+      Effect.scoped(
+        handler(
+          new Request(`https://example.com${serverRpcPath}`, {
+            method: "GET",
+            headers: {
+              "x-sunfall-arc-request-id": "req-rpc-transport-failure",
+            },
+          }),
+        ),
       ),
     );
     expect(rpcTransport.status).toBe(405);
     await rpcTransport.text();
 
     const actionDomain = await Effect.runPromise(
-      handler(
-        actionRequest("req-action-domain-failure", {
-          name: ActionFailsDomain.name,
-          input: { value: "ada" },
-        }),
+      Effect.scoped(
+        handler(
+          actionRequest("req-action-domain-failure", {
+            name: ActionFailsDomain.name,
+            input: { value: "ada" },
+          }),
+        ),
       ),
     );
     await expect(actionDomain.json()).resolves.toEqual({
@@ -3225,11 +3327,13 @@ describe("Sunfall Arc Start", () => {
     });
 
     const actionValidation = await Effect.runPromise(
-      handler(
-        actionRequest("req-action-validation-failure", {
-          name: ActionFailsDomain.name,
-          input: { value: 1 },
-        }),
+      Effect.scoped(
+        handler(
+          actionRequest("req-action-validation-failure", {
+            name: ActionFailsDomain.name,
+            input: { value: 1 },
+          }),
+        ),
       ),
     );
     expect(actionValidation.status).toBe(400);
@@ -3339,7 +3443,7 @@ describe("Sunfall Arc Start", () => {
       output: Schema.Struct({ ok: Schema.Boolean }),
       run: ({ id }) =>
         Effect.gen(function* () {
-          yield* Resource.prefetchEffect(Project(id));
+          yield* Effect.orDie(Resource.prefetchEffect(Project(id)));
           return { ok: true };
         }),
       invalidates: (_result, input) => [Project(input.id)],
@@ -3366,7 +3470,9 @@ describe("Sunfall Arc Start", () => {
       });
 
     const outputResponse = await Effect.runPromise(
-      handler(actionRequest("req-action-output-defect", BadOutput.name, { value: "ok" })),
+      Effect.scoped(
+        handler(actionRequest("req-action-output-defect", BadOutput.name, { value: "ok" })),
+      ),
     );
     expect(outputResponse.status).toBe(500);
     await expect(outputResponse.json()).resolves.toMatchObject({
@@ -3374,7 +3480,9 @@ describe("Sunfall Arc Start", () => {
     });
 
     const metaResponse = await Effect.runPromise(
-      handler(actionRequest("req-action-meta-defect", BadMeta.name, { id: "atlas" })),
+      Effect.scoped(
+        handler(actionRequest("req-action-meta-defect", BadMeta.name, { id: "atlas" })),
+      ),
     );
     expect(metaResponse.status).toBe(500);
     await expect(metaResponse.json()).resolves.toMatchObject({
@@ -3424,7 +3532,8 @@ describe("Sunfall Arc Start", () => {
       client: {},
     });
     const handler = createRequestHandler(app);
-    const fetcher: StartFetch = (input, init) => handler(new Request(input, init));
+    const fetcher: StartFetch = (input, init) =>
+      Effect.orDie(Effect.scoped(handler(new Request(input, init))));
     const runtime = Layer.succeed(ServerClient)(
       makeRpcClient({
         endpoint: `https://example.com${serverRpcPath}`,
@@ -3451,15 +3560,18 @@ describe("Sunfall Arc Start", () => {
       error: ExampleError,
     });
     const fail = Server.client(Fail);
-    Server.implement(Fail, () =>
-      Effect.fail({ _tag: "ExampleError" as const, message: "not today" }),
+    Server.implement(
+      Fail,
+      (): Effect.Effect<string, ExampleErrorType> =>
+        Effect.fail({ _tag: "ExampleError", message: "not today" }),
     );
     const app = defineApp({
       routes: [route("/", {})] as const,
       client: {},
     });
     const handler = createRequestHandler(app);
-    const fetcher: StartFetch = (input, init) => handler(new Request(input, init));
+    const fetcher: StartFetch = (input, init) =>
+      Effect.orDie(Effect.scoped(handler(new Request(input, init))));
     const runtime = Layer.succeed(ServerClient)(
       makeRpcClient({
         endpoint: `https://example.com${serverRpcPath}`,
@@ -3547,17 +3659,19 @@ describe("Sunfall Arc Start", () => {
     });
 
     const validation = await Effect.runPromise(
-      createServerActionResponseEffect(
-        app,
-        new Request(`https://example.com${serverActionPath}`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            name: SubmitName.name,
-            input: { name: "Al" },
+      Effect.scoped(
+        createServerActionResponseEffect(
+          app,
+          new Request(`https://example.com${serverActionPath}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: SubmitName.name,
+              input: { name: "Al" },
+            }),
           }),
-        }),
-        [SubmitName],
+          [SubmitName],
+        ),
       ),
     );
     const form = startActionForm(SubmitName, {
@@ -3570,12 +3684,14 @@ describe("Sunfall Arc Start", () => {
     );
     formBody.set("name", "Atlas Forms");
     const redirect = await Effect.runPromise(
-      handler(
-        new Request(`https://example.com${form.action}`, {
-          method: form.method.toUpperCase(),
-          headers: { "content-type": "application/x-www-form-urlencoded" },
-          body: formBody,
-        }),
+      Effect.scoped(
+        handler(
+          new Request(`https://example.com${form.action}`, {
+            method: form.method.toUpperCase(),
+            headers: { "content-type": "application/x-www-form-urlencoded" },
+            body: formBody,
+          }),
+        ),
       ),
     );
 
@@ -3707,15 +3823,17 @@ describe("Sunfall Arc Start", () => {
       form.hiddenFields.map((field) => [field.name, field.value]),
     );
     const response = await Effect.runPromise(
-      createRequestHandler(app, { actions: [Submit] })(
-        new Request(`https://example.com${form.action}`, {
-          method: form.method.toUpperCase(),
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            accept: "application/json",
-          },
-          body: formBody,
-        }),
+      Effect.scoped(
+        createRequestHandler(app, { actions: [Submit] })(
+          new Request(`https://example.com${form.action}`, {
+            method: form.method.toUpperCase(),
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+              accept: "application/json",
+            },
+            body: formBody,
+          }),
+        ),
       ),
     );
 
@@ -3766,15 +3884,17 @@ describe("Sunfall Arc Start", () => {
       form.hiddenFields.map((field) => [field.name, field.value]),
     );
     const response = await Effect.runPromise(
-      createRequestHandler(app, { actions: [Submit] })(
-        new Request(`https://example.com${form.action}`, {
-          method: form.method.toUpperCase(),
-          headers: {
-            "content-type": "application/x-www-form-urlencoded",
-            accept: "text/html, application/json;q=0.1",
-          },
-          body: formBody,
-        }),
+      Effect.scoped(
+        createRequestHandler(app, { actions: [Submit] })(
+          new Request(`https://example.com${form.action}`, {
+            method: form.method.toUpperCase(),
+            headers: {
+              "content-type": "application/x-www-form-urlencoded",
+              accept: "text/html, application/json;q=0.1",
+            },
+            body: formBody,
+          }),
+        ),
       ),
     );
 
@@ -3794,15 +3914,17 @@ describe("Sunfall Arc Start", () => {
       client: {},
     });
     const response = await Effect.runPromise(
-      createRequestHandler(app)(
-        new Request(`https://example.com${serverActionPath}`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            name: Ping.name,
-            input: { value: "registry" },
+      Effect.scoped(
+        createRequestHandler(app)(
+          new Request(`https://example.com${serverActionPath}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: Ping.name,
+              input: { value: "registry" },
+            }),
           }),
-        }),
+        ),
       ),
     );
 
@@ -3829,15 +3951,17 @@ describe("Sunfall Arc Start", () => {
     });
     const submit = (value: string) =>
       Effect.runPromise(
-        handler(
-          new Request(`https://example.com${serverActionPath}`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              name: Ping.name,
-              input: { value },
+        Effect.scoped(
+          handler(
+            new Request(`https://example.com${serverActionPath}`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                name: Ping.name,
+                input: { value },
+              }),
             }),
-          }),
+          ),
         ),
       );
 
@@ -3903,42 +4027,44 @@ describe("Sunfall Arc Start", () => {
     });
 
     return Effect.runPromise(
-      Effect.gen(function* () {
-        Server.clearRegistryUnsafe();
-        Action.clearRegistryUnsafe();
-        const handler = createRequestHandler(app);
-        const rpc = yield* handler(
-          new Request(`https://example.com${serverRpcPath}`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              name: echo.name,
-              input: { value: "snapshot" },
+      Effect.scoped(
+        Effect.gen(function* () {
+          Server.clearRegistryUnsafe();
+          Action.clearRegistryUnsafe();
+          const handler = createRequestHandler(app);
+          const rpc = yield* handler(
+            new Request(`https://example.com${serverRpcPath}`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                name: echo.name,
+                input: { value: "snapshot" },
+              }),
             }),
-          }),
-        );
-        const action = yield* handler(
-          new Request(`https://example.com${serverActionPath}`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              name: Ping.name,
-              input: { value: "snapshot" },
+          );
+          const action = yield* handler(
+            new Request(`https://example.com${serverActionPath}`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                name: Ping.name,
+                input: { value: "snapshot" },
+              }),
             }),
-          }),
-        );
+          );
 
-        const rpcBody = yield* Effect.tryPromise(() => rpc.json());
-        const actionBody = yield* Effect.tryPromise(() => action.json());
-        expect(rpcBody).toEqual({
-          _tag: "Success",
-          value: { value: "SNAPSHOT" },
-        });
-        expect(actionBody).toEqual({
-          _tag: "Success",
-          value: { value: "SNAPSHOT" },
-        });
-      }),
+          const rpcBody = yield* Effect.tryPromise(() => rpc.json());
+          const actionBody = yield* Effect.tryPromise(() => action.json());
+          expect(rpcBody).toEqual({
+            _tag: "Success",
+            value: { value: "SNAPSHOT" },
+          });
+          expect(actionBody).toEqual({
+            _tag: "Success",
+            value: { value: "SNAPSHOT" },
+          });
+        }),
+      ),
     );
   });
 
@@ -3977,40 +4103,42 @@ describe("Sunfall Arc Start", () => {
     });
 
     return Effect.runPromise(
-      Effect.gen(function* () {
-        const handler = createRequestHandler(app);
-        const rpc = yield* handler(
-          new Request(`https://example.com${serverRpcPath}`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              name: localEcho.name,
-              input: { value: "registry" },
+      Effect.scoped(
+        Effect.gen(function* () {
+          const handler = createRequestHandler(app);
+          const rpc = yield* handler(
+            new Request(`https://example.com${serverRpcPath}`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                name: localEcho.name,
+                input: { value: "registry" },
+              }),
             }),
-          }),
-        );
-        const action = yield* handler(
-          new Request(`https://example.com${serverActionPath}`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              name: LocalPing.name,
-              input: { value: "registry" },
+          );
+          const action = yield* handler(
+            new Request(`https://example.com${serverActionPath}`, {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                name: LocalPing.name,
+                input: { value: "registry" },
+              }),
             }),
-          }),
-        );
+          );
 
-        const rpcBody = yield* Effect.tryPromise(() => rpc.json());
-        const actionBody = yield* Effect.tryPromise(() => action.json());
-        expect(rpcBody).toEqual({
-          _tag: "Success",
-          value: { value: "local:registry" },
-        });
-        expect(actionBody).toEqual({
-          _tag: "Success",
-          value: { value: "local:registry" },
-        });
-      }),
+          const rpcBody = yield* Effect.tryPromise(() => rpc.json());
+          const actionBody = yield* Effect.tryPromise(() => action.json());
+          expect(rpcBody).toEqual({
+            _tag: "Success",
+            value: { value: "local:registry" },
+          });
+          expect(actionBody).toEqual({
+            _tag: "Success",
+            value: { value: "local:registry" },
+          });
+        }),
+      ),
     );
   });
 
@@ -4055,7 +4183,7 @@ describe("Sunfall Arc Start", () => {
     const fetcher: StartFetch = (input, init) => {
       const url =
         input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
-      return handler(new Request(url, init));
+      return Effect.orDie(Effect.scoped(handler(new Request(url, init))));
     };
 
     try {
@@ -4332,7 +4460,7 @@ describe("Sunfall Arc Start", () => {
     const fetcher: StartFetch = (input, init) => {
       const url =
         input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
-      return handler(new Request(url, init));
+      return Effect.orDie(Effect.scoped(handler(new Request(url, init))));
     };
     const action = StartAction.use(RenameProject, { fetch: fetcher });
 
@@ -4910,7 +5038,7 @@ describe("Sunfall Arc Start", () => {
             { value: "submit" },
             {
               fetch: fetcher,
-              responseRuntime: appRuntime,
+              responseRuntime: eraseRuntime(appRuntime),
               transportRuntime,
             },
           ),
@@ -5096,7 +5224,7 @@ describe("Sunfall Arc Start", () => {
     const fetcher: StartFetch = (input, init) => {
       const url =
         input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
-      return handler(new Request(url, init));
+      return Effect.orDie(Effect.scoped(handler(new Request(url, init))));
     };
 
     try {
@@ -5179,21 +5307,27 @@ describe("Sunfall Arc Start", () => {
     const clientRuntime = makeRuntime();
     const ref = Project("atlas");
     const fetcher: StartFetch = (input, init) =>
-      Effect.gen(function* () {
-        const url =
-          input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
-        const response = yield* handler(new Request(url, init));
-        const body = yield* Effect.tryPromise(
-          () => response.json() as Promise<Record<string, unknown>>,
-        );
-        delete body.hydration;
-        return new Response(JSON.stringify(body), {
-          status: response.status,
-          headers: {
-            "content-type": response.headers.get("content-type") ?? "application/json",
-          },
-        });
-      });
+      Effect.orDie(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const url =
+              input instanceof Request
+                ? input.url
+                : new URL(String(input), "https://example.com").href;
+            const response = yield* handler(new Request(url, init));
+            const body = yield* Effect.tryPromise(
+              () => response.json() as Promise<Record<string, unknown>>,
+            );
+            delete body.hydration;
+            return new Response(JSON.stringify(body), {
+              status: response.status,
+              headers: {
+                "content-type": response.headers.get("content-type") ?? "application/json",
+              },
+            });
+          }),
+        ),
+      );
 
     try {
       await runInRuntime(clientRuntime, Resource.prefetchEffect(ref));
@@ -5254,7 +5388,7 @@ describe("Sunfall Arc Start", () => {
     const fetcher: StartFetch = (input, init) => {
       const url =
         input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
-      return handler(new Request(url, init));
+      return Effect.orDie(Effect.scoped(handler(new Request(url, init))));
     };
     const action = StartAction.use(Ping, { fetch: fetcher, runtime });
 
@@ -5660,6 +5794,7 @@ describe("Sunfall Arc Start", () => {
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
+    if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
     expect(firstFailure(exit.cause)).toBeInstanceOf(CollectionSnapshotCodecError);
   });
 
@@ -5684,6 +5819,7 @@ describe("Sunfall Arc Start", () => {
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
+    if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
     expect(firstFailure(exit.cause)).toMatchObject({
       _tag: "CollectionSnapshotCodecError",
       operation: "hydrate",
@@ -5722,6 +5858,7 @@ describe("Sunfall Arc Start", () => {
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
+    if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
     expect(firstFailure(exit.cause)).toMatchObject({
       _tag: "CollectionSnapshotCodecError",
       operation: "hydrate",
@@ -5775,6 +5912,7 @@ describe("Sunfall Arc Start", () => {
       );
 
       expect(Exit.isFailure(exit)).toBe(true);
+      if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
       expect(firstFailure(exit.cause)).toBeInstanceOf(CollectionSnapshotCodecError);
       expect(runWithRuntime(runtime, () => Resource.status(ref).result._tag)).toBe("Initial");
     } finally {
@@ -5794,6 +5932,7 @@ describe("Sunfall Arc Start", () => {
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
+    if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
     expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationPayloadParseError);
   });
 
@@ -5811,6 +5950,7 @@ describe("Sunfall Arc Start", () => {
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
+    if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
     expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationPayloadParseError);
   });
 
@@ -5826,6 +5966,7 @@ describe("Sunfall Arc Start", () => {
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
+    if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
     expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationPayloadParseError);
   });
 
@@ -5893,6 +6034,7 @@ describe("Sunfall Arc Start", () => {
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
+    if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
     expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationChunkParseError);
   });
 
@@ -5916,6 +6058,7 @@ describe("Sunfall Arc Start", () => {
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
+    if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
     expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationChunkParseError);
   });
 
@@ -5934,6 +6077,7 @@ describe("Sunfall Arc Start", () => {
     );
 
     expect(Exit.isFailure(exit)).toBe(true);
+    if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
     expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationChunkParseError);
   });
 
@@ -6605,7 +6749,8 @@ describe("Sunfall Arc Start", () => {
     const exit = await Effect.runPromiseExit(
       makeStartActionManifestEffect({
         serverEntry: "/src/project.actions.ts",
-        actions: [RenameProject],
+        // Deliberately invalid: direct action references are rejected at runtime.
+        actions: [RenameProject as never],
       }),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
@@ -8125,8 +8270,12 @@ describe("Sunfall Arc Start", () => {
     const helpStderr: string[] = [];
     const helpResult = await Effect.runPromise(
       runStartDiagnosticsCliEffect(["--help"], {
-        stdout: (text) => helpStdout.push(text),
-        stderr: (text) => helpStderr.push(text),
+        stdout: (text) => {
+          helpStdout.push(text);
+        },
+        stderr: (text) => {
+          helpStderr.push(text);
+        },
         loadDiagnosticsEffect: () => Effect.die("unreachable"),
       }),
     );
@@ -8139,8 +8288,12 @@ describe("Sunfall Arc Start", () => {
     const graphHelpStderr: string[] = [];
     const graphHelpResult = await Effect.runPromise(
       runStartDiagnosticsCliEffect(["graph", "--help"], {
-        stdout: (text) => graphHelpStdout.push(text),
-        stderr: (text) => graphHelpStderr.push(text),
+        stdout: (text) => {
+          graphHelpStdout.push(text);
+        },
+        stderr: (text) => {
+          graphHelpStderr.push(text);
+        },
         loadDiagnosticsEffect: () => Effect.die("unreachable"),
       }),
     );
@@ -8155,8 +8308,12 @@ describe("Sunfall Arc Start", () => {
     const impactHelpStderr: string[] = [];
     const impactHelpResult = await Effect.runPromise(
       runStartDiagnosticsCliEffect(["impact", "--help"], {
-        stdout: (text) => impactHelpStdout.push(text),
-        stderr: (text) => impactHelpStderr.push(text),
+        stdout: (text) => {
+          impactHelpStdout.push(text);
+        },
+        stderr: (text) => {
+          impactHelpStderr.push(text);
+        },
         loadDiagnosticsEffect: () => Effect.die("unreachable"),
       }),
     );
@@ -8171,8 +8328,12 @@ describe("Sunfall Arc Start", () => {
     const versionStderr: string[] = [];
     const versionResult = await Effect.runPromise(
       runStartDiagnosticsCliEffect(["--version"], {
-        stdout: (text) => versionStdout.push(text),
-        stderr: (text) => versionStderr.push(text),
+        stdout: (text) => {
+          versionStdout.push(text);
+        },
+        stderr: (text) => {
+          versionStderr.push(text);
+        },
         loadDiagnosticsEffect: () => Effect.die("unreachable"),
       }),
     );
@@ -8184,8 +8345,12 @@ describe("Sunfall Arc Start", () => {
     const stderr: string[] = [];
     const result = await Effect.runPromise(
       runStartDiagnosticsCliEffect(["diagnostics", "--json"], {
-        stdout: (text) => stdout.push(text),
-        stderr: (text) => stderr.push(text),
+        stdout: (text) => {
+          stdout.push(text);
+        },
+        stderr: (text) => {
+          stderr.push(text);
+        },
         loadDiagnosticsEffect: () =>
           Effect.succeed({
             graph: {
@@ -8239,8 +8404,12 @@ describe("Sunfall Arc Start", () => {
     const stderr: string[] = [];
     const result = await Effect.runPromise(
       runStartDiagnosticsCliEffect(["graph", "route", "/projects/:id"], {
-        stdout: (text) => stdout.push(text),
-        stderr: (text) => stderr.push(text),
+        stdout: (text) => {
+          stdout.push(text);
+        },
+        stderr: (text) => {
+          stderr.push(text);
+        },
         loadDiagnosticsEffect: () =>
           Effect.succeed({
             graph: {
@@ -8361,17 +8530,21 @@ describe("Sunfall Arc Start", () => {
                 module: "/src/project/project.server.ts",
                 exportName: "loadProject",
                 moduleKind: "server-only" as const,
+                hasHandler: true,
               },
               client: {
                 _tag: "Import" as const,
+                rpcPath: "/__sunfall-arc/rpc",
                 module: "/src/project/project.contract.ts",
                 exportName: "loadProject",
+                moduleKind: "contract" as const,
               },
               wire: {
                 inputSchema: true,
                 outputSchema: true,
                 errorSchema: false,
                 complete: false,
+                missing: ["error" as const],
               },
             },
           ],
@@ -8386,19 +8559,22 @@ describe("Sunfall Arc Start", () => {
               },
               client: {
                 _tag: "Import" as const,
+                actionPath: "/__sunfall-arc/action",
                 module: "/src/project/project.actions.ts",
                 exportName: "RenameProject",
+                moduleKind: "shared" as const,
               },
               wire: {
                 inputSchema: true,
                 outputSchema: true,
                 errorSchema: true,
                 complete: true,
+                missing: [],
               },
               behavior: {
-                invalidates: true,
-                optimistic: false,
-                retry: true,
+                invalidates: "present" as const,
+                optimistic: "absent" as const,
+                retry: "present" as const,
                 concurrency: "latest" as const,
               },
             },
@@ -8483,8 +8659,12 @@ describe("Sunfall Arc Start", () => {
         runStartDiagnosticsCliEffect(
           ["graph", kind, startAgentGraphCliQueryTextByKind[kind], "--json"],
           {
-            stdout: (text) => graphStdout.push(text),
-            stderr: (text) => graphStderr.push(text),
+            stdout: (text) => {
+              graphStdout.push(text);
+            },
+            stderr: (text) => {
+              graphStderr.push(text);
+            },
             loadDiagnosticsEffect,
           },
         ),
@@ -8520,8 +8700,12 @@ describe("Sunfall Arc Start", () => {
             "--json",
           ],
           {
-            stdout: (text) => impactStdout.push(text),
-            stderr: (text) => impactStderr.push(text),
+            stdout: (text) => {
+              impactStdout.push(text);
+            },
+            stderr: (text) => {
+              impactStderr.push(text);
+            },
             loadDiagnosticsEffect,
           },
         ),
@@ -8566,8 +8750,12 @@ describe("Sunfall Arc Start", () => {
           "--json",
         ],
         {
-          stdout: (text) => stdout.push(text),
-          stderr: (text) => stderr.push(text),
+          stdout: (text) => {
+            stdout.push(text);
+          },
+          stderr: (text) => {
+            stderr.push(text);
+          },
           loadDiagnosticsEffect: (options) => {
             loadOptions.push(options);
             return Effect.succeed({
@@ -8737,8 +8925,12 @@ describe("Sunfall Arc Start", () => {
       runStartDiagnosticsCliEffect(
         ["impact", "route", "/projects/:id", "--root", "examples/project-console"],
         {
-          stdout: (text) => stdout.push(text),
-          stderr: (text) => stderr.push(text),
+          stdout: (text) => {
+            stdout.push(text);
+          },
+          stderr: (text) => {
+            stderr.push(text);
+          },
           loadDiagnosticsEffect: () =>
             Effect.succeed({
               graph: {
@@ -8819,7 +9011,9 @@ describe("Sunfall Arc Start", () => {
     const result = await Effect.runPromise(
       runStartDiagnosticsCliEffect(["unknown"], {
         stdout: () => undefined,
-        stderr: (text) => stderr.push(text),
+        stderr: (text) => {
+          stderr.push(text);
+        },
         loadDiagnosticsEffect: () => Effect.die("unreachable"),
       }),
     );
@@ -8831,7 +9025,9 @@ describe("Sunfall Arc Start", () => {
     const extraGraphResult = await Effect.runPromise(
       runStartDiagnosticsCliEffect(["graph", "route", "/projects/:id", "extra"], {
         stdout: () => undefined,
-        stderr: (text) => extraGraphStderr.push(text),
+        stderr: (text) => {
+          extraGraphStderr.push(text);
+        },
         loadDiagnosticsEffect: () => Effect.die("unreachable"),
       }),
     );
@@ -8842,7 +9038,9 @@ describe("Sunfall Arc Start", () => {
     const missingImpactResult = await Effect.runPromise(
       runStartDiagnosticsCliEffect(["impact", "route"], {
         stdout: () => undefined,
-        stderr: (text) => missingImpactStderr.push(text),
+        stderr: (text) => {
+          missingImpactStderr.push(text);
+        },
         loadDiagnosticsEffect: () => Effect.die("unreachable"),
       }),
     );
@@ -8903,8 +9101,12 @@ describe("Sunfall Arc Start", () => {
       const stderr: string[] = [];
       const result = await Effect.runPromise(
         runStartDiagnosticsCliEffect(["diagnostics"], {
-          stdout: (text) => stdout.push(text),
-          stderr: (text) => stderr.push(text),
+          stdout: (text) => {
+            stdout.push(text);
+          },
+          stderr: (text) => {
+            stderr.push(text);
+          },
           loadDiagnosticsEffect: testCase.loadDiagnosticsEffect as never,
         }),
       );
@@ -9078,7 +9280,9 @@ describe("Sunfall Arc Start", () => {
     const stdout: string[] = [];
     const result = await Effect.runPromise(
       runStartDiagnosticsCli(["diagnostics"], {
-        stdout: (text) => stdout.push(text),
+        stdout: (text) => {
+          stdout.push(text);
+        },
         stderr: () => undefined,
         loadDiagnosticsEffect: () => Effect.succeed(loadedDiagnostics),
       }),
@@ -9111,8 +9315,8 @@ describe("Sunfall Arc Start", () => {
         families: [],
       },
     };
-    const failure = Object.assign(new Error("Routes with preload must declare preloadResources."), {
-      name: "StartAppGraphDiagnosticsPolicyError",
+    const failure = new StartAppGraphDiagnosticsPolicyException({
+      message: "Routes with preload must declare preloadResources.",
       violations: [
         {
           _tag: "UnknownRoutePreloadResources",
@@ -9171,7 +9375,9 @@ describe("Sunfall Arc Start", () => {
     const result = await Effect.runPromise(
       runStartDiagnosticsCli(["diagnostics"], {
         stdout: () => undefined,
-        stderr: (text) => stderr.push(text),
+        stderr: (text) => {
+          stderr.push(text);
+        },
         loadDiagnosticsEffect: () => Effect.fail(failure),
       }),
     );
@@ -9865,7 +10071,8 @@ describe("Sunfall Arc Start", () => {
     const server = {
       ssrLoadModule: (_id: string) =>
         Effect.succeed({
-          default: () => Effect.runPromise(Effect.succeed(new Response("promise"))),
+          // Deliberately Promise-shaped handler: the EffectInput seam must reject it at runtime.
+          default: (() => Effect.runPromise(Effect.succeed(new Response("promise")))) as never,
         }),
       transformIndexHtml: (_url: string, html: string) => Effect.succeed(html),
     };
@@ -10015,7 +10222,7 @@ describe("Sunfall Arc Start", () => {
             }),
           transformIndexHtml: (_url, html) => Effect.succeed(html),
         },
-        {
+        Object.assign(new IncomingMessage(new Socket()), {
           headers: {
             host: "internal.local",
             "x-forwarded-proto": "https",
@@ -10023,7 +10230,7 @@ describe("Sunfall Arc Start", () => {
           },
           method: "GET",
           url: "/settings",
-        } as IncomingMessage,
+        }),
         response,
         (error) => {
           nextErrors.push(error);

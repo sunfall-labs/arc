@@ -54,7 +54,9 @@ describe("Collection.persistedOptions", () => {
             runWithRuntime(second, () => Projects.rows().map((project) => project.id)),
           ).toEqual(["atlas"]);
         });
-      }).pipe(Effect.ensuring(Effect.andThen(first.disposeEffect, second.disposeEffect))),
+      }).pipe(
+        Effect.ensuring(Effect.orDie(Effect.andThen(first.disposeEffect, second.disposeEffect))),
+      ),
     );
   });
 
@@ -100,7 +102,9 @@ describe("Collection.persistedOptions", () => {
           ) as CollectionSnapshot<Project>;
           expect(persisted.rows.map((row) => row.key)).toEqual(["lumen"]);
         });
-      }).pipe(Effect.ensuring(Effect.andThen(first.disposeEffect, second.disposeEffect))),
+      }).pipe(
+        Effect.ensuring(Effect.orDie(Effect.andThen(first.disposeEffect, second.disposeEffect))),
+      ),
     );
   });
 
@@ -169,7 +173,7 @@ describe("Collection.persistedOptions", () => {
         Effect.ensuring(
           Deferred.succeed(release, undefined).pipe(
             Effect.ignore,
-            Effect.andThen(runtime.disposeEffect),
+            Effect.andThen(Effect.orDie(runtime.disposeEffect)),
           ),
         ),
       ),

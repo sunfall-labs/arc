@@ -3,25 +3,29 @@ import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
 import {
   Action,
+  eraseRuntime,
   makeRuntime,
   read,
   Resource,
   ResourceFailure,
   ResourcePending,
   runWithRuntime,
+  type SunfallArcRuntime,
 } from "../src/index.js";
 import { settleResult, settledResult } from "../src/async-result-settle.js";
 
-const runIn = <A, E>(
-  runtime: ReturnType<typeof makeRuntime>,
-  effect: Effect.Effect<A, E, any>,
-): Promise<A> => Effect.runPromise(Effect.scoped(runtime.provide(effect)) as Effect.Effect<A, E>);
+const runIn = <A, E, R, Services, RuntimeError>(
+  runtime: SunfallArcRuntime<Services, RuntimeError>,
+  effect: Effect.Effect<A, E, R>,
+): Promise<A> => Effect.runPromise(eraseRuntime(runtime).provide(Effect.scoped(effect)));
 
 const fixedClock = (now: number): Clock.Clock => ({
   currentTimeMillisUnsafe: () => now,
   currentTimeMillis: Effect.sync(() => now),
   currentTimeNanosUnsafe: () => BigInt(now) * 1_000_000n,
   currentTimeNanos: Effect.sync(() => BigInt(now) * 1_000_000n),
+  monotonicTimeNanosUnsafe: () => BigInt(now) * 1_000_000n,
+  monotonicTimeNanos: Effect.sync(() => BigInt(now) * 1_000_000n),
   sleep: () => Effect.never,
 });
 

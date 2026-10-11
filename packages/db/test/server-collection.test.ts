@@ -173,13 +173,13 @@ describe("serverCollectionOptions", () => {
   });
 
   it("preserves receivers for method-style server collection operations", () => {
-    interface MethodServerOptions extends Collection.ServerOptions<Project> {
+    type MethodServerOptions = Collection.ServerOptions<Project> & {
       readonly loaded: ReadonlyArray<Project>;
       readonly refreshed: ReadonlyArray<Project>;
       readonly inserts: Array<ServerCollectionInsertPayload<Project, string>>;
       readonly updates: Array<ServerCollectionUpdatePayload<Project, string>>;
       readonly deletes: Array<ServerCollectionDeletePayload<Project, string>>;
-    }
+    };
 
     const options: MethodServerOptions = {
       name: "Projects.server.method-receiver",
@@ -205,7 +205,7 @@ describe("serverCollectionOptions", () => {
         this.deletes.push(payload);
       },
     };
-    const Projects = Collection.define(serverCollectionOptions(options));
+    const Projects = Collection.define(serverCollectionOptions<Project>(options));
 
     return Effect.runPromise(
       Effect.gen(function* () {

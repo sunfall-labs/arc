@@ -103,6 +103,9 @@ describe("Start route code splitting", () => {
       { root: "/workspace" },
     );
 
+    if (transformed === null) {
+      return expect.fail("expected route code splitting to transform the route module");
+    }
     expect(transformed).toContain(
       'import { Route as __SunfallArcRoute } from "@sunfall/arc-core";',
     );

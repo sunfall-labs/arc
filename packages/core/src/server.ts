@@ -20,6 +20,8 @@ import {
   makeResponseContext,
   provideRequest,
   provideResponse,
+  type RequestContext,
+  type ResponseContext,
 } from "./request-context.js";
 import {
   decodeServerFunctionError,
@@ -574,7 +576,11 @@ export namespace Server {
   export const handleRouteEffect = <E, R>(
     route: ServerRoute<E, R>,
     request: Request,
-  ): Effect.Effect<Response, E | ServerRouteHandlerError, R> =>
+  ): Effect.Effect<
+    Response,
+    E | ServerRouteHandlerError,
+    Exclude<Exclude<R, ResponseContext>, RequestContext>
+  > =>
     Effect.suspend(() => {
       const responseContext = makeResponseContext();
       return Effect.try({
@@ -592,12 +598,6 @@ export namespace Server {
         ),
       );
     });
-
-  /** Alias for `Server.handleRouteEffect(...)`. */
-  export const handleRoute = <E, R>(
-    route: ServerRoute<E, R>,
-    request: Request,
-  ): Effect.Effect<Response, E | ServerRouteHandlerError, R> => handleRouteEffect(route, request);
 
   /** Builds a schema-presence manifest from registered server functions. */
   export const manifest = (

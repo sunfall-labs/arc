@@ -1,6 +1,7 @@
 import { Effect } from "effect";
 import { invokeEffectInput, type EffectInput } from "./effect-like.js";
 import {
+  eraseRuntime,
   makeRuntime,
   type AnySunfallArcRuntime,
   type SunfallArcRuntime,
@@ -35,11 +36,11 @@ export const makeRuntimeProviderLifecycleEntry = <RuntimeServices = never, ER = 
 ): RuntimeProviderLifecycleEntry<ER> =>
   options.runtime === undefined
     ? {
-        runtime: makeRuntime(options.source) as AnySunfallArcRuntime<ER>,
+        runtime: eraseRuntime(makeRuntime(options.source)),
         ownsRuntime: true,
       }
     : {
-        runtime: options.runtime as AnySunfallArcRuntime<ER>,
+        runtime: eraseRuntime(options.runtime),
         ownsRuntime: false,
       };
 

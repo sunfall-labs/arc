@@ -1,4 +1,4 @@
-import { makeRuntime, runWithRuntime } from "@sunfall/arc-core";
+import { eraseRuntime, makeRuntime, runWithRuntime } from "@sunfall/arc-core";
 import { Collection, QueryEvaluationError } from "@sunfall/arc-db";
 import { useCollection, useLiveQuery } from "@sunfall/arc-solid-db";
 import { Context, Deferred, Effect, Fiber, Layer, Option } from "effect";
@@ -16,7 +16,7 @@ interface Project {
 const makeDelayedCleanupRuntime = () => {
   const runtime = makeRuntime();
   let delayForks = false;
-  const delayedRuntime = {
+  const delayedRuntime: typeof runtime = {
     ...runtime,
     runFork: ((
       effect: Effect.Effect<unknown, unknown, unknown>,
@@ -260,7 +260,9 @@ describe("solid-db", () => {
         const handle = createRoot((rootDispose) => {
           dispose = rootDispose;
           return useCollection(Projects, {
-            onPreloadFailure: (error) => observedFailures.push(error),
+            onPreloadFailure: (error) => {
+              observedFailures.push(error);
+            },
           });
         });
 
@@ -409,8 +411,8 @@ describe("solid-db", () => {
           const [archive, setArchive] = createSignal(false);
           selectArchive = setArchive;
           // Switching sources switches the preload work, which restarts preloading.
-          return makeSolidDbReactiveBinding<typeof staleFailure>({
-            runtime: runtime.runtime,
+          return makeSolidDbReactiveBinding<typeof staleFailure | Collection.RuntimeError>({
+            runtime: eraseRuntime(runtime.runtime),
             preloadEffect: () =>
               archive()
                 ? ArchivedProjects.preloadEffect()
@@ -418,7 +420,9 @@ describe("solid-db", () => {
                     Effect.andThen(Deferred.await(staleRelease)),
                     Effect.andThen(Effect.fail(staleFailure)),
                   ),
-            onPreloadFailure: (error) => observedFailures.push(error),
+            onPreloadFailure: (error) => {
+              observedFailures.push(error);
+            },
           });
         });
 
@@ -433,7 +437,9 @@ describe("solid-db", () => {
         expect(observedFailures).toEqual([]);
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(Effect.suspend(() => delayed?.disposeEffect ?? Effect.void)),
+        Effect.ensuring(
+          Effect.suspend(() => (delayed ? Effect.orDie(delayed.disposeEffect) : Effect.void)),
+        ),
       ),
     );
   });
@@ -465,7 +471,9 @@ describe("solid-db", () => {
         createRoot((rootDispose) => {
           dispose = rootDispose;
           useCollection(Projects, {
-            onPreloadFailure: (error) => observedFailures.push(error),
+            onPreloadFailure: (error) => {
+              observedFailures.push(error);
+            },
           });
         });
 
@@ -497,10 +505,12 @@ describe("solid-db", () => {
         createRoot((rootDispose) => {
           dispose = rootDispose;
           makeSolidDbReactiveBinding<typeof staleFailure>({
-            runtime: runtime.runtime,
+            runtime: eraseRuntime(runtime.runtime),
             preloadEffect: () =>
               Deferred.await(staleRelease).pipe(Effect.andThen(Effect.fail(staleFailure))),
-            onPreloadFailure: (error) => observedFailures.push(error),
+            onPreloadFailure: (error) => {
+              observedFailures.push(error);
+            },
           });
         });
 
@@ -514,7 +524,9 @@ describe("solid-db", () => {
         expect(observedFailures).toEqual([]);
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(Effect.suspend(() => delayed?.disposeEffect ?? Effect.void)),
+        Effect.ensuring(
+          Effect.suspend(() => (delayed ? Effect.orDie(delayed.disposeEffect) : Effect.void)),
+        ),
       ),
     );
   });
@@ -568,7 +580,7 @@ describe("solid-db", () => {
         expect(handles.projects.rows().map((project) => project.name)).toEqual(["Atlas", "Lumen"]);
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(runtime.disposeEffect),
+        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
       ),
     );
   });
@@ -651,7 +663,7 @@ describe("solid-db", () => {
       name: "SolidDb.live-query-collection-runtime.projects",
       getKey: (project) => project.id,
     });
-    const ProjectCards = Collection.liveQuery<Project, string>({
+    const ProjectCards = Collection.liveQuery<Project, string, Collection.RuntimeError>({
       name: "SolidDb.live-query-collection-runtime.cards",
       getKey: (project) => project.id,
       query: (query) => query.from({ project: Projects }).select(({ project }) => project),
@@ -699,8 +711,8 @@ describe("solid-db", () => {
         });
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(firstRuntime.disposeEffect),
-        Effect.ensuring(secondRuntime.disposeEffect),
+        Effect.ensuring(Effect.orDie(firstRuntime.disposeEffect)),
+        Effect.ensuring(Effect.orDie(secondRuntime.disposeEffect)),
       ),
     );
   });
@@ -712,7 +724,7 @@ describe("solid-db", () => {
       getKey: (project) => project.id,
       initialData: [{ id: "atlas", name: "Atlas", active: true }],
     });
-    const ProjectCards = Collection.liveQuery<Project, string>({
+    const ProjectCards = Collection.liveQuery<Project, string, Collection.RuntimeError>({
       name: "SolidDb.live-query-collection-ready.cards",
       getKey: (project) => project.id,
       query: (query) =>

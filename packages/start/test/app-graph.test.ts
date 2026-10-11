@@ -41,12 +41,15 @@ import type {
 } from "../src/start-agent-graph-contract.js";
 import { startAgentGraphQueryKinds } from "../src/start-agent-graph-vocabulary.js";
 import { startDiagnosticsCliVerifyCommandsForQuery } from "../src/start-diagnostics-cli-contract.js";
-import { makeActionManifest } from "../src/action-manifest.js";
+import { makeActionManifest, type ActionManifestError } from "../src/action-manifest.js";
 import {
   FileRouteManifestParseError,
   generateFileRouteManifestArtifact,
 } from "../src/file-routes.js";
-import { makeServerFunctionManifest } from "../src/server-function-manifest.js";
+import {
+  makeServerFunctionManifest,
+  type ServerFunctionManifestError,
+} from "../src/server-function-manifest.js";
 import { StartTransportEndpointConflictError } from "../src/start-transport-endpoints.js";
 
 describe("Start app graph", () => {
@@ -1657,7 +1660,11 @@ describe("Start app graph", () => {
             readonly entries: Array<{ routeId: string }>;
           };
         };
-        corrupted.routes.entries[0].routeId = "route_wrong";
+        const entry = corrupted.routes.entries[0];
+        if (entry === undefined) {
+          return expect.fail("expected the serialized graph to contain a route entry");
+        }
+        entry.routeId = "route_wrong";
 
         const exit = yield* Effect.exit(deserializeStartAppGraph(JSON.stringify(corrupted)));
 
@@ -1699,7 +1706,11 @@ describe("Start app graph", () => {
 
 const makeGraphEffect = (
   options: { readonly actionBehavior?: "known" | "unknown" } = {},
-): Effect.Effect<ReturnType<typeof createStartAppGraph>, never, never> =>
+): Effect.Effect<
+  ReturnType<typeof createStartAppGraph>,
+  ActionManifestError | ServerFunctionManifestError,
+  never
+> =>
   Effect.gen(function* () {
     const routes = generateFileRouteManifestArtifact(
       ["src/routes/projects/$id.tsx", "src/routes/index.tsx"],

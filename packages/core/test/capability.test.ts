@@ -28,7 +28,7 @@ describe("Capability", () => {
         Numbers.use((numbers) => numbers.get("atlas")).pipe(
           Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
           Effect.asVoid,
-          Effect.ensuring(runtime.disposeEffect),
+          Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
         ),
       ),
     );
@@ -58,7 +58,7 @@ describe("Capability", () => {
     Effect.runPromise(
       Effect.exit(
         Numbers.provide(
-          Numbers.useEffect(() => {
+          Numbers.useEffect<void>((): void => {
             throw new Error("capability failed");
           }),
           {
@@ -169,7 +169,7 @@ describe("Capability", () => {
         ).pipe(
           Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
           Effect.asVoid,
-          Effect.ensuring(runtime.disposeEffect),
+          Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
         ),
       ),
     );
