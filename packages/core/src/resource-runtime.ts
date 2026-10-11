@@ -39,6 +39,7 @@ import {
   isResourceStateCollected,
   isResourceStateStale,
   makeResourceEntry,
+  commitResourceState,
   resetResourceEntry,
   scheduleResourceGc,
   setResourcePending,
@@ -249,10 +250,10 @@ export const resourceEntry = <I, A, E, R>(
     return existing;
   }
 
-  const entry = makeResourceEntry<A, ResourceLoadError<E>>() as ResourceEntry<
-    A,
-    ResourceLoadError<E>
-  >;
+  const entry = makeResourceEntry<A, ResourceLoadError<E>>(
+    ref.family.options.name,
+    ref.key,
+  ) as ResourceEntry<A, ResourceLoadError<E>>;
   entries.set(ref.key, entry);
   return entry;
 };
@@ -429,7 +430,7 @@ export const runResourceEffect = <I, A, E, R>(
 
         if (Exit.isSuccess(exit)) {
           recordResourceProvidedTags(ref, exit.value.tags, store);
-          entry.state.set(settled);
+          commitResourceState(entry, settled, "success");
           yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
             isResourceRefRetained(ref as AnyResourceRef, store),
           );
@@ -443,7 +444,7 @@ export const runResourceEffect = <I, A, E, R>(
         }
 
         yield* invalidateCachedResourceEffect(ref, store);
-        entry.state.set(settled);
+        commitResourceState(entry, settled, settled._tag === "Failure" ? "failure" : "interrupt");
         if (settled._tag === "Failure") {
           yield* interruptResourceGc(entry, store);
           yield* publishResourceStoreEvent(store, {
@@ -705,7 +706,7 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
     yield* interruptResourceInFlight(entry, store);
     yield* interruptResourceGc(entry, store);
     recordResourceProvidedTags(ref, tags, store);
-    entry.state.set(state);
+    commitResourceState(entry, state, "hydrate");
     yield* Cache.set(resourceCache(ref.family, store), ref.key, state.value);
     yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
       isResourceRefRetained(ref as AnyResourceRef, store),

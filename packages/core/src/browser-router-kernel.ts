@@ -249,7 +249,9 @@ export const createBrowserRouterKernel = <
           initialMatch,
         );
   };
-  const state = Signal.make<BrowserRouterState<Routes, ER>>(initialRouterState());
+  const state = Signal.make<BrowserRouterState<Routes, ER>>(initialRouterState(), {
+    name: "Router.state",
+  });
   const match = Signal.derive(() => routeStateMatch(state.get()));
   const routeIsConfigured = (definition: AnyBrowserRoute): definition is Routes[number] =>
     routerHasRoute(routes, definition);
@@ -297,7 +299,9 @@ export const createBrowserRouterKernel = <
   };
 
   const setState = (next: BrowserRouterState<Routes, ER>): void => {
-    state.set(next);
+    Signal.batch(() => state.set(next), {
+      cause: { _tag: "Router", href: next.href, status: next._tag },
+    });
   };
 
   const processNavigation = (href: string): void => {

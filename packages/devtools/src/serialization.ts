@@ -1231,10 +1231,10 @@ export const copyDevtoolsRuntimeEvent = (
         ...event,
         event: copyCollectionStoreEvent(event.event, policy),
       };
-    case "ProgramEvent":
+    case "TimelineCommit":
       return {
         ...event,
-        event: copyDetachedValue(event.event, state),
+        commit: copyDetachedValue(event.commit, state),
       };
     case "ActionState":
       return {

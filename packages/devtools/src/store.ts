@@ -1,12 +1,13 @@
 import type {
   ActionInstance,
   ActionState,
-  ProgramEvent,
-  ProgramInstance,
   ResourceInvalidationPlan,
   ResourceStoreEvent,
   Route,
+  TimelineEntry,
+  TimelineRecording,
 } from "@sunfall/arc-core";
+import { Timeline } from "@sunfall/arc-core";
 import { Effect, Option } from "effect";
 import { DevtoolsActionInvalidationPlanConflict } from "./devtools-contract.js";
 import type {
@@ -72,8 +73,6 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
   const serializationPolicy = options.serializationPolicy;
   let nextEventSequence = 0;
   let nextRequestTraceSequence = 0;
-  let nextProgramIdentity = 0;
-  const programIdentities = new WeakMap<object, string>();
   let snapshot: DevtoolsSnapshot = {
     resources: [],
     actions: [],
@@ -407,27 +406,22 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     });
   };
 
-  const recordProgramEvent = <Model, Message, E>(event: ProgramEvent<Model, Message, E>): void => {
+  const recordTimelineEntry = (entry: TimelineEntry): void => {
     recordRuntimeEvent({
-      _tag: "ProgramEvent",
-      event,
+      _tag: "TimelineCommit",
+      at: entry.at,
+      commit: {
+        sequence: entry.sequence,
+        label: Timeline.describe(entry.cause),
+        ...(entry.cause === undefined ? {} : { cause: entry.cause }),
+        changes: entry.changes.map((change) => ({
+          signal: change.name,
+          previous: change.previous,
+          next: change.next,
+        })),
+      },
     });
   };
-  const trackedProgramName = (program: ProgramInstance<any, any, any>): string => {
-    const existing = programIdentities.get(program as object);
-    if (existing !== undefined) {
-      return existing;
-    }
-
-    const name = `Program#${++nextProgramIdentity}`;
-    programIdentities.set(program as object, name);
-    return name;
-  };
-  const withTrackedProgramName = <Model, Message, E>(
-    event: ProgramEvent<Model, Message, E>,
-    name: string,
-  ): ProgramEvent<Model, Message, E> =>
-    event.program === undefined ? { ...event, program: name } : event;
 
   const getSnapshotEffect = () =>
     Effect.sync(() => copyDevtoolsSnapshot(snapshot, serializationPolicy));
@@ -514,25 +508,24 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
         event,
       });
     });
-  const recordProgramEventEffect = <Model, Message, E>(event: ProgramEvent<Model, Message, E>) =>
+  const recordTimelineEntryEffect = (entry: TimelineEntry) =>
     Effect.sync(() => {
-      recordProgramEvent(event);
+      recordTimelineEntry(entry);
     });
-  const trackProgramEffect = <Model, Message, E>(program: ProgramInstance<Model, Message, E>) =>
+  const trackTimelineEffect = (recording: TimelineRecording) =>
     Effect.acquireRelease(
       Effect.sync(() => {
-        const name = trackedProgramName(program);
         let observedSequence = 0;
-        const recordNewEvents = () => {
-          for (const event of program.timeline.get()) {
-            if (event.sequence > observedSequence) {
-              observedSequence = event.sequence;
-              recordProgramEvent(withTrackedProgramName(event, name));
+        const recordNewEntries = () => {
+          for (const entry of recording.entries.get()) {
+            if (entry.sequence > observedSequence) {
+              observedSequence = entry.sequence;
+              recordTimelineEntry(entry);
             }
           }
         };
-        recordNewEvents();
-        return program.timeline.subscribe(recordNewEvents);
+        recordNewEntries();
+        return recording.entries.subscribe(recordNewEntries);
       }),
       (unsubscribe) => Effect.sync(unsubscribe),
     ).pipe(Effect.asVoid);
@@ -608,11 +601,11 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
       Effect.runSync(recordCollectionEventEffect(event));
     },
     recordCollectionEventEffect,
-    recordProgramEvent: (event) => {
-      Effect.runSync(recordProgramEventEffect(event));
+    recordTimelineEntry: (entry: TimelineEntry) => {
+      Effect.runSync(recordTimelineEntryEffect(entry));
     },
-    recordProgramEventEffect,
-    trackProgramEffect,
+    recordTimelineEntryEffect,
+    trackTimelineEffect,
     recordRuntimeEvent: (event: DevtoolsRuntimeEvent) => {
       Effect.runSync(recordRuntimeEventEffect(event));
     },

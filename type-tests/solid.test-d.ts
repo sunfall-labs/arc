@@ -144,6 +144,7 @@ const solidProgramHandle: ProgramHandle<
   EffectInputCallbackError,
   EffectInputCallbackError | Program.Disposed
 > = useProgram<number, "tick">(SolidProgram);
+// @ts-expect-error Program history lives on the app Timeline, not on the Program handle.
 solidProgramHandle.clearTimeline();
 const solidUnknownProgramHandle = solidProgramHandle as ProgramHandle<
   number,

@@ -43,7 +43,7 @@ domain vocabulary.
    server clients, response context, hydration, and event streams execute the
    graph through Effect services and scopes.
 4. Inspection layer: diagnostics, devtools summaries, causal graphs, repair
-   reports, Program timelines, request traces, type tests, integration tests,
+   reports, the app Timeline, request traces, type tests, integration tests,
    and agent workflows consume public graph/runtime facts rather than private
    maps.
 
@@ -222,7 +222,7 @@ message loop. Promise-shaped host work belongs inside `Effect.tryPromise(...)`
 before the command or subscription emits a plain message.
 
 Started Programs run on the Runtime Spine and expose a readable model signal,
-typed `dispatchEffect(...)`, failures, disposal, and a bounded timeline:
+typed `dispatchEffect(...)`, failures, and disposal:
 
 ```ts
 const counter = Program.start(CounterProgram);
@@ -234,8 +234,11 @@ A serviceful Program must start with an explicit typed runtime:
 const project = Program.start(ProjectProgram, { runtime });
 ```
 
-That keeps service requirements visible to TypeScript while devtools and tests
-can inspect the same public timeline facts.
+That keeps service requirements visible to TypeScript. A Program keeps no
+history of its own: each committed message is one entry on the app
+[Timeline](#timeline-and-replay), labelled `Program "Counter" message Load`, so
+devtools and tests inspect Program history the same way as every other state
+change.
 
 The model signal is the Effect-side source of truth: every update commits one
 immutable model. Renderers must not turn that single value into coarse
@@ -1258,6 +1261,76 @@ const RenameProject = Action.define({
 `latest` interrupts older event submissions, `exhaust` reuses the in-flight
 submission, and `parallel` lets all submissions resolve while keeping the UI
 state pointed at the latest input.
+
+## Timeline And Replay
+
+Arc owns application state in writable signals, and every committed change set
+passes through one seam in `signal-transaction.ts`: the solo-write path or the
+transaction/batch commit. `Timeline.record(...)` installs a recorder on that
+seam for the life of a Scope, so one recording covers user Signals, Resource
+entries, Action state, Program models and failures, router state, and
+collection load state and versions:
+
+```ts
+const recording = yield * Timeline.record({ limit: 1000 });
+
+Signal.batch(() => title.set("Apollo"), { cause: { _tag: "User", label: "Rename" } });
+
+Signal.peek(recording.entries).map((entry) => Timeline.describe(entry.cause));
+// ['Program "Board" message Relabel', 'Resource "Project.get" success atlas', "Rename"]
+
+yield * recording.travel(entry.sequence); // render the app as it was after `entry`
+yield * recording.resume(); // render the live head again
+```
+
+Entries are `{ sequence, at, cause, changes: [{ signal, name, previous, next }] }`.
+`at` comes from the recording fiber's `Clock`, so `TestClock` makes timestamps
+deterministic.
+
+- **Causes** ride on the transaction. `Signal.transaction(effect, { cause })`
+  and `Signal.batch(f, { cause })` label their commit; a nested transaction
+  names the commit only when the outer one has none, and a solo write is
+  unlabelled. Framework primitives label their own commit points with the
+  same option: Action submissions (`submit`, `success`, `failure`, `interrupt`,
+  `reset`), Program messages and failures, Resource entry loads, settles,
+  hydration, and resets, router navigation, and collection syncs and row
+  changes. `TimelineCause` is a closed tagged union, and
+  `Timeline.describe(cause)` renders it.
+- **Names** come from `Signal.make(initial, { name })`. Framework signals name
+  themselves (`Board.model`, `Project.rename.state`, `Project.get(<key>)`,
+  `Router.state`, `ProjectSummaries.loadState`); an unnamed signal gets a
+  stable `signal#N` id the first time it is recorded.
+- **Travel renders the past; it does not rewrite state.** Committed state stays
+  at the live head, so Effects, Actions, Programs, and watchers keep computing
+  from it and their commits keep being recorded: nothing is lost and nothing
+  computes from a stale model. Only rendered reads (Solid computations, through
+  each signal's projection) see the travelled view, and `Signal.derive` values
+  rendered by Solid re-evaluate against it. A signal first written after the
+  travelled commit renders the value it had then, so signals created later
+  render their initial value, and a signal first written while travelling stays
+  frozen at its travelled value until `resume()`. Travel itself writes nothing,
+  so it records nothing.
+- **Program history is a filtered view.** The per-program timeline was removed
+  so there is one timeline concept: a Program's history is
+  `entries.filter((entry) => entry.changes.some((change) => change.signal === program.model))`.
+  Command and subscription lifecycle are not state changes; they belong to
+  Effect tracing spans, not to the state timeline.
+- **Cost.** With no recording installed, each commit pays one `undefined`
+  check and each read one more (`benchmarks/signal-commit.bench.ts` guards
+  this). Rendered projections register in a set so travel can refresh them;
+  that is per rendered signal, not per write. Retention is bounded (default
+  1000 entries); closing the recording Scope uninstalls the recorder, resumes
+  the live head, and drops retained entries. One recording is installed at a
+  time; a second fails with `TimelineAlreadyRecording`.
+- **Limits.** Collection rows live in mutable maps behind a version signal, so
+  collection syncs and changes are recorded but travel cannot rewind the rows
+  themselves; collection-backed views keep showing live rows. Travel also does
+  not move the browser URL: a travelled router renders the old route while
+  history stays at the head.
+
+Devtools consumes the same entries: `store.trackTimelineEffect(recording)`
+records each entry as a JSON-safe `TimelineCommit` runtime event, linked to the
+Program, Action, Resource, or Collection fact its cause names.
 
 ## Progressive Action Results
 

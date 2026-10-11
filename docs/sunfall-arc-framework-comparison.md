@@ -311,19 +311,22 @@ That keeps Foldkit's "story test" clarity while preserving Effect services and
 typed command failures instead of inventing a separate frontend-only test
 runtime.
 
-At runtime, the same Program exposes an inspectable timeline:
+At runtime, every Program commit is an entry on the whole-app Timeline, next to
+Resource, Action, router, and plain Signal commits:
 
 ```ts
-program.timeline().map((event) => event._tag);
-// ["Message", "CommandStarted", "CommandCompleted", "Message"]
+const recording = yield * Timeline.record();
+Signal.peek(recording.entries).map((entry) => Timeline.describe(entry.cause));
+// ['Program "Project" message Load', 'Resource "Project.get" success atlas', ...]
+yield * recording.travel(1); // the UI renders that commit; Effects keep running
 ```
 
-That closes a real frontend-architecture gap: apps and devtools can watch the
-Program loop without reaching into private state. Devtools does that through the
-public Effect API:
+That closes Foldkit's replay gap for the whole app, not only for one loop:
+apps and devtools inspect and travel history without reaching into private
+state. Devtools does that through the public Effect API:
 
 ```ts
-yield * store.trackProgramEffect(program.instance);
+yield * store.trackTimelineEffect(recording);
 ```
 
 Those rows go through the same bounded/redacted Devtools serialization contract

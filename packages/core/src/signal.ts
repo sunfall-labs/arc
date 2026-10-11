@@ -12,9 +12,14 @@ import {
   batchSignalWrites,
   currentSignalCommitSequence,
   currentSignalTransaction,
+  currentSignalTravelView,
+  isReadingSignalView,
+  readSignalsThroughView,
   readSignalTransactionValue,
+  renderedSignalProjections,
   signalTransaction,
   writeSignalTransactionValue,
+  type SignalTransactionOptions,
   type SignalTransactionState,
   type SignalTransactionWritable,
 } from "./signal-transaction.js";
@@ -56,6 +61,14 @@ export interface SignalStreamOptions {
   readonly strategy?: "sliding" | "dropping" | "suspend";
 }
 
+export type { SignalTransactionOptions };
+
+/** Options for `Signal.make`. */
+export interface SignalOptions {
+  /** Label shown on `Timeline` entries. Unnamed signals get a stable `signal#N` id. */
+  readonly name?: string;
+}
+
 /** Manually records a dependency on a subscribable source for the active tracker. */
 export const trackDependency = (source: Subscribable): void => {
   trackSignalDependency(source);
@@ -72,26 +85,47 @@ abstract class BaseSignal<A> implements ReadableSignal<A> {
   protected abstract readVisible(): A;
 
   /**
+   * Value shown to Solid: committed state, or the travelled view while a
+   * timeline travels. Effects keep reading committed state either way.
+   */
+  private renderedValue(): A {
+    const view = currentSignalTravelView();
+    return view === undefined
+      ? untrack(() => this.readVisible())
+      : readSignalsThroughView(view, () =>
+          withoutSignalDependencyObserver(() => untrack(() => this.readVisible())),
+        );
+  }
+
+  /**
    * Solid-facing read. The projection is created on the first tracked read and
    * released once Solid stops observing it, so unrendered signals cost nothing.
    */
   protected readRendered(): A {
     if (!this.projection) {
+      let rendered = this.renderedValue();
       // Values are boxed: Solid treats a bare function passed to `createSignal`
       // or its setter as a computation, but signal values may be functions.
       const [read, write] = createSignal<{ readonly value: A }>(
-        { value: untrack(() => this.readVisible()) },
+        { value: rendered },
         {
           ownedWrite: true,
           unobserved: () => {
             unsubscribe();
+            renderedSignalProjections.delete(refresh);
             this.projection = undefined;
           },
         },
       );
-      const unsubscribe = this.subscribe(() => {
-        write({ value: untrack(() => this.readVisible()) });
-      });
+      const refresh = (): void => {
+        const next = this.renderedValue();
+        if (!Object.is(next, rendered)) {
+          rendered = next;
+          write({ value: next });
+        }
+      };
+      const unsubscribe = this.subscribe(refresh);
+      renderedSignalProjections.add(refresh);
       this.projection = () => read().value;
     }
     return this.projection();
@@ -118,12 +152,26 @@ abstract class BaseSignal<A> implements ReadableSignal<A> {
   }
 }
 
+/** Ids handed to unnamed signals the first time a timeline labels them. */
+let unnamedSignalCount = 0;
+
 class WritableSignalImpl<A>
   extends BaseSignal<A>
   implements WritableSignal<A>, SignalTransactionWritable
 {
-  constructor(private value: A) {
+  private label: string | undefined;
+
+  constructor(
+    private value: A,
+    options: SignalOptions | undefined,
+  ) {
     super();
+    this.label = options?.name;
+  }
+
+  timelineName(): string {
+    this.label ??= `signal#${++unnamedSignalCount}`;
+    return this.label;
   }
 
   get(): A {
@@ -215,6 +263,14 @@ class DerivedSignalImpl<A> extends BaseSignal<A> {
   }
 
   protected readVisible(): A {
+    // A travelled view is not committed state, so derive from it uncached.
+    if (isReadingSignalView()) {
+      try {
+        return untrack(this.compute);
+      } catch (cause) {
+        throw signalEvaluationError("Signal.derive", cause);
+      }
+    }
     // Staged writes are not committed yet, so derive from them, caching the
     // value for the transaction's current write set.
     const transaction = currentSignalTransaction();
@@ -295,8 +351,9 @@ export namespace Signal {
   export type Writable<A> = WritableSignal<A>;
   export type StreamOptions = SignalStreamOptions;
 
-  /** Creates a writable signal. */
-  export const make = <A>(initial: A): WritableSignal<A> => new WritableSignalImpl(initial);
+  /** Creates a writable signal, optionally named for `Timeline` entries. */
+  export const make = <A>(initial: A, options?: SignalOptions): WritableSignal<A> =>
+    new WritableSignalImpl(initial, options);
 
   /** Creates a derived signal that tracks the signals read by `compute`. */
   export const derive = <A>(compute: () => A): ReadableSignal<A> => new DerivedSignalImpl(compute);
@@ -314,16 +371,19 @@ export namespace Signal {
    * Reads inside see the transaction's own writes; other fibers and the UI see
    * none of them until success commits all of them at once. Failure or
    * interruption commits nothing. Nested transactions join the outer one, and
-   * fibers forked inside belong to it until it ends.
+   * fibers forked inside belong to it until it ends. `cause` labels the
+   * commit on a recording `Timeline`.
    */
-  export const transaction: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R> =
-    signalTransaction;
+  export const transaction: <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+    options?: SignalTransactionOptions,
+  ) => Effect.Effect<A, E, R> = signalTransaction;
 
   /**
    * Synchronous counterpart of `transaction`: reads inside `f` see its writes,
    * subscribers run once after it returns, and a throw commits nothing.
    */
-  export const batch: <A>(f: () => A) => A = batchSignalWrites;
+  export const batch: <A>(f: () => A, options?: SignalTransactionOptions) => A = batchSignalWrites;
 
   /** Writes `f(current)` and returns the value now visible to the caller. */
   export const updateAndGet = <A>(

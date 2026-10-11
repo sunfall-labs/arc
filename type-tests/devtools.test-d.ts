@@ -1,5 +1,5 @@
 import { Effect, Scope, type Fiber } from "effect";
-import type { ResourceInvalidationPlan } from "@sunfall/arc-core";
+import type { ResourceInvalidationPlan, TimelineEntry } from "@sunfall/arc-core";
 import {
   DevtoolsActionInvalidationPlanConflict,
   DevtoolsPanelContractError,
@@ -42,7 +42,7 @@ import {
   type DevtoolsPanelsInput,
   type DevtoolsPanelSeverity,
   type DevtoolsPanelUiInput,
-  type DevtoolsProgramEvent,
+  type DevtoolsTimelineCommit,
   type DevtoolsRecordActionStateOptions,
   type DevtoolsRequestTrace,
   type DevtoolsRoutePlan,
@@ -90,7 +90,8 @@ const devtoolsCausalGraphEffect: Effect.Effect<DevtoolsCausalGraph> =
 declare const devtoolsActionInstance: Parameters<DevtoolsStore["recordActionEffect"]>[0];
 declare const devtoolsStartActionInstance: Parameters<DevtoolsStore["recordStartActionEffect"]>[0];
 declare const devtoolsRoutePlanInput: Parameters<DevtoolsStore["recordRoutePlanEffect"]>[0];
-declare const devtoolsProgramInstance: Parameters<DevtoolsStore["trackProgramEffect"]>[0];
+declare const devtoolsTimelineRecording: Parameters<DevtoolsStore["trackTimelineEffect"]>[0];
+declare const devtoolsTimelineEntry: TimelineEntry;
 const devtoolsRecordActionEffect: Effect.Effect<void> =
   devtoolsStore.recordActionEffect(devtoolsActionInstance);
 const devtoolsTrackActionEffect: Effect.Effect<void, never, Scope.Scope> =
@@ -102,8 +103,8 @@ const devtoolsTrackStartActionEffect: Effect.Effect<void, never, Scope.Scope> =
   devtoolsStore.trackStartActionEffect(devtoolsStartActionInstance);
 const devtoolsRecordRoutePlanEffect: Effect.Effect<number> =
   devtoolsStore.recordRoutePlanEffect(devtoolsRoutePlanInput);
-const devtoolsTrackProgramEffect: Effect.Effect<void, never, Scope.Scope> =
-  devtoolsStore.trackProgramEffect(devtoolsProgramInstance);
+const devtoolsTrackTimelineEffect: Effect.Effect<void, never, Scope.Scope> =
+  devtoolsStore.trackTimelineEffect(devtoolsTimelineRecording);
 const devtoolsCustomRuntimeEvent: DevtoolsRuntimeEvent = {
   _tag: "Custom",
   name: "type-test",
@@ -127,7 +128,7 @@ void devtoolsTrackActionEffect;
 void devtoolsRecordStartActionEffect;
 void devtoolsTrackStartActionEffect;
 void devtoolsRecordRoutePlanEffect;
-void devtoolsTrackProgramEffect;
+void devtoolsTrackTimelineEffect;
 void devtoolsRecordCustomRuntimeEventEffect;
 
 const devtoolsPanelId: DevtoolsPanelId = devtoolsPanelIds[0]!;
@@ -288,23 +289,26 @@ const devtoolsRequestTrace: DevtoolsRequestTrace = {
     },
   },
 };
-const devtoolsProgramEvent: DevtoolsProgramEvent = {
-  _tag: "Message",
+const devtoolsTimelineCommit: DevtoolsTimelineCommit = {
   sequence: 1,
-  program: "ProjectProgram",
-  message: { _tag: "Refresh" },
-  before: { selected: undefined, loading: false },
-  after: { selected: undefined, loading: false },
-  commandCount: 0,
+  label: 'Program "ProjectProgram" message Refresh',
+  cause: { _tag: "Program", program: "ProjectProgram", event: "message", message: "Refresh" },
+  changes: [{ signal: "ProjectProgram.model", previous: { loading: true }, next: {} }],
+};
+const devtoolsTimelineCommitWithSignal: DevtoolsTimelineCommit = {
+  sequence: 1,
+  label: "commit",
+  // @ts-expect-error Timeline commits label changed signals by name, not by signal reference.
+  changes: [{ signal: devtoolsTimelineEntry.changes[0]!.signal, previous: 0, next: 1 }],
 };
 const devtoolsCollectionStoreEvent: DevtoolsCollectionStoreEvent = {
   _tag: "CollectionWritten",
   collection: "Projects",
   mutations: 1,
 };
-devtoolsStore.recordProgramEvent(devtoolsProgramEvent);
-const devtoolsRecordProgramEventEffect: Effect.Effect<void> =
-  devtoolsStore.recordProgramEventEffect(devtoolsProgramEvent);
+devtoolsStore.recordTimelineEntry(devtoolsTimelineEntry);
+const devtoolsRecordTimelineEntryEffect: Effect.Effect<void> =
+  devtoolsStore.recordTimelineEntryEffect(devtoolsTimelineEntry);
 devtoolsStore.recordCollectionEvent(devtoolsCollectionStoreEvent);
 const devtoolsRecordCollectionEventEffect: Effect.Effect<void> =
   devtoolsStore.recordCollectionEventEffect(devtoolsCollectionStoreEvent);
@@ -325,8 +329,9 @@ const devtoolsRuntimeEvents: ReadonlyArray<DevtoolsRuntimeEvent> = [
     event: devtoolsCollectionStoreEvent,
   },
   {
-    _tag: "ProgramEvent",
-    event: devtoolsProgramEvent,
+    _tag: "TimelineCommit",
+    at: 1,
+    commit: devtoolsTimelineCommit,
   },
   {
     _tag: "ActionState",
@@ -500,7 +505,8 @@ void devtoolsSerializedInvalidationIndex;
 void devtoolsSerializedInvalidationIndexEffect;
 void devtoolsSerializedRoutePlanIndex;
 void devtoolsSerializedRoutePlanIndexEffect;
-void devtoolsRecordProgramEventEffect;
+void devtoolsRecordTimelineEntryEffect;
+void devtoolsTimelineCommitWithSignal;
 void devtoolsRecordCollectionEventEffect;
 void devtoolsRecordActionStateEffect;
 void devtoolsRecordActionStateConflictEffect;

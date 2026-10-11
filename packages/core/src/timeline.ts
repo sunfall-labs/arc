@@ -1,0 +1,308 @@
+import { Clock, Data, Effect, type Scope } from "effect";
+import { Signal, type ReadableSignal } from "./signal.js";
+import {
+  installSignalCommitRecorder,
+  isSignalCommitRecorderInstalled,
+  refreshRenderedSignals,
+  setSignalTravelView,
+  type SignalCommitChange,
+  type SignalTransactionWritable,
+} from "./signal-transaction.js";
+
+/** Commit labelled by application code through `Signal.transaction` or `Signal.batch`. */
+export interface TimelineUserCause {
+  readonly _tag: "User";
+  readonly label: string;
+}
+
+/** Commit made by an Action submission's visible state. */
+export interface TimelineActionCause {
+  readonly _tag: "Action";
+  readonly action: string;
+  readonly event: "submit" | "success" | "failure" | "interrupt" | "reset";
+}
+
+/** Commit made by a running Program: a message update, a failure, or a failure reset. */
+export interface TimelineProgramCause {
+  readonly _tag: "Program";
+  /** The Program definition's `name`, when it has one. */
+  readonly program: string | undefined;
+  readonly event: "message" | "failure" | "clearFailures";
+  /** The message applied (`message`) or the message that failed (`failure`), when known. */
+  readonly message?: unknown;
+}
+
+/** Commit made by the Resource store for one cached entry. */
+export interface TimelineResourceCause {
+  readonly _tag: "Resource";
+  readonly resource: string;
+  readonly key: string;
+  readonly event: "load" | "success" | "failure" | "interrupt" | "hydrate" | "reset";
+}
+
+/** Commit made by the browser router kernel while navigating. */
+export interface TimelineRouterCause {
+  readonly _tag: "Router";
+  readonly href: string;
+  readonly status: "Pending" | "Ready" | "NotFound" | "Failure";
+}
+
+/** Commit made by a DB collection's synced or mutated rows. */
+export interface TimelineCollectionCause {
+  readonly _tag: "Collection";
+  readonly collection: string;
+  readonly event: "sync" | "change";
+}
+
+/** Why a committed change set happened. */
+export type TimelineCause =
+  | TimelineUserCause
+  | TimelineActionCause
+  | TimelineProgramCause
+  | TimelineResourceCause
+  | TimelineRouterCause
+  | TimelineCollectionCause;
+
+/** One signal's committed change inside a timeline entry. */
+export interface TimelineChange {
+  readonly signal: ReadableSignal<unknown>;
+  /** The signal's `Signal.make` name, or its stable `signal#N` id. */
+  readonly name: string;
+  readonly previous: unknown;
+  readonly next: unknown;
+}
+
+/** One committed change set: every signal a solo write, batch, or transaction changed. */
+export interface TimelineEntry {
+  /** Recording-local sequence, starting at 1. */
+  readonly sequence: number;
+  /** `Clock` time of the commit, in milliseconds. */
+  readonly at: number;
+  readonly cause: TimelineCause | undefined;
+  readonly changes: ReadonlyArray<TimelineChange>;
+}
+
+/** Options for `Timeline.record`. */
+export interface TimelineRecordOptions {
+  /** Maximum retained entries; older entries are dropped first. Defaults to 1000. */
+  readonly limit?: number;
+}
+
+/** A running recording returned by `Timeline.record`. */
+export interface TimelineRecording {
+  /** Retained entries, oldest first. Reactive for Arc and Solid readers. */
+  readonly entries: ReadableSignal<ReadonlyArray<TimelineEntry>>;
+  /** Sequence of the entry rendered while travelling, or `undefined` at the live head. */
+  readonly position: ReadableSignal<number | undefined>;
+  /**
+   * Renders every recorded signal as it was right after entry `sequence`.
+   *
+   * Committed state stays live: Effects, Actions, and Programs keep running
+   * against the head and their commits keep being recorded, while Solid shows
+   * the travelled values. Signals first written after `sequence` render the
+   * value they had then, which for signals created later is their initial value.
+   */
+  travel(sequence: number): Effect.Effect<void, TimelineEntryUnavailable>;
+  /** Renders the live head again. */
+  resume(): Effect.Effect<void>;
+}
+
+/** `travel` named a sequence that is not retained. */
+export class TimelineEntryUnavailable extends Data.TaggedError("TimelineEntryUnavailable")<{
+  readonly sequence: number;
+}> {}
+
+/** `Timeline.record` ran while another recording was installed. */
+export class TimelineAlreadyRecording extends Data.TaggedError("TimelineAlreadyRecording")<{}> {}
+
+const defaultTimelineLimit = 1000;
+
+const resolveLimit = (limit: number | undefined): number =>
+  limit !== undefined && Number.isFinite(limit) && limit >= 1
+    ? Math.floor(limit)
+    : defaultTimelineLimit;
+
+const messageLabel = (message: unknown): string => {
+  if (typeof message === "object" && message !== null) {
+    const tag = (message as { readonly _tag?: unknown })._tag;
+    if (typeof tag === "string") {
+      return tag;
+    }
+  }
+  return typeof message === "string" ? message : typeof message;
+};
+
+const makeRecording = (clock: Clock.Clock, limit: number) => {
+  // Ring buffer: `ring[start]` is the oldest of `ring.length` retained entries.
+  const ring: Array<TimelineEntry> = [];
+  let start = 0;
+  const retained = (): ReadonlyArray<TimelineEntry> =>
+    start === 0 ? ring.slice() : [...ring.slice(start), ...ring.slice(0, start)];
+  let sequence = 0;
+  let view: Map<SignalTransactionWritable, unknown> | undefined;
+  const version = Signal.make(0, { name: "Timeline.version" });
+  const position = Signal.make<number | undefined>(undefined, { name: "Timeline.position" });
+  const own: ReadonlySet<unknown> = new Set<unknown>([version, position]);
+  const entries = Signal.derive((): ReadonlyArray<TimelineEntry> => {
+    version.get();
+    return retained();
+  });
+
+  const commit = (
+    changes: ReadonlyArray<SignalCommitChange>,
+    cause: TimelineCause | undefined,
+  ): void => {
+    const recorded = changes.filter((change) => !own.has(change.signal));
+    if (recorded.length === 0) {
+      return;
+    }
+    if (view !== undefined) {
+      // Freeze signals first written while travelling at their travelled value.
+      for (const change of recorded) {
+        if (!view.has(change.signal)) {
+          view.set(change.signal, change.previous);
+        }
+      }
+    }
+
+    const entry: TimelineEntry = {
+      sequence: ++sequence,
+      at: clock.currentTimeMillisUnsafe(),
+      cause,
+      changes: recorded.map((change) => ({
+        signal: change.signal as unknown as ReadableSignal<unknown>,
+        name: change.signal.timelineName(),
+        previous: change.previous,
+        next: change.next,
+      })),
+    };
+    if (ring.length < limit) {
+      ring.push(entry);
+    } else {
+      ring[start] = entry;
+      start = (start + 1) % limit;
+    }
+    version.update((value) => value + 1);
+  };
+
+  const showView = (next: Map<SignalTransactionWritable, unknown> | undefined): void => {
+    view = next;
+    setSignalTravelView(next);
+    refreshRenderedSignals();
+  };
+
+  const travel = (target: number): Effect.Effect<void, TimelineEntryUnavailable> =>
+    Effect.suspend(() => {
+      const entries = retained();
+      if (!entries.some((entry) => entry.sequence === target)) {
+        return Effect.fail(new TimelineEntryUnavailable({ sequence: target }));
+      }
+
+      // Value after `target`: the last change at or before it, else the value
+      // before the first change after it. Signals absent from every retained
+      // entry have not changed since, so their live value is already right.
+      const next = new Map<SignalTransactionWritable, unknown>();
+      for (const entry of entries) {
+        for (const change of entry.changes) {
+          // Recorded signals are writable signals, which are commit-seam writables.
+          const signal = change.signal as unknown as SignalTransactionWritable;
+          if (entry.sequence <= target) {
+            next.set(signal, change.next);
+          } else if (!next.has(signal)) {
+            next.set(signal, change.previous);
+          }
+        }
+      }
+      return Effect.sync(() => {
+        position.set(target);
+        showView(next);
+      });
+    });
+
+  const resume = (): Effect.Effect<void> =>
+    Effect.sync(() => {
+      if (view === undefined) {
+        return;
+      }
+      position.set(undefined);
+      showView(undefined);
+    });
+
+  const release = (): void => {
+    if (view !== undefined) {
+      position.set(undefined);
+      showView(undefined);
+    }
+    ring.length = 0;
+    start = 0;
+    version.update((value) => value + 1);
+  };
+
+  const recording: TimelineRecording = { entries, position, travel, resume };
+  return { recording, commit, release };
+};
+
+/**
+ * Whole-app commit history and replay.
+ *
+ * Arc owns application state in writable signals, and every committed change
+ * passes through one commit seam. A recording observes that seam, so its
+ * entries cover Signals, Resource entries, Action state, Program models,
+ * router state, and collection versions alike.
+ */
+export namespace Timeline {
+  /**
+   * Records every committed change set until the scope closes.
+   *
+   * Retention is bounded by `limit`. Closing the scope uninstalls the recorder,
+   * resumes the live head, and drops retained entries. Only one recording can
+   * be installed at a time.
+   */
+  export const record = (
+    options?: TimelineRecordOptions,
+  ): Effect.Effect<TimelineRecording, TimelineAlreadyRecording, Scope.Scope> =>
+    Effect.flatMap(
+      Clock.clockWith((clock) => Effect.succeed(clock)),
+      (clock) =>
+        Effect.acquireRelease(
+          Effect.suspend(() => {
+            if (isSignalCommitRecorderInstalled()) {
+              return Effect.fail(new TimelineAlreadyRecording());
+            }
+            const recording = makeRecording(clock, resolveLimit(options?.limit));
+            const uninstall = installSignalCommitRecorder({ commit: recording.commit });
+            return Effect.succeed({ ...recording, uninstall });
+          }),
+          ({ release, uninstall }) =>
+            Effect.sync(() => {
+              uninstall();
+              release();
+            }),
+        ),
+    ).pipe(Effect.map(({ recording }) => recording));
+
+  /** Human-readable label for a cause, e.g. `Program "Board" message Relabel`. */
+  export const describe = (cause: TimelineCause | undefined): string => {
+    if (cause === undefined) {
+      return "commit";
+    }
+    switch (cause._tag) {
+      case "User":
+        return cause.label;
+      case "Action":
+        return `Action "${cause.action}" ${cause.event}`;
+      case "Program": {
+        const program = cause.program === undefined ? "Program" : `Program "${cause.program}"`;
+        return cause.event === "message"
+          ? `${program} message ${messageLabel(cause.message)}`
+          : `${program} ${cause.event}`;
+      }
+      case "Resource":
+        return `Resource "${cause.resource}" ${cause.event} ${cause.key}`;
+      case "Router":
+        return `Router navigate ${cause.href} (${cause.status})`;
+      case "Collection":
+        return `Collection "${cause.collection}" ${cause.event}`;
+    }
+  };
+}

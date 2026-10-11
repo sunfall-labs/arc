@@ -93,7 +93,7 @@ The root export re-exports these local modules:
   `program`, `request-context`
 - `resource`, `resource-snapshot-codec`, `resource-store`, `route`,
   `route-grammar`
-- `runtime`, `server`, `signal`, `stable-stringify`
+- `runtime`, `server`, `signal`, `stable-stringify`, `timeline`
 
 Mixed modules (`action-submission`, the `browser-router-*` modules,
 `effect-like`, `resource-snapshot-codec`, `route-grammar`, `runtime`) are
@@ -113,6 +113,13 @@ Golden-path public groups:
   `Program`
 - `Server`, `ServerClient`, request/response context services
 - `Signal`, `Form`, `Capability`
+- `Timeline`: `Timeline.record(options?)` is a scoped Effect returning a
+  `TimelineRecording` (`entries`, `position`, `travel(sequence)`, `resume()`)
+  over every committed change set; `Timeline.describe(cause)` renders a
+  `TimelineCause`. `Signal.make(initial, { name })` labels a signal, and
+  `Signal.transaction(effect, { cause })` / `Signal.batch(f, { cause })` label
+  a commit. `TimelineEntryUnavailable` and `TimelineAlreadyRecording` are the
+  typed failures.
 - `makeRuntime`, `runWithRuntime`, `SunfallArcRuntime.provide(...)`,
   `AnySunfallArcRuntime`
 - Runtime Provider lifecycle vocabulary (`RuntimeProviderLifecycleEntry`,
@@ -301,17 +308,15 @@ Release decisions:
   `Program.emit(...)`, while no-message background work belongs in
   `Program.effect(...)` or lower-level `Program.command(...)`.
   Started Programs report typed update/command/subscription failures through a
-  signal, expose a bounded `timeline` signal for message, command,
-  subscription, failure, and disposal events, and keep `dispatchEffect(...)`
-  composable for tests and workflows. When disposal drops a queued update
+  signal and keep `dispatchEffect(...)` composable for tests and workflows.
+  Programs keep no history of their own: message and failure commits are
+  labelled entries on the app `Timeline`. When disposal drops a queued update
   before it commits, `dispatchEffect(...)` fails with a `ProgramFailure` whose
   error is `ProgramDisposed`; updates that already committed still acknowledge
-  successfully. Definitions may set `name` and `timeline.limit` for
-  devtools-friendly retention, and handles expose `clearTimeline()` for UI and
-  test reset flows. Runtime timeline retention and disabled timeline behavior
-  are implemented by the internal Program Runtime Timeline Module, while the
-  public Program facade keeps queue, command, subscription, failure, and
-  disposal orchestration. Runtime lifecycle policy also stays internal:
+  successfully. Definitions may set `name`, which labels the Program's signals
+  (`<name>.model`, `<name>.failures`) and its `Timeline` causes. The public
+  Program facade keeps queue, command, subscription, failure, and disposal
+  orchestration. Runtime lifecycle policy also stays internal:
   disposal fails pending or queued `dispatchEffect(...)` acknowledgements with
   `ProgramFailure<..., ProgramDisposed>` when the update has not committed;
   already committed updates acknowledge successfully. Committed model changes
@@ -803,12 +808,12 @@ Release decisions:
 - `DevtoolsStore` is an explicit public Interface, not an inferred factory
   return. Route-plan and invalidation record methods return retained fact
   indexes for adapters that emit runtime events against duplicate recorded facts.
-- Program timeline observation is a first-class store capability:
-  `recordProgramEvent(...)`, `recordProgramEventEffect(...)`, and
-  `trackProgramEffect(...)` copy public `Program.Event` values into the shared
-  runtime event, summary, panel, and causal graph contracts. Store
-  `serializationPolicy` options apply before those Program events enter
-  snapshots; unnamed tracked Programs receive stable per-store fallback names.
+- Timeline observation is a first-class store capability:
+  `recordTimelineEntry(...)`, `recordTimelineEntryEffect(...)`, and
+  `trackTimelineEffect(recording)` copy Core `TimelineEntry` values into
+  `TimelineCommit` runtime events (`DevtoolsTimelineCommit`), linked to the
+  Program, Action, Resource, or Collection their cause names. Store
+  `serializationPolicy` options apply before those commits enter snapshots.
 - The browser panel renderer is public as an embedded UI surface, while
   the bridge helpers are public as the supported app-side handshake for checked
   app or extension shells.
@@ -936,8 +941,7 @@ Release decisions:
   model as a fine-grained, deeply read-only Solid projection
   (`ProgramModelView<Model>`) reconciled from `instance.model`, so readers
   re-run only for the parts they read; `UseProgramOptions.key` (default
-  `"id"`, `null` for positional) sets the array reconcile identity. It also
-  exposes `timeline()` and `clearTimeline()`;
+  `"id"`, `null` for positional) sets the array reconcile identity.
   `dispatchEffect(...)` uses `Program.DispatchError` so `ProgramDisposed`
   appears only when disposal drops a queued update. This is the simple
   model/message/update surface for views that want Elm/Foldkit-style clarity

@@ -782,10 +782,6 @@ describe("solid hooks", () => {
         yield* Deferred.await(loaded);
         flush();
         expect(program?.model()).toEqual({ name: "Atlas" });
-        expect(program?.timeline().map((event) => event._tag)).toContain("Message");
-        program!.clearTimeline();
-        expect(program?.timeline()).toEqual([]);
-        expect(program?.model()).toEqual({ name: "Atlas" });
 
         dispose?.();
         yield* runtime.disposeEffect;

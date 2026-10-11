@@ -1,12 +1,13 @@
 import {
   type ActionInstance,
   type ActionState,
-  type ProgramEvent,
-  type ProgramInstance,
   type ReadableSignal,
   type ResourceInvalidationPlan,
   type ResourceStoreEvent,
   type Route,
+  type TimelineCause,
+  type TimelineEntry,
+  type TimelineRecording,
 } from "@sunfall/arc-core";
 import { Data, type Effect, type Fiber, type Scope } from "effect";
 
@@ -210,8 +211,23 @@ export type DevtoolsCollectionStoreEvent =
     }
   | { readonly _tag: "CollectionWritten"; readonly collection: string; readonly mutations: number };
 
-/** Typed Program timeline event detached into Devtools runtime history. */
-export type DevtoolsProgramEvent = ProgramEvent<unknown, unknown, unknown>;
+/** One signal change inside a detached Timeline commit. */
+export interface DevtoolsTimelineChange {
+  /** The signal's `Signal.make` name or stable `signal#N` id. */
+  readonly signal: string;
+  readonly previous: unknown;
+  readonly next: unknown;
+}
+
+/** A Core `Timeline` entry detached into Devtools runtime history. */
+export interface DevtoolsTimelineCommit {
+  /** Sequence within the Timeline recording. */
+  readonly sequence: number;
+  /** `Timeline.describe(cause)`. */
+  readonly label: string;
+  readonly cause?: TimelineCause;
+  readonly changes: ReadonlyArray<DevtoolsTimelineChange>;
+}
 
 /** Transport family that produced a request trace. */
 export type DevtoolsRequestTraceTransport = "ssr" | "rpc" | "action" | "unknown";
@@ -390,10 +406,10 @@ export type DevtoolsRuntimeEvent =
       readonly event: DevtoolsCollectionStoreEvent;
     }
   | {
-      readonly _tag: "ProgramEvent";
+      readonly _tag: "TimelineCommit";
       readonly sequence?: number;
       readonly at?: number;
-      readonly event: DevtoolsProgramEvent;
+      readonly commit: DevtoolsTimelineCommit;
     }
   | {
       readonly _tag: "ActionState";
@@ -484,7 +500,7 @@ export interface DevtoolsStoreOptions {
  *
  * Provides synchronous and Effect variants for snapshot reads/writes, app graph
  * diagnostics, invalidation plans, action state, route plans, resource and
- * collection events, Program timeline events, request traces, summaries,
+ * collection events, Timeline commits, request traces, summaries,
  * panels, and causal graphs.
  * Values are copied or projected before storage so panel consumers do not
  * mutate live framework state. Fact-recording methods return the retained
@@ -561,14 +577,13 @@ export interface DevtoolsStore {
   readonly recordCollectionEventEffect: (
     event: DevtoolsCollectionStoreEvent,
   ) => Effect.Effect<void>;
-  /** Record one Core Program timeline event as a runtime event. */
-  readonly recordProgramEvent: <Model, Message, E>(event: ProgramEvent<Model, Message, E>) => void;
-  /** Effect variant of `recordProgramEvent(...)`. */
-  readonly recordProgramEventEffect: <Model, Message, E>(
-    event: ProgramEvent<Model, Message, E>,
-  ) => Effect.Effect<void>;
-  readonly trackProgramEffect: <Model, Message, E>(
-    program: ProgramInstance<Model, Message, E>,
+  /** Record one Core `Timeline` entry as a runtime event. */
+  readonly recordTimelineEntry: (entry: TimelineEntry) => void;
+  /** Effect variant of `recordTimelineEntry(...)`. */
+  readonly recordTimelineEntryEffect: (entry: TimelineEntry) => Effect.Effect<void>;
+  /** Records a running `Timeline` recording's retained and future entries until the scope closes. */
+  readonly trackTimelineEffect: (
+    recording: TimelineRecording,
   ) => Effect.Effect<void, never, Scope.Scope>;
   /** Record a prebuilt runtime event, assigning sequence and serialization bounds. */
   readonly recordRuntimeEvent: (event: DevtoolsRuntimeEvent) => void;

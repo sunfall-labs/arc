@@ -9,6 +9,7 @@ import {
   route,
   Route,
   Signal,
+  Timeline,
   type ActionState,
 } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
@@ -702,8 +703,8 @@ describe("devtools invalidation plans", () => {
     ]);
   });
 
-  it("records Program timeline events as serializable runtime panel facts", () => {
-    const before: {
+  it("records Timeline commits as serializable runtime panel facts", () => {
+    const previous: {
       readonly count: number;
       readonly password?: string;
       readonly nested?: unknown;
@@ -712,58 +713,75 @@ describe("devtools invalidation plans", () => {
       count: 0,
       password: "open-sesame",
     };
-    before.self = before;
+    previous.self = previous;
+    const model = Signal.make(previous, { name: "Counter.model" });
+    const failures = Signal.make<ReadonlyArray<unknown>>([], { name: "Counter.failures" });
     const store = makeDevtoolsStore({
       serializationPolicy: {
         redactKeys: ["tenantPrivate"],
       },
     });
 
-    store.recordProgramEvent({
-      _tag: "Message",
+    store.recordTimelineEntry({
       sequence: 1,
-      program: "Counter.program-devtools",
-      message: { _tag: "Increment", accessToken: "secret-token" },
-      before,
-      after: { count: 1, nested: { apiKey: "secret-api-key", tenantPrivate: "tenant-secret" } },
-      commandCount: 0,
-    });
-    store.recordProgramEvent({
-      _tag: "UpdateFailed",
-      sequence: 2,
-      program: "Counter.program-devtools",
-      failure: {
-        _tag: "ProgramFailure",
-        phase: "Update",
-        message: { _tag: "Fail" },
-        error: new Error("boom"),
+      at: 10,
+      cause: {
+        _tag: "Program",
+        program: "Counter.program-devtools",
+        event: "message",
+        message: { _tag: "Increment", accessToken: "secret-token" },
       },
+      changes: [
+        {
+          signal: model,
+          name: "Counter.model",
+          previous,
+          next: { count: 1, nested: { apiKey: "secret-api-key", tenantPrivate: "tenant-secret" } },
+        },
+      ],
+    });
+    store.recordTimelineEntry({
+      sequence: 2,
+      at: 11,
+      cause: {
+        _tag: "Program",
+        program: "Counter.program-devtools",
+        event: "failure",
+        message: { _tag: "Fail" },
+      },
+      changes: [{ signal: failures, name: "Counter.failures", previous: [], next: ["boom"] }],
     });
 
     const summary = store.getSummary();
     const firstEventData = summary.runtime.events[0]?.data as {
-      readonly after?: {
-        readonly nested?: { readonly apiKey?: unknown; readonly tenantPrivate?: unknown };
-      };
-      readonly before?: { readonly password?: unknown; readonly self?: unknown };
-      readonly message?: { readonly accessToken?: unknown };
+      readonly cause?: { readonly message?: { readonly accessToken?: unknown } };
+      readonly changes?: ReadonlyArray<{
+        readonly signal?: unknown;
+        readonly previous?: { readonly password?: unknown; readonly self?: unknown };
+        readonly next?: {
+          readonly nested?: { readonly apiKey?: unknown; readonly tenantPrivate?: unknown };
+        };
+      }>;
     };
     expect(summary.runtime.events.map((event) => event._tag)).toEqual([
-      "ProgramEvent",
-      "ProgramEvent",
+      "TimelineCommit",
+      "TimelineCommit",
     ]);
     expect(summary.runtime.events[0]).toMatchObject({
-      label: "Counter.program-devtools Message",
+      at: 10,
+      label: 'Program "Counter.program-devtools" message Increment',
       target: {
         kind: "Program",
         id: "program:Counter.program-devtools",
       },
     });
-    expect(firstEventData.before?.self).toEqual({ _tag: "Circular" });
-    expect(firstEventData.before?.password).toEqual({ _tag: "Redacted" });
-    expect(firstEventData.message?.accessToken).toEqual({ _tag: "Redacted" });
-    expect(firstEventData.after?.nested?.apiKey).toEqual({ _tag: "Redacted" });
-    expect(firstEventData.after?.nested?.tenantPrivate).toEqual({ _tag: "Redacted" });
+    const [change] = firstEventData.changes ?? [];
+    expect(change?.signal).toBe("Counter.model");
+    expect(change?.previous?.self).toEqual({ _tag: "Circular" });
+    expect(change?.previous?.password).toEqual({ _tag: "Redacted" });
+    expect(firstEventData.cause?.message?.accessToken).toEqual({ _tag: "Redacted" });
+    expect(change?.next?.nested?.apiKey).toEqual({ _tag: "Redacted" });
+    expect(change?.next?.nested?.tenantPrivate).toEqual({ _tag: "Redacted" });
     expect(JSON.stringify(summary)).not.toContain("open-sesame");
     expect(JSON.stringify(summary)).not.toContain("secret-token");
     expect(JSON.stringify(summary)).not.toContain("secret-api-key");
@@ -778,21 +796,15 @@ describe("devtools invalidation plans", () => {
     expect(programsPanel?.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: "program-event:runtime-event:0:ProgramEvent",
-          label: "Counter.program-devtools Message",
-          detail: "Counter.program-devtools Message",
+          id: "program-event:runtime-event:0:TimelineCommit",
+          label: 'Program "Counter.program-devtools" message Increment',
+          detail: "Counter.program-devtools message",
           severity: "ok",
-          data: expect.objectContaining({
-            _tag: "Message",
-            before: expect.objectContaining({
-              password: { _tag: "Redacted" },
-            }),
-          }),
         }),
         expect.objectContaining({
-          id: "program-event:runtime-event:1:ProgramEvent",
-          label: "Counter.program-devtools UpdateFailed",
-          detail: "Counter.program-devtools UpdateFailed",
+          id: "program-event:runtime-event:1:TimelineCommit",
+          label: 'Program "Counter.program-devtools" failure',
+          detail: "Counter.program-devtools failure",
           severity: "error",
         }),
         expect.objectContaining({
@@ -813,7 +825,7 @@ describe("devtools invalidation plans", () => {
     );
   });
 
-  it("tracks running Program timelines with scoped cleanup", async () => {
+  it("tracks a running Timeline recording with scoped cleanup", async () => {
     const store = makeDevtoolsStore();
     const program = Program.start(
       Program.define<{ readonly count: number }, { readonly _tag: "Increment" }>({
@@ -827,64 +839,32 @@ describe("devtools invalidation plans", () => {
       await Effect.runPromise(
         Effect.scoped(
           Effect.gen(function* () {
-            yield* store.trackProgramEffect(program);
+            const recording = yield* Timeline.record();
             yield* program.dispatchEffect({ _tag: "Increment" });
-            yield* Effect.sleep("10 millis");
+            yield* store.trackTimelineEffect(recording);
+            yield* program.dispatchEffect({ _tag: "Increment" });
           }),
         ),
       );
 
-      const trackedEvents =
-        store.getSnapshot().events?.filter((event) => event._tag === "ProgramEvent") ?? [];
-      expect(program.model.get()).toEqual({ count: 1 });
-      expect(trackedEvents.map((event) => event.event._tag)).toEqual(["Message"]);
+      const tracked =
+        store.getSnapshot().events?.filter((event) => event._tag === "TimelineCommit") ?? [];
+      expect(program.model.get()).toEqual({ count: 2 });
+      expect(tracked.map((event) => event.commit.label)).toEqual([
+        'Program "Counter.program-track" message Increment',
+        'Program "Counter.program-track" message Increment',
+      ]);
+      expect(store.getSummary().runtime.events.map((event) => event.target)).toEqual([
+        { kind: "Program", id: "program:Counter.program-track" },
+        { kind: "Program", id: "program:Counter.program-track" },
+      ]);
 
       await Effect.runPromise(program.dispatchEffect({ _tag: "Increment" }));
-      await Effect.runPromise(Effect.sleep("10 millis"));
       expect(
-        store.getSnapshot().events?.filter((event) => event._tag === "ProgramEvent"),
-      ).toHaveLength(trackedEvents.length);
+        store.getSnapshot().events?.filter((event) => event._tag === "TimelineCommit"),
+      ).toHaveLength(tracked.length);
     } finally {
       await Effect.runPromise(program.disposeEffect);
-    }
-  });
-
-  it("tracks anonymous Program timelines with bounded high-water identity", async () => {
-    const store = makeDevtoolsStore();
-    const first = Program.start(
-      Program.define<{ readonly count: number }, { readonly _tag: "Increment" }>({
-        initial: { count: 0 },
-        update: (model) => Effect.succeed({ count: model.count + 1 }),
-      }),
-    );
-    const second = Program.start(
-      Program.define<{ readonly count: number }, { readonly _tag: "Increment" }>({
-        initial: { count: 0 },
-        update: (model) => Effect.succeed({ count: model.count + 1 }),
-      }),
-    );
-
-    try {
-      await Effect.runPromise(
-        Effect.scoped(
-          Effect.gen(function* () {
-            yield* store.trackProgramEffect(first);
-            yield* store.trackProgramEffect(second);
-            yield* first.dispatchEffect({ _tag: "Increment" });
-            yield* second.dispatchEffect({ _tag: "Increment" });
-            yield* Effect.sleep("10 millis");
-          }),
-        ),
-      );
-
-      expect(store.getSummary().runtime.events.map((event) => event.target)).toEqual([
-        { kind: "Program", id: "program:Program#1" },
-        { kind: "Program", id: "program:Program#2" },
-      ]);
-    } finally {
-      await Effect.runPromise(
-        Effect.all([first.disposeEffect, second.disposeEffect], { discard: true }),
-      );
     }
   });
 

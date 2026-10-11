@@ -38,6 +38,7 @@ import type {
   DevtoolsSummaryResourceRef,
   DevtoolsSummaryRoutePlan,
   DevtoolsSummaryRuntimeEvent,
+  DevtoolsTimelineCommit,
 } from "./devtools-contract.js";
 
 export const emptySnapshot = (): DevtoolsSnapshot => ({
@@ -213,12 +214,23 @@ const emptyRuntimeEventFactIndexes = (): RuntimeEventFactIndexes => ({
   routePlanCount: 0,
 });
 
-const programEventName = (
-  event: DevtoolsRuntimeEvent & { readonly _tag: "ProgramEvent" },
-): string =>
-  typeof event.event.program === "string" && event.event.program.length > 0
-    ? event.event.program
-    : "Program";
+/** Links a Timeline commit to the fact its cause names, when it names one. */
+const timelineCommitTarget = (
+  commit: DevtoolsTimelineCommit,
+): DevtoolsSummaryRuntimeEvent["target"] => {
+  switch (commit.cause?._tag) {
+    case "Program":
+      return { kind: "Program", id: programNodeId(commit.cause.program ?? "Program") };
+    case "Action":
+      return { kind: "Action", id: actionNodeId(commit.cause.action) };
+    case "Resource":
+      return { kind: "Resource", id: resourceNodeId(commit.cause.key) };
+    case "Collection":
+      return { kind: "Collection", id: collectionNodeId(commit.cause.collection) };
+    default:
+      return null;
+  }
+};
 
 export const summarizeRuntimeEvent = (
   event: DevtoolsRuntimeEvent,
@@ -261,22 +273,17 @@ export const summarizeRuntimeEvent = (
         data: toDevtoolsSerializableValue(event.event),
       };
     }
-    case "ProgramEvent": {
-      const program = programEventName(event);
+    case "TimelineCommit":
       return {
         index,
-        id: runtimeEventSummaryId(sequence, "ProgramEvent"),
+        id: runtimeEventSummaryId(sequence, "TimelineCommit"),
         _tag: event._tag,
         sequence,
         at,
-        label: `${program} ${event.event._tag}`,
-        target: {
-          kind: "Program",
-          id: programNodeId(program),
-        },
-        data: toDevtoolsSerializableValue(event.event),
+        label: event.commit.label,
+        target: timelineCommitTarget(event.commit),
+        data: toDevtoolsSerializableValue(event.commit),
       };
-    }
     case "ActionState":
       return {
         index,

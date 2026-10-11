@@ -1,19 +1,12 @@
 import {
   type ProgramCommand,
-  type ProgramCommandCompletedEvent,
-  type ProgramCommandFailedEvent,
   type ProgramCommandInput,
-  type ProgramCommandStartedEvent,
   type ProgramDefinition,
   type ProgramDispatchError,
-  type ProgramDisposedEvent,
-  type ProgramEvent,
-  type ProgramEventBase,
   type ProgramFailure,
   type ProgramHandlerDefinition,
   type ProgramHandlerMap,
   type ProgramInstance,
-  type ProgramMessageEvent,
   type ProgramPhase,
   ProgramDisposed,
   type ProgramRuntimeError,
@@ -22,14 +15,9 @@ import {
   type ProgramStoryEntry,
   type ProgramStoryOptions,
   type ProgramSubscription,
-  type ProgramSubscriptionEmittedEvent,
-  type ProgramSubscriptionFailedEvent,
   type ProgramSubscriptionInput,
-  type ProgramSubscriptionStartedEvent,
   type ProgramTaggedMessage,
-  type ProgramTimelineOptions,
   type ProgramUpdate,
-  type ProgramUpdateFailedEvent,
 } from "./program-contract.js";
 export {
   ProgramDisposed,
@@ -37,20 +25,13 @@ export {
   ProgramStepTypeId,
   ProgramSubscriptionTypeId,
   type ProgramCommand,
-  type ProgramCommandCompletedEvent,
-  type ProgramCommandFailedEvent,
   type ProgramCommandInput,
-  type ProgramCommandStartedEvent,
   type ProgramDefinition,
   type ProgramDispatchError,
-  type ProgramDisposedEvent,
-  type ProgramEvent,
-  type ProgramEventBase,
   type ProgramFailure,
   type ProgramHandlerDefinition,
   type ProgramHandlerMap,
   type ProgramInstance,
-  type ProgramMessageEvent,
   type ProgramPhase,
   type ProgramRuntimeError,
   type ProgramStep,
@@ -58,18 +39,13 @@ export {
   type ProgramStoryEntry,
   type ProgramStoryOptions,
   type ProgramSubscription,
-  type ProgramSubscriptionEmittedEvent,
-  type ProgramSubscriptionFailedEvent,
   type ProgramSubscriptionInput,
-  type ProgramSubscriptionStartedEvent,
   type ProgramTaggedMessage,
-  type ProgramTimelineOptions,
   type ProgramUpdate,
   type ProgramUpdateError,
   type ProgramUpdateRequirements,
   type ProgramSubscriptionError,
   type ProgramSubscriptionRequirements,
-  type ProgramUpdateFailedEvent,
 } from "./program-contract.js";
 import {
   defineProgram,
@@ -170,7 +146,7 @@ export namespace Program {
     E,
     R
   >;
-  /** Running Program handle with model, dispatch, timeline, and disposal state. */
+  /** Running Program handle with model, dispatch, failures, and disposal state. */
   export type Instance<Model, Message, E = never, DispatchE = E> = ProgramInstance<
     Model,
     Message,
@@ -208,30 +184,6 @@ export namespace Program {
     RIn,
     RProvided
   >;
-  /** Timeline retention settings for Program runtime events. */
-  export type TimelineOptions = ProgramTimelineOptions;
-  /** Union of message, command, subscription, failure, and disposal timeline events. */
-  export type Event<Model, Message, E = never> = ProgramEvent<Model, Message, E>;
-  /** Shared metadata carried by every Program timeline event. */
-  export type EventBase = ProgramEventBase;
-  /** Timeline event recorded when a message is committed. */
-  export type MessageEvent<Model, Message> = ProgramMessageEvent<Model, Message>;
-  /** Timeline event recorded before a command fiber starts. */
-  export type CommandStartedEvent<Message> = ProgramCommandStartedEvent<Message>;
-  /** Timeline event recorded when a command emits a follow-up message or completes empty. */
-  export type CommandCompletedEvent<Message> = ProgramCommandCompletedEvent<Message>;
-  /** Timeline event recorded when a command fails through the Program error channel. */
-  export type CommandFailedEvent<Message, E> = ProgramCommandFailedEvent<Message, E>;
-  /** Timeline event recorded when an update callback fails. */
-  export type UpdateFailedEvent<Message, E> = ProgramUpdateFailedEvent<Message, E>;
-  /** Timeline event recorded when a model-dependent subscription starts. */
-  export type SubscriptionStartedEvent<Model> = ProgramSubscriptionStartedEvent<Model>;
-  /** Timeline event recorded when a subscription emits a message. */
-  export type SubscriptionEmittedEvent<Message> = ProgramSubscriptionEmittedEvent<Message>;
-  /** Timeline event recorded when a subscription fails through the Program error channel. */
-  export type SubscriptionFailedEvent<Message, E> = ProgramSubscriptionFailedEvent<Message, E>;
-  /** Timeline event recorded when a running Program is disposed. */
-  export type DisposedEvent = ProgramDisposedEvent;
   /** Visible runtime phase for a started Program. */
   export type Phase = ProgramPhase;
   /** User update callback shape for model/message transitions. */
