@@ -259,6 +259,3 @@ export const applyStartActionResponseEffect = <
     FetchRequirements
   >;
 };
-
-/** Compatibility alias for the original action response metadata helper. */
-export const hydrateActionResponseEffect = applyStartActionResponseEffect;

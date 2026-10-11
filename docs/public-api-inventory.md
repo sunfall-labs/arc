@@ -35,8 +35,6 @@ unless this document explicitly promotes them.
 | `@sunfall/arc-start-fetch` | `.`                     | `packages/start-fetch/src/index.ts`        | Public         | Keep as the generic Fetch-host adapter facade.                                    |
 | `@sunfall/arc-db`          | `.`                     | `packages/db/src/index.ts`                 | Public         | Keep as the collection/live-query surface.                                        |
 | `@sunfall/arc-devtools`    | `.`                     | `packages/devtools/src/index.ts`           | Public         | Keep as the JSON-safe inspection contract.                                        |
-| `@sunfall/arc-react`       | `.`                     | `packages/react/src/index.ts`              | Public         | Keep as the React adapter surface.                                                |
-| `@sunfall/arc-react-db`    | `.`                     | `packages/react-db/src/index.ts`           | Public         | Keep as the React collection adapter surface.                                     |
 | `@sunfall/arc-solid`       | `.`                     | `packages/solid/src/index.ts`              | Public         | Keep as the Solid adapter surface.                                                |
 | `@sunfall/arc-solid-db`    | `.`                     | `packages/solid-db/src/index.ts`           | Public         | Keep as the Solid collection adapter surface.                                     |
 | `@sunfall/arc-tsrx`        | `.`                     | `packages/tsrx/src/index.ts`               | Public         | Keep as the Vite/TSRX preset.                                                     |
@@ -74,7 +72,7 @@ hovers. Together these checks keep hover/LSP docs from drifting away from
 package Interfaces rather than merely reachable implementation files.
 The curated hover declarations currently cover the Core Action, ActionResult,
 Capability, Form, Program, and Resource Interfaces,
-browser-router/router Adapter, React/Solid runtime and hook Adapter seams,
+browser-router/router Adapter, Solid runtime and hook Adapter seams,
 Start diagnostics, generated file-route module, fetch, and Node Adapter seams,
 Devtools DTO/normalizer/panel contract seams, and the DB Collection contract,
 Collection/Query namespace aliases, Query plan, flush/background-sync,
@@ -149,7 +147,7 @@ Golden-path public groups:
   surfacing the getter throw as a defect.
 - Browser router helper types such as `BrowserNavigateArgs`,
   `BrowserRouterPath`, and `BrowserRouterRouteForPath` are Core-owned route
-  helper vocabulary. React and Solid re-export them for adapter ergonomics, but
+  helper vocabulary. The Solid adapter re-exports them for ergonomics, but
   Core owns the public hover and type-test contract.
 - `stableStringify(...)` and the `StableStringify*` errors are expert-public
   Stable Identity Codec vocabulary for cache keys, route/resource identity, and
@@ -211,7 +209,7 @@ Release decisions:
 - `Route.lazyComponent(...)` is Effect-first: the chunk loader is an
   `Effect`, the descriptor exposes `preloadEffect()`, and
   `Route.readComponent(...)` reports lazy pending/failure through tagged values.
-  React and Solid are the only adapters that convert pending lazy route loads
+  The Solid adapter is the only layer that converts pending lazy route loads
   into host Suspense Promise tokens. Lazy component load state is cached on the
   descriptor because UI chunks are app-code assets rather than route
   render-scope resources.
@@ -222,7 +220,7 @@ Release decisions:
 - Route grammar parsing rejects invalid and duplicate path parameter names at
   the grammar seam, so match results cannot silently collapse repeated params.
 - `browser-router` is an expert-public Browser Router Kernel and Browser
-  History Adapter Module. React and Solid router Adapters use it for shared
+  History Adapter Module. The Solid router Adapter uses it for shared
   route matching, preload state, initial matched-state policy, link
   click/preload policy, current-href reads, external history listeners, and
   programmatic history commits. The
@@ -240,7 +238,7 @@ Release decisions:
   `browserRouterLinkClickDecision(...)`,
   `BrowserRouterLinkPreloadDecision`, `BrowserRouterLinkPreloadIdentity`,
   `BrowserRouterLinkClickDecision`, and `BrowserRouterLinkIgnoreReason` are
-  expert-public for React, Solid, tests, and future adapters; app code should
+  expert-public for Solid, tests, and future adapters; app code should
   normally keep using framework `RouterLink` components. The
   `makeBrowserRouterLinkPreloader(...)` seam accepts only full preload identity
   facts and requirement-free preload Effects, so framework adapters must
@@ -255,7 +253,7 @@ Release decisions:
   `browserRouteRenderIdentity(...)`, `BrowserRouteOutletRenderers`,
   `BrowserRouteOutletDefaultRenderers`, `BrowserRouteRenderIdentityInput`,
   `BrowserRouteReadyRenderProps`, and `BrowserRouteRenderDecision` are
-  expert-public for React, Solid, tests, and future adapters; app code should
+  expert-public for Solid, tests, and future adapters; app code should
   normally keep using framework router outlets.
 - `Action.use(definition, { runtime })` is a runtime-bound action instance:
   services provided by the explicit runtime are removed from `submitEffect(...)`
@@ -320,8 +318,8 @@ Release decisions:
   `program.ts`.
   `Program.RuntimeError<E, ER = never>` separates Program-domain failures from
   Runtime Spine startup/provision failures. `Program.DispatchError<E, ER>` adds
-  `ProgramDisposed` for live `dispatchEffect(...)` acknowledgement drops; Solid
-  and React adapters expose the same `ER` parameter on `useProgram(...)`.
+  `ProgramDisposed` for live `dispatchEffect(...)` acknowledgement drops; the
+  Solid adapter exposes the same `ER` parameter on `useProgram(...)`.
   `Program.step(...)` and `Program.story(...)` are the deterministic test
   surface: they run updates as Effects, expose returned commands without running
   them implicitly, and let tests resolve commands back into typed messages.
@@ -341,7 +339,7 @@ Release decisions:
   `EffectInputCallbackError`, schema errors, and transport errors stay in the
   client error channel.
 - `Resource.LoadError<E>` is public hover vocabulary for Resource state,
-  status, `prefetchEffect(...)`, `refreshEffect(...)`, and Solid/React
+  status, `prefetchEffect(...)`, `refreshEffect(...)`, and Solid
   resource handles. It means the declared load error `E` plus
   `EffectInputCallbackError` from synchronous `load`/`provides` callback
   throws.
@@ -371,7 +369,7 @@ Release decisions:
   refresh/prefetch Effects, automatic preload fibers, keyed preload failures,
   observer and host setter failure swallowing, stale preload interruption,
   retained-ref cleanup through `disposeEffect()`, and Suspense preload-token
-  dedupe. React and Solid still own host reactivity and host Suspense throwing.
+  dedupe. The Solid adapter still owns host reactivity and host Suspense throwing.
 - `action-submission`, `definition-registry`, `resource-registry`,
   `resource-snapshot-codec`, `resource-ui-binding`, and `route-grammar` are
   expert-public Modules.
@@ -535,7 +533,7 @@ The root export includes:
   LSP-facing contract for the current JSON POST RPC boundary: path, media
   types, transport protocol version, and request/diagnostic header names. The
   compatibility artifact adds one procedure descriptor per manifest entry plus
-  adoption blockers for replacing Start transport with `effect/unstable/rpc`.
+  adoption blockers for replacing Start transport with `effect/rpc`.
 - Generated route artifact helpers:
   `createFileRouteDefinitionsModule`, `createFileRouteModuleReferences`,
   `createFileRouteCompanionModuleReferences`,
@@ -790,19 +788,13 @@ The root export includes:
 - sync adapters, server collection helpers, SQLite persistence helpers, and
   background flush policies;
 - collection store diagnostics and events for devtools.
-- React DB and Solid DB share `collection-reactive-binding` for source
+- Solid DB uses `collection-reactive-binding` for source
   subscriptions, live-query selection, and mount-time preload cleanup. Its
   `CollectionReactivePreloadController` exposes awaitable `interruptEffect()`
   cleanup while retaining sync host cleanup convenience for adapter unmounts.
 
 Release decisions:
 
-- `createCollection`, `createLiveQuery`, and `createLiveQueryCollection` remain
-  expert-public compatibility aliases for `Collection.define(...)`,
-  `Query.live(...)`, and `Collection.liveQuery(...)`. New docs and examples
-  should prefer the namespace-owned APIs so LSP hovers make Module ownership
-  clear, but the aliases are pinned in the focused DB type test and manifest so
-  compatibility cannot drift accidentally.
 - SQLite helper names are expert public storage-adapter APIs. Keep them because
   local-first recipes need a SQLite-shaped seam without a runtime dependency on
   a specific SQLite package. `sqlite-persistence.ts` owns the statement value,
@@ -1020,7 +1012,7 @@ Release decisions:
   explicitly accepts `false` for definitions that enable persistence but
   disable config-driven restore hydration before preload.
 - The collection reactive binding helpers exported from the DB root are
-  expert-public Adapter helpers for React DB, Solid DB, and future framework
+  expert-public Adapter helpers for Solid DB and future framework
   adapters. They own collection source subscription, runtime-bound Effects,
   preload controller generation checks, live-query state error extraction, and
   live-query input/dependency selection; app code should prefer the framework
@@ -1171,133 +1163,14 @@ Release decisions:
   assertions there; `type-tests/framework.test-d.ts` should keep only
   cross-package compatibility checks with Core, DB, or Start.
 
-### `@sunfall/arc-react`
-
-The root export includes:
-
-- Local source modules: `hooks`, `link`, `router`, and `runtime`.
-- `RuntimeProvider`, `createEffectRuntime`, `useRuntime`, component scopes, and
-  core re-exports used by React apps;
-- router APIs: `createBrowserRouter`, `RouterProvider`, `RouterOutlet`,
-  `RouterLink`, `useRouter`, `isPlainLeftClick`, `BrowserRouterState`,
-  `BrowserNavigateOptions`, `RouterContextMissing`,
-  `RouterRouteNotRegistered`, route/path helper types, and typed route failure
-  renderers;
-- hooks for signals, streams, programs, resources, suspense, and actions.
-
-Release decisions:
-
-- Keep the first React slice focused on the runtime and data hooks needed to
-  make React component ecosystems such as Base UI and shadcn usable inside
-  Sunfall Arc apps.
-- React hooks expose current values directly, such as `resource.value` and
-  `program.model`, instead of Solid-style accessor functions. Effect-returning
-  methods remain the shared cross-adapter composition surface.
-- React `RuntimeProvider` accepts `onDisposeFailure(...)` only when it owns the
-  runtime through `source` or the default runtime path. The observer is
-  `EffectInput<void, unknown>`: observers may return pure values or Effects,
-  Promise-shaped observers are rejected, observer failures are swallowed after
-  the disposal failure is observed, and the prop is intentionally unavailable
-  for host-owned `runtime` props. Provider-owned cleanup defers disposal by one
-  microtask so React StrictMode effect replay can cancel same-entry cleanup
-  before the still-current Runtime Spine is disposed.
-- React `useComponentScope(...)` and `useScoped(...)` install a commit-gated
-  `UiScope`: render-time reads can observe the Runtime Spine, but scoped
-  finalizers and forks are rejected until React commits the component so
-  abandoned renders cannot leak Effect work. Cleanup uses the same replay-aware
-  microtask policy as `RuntimeProvider`. The commit-scope frame helper remains
-  a React Adapter internal and is not root-exported from `@sunfall/arc-react`.
-- React router helpers mirror the Solid route helper surface while exposing
-  state through Sunfall Arc `Signal` values that React components consume via
-  `useSignal(...)`.
-- React router preload matching uses the same ordered route list as navigation,
-  so shadowed static/dynamic hrefs preload the route that `RouterProvider`
-  renders.
-- `RouterProvider` and `createBrowserRouter(...)` accept `hydrating: true` when
-  React is hydrating existing server-rendered DOM. That fact is passed to the
-  Core Browser Router Initial Matched State Policy so the first matched render
-  stays `Ready` instead of replacing server output with pending UI.
-- `createBrowserRouter(...)` and `RouterProvider` require an explicit
-  preload-capable runtime when the route list contains serviceful preloads.
-  Service-free route arrays may still use the ambient/default runtime path, but
-  the public adapter seam no longer erases route preload requirements.
-- `RouterOutlet` renders pending, failure, not-found, and matched route
-  branches inside the router Runtime Spine and a route-owned `UiScope`, so Core
-  render-seam helpers such as `Resource.status(...)`, `read(...)`,
-  `onDispose(...)`, and `forkScoped(...)` observe the same ownership as route
-  preloads. The internal React Route Render Scope Controller owns this branch
-  rendering, keyed route frame remounting, runtime provider re-entry,
-  replay-aware cleanup, committed finalizer buffering, speculative render-pass
-  finalizer replacement, pre-commit `forkScoped(...)` rejection, and route
-  finalizer policy while the public router surface stays unchanged.
-- `useResource<..., ER>(...)` exposes `preloadFailure` and accepts
-  `onPreloadFailure(...)` for automatic mount-time preloads. The observer may
-  return a plain value or an EffectInput, but Promise-shaped observers are
-  rejected at the EffectInput boundary. Returned `prefetchEffect(...)` and
-  `refreshEffect(...)` remain Effect-returning and runtime-bound;
-  `preloadFailure` is only the observable result of the hook's fire-and-forget
-  preload fiber.
-- React resource hooks consume Core's Resource UI Binding Controller for shared
-  Resource ref identity, automatic preload, preload failure keying, and
-  Suspense preload-token dedupe. React remains responsible for
-  `useSyncExternalStore(...)`, direct-value handles, and the React Suspense
-  thenable throw seam.
-- `useAction(...)` returns a React `ActionHandle`: `state` and
-  `invalidationPlan` are current React values, while `submitEffect(...)` and
-  `resetEffect(...)` stay runtime-bound Effect methods. The underlying Core
-  `ActionInstance` remains available at `handle.instance` for advanced
-  integration work.
-- `useProgram(...)` returns a React `ProgramHandle`: `model`, `state`,
-  `failures`, and `timeline` are current React values; `dispatchEffect(...)`
-  remains Effect-returning and uses `Program.DispatchError` so
-  `ProgramDisposed` appears only when disposal drops a queued update;
-  `clearTimeline()` clears retained timeline events without touching model or
-  failures. Both dispatch methods accept only concrete Program messages;
-  Promise-shaped messages, Effect-shaped messages, and `undefined` are
-  rejected.
-
-### `@sunfall/arc-react-db`
-
-The root export includes:
-
-- Local source modules: `collection` and `live-query`.
-- `useCollection`, `useLiveQuery`, collection/live-query handles, and preload
-  options;
-- `Collection` and `Query` re-exports for adapter-local ergonomics.
-
-Release decisions:
-
-- Keep `Collection` and `Query` re-exports because `@sunfall/arc-react-db` is the
-  React DB entrypoint. Domain modules should still import from `@sunfall/arc-db`
-  when they are adapter-independent.
-- The focused React DB type test and public API manifest pin `Collection`,
-  `Query`, `useCollection`, `useLiveQuery`, `CollectionHandle`, and
-  `LiveQueryHandle`, plus `UseCollectionOptions` and `UseLiveQueryOptions`, as
-  direct imports so this Adapter re-export Interface cannot drift silently. The
-  manifest also requires the root Source Surface Modules `collection` and
-  `live-query`.
-- `useCollection(...)` and `useLiveQuery(...)` share one internal React DB
-  Reactive Binding Module for runtime capture, source subscriptions, cleanup,
-  automatic preload through the DB-owned Collection Reactive Preload
-  Controller, and runtime-bound returned Effects. The public handles remain the
-  supported app surface. Returned `preloadEffect(...)` and
-  `refetchEffect(...)` are already bound to the React runtime, so they no longer
-  expose the collection/query service requirement `R`; pass the optional `ER`
-  generic when a fallible Runtime Provider should be reflected in the error
-  channel. `useCollection(...)` also exposes current `pendingMutations` and
-  runtime-bound insert, update, delete, write, and flush Effects, so React
-  callers do not need to rebind the raw Collection Definition for mutation work.
-- The shared React DB binding owns runtime capture, collection subscriptions,
-  component cleanup, automatic preload, and runtime-bound returned Effects.
-  Automatic preload failure observers may return a plain value or an
-  EffectInput, while Promise-shaped observers are rejected at the EffectInput
-  seam.
-
 ### `@sunfall/arc-solid`
 
 The root export includes:
 
-- Local source modules: `hooks`, `link`, `router`, and `runtime`.
+- Local source modules: `component`, `hooks`, `link`, `router`, and `runtime`.
+- `Component`: typed component definitions (`Component.make`, `resource`,
+  `catchTags`, `loading`, `provide`, `mount`, `embed`) whose services and
+  render failures flow through `yield*` in setup instead of JSX;
 - `RuntimeProvider`, `createEffectRuntime`, `useRuntime`, component scopes, and
   core re-exports used by Solid apps;
 - router APIs: `createBrowserRouter`, `RouterProvider`, `RouterOutlet`,
@@ -1333,13 +1206,13 @@ Release decisions:
   usable for broad route-agnostic renderers.
 - `RouterLink` is the typed anchor path: it builds `Route.href(...)`, preloads on
   hover through the router runtime, preserves modified-click/browser-handled
-  behavior, and navigates only plain left clicks. React and Solid delegate
+  behavior, and navigates only plain left clicks. The Solid adapter delegates
   hover/click intent to the Core Browser Router Link Decision policy while
   keeping DOM event wiring local.
 - `BrowserRouter` mirrors generated route path ergonomics with
   `hrefByPath(...)`, `navigateByPath(...)`, `matchByPath(...)`, and
   `preloadByPathEffect(...)`; route-object helpers remain available for callers
-  already holding concrete route definitions. React and Solid type tests pin
+  already holding concrete route definitions. Solid type tests pin
   each path helper so adapter LSP coverage does not rely only on route-object
   examples.
 - `RouterOutlet` delegates branch rendering, route-owned `UiScope` lifetime,

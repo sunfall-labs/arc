@@ -102,7 +102,7 @@ type RouteLazyComponentState<Component, E> =
  *
  * Lazy component chunks are app-code assets, so their load state is cached on
  * the descriptor rather than on one route render scope. The loader runs as an
- * Effect, while React and Solid own the final host Suspense token conversion.
+ * Effect, while the Solid adapter turns it into an async memo for `<Loading>`.
  */
 export interface RouteLazyComponent<Component = unknown, E = never> {
   readonly [RouteLazyComponentTypeId]: typeof RouteLazyComponentTypeId;

@@ -1,12 +1,15 @@
+import { createRequire } from "node:module";
 import { configDefaults, defineConfig } from "vitest/config";
-import react from "@vitejs/plugin-react";
 import { sunfallArcTsrx } from "./packages/tsrx/src/index.js";
+
+// Node's resolver uses the package's "default" condition: the production build.
+const solidSignalsProductionEntry = createRequire(
+  new URL("./packages/core/package.json", import.meta.url),
+).resolve("@solidjs/signals");
 
 const sharedAlias = {
   "@sunfall/arc-core": new URL("./packages/core/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-db": new URL("./packages/db/src/index.ts", import.meta.url).pathname,
-  "@sunfall/arc-react": new URL("./packages/react/src/index.ts", import.meta.url).pathname,
-  "@sunfall/arc-react-db": new URL("./packages/react-db/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-solid": new URL("./packages/solid/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-solid-db": new URL("./packages/solid-db/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-tsrx": new URL("./packages/tsrx/src/index.ts", import.meta.url).pathname,
@@ -28,28 +31,54 @@ const sharedAlias = {
   "@sunfall/arc-devtools": new URL("./packages/devtools/src/index.ts", import.meta.url).pathname,
 };
 
-const reactTestIncludes = [
-  "packages/react/**/*.test.ts",
-  "packages/react-db/**/*.test.ts",
-  "examples/react-starter/**/*.test.ts",
-];
+// Solid adapter tests exercise client reactivity, so they run Solid's browser build.
+const solidClientTestIncludes = ["packages/solid/**/*.test.ts", "packages/solid-db/**/*.test.ts"];
 
 export default defineConfig({
   test: {
     projects: [
       {
-        plugins: [react()],
+        plugins: sunfallArcTsrx(),
+        resolve: {
+          alias: sharedAlias,
+          conditions: ["browser", "development"],
+        },
+        test: {
+          name: "solid-client",
+          environment: "happy-dom",
+          include: solidClientTestIncludes,
+          benchmark: {
+            include: [],
+          },
+          globals: true,
+        },
+      },
+      {
+        // Client render benchmarks use Solid's production browser build.
+        // `@solidjs/signals` maps Vitest's "test" condition to its dev build,
+        // so pin its production entry explicitly.
+        plugins: sunfallArcTsrx({ solid: { dev: false } }),
         resolve: {
           alias: {
             ...sharedAlias,
-            "@": new URL("./examples/react-starter/src", import.meta.url).pathname,
+            "@solidjs/signals": solidSignalsProductionEntry,
           },
+          conditions: ["browser"],
         },
         test: {
-          name: "react",
-          include: reactTestIncludes,
+          name: "solid-client-bench",
+          environment: "happy-dom",
+          // Resolve every Solid package through Vite so Arc and Solid share one
+          // reactive graph (the production build) instead of Node-resolved copies.
+          server: {
+            deps: {
+              inline: [/solid-js/, /@solidjs\//],
+            },
+          },
+          include: [],
+          passWithNoTests: true,
           benchmark: {
-            exclude: ["benchmarks/**/*.bench.ts"],
+            include: ["benchmarks/**/*.client.bench.ts"],
           },
           globals: true,
         },
@@ -62,9 +91,10 @@ export default defineConfig({
         test: {
           name: "solid-core",
           include: ["packages/**/*.test.ts", "examples/**/*.test.ts"],
-          exclude: [...configDefaults.exclude, ...reactTestIncludes],
+          exclude: [...configDefaults.exclude, ...solidClientTestIncludes],
           benchmark: {
             include: ["benchmarks/**/*.bench.ts"],
+            exclude: ["benchmarks/**/*.client.bench.ts"],
           },
           globals: true,
         },

@@ -4,6 +4,7 @@ import {
   Route,
   currentOrDefaultRuntime,
   runWithRuntime,
+  Signal,
   type AnySunfallArcRuntime,
   type BrowserHistoryAdapter,
   type BrowserRouterHostController,
@@ -12,19 +13,17 @@ import {
 } from "@sunfall/arc-core";
 import { Data } from "effect";
 import {
+  createComponent,
   createContext,
   createMemo,
   createRenderEffect,
-  createResource,
-  createRoot,
-  createSignal,
+  getOwner,
+  isHydrating,
   onCleanup,
-  sharedConfig,
   useContext,
   type Accessor,
-  type JSX,
 } from "solid-js";
-import { createComponent, isServer } from "solid-js/web";
+import { isServer, type JSX } from "@solidjs/web";
 import {
   makeSolidRouteRenderScopeController,
   type SolidRouteOutletRenderers,
@@ -184,9 +183,9 @@ export interface RouterOutletProps<RoutesOrError = readonly AnyRoute[], ER = nev
 
 const canUseBrowser = (): boolean => !isServer && typeof window !== "undefined";
 
-const isHydratingExistingDom = (): boolean => canUseBrowser() && sharedConfig.context != null;
+const isHydratingExistingDom = (): boolean => canUseBrowser() && isHydrating();
 
-const RouterContext = createContext<BrowserRouter<readonly AnyRoute[], unknown>>();
+const RouterContext = createContext<BrowserRouter<readonly AnyRoute[], unknown> | null>(null);
 
 interface RouterProviderEntry<Routes extends readonly AnyRoute[], ER> {
   readonly routes: Routes;
@@ -252,22 +251,13 @@ export const createBrowserRouter = <
         hydrating: options.hydrating ?? isHydratingExistingDom(),
       }),
   });
-  const [state, setState] = createSignal<BrowserRouterState<Routes, ER>>(controller.state.get());
-  const [match, setMatch] = createSignal<Route.Match<Routes[number]> | undefined>(
-    controller.match.get(),
-  );
-  const unsubscribeState = controller.state.subscribe(() => {
-    setState(() => controller.state.get());
-  });
-  const unsubscribeMatch = controller.match.subscribe(() => {
-    setMatch(() => controller.match.get());
-  });
+  // Controller signals are Arc signals, which Solid tracks natively.
+  const state: Accessor<BrowserRouterState<Routes, ER>> = () => controller.state.get();
+  const match: Accessor<Route.Match<Routes[number]> | undefined> = () => controller.match.get();
   const stopController = canUseBrowser() ? controller.start() : controller.dispose;
 
   onCleanup(() => {
     stopController();
-    unsubscribeState();
-    unsubscribeMatch();
   });
 
   const router: BrowserRouter<Routes, ER> = {
@@ -313,50 +303,39 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
   const router = useRouter<Routes, Error>();
   const runtime = router.runtime as AnySunfallArcRuntime<Error>;
   const renderers = createMemo(() => routerOutletRenderers(typedProps));
-  const [node, setNode] = createSignal<JSX.Element>();
-  const [renderError, setRenderError] = createSignal<unknown>();
-  const [renderSuspension, setRenderSuspension] = createSignal<unknown>();
-  const [suspensionResource] = createResource(renderSuspension, (suspension) => suspension);
+  // Outlet state lives in Arc signals: Solid tracks them natively on the client,
+  // and writes stay plain committed values during server rendering.
+  const node = Signal.make<JSX.Element>(undefined);
+  const renderError = Signal.make<unknown>(undefined);
   const routeRenderScope = makeSolidRouteRenderScopeController({
     initialInput: {
       state: router.state(),
       renderers: renderers(),
     },
     runtime,
-    setNode,
-    setRenderError,
-    setRenderSuspension,
+    owner: getOwner(),
+    node,
+    renderError,
   });
 
-  createRenderEffect(() => {
-    routeRenderScope.update({
-      state: router.state(),
-      renderers: renderers(),
-    });
-  });
+  createRenderEffect(
+    () => ({ state: router.state(), renderers: renderers() }),
+    (input) => {
+      routeRenderScope.update(input);
+    },
+  );
 
   onCleanup(() => {
     routeRenderScope.dispose();
   });
 
-  const view = createMemo(() => {
-    const error = renderError();
+  return createMemo(() => {
+    const error = renderError.get();
     if (error !== undefined) {
       throw error;
     }
-    return node();
-  });
-
-  const SuspenseBridge = (): JSX.Element => {
-    const suspension = renderSuspension();
-    if (suspension !== undefined) {
-      suspensionResource();
-      return undefined;
-    }
-    return view();
-  };
-
-  return createComponent(SuspenseBridge, {});
+    return node.get();
+  }) as unknown as JSX.Element;
 };
 
 /**
@@ -395,41 +374,15 @@ export const RouterProvider = <
     };
   });
 
-  if (props.hydrating === true || isHydratingExistingDom()) {
-    return createComponent(RouterProviderInstance, {
+  // Each entry gets its own router instance. The memo owns it, so a new entry
+  // disposes the previous router first, and rendering stays in tree order for
+  // hydration.
+  return createMemo(() =>
+    createComponent(RouterProviderInstance<Routes, ER, Runtime>, {
       entry: entry(),
       props,
-    });
-  }
-
-  const [view, setView] = createSignal<JSX.Element>();
-  let disposeEntry: (() => void) | undefined;
-
-  const mountEntry = (current: RouterProviderEntry<Routes, ER>): void => {
-    disposeEntry?.();
-    createRoot((dispose) => {
-      disposeEntry = dispose;
-      const next = createComponent(RouterProviderInstance, {
-        entry: current,
-        props,
-      });
-      setView(() => next);
-    });
-  };
-
-  let mountedEntry = entry();
-  mountEntry(mountedEntry);
-  createRenderEffect(() => {
-    const current = entry();
-    if (current === mountedEntry) {
-      return;
-    }
-    mountedEntry = current;
-    mountEntry(current);
-  });
-  onCleanup(() => disposeEntry?.());
-
-  return view as unknown as JSX.Element;
+    }),
+  ) as unknown as JSX.Element;
 };
 
 const RouterProviderInstance = <
@@ -451,10 +404,10 @@ const RouterProviderInstance = <
     ...(entry.hydrating === undefined ? {} : { hydrating: entry.hydrating }),
   });
 
-  return createComponent(RuntimeContext.Provider, {
+  return createComponent(RuntimeContext, {
     value: entry.runtime as AnySunfallArcRuntime<never>,
     get children() {
-      return createComponent(RouterContext.Provider, {
+      return createComponent(RouterContext, {
         value: router as unknown as BrowserRouter<readonly AnyRoute[], unknown>,
         get children() {
           return runWithRuntime(

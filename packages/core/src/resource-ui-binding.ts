@@ -77,9 +77,9 @@ export interface ResourceUiBindingControllerOptions<I, A, E, R, ER> {
 /**
  * Adapter-neutral Resource binding policy shared by UI packages.
  *
- * React and Solid own their host reactivity and Suspense integration. This
- * controller owns the Resource-specific policy that should not drift between
- * adapters: ref identity, runtime-bound refresh/prefetch Effects, automatic
+ * The Solid adapter owns host reactivity and async rendering. This controller
+ * owns the Resource-specific policy that stays host-independent and testable
+ * without a renderer: ref identity, runtime-bound refresh/prefetch Effects, automatic
  * preload fibers, keyed preload failures, observer failure swallowing, stale
  * preload interruption, and retained-ref cleanup.
  */

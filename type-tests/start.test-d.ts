@@ -601,12 +601,9 @@ void startActionDefinitionPin;
 
 declare const startRenderContext: StartRenderContext;
 const legacyHydrationScript: string = startRenderContext.legacyHydrationScript;
-/** @deprecated pinned so the LSP keeps showing the migration target. */
-const deprecatedHydrationScript: string = startRenderContext.hydrationScript;
 const hydrationRootScript: string = startRenderContext.hydrationRootScript;
 const hydrationPlan: StartRenderHydrationPlan = startRenderContext.hydrationPlan;
 void legacyHydrationScript;
-void deprecatedHydrationScript;
 void hydrationRootScript;
 void hydrationPlan;
 

@@ -106,11 +106,11 @@ return project.match({
 TSRX remains the authoring language for component templates, while Effect handles
 retry, cancellation, scoped cleanup, error recovery, and server boundaries.
 
-Core owns the Resource UI Binding Controller used by React and Solid resource
+Core owns the Resource UI Binding Controller used by the Solid resource
 hooks. That Module keeps ref identity, runtime-bound refresh/prefetch Effects,
 automatic preload fibers, keyed preload failures, stale preload interruption,
-and Suspense preload-token dedupe consistent across adapters. React and Solid
-still own host reactivity and host Suspense thenable throwing.
+and Suspense preload-token dedupe adapter-neutral. The Solid adapter still owns
+host reactivity and host Suspense thenable throwing.
 
 Framework callbacks are intentionally Effect-typed. `Resource.load`,
 `Action.run`, `Server.implement` handlers, and route preload should return
@@ -419,6 +419,53 @@ identity, and exported Effect metrics for request count, request duration, and
 request status. The JSON-safe `onRequestTrace` hook remains the devtools data
 contract, while Effect tracers, loggers, and metric exporters can consume the
 runtime-native signals.
+
+## Components
+
+JSX erases types: every element is `JSX.Element`, so services and typed render
+failures cannot flow through JSX. `Component` (in `@sunfall/arc-solid`) moves
+them onto component **definitions**, composed with `yield*` in a setup
+generator:
+
+```tsx
+const ProjectCard = Component.make("ProjectCard", function* () {
+  const project = yield* Component.resource(ProjectById); // E += load error, R += its services
+  return (props: { readonly id: ProjectId }) => <article>{project(props.id).name}</article>;
+});
+
+const Dashboard = Component.make("Dashboard", function* () {
+  const Card = yield* ProjectCard.pipe(
+    Component.catchTags({ ProjectNotFound: () => <p>Gone</p> }),
+    Component.loading(() => <Spinner />),
+  );
+  return () => <Card id={selected()} />; // Card is a plain Solid component
+});
+```
+
+A `Component<P, E, R>` is yieldable like an Effect service key: yielding it
+adds its `E` and `R` to the parent and returns a plain Solid component. `E` is
+phantom at the Effect level; setup failures, provided-Layer failures, and failed
+resource reads surface when the component renders, by throwing to the nearest
+Solid `<Errored>`. `catchTags` installs that boundary and removes handled tags
+from `E` (matching a `ResourceFailure` by its inner `error._tag`); unmatched
+failures rethrow outward. `provide` removes services from `R`; `mount` accepts
+only `Component<P, never, never>`.
+
+Two phases keep the cost model honest:
+
+- **Setup runs once per Arc runtime** (memoized in the runtime's Resource
+  Store), not per instance. Its Scope lives as long as the runtime, so provided
+  scoped Layers and setup finalizers release on runtime disposal. Nested
+  `yield*` runs inline, once per parent setup.
+- **Render runs per instance** under a Solid owner, exactly like a Solid
+  component. Resource reads share one fiber-backed async memo per ref per
+  runtime (the `useResourceSuspense` path); pending reads suspend `<Loading>`.
+
+`Component.mount(...)` is a scoped acquisition (`Effect<void, ER, Scope>`):
+setup completes before the first render, interrupting the mount interrupts
+setup, and closing the Scope disposes the Solid tree, then any runtime the
+mount owns. `Component.embed(...)` renders a component inside an existing
+`RuntimeProvider` tree, sharing the same per-runtime setup.
 
 ## Component Runtime
 
@@ -809,7 +856,7 @@ errors, and named `Server.contract` values, then export browser-safe clients fro
 those contracts:
 
 ```ts
-export class ProjectNotFound extends Schema.TaggedErrorClass<ProjectNotFound>()("ProjectNotFound", {
+export class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
   id: ProjectId,
 }) {}
 
@@ -1015,6 +1062,41 @@ not required to replay every intermediate update.
 Use `Signal.peek(signal)` or `Signal.untracked(() => ...)` for reads that should not
 become render dependencies.
 
+### Writes Are Transactions
+
+Signals separate committed state from rendered state:
+
+1. Every write is transactional. It joins the caller's open transaction or
+   commits on its own, so a write is never half-applied.
+2. Effect and synchronous code read committed state, including their own
+   transaction's writes. Solid computations read rendered state, which Solid
+   tracks natively and catches up atomically at its next flush.
+3. A transaction that fails or is interrupted commits nothing.
+
+```ts
+const next = yield * Signal.updateAndGet(count, (n) => n + 1); // read-after-write just works
+
+yield *
+  Signal.transaction(
+    Effect.gen(function* () {
+      const saved = yield* Signal.updateAndGet(count, (n) => n + 1);
+      yield* api.save(saved); // if this fails, the write above never happened
+    }),
+  );
+
+Signal.batch(() => {
+  plan.set(undefined);
+  state.set({ _tag: "Idle" }); // subscribers run once, after both writes
+});
+```
+
+Inside a transaction, reads (including `Signal.derive`) see the transaction's own
+writes; other fibers, subscribers, and the UI see none of them until commit.
+Nested transactions and batches join the outer one. A transaction covers its
+whole Effect, including fibers it forks, so concurrent branches
+(`Effect.all(..., { concurrency })`) commit atomically with it. A fiber still
+running after the transaction ends sees it closed and commits its own writes.
+
 The temporal model is still available through Effect streams:
 
 ```ts
@@ -1051,7 +1133,7 @@ Resource.family({
   input: ProjectId,
   load: (id: ProjectId) => getProject.effect({ id }),
   policy: {
-    retry: Schedule.exponential("100 millis").pipe(Schedule.take(3)),
+    retry: Schedule.exponential("100 millis").pipe(Schedule.upTo({ times: 3 })),
   },
 });
 ```

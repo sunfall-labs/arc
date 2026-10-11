@@ -142,7 +142,7 @@ const currentFiberContextProbe: Redactable.Redactable = {
 };
 
 const currentFiberRuntime = (): CurrentRuntimeBoundary | undefined =>
-  Context.getReferenceUnsafe(
+  Context.getUnsafe(
     Redactable.getRedacted(currentFiberContextProbe) as Context.Context<never>,
     AmbientRuntime,
   );

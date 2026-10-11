@@ -159,7 +159,7 @@ export const ProjectList = Resource.family({
   policy: {
     staleFor: "20 seconds",
     gcFor: "5 minutes",
-    retry: Schedule.exponential("50 millis").pipe(Schedule.take(2)),
+    retry: Schedule.exponential("50 millis").pipe(Schedule.upTo({ times: 2 })),
   },
 });
 
@@ -172,7 +172,7 @@ export const ProjectById = Resource.family({
   policy: {
     staleFor: "20 seconds",
     gcFor: "5 minutes",
-    retry: Schedule.exponential("50 millis").pipe(Schedule.take(2)),
+    retry: Schedule.exponential("50 millis").pipe(Schedule.upTo({ times: 2 })),
   },
 });
 

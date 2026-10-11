@@ -10,7 +10,7 @@ describe("sunfallArcTsrx", () => {
       readonly config?: () => unknown;
     };
 
-    expect(plugins).toHaveLength(3);
+    expect(plugins).toHaveLength(4);
     expect(dependencyPolicy.name).toBe("sunfall-arc-tsrx-deps");
     expect(dependencyPolicy.apply).toBe("serve");
     expect(dependencyPolicy.config?.()).toEqual({
@@ -18,6 +18,27 @@ describe("sunfallArcTsrx", () => {
         noDiscovery: true,
       },
     });
+  });
+
+  it("defaults Vitest projects without an environment to the server posture", () => {
+    const environmentPolicy = sunfallArcTsrx()[1] as {
+      readonly name: string;
+      readonly enforce?: string;
+      readonly config?: (
+        config: Record<string, unknown>,
+        env: { readonly mode: string },
+      ) => unknown;
+    };
+
+    expect(environmentPolicy.name).toBe("sunfall-arc-tsrx-test-environment");
+    expect(environmentPolicy.enforce).toBe("pre");
+    expect(environmentPolicy.config?.({}, { mode: "test" })).toEqual({
+      test: { environment: "node" },
+    });
+    expect(
+      environmentPolicy.config?.({ test: { environment: "happy-dom" } }, { mode: "test" }),
+    ).toEqual({});
+    expect(environmentPolicy.config?.({}, { mode: "development" })).toEqual({});
   });
 
   it("lets callers opt back into Vite dependency discovery", () => {

@@ -131,10 +131,10 @@ export const useCollection = <
   collection: CollectionDefinition<A, K, E, R>,
   options: UseCollectionOptions<E, ER> = {},
 ): CollectionHandle<A, K, E, ER> => {
+  const preloadEffect = collection.preloadEffect();
   const binding = makeSolidDbReactiveBinding<CollectionRuntimeError<E>, R, ER>({
-    sources: [collection],
     preload: options.preload,
-    preloadEffect: collection.preloadEffect(),
+    preloadEffect: () => preloadEffect,
     onPreloadFailure: options.onPreloadFailure,
   });
   const rows = () => binding.read(() => collection.rows());

@@ -11,11 +11,7 @@ import type { EffectInput } from "@sunfall/arc-core";
 import { useRuntime } from "@sunfall/arc-solid";
 import { Effect } from "effect";
 import { createMemo, type Accessor } from "solid-js";
-import {
-  liveQueryStateError,
-  makeSolidDbReactiveBinding,
-  type SolidDbReactiveBinding,
-} from "./shared.js";
+import { liveQueryStateError, makeSolidDbReactiveBinding } from "./shared.js";
 
 /** Options for Solid live-query hooks. */
 export interface UseLiveQueryOptions<E = never, ER = never> {
@@ -78,26 +74,22 @@ export const useLiveQuery = <T, E = never, R = never, ER = never>(
   options: UseLiveQueryOptions<E, ER> = {},
 ): LiveQueryHandle<T, E, ER> => {
   const runtime = useRuntime<ER>();
-  let currentSelection: CollectionReactiveLiveQuerySelection<T, E, R, typeof runtime> | undefined;
-  let binding: SolidDbReactiveBinding<E | QueryEvaluationError, ER> | undefined;
-  const live = (): LiveQuery<T, E, R> => {
-    const previous = currentSelection;
-    currentSelection = selectCollectionReactiveLiveQuery(
-      runtime,
-      input,
-      collectionReactiveDepsValue(options.deps),
-      currentSelection,
-    );
-    if (currentSelection !== previous) {
-      binding?.refreshSources();
-    }
-    return currentSelection.live;
-  };
-  binding = makeSolidDbReactiveBinding<E | QueryEvaluationError, R, ER>({
+  // Re-selects the runtime-bound LiveQuery when explicit deps change; the
+  // previous selection is reused while deps stay equal.
+  const selection = createMemo<CollectionReactiveLiveQuerySelection<T, E, R, typeof runtime>>(
+    (previous) =>
+      selectCollectionReactiveLiveQuery(
+        runtime,
+        input,
+        collectionReactiveDepsValue(options.deps),
+        previous,
+      ),
+  );
+  const live = (): LiveQuery<T, E, R> => selection().live;
+  const binding = makeSolidDbReactiveBinding<E | QueryEvaluationError, R, ER>({
     runtime,
-    sources: () => live().sources,
     preload: options.preload,
-    preloadEffect: Effect.suspend(() => live().preloadEffect()),
+    preloadEffect: () => live().preloadEffect(),
     onPreloadFailure: options.onPreloadFailure,
   });
 

@@ -15,8 +15,6 @@
     "paths": {
       "@sunfall/arc-core": ["./packages/core/src/index.ts"],
       "@sunfall/arc-db": ["./packages/db/src/index.ts"],
-      "@sunfall/arc-react": ["./packages/react/src/index.ts"],
-      "@sunfall/arc-react-db": ["./packages/react-db/src/index.ts"],
       "@sunfall/arc-solid": ["./packages/solid/src/index.ts"],
       "@sunfall/arc-solid-db": ["./packages/solid-db/src/index.ts"],
       "@sunfall/arc-tsrx": ["./packages/tsrx/src/index.ts"],
@@ -31,6 +29,7 @@
       "@sunfall/arc-start/virtual": ["./packages/start/src/virtual-modules.d.ts"],
       "@sunfall/arc-start/vite": ["./packages/start/src/vite.ts"],
       "@sunfall/arc-devtools": ["./packages/devtools/src/index.ts"]
-    }
+    },
+    "types": ["node"]
   }
 }

@@ -143,7 +143,7 @@ export interface CollectionReactivePreloadControllerOptions<E, ER = never> {
 }
 
 /**
- * Creates the shared mount-time preload lifecycle used by React DB and Solid DB.
+ * Creates the mount-time preload lifecycle used by the Solid DB hooks.
  *
  * The controller keeps generation checks in one place so stale preload failures
  * cannot overwrite newer UI state after a source refresh or unmount.

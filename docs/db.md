@@ -121,8 +121,8 @@ without choosing between correctness, inspectability, and ergonomics.
   differential-dataflow / incremental-view-maintenance engine.
 - Grouped aggregate ordering plus ordered `limit` / `offset` windows are
   maintained inside the D2 graph.
-- `@sunfall/arc-react-db` and `@sunfall/arc-solid-db` adapt collections and live
-  queries to framework-local state/accessors.
+- `@sunfall/arc-solid-db` adapts collections and live queries to Solid
+  accessors.
 
 ## Query Engine Shape
 
@@ -279,9 +279,9 @@ fail or needs services, spell those channels in the annotation instead of
 relying on a broad alias. This keeps `Query.onceEffect(...)`, `Query.live(...)`,
 and Live Query Collection hovers aligned with the actual source collections.
 
-React DB and Solid DB share DB-owned live-query selection helpers for dependency
+Solid DB uses DB-owned live-query selection helpers for dependency
 equality, dependency snapshots, prebuilt `LiveQuery` reuse, and runtime-bound
-`Query.live(...)` creation. The adapters still own host reactivity; DB owns the
+`Query.live(...)` creation. The adapter still owns host reactivity; DB owns the
 selection policy.
 
 Derived query results can be exposed as a read-only Collection Definition:
@@ -339,7 +339,7 @@ const Projects = Collection.define<Project>({
   name: "Projects",
   getKey: (project) => project.id,
   policy: {
-    retry: Schedule.exponential("100 millis").pipe(Schedule.take(3)),
+    retry: Schedule.exponential("100 millis").pipe(Schedule.upTo({ times: 3 })),
   },
   load: () => ProjectApi.use((api) => api.list()),
   onUpdate: (updates) => ProjectApi.use((api) => api.updateMany(updates)),
@@ -766,7 +766,7 @@ Explicit `collections` are still supported as a hydration registry and override.
 They are always dehydrated, even when a route preload does not touch them.
 Live query preload and refetch validate the query plan before source collection
 loads run. Invalid aliases, indexes, or unsupported plan shapes fail with
-`QueryEvaluationError`, and React DB / Solid DB automatic preload records that
+`QueryEvaluationError`, and Solid DB automatic preload records that
 failure without causing source side effects.
 Matched routes can also declare concrete Collection Definitions with
 `preloadCollections`; concrete definitions need no lookup. String declarations

@@ -58,10 +58,7 @@ export type {
 } from "./start-action-response-codec.js";
 export { decodeWithSchema, encodeWithSchema } from "./start-schema-codec.js";
 
-export {
-  applyStartActionResponseEffect,
-  hydrateActionResponseEffect,
-} from "./start-action-response-application.js";
+export { applyStartActionResponseEffect } from "./start-action-response-application.js";
 
 export {
   encodeStartActionFormInputEffect,

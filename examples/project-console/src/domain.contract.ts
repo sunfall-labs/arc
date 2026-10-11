@@ -76,23 +76,20 @@ export const ProjectRouteSearch = Schema.Struct({
 export type ProjectRouteParams = typeof ProjectRouteParams.Type;
 export type ProjectRouteSearch = typeof ProjectRouteSearch.Type;
 
-export class ProjectNotFound extends Schema.TaggedErrorClass<ProjectNotFound>()("ProjectNotFound", {
+export class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
   id: ProjectId,
 }) {}
 
-export class InvalidProjectName extends Schema.TaggedErrorClass<InvalidProjectName>()(
+export class InvalidProjectName extends Schema.TaggedError<InvalidProjectName>()(
   "InvalidProjectName",
   {
     name: Schema.String,
   },
 ) {}
 
-export class WorkItemNotFound extends Schema.TaggedErrorClass<WorkItemNotFound>()(
-  "WorkItemNotFound",
-  {
-    id: WorkItemId,
-  },
-) {}
+export class WorkItemNotFound extends Schema.TaggedError<WorkItemNotFound>()("WorkItemNotFound", {
+  id: WorkItemId,
+}) {}
 
 export type ProjectError = ProjectNotFound | InvalidProjectName | WorkItemNotFound;
 export type ProjectRemoteError = ProjectError | Server.ClientError;

@@ -150,8 +150,10 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
     version++;
     currentSubmission = undefined;
     activeSubmissions.clear();
-    invalidationPlan.set(undefined);
-    state.set({ _tag: "Idle" });
+    Signal.batch(() => {
+      invalidationPlan.set(undefined);
+      state.set({ _tag: "Idle" });
+    });
     return interruptFibersEffect(fibers);
   };
   const resetEffect = (): Effect.Effect<void> => Effect.suspend(() => captureResetEffect());
@@ -194,12 +196,14 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
         }
 
         const previous = previousFromState(state.get());
-        invalidationPlan.set(undefined);
-        state.set({
-          _tag: "Pending",
-          input,
-          previous: previous.value,
-          hasPrevious: previous.present,
+        Signal.batch(() => {
+          invalidationPlan.set(undefined);
+          state.set({
+            _tag: "Pending",
+            input,
+            previous: previous.value,
+            hasPrevious: previous.present,
+          });
         });
       }),
     interruptStaleEffect: (submission) =>
@@ -215,12 +219,14 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
           return;
         }
 
-        invalidationPlan.set(plan);
-        state.set({
-          _tag: "Success",
-          value,
-          input,
-          ...(plan === undefined ? {} : { invalidationPlan: plan }),
+        Signal.batch(() => {
+          invalidationPlan.set(plan);
+          state.set({
+            _tag: "Success",
+            value,
+            input,
+            ...(plan === undefined ? {} : { invalidationPlan: plan }),
+          });
         });
       }),
     failureEffect: (submission, input, error) =>

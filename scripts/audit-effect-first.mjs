@@ -259,24 +259,19 @@ const allowed = [
     name: "Effect.runPromise",
     seams: [
       seam(
-        "packages/solid/src/hooks.ts",
-        "Solid Suspense token Adapter",
-        /toHostToken:\s*\(fiber\)\s*=>\s*Effect\.runPromise\(Fiber\.join\(fiber\)\)/,
+        "packages/solid/src/resource-binding.ts",
+        "Solid async resource outcome token Adapter",
+        /const suspenseOutcomeToken = <A>\(outcome: Effect\.Effect<SuspenseOutcome<A>>\) =>\s*Effect\.runPromise\(outcome\);/,
       ),
       seam(
-        "packages/react/src/hooks.ts",
-        "React Suspense token Adapter",
-        /toHostToken:\s*\(fiber\)\s*=>\s*Effect\.runPromise\(Fiber\.join\(fiber\)\)/,
-      ),
-      seam(
-        "packages/react/src/route-render-scope.ts",
-        "React lazy route component Suspense token Adapter",
-        /const pendingLazyComponent = forkRouteLazyComponentSuspense\(error, props\.runtime\);\s*if \(pendingLazyComponent !== undefined\) {\s*const fiber = pendingLazyComponent;\s*throw Effect\.runPromise\(Fiber\.join\(fiber\)\);/,
+        "packages/solid/src/component.ts",
+        "Solid embedded Component setup async memo Adapter",
+        /const setupRenderToken = <P>\(fiber: Fiber\.Fiber<Component\.Render<P>, unknown>\) =>\s*Effect\.runPromise\(Fiber\.join\(fiber\)\);/,
       ),
       seam(
         "packages/solid/src/route-render-scope.ts",
-        "Solid lazy route component Suspense token Adapter",
-        /const fiber = forkRouteLazyComponentSuspense\(error, runtime\);\s*return fiber === undefined \? undefined : Effect\.runPromise\(Fiber\.join\(fiber\)\);/,
+        "Solid lazy route component async memo Adapter",
+        /createMemo<RouteComponent>\(\(\) =>\s*Effect\.runPromise\(\s*Fiber\.join\(preload\)\.pipe\(/,
       ),
       seam(
         "packages/start/src/request-runtime-response.ts",
@@ -410,19 +405,9 @@ const allowed = [
         /declare const startResponsePromise:\s*Promise<Response>;/,
       ),
       seam(
-        "type-tests/react.test-d.ts",
-        "React RuntimeProvider Promise observer negative fixture",
-        /declare const reactRuntimeProviderObserverPromise:\s*Promise<void>;/,
-      ),
-      seam(
         "type-tests/solid.test-d.ts",
         "Solid RuntimeProvider Promise observer negative fixture",
         /declare const solidRuntimeProviderObserverPromise:\s*Promise<void>;/,
-      ),
-      seam(
-        "type-tests/react-db.test-d.ts",
-        "React DB preload observer Promise negative fixture",
-        /declare const reactDbPreloadObserverPromise:\s*Promise<void>;/,
       ),
       seam(
         "type-tests/solid-db.test-d.ts",

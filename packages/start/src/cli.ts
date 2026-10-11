@@ -16,8 +16,8 @@ import {
   Terminal,
 } from "effect";
 import type { EffectInput } from "@sunfall/arc-core";
-import { Argument, CliError, Command, Flag } from "effect/unstable/cli";
-import { ChildProcessSpawner } from "effect/unstable/process";
+import { Argument, CliError, Command, Flag } from "effect/cli";
+import { ChildProcessSpawner } from "effect/process";
 import type { StartAgentGraphQuery } from "./agent-graph.js";
 import {
   isStartAgentGraphQueryKind,
@@ -254,6 +254,7 @@ const makeStartDiagnosticsCliConsole = (
 
 const noopTerminal = Terminal.make({
   columns: Effect.succeed(80),
+  rows: Effect.succeed(24),
   readInput: Effect.die("sunfall-arc-start CLI parser does not read interactive input"),
   readLine: Effect.fail(new Terminal.QuitError()),
   display: () => Effect.void,
@@ -280,33 +281,39 @@ interface StartDiagnosticsCliCommonConfig {
 }
 
 const commonStartDiagnosticsCliFlags = {
-  root: Flag.string("root").pipe(
+  root: Flag.String("root").pipe(
     Flag.withDescription("Vite project root. Defaults to the current directory."),
     Flag.optional,
   ),
-  configFile: Flag.string("config").pipe(
+  configFile: Flag.String("config").pipe(
     Flag.withDescription('Vite config file. Use "false" to disable config loading.'),
     Flag.optional,
   ),
-  mode: Flag.string("mode").pipe(
+  mode: Flag.String("mode").pipe(
     Flag.withDescription("Vite mode to use while loading diagnostics."),
     Flag.optional,
   ),
-  json: Flag.boolean("json").pipe(Flag.withDescription("Print the resolved payload as JSON.")),
-  pretty: Flag.boolean("pretty").pipe(Flag.withDescription("Pretty-print JSON output.")),
+  json: Flag.Boolean("json").pipe(
+    Flag.withDescription("Print the resolved payload as JSON."),
+    Flag.withDefault(false),
+  ),
+  pretty: Flag.Boolean("pretty").pipe(
+    Flag.withDescription("Pretty-print JSON output."),
+    Flag.withDefault(false),
+  ),
 } as const;
 
-const queryTextFlag = Flag.string("query").pipe(
+const queryTextFlag = Flag.String("query").pipe(
   Flag.withDescription("Graph or impact query text. Use this when the query text starts with '-'."),
   Flag.optional,
 );
 
-const graphQueryArgument = Argument.string("query").pipe(
+const graphQueryArgument = Argument.String("query").pipe(
   Argument.variadic(),
   Argument.withDescription("Optional graph kind and query text."),
 );
 
-const impactQueryArgument = Argument.string("query").pipe(
+const impactQueryArgument = Argument.String("query").pipe(
   Argument.variadic(),
   Argument.withDescription(
     "Required impact query text with optional kind, for example `route /projects/:id`.",
@@ -314,8 +321,9 @@ const impactQueryArgument = Argument.string("query").pipe(
 );
 
 const graphSharedFlags = {
-  verbose: Flag.boolean("verbose").pipe(
+  verbose: Flag.Boolean("verbose").pipe(
     Flag.withDescription("Print raw graph ids, facts, and edges for graph output."),
+    Flag.withDefault(false),
   ),
 } as const;
 

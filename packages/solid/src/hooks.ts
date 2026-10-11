@@ -1,17 +1,10 @@
 import {
   Action,
   Program,
-  read as coreRead,
   Resource,
-  ResourceFailure,
-  ResourcePending,
-  makeResourceUiBindingController,
-  makeResourceUiSuspensePreloadController,
   runWithRuntime,
   resourceUiMatchState,
-  resourceUiPreloadFailureFor,
   resourceUiRefAccessor,
-  resourceUiSameRef,
   resourceUiStateHasValue,
   Signal,
   type ActionState,
@@ -24,10 +17,8 @@ import {
   type ProgramEvent,
   type ProgramFailure,
   type ReadableSignal,
-  type ResourceUiBindingController,
   type ResourceUiInput,
   type ResourceUiMatch,
-  type ResourceUiPreloadFailure,
   type ResourceUiSuccessMeta,
   type ResourceInvalidationPlan,
   type ResourceRef,
@@ -35,7 +26,8 @@ import {
   type ResourceState,
 } from "@sunfall/arc-core";
 import { Effect, Fiber, Stream } from "effect";
-import { createRenderEffect, createSignal, onCleanup, type Accessor } from "solid-js";
+import { onCleanup, type Accessor } from "solid-js";
+import { createResourceBinding, createResourceSuspense } from "./resource-binding.js";
 import { createComponentScope, useRuntime } from "./runtime.js";
 
 type ResourceInput<I, A, E, R = unknown> = ResourceUiInput<I, A, E, R>;
@@ -171,21 +163,11 @@ export interface ActionHandle<I, A, E = never, R = never, ER = never> {
   readonly reset: SolidActionInstance<I, A, E, R, ER>["reset"];
 }
 
-interface ResourceBinding<I, A, E, R, ER> {
-  readonly state: Accessor<ResourceState<A, Resource.LoadError<E>>>;
-  readonly preloadFailure: Accessor<Resource.LoadError<E> | ER | undefined>;
-  readonly controller: ResourceUiBindingController<I, A, E, R, ER>;
-}
-
-/** Bridges an Sunfall Arc readable signal into a Solid accessor. */
-export const useSignal = <A>(signal: ReadableSignal<A>): Accessor<A> => {
-  const [value, setValue] = createSignal(coreRead(signal));
-  const unsubscribe = signal.subscribe(() => {
-    setValue(() => coreRead(signal));
-  });
-  onCleanup(unsubscribe);
-  return value;
-};
+// Arc signals track natively in Solid computations: an accessor is just a read.
+const accessor =
+  <A>(signal: ReadableSignal<A>): Accessor<A> =>
+  () =>
+    signal.get();
 
 /** Subscribes to an Effect stream through a Solid accessor. */
 export const useStream = <A, R = never, ER = never>(
@@ -200,7 +182,7 @@ export const useStream = <A, R = never, ER = never>(
         stream.pipe(Stream.runForEach((value) => Effect.sync(() => signal.set(value)))),
       ),
     );
-    return useSignal(signal);
+    return accessor(signal);
   });
 };
 
@@ -238,9 +220,9 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
       }),
     ),
   );
-  const model = useSignal(instance.model);
-  const failures = useSignal(instance.failures);
-  const timeline = useSignal(instance.timeline);
+  const model = accessor(instance.model);
+  const failures = accessor(instance.failures);
+  const timeline = accessor(instance.timeline);
 
   return {
     instance,
@@ -255,94 +237,12 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
   };
 };
 
-const createResourceBinding = <I, A, E, R = unknown, ER = never>(
-  ref: ResourceInput<I, A, E, R>,
-  options: UseResourceOptions<E, ER> = {},
-): ResourceBinding<I, A, E, R, ER> => {
-  const runtime = useRuntime<ER>();
-  const getRef = resourceUiRefAccessor(ref);
-  const controller = makeResourceUiBindingController<I, A, E, R, ER>({
-    runtime,
-    onPreloadFailureChange: (failure) => {
-      setPreloadFailure(() => failure);
-    },
-  });
-  const [stateSignal, setState] = createSignal<ResourceState<A, Resource.LoadError<E>>>(
-    resourceResult(getRef()).get(),
-  );
-  const [preloadFailure, setPreloadFailure] = createSignal<
-    ResourceUiPreloadFailure<I, A, E, R, ER> | undefined
-  >(undefined);
-  let currentRef: ResourceRef<I, A, E, R> | undefined;
-  let latestOnPreloadFailure = options.onPreloadFailure;
-  let unsubscribe: (() => void) | undefined;
-
-  function resourceResult(currentRef: ResourceRef<I, A, E, R>) {
-    return controller.result(currentRef);
-  }
-
-  const bindRef = (nextRef: ResourceRef<I, A, E, R>): void => {
-    if (currentRef !== undefined && resourceUiSameRef(currentRef, nextRef)) {
-      return;
-    }
-
-    currentRef = nextRef;
-    controller.bindRef(nextRef);
-    unsubscribe?.();
-
-    const result = resourceResult(nextRef);
-    setState(() => result.get());
-    unsubscribe = result.subscribe(() => setState(() => result.get()));
-  };
-
-  const syncBinding = (): ResourceRef<I, A, E, R> => {
-    const nextRef = getRef();
-    const preload = options.preload;
-    latestOnPreloadFailure = options.onPreloadFailure;
-    bindRef(nextRef);
-    if (preload === false) {
-      controller.interruptPreload();
-      return nextRef;
-    }
-
-    controller.startInitialPreload(nextRef, {
-      ...(preload === undefined ? {} : { preload }),
-      onPreloadFailure: (error) => latestOnPreloadFailure?.(error),
-    });
-    return nextRef;
-  };
-
-  syncBinding();
-
-  createRenderEffect(() => {
-    syncBinding();
-  });
-
-  onCleanup(() => {
-    unsubscribe?.();
-    controller.dispose();
-  });
-
-  return {
-    state: () => {
-      syncBinding();
-      return stateSignal();
-    },
-    preloadFailure: () => {
-      const ref = syncBinding();
-      const failure = preloadFailure();
-      return resourceUiPreloadFailureFor(failure, ref);
-    },
-    controller,
-  };
-};
-
 /** Returns the reactive `ResourceState` for a resource ref or ref accessor. */
 export const useResourceResult = <I, A, E, R = unknown, ER = never>(
   ref: ResourceInput<I, A, E, R>,
   options?: UseResourceOptions<E, ER>,
 ): Accessor<ResourceState<A, Resource.LoadError<E>>> => {
-  return createResourceBinding(ref, options).state;
+  return createResourceBinding(useRuntime<ER>(), ref, options).state;
 };
 
 /**
@@ -396,7 +296,7 @@ export const useResource = <I, A, E, R = unknown, ER = never>(
   options?: UseResourceOptions<E, ER>,
 ): ResourceHandle<I, A, E, R, ER> => {
   const getRef = resourceUiRefAccessor(ref);
-  const binding = createResourceBinding<I, A, E, R, ER>(getRef, options);
+  const binding = createResourceBinding<I, A, E, R, ER>(useRuntime<ER>(), getRef, options);
   const state = binding.state;
   const value = () => Resource.value(state());
   const error = () => Resource.error(state());
@@ -423,50 +323,17 @@ export const useResource = <I, A, E, R = unknown, ER = never>(
 };
 
 /**
- * Suspense-style resource accessor for Solid render code.
+ * Async resource accessor for Solid render code.
  *
- * Cached values are returned synchronously. Failed loads throw `ResourceFailure`
- * with the stale value when available. Pending or expired reads start
- * `Resource.prefetchEffect(...)` in the active runtime and throw the Promise
- * Solid Suspense expects at this UI Adapter seam.
+ * Cached values return synchronously, so hydrated data renders without a
+ * loading state. Pending or expired reads start `Resource.prefetchEffect(...)`
+ * in the active runtime and return its Promise, which suspends the nearest
+ * Solid `<Loading>` boundary. Failed loads throw `ResourceFailure` (with the
+ * stale value when available) to the nearest `<Errored>` boundary.
  */
 export const useResourceSuspense = <I, A, E, R = unknown>(
   ref: ResourceInput<I, A, E, R>,
-): Accessor<A> => {
-  const runtime = useRuntime();
-  const getRef = resourceUiRefAccessor(ref);
-  const state = useResourceResult(getRef);
-  return createComponentScope((scope) => {
-    const preloadController = makeResourceUiSuspensePreloadController<I, A, E, R, unknown, unknown>(
-      runtime,
-    );
-    scope.addFinalizer(() => {
-      preloadController.dispose();
-    });
-
-    return () => {
-      const currentRef = getRef();
-      preloadController.interruptStale(currentRef);
-      state();
-
-      try {
-        return runWithRuntime(runtime, () => Resource.read(currentRef));
-      } catch (error) {
-        if (error instanceof ResourceFailure) {
-          throw error;
-        }
-        if (!(error instanceof ResourcePending)) {
-          throw error;
-        }
-      }
-
-      throw preloadController.hostToken(currentRef, {
-        fork: (effect) => scope.fork(runtime.provide(effect)),
-        toHostToken: (fiber) => Effect.runPromise(Fiber.join(fiber)),
-      });
-    };
-  });
-};
+): Accessor<A> => createResourceSuspense(useRuntime(), ref);
 
 /**
  * Creates an Action instance bound to the nearest Solid runtime.
@@ -481,8 +348,8 @@ export const useAction = <I, A, E, R, ER = never>(
 ): ActionHandle<I, A, E, R, ER> => {
   const runtime = useRuntime() as SunfallArcRuntime<R, ER>;
   const instance = Action.use(definition, { runtime });
-  const state = useSignal(instance.state);
-  const invalidationPlan = useSignal(instance.invalidationPlan);
+  const state = accessor(instance.state);
+  const invalidationPlan = accessor(instance.invalidationPlan);
 
   onCleanup(() => {
     instance.reset();

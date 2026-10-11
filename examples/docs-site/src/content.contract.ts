@@ -21,11 +21,11 @@ export const RecipeRouteParams = Schema.Struct({
 
 export type RecipeRouteParams = typeof RecipeRouteParams.Type;
 
-export class RecipeNotFound extends Schema.TaggedErrorClass<RecipeNotFound>()("RecipeNotFound", {
+export class RecipeNotFound extends Schema.TaggedError<RecipeNotFound>()("RecipeNotFound", {
   slug: RecipeSlug,
 }) {}
 
-export class RecipeFrontmatterDecodeError extends Schema.TaggedErrorClass<RecipeFrontmatterDecodeError>()(
+export class RecipeFrontmatterDecodeError extends Schema.TaggedError<RecipeFrontmatterDecodeError>()(
   "RecipeFrontmatterDecodeError",
   {
     file: Schema.String,
@@ -33,7 +33,7 @@ export class RecipeFrontmatterDecodeError extends Schema.TaggedErrorClass<Recipe
   },
 ) {}
 
-export class RecipeMarkdownParseError extends Schema.TaggedErrorClass<RecipeMarkdownParseError>()(
+export class RecipeMarkdownParseError extends Schema.TaggedError<RecipeMarkdownParseError>()(
   "RecipeMarkdownParseError",
   {
     file: Schema.String,

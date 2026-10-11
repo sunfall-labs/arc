@@ -96,6 +96,15 @@ const packagePayloadPolicies = new Map([
     },
   ],
   ...starterSourcePackagePayloadPolicies,
+  [
+    "@sunfall/arc-spike-solid2",
+    {
+      payload: "source-package",
+      requiresGitignore: true,
+      requiredFiles: ["README.md", "tsconfig.json", "vitest.config.ts"],
+      requiredDirectories: ["src", "test"],
+    },
+  ],
 ]);
 
 const sourcePackageGeneratedArtifactFiles = new Map(

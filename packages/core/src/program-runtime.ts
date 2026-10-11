@@ -89,9 +89,15 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
   const timeline = runtimeTimeline.timeline;
   const recordTimeline = (event: RuntimeProgramEventInput): void => runtimeTimeline.record(event);
 
-  const appendFailure = (failure: ProgramFailure<Message, ProgramRuntimeError<E, ER>>): void => {
-    failures.update((current) => [...current, failure]);
-  };
+  /** Commits a failure and its timeline event together, so observers never see one without the other. */
+  const recordFailure = (
+    failure: ProgramFailure<Message, ProgramRuntimeError<E, ER>>,
+    event: RuntimeProgramEventInput,
+  ): void =>
+    Signal.batch(() => {
+      failures.update((current) => [...current, failure]);
+      recordTimeline(event);
+    });
 
   const disposedFailure = (
     message: ProgramMessageValue<Message>,
@@ -152,8 +158,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
                     source as Message,
                   );
                   return Effect.sync(() => {
-                    appendFailure(failure);
-                    recordTimeline({
+                    recordFailure(failure, {
                       _tag: "CommandFailed",
                       commandId,
                       source: source as Message,
@@ -182,8 +187,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
                               source as Message,
                             );
                             return Effect.sync(() => {
-                              appendFailure(failure);
-                              recordTimeline({
+                              recordFailure(failure, {
                                 _tag: "CommandFailed",
                                 commandId,
                                 source: source as Message,
@@ -235,8 +239,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
               if (disposed) {
                 return false;
               }
-              appendFailure(failure);
-              recordTimeline({ _tag: "UpdateFailed", failure });
+              recordFailure(failure, { _tag: "UpdateFailed", failure });
               return true;
             });
             yield* completeAck(queued, reportFailure ? failure : disposedFailure(queued.message));
@@ -257,8 +260,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
                     if (disposed) {
                       return false;
                     }
-                    appendFailure(failure);
-                    recordTimeline({ _tag: "UpdateFailed", failure });
+                    recordFailure(failure, { _tag: "UpdateFailed", failure });
                     return true;
                   });
                   yield* completeAck(
@@ -273,15 +275,17 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
                     if (disposed) {
                       return false;
                     }
-                    recordTimeline({
-                      _tag: "Message",
-                      message: queued.message as Message,
-                      before,
-                      after: step.model as Model,
-                      commandCount: step.commands.length,
+                    Signal.batch(() => {
+                      recordTimeline({
+                        _tag: "Message",
+                        message: queued.message as Message,
+                        before,
+                        after: step.model as Model,
+                        commandCount: step.commands.length,
+                      });
+                      committedDispatches.add(queued);
+                      model.set(step.model as Model);
                     });
-                    committedDispatches.add(queued);
-                    model.set(step.model as Model);
                     if (!Object.is(before, step.model)) {
                       restartSubscriptions(step.model as Model);
                     }
@@ -320,8 +324,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
         if (disposed) {
           return false;
         }
-        appendFailure(failure);
-        recordTimeline({ _tag: "UpdateFailed", failure });
+        recordFailure(failure, { _tag: "UpdateFailed", failure });
         return true;
       });
       yield* completeAck(queued, reportFailure ? failure : disposedFailure(queued.message));
@@ -388,8 +391,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
                       if (disposed || generation !== subscriptionGeneration) {
                         return;
                       }
-                      appendFailure(failure);
-                      recordTimeline({ _tag: "SubscriptionFailed", failure });
+                      recordFailure(failure, { _tag: "SubscriptionFailed", failure });
                     });
                   },
                   onSuccess: (emitted) =>
@@ -417,8 +419,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
                 if (disposed || generation !== subscriptionGeneration) {
                   return;
                 }
-                appendFailure(failure);
-                recordTimeline({ _tag: "SubscriptionFailed", failure });
+                recordFailure(failure, { _tag: "SubscriptionFailed", failure });
               });
             }),
           ),
@@ -435,8 +436,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
             if (disposed || generation !== subscriptionGeneration) {
               return;
             }
-            appendFailure(failure);
-            recordTimeline({ _tag: "SubscriptionFailed", failure });
+            recordFailure(failure, { _tag: "SubscriptionFailed", failure });
           });
         }),
       ),
@@ -507,8 +507,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
               if (disposed) {
                 return;
               }
-              appendFailure(failure);
-              recordTimeline({ _tag: "UpdateFailed", failure });
+              recordFailure(failure, { _tag: "UpdateFailed", failure });
             });
             yield* Effect.fail(failure);
           }),

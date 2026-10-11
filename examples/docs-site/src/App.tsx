@@ -1,6 +1,7 @@
 import { Route, RouterLink, RouterProvider, useResource, useRouter } from "@sunfall/arc-solid";
 import type { SunfallArcRuntime } from "@sunfall/arc-core";
-import { createSignal, onCleanup, onMount, type JSX } from "solid-js";
+import { createSignal, onCleanup, onSettled } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import {
   BlogPostRoute,
   CookbookRoute,
@@ -362,7 +363,7 @@ function RecipeNavList(props: { readonly recipes: ReadonlyArray<RecipeSummary> }
 function PageRail(props: { readonly items: ReadonlyArray<PageRailItem> }) {
   const [activeId, setActiveId] = createSignal(props.items[0]?.id ?? "");
 
-  onMount(() => {
+  onSettled(() => {
     const headings = props.items
       .map((item) => document.getElementById(item.id))
       .filter((heading): heading is HTMLElement => heading !== null);
@@ -407,11 +408,13 @@ function PageRail(props: { readonly items: ReadonlyArray<PageRailItem> }) {
         {props.items.map((item) => (
           <a
             href={`#${item.id}`}
-            class="pageRailLink"
-            classList={{
-              active: activeId() === item.id,
-              nested: item.level > 2,
-            }}
+            class={[
+              "pageRailLink",
+              {
+                active: activeId() === item.id,
+                nested: item.level > 2,
+              },
+            ]}
             aria-current={activeId() === item.id ? "location" : undefined}
           >
             {item.text}
@@ -956,9 +959,9 @@ function BlogPostView() {
 
         <h2 id={blogHeadingId(6)}>What Arc replaces</h2>
         <p>
-          Arc overlaps with state and data libraries, but the honest boundary matters. React state,
-          Solid signals, refs, memos, and component props are still right for private UI details.
-          Arc starts to earn its keep when state becomes durable app behavior.
+          Arc overlaps with state and data libraries, but the honest boundary matters. Solid
+          signals, refs, memos, and component props are still right for private UI details. Arc
+          starts to earn its keep when state becomes durable app behavior.
         </p>
         <p>
           Zustand and Jotai are productive ways to share domain state, but stores and atoms are
@@ -999,8 +1002,8 @@ function BlogPostView() {
         <p>
           Sunfall Arc is not pretending to be a finished ecosystem. Platform-specific packages for
           every host can wait until real deployments demand them. The first public alpha is about
-          the core foundation: typed definitions, Effect runtimes, Start SSR and hydration, Solid
-          and React adapters, local-first collections, app graph diagnostics, devtools contracts,
+          the core foundation: typed definitions, Effect runtimes, Start SSR and hydration, the
+          Solid adapter, local-first collections, app graph diagnostics, devtools contracts,
           starters, package gates, and docs that are themselves built with the framework.
         </p>
         <p>
@@ -1062,7 +1065,7 @@ function RecipeDetail(props: { readonly recipe: Recipe; readonly refreshing: boo
   const headingIds = pageRailIdsByBlockIndex(railItems);
 
   return (
-    <article class="recipeDetail articleWithRail" classList={{ refreshing: props.refreshing }}>
+    <article class={["recipeDetail articleWithRail", { refreshing: props.refreshing }]}>
       <header class="pageHeader">
         <p class="eyebrow">{categoryLabel(props.recipe.category)}</p>
         <h1>{props.recipe.title}</h1>

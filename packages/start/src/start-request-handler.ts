@@ -91,8 +91,6 @@ export interface StartRenderContext<
   readonly resourceStore: ResourceStoreState;
   /** Full hydration payload script for non-streaming renderers. */
   readonly legacyHydrationScript: string;
-  /** @deprecated Use `legacyHydrationScript` for full non-streaming payloads or `hydrationRootScript` for streamed renderers. */
-  readonly hydrationScript: string;
   /** Root-only hydration script derived from `hydrationPlan` for streamed renderers. */
   readonly hydrationRootScript: string;
   readonly hydrationPlan: StartRenderHydrationPlan;
@@ -270,9 +268,6 @@ export const createRequestHandlerEffect = <
           hydrationRootScript: hydrationPlan.root.script,
           hydrationPlan,
           get legacyHydrationScript() {
-            return hydrationPlan.legacy.script;
-          },
-          get hydrationScript() {
             return hydrationPlan.legacy.script;
           },
         } satisfies StartRenderContext<Routes, Client, ServerServices, ServerError, Registry>;

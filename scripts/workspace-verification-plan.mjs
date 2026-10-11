@@ -14,7 +14,6 @@ const packageVerifyLabelOverrides = new Map([
   ["@sunfall/arc-example-docs-site", "docs site"],
   ["@sunfall/arc-example-project-console", "project console"],
   ["@sunfall/arc-starter-basic", "basic starter"],
-  ["@sunfall/arc-starter-react", "React starter"],
 ]);
 
 const defaultVerifyLabel = (packageName) =>

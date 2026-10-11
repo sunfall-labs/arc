@@ -6,7 +6,7 @@ The smallest safe adoption step is an additive Effect RPC compatibility layer fo
 Start server functions. Start keeps `POST /__sunfall-arc/rpc` as the default JSON
 transport while the shared endpoint policy can override the path through
 manifests, request handlers, Vite dev SSR, and clients. `@sunfall/arc-start` can
-now describe live `Server.fn` contracts as `effect/unstable/rpc` `Rpc`
+now describe live `Server.fn` contracts as `effect/rpc` `Rpc`
 descriptors and an `RpcGroup`.
 
 This compatibility layer does not own progressive action form encoding.
@@ -15,13 +15,13 @@ for JSON action clients and form hidden-field payloads.
 
 ## Primitives Evaluated
 
-- `effect/unstable/rpc`: closest match. `Rpc.make` maps cleanly from server
+- `effect/rpc`: closest match. `Rpc.make` maps cleanly from server
   function name, input schema, output schema, and error schema. `RpcGroup.make`
   can group the generated descriptors.
-- `effect/unstable/httpapi`: useful later for route/action OpenAPI, but not the
+- `effect/httpapi`: useful later for route/action OpenAPI, but not the
   best fit for the current Start server function wire protocol because server
   function dispatch is name-keyed inside one JSON RPC endpoint.
-- `effect/unstable/http`: useful later for platform adapters and request/response
+- `effect/http`: useful later for platform adapters and request/response
   conversion, but adopting it in the current handler would rewrite transport
   execution rather than prepare it.
 
@@ -43,7 +43,7 @@ schema values.
 Public helpers:
 
 - `serverFunctionToEffectRpc(fn)` maps one live `Server.fn(...)` contract to an
-  `effect/unstable/rpc` descriptor.
+  `effect/rpc` descriptor.
 - `makeStartEffectRpcGroup(functions)` groups live descriptors for development
   probes and generated metadata.
 - `startEffectRpcEndpointDescriptor(manifest)` returns only the endpoint

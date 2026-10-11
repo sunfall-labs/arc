@@ -7,5 +7,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["type-tests/**/*.ts"]
+  "include": ["type-tests/**/*.ts", "benchmarks/solid-client*.ts"]
 }

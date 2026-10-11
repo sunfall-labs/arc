@@ -215,7 +215,7 @@ describe("docs site", () => {
         expect(gettingStartedHtml).toContain("Use the project console example");
         expect(referenceResponse.status).toBe(200);
         expect(referenceHtml).toMatch(/<code[^>]*class="inlineCode"[^>]*>@sunfall\/arc-core/);
-        expect(referenceHtml).toMatch(/<code[^>]*class="inlineCode"[^>]*>@sunfall\/arc-react/);
+        expect(referenceHtml).toMatch(/<code[^>]*class="inlineCode"[^>]*>@sunfall\/arc-solid/);
       }),
     ));
 
@@ -622,7 +622,7 @@ describe("docs site", () => {
     expect(mainSource).toContain('await import("./content-live.js")');
     expect(mainSource).toContain('updatedAt: "now"');
     expect(mainSource).toContain("hydratedHref={hydratedHref}");
-    expect(mainSource).toContain('import { hydrate, render } from "solid-js/web";');
+    expect(mainSource).toContain('import { hydrate, render } from "@solidjs/web";');
     expect(mainSource).toContain("hydrate(Root, root)");
     expect(mainSource).not.toContain("root.textContent =");
   });

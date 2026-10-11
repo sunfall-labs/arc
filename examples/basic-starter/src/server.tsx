@@ -5,7 +5,7 @@ import {
   htmlChunk,
 } from "@sunfall/arc-start";
 import { Effect, Stream } from "effect";
-import { createComponent, generateHydrationScript, renderToString } from "solid-js/web";
+import { createComponent, generateHydrationScript, renderToString } from "@solidjs/web";
 import App from "./App.js";
 import { app } from "./app-definition.js";
 import "./starter.server.js";

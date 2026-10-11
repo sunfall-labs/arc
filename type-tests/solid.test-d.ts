@@ -7,6 +7,7 @@ import {
 import { Effect, Stream } from "effect";
 import {
   Action,
+  Component,
   Program,
   Resource,
   Route,
@@ -36,7 +37,6 @@ import {
   useRouter,
   useRuntime,
   useRuntimeEffect,
-  useSignal,
   useStream,
   watch,
   type ActionHandle,
@@ -139,7 +139,7 @@ const solidForkScoped: typeof forkScoped = forkScoped;
 const solidOnDispose: typeof onDispose = onDispose;
 const solidWatch: typeof watch = watch;
 const solidCreateComponentScope: typeof createComponentScope = createComponentScope;
-const solidSignalValue = useSignal(solidCountSignal);
+const solidSignalValue = (): number => solidCountSignal.get();
 const solidStreamValue = useStream(Stream.succeed("ready"), "idle");
 const solidRuntime = useRuntime();
 const solidRuntimeRunner: RuntimeEffectRunner = useRuntimeEffect();
@@ -242,7 +242,6 @@ const solidExports: Array<unknown> = [
   useRouter,
   useRuntime,
   useRuntimeEffect,
-  useSignal,
   useStream,
   watch,
   solidRouter,
@@ -311,6 +310,12 @@ type SolidProgramHandle = ProgramHandle<
 type SolidResourceHandle = ResourceHandle<string, SolidProject, never>;
 type SolidUseResourceOptions = UseResourceOptions<never>;
 type SolidRuntimeEffectRunner = RuntimeEffectRunner;
+// Full Component typing coverage lives in type-tests/component.test-d.ts.
+const solidComponent: Component<{}> = Component.make("SolidTypeTest", function* () {
+  yield* Effect.void;
+  return () => "ok";
+});
+void Component.embed(solidComponent);
 void solidExports;
 type _SolidRouter = SolidRouter;
 type _SolidRouterLinkProps = SolidRouterLinkProps;

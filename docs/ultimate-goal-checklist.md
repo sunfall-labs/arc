@@ -576,7 +576,7 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     live-query hooks.
 - [x] Component APIs stay compact and ergonomic.
   - Evidence: `packages/solid/src/index.ts` exports `RuntimeProvider`,
-    `RouterProvider`, `useResource`, `useAction`, `useSignal`; example app uses
+    `RouterProvider`, `useResource`, `useAction`; example app uses
     them directly.
 - [x] Solid hook wildcard defaults avoid UI-local `any` where requirements are
       opaque.
@@ -645,9 +645,8 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     package tests; `examples/project-console/README.md` now records the
     copyable example path, monorepo-only alias caveat, and checked rich-starter
     packaging command; `docs/starter.md` points to `examples/basic-starter` as
-    the minimal checked starter, `examples/react-starter` as the checked React
-    adapter starter, and documents the generated project-console starter
-    payload.
+    the minimal checked starter and documents the generated project-console
+    starter payload.
 - [x] New architectural decisions are recorded in docs or ADRs.
   - Evidence: Review243 added Browser Router Kernel vocabulary for invalid
     navigation cancellation and refreshed Query/SQLite public Interface
@@ -818,8 +817,8 @@ diagnostics`, devtools summary tests, and generated virtual modules.
   - Evidence: example-local `pnpm leak-scan` returned no matches for
     server-only seed data or server module sentinels.
 - [x] Copyable starter-suite packaging passes.
-  - Evidence: `pnpm starter:package` verifies basic, React, and
-    project-console generated starters, rewrites workspace dependencies to local
+  - Evidence: `pnpm starter:package` verifies basic and project-console
+    generated starters, rewrites workspace dependencies to local
     file packages, removes monorepo aliases, installs outside the workspace,
     and runs each generated starter's own `verify` script.
 - [x] Starter packaging script host reporting stays Effect-driven.
@@ -1112,8 +1111,8 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     `pnpm devtools-extension:verify` passed.
 - [x] Add copyable starter-suite packaging.
   - Evidence: `scripts/package-project-console-starter.mjs` generates
-    `.test-dist/starters/basic`, `.test-dist/starters/react`, and
-    `.test-dist/starters/project-console`, rewrites workspace protocol
+    `.test-dist/starters/basic` and `.test-dist/starters/project-console`,
+    rewrites workspace protocol
     dependencies to local `.sunfall-arc-packages/*` file dependencies, removes
     monorepo Vite aliases, writes standalone `tsconfig.json` files, verifies app
     manifests, runs isolated non-workspace installs, and executes generated

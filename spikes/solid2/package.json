@@ -1,0 +1,29 @@
+{
+  "name": "@sunfall/arc-spike-solid2",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "author": "Andrew Lee",
+  "files": [
+    ".gitignore",
+    "README.md",
+    "src",
+    "test",
+    "tsconfig.json",
+    "vitest.config.ts"
+  ],
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --config vitest.config.ts",
+    "verify": "pnpm typecheck && pnpm test"
+  },
+  "dependencies": {
+    "@solidjs/signals": "2.0.0-rc.14",
+    "effect": "4.0.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.6"
+  }
+}

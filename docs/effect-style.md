@@ -32,7 +32,7 @@ edge.
 - Prefer explicit `Resource` / `Action` state and Effect recovery combinators over component-level `try` syntax for first-class APIs.
 - Components own an Effect `Scope`; use `forkScoped`, `watch`, and `onDispose` instead of a generic `useEffect`.
 - Isomorphic server functions should be split into shared contracts and real server handlers. Shared code defines `Server.contract` values and exports `Server.client(contract)`; `.server.ts` modules call `Server.implement(contract, handler)` and are never imported by the browser graph.
-- Prefer `Schema.TaggedErrorClass` for server-function errors because it is a yieldable Effect error and a wire schema at the same time.
+- Prefer `Schema.TaggedError` for server-function errors because it is a yieldable Effect error and a wire schema at the same time.
 - Mock server contracts with `Server.mock`, `Server.mockClient`, or `Server.mockLayer`; do not import `.server.ts` just to test shared resources and actions.
 - Prefer named `Capability` services for app features. Resources and actions should usually depend on `ProjectApi.use(...)`, while server functions, browser RPC, and test doubles are layers behind that capability.
 - Model mutation dependencies with typed `Resource.tag` values. Actions should invalidate domain facts, not string cache keys.
@@ -206,7 +206,7 @@ const UserById = Resource.family({
   input: UserId,
   load: (id: UserId) => getUser.effect({ id }),
   policy: {
-    retry: Schedule.exponential("100 millis").pipe(Schedule.take(3)),
+    retry: Schedule.exponential("100 millis").pipe(Schedule.upTo({ times: 3 })),
   },
 });
 ```

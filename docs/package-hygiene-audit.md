@@ -38,9 +38,6 @@ exports. It supports the release-engineering charter workstream.
   - `@sunfall/arc-core`: `effect`
   - `@sunfall/arc-db`: `@sunfall/arc-core`, `@tanstack/db-ivm`, `effect`
   - `@sunfall/arc-devtools`: `@sunfall/arc-core`, `effect`
-  - `@sunfall/arc-react`: `@sunfall/arc-core`, `effect`, `react`
-  - `@sunfall/arc-react-db`: `@sunfall/arc-core`, `@sunfall/arc-db`,
-    `@sunfall/arc-react`, `effect`, `react`
   - `@sunfall/arc-solid`: `@sunfall/arc-core`, `effect`, `solid-js`
   - `@sunfall/arc-solid-db`: `@sunfall/arc-core`, `@sunfall/arc-db`,
     `@sunfall/arc-solid`, `effect`, `solid-js`

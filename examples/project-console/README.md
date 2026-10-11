@@ -31,8 +31,8 @@ pnpm verify
 ## Copying The Example
 
 - Run `pnpm starter:package` from the repository root to generate standalone
-  starter payloads at `.test-dist/starters/basic`,
-  `.test-dist/starters/react`, and `.test-dist/starters/project-console`. The
+  starter payloads at `.test-dist/starters/basic` and
+  `.test-dist/starters/project-console`. The
   generated payloads rewrite workspace protocol dependencies to local
   `.sunfall-arc-packages/*` file dependencies, remove monorepo Vite aliases,
   write standalone `tsconfig.json` files, verify app manifests against their

@@ -59,7 +59,7 @@ export const docsPages = [
       },
       {
         _tag: "Paragraph",
-        text: "React apps use the React adapter packages instead of the Solid adapter. Start apps also add the host facade they deploy through, such as @sunfall/arc-start-fetch or @sunfall/arc-start-node.",
+        text: "Start apps also add the host facade they deploy through, such as @sunfall/arc-start-fetch or @sunfall/arc-start-node.",
       },
       {
         _tag: "Heading",
@@ -68,13 +68,12 @@ export const docsPages = [
       {
         _tag: "Code",
         language: "shellscript",
-        code: "pnpm starter:dev\npnpm starter:verify\npnpm react-starter:dev\npnpm react-starter:verify",
+        code: "pnpm starter:dev\npnpm starter:verify",
       },
       {
         _tag: "List",
         items: [
           "Basic starter: the smallest checked full-stack app shell.",
-          "React starter: the React adapter path with Tailwind v4 and shadcn-compatible structure.",
           "Use the project console example when you want actions, collections, mocks, and diagnostics together.",
           "Use this docs site when you want to see server functions, Capabilities, Resources, file-route preload, SSR, prerendering, and hydration in one small app.",
         ],
@@ -238,8 +237,8 @@ return project.match({
           "@sunfall/arc-start-node: Node HTTP facade for IncomingMessage/ServerResponse hosts.",
           "@sunfall/arc-db: Collections, live queries, persistence, optimistic mutation queues, and sync adapter seams.",
           "@sunfall/arc-devtools: JSON-safe inspection contracts, app graph summaries, causal graphs, request/resource/action panels, and extension-friendly payloads.",
-          "@sunfall/arc-solid and @sunfall/arc-react: renderer adapters for routing, runtime providers, Resources, Actions, Programs, streams, and component scopes.",
-          "@sunfall/arc-solid-db and @sunfall/arc-react-db: Collection and live-query bindings for each renderer.",
+          "@sunfall/arc-solid: the Solid 2 renderer adapter for routing, runtime providers, Resources, Actions, Programs, streams, and component scopes.",
+          "@sunfall/arc-solid-db: Solid Collection and live-query bindings.",
         ],
       },
       {
@@ -364,7 +363,6 @@ createServer(
         _tag: "List",
         items: [
           "Basic starter: the smallest checked full-stack shell with SSR, hydration, route-owned Resource preload, and leak scanning.",
-          "React starter: the React adapter path with Tailwind v4, Base UI, shadcn-compatible structure, file routes, SSR, hydration, and leak scanning.",
           "Project console: the larger golden path for actions, local-first Collections, optimistic work, mocks, and diagnostics.",
           "Docs site: the live cookbook and public alpha docs app you are reading now.",
           "Devtools panel and extension examples: checked hosts for JSON-safe runtime summaries and inspected-window bridge contracts.",
@@ -373,7 +371,7 @@ createServer(
       {
         _tag: "Code",
         language: "shellscript",
-        code: "pnpm starter:verify\npnpm react-starter:verify\npnpm --filter @sunfall/arc-example-project-console verify\npnpm docs-site:verify\npnpm devtools-panel:verify\npnpm devtools-extension:verify",
+        code: "pnpm starter:verify\npnpm --filter @sunfall/arc-example-project-console verify\npnpm docs-site:verify\npnpm devtools-panel:verify\npnpm devtools-extension:verify",
       },
     ],
   },

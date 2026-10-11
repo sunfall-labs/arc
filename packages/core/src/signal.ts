@@ -1,3 +1,4 @@
+import { createSignal, getObserver, untrack } from "@solidjs/signals";
 import { Effect, Fiber, Queue, Scope, Stream } from "effect";
 import type { EffectInput } from "./effect-like.js";
 import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
@@ -10,19 +11,39 @@ import {
   type SignalDependencyTracker,
   type Subscribable,
 } from "./signal-dependencies.js";
+import {
+  batchSignalWrites,
+  currentSignalCommitSequence,
+  currentSignalTransaction,
+  readSignalTransactionValue,
+  signalTransaction,
+  writeSignalTransactionValue,
+  type SignalTransactionState,
+  type SignalTransactionWritable,
+} from "./signal-transaction.js";
 
 export const SignalTypeId: unique symbol = Symbol.for(
   "@sunfall/arc-core/Signal",
 ) as typeof SignalTypeId;
 
-/** Read-only reactive cell that participates in Sunfall Arc dependency tracking. */
+/**
+ * Read-only reactive cell that participates in Sunfall Arc dependency tracking.
+ *
+ * Effect and synchronous code read committed state (or their own transaction's
+ * writes). Solid computations read the rendered value, which tracks natively
+ * and catches up atomically at Solid's next flush.
+ */
 export interface ReadableSignal<A> extends Subscribable {
   readonly [SignalTypeId]: typeof SignalTypeId;
   /** Reads the value and records a dependency for derived signals/watchers. */
   get(): A;
 }
 
-/** Mutable signal. Writes notify subscribers only when `Object.is` sees a new value. */
+/**
+ * Mutable signal. Every write is transactional: it joins the caller's open
+ * transaction (`Signal.transaction` / `Signal.batch`) or commits on its own.
+ * Subscribers run only after commit, and only when `Object.is` sees a change.
+ */
 export interface WritableSignal<A> extends ReadableSignal<A> {
   /** Replaces the value or computes a next value from the current one. */
   set(value: A | ((current: A) => A)): void;
@@ -160,8 +181,44 @@ export const watch = <A, E = never>(
 abstract class BaseSignal<A> implements ReadableSignal<A> {
   readonly [SignalTypeId]: typeof SignalTypeId = SignalTypeId;
   protected readonly listeners = new Set<() => void>();
+  private projection: (() => A) | undefined;
 
   abstract get(): A;
+
+  /** Value visible to Effect and synchronous code. */
+  protected abstract readVisible(): A;
+
+  /**
+   * Solid-facing read. The projection is created on the first tracked read and
+   * released once Solid stops observing it, so unrendered signals cost nothing.
+   */
+  protected readRendered(): A {
+    if (!this.projection) {
+      // Values are boxed: Solid treats a bare function passed to `createSignal`
+      // or its setter as a computation, but signal values may be functions.
+      const [read, write] = createSignal<{ readonly value: A }>(
+        { value: untrack(() => this.readVisible()) },
+        {
+          ownedWrite: true,
+          unobserved: () => {
+            unsubscribe();
+            this.projection = undefined;
+          },
+        },
+      );
+      const unsubscribe = this.subscribe(() => {
+        write({ value: untrack(() => this.readVisible()) });
+      });
+      this.projection = () => read().value;
+    }
+    return this.projection();
+  }
+
+  /** Solid computations read rendered state; everything else reads committed state. */
+  protected read(): A {
+    trackDependency(this);
+    return getObserver() ? this.readRendered() : this.readVisible();
+  }
 
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
@@ -178,24 +235,41 @@ abstract class BaseSignal<A> implements ReadableSignal<A> {
   }
 }
 
-class WritableSignalImpl<A> extends BaseSignal<A> implements WritableSignal<A> {
+class WritableSignalImpl<A>
+  extends BaseSignal<A>
+  implements WritableSignal<A>, SignalTransactionWritable
+{
   constructor(private value: A) {
     super();
   }
 
   get(): A {
-    trackDependency(this);
-    return this.value;
+    return this.read();
+  }
+
+  protected readVisible(): A {
+    return readSignalTransactionValue(this) as A;
   }
 
   set(value: A | ((current: A) => A)): void {
-    const next = typeof value === "function" ? (value as (current: A) => A)(this.value) : value;
+    const next =
+      typeof value === "function" ? (value as (current: A) => A)(this.readVisible()) : value;
+    writeSignalTransactionValue(this, next);
+  }
 
-    if (Object.is(this.value, next)) {
-      return;
+  readCommitted(): unknown {
+    return this.value;
+  }
+
+  writeCommitted(value: unknown): boolean {
+    if (Object.is(this.value, value)) {
+      return false;
     }
+    this.value = value as A;
+    return true;
+  }
 
-    this.value = next;
+  notifyCommitted(): void {
     this.notify();
   }
 
@@ -241,7 +315,7 @@ class DerivedSignalImpl<A> extends BaseSignal<A> {
     }
 
     this.tracker = makeSignalDependencyTracker(
-      this.compute,
+      () => untrack(this.compute),
       (next) => this.applyValue(next),
       (cause) => this.applyFailure(cause),
     );
@@ -254,7 +328,16 @@ class DerivedSignalImpl<A> extends BaseSignal<A> {
   }
 
   get(): A {
-    trackDependency(this);
+    return this.read();
+  }
+
+  protected readVisible(): A {
+    // Staged writes are not committed yet, so derive from them, caching the
+    // value for the transaction's current write set.
+    const transaction = currentSignalTransaction();
+    if (transaction !== undefined && transaction.writes.size > 0) {
+      return this.readStaged(transaction);
+    }
     if (!this.tracker) {
       this.evaluateUntracked();
     }
@@ -264,9 +347,38 @@ class DerivedSignalImpl<A> extends BaseSignal<A> {
     return this.value;
   }
 
+  private staged:
+    | {
+        readonly transaction: SignalTransactionState;
+        readonly version: number;
+        readonly commits: number;
+        readonly value: A;
+      }
+    | undefined;
+
+  private readStaged(transaction: SignalTransactionState): A {
+    const staged = this.staged;
+    const commits = currentSignalCommitSequence();
+    if (
+      staged?.transaction === transaction &&
+      staged.version === transaction.version &&
+      staged.commits === commits
+    ) {
+      return staged.value;
+    }
+    let value: A;
+    try {
+      value = withoutSignalDependencyObserver(() => untrack(this.compute));
+    } catch (cause) {
+      throw signalEvaluationError("Signal.derive", cause);
+    }
+    this.staged = { transaction, version: transaction.version, commits, value };
+    return value;
+  }
+
   private evaluateUntracked(): void {
     try {
-      this.applyValue(withoutSignalDependencyObserver(this.compute));
+      this.applyValue(withoutSignalDependencyObserver(() => untrack(this.compute)));
     } catch (cause) {
       this.applyFailure(cause);
     }
@@ -309,12 +421,39 @@ export namespace Signal {
   /** Reads a signal and records dependency tracking when one is active. */
   export const get = <A>(signal: ReadableSignal<A>): A => signal.get();
 
-  /** Reads a signal without recording a dependency. */
+  /** Reads a signal's committed (or own-transaction) value without recording a dependency. */
   export const peek = <A>(signal: ReadableSignal<A>): A =>
-    withoutSignalDependencyObserver(() => signal.get());
+    withoutSignalDependencyObserver(() => untrack(() => signal.get()));
 
   /** Runs synchronous work with dependency tracking disabled. */
-  export const untracked = <A>(f: () => A): A => withoutSignalDependencyObserver(f);
+  export const untracked = <A>(f: () => A): A => withoutSignalDependencyObserver(() => untrack(f));
+
+  /**
+   * Runs an Effect as one atomic transaction owned by the current fiber.
+   *
+   * Reads inside see the transaction's own writes; other fibers and the UI see
+   * none of them until success commits all of them at once. Failure or
+   * interruption commits nothing. Nested transactions join the outer one, and
+   * fibers forked inside belong to it until it ends.
+   */
+  export const transaction: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R> =
+    signalTransaction;
+
+  /**
+   * Synchronous counterpart of `transaction`: reads inside `f` see its writes,
+   * subscribers run once after it returns, and a throw commits nothing.
+   */
+  export const batch: <A>(f: () => A) => A = batchSignalWrites;
+
+  /** Writes `f(current)` and returns the value now visible to the caller. */
+  export const updateAndGet = <A>(
+    signal: WritableSignal<A>,
+    f: (current: A) => A,
+  ): Effect.Effect<A> =>
+    Effect.sync(() => {
+      signal.set(f);
+      return peek(signal);
+    });
 
   /** Writes to a writable signal. */
   export const set = <A>(signal: WritableSignal<A>, value: A | ((current: A) => A)): void => {

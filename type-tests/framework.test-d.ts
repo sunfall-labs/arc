@@ -97,7 +97,6 @@ import {
   QueryEvaluationError,
   SQLitePersistenceInvalidRow,
   SQLitePersistenceInvalidTableName,
-  createLiveQueryCollection,
   eq,
   flushCollectionsPendingMutationsEffect,
   makeCollectionReactivePreloadController,
@@ -110,12 +109,6 @@ import {
   type CollectionHandle,
   type LiveQueryHandle,
 } from "@sunfall/arc-solid-db";
-import {
-  useCollection as useReactCollection,
-  useLiveQuery as useReactLiveQuery,
-  type CollectionHandle as ReactCollectionHandle,
-  type LiveQueryHandle as ReactLiveQueryHandle,
-} from "@sunfall/arc-react-db";
 import {
   createBrowserRouter,
   RouterContextMissing,
@@ -137,28 +130,6 @@ import {
   type RouterLinkProps,
   type RouterOutletProps,
 } from "@sunfall/arc-solid";
-import {
-  createBrowserRouter as createReactBrowserRouter,
-  RouterContextMissing as ReactRouterContextMissing,
-  RouterProvider as ReactRouterProvider,
-  RouterRouteNotRegistered as ReactRouterRouteNotRegistered,
-  RuntimeProvider as ReactRuntimeProvider,
-  useProgram as useReactProgram,
-  useResource as useReactResource,
-  useResourceSuspense as useReactResourceSuspense,
-  useRuntimeEffect as useReactRuntimeEffect,
-  useSignal as useReactSignal,
-  useStream as useReactStream,
-  type BrowserNavigateArgs as ReactBrowserNavigateArgs,
-  type BrowserRouter as ReactBrowserRouter,
-  type BrowserRouterPath as ReactBrowserRouterPath,
-  type BrowserRouterRouteForPath as ReactBrowserRouterRouteForPath,
-  type BrowserRouterState as ReactBrowserRouterState,
-  type ProgramHandle as ReactProgramHandle,
-  type RouterLinkProps as ReactRouterLinkProps,
-  type RouterOutletProps as ReactRouterOutletProps,
-  type ResourceHandle as ReactResourceHandle,
-} from "@sunfall/arc-react";
 import {
   describeDevtoolsPanels,
   describeDevtoolsSummary,
@@ -995,118 +966,6 @@ void mixedProjectBrowserRouterPreload;
 void projectRouterLinkProps;
 void staticRouterLinkProps;
 void badProjectRouterLinkProps;
-declare const reactProjectRouterFailure: Extract<
-  ReactBrowserRouterState<readonly [typeof ProjectRoute]>,
-  { readonly _tag: "Failure" }
->;
-const reactProjectRouterFailureCause: Cause.Cause<Route.NavigationError> =
-  reactProjectRouterFailure.cause;
-const reactProjectRouterFailureError: Route.NavigationError | undefined =
-  reactProjectRouterFailure.error;
-void reactProjectRouterFailureCause;
-void reactProjectRouterFailureError;
-const reactRouterContextMissing = new ReactRouterContextMissing({ hook: "useRouter" });
-const reactRouterContextMissingHook: string = reactRouterContextMissing.hook;
-const reactRouterRouteNotRegistered = new ReactRouterRouteNotRegistered({ path: "/outside" });
-const reactRouterRouteNotRegisteredPath: string = reactRouterRouteNotRegistered.path;
-void reactRouterContextMissingHook;
-void reactRouterRouteNotRegisteredPath;
-const reactProjectRouterOutletProps: ReactRouterOutletProps<
-  readonly [typeof ProjectRoute],
-  ProjectError
-> = {
-  pending: (state) => {
-    const match: Route.Match<typeof ProjectRoute> = state.match;
-    match.params.id.toUpperCase();
-    return undefined;
-  },
-  failure: (state) => {
-    const match: Route.Match<typeof ProjectRoute> | undefined = state.match;
-    const cause: Cause.Cause<Route.NavigationError | ProjectError> = state.cause;
-    match?.params.id.toUpperCase();
-    void cause;
-    return undefined;
-  },
-};
-const reactProjectBrowserRouter: ReactBrowserRouter<readonly [typeof ProjectRoute]> =
-  createReactBrowserRouter([ProjectRoute] as const, {
-    initialHref: "/projects/atlas",
-    history: browserHistoryAdapter,
-  });
-const reactProjectRouterState: ReactBrowserRouterState<readonly [typeof ProjectRoute]> =
-  useReactSignal(reactProjectBrowserRouter.state);
-reactProjectBrowserRouter.href(ProjectRoute, {
-  params: { id: "atlas" },
-  search: { tab: "activity" },
-});
-reactProjectBrowserRouter.navigate(ProjectRoute, {
-  params: { id: "atlas" },
-  search: {},
-});
-const reactMixedProjectBrowserRouter = createReactBrowserRouter(
-  [StaticProjectRoute, ProjectRoute] as const,
-  {
-    initialHref: "/projects/atlas",
-  },
-);
-type ReactMixedProjectRouterPath = ReactBrowserRouterPath<
-  readonly [typeof StaticProjectRoute, typeof ProjectRoute]
->;
-const reactMixedProjectRouterPath: ReactMixedProjectRouterPath = "/projects/:id";
-type ReactMixedProjectRouteByPath = ReactBrowserRouterRouteForPath<
-  readonly [typeof StaticProjectRoute, typeof ProjectRoute],
-  "/projects/:id"
->;
-const reactMixedProjectRouteByPath: ReactMixedProjectRouteByPath = ProjectRoute;
-const reactProjectBrowserNavigateArgs: ReactBrowserNavigateArgs<typeof ProjectRoute> = [
-  {
-    params: { id: "atlas" },
-    search: {},
-  },
-];
-reactMixedProjectBrowserRouter.hrefByPath("/static-projects");
-reactMixedProjectBrowserRouter.hrefByPath("/projects/:id", {
-  params: { id: "atlas" },
-  search: { tab: "activity" },
-});
-reactMixedProjectBrowserRouter.navigateByPath(
-  "/projects/:id",
-  {
-    params: { id: "atlas" },
-    search: {},
-  },
-  { replace: true },
-);
-const reactMixedProjectBrowserRouterPreload: Effect.Effect<void, Route.NavigationError> =
-  reactMixedProjectBrowserRouter.preloadByPathEffect("/projects/:id", {
-    params: { id: "atlas" },
-    search: {},
-  });
-const reactProjectRouterLinkProps: ReactRouterLinkProps<typeof ProjectRoute> = {
-  route: ProjectRoute,
-  options: {
-    params: { id: "atlas" },
-    search: { tab: "activity" },
-  },
-  className: "projectLink",
-};
-const reactBadProjectRouterLinkProps: ReactRouterLinkProps<typeof ProjectRoute> = {
-  route: ProjectRoute,
-  // @ts-expect-error React RouterLink preserves route params
-  options: { params: {} },
-};
-// @ts-expect-error React browser router path helpers reject unknown route paths
-reactMixedProjectBrowserRouter.hrefByPath("/missing");
-// @ts-expect-error React browser router href preserves route params
-reactProjectBrowserRouter.href(ProjectRoute, { params: {} });
-void reactProjectRouterOutletProps;
-void reactProjectRouterState;
-void reactMixedProjectRouterPath;
-void reactMixedProjectRouteByPath;
-void reactProjectBrowserNavigateArgs;
-void reactMixedProjectBrowserRouterPreload;
-void reactProjectRouterLinkProps;
-void reactBadProjectRouterLinkProps;
 
 Route.href(ProjectRoute, {
   params: { id: "atlas" },
@@ -3025,72 +2884,6 @@ void solidProjectResourceValue;
 void solidProjectResourcePrefetch;
 void solidProjectResourceRuntimeErrorPrefetch;
 void solidProjectResourcePreloadFailure;
-interface ReactRuntimeStartupError {
-  readonly _tag: "ReactRuntimeStartupError";
-}
-const reactProjectResource = useReactResource(ProjectById("atlas"));
-const reactProjectResourceHandle: ReactResourceHandle<
-  string,
-  Project,
-  ProjectError | Server.ClientError,
-  ProjectApi,
-  never
-> = reactProjectResource;
-const reactProjectResourceValue: Project | undefined = reactProjectResource.value;
-const reactProjectResourcePrefetch: Effect.Effect<
-  Project,
-  Resource.LoadError<ProjectError | Server.ClientError>
-> = reactProjectResource.prefetchEffect();
-const reactProjectResourceWithRuntimeError = useReactResource<
-  string,
-  Project,
-  ProjectError | Server.ClientError,
-  ProjectApi,
-  ReactRuntimeStartupError
->(ProjectById("atlas"), {
-  onPreloadFailure: (error) => {
-    const typedError:
-      | Resource.LoadError<ProjectError | Server.ClientError>
-      | ReactRuntimeStartupError = error;
-    void typedError;
-  },
-});
-useReactResource(ProjectById("atlas"), {
-  // @ts-expect-error resource preload failure observers must return values or Effects, not Promises
-  onPreloadFailure: () => promisedVoid,
-});
-const reactProjectResourceRuntimeErrorPrefetch: Effect.Effect<
-  Project,
-  Resource.LoadError<ProjectError | Server.ClientError> | ReactRuntimeStartupError
-> = reactProjectResourceWithRuntimeError.prefetchEffect();
-const reactProjectResourcePreloadFailure:
-  | Resource.LoadError<ProjectError | Server.ClientError>
-  | ReactRuntimeStartupError
-  | undefined = reactProjectResourceWithRuntimeError.preloadFailure;
-const reactProjectSuspenseValue: Project = useReactResourceSuspense(ProjectById("atlas"));
-const reactProjectSignalValue: Project = useReactSignal(
-  Signal.make({ id: "atlas", name: "Atlas" }),
-);
-const reactProjectStreamValue: Project = useReactStream(
-  Stream.suspend(() =>
-    Stream.fromEffect(ProjectApi.use((api) => api.get("atlas")).pipe(Effect.orDie)),
-  ),
-  { id: "loading", name: "Loading" },
-);
-const reactRuntimeEffect = useReactRuntimeEffect<ReactRuntimeStartupError>();
-const reactRuntimeEffectFiber: Fiber.Fiber<Project, ReactRuntimeStartupError> = reactRuntimeEffect(
-  Effect.succeed({ id: "atlas", name: "Atlas" }),
-);
-void ReactRuntimeProvider;
-void reactProjectResourceHandle;
-void reactProjectResourceValue;
-void reactProjectResourcePrefetch;
-void reactProjectResourceRuntimeErrorPrefetch;
-void reactProjectResourcePreloadFailure;
-void reactProjectSuspenseValue;
-void reactProjectSignalValue;
-void reactProjectStreamValue;
-void reactRuntimeEffectFiber;
 const solidProjectPreloadEffect: Effect.Effect<
   void,
   ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError
@@ -3286,143 +3079,6 @@ const solidProjectNamesRuntimeErrorPreloadEffect: Effect.Effect<
   | SolidRuntimeStartupError
 > = solidProjectNamesWithRuntimeError.preloadEffect();
 void solidProjectNamesRuntimeErrorPreloadEffect;
-const reactProjects = useReactCollection(ProjectsCollection, {
-  preload: false,
-  onPreloadFailure: (error) => {
-    const typedError:
-      | ProjectError
-      | Server.ClientError
-      | CollectionSnapshotCodecError
-      | Schema.SchemaError = error;
-    void typedError;
-    return Effect.void;
-  },
-});
-useReactCollection(ProjectsCollection, {
-  // @ts-expect-error React DB collection preload observers must return EffectInput, not Promise work.
-  onPreloadFailure: () => promisedVoid,
-});
-const reactProjectsHandle: ReactCollectionHandle<
-  Project,
-  string,
-  ProjectError | Server.ClientError,
-  never
-> = reactProjects;
-const reactProjectRows: ReadonlyArray<Collection.Row<Project, string>> = reactProjects.rows;
-const reactProjectPreloadEffect: Effect.Effect<
-  void,
-  ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError
-> = reactProjects.preloadEffect();
-const reactProjectPreloadFailure:
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | undefined = reactProjects.preloadFailure;
-reactProjects.pendingMutations.map((pending) => pending.transaction.id);
-const reactProjectInsertEffect: Effect.Effect<
-  Collection.Transaction<Project, string>,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | EffectInputCallbackError
-> = reactProjects.insertEffect({ id: "lumen", name: "Lumen" });
-const reactProjectsWithRuntimeError = useReactCollection<
-  Project,
-  string,
-  ProjectError | Server.ClientError,
-  ProjectApi,
-  ReactRuntimeStartupError
->(ProjectsCollection, { preload: false });
-const reactProjectPreloadRuntimeErrorEffect: Effect.Effect<
-  void,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | ReactRuntimeStartupError
-> = reactProjectsWithRuntimeError.preloadEffect();
-const reactProjectNames = useReactLiveQuery(
-  (query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
-  {
-    preload: false,
-    onPreloadFailure: (error) => {
-      const typedError:
-        | ProjectError
-        | Server.ClientError
-        | CollectionSnapshotCodecError
-        | Schema.SchemaError
-        | QueryEvaluationError = error;
-      void typedError;
-      return Effect.void;
-    },
-  },
-);
-useReactLiveQuery<
-  string,
-  ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError,
-  ProjectApi
->((query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name), {
-  // @ts-expect-error React DB live-query preload observers must return EffectInput, not Promise work.
-  onPreloadFailure: () => promisedVoid,
-});
-makeCollectionReactivePreloadController({
-  runtime: null as unknown as AnySunfallArcRuntime<never>,
-  onSuccess: () => Effect.void,
-  onFailure: () => Effect.void,
-});
-makeCollectionReactivePreloadController({
-  runtime: null as unknown as AnySunfallArcRuntime<never>,
-  // @ts-expect-error Shared DB preload success observers must return EffectInput, not Promise work.
-  onSuccess: () => promisedVoid,
-  onFailure: () => Effect.void,
-});
-const reactProjectNamesHandle: ReactLiveQueryHandle<
-  string,
-  ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError,
-  never
-> = reactProjectNames;
-const reactProjectNamesWithDeps = useReactLiveQuery(
-  (query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
-  {
-    preload: false,
-    deps: ["atlas"] as const,
-  },
-);
-const reactProjectNamesPreloadEffect: Effect.Effect<
-  void,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | QueryEvaluationError
-> = reactProjectNames.preloadEffect();
-const reactProjectNamesError:
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | QueryEvaluationError
-  | undefined = reactProjectNames.error;
-const reactProjectNamesPreloadFailure:
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | QueryEvaluationError
-  | undefined = reactProjectNames.preloadFailure;
-void reactProjectsHandle;
-void reactProjectRows;
-void reactProjectPreloadEffect;
-void reactProjectPreloadFailure;
-void reactProjectInsertEffect;
-void reactProjectPreloadRuntimeErrorEffect;
-void reactProjectNamesHandle;
-void reactProjectNamesWithDeps;
-void reactProjectNamesPreloadEffect;
-void reactProjectNamesError;
-void reactProjectNamesPreloadFailure;
 
 ProjectNameCards.rows().map((project) => {
   project.name.toUpperCase();
@@ -3430,7 +3086,7 @@ ProjectNameCards.rows().map((project) => {
 });
 Effect.map(ProjectNameCards.updateEffect("atlas", { name: "Atlas Prime" }), () => undefined);
 
-const TopLevelProjectNameCards = createLiveQueryCollection({
+const TopLevelProjectNameCards = Collection.liveQuery({
   name: "ProjectNameCards.topLevel",
   getKey: (project: { readonly id: string; readonly name: string }) => project.id,
   query: (query) =>
@@ -3892,33 +3548,6 @@ const solidProjectProgramRuntimeErrorDispatch: Effect.Effect<
   >
 > = solidProjectProgramWithRuntimeError.dispatchEffect({ _tag: "Load", id: "atlas" });
 void solidProjectProgramRuntimeErrorDispatch;
-const reactProjectProgram: ReactProgramHandle<
-  ProjectProgramModel,
-  ProjectProgramMessage,
-  ProjectError | Server.ClientError | EffectInputCallbackError,
-  ProjectError | Server.ClientError | EffectInputCallbackError | Program.Disposed
-> = useReactProgram(ProjectProgram);
-reactProjectProgram.model.selected?.id.toUpperCase();
-reactProjectProgram.clearTimeline();
-const reactProjectProgramWithRuntimeError = useReactProgram<
-  ProjectProgramModel,
-  ProjectProgramMessage,
-  ProjectError | Server.ClientError,
-  ProjectApi,
-  ReactRuntimeStartupError
->(ProjectProgram);
-const reactProjectProgramRuntimeErrorDispatch: Effect.Effect<
-  void,
-  Program.Failure<
-    ProjectProgramMessage,
-    | ProjectError
-    | Server.ClientError
-    | EffectInputCallbackError
-    | Program.Disposed
-    | ReactRuntimeStartupError
-  >
-> = reactProjectProgramWithRuntimeError.dispatchEffect({ _tag: "Load", id: "atlas" });
-void reactProjectProgramRuntimeErrorDispatch;
 
 Program.define<number, "bad">({
   initial: 0,
@@ -4225,33 +3854,6 @@ RouterProvider({
   routes: [ServicePreloadRoute] as const,
   initialHref: "/service-projects/atlas",
   // @ts-expect-error serviceful RouterProvider runtime must carry preload services
-  runtime: makeRuntime(),
-});
-createReactBrowserRouter([ServicePreloadRoute] as const, {
-  initialHref: "/service-projects/atlas",
-  runtime: routePreloadRuntime,
-});
-// @ts-expect-error serviceful React browser router preloads require an explicit preload-capable runtime
-createReactBrowserRouter([ServicePreloadRoute] as const);
-createReactBrowserRouter([ServicePreloadRoute] as const, {
-  initialHref: "/service-projects/atlas",
-  // @ts-expect-error serviceful React browser router preloads require a runtime carrying preload services
-  runtime: makeRuntime(),
-});
-ReactRouterProvider({
-  routes: [ServicePreloadRoute] as const,
-  initialHref: "/service-projects/atlas",
-  runtime: routePreloadRuntime,
-});
-// @ts-expect-error serviceful React RouterProvider routes require an explicit preload-capable runtime
-ReactRouterProvider({
-  routes: [ServicePreloadRoute] as const,
-  initialHref: "/service-projects/atlas",
-});
-ReactRouterProvider({
-  routes: [ServicePreloadRoute] as const,
-  initialHref: "/service-projects/atlas",
-  // @ts-expect-error serviceful React RouterProvider runtime must carry preload services
   runtime: makeRuntime(),
 });
 const routePreloadProvidedStartApp = defineApp({

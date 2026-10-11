@@ -125,8 +125,11 @@ export class StartActionFormEncodeError extends Data.TaggedError("StartActionFor
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
+// Effect schemas are callable, so detect them with `Schema.isSchema`, not `typeof`.
 const structSchemaFields = (schema: unknown): Record<string, unknown> | undefined => {
-  const fields = isRecord(schema) ? schema.fields : undefined;
+  const fields = Schema.isSchema(schema)
+    ? (schema as { readonly fields?: unknown }).fields
+    : undefined;
   return isRecord(fields) ? fields : undefined;
 };
 
