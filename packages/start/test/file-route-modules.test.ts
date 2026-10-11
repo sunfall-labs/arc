@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { createFileRouteManifest, generateFileRouteManifestArtifact } from "../src/file-routes.js";
+import {
+  createFileRouteManifest,
+  generateFileRouteManifestArtifact,
+  makeFileRouteId,
+  makeFileRouteSourceId,
+} from "../src/file-routes.js";
 import {
   createFileRouteDefinitionsModule,
   FileRouteDefinitionsModuleInvalidExportName,
@@ -1024,8 +1029,8 @@ describe("file route definition module generation", () => {
       createFileRouteDefinitionsModule(
         createFileRouteManifest([
           {
-            id: "source",
-            routeId: "route-with-dash",
+            id: makeFileRouteSourceId("source"),
+            routeId: makeFileRouteId("route-with-dash"),
             moduleId: "src/routes/index.tsx",
             filePath: "src/routes/index.tsx",
             routePath: "/",
@@ -1083,15 +1088,13 @@ describe("file route definition module generation", () => {
       const manifest = createFileRouteManifest(
         [
           {
-            id: "bad",
-            kind: "Route",
-            routeId: "not-valid",
+            id: makeFileRouteSourceId("bad"),
+            routeId: makeFileRouteId("not-valid"),
             moduleId: "src/routes/bad.ts",
             filePath: "src/routes/bad.ts",
             routePath: "/bad",
             segments: [],
             params: [],
-            exportName: "Route",
           },
         ],
         { routeDirectory: "src/routes" },
@@ -1116,15 +1119,13 @@ describe("file route definition module generation", () => {
     const manifest = createFileRouteManifest(
       [
         {
-          id: "bad",
-          kind: "Route",
-          routeId: "not-valid",
+          id: makeFileRouteSourceId("bad"),
+          routeId: makeFileRouteId("not-valid"),
           moduleId: "src/routes/bad.ts",
           filePath: "src/routes/bad.ts",
           routePath: "/bad",
           segments: [],
           params: [],
-          exportName: "Route",
         },
       ],
       { routeDirectory: "src/routes" },

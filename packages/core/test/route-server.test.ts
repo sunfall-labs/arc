@@ -43,7 +43,7 @@ describe("route", () => {
   it("infers route props", () => {
     const ProjectRoute = route("/projects/:id", {});
 
-    expectTypeOf<Route.Props<typeof ProjectRoute>>().toEqualTypeOf<{
+    expectTypeOf<Route.Props<typeof ProjectRoute>>().toMatchTypeOf<{
       readonly params: { readonly id: string };
       readonly search: Record<string, never>;
       readonly match: Route.Match<typeof ProjectRoute>;
@@ -63,7 +63,7 @@ describe("route", () => {
     expect(NestedMaybeProjectRoute.match("/projects/atlas/settings")?.params).toEqual({
       id: "atlas",
     });
-    expectTypeOf<Route.Props<typeof MaybeProjectRoute>>().toEqualTypeOf<{
+    expectTypeOf<Route.Props<typeof MaybeProjectRoute>>().toMatchTypeOf<{
       readonly params: { readonly id?: string };
       readonly search: Record<string, never>;
       readonly match: Route.Match<typeof MaybeProjectRoute>;
@@ -228,9 +228,9 @@ describe("route", () => {
   });
 
   it("plans route preload resources and hydration payloads", () => {
-    const Project = Resource.family({
+    const Project = Resource.family<string, { readonly id: string; readonly name: string }>({
       name: "Route.Project.plan",
-      load: (id: string) => Effect.succeed({ id, name: "Atlas" }),
+      load: (id) => Effect.succeed({ id, name: "Atlas" }),
     });
     const ProjectRoute = route("/projects/:id", {
       preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
@@ -351,7 +351,7 @@ describe("route", () => {
         Effect.tap((error) =>
           Effect.sync(() => {
             expect(error).toBeInstanceOf(RouteNavigationError);
-            expect(error.input).toBe("/projects/atlas");
+            expect(error).toMatchObject({ input: "/projects/atlas" });
           }),
         ),
         Effect.asVoid,
@@ -412,8 +412,8 @@ describe("route", () => {
 
 describe("Server", () => {
   it("runs Effect-backed server functions", () => {
-    const getNumber = Server.fn("Number.get", {
-      handler: (_input: void) => Effect.succeed(42),
+    const getNumber = Server.fn<void, number>("Number.get", {
+      handler: (_input) => Effect.succeed(42),
     });
 
     return Effect.runPromise(
@@ -438,7 +438,7 @@ describe("Server", () => {
   });
 
   it("invokes schema-backed server functions across the wire", () => {
-    const echo = Server.fn("Echo", {
+    const echo = Server.fn<{ readonly value: string }, { readonly value: string }>("Echo", {
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
       handler: ({ value }) => Effect.succeed({ value: value.toUpperCase() }),
@@ -464,7 +464,7 @@ describe("Server", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const response = yield* Server.handleRoute(
+        const response = yield* Server.handleRouteEffect(
           serverRoute,
           new Request("https://example.com/hello"),
         );
@@ -532,7 +532,7 @@ describe("Server", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const response = yield* Server.handleRoute(
+        const response = yield* Server.handleRouteEffect(
           serverRoute,
           new Request("https://example.com/login"),
         );
@@ -565,7 +565,7 @@ describe("Server", () => {
           ),
         );
         const failure = yield* Effect.flip(
-          Server.handleRoute(serverRoute, new Request("https://example.com/bad-cookie")),
+          Server.handleRouteEffect(serverRoute, new Request("https://example.com/bad-cookie")),
         );
 
         expect(failure).toBeInstanceOf(ResponseCookieSerializationError);

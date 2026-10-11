@@ -16,6 +16,7 @@ import { type StartCollectionHydrationOptions } from "./hydration.js";
 import {
   makeRequestRuntime,
   provideRequestRuntime,
+  type RequestRuntimeProvidedRequirements,
   type RequestRuntimeRemainingRequirements,
 } from "./request-runtime.js";
 import { startRequestTraceFactsEffect, type StartRequestTraceHandler } from "./request-trace.js";
@@ -126,7 +127,7 @@ export interface CreateRequestHandlerOptions<
   /** Render the preloaded request context to HTML or a custom Response. */
   readonly render?: (
     context: StartRenderContext<Routes, Client, ServerServices, ServerError, Registry>,
-  ) => EffectInput<string | Response>;
+  ) => EffectInput<string | Response, never, RequestRuntimeProvidedRequirements<ServerServices>>;
   /** Actions served by the action transport. Defaults to globally registered actions. */
   readonly actions?: Iterable<Actions>;
   /** Receives best-effort request diagnostics after runtime teardown. */

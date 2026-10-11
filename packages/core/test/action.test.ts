@@ -3,6 +3,7 @@ import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vitest";
 import {
   Action,
+  eraseRuntime,
   EffectInputCallbackError,
   EffectInputPromiseRejected,
   makeActionSubmissionController,
@@ -688,20 +689,18 @@ describe("Action", () => {
 
   it("captures active submissions before queued sync reset cleanup executes", async () => {
     const baseRuntime = makeRuntime();
-    const queuedResets: Array<Effect.Effect<void>> = [];
+    const erasedBase = eraseRuntime(baseRuntime);
+    const queuedResets: Array<Effect.Effect<unknown, unknown, unknown>> = [];
     let queueNextReset = false;
-    const runtime: typeof baseRuntime = {
-      ...baseRuntime,
-      runFork: <A, E, R>(
-        effect: Effect.Effect<A, E, R>,
-        options?: Effect.RunOptions,
-      ): Fiber.Fiber<A, E> => {
+    const runtime: typeof erasedBase = {
+      ...erasedBase,
+      runFork: (effect, options) => {
         if (queueNextReset) {
           queueNextReset = false;
-          queuedResets.push(effect as Effect.Effect<void>);
-          return baseRuntime.runFork(Effect.never as Effect.Effect<A, E, never>, options);
+          queuedResets.push(effect);
+          return erasedBase.runFork(Effect.never, options);
         }
-        return baseRuntime.runFork(effect as Effect.Effect<A, E, never>, options);
+        return erasedBase.runFork(effect, options);
       },
     };
     const firstStarted = Effect.runSync(Deferred.make<void>());
@@ -742,7 +741,7 @@ describe("Action", () => {
       const second = Effect.runFork(action.submitEffect("second"));
       await Effect.runPromise(Deferred.await(secondStarted));
 
-      await Effect.runPromise(queuedResets[0]!);
+      await Effect.runPromise(Fiber.join(erasedBase.runFork(queuedResets[0]!)));
       await Effect.runPromise(Deferred.await(firstInterrupted));
       await Effect.runPromise(Deferred.succeed(secondRelease, undefined));
 
@@ -1288,8 +1287,7 @@ describe("Action", () => {
       },
       run: (value: string) =>
         value === "first"
-          ? Effect.onInterrupt(
-              Effect.sleep("20 millis").pipe(Effect.as(value)),
+          ? Effect.onInterrupt(Effect.sleep("20 millis").pipe(Effect.as(value)), () =>
               Effect.sync(() => {
                 firstInterrupted = true;
               }),

@@ -1,3 +1,4 @@
+// @vitest-environment happy-dom
 import { Resource, makeRuntime } from "@sunfall/arc-core";
 import { Cause, Effect, Exit } from "effect";
 import { Window } from "happy-dom";
@@ -12,10 +13,8 @@ import {
 const asTargetDocumentWindow = (window: Window): StartStaticTargetDocumentWindow =>
   window as unknown as StartStaticTargetDocumentWindow;
 
-const parseWithWindow =
-  (window: Window) =>
-  (html: string): Document =>
-    new window.DOMParser().parseFromString(html, "text/html");
+const parseHtmlDocument = (html: string): Document =>
+  new DOMParser().parseFromString(html, "text/html");
 
 describe("Start static target document hydration", () => {
   it("fetches, parses, and hydrates a target static document through the Runtime Spine", () =>
@@ -24,7 +23,10 @@ describe("Start static target document hydration", () => {
         Effect.gen(function* () {
           const ProjectById = Resource.family({
             name: "Start.Static.TargetDocument.Project.success",
-            load: (_id: string) => Effect.fail(new Error("static target test has no loader")),
+            load: (
+              _id: string,
+            ): Effect.Effect<{ readonly id: string; readonly name: string }, Error> =>
+              Effect.fail(new Error("static target test has no loader")),
           });
           const ref = ProjectById("1");
           const html = `<!doctype html><html><body>${createHydrationScript({
@@ -43,9 +45,11 @@ describe("Start static target document hydration", () => {
             ],
           })}</body></html>`;
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
           const window = new Window({ url: "https://docs.test/app/" });
-          const fetch = vi.fn(async () => new Response(html));
+          const fetch = vi.fn(
+            async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(html),
+          );
 
           const outcome = yield* hydrateStartStaticTargetDocumentEffect({
             runtime,
@@ -53,7 +57,7 @@ describe("Start static target document hydration", () => {
             browserHref: "/app/projects/1",
             window: asTargetDocumentWindow(window),
             fetch,
-            parseDocument: parseWithWindow(window),
+            parseDocument: parseHtmlDocument,
           });
           const project = yield* runtime.provide(Resource.prefetchEffect(ref));
 
@@ -75,7 +79,10 @@ describe("Start static target document hydration", () => {
     const runtime = makeRuntime();
     try {
       const window = new Window({ url: "https://docs.test/app/" });
-      const fetch = vi.fn(async () => new Response("missing", { status: 404 }));
+      const fetch = vi.fn(
+        async (_input: RequestInfo | URL, _init?: RequestInit) =>
+          new Response("missing", { status: 404 }),
+      );
       const exit = await Effect.runPromiseExit(
         hydrateStartStaticTargetDocumentEffect({
           runtime,
@@ -83,7 +90,7 @@ describe("Start static target document hydration", () => {
           browserHref: "/app/projects/1",
           window: asTargetDocumentWindow(window),
           fetch,
-          parseDocument: parseWithWindow(window),
+          parseDocument: parseHtmlDocument,
         }),
       );
 

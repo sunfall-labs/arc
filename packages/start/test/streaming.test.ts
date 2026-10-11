@@ -186,10 +186,7 @@ describe("Start streaming", () => {
         Effect.gen(function* () {
           const stream = yield* createHtmlStreamEffect({
             shell: "<html>",
-            chunks: Stream.concat(
-              Stream.make<"ok" | "boom" | ReturnType<typeof htmlChunk>>(htmlChunk("<body>")),
-              Stream.fail("boom"),
-            ),
+            chunks: Stream.concat(Stream.make(htmlChunk("<body>")), Stream.fail("boom")),
           });
 
           return yield* Stream.runCollect(stream);

@@ -7,6 +7,12 @@ import {
   toEffect,
 } from "../src/index.js";
 
+// Tests that deliberately pass a thenable at runtime. The cast is intentional: the types
+// reject thenables, and these tests verify the runtime guard behind that type.
+const thenableAsString = {
+  then: (_resolve: (value: string) => void) => undefined,
+} as unknown as string;
+
 describe("EffectInput", () => {
   it("accepts pure values", () =>
     Effect.runPromise(
@@ -29,11 +35,7 @@ describe("EffectInput", () => {
   it("rejects thenables at runtime", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const exit = yield* Effect.exit(
-          toEffect({
-            then: (_resolve: (value: string) => void) => undefined,
-          }),
-        );
+        const exit = yield* Effect.exit(toEffect(thenableAsString));
 
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
@@ -67,13 +69,7 @@ describe("EffectInput", () => {
   it("rejects Effect successes that are thenables at runtime", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const exit = yield* Effect.exit(
-          toEffect(
-            Effect.succeed({
-              then: (_resolve: (value: string) => void) => undefined,
-            }),
-          ),
-        );
+        const exit = yield* Effect.exit(toEffect(Effect.succeed(thenableAsString)));
 
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
@@ -88,11 +84,7 @@ describe("EffectInput", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const exit = yield* Effect.exit(
-          invokeEffectInput("test.promiseSuccess", () =>
-            Effect.succeed({
-              then: (_resolve: (value: string) => void) => undefined,
-            }),
-          ),
+          invokeEffectInput("test.promiseSuccess", () => Effect.succeed(thenableAsString)),
         );
 
         expect(Exit.isFailure(exit)).toBe(true);

@@ -1,5 +1,6 @@
 import {
   EffectInputCallbackError,
+  eraseRuntime,
   makeResourceStore,
   makeRuntime,
   read,
@@ -90,9 +91,9 @@ const OwnedProjectSchema = Schema.Struct({
   }),
 });
 
-const runInRuntime = <A, E, R, RuntimeError>(
-  runtime: SunfallArcRuntime<unknown, RuntimeError>,
-  effect: Effect.Effect<A, E, R>,
+const runInRuntime = <A, E, Services, RuntimeError>(
+  runtime: SunfallArcRuntime<Services, RuntimeError>,
+  effect: Effect.Effect<A, E>,
 ): Promise<A> => Effect.runPromise(runtime.provide(effect));
 
 const ProjectSchema = Schema.Struct({
@@ -135,7 +136,7 @@ describe("Collection", () => {
         const started = yield* Deferred.make<void>();
         let releases = 0;
         const controller = makeCollectionReactivePreloadController({
-          runtime,
+          runtime: eraseRuntime(runtime),
           onSuccess: () => Effect.void,
           onFailure: () => Effect.void,
         });
@@ -152,7 +153,7 @@ describe("Collection", () => {
         yield* controller.interruptEffect();
 
         expect(releases).toBe(1);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -171,7 +172,7 @@ describe("Collection", () => {
           },
         };
         const controller = makeCollectionReactivePreloadController({
-          runtime,
+          runtime: eraseRuntime(runtime),
           onSuccess: () => Effect.void,
           onFailure: (error) =>
             Effect.sync(() => {
@@ -187,7 +188,7 @@ describe("Collection", () => {
         const exit = yield* Effect.exit(Fiber.join(preloadFiber));
         expect(exit._tag).toBe("Success");
         expect(observedFailures).toEqual([]);
-      }).pipe(Effect.ensuring(baseRuntime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(baseRuntime.disposeEffect))),
     );
   });
 
@@ -506,7 +507,7 @@ describe("Collection", () => {
     const preloadStarted = Effect.runSync(Deferred.make<void>());
     const releasePreload = Effect.runSync(Deferred.make<void>());
     const refetchStarted = Effect.runSync(Deferred.make<void>());
-    const releaseRefetch = Effect.runSync(Deferred.make<void, string>());
+    const releaseRefetch = Effect.runSync(Deferred.make<void, typeof refetchFailure>());
     const refetchFailure = "fresh refetch failed" as const;
     const Projects = Collection.define<Project, string, typeof refetchFailure>({
       name: "Projects.preload-refetch-failure-completion",
@@ -556,7 +557,7 @@ describe("Collection", () => {
       );
     } finally {
       Effect.runSync(Deferred.succeed(releasePreload, undefined).pipe(Effect.ignore));
-      Effect.runSync(Deferred.fail(releaseRefetch, "cleanup").pipe(Effect.ignore));
+      Effect.runSync(Deferred.succeed(releaseRefetch, undefined).pipe(Effect.ignore));
       if (preload !== undefined) {
         await Effect.runPromise(Fiber.await(preload));
       }
@@ -1257,16 +1258,18 @@ describe("Collection", () => {
         persistOnWrite: true,
       },
     });
-    const ProjectCards = Collection.liveQuery<ProjectCard, string>({
-      name: "ProjectCards.collection-diagnostics",
-      getKey: (project) => project.id,
-      query: (query) =>
-        query.from({ project: Projects }).select(({ project }) => ({
-          id: project.id,
-          name: project.name,
-          progress: project.progress,
-        })),
-    });
+    const ProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError<string>>(
+      {
+        name: "ProjectCards.collection-diagnostics",
+        getKey: (project) => project.id,
+        query: (query) =>
+          query.from({ project: Projects }).select(({ project }) => ({
+            id: project.id,
+            name: project.name,
+            progress: project.progress,
+          })),
+      },
+    );
 
     expect(Collection.definitions().get("Projects.collection-diagnostics")).toBe(Projects);
     expect(Collection.diagnostics().collections).toEqual(
@@ -1334,7 +1337,7 @@ describe("Collection", () => {
         );
 
         expect(collected.definitions).toEqual([Projects, Tasks]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -1369,7 +1372,7 @@ describe("Collection", () => {
           operation: "snapshot",
           path: "$.collections",
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -1393,7 +1396,7 @@ describe("Collection", () => {
         expect(payload.collections.map((snapshot) => snapshot.name)).toEqual([
           "Projects.collect-duplicate-identity",
         ]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -1555,7 +1558,7 @@ describe("Collection", () => {
     });
 
     await Effect.runPromise(
-      Collection.applyChangesEffect(Projects, [
+      Collection.applyChangesEffect<Project, string, never, never>(Projects, [
         {
           _tag: "Upsert",
           value: { id: "atlas", name: "Atlas Prime", status: "blocked", progress: 90 },
@@ -1586,7 +1589,7 @@ describe("Collection", () => {
       getItem: () => Effect.succeed(null),
       setItem: () => Effect.fail("disk-full"),
     };
-    const Projects = Collection.define<Project, string, never, never>({
+    const Projects = Collection.define<Project, string, string, never>({
       name: "Projects.change-batch-atomic-persist",
       getKey: (project) => project.id,
       persistence: {
@@ -1607,7 +1610,7 @@ describe("Collection", () => {
               const beforeVersion = Projects.version().get();
               const subscription = yield* Collection.subscribeEventsEffect();
               const error = yield* Effect.flip(
-                Collection.applyChangesEffect(Projects, [
+                Collection.applyChangesEffect<Project, string, string, never>(Projects, [
                   {
                     _tag: "Upsert",
                     value: { id: "orion", name: "Orion", status: "active", progress: 20 },
@@ -2275,7 +2278,7 @@ describe("Collection", () => {
             if (update !== undefined) {
               yield* Fiber.await(update);
             }
-            yield* runtime.disposeEffect;
+            yield* Effect.orDie(runtime.disposeEffect);
           }),
         ),
       ),
@@ -2348,7 +2351,7 @@ describe("Collection", () => {
           expect(stored?.meta.bytes[0]).toBe(1);
           expect(new Uint8Array(stored?.meta.buffer ?? new ArrayBuffer(0))[0]).toBe(4);
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -2442,7 +2445,7 @@ describe("Collection", () => {
           progress: 99,
         });
         expect(persisted.rows.map((row) => row.value.name)).toEqual(["Loaded"]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -2508,7 +2511,7 @@ describe("Collection", () => {
           name: "Loaded",
           progress: 99,
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -2595,7 +2598,7 @@ describe("Collection", () => {
           _tag: "Success",
         });
         expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Loaded 2"]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -2690,7 +2693,7 @@ describe("Collection", () => {
           _tag: "Success",
         });
         expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Refetched 2"]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -2804,7 +2807,7 @@ describe("Collection", () => {
           _tag: "Success",
         });
         expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Loaded 2"]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3072,21 +3075,23 @@ describe("Collection", () => {
         yield* runtime.provide(Projects.preloadEffect());
         expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
 
-        storage.values.set(
-          key,
-          JSON.stringify({
-            name: "Projects.missing-restore",
-            rows: [
-              {
-                key: "atlas",
-                value: { id: "atlas", name: "Restored", status: "active", progress: 72 },
-                synced: true,
-                origin: "remote",
-              },
-            ],
-            pendingMutations: [],
-            updatedAt: 1,
-          }),
+        yield* toEffect(
+          storage.setItem(
+            key,
+            JSON.stringify({
+              name: "Projects.missing-restore",
+              rows: [
+                {
+                  key: "atlas",
+                  value: { id: "atlas", name: "Restored", status: "active", progress: 72 },
+                  synced: true,
+                  origin: "remote",
+                },
+              ],
+              pendingMutations: [],
+              updatedAt: 1,
+            }),
+          ),
         );
 
         yield* runtime.provide(Projects.preloadEffect());
@@ -3094,7 +3099,7 @@ describe("Collection", () => {
         expect(
           runWithRuntime(runtime, () => Projects.rows().map((project) => project.name)),
         ).toEqual(["Restored"]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3135,7 +3140,7 @@ describe("Collection", () => {
           });
           expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3173,7 +3178,7 @@ describe("Collection", () => {
           });
           expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3223,7 +3228,7 @@ describe("Collection", () => {
         expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual(
           ["existing"],
         );
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3257,7 +3262,7 @@ describe("Collection", () => {
         yield* runtime.provide(Projects.persistEffect(storage));
         expect(storage.values.size).toBe(1);
         expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3292,7 +3297,7 @@ describe("Collection", () => {
         ).toEqual([]);
         const payload = yield* runtime.provide(Collection.dehydrateEffect([Projects]));
         expect(payload.collections[0]?.rows).toEqual([]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3415,7 +3420,7 @@ describe("Collection", () => {
         }
         expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
         expect(runWithRuntime(runtime, () => HostileProjects.rows())).toEqual([]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3440,7 +3445,7 @@ describe("Collection", () => {
           _tag: "Failure",
           error: { _tag: "CollectionSnapshotCodecError", operation: "load" },
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3471,7 +3476,7 @@ describe("Collection", () => {
           progress: 72,
         });
         expect(typeof value?.progress).toBe("number");
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3483,7 +3488,9 @@ describe("Collection", () => {
     });
     const previous: Project = { id: "atlas", name: "Atlas", status: "active", progress: 72 };
     const next: Project = { ...previous, progress: 90 };
-    const snapshot = (rollbackRows: ReadonlyArray<unknown>) => ({
+    const snapshot = (
+      rollbackRows: ReadonlyArray<unknown>,
+    ): Collection.Snapshot<Project, string> => ({
       name: "Projects.snapshot-codec-rollback-coverage",
       rows: [],
       pendingMutations: [
@@ -3501,7 +3508,8 @@ describe("Collection", () => {
               },
             ],
           },
-          rollbackRows,
+          // Deliberately malformed rollback coverage is the input under test.
+          rollbackRows: rollbackRows as ReadonlyArray<Collection.RollbackRow<Project, string>>,
           createdAt: 1,
           attempts: 0,
         },
@@ -3552,7 +3560,7 @@ describe("Collection", () => {
           });
           expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3613,7 +3621,7 @@ describe("Collection", () => {
             path: "$.pendingMutations[0].attempts",
           });
         }
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3690,7 +3698,7 @@ describe("Collection", () => {
         expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual(
           ["existing"],
         );
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3782,7 +3790,7 @@ describe("Collection", () => {
         expect(runWithRuntime(runtime, () => Tasks.rows().map((taskRow) => taskRow.id))).toEqual([
           "existing-task",
         ]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3892,7 +3900,7 @@ describe("Collection", () => {
         expect(
           dehydrateExit.value.collections.map((snapshot) => snapshot.rows.map((row) => row.key)),
         ).toEqual([["atlas"], ["task-1"]]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -3974,7 +3982,7 @@ describe("Collection", () => {
         expect(runWithRuntime(runtime, () => Tasks.rows().map((task) => task.id))).toEqual([
           "existing-task",
         ]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -4048,7 +4056,7 @@ describe("Collection", () => {
         expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual(
           ["existing-project"],
         );
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -4137,7 +4145,7 @@ describe("Collection", () => {
       getKey: (project) => project.id,
       initialData: [{ id: "existing-project", name: "Existing", status: "active", progress: 1 }],
     });
-    const ActiveProjectCards = Collection.liveQuery<ProjectCard, string>({
+    const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
       name: "ProjectCards.snapshot-codec-preflight-live",
       getKey: (project) => project.id,
       query: (query) =>
@@ -4196,7 +4204,7 @@ describe("Collection", () => {
         expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual(
           ["existing-project"],
         );
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -4209,7 +4217,7 @@ describe("Collection", () => {
         throw thrown;
       },
     });
-    const snapshot = {
+    const snapshot: Collection.Snapshot<Project, string> = {
       name: "Projects.snapshot-codec-key-callback",
       rows: [
         {
@@ -4249,7 +4257,7 @@ describe("Collection", () => {
           });
         }
         expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -4291,7 +4299,7 @@ describe("Collection", () => {
           });
           expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -4331,7 +4339,7 @@ describe("Collection", () => {
         expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual(
           ["existing"],
         );
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -4374,7 +4382,7 @@ describe("Collection", () => {
           operation: "hydrate",
           path: "$.collections",
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -4408,7 +4416,7 @@ describe("Collection", () => {
         expect(insertFailure).toBeInstanceOf(CollectionSnapshotCodecError);
         expect(writeFailure).toBeInstanceOf(CollectionSnapshotCodecError);
         expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -4784,7 +4792,7 @@ describe("Collection", () => {
           });
           expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -4960,7 +4968,7 @@ describe("Collection", () => {
             { id: "atlas", progress: 72 },
           ]);
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -4993,7 +5001,7 @@ describe("Collection", () => {
             runWithRuntime(runtime, () => Projects.rows().map((project) => project.id)),
           ).toEqual(["atlas", "kepler"]);
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -5040,7 +5048,7 @@ describe("Collection", () => {
           progress: 72,
           $synced: true,
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -5090,7 +5098,7 @@ describe("Collection", () => {
             $origin: "local",
           });
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -5140,7 +5148,7 @@ describe("Collection", () => {
             expect(events.some((event) => event._tag === "CollectionMutationDequeued")).toBe(false);
             expect(events.some((event) => event._tag === "CollectionMutateCommitted")).toBe(false);
           }),
-        ).pipe(Effect.ensuring(runtime.disposeEffect)),
+        ).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
       ),
     );
   });
@@ -7058,7 +7066,7 @@ describe("Query", () => {
         { id: "alpha", name: "Alpha", status: "active", progress: 10 },
       ],
     });
-    const factory: Query.Factory<string> = (query) =>
+    const factory: Query.Factory<string, Collection.RuntimeError> = (query) =>
       query
         .from({ project: Projects })
         .orderBy(({ project }) => project.progress)
@@ -7536,7 +7544,7 @@ describe("Query", () => {
       });
     const cases: ReadonlyArray<{
       readonly operation: "filter" | "join" | "order" | "projection" | "aggregate";
-      readonly factory: (query: Query.Root) => Query.Builder<any, any, any, any>;
+      readonly factory: Query.Factory<unknown, Collection.RuntimeError>;
     }> = [
       {
         operation: "filter",
@@ -7597,7 +7605,7 @@ describe("Query", () => {
           query
             .from({ project: Projects })
             .groupBy(
-              (({ project }) => ({
+              (({ project }: { readonly project: Project }) => ({
                 status: project.status,
                 asyncKey: promised("active"),
               })) as never,
@@ -7611,7 +7619,10 @@ describe("Query", () => {
           query
             .from({ project: Projects })
             .groupBy(
-              (({ project }) => ({ status: project.status, asyncKey: throwingThen() })) as never,
+              (({ project }: { readonly project: Project }) => ({
+                status: project.status,
+                asyncKey: throwingThen(),
+              })) as never,
               { count: Query.count() },
             )
             .select((group) => group.count),
@@ -7650,7 +7661,7 @@ describe("Query", () => {
     });
     const cases: ReadonlyArray<{
       readonly operation: "projection" | "aggregate";
-      readonly factory: (query: Query.Root) => Query.Builder<any, any, any, any>;
+      readonly factory: Query.Factory<unknown, Collection.RuntimeError>;
     }> = [
       {
         operation: "projection",
@@ -7665,7 +7676,7 @@ describe("Query", () => {
           query
             .from({ project: Projects })
             .groupBy(
-              (({ project }) => ({
+              (({ project }: { readonly project: Project }) => ({
                 status: project.status,
                 effectKey: Effect.succeed("active"),
               })) as never,

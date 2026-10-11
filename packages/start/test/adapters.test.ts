@@ -3,10 +3,10 @@ import { readFileSync } from "node:fs";
 import {
   createServer,
   request as httpRequest,
-  type IncomingMessage,
+  IncomingMessage,
   type ServerResponse,
 } from "node:http";
-import type { AddressInfo } from "node:net";
+import { Socket, type AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 import { Deferred, Effect, Option } from "effect";
 import { describe, expect, it } from "vitest";
@@ -81,15 +81,14 @@ describe("Start deployment adapters", () => {
   });
 
   it("makes Node forwarded origin trust explicit", () => {
-    const nodeRequest = {
-      method: "GET",
-      url: "/settings",
-      headers: {
-        host: "internal.local",
-        "x-forwarded-proto": "https",
-        "x-forwarded-host": "public.example.com",
-      },
-    } as IncomingMessage;
+    const nodeRequest = new IncomingMessage(new Socket());
+    nodeRequest.method = "GET";
+    nodeRequest.url = "/settings";
+    nodeRequest.headers = {
+      host: "internal.local",
+      "x-forwarded-proto": "https",
+      "x-forwarded-host": "public.example.com",
+    };
 
     expect(nodeRequestOrigin(nodeRequest, { trustForwardedHeaders: true })).toBe(
       "https://public.example.com",
@@ -172,7 +171,7 @@ describe("Start deployment adapters", () => {
   it("normalizes synchronous handler throws in fetch adapters", async () => {
     const cause = new Error("sync handler failed");
     const request = new Request("https://example.com/sync-throw");
-    const effectHandler = toFetchHandlerEffect(() => {
+    const effectHandler = toFetchHandlerEffect((): Effect.Effect<Response> => {
       throw cause;
     });
     const promiseHandler = createFetchHandler(() => {
@@ -429,7 +428,7 @@ describe("Start deployment adapters", () => {
     });
     const nodeHandler = createNodeHandler(startHandler);
     const server = createServer((request, response) => {
-      void Effect.runFork(nodeHandler(request, response));
+      void Effect.runFork(Effect.scoped(nodeHandler(request, response)));
     });
     const port = await listen(server);
 
@@ -757,7 +756,7 @@ describe("Start deployment adapters", () => {
       expect(finalized).toBe(true);
     } finally {
       if (originalAny === undefined) {
-        delete (AbortSignal as typeof AbortSignal & { any?: typeof AbortSignal.any }).any;
+        Reflect.deleteProperty(AbortSignal, "any");
       } else {
         Object.defineProperty(AbortSignal, "any", originalAny);
       }

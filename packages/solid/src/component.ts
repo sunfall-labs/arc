@@ -1,4 +1,5 @@
 import {
+  eraseRuntime,
   makeRuntime,
   ResourceFailure,
   RuntimeTypeId,
@@ -556,9 +557,9 @@ export namespace Component {
   ): Effect.Effect<void, ER, Scope.Scope> =>
     Effect.gen(function* () {
       const runtime: AnySunfallArcRuntime<unknown> =
-        (options?.runtime as AnySunfallArcRuntime<unknown> | undefined) ??
+        (options?.runtime === undefined ? undefined : eraseRuntime(options.runtime)) ??
         (yield* Effect.acquireRelease(
-          Effect.sync(() => makeRuntime() as AnySunfallArcRuntime<unknown>),
+          Effect.sync(() => eraseRuntime(makeRuntime())),
           (owned) => owned.disposeEffect.pipe(Effect.ignore({ log: true })),
         ));
       const render = yield* awaitSetup<P, ER>(component, runtime);

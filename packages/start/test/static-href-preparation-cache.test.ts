@@ -12,20 +12,23 @@ describe("Start static href preparation cache", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
           const ProjectById = Resource.family({
             name: "Start.Static.Cache.Project.coalesced",
-            load: (_id: string) => Effect.fail(new Error("static cache test has no loader")),
+            load: (
+              _id: string,
+            ): Effect.Effect<{ readonly id: string; readonly name: string }, Error> =>
+              Effect.fail(new Error("static cache test has no loader")),
           });
           const ref = ProjectById("1");
-          const payload = {
+          const payload: Resource.HydrationPayload = {
             resources: [
               {
                 name: ref.family.options.name,
                 key: ref.key,
                 input: "1",
                 state: {
-                  _tag: "Success" as const,
+                  _tag: "Success",
                   waiting: false,
                   value: { id: "1", name: "Hydrated project" },
                   timestamp: Date.now(),
@@ -75,10 +78,13 @@ describe("Start static href preparation cache", () => {
         Effect.scoped(
           Effect.gen(function* () {
             const runtime = makeRuntime();
-            yield* Effect.addFinalizer(() => runtime.disposeEffect);
+            yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
             const ProjectById = Resource.family({
               name: "Start.Static.Cache.Project.stale",
-              load: (_id: string) => Effect.fail(new Error("static cache test has no loader")),
+              load: (
+                _id: string,
+              ): Effect.Effect<{ readonly id: string; readonly name: string }, Error> =>
+                Effect.fail(new Error("static cache test has no loader")),
               policy: {
                 staleFor: 10,
               },

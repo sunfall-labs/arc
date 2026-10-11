@@ -105,12 +105,17 @@ export type EffectInputRequirements<Out> =
 export type EnsureEffectInputValue<Out, A> =
   EffectInputValue<Out> extends A ? EnsureEffectInput<Out> : never;
 
+// An Effect that never succeeds (`Effect.fail`, `Effect.never`) has success
+// type `never`; accept it before the Promise check, which would otherwise read
+// the empty success type as a rejected Promise-shaped value.
 export type EnsureEffectInput<Out> =
   Out extends Effect.Effect<infer A, infer E, infer R>
-    ? PromiseSafeValue<A> extends never
-      ? never
-      : Effect.Effect<PromiseSafeValue<A>, E, R>
-    : DirectEffectInputValue<Out> extends never
+    ? [A] extends [never]
+      ? Effect.Effect<never, E, R>
+      : [PromiseSafeValue<A>] extends [never]
+        ? never
+        : Effect.Effect<PromiseSafeValue<A>, E, R>
+    : [DirectEffectInputValue<Out>] extends [never]
       ? never
       : DirectEffectInputValue<Out>;
 

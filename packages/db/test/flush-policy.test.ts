@@ -203,7 +203,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
           done: true,
           $synced: true,
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -356,7 +356,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
           done: true,
           $synced: false,
         });
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -486,7 +486,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
         ]);
         expect(persistedProjects).toEqual([{ id: "atlas", name: "Atlas", progress: 80 }]);
         expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -571,7 +571,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
             attempts: 0,
           },
         ]);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -610,7 +610,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
           results: [],
         });
         expect(adapterChecks).toBe(0);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 });

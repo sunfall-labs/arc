@@ -9,6 +9,16 @@ import {
   ResourceStoreTypeId,
 } from "../src/index.js";
 
+interface UnrefTimer {
+  unref: () => unknown;
+}
+
+const hasUnref = (timer: unknown): timer is UnrefTimer =>
+  typeof timer === "object" &&
+  timer !== null &&
+  "unref" in timer &&
+  typeof timer.unref === "function";
+
 describe("Resource Store disposal", () => {
   it("shuts down its event pubsub", () => {
     const store = makeResourceStore();
@@ -80,7 +90,7 @@ describe("Resource Store disposal", () => {
         expect(runtime.resourceStore.diagnostics.snapshotUnsafe()).toEqual(snapshot);
         expect(snapshot).not.toHaveProperty("families");
         expect(snapshot).not.toHaveProperty("tagIndex");
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -98,7 +108,7 @@ describe("Resource Store disposal", () => {
         yield* runtime.provide(Resource.deleteEffect(ref));
         const after = yield* runtime.resourceStore.diagnostics.snapshotEffect;
         expect(after).toEqual(before);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -132,8 +142,8 @@ describe("Resource Store disposal", () => {
           });
         }
       }).pipe(
-        Effect.ensuring(disposeResourceStoreEffect(store)),
-        Effect.ensuring(runtime.disposeEffect),
+        Effect.ensuring(Effect.orDie(disposeResourceStoreEffect(store))),
+        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
       ),
     );
   });
@@ -170,8 +180,8 @@ describe("Resource Store disposal", () => {
           });
         }
       }).pipe(
-        Effect.ensuring(disposeResourceStoreEffect(store)),
-        Effect.ensuring(runtime.disposeEffect),
+        Effect.ensuring(Effect.orDie(disposeResourceStoreEffect(store))),
+        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
       ),
     );
   });
@@ -215,7 +225,7 @@ describe("Resource Store disposal", () => {
 
         const afterRefresh = yield* runtime.resourceStore.diagnostics.fiberCountEffect;
         expect(afterRefresh).toBe(0);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -242,7 +252,7 @@ describe("Resource Store disposal", () => {
 
         const afterRefresh = yield* runtime.resourceStore.diagnostics.fiberCountEffect;
         expect(afterRefresh).toBe(0);
-      }).pipe(Effect.ensuring(runtime.disposeEffect)),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
     );
   });
 
@@ -251,8 +261,8 @@ describe("Resource Store disposal", () => {
     let unrefCalls = 0;
 
     globalThis.setTimeout = ((handler: TimerHandler, timeout?: number, ...args: unknown[]) => {
-      const timer = originalSetTimeout(handler, timeout, ...args);
-      if (typeof timer === "object" && timer !== null && "unref" in timer) {
+      const timer: unknown = originalSetTimeout(handler, timeout, ...args);
+      if (hasUnref(timer)) {
         const originalUnref = timer.unref.bind(timer);
         timer.unref = () => {
           unrefCalls++;
@@ -275,7 +285,7 @@ describe("Resource Store disposal", () => {
       await Effect.runPromise(
         runtime
           .provide(Resource.prefetchEffect(Count(undefined)))
-          .pipe(Effect.ensuring(runtime.disposeEffect)),
+          .pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
       );
       expect(unrefCalls).toBeGreaterThan(0);
     } finally {

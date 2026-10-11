@@ -237,7 +237,9 @@ describe("SQLite persistence storage", () => {
             ),
           ).toEqual(["Atlas", "Lumen"]),
         );
-      }).pipe(Effect.ensuring(Effect.andThen(first.disposeEffect, second.disposeEffect))),
+      }).pipe(
+        Effect.ensuring(Effect.orDie(Effect.andThen(first.disposeEffect, second.disposeEffect))),
+      ),
     );
   });
 
@@ -477,7 +479,7 @@ describe("SQLite persistence storage", () => {
       _tag: "EffectInputCallbackError",
       operation: "SQLitePersistence.now",
     });
-    await expect(Effect.runPromise(prepared.execute("SELECT 1"))).rejects.toMatchObject({
+    await expect(Effect.runPromise(toEffect(prepared.execute("SELECT 1")))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "SQLitePersistence.prepare",
     });
@@ -634,7 +636,7 @@ describe("SQLite persistence storage", () => {
             tableName: "",
           },
         );
-        const tableNameFailure = yield* Effect.flip(storage.getItem("projects-cache"));
+        const tableNameFailure = yield* Effect.flip(toEffect(storage.getItem("projects-cache")));
 
         expect(tableNameFailure).toBeInstanceOf(SQLitePersistenceInvalidTableName);
         expect(tableNameFailure).toMatchObject({

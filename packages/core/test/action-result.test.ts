@@ -367,7 +367,7 @@ describe("ActionResult", () => {
   });
 
   it("snapshots and freezes redirect headers", () => {
-    const headers = {
+    const headers: Record<string, string> = {
       "x-action": "created",
     };
 

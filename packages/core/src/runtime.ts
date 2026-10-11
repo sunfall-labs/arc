@@ -75,6 +75,18 @@ export interface AnySunfallArcRuntime<ER = unknown> {
 }
 
 /**
+ * Explicitly erases a runtime's service set for a host or ambient seam.
+ *
+ * Erasure is a trust boundary: the erased runtime runs Effects without checking
+ * their requirements, so call this only where the concrete app layer cannot be
+ * named (UI contexts, platform adapters, ambient plumbing). Typed code should
+ * keep `SunfallArcRuntime<R, ER>`.
+ */
+export const eraseRuntime = <R, ER>(
+  runtime: SunfallArcRuntime<R, ER> | AnySunfallArcRuntime<ER>,
+): AnySunfallArcRuntime<ER> => runtime as AnySunfallArcRuntime<ER>;
+
+/**
  * Runtime Spine used by core APIs to run Effect programs and share resource state.
  *
  * Use this when a UI root, server adapter, or test needs a stable Effect context.
@@ -181,7 +193,7 @@ const fromManagedRuntime = <R, ER>(
 
   const runtimeForResourceStore = (store: MutableResourceStore): AnySunfallArcRuntime<ER> => {
     if (store === resourceStore) {
-      return runtime as AnySunfallArcRuntime<ER>;
+      return eraseRuntime(runtime);
     }
 
     let scopedRuntime: AnySunfallArcRuntime<ER>;

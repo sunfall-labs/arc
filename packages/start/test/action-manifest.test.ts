@@ -326,7 +326,7 @@ describe("action manifest", () => {
       name: "Project.save.manifest",
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({ ok: Schema.Boolean }),
-      run: () => ({ ok: true }),
+      run: (): Effect.Effect<{ readonly ok: boolean }, unknown> => Effect.succeed({ ok: true }),
     });
 
     return Effect.runPromise(

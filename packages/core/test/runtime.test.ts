@@ -39,7 +39,7 @@ describe("Sunfall Arc runtime", () => {
         Numbers.use((numbers) => numbers.get("atlas")).pipe(
           Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
           Effect.asVoid,
-          Effect.ensuring(runtime.disposeEffect),
+          Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
         ),
       ),
     );
@@ -56,7 +56,7 @@ describe("Sunfall Arc runtime", () => {
         getNumber("kepler").pipe(
           Effect.tap((value) => Effect.sync(() => expect(value).toBe(6))),
           Effect.asVoid,
-          Effect.ensuring(runtime.disposeEffect),
+          Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
         ),
       ),
     );
@@ -68,7 +68,9 @@ describe("Sunfall Arc runtime", () => {
     });
     const runtime = makeRuntime(
       Layer.succeed(ServerClient)({
-        call: (_fn, input) => Effect.succeed(`remote:${String(input)}`),
+        // The fake transport answers every function with a string; the test only calls string functions.
+        call: <I, A, E, R>(_fn: unknown, input: I) =>
+          Effect.succeed(`remote:${String(input)}`) as unknown as Effect.Effect<A, E, R>,
       }),
     );
 
@@ -82,7 +84,7 @@ describe("Sunfall Arc runtime", () => {
             expect(effectValue).toBe("remote:atlas");
             expect(effectValueFromCallable).toBe("remote:kepler");
           });
-        }).pipe(Effect.ensuring(runtime.disposeEffect)),
+        }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
       ),
     );
   });
@@ -98,7 +100,7 @@ describe("Sunfall Arc runtime", () => {
         getNumber.effect("atlas").pipe(
           Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
           Effect.asVoid,
-          Effect.ensuring(runtime.disposeEffect),
+          Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
         ),
       ),
     );
@@ -122,7 +124,7 @@ describe("Sunfall Arc runtime", () => {
             }),
           ),
           Effect.asVoid,
-          Effect.ensuring(runtime.disposeEffect),
+          Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
         ),
       ),
     );
@@ -151,8 +153,8 @@ describe("Sunfall Arc runtime", () => {
         }).pipe(
           Effect.ensuring(
             Effect.gen(function* () {
-              yield* disposeResourceStoreEffect(overrideStore);
-              yield* runtime.disposeEffect;
+              yield* Effect.orDie(disposeResourceStoreEffect(overrideStore));
+              yield* Effect.orDie(runtime.disposeEffect);
             }),
           ),
         ),
@@ -173,7 +175,7 @@ describe("Sunfall Arc runtime", () => {
       action.submitEffect(41).pipe(
         Effect.tap((value) => Effect.sync(() => expect(value).toBe(42))),
         Effect.asVoid,
-        Effect.ensuring(runtime.disposeEffect),
+        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
       ),
     );
   });

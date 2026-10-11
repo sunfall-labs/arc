@@ -1,4 +1,11 @@
-import { Resource, createBrowserRouterHostController, makeRuntime, route } from "@sunfall/arc-core";
+// @vitest-environment happy-dom
+import {
+  Resource,
+  createBrowserRouterHostController,
+  eraseRuntime,
+  makeRuntime,
+  route,
+} from "@sunfall/arc-core";
 import { Deferred, Effect, Fiber } from "effect";
 import { Window } from "happy-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -14,10 +21,8 @@ import {
 const asHistoryWindow = (window: Window): StartStaticHistoryWindow =>
   window as unknown as StartStaticHistoryWindow;
 
-const parseWithWindow =
-  (window: Window) =>
-  (html: string): Document =>
-    new window.DOMParser().parseFromString(html, "text/html");
+const parseHtmlDocument = (html: string): Document =>
+  new DOMParser().parseFromString(html, "text/html");
 
 describe("Start static client navigation", () => {
   it("normalizes static base paths and maps router hrefs", () => {
@@ -42,7 +47,7 @@ describe("Start static client navigation", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
           const window = new Window({
             url: "https://docs.test/project-docs/docs/getting-started?tab=install",
           });
@@ -66,12 +71,15 @@ describe("Start static client navigation", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
           const window = new Window({ url: "https://docs.test/app/projects/1" });
           const ProjectRoute = route("/projects/:id", {
             preloadResources: ["Start.Static.Project.initial-handoff"],
           });
-          const fetch = vi.fn(async () => new Response("<!doctype html><html></html>"));
+          const fetch = vi.fn(
+            async (_input: RequestInfo | URL, _init?: RequestInit) =>
+              new Response("<!doctype html><html></html>"),
+          );
           const history = makeStartStaticHistoryAdapter({
             runtime,
             routes: [ProjectRoute] as const,
@@ -79,7 +87,7 @@ describe("Start static client navigation", () => {
             hydratedHrefs: "/projects/1",
             getWindow: () => asHistoryWindow(window),
             fetch,
-            parseDocument: parseWithWindow(window),
+            parseDocument: parseHtmlDocument,
           });
 
           yield* history.prepareHrefEffect!("/projects/1");
@@ -108,7 +116,7 @@ describe("Start static client navigation", () => {
           });
           const routes = [ProjectRoute] as const;
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
           const window = new Window({ url: "https://docs.test/app/" });
           const ref = ProjectById("1");
           const html = `<!doctype html><html><body>${createHydrationScript({
@@ -126,19 +134,21 @@ describe("Start static client navigation", () => {
               },
             ],
           })}</body></html>`;
-          const fetch = vi.fn(async () => new Response(html));
+          const fetch = vi.fn(
+            async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(html),
+          );
           const history = makeStartStaticHistoryAdapter({
             runtime,
             routes,
             basePath: "/app/",
             getWindow: () => asHistoryWindow(window),
             fetch,
-            parseDocument: parseWithWindow(window),
+            parseDocument: parseHtmlDocument,
           });
           const router = createBrowserRouterHostController(routes, {
             history,
             initialHref: "/",
-            runtime,
+            runtime: eraseRuntime(runtime),
           });
           yield* Effect.addFinalizer(() => router.disposeEffect());
 
@@ -183,7 +193,7 @@ describe("Start static client navigation", () => {
               preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id)),
             });
             const runtime = makeRuntime();
-            yield* Effect.addFinalizer(() => runtime.disposeEffect);
+            yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
             const window = new Window({ url: "https://docs.test/app/" });
             const ref = ProjectById("1");
             const html = `<!doctype html><html><body>${createHydrationScript({
@@ -201,14 +211,16 @@ describe("Start static client navigation", () => {
                 },
               ],
             })}</body></html>`;
-            const fetch = vi.fn(async () => new Response(html));
+            const fetch = vi.fn(
+              async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(html),
+            );
             const history = makeStartStaticHistoryAdapter({
               runtime,
               routes: [ProjectRoute] as const,
               basePath: "/app/",
               getWindow: () => asHistoryWindow(window),
               fetch,
-              parseDocument: parseWithWindow(window),
+              parseDocument: parseHtmlDocument,
             });
 
             yield* history.prepareHrefEffect!("/projects/1");
@@ -231,7 +243,7 @@ describe("Start static client navigation", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
           const window = new Window({ url: "https://docs.test/app/" });
           const ProjectById = Resource.family({
             name: "Start.Static.Project.coalesced",
@@ -262,7 +274,7 @@ describe("Start static client navigation", () => {
           })}</body></html>`;
           const fetchStarted = yield* Deferred.make<void>();
           const releaseFetch = yield* Deferred.make<void>();
-          const fetch = vi.fn(async () => {
+          const fetch = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
             Effect.runSync(Deferred.succeed(fetchStarted, undefined));
             await Effect.runPromise(Deferred.await(releaseFetch));
             return new Response(html);
@@ -273,7 +285,7 @@ describe("Start static client navigation", () => {
             basePath: "/app/",
             getWindow: () => asHistoryWindow(window),
             fetch,
-            parseDocument: parseWithWindow(window),
+            parseDocument: parseHtmlDocument,
           });
 
           const first = Effect.runFork(history.prepareHrefEffect!("/projects/1"));
@@ -315,7 +327,7 @@ describe("Start static client navigation", () => {
               preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id)),
             });
             const runtime = makeRuntime();
-            yield* Effect.addFinalizer(() => runtime.disposeEffect);
+            yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
             const window = new Window({ url: "https://docs.test/app/" });
             const ref = ProjectById("1");
             const html = (): string =>
@@ -334,14 +346,16 @@ describe("Start static client navigation", () => {
                   },
                 ],
               })}</body></html>`;
-            const fetch = vi.fn(async () => new Response(html()));
+            const fetch = vi.fn(
+              async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(html()),
+            );
             const history = makeStartStaticHistoryAdapter({
               runtime,
               routes: [ProjectRoute] as const,
               basePath: "/app/",
               getWindow: () => asHistoryWindow(window),
               fetch,
-              parseDocument: parseWithWindow(window),
+              parseDocument: parseHtmlDocument,
             });
 
             yield* history.prepareHrefEffect!("/projects/1");
@@ -375,7 +389,7 @@ describe("Start static client navigation", () => {
             preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id)),
           });
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
           const window = new Window({ url: "https://docs.test/app/" });
           const ref = ProjectById("1");
           const html = `<!doctype html><html><body>${createHydrationScript({
@@ -393,14 +407,16 @@ describe("Start static client navigation", () => {
               },
             ],
           })}</body></html>`;
-          const fetch = vi.fn(async () => new Response(html));
+          const fetch = vi.fn(
+            async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(html),
+          );
           const history = makeStartStaticHistoryAdapter({
             runtime,
             routes: [ProjectRoute] as const,
             basePath: "/app/",
             getWindow: () => asHistoryWindow(window),
             fetch,
-            parseDocument: parseWithWindow(window),
+            parseDocument: parseHtmlDocument,
           });
 
           yield* history.prepareHrefEffect!("/projects/1");
@@ -423,20 +439,23 @@ describe("Start static client navigation", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
           const ProjectRoute = route("/projects/:id", {
             preloadResources: ["Start.Static.Project.environment"],
           });
           const window = new Window({ url: "https://docs.test/app/" });
           let windowLike: StartStaticHistoryWindow | undefined;
-          const fetch = vi.fn(async () => new Response("<!doctype html><html></html>"));
+          const fetch = vi.fn(
+            async (_input: RequestInfo | URL, _init?: RequestInit) =>
+              new Response("<!doctype html><html></html>"),
+          );
           const history = makeStartStaticHistoryAdapter({
             runtime,
             routes: [ProjectRoute] as const,
             basePath: "/app/",
             getWindow: () => windowLike,
             fetch,
-            parseDocument: parseWithWindow(window),
+            parseDocument: parseHtmlDocument,
           });
 
           yield* history.prepareHrefEffect!("/projects/1");
@@ -454,20 +473,23 @@ describe("Start static client navigation", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
           const window = new Window({ url: "https://docs.test/app/" });
           const PlainRoute = route("/plain");
           const CollectionRoute = route("/collections", {
             preloadCollections: ["Start.Static.Collection.projects"],
           });
-          const fetch = vi.fn(async () => new Response("<!doctype html><html></html>"));
+          const fetch = vi.fn(
+            async (_input: RequestInfo | URL, _init?: RequestInit) =>
+              new Response("<!doctype html><html></html>"),
+          );
           const history = makeStartStaticHistoryAdapter({
             runtime,
             routes: [PlainRoute, CollectionRoute] as const,
             basePath: "/app/",
             getWindow: () => asHistoryWindow(window),
             fetch,
-            parseDocument: parseWithWindow(window),
+            parseDocument: parseHtmlDocument,
           });
 
           yield* history.prepareHrefEffect!("/plain");

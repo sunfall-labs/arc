@@ -1,6 +1,7 @@
 import { Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
 import {
+  eraseRuntime,
   forkScoped,
   getCurrentScope,
   makeRuntime,
@@ -243,8 +244,8 @@ describe("UiScope", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
-          const scope = makeRuntimeUiScope(runtime);
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          const scope = makeRuntimeUiScope(eraseRuntime(runtime));
           const events: Array<string> = [];
 
           yield* scope.disposeEffect();
@@ -265,8 +266,8 @@ describe("UiScope", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
-          const frame = makeRuntimeUiScopeFrame(runtime);
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          const frame = makeRuntimeUiScopeFrame(eraseRuntime(runtime));
           const events: Array<string> = [];
 
           const value = frame.run(() => {
@@ -298,16 +299,14 @@ describe("UiScope", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const baseRuntime = makeRuntime();
-          yield* Effect.addFinalizer(() => baseRuntime.disposeEffect);
-          const queuedDisposals: Array<Effect.Effect<void>> = [];
-          const runtime: typeof baseRuntime = {
-            ...baseRuntime,
-            runFork: <A, E, R>(
-              effect: Effect.Effect<A, E, R>,
-              options?: Effect.RunOptions,
-            ): Fiber.Fiber<A, E> => {
-              queuedDisposals.push(effect as Effect.Effect<void>);
-              return baseRuntime.runFork(Effect.never as Effect.Effect<A, E, never>, options);
+          yield* Effect.addFinalizer(() => Effect.orDie(baseRuntime.disposeEffect));
+          const erasedBase = eraseRuntime(baseRuntime);
+          const queuedDisposals: Array<Effect.Effect<unknown, unknown, unknown>> = [];
+          const runtime: typeof erasedBase = {
+            ...erasedBase,
+            runFork: (effect, options) => {
+              queuedDisposals.push(effect);
+              return erasedBase.runFork(Effect.never, options);
             },
           };
           const frame = makeRuntimeUiScopeFrame(runtime);
@@ -326,7 +325,7 @@ describe("UiScope", () => {
           expect(events).toEqual([]);
           expect(queuedDisposals).toHaveLength(1);
 
-          yield* queuedDisposals[0]!;
+          yield* Fiber.join(erasedBase.runFork(queuedDisposals[0]!));
           expect(events).toEqual(["dispose"]);
         }),
       ),

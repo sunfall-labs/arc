@@ -75,14 +75,16 @@ describe("Resource", () => {
     const dateRef = AnyInput(new Date("2024-01-02T03:04:05.000Z"));
     const urlRef = AnyInput(new URL("https://example.com/projects?tab=activity"));
     const mapRef = AnyInput(
-      new Map([
+      new Map<string, Date | URL>([
         ["created", new Date("2024-01-02T03:04:05.000Z")],
         ["url", new URL("https://example.com/projects?tab=activity")],
       ]),
     );
-    const setRef = AnyInput(new Set(["atlas", new Date("2024-01-02T03:04:05.000Z")]));
+    const setRef = AnyInput(
+      new Set<string | Date>(["atlas", new Date("2024-01-02T03:04:05.000Z")]),
+    );
     const nestedRef = AnyInput({
-      filters: new Map([
+      filters: new Map<string, Set<string> | Date>([
         ["ids", new Set(["atlas", "kepler"])],
         ["created", new Date("2024-01-02T03:04:05.000Z")],
       ]),
@@ -668,6 +670,8 @@ describe("Resource", () => {
       currentTimeMillis: Effect.sync(() => now),
       currentTimeNanosUnsafe: () => BigInt(Math.trunc(now)) * 1_000_000n,
       currentTimeNanos: Effect.sync(() => BigInt(Math.trunc(now)) * 1_000_000n),
+      monotonicTimeNanosUnsafe: () => BigInt(Math.trunc(now)) * 1_000_000n,
+      monotonicTimeNanos: Effect.sync(() => BigInt(Math.trunc(now)) * 1_000_000n),
       sleep: () => Effect.never,
     };
     const runtime = makeRuntime(Layer.succeed(Clock.Clock)(testClock));
@@ -733,6 +737,8 @@ describe("Resource", () => {
       currentTimeMillis: Effect.sync(() => now),
       currentTimeNanosUnsafe: () => BigInt(Math.trunc(now)) * 1_000_000n,
       currentTimeNanos: Effect.sync(() => BigInt(Math.trunc(now)) * 1_000_000n),
+      monotonicTimeNanosUnsafe: () => BigInt(Math.trunc(now)) * 1_000_000n,
+      monotonicTimeNanos: Effect.sync(() => BigInt(Math.trunc(now)) * 1_000_000n),
       sleep: () => Effect.never,
     };
     const runtime = makeRuntime(Layer.succeed(Clock.Clock)(testClock));
@@ -1004,7 +1010,7 @@ describe("Resource", () => {
     const runtime = makeRuntime();
     const started = Effect.runSync(Deferred.make<void>());
     let interrupted = false;
-    const Count = Resource.family({
+    const Count = Resource.family<unknown, number>({
       name: "Count.public-prefetch-dispose",
       load: () =>
         Effect.gen(function* () {
@@ -1494,7 +1500,7 @@ describe("Resource", () => {
 
   it("throws typed resource failures with previous data", async () => {
     let shouldFail = false;
-    const Item = Resource.family({
+    const Item = Resource.family<unknown, string, Error>({
       name: "Item",
       load: () => (shouldFail ? Effect.fail(new Error("nope")) : Effect.succeed("ok")),
     });

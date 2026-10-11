@@ -2,8 +2,9 @@ import {
   type EffectInputCallbackError,
   type EffectInput,
   type ReadableSignal,
+  type RetrySchedule,
 } from "@sunfall/arc-core";
-import { Effect, type PubSub, type Scope, type Schedule } from "effect";
+import { Effect, type PubSub, type Scope } from "effect";
 import type { AsyncResult } from "effect/reactivity";
 import { CollectionStoreTypeId, CollectionTypeId } from "./collection-ids.js";
 import type { CollectionRowKeyChanged, CollectionRowNotFound } from "./collection-errors.js";
@@ -86,7 +87,7 @@ export interface CollectionMutationContext<A extends object, K extends Collectio
  * original Effect error and requirement channels.
  */
 export interface CollectionPolicy<E = never> {
-  readonly retry?: Schedule.Schedule<unknown, E>;
+  readonly retry?: RetrySchedule<E>;
 }
 
 /** Diagnostic label for the sync adapter currently backing a collection. */

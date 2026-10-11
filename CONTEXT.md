@@ -3,7 +3,7 @@
 ## Domain Vocabulary
 
 - **Runtime Spine**: the `SunfallArcRuntime<R, ER>` that owns Effect execution for an app, browser session, server request, or test. It carries the Effect `ManagedRuntime`, the Resource Store, and the services that app work depends on; its typed Interface only discharges services actually provided by `R`.
-- **Erased Runtime Runner**: the `AnySunfallArcRuntime<ER>` Adapter Interface used at Solid contexts, platform adapters, and ambient host seams where the concrete app service set cannot be named. It is explicit erasure, not a replacement for typed Runtime Spine APIs.
+- **Erased Runtime Runner**: the `AnySunfallArcRuntime<ER>` Adapter Interface used at Solid contexts, platform adapters, and ambient host seams where the concrete app service set cannot be named. It is explicit erasure through `eraseRuntime(runtime)`, not a replacement for typed Runtime Spine APIs.
 - **Request Runtime**: a per-request view of the app Runtime Spine with the same Effect services and a fresh Resource Store. Start uses it for SSR preload, render, and server RPC work.
 - **Request Runtime Lifecycle Module**: the internal Start Module in `packages/start/src/request-runtime-lifecycle.ts` that runs a selected response Effect through response-context application, Request Runtime disposal, request trace emission, failure/interruption teardown, and streamed response finalization. The Start Request Handler owns endpoint/render selection; this Module owns lifecycle completion.
 - **Resource Definition**: the stable `Resource.family(...)` descriptor. It names the resource, describes input/output/error schemas or types, and defines loading policy, but does not own live cache state.
