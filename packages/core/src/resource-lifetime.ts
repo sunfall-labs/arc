@@ -1,7 +1,8 @@
 import { Effect, Fiber } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { parseDuration } from "./resource-duration.js";
 import { publishResourceStoreEvent } from "./resource-events.js";
-import type { ResourceRef, ResourceState, ResourceStatus } from "./resource.js";
+import type { ResourceRef, ResourceStatus } from "./resource.js";
 import {
   resourceStoreFiber,
   type MutableResourceStore as ResourceStoreState,
@@ -15,45 +16,20 @@ export interface ResourceInFlight<A, E> {
 }
 
 export interface ResourceLifetimeEntry<A, E> {
-  readonly state: WritableSignal<ResourceState<A, E>>;
+  readonly state: WritableSignal<AsyncResult.AsyncResult<A, E>>;
   inFlight: ResourceInFlight<A, E> | undefined;
   gcFiber: Fiber.Fiber<void, never> | undefined;
 }
 
-export type PreviousResourceValue<A> =
-  | {
-      readonly present: true;
-      readonly value: A;
-    }
-  | {
-      readonly present: false;
-    };
-
 export const makeResourceEntry = <A, E>(): ResourceLifetimeEntry<A, E> => ({
-  state: Signal.make<ResourceState<A, E>>({ _tag: "Initial", waiting: false }),
+  state: Signal.make<AsyncResult.AsyncResult<A, E>>(AsyncResult.initial()),
   inFlight: undefined,
   gcFiber: undefined,
 });
 
-export const previousResourceValue = <A, E>(
-  state: ResourceState<A, E>,
-): PreviousResourceValue<A> => {
-  switch (state._tag) {
-    case "Success":
-      return { present: true, value: state.value };
-    case "Pending":
-    case "Failure":
-      return "previous" in state
-        ? { present: true, value: state.previous as A }
-        : { present: false };
-    case "Initial":
-      return { present: false };
-  }
-};
-
 export const isResourceStateStale = <A, E, RefError>(
   ref: ResourceRef<unknown, A, RefError, unknown>,
-  state: ResourceState<A, E>,
+  state: AsyncResult.AsyncResult<A, E>,
   now: number,
 ): boolean => {
   if (state._tag !== "Success") {
@@ -61,12 +37,12 @@ export const isResourceStateStale = <A, E, RefError>(
   }
 
   const staleFor = parseDuration(ref.family.options.policy?.staleFor);
-  return staleFor > 0 && now - state.updatedAt > staleFor;
+  return staleFor > 0 && now - state.timestamp > staleFor;
 };
 
 export const isResourceStateCollected = <A, E, RefError>(
   ref: ResourceRef<unknown, A, RefError, unknown>,
-  state: ResourceState<A, E>,
+  state: AsyncResult.AsyncResult<A, E>,
   now: number,
 ): boolean => {
   if (state._tag !== "Success") {
@@ -74,11 +50,11 @@ export const isResourceStateCollected = <A, E, RefError>(
   }
 
   const gcFor = parseDuration(ref.family.options.policy?.gcFor);
-  return gcFor > 0 && now - state.updatedAt > gcFor;
+  return gcFor > 0 && now - state.timestamp > gcFor;
 };
 
-const deadline = (updatedAt: number | undefined, duration: number): number | undefined =>
-  updatedAt === undefined || duration <= 0 ? undefined : updatedAt + duration;
+const deadline = (timestamp: number | undefined, duration: number): number | undefined =>
+  timestamp === undefined || duration <= 0 ? undefined : timestamp + duration;
 
 const maxTimerMillis = 2 ** 31 - 1;
 
@@ -111,88 +87,31 @@ const sleepResourceGcEffect = (milliseconds: number): Effect.Effect<void> =>
 const remaining = (deadlineAt: number | undefined, now: number): number | undefined =>
   deadlineAt === undefined ? undefined : Math.max(0, deadlineAt - now);
 
-export const resourceStatusFromState = <I, A, E, R, RefError = E>(
+export const inspectResourceStatus = <I, A, E, R, RefError = E>(
   ref: ResourceRef<I, A, RefError, R>,
-  state: ResourceState<A, E>,
+  result: AsyncResult.AsyncResult<A, E>,
   now: number,
 ): ResourceStatus<I, A, E, R, RefError> => {
   const staleFor = parseDuration(ref.family.options.policy?.staleFor);
   const gcFor = parseDuration(ref.family.options.policy?.gcFor);
-  const updatedAt = state._tag === "Success" ? state.updatedAt : undefined;
-  const staleAt = deadline(updatedAt, staleFor);
-  const gcAt = deadline(updatedAt, gcFor);
-  const hasPrevious = (state._tag === "Pending" || state._tag === "Failure") && "previous" in state;
-  const value = state._tag === "Success" ? state.value : hasPrevious ? state.previous : undefined;
-  const base = {
+  const timestamp = result._tag === "Success" ? result.timestamp : undefined;
+  const staleAt = deadline(timestamp, staleFor);
+  const gcAt = deadline(timestamp, gcFor);
+  return {
     ref,
     name: ref.family.options.name,
     key: ref.key,
     input: ref.input,
-    waiting: state.waiting,
-    hasValue: state._tag === "Success" || hasPrevious,
-    hasPrevious,
-    isInitial: state._tag === "Initial",
-    isPending: state._tag === "Pending",
-    isSuccess: state._tag === "Success",
-    isFailure: state._tag === "Failure",
-    isFetching: state._tag === "Pending",
-    isLoading: state._tag === "Pending" && !hasPrevious,
-    isRefreshing: state._tag === "Pending" && hasPrevious,
+    result,
     isStale: staleAt !== undefined && now > staleAt,
     isGcExpired: gcAt !== undefined && now > gcAt,
-    updatedAt,
     staleAt,
     gcAt,
-    ageMillis: updatedAt === undefined ? undefined : Math.max(0, now - updatedAt),
+    ageMillis: timestamp === undefined ? undefined : Math.max(0, now - timestamp),
     staleInMillis: remaining(staleAt, now),
     gcInMillis: remaining(gcAt, now),
   };
-
-  switch (state._tag) {
-    case "Initial":
-      return {
-        ...base,
-        _tag: "Initial",
-        state,
-        value: undefined,
-        previous: undefined,
-        error: undefined,
-      };
-    case "Pending":
-      return {
-        ...base,
-        _tag: "Pending",
-        state,
-        value,
-        previous: hasPrevious ? state.previous : undefined,
-        error: undefined,
-      };
-    case "Success":
-      return {
-        ...base,
-        _tag: "Success",
-        state,
-        value: state.value,
-        previous: undefined,
-        error: undefined,
-      };
-    case "Failure":
-      return {
-        ...base,
-        _tag: "Failure",
-        state,
-        value,
-        previous: hasPrevious ? state.previous : undefined,
-        error: state.error,
-      };
-  }
 };
-
-export const inspectResourceStatus = <I, A, E, R, RefError = E>(
-  ref: ResourceRef<I, A, RefError, R>,
-  state: ResourceState<A, E>,
-  now: number,
-): ResourceStatus<I, A, E, R, RefError> => resourceStatusFromState(ref, state, now);
 
 export const interruptResourceGc = <A, E>(
   entry: ResourceLifetimeEntry<A, E>,
@@ -318,45 +237,18 @@ export const scheduleResourceGc = <I, A, E, R, RefError = E>(
     });
   });
 
+/** Marks the current result `waiting`, keeping its tag (stale-while-refreshing). */
 export const setResourcePending = <A, E>(entry: ResourceLifetimeEntry<A, E>): void => {
-  const previous = previousResourceValue(entry.state.get());
-  entry.state.set({
-    _tag: "Pending",
-    waiting: true,
-    ...(previous.present ? { previous: previous.value } : {}),
-  });
-};
-
-export const setResourceSuccess = <A, E>(
-  entry: ResourceLifetimeEntry<A, E>,
-  value: A,
-  updatedAt: number,
-): void => {
-  entry.state.set({
-    _tag: "Success",
-    waiting: false,
-    value,
-    updatedAt,
-  });
-};
-
-export const setResourceFailure = <A, E>(entry: ResourceLifetimeEntry<A, E>, error: E): void => {
-  const previous = previousResourceValue(entry.state.get());
-  entry.state.set({
-    _tag: "Failure",
-    waiting: false,
-    error,
-    ...(previous.present ? { previous: previous.value } : {}),
-  });
+  entry.state.set(AsyncResult.waiting(entry.state.get()));
 };
 
 export const resetResourceEntry = <A, E>(entry: ResourceLifetimeEntry<A, E>): void => {
-  entry.state.set({ _tag: "Initial", waiting: false });
+  entry.state.set(AsyncResult.initial());
 };
 
 export const shouldShowResourcePending = <A, E, RefError>(
   ref: ResourceRef<unknown, A, RefError, unknown>,
-  state: ResourceState<A, E>,
+  state: AsyncResult.AsyncResult<A, E>,
   force: boolean,
   now: number,
   retained = false,

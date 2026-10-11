@@ -10,7 +10,8 @@ import {
   RuntimeDisposeError,
   runWithRuntime,
 } from "@sunfall/arc-core";
-import { Cause, Context, Deferred, Effect, Fiber, Layer, Stream } from "effect";
+import { Cause, Context, Deferred, Effect, Fiber, Layer, Option, Stream } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { children, createRoot, createSignal, flush, NotReadyError } from "solid-js";
 import { createComponent } from "@solidjs/web";
 import { describe, expect, it, vi } from "vitest";
@@ -83,7 +84,7 @@ describe("solid hooks", () => {
   it("bridges same-ref delete and reload through Solid resource handles", () => {
     let dispose: (() => void) | undefined;
     let loads = 0;
-    let state: (() => { readonly _tag: string }) | undefined;
+    let result: (() => AsyncResult.AsyncResult<Project, Resource.LoadError<never>>) | undefined;
     let value: (() => Project | undefined) | undefined;
     let prefetchEffect: (() => Effect.Effect<Project, Resource.LoadError<never>>) | undefined;
     const runtime = makeRuntime();
@@ -103,19 +104,19 @@ describe("solid hooks", () => {
           createRoot((rootDispose) => {
             dispose = rootDispose;
             const project = useResource(ref, { preload: false });
-            state = project.state;
-            value = project.value;
+            result = project.result;
+            value = () => Option.getOrUndefined(AsyncResult.value(project.result()));
             prefetchEffect = project.prefetchEffect;
           }),
         );
 
-        expect(state?.()._tag).toBe("Initial");
+        expect(result?.()._tag).toBe("Initial");
 
         yield* prefetchEffect!();
         expect(value?.()).toEqual({ id: "atlas", name: "Atlas 1" });
 
         yield* runtime.provide(Resource.deleteEffect(ref));
-        expect(state?.()._tag).toBe("Initial");
+        expect(result?.()._tag).toBe("Initial");
 
         yield* prefetchEffect!();
         expect(value?.()).toEqual({ id: "atlas", name: "Atlas 2" });
@@ -148,7 +149,7 @@ describe("solid hooks", () => {
         createRoot((rootDispose) => {
           dispose = rootDispose;
           const project = useResource(ref, { preload: false });
-          value = project.value;
+          value = () => Option.getOrUndefined(AsyncResult.value(project.result()));
         }),
       );
 
@@ -157,18 +158,18 @@ describe("solid hooks", () => {
       await vi.advanceTimersByTimeAsync(11);
 
       expect(value?.()).toEqual({ id: "atlas", name: "Atlas" });
-      expect((await Effect.runPromise(runtime.provide(Resource.statusEffect(ref))))._tag).toBe(
-        "Success",
-      );
+      expect(
+        (await Effect.runPromise(runtime.provide(Resource.statusEffect(ref)))).result._tag,
+      ).toBe("Success");
 
       dispose?.();
       dispose = undefined;
       await vi.advanceTimersByTimeAsync(0);
       await vi.advanceTimersByTimeAsync(11);
 
-      expect((await Effect.runPromise(runtime.provide(Resource.statusEffect(ref))))._tag).toBe(
-        "Initial",
-      );
+      expect(
+        (await Effect.runPromise(runtime.provide(Resource.statusEffect(ref)))).result._tag,
+      ).toBe("Initial");
     } finally {
       dispose?.();
       vi.useRealTimers();
@@ -240,7 +241,10 @@ describe("solid hooks", () => {
         setProjectId?.("atlas");
         yield* Effect.sleep("20 millis");
 
-        expect(project.value()).toEqual({ id: "atlas", name: "Atlas" });
+        expect(Option.getOrUndefined(AsyncResult.value(project.result()))).toEqual({
+          id: "atlas",
+          name: "Atlas",
+        });
         expect(project.preloadFailure()).toBeUndefined();
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
@@ -275,13 +279,18 @@ describe("solid hooks", () => {
         );
 
         yield* Effect.sleep("20 millis");
-        expect(project.value()).toBeUndefined();
+        expect(Option.getOrUndefined(AsyncResult.value(project.result()))).toBeUndefined();
 
         setPreload?.(true);
-        project.state();
+        project.result();
         yield* Deferred.await(started);
         yield* Effect.promise(() =>
-          vi.waitFor(() => expect(project.value()).toEqual({ id: "atlas", name: "Atlas" })),
+          vi.waitFor(() =>
+            expect(Option.getOrUndefined(AsyncResult.value(project.result()))).toEqual({
+              id: "atlas",
+              name: "Atlas",
+            }),
+          ),
         );
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
@@ -325,7 +334,7 @@ describe("solid hooks", () => {
 
         yield* Deferred.await(started);
         setPreload?.(false);
-        project.state();
+        project.result();
         yield* Effect.promise(() => vi.waitFor(() => expect(releases).toBe(1)));
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
@@ -367,7 +376,7 @@ describe("solid hooks", () => {
         yield* Effect.sleep("20 millis");
         setObserverName?.("second");
         flush();
-        project.state();
+        project.result();
         yield* Deferred.succeed(release, undefined);
         yield* Effect.promise(() =>
           vi.waitFor(() => expect(project.preloadFailure()).toBe(failure)),
@@ -441,10 +450,9 @@ describe("solid hooks", () => {
           expect.fail("Expected stale failed suspense read to throw ResourceFailure");
         } catch (error) {
           expect(error).toBeInstanceOf(ResourceFailure);
-          expect(error).toMatchObject({
-            error: "offline",
-            previous: { id: "atlas", name: "Atlas" },
-          });
+          const failure = (error as ResourceFailure<string, Project, string>).result;
+          expect(AsyncResult.error(failure)).toEqual(Option.some("offline"));
+          expect(AsyncResult.value(failure)).toEqual(Option.some({ id: "atlas", name: "Atlas" }));
         }
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
@@ -595,8 +603,12 @@ describe("solid hooks", () => {
 
         yield* firstRuntime!.provide(Resource.prefetchEffect(ref));
 
-        expect(runWithRuntime(firstRuntime!, () => Resource.status(ref)._tag)).toBe("Success");
-        expect(runWithRuntime(secondRuntime!, () => Resource.status(ref)._tag)).toBe("Initial");
+        expect(runWithRuntime(firstRuntime!, () => Resource.status(ref).result._tag)).toBe(
+          "Success",
+        );
+        expect(runWithRuntime(secondRuntime!, () => Resource.status(ref).result._tag)).toBe(
+          "Initial",
+        );
         dispose?.();
       }),
     ));
@@ -823,17 +835,23 @@ describe("solid hooks", () => {
         );
 
         yield* Effect.sleep(0);
-        expect(action?.state()._tag).toBe("Idle");
+        expect(action?.result()._tag).toBe("Initial");
+        expect(action?.input()).toEqual(Option.none());
 
         const fiber = runtime.runFork(action!.submitEffect("atlas"));
         yield* Effect.sleep(0);
-        expect(action?.state()._tag).toBe("Pending");
+        expect(action?.result().waiting).toBe(true);
+        expect(action?.input()).toEqual(Option.some("atlas"));
         yield* Deferred.succeed(release, undefined);
         const saved = yield* Fiber.join(fiber);
 
         expect(saved).toBe("saved:atlas");
-        expect(action?.state()._tag).toBe("Success");
-        expect(action?.instance.state.get()._tag).toBe("Success");
+        expect(action?.result()).toMatchObject({
+          _tag: "Success",
+          value: "saved:atlas",
+          waiting: false,
+        });
+        expect(action?.instance.state.get().result._tag).toBe("Success");
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
         Effect.ensuring(runtime.disposeEffect),
@@ -890,7 +908,7 @@ describe("solid hooks", () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         yield* runtime.provide(Resource.prefetchEffect(ref));
-        expect(runWithRuntime(runtime, () => Resource.status(ref)._tag)).toBe("Success");
+        expect(runWithRuntime(runtime, () => Resource.status(ref).result._tag)).toBe("Success");
 
         runWithRuntime(runtime, () =>
           createRoot((rootDispose) => {

@@ -8,6 +8,7 @@ import {
   runFork,
 } from "@sunfall/arc-core";
 import { Effect, Option, PubSub, Schema, Scope } from "effect";
+import type { AsyncResult } from "effect/reactivity";
 import {
   backgroundSyncCollectionsPendingMutationsEffect,
   flushCollectionsPendingMutationsEffect,
@@ -140,7 +141,6 @@ import type {
   CollectionIndexResult,
   CollectionIndexValue,
   CollectionKey,
-  CollectionLoadState,
   CollectionMemoryStorage,
   CollectionMutation,
   CollectionMutationContext,
@@ -270,7 +270,6 @@ export type {
   CollectionIndexResult,
   CollectionIndexValue,
   CollectionKey,
-  CollectionLoadState,
   CollectionMemoryStorage,
   CollectionMutation,
   CollectionMutationContext,
@@ -307,7 +306,7 @@ export type {
   CollectionDefinitionRegistryOptions,
 } from "./collection-registry.js";
 export { Query, and, eq, gt, gte, includes, lt, lte, neq, not, or } from "./query-builder.js";
-export type { LiveQuery, LiveQueryState, QueryFactory, QueryRoot } from "./query-builder.js";
+export type { LiveQuery, QueryFactory, QueryRoot } from "./query-builder.js";
 export type { CollectionLiveQueryOptions } from "./live-query-collection.js";
 export type {
   CollectionPreloadCollected,
@@ -383,8 +382,6 @@ export namespace Collection {
   export type Key = CollectionKey;
   /** Origin marker for local, remote, or hydrated collection rows. */
   export type Origin = CollectionOrigin;
-  /** Reactive load state for one collection. */
-  export type State<E = never> = CollectionLoadState<E>;
   /** Runtime collection error channel including callback and storage failures. */
   export type RuntimeError<E = never> = CollectionRuntimeError<E>;
   /** Optimistic mutation record queued for a collection. */
@@ -824,10 +821,10 @@ export namespace Collection {
   export const registryDiagnostics = (): CollectionDefinitionRegistryDiagnostics =>
     collectionRegistryDiagnostics();
 
-  /** Reactive load state signal for a collection. */
+  /** Reactive load `AsyncResult` signal for a collection. */
   export const state = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>,
-  ): ReadableSignal<CollectionLoadState<CollectionRuntimeError<E>>> => definition.state();
+  ): ReadableSignal<AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>> => definition.state();
 
   /** Reactive version signal that changes when rows or pending mutations change. */
   export const version = <A extends object, K extends CollectionKey, E, R>(

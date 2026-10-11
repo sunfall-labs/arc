@@ -1,10 +1,10 @@
 import { EffectInputCallbackError, type EffectInput } from "@sunfall/arc-core";
-import { Cause, Clock, Deferred, Effect, Exit } from "effect";
+import { Cause, Clock, Deferred, Effect, Exit, Option } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import type {
   AnyCollection,
   CollectionDefinition,
   CollectionKey,
-  CollectionLoadState,
   CollectionSnapshot,
   CollectionRuntimeError,
 } from "./collection-contract.js";
@@ -89,11 +89,11 @@ const failCollectionLoadEffect = <A extends object, K extends CollectionKey, E, 
   error: Cause,
 ): Effect.Effect<never, Cause> =>
   Effect.gen(function* () {
-    state.loadState.set({
-      _tag: "Failure",
-      waiting: false,
-      error: error as CollectionRuntimeError<E>,
-    });
+    state.loadState.set(
+      AsyncResult.failureWithPrevious(Cause.fail(error as CollectionRuntimeError<E>), {
+        previous: Option.some(state.loadState.get()),
+      }),
+    );
     yield* publishStoreEvent(store, {
       _tag: "CollectionLoadFailure",
       collection: definition.name,
@@ -164,7 +164,7 @@ const supersededLoadAttemptWithoutActiveError = (
       loadState: state.loadState.get()._tag,
     },
     guidance:
-      "A superseded collection load can only complete from a visible Ready or Failure state, or by joining the current active load generation.",
+      "A superseded collection load can only complete from a settled Success or Failure result, or by joining the current active load generation.",
   });
 
 const waitForSupersedingLoadAttempt = <E>(
@@ -174,19 +174,16 @@ const waitForSupersedingLoadAttempt = <E>(
 ): Effect.Effect<void, CollectionRuntimeError<E>> =>
   Effect.suspend(() => {
     const current = state.loadState.get();
-    switch (current._tag) {
-      case "Ready":
-        return Effect.void;
-      case "Failure":
-        return Effect.fail(current.error);
-      case "Initial":
-      case "Pending": {
-        const active = state.activeLoad;
-        return active && active.generation !== attempt.generation
-          ? Deferred.await(active.deferred as Deferred.Deferred<void, CollectionRuntimeError<E>>)
-          : Effect.fail(supersededLoadAttemptWithoutActiveError(definition, state, attempt));
-      }
+    if (!current.waiting && current._tag === "Success") {
+      return Effect.void;
     }
+    if (!current.waiting && current._tag === "Failure") {
+      return Effect.failCause(current.cause);
+    }
+    const active = state.activeLoad;
+    return active && active.generation !== attempt.generation
+      ? Deferred.await(active.deferred as Deferred.Deferred<void, CollectionRuntimeError<E>>)
+      : Effect.fail(supersededLoadAttemptWithoutActiveError(definition, state, attempt));
   });
 
 const resolveLoadAttemptCompletion = <E>(
@@ -274,7 +271,7 @@ const persistLoadSnapshotEffect = <A extends object, K extends CollectionKey, E,
 const restoreLoadStateIfCurrentEffect = <A extends object, K extends CollectionKey, E>(
   state: CollectionState<A, K, E>,
   attempt: CollectionLoadAttempt,
-  loadState: CollectionLoadState<CollectionRuntimeError<E>>,
+  loadState: AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>,
 ): Effect.Effect<void> =>
   Effect.sync(() => {
     if (isCurrentLoadAttempt(state, attempt)) {
@@ -288,7 +285,7 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
   store: RuntimeCollectionStore,
   attempt: CollectionLoadAttempt,
   rows: ReadonlyArray<StoredRow<A, K>>,
-  previousLoadState: CollectionLoadState<CollectionRuntimeError<E>>,
+  previousLoadState: AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>,
   updatedAt: number,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   withCollectionDurableCommitPermit(
@@ -337,7 +334,7 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
 
         replaceLoadedCollectionRows(state, rows);
         state.initialDataError = undefined;
-        state.loadState.set({ _tag: "Ready", waiting: false, updatedAt });
+        state.loadState.set(AsyncResult.success(undefined, { timestamp: updatedAt }));
         yield* publishStoreEvent(store, {
           _tag: "CollectionLoaded",
           collection: definition.name,
@@ -390,7 +387,7 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         collectionPersistenceConfig(definition)?.loadAfterRestore === true &&
         operation !== undefined;
 
-      if (!options.force && current._tag === "Ready" && !shouldLoadAfterRestore) {
+      if (!options.force && current._tag === "Success" && !shouldLoadAfterRestore) {
         return;
       }
 
@@ -400,7 +397,7 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         }
         if (current._tag === "Initial" && isCurrentLoadAttempt(state, attempt)) {
           const updatedAt = yield* Clock.currentTimeMillis;
-          state.loadState.set({ _tag: "Ready", waiting: false, updatedAt });
+          state.loadState.set(AsyncResult.success(undefined, { timestamp: updatedAt }));
         }
         return;
       }
@@ -408,7 +405,7 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
       const load = collectionCallbackEffect(operation);
       const previousLoadState = state.loadState.get();
       if (isCurrentLoadAttempt(state, attempt)) {
-        state.loadState.set({ _tag: "Pending", waiting: true });
+        state.loadState.set(AsyncResult.waiting(previousLoadState));
       }
       const values = yield* withCollectionPolicyRetry(definition, load).pipe(
         Effect.onExit((exit) =>

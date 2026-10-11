@@ -1,4 +1,4 @@
-import { Data, Effect, Exit, Schema } from "effect";
+import { Data, Effect, Exit, Option, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {
   Action,
@@ -80,7 +80,7 @@ describe("ActionResult", () => {
               expect(result.status).toBe(303);
               expect(result.replace).toBe(true);
             }
-            expect(read(action.state)).toMatchObject({
+            expect(read(action.state).result).toMatchObject({
               _tag: "Success",
               value: {
                 _tag: "Redirect",
@@ -252,8 +252,8 @@ describe("ActionResult", () => {
             cause: expect.any(EffectInputPromiseRejected),
           });
           expect(read(action.state)).toMatchObject({
-            _tag: "Failure",
-            input: "save",
+            result: { _tag: "Failure", waiting: false },
+            input: Option.some("save"),
           });
         }
       }),

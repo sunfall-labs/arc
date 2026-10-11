@@ -3,7 +3,7 @@ import type { ActionResultInvalidationRequirements } from "./action-result.js";
 import {
   ActionInterrupted,
   makeActionSubmissionController,
-  type ActionSubmissionState,
+  type ActionState,
 } from "./action-submission.js";
 import { type ActionOptimisticTransaction, type ActionRollback } from "./action-optimistic.js";
 import {
@@ -35,14 +35,6 @@ import type { ReadableSignal } from "./signal.js";
 export const ActionTypeId: unique symbol = Symbol.for(
   "@sunfall/arc-core/Action",
 ) as typeof ActionTypeId;
-
-/** State machine for one action instance. */
-export type ActionState<I, A, E = never, P = ResourceInvalidationPlan> = ActionSubmissionState<
-  I,
-  A,
-  E,
-  P
->;
 
 /**
  * Submission concurrency mode for one stateful Action Instance.
@@ -152,14 +144,7 @@ export interface ActionInstance<
   InvalidationRequirements = DefinitionRequirements | ActionResultInvalidationRequirements<A>,
 > {
   readonly definition: ActionDefinition<I, A, DefinitionError, DefinitionRequirements>;
-  readonly state: ReadableSignal<
-    ActionState<
-      I,
-      A,
-      E | EffectInputCallbackError,
-      ResourceInvalidationPlan<InvalidationRequirements>
-    >
-  >;
+  readonly state: ReadableSignal<ActionState<I, A, E | EffectInputCallbackError>>;
   readonly invalidationPlan: ReadableSignal<
     ResourceInvalidationPlan<InvalidationRequirements> | undefined
   >;
@@ -187,7 +172,7 @@ export {
   type ActionSubmissionDecision,
   type ActionSubmissionFiber,
   type ActionSubmissionRun,
-  type ActionSubmissionState,
+  type ActionState,
 } from "./action-submission.js";
 
 type AnyActionDefinition = ActionDefinition<any, any, any, any>;

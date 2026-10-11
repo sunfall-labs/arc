@@ -1,4 +1,6 @@
-import { Data, Effect, Fiber } from "effect";
+import { Cause, Clock, Data, Effect, Exit, Fiber, Option } from "effect";
+import { AsyncResult } from "effect/reactivity";
+import { settleResult } from "./async-result-settle.js";
 import type { ResourceInvalidationPlan } from "./resource.js";
 import { Signal, type ReadableSignal } from "./signal.js";
 
@@ -16,28 +18,20 @@ export class ActionInterrupted extends Data.TaggedError("ActionInterrupted")<{
   readonly actionName: string;
 }> {}
 
-/** Visible submission state exposed by action client instances. */
-export type ActionSubmissionState<I, A, E = never, P = ResourceInvalidationPlan> =
-  | { readonly _tag: "Idle" }
-  | {
-      readonly _tag: "Pending";
-      readonly input: I;
-      readonly previous: A | undefined;
-      readonly hasPrevious: boolean;
-    }
-  | {
-      readonly _tag: "Success";
-      readonly value: A;
-      readonly input: I;
-      readonly invalidationPlan?: P;
-    }
-  | {
-      readonly _tag: "Failure";
-      readonly error: E;
-      readonly input: I;
-      readonly previous: A | undefined;
-      readonly hasPrevious: boolean;
-    };
+/**
+ * Visible submission state exposed by action client instances.
+ *
+ * `result` is `Initial` while idle; a submission marks the current result
+ * `waiting` and settles it to `Success` or a `Failure` carrying the full
+ * `Cause` (typed errors and defects) with the latest success kept as
+ * `previousSuccess`. An interrupted submission returns to the prior settled
+ * state. `input` is the latest submission's input (`Option.none()` while idle).
+ */
+/** Submission state for one action instance: an `AsyncResult` plus the latest input. */
+export interface ActionState<I, A, E = never> {
+  readonly result: AsyncResult.AsyncResult<A, E>;
+  readonly input: Option.Option<I>;
+}
 
 export type ActionSubmissionFiber<A, E> = Fiber.Fiber<A, E | ActionInterrupted>;
 
@@ -67,7 +61,7 @@ export type ActionSubmissionDecision<A, E> =
  * domain-specific workflow local.
  */
 export interface ActionSubmissionController<I, A, E, P = ResourceInvalidationPlan> {
-  readonly state: ReadableSignal<ActionSubmissionState<I, A, E, P>>;
+  readonly state: ReadableSignal<ActionState<I, A, E>>;
   readonly invalidationPlan: ReadableSignal<P | undefined>;
   readonly beginEffect: (
     fiber: ActionSubmissionFiber<A, E>,
@@ -77,16 +71,15 @@ export interface ActionSubmissionController<I, A, E, P = ResourceInvalidationPla
   readonly interruptStaleEffect: (
     submission: ActionSubmissionRun<A, E>,
   ) => Effect.Effect<void, ActionInterrupted>;
-  readonly successEffect: (
+  /**
+   * Settles the visible state from the submission's Exit, stamped with `Clock`
+   * time. `plan` is committed with a successful result in the same batch.
+   * Stale submissions and `ActionInterrupted` exits leave state untouched.
+   */
+  readonly settleEffect: (
     submission: ActionSubmissionRun<A, E>,
-    input: I,
-    value: A,
+    exit: Exit.Exit<A, E | ActionInterrupted>,
     plan: P | undefined,
-  ) => Effect.Effect<void>;
-  readonly failureEffect: (
-    submission: ActionSubmissionRun<A, E>,
-    input: I,
-    error: E,
   ) => Effect.Effect<void>;
   readonly clearCurrentEffect: (token: object) => Effect.Effect<void>;
   /**
@@ -108,26 +101,27 @@ export interface ActionSubmissionControllerOptions {
   readonly concurrency?: ActionSubmissionConcurrency | undefined;
 }
 
-const previousFromState = <I, A, E, P>(
-  state: ActionSubmissionState<I, A, E, P>,
-): { readonly present: boolean; readonly value: A | undefined } => {
-  switch (state._tag) {
-    case "Success":
-      return { present: true, value: state.value };
-    case "Failure":
-    case "Pending":
-      return { present: state.hasPrevious, value: state.previous };
-    case "Idle":
-      return { present: false, value: undefined };
-  }
-};
-
 /** Creates the shared submission controller used by Action and StartAction clients. */
 export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidationPlan>(
   options: ActionSubmissionControllerOptions,
 ): ActionSubmissionController<I, A, E, P> => {
-  const state = Signal.make<ActionSubmissionState<I, A, E, P>>({ _tag: "Idle" });
+  const idle: ActionState<I, A, E> = {
+    result: AsyncResult.initial(),
+    input: Option.none(),
+  };
+  const state = Signal.make<ActionState<I, A, E>>(idle);
   const invalidationPlan = Signal.make<P | undefined>(undefined);
+  // Last settled state and plan, restored when the latest submission is interrupted.
+  let settled: { readonly state: ActionState<I, A, E>; readonly plan: P | undefined } = {
+    state: idle,
+    plan: undefined,
+  };
+  const commit = (next: ActionState<I, A, E>, plan: P | undefined): void => {
+    Signal.batch(() => {
+      invalidationPlan.set(plan);
+      state.set(next);
+    });
+  };
   let version = 0;
   let currentSubmission: CurrentActionSubmission<A, E> | undefined;
   const activeSubmissions = new Map<object, ActionSubmissionFiber<A, E>>();
@@ -150,10 +144,8 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
     version++;
     currentSubmission = undefined;
     activeSubmissions.clear();
-    Signal.batch(() => {
-      invalidationPlan.set(undefined);
-      state.set({ _tag: "Idle" });
-    });
+    settled = { state: idle, plan: undefined };
+    commit(idle, undefined);
     return interruptFibersEffect(fibers);
   };
   const resetEffect = (): Effect.Effect<void> => Effect.suspend(() => captureResetEffect());
@@ -195,16 +187,10 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
           return;
         }
 
-        const previous = previousFromState(state.get());
-        Signal.batch(() => {
-          invalidationPlan.set(undefined);
-          state.set({
-            _tag: "Pending",
-            input,
-            previous: previous.value,
-            hasPrevious: previous.present,
-          });
-        });
+        commit(
+          { result: AsyncResult.waiting(state.get().result), input: Option.some(input) },
+          undefined,
+        );
       }),
     interruptStaleEffect: (submission) =>
       Effect.suspend(() =>
@@ -213,36 +199,35 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
           ? Effect.fail(new ActionInterrupted({ actionName: options.actionName }))
           : Effect.void,
       ),
-    successEffect: (submission, input, value, plan) =>
-      Effect.sync(() => {
+    settleEffect: (submission, exit, plan) =>
+      Effect.gen(function* () {
         if (!acceptsStateUpdate(submission)) {
           return;
         }
-
-        Signal.batch(() => {
-          invalidationPlan.set(plan);
-          state.set({
-            _tag: "Success",
-            value,
-            input,
-            ...(plan === undefined ? {} : { invalidationPlan: plan }),
-          });
-        });
-      }),
-    failureEffect: (submission, input, error) =>
-      Effect.sync(() => {
-        if (!acceptsStateUpdate(submission)) {
+        if (
+          Exit.isFailure(exit) &&
+          Cause.findErrorOption(exit.cause).pipe(
+            Option.exists((error) => error instanceof ActionInterrupted),
+          )
+        ) {
           return;
         }
 
-        const previous = previousFromState(state.get());
-        state.set({
-          _tag: "Failure",
-          error,
-          input,
-          previous: previous.value,
-          hasPrevious: previous.present,
-        });
+        const settledExit = exit as Exit.Exit<A, E>;
+        if (Exit.isFailure(settledExit) && Cause.hasInterruptsOnly(settledExit.cause)) {
+          commit(settled.state, settled.plan);
+          return;
+        }
+
+        const now = yield* Clock.currentTimeMillis;
+        const current = state.get();
+        const next: ActionState<I, A, E> = {
+          result: settleResult(settledExit, current.result, now),
+          input: current.input,
+        };
+        const nextPlan = Exit.isSuccess(settledExit) ? plan : undefined;
+        settled = { state: next, plan: nextPlan };
+        commit(next, nextPlan);
       }),
     clearCurrentEffect: (token) =>
       Effect.sync(() => {

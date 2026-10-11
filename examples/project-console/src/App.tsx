@@ -20,7 +20,8 @@ import type { SunfallArcRuntime } from "@sunfall/arc-core";
 import type { CollectionRow } from "@sunfall/arc-db";
 import { useCollection, useLiveQuery } from "@sunfall/arc-solid-db";
 import { StartAction } from "@sunfall/arc-start";
-import { Effect, Schema } from "effect";
+import { Cause, Effect, Option, Schema } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { For, Show, createEffect, onSettled } from "solid-js";
 import { isServer } from "@solidjs/web";
 import {
@@ -343,14 +344,11 @@ function ProjectRows(props: {
   return (
     <div class="projectList">
       {(() => {
+        // Rows are their own signal: the load result only decides the chrome.
         const rows = projects.rows();
-        const state = projects.state();
+        const result = projects.result();
 
-        if (state._tag === "Initial") {
-          return <ProjectListSkeleton />;
-        }
-
-        if (state._tag === "Pending") {
+        if (result.waiting) {
           return rows.length > 0 ? (
             <>
               {renderRows(rows)}
@@ -361,14 +359,19 @@ function ProjectRows(props: {
           );
         }
 
-        if (state._tag === "Failure") {
+        if (result._tag === "Initial") {
+          return <ProjectListSkeleton />;
+        }
+
+        if (result._tag === "Failure") {
+          const error = Cause.squash(result.cause);
           return rows.length > 0 ? (
             <>
               {renderRows(rows)}
-              <InlineFailure error={state.error} />
+              <InlineFailure error={error} />
             </>
           ) : (
-            <InlineFailure error={state.error} />
+            <InlineFailure error={error} />
           );
         }
 
@@ -410,20 +413,26 @@ function ProjectDetail(props: { readonly id: ProjectId; readonly tab: ProjectTab
 
   return (
     <>
-      {project.match({
-        initial: () => <ProjectSkeleton />,
-        pending: (previous) => (previous ? renderProject(previous, true) : <ProjectSkeleton />),
-        success: (value) => renderProject(value, false),
-        failure: (error, previous) =>
-          previous ? (
-            <>
-              {renderProject(previous, false)}
-              <InlineFailure error={error} />
-            </>
-          ) : (
-            <FailureView error={error} />
-          ),
-      })}
+      {AsyncResult.builder(project.result())
+        .onInitial(() => <ProjectSkeleton />)
+        // Failure before success: `previousSuccess` keeps its `Project` type.
+        .onFailure((cause, failed) =>
+          Option.match(failed.previousSuccess, {
+            onNone: () =>
+              failed.waiting ? <ProjectSkeleton /> : <FailureView error={Cause.squash(cause)} />,
+            onSome: (stale) =>
+              failed.waiting ? (
+                renderProject(stale.value, true)
+              ) : (
+                <>
+                  {renderProject(stale.value, false)}
+                  <InlineFailure error={Cause.squash(cause)} />
+                </>
+              ),
+          }),
+        )
+        .onSuccess((value, success) => renderProject(value, success.waiting))
+        .exhaustive()}
     </>
   );
 }
@@ -532,7 +541,7 @@ function ProjectWorkQueue(props: { readonly project: Project }) {
           <p class="eyebrow">Collection + Query.live</p>
           <h3>{props.project.name} work queue</h3>
         </div>
-        <Show when={queue.waiting()}>
+        <Show when={queue.result().waiting}>
           <p class="inlineStatus">Refreshing work items</p>
         </Show>
       </div>

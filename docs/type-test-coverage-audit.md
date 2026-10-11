@@ -118,7 +118,7 @@ are easiest to regress while refactoring internals toward Effect primitives.
   `ResourcePending.hasPrevious` and `ResourceFailure.hasPrevious` so LSP hovers
   distinguish a successful `undefined` previous value from no previous value.
 - Core action/resource UI type tests now pin `withResourceStore(...)` as the
-  expert-public request-runtime seam, `ActionSubmissionState.hasPrevious` for
+  expert-public request-runtime seam, `ActionState.hasPrevious` for
   successful `undefined` previous values, and `ResourceUiMatch` pending/failure
   metadata for renderer adapters.
 - Review207 added direct Core Action root pins for `ActionPolicy`,

@@ -8,6 +8,7 @@ import {
   eq,
 } from "@sunfall/arc-db";
 import { Deferred, Effect, Exit, Fiber, Option, PubSub } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vitest";
 import {
   collectionDurableSnapshotPermitSources,
@@ -39,6 +40,29 @@ interface FunctionProjectCard {
   readonly name: string;
   readonly render: () => string;
 }
+
+/** Flattens an `AsyncResult` into matchable facts: tag, waiting, value/timestamp, typed error, and previous success value. */
+const asyncResultFacts = (result: AsyncResult.AsyncResult<unknown, unknown>) => {
+  switch (result._tag) {
+    case "Initial":
+      return { _tag: result._tag, waiting: result.waiting };
+    case "Success":
+      return {
+        _tag: result._tag,
+        waiting: result.waiting,
+        value: result.value,
+        timestamp: result.timestamp,
+      };
+    case "Failure":
+      return {
+        _tag: result._tag,
+        waiting: result.waiting,
+        error: Option.getOrUndefined(AsyncResult.error(result)),
+        previous: Option.getOrUndefined(AsyncResult.value(result)),
+        cause: result.cause,
+      };
+  }
+};
 
 describe("Collection.liveQuery", () => {
   it("reports synchronous query callback throws as typed evaluation errors", () =>
@@ -129,11 +153,11 @@ describe("Collection.liveQuery", () => {
 
     expect(() => live.data.get()).not.toThrow();
     expect(live.data.get()).toEqual([]);
-    expect(live.state.get()).toMatchObject({
+    expect(asyncResultFacts(live.state.get())).toMatchObject({
       _tag: "Failure",
       waiting: false,
       error: { _tag: "QueryEvaluationError", operation: "filter" },
-      data: [],
+      previous: [],
     });
   });
 
@@ -160,19 +184,19 @@ describe("Collection.liveQuery", () => {
 
         expect(() => live.data.get()).not.toThrow();
         expect(live.data.get()).toEqual(["Atlas"]);
-        expect(live.state.get()).toMatchObject({
+        expect(asyncResultFacts(live.state.get())).toMatchObject({
           _tag: "Failure",
           waiting: false,
           error: { _tag: "QueryEvaluationError", operation: "projection" },
-          data: ["Atlas"],
+          previous: ["Atlas"],
         });
 
         yield* Projects.writeUpdateEffect("atlas", { name: "Atlas Reloaded" });
 
-        expect(live.state.get()).toMatchObject({
+        expect(asyncResultFacts(live.state.get())).toMatchObject({
           _tag: "Success",
           waiting: false,
-          data: ["Atlas Reloaded"],
+          value: ["Atlas Reloaded"],
         });
       }),
     ));
@@ -210,13 +234,17 @@ describe("Collection.liveQuery", () => {
 
           expect(runWithRuntime(firstRuntime, () => live.data.get())).toEqual(["Atlas"]);
           expect(runWithRuntime(secondRuntime, () => live.data.get())).toEqual(["Lumen"]);
-          expect(runWithRuntime(firstRuntime, () => live.state.get())).toMatchObject({
-            _tag: "Pending",
-            data: ["Atlas"],
+          expect(
+            asyncResultFacts(runWithRuntime(firstRuntime, () => live.state.get())),
+          ).toMatchObject({
+            _tag: "Initial",
+            waiting: false,
           });
-          expect(runWithRuntime(secondRuntime, () => live.state.get())).toMatchObject({
-            _tag: "Pending",
-            data: ["Lumen"],
+          expect(
+            asyncResultFacts(runWithRuntime(secondRuntime, () => live.state.get())),
+          ).toMatchObject({
+            _tag: "Initial",
+            waiting: false,
           });
         } finally {
           yield* firstRuntime.disposeEffect;
@@ -397,20 +425,20 @@ describe("Collection.liveQuery", () => {
 
         yield* live.preloadEffect();
 
-        expect(live.state.get()).toMatchObject({
+        expect(asyncResultFacts(live.state.get())).toMatchObject({
           _tag: "Success",
           waiting: false,
-          data: ["Atlas"],
+          value: ["Atlas"],
         });
 
         const failure = yield* Effect.flip(live.refetchEffect());
 
         expect(failure).toBe("offline");
-        expect(live.state.get()).toMatchObject({
+        expect(asyncResultFacts(live.state.get())).toMatchObject({
           _tag: "Failure",
           waiting: false,
           error: "offline",
-          data: ["Atlas"],
+          previous: ["Atlas"],
         });
       }),
     ));
@@ -439,7 +467,7 @@ describe("Collection.liveQuery", () => {
     });
 
     expect(ProjectCards.rows()).toEqual([]);
-    expect(ProjectCards.state().get()).toMatchObject({
+    expect(asyncResultFacts(ProjectCards.state().get())).toMatchObject({
       _tag: "Failure",
       waiting: false,
       error: {
@@ -472,7 +500,7 @@ describe("Collection.liveQuery", () => {
     });
 
     expect(ProjectCards.rows()).toEqual([]);
-    expect(ProjectCards.state().get()).toMatchObject({
+    expect(asyncResultFacts(ProjectCards.state().get())).toMatchObject({
       _tag: "Failure",
       waiting: false,
       error: {
@@ -633,7 +661,7 @@ describe("Collection.liveQuery", () => {
         const state = ProjectCards.state();
         const firstVersion = version.get();
         const firstState = state.get();
-        if (firstState._tag !== "Ready") {
+        if (firstState._tag !== "Success") {
           expect.fail("Expected live query collection to be ready.");
         }
 
@@ -643,11 +671,11 @@ describe("Collection.liveQuery", () => {
         yield* Projects.writeUpdateEffect("atlas", { progress: 90 });
 
         const unchangedState = state.get();
-        if (unchangedState._tag !== "Ready") {
+        if (unchangedState._tag !== "Success") {
           expect.fail("Expected live query collection to remain ready.");
         }
         expect(version.get()).toBe(firstVersion);
-        expect(unchangedState.updatedAt).toBe(firstState.updatedAt);
+        expect(unchangedState.timestamp).toBe(firstState.timestamp);
         expect(ProjectCards.rows().map((project) => project.name)).toEqual(["Lumen"]);
         expect(ProjectCards.get("active")?.progress).toBe(34);
         expect(ProjectCards.index("byName", "Lumen").map((project) => project.$key)).toEqual([
@@ -684,7 +712,7 @@ describe("Collection.liveQuery", () => {
 
         expect(ActiveProjectCards.state()).toBe(state);
         expect(ActiveProjectCards.version()).toBe(version);
-        expect(state.get()).toMatchObject({ _tag: "Ready", waiting: false });
+        expect(asyncResultFacts(state.get())).toMatchObject({ _tag: "Success", waiting: false });
 
         yield* Projects.writeUpdateEffect("atlas", { progress: 80 });
 
@@ -718,26 +746,26 @@ describe("Collection.liveQuery", () => {
         const first = state.get();
         const second = state.get();
 
-        expect(first).toMatchObject({ _tag: "Ready", waiting: false });
-        expect(second).toMatchObject({ _tag: "Ready", waiting: false });
-        if (first._tag !== "Ready" || second._tag !== "Ready") {
+        expect(asyncResultFacts(first)).toMatchObject({ _tag: "Success", waiting: false });
+        expect(asyncResultFacts(second)).toMatchObject({ _tag: "Success", waiting: false });
+        if (first._tag !== "Success" || second._tag !== "Success") {
           expect.fail("Expected live query collection to be ready.");
         }
-        expect(second.updatedAt).toBe(first.updatedAt);
+        expect(second.timestamp).toBe(first.timestamp);
 
         yield* Projects.writeUpdateEffect("atlas", { progress: 80 });
         const unchanged = state.get();
-        if (unchanged._tag !== "Ready") {
+        if (unchanged._tag !== "Success") {
           expect.fail("Expected live query collection to remain ready.");
         }
-        expect(unchanged.updatedAt).toBe(first.updatedAt);
+        expect(unchanged.timestamp).toBe(first.timestamp);
 
         yield* Projects.writeUpdateEffect("atlas", { name: "Atlas Prime" });
         const changed = state.get();
-        if (changed._tag !== "Ready") {
+        if (changed._tag !== "Success") {
           expect.fail("Expected live query collection to remain ready.");
         }
-        expect(changed.updatedAt).toBeGreaterThan(first.updatedAt);
+        expect(changed.timestamp).toBeGreaterThan(first.timestamp);
       }),
     ));
 
@@ -1304,7 +1332,7 @@ describe("Collection.liveQuery", () => {
 
         expect(ActiveProjectCards.rows()).toEqual([]);
         expect(ActiveProjectCards.get(Number.NaN)).toBeUndefined();
-        expect(ActiveProjectCards.state().get()).toMatchObject({
+        expect(asyncResultFacts(ActiveProjectCards.state().get())).toMatchObject({
           _tag: "Failure",
           error: {
             _tag: "CollectionSnapshotCodecError",
@@ -1347,7 +1375,7 @@ describe("Collection.liveQuery", () => {
         });
 
         const state = ProjectCards.state().get();
-        expect(state).toMatchObject({
+        expect(asyncResultFacts(state)).toMatchObject({
           _tag: "Failure",
           waiting: false,
           error: {
@@ -1406,7 +1434,7 @@ describe("Collection.liveQuery", () => {
         const state = ProjectCards.state();
         const firstVersion = version.get();
         const firstState = state.get();
-        if (firstState._tag !== "Ready") {
+        if (firstState._tag !== "Success") {
           expect.fail("Expected live query collection to start ready.");
         }
 
@@ -1418,7 +1446,7 @@ describe("Collection.liveQuery", () => {
 
         yield* Projects.writeUpdateEffect("atlas", { name: "Broken" });
 
-        expect(state.get()).toMatchObject({
+        expect(asyncResultFacts(state.get())).toMatchObject({
           _tag: "Failure",
           waiting: false,
           error: {
@@ -1426,6 +1454,12 @@ describe("Collection.liveQuery", () => {
               "Collection.getKey(ProjectCards.live-query-collection.key-failure-last-good)",
           },
         });
+        const failed = state.get();
+        expect(
+          failed._tag === "Failure"
+            ? Option.map(failed.previousSuccess, (s) => s.timestamp)
+            : undefined,
+        ).toEqual(Option.some(firstState.timestamp));
         expect(version.get()).toBe(firstVersion);
         expect(ProjectCards.rows().map((project) => project.name)).toEqual(["Atlas"]);
         expect(ProjectCards.get("atlas")?.name).toBe("Atlas");
@@ -1436,11 +1470,11 @@ describe("Collection.liveQuery", () => {
         yield* Projects.writeUpdateEffect("atlas", { name: "Atlas" });
 
         const recovered = state.get();
-        if (recovered._tag !== "Ready") {
+        if (recovered._tag !== "Success") {
           expect.fail("Expected live query collection to recover.");
         }
         expect(version.get()).toBe(firstVersion);
-        expect(recovered.updatedAt).toBe(firstState.updatedAt);
+        expect(recovered.timestamp).toBe(firstState.timestamp);
         expect(ProjectCards.rows().map((project) => project.name)).toEqual(["Atlas"]);
       }),
     ));
@@ -1476,7 +1510,7 @@ describe("Collection.liveQuery", () => {
         expect(firstPersisted).toBeDefined();
 
         yield* Projects.writeUpdateEffect("atlas", { name: "Broken" });
-        expect(ProjectCards.state().get()).toMatchObject({
+        expect(asyncResultFacts(ProjectCards.state().get())).toMatchObject({
           _tag: "Failure",
           waiting: false,
         });

@@ -1,13 +1,14 @@
 import { Data } from "effect";
-import type { ResourceRef } from "./resource.js";
+import type { AsyncResult } from "effect/reactivity";
+import type { ResourceLoadError, ResourceRef } from "./resource.js";
 
 /**
  * Error thrown by synchronous Resource reads when the latest load failed.
  *
- * `previous` is the stale value, when one exists, so UI adapters can decide
- * whether to render stale content or surface the failure. Use `hasPrevious`
- * rather than `previous !== undefined` because `undefined` is a valid Resource
- * value.
+ * `result` is the ref's settled `AsyncResult.Failure`: its `cause` holds the
+ * typed error (`AsyncResult.error(failure.result)`), defect, or interruption,
+ * and `previousSuccess` keeps stale data so UI adapters can decide whether to
+ * render it or surface the failure.
  */
 export class ResourceFailure<
   I = unknown,
@@ -18,19 +19,15 @@ export class ResourceFailure<
 > extends Data.TaggedError("ResourceFailure")<{
   /** Resource ref that was read synchronously. */
   readonly ref: ResourceRef<I, A, RefError, R>;
-  /** Typed load failure from the Resource's Effect error channel. */
-  readonly error: E;
-  /** Last successful value, when stale data exists. */
-  readonly previous: A | undefined;
-  /** Whether `previous` is present, even when the value itself is `undefined`. */
-  readonly hasPrevious: boolean;
+  /** Settled failure result: full `Cause` plus the latest success, when one exists. */
+  readonly result: AsyncResult.Failure<A, E>;
 }> {}
 
 /**
  * Error thrown by synchronous Resource reads when no fresh value is available.
  *
  * Core uses this typed value instead of throwing a Promise. UI adapters such as
- * Solid Suspense own the host Promise seam and can use `previous`, `state`, and
+ * Solid Suspense own the host Promise seam and can use `reason`, `result`, and
  * `guidance` to choose their display or repair behavior.
  */
 export class ResourcePending<
@@ -41,12 +38,13 @@ export class ResourcePending<
 > extends Data.TaggedError("ResourcePending")<{
   /** Resource ref that needs preloading before a synchronous read can succeed. */
   readonly ref: ResourceRef<I, A, E, R>;
-  /** Cache state that made the read unavailable. */
-  readonly state: "Initial" | "Pending" | "Collected";
-  /** Last successful value, when stale data exists. */
-  readonly previous: A | undefined;
-  /** Whether `previous` is present, even when the value itself is `undefined`. */
-  readonly hasPrevious: boolean;
+  /**
+   * Why the read is unavailable: never loaded (`Initial`), first load in
+   * flight (`Pending`), or the cached success outlived `gcFor` (`Collected`).
+   */
+  readonly reason: "Initial" | "Pending" | "Collected";
+  /** The ref's `AsyncResult` when the read was attempted (stale data via `AsyncResult.value`). */
+  readonly result: AsyncResult.AsyncResult<A, ResourceLoadError<E>>;
   /** Human-readable repair hint suitable for diagnostics and tests. */
   readonly guidance: string;
 }> {}

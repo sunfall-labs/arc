@@ -1,5 +1,5 @@
 import { ResourceFailure } from "@sunfall/arc-core";
-import { Effect, Exit, Schema } from "effect";
+import { Cause, Effect, Exit, Schema } from "effect";
 import { ProjectErrorSchema, type ProjectError } from "./domain.contract.js";
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -7,11 +7,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const unwrapResourceFailure = (error: unknown): unknown => {
   if (error instanceof ResourceFailure) {
-    return unwrapResourceFailure(error.error);
-  }
-
-  if (isRecord(error) && error._tag === "ResourceFailure" && "error" in error) {
-    return unwrapResourceFailure(error.error);
+    // The failure Cause holds the typed error (or a defect); squash picks it.
+    return unwrapResourceFailure(Cause.squash(error.result.cause));
   }
 
   return error;

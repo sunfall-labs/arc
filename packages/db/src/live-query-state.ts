@@ -1,12 +1,13 @@
 import { Signal, SignalTypeId, type ReadableSignal } from "@sunfall/arc-core";
-import { Effect } from "effect";
+import { Cause, Effect, Option } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { makeLiveQueryRuntime, type LiveQueryRuntime } from "./live-query-runtime.js";
 import {
   currentCollectionStore,
   runWithCollectionStore,
   type RuntimeCollectionStore,
 } from "./runtime-collection-store.js";
-import type { AnyQueryBuilder, LiveQuery, LiveQueryState } from "./query-builder.js";
+import type { AnyQueryBuilder, LiveQuery } from "./query-builder.js";
 import {
   compileQueryStagePlan,
   toQueryEvaluationError,
@@ -14,6 +15,8 @@ import {
   type QueryStagePlan,
 } from "./query-plan.js";
 import { preloadQueryExecutionPlanEffect } from "./query-execution-plan.js";
+
+type LiveQueryResult<T, E> = AsyncResult.AsyncResult<ReadonlyArray<T>, E | QueryEvaluationError>;
 
 /**
  * Builds the signal-backed state handle returned by `Query.live(...)`.
@@ -54,7 +57,7 @@ export const makeLiveQueryState = <T, E = never, R = never>(
             readonly error: QueryEvaluationError | undefined;
           }>;
           readonly data: ReadableSignal<ReadonlyArray<T>>;
-          readonly state: ReadableSignal<LiveQueryState<T, E | QueryEvaluationError>>;
+          readonly state: ReadableSignal<LiveQueryResult<T, E>>;
         }
       | undefined;
   }
@@ -130,39 +133,47 @@ export const makeLiveQueryState = <T, E = never, R = never>(
     );
 
     const data = Signal.derive(() => evaluation.get().data);
-    const state = Signal.derive<LiveQueryState<T, E | QueryEvaluationError>>(() =>
+    const state = Signal.derive<LiveQueryResult<T, E>>(() =>
       withStore(store, () => {
         const current = evaluation.get();
-        if (current.error) {
-          return {
-            _tag: "Failure",
-            waiting: false,
-            error: current.error,
-            data: current.data,
-          };
-        }
-
-        const currentData = current.data;
+        let waiting = false;
+        let initial = false;
+        let loaded = false;
+        let timestamp = 0;
+        let sourceFailure: Cause.Cause<E> | undefined;
         for (const source of sourceAdapters) {
           const sourceState = source.state().get();
-          if (sourceState._tag === "Failure") {
-            return {
-              _tag: "Failure",
-              waiting: false,
-              error: sourceState.error as E,
-              data: currentData,
-            };
+          waiting ||= sourceState.waiting;
+          const lastSuccess =
+            sourceState._tag === "Success"
+              ? Option.some(sourceState)
+              : sourceState._tag === "Failure"
+                ? sourceState.previousSuccess
+                : Option.none();
+          if (Option.isSome(lastSuccess)) {
+            loaded = true;
+            timestamp = Math.max(timestamp, lastSuccess.value.timestamp);
+          }
+          if (sourceState._tag === "Initial") {
+            initial = true;
+          } else if (sourceState._tag === "Failure") {
+            sourceFailure ??= sourceState.cause as Cause.Cause<E>;
           }
         }
 
-        const waiting = sourceAdapters.some((source) => {
-          const sourceState = source.state().get();
-          return sourceState._tag === "Initial" || sourceState._tag === "Pending";
-        });
-
-        return waiting
-          ? { _tag: "Pending", waiting: true, data: currentData }
-          : { _tag: "Success", waiting: false, data: currentData };
+        const failureCause: Cause.Cause<E | QueryEvaluationError> | undefined =
+          current.error === undefined ? sourceFailure : Cause.fail(current.error);
+        if (failureCause !== undefined) {
+          return AsyncResult.failure(failureCause, {
+            previousSuccess: loaded
+              ? Option.some(AsyncResult.success(current.data, { timestamp }))
+              : Option.none(),
+            waiting,
+          });
+        }
+        return initial
+          ? AsyncResult.initial(waiting)
+          : AsyncResult.success(current.data, { timestamp, waiting });
       }),
     );
 

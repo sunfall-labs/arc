@@ -6,6 +6,47 @@ publication under `https://github.com/sunfall-labs/arc`; this remains a
 release-candidate draft until final npm publication is selected. The selected
 first public alpha version is `0.1.0-alpha.1`.
 
+## Async State Is AsyncResult (Breaking)
+
+Arc's async state now uses Effect's `AsyncResult`
+(`import { AsyncResult } from "effect/reactivity"`) everywhere, held in Arc
+signals and rendered by Solid:
+
+- `Resource.result(ref)` is `AsyncResult<A, Resource.LoadError<E>>`. Pending is
+  `waiting` on the current tag (`Initial`, `Success`, or `Failure`);
+  `previous` became `previousSuccess`, `updatedAt` became `timestamp`, and
+  `error: E` became `cause: Cause<E>`. `ResourceState`, `Resource.State`,
+  `Resource.value`, and `Resource.error` are removed.
+- `Resource.status(ref)` is `{ ref, name, key, input, result, isStale,
+isGcExpired, staleAt, gcAt, ageMillis, staleInMillis, gcInMillis }`; the
+  derived flags (`isPending`, `isRefreshing`, `hasValue`, `hasPrevious`, ...)
+  and `updatedAt` are removed.
+- `ResourceFailure` carries `result: AsyncResult.Failure` (typed error via
+  `AsyncResult.error(failure.result)`); `ResourcePending` carries `reason` and
+  `result`. `Component.catchTags` matches the typed error's `_tag`.
+- Action state is `{ result: AsyncResult<A, E>, input: Option<I> }` (idle is
+  `Initial`); the duplicated invalidation plan inside state is removed.
+- `collection.state()` is `AsyncResult<void, E>` (`Ready` became `Success`);
+  `liveQuery.state` is `AsyncResult<ReadonlyArray<T>, E>`. `CollectionLoadState`,
+  `Collection.State`, `LiveQueryState`, `Query.LiveState`,
+  `collectionStateError`, and `liveQueryStateError` are removed.
+- Solid and Solid DB handles expose one `result()` accessor instead of
+  `state/value/error/waiting/refreshing/hasValue/match`; `useAction` exposes
+  `result()` and `input()`. `useResourceValue`, `useResourceError`,
+  `ResourceMatch`, `ResourceSuccessMeta`, and the Core `ResourceUi*` match/meta
+  helpers are removed.
+- Resource hydration snapshots keep the `name`/`key`/`input` envelope; `state`
+  is the `AsyncResult` Success JSON `{ _tag, value, waiting: false, timestamp }`.
+  Hydration stays Success-only.
+- `ResourceStoreEvent` `ResourceFailure` carries `cause` instead of `error`, and
+  the new `ResourceInterrupted` event marks cancelled loads. Devtools action and
+  request-trace collection facts report the `AsyncResult` tag plus `waiting`.
+
+Fixed: a defect or interruption during a Resource load or Action submission no
+longer leaves the entry stuck `waiting`. Every load and submission settles from
+its `Exit` with Effect `Clock` time: defects become `Failure` with the `Cause`,
+and interruption returns to the prior settled state.
+
 ## Stable For The First External App
 
 - Core runtime primitives: Signals, Programs, Resources, Actions, Forms, Routes,

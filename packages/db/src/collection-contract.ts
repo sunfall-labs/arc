@@ -4,6 +4,7 @@ import {
   type ReadableSignal,
 } from "@sunfall/arc-core";
 import { Effect, type PubSub, type Scope, type Schedule } from "effect";
+import type { AsyncResult } from "effect/reactivity";
 import { CollectionStoreTypeId, CollectionTypeId } from "./collection-ids.js";
 import type { CollectionRowKeyChanged, CollectionRowNotFound } from "./collection-errors.js";
 import type { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
@@ -25,18 +26,6 @@ export type CollectionRow<A extends object, K extends CollectionKey = Collection
   readonly $synced: boolean;
   readonly $origin: CollectionOrigin;
 };
-
-/**
- * Reactive load state for a collection preload/refetch.
- *
- * Failure carries the collection error type `E`; local writes can still keep
- * rows available while a later load is pending or failed.
- */
-export type CollectionLoadState<E = never> =
-  | { readonly _tag: "Initial"; readonly waiting: false }
-  | { readonly _tag: "Pending"; readonly waiting: true }
-  | { readonly _tag: "Ready"; readonly waiting: false; readonly updatedAt: number }
-  | { readonly _tag: "Failure"; readonly waiting: false; readonly error: E };
 
 /**
  * Failure channel for collection runtime reads and loads.
@@ -219,8 +208,15 @@ export interface CollectionDefinition<
   /** True for derived definitions that must reject direct writes and change-feed application. */
   readonly readOnly?: boolean;
   getKey(value: A): K;
-  /** Reactive load state signal for the collection. */
-  state(): ReadableSignal<CollectionLoadState<CollectionRuntimeError<E>>>;
+  /**
+   * Reactive load `AsyncResult` for the collection's preload/refetch.
+   *
+   * `Success` (timestamped by the load) means rows are loaded; loads mark the
+   * current result `waiting`; `Failure` carries the load `Cause`. Rows stay
+   * their own signal, so local writes keep rows available while a later load
+   * is waiting or failed.
+   */
+  state(): ReadableSignal<AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>>;
   /** Reactive version signal that changes when rows or pending mutations change. */
   version(): ReadableSignal<number>;
   /** Read one row by key from the current in-memory state. */

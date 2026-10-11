@@ -1,5 +1,6 @@
 import { ResourceFailure, provideRequest, Server, ServerClient } from "@sunfall/arc-core";
 import { Effect } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
 import {
   InvalidProjectName,
@@ -59,9 +60,7 @@ describe("project console domain", () => {
   it("unwraps ResourceFailure before formatting project errors", () => {
     const failure = new ResourceFailure({
       ref: {} as never,
-      error: new ProjectNotFound({ id: makeProjectId("kepler") }),
-      previous: undefined,
-      hasPrevious: false,
+      result: AsyncResult.fail(new ProjectNotFound({ id: makeProjectId("kepler") })),
     });
 
     expect(formatProjectError(failure)).toBe('Project "kepler" was not found.');

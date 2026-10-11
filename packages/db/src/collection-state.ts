@@ -1,9 +1,9 @@
 import { Signal, type WritableSignal } from "@sunfall/arc-core";
 import type { Deferred } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import type {
   CollectionDefinition,
   CollectionKey,
-  CollectionLoadState,
   CollectionMutation,
   CollectionRuntimeError,
   CollectionOrigin,
@@ -61,7 +61,7 @@ export interface CollectionState<A extends object, K extends CollectionKey, E> {
   readonly optimisticRows: Map<K, OptimisticRowStack<A, K>>;
   readonly indexCache: Map<string, CollectionIndexCacheEntry<A, K>>;
   readonly version: WritableSignal<number>;
-  readonly loadState: WritableSignal<CollectionLoadState<CollectionRuntimeError<E>>>;
+  readonly loadState: WritableSignal<AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>>;
   nextTransactionId: number;
   nextMutationAttemptId: number;
   loadGeneration: number;
@@ -81,10 +81,9 @@ export const makeCollectionState = <
   optimisticRows: new Map(),
   indexCache: new Map(),
   version: Signal.make(0),
-  loadState: Signal.make<CollectionLoadState<CollectionRuntimeError<E>>>({
-    _tag: "Initial",
-    waiting: false,
-  }),
+  loadState: Signal.make<AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>>(
+    AsyncResult.initial(),
+  ),
   nextTransactionId: 0,
   nextMutationAttemptId: 0,
   loadGeneration: 0,

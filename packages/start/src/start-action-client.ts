@@ -7,13 +7,13 @@ import {
   Signal,
   type ActionSubmissionFiber,
   type ActionSubmissionRun,
-  type ActionSubmissionState,
+  type ActionState,
   type ActionDefinition,
   type AnySunfallArcRuntime,
   type SunfallArcRuntime,
   type ReadableSignal,
 } from "@sunfall/arc-core";
-import { Effect, Fiber } from "effect";
+import { Effect, Exit, Fiber } from "effect";
 import type { StartHydrationPayload } from "./hydration.js";
 import { executeStartClientTransportEffect } from "./start-client-transport.js";
 import {
@@ -181,11 +181,10 @@ export namespace StartAction {
   >;
 
   /** Signal state used by a Start action client instance. */
-  export type State<D extends StartActionDefinition, RuntimeError = never> = ActionSubmissionState<
+  export type State<D extends StartActionDefinition, RuntimeError = never> = ActionState<
     ActionDefinitionInputValue<D>,
     Result<D>,
-    Server.ClientError | RuntimeError,
-    StartActionInvalidationPlan
+    Server.ClientError | RuntimeError
   >;
 
   /** Progressive POST form description for a Start action definition. */
@@ -330,22 +329,16 @@ export namespace StartAction {
             hydration.set(value.hydration);
           }
         });
-        yield* submissions.successEffect(submission, input, value, value.invalidation);
-
         return value;
       }).pipe(
-        Effect.catch(
-          (
-            error: Server.ClientError | RuntimeError | ActionInterrupted,
-          ): Effect.Effect<never, Server.ClientError | RuntimeError | ActionInterrupted> => {
-            if (error instanceof ActionInterrupted) {
-              return Effect.fail(error);
-            }
-
-            return submissions
-              .failureEffect(submission, input, error)
-              .pipe(Effect.andThen(Effect.fail(error)));
-          },
+        // Every exit settles visible state: success, typed failure, defect, or
+        // interruption (which restores the prior settled state).
+        Effect.onExit((exit) =>
+          submissions.settleEffect(
+            submission,
+            exit,
+            Exit.isSuccess(exit) ? exit.value.invalidation : undefined,
+          ),
         ),
       );
 

@@ -8,7 +8,8 @@ import {
   type ResourceStoreModule,
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
-import { Cause, Context, Effect, Exit, Fiber, Layer, Scope } from "effect";
+import { Cause, Context, Effect, Exit, Fiber, Layer, Option, Scope } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { pipeArguments, type Pipeable } from "effect/Pipeable";
 import {
   createComponent,
@@ -424,8 +425,8 @@ export namespace Component {
    * The family's load error joins the component's `E` and its services join
    * `R` (satisfied by the setup's context, including `Component.provide`).
    * Reading a pending value suspends the nearest Solid `<Loading>`; a failed
-   * load throws `ResourceFailure` (typed `error`) to the nearest `<Errored>`,
-   * which `catchTags` matches by the inner error's `_tag`. Reads share the
+   * load throws `ResourceFailure` (its `result` holds the failure `Cause`) to
+   * the nearest `<Errored>`, which `catchTags` matches by the typed error's `_tag`. Reads share the
    * fiber-backed async memo of `useResourceSuspense`.
    */
   export const resource = <I, A, E, R>(
@@ -449,8 +450,9 @@ export namespace Component {
    *
    * Only tags in `E` are accepted, and each handler receives exactly that
    * member of `E` plus Solid's boundary `reset`. At runtime the render is
-   * wrapped in a Solid `<Errored>`; a `ResourceFailure` is matched by its inner
-   * `error._tag`. Unmatched failures rethrow to the next outer boundary.
+   * wrapped in a Solid `<Errored>`; a `ResourceFailure` is matched by the
+   * `_tag` of `AsyncResult.error(failure.result)`. Unmatched failures (including
+   * defects) rethrow to the next outer boundary.
    */
   export const catchTags =
     <
@@ -468,7 +470,12 @@ export namespace Component {
           createComponent(Errored, {
             fallback: (error, reset) => {
               const thrown = error();
-              const target = thrown instanceof ResourceFailure ? thrown.error : thrown;
+              // A ResourceFailure matches by its typed error; defects and
+              // interruptions carry no `_tag` and rethrow.
+              const target =
+                thrown instanceof ResourceFailure
+                  ? Option.getOrUndefined(AsyncResult.error(thrown.result))
+                  : thrown;
               const tag = tagOf(target);
               const handler =
                 tag !== undefined && Object.hasOwn(handlers, tag)

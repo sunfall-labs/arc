@@ -2,7 +2,6 @@ import {
   type CollectionDefinition,
   type CollectionIndexValue,
   type CollectionKey,
-  type CollectionLoadState,
   type CollectionPendingMutation,
   type CollectionRow,
   type CollectionRowKeyChanged,
@@ -13,9 +12,10 @@ import {
   type CollectionWriteOptions,
 } from "@sunfall/arc-db";
 import type { EffectInput } from "@sunfall/arc-core";
-import { Effect } from "effect";
-import { createMemo, type Accessor } from "solid-js";
-import { collectionStateError, makeSolidDbReactiveBinding } from "./shared.js";
+import type { Effect } from "effect";
+import type { AsyncResult } from "effect/reactivity";
+import type { Accessor } from "solid-js";
+import { makeSolidDbReactiveBinding } from "./shared.js";
 
 /** Options for binding a Collection to Solid reactivity. */
 export interface UseCollectionOptions<E = never, ER = never> {
@@ -47,12 +47,12 @@ export interface CollectionHandle<
 > {
   /** Current rows, including optimistic local writes. */
   readonly rows: Accessor<ReadonlyArray<CollectionRow<A, K>>>;
-  /** Current load/refetch state with normalized runtime failures. */
-  readonly state: Accessor<CollectionLoadState<CollectionRuntimeError<E>>>;
-  /** True while the collection is preloading or refetching. */
-  readonly waiting: Accessor<boolean>;
-  /** Latest load/refetch failure, when the state is `Failure`. */
-  readonly error: Accessor<CollectionRuntimeError<E> | undefined>;
+  /**
+   * Current load `AsyncResult` with normalized runtime failures: `Success` once
+   * rows are loaded, `waiting` while preloading or refetching, `Failure` with
+   * the load `Cause`. Rows stay readable through `rows()` in every state.
+   */
+  readonly result: Accessor<AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>>;
   /** Failure captured from the automatic mount-time preload, if enabled. */
   readonly preloadFailure: Accessor<CollectionRuntimeError<E> | ER | undefined>;
   /** Queued optimistic mutations captured from the current Solid runtime. */
@@ -138,14 +138,12 @@ export const useCollection = <
     onPreloadFailure: options.onPreloadFailure,
   });
   const rows = () => binding.read(() => collection.rows());
-  const state = () => binding.read(() => collection.state().get());
+  const result = () => binding.read(() => collection.state().get());
   const pendingMutations = () => binding.read(() => collection.pendingMutations());
 
   return {
     rows,
-    state,
-    waiting: createMemo(() => state().waiting),
-    error: createMemo(() => collectionStateError(state())),
+    result,
     preloadFailure: binding.preloadFailure,
     pendingMutations,
     get: (key) => binding.read(() => collection.get(key)),

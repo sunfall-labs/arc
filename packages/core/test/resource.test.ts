@@ -12,6 +12,7 @@ import {
   Schedule,
   Schema,
 } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vitest";
 import {
   EffectInputPromiseRejected,
@@ -562,32 +563,19 @@ describe("Resource", () => {
     const status = Resource.status(ref);
 
     expect(status).toMatchObject({
-      _tag: "Initial",
+      result: { _tag: "Initial", waiting: false },
       name: "Count.status.initial",
       key: ref.key,
       input: undefined,
-      waiting: false,
-      hasValue: false,
-      hasPrevious: false,
-      isInitial: true,
-      isPending: false,
-      isSuccess: false,
-      isFailure: false,
-      isFetching: false,
-      isLoading: false,
-      isRefreshing: false,
       isStale: false,
       isGcExpired: false,
-      updatedAt: undefined,
       staleAt: undefined,
       gcAt: undefined,
       ageMillis: undefined,
       staleInMillis: undefined,
       gcInMillis: undefined,
-      value: undefined,
-      previous: undefined,
-      error: undefined,
     });
+    expect(AsyncResult.value(status.result)).toEqual(Option.none());
     expect(load).not.toHaveBeenCalled();
   });
 
@@ -602,7 +590,7 @@ describe("Resource", () => {
 
       const status = await Effect.runPromise(runtime.provide(Resource.statusEffect(ref)));
 
-      expect(status._tag).toBe("Initial");
+      expect(status.result._tag).toBe("Initial");
       const store = unsafeMutableResourceStore(runtime.resourceStore);
       expect(store.families.has("User.status-absent")).toBe(false);
       expect(store.entries.get(User)?.has(ref.key)).not.toBe(true);
@@ -648,13 +636,9 @@ describe("Resource", () => {
       await Effect.runPromise(Resource.prefetchEffect(ref));
 
       expect(Resource.status(ref)).toMatchObject({
-        _tag: "Success",
-        value: 1,
-        hasValue: true,
-        isSuccess: true,
+        result: { _tag: "Success", value: 1, waiting: false, timestamp: 1_000 },
         isStale: false,
         isGcExpired: false,
-        updatedAt: 1_000,
         staleAt: 1_100,
         gcAt: 1_500,
         ageMillis: 0,
@@ -665,7 +649,7 @@ describe("Resource", () => {
       vi.setSystemTime(1_151);
 
       expect(Resource.status(ref)).toMatchObject({
-        _tag: "Success",
+        result: { _tag: "Success" },
         isStale: true,
         isGcExpired: false,
         ageMillis: 151,
@@ -704,8 +688,7 @@ describe("Resource", () => {
       const effectStatus = await Effect.runPromise(runtime.provide(Resource.statusEffect(ref)));
 
       expect(syncStatus).toMatchObject({
-        _tag: "Success",
-        updatedAt: 1_000,
+        result: { _tag: "Success", timestamp: 1_000 },
         isStale: false,
         isGcExpired: false,
         ageMillis: 0,
@@ -781,11 +764,7 @@ describe("Resource", () => {
       await Effect.runPromise(runtime.provide(Deferred.await(secondStarted)));
 
       const pending = await Effect.runPromise(runtime.provide(Resource.statusEffect(ref)));
-      expect(pending).toMatchObject({
-        _tag: "Pending",
-        previous: 1,
-        isRefreshing: true,
-      });
+      expect(pending.result).toMatchObject({ _tag: "Success", value: 1, waiting: true });
 
       await Effect.runPromise(runtime.provide(Deferred.succeed(releaseSecond, undefined)));
       await expect(Effect.runPromise(Fiber.join(refresh))).resolves.toBe(2);
@@ -810,16 +789,8 @@ describe("Resource", () => {
       const firstStatus = await Effect.runPromise(first.provide(Resource.statusEffect(ref)));
       const secondStatus = await Effect.runPromise(second.provide(Resource.statusEffect(ref)));
 
-      expect(firstStatus).toMatchObject({
-        _tag: "Success",
-        value: 1,
-        hasValue: true,
-      });
-      expect(secondStatus).toMatchObject({
-        _tag: "Initial",
-        value: undefined,
-        hasValue: false,
-      });
+      expect(firstStatus.result).toMatchObject({ _tag: "Success", value: 1 });
+      expect(secondStatus.result).toMatchObject({ _tag: "Initial", waiting: false });
     } finally {
       await Effect.runPromise(first.disposeEffect);
       await Effect.runPromise(second.disposeEffect);
@@ -845,8 +816,7 @@ describe("Resource", () => {
       await expect(
         Effect.runPromise(second.provide(Resource.statusEffect(ref))),
       ).resolves.toMatchObject({
-        _tag: "Initial",
-        value: undefined,
+        result: { _tag: "Initial" },
       });
     } finally {
       await Effect.runPromise(first.disposeEffect);
@@ -873,23 +843,19 @@ describe("Resource", () => {
     await Effect.runPromise(Resource.prefetchEffect(ref));
     const refreshing = Effect.runFork(Resource.refreshEffect(ref));
 
-    expect(Resource.status(ref)).toMatchObject({
-      _tag: "Pending",
+    // A refresh keeps the current tag and marks it waiting: refreshing, not loading.
+    expect(Resource.status(ref).result).toMatchObject({
+      _tag: "Success",
       value: 1,
-      previous: 1,
-      hasValue: true,
-      hasPrevious: true,
-      isFetching: true,
-      isLoading: false,
-      isRefreshing: true,
+      waiting: true,
     });
 
     await Effect.runPromise(Deferred.succeed(gate, undefined));
     await expect(Effect.runPromise(Fiber.join(refreshing))).resolves.toBe(2);
-    expect(Resource.status(ref)).toMatchObject({
+    expect(Resource.status(ref).result).toMatchObject({
       _tag: "Success",
       value: 2,
-      isRefreshing: false,
+      waiting: false,
     });
   });
 
@@ -916,40 +882,28 @@ describe("Resource", () => {
     await Effect.runPromise(Resource.prefetchEffect(ref));
     const refreshing = Effect.runFork(Resource.refreshEffect(ref));
 
-    const pending = Resource.status(ref);
-    expect(pending).toMatchObject({
-      _tag: "Pending",
-      value: undefined,
-      previous: undefined,
-      hasValue: true,
-      hasPrevious: true,
-      isLoading: false,
-      isRefreshing: true,
-    });
-    expect("previous" in pending.state).toBe(true);
+    const pending = Resource.status(ref).result;
+    expect(pending).toMatchObject({ _tag: "Success", value: undefined, waiting: true });
+    expect(AsyncResult.value(pending)).toEqual(Option.some(undefined));
     expect(read(ref)).toBeUndefined();
 
     shouldFail = true;
     await Effect.runPromise(Deferred.succeed(releaseRefresh, undefined));
     await expect(Effect.runPromise(Fiber.join(refreshing))).rejects.toThrow("refresh failed");
 
-    const failed = Resource.status(ref);
-    expect(failed).toMatchObject({
-      _tag: "Failure",
-      value: undefined,
-      previous: undefined,
-      hasValue: true,
-      hasPrevious: true,
-    });
-    expect("previous" in failed.state).toBe(true);
+    const failed = Resource.status(ref).result;
+    expect(failed).toMatchObject({ _tag: "Failure", waiting: false });
+    expect(AsyncResult.value(failed)).toEqual(Option.some(undefined));
 
     try {
       read(ref);
       expect.fail("expected ResourceFailure");
     } catch (error) {
       expect(error).toBeInstanceOf(ResourceFailure);
-      expect((error as ResourceFailure<void, undefined, Error>).previous).toBeUndefined();
-      expect((error as ResourceFailure<void, undefined, Error>).hasPrevious).toBe(true);
+      const failure = (error as ResourceFailure<void, undefined, Error>).result;
+      expect(Option.map(failure.previousSuccess, (success) => success.value)).toEqual(
+        Option.some(undefined),
+      );
     }
   });
 
@@ -981,10 +935,7 @@ describe("Resource", () => {
         Effect.all([Fiber.join(first), Fiber.join(second)], { concurrency: "unbounded" }),
       ),
     ).resolves.toEqual([1, 1]);
-    expect(Resource.status(ref)).toMatchObject({
-      _tag: "Success",
-      value: 1,
-    });
+    expect(Resource.status(ref).result).toMatchObject({ _tag: "Success", value: 1 });
   });
 
   it("keeps store-owned in-flight prefetch alive when one joiner is interrupted", async () => {
@@ -1013,10 +964,7 @@ describe("Resource", () => {
     await expect(Effect.runPromise(Fiber.join(second))).resolves.toBe(1);
     expect(Exit.isFailure(await Effect.runPromise(Fiber.await(first)))).toBe(true);
     expect(loads).toBe(1);
-    expect(Resource.status(ref)).toMatchObject({
-      _tag: "Success",
-      value: 1,
-    });
+    expect(Resource.status(ref).result).toMatchObject({ _tag: "Success", value: 1 });
   });
 
   it("forced invalidation does not join a stale non-forced load", async () => {
@@ -1393,7 +1341,11 @@ describe("Resource", () => {
     } catch (error) {
       expect(error).toBeInstanceOf(ResourceFailure);
       expect(
-        (error as ResourceFailure<string, unknown, EffectInputCallbackError>).error,
+        Option.getOrUndefined(
+          AsyncResult.error(
+            (error as ResourceFailure<string, unknown, EffectInputCallbackError>).result,
+          ),
+        ),
       ).toBeInstanceOf(EffectInputCallbackError);
     }
   });
@@ -1413,12 +1365,10 @@ describe("Resource", () => {
 
     expect(() => read(ref)).toThrow(ResourceFailure);
     const status = Resource.status(ref);
-    expect(status).toMatchObject({
-      _tag: "Failure",
-      isFailure: true,
-      isPending: false,
-    });
-    expect(status.error).toBeInstanceOf(EffectInputCallbackError);
+    expect(status.result).toMatchObject({ _tag: "Failure", waiting: false });
+    expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
+      EffectInputCallbackError,
+    );
   });
 
   it("captures synchronous resource provides throws in the Effect error channel", async () => {
@@ -1438,8 +1388,10 @@ describe("Resource", () => {
     });
 
     const status = Resource.status(ref);
-    expect(status._tag).toBe("Failure");
-    expect(status.error).toBeInstanceOf(EffectInputCallbackError);
+    expect(status.result._tag).toBe("Failure");
+    expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
+      EffectInputCallbackError,
+    );
   });
 
   it("captures erased Promise-shaped resource provides returns in the Effect error channel", async () => {
@@ -1457,8 +1409,10 @@ describe("Resource", () => {
     });
 
     const status = Resource.status(ref);
-    expect(status._tag).toBe("Failure");
-    expect(status.error).toBeInstanceOf(EffectInputCallbackError);
+    expect(status.result._tag).toBe("Failure");
+    expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
+      EffectInputCallbackError,
+    );
   });
 
   it("captures erased Promise-shaped resource provides entries in the Effect error channel", async () => {
@@ -1477,8 +1431,10 @@ describe("Resource", () => {
     });
 
     const status = Resource.status(ref);
-    expect(status._tag).toBe("Failure");
-    expect(status.error).toBeInstanceOf(EffectInputCallbackError);
+    expect(status.result._tag).toBe("Failure");
+    expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
+      EffectInputCallbackError,
+    );
   });
 
   it("captures erased Effect-shaped resource provides entries in the Effect error channel", async () => {
@@ -1497,8 +1453,10 @@ describe("Resource", () => {
     });
 
     const status = Resource.status(ref);
-    expect(status._tag).toBe("Failure");
-    expect(status.error).toBeInstanceOf(EffectInputCallbackError);
+    expect(status.result._tag).toBe("Failure");
+    expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
+      EffectInputCallbackError,
+    );
   });
 
   it("keeps previous resource value and tag facts when provides fails during refresh", async () => {
@@ -1525,10 +1483,9 @@ describe("Resource", () => {
       operation: "Resource.provides(User.provides-refresh-atomicity)",
     });
 
-    expect(Resource.status(ref)).toMatchObject({
-      _tag: "Failure",
-      previous: { id: "old" },
-    });
+    const failed = Resource.status(ref).result;
+    expect(failed._tag).toBe("Failure");
+    expect(AsyncResult.value(failed)).toEqual(Option.some({ id: "old" }));
     expect(
       Resource.planInvalidation(UserTag({ id: "old" })).entries.map((entry) => entry.ref.key),
     ).toEqual([ref.key]);
@@ -1552,7 +1509,11 @@ describe("Resource", () => {
       expect.fail("expected failure");
     } catch (error) {
       expect(error).toBeInstanceOf(ResourceFailure);
-      expect((error as ResourceFailure<string, Error>).previous).toBe("ok");
+      const failure = (error as ResourceFailure<void, string, Error>).result;
+      expect(AsyncResult.value(failure)).toEqual(Option.some("ok"));
+      expect(AsyncResult.error(failure).pipe(Option.map((cause) => cause.message))).toEqual(
+        Option.some("nope"),
+      );
     }
   });
 
@@ -1574,7 +1535,7 @@ describe("Resource", () => {
             _tag: "Success",
             waiting: false,
             value: { id: "1", name: "Hydrated" },
-            updatedAt: Date.now(),
+            timestamp: Date.now(),
           },
         },
       ],
@@ -1614,17 +1575,17 @@ describe("Resource", () => {
                   _tag: "Success",
                   waiting: false,
                   value: { id: "1", name: "Hydrated" },
-                  updatedAt: 0,
+                  timestamp: 0,
                 },
               },
             ],
           },
-          { updatedAt: "now" },
+          { timestamp: "now" },
         ),
       );
       const status = await Effect.runPromise(Resource.statusEffect(ref));
 
-      expect(status.updatedAt).toBe(120_000);
+      expect(status.result).toMatchObject({ _tag: "Success", timestamp: 120_000 });
       expect(status.isStale).toBe(false);
       await expect(Effect.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({
         id: "1",
@@ -1661,12 +1622,12 @@ describe("Resource", () => {
                   _tag: "Success",
                   waiting: false,
                   value: { id: "1", name: "Current" },
-                  updatedAt: 0,
+                  timestamp: 0,
                 },
               },
             ],
           },
-          { updatedAt: "now" },
+          { timestamp: "now" },
         ),
       );
 
@@ -1683,12 +1644,12 @@ describe("Resource", () => {
                   _tag: "Success",
                   waiting: false,
                   value: { id: "1", name: "Target" },
-                  updatedAt: 0,
+                  timestamp: 0,
                 },
               },
             ],
           },
-          { updatedAt: "now", skipFresh: true },
+          { timestamp: "now", skipFresh: true },
         ),
       );
 
@@ -1707,12 +1668,12 @@ describe("Resource", () => {
                   _tag: "Success",
                   waiting: false,
                   value: { id: "1", name: "Target" },
-                  updatedAt: 0,
+                  timestamp: 0,
                 },
               },
             ],
           },
-          { updatedAt: "now", skipFresh: true },
+          { timestamp: "now", skipFresh: true },
         ),
       );
 
@@ -1746,7 +1707,7 @@ describe("Resource", () => {
                 _tag: "Success",
                 waiting: false,
                 value: { id: "1", name: "Hydrated" },
-                updatedAt: Date.now(),
+                timestamp: Date.now(),
               },
             },
           ],
@@ -1800,7 +1761,7 @@ describe("Resource", () => {
           _tag: "Success",
           waiting: false,
           value: { id: "1" },
-          updatedAt: Date.now(),
+          timestamp: Date.now(),
         },
       },
     ] as never;
@@ -1835,7 +1796,7 @@ describe("Resource", () => {
         _tag: "Success" as const,
         waiting: false as const,
         value: { id: "1" },
-        updatedAt: Date.now(),
+        timestamp: Date.now(),
       },
     };
 
@@ -1899,7 +1860,7 @@ describe("Resource", () => {
         _tag: "Success" as const,
         waiting: false as const,
         value: { id: "first" },
-        updatedAt: 1,
+        timestamp: 1,
       },
     };
     const second = {
@@ -1910,7 +1871,7 @@ describe("Resource", () => {
         _tag: "Success" as const,
         waiting: false as const,
         value: { id: "second" },
-        updatedAt: 1,
+        timestamp: 1,
       },
     };
 
@@ -1933,7 +1894,7 @@ describe("Resource", () => {
                 _tag: "Success",
                 waiting: false,
                 value: { id: "1" },
-                updatedAt: Date.now(),
+                timestamp: Date.now(),
               },
             },
           ],
@@ -1966,7 +1927,7 @@ describe("Resource", () => {
                 _tag: "Success",
                 waiting: false,
                 value: { id: "1" },
-                updatedAt: Date.now(),
+                timestamp: Date.now(),
               },
             },
           ],
@@ -2001,7 +1962,7 @@ describe("Resource", () => {
                   _tag: "Success",
                   waiting: false,
                   value: { id: "1" },
-                  updatedAt: Date.now(),
+                  timestamp: Date.now(),
                 },
               },
               {
@@ -2012,7 +1973,7 @@ describe("Resource", () => {
                   _tag: "Success",
                   waiting: false,
                   value: { id: "1" },
-                  updatedAt: Date.now(),
+                  timestamp: Date.now(),
                 },
               },
             ],
@@ -2049,7 +2010,7 @@ describe("Resource", () => {
               _tag: "Success",
               waiting: false,
               value: { id: "1", name: "Hydrated", extra: "ignored" },
-              updatedAt: Date.now(),
+              timestamp: Date.now(),
             },
           },
         ],
@@ -2081,7 +2042,7 @@ describe("Resource", () => {
                 _tag: "Success",
                 waiting: false,
                 value: { id: "1" },
-                updatedAt: Date.now(),
+                timestamp: Date.now(),
               },
             },
           ],
@@ -2133,7 +2094,7 @@ describe("Resource", () => {
                         _tag: "Success",
                         waiting: false,
                         value: { id: "1", name: "Hydrated" },
-                        updatedAt: Date.now(),
+                        timestamp: Date.now(),
                       },
                     },
                     {
@@ -2144,7 +2105,7 @@ describe("Resource", () => {
                         _tag: "Success",
                         waiting: false,
                         value: { id: "2" },
-                        updatedAt: Date.now(),
+                        timestamp: Date.now(),
                       },
                     },
                   ],
@@ -2209,7 +2170,7 @@ describe("Resource", () => {
               _tag: "Success",
               waiting: false,
               value: hydratedValue,
-              updatedAt: Date.now(),
+              timestamp: Date.now(),
             },
           },
         ],
@@ -2340,7 +2301,7 @@ describe("Resource", () => {
             _tag: "Success",
             waiting: false,
             value: { id: "1" },
-            updatedAt: 1,
+            timestamp: 1,
           },
         },
       ],
@@ -2376,7 +2337,7 @@ describe("Resource", () => {
           _tag: "Success",
           waiting: false,
           value: { id: "atlas" },
-          updatedAt: expect.any(Number),
+          timestamp: expect.any(Number),
         },
       },
     ]);

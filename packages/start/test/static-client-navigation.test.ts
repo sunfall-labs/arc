@@ -121,7 +121,7 @@ describe("Start static client navigation", () => {
                   _tag: "Success",
                   waiting: false,
                   value: { id: "1", name: "Hydrated project" },
-                  updatedAt: 1,
+                  timestamp: 1,
                 },
               },
             ],
@@ -196,7 +196,7 @@ describe("Start static client navigation", () => {
                     _tag: "Success",
                     waiting: false,
                     value: { id: "1", name: "Hydrated project" },
-                    updatedAt: 0,
+                    timestamp: 0,
                   },
                 },
               ],
@@ -216,7 +216,7 @@ describe("Start static client navigation", () => {
             const status = yield* runtime.provide(Resource.statusEffect(ref));
 
             expect(fetch).toHaveBeenCalledTimes(1);
-            expect(status.updatedAt).toBe(120_000);
+            expect(status.result).toMatchObject({ _tag: "Success", timestamp: 120_000 });
             expect(status.isStale).toBe(false);
           }),
         ),
@@ -255,7 +255,7 @@ describe("Start static client navigation", () => {
                   _tag: "Success",
                   waiting: false,
                   value: { id: "1", name: "Hydrated project" },
-                  updatedAt: Date.now(),
+                  timestamp: Date.now(),
                 },
               },
             ],
@@ -329,7 +329,7 @@ describe("Start static client navigation", () => {
                       _tag: "Success",
                       waiting: false,
                       value: { id: "1", name: "Hydrated project" },
-                      updatedAt: Date.now(),
+                      timestamp: Date.now(),
                     },
                   },
                 ],
@@ -388,7 +388,7 @@ describe("Start static client navigation", () => {
                   _tag: "Success",
                   waiting: false,
                   value: { id: "1", name: "Hydrated project" },
-                  updatedAt: 1,
+                  timestamp: 1,
                 },
               },
             ],

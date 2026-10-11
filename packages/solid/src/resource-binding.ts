@@ -13,19 +13,19 @@ import {
   Signal,
   type AnySunfallArcRuntime,
   type ResourceRef,
-  type ResourceState,
   type ResourceUiBindingController,
   type ResourceUiInput,
   type ResourceUiPreloadFailure,
 } from "@sunfall/arc-core";
 import { Cause, Effect, Fiber } from "effect";
+import type { AsyncResult } from "effect/reactivity";
 import { createMemo, createRenderEffect, onCleanup, type Accessor } from "solid-js";
 import type { UseResourceOptions } from "./hooks.js";
 import { createRuntimeScope } from "./runtime-scope.js";
 
 /** Internal: a Resource ref bound to Solid reactivity under the current owner. */
 export interface ResourceBinding<I, A, E, R, ER> {
-  readonly state: Accessor<ResourceState<A, Resource.LoadError<E>>>;
+  readonly result: Accessor<AsyncResult.AsyncResult<A, Resource.LoadError<E>>>;
   readonly preloadFailure: Accessor<Resource.LoadError<E> | ER | undefined>;
   readonly controller: ResourceUiBindingController<I, A, E, R, ER>;
 }
@@ -76,7 +76,7 @@ export const createResourceBinding = <I, A, E, R = unknown, ER = never>(
   });
 
   return {
-    state: () => controller.result(currentRef()).get(),
+    result: () => controller.result(currentRef()).get(),
     preloadFailure: () => resourceUiPreloadFailureFor(preloadFailure.get(), currentRef()),
     controller,
   };
@@ -103,7 +103,7 @@ export const createResourceSuspense = <I, A, E, R = unknown, ER = unknown>(
   ref: ResourceUiInput<I, A, E, R>,
 ): Accessor<A> => {
   const getRef = resourceUiRefAccessor(ref);
-  const state = createResourceBinding(runtime, getRef).state;
+  const result = createResourceBinding(runtime, getRef).result;
   return createRuntimeScope(runtime, (scope) => {
     const preloadController = makeResourceUiSuspensePreloadController<
       I,
@@ -144,7 +144,7 @@ export const createResourceSuspense = <I, A, E, R = unknown, ER = unknown>(
     const outcome = createMemo<SuspenseOutcome<A>>(() => {
       const currentRef = getRef();
       preloadController.interruptStale(currentRef);
-      state();
+      result();
 
       return (
         readOutcome(currentRef) ??

@@ -5,6 +5,7 @@ import {
   type ReadableSignal,
 } from "@sunfall/arc-core";
 import { Data, Effect } from "effect";
+import type { AsyncResult } from "effect/reactivity";
 import { makeLiveQueryState } from "./live-query-state.js";
 import {
   type AnyCollectionRow,
@@ -485,27 +486,22 @@ export interface QueryRoot {
 }
 
 /**
- * Reactive query state derived from source collection load states.
- */
-export type LiveQueryState<T, E = never> =
-  | { readonly _tag: "Pending"; readonly waiting: true; readonly data: ReadonlyArray<T> }
-  | { readonly _tag: "Success"; readonly waiting: false; readonly data: ReadonlyArray<T> }
-  | {
-      readonly _tag: "Failure";
-      readonly waiting: false;
-      readonly error: E;
-      readonly data: ReadonlyArray<T>;
-    };
-
-/**
  * Incrementally evaluated query over one or more collections.
  *
- * `data` updates when source collection versions change. Preload/refetch effects
- * expose the union of source collection error and requirement channels.
+ * `data` updates when source collection versions change and always holds the
+ * last good rows (local-first). `state` folds source collection load results
+ * and evaluation failures into one `AsyncResult`: `Initial` until every source
+ * has loaded, `Success` with the current rows (timestamped by the latest source
+ * load), `Failure` carrying the source or evaluation `Cause` with the last good
+ * rows as `previousSuccess`, and `waiting` while any source is loading. Preload/
+ * refetch effects expose the union of source collection error and requirement
+ * channels.
  */
 export interface LiveQuery<T, E = never, R = never> {
   readonly data: ReadableSignal<ReadonlyArray<T>>;
-  readonly state: ReadableSignal<LiveQueryState<T, E | QueryEvaluationError>>;
+  readonly state: ReadableSignal<
+    AsyncResult.AsyncResult<ReadonlyArray<T>, E | QueryEvaluationError>
+  >;
   readonly sources: ReadonlyArray<AnyCollection>;
   evaluate(): ReadonlyArray<T>;
   preloadEffect(): Effect.Effect<void, E | QueryEvaluationError, R>;
@@ -676,8 +672,6 @@ export namespace Query {
   export type Factory<TResult, E = never, R = never> = QueryFactory<TResult, E, R>;
   /** Reactive query handle backed by source collection state. */
   export type Live<T, E = never, R = never> = LiveQuery<T, E, R>;
-  /** Load state emitted by a live query. */
-  export type LiveState<T, E = never> = LiveQueryState<T, E>;
   /** Error raised when query factory, callback, plan, or order comparable evaluation fails. */
   export type EvaluationError = QueryEvaluationError;
   /** Error raised when a query builder cannot be represented as a live query. */

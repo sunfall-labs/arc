@@ -1,7 +1,8 @@
 import { makeRuntime, runWithRuntime } from "@sunfall/arc-core";
 import { Collection, QueryEvaluationError } from "@sunfall/arc-db";
 import { useCollection, useLiveQuery } from "@sunfall/arc-solid-db";
-import { Context, Deferred, Effect, Fiber, Layer } from "effect";
+import { Context, Deferred, Effect, Fiber, Layer, Option } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { createEffect, createRoot, createSignal, flush } from "solid-js";
 import { describe, expect, it } from "vitest";
 import { makeSolidDbReactiveBinding } from "../src/shared.js";
@@ -34,6 +35,29 @@ const makeDelayedCleanupRuntime = () => {
     },
     disposeEffect: runtime.disposeEffect,
   };
+};
+
+/** Flattens an `AsyncResult` into matchable facts: tag, waiting, value/timestamp, typed error, and previous success value. */
+const asyncResultFacts = (result: AsyncResult.AsyncResult<unknown, unknown>) => {
+  switch (result._tag) {
+    case "Initial":
+      return { _tag: result._tag, waiting: result.waiting };
+    case "Success":
+      return {
+        _tag: result._tag,
+        waiting: result.waiting,
+        value: result.value,
+        timestamp: result.timestamp,
+      };
+    case "Failure":
+      return {
+        _tag: result._tag,
+        waiting: result.waiting,
+        error: Option.getOrUndefined(AsyncResult.error(result)),
+        previous: Option.getOrUndefined(AsyncResult.value(result)),
+        cause: result.cause,
+      };
+  }
 };
 
 describe("solid-db", () => {
@@ -705,31 +729,31 @@ describe("solid-db", () => {
           dispose = rootDispose;
           return useCollection(ProjectCards, { preload: false });
         });
-        const first = cards.state();
-        const second = cards.state();
+        const first = cards.result();
+        const second = cards.result();
 
-        expect(first).toMatchObject({ _tag: "Ready", waiting: false });
-        expect(second).toMatchObject({ _tag: "Ready", waiting: false });
-        if (first._tag !== "Ready" || second._tag !== "Ready") {
+        expect(asyncResultFacts(first)).toMatchObject({ _tag: "Success", waiting: false });
+        expect(asyncResultFacts(second)).toMatchObject({ _tag: "Success", waiting: false });
+        if (first._tag !== "Success" || second._tag !== "Success") {
           expect.fail("Expected live query collection to be ready.");
         }
-        expect(second.updatedAt).toBe(first.updatedAt);
+        expect(second.timestamp).toBe(first.timestamp);
 
         yield* Projects.writeUpdateEffect("atlas", { active: false });
         yield* Effect.sleep("0 millis");
-        const unchanged = cards.state();
-        if (unchanged._tag !== "Ready") {
+        const unchanged = cards.result();
+        if (unchanged._tag !== "Success") {
           expect.fail("Expected live query collection to remain ready.");
         }
-        expect(unchanged.updatedAt).toBe(first.updatedAt);
+        expect(unchanged.timestamp).toBe(first.timestamp);
 
         yield* Projects.writeUpdateEffect("atlas", { name: "Atlas Prime" });
         yield* Effect.sleep("0 millis");
-        const changed = cards.state();
-        if (changed._tag !== "Ready") {
+        const changed = cards.result();
+        if (changed._tag !== "Success") {
           expect.fail("Expected live query collection to remain ready.");
         }
-        expect(changed.updatedAt).toBeGreaterThan(first.updatedAt);
+        expect(changed.timestamp).toBeGreaterThan(first.timestamp);
       }).pipe(Effect.ensuring(Effect.sync(() => dispose?.()))),
     );
   });
@@ -759,10 +783,10 @@ describe("solid-db", () => {
 
     try {
       expect(() => handle.data()).not.toThrow();
-      expect(handle.state()).toMatchObject({
+      expect(asyncResultFacts(handle.result())).toMatchObject({
         _tag: "Failure",
         error: { _tag: "QueryEvaluationError", operation: "filter" },
-        data: [],
+        previous: [],
       });
     } finally {
       dispose?.();

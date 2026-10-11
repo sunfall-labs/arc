@@ -188,13 +188,23 @@ export const Route = RouteBuilder.preload({
       {
         _tag: "Code",
         language: "tsx",
-        code: `const project = useResource(() => ProjectById(props.params.id));
+        code: `import { Option } from "effect";
+import { AsyncResult } from "effect/reactivity";
 
-return project.match({
-  success: (value) => <ProjectView project={value} />,
-  pending: (previous) => previous ? <ProjectView project={previous} refreshing /> : <Skeleton />,
-  failure: (error) => <ProjectError error={error} />,
-});`,
+const project = useResource(() => ProjectById(props.params.id));
+
+return () =>
+  AsyncResult.builder(project.result())
+    .onInitial(() => <Skeleton />)
+    // onFailure before onSuccess keeps \`previousSuccess\` typed as a Project.
+    .onFailure((cause, failed) =>
+      Option.match(failed.previousSuccess, {
+        onNone: () => <ProjectError cause={cause} />,
+        onSome: (stale) => <ProjectView project={stale.value} stale />,
+      }),
+    )
+    .onSuccess((value, success) => <ProjectView project={value} refreshing={success.waiting} />)
+    .exhaustive();`,
       },
       {
         _tag: "Heading",

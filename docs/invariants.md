@@ -192,8 +192,12 @@ documented as outside the current release bar.
 
 ## Actions And Forms
 
-- Action state models idle, pending, success, failure, and invalidation plan
-  facts explicitly.
+- Action state is an `AsyncResult` (idle is `Initial`, in flight is `waiting`)
+  plus the latest input; the invalidation plan is its own signal.
+- Every Resource load and Action submission settles from its `Exit` with Effect
+  `Clock` time: typed errors and defects become `Failure` with the full `Cause`,
+  and interruption returns to the prior settled result. No outcome leaves an
+  entry `waiting`.
 - Action concurrency modes have stable semantics for latest, parallel, and
   exhaust submissions.
 - Optimistic updates commit on success and roll back on failure or interruption.

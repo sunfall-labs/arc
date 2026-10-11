@@ -494,6 +494,8 @@ export const resourceIndex = (
         return "Success";
       case "ResourceFailure":
         return "Failure";
+      case "ResourceInterrupted":
+        return "Interrupted";
       case "ResourceDeleted":
         return "Deleted";
       case "ResourceInvalidated":

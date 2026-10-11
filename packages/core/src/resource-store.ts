@@ -48,22 +48,28 @@ export type ResourceStoreEvent =
       readonly _tag: "ResourceSuccess";
       readonly name: string;
       readonly key: string;
-      readonly updatedAt: number;
+      readonly timestamp: number;
     }
   | {
-      /** A resource load failed. */
+      /** A resource load failed with a typed error, defect, or mixed cause. */
       readonly _tag: "ResourceFailure";
       readonly name: string;
       readonly key: string;
-      readonly error: unknown;
+      readonly cause: Cause.Cause<unknown>;
       readonly previous: boolean;
+    }
+  | {
+      /** A resource load was interrupted; the entry returned to its prior settled result. */
+      readonly _tag: "ResourceInterrupted";
+      readonly name: string;
+      readonly key: string;
     }
   | {
       /** A successful resource snapshot was applied during hydration. */
       readonly _tag: "ResourceHydrated";
       readonly name: string;
       readonly key: string;
-      readonly updatedAt: number;
+      readonly timestamp: number;
     }
   | {
       /** A resource was selected by one or more invalidation targets. */

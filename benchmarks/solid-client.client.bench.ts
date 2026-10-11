@@ -1,4 +1,5 @@
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { bench, describe } from "vitest";
 import { makeRuntime, Program, Resource, Signal, runWithRuntime } from "@sunfall/arc-core";
 import { RuntimeProvider, useProgram, useResource } from "@sunfall/arc-solid";
@@ -202,7 +203,12 @@ describe("Sunfall Arc client render", () => {
   bench("resource bindings: mount and dispose 200 cached useResource rows", () => {
     const Project = (props: { readonly id: number }) => {
       const project = useResource(ProjectById(props.id));
-      return textCell(() => project.value()?.label ?? "");
+      return textCell(() =>
+        Option.match(AsyncResult.value(project.result()), {
+          onNone: () => "",
+          onSome: (value) => value.label,
+        }),
+      );
     };
     const view = mount(() =>
       createComponent(

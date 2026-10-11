@@ -1,4 +1,5 @@
 import { Effect, Request as EffectRequest, RequestResolver, Schema, type Schedule } from "effect";
+import type { AsyncResult } from "effect/reactivity";
 import type {
   EffectInput,
   EffectInputError,
@@ -84,18 +85,6 @@ export interface ResourcePolicy<E = never> {
   /** Retry schedule applied to the family load Effect. */
   readonly retry?: Schedule.Schedule<unknown, E>;
 }
-
-/** Load state for one resource ref. */
-export type ResourceState<A, E = never> =
-  | { readonly _tag: "Initial"; readonly waiting: false }
-  | { readonly _tag: "Pending"; readonly waiting: true; readonly previous?: A }
-  | {
-      readonly _tag: "Success";
-      readonly waiting: false;
-      readonly value: A;
-      readonly updatedAt: number;
-    }
-  | { readonly _tag: "Failure"; readonly waiting: false; readonly error: E; readonly previous?: A };
 
 /**
  * Configuration for a typed resource family.
@@ -231,12 +220,30 @@ export interface ResourceInvalidationPlan<R = any> {
   readonly entries: ReadonlyArray<ResourceInvalidationPlanEntry<R>>;
 }
 
-/** Serializable success snapshot used to transfer loaded resources across boundaries. */
-export interface ResourceHydrationSnapshot<I = unknown, A = unknown, E = never> {
+/**
+ * Wire form of a hydrated Resource result: the `AsyncResult.Schema` JSON
+ * encoding of a settled `Success`, with `value` encoded through the family's
+ * `output` schema when one exists.
+ */
+export interface ResourceHydrationSuccessState<A = unknown> {
+  readonly _tag: "Success";
+  readonly value: A;
+  readonly waiting: false;
+  readonly timestamp: number;
+}
+
+/**
+ * Serializable success snapshot used to transfer loaded resources across boundaries.
+ *
+ * Arc's envelope (`name`, `key`, `input`) identifies the ref; `state` is the
+ * `AsyncResult` Success encoding. Hydration is Success-only: failures can carry
+ * server-only causes and are never serialized.
+ */
+export interface ResourceHydrationSnapshot<I = unknown, A = unknown> {
   readonly name: string;
   readonly key: string;
   readonly input: I;
-  readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Success" }>;
+  readonly state: ResourceHydrationSuccessState<A>;
 }
 
 /**
@@ -279,7 +286,7 @@ export interface ResourceHydrationOptions {
    * timestamp, while `now` treats the active hydration pass as the freshness
    * boundary.
    */
-  readonly updatedAt?: "preserve" | "now";
+  readonly timestamp?: "preserve" | "now";
   /**
    * Skip applying snapshots for refs that are already successful, fresh, and
    * not garbage-collection expired. This lets target-page hydration warm
@@ -288,61 +295,27 @@ export interface ResourceHydrationOptions {
   readonly skipFresh?: boolean;
 }
 
-interface ResourceStatusBase<I, A, E, R, RefError = E> {
+/**
+ * Computed Resource read status used by adapters, devtools, and diagnostics.
+ *
+ * `result` is the ref's `AsyncResult`; the remaining fields are the cache
+ * policy facts `AsyncResult` does not know about. Freshness deadlines derive
+ * from the `Success` timestamp only.
+ */
+export interface ResourceStatus<I, A, E = never, R = never, RefError = E> {
   readonly ref: ResourceRef<I, A, RefError, R>;
   readonly name: string;
   readonly key: string;
   readonly input: I;
-  readonly waiting: boolean;
-  readonly hasValue: boolean;
-  readonly hasPrevious: boolean;
-  readonly isInitial: boolean;
-  readonly isPending: boolean;
-  readonly isSuccess: boolean;
-  readonly isFailure: boolean;
-  readonly isFetching: boolean;
-  readonly isLoading: boolean;
-  readonly isRefreshing: boolean;
+  readonly result: AsyncResult.AsyncResult<A, E>;
   readonly isStale: boolean;
   readonly isGcExpired: boolean;
-  readonly updatedAt: number | undefined;
   readonly staleAt: number | undefined;
   readonly gcAt: number | undefined;
   readonly ageMillis: number | undefined;
   readonly staleInMillis: number | undefined;
   readonly gcInMillis: number | undefined;
 }
-
-/** Computed Resource read status used by adapters, devtools, and diagnostics. */
-export type ResourceStatus<I, A, E = never, R = never, RefError = E> =
-  | (ResourceStatusBase<I, A, E, R, RefError> & {
-      readonly _tag: "Initial";
-      readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Initial" }>;
-      readonly value: undefined;
-      readonly previous: undefined;
-      readonly error: undefined;
-    })
-  | (ResourceStatusBase<I, A, E, R, RefError> & {
-      readonly _tag: "Pending";
-      readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Pending" }>;
-      readonly value: A | undefined;
-      readonly previous: A | undefined;
-      readonly error: undefined;
-    })
-  | (ResourceStatusBase<I, A, E, R, RefError> & {
-      readonly _tag: "Success";
-      readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Success" }>;
-      readonly value: A;
-      readonly previous: undefined;
-      readonly error: undefined;
-    })
-  | (ResourceStatusBase<I, A, E, R, RefError> & {
-      readonly _tag: "Failure";
-      readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Failure" }>;
-      readonly value: A | undefined;
-      readonly previous: A | undefined;
-      readonly error: E;
-    });
 
 const resourceKeyCallbackPromiseError = (operation: string, name: string): ResourceKeyError =>
   new ResourceKeyError({
@@ -480,8 +453,6 @@ export namespace Resource {
   export type Ref<I, A, E = never, R = never> = ResourceRef<I, A, E, R>;
   /** Erased Resource ref used by diagnostics, invalidation, and collection helpers. */
   export type AnyRef<R = any> = AnyResourceRef<R>;
-  /** Public load state for one Resource ref. */
-  export type State<A, E = never> = ResourceState<A, E>;
   /** Invalidation tag emitted by Resources and consumed by Actions. */
   export type Tag = ResourceTag;
   /** Callable tag factory created with `Resource.tag(...)`. */
@@ -497,7 +468,7 @@ export namespace Resource {
   /** Complete invalidation plan produced from Resource refs and tags. */
   export type InvalidationPlan<R = any> = ResourceInvalidationPlan<R>;
   /** Serializable snapshot for one Resource ref. */
-  export type Snapshot<I = unknown, A = unknown, E = never> = ResourceHydrationSnapshot<I, A, E>;
+  export type Snapshot<I = unknown, A = unknown> = ResourceHydrationSnapshot<I, A>;
   /** Serializable collection of Resource snapshots for hydration. */
   export type HydrationPayload = ResourceHydrationPayload;
   /** Alias for the payload object accepted by `Resource.hydrate(...)`. */
@@ -512,7 +483,7 @@ export namespace Resource {
   export type LoadError<E> = ResourceLoadError<E>;
   /** Error thrown by synchronous Resource reads when data is pending or failed. */
   export type ReadError<I, A, E = never, R = never> = ResourceReadError<I, A, E, R>;
-  /** Diagnostic status for one Resource ref, including stale/previous data. */
+  /** Diagnostic status for one Resource ref: its `AsyncResult` plus cache freshness facts. */
   export type Status<I, A, E = never, R = never, RefError = E> = ResourceStatus<
     I,
     A,
@@ -793,10 +764,17 @@ export namespace Resource {
 
   export const subscribeEventsEffect = subscribeResourceEventsEffect;
 
-  /** Reactive state signal for a Resource ref, including callback failures. */
+  /**
+   * Reactive `AsyncResult` signal for a Resource ref, including callback failures.
+   *
+   * Loads mark the current result `waiting`; settlement writes `Success` or a
+   * `Failure` carrying the full `Cause` (typed errors, defects) with the latest
+   * success kept as `previousSuccess`. An interrupted load returns to the prior
+   * settled result.
+   */
   export const result = <I, A, E, R>(
     ref: ResourceRef<I, A, E, R>,
-  ): ReadableSignal<ResourceState<A, ResourceLoadError<E>>> => resourceResult(ref);
+  ): ReadableSignal<AsyncResult.AsyncResult<A, ResourceLoadError<E>>> => resourceResult(ref);
 
   /**
    * Synchronous render/host-adapter seam for inspecting a resource ref without
@@ -816,23 +794,6 @@ export namespace Resource {
   export const statusEffect = <I, A, E, R>(
     ref: ResourceRef<I, A, E, R>,
   ): Effect.Effect<ResourceStatus<I, A, ResourceLoadError<E>, R, E>> => resourceStatusEffect(ref);
-
-  /** Extracts the current or previous successful value from Resource state. */
-  export const value = <A, E>(state: ResourceState<A, E>): A | undefined => {
-    switch (state._tag) {
-      case "Success":
-        return state.value;
-      case "Pending":
-      case "Failure":
-        return state.previous;
-      case "Initial":
-        return undefined;
-    }
-  };
-
-  /** Extracts the current failure error from Resource state, when present. */
-  export const error = <A, E>(state: ResourceState<A, E>): E | undefined =>
-    state._tag === "Failure" ? state.error : undefined;
 
   /**
    * Forces a resource ref to reload as an Effect and updates cache state.

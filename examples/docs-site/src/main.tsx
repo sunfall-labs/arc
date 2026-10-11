@@ -29,7 +29,7 @@ const runtimeLayer = import.meta.env.DEV
 const runtime = createEffectRuntime(runtimeLayer);
 hydrateFromDocument(document, undefined, {
   runtime,
-  ...(import.meta.env.DEV ? {} : { updatedAt: "now" as const }),
+  ...(import.meta.env.DEV ? {} : { timestamp: "now" as const }),
 });
 
 const hydratedHref = currentDocsSiteHref();

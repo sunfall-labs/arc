@@ -37,7 +37,7 @@ describe("Start static target document hydration", () => {
                   _tag: "Success",
                   waiting: false,
                   value: { id: "1", name: "Hydrated project" },
-                  updatedAt: 1,
+                  timestamp: 1,
                 },
               },
             ],

@@ -1230,7 +1230,7 @@ describe("createBrowserRouter", () => {
             ),
           );
           expect(loads).toBe(1);
-          expect(runWithRuntime(runtime, () => Resource.status(Project("atlas"))._tag)).toBe(
+          expect(runWithRuntime(runtime, () => Resource.status(Project("atlas")).result._tag)).toBe(
             "Success",
           );
         }),
@@ -1854,7 +1854,7 @@ describe("createBrowserRouter", () => {
                 routes: [ProjectRoute] as const,
                 initialHref: "/pending-runtime/atlas",
                 runtime,
-                pending: () => Resource.status(ref)._tag,
+                pending: () => Resource.status(ref).result._tag,
               }),
             container,
           );
@@ -2171,7 +2171,7 @@ describe("createBrowserRouter", () => {
           );
           yield* Effect.sleep("20 millis");
 
-          expect(runWithRuntime(runtime, () => Resource.status(ref)._tag)).toBe("Initial");
+          expect(runWithRuntime(runtime, () => Resource.status(ref).result._tag)).toBe("Initial");
         }),
       ),
     ));
@@ -2196,7 +2196,7 @@ describe("createBrowserRouter", () => {
           const OldRoute = route("/solid-cleanup-runtime-old", {
             component: () => {
               onCleanup(() => {
-                cleanupStatuses.push(Resource.status(ref)._tag);
+                cleanupStatuses.push(Resource.status(ref).result._tag);
               });
               return "old";
             },
@@ -2243,7 +2243,9 @@ describe("createBrowserRouter", () => {
               expect(cleanupStatuses).toEqual(["Success"]);
             }),
           );
-          expect(runWithRuntime(nestedRuntime, () => Resource.status(ref)._tag)).toBe("Initial");
+          expect(runWithRuntime(nestedRuntime, () => Resource.status(ref).result._tag)).toBe(
+            "Initial",
+          );
         }),
       ),
     ));
@@ -2453,7 +2455,7 @@ describe("createBrowserRouter", () => {
           const ProjectRoute = route("/runtime-projects/:id", {
             preload: () => Resource.prefetchEffect(ref),
             component: () => {
-              const status = Resource.status(ref);
+              const status = Resource.status(ref).result;
               renderedStatus = status._tag;
               const element = document.createElement("span");
               element.textContent = status._tag;
@@ -2487,7 +2489,9 @@ describe("createBrowserRouter", () => {
             }),
           );
 
-          expect(runWithRuntime(innerRuntime, () => Resource.status(ref)._tag)).toBe("Initial");
+          expect(runWithRuntime(innerRuntime, () => Resource.status(ref).result._tag)).toBe(
+            "Initial",
+          );
         }),
       ),
     ));
