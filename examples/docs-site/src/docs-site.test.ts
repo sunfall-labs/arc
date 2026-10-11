@@ -430,7 +430,7 @@ describe("docs site", () => {
                 window.document as unknown as StartHydrationDocument,
                 undefined,
                 {
-                  updatedAt: "now",
+                  timestamp: "now",
                 },
               ),
             );
@@ -447,10 +447,16 @@ describe("docs site", () => {
 
             expect(fetch).toHaveBeenCalledTimes(1);
             expect(recipe.title).toBe("Route preload and hydration");
-            expect(indexStatusBefore.updatedAt).toBe(hydrationNow);
-            expect(recipeStatus.updatedAt).toBe(targetHydrationNow);
+            expect(indexStatusBefore.result).toMatchObject({
+              _tag: "Success",
+              timestamp: hydrationNow,
+            });
+            expect(recipeStatus.result).toMatchObject({
+              _tag: "Success",
+              timestamp: targetHydrationNow,
+            });
             expect(recipeStatus.isStale).toBe(false);
-            expect(indexStatus.updatedAt).toBe(hydrationNow);
+            expect(indexStatus.result).toMatchObject({ _tag: "Success", timestamp: hydrationNow });
             expect(indexStatus.isStale).toBe(false);
           }),
         ),
@@ -570,7 +576,7 @@ describe("docs site", () => {
               window.document as unknown as StartHydrationDocument,
               undefined,
               {
-                updatedAt: "now",
+                timestamp: "now",
               },
             ),
           );
@@ -620,7 +626,7 @@ describe("docs site", () => {
     expect(mainSource).toContain("BrowserRpcLive");
     expect(mainSource).toContain("DocsContentApiStaticClient");
     expect(mainSource).toContain('await import("./content-live.js")');
-    expect(mainSource).toContain('updatedAt: "now"');
+    expect(mainSource).toContain('timestamp: "now"');
     expect(mainSource).toContain("hydratedHref={hydratedHref}");
     expect(mainSource).toContain('import { hydrate, render } from "@solidjs/web";');
     expect(mainSource).toContain("hydrate(Root, root)");

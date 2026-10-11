@@ -7,10 +7,12 @@ import {
   Fiber,
   Layer,
   Metric,
+  Option,
   Schema,
   Scope,
   Stream,
 } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { EventEmitter } from "node:events";
 import {
   existsSync,
@@ -590,7 +592,9 @@ describe("Sunfall Arc Start", () => {
               input: "atlas",
               state: {
                 _tag: "Success",
+                waiting: false,
                 value: { id: "atlas", count: 1n },
+                timestamp: 1,
               },
             },
           ],
@@ -903,6 +907,7 @@ describe("Sunfall Arc Start", () => {
       {
         name: "Start.Collection.request-store",
         state: "Initial",
+        waiting: false,
       },
     ]);
     expect(traces[0]?.collections[0]).not.toHaveProperty("eventCount");
@@ -4098,7 +4103,11 @@ describe("Sunfall Arc Start", () => {
           ],
         },
       });
-      expect(runWithRuntime(clientRuntime, () => Resource.status(ref).value)).toEqual({
+      expect(
+        runWithRuntime(clientRuntime, () =>
+          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+        ),
+      ).toEqual({
         id: "atlas",
         name: "Renamed From Server",
       });
@@ -4142,7 +4151,11 @@ describe("Sunfall Arc Start", () => {
           },
         ],
       });
-      expect(runWithRuntime(clientRuntime, () => Resource.status(ref).value)).toEqual({
+      expect(
+        runWithRuntime(clientRuntime, () =>
+          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+        ),
+      ).toEqual({
         id: "atlas",
         name: "Renamed Through StartAction",
       });
@@ -4208,7 +4221,7 @@ describe("Sunfall Arc Start", () => {
                     _tag: "Success",
                     waiting: false,
                     value: { id: "atlas", name: "Hydrated By Action" },
-                    updatedAt: 1,
+                    timestamp: 1,
                   },
                 },
               ],
@@ -4257,11 +4270,19 @@ describe("Sunfall Arc Start", () => {
 
       expect(hydratedRef.key).toBe(invalidatedRef.key);
       expect(HydratedProject.options.name).not.toBe(InvalidatedProject.options.name);
-      expect(runWithRuntime(clientRuntime, () => Resource.status(hydratedRef).value)).toEqual({
+      expect(
+        runWithRuntime(clientRuntime, () =>
+          AsyncResult.getOrElse(Resource.status(hydratedRef).result, () => undefined),
+        ),
+      ).toEqual({
         id: "atlas",
         name: "Hydrated By Action",
       });
-      expect(runWithRuntime(clientRuntime, () => Resource.status(invalidatedRef).value)).toEqual({
+      expect(
+        runWithRuntime(clientRuntime, () =>
+          AsyncResult.getOrElse(Resource.status(invalidatedRef).result, () => undefined),
+        ),
+      ).toEqual({
         id: "atlas",
         name: "Invalidated By Action",
       });
@@ -4317,7 +4338,9 @@ describe("Sunfall Arc Start", () => {
 
     try {
       await runInRuntime(runtime, Resource.prefetchEffect(ref));
-      expect(runWithRuntime(defaultRuntime, () => Resource.status(ref)._tag)).toBe("Initial");
+      expect(runWithRuntime(defaultRuntime, () => Resource.status(ref).result._tag)).toBe(
+        "Initial",
+      );
 
       await expect(
         runInRuntime(runtime, action.submitEffect({ id: "atlas", name: "Caller Runtime" })),
@@ -4329,11 +4352,17 @@ describe("Sunfall Arc Start", () => {
         },
       });
 
-      expect(runWithRuntime(runtime, () => Resource.status(ref).value)).toEqual({
+      expect(
+        runWithRuntime(runtime, () =>
+          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+        ),
+      ).toEqual({
         id: "atlas",
         name: "Caller Runtime",
       });
-      expect(runWithRuntime(defaultRuntime, () => Resource.status(ref)._tag)).toBe("Initial");
+      expect(runWithRuntime(defaultRuntime, () => Resource.status(ref).result._tag)).toBe(
+        "Initial",
+      );
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
     }
@@ -4859,7 +4888,7 @@ describe("Sunfall Arc Start", () => {
                       _tag: "Success",
                       waiting: false,
                       value: { id: "atlas", name: "Hydrated In App Runtime" },
-                      updatedAt: 1,
+                      timestamp: 1,
                     },
                   },
                 ],
@@ -4891,11 +4920,19 @@ describe("Sunfall Arc Start", () => {
         value: { value: "transport-ok" },
       });
 
-      expect(runWithRuntime(appRuntime, () => Resource.status(ref).value)).toEqual({
+      expect(
+        runWithRuntime(appRuntime, () =>
+          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+        ),
+      ).toEqual({
         id: "atlas",
         name: "Hydrated In App Runtime",
       });
-      expect(runWithRuntime(transportRuntime, () => Resource.status(ref).value)).toEqual({
+      expect(
+        runWithRuntime(transportRuntime, () =>
+          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+        ),
+      ).toEqual({
         id: "atlas",
         name: "Initial",
       });
@@ -5090,7 +5127,11 @@ describe("Sunfall Arc Start", () => {
         },
       });
       expect(result.hydration).toBeUndefined();
-      expect(runWithRuntime(clientRuntime, () => Resource.status(ref).value)).toEqual({
+      expect(
+        runWithRuntime(clientRuntime, () =>
+          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+        ),
+      ).toEqual({
         id: "atlas",
         name: "Renamed Through Tag",
       });
@@ -5182,7 +5223,11 @@ describe("Sunfall Arc Start", () => {
         },
       });
       expect(result.hydration).toBeUndefined();
-      expect(runWithRuntime(clientRuntime, () => Resource.status(ref).value)).toEqual({
+      expect(
+        runWithRuntime(clientRuntime, () =>
+          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+        ),
+      ).toEqual({
         id: "atlas",
         name: "Renamed Through Ref",
       });
@@ -5214,19 +5259,20 @@ describe("Sunfall Arc Start", () => {
     const action = StartAction.use(Ping, { fetch: fetcher, runtime });
 
     try {
-      expect(action.state.get()).toEqual({ _tag: "Idle" });
+      expect(action.state.get()).toEqual({ result: AsyncResult.initial(), input: Option.none() });
       const submission = Effect.runFork(action.submitEffect({ value: "transport" }));
       expect(action.state.get()).toMatchObject({
-        _tag: "Pending",
-        input: { value: "transport" },
+        result: { _tag: "Initial", waiting: true },
+        input: Option.some({ value: "transport" }),
       });
 
       await expect(Effect.runPromise(Fiber.join(submission))).resolves.toMatchObject({
         _tag: "Success",
         value: { value: "TRANSPORT" },
       });
-      expect(action.state.get()).toMatchObject({
+      expect(action.state.get().result).toMatchObject({
         _tag: "Success",
+        waiting: false,
         value: {
           _tag: "Success",
           value: { value: "TRANSPORT" },
@@ -5284,8 +5330,8 @@ describe("Sunfall Arc Start", () => {
       });
       expect(requests).toBe(1);
       expect(action.state.get()).toMatchObject({
-        _tag: "Success",
-        input: { value: "first" },
+        result: { _tag: "Success", waiting: false },
+        input: Option.some({ value: "first" }),
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
@@ -5350,7 +5396,7 @@ describe("Sunfall Arc Start", () => {
                   _tag: "Success",
                   waiting: false,
                   value: { id: "atlas", name },
-                  updatedAt,
+                  timestamp: updatedAt,
                 },
               },
             ],
@@ -5416,11 +5462,19 @@ describe("Sunfall Arc Start", () => {
         _tag: "Success",
         value: { name: "Second" },
       });
-      expect(runWithRuntime(runtime, () => Resource.status(ref).value)).toEqual({
+      expect(
+        runWithRuntime(runtime, () =>
+          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+        ),
+      ).toEqual({
         id: "atlas",
         name: "Second",
       });
-      expect(runWithRuntime(runtime, () => Resource.status(invalidatedRef).value)).toEqual({
+      expect(
+        runWithRuntime(runtime, () =>
+          AsyncResult.getOrElse(Resource.status(invalidatedRef).result, () => undefined),
+        ),
+      ).toEqual({
         id: "atlas",
         name: "Invalidation Initial",
       });
@@ -5434,17 +5488,25 @@ describe("Sunfall Arc Start", () => {
         _tag: "Success",
         value: { name: "First" },
       });
-      expect(runWithRuntime(runtime, () => Resource.status(ref).value)).toEqual({
+      expect(
+        runWithRuntime(runtime, () =>
+          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+        ),
+      ).toEqual({
         id: "atlas",
         name: "Second",
       });
-      expect(runWithRuntime(runtime, () => Resource.status(invalidatedRef).value)).toEqual({
+      expect(
+        runWithRuntime(runtime, () =>
+          AsyncResult.getOrElse(Resource.status(invalidatedRef).result, () => undefined),
+        ),
+      ).toEqual({
         id: "atlas",
         name: "Invalidated By First",
       });
       expect(action.state.get()).toMatchObject({
-        _tag: "Success",
-        input: { name: "Second" },
+        result: { _tag: "Success", waiting: false },
+        input: Option.some({ name: "Second" }),
       });
     } finally {
       Effect.runSync(Deferred.succeed(firstRelease, undefined));
@@ -5469,7 +5531,7 @@ describe("Sunfall Arc Start", () => {
             _tag: "Success" as const,
             waiting: false as const,
             value: { id: "1", name: "Hydrated" },
-            updatedAt: Date.now(),
+            timestamp: Date.now(),
           },
         },
       ],
@@ -5692,7 +5754,7 @@ describe("Sunfall Arc Start", () => {
                     _tag: "Success" as const,
                     waiting: false as const,
                     value: { id: "1", name: "Hydrated" },
-                    updatedAt: 1,
+                    timestamp: 1,
                   },
                 },
               ],
@@ -5714,7 +5776,7 @@ describe("Sunfall Arc Start", () => {
 
       expect(Exit.isFailure(exit)).toBe(true);
       expect(firstFailure(exit.cause)).toBeInstanceOf(CollectionSnapshotCodecError);
-      expect(runWithRuntime(runtime, () => Resource.status(ref)._tag)).toBe("Initial");
+      expect(runWithRuntime(runtime, () => Resource.status(ref).result._tag)).toBe("Initial");
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
     }
@@ -5897,7 +5959,7 @@ describe("Sunfall Arc Start", () => {
               _tag: "Success" as const,
               waiting: false as const,
               value: { id: "1", name: "Runtime Hydrated" },
-              updatedAt: 1,
+              timestamp: 1,
             },
           },
         ],
@@ -5936,7 +5998,7 @@ describe("Sunfall Arc Start", () => {
         },
       );
 
-      expect(Resource.status(ref)._tag).toBe("Initial");
+      expect(Resource.status(ref).result._tag).toBe("Initial");
       expect(Projects.get("atlas")).toBeUndefined();
       expect(runWithRuntime(runtime, () => Resource.read(ref))).toEqual({
         id: "1",
@@ -5975,7 +6037,7 @@ describe("Sunfall Arc Start", () => {
               _tag: "Success" as const,
               waiting: false as const,
               value: { id: "1", name: "Hydrated" },
-              updatedAt: 1,
+              timestamp: 1,
             },
           },
         ],
@@ -6001,7 +6063,7 @@ describe("Sunfall Arc Start", () => {
       );
 
       expect(streamElement.getAttribute(streamHydrationConsumedAttribute)).toBe("true");
-      expect(Resource.status(ref)._tag).toBe("Initial");
+      expect(Resource.status(ref).result._tag).toBe("Initial");
       expect(runWithRuntime(runtime, () => Resource.read(ref))).toEqual({
         id: "1",
         name: "Hydrated",
@@ -6035,7 +6097,7 @@ describe("Sunfall Arc Start", () => {
               _tag: "Success" as const,
               waiting: false as const,
               value: { id: "root", name: "Root" },
-              updatedAt: 1,
+              timestamp: 1,
             },
           },
         ],
@@ -6050,7 +6112,7 @@ describe("Sunfall Arc Start", () => {
               _tag: "Success" as const,
               waiting: false as const,
               value: { id: "stream", name: "Stream" },
-              updatedAt: 2,
+              timestamp: 2,
             },
           },
         ],
@@ -6201,7 +6263,7 @@ describe("Sunfall Arc Start", () => {
               _tag: "Success" as const,
               waiting: false as const,
               value: { id: "valid", name: "Valid" },
-              updatedAt: 1,
+              timestamp: 1,
             },
           },
         ],
@@ -6220,7 +6282,7 @@ describe("Sunfall Arc Start", () => {
                 _tag: "Success",
                 waiting: false,
                 value: { id: "invalid" },
-                updatedAt: 2,
+                timestamp: 2,
               },
             },
           ],
@@ -6250,7 +6312,9 @@ describe("Sunfall Arc Start", () => {
         id: "valid",
         name: "Valid",
       });
-      expect(runWithRuntime(runtime, () => Resource.status(invalidRef)._tag)).toBe("Initial");
+      expect(runWithRuntime(runtime, () => Resource.status(invalidRef).result._tag)).toBe(
+        "Initial",
+      );
       expect(
         streamElements.map((element) => element.getAttribute(streamHydrationConsumedAttribute)),
       ).toEqual([null, null]);

@@ -184,6 +184,7 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
   > =>
     Effect.suspend(() => {
       let rollback: ActionRollback<R> = Effect.void as ActionRollback<R>;
+      let plan: ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>> | undefined;
 
       return Effect.ensuring(
         Effect.gen(function* () {
@@ -197,40 +198,24 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
           yield* submissions.interruptStaleEffect(submission);
 
           const invalidations = yield* invalidationsForEffect(definition, value, input);
-          const plan = yield* planResourceInvalidationEffect(invalidations);
+          const planned = yield* planResourceInvalidationEffect(invalidations);
           yield* transaction.commit;
           rollback = Effect.void as ActionRollback<R>;
 
           if (invalidations.length > 0) {
-            yield* runResourceInvalidationPlanEffect(plan);
+            yield* runResourceInvalidationPlanEffect(planned);
+            plan = planned;
           }
-
-          yield* submissions.successEffect(
-            submission,
-            input,
-            value,
-            invalidations.length === 0 ? undefined : plan,
-          );
 
           return value;
         }),
         Effect.suspend(() => rollback.pipe(Effect.catchCause(() => Effect.void))),
+      ).pipe(
+        // Every exit settles visible state: success, typed failure, defect, or
+        // interruption (which restores the prior settled state).
+        Effect.onExit((exit) => submissions.settleEffect(submission, exit, plan)),
       );
-    }).pipe(
-      Effect.catch(
-        (
-          error: E | ER | EffectInputCallbackError | ActionInterrupted,
-        ): Effect.Effect<never, E | ER | EffectInputCallbackError | ActionInterrupted> => {
-          if (error instanceof ActionInterrupted) {
-            return Effect.fail(error);
-          }
-
-          return submissions
-            .failureEffect(submission, input, error)
-            .pipe(Effect.andThen(Effect.fail(error)));
-        },
-      ),
-    );
+    });
 
   const submitEffect = (
     input: I,

@@ -1,9 +1,10 @@
 import { Effect, Fiber } from "effect";
+import type { AsyncResult } from "effect/reactivity";
 import type { AnySunfallArcRuntime } from "./runtime.js";
 import { runWithRuntime } from "./runtime.js";
 import type { EffectInput } from "./effect-like.js";
 import { invokeEffectInput } from "./effect-like.js";
-import type { ResourceLoadError, ResourceRef, ResourceState } from "./resource.js";
+import type { ResourceLoadError, ResourceRef } from "./resource.js";
 import {
   prefetchResourceEffect,
   releaseResourceRefEffect,
@@ -17,32 +18,6 @@ import type { ReadableSignal } from "./signal.js";
 export type ResourceUiInput<I, A, E, R = unknown> =
   | ResourceRef<I, A, E, R>
   | (() => ResourceRef<I, A, E, R>);
-
-/** Metadata passed to Resource UI success render branches. */
-export interface ResourceUiSuccessMeta<A, E> {
-  readonly refreshing: boolean;
-  readonly state: ResourceState<A, E>;
-}
-
-/** Metadata passed to Resource UI pending render branches. */
-export interface ResourceUiPendingMeta<A, E> {
-  readonly hasPrevious: boolean;
-  readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Pending" }>;
-}
-
-/** Metadata passed to Resource UI failure render branches. */
-export interface ResourceUiFailureMeta<A, E> {
-  readonly hasPrevious: boolean;
-  readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Failure" }>;
-}
-
-/** Exhaustive render cases for Resource UI handles. */
-export interface ResourceUiMatch<A, E, B> {
-  readonly initial: () => B;
-  readonly pending: (previous: A | undefined, meta: ResourceUiPendingMeta<A, E>) => B;
-  readonly success: (value: A, meta: ResourceUiSuccessMeta<A, E>) => B;
-  readonly failure: (error: E, previous: A | undefined, meta: ResourceUiFailureMeta<A, E>) => B;
-}
 
 /** Failure from an automatic UI preload, keyed to the Resource ref that caused it. */
 export interface ResourceUiPreloadFailure<I, A, E, R, ER> {
@@ -84,8 +59,10 @@ export interface ResourceUiBindingControllerOptions<I, A, E, R, ER> {
  * preload interruption, and retained-ref cleanup.
  */
 export interface ResourceUiBindingController<I, A, E, R, ER> {
-  /** Runtime-bound Resource result signal for the supplied ref. */
-  result(ref: ResourceRef<I, A, E, R>): ReadableSignal<ResourceState<A, ResourceLoadError<E>>>;
+  /** Runtime-bound Resource `AsyncResult` signal for the supplied ref. */
+  result(
+    ref: ResourceRef<I, A, E, R>,
+  ): ReadableSignal<AsyncResult.AsyncResult<A, ResourceLoadError<E>>>;
   /** Runtime-bound refresh Effect for the supplied ref. */
   refreshEffect(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E> | ER>;
   /** Runtime-bound prefetch Effect for the supplied ref. */
@@ -159,46 +136,12 @@ export const resourceUiSameRef = <I, A, E, R>(
   right: ResourceRef<I, A, E, R>,
 ): boolean => left.family === right.family && left.key === right.key;
 
-/** Returns true when a Resource state contains a current or previous value. */
-export const resourceUiStateHasValue = <A, E>(state: ResourceState<A, E>): boolean => {
-  switch (state._tag) {
-    case "Success":
-      return true;
-    case "Pending":
-    case "Failure":
-      return "previous" in state;
-    case "Initial":
-      return false;
-  }
-};
-
 /** Returns a preload failure only when it still belongs to the supplied Resource ref. */
 export const resourceUiPreloadFailureFor = <I, A, E, R, ER>(
   failure: ResourceUiPreloadFailure<I, A, E, R, ER> | undefined,
   ref: ResourceRef<I, A, E, R>,
 ): ResourceLoadError<E> | ER | undefined =>
   failure !== undefined && resourceUiSameRef(failure.ref, ref) ? failure.error : undefined;
-
-/** Folds one Resource state through exhaustive Resource UI render cases. */
-export const resourceUiMatchState = <A, E, B>(
-  state: ResourceState<A, E>,
-  cases: ResourceUiMatch<A, E, B>,
-): B => {
-  switch (state._tag) {
-    case "Initial":
-      return cases.initial();
-    case "Pending": {
-      const hasPrevious = "previous" in state;
-      return cases.pending(state.previous, { hasPrevious, state });
-    }
-    case "Success":
-      return cases.success(state.value, { refreshing: false, state });
-    case "Failure": {
-      const hasPrevious = "previous" in state;
-      return cases.failure(state.error, state.previous, { hasPrevious, state });
-    }
-  }
-};
 
 /** Binds a Resource Effect to the adapter runtime that owns Resource Store state. */
 export const resourceUiBindRuntimeEffect = <A, E, R, ER>(
@@ -341,7 +284,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
 
   const result = (
     ref: ResourceRef<I, A, E, R>,
-  ): ReadableSignal<ResourceState<A, ResourceLoadError<E>>> =>
+  ): ReadableSignal<AsyncResult.AsyncResult<A, ResourceLoadError<E>>> =>
     runWithRuntime(options.runtime, () => resourceResult(ref));
 
   const prefetchEffect = (

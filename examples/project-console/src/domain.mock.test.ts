@@ -214,8 +214,9 @@ describe("project console contract mocks", () => {
         );
 
         expect(result._tag).toBe("ValidationFailure");
-        expect(read(action.state)).toMatchObject({
+        expect(read(action.state).result).toMatchObject({
           _tag: "Success",
+          waiting: false,
           value: {
             _tag: "ValidationFailure",
           },

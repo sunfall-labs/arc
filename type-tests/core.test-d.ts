@@ -1,4 +1,5 @@
-import { Context, Effect, Fiber, Schema, Stream } from "effect";
+import { Cause, Context, Effect, Fiber, Option, Schema, Stream } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import {
   Action,
   ActionTypeId,
@@ -68,7 +69,6 @@ import {
   parseRouteUrl,
   provideRequest,
   provideResponse,
-  resourceUiMatchState,
   route,
   routeParamsFromSegments,
   routePathFromSegments,
@@ -113,7 +113,6 @@ import {
   type BrowserRouterLinkPreloaderOptions,
   type BrowserRouterLinkPreloaderRuntime,
   type BrowserRouterLinkPreloadDecision,
-  type ActionSubmissionState,
   type ActionUseOptions,
   type AnySunfallArcRuntime,
   type DisposeRuntimeProviderLifecycleOptions,
@@ -132,7 +131,6 @@ import {
   type ResourceUiAutoPreloadOptions,
   type ResourceUiBindingController,
   type ResourceUiBindingControllerOptions,
-  type ResourceUiMatch,
   type ResourceUiPreloadFailure,
   type ResourceUiSuspensePreloadController,
   type ResourceUiSuspensePreloadFiber,
@@ -291,9 +289,8 @@ const coreActionInstance: ActionInstance<string, string> = Action.use(coreAction
   runtime,
 });
 const coreActionState: ActionState<string, string> = {
-  _tag: "Success",
-  input: "publish",
-  value: "ok",
+  result: AsyncResult.success("ok", { timestamp: 1 }),
+  input: Option.some("publish"),
 };
 const coreActionDefinitionCheck: boolean = isActionDefinition(coreActionDefinition);
 const corePromiseLikeDetected: boolean = isPromiseLikeValue(null);
@@ -411,7 +408,6 @@ const coreExports: Array<unknown> = [
   runtimeProviderDisposeOptions,
   runtimeProviderLifecycleDisposeEffect,
   requestRuntimeStoreDisposeEffect,
-  resourceUiMatchState,
   routeParamsFromSegments,
   routePathFromSegments,
   routePathSegmentsEqual,
@@ -435,47 +431,43 @@ const coreExports: Array<unknown> = [
   resourceStaleFor,
   resourceUnsupportedDuration,
 ];
-const actionPendingWithUndefinedPrevious: ActionSubmissionState<string, void, string> = {
-  _tag: "Pending",
-  input: "publish",
-  previous: undefined,
-  hasPrevious: true,
+const actionPendingWithUndefinedPrevious: ActionState<string, void, string> = {
+  result: AsyncResult.waiting(AsyncResult.success<void, string>(undefined, { timestamp: 1 })),
+  input: Option.some("publish"),
 };
-const actionFailureWithUndefinedPrevious: ActionSubmissionState<string, void, string> = {
-  _tag: "Failure",
-  input: "publish",
-  error: "failed",
-  previous: undefined,
-  hasPrevious: true,
+const actionFailureWithUndefinedPrevious: ActionState<string, void, string> = {
+  result: AsyncResult.fail<string, void>("failed", {
+    previousSuccess: Option.some(AsyncResult.success(undefined, { timestamp: 1 })),
+  }),
+  input: Option.some("publish"),
 };
-const resourceUiMatchCases: ResourceUiMatch<void, string, string> = {
-  initial: () => "initial",
-  pending: (previous, meta) => `${String(previous)}:${String(meta.hasPrevious)}`,
-  success: (value, meta) => `${String(value)}:${meta.state._tag}`,
-  failure: (error, previous, meta) => `${error}:${String(previous)}:${String(meta.hasPrevious)}`,
-};
-const matchedResourceState = resourceUiMatchState<void, string, string>(
-  {
-    _tag: "Pending",
-    waiting: true,
-    previous: undefined,
-  },
-  resourceUiMatchCases,
+// @ts-expect-error -- action submission state is an AsyncResult plus input, not a tagged union.
+const actionStateIsNotTagged: ActionState<string, void, string> = { _tag: "Idle" };
+const actionFailureCause: Option.Option<Cause.Cause<string>> = AsyncResult.cause(
+  actionFailureWithUndefinedPrevious.result,
 );
+const refreshingResourceResult = AsyncResult.waiting(
+  AsyncResult.success<void, string>(undefined, { timestamp: 1 }),
+) as AsyncResult.AsyncResult<void, string>;
+const matchedResourceState: string = AsyncResult.builder(refreshingResourceResult)
+  .onInitial(() => "initial")
+  .onFailure((cause, failed) => `${String(Cause.squash(cause))}:${failed.previousSuccess._tag}`)
+  .onSuccess((value, success) => `${String(value)}:${String(success.waiting)}`)
+  .exhaustive();
 const typeTestResource = Resource.family<string, string, string>({
   name: "type-tests/core-resource-ui",
   load: (id) => Effect.succeed(id),
 });
 const typeTestResourceRef = typeTestResource("atlas");
-const typeTestResourceSnapshot: Resource.Snapshot<string, string, string> = {
+const typeTestResourceSnapshot: Resource.Snapshot<string, string> = {
   name: typeTestResource.family.options.name,
   key: typeTestResourceRef.key,
   input: "atlas",
   state: {
     _tag: "Success",
-    waiting: false,
     value: "atlas",
-    updatedAt: 1,
+    waiting: false,
+    timestamp: 1,
   },
 };
 const typeTestResourceHydrationPayload: ResourceHydrationPayload = {
@@ -812,6 +804,8 @@ void coreExports;
 void actionPendingWithUndefinedPrevious;
 void actionFailureWithUndefinedPrevious;
 void matchedResourceState;
+void actionStateIsNotTagged;
+void actionFailureCause;
 void typeTestResourceRef;
 void typeTestResourceSnapshot;
 void typeTestResourceHydrationPayload;

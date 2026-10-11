@@ -113,8 +113,7 @@ without choosing between correctness, inspectability, and ergonomics.
   events, or persisting a snapshot.
 - `Query.live(...)` creates live materialized queries over one or more
   collections.
-- Query type mirrors such as `QueryRoot`, `QueryFactory`, `LiveQuery`,
-  `LiveQueryState`, and plan diagnostics/aggregate types remain available at
+- Query type mirrors such as `QueryRoot`, `QueryFactory`, `LiveQuery`, and plan diagnostics/aggregate types remain available at
   the DB package root for expert-public compatibility. Prefer `Query.*` in new
   app code so the Query Module stays grouped in hovers and docs.
 - Live query filters and joins run through `@tanstack/db-ivm`, TanStack DB's
@@ -123,6 +122,51 @@ without choosing between correctness, inspectability, and ergonomics.
   maintained inside the D2 graph.
 - `@sunfall/arc-solid-db` adapts collections and live queries to Solid
   accessors.
+
+## Load State Is AsyncResult
+
+Collection and live-query load state uses Effect's `AsyncResult`
+(`import { AsyncResult } from "effect/reactivity"`), the same vocabulary as
+Resources and Actions. Rows are always their own signal, so local-first reads
+never wait on load state.
+
+- `collection.state()` (and `Collection.state(collection)`) is
+  `ReadableSignal<AsyncResult<void, Collection.RuntimeError<E>>>`: `Initial`
+  before the first load, `Success` (timestamped with the load's `Clock` time)
+  once rows are loaded, and `Failure` carrying the load `Cause` with the last
+  success as `previousSuccess`. A preload or refetch marks the current result
+  `waiting` instead of switching tags; an interrupted load returns to the prior
+  settled result.
+- `liveQuery.state` is `ReadableSignal<AsyncResult<ReadonlyArray<T>, E | Query.EvaluationError>>`
+  beside `liveQuery.data` (always the last good rows). It folds source load
+  results and evaluation failures: `Initial` while any source has never loaded,
+  `Success` with the current rows (timestamped by the latest source load),
+  `Failure` with the source or evaluation `Cause` keeping the last good rows as
+  `previousSuccess`, and `waiting` while any source is loading.
+
+Solid DB handles expose those results as one accessor:
+`useCollection(...)` returns `rows`, `result`, lookups, `preloadFailure`, and the
+Effect methods; `useLiveQuery(...)` returns `data`, `result`, `preloadFailure`,
+`preloadEffect`, and `refetchEffect`.
+
+```tsx
+const projects = useCollection(Projects);
+
+return () =>
+  AsyncResult.builder(projects.result())
+    .onInitial(() => <ProjectSkeleton />)
+    // Put onFailure before onSuccess: onSuccess narrows the success type, so a
+    // later onFailure would see `previousSuccess` typed as never.
+    .onFailure((cause, failed) => (
+      <ProjectList
+        rows={projects.rows()}
+        cause={cause}
+        stale={Option.isSome(failed.previousSuccess)}
+      />
+    ))
+    .onSuccess((_, loaded) => <ProjectList rows={projects.rows()} refreshing={loaded.waiting} />)
+    .exhaustive();
+```
 
 ## Query Engine Shape
 
@@ -306,7 +350,8 @@ The Live Query Collection does not own source rows and rejects local mutations.
 It is useful when a D2/materialized view should be passed to APIs that expect a
 Collection Definition, or used as a source for another live query.
 
-Repeated `state().get()` reads are stable: `Ready.updatedAt` changes only when
+Repeated `state().get()` reads are stable: the `Success` result (and its
+`timestamp`) changes only when
 the collection-shaped materialized projection changes, not because a component
 or devtools panel inspected the derived collection. Duplicate source rows with
 the same derived key are projected once through the same keyed materialization

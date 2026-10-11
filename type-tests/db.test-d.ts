@@ -1,4 +1,5 @@
 import { Effect, PubSub, Scope } from "effect";
+import type { AsyncResult } from "effect/reactivity";
 import type {
   AnySunfallArcRuntime,
   EffectInput,
@@ -27,7 +28,6 @@ import {
   backgroundSyncCollectionsPendingMutationsEffect,
   bindCollectionRuntimeEffect,
   collectionReactiveDepsValue,
-  collectionStateError,
   defaultCollectionDefinitionRegistry,
   and,
   eq,
@@ -38,7 +38,6 @@ import {
   isCollection,
   lt,
   lte,
-  liveQueryStateError,
   makeCollectionDefinitionRegistry,
   makeLiveQueryCollection,
   makeCollectionReactivePreloadController,
@@ -69,7 +68,6 @@ import {
   type CollectionReactivePreloadControllerOptions,
   type FlushCollectionPendingMutationsResult,
   type LiveQuery,
-  type LiveQueryState,
   type QueryAggregate,
   type QueryAggregateRecord,
   type QueryAggregateResult,
@@ -249,8 +247,15 @@ const publicLiveQuery = Query.live((query) =>
 );
 const publicQueryLive: Query.Live<Project, any, any> = publicLiveQuery;
 const directLiveQuery: LiveQuery<Project, any, any> = publicQueryLive;
-const publicQueryLiveState: Query.LiveState<Project, any> = publicLiveQuery.state.get();
-const directLiveQueryState: LiveQueryState<Project, any> = publicQueryLiveState;
+const directLiveQueryState: AsyncResult.AsyncResult<
+  ReadonlyArray<Project>,
+  any
+> = publicLiveQuery.state.get();
+const publicCollectionState: AsyncResult.AsyncResult<
+  void,
+  Collection.RuntimeError<never>
+> = Collection.state(dbStaticProjectsCollection).get();
+void publicCollectionState;
 declare const publicQueryEvaluationError: Query.EvaluationError;
 const directQueryEvaluationError: QueryEvaluationError = publicQueryEvaluationError;
 const publicQueryEvaluationErrorInstance = new Query.EvaluationError({
@@ -484,13 +489,11 @@ const dbExports: Array<unknown> = [
   backgroundSyncCollectionsPendingMutationsEffect,
   bindCollectionRuntimeEffect,
   collectionReactiveDepsValue,
-  collectionStateError,
   defaultCollectionDefinitionRegistry,
   eq,
   flushCollectionsPendingMutationsEffect,
   persistedCollectionOptions,
   isCollection,
-  liveQueryStateError,
   makeCollectionDefinitionRegistry,
   makeLiveQueryCollection,
   makeCollectionReactivePreloadController,

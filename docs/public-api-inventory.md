@@ -124,8 +124,8 @@ Golden-path public groups:
   `Resource.Status` are public LSP vocabulary for invalidation, hydration, and
   diagnostics adapters.
 - Direct Resource symbols such as `ResourceTag`, `ResourceTagDefinition`,
-  `ResourceInvalidationPlan`, and `ResourceStatus` are also Core-owned public
-  vocabulary. Type-test and hover-policy pins keep adapters from depending on
+  `ResourceInvalidationPlan`, `ResourceStatus`, and
+  `ResourceHydrationSuccessState` are also Core-owned public vocabulary. Type-test and hover-policy pins keep adapters from depending on
   namespace-only imports when a top-level type is the clearer LSP target.
 - Top-level Resource hydration symbols `ResourceHydrationPayload` and
   `ResourceHydrationInput` describe the shared Core/Start payload-only
@@ -370,6 +370,17 @@ Release decisions:
   observer and host setter failure swallowing, stale preload interruption,
   retained-ref cleanup through `disposeEffect()`, and Suspense preload-token
   dedupe. The Solid adapter still owns host reactivity and host Suspense throwing.
+- Async state is Effect's `AsyncResult` (`effect/reactivity`) everywhere:
+  `Resource.result(ref)`, `ResourceStatus.result`, `ActionState.result`,
+  `Collection.state(...)`, and `LiveQuery.state`. Arc publishes no parallel
+  state union, match helper, or value/error extractor; the removed
+  `ResourceState`, `Resource.State`, `Resource.value`, `Resource.error`,
+  `ResourceUi{Success,Pending,Failure}Meta`, `ResourceUiMatch`,
+  `resourceUiMatchState`, `resourceUiStateHasValue`, `CollectionLoadState`,
+  `Collection.State`, `LiveQueryState`, `Query.LiveState`,
+  `collectionStateError`, and `liveQueryStateError` have no aliases.
+  `ResourceFailure` carries `result: AsyncResult.Failure` and `ResourcePending`
+  carries `reason` plus the current `result`.
 - `action-submission`, `definition-registry`, `resource-registry`,
   `resource-snapshot-codec`, `resource-ui-binding`, and `route-grammar` are
   expert-public Modules.
@@ -987,7 +998,7 @@ Release decisions:
   handles expose data/state/source metadata and lifecycle Effects, not the
   internal builder.
 - Top-level Query type mirrors such as `QueryRoot`, `QueryFactory`,
-  `LiveQuery`, `LiveQueryState`, query plan diagnostics, sort/join scalar
+  `LiveQuery`, query plan diagnostics, sort/join scalar
   types, aggregate types, and predicate helpers remain expert-public
   compatibility exports. New application code should prefer the `Query.*`
   namespace, including `Query.eq(...)`, `Query.and(...)`, `Query.includes(...)`,
@@ -1222,7 +1233,8 @@ Release decisions:
   `disposeEffect()` cleanup to the internal Solid Route Render Scope
   Controller. This keeps the public Solid router surface stable while making
   route render lifetime policy local.
-- `useAction(...)` returns a Solid `ActionHandle`: `state()` and
+- `useAction(...)` returns a Solid `ActionHandle`: `result()` (the submission
+  `AsyncResult`), `input()` (`Option` of the latest input), and
   `invalidationPlan()` are Solid accessors, while `submitEffect(...)` and
   `resetEffect(...)` stay runtime-bound Effect methods. The underlying Core
   `ActionInstance` remains available at `handle.instance` for advanced
@@ -1239,8 +1251,12 @@ Release decisions:
   cleanup. Both dispatch methods accept only concrete Program messages;
   Promise-shaped messages, Effect-shaped messages, and `undefined` are
   rejected.
-- `useResource<..., ER>(...)` follows the same runtime-bound pattern for
-  `prefetchEffect(...)` and `refreshEffect(...)`. Automatic prefetches are
+- `useResource<..., ER>(...)` exposes one `result()` accessor (the Resource
+  `AsyncResult`) and follows the same runtime-bound pattern for
+  `prefetchEffect(...)` and `refreshEffect(...)`. `useResourceResult(...)` is the
+  single-accessor form; `useResourceValue`/`useResourceError`,
+  `ResourceMatch`, and `ResourceSuccessMeta` were removed in favor of
+  `AsyncResult` accessors and `AsyncResult.builder(...)`. Automatic prefetches are
   Resource Store-owned; Solid owner cleanup and reactive ref changes detach the
   UI joiner, while Resource deletion/invalidation/runtime disposal cancel the
   underlying load. The handle also exposes `preloadFailure()` and accepts
@@ -1258,7 +1274,8 @@ Release decisions:
 The root export includes:
 
 - Local source modules: `collection` and `live-query`.
-- `useCollection`, `useLiveQuery`, collection/live-query handles, and preload
+- `useCollection`, `useLiveQuery`, collection/live-query handles (each with a
+  single `result()` `AsyncResult` accessor beside rows/data), and preload
   options;
 - `Collection` and `Query` re-exports for adapter-local ergonomics.
 

@@ -331,14 +331,19 @@ Component code should stay compact:
 const project = useResource(() => ProjectById(props.id));
 const rename = StartAction.use(RenameProject, { runtime });
 
-return project.match({
-  initial: () => <ProjectSkeleton />,
-  pending: (previous) =>
-    previous ? <ProjectView project={previous} refreshing /> : <ProjectSkeleton />,
-  success: (value) => <ProjectForm project={value} action={rename} />,
-  failure: (error, previous) =>
-    previous ? <ProjectView project={previous} error={error} /> : <ProjectError error={error} />,
-});
+return () =>
+  AsyncResult.builder(project.result())
+    .onInitial(() => <ProjectSkeleton />)
+    .onFailure((cause, failed) =>
+      Option.match(failed.previousSuccess, {
+        onNone: () => <ProjectError cause={cause} />,
+        onSome: (stale) => <ProjectView project={stale.value} cause={cause} />,
+      }),
+    )
+    .onSuccess((value, success) => (
+      <ProjectForm project={value} action={rename} refreshing={success.waiting} />
+    ))
+    .exhaustive();
 ```
 
 The power is not in ceremony. The power is that the compiler, runtime, server,

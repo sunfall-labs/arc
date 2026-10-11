@@ -27,7 +27,8 @@ export const sampleDevtoolsPanels = (): DevtoolsPanels =>
         collections: [
           {
             name: "ProjectSummaries",
-            state: "loaded",
+            state: "Success",
+            waiting: false,
             eventCount: 2,
           },
         ],
@@ -40,7 +41,7 @@ export const sampleDevtoolsPanels = (): DevtoolsPanels =>
         actions: [
           {
             name: "Project.rename",
-            state: "Idle",
+            state: "Initial",
           },
         ],
         fibers: [

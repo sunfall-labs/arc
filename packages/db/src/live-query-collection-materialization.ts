@@ -4,7 +4,8 @@ import {
   stableStringify,
   type ReadableSignal,
 } from "@sunfall/arc-core";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import type { ReadonlyCollectionMutation } from "./collection-errors.js";
 import {
   collectionIndex,
@@ -23,7 +24,6 @@ import type {
   CollectionDefinition,
   CollectionIndexValue,
   CollectionKey,
-  CollectionLoadState,
   CollectionRow,
   CollectionSnapshot,
 } from "./collection-contract.js";
@@ -68,7 +68,9 @@ interface ProjectionIndexCacheEntry<A extends object, K extends CollectionKey> {
 }
 
 interface LiveQueryCollectionStoreMaterialization<A extends object, K extends CollectionKey, E> {
-  readonly stateSignal: ReadableSignal<CollectionLoadState<LiveQueryCollectionLoadStateError<E>>>;
+  readonly stateSignal: ReadableSignal<
+    AsyncResult.AsyncResult<void, LiveQueryCollectionLoadStateError<E>>
+  >;
   readonly versionSignal: ReadableSignal<number>;
   get(key: K): CollectionRow<A, K> | undefined;
   rows(): ReadonlyArray<CollectionRow<A, K>>;
@@ -90,7 +92,7 @@ export interface LiveQueryCollectionMaterialization<
   K extends CollectionKey,
   E = never,
 > {
-  state(): ReadableSignal<CollectionLoadState<LiveQueryCollectionLoadStateError<E>>>;
+  state(): ReadableSignal<AsyncResult.AsyncResult<void, LiveQueryCollectionLoadStateError<E>>>;
   version(): ReadableSignal<number>;
   get(key: K): CollectionRow<A, K> | undefined;
   rows(): ReadonlyArray<CollectionRow<A, K>>;
@@ -236,7 +238,7 @@ export const makeLiveQueryCollectionMaterialization = <
     };
     const currentProjection = (): MaterializedProjection<A, K> => projectionSignal.get();
     const currentProjectionDirect = (): MaterializedProjection<A, K> =>
-      withStore(store, () => observeMaterialized(options.live.state.get().data));
+      withStore(store, () => observeMaterialized(options.live.data.get()));
     const projectionSignal = Signal.derive(() => currentProjectionDirect());
     const row = (entry: MaterializedEntry<A, K>): CollectionRow<A, K> =>
       detachCollectionRow({
@@ -288,34 +290,42 @@ export const makeLiveQueryCollectionMaterialization = <
       pendingMutations: [],
       updatedAt,
     });
-    let readyState: CollectionLoadState<LiveQueryCollectionLoadStateError<E>> | undefined;
-    const pendingState: CollectionLoadState<LiveQueryCollectionLoadStateError<E>> = {
-      _tag: "Pending",
-      waiting: true,
-    };
-    const ready = (
-      updatedAt: number,
-    ): CollectionLoadState<LiveQueryCollectionLoadStateError<E>> => {
-      if (readyState?._tag === "Ready" && readyState.updatedAt === updatedAt) {
+    type LoadResult = AsyncResult.AsyncResult<void, LiveQueryCollectionLoadStateError<E>>;
+    // Keep result identity stable while the projection timestamp and waiting flag are unchanged.
+    let readyState: AsyncResult.Success<void, LiveQueryCollectionLoadStateError<E>> | undefined;
+    const ready = (updatedAt: number, waiting: boolean): LoadResult => {
+      if (readyState?.timestamp === updatedAt && readyState.waiting === waiting) {
         return readyState;
       }
-      readyState = { _tag: "Ready", waiting: false, updatedAt };
+      readyState = AsyncResult.success(undefined, { timestamp: updatedAt, waiting });
       return readyState;
     };
-    const readState = (): CollectionLoadState<LiveQueryCollectionLoadStateError<E>> =>
+    // Failures keep the last successful load, like live query results do.
+    const lastSuccess = () =>
+      readyState === undefined
+        ? Option.none()
+        : Option.some(
+            AsyncResult.success<void, LiveQueryCollectionLoadStateError<E>>(undefined, {
+              timestamp: readyState.timestamp,
+            }),
+          );
+    const readState = (): LoadResult =>
       withStore(store, () => {
         const state = options.live.state.get();
         switch (state._tag) {
-          case "Pending":
-            return pendingState;
+          case "Initial":
+            return AsyncResult.initial(state.waiting);
           case "Failure":
-            return { _tag: "Failure", waiting: false, error: state.error };
+            return AsyncResult.failure(state.cause, {
+              waiting: state.waiting,
+              previousSuccess: lastSuccess(),
+            });
           case "Success": {
             const current = currentProjection();
             if (materializationError) {
-              return { _tag: "Failure", waiting: false, error: materializationError };
+              return AsyncResult.fail(materializationError, { previousSuccess: lastSuccess() });
             }
-            return ready(current.updatedAt);
+            return ready(current.updatedAt, state.waiting);
           }
         }
       });
@@ -344,7 +354,7 @@ export const makeLiveQueryCollectionMaterialization = <
               reason: `Live query collection "${options.name}" is failed; resolve the live query failure before snapshotting or persisting it.`,
             });
           }
-          const next = materialize(state.data, "snapshot");
+          const next = materialize(options.live.data.get(), "snapshot");
           return snapshot(
             {
               ...next,

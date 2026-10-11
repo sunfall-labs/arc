@@ -4,7 +4,8 @@ import {
   route,
   type EffectInputCallbackError,
 } from "@sunfall/arc-core";
-import { Effect, Stream } from "effect";
+import { Cause, Effect, Option, Stream } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import {
   Action,
   Component,
@@ -30,10 +31,8 @@ import {
   useAction,
   useProgram,
   useResource,
-  useResourceError,
   useResourceResult,
   useResourceSuspense,
-  useResourceValue,
   useRouter,
   useRuntime,
   useRuntimeEffect,
@@ -49,8 +48,6 @@ import {
   type BrowserRouterState,
   type ProgramHandle,
   type ResourceHandle,
-  type ResourceMatch,
-  type ResourceSuccessMeta,
   type RouterLinkProps,
   type RouterProviderProps,
   type RouterOutletProps,
@@ -179,24 +176,34 @@ const solidResourceHandle: ResourceHandle<string, SolidProject, never> = useReso
   solidProjectRef,
   solidResourceOptions,
 );
-const solidResourceState = useResourceResult(solidProjectRef);
-const solidResourceValue = useResourceValue(solidProjectRef);
-const solidResourceError = useResourceError(solidProjectRef);
-const solidResourceSuccessMeta: ResourceSuccessMeta<SolidProject, Resource.LoadError<never>> = {
-  refreshing: false,
-  state: {
-    _tag: "Success",
-    waiting: false,
-    value: { id: "atlas", name: "Atlas" },
-    updatedAt: 0,
-  },
-};
-const solidResourceMatch: ResourceMatch<SolidProject, Resource.LoadError<never>, string> = {
-  initial: () => "initial",
-  pending: () => "pending",
-  success: (project) => project.name,
-  failure: () => "failure",
-};
+const solidResourceState: () => AsyncResult.AsyncResult<SolidProject, Resource.LoadError<never>> =
+  useResourceResult(solidProjectRef);
+const solidResourceValue: Option.Option<SolidProject> = AsyncResult.value(
+  solidResourceHandle.result(),
+);
+const solidResourceError: Option.Option<Resource.LoadError<never>> = AsyncResult.error(
+  solidResourceHandle.result(),
+);
+// @ts-expect-error -- the handle exposes one `result()` accessor, not value/error/match helpers.
+void solidResourceHandle.value;
+// Recommended render: handle failure before success so `previousSuccess` keeps its type.
+const solidResourceRender: string = AsyncResult.builder(solidResourceHandle.result())
+  .onInitial(() => "initial")
+  .onFailure((cause, failed) =>
+    Option.match(failed.previousSuccess, {
+      onNone: () => String(Cause.squash(cause)),
+      onSome: (stale) => `${stale.value.name} (stale)`,
+    }),
+  )
+  .onSuccess((project, success) => (success.waiting ? `${project.name}…` : project.name))
+  .exhaustive();
+AsyncResult.builder(solidResourceHandle.result())
+  .onSuccess((project) => project.name)
+  .onFailure(
+    (_cause, failed) =>
+      // @ts-expect-error -- after onSuccess the builder narrows the success type to never.
+      Option.getOrThrow(failed.previousSuccess).value.name,
+  );
 const SolidAction = Action.define<{ readonly id: string }, { readonly ok: boolean }>({
   name: "Solid.type-test.action",
   run: ({ id }) => Effect.succeed({ ok: id.length > 0 }),
@@ -208,8 +215,9 @@ const solidActionSubmit: Effect.Effect<
   { readonly ok: boolean },
   EffectInputCallbackError | ActionInterrupted
 > = solidAction.submitEffect({ id: "atlas" });
-const solidActionStateTag: "Idle" | "Pending" | "Success" | "Failure" = solidAction.state()._tag;
-solidAction.instance.state.get()._tag;
+const solidActionStateTag: "Initial" | "Success" | "Failure" = solidAction.result()._tag;
+const solidActionInput: Option.Option<{ readonly id: string }> = solidAction.input();
+solidAction.instance.state.get().result._tag;
 solidAction.invalidationPlan()?.entries.map((entry) => entry.ref.key);
 const solidExports: Array<unknown> = [
   Action,
@@ -236,9 +244,7 @@ const solidExports: Array<unknown> = [
   useProgram,
   useResource,
   useResourceSuspense,
-  useResourceError,
   useResourceResult,
-  useResourceValue,
   useRouter,
   useRuntime,
   useRuntimeEffect,
@@ -278,8 +284,8 @@ const solidExports: Array<unknown> = [
   solidResourceState,
   solidResourceValue,
   solidResourceError,
-  solidResourceSuccessMeta,
-  solidResourceHandle.match(solidResourceMatch),
+  solidResourceRender,
+  solidActionInput,
   solidSignalValue,
   solidStreamValue,
   solidActionHandle,

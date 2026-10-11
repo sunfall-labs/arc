@@ -101,8 +101,10 @@ export interface StartRequestTraceResource {
 export interface StartRequestTraceCollection {
   /** Collection definition name. */
   readonly name: string;
-  /** Current collection state tag when it can be observed safely. */
+  /** Current collection load `AsyncResult` tag when it can be observed safely. */
   readonly state?: string;
+  /** Whether a collection load was in flight when observed. */
+  readonly waiting?: boolean;
 }
 
 /** Server function call summary recorded for RPC request traces. */
@@ -585,11 +587,12 @@ const uniqueCollections = (collections: Iterable<AnyCollection>): ReadonlyArray<
 const collectionTraceState = <RuntimeServices, RuntimeError>(
   runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
   collection: AnyCollection,
-): string | undefined => {
+): Pick<StartRequestTraceCollection, "state" | "waiting"> => {
   try {
-    return runWithRuntime(runtime, () => collection.state().get()._tag);
+    const result = runWithRuntime(runtime, () => collection.state().get());
+    return { state: result._tag, waiting: result.waiting };
   } catch {
-    return undefined;
+    return {};
   }
 };
 
@@ -604,10 +607,9 @@ export const traceCollectionPreload = <RuntimeServices, RuntimeError>(
     ...collectionPreload.dehydratedCollections,
   ])
     .map((collection) => {
-      const state = collectionTraceState(runtime, collection);
       return {
         name: collection.name,
-        ...(state === undefined ? {} : { state }),
+        ...collectionTraceState(runtime, collection),
       };
     })
     .sort((left, right) => left.name.localeCompare(right.name));

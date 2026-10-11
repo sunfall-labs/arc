@@ -75,7 +75,9 @@ const startStaticPreparedHrefReusableEffect = (
     case "Hydrated":
       return Effect.forEach(prepared.refs, (ref) =>
         Resource.statusEffect(ref).pipe(
-          Effect.map((status) => status.isSuccess && !status.isStale && !status.isGcExpired),
+          Effect.map(
+            (status) => status.result._tag === "Success" && !status.isStale && !status.isGcExpired,
+          ),
         ),
       ).pipe(Effect.map((statuses) => statuses.every(Boolean)));
   }

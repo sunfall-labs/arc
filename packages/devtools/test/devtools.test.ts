@@ -1,4 +1,5 @@
-import { Effect, Fiber, PubSub, Schema } from "effect";
+import { Cause, Effect, Fiber, Option, PubSub, Schema } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
 import {
   Action,
@@ -550,7 +551,8 @@ describe("devtools invalidation plans", () => {
       ],
     };
     const state = Signal.make<ActionState<{ readonly id: string }, unknown, unknown>>({
-      _tag: "Idle",
+      result: AsyncResult.initial(),
+      input: Option.none(),
     });
     const invalidation = Signal.make<DevtoolsInvalidationPlan | undefined>(undefined);
     const store = makeDevtoolsStore();
@@ -567,16 +569,13 @@ describe("devtools invalidation plans", () => {
           });
 
           state.set({
-            _tag: "Pending",
-            input: { id: "atlas" },
+            result: AsyncResult.initial(true),
+            input: Option.some({ id: "atlas" }),
           });
           invalidation.set(plan);
           state.set({
-            _tag: "Success",
-            input: { id: "atlas" },
-            value: {
-              _tag: "Success",
-            },
+            result: AsyncResult.success({ _tag: "Success" }, { timestamp: 1 }),
+            input: Option.some({ id: "atlas" }),
           });
         }),
       ),
@@ -586,6 +585,7 @@ describe("devtools invalidation plans", () => {
       {
         name: "Project.rename",
         state: "Success",
+        waiting: false,
         invalidationIndexes: [0],
       },
     ]);
@@ -611,7 +611,8 @@ describe("devtools invalidation plans", () => {
       entries: [],
     };
     const state = Signal.make<ActionState<{ readonly id: string }, unknown, unknown>>({
-      _tag: "Idle",
+      result: AsyncResult.initial(),
+      input: Option.none(),
     });
     const invalidation = Signal.make<DevtoolsInvalidationPlan | undefined>(undefined);
     const store = makeDevtoolsStore();
@@ -628,11 +629,8 @@ describe("devtools invalidation plans", () => {
           });
 
           state.set({
-            _tag: "Success",
-            input: { id: "atlas" },
-            value: {
-              _tag: "Success",
-            },
+            result: AsyncResult.success({ _tag: "Success" }, { timestamp: 1 }),
+            input: Option.some({ id: "atlas" }),
           });
           invalidation.set(plan);
         }),
@@ -643,6 +641,7 @@ describe("devtools invalidation plans", () => {
       {
         name: "Project.rename.after-terminal",
         state: "Success",
+        waiting: false,
         invalidationIndexes: [0],
       },
     ]);
@@ -688,6 +687,7 @@ describe("devtools invalidation plans", () => {
       {
         name: "Count.increment-devtools",
         state: "Success",
+        waiting: false,
         invalidationIndexes: [0],
       },
     ]);
@@ -3007,7 +3007,7 @@ describe("devtools invalidation plans", () => {
             _tag: "ResourceSuccess" as const,
             name: "Stable.edge-devtools",
             key: "Stable.edge-devtools:1",
-            updatedAt: 1,
+            timestamp: 1,
           },
         },
       ],
@@ -3695,6 +3695,36 @@ describe("devtools invalidation plans", () => {
     );
   });
 
+  it("projects resource failure causes and interruptions into resource state facts", () => {
+    const store = makeDevtoolsStore();
+
+    store.recordResourceEvent({
+      _tag: "ResourceFailure",
+      name: "Project.failed-resource",
+      key: "Project.failed-resource:atlas",
+      cause: Cause.die(new Error("loader crashed")),
+      previous: false,
+    });
+    store.recordResourceEvent({
+      _tag: "ResourceInterrupted",
+      name: "Project.interrupted-resource",
+      key: "Project.interrupted-resource:atlas",
+    });
+
+    expect(store.getSummary().resources).toEqual([
+      expect.objectContaining({
+        key: "Project.failed-resource:atlas",
+        state: "Failure",
+        sources: ["RuntimeEvent"],
+      }),
+      expect.objectContaining({
+        key: "Project.interrupted-resource:atlas",
+        state: "Interrupted",
+        sources: ["RuntimeEvent"],
+      }),
+    ]);
+  });
+
   it("projects resource and collection runtime events into their panels", () => {
     const store = makeDevtoolsStore();
 
@@ -3702,7 +3732,7 @@ describe("devtools invalidation plans", () => {
       _tag: "ResourceSuccess",
       name: "Project.runtime-resource",
       key: "Project.runtime-resource:atlas",
-      updatedAt: 1,
+      timestamp: 1,
     });
     store.recordCollectionEvent({
       _tag: "CollectionLoadFailure",
@@ -5511,7 +5541,7 @@ describe("devtools invalidation plans", () => {
           _tag: "ResourceSuccess",
           name: "User.effect-devtools",
           key: "User.effect-devtools:1",
-          updatedAt: 1,
+          timestamp: 1,
         });
 
         return yield* Effect.all([
@@ -5530,7 +5560,7 @@ describe("devtools invalidation plans", () => {
           _tag: "ResourceSuccess",
           name: "User.effect-devtools",
           key: "User.effect-devtools:1",
-          updatedAt: 1,
+          timestamp: 1,
         },
       },
     ]);
@@ -5652,7 +5682,8 @@ describe("devtools invalidation plans", () => {
                 yield* store.recordRuntimeEventEffect({
                   _tag: "ActionState",
                   action: RenameProject.name,
-                  state: actionState._tag,
+                  state: actionState.result._tag,
+                  waiting: actionState.result.waiting,
                   input: { id: "atlas" },
                   invalidationIndexes: [0],
                 });
@@ -5669,7 +5700,8 @@ describe("devtools invalidation plans", () => {
                   actions: [
                     {
                       name: RenameProject.name,
-                      state: actionState._tag,
+                      state: actionState.result._tag,
+                      waiting: actionState.result.waiting,
                       invalidationIndexes: [0],
                     },
                   ],

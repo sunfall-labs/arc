@@ -59,7 +59,13 @@ const panels = yield * store.getPanelsEffect();
 
 Actions can be observed directly from their public instance. The observer is
 scoped, records action state transitions as runtime events, and links successful
-states to the action's invalidation plan when one exists:
+states to the action's invalidation plan when one exists. Action facts mirror the
+submission `AsyncResult`: `state` is its tag (`Initial`, `Success`, or `Failure`)
+and `waiting` is true while a submission is in flight. Start request traces
+report collection load state the same way (`state` tag plus `waiting`).
+Resource events publish `ResourceFailure` with the full `cause` (typed errors
+and defects) and `ResourceInterrupted` when a load was cancelled and the entry
+returned to its prior settled result:
 
 ```ts
 yield * store.trackActionEffect(renameAction);
@@ -398,9 +404,9 @@ The devtools product should grow in this order:
   collections, schemas, endpoints, and module ownership.
 - Route Inspector: matched route, params, search, declared preload ownership,
   concrete preloaded refs, collection preload, and hydration payloads.
-- Resource Timeline: pending, success, failure, hydration, invalidation,
-  deletion, GC scheduling, and stale/refresh state.
-- Action Timeline: idle, pending, success, failure, input, concurrency,
+- Resource Timeline: pending, success, failure, interruption, hydration,
+  invalidation, deletion, GC scheduling, and stale/refresh state.
+- Action Timeline: `AsyncResult` tag plus `waiting`, input, concurrency,
   optimistic work, invalidation plan, Start transport metadata, and hydration
   payload.
 - Program Timeline: messages, before/after model snapshots, command

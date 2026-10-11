@@ -24,10 +24,10 @@ pnpm --filter @sunfall/arc-spike-solid2 test
   `signal-transaction.ts`). Arc's synchronous graph is committed state; each
   signal lazily projects into a Solid signal for rendering. Raw Solid signals
   would lose updates in the Program runtime when two messages land in one tick.
-- **Keep `ResourceState` for now.** Effect's `AsyncResult` (stable in Effect 4
-  as `effect/reactivity`) is lossy in both directions against it — it keeps
-  errors while retrying and carries a full `Cause`. Revisit unifying on it now
-  that it is stable.
+- **Unified on `AsyncResult` (supersedes "keep `ResourceState`").** Resources,
+  Actions, Collections, and Live Queries now hold Effect's `AsyncResult`
+  (`effect/reactivity`) directly: errors stay visible while retrying (`Failure`
+  with `waiting: true`) and failures carry the full `Cause`.
 - **Keep TSRX**; `@tsrx/solid@0.3.x` already targets Solid 2.
 
 ## Next

@@ -1,12 +1,13 @@
 import type {
   ActionInstance,
+  ActionState,
   ProgramEvent,
   ProgramInstance,
   ResourceInvalidationPlan,
   ResourceStoreEvent,
   Route,
 } from "@sunfall/arc-core";
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
 import { DevtoolsActionInvalidationPlanConflict } from "./devtools-contract.js";
 import type {
   DevtoolsCollectionStoreEvent,
@@ -44,13 +45,16 @@ import {
 import { describeDevtoolsPanels } from "./panels.js";
 import { describeDevtoolsCausalGraph, describeDevtoolsSummary } from "./summary.js";
 
-const actionStateTag = (state: { readonly _tag: string }): string => state._tag;
-
-const actionStateInput = <I>(state: { readonly _tag: string }): I | undefined =>
-  "input" in state ? (state as { readonly input: I }).input : undefined;
+const actionStateFacts = <I, A, E>(
+  state: ActionState<I, A, E>,
+): { readonly tag: string; readonly waiting: boolean; readonly input: I | undefined } => ({
+  tag: state.result._tag,
+  waiting: state.result.waiting,
+  input: Option.getOrUndefined(state.input),
+});
 
 type AnyActionInstance = ActionInstance<any, any, any, any>;
-type AnyStartActionInstance = DevtoolsStartActionInstance<any, any, any, any>;
+type AnyStartActionInstance = DevtoolsStartActionInstance<any, any, any>;
 
 const normalizeHistoryLimit = (value: number | undefined, fallback: number): number =>
   value === undefined || !Number.isFinite(value) || value <= 0
@@ -368,6 +372,7 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
         {
           name: action,
           state,
+          ...(actionOptions.waiting === undefined ? {} : { waiting: actionOptions.waiting }),
           ...(invalidationIndexes === undefined ? {} : { invalidationIndexes }),
         },
       ],
@@ -376,26 +381,27 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
       _tag: "ActionState",
       action,
       state,
+      ...(actionOptions.waiting === undefined ? {} : { waiting: actionOptions.waiting }),
       ...(actionOptions.input === undefined ? {} : { input: actionOptions.input }),
       ...(invalidationIndexes === undefined ? {} : { invalidationIndexes }),
     });
   };
 
   const recordAction = <I, A, E, R>(action: ActionInstance<I, A, E, R>): void => {
-    const state = action.state.get();
-    const input = actionStateInput(state);
+    const { tag, waiting, input } = actionStateFacts(action.state.get());
     const invalidationPlan = action.invalidationPlan.get();
-    recordActionState(action.definition.name, actionStateTag(state), {
+    recordActionState(action.definition.name, tag, {
+      waiting,
       ...(input === undefined ? {} : { input }),
       ...(invalidationPlan === undefined ? {} : { invalidationPlan }),
     });
   };
 
-  const recordStartAction = <I, A, E, P>(action: DevtoolsStartActionInstance<I, A, E, P>): void => {
-    const state = action.state.get();
-    const input = actionStateInput(state);
+  const recordStartAction = <I, A, E>(action: DevtoolsStartActionInstance<I, A, E>): void => {
+    const { tag, waiting, input } = actionStateFacts(action.state.get());
     const serializedInvalidationPlan = action.invalidation.get();
-    recordActionState(action.definition.name, actionStateTag(state), {
+    recordActionState(action.definition.name, tag, {
+      waiting,
       ...(input === undefined ? {} : { input }),
       ...(serializedInvalidationPlan === undefined ? {} : { serializedInvalidationPlan }),
     });
@@ -471,11 +477,11 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
       }),
       (unsubscribe) => Effect.sync(unsubscribe),
     ).pipe(Effect.asVoid);
-  const recordStartActionEffect = <I, A, E, P>(action: DevtoolsStartActionInstance<I, A, E, P>) =>
+  const recordStartActionEffect = <I, A, E>(action: DevtoolsStartActionInstance<I, A, E>) =>
     Effect.sync(() => {
       recordStartAction(action);
     });
-  const trackStartActionEffect = <I, A, E, P>(action: DevtoolsStartActionInstance<I, A, E, P>) =>
+  const trackStartActionEffect = <I, A, E>(action: DevtoolsStartActionInstance<I, A, E>) =>
     Effect.acquireRelease(
       Effect.sync(() => {
         recordStartAction(action);

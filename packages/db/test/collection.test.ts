@@ -22,6 +22,7 @@ import {
   makeCollectionReactivePreloadController,
 } from "@sunfall/arc-db";
 import { Cause, Deferred, Effect, Exit, Fiber, Option, PubSub, Schedule, Schema } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vitest";
 import {
   markStoreExplicitCollectionSnapshotDefinition,
@@ -102,6 +103,29 @@ const ProjectSchema = Schema.Struct({
 });
 
 const ProjectRowsSchema = Schema.Array(ProjectSchema);
+
+/** Flattens an `AsyncResult` into matchable facts: tag, waiting, value/timestamp, typed error, and previous success value. */
+const asyncResultFacts = (result: AsyncResult.AsyncResult<unknown, unknown>) => {
+  switch (result._tag) {
+    case "Initial":
+      return { _tag: result._tag, waiting: result.waiting };
+    case "Success":
+      return {
+        _tag: result._tag,
+        waiting: result.waiting,
+        value: result.value,
+        timestamp: result.timestamp,
+      };
+    case "Failure":
+      return {
+        _tag: result._tag,
+        waiting: result.waiting,
+        error: Option.getOrUndefined(AsyncResult.error(result)),
+        previous: Option.getOrUndefined(AsyncResult.value(result)),
+        cause: result.cause,
+      };
+  }
+};
 
 describe("Collection", () => {
   it("interrupts reactive preloads through an awaitable Effect", () => {
@@ -191,7 +215,7 @@ describe("Collection", () => {
         $origin: "remote",
       },
     ]);
-    expect(read(Projects.state())._tag).toBe("Ready");
+    expect(read(Projects.state())._tag).toBe("Success");
     expect(load).toHaveBeenCalledTimes(1);
   });
 
@@ -275,10 +299,12 @@ describe("Collection", () => {
       await Effect.runPromise(Deferred.await(started));
       await Effect.runPromise(Fiber.interrupt(preload));
       await Effect.runPromise(Deferred.await(interrupted));
-      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
-        _tag: "Initial",
-        waiting: false,
-      });
+      expect(asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get()))).toMatchObject(
+        {
+          _tag: "Initial",
+          waiting: false,
+        },
+      );
 
       const retry = await Effect.runPromise(
         runtime.provide(Projects.preloadEffect().pipe(Effect.timeoutOption("1 second"))),
@@ -291,9 +317,11 @@ describe("Collection", () => {
       expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual([
         "atlas",
       ]);
-      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
-        _tag: "Ready",
-      });
+      expect(asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get()))).toMatchObject(
+        {
+          _tag: "Success",
+        },
+      );
     } finally {
       if (preload !== undefined) {
         await Effect.runPromise(Fiber.await(preload));
@@ -391,10 +419,12 @@ describe("Collection", () => {
       await Effect.runPromise(Fiber.join(owner));
       await Effect.runPromise(Fiber.join(joiner));
 
-      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
-        _tag: "Ready",
-        waiting: false,
-      });
+      expect(asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get()))).toMatchObject(
+        {
+          _tag: "Success",
+          waiting: false,
+        },
+      );
       expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
         name: "Atlas Fresh",
         progress: 90,
@@ -518,10 +548,12 @@ describe("Collection", () => {
         expect(preloadExit.cause.reasons.find(Cause.isFailReason)?.error).toBe(refetchFailure);
         expect(refetchExit.cause.reasons.find(Cause.isFailReason)?.error).toBe(refetchFailure);
       }
-      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
-        _tag: "Failure",
-        error: refetchFailure,
-      });
+      expect(asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get()))).toMatchObject(
+        {
+          _tag: "Failure",
+          error: refetchFailure,
+        },
+      );
     } finally {
       Effect.runSync(Deferred.succeed(releasePreload, undefined).pipe(Effect.ignore));
       Effect.runSync(Deferred.fail(releaseRefetch, "cleanup").pipe(Effect.ignore));
@@ -586,20 +618,24 @@ describe("Collection", () => {
       expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.name))).toEqual(
         ["Initial"],
       );
-      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
-        _tag: "Pending",
-        waiting: true,
-      });
+      expect(asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get()))).toMatchObject(
+        {
+          _tag: "Success",
+          waiting: true,
+        },
+      );
 
       await Effect.runPromise(Fiber.interrupt(refetch));
 
       expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.name))).toEqual(
         ["Initial"],
       );
-      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
-        _tag: "Ready",
-        waiting: false,
-      });
+      expect(asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get()))).toMatchObject(
+        {
+          _tag: "Success",
+          waiting: false,
+        },
+      );
 
       const retry = await Effect.runPromise(
         runtime.provide(Projects.refetchEffect().pipe(Effect.timeoutOption("1 second"))),
@@ -649,17 +685,21 @@ describe("Collection", () => {
     let refetch: Fiber.Fiber<unknown, unknown> | undefined;
 
     try {
-      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
-        _tag: "Ready",
-        waiting: false,
-      });
+      expect(asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get()))).toMatchObject(
+        {
+          _tag: "Success",
+          waiting: false,
+        },
+      );
 
       refetch = runtime.runFork(Projects.refetchEffect());
       await Effect.runPromise(Deferred.await(refetchStarted));
-      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
-        _tag: "Pending",
-        waiting: true,
-      });
+      expect(asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get()))).toMatchObject(
+        {
+          _tag: "Success",
+          waiting: true,
+        },
+      );
 
       await Effect.runPromise(Fiber.interrupt(refetch));
       await Effect.runPromise(Deferred.await(interrupted));
@@ -667,10 +707,12 @@ describe("Collection", () => {
       expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.name))).toEqual(
         ["Initial"],
       );
-      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
-        _tag: "Ready",
-        waiting: false,
-      });
+      expect(asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get()))).toMatchObject(
+        {
+          _tag: "Success",
+          waiting: false,
+        },
+      );
     } finally {
       if (refetch !== undefined) {
         await Effect.runPromise(Fiber.await(refetch));
@@ -866,7 +908,7 @@ describe("Collection", () => {
 
     expect(Projects.rows()).toEqual([]);
     expect(Projects.get("atlas")).toBeUndefined();
-    expect(Projects.state().get()).toMatchObject({
+    expect(asyncResultFacts(Projects.state().get())).toMatchObject({
       _tag: "Failure",
       error: {
         _tag: "CollectionSnapshotCodecError",
@@ -902,7 +944,7 @@ describe("Collection", () => {
     });
 
     expect(PromiseRows.rows()).toEqual([]);
-    expect(PromiseRows.state().get()).toMatchObject({
+    expect(asyncResultFacts(PromiseRows.state().get())).toMatchObject({
       _tag: "Failure",
       error: {
         _tag: "CollectionSnapshotCodecError",
@@ -911,7 +953,7 @@ describe("Collection", () => {
       },
     });
     expect(EffectRows.rows()).toEqual([]);
-    expect(EffectRows.state().get()).toMatchObject({
+    expect(asyncResultFacts(EffectRows.state().get())).toMatchObject({
       _tag: "Failure",
       error: {
         _tag: "CollectionSnapshotCodecError",
@@ -920,7 +962,7 @@ describe("Collection", () => {
       },
     });
     expect(ThrowingThenRows.rows()).toEqual([]);
-    expect(ThrowingThenRows.state().get()).toMatchObject({
+    expect(asyncResultFacts(ThrowingThenRows.state().get())).toMatchObject({
       _tag: "Failure",
       error: {
         _tag: "CollectionSnapshotCodecError",
@@ -947,7 +989,7 @@ describe("Collection", () => {
     });
 
     expect(Projects.rows()).toEqual([]);
-    expect(Projects.state().get()).toMatchObject({
+    expect(asyncResultFacts(Projects.state().get())).toMatchObject({
       _tag: "Failure",
       error: {
         _tag: "EffectInputCallbackError",
@@ -1078,7 +1120,7 @@ describe("Collection", () => {
             "Collection.getKey(Projects.load-key-sync-throw)",
           );
           expect((failure as EffectInputCallbackError).cause).toBe(thrown);
-          expect(read(Projects.state())).toMatchObject({
+          expect(asyncResultFacts(read(Projects.state()))).toMatchObject({
             _tag: "Failure",
             error: failure,
           });
@@ -1140,7 +1182,7 @@ describe("Collection", () => {
             operation: "load",
           });
           expect(Projects.rows()).toEqual([]);
-          expect(Projects.state().get()).toMatchObject({
+          expect(asyncResultFacts(Projects.state().get())).toMatchObject({
             _tag: "Failure",
             error: failure,
           });
@@ -2528,7 +2570,9 @@ describe("Collection", () => {
         expect(loads).toBe(1);
         expect(writes).toBe(1);
         expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
-        expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+        expect(
+          asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get())),
+        ).toMatchObject({
           _tag: "Failure",
           error: "disk-full",
         });
@@ -2545,8 +2589,10 @@ describe("Collection", () => {
           name: "Loaded 2",
           progress: 92,
         });
-        expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
-          _tag: "Ready",
+        expect(
+          asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get())),
+        ).toMatchObject({
+          _tag: "Success",
         });
         expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Loaded 2"]);
       }).pipe(Effect.ensuring(runtime.disposeEffect)),
@@ -2619,7 +2665,9 @@ describe("Collection", () => {
         expect(
           runWithRuntime(runtime, () => Projects.rows().map((project) => project.name)),
         ).toEqual(["Initial"]);
-        expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+        expect(
+          asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get())),
+        ).toMatchObject({
           _tag: "Failure",
           error: "disk-full",
         });
@@ -2636,8 +2684,10 @@ describe("Collection", () => {
           name: "Refetched 2",
           progress: 82,
         });
-        expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
-          _tag: "Ready",
+        expect(
+          asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get())),
+        ).toMatchObject({
+          _tag: "Success",
         });
         expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Refetched 2"]);
       }).pipe(Effect.ensuring(runtime.disposeEffect)),
@@ -2729,7 +2779,9 @@ describe("Collection", () => {
         expect(
           runWithRuntime(runtime, () => Projects.rows().map((project) => project.name)),
         ).toEqual(["Restored"]);
-        expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+        expect(
+          asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get())),
+        ).toMatchObject({
           _tag: "Failure",
           error: "disk-full",
         });
@@ -2746,8 +2798,10 @@ describe("Collection", () => {
           name: "Loaded 2",
           progress: 52,
         });
-        expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
-          _tag: "Ready",
+        expect(
+          asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get())),
+        ).toMatchObject({
+          _tag: "Success",
         });
         expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Loaded 2"]);
       }).pipe(Effect.ensuring(runtime.disposeEffect)),
@@ -3380,7 +3434,9 @@ describe("Collection", () => {
 
         expect(payload.collections[0]?.rows).toEqual([]);
         expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
-        expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+        expect(
+          asyncResultFacts(runWithRuntime(runtime, () => Projects.state().get())),
+        ).toMatchObject({
           _tag: "Failure",
           error: { _tag: "CollectionSnapshotCodecError", operation: "load" },
         });
@@ -4888,11 +4944,15 @@ describe("Collection", () => {
             expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
             expect((failure as CollectionSnapshotCodecError).reason).toContain("progress");
           }
-          expect(runWithRuntime(runtime, () => LoadingProjects.state().get())).toMatchObject({
+          expect(
+            asyncResultFacts(runWithRuntime(runtime, () => LoadingProjects.state().get())),
+          ).toMatchObject({
             _tag: "Failure",
             error: preloadFailure,
           });
-          expect(runWithRuntime(runtime, () => RefetchProjects.state().get())).toMatchObject({
+          expect(
+            asyncResultFacts(runWithRuntime(runtime, () => RefetchProjects.state().get())),
+          ).toMatchObject({
             _tag: "Failure",
             error: refetchFailure,
           });
@@ -7090,9 +7150,9 @@ describe("Query", () => {
 
     const live = Query.live(factory);
     expect(live.data.get()).toEqual([]);
-    expect(live.state.get()).toMatchObject({
+    expect(asyncResultFacts(live.state.get())).toMatchObject({
       _tag: "Failure",
-      data: [],
+      previous: undefined,
       error: {
         _tag: "QueryEvaluationError",
         operation: "evaluate",
@@ -7172,7 +7232,7 @@ describe("Query", () => {
       }
 
       const live = Query.live(factory);
-      expect(live.state.get()).toMatchObject({
+      expect(asyncResultFacts(live.state.get())).toMatchObject({
         _tag: "Failure",
         error: {
           _tag: "QueryEvaluationError",
@@ -7219,9 +7279,9 @@ describe("Query", () => {
 
       const live = Query.live(factory);
       expect(live.data.get()).toEqual([]);
-      expect(live.state.get()).toMatchObject({
+      expect(asyncResultFacts(live.state.get())).toMatchObject({
         _tag: "Failure",
-        data: [],
+        previous: undefined,
         error: {
           _tag: "QueryEvaluationError",
           operation: "evaluate",
@@ -7298,9 +7358,9 @@ describe("Query", () => {
     expect(projectLoad).not.toHaveBeenCalled();
     expect(live.data.get()).toEqual([]);
     const state = live.state.get();
-    expect(state).toMatchObject({
+    expect(asyncResultFacts(state)).toMatchObject({
       _tag: "Failure",
-      data: [],
+      previous: undefined,
       error: {
         _tag: "QueryEvaluationError",
         operation: "evaluate",
@@ -7353,7 +7413,7 @@ describe("Query", () => {
     }
 
     const live = Query.live(factory);
-    expect(live.state.get()).toMatchObject({
+    expect(asyncResultFacts(live.state.get())).toMatchObject({
       _tag: "Failure",
       error: {
         _tag: "QueryEvaluationError",
@@ -7393,7 +7453,7 @@ describe("Query", () => {
     }
 
     const live = Query.live(factory);
-    expect(live.state.get()).toMatchObject({
+    expect(asyncResultFacts(live.state.get())).toMatchObject({
       _tag: "Failure",
       error: {
         _tag: "QueryEvaluationError",
@@ -7443,7 +7503,7 @@ describe("Query", () => {
 
       const live = Query.live(factory);
       expect(live.data.get()).toEqual([]);
-      expect(live.state.get()).toMatchObject({
+      expect(asyncResultFacts(live.state.get())).toMatchObject({
         _tag: "Failure",
         error: {
           _tag: "QueryEvaluationError",
@@ -7571,7 +7631,7 @@ describe("Query", () => {
       }
 
       const live = Query.live(testCase.factory);
-      expect(live.state.get()).toMatchObject({
+      expect(asyncResultFacts(live.state.get())).toMatchObject({
         _tag: "Failure",
         error: {
           _tag: "QueryEvaluationError",
@@ -7638,7 +7698,7 @@ describe("Query", () => {
       }
 
       const live = Query.live(testCase.factory);
-      expect(live.state.get()).toMatchObject({
+      expect(asyncResultFacts(live.state.get())).toMatchObject({
         _tag: "Failure",
         error: {
           _tag: "QueryEvaluationError",
@@ -7696,9 +7756,9 @@ describe("Query", () => {
 
     const live = Query.live(factory);
     expect(live.data.get()).toEqual([]);
-    expect(live.state.get()).toMatchObject({
+    expect(asyncResultFacts(live.state.get())).toMatchObject({
       _tag: "Failure",
-      data: [],
+      previous: undefined,
       error: {
         _tag: "QueryEvaluationError",
         operation: "evaluate",
@@ -7947,7 +8007,7 @@ describe("Query", () => {
       query.from({ project: Projects }).select(({ project }) => project.name),
     );
 
-    expect(live.state.get()).toMatchObject({
+    expect(asyncResultFacts(live.state.get())).toMatchObject({
       _tag: "Failure",
       error: {
         _tag: "QueryEvaluationError",

@@ -1,12 +1,8 @@
 import type { ReadableSignal } from "@sunfall/arc-core";
 import type { Effect } from "effect";
+import type { AsyncResult } from "effect/reactivity";
 import { collectionIndexJoinKeys, collectionIndexes } from "./collection-index-materialization.js";
-import type {
-  AnyCollection,
-  CollectionIndexValue,
-  CollectionLoadState,
-  CollectionRow,
-} from "./collection-contract.js";
+import type { AnyCollection, CollectionIndexValue, CollectionRow } from "./collection-contract.js";
 
 export type QuerySourceRow = CollectionRow<any, any>;
 
@@ -26,7 +22,7 @@ export interface QueryCollectionSourceAdapter {
   indexRows(index: string, value: CollectionIndexValue): ReadonlyArray<QuerySourceRow>;
   indexJoinKeys(index: string, row: QuerySourceRow): ReadonlyArray<CollectionIndexValue>;
   version(): ReadableSignal<number>;
-  state(): ReadableSignal<CollectionLoadState<any>>;
+  state(): ReadableSignal<AsyncResult.AsyncResult<void, any>>;
   preloadEffect(force: boolean): Effect.Effect<void, any, any>;
 }
 

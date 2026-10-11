@@ -29,6 +29,8 @@ import {
   EffectInputCallbackError,
   toEffect,
 } from "./effect-like.js";
+import { AsyncResult } from "effect/reactivity";
+import { settleResult } from "./async-result-settle.js";
 import { parseDuration } from "./resource-duration.js";
 import { lookupResourceHydrationFamily } from "./resource-registry.js";
 import {
@@ -51,12 +53,9 @@ import {
   isResourceStateCollected,
   isResourceStateStale,
   makeResourceEntry,
-  previousResourceValue,
   resetResourceEntry,
   scheduleResourceGc,
-  setResourceFailure,
   setResourcePending,
-  setResourceSuccess,
   shouldShowResourcePending,
   trackResourceFiber,
   type ResourceLifetimeEntry as ResourceEntry,
@@ -81,7 +80,6 @@ import type {
   ResourceLoadError,
   ResourceTag,
   ResourceRef,
-  ResourceState,
   ResourceStatus,
 } from "./resource.js";
 
@@ -326,7 +324,7 @@ export const subscribeResourceEventsEffect = (): Effect.Effect<
 
 export const resourceResult = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-): ReadableSignal<ResourceState<A, ResourceLoadError<E>>> =>
+): ReadableSignal<AsyncResult.AsyncResult<A, ResourceLoadError<E>>> =>
   resourceEntry(ref, currentResourceStore()).state;
 
 export const resourceStatus = <I, A, E, R>(
@@ -336,7 +334,7 @@ export const resourceStatus = <I, A, E, R>(
   const store = unsafeMutableResourceStore(runtime.resourceStore);
   return inspectResourceStatus(
     ref,
-    peekResourceEntry(ref, store)?.state.get() ?? { _tag: "Initial", waiting: false },
+    peekResourceEntry(ref, store)?.state.get() ?? AsyncResult.initial(),
     runtimeCurrentTimeMillis(runtime),
   );
 };
@@ -349,7 +347,7 @@ export const resourceStatusEffect = <I, A, E, R>(
     const now = yield* Clock.currentTimeMillis;
     return inspectResourceStatus(
       ref,
-      peekResourceEntry(ref, store)?.state.get() ?? { _tag: "Initial", waiting: false },
+      peekResourceEntry(ref, store)?.state.get() ?? AsyncResult.initial(),
       now,
     );
   });
@@ -384,67 +382,95 @@ export const runResourceEffect = <I, A, E, R>(
     }
 
     const token = {};
-    const loadEffect = Effect.gen(function* () {
-      const current = entry.state.get();
-      const pendingNow = yield* Clock.currentTimeMillis;
-      const shouldShowPending = shouldShowResourcePending(
-        ref as ResourceRef<unknown, A, E, unknown>,
-        current,
-        options.force,
-        pendingNow,
-        isResourceRefRetained(ref as AnyResourceRef, store),
-      );
+    // Every load settles from its Exit (success, typed failure, defect, or
+    // interruption) inside an uninterruptible region, so no outcome can leave
+    // the entry `waiting`. Only the load itself is interruptible.
+    const loadEffect = Effect.uninterruptibleMask((restore) =>
+      Effect.gen(function* () {
+        const current = entry.state.get();
+        const pendingNow = yield* Clock.currentTimeMillis;
+        const shouldShowPending = shouldShowResourcePending(
+          ref as ResourceRef<unknown, A, E, unknown>,
+          current,
+          options.force,
+          pendingNow,
+          isResourceRefRetained(ref as AnyResourceRef, store),
+        );
 
-      if (shouldShowPending) {
-        yield* interruptResourceGc(entry, store);
-        setResourcePending(entry);
-        yield* publishResourceStoreEvent(store, {
-          _tag: "ResourcePending",
-          name: ref.family.options.name,
-          key: ref.key,
-          force: options.force,
-          previous: previousResourceValue(current).present,
-        });
-      }
-
-      const value = yield* options.force
-        ? refreshCachedResourceEffect(ref, store)
-        : getCachedResourceEffect(ref, store);
-      const tags = yield* resourceProvidedTagsEffect(ref, value);
-      const updatedAt = yield* Clock.currentTimeMillis;
-      recordResourceProvidedTags(ref, tags, store);
-      setResourceSuccess(entry, value, updatedAt);
-
-      yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
-        isResourceRefRetained(ref as AnyResourceRef, store),
-      );
-      yield* publishResourceStoreEvent(store, {
-        _tag: "ResourceSuccess",
-        name: ref.family.options.name,
-        key: ref.key,
-        updatedAt,
-      });
-
-      return value;
-    }).pipe(
-      Effect.catch((error: ResourceLoadError<E>) =>
-        Effect.gen(function* () {
+        if (shouldShowPending) {
           yield* interruptResourceGc(entry, store);
-          const previous = previousResourceValue(entry.state.get());
-          setResourceFailure(entry, error);
-          yield* invalidateCachedResourceEffect(ref, store);
+          setResourcePending(entry);
+          yield* publishResourceStoreEvent(store, {
+            _tag: "ResourcePending",
+            name: ref.family.options.name,
+            key: ref.key,
+            force: options.force,
+            previous: Option.isSome(AsyncResult.value(current)),
+          });
+        }
+
+        const exit = yield* Effect.exit(
+          restore(
+            Effect.flatMap(
+              options.force
+                ? refreshCachedResourceEffect(ref, store)
+                : getCachedResourceEffect(ref, store),
+              (value) =>
+                Effect.map(resourceProvidedTagsEffect(ref, value), (tags) => ({ value, tags })),
+            ),
+          ),
+        );
+        const now = yield* Clock.currentTimeMillis;
+        const previous = entry.state.get();
+        const settled = settleResult(
+          Exit.map(exit, (loaded) => loaded.value),
+          previous,
+          now,
+        );
+
+        if (Exit.isSuccess(exit)) {
+          recordResourceProvidedTags(ref, exit.value.tags, store);
+          entry.state.set(settled);
+          yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
+            isResourceRefRetained(ref as AnyResourceRef, store),
+          );
+          yield* publishResourceStoreEvent(store, {
+            _tag: "ResourceSuccess",
+            name: ref.family.options.name,
+            key: ref.key,
+            timestamp: now,
+          });
+          return exit.value.value;
+        }
+
+        yield* invalidateCachedResourceEffect(ref, store);
+        entry.state.set(settled);
+        if (settled._tag === "Failure") {
+          yield* interruptResourceGc(entry, store);
           yield* publishResourceStoreEvent(store, {
             _tag: "ResourceFailure",
             name: ref.family.options.name,
             key: ref.key,
-            error,
-            previous: previous.present,
+            cause: exit.cause,
+            previous: Option.isSome(settled.previousSuccess),
           });
-          return yield* Effect.fail(error);
-        }),
-      ),
-      Effect.ensuring(clearResourceInFlight(entry, store, token)),
-    );
+        } else {
+          // Cancelled: the prior settled result is back, so a restored success
+          // regains the GC lifetime that showing pending interrupted.
+          if (settled._tag === "Success") {
+            yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
+              isResourceRefRetained(ref as AnyResourceRef, store),
+            );
+          }
+          yield* publishResourceStoreEvent(store, {
+            _tag: "ResourceInterrupted",
+            name: ref.family.options.name,
+            key: ref.key,
+          });
+        }
+        return yield* Effect.failCause(exit.cause);
+      }),
+    ).pipe(Effect.ensuring(clearResourceInFlight(entry, store, token)));
     const fiber = yield* Effect.forkDetach(loadEffect, { startImmediately: true });
     entry.inFlight = {
       token,
@@ -481,15 +507,13 @@ export const collectResourceEffect = <A, E, R>(
 
 const resourcePending = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  state: "Initial" | "Pending" | "Collected",
-  previous: A | undefined,
-  hasPrevious = false,
+  reason: "Initial" | "Pending" | "Collected",
+  result: AsyncResult.AsyncResult<A, ResourceLoadError<E>>,
 ): ResourcePending<I, A, E, R> =>
   new ResourcePending({
     ref,
-    state,
-    previous,
-    hasPrevious,
+    reason,
+    result,
     guidance:
       "Resource.read(...) is a synchronous render/host-adapter seam. Run Resource.prefetchEffect(...) before reading, use Resource.readEffect(...) inside Effect code, or use a UI adapter such as Solid useResourceSuspense(...) for Suspense.",
   });
@@ -510,56 +534,56 @@ type ResourceReadDecision<I, A, E, R> =
       readonly failure: ResourceFailure<I, A, ResourceLoadError<E>, R, E>;
     };
 
+/**
+ * Resource Read Decision derived from the entry's `AsyncResult`.
+ *
+ * - `Initial` reads are pending (`Initial`, or `Pending` while a first load is in flight).
+ * - `Success` reads return the value; a settled stale value also requests a
+ *   background refresh, and a value past `gcFor` resets to pending (`Collected`).
+ * - `Failure` reads fail with `ResourceFailure`, except while a retry is in
+ *   flight: stale data is returned when present, otherwise the read is pending.
+ */
 const resourceReadDecision = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   entry: ResourceEntry<A, ResourceLoadError<E>> | undefined,
   now: number,
   retained = false,
 ): ResourceReadDecision<I, A, E, R> => {
-  if (entry === undefined) {
-    return { _tag: "Pending", pending: resourcePending(ref, "Initial", undefined) };
+  const result = entry?.state.get() ?? AsyncResult.initial();
+  switch (result._tag) {
+    case "Initial":
+      return {
+        _tag: "Pending",
+        pending: resourcePending(ref, result.waiting ? "Pending" : "Initial", result),
+      };
+    case "Failure":
+      if (!result.waiting) {
+        return { _tag: "Failure", failure: new ResourceFailure({ ref, result }) };
+      }
+      return Option.isSome(result.previousSuccess)
+        ? { _tag: "Value", value: result.previousSuccess.value.value, refresh: false }
+        : { _tag: "Pending", pending: resourcePending(ref, "Pending", result) };
+    case "Success":
+      if (result.waiting) {
+        return { _tag: "Value", value: result.value, refresh: false };
+      }
+      if (
+        entry !== undefined &&
+        !retained &&
+        isResourceStateCollected(ref as ResourceRef<unknown, A, E, unknown>, result, now)
+      ) {
+        return {
+          _tag: "Pending",
+          pending: resourcePending(ref, "Collected", result),
+          resetEntry: entry,
+        };
+      }
+      return {
+        _tag: "Value",
+        value: result.value,
+        refresh: isResourceStateStale(ref as ResourceRef<unknown, A, E, unknown>, result, now),
+      };
   }
-
-  const state = entry.state.get();
-  if (state._tag === "Initial") {
-    return { _tag: "Pending", pending: resourcePending(ref, "Initial", undefined) };
-  }
-
-  if (state._tag === "Pending") {
-    return "previous" in state
-      ? { _tag: "Value", value: state.previous as A, refresh: false }
-      : { _tag: "Pending", pending: resourcePending(ref, "Pending", undefined, false) };
-  }
-
-  if (state._tag === "Failure") {
-    const hasPrevious = "previous" in state;
-    return {
-      _tag: "Failure",
-      failure: new ResourceFailure({
-        ref,
-        error: state.error,
-        previous: hasPrevious ? state.previous : undefined,
-        hasPrevious,
-      }),
-    };
-  }
-
-  if (
-    !retained &&
-    isResourceStateCollected(ref as ResourceRef<unknown, A, E, unknown>, state, now)
-  ) {
-    return {
-      _tag: "Pending",
-      pending: resourcePending(ref, "Collected", state.value, true),
-      resetEntry: entry,
-    };
-  }
-
-  return {
-    _tag: "Value",
-    value: state.value,
-    refresh: isResourceStateStale(ref as ResourceRef<unknown, A, E, unknown>, state, now),
-  };
 };
 
 export const readResource = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): A => {
@@ -692,7 +716,7 @@ export const dehydrateResources = (
     if (entry === undefined) {
       continue;
     }
-    const state = entry.state.get() as ResourceState<unknown, unknown>;
+    const state = entry.state.get();
     if (state._tag === "Success") {
       snapshot.push(resourceHydrationSnapshotFromRef(ref, state, `$[${pathIndex}]`));
     }
@@ -715,7 +739,7 @@ export const dehydrateResourcesEffect = (
       if (entry === undefined) {
         continue;
       }
-      const state = entry.state.get() as ResourceState<unknown, unknown>;
+      const state = entry.state.get();
       if (state._tag === "Success") {
         snapshot.push(yield* resourceHydrationSnapshotFromRefEffect(ref, state, `$[${pathIndex}]`));
       }
@@ -737,23 +761,23 @@ export const resourceHydrationPayloadEffect = (
 
 interface ResourceHydrationPlanEntry {
   readonly ref: ResourceRef<any, any, any, any>;
-  readonly state: Extract<ResourceState<any, any>, { readonly _tag: "Success" }>;
+  readonly state: AsyncResult.Success<any, any>;
   readonly tags: readonly ResourceTag[];
 }
 
 const applyHydratedResourceRefEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  state: Extract<ResourceState<A, E>, { readonly _tag: "Success" }>,
+  state: AsyncResult.Success<A, ResourceLoadError<E>>,
   tags: readonly ResourceTag[],
   store: ResourceStoreState,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     rememberResourceRef(ref, store);
     const entry = resourceEntry(ref, store);
-    yield* interruptResourceGc(entry, store);
     yield* interruptResourceInFlight(entry, store);
+    yield* interruptResourceGc(entry, store);
     recordResourceProvidedTags(ref, tags, store);
-    setResourceSuccess(entry, state.value, state.updatedAt);
+    entry.state.set(state);
     yield* Cache.set(resourceCache(ref.family, store), ref.key, state.value);
     yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
       isResourceRefRetained(ref as AnyResourceRef, store),
@@ -762,13 +786,13 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
       _tag: "ResourceHydrated",
       name: ref.family.options.name,
       key: ref.key,
-      updatedAt: state.updatedAt,
+      timestamp: state.timestamp,
     });
   });
 
 export const hydrateResourceRefEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  state: Extract<ResourceState<A, E>, { readonly _tag: "Success" }>,
+  state: AsyncResult.Success<A, ResourceLoadError<E>>,
   store: ResourceStoreState,
 ): Effect.Effect<void, EffectInputCallbackError> =>
   Effect.gen(function* () {
@@ -805,8 +829,10 @@ export const deleteResourceFromStoreEffect = <I, A, E, R>(
     }
 
     if (entry) {
-      yield* interruptResourceGc(entry, store);
+      // In-flight first: an interrupted load settles (and may reschedule GC)
+      // before the GC fiber is interrupted and the entry is reset.
       yield* interruptResourceInFlight(entry, store);
+      yield* interruptResourceGc(entry, store);
       resetResourceEntry(entry);
     }
 
@@ -840,10 +866,10 @@ export const hydrateResourcesEffect = (
     const store = yield* resourceStoreEffect;
     const snapshots = yield* validateResourceHydrationInputEffect(input, "hydrate");
     const now =
-      options.updatedAt === "now" || options.skipFresh === true
+      options.timestamp === "now" || options.skipFresh === true
         ? yield* Clock.currentTimeMillis
         : undefined;
-    const updatedAt = options.updatedAt === "now" ? now : undefined;
+    const timestamp = options.timestamp === "now" ? now : undefined;
     const plan: ResourceHydrationPlanEntry[] = [];
     let index = 0;
     for (const snapshot of snapshots) {
@@ -896,18 +922,15 @@ export const hydrateResourcesEffect = (
         "hydrate",
         `${path}.state.value`,
       );
-      const decodedState = state as Extract<ResourceState<any, any>, { readonly _tag: "Success" }>;
       if (options.skipFresh === true && now !== undefined) {
-        const current = peekResourceEntry(ref, store)?.state.get() ?? {
-          _tag: "Initial" as const,
-          waiting: false,
-        };
+        const current = peekResourceEntry(ref, store)?.state.get() ?? AsyncResult.initial();
         const status = inspectResourceStatus(ref, current, now);
-        if (status.isSuccess && !status.isStale && !status.isGcExpired) {
+        if (current._tag === "Success" && !status.isStale && !status.isGcExpired) {
           continue;
         }
       }
-      const successState = updatedAt === undefined ? decodedState : { ...decodedState, updatedAt };
+      const successState =
+        timestamp === undefined ? state : AsyncResult.success(state.value, { timestamp });
       const tags = yield* resourceProvidedTagsEffect(ref, successState.value);
       plan.push({ ref, state: successState, tags });
     }

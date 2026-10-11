@@ -88,20 +88,63 @@ framework packages and `tsrx-tsc` remains the correctness path for `.tsrx`
 projects.
 
 The default UI integration does not require TSRX `try/pending/catch`. A resource
-is a typed state machine with an Effect API:
+exposes its state as Effect's `AsyncResult` plus an Effect API:
 
 ```tsx
 const project = useResource(() => ProjectById(props.id));
 
-return project.match({
-  initial: () => <ProjectSkeleton />,
-  pending: (previous) =>
-    previous ? <ProjectView project={previous} refreshing /> : <ProjectSkeleton />,
-  success: (value) => <ProjectView project={value} />,
-  failure: (error, previous) =>
-    previous ? <ProjectView project={previous} error={error} /> : <ProjectError error={error} />,
-});
+return () =>
+  AsyncResult.builder(project.result())
+    .onInitial(() => <ProjectSkeleton />)
+    // onFailure before onSuccess keeps `previousSuccess` typed.
+    .onFailure((cause, failed) =>
+      Option.match(failed.previousSuccess, {
+        onNone: () => <ProjectError cause={cause} />,
+        onSome: (stale) => <ProjectView project={stale.value} cause={cause} />,
+      }),
+    )
+    .onSuccess((value, success) => <ProjectView project={value} refreshing={success.waiting} />)
+    .exhaustive();
 ```
+
+### AsyncResult Is The Async-State Vocabulary
+
+`AsyncResult` (`import { AsyncResult } from "effect/reactivity"`) is Arc's one
+async-state vocabulary. Arc signals own it and Solid renders it:
+
+- `Resource.result(ref)` is `ReadableSignal<AsyncResult<A, Resource.LoadError<E>>>`;
+  `Resource.status(ref)` adds cache-policy facts (`isStale`, `isGcExpired`,
+  `staleAt`, `gcAt`, `ageMillis`, `staleInMillis`, `gcInMillis`) beside `result`.
+- Action instances expose `state: ReadableSignal<{ result: AsyncResult<A, E>; input: Option<I> }>`
+  (idle is `Initial`); the latest invalidation plan stays its own signal.
+- `collection.state()` is `AsyncResult<void, E>` (rows stay their own signal),
+  and `liveQuery.state` is `AsyncResult<ReadonlyArray<T>, E>` beside the
+  always-available `data` rows.
+
+Settlement semantics are shared. A load or submission marks the current result
+`waiting` without changing its tag, so a refresh is `Success` with
+`waiting: true` and a retry after a failure is `Failure` with `waiting: true`.
+Every Resource load and Action submission then settles from its `Exit` through
+one internal settle step, timestamped with the Effect `Clock` (never
+`Date.now()`), inside an uninterruptible region so no outcome can leave an entry
+waiting:
+
+- success settles to `Success` with the `Clock` timestamp;
+- typed failures, defects, and mixed causes settle to `Failure` carrying the
+  full `Cause`, keeping the latest success as `previousSuccess`;
+- an interrupt-only exit is cancellation, not an outcome: the result returns to
+  its prior settled state with `waiting: false` (a superseding load, hydration,
+  or delete writes its own state next). Resources publish `ResourceInterrupted`
+  instead of `ResourceFailure` in that case.
+
+The Resource Read Decision derives from the same `AsyncResult`: `Initial` reads
+are pending (`ResourcePending` with reason `Initial`, or `Pending` while a first
+load is in flight); `Success` returns the value, requests a background refresh
+when stale, and resets to pending (`Collected`) past `gcFor`; a settled
+`Failure` throws `ResourceFailure` (whose `result` is the `AsyncResult.Failure`;
+reach the typed error with `AsyncResult.error(failure.result)`), while a
+`Failure` that is `waiting` on a retry returns stale data when present and is
+pending otherwise.
 
 TSRX remains the authoring language for component templates, while Effect handles
 retry, cancellation, scoped cleanup, error recovery, and server boundaries.
@@ -316,7 +359,7 @@ response metadata. `submitStartActionEffect(...)` hydrates that payload into the
 client runtime, so server-posted mutations can update the same Resource cache
 graph as local `Action.use(...).submitEffect(...)` calls.
 `StartAction.use(...)` wraps that transport in an Action-like client instance
-for components that need idle, pending, success, and failure state without
+for components that need submission state (the same `{ result: AsyncResult, input }` shape) without
 leaving the Start request path. It also exposes read-only `invalidation` and
 `hydration` signals for the latest successful response, giving devtools and UI
 code the same causal facts carried by the transport.
@@ -447,7 +490,7 @@ adds its `E` and `R` to the parent and returns a plain Solid component. `E` is
 phantom at the Effect level; setup failures, provided-Layer failures, and failed
 resource reads surface when the component renders, by throwing to the nearest
 Solid `<Errored>`. `catchTags` installs that boundary and removes handled tags
-from `E` (matching a `ResourceFailure` by its inner `error._tag`); unmatched
+from `E` (matching a `ResourceFailure` by the `_tag` of `AsyncResult.error(failure.result)`); unmatched
 failures rethrow outward. `provide` removes services from `R`; `mount` accepts
 only `Component<P, never, never>`.
 
@@ -708,8 +751,11 @@ const preloaded = yield * preloadRequestEffect(app, request);
 preloaded.resources; // { resources: [...] }
 ```
 
-The payload includes the resource family name, stable key, original input, and
-successful resource state. Start client hydration applies that payload with
+The payload includes the resource family name, stable key, and original input
+(Arc's envelope) plus `state`: the `AsyncResult.Schema`-style JSON encoding of a
+settled `Success`, `{ _tag: "Success", value, waiting: false, timestamp }`, with
+`value` encoded through the family's `output` schema when one exists. Hydration
+is Success-only: failures can carry server-only causes and are never serialized. Start client hydration applies that payload with
 `hydrateFromDocumentEffect(...)` or `hydrateStartPayloadEffect(...)`; those
 helpers call `Resource.hydrateEffect(payload)` so the visible resource signal
 and Effect `Cache` entry update in the same Runtime Spine. The synchronous
@@ -1086,7 +1132,7 @@ yield *
 
 Signal.batch(() => {
   plan.set(undefined);
-  state.set({ _tag: "Idle" }); // subscribers run once, after both writes
+  state.set(idle); // subscribers run once, after both writes
 });
 ```
 

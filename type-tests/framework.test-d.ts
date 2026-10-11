@@ -8,7 +8,9 @@ import {
   Schema,
   Scope,
   Stream,
+  Option,
 } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import {
   Action,
   ActionInterrupted,
@@ -58,7 +60,7 @@ import {
   toEffect,
   validateResourceHydrationInputEffect,
   type ActionSubmissionConcurrency,
-  type ActionSubmissionState,
+  type ActionState,
   type ActionResultInvalidationRequirements,
   type AnySunfallArcRuntime,
   type BrowserHistoryAdapter,
@@ -650,21 +652,13 @@ const coreDefinitionDiagnostics = coreDefinitionRegistryAdapter.diagnostics();
 const coreDefinitionDuplicatePolicy: "keep-first" | "replace" =
   coreDefinitionDiagnostics.duplicates[0]?.policy ?? "replace";
 const actionSubmissionConcurrency: ActionSubmissionConcurrency = "exhaust";
-const actionSubmissionIdleState: ActionSubmissionState<
-  { readonly id: string },
-  Project,
-  ProjectError
-> = {
-  _tag: "Idle",
+const actionSubmissionIdleState: ActionState<{ readonly id: string }, Project, ProjectError> = {
+  result: AsyncResult.initial(),
+  input: Option.none(),
 };
-const actionSubmissionSuccessState: ActionSubmissionState<
-  { readonly id: string },
-  Project,
-  ProjectError
-> = {
-  _tag: "Success",
-  input: { id: "atlas" },
-  value: { id: "atlas", name: "Atlas" },
+const actionSubmissionSuccessState: ActionState<{ readonly id: string }, Project, ProjectError> = {
+  result: AsyncResult.success({ id: "atlas", name: "Atlas" }, { timestamp: 1 }),
+  input: Option.some({ id: "atlas" }),
 };
 const actionSubmissionController = makeActionSubmissionController<
   { readonly id: string },
@@ -674,7 +668,7 @@ const actionSubmissionController = makeActionSubmissionController<
   actionName: "Project.rename",
   concurrency: actionSubmissionConcurrency,
 });
-const actionSubmissionState: ActionSubmissionState<{ readonly id: string }, Project, ProjectError> =
+const actionSubmissionState: ActionState<{ readonly id: string }, Project, ProjectError> =
   actionSubmissionController.state.get();
 void coreDefinitionRegistryAction;
 void coreDefinitionRegistryServer;
@@ -1460,9 +1454,9 @@ const resourceSnapshot: Resource.Snapshot<string, Project> = {
   input: "atlas",
   state: {
     _tag: "Success",
-    waiting: false,
     value: clonedResourceSnapshotValue,
-    updatedAt: 1,
+    waiting: false,
+    timestamp: 1,
   },
 };
 const directResourceHydrationPayload: ResourceHydrationPayload = { resources: [resourceSnapshot] };
@@ -1493,23 +1487,29 @@ const projectReadViaHelper: Project = read(ProjectById("atlas"));
 const projectSuspenseRead: Project = useResourceSuspense(ProjectById("atlas"))();
 const projectResourcePending = new ResourcePending({
   ref: ProjectById("atlas"),
-  state: "Pending",
-  previous: undefined as Project | undefined,
-  hasPrevious: true,
+  reason: "Pending",
+  result: AsyncResult.initial<Project, Resource.LoadError<ProjectError | Server.ClientError>>(true),
   guidance: "Preload before reading.",
 });
 const projectResourcePendingState: "Initial" | "Pending" | "Collected" =
-  projectResourcePending.state;
-const projectResourcePendingPrevious: Project | undefined = projectResourcePending.previous;
-const projectResourcePendingHasPrevious: boolean = projectResourcePending.hasPrevious;
+  projectResourcePending.reason;
+const projectResourcePendingPrevious: Option.Option<Project> = AsyncResult.value(
+  projectResourcePending.result,
+);
+const projectResourcePendingHasPrevious: boolean = Option.isSome(projectResourcePendingPrevious);
 const projectResourceFailure = new ResourceFailure({
   ref: ProjectById("atlas"),
-  error: { _tag: "ProjectError", message: "not found" } as ProjectError | Server.ClientError,
-  previous: undefined as Project | undefined,
-  hasPrevious: true,
+  result: AsyncResult.fail<Resource.LoadError<ProjectError | Server.ClientError>, Project>({
+    _tag: "ProjectError",
+    message: "not found",
+  } as ProjectError | Server.ClientError),
 });
-const projectResourceFailureError: ProjectError | Server.ClientError = projectResourceFailure.error;
-const projectResourceFailureHasPrevious: boolean = projectResourceFailure.hasPrevious;
+const projectResourceFailureError: Option.Option<
+  Resource.LoadError<ProjectError | Server.ClientError>
+> = AsyncResult.error(projectResourceFailure.result);
+const projectResourceFailureHasPrevious: boolean = Option.isSome(
+  projectResourceFailure.result.previousSuccess,
+);
 const typedProjectResourceFailure: ResourceFailure<
   string,
   Project,
@@ -2784,13 +2784,17 @@ void projectNamesRefetchEffect;
 void projectNamesOnceEffect;
 const projectNamesState = ProjectNames.state.get();
 if (projectNamesState._tag === "Failure") {
-  const projectNamesError:
+  const projectNamesError: Option.Option<
     | ProjectError
     | Server.ClientError
     | CollectionSnapshotCodecError
     | Schema.SchemaError
-    | QueryEvaluationError = projectNamesState.error;
+    | QueryEvaluationError
+  > = AsyncResult.error(projectNamesState);
+  const projectNamesLastGood: Option.Option<ReadonlyArray<string>> =
+    AsyncResult.value(projectNamesState);
   void projectNamesError;
+  void projectNamesLastGood;
 }
 
 ProjectNames.data.get().map((name) => name.toUpperCase());
@@ -2846,7 +2850,9 @@ const solidProjectsHandle: CollectionHandle<
   never
 > = solidProjects;
 const solidProjectResource = useResource(ProjectById("atlas"));
-const solidProjectResourceValue: Project | undefined = solidProjectResource.value();
+const solidProjectResourceValue: Option.Option<Project> = AsyncResult.value(
+  solidProjectResource.result(),
+);
 const solidProjectResourcePrefetch: Effect.Effect<
   Project,
   Resource.LoadError<ProjectError | Server.ClientError>
@@ -3044,13 +3050,13 @@ const solidProjectNamesPreloadEffect: Effect.Effect<
   | Schema.SchemaError
   | QueryEvaluationError
 > = solidProjectNames.preloadEffect();
-const solidProjectNamesError:
+const solidProjectNamesError: Option.Option<
   | ProjectError
   | Server.ClientError
   | CollectionSnapshotCodecError
   | Schema.SchemaError
   | QueryEvaluationError
-  | undefined = solidProjectNames.error();
+> = AsyncResult.error(solidProjectNames.result());
 const solidProjectNamesPreloadFailure:
   | ProjectError
   | Server.ClientError
@@ -4333,7 +4339,8 @@ submitStartActionEffect(TouchProjectWithResultInvalidation, { id: "atlas" }).pip
 );
 
 const touchStart = StartAction.use(TouchProject);
-touchStart.state.get()._tag;
+touchStart.state.get().result._tag;
+touchStart.state.get().input.pipe(Option.map((input) => input.id.toUpperCase()));
 touchStart.invalidation.get()?.entries.map((entry) => entry.ref.key.toUpperCase());
 touchStart.hydration.get()?.resources.map((resource) => resource.key.toUpperCase());
 touchStart.submitEffect({ id: "atlas" }).pipe(

@@ -1,5 +1,6 @@
 import { EffectInputCallbackError } from "@sunfall/arc-core";
 import { Effect, Data, Schema, SchemaAST } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import type {
   CollectionHydrateOptions,
   CollectionHydrationPayload,
@@ -1049,11 +1050,7 @@ const applyValidatedCollectionSnapshotState = <A extends object, K extends Colle
     rebaseCollectionBaseRows(state, rebaseKeys);
   }
 
-  state.loadState.set({
-    _tag: "Ready",
-    waiting: false,
-    updatedAt: snapshot.updatedAt,
-  });
+  state.loadState.set(AsyncResult.success(undefined, { timestamp: snapshot.updatedAt }));
   return snapshot;
 };
 

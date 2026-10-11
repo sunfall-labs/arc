@@ -1,10 +1,11 @@
 import { Data, Effect, Schema } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import type {
   AnyResourceFamily,
   ResourceHydrationPayload,
   ResourceHydrationSnapshot,
+  ResourceHydrationSuccessState,
   ResourceRef,
-  ResourceState,
 } from "./resource.js";
 
 /** Codec phase used in Resource hydration diagnostics. */
@@ -157,11 +158,11 @@ const validateNumber = (
 };
 
 /** Validates and clones one Resource success snapshot from unknown input. */
-export const validateResourceHydrationSnapshot = <I = unknown, A = unknown, E = never>(
+export const validateResourceHydrationSnapshot = <I = unknown, A = unknown>(
   value: unknown,
   operation: ResourceSnapshotCodecOperation = "hydrate",
   path = "$",
-): ResourceHydrationSnapshot<I, A, E> => {
+): ResourceHydrationSnapshot<I, A> => {
   const snapshot = validateRecord(value, operation, path, "a resource hydration snapshot");
   assertCodec(hasOwn(snapshot, "input"), operation, `${path}.input`, "Expected a resource input.");
   const state = validateRecord(
@@ -195,10 +196,10 @@ export const validateResourceHydrationSnapshot = <I = unknown, A = unknown, E = 
     input: cloneResourceSnapshotValue(snapshot.input) as I,
     state: {
       _tag: "Success",
-      waiting: false,
       value: cloneResourceSnapshotValue(state.value) as A,
-      updatedAt: validateNumber(state.updatedAt, operation, `${path}.state.updatedAt`),
-    } satisfies Extract<ResourceState<A, E>, { readonly _tag: "Success" }>,
+      waiting: false,
+      timestamp: validateNumber(state.timestamp, operation, `${path}.state.timestamp`),
+    } satisfies ResourceHydrationSuccessState<A>,
   };
 };
 
@@ -323,10 +324,17 @@ export const validateResourceHydrationPayloadEffect = (
     catch: catchSnapshotCodecError(operation, "$"),
   });
 
+const successStateJson = (value: unknown, timestamp: number): ResourceHydrationSuccessState => ({
+  _tag: "Success",
+  value,
+  waiting: false,
+  timestamp,
+});
+
 /** Creates and validates a hydration snapshot from a resource ref success state. */
 export const resourceHydrationSnapshotFromRef = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  state: Extract<ResourceState<A, E>, { readonly _tag: "Success" }>,
+  state: AsyncResult.Success<A, unknown>,
   path = "$",
 ): ResourceHydrationSnapshot => {
   try {
@@ -348,12 +356,7 @@ export const resourceHydrationSnapshotFromRef = <I, A, E, R>(
         name: ref.family.options.name,
         key: ref.key,
         input,
-        state: {
-          _tag: "Success",
-          waiting: false,
-          value,
-          updatedAt: state.updatedAt,
-        },
+        state: successStateJson(value, state.timestamp),
       },
       "snapshot",
       path,
@@ -369,7 +372,7 @@ export const resourceHydrationSnapshotFromRef = <I, A, E, R>(
 /** Effect wrapper for creating a Resource hydration snapshot from a success state. */
 export const resourceHydrationSnapshotFromRefEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  state: Extract<ResourceState<A, E>, { readonly _tag: "Success" }>,
+  state: AsyncResult.Success<A, unknown>,
   path = "$",
 ): Effect.Effect<ResourceHydrationSnapshot, ResourceSnapshotCodecError> =>
   Effect.gen(function* () {
@@ -393,12 +396,7 @@ export const resourceHydrationSnapshotFromRefEffect = <I, A, E, R>(
             name: ref.family.options.name,
             key: ref.key,
             input,
-            state: {
-              _tag: "Success",
-              waiting: false,
-              value,
-              updatedAt: state.updatedAt,
-            },
+            state: successStateJson(value, state.timestamp),
           },
           "snapshot",
           path,
@@ -428,16 +426,13 @@ export const decodeResourceHydrationInputEffect = <I>(
 ): Effect.Effect<I, ResourceSnapshotCodecError> =>
   decodeResourceHydrationValueEffect<I>(family.options.input, snapshot.input, operation, path);
 
-/** Decodes a snapshot success value through the resource family's output schema. */
+/** Decodes a snapshot success state into a settled `AsyncResult.Success` through the family's output schema. */
 export const decodeResourceHydrationStateEffect = <A, E>(
   family: AnyResourceFamily,
   snapshot: ResourceHydrationSnapshot,
   operation: ResourceSnapshotCodecOperation = "hydrate",
   path = "$.state.value",
-): Effect.Effect<
-  Extract<ResourceState<A, E>, { readonly _tag: "Success" }>,
-  ResourceSnapshotCodecError
-> =>
+): Effect.Effect<AsyncResult.Success<A, E>, ResourceSnapshotCodecError> =>
   Effect.map(
     decodeResourceHydrationValueEffect<A>(
       family.options.output,
@@ -445,12 +440,7 @@ export const decodeResourceHydrationStateEffect = <A, E>(
       operation,
       path,
     ),
-    (value) => ({
-      _tag: "Success",
-      waiting: false,
-      value,
-      updatedAt: snapshot.state.updatedAt,
-    }),
+    (value) => AsyncResult.success<A, E>(value, { timestamp: snapshot.state.timestamp }),
   );
 
 /** Builds and validates a payload object from Resource hydration snapshots. */

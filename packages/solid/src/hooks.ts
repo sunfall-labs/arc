@@ -3,11 +3,8 @@ import {
   Program,
   Resource,
   runWithRuntime,
-  resourceUiMatchState,
   resourceUiRefAccessor,
-  resourceUiStateHasValue,
   Signal,
-  type ActionState,
   type ActionInstance,
   type ActionResultInvalidationRequirements,
   type EffectInput,
@@ -18,25 +15,17 @@ import {
   type ProgramFailure,
   type ReadableSignal,
   type ResourceUiInput,
-  type ResourceUiMatch,
-  type ResourceUiSuccessMeta,
   type ResourceInvalidationPlan,
   type ResourceRef,
   type ResourceStore,
-  type ResourceState,
 } from "@sunfall/arc-core";
-import { Effect, Fiber, Stream } from "effect";
+import { Effect, Fiber, Stream, type Option } from "effect";
+import type { AsyncResult } from "effect/reactivity";
 import { onCleanup, type Accessor } from "solid-js";
 import { createResourceBinding, createResourceSuspense } from "./resource-binding.js";
 import { createComponentScope, useRuntime } from "./runtime.js";
 
 type ResourceInput<I, A, E, R = unknown> = ResourceUiInput<I, A, E, R>;
-
-/** Metadata passed to resource success render branches. */
-export type ResourceSuccessMeta<A, E> = ResourceUiSuccessMeta<A, E>;
-
-/** Exhaustive render cases for `ResourceHandle.match`. */
-export type ResourceMatch<A, E, B> = ResourceUiMatch<A, E, B>;
 
 /** Options for binding a Resource to Solid reactivity. */
 export interface UseResourceOptions<E = never, ER = never> {
@@ -59,33 +48,33 @@ export interface UseResourceOptions<E = never, ER = never> {
 /**
  * Solid-facing handle for an Sunfall Arc resource.
  *
- * Accessors track resource state reactively. `refreshEffect` and
- * `prefetchEffect` keep resource work in Effect and are bound to the nearest
- * Solid runtime.
+ * `result` tracks the resource's `AsyncResult` reactively: render it with
+ * `AsyncResult.builder(...)`, `AsyncResult.match(...)`, or the `AsyncResult`
+ * accessors (`value`, `error`, `waiting`). `refreshEffect` and `prefetchEffect`
+ * keep resource work in Effect and are bound to the nearest Solid runtime.
  */
 export interface ResourceHandle<I, A, E, R = unknown, ER = never> {
   /** Current resource ref, tracking ref accessors when the input ref is reactive. */
   readonly ref: Accessor<ResourceRef<I, A, E, R>>;
-  /** Current resource state bound to the nearest Solid runtime. */
-  readonly state: Accessor<ResourceState<A, Resource.LoadError<E>>>;
-  /** Latest successful value or stale previous value while pending/failing. */
-  readonly value: Accessor<A | undefined>;
-  /** Latest load error, including server/client transport errors. */
-  readonly error: Accessor<Resource.LoadError<E> | undefined>;
-  /** True for initial pending loads without a value. */
-  readonly waiting: Accessor<boolean>;
-  /** True while reloading with a previous value available. */
-  readonly refreshing: Accessor<boolean>;
-  /** True when `value()` can return a value. */
-  readonly hasValue: Accessor<boolean>;
-  /** Failure captured from the automatic mount-time preload, if enabled. */
+  /**
+   * Current resource `AsyncResult` bound to the nearest Solid runtime.
+   *
+   * Loads mark the result `waiting` on its current tag (stale-while-refreshing);
+   * `Failure` carries the full `Cause` (typed errors and defects) and keeps the
+   * latest success as `previousSuccess`.
+   */
+  readonly result: Accessor<AsyncResult.AsyncResult<A, Resource.LoadError<E>>>;
+  /**
+   * Failure captured from the automatic mount-time preload, if enabled.
+   *
+   * Load failures also settle into `result`; this accessor additionally reports
+   * runtime (`ER`) failures that never reach the Resource Store.
+   */
   readonly preloadFailure: Accessor<Resource.LoadError<E> | ER | undefined>;
   /** Runs a forced refresh in the bound runtime. */
   refreshEffect(): Effect.Effect<A, Resource.LoadError<E> | ER>;
   /** Ensures the resource has loaded in the bound runtime. */
   prefetchEffect(): Effect.Effect<A, Resource.LoadError<E> | ER>;
-  /** Exhaustively maps the current state to render output. */
-  match<B>(cases: ResourceMatch<A, Resource.LoadError<E>, B>): B;
 }
 
 /** Runs an Effect through the nearest Solid runtime and ties the fiber to component cleanup. */
@@ -134,23 +123,23 @@ type SolidActionInstance<I, A, E, R, ER> = ActionInstance<
 /**
  * Solid-facing handle for an Sunfall Arc Action.
  *
- * `state` and `invalidationPlan` are Solid accessors bridged from Core signals;
- * `instance` keeps the lower-level Core controller available for integrations.
+ * `result`, `input`, and `invalidationPlan` are Solid accessors bridged from
+ * Core signals; `instance` keeps the lower-level Core controller available for
+ * integrations.
  */
 export interface ActionHandle<I, A, E = never, R = never, ER = never> {
   /** Underlying Core action instance for advanced integrations. */
   readonly instance: SolidActionInstance<I, A, E, R, ER>;
   /** Action definition used to create this instance. */
   readonly definition: Action.Definition<I, A, E, R>;
-  /** Current action submission state as a Solid accessor. */
-  readonly state: Accessor<
-    ActionState<
-      I,
-      A,
-      E | ER | EffectInputCallbackError,
-      ResourceInvalidationPlan<SolidActionInvalidationRequirements<A, R>>
-    >
-  >;
+  /**
+   * Submission `AsyncResult`: `Initial` while idle, `waiting` while a
+   * submission is in flight, then `Success` or `Failure` (full `Cause`, latest
+   * success kept as `previousSuccess`).
+   */
+  readonly result: Accessor<AsyncResult.AsyncResult<A, E | ER | EffectInputCallbackError>>;
+  /** Input of the latest submission (`Option.none()` while idle). */
+  readonly input: Accessor<Option.Option<I>>;
   /** Latest successful invalidation plan as a Solid accessor. */
   readonly invalidationPlan: Accessor<
     ResourceInvalidationPlan<SolidActionInvalidationRequirements<A, R>> | undefined
@@ -237,40 +226,12 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
   };
 };
 
-/** Returns the reactive `ResourceState` for a resource ref or ref accessor. */
+/** Returns the reactive `AsyncResult` for a resource ref or ref accessor. */
 export const useResourceResult = <I, A, E, R = unknown, ER = never>(
   ref: ResourceInput<I, A, E, R>,
   options?: UseResourceOptions<E, ER>,
-): Accessor<ResourceState<A, Resource.LoadError<E>>> => {
-  return createResourceBinding(useRuntime<ER>(), ref, options).state;
-};
-
-/**
- * Returns the latest successful value for a resource, if one exists.
- *
- * This convenience hook owns one resource subscription. Use `useResource(...)`
- * when a component needs multiple selectors for the same ref.
- */
-export const useResourceValue = <I, A, E, R = unknown, ER = never>(
-  ref: ResourceInput<I, A, E, R>,
-  options?: UseResourceOptions<E, ER>,
-): Accessor<A | undefined> => {
-  const state = useResourceResult(ref, options);
-  return () => Resource.value(state());
-};
-
-/**
- * Returns the latest resource error, if the resource is failed.
- *
- * This convenience hook owns one resource subscription. Use `useResource(...)`
- * when a component needs multiple selectors for the same ref.
- */
-export const useResourceError = <I, A, E, R = unknown, ER = never>(
-  ref: ResourceInput<I, A, E, R>,
-  options?: UseResourceOptions<E, ER>,
-): Accessor<Resource.LoadError<E> | undefined> => {
-  const state = useResourceResult(ref, options);
-  return () => Resource.error(state());
+): Accessor<AsyncResult.AsyncResult<A, Resource.LoadError<E>>> => {
+  return createResourceBinding(useRuntime<ER>(), ref, options).result;
 };
 
 /**
@@ -283,12 +244,19 @@ export const useResourceError = <I, A, E, R = unknown, ER = never>(
  * @example
  * ```tsx
  * const project = useResource(() => ProjectResource(params.id));
- * return project.match({
- *   initial: () => null,
- *   pending: () => "Loading",
- *   success: (value) => value.name,
- *   failure: () => "Could not load"
- * });
+ * return () =>
+ *   AsyncResult.builder(project.result())
+ *     .onInitial(() => "Loading")
+ *     // Handle failure before success: `onSuccess` narrows the success type,
+ *     // so `previousSuccess` is only typed when `onFailure` comes first.
+ *     .onFailure((_cause, failed) =>
+ *       Option.match(failed.previousSuccess, {
+ *         onNone: () => "Could not load",
+ *         onSome: (stale) => `${stale.value.name} (stale)`,
+ *       }),
+ *     )
+ *     .onSuccess((value, success) => (success.waiting ? `${value.name}…` : value.name))
+ *     .exhaustive();
  * ```
  */
 export const useResource = <I, A, E, R = unknown, ER = never>(
@@ -297,28 +265,13 @@ export const useResource = <I, A, E, R = unknown, ER = never>(
 ): ResourceHandle<I, A, E, R, ER> => {
   const getRef = resourceUiRefAccessor(ref);
   const binding = createResourceBinding<I, A, E, R, ER>(useRuntime<ER>(), getRef, options);
-  const state = binding.state;
-  const value = () => Resource.value(state());
-  const error = () => Resource.error(state());
-  const waiting = () => state().waiting;
-  const hasValue = () => resourceUiStateHasValue(state());
-  const refreshing = () => {
-    const current = state();
-    return current._tag === "Pending" && "previous" in current;
-  };
 
   return {
     ref: getRef,
-    state,
-    value,
-    error,
-    waiting,
-    refreshing,
-    hasValue,
+    result: binding.result,
     preloadFailure: binding.preloadFailure,
     refreshEffect: () => binding.controller.refreshEffect(getRef()),
     prefetchEffect: () => binding.controller.prefetchEffect(getRef()),
-    match: (cases) => resourceUiMatchState(state(), cases),
   };
 };
 
@@ -328,8 +281,9 @@ export const useResource = <I, A, E, R = unknown, ER = never>(
  * Cached values return synchronously, so hydrated data renders without a
  * loading state. Pending or expired reads start `Resource.prefetchEffect(...)`
  * in the active runtime and return its Promise, which suspends the nearest
- * Solid `<Loading>` boundary. Failed loads throw `ResourceFailure` (with the
- * stale value when available) to the nearest `<Errored>` boundary.
+ * Solid `<Loading>` boundary. Failed loads throw `ResourceFailure` (its
+ * `result` is the settled `AsyncResult.Failure`, with stale data as
+ * `previousSuccess`) to the nearest `<Errored>` boundary.
  */
 export const useResourceSuspense = <I, A, E, R = unknown>(
   ref: ResourceInput<I, A, E, R>,
@@ -348,7 +302,8 @@ export const useAction = <I, A, E, R, ER = never>(
 ): ActionHandle<I, A, E, R, ER> => {
   const runtime = useRuntime() as SunfallArcRuntime<R, ER>;
   const instance = Action.use(definition, { runtime });
-  const state = accessor(instance.state);
+  const result = () => instance.state.get().result;
+  const input = () => instance.state.get().input;
   const invalidationPlan = accessor(instance.invalidationPlan);
 
   onCleanup(() => {
@@ -358,7 +313,8 @@ export const useAction = <I, A, E, R, ER = never>(
   return {
     instance,
     definition: instance.definition,
-    state,
+    result,
+    input,
     invalidationPlan,
     submitEffect: instance.submitEffect,
     resetEffect: instance.resetEffect,

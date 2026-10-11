@@ -5,8 +5,8 @@ import {
   type EffectInput,
 } from "@sunfall/arc-core";
 import { Effect, Fiber } from "effect";
-import type { AnyCollection, CollectionLoadState } from "./collection-contract.js";
-import { Query, type LiveQuery, type LiveQueryState, type QueryFactory } from "./query-builder.js";
+import type { AnyCollection } from "./collection-contract.js";
+import { Query, type LiveQuery, type QueryFactory } from "./query-builder.js";
 
 /**
  * Subscribes to the collection signals that framework adapters use to refresh
@@ -40,14 +40,6 @@ export const sameCollectionReactiveSources = (
   right: ReadonlyArray<AnyCollection>,
 ): boolean =>
   left.length === right.length && left.every((source, index) => Object.is(source, right[index]));
-
-/** Extracts the current failure value from a collection load state. */
-export const collectionStateError = <E>(state: CollectionLoadState<E>): E | undefined =>
-  state._tag === "Failure" ? state.error : undefined;
-
-/** Extracts the current failure value from a live-query state. */
-export const liveQueryStateError = <T, E>(state: LiveQueryState<T, E>): E | undefined =>
-  state._tag === "Failure" ? state.error : undefined;
 
 /** Query factory or prebuilt LiveQuery accepted by framework live-query adapters. */
 export type CollectionReactiveLiveQueryInput<T, E, R> = QueryFactory<T, E, R> | LiveQuery<T, E, R>;

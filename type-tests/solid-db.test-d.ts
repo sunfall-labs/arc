@@ -1,4 +1,5 @@
-import { Effect } from "effect";
+import { Effect, Option } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import {
   Collection,
   Query,
@@ -102,11 +103,21 @@ const solidDbLiveRefetch: Effect.Effect<
   "query" | Query.EvaluationError | SolidDbRuntimeError
 > = solidDbLiveProjects.refetchEffect();
 const solidDbLiveData: () => ReadonlyArray<SolidDbProject> = solidDbLiveProjects.data;
-const solidDbLiveState: () => Query.LiveState<SolidDbProject, "query" | Query.EvaluationError> =
-  solidDbLiveProjects.state;
-const solidDbLiveWaiting: () => boolean = solidDbLiveProjects.waiting;
-const solidDbLiveError: () => "query" | Query.EvaluationError | undefined =
-  solidDbLiveProjects.error;
+const solidDbLiveState: () => AsyncResult.AsyncResult<
+  ReadonlyArray<SolidDbProject>,
+  "query" | Query.EvaluationError
+> = solidDbLiveProjects.result;
+const solidDbLiveWaiting: boolean = solidDbLiveProjects.result().waiting;
+const solidDbLiveError: Option.Option<"query" | Query.EvaluationError> = AsyncResult.error(
+  solidDbLiveProjects.result(),
+);
+const solidDbCollectionResult: () => AsyncResult.AsyncResult<
+  void,
+  Collection.RuntimeError<"load">
+> = solidDbProjects.result;
+// @ts-expect-error -- handles expose one `result()` accessor instead of state/waiting/error.
+void solidDbProjects.state;
+void solidDbCollectionResult;
 const solidDbLivePreloadFailure: () =>
   | "query"
   | Query.EvaluationError

@@ -191,14 +191,26 @@ already inside the current runtime.
 ```tsx
 const user = useResource(() => UserById(props.id));
 
-return user.match({
-  initial: () => <UserSkeleton />,
-  pending: (previous) => (previous ? <UserView user={previous} refreshing /> : <UserSkeleton />),
-  success: (value) => <UserView user={value} />,
-  failure: (error, previous) =>
-    previous ? <UserView user={previous} error={error} /> : <UserError error={error} />,
-});
+return () =>
+  AsyncResult.builder(user.result())
+    .onInitial(() => <UserSkeleton />)
+    // onFailure before onSuccess keeps `previousSuccess` typed.
+    .onFailure((cause, failed) =>
+      Option.match(failed.previousSuccess, {
+        onNone: () => <UserError cause={cause} />,
+        onSome: (stale) => <UserView user={stale.value} cause={cause} />,
+      }),
+    )
+    .onSuccess((value, success) => <UserView user={value} refreshing={success.waiting} />)
+    .exhaustive();
 ```
+
+Async state is always Effect's `AsyncResult` (`effect/reactivity`): Resources,
+Actions, Collections, and Live Queries settle every load or submission from its
+`Exit`, stamped with the Effect `Clock`. Typed errors and defects become a
+`Failure` carrying the full `Cause`; interruption is cancellation and returns to
+the prior settled result. Do not mirror `AsyncResult` into ad hoc flags; read
+`AsyncResult.value`, `AsyncResult.error`, and `result.waiting` instead.
 
 ```ts
 const UserById = Resource.family({

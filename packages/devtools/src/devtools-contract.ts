@@ -1,6 +1,6 @@
 import {
   type ActionInstance,
-  type ActionSubmissionState,
+  type ActionState,
   type ProgramEvent,
   type ProgramInstance,
   type ReadableSignal,
@@ -113,13 +113,18 @@ export interface DevtoolsSnapshotResource {
 /** Action state fact recorded by the Devtools Store. */
 export interface DevtoolsSnapshotAction {
   readonly name: string;
+  /** Submission `AsyncResult` tag: `Initial`, `Success`, or `Failure`. */
   readonly state: string;
+  /** Whether a submission is in flight. */
+  readonly waiting?: boolean;
   readonly invalidationIndexes?: ReadonlyArray<number>;
 }
 
 /** Options for recording action state and optional invalidation metadata. */
 export type DevtoolsRecordActionStateOptions = {
   readonly input?: unknown;
+  /** Whether a submission is in flight (the `AsyncResult` `waiting` flag). */
+  readonly waiting?: boolean;
 } & (
   | {
       readonly invalidationPlan?: ResourceInvalidationPlan<any> | undefined;
@@ -132,16 +137,11 @@ export type DevtoolsRecordActionStateOptions = {
 );
 
 /** Minimal Start action instance shape that Devtools can track. */
-export interface DevtoolsStartActionInstance<
-  I = unknown,
-  A = unknown,
-  E = unknown,
-  P = DevtoolsInvalidationPlan,
-> {
+export interface DevtoolsStartActionInstance<I = unknown, A = unknown, E = unknown> {
   readonly definition: {
     readonly name: string;
   };
-  readonly state: ReadableSignal<ActionSubmissionState<I, A, E, P>>;
+  readonly state: ReadableSignal<ActionState<I, A, E>>;
   readonly invalidation: ReadableSignal<DevtoolsInvalidationPlan | undefined>;
 }
 
@@ -285,7 +285,10 @@ export interface DevtoolsRequestTraceResource {
 /** Collection fact touched, loaded, or serialized during one request. */
 export interface DevtoolsRequestTraceCollection {
   readonly name: string;
+  /** Collection load `AsyncResult` tag. */
   readonly state?: string;
+  /** Whether a collection load was in flight. */
+  readonly waiting?: boolean;
   readonly eventCount?: number;
 }
 
@@ -398,6 +401,7 @@ export type DevtoolsRuntimeEvent =
       readonly at?: number;
       readonly action: string;
       readonly state: string;
+      readonly waiting?: boolean;
       readonly input?: unknown;
       readonly invalidationIndexes?: ReadonlyArray<number>;
     }
@@ -533,12 +537,12 @@ export interface DevtoolsStore {
   readonly trackActionEffect: <I, A, E, R>(
     action: ActionInstance<I, A, E, R>,
   ) => Effect.Effect<void, never, Scope.Scope>;
-  readonly recordStartAction: <I, A, E, P>(action: DevtoolsStartActionInstance<I, A, E, P>) => void;
-  readonly recordStartActionEffect: <I, A, E, P>(
-    action: DevtoolsStartActionInstance<I, A, E, P>,
+  readonly recordStartAction: <I, A, E>(action: DevtoolsStartActionInstance<I, A, E>) => void;
+  readonly recordStartActionEffect: <I, A, E>(
+    action: DevtoolsStartActionInstance<I, A, E>,
   ) => Effect.Effect<void>;
-  readonly trackStartActionEffect: <I, A, E, P>(
-    action: DevtoolsStartActionInstance<I, A, E, P>,
+  readonly trackStartActionEffect: <I, A, E>(
+    action: DevtoolsStartActionInstance<I, A, E>,
   ) => Effect.Effect<void, never, Scope.Scope>;
   readonly recordRoutePlan: (plan: Route.NavigationPlan) => number;
   /** Effect variant of `recordRoutePlan(...)`. */

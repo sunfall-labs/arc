@@ -125,7 +125,7 @@ export const hydrateStartStaticTargetDocumentEffect = <RuntimeError = unknown>(
     });
     const hydrateEffect = options.runtime.provide(
       hydrateFromDocumentEffect(staticDocument, undefined, {
-        updatedAt: "now",
+        timestamp: "now",
         skipFresh: true,
       }).pipe(Effect.flatMap(startStaticHydratedHrefPreparationOutcomeEffect)),
     ) as Effect.Effect<StartStaticHrefPreparationOutcome, unknown>;

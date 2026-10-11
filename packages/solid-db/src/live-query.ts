@@ -4,14 +4,14 @@ import {
   type CollectionReactiveLiveQueryInput,
   type CollectionReactiveLiveQuerySelection,
   type LiveQuery,
-  type LiveQueryState,
   type QueryEvaluationError,
 } from "@sunfall/arc-db";
 import type { EffectInput } from "@sunfall/arc-core";
 import { useRuntime } from "@sunfall/arc-solid";
 import { Effect } from "effect";
+import type { AsyncResult } from "effect/reactivity";
 import { createMemo, type Accessor } from "solid-js";
-import { liveQueryStateError, makeSolidDbReactiveBinding } from "./shared.js";
+import { makeSolidDbReactiveBinding } from "./shared.js";
 
 /** Options for Solid live-query hooks. */
 export interface UseLiveQueryOptions<E = never, ER = never> {
@@ -36,14 +36,14 @@ export interface UseLiveQueryOptions<E = never, ER = never> {
  * factory also reads Solid signals that should rebuild the query.
  */
 export interface LiveQueryHandle<T, E = never, ER = never> {
-  /** Current live query rows from the nearest Solid runtime. */
+  /** Current live query rows (always the last good rows) from the nearest Solid runtime. */
   readonly data: Accessor<ReadonlyArray<T>>;
-  /** Current live query evaluation state, including source preload and query failures. */
-  readonly state: Accessor<LiveQueryState<T, E | QueryEvaluationError>>;
-  /** True while any query source is preloading or the query is refetching. */
-  readonly waiting: Accessor<boolean>;
-  /** Latest query evaluation or source preload failure, when the state is `Failure`. */
-  readonly error: Accessor<E | QueryEvaluationError | undefined>;
+  /**
+   * Current live query `AsyncResult`: source load results and evaluation
+   * failures folded together, `waiting` while any source is loading, and
+   * `Failure` keeping the last good rows as `previousSuccess`.
+   */
+  readonly result: Accessor<AsyncResult.AsyncResult<ReadonlyArray<T>, E | QueryEvaluationError>>;
   /** Failure captured from the automatic mount-time source preload, if enabled. */
   readonly preloadFailure: Accessor<E | QueryEvaluationError | ER | undefined>;
   /** Ensure all query sources have loaded inside the nearest Solid runtime. */
@@ -95,14 +95,12 @@ export const useLiveQuery = <T, E = never, R = never, ER = never>(
 
   const data = () => binding.read(() => live().data.get());
 
-  const state = (): LiveQueryState<T, E | QueryEvaluationError> =>
+  const result = (): AsyncResult.AsyncResult<ReadonlyArray<T>, E | QueryEvaluationError> =>
     binding.read(() => live().state.get());
 
   return {
     data,
-    state,
-    waiting: createMemo(() => state().waiting),
-    error: createMemo(() => liveQueryStateError(state())),
+    result,
     preloadFailure: binding.preloadFailure,
     preloadEffect: () => binding.bindEffect(Effect.suspend(() => live().preloadEffect())),
     refetchEffect: () => binding.bindEffect(Effect.suspend(() => live().refetchEffect())),

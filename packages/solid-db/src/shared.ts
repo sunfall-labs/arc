@@ -7,15 +7,11 @@ import {
 } from "@sunfall/arc-core";
 import {
   bindCollectionRuntimeEffect,
-  collectionStateError,
-  liveQueryStateError,
   makeCollectionReactivePreloadController,
 } from "@sunfall/arc-db";
 import { useRuntime } from "@sunfall/arc-solid";
 import { Effect } from "effect";
 import { createRenderEffect, onCleanup, type Accessor } from "solid-js";
-
-export { collectionStateError, liveQueryStateError };
 
 export interface SolidDbReactiveBinding<E, ER = never> {
   readonly runtime: AnySunfallArcRuntime<ER>;

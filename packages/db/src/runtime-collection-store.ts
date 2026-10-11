@@ -4,6 +4,7 @@ import {
   type ResourceStore as ResourceStoreState,
 } from "@sunfall/arc-core";
 import { Effect, Option, PubSub, Scope } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { CollectionStoreTypeId } from "./collection-ids.js";
 import {
   bumpCollectionState,
@@ -55,16 +56,13 @@ const initializeCollectionState = <A extends object, K extends CollectionKey, E,
       state.rows.set(row.key, row);
     }
     state.initialDataError = undefined;
-    state.loadState.set({ _tag: "Ready", waiting: false, updatedAt: Date.now() });
+    // Initial data materializes synchronously outside any Effect, so there is no Clock here.
+    state.loadState.set(AsyncResult.success(undefined, { timestamp: Date.now() }));
     bumpCollectionState(state);
   } catch (error) {
     state.rows.clear();
     state.initialDataError = error as CollectionRuntimeError<E>;
-    state.loadState.set({
-      _tag: "Failure",
-      waiting: false,
-      error: state.initialDataError,
-    });
+    state.loadState.set(AsyncResult.fail(state.initialDataError));
   }
 };
 
