@@ -11,12 +11,12 @@ interruption.
 
 ## Classification
 
-| Class              | Rule                                                               | Examples                                                                                                                                        |
-| ------------------ | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Host boundary      | Promise is acceptable because the platform API requires it.        | Web Stream `pull`/`cancel`, Vite callback launchers, browser callbacks, React/Solid Suspense, test assertions over platform `Response` methods. |
-| Host runner        | Convert an Effect to a Promise only at the final host/test edge.   | `Effect.runPromise(runtime.provide(handler(request)))`, `Effect.runPromise(Resource.prefetchEffect(ref))`.                                      |
-| Public API         | Return Effects for async work; callers choose where to run them.   | `Resource.prefetchEffect(...)`, `action.submitEffect(...)`, `createRequestHandler(...)`.                                                        |
-| Internal follow-up | Convert to Effect unless there is a concrete host-boundary reason. | Promise state machines, `.then(...)` lifecycle sequencing, unstructured async helpers.                                                          |
+| Class              | Rule                                                               | Examples                                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Host boundary      | Promise is acceptable because the platform API requires it.        | Web Stream `pull`/`cancel`, Vite callback launchers, browser callbacks, Solid Suspense, test assertions over platform `Response` methods. |
+| Host runner        | Convert an Effect to a Promise only at the final host/test edge.   | `Effect.runPromise(runtime.provide(handler(request)))`, `Effect.runPromise(Resource.prefetchEffect(ref))`.                                |
+| Public API         | Return Effects for async work; callers choose where to run them.   | `Resource.prefetchEffect(...)`, `action.submitEffect(...)`, `createRequestHandler(...)`.                                                  |
+| Internal follow-up | Convert to Effect unless there is a concrete host-boundary reason. | Promise state machines, `.then(...)` lifecycle sequencing, unstructured async helpers.                                                    |
 
 ## Current Sweep Results
 

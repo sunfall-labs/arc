@@ -24,8 +24,8 @@ import type {
  *
  * Framework adapters own host reactivity and component lifecycle. This
  * controller owns history adapter wiring, initial navigation, programmatic
- * commits, and kernel disposal so React and Solid cannot drift on browser
- * routing mechanics.
+ * commits, and kernel disposal so browser routing mechanics stay testable
+ * without a renderer.
  */
 export interface BrowserRouterHostControllerOptions<
   Routes extends readonly AnyBrowserRoute[],
@@ -38,7 +38,7 @@ export interface BrowserRouterHostControllerOptions<
 }
 
 /**
- * Host-facing Browser Router Controller shared by React and Solid adapters.
+ * Host-facing Browser Router Controller used by the Solid adapter.
  *
  * The controller exposes the framework-neutral kernel signals plus start,
  * dispose, navigation, href, match, and preload helpers. Framework adapters can
@@ -89,9 +89,8 @@ export interface BrowserRouterHostController<
 /**
  * Creates the shared host Browser Router Controller used by framework adapters.
  *
- * React can expose this controller directly because it already consumes
- * `ReadableSignal`s. Solid wraps the same controller in `Accessor`s and owns the
- * Solid owner cleanup that calls `dispose()`.
+ * Its signals are Arc signals, which Solid tracks natively; the Solid adapter
+ * exposes them as accessors and owns the owner cleanup that calls `dispose()`.
  */
 export const createBrowserRouterHostController = <
   const Routes extends readonly AnyBrowserRoute[],

@@ -1,7 +1,7 @@
 import { createEffectRuntime } from "@sunfall/arc-solid";
 import { hydrateFromDocument } from "@sunfall/arc-start";
 import { Data, Layer } from "effect";
-import { hydrate, render } from "solid-js/web";
+import { hydrate, render } from "@solidjs/web";
 import App from "./App.js";
 import { DocsContentApiStaticClient } from "./content.js";
 import { currentDocsSiteHref } from "./site-base.js";

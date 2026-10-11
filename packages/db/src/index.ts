@@ -86,7 +86,6 @@ import {
   CollectionStorageError,
   persistedCollectionOptions,
 } from "./collection-persistence.js";
-import { Query } from "./query-builder.js";
 import type { QueryEvaluationError } from "./query-plan.js";
 import {
   makeLiveQueryCollectionDefinition,
@@ -177,11 +176,13 @@ import type {
   CollectionDefinitionRegistryOptions,
 } from "./collection-registry.js";
 
+// `Output["Type"]` stays resolvable for generic schemas, unlike the
+// `infer`-based `Schema.Schema.Type`.
 type CollectionRowFromOutput<Output extends Schema.Top> =
-  Schema.Schema.Type<Output> extends ReadonlyArray<infer A extends object>
+  Output["Type"] extends ReadonlyArray<infer A extends object>
     ? A
-    : Schema.Schema.Type<Output> extends object
-      ? Schema.Schema.Type<Output>
+    : Output["Type"] extends object
+      ? Output["Type"]
       : never;
 
 type CollectionKeyFromDefinition<Definition> = Definition extends {
@@ -1089,33 +1090,6 @@ export namespace Collection {
   > => subscribeCollectionEventsEffect();
 }
 
-/**
- * Compatibility alias for `Collection.define(...)`.
- *
- * Prefer `Collection.define(...)` in new code so DB APIs stay grouped under
- * their owning namespace in LSP hovers and generated docs.
- *
- * @deprecated Use `Collection.define(...)`.
- */
-export const createCollection = Collection.define;
-/**
- * Compatibility alias for `Query.live(...)`.
- *
- * Prefer `Query.live(...)` in new code so query APIs stay grouped under their
- * owning namespace in LSP hovers and generated docs.
- *
- * @deprecated Use `Query.live(...)`.
- */
-export const createLiveQuery = Query.live;
-/**
- * Compatibility alias for `Collection.liveQuery(...)`.
- *
- * Prefer `Collection.liveQuery(...)` in new code so live-query collection APIs
- * stay grouped under their owning namespace in LSP hovers and generated docs.
- *
- * @deprecated Use `Collection.liveQuery(...)`.
- */
-export const createLiveQueryCollection = Collection.liveQuery;
 export * from "./flush-policy.js";
 export * from "./server-collection.js";
 export * from "./collection-reactive-binding.js";

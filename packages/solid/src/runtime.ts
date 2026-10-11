@@ -1,7 +1,6 @@
 import {
   currentOrDefaultRuntime,
   disposeRuntimeProviderLifecycleEffect,
-  makeRuntimeUiScopeFrame,
   makeRuntime,
   makeRuntimeProviderLifecycleEntry,
   runWithRuntime,
@@ -13,20 +12,15 @@ import {
   type UiScope,
 } from "@sunfall/arc-core";
 import { Effect, Layer, ManagedRuntime } from "effect";
-import {
-  createContext,
-  createMemo,
-  createRenderEffect,
-  createRoot,
-  createSignal,
-  onCleanup,
-  useContext,
-  type JSX,
-} from "solid-js";
-import { createComponent } from "solid-js/web";
+import { createComponent, createContext, createMemo, onCleanup, useContext } from "solid-js";
+import type { JSX } from "@solidjs/web";
+import { createRuntimeScope } from "./runtime-scope.js";
 
-/** Solid context carrying the active Sunfall Arc Runtime Spine. */
-export const RuntimeContext = createContext<AnySunfallArcRuntime<never>>();
+/**
+ * Solid context carrying the active Sunfall Arc Runtime Spine. Solid 2 treats an
+ * `undefined` default as missing, so `null` marks "no provider".
+ */
+export const RuntimeContext = createContext<AnySunfallArcRuntime<never> | null>(null);
 
 /** Props for providing an Sunfall Arc runtime to Solid descendants. */
 interface RuntimeProviderChildren {
@@ -100,39 +94,20 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
       ? makeRuntimeProviderLifecycleEntry({ source: props.source })
       : makeRuntimeProviderLifecycleEntry({ runtime: props.runtime }),
   );
-  const [view, setView] = createSignal<JSX.Element>();
-  let disposeEntry: (() => void) | undefined;
 
-  const mountEntry = (current: RuntimeProviderLifecycleEntry<ER>): void => {
-    disposeEntry?.();
-    createRoot((dispose) => {
-      disposeEntry = dispose;
-      const next = createComponent(RuntimeProviderInstance, {
-        entry: current,
-        get onDisposeFailure() {
-          return props.onDisposeFailure;
-        },
-        get children() {
-          return props.children;
-        },
-      });
-      setView(() => next);
-    });
-  };
-
-  let mountedEntry = entry();
-  mountEntry(mountedEntry);
-  createRenderEffect(() => {
-    const current = entry();
-    if (current === mountedEntry) {
-      return;
-    }
-    mountedEntry = current;
-    mountEntry(current);
-  });
-  onCleanup(() => disposeEntry?.());
-
-  return view as unknown as JSX.Element;
+  // Each lifecycle entry gets its own provider instance. The memo owns it, so a
+  // new entry disposes the previous instance (and its owned runtime) first.
+  return createMemo(() =>
+    createComponent(RuntimeProviderInstance<ER>, {
+      entry: entry(),
+      get onDisposeFailure() {
+        return props.onDisposeFailure;
+      },
+      get children() {
+        return props.children;
+      },
+    }),
+  ) as unknown as JSX.Element;
 };
 
 const RuntimeProviderInstance = <ER>(props: {
@@ -153,7 +128,7 @@ const RuntimeProviderInstance = <ER>(props: {
     });
   }
 
-  return createComponent(RuntimeContext.Provider, {
+  return createComponent(RuntimeContext, {
     value: props.entry.runtime as unknown as AnySunfallArcRuntime<never>,
     get children() {
       return runWithRuntime(props.entry.runtime, () => props.children);
@@ -162,11 +137,5 @@ const RuntimeProviderInstance = <ER>(props: {
 };
 
 /** Creates a `UiScope` bound to the current Solid owner cleanup. */
-export const createComponentScope = <A>(f: (scope: UiScope) => A): A => {
-  const runtime = useRuntime();
-  const frame = makeRuntimeUiScopeFrame(runtime);
-  onCleanup(() => {
-    frame.dispose();
-  });
-  return frame.run(() => f(frame.scope));
-};
+export const createComponentScope = <A>(f: (scope: UiScope) => A): A =>
+  createRuntimeScope(useRuntime(), f);

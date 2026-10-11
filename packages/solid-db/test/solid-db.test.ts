@@ -1,13 +1,8 @@
-import { makeRuntime, runWithRuntime, type ReadableSignal } from "@sunfall/arc-core";
-import {
-  Collection,
-  QueryEvaluationError,
-  type CollectionLoadState,
-  type CollectionRuntimeError,
-} from "@sunfall/arc-db";
+import { makeRuntime, runWithRuntime } from "@sunfall/arc-core";
+import { Collection, QueryEvaluationError } from "@sunfall/arc-db";
 import { useCollection, useLiveQuery } from "@sunfall/arc-solid-db";
 import { Context, Deferred, Effect, Fiber, Layer } from "effect";
-import { createRoot, createSignal } from "solid-js";
+import { createEffect, createRoot, createSignal, flush } from "solid-js";
 import { describe, expect, it } from "vitest";
 import { makeSolidDbReactiveBinding } from "../src/shared.js";
 
@@ -114,23 +109,7 @@ describe("solid-db", () => {
     );
   });
 
-  it("disposes collection and live-query subscriptions with the Solid owner", () => {
-    let dispose: (() => void) | undefined;
-    let activeSubscriptions = 0;
-
-    const trackSignalSubscriptions = <A>(signal: ReadableSignal<A>): ReadableSignal<A> => ({
-      ...signal,
-      get: () => signal.get(),
-      subscribe: (listener) => {
-        activeSubscriptions++;
-        const unsubscribe = signal.subscribe(listener);
-        return () => {
-          activeSubscriptions--;
-          unsubscribe();
-        };
-      },
-    });
-
+  it("tracks collection reads natively and releases them with the Solid owner", async () => {
     const Projects = Collection.define<Project>({
       name: "SolidDb.cleanup.projects",
       getKey: (project) => project.id,
@@ -142,38 +121,43 @@ describe("solid-db", () => {
         { id: "lumen", name: "Lumen", active: false },
       ],
     });
+    const listeners = () =>
+      (Projects.version() as unknown as { readonly listeners: Set<unknown> }).listeners.size;
+    const rendered: string[] = [];
 
-    const version = trackSignalSubscriptions(Projects.version());
-    const state = trackSignalSubscriptions(Projects.state());
-    const trackedProjects = Projects as typeof Projects & {
-      version: () => ReadableSignal<number>;
-      state: () => ReadableSignal<CollectionLoadState<CollectionRuntimeError<never>>>;
-    };
-    trackedProjects.version = () => version;
-    trackedProjects.state = () => state;
+    const dispose = createRoot((rootDispose) => {
+      const projects = useCollection(Projects, { preload: false });
+      const activeNames = useLiveQuery(
+        (query) =>
+          query
+            .from({ project: Projects })
+            .where(({ project }) => project.active)
+            .select(({ project }) => project.name)
+            .orderBy(({ project }) => project.name),
+        { preload: false },
+      );
+      createEffect(
+        () => `${projects.rows().length}:${activeNames.data().join(",")}`,
+        (value) => {
+          rendered.push(value);
+        },
+      );
+      return rootDispose;
+    });
+    flush();
+    const whileRendered = listeners();
 
-    try {
-      createRoot((rootDispose) => {
-        dispose = rootDispose;
-        useCollection(Projects, { preload: false });
-        useLiveQuery(
-          (query) =>
-            query
-              .from({ project: Projects })
-              .where(({ project }) => project.active)
-              .select(({ project }) => project.name)
-              .orderBy(({ project }) => project.name),
-          { preload: false },
-        );
-      });
+    await Effect.runPromise(Projects.writeUpdateEffect("lumen", { active: true }));
+    flush();
+    dispose();
+    flush();
+    await Promise.resolve();
 
-      expect(activeSubscriptions).toBe(4);
-      dispose?.();
-      dispose = undefined;
-      expect(activeSubscriptions).toBe(0);
-    } finally {
-      dispose?.();
-    }
+    expect({ rendered, whileRendered: whileRendered > 0, afterDispose: listeners() }).toEqual({
+      rendered: ["2:Atlas", "2:Atlas,Lumen"],
+      whileRendered: true,
+      afterDispose: 0,
+    });
   });
 
   it("exposes automatic preload failures through typed Solid accessors", () => {
@@ -400,14 +384,16 @@ describe("solid-db", () => {
           dispose = rootDispose;
           const [archive, setArchive] = createSignal(false);
           selectArchive = setArchive;
+          // Switching sources switches the preload work, which restarts preloading.
           return makeSolidDbReactiveBinding<typeof staleFailure>({
             runtime: runtime.runtime,
-            sources: () => (archive() ? [ArchivedProjects] : [ActiveProjects]),
-            preloadEffect: Effect.suspend(() =>
+            preloadEffect: () =>
               archive()
-                ? Effect.void
-                : Deferred.await(staleRelease).pipe(Effect.andThen(Effect.fail(staleFailure))),
-            ),
+                ? ArchivedProjects.preloadEffect()
+                : ActiveProjects.preloadEffect().pipe(
+                    Effect.andThen(Deferred.await(staleRelease)),
+                    Effect.andThen(Effect.fail(staleFailure)),
+                  ),
             onPreloadFailure: (error) => observedFailures.push(error),
           });
         });
@@ -415,7 +401,7 @@ describe("solid-db", () => {
         yield* Effect.sleep("0 millis");
         runtime.delayForks();
         selectArchive?.(true);
-        handle.refreshSources();
+        flush();
         yield* Deferred.succeed(staleRelease, undefined);
         yield* Effect.sleep("20 millis");
 
@@ -488,10 +474,8 @@ describe("solid-db", () => {
           dispose = rootDispose;
           makeSolidDbReactiveBinding<typeof staleFailure>({
             runtime: runtime.runtime,
-            sources: [],
-            preloadEffect: Deferred.await(staleRelease).pipe(
-              Effect.andThen(Effect.fail(staleFailure)),
-            ),
+            preloadEffect: () =>
+              Deferred.await(staleRelease).pipe(Effect.andThen(Effect.fail(staleFailure))),
             onPreloadFailure: (error) => observedFailures.push(error),
           });
         });
@@ -634,11 +618,11 @@ describe("solid-db", () => {
     );
   });
 
-  it("subscribes live query collections inside the explicit Solid runtime", () => {
+  it("tracks live query collections inside the explicit Solid runtime only", () => {
     let dispose: (() => void) | undefined;
     const firstRuntime = makeRuntime();
     const secondRuntime = makeRuntime();
-    let notifications = 0;
+    const rendered: string[] = [];
     const Projects = Collection.define<Project>({
       name: "SolidDb.live-query-collection-runtime.projects",
       getKey: (project) => project.id,
@@ -648,19 +632,6 @@ describe("solid-db", () => {
       getKey: (project) => project.id,
       query: (query) => query.from({ project: Projects }).select(({ project }) => project),
     });
-    const trackSignalNotifications = <A>(signal: ReadableSignal<A>): ReadableSignal<A> => ({
-      ...signal,
-      get: () => signal.get(),
-      subscribe: (listener) =>
-        signal.subscribe(() => {
-          notifications++;
-          listener();
-        }),
-    });
-    const originalVersion = ProjectCards.version;
-    const originalState = ProjectCards.state;
-    ProjectCards.version = () => trackSignalNotifications(originalVersion());
-    ProjectCards.state = () => trackSignalNotifications(originalState());
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -671,28 +642,37 @@ describe("solid-db", () => {
           Projects.writeInsertEffect({ id: "lumen", name: "Lumen", active: true }),
         );
 
-        const cards = runWithRuntime(firstRuntime, () =>
+        runWithRuntime(firstRuntime, () =>
           createRoot((rootDispose) => {
             dispose = rootDispose;
-            return useCollection(ProjectCards, { preload: false });
+            const cards = useCollection(ProjectCards, { preload: false });
+            createEffect(
+              () =>
+                cards
+                  .rows()
+                  .map((project) => project.name)
+                  .join(","),
+              (names) => {
+                rendered.push(names);
+              },
+            );
           }),
         );
-        yield* Effect.sleep("0 millis");
-
-        expect(cards.rows().map((project) => project.name)).toEqual(["Atlas"]);
-        notifications = 0;
+        flush();
 
         yield* secondRuntime.provide(Projects.writeUpdateEffect("lumen", { name: "Lumen Prime" }));
         yield* Effect.sleep("0 millis");
-
-        expect(notifications).toBe(0);
-        expect(cards.rows().map((project) => project.name)).toEqual(["Atlas"]);
+        flush();
+        const afterOtherRuntime = [...rendered];
 
         yield* firstRuntime.provide(Projects.writeUpdateEffect("atlas", { name: "Atlas Prime" }));
         yield* Effect.sleep("0 millis");
+        flush();
 
-        expect(notifications).toBeGreaterThan(0);
-        expect(cards.rows().map((project) => project.name)).toEqual(["Atlas Prime"]);
+        expect({ afterOtherRuntime, rendered }).toEqual({
+          afterOtherRuntime: ["Atlas"],
+          rendered: ["Atlas", "Atlas Prime"],
+        });
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
         Effect.ensuring(firstRuntime.disposeEffect),
@@ -874,6 +854,7 @@ describe("solid-db", () => {
       expect(handle.data()).toEqual(["Atlas"]);
 
       selectArchive?.(true);
+      flush();
       expect(handle.data()).toEqual(["Lumen"]);
       await Effect.runPromise(Effect.sleep("20 millis"));
 

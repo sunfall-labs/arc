@@ -11652,7 +11652,7 @@ Status: fixed in the current worktree.
 - Start Request Observability: Start request handling now emits Effect metrics,
   log annotations, and spans alongside JSON-safe `StartRequestTrace` facts.
 - Effect RPC Compatibility: Start server functions can be described as
-  `effect/unstable/rpc` descriptors and grouped as an `RpcGroup`, while the
+  `effect/rpc` descriptors and grouped as an `RpcGroup`, while the
   current Start transport remains the serving Adapter.
 
 Evidence:

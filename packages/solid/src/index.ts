@@ -1,3 +1,4 @@
+export * from "./component.js";
 export * from "./hooks.js";
 export * from "./link.js";
 export * from "./router.js";

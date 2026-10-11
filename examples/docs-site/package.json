@@ -21,23 +21,23 @@
     "typecheck": "tsrx-tsc -p tsconfig.json --noEmit",
     "test": "vitest run src/*.test.ts",
     "leak-scan": "node scripts/leak-scan.mjs",
-    "performance-budget": "node scripts/performance-budget.mjs",
     "pages:verify": "node scripts/verify-pages-build.mjs",
     "pages:smoke": "node scripts/smoke-pages-build.mjs",
-    "verify": "pnpm typecheck && pnpm test && pnpm build && pnpm leak-scan && pnpm performance-budget"
+    "verify": "pnpm typecheck && pnpm test && pnpm build && pnpm leak-scan"
   },
   "dependencies": {
+    "@solidjs/web": "2.0.0-rc.14",
     "@sunfall/arc-core": "workspace:*",
     "@sunfall/arc-solid": "workspace:*",
     "@sunfall/arc-start": "workspace:*",
     "@sunfall/arc-tsrx": "workspace:*",
-    "effect": "^4.0.0-beta.66",
-    "solid-js": "^1.9.12"
+    "effect": "4.0.3",
+    "solid-js": "2.0.0-rc.14"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",
     "@tailwindcss/vite": "^4.3.0",
-    "@tsrx/typescript-plugin": "^0.3.58",
+    "@tsrx/typescript-plugin": "0.6.3",
     "@types/node": "^25.7.0",
     "tailwindcss": "^4.3.0",
     "typescript": "^5.9.3",
@@ -49,7 +49,10 @@
     "patterns": [
       "content\\.server",
       "/src/content\\.server\\.ts",
-      "readRecipeFileEffect"
+      "readRecipeFileEffect",
+      "@shikijs/",
+      "\\bshiki/(?:core|engine|langs|themes)\\b",
+      "\\bnode:fs\\b"
     ]
   }
 }

@@ -11,8 +11,8 @@ import {
   runWithRuntime,
 } from "@sunfall/arc-core";
 import { Cause, Context, Deferred, Effect, Fiber, Layer, Stream } from "effect";
-import { createRoot, createSignal } from "solid-js";
-import { createComponent } from "solid-js/web";
+import { children, createRoot, createSignal, flush, NotReadyError } from "solid-js";
+import { createComponent } from "@solidjs/web";
 import { describe, expect, it, vi } from "vitest";
 import {
   createComponentScope,
@@ -23,7 +23,6 @@ import {
   useResourceSuspense,
   useRuntime,
   useRuntimeEffect,
-  useSignal,
   useStream,
 } from "../src/index.js";
 
@@ -38,14 +37,8 @@ interface ProjectApi {
 
 const ProjectApi = Context.Service<ProjectApi>("@sunfall/arc-solid/test/ProjectApi");
 
-const suppressHostThenableFailure = (value: unknown): void => {
-  void Effect.runPromise(
-    Effect.tryPromise({
-      try: () => value as PromiseLike<unknown>,
-      catch: () => undefined,
-    }).pipe(Effect.catchCause(() => Effect.void)),
-  );
-};
+/** Reads rendered output the way DOM insertion would; Solid 2 evaluates children lazily. */
+const resolveRendered = (element: unknown): unknown => children(() => element as never)();
 
 describe("solid hooks", () => {
   it("binds returned resource Effects to the Solid runtime", () => {
@@ -373,6 +366,7 @@ describe("solid hooks", () => {
 
         yield* Effect.sleep("20 millis");
         setObserverName?.("second");
+        flush();
         project.state();
         yield* Deferred.succeed(release, undefined);
         yield* Effect.promise(() =>
@@ -440,6 +434,7 @@ describe("solid hooks", () => {
 
         fail = true;
         yield* Effect.flip(runtime.provide(Resource.refreshEffect(ref)));
+        flush();
 
         try {
           readProject();
@@ -486,12 +481,12 @@ describe("solid hooks", () => {
               readProject();
             } catch (error) {
               thrown = error;
-              suppressHostThenableFailure(error);
             }
           }),
         );
 
-        expect(thrown).toBeInstanceOf(Promise);
+        // Solid 2 suspends through its own not-ready signal, never a thrown Promise.
+        expect(thrown).toBeInstanceOf(NotReadyError);
         yield* Deferred.await(started);
         dispose?.();
         const interruptedBeforeRuntimeDispose = yield* Deferred.await(interrupted).pipe(
@@ -540,13 +535,14 @@ describe("solid hooks", () => {
             try {
               readProject();
             } catch (error) {
-              suppressHostThenableFailure(error);
+              expect(error).toBeInstanceOf(NotReadyError);
             }
           }),
         );
 
         yield* Deferred.await(started);
         setProjectId?.("fast");
+        flush();
         expect(readProject?.()).toEqual({ id: "fast", name: "Fast" });
         const interruptedBeforeRuntimeDispose = yield* Deferred.await(interrupted).pipe(
           Effect.as(true),
@@ -575,18 +571,22 @@ describe("solid hooks", () => {
 
         createRoot((rootDispose) => {
           dispose = rootDispose;
-          createComponent(RuntimeProvider, {
-            get children() {
-              firstRuntime = useRuntime();
-              return undefined;
-            },
-          });
-          createComponent(RuntimeProvider, {
-            get children() {
-              secondRuntime = useRuntime();
-              return undefined;
-            },
-          });
+          resolveRendered(
+            createComponent(RuntimeProvider, {
+              get children() {
+                firstRuntime = useRuntime();
+                return undefined;
+              },
+            }),
+          );
+          resolveRendered(
+            createComponent(RuntimeProvider, {
+              get children() {
+                secondRuntime = useRuntime();
+                return undefined;
+              },
+            }),
+          );
         });
 
         expect(firstRuntime).toBeDefined();
@@ -609,19 +609,21 @@ describe("solid hooks", () => {
 
         createRoot((rootDispose) => {
           dispose = rootDispose;
-          createComponent(RuntimeProvider, {
-            onDisposeFailure: (error) => Deferred.succeed(observed, error),
-            get children() {
-              const runtime = useRuntime();
-              runtime.resourceStore.moduleRegistry.register(
-                Symbol("solid-provider-dispose-failure"),
-                {
-                  disposeEffect: Effect.fail("solid dispose failed"),
-                },
-              );
-              return undefined;
-            },
-          });
+          resolveRendered(
+            createComponent(RuntimeProvider, {
+              onDisposeFailure: (error) => Deferred.succeed(observed, error),
+              get children() {
+                const runtime = useRuntime();
+                runtime.resourceStore.moduleRegistry.register(
+                  Symbol("solid-provider-dispose-failure"),
+                  {
+                    disposeEffect: Effect.fail("solid dispose failed"),
+                  },
+                );
+                return undefined;
+              },
+            }),
+          );
         });
 
         dispose?.();
@@ -928,7 +930,8 @@ describe("solid hooks", () => {
         runWithRuntime(runtime, () =>
           createRoot((rootDispose) => {
             dispose = rootDispose;
-            state = useSignal(Resource.result(ref));
+            const result = Resource.result(ref);
+            state = () => result.get();
           }),
         );
         expect(state?.()._tag).toBe("Success");

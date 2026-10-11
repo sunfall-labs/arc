@@ -21,7 +21,7 @@ first public alpha version is `0.1.0-alpha.1`.
   are reserved for explicit runtime, Suspense, stream, CLI, Vite, or host
   compatibility boundaries.
 - LSP-facing JSDoc describes the purpose and composition model for the core,
-  DB, React, React DB, Solid, Start, Node, and Fetch concepts.
+  DB, Solid, Solid DB, Start, Node, and Fetch concepts.
 - Start request handling: SSR, RPC, Start actions, hydration payloads, streamed
   HTML responses, request traces, and build diagnostics.
 - Start agent graph and impact inspection: `sunfall-arc-start graph`,
@@ -37,12 +37,9 @@ first public alpha version is `0.1.0-alpha.1`.
   the checked browser-extension shell with an inspected-window bridge.
 - Local-first DB surface: Collections, live queries, persistence, sync adapter
   seams, mutation queues, and flush policies.
-- Solid adapters: runtime provider, router, Program hooks, Resource hooks,
+- Solid 2 adapter: runtime provider, router, Program hooks, Resource hooks,
   Action hooks, stream hooks, and collection hooks.
-- React adapters: runtime provider, component scopes, Signal/Stream/Program/
-  Resource/Action hooks, Suspense read adapters, and React DB hooks.
 - Starter paths: `examples/basic-starter` for the smallest full-stack shell,
-  `examples/react-starter` for the React-focused starter,
   `examples/project-console` for the golden-path app, and
   `pnpm starter:package` for generated standalone starter payloads.
 
@@ -1581,7 +1578,7 @@ release-readiness:
 - Start request handling now exposes Effect-native request count, duration, and
   status metrics alongside the JSON-safe request trace hook.
 - Start server functions can be described as additive
-  `effect/unstable/rpc` compatibility descriptors without replacing the current
+  `effect/rpc` compatibility descriptors without replacing the current
   Start RPC transport.
 - Start diagnostics report formatting now sits behind a focused diagnostics
   contract module, and Solid/Solid-DB roots are facades over focused runtime,

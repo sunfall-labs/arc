@@ -12,16 +12,17 @@ import {
   RouteNavigationError,
   RoutePreloadError,
   runWithRuntime,
+  Signal,
 } from "@sunfall/arc-core";
-import type { JSX } from "solid-js";
+import type { JSX } from "@solidjs/web";
 import type { BrowserRouter, BrowserRouterState } from "../src/index.js";
 
-vi.doMock("solid-js", () => import("solid-js/dist/solid.js"));
-vi.doMock("solid-js/web", () => import("solid-js/web/dist/web.js"));
-
-const { ErrorBoundary, Show, Suspense, createRoot, createSignal, onCleanup, sharedConfig } =
+const { Errored, Loading, Show, children, createRoot, createSignal, getOwner, onCleanup } =
   await import("solid-js");
-const { createComponent, render } = await import("solid-js/web");
+
+/** Reads rendered output the way DOM insertion would; Solid 2 evaluates children lazily. */
+const resolveRendered = (element: unknown): unknown => children(() => element as never)();
+const { createComponent, hydrate, render } = await import("@solidjs/web");
 const {
   createBrowserRouter,
   RouterLink,
@@ -918,7 +919,7 @@ describe("createBrowserRouter", () => {
       ),
     ));
 
-  it("publishes unloaded lazy route components as Solid route render suspensions", () =>
+  it("suspends the nearest Loading boundary while an unloaded lazy route component loads", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
@@ -943,48 +944,33 @@ describe("createBrowserRouter", () => {
           const ProjectRoute = route("/ready-lazy-solid-projects/:id", {
             component: LazyProject,
           });
-          const match = ProjectRoute.match("/ready-lazy-solid-projects/atlas");
-          if (!match) {
-            expect.fail("Expected ready lazy Solid route to match.");
-          }
-
-          let node: (() => JSX.Element) | undefined;
-          let suspension: (() => unknown) | undefined;
-          let dispose: () => void = () => undefined;
-          createRoot((rootDispose) => {
-            dispose = rootDispose;
-            const [currentNode, setNode] = createSignal<JSX.Element>();
-            const [, setRenderError] = createSignal<unknown>();
-            const [currentSuspension, setRenderSuspension] = createSignal<unknown>();
-            makeSolidRouteRenderScopeController({
-              initialInput: {
-                state: {
-                  _tag: "Ready",
-                  href: "/ready-lazy-solid-projects/atlas",
-                  match,
+          const container = document.createElement("div");
+          const dispose = render(
+            () =>
+              createComponent(Loading, {
+                fallback: "loading",
+                get children() {
+                  return createComponent(RouterProvider, {
+                    routes: [ProjectRoute] as const,
+                    initialHref: "/ready-lazy-solid-projects/atlas",
+                    hydrating: true,
+                    runtime,
+                  });
                 },
-                renderers: {},
-              },
-              runtime,
-              setNode,
-              setRenderError,
-              setRenderSuspension,
-            });
-            node = currentNode;
-            suspension = currentSuspension;
-          });
+              }),
+            container,
+          );
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
 
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(container.textContent).toBe("loading")),
+          );
           expect(imports).toBe(1);
-          expect(node?.()).toBeUndefined();
-          expect(suspension?.()).toBeDefined();
+          expect(renders).toBe(0);
 
           yield* Deferred.succeed(release, undefined);
           yield* Effect.promise(() =>
-            vi.waitFor(() => {
-              expect(node?.()).toBe("Project atlas");
-              expect(suspension?.()).toBeUndefined();
-            }),
+            vi.waitFor(() => expect(container.textContent).toBe("Project atlas")),
           );
           expect(imports).toBe(1);
           expect(renders).toBe(1);
@@ -1338,18 +1324,19 @@ describe("createBrowserRouter", () => {
           let dispose: () => void = () => undefined;
           createRoot((rootDispose) => {
             dispose = rootDispose;
-            const [currentNode, setNode] = createSignal<JSX.Element>();
-            const [, setRenderError] = createSignal<unknown>();
+            const currentNode = Signal.make<JSX.Element>(undefined);
+            const renderError = Signal.make<unknown>(undefined);
             const controller = makeSolidRouteRenderScopeController({
+              owner: getOwner(),
               initialInput: {
                 state,
                 renderers: { pending: () => "pending-one" },
               },
               runtime,
-              setNode,
-              setRenderError,
+              node: currentNode,
+              renderError,
             });
-            node = currentNode;
+            node = () => currentNode.get();
             update = (pending) =>
               controller.update({
                 state,
@@ -1357,7 +1344,6 @@ describe("createBrowserRouter", () => {
               });
           });
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
-
           expect(node?.()).toBe("pending-one");
           update?.(() => "pending-two");
           yield* Effect.promise(() => vi.waitFor(() => expect(node?.()).toBe("pending-two")));
@@ -1393,9 +1379,10 @@ describe("createBrowserRouter", () => {
           let disposeController: () => Effect.Effect<void> = () => Effect.void;
           createRoot((rootDispose) => {
             dispose = rootDispose;
-            const [currentNode, setNode] = createSignal<JSX.Element>();
-            const [, setRenderError] = createSignal<unknown>();
+            const currentNode = Signal.make<JSX.Element>(undefined);
+            const renderError = Signal.make<unknown>(undefined);
             const controller = makeSolidRouteRenderScopeController({
+              owner: getOwner(),
               initialInput: {
                 state,
                 renderers: {
@@ -1414,11 +1401,11 @@ describe("createBrowserRouter", () => {
                 },
               },
               runtime,
-              setNode,
-              setRenderError,
+              node: currentNode,
+              renderError,
             });
             disposeController = controller.disposeEffect;
-            node = currentNode;
+            node = () => currentNode.get();
             update = (pending) =>
               controller.update({
                 state,
@@ -1427,7 +1414,6 @@ describe("createBrowserRouter", () => {
           });
           yield* Effect.addFinalizer(() => disposeController());
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
-
           expect(node?.()).toBe("pending-one");
           update?.(() => {
             events.push(`pending-two:setup:${events.includes("pending-one:cleanup-start")}`);
@@ -1483,19 +1469,20 @@ describe("createBrowserRouter", () => {
           let disposeController: () => Effect.Effect<void> = () => Effect.void;
           createRoot((rootDispose) => {
             dispose = rootDispose;
-            const [currentNode, setNode] = createSignal<JSX.Element>();
-            const [, setRenderError] = createSignal<unknown>();
+            const currentNode = Signal.make<JSX.Element>(undefined);
+            const renderErrorSignal = Signal.make<unknown>(undefined);
             const controller = makeSolidRouteRenderScopeController({
+              owner: getOwner(),
               initialInput: {
                 state,
                 renderers: { pending: () => "pending-one" },
               },
               runtime,
-              setNode,
-              setRenderError,
+              node: currentNode,
+              renderError: renderErrorSignal,
             });
             disposeController = controller.disposeEffect;
-            node = currentNode;
+            node = () => currentNode.get();
             update = (pending) =>
               controller.update({
                 state,
@@ -1504,7 +1491,6 @@ describe("createBrowserRouter", () => {
           });
           yield* Effect.addFinalizer(() => disposeController());
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
-
           expect(node?.()).toBe("pending-one");
           update?.(() => {
             events.push("pending-failed:setup");
@@ -1573,9 +1559,10 @@ describe("createBrowserRouter", () => {
           let disposeController: () => Effect.Effect<void> = () => Effect.void;
           createRoot((rootDispose) => {
             dispose = rootDispose;
-            const [currentNode, setNode] = createSignal<JSX.Element>();
-            const [, setRenderError] = createSignal<unknown>();
+            const currentNode = Signal.make<JSX.Element>(undefined);
+            const renderErrorSignal = Signal.make<unknown>(undefined);
             const controller = makeSolidRouteRenderScopeController({
+              owner: getOwner(),
               initialInput: {
                 state,
                 renderers: {
@@ -1594,11 +1581,11 @@ describe("createBrowserRouter", () => {
                 },
               },
               runtime,
-              setNode,
-              setRenderError,
+              node: currentNode,
+              renderError: renderErrorSignal,
             });
             disposeController = controller.disposeEffect;
-            node = currentNode;
+            node = () => currentNode.get();
             update = (pending) =>
               controller.update({
                 state,
@@ -1657,9 +1644,10 @@ describe("createBrowserRouter", () => {
           let disposeController: () => Effect.Effect<void> = () => Effect.void;
           createRoot((rootDispose) => {
             dispose = rootDispose;
-            const [, setNode] = createSignal<JSX.Element>();
-            const [, setRenderError] = createSignal<unknown>();
+            const currentNode = Signal.make<JSX.Element>(undefined);
+            const renderError = Signal.make<unknown>(undefined);
             const controller = makeSolidRouteRenderScopeController({
+              owner: getOwner(),
               initialInput: {
                 state,
                 renderers: {
@@ -1675,8 +1663,8 @@ describe("createBrowserRouter", () => {
                 },
               },
               runtime,
-              setNode,
-              setRenderError,
+              node: currentNode,
+              renderError,
             });
             const controllerDisposeEffect: Effect.Effect<void> = controller.disposeEffect();
             void controllerDisposeEffect;
@@ -1698,14 +1686,11 @@ describe("createBrowserRouter", () => {
         Effect.gen(function* () {
           const runtime = makeRuntime();
           const release = yield* Deferred.make<void>();
-          const previousContext = sharedConfig.context;
-          sharedConfig.context = {
-            id: "",
-            count: 0,
-          };
+          const hydrationGlobal = globalThis as { _$HY?: unknown };
+          hydrationGlobal._$HY = { events: [], completed: new WeakSet(), r: {} };
           yield* Effect.addFinalizer(() =>
             Effect.sync(() => {
-              sharedConfig.context = previousContext;
+              delete hydrationGlobal._$HY;
             }),
           );
           yield* Effect.addFinalizer(() => runtime.disposeEffect);
@@ -1713,16 +1698,17 @@ describe("createBrowserRouter", () => {
           const ProjectRoute = route("/hydrating-projects/:id", {
             preload: () => Deferred.await(release),
           });
-          let dispose: () => void = () => undefined;
-          const router = createRoot(
-            (rootDispose): BrowserRouter<readonly [typeof ProjectRoute]> => {
-              dispose = rootDispose;
-              return createBrowserRouter([ProjectRoute] as const, {
-                initialHref: "/hydrating-projects/atlas",
-                runtime,
-              });
-            },
-          );
+          let router: BrowserRouter<readonly [typeof ProjectRoute]> | undefined;
+          const dispose = hydrate(() => {
+            router = createBrowserRouter([ProjectRoute] as const, {
+              initialHref: "/hydrating-projects/atlas",
+              runtime,
+            });
+            return undefined;
+          }, document.createElement("div"));
+          if (router === undefined) {
+            expect.fail("Expected the router to be created during hydration.");
+          }
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
 
           yield* Effect.sync(() => {
@@ -1948,370 +1934,6 @@ describe("createBrowserRouter", () => {
       ),
     ));
 
-  it("rethrows route render thenables without scheduling a render failure", () =>
-    Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function* () {
-          const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
-
-          const thenable = { then: () => undefined };
-          const SuspendedRoute = route("/route-thenable", {
-            component: () => {
-              throw thenable;
-            },
-          });
-          const match = SuspendedRoute.match("/route-thenable");
-          if (!match) {
-            expect.fail("Expected route to match.");
-          }
-          let nodeWrites = 0;
-          let renderErrorWrites = 0;
-
-          try {
-            makeSolidRouteRenderScopeController({
-              initialInput: {
-                state: {
-                  _tag: "Ready",
-                  href: "/route-thenable",
-                  match,
-                },
-                renderers: {},
-              },
-              runtime,
-              setNode: () => {
-                nodeWrites++;
-                return undefined;
-              },
-              setRenderError: () => {
-                renderErrorWrites++;
-                return undefined;
-              },
-            });
-            expect.fail("Expected route thenable to be rethrown.");
-          } catch (error) {
-            expect(error).toBe(thenable);
-          }
-
-          expect(nodeWrites).toBe(0);
-          expect(renderErrorWrites).toBe(0);
-        }),
-      ),
-    ));
-
-  it("keeps route render thenables after navigation out of the host ErrorBoundary", () =>
-    Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function* () {
-          const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
-
-          const thenable = new Promise<never>(() => undefined);
-          const GoodRoute = route("/suspense-good", {
-            component: () => undefined,
-          });
-          const SuspendedRoute = route("/suspense-route", {
-            component: () => {
-              throw thenable;
-            },
-          });
-          const routes = [GoodRoute, SuspendedRoute] as const;
-
-          let router: BrowserRouter<typeof routes> | undefined;
-          let caught: unknown;
-          const CaptureRouter = () => {
-            router = useRouter<typeof routes>();
-            return createComponent(Suspense, {
-              fallback: "loading",
-              get children() {
-                return createComponent(ErrorBoundary, {
-                  fallback: (error) => {
-                    caught = error;
-                    return "caught";
-                  },
-                  get children() {
-                    return createComponent(RouterOutlet, {});
-                  },
-                });
-              },
-            });
-          };
-          const container = document.createElement("div");
-          const dispose = render(
-            () =>
-              createComponent(RouterProvider, {
-                routes,
-                initialHref: "/suspense-good",
-                runtime,
-                get children() {
-                  return createComponent(CaptureRouter, {});
-                },
-              }),
-            container,
-          );
-          yield* Effect.addFinalizer(() => Effect.sync(dispose));
-
-          yield* Effect.promise(() =>
-            vi.waitFor(() => expect(router!.state()).toMatchObject({ href: "/suspense-good" })),
-          );
-          expect(container.textContent).toBe("");
-          router!.navigateHref("/suspense-route");
-
-          yield* Effect.promise(() =>
-            vi.waitFor(() => {
-              expect(router!.state()).toMatchObject({
-                _tag: "Ready",
-                href: "/suspense-route",
-              });
-              expect(caught).toBeUndefined();
-            }),
-          );
-        }),
-      ),
-    ));
-
-  it("publishes suspended route render outcomes from controller updates", () =>
-    Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function* () {
-          const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
-
-          const thenable = { then: () => undefined };
-          const GoodRoute = route("/controller-suspense-good", {
-            component: () => "good",
-          });
-          const SuspendedRoute = route("/controller-suspense-route", {
-            component: () => {
-              throw thenable;
-            },
-          });
-          const goodMatch = GoodRoute.match("/controller-suspense-good");
-          const suspendedMatch = SuspendedRoute.match("/controller-suspense-route");
-          if (!goodMatch || !suspendedMatch) {
-            expect.fail("Expected routes to match.");
-          }
-
-          let node: (() => JSX.Element) | undefined;
-          let suspension: (() => unknown) | undefined;
-          let update: (() => void) | undefined;
-          let dispose: () => void = () => undefined;
-          createRoot((rootDispose) => {
-            dispose = rootDispose;
-            const [currentNode, setNode] = createSignal<JSX.Element>();
-            const [, setRenderError] = createSignal<unknown>();
-            const [currentSuspension, setRenderSuspension] = createSignal<unknown>();
-            const controller = makeSolidRouteRenderScopeController({
-              initialInput: {
-                state: {
-                  _tag: "Ready",
-                  href: "/controller-suspense-good",
-                  match: goodMatch,
-                },
-                renderers: {},
-              },
-              runtime,
-              setNode,
-              setRenderError,
-              setRenderSuspension,
-            });
-            node = currentNode;
-            suspension = currentSuspension;
-            update = () =>
-              controller.update({
-                state: {
-                  _tag: "Ready",
-                  href: "/controller-suspense-route",
-                  match: suspendedMatch,
-                },
-                renderers: {},
-              });
-          });
-          yield* Effect.addFinalizer(() => Effect.sync(dispose));
-
-          expect(node?.()).toBe("good");
-          update?.();
-          yield* Effect.promise(() =>
-            vi.waitFor(() => {
-              expect(node?.()).toBeUndefined();
-              expect(suspension?.()).toBe(thenable);
-            }),
-          );
-        }),
-      ),
-    ));
-
-  it("retries suspended route render outcomes when the thenable settles", () =>
-    Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function* () {
-          const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
-
-          let shouldSuspend = true;
-          let resumeSuspension: (() => void) | undefined;
-          const thenable = {
-            then: (resolve: () => void) => {
-              resumeSuspension = resolve;
-            },
-          };
-          const GoodRoute = route("/controller-retry-good", {
-            component: () => "good",
-          });
-          const SuspendedRoute = route("/controller-retry-route", {
-            component: () => {
-              if (shouldSuspend) {
-                throw thenable;
-              }
-              return "ready";
-            },
-          });
-          const goodMatch = GoodRoute.match("/controller-retry-good");
-          const suspendedMatch = SuspendedRoute.match("/controller-retry-route");
-          if (!goodMatch || !suspendedMatch) {
-            expect.fail("Expected routes to match.");
-          }
-
-          let node: (() => JSX.Element) | undefined;
-          let suspension: (() => unknown) | undefined;
-          let update: (() => void) | undefined;
-          let dispose: () => void = () => undefined;
-          createRoot((rootDispose) => {
-            dispose = rootDispose;
-            const [currentNode, setNode] = createSignal<JSX.Element>();
-            const [, setRenderError] = createSignal<unknown>();
-            const [currentSuspension, setRenderSuspension] = createSignal<unknown>();
-            const controller = makeSolidRouteRenderScopeController({
-              initialInput: {
-                state: {
-                  _tag: "Ready",
-                  href: "/controller-retry-good",
-                  match: goodMatch,
-                },
-                renderers: {},
-              },
-              runtime,
-              setNode,
-              setRenderError,
-              setRenderSuspension,
-            });
-            node = currentNode;
-            suspension = currentSuspension;
-            update = () =>
-              controller.update({
-                state: {
-                  _tag: "Ready",
-                  href: "/controller-retry-route",
-                  match: suspendedMatch,
-                },
-                renderers: {},
-              });
-          });
-          yield* Effect.addFinalizer(() => Effect.sync(dispose));
-
-          expect(node?.()).toBe("good");
-          update?.();
-          yield* Effect.promise(() => vi.waitFor(() => expect(suspension?.()).toBe(thenable)));
-
-          shouldSuspend = false;
-          resumeSuspension?.();
-          yield* Effect.promise(() =>
-            vi.waitFor(() => {
-              expect(suspension?.()).toBeUndefined();
-              expect(node?.()).toBe("ready");
-            }),
-          );
-        }),
-      ),
-    ));
-
-  it("disposes suspended route frames when a newer controller update wins", () =>
-    Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function* () {
-          const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect);
-
-          const events: Array<string> = [];
-          const thenable = { then: () => undefined };
-          const OldRoute = route("/suspense-cleanup-old", {
-            component: () => "old",
-          });
-          const SuspendedRoute = route("/suspense-cleanup-pending", {
-            component: () => {
-              onCleanup(() => {
-                events.push("suspended:cleanup");
-              });
-              throw thenable;
-            },
-          });
-          const NewRoute = route("/suspense-cleanup-new", {
-            component: () => "new",
-          });
-          const oldMatch = OldRoute.match("/suspense-cleanup-old");
-          const suspendedMatch = SuspendedRoute.match("/suspense-cleanup-pending");
-          const newMatch = NewRoute.match("/suspense-cleanup-new");
-          if (!oldMatch || !suspendedMatch || !newMatch) {
-            expect.fail("Expected routes to match.");
-          }
-
-          let node: (() => JSX.Element) | undefined;
-          let suspension: (() => unknown) | undefined;
-          let update:
-            | ((
-                href: string,
-                match: typeof oldMatch | typeof suspendedMatch | typeof newMatch,
-              ) => void)
-            | undefined;
-          let dispose: () => void = () => undefined;
-          createRoot((rootDispose) => {
-            dispose = rootDispose;
-            const [currentNode, setNode] = createSignal<JSX.Element>();
-            const [, setRenderError] = createSignal<unknown>();
-            const [currentSuspension, setRenderSuspension] = createSignal<unknown>();
-            const controller = makeSolidRouteRenderScopeController({
-              initialInput: {
-                state: {
-                  _tag: "Ready",
-                  href: "/suspense-cleanup-old",
-                  match: oldMatch,
-                },
-                renderers: {},
-              },
-              runtime,
-              setNode,
-              setRenderError,
-              setRenderSuspension,
-            });
-            node = currentNode;
-            suspension = currentSuspension;
-            update = (href, match) =>
-              controller.update({
-                state: {
-                  _tag: "Ready",
-                  href,
-                  match,
-                },
-                renderers: {},
-              });
-          });
-          yield* Effect.addFinalizer(() => Effect.sync(dispose));
-
-          expect(node?.()).toBe("old");
-          update?.("/suspense-cleanup-pending", suspendedMatch);
-          yield* Effect.promise(() => vi.waitFor(() => expect(suspension?.()).toBe(thenable)));
-
-          update?.("/suspense-cleanup-new", newMatch);
-          yield* Effect.promise(() =>
-            vi.waitFor(() => {
-              expect(node?.()).toBe("new");
-              expect(events).toEqual(["suspended:cleanup"]);
-            }),
-          );
-        }),
-      ),
-    ));
-
   it("surfaces route render errors after navigation to the host ErrorBoundary", () =>
     Effect.runPromise(
       Effect.scoped(
@@ -2334,9 +1956,9 @@ describe("createBrowserRouter", () => {
           let caught: unknown;
           const CaptureRouter = () => {
             router = useRouter<typeof routes>();
-            return createComponent(ErrorBoundary, {
+            return createComponent(Errored, {
               fallback: (error) => {
-                caught = error;
+                caught = error();
                 return "caught";
               },
               get children() {
@@ -2396,9 +2018,9 @@ describe("createBrowserRouter", () => {
           let caught: unknown;
           const CaptureRouter = () => {
             router = useRouter<typeof routes, RoutePreloadError>();
-            return createComponent(ErrorBoundary, {
+            return createComponent(Errored, {
               fallback: (error) => {
-                caught = error;
+                caught = error();
                 return "failed";
               },
               get children() {
@@ -2434,10 +2056,8 @@ describe("createBrowserRouter", () => {
               expect(state._tag === "Failure" ? state.error : undefined).toBeInstanceOf(
                 RoutePreloadError,
               );
-              expect(caught).toBeInstanceOf(Error);
-              expect(caught instanceof Error ? caught.cause : undefined).toBe(
-                state._tag === "Failure" ? state.cause : undefined,
-              );
+              // Solid 2's Errored passes the thrown value through: the router's typed Cause.
+              expect(caught).toBe(state._tag === "Failure" ? state.cause : undefined);
             }),
           );
         }),
@@ -2472,18 +2092,19 @@ describe("createBrowserRouter", () => {
           let dispose: () => void = () => undefined;
           createRoot((rootDispose) => {
             dispose = rootDispose;
-            const [currentNode, setNode] = createSignal<JSX.Element>();
-            const [, setRenderError] = createSignal<unknown>();
+            const currentNode = Signal.make<JSX.Element>(undefined);
+            const renderError = Signal.make<unknown>(undefined);
             const controller = makeSolidRouteRenderScopeController({
+              owner: getOwner(),
               initialInput: {
                 state,
                 renderers: { failure: () => "failure-one" },
               },
               runtime,
-              setNode,
-              setRenderError,
+              node: currentNode,
+              renderError,
             });
-            node = currentNode;
+            node = () => currentNode.get();
             update = (failure) =>
               controller.update({
                 state,
@@ -2491,7 +2112,6 @@ describe("createBrowserRouter", () => {
               });
           });
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
-
           expect(node?.()).toBe("failure-one");
           update?.(() => "failure-two");
           yield* Effect.promise(() => vi.waitFor(() => expect(node?.()).toBe("failure-two")));
@@ -2690,7 +2310,7 @@ describe("createBrowserRouter", () => {
       ),
     ));
 
-  it("starts async route-scope finalizers before the next route setup", () =>
+  it("finishes async route-scope finalizers before the next route setup", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
@@ -2748,10 +2368,10 @@ describe("createBrowserRouter", () => {
           yield* Effect.sync(() => {
             router!.navigateHref("/async-new");
           });
+          // Release before acquire: the next route waits for the previous route's
+          // scope finalizers to finish, matching the controller's transition rule.
           yield* Effect.promise(() =>
-            vi.waitFor(() =>
-              expect(events).toEqual(["old:setup", "old:scope-start", "new:setup:true"]),
-            ),
+            vi.waitFor(() => expect(events).toEqual(["old:setup", "old:scope-start"])),
           );
           yield* Deferred.succeed(release, undefined);
           yield* Effect.promise(() =>
@@ -2759,8 +2379,8 @@ describe("createBrowserRouter", () => {
               expect(events).toEqual([
                 "old:setup",
                 "old:scope-start",
-                "new:setup:true",
                 "old:scope-done",
+                "new:setup:true",
               ]),
             ),
           );
@@ -2794,11 +2414,13 @@ describe("createBrowserRouter", () => {
           });
 
           const dispose = createRoot((rootDispose) => {
-            createComponent(RouterProvider, {
-              routes: [RouteWithCleanup] as const,
-              initialHref: "/cleanup",
-              runtime,
-            });
+            resolveRendered(
+              createComponent(RouterProvider, {
+                routes: [RouteWithCleanup] as const,
+                initialHref: "/cleanup",
+                runtime,
+              }),
+            );
             return rootDispose;
           });
 

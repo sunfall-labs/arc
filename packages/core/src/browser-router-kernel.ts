@@ -63,8 +63,7 @@ export class RouterRouteNotRegistered extends Data.TaggedError("RouterRouteNotRe
  * Framework-neutral Browser Router Kernel construction options.
  *
  * Framework adapters pass their Sunfall Arc runtime and initial URL here before
- * projecting the kernel's signals into React, Solid, or another host
- * lifecycle. `initialMatchedState` lets an adapter preserve SSR hydration
+ * projecting the kernel's signals into the host lifecycle. `initialMatchedState` lets an adapter preserve SSR hydration
  * semantics without changing the shared navigation kernel.
  */
 export interface BrowserRouterKernelOptions<Routes extends readonly AnyBrowserRoute[], ER> {

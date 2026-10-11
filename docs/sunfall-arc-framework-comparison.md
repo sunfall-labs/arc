@@ -338,7 +338,7 @@ compiler first.
 ```tsx
 const project = useResource(ProjectById(props.id));
 const rename = useAction(RenameProject);
-const renameState = useSignal(rename.state);
+const renameState = rename.state;
 const runtime = useRuntime();
 
 return (

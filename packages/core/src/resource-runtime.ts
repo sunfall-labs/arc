@@ -282,7 +282,7 @@ const peekResourceEntry = <I, A, E, R>(
 const runtimeCurrentTimeMillis = (runtime: AnySunfallArcRuntime<any>): number => {
   const context = runtime.managed.cachedContext;
   if (context !== undefined) {
-    return Context.getReferenceUnsafe(context, Clock.Clock).currentTimeMillisUnsafe();
+    return Context.getUnsafe(context, Clock.Clock).currentTimeMillisUnsafe();
   }
 
   return runtime.runSync(Clock.currentTimeMillis);

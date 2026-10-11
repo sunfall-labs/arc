@@ -62,7 +62,7 @@ export interface BrowserRouteReadyRenderProps<R extends AnyBrowserRoute = AnyBro
 }
 
 /**
- * Adapter-neutral route render decision consumed by React and Solid outlets.
+ * Host-independent route render decision consumed by the Solid outlet.
  *
  * Core owns the route-state decision and ready props; framework adapters keep
  * component invocation, fallback elements, and UI-scope lifecycle local.

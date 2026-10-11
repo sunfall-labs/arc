@@ -1,5 +1,5 @@
 import { EffectInputCallbackError } from "@sunfall/arc-core";
-import { Effect, Data, Schema } from "effect";
+import { Effect, Data, Schema, SchemaAST } from "effect";
 import type {
   CollectionHydrateOptions,
   CollectionHydrationPayload,
@@ -447,6 +447,13 @@ export const validateCollectionSnapshotEffect = <A extends object, K extends Col
  * callers see `CollectionSnapshotCodecError` with the
  * path that failed inside the hydrated or loaded snapshot.
  */
+/**
+ * Collection `output` is either a rows schema (`Schema.Array(Row)`) or a row
+ * schema. The AST says which, so values decode one way and failures report the
+ * path inside the shape the caller declared.
+ */
+const outputDecodesRowArray = (schema: Schema.Top): boolean => SchemaAST.isArrays(schema.ast);
+
 export const decodeCollectionOutputValuesEffect = <A extends object>(
   schema: unknown,
   values: ReadonlyArray<A>,
@@ -457,28 +464,21 @@ export const decodeCollectionOutputValuesEffect = <A extends object>(
     return Effect.succeed(values);
   }
 
-  const candidateValues = values;
-  const isDecodedCollection = Schema.is(schema as Schema.Schema<ReadonlyArray<A>>);
-  if (isDecodedCollection(candidateValues as unknown)) {
-    return Effect.succeed(values);
+  if (outputDecodesRowArray(schema)) {
+    return Schema.is(schema as Schema.Schema<ReadonlyArray<A>>)(values)
+      ? Effect.succeed(values)
+      : Schema.decodeUnknownEffect(schema as Schema.Decoder<ReadonlyArray<A>>)(values).pipe(
+          Effect.mapError(catchSnapshotCodecError(operation, path)),
+        );
   }
 
-  const isDecodedValue = Schema.is(schema as Schema.Schema<A>);
-  if (candidateValues.every((value) => isDecodedValue(value as unknown))) {
+  const isDecodedRow = Schema.is(schema as Schema.Schema<A>);
+  if (values.every((value) => isDecodedRow(value))) {
     return Effect.succeed(values);
   }
-
-  const decodeValues = Schema.decodeUnknownEffect(schema as Schema.Decoder<ReadonlyArray<A>>)(
-    values,
-  );
-  const decodeRows = Effect.all(
-    candidateValues.map((value) => Schema.decodeUnknownEffect(schema as Schema.Decoder<A>)(value)),
-  ).pipe(Effect.map((decoded) => decoded as ReadonlyArray<A>));
-
-  return decodeValues.pipe(
-    Effect.catch(() => decodeRows),
-    Effect.mapError(catchSnapshotCodecError(operation, path)),
-  );
+  return Effect.forEach(values, (value) =>
+    Schema.decodeUnknownEffect(schema as Schema.Decoder<A>)(value),
+  ).pipe(Effect.mapError(catchSnapshotCodecError(operation, path)));
 };
 
 export const decodeCollectionOutputValuesSync = <A extends object>(
@@ -492,24 +492,16 @@ export const decodeCollectionOutputValuesSync = <A extends object>(
   }
 
   try {
-    const candidateValues = values;
-    const isDecodedCollection = Schema.is(schema as Schema.Schema<ReadonlyArray<A>>);
-    if (isDecodedCollection(candidateValues as unknown)) {
-      return values;
+    if (outputDecodesRowArray(schema)) {
+      return Schema.is(schema as Schema.Schema<ReadonlyArray<A>>)(values)
+        ? values
+        : Schema.decodeUnknownSync(schema as Schema.Decoder<ReadonlyArray<A>>)(values);
     }
 
-    const isDecodedValue = Schema.is(schema as Schema.Schema<A>);
-    if (candidateValues.every((value) => isDecodedValue(value as unknown))) {
-      return values;
-    }
-
-    try {
-      return Schema.decodeUnknownSync(schema as Schema.Decoder<ReadonlyArray<A>>)(values);
-    } catch {
-      return candidateValues.map((value) =>
-        Schema.decodeUnknownSync(schema as Schema.Decoder<A>)(value),
-      ) as ReadonlyArray<A>;
-    }
+    const isDecodedRow = Schema.is(schema as Schema.Schema<A>);
+    return values.every((value) => isDecodedRow(value))
+      ? values
+      : values.map((value) => Schema.decodeUnknownSync(schema as Schema.Decoder<A>)(value));
   } catch (error) {
     throw catchSnapshotCodecError(operation, path)(error);
   }

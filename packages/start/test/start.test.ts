@@ -376,7 +376,7 @@ describe("Sunfall Arc Start", () => {
           }),
         ),
         {
-          onStreamFinalize: () => {
+          onFinalize: () => {
             throw new Error("stream finalizer callback failed");
           },
         },
@@ -8083,7 +8083,7 @@ describe("Sunfall Arc Start", () => {
     expect(graphHelpResult.exitCode).toBe(0);
     expect(graphHelpStderr).toEqual([]);
     const graphHelp = graphHelpStdout.join("\n");
-    expect(graphHelp).toContain("sunfall-arc-start graph [flags] <query...>");
+    expect(graphHelp).toContain("sunfall-arc-start graph [flags] [<query...>]");
     expect(graphHelp).toContain("Optional graph kind and query text.");
     expect(graphHelp).not.toContain("graph <subcommand>");
 
@@ -8099,7 +8099,7 @@ describe("Sunfall Arc Start", () => {
     expect(impactHelpResult.exitCode).toBe(0);
     expect(impactHelpStderr).toEqual([]);
     const impactHelp = impactHelpStdout.join("\n");
-    expect(impactHelp).toContain("sunfall-arc-start impact [flags] <query...>");
+    expect(impactHelp).toContain("sunfall-arc-start impact [flags] [<query...>]");
     expect(impactHelp).toContain("Required impact query text with optional kind");
     expect(impactHelp).not.toContain("impact <subcommand>");
 

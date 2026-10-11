@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { Data, Deferred, Effect, Fiber, Sink, Stream } from "effect";
-import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
+import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 export class ScriptCommandError extends Data.TaggedError("ScriptCommandError") {}
 

@@ -3,8 +3,8 @@
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Console, Data, Effect, FileSystem, Layer, Option, Path, Stdio, Terminal } from "effect";
-import { CliError, Command, Flag } from "effect/unstable/cli";
-import { ChildProcessSpawner } from "effect/unstable/process";
+import { CliError, Command, Flag } from "effect/cli";
+import { ChildProcessSpawner } from "effect/process";
 import { runScriptCommandEffect } from "./effect-command-runner.mjs";
 import { runScriptMainEffect } from "./effect-main-runner.mjs";
 import { workspaceVerifyPackageTargetsEffect } from "./workspace-verification-plan.mjs";
@@ -229,7 +229,7 @@ const makeVerifyCommand = (env = process.env) =>
   Command.make(
     "sunfall-arc-verify",
     {
-      concurrency: Flag.integer("concurrency").pipe(
+      concurrency: Flag.Int("concurrency").pipe(
         Flag.filter(
           (value) => value > 0,
           (value) => `--concurrency must be a positive integer, got ${value}.`,

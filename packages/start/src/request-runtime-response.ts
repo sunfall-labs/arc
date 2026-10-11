@@ -31,9 +31,6 @@ const requestRuntimeStreamFinalizer = <RuntimeServices, RuntimeError>(
   runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
   options: {
     readonly onFinalize?: (state: RequestRuntimeFinalizeState) => EffectInput<void, never, never>;
-    readonly onStreamFinalize?: (
-      state: RequestRuntimeStreamFinalizeState,
-    ) => EffectInput<void, never, never>;
   },
 ): ((event: StartResponseStreamFinalizeEvent) => Effect.Effect<void>) => {
   let disposed = false;
@@ -59,10 +56,7 @@ const requestRuntimeStreamFinalizer = <RuntimeServices, RuntimeError>(
         ...(event.failureKind === undefined ? {} : { failureKind: event.failureKind }),
         teardownReason: event.teardownReason,
       };
-      yield* invokeStartEffectInputCallbackEffect(
-        options.onStreamFinalize ?? options.onFinalize,
-        state,
-      );
+      yield* invokeStartEffectInputCallbackEffect(options.onFinalize, state);
     });
 };
 
@@ -70,14 +64,8 @@ export const completeRequestRuntimeWithResponse = <RuntimeServices, RuntimeError
   runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
   response: Response,
   options: {
+    /** Runs once the request runtime is disposed; stream responses populate `stream`. */
     readonly onFinalize?: (state: RequestRuntimeFinalizeState) => EffectInput<void, never, never>;
-    /**
-     * @deprecated Use `onFinalize`; stream responses now emit the same finalization state
-     * shape with `stream` populated.
-     */
-    readonly onStreamFinalize?: (
-      state: RequestRuntimeStreamFinalizeState,
-    ) => EffectInput<void, never, never>;
   } = {},
 ): Effect.Effect<Response> =>
   response.body

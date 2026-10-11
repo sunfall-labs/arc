@@ -41,10 +41,11 @@
     "typecheck": "tsgo -p tsconfig.json --pretty false --noEmit"
   },
   "dependencies": {
+    "@solidjs/web": "2.0.0-rc.14",
     "@sunfall/arc-core": "workspace:*",
     "@sunfall/arc-db": "workspace:*",
     "@sunfall/arc-solid": "workspace:*",
-    "effect": "^4.0.0-beta.66",
-    "solid-js": "^1.9.12"
+    "effect": "4.0.3",
+    "solid-js": "2.0.0-rc.14"
   }
 }

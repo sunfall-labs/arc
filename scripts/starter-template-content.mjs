@@ -10,31 +10,9 @@ export const solidStarterTsConfig = {
     exactOptionalPropertyTypes: true,
     noUncheckedIndexedAccess: true,
     jsx: "preserve",
-    jsxImportSource: "solid-js",
+    jsxImportSource: "@solidjs/web",
     noEmit: true,
     plugins: [{ name: "@tsrx/typescript-plugin" }],
-    types: ["vite/client"],
-  },
-  include: ["src", "vite.config.ts"],
-};
-
-export const reactStarterTsConfig = {
-  compilerOptions: {
-    target: "ES2022",
-    module: "NodeNext",
-    moduleResolution: "NodeNext",
-    lib: ["ES2022", "DOM"],
-    strict: true,
-    skipLibCheck: true,
-    verbatimModuleSyntax: true,
-    exactOptionalPropertyTypes: true,
-    noUncheckedIndexedAccess: true,
-    jsx: "react-jsx",
-    noEmit: true,
-    baseUrl: ".",
-    paths: {
-      "@/*": ["./src/*"],
-    },
     types: ["vite/client"],
   },
   include: ["src", "vite.config.ts"],
@@ -52,28 +30,6 @@ export default defineConfig({
     ...sunfallArcTsrx({ solid: { ssr: true } }),
     sunfallArcStart(${startOptionsImport})
   ]
-});
-`;
-
-export const reactStarterViteConfig = `import tailwindcss from "@tailwindcss/vite";
-import { sunfallArcStart } from "@sunfall/arc-start/vite";
-import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
-import { reactStarterStartOptions } from "./src/start-options.js";
-
-const fromStarter = (path: string): string => new URL(path, import.meta.url).pathname;
-
-export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
-    sunfallArcStart(reactStarterStartOptions)
-  ],
-  resolve: {
-    alias: [
-      { find: "@", replacement: fromStarter("src") }
-    ]
-  }
 });
 `;
 
@@ -98,24 +54,6 @@ The starter includes:
   which runs \`hydrateFromDocumentEffect(...)\` before the UI mounts;
 - a route-owned Resource preload declared in file route metadata;
 - a production leak scan for server-only module sentinels.
-`;
-
-export const reactStarterReadme = `# Sunfall Arc React Starter
-
-React + Vite starter for Sunfall Arc with Tailwind v4, Base UI, and a
-shadcn-compatible project shape.
-
-## Commands
-
-\`\`\`sh
-pnpm install
-pnpm dev
-pnpm verify
-\`\`\`
-
-The starter includes a shadcn CLI-installed \`Badge\`, a Base UI primitive, file
-routes, route-owned Resource preload, SSR, browser hydration, and a production
-leak scan for server-only sentinels.
 `;
 
 export const projectConsoleStarterReadme = `# Sunfall Arc Project Console Starter

@@ -46,9 +46,8 @@ under `packages/*` are the publishable artifacts.
 9. Publish packages in dependency order:
    `@sunfall/arc-core`, `@sunfall/arc-db`, `@sunfall/arc-start`,
    `@sunfall/arc-start-node`, `@sunfall/arc-start-fetch`,
-   `@sunfall/arc-devtools`, `@sunfall/arc-react`, `@sunfall/arc-react-db`,
-   `@sunfall/arc-solid`, `@sunfall/arc-solid-db`, `@sunfall/arc-tsrx`.
+   `@sunfall/arc-devtools`, `@sunfall/arc-solid`, `@sunfall/arc-solid-db`, `@sunfall/arc-tsrx`.
 10. Install the published packages into a temporary clean app.
-11. Run the basic and React starter smoke tests against the published packages.
+11. Run the basic starter smoke tests against the published packages.
 12. Publish the GitHub release notes and alpha announcement with the documented
     experimental limits.

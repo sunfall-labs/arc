@@ -11,7 +11,6 @@ import {
   useAction,
   useResource,
   useProgram,
-  useSignal,
   useStream,
   useRouter,
   useRuntimeEffect,
@@ -22,8 +21,8 @@ import type { CollectionRow } from "@sunfall/arc-db";
 import { useCollection, useLiveQuery } from "@sunfall/arc-solid-db";
 import { StartAction } from "@sunfall/arc-start";
 import { Effect, Schema } from "effect";
-import { For, Show, createEffect, onMount } from "solid-js";
-import { isServer } from "solid-js/web";
+import { For, Show, createEffect, onSettled } from "solid-js";
+import { isServer } from "@solidjs/web";
 import {
   AdvanceProject,
   ProjectById,
@@ -198,7 +197,7 @@ const projectIdFromMatch = (
 function HomeRouteView() {
   const router = useRouter<AppRoutes>();
 
-  onMount(() => {
+  onSettled(() => {
     router.navigate(ProjectUiRoute, { params: { id: makeProjectId("atlas") } }, { replace: true });
   });
 
@@ -224,14 +223,9 @@ function AppShell() {
     const router = useRouter<AppRoutes>();
     const runEffect = useRuntimeEffect();
     const presence = useStream(makePresenceStream(), initialPresence);
-    const title = Signal.make("Sunfall Arc Project Console");
-
-    createEffect(() => {
+    const title = Signal.derive(() => {
       const id = projectIdFromMatch(router.match());
-      Signal.set(
-        title,
-        id ? `${id} · Sunfall Arc Project Console` : "Projects · Sunfall Arc Project Console",
-      );
+      return id ? `${id} · Sunfall Arc Project Console` : "Projects · Sunfall Arc Project Console";
     });
 
     if (!isServer) {
@@ -294,7 +288,7 @@ function AppShell() {
 }
 
 function ProjectListPane(props: { readonly selectedId: ProjectId | undefined }) {
-  const search = useSignal(projectSearch);
+  const search = () => projectSearch.get();
 
   return (
     <section class="projectRail" aria-label="Projects">
@@ -389,8 +383,7 @@ function ProjectRow(props: { readonly project: ProjectSummaryRow; readonly selec
     <RouterLink
       route={ProjectUiRoute}
       options={{ params: { id: props.project.id } }}
-      class="projectRow"
-      classList={{ selected: props.selected, syncing: !props.project.$synced }}
+      class={["projectRow", { selected: props.selected, syncing: !props.project.$synced }]}
     >
       <span class={`healthDot ${props.project.health}`} />
       <span class="projectRowMain">
@@ -441,7 +434,7 @@ function ProjectDetailContent(props: {
   readonly refreshing: boolean;
 }) {
   return (
-    <article class="projectDetail" classList={{ refreshing: props.refreshing }}>
+    <article class={["projectDetail", { refreshing: props.refreshing }]}>
       <section class="detailHeader">
         <div>
           <p class="eyebrow">{statusLabel(props.project.status)} project</p>
@@ -488,7 +481,7 @@ function ProjectTabs(props: { readonly project: Project; readonly selected: Proj
             <RouterLink
               route={ProjectUiRoute}
               options={options()}
-              classList={{ active: props.selected === tab.id }}
+              class={{ active: props.selected === tab.id }}
             >
               {tab.label}
             </RouterLink>
@@ -568,7 +561,7 @@ function WorkQueueRow(props: {
   readonly onMove: () => void;
 }) {
   return (
-    <article class="taskRow" classList={{ syncing: props.source?.$synced === false }}>
+    <article class={["taskRow", { syncing: props.source?.$synced === false }]}>
       <div>
         <p class="taskMeta">
           {props.item.owner} · {props.item.projectName}
@@ -797,8 +790,8 @@ const useProjectActionsProgram = (project: () => Project) => {
     }),
   );
 
-  createEffect(() => {
-    actions.dispatch({ _tag: "ProjectChanged", project: project() });
+  createEffect(project, (current) => {
+    actions.dispatch({ _tag: "ProjectChanged", project: current });
   });
 
   return actions;

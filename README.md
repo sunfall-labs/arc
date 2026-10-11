@@ -32,7 +32,7 @@ const Counter = Program.define<CounterModel, CounterMessage>({
 ```
 
 That same loop can grow into typed Capabilities, Resources, Actions, Routes,
-server contracts, request-scoped runtimes, React and Solid adapters,
+server contracts, request-scoped runtimes, a Solid 2 adapter,
 local-first Collections, and deterministic app graph diagnostics without
 leaving the Effect runtime model.
 
@@ -50,7 +50,7 @@ while examples, diagnostics, and release gates are hardened.
   definitions, generated route artifacts, app graph diagnostics, and verification
   gates.
 - Effect-first Resources, Actions, Programs, Forms, Routes, Capabilities, and
-  server contracts across Solid and React adapters.
+  server contracts through the Solid 2 adapter.
 - Request-local runtimes and resource stores for SSR, RPC, Start actions, and
   streamed responses.
 - Local-first Collections with persistence, sync adapter seams, optimistic
@@ -60,7 +60,7 @@ while examples, diagnostics, and release gates are hardened.
   panel app shell, and a checked browser-extension shell with an
   inspected-window bridge.
 - Deterministic Start manifests and build diagnostics with repair guidance.
-- Copyable basic, React, and project console starters with SSR, hydration,
+- Copyable basic and project console starters with SSR, hydration,
   route-owned Resource preload, checked standalone packaging, and server-only
   leak scans.
 
@@ -68,11 +68,11 @@ while examples, diagnostics, and release gates are hardened.
 
 Read in this order when you are new to the repo:
 
-1. [Basic, React, and project-console starters](docs/starter.md)
+1. [Basic and project-console starters](docs/starter.md)
 2. [Architecture](docs/architecture.md)
 3. [Effect style guide](docs/effect-style.md)
 4. [Deployment](docs/deployment.md)
-5. [Solid and React adapters](docs/adapter-differences.md)
+5. [Solid adapter](docs/solid-adapter.md)
 
 Useful deeper references:
 
@@ -114,7 +114,6 @@ pnpm benchmark
 pnpm devtools-panel:verify
 pnpm devtools-extension:verify
 pnpm starter:verify
-pnpm react-starter:verify
 pnpm starter:package
 pnpm example:pack-dry-run
 pnpm example:typecheck
@@ -137,9 +136,6 @@ pnpm example:leak-scan
 - `@sunfall/arc-devtools`: serializable inspection contracts, Program timeline
   panels, and a small browser panel renderer for agents, app panels, and
   extension panels.
-- `@sunfall/arc-react`: React runtime provider, router, resource/action/program
-  hooks, streams, and component scopes.
-- `@sunfall/arc-react-db`: React collection and live query hooks.
 - `@sunfall/arc-solid`: Solid runtime provider, router, program/resource/action
   hooks, streams, and component scopes.
 - `@sunfall/arc-solid-db`: Solid collection and live query hooks.

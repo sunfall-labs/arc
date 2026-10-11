@@ -76,7 +76,7 @@ describe("Effect Rpc compatibility", () => {
         yield* Effect.sync(() => {
           expect(makeStartEffectRpcCompatibilityArtifact(manifest)).toMatchObject({
             version: 1,
-            primitive: "effect/unstable/rpc",
+            primitive: "effect/rpc",
             endpoint: {
               method: "POST",
               path: "/__sunfall-arc/test-rpc",

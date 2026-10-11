@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@sunfall/arc-devtools": "workspace:*",
-    "effect": "^4.0.0-beta.66"
+    "effect": "4.0.3"
   },
   "devDependencies": {
     "@types/node": "^25.7.0",

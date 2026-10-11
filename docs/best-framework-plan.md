@@ -307,7 +307,7 @@ export const ProjectById = Resource.family({
   policy: {
     staleFor: "30 seconds",
     gcFor: "5 minutes",
-    retry: Schedule.exponential("100 millis").pipe(Schedule.take(3)),
+    retry: Schedule.exponential("100 millis").pipe(Schedule.upTo({ times: 3 })),
   },
 });
 

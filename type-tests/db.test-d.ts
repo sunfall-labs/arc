@@ -28,9 +28,6 @@ import {
   bindCollectionRuntimeEffect,
   collectionReactiveDepsValue,
   collectionStateError,
-  createCollection,
-  createLiveQuery,
-  createLiveQueryCollection,
   defaultCollectionDefinitionRegistry,
   and,
   eq,
@@ -221,9 +218,6 @@ const sqliteRow: SQLitePersistenceRow = {
 void sqliteDefaultTable;
 void sqliteDefaultNamespace;
 void sqliteDefaultSchemaVersion;
-const collectionAlias: typeof Collection.define = createCollection;
-const liveQueryAlias: typeof Query.live = createLiveQuery;
-const liveQueryCollectionAlias: typeof Collection.liveQuery = createLiveQueryCollection;
 const publicQueryRoot: Query.Root = Query;
 const directQueryRoot: QueryRoot = publicQueryRoot;
 const publicQueryFactory: Query.Factory<Project, any, any> = (query) =>
@@ -491,9 +485,6 @@ const dbExports: Array<unknown> = [
   bindCollectionRuntimeEffect,
   collectionReactiveDepsValue,
   collectionStateError,
-  createCollection,
-  createLiveQuery,
-  createLiveQueryCollection,
   defaultCollectionDefinitionRegistry,
   eq,
   flushCollectionsPendingMutationsEffect,
@@ -529,9 +520,6 @@ const dbExports: Array<unknown> = [
   collectionHydrationValidationEffect,
   collectionSqliteStorage,
   sqliteRow,
-  collectionAlias,
-  liveQueryAlias,
-  liveQueryCollectionAlias,
   publicQueryBuilder,
   publicQueryRows,
   publicLiveQuery,

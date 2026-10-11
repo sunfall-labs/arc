@@ -1,7 +1,7 @@
 import { RuntimeProvider, createEffectRuntime } from "@sunfall/arc-solid";
 import { hydrateFromDocument } from "@sunfall/arc-start";
 import { Data, Layer } from "effect";
-import { hydrate, render } from "solid-js/web";
+import { hydrate, render } from "@solidjs/web";
 import App from "./App.js";
 
 class StarterRootMissing extends Data.TaggedError("StarterRootMissing")<{

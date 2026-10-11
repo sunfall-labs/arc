@@ -1,6 +1,6 @@
 import type { ServerFunction } from "@sunfall/arc-core";
 import { Schema } from "effect";
-import { Rpc, RpcGroup } from "effect/unstable/rpc";
+import { Rpc, RpcGroup } from "effect/rpc";
 import {
   startJsonMediaType,
   startRequestIdHeader,
@@ -15,7 +15,7 @@ import type { ServerFunctionManifest } from "./server-function-manifest.js";
  *
  * This is metadata only. It lets diagnostics and generators see the method,
  * path, media type, protocol version, and header contract without replacing
- * Start's existing request handler with `effect/unstable/rpc` server runtime.
+ * Start's existing request handler with `effect/rpc` server runtime.
  */
 export interface StartEffectRpcEndpointDescriptor {
   /** Start server functions are dispatched through one JSON POST boundary. */
@@ -69,7 +69,7 @@ export interface StartEffectRpcCompatibilityArtifact {
   /** Artifact schema version. */
   readonly version: 1;
   /** Effect primitive being described by this compatibility artifact. */
-  readonly primitive: "effect/unstable/rpc";
+  readonly primitive: "effect/rpc";
   /** Endpoint metadata shared by every procedure. */
   readonly endpoint: StartEffectRpcEndpointDescriptor;
   /** Procedures projected from the server-function manifest. */
@@ -144,7 +144,7 @@ export const makeStartEffectRpcCompatibilityArtifact = (
   manifest: ServerFunctionManifest,
 ): StartEffectRpcCompatibilityArtifact => ({
   version: 1,
-  primitive: "effect/unstable/rpc",
+  primitive: "effect/rpc",
   endpoint: startEffectRpcEndpointDescriptor(manifest),
   procedures: manifest.entries.map((entry) => ({
     id: entry.id,

@@ -2,17 +2,17 @@ import {
   browserRouteRenderIdentity,
   browserRouteRenderDecision,
   forkRouteLazyComponentSuspense,
-  isPromiseLikeValue,
   makeRuntimeUiScopeFrame,
   readRouteComponent,
   type AnySunfallArcRuntime,
+  type WritableSignal,
   type AnyBrowserRoute,
   type BrowserRouterState,
   type BrowserRouteOutletRenderers,
 } from "@sunfall/arc-core";
 import { Effect, Fiber } from "effect";
-import { batch, createRoot, type JSX, type Setter } from "solid-js";
-import { createComponent } from "solid-js/web";
+import { createComponent, createMemo, createRoot, runWithOwner, type Owner } from "solid-js";
+import type { JSX } from "@solidjs/web";
 
 type AnyRoute = AnyBrowserRoute;
 
@@ -46,15 +46,6 @@ class SolidRouteRenderFailure {
   ) {}
 }
 
-class SolidRouteRenderSuspension {
-  readonly _tag = "SolidRouteRenderSuspension";
-
-  constructor(
-    readonly thenable: unknown,
-    readonly dispose: Effect.Effect<void, never, never>,
-  ) {}
-}
-
 const defaultPending = (): JSX.Element => undefined;
 
 const defaultFailure = <ER>(
@@ -71,18 +62,49 @@ const routeRenderDefaults = {
   notFound: defaultNotFound,
 };
 
+type RouteComponent = (props: Record<string, unknown>) => JSX.Element;
+
+/**
+ * Renders a route component. An unloaded lazy component becomes an async memo
+ * over its preload fiber, so it suspends the nearest Solid `<Loading>` boundary
+ * and load failures reach the nearest `<Errored>` boundary.
+ */
+const renderRouteComponent = <ER>(
+  component: unknown,
+  props: Record<string, unknown>,
+  runtime: AnySunfallArcRuntime<ER>,
+): JSX.Element => {
+  let ready: RouteComponent;
+  try {
+    ready = readRouteComponent(component) as RouteComponent;
+  } catch (error) {
+    const preload = forkRouteLazyComponentSuspense(error, runtime);
+    if (preload === undefined) {
+      throw error;
+    }
+    const loaded = createMemo<RouteComponent>(() =>
+      Effect.runPromise(
+        Fiber.join(preload).pipe(Effect.map(() => readRouteComponent(component) as RouteComponent)),
+      ),
+    );
+    return createMemo(() => createComponent(loaded(), props)) as unknown as JSX.Element;
+  }
+  return createComponent(ready, props);
+};
+
+/**
+ * Renders under the outlet's Solid owner, so route components see every context
+ * above the outlet, inside a route `UiScope` frame whose disposal Arc controls:
+ * Solid cleanup runs first, in the router runtime, then scoped finalizers.
+ */
 const renderInRouteScope = <ER>(
+  owner: Owner | null,
   runtime: AnySunfallArcRuntime<ER>,
   render: () => JSX.Element,
 ): { readonly node: JSX.Element; readonly dispose: Effect.Effect<void, never, never> } => {
   const frame = makeRuntimeUiScopeFrame(runtime);
   let disposeSolid: (() => void) | undefined;
   let renderFailure: { readonly error: unknown } | undefined;
-  let renderThenable: unknown;
-  const routeLazyComponentSuspenseToken = (error: unknown): unknown | undefined => {
-    const fiber = forkRouteLazyComponentSuspense(error, runtime);
-    return fiber === undefined ? undefined : Effect.runPromise(Fiber.join(fiber));
-  };
   const dispose = Effect.andThen(
     Effect.sync(() => {
       try {
@@ -97,38 +119,21 @@ const renderInRouteScope = <ER>(
   ).pipe(Effect.catchCause(() => Effect.void));
   let node: JSX.Element;
   try {
-    node = createRoot((disposeRoot) => {
-      disposeSolid = disposeRoot;
-      return frame.run(() => {
-        try {
-          return render();
-        } catch (error) {
-          if (isPromiseLikeValue(error)) {
-            renderThenable = error;
+    node = runWithOwner(owner, () =>
+      createRoot((disposeRoot) => {
+        disposeSolid = disposeRoot;
+        return frame.run(() => {
+          try {
+            return render();
+          } catch (error) {
+            renderFailure = { error };
             return undefined;
           }
-          const pendingLazyComponent = routeLazyComponentSuspenseToken(error);
-          if (pendingLazyComponent !== undefined) {
-            renderThenable = pendingLazyComponent;
-            return undefined;
-          }
-          renderFailure = { error };
-          return undefined;
-        }
-      });
-    });
+        });
+      }),
+    );
   } catch (error) {
-    if (isPromiseLikeValue(error)) {
-      throw new SolidRouteRenderSuspension(error, dispose);
-    }
-    const pendingLazyComponent = routeLazyComponentSuspenseToken(error);
-    if (pendingLazyComponent !== undefined) {
-      throw new SolidRouteRenderSuspension(pendingLazyComponent, dispose);
-    }
     throw new SolidRouteRenderFailure(error, dispose);
-  }
-  if (renderThenable !== undefined) {
-    throw new SolidRouteRenderSuspension(renderThenable, dispose);
   }
   if (renderFailure !== undefined) {
     throw new SolidRouteRenderFailure(renderFailure.error, dispose);
@@ -138,6 +143,7 @@ const renderInRouteScope = <ER>(
 };
 
 const renderRouteState = <Routes extends readonly AnyRoute[], ER>(
+  owner: Owner | null,
   state: BrowserRouterState<Routes, ER>,
   renderers: SolidRouteOutletRenderers<Routes, ER>,
   runtime: AnySunfallArcRuntime<ER>,
@@ -145,27 +151,27 @@ const renderRouteState = <Routes extends readonly AnyRoute[], ER>(
   const decision = browserRouteRenderDecision(state);
   switch (decision._tag) {
     case "Pending":
-      return renderInRouteScope(runtime, () =>
+      return renderInRouteScope(owner, runtime, () =>
         (renderers.pending ?? defaultPending)(decision.state),
       );
     case "Failure":
-      return renderInRouteScope(runtime, () =>
+      return renderInRouteScope(owner, runtime, () =>
         (renderers.failure ?? defaultFailure)(decision.state),
       );
     case "NotFound":
-      return renderInRouteScope(runtime, () =>
+      return renderInRouteScope(owner, runtime, () =>
         (renderers.notFound ?? defaultNotFound)(decision.state),
       );
     case "Empty":
       return { node: undefined };
-    case "Ready": {
-      return renderInRouteScope(runtime, () => {
-        const component = readRouteComponent(decision.component) as (
-          props: Record<string, unknown>,
-        ) => JSX.Element;
-        return createComponent(component, decision.props as unknown as Record<string, unknown>);
-      });
-    }
+    case "Ready":
+      return renderInRouteScope(owner, runtime, () =>
+        renderRouteComponent(
+          decision.component,
+          decision.props as unknown as Record<string, unknown>,
+          runtime,
+        ),
+      );
   }
 };
 
@@ -176,62 +182,18 @@ const disposeRenderedRoute = (
 const solidRouteRenderFailure = (error: unknown): SolidRouteRenderFailure | undefined =>
   error instanceof SolidRouteRenderFailure ? error : undefined;
 
-const solidRouteRenderSuspension = (error: unknown): SolidRouteRenderSuspension | undefined =>
-  error instanceof SolidRouteRenderSuspension ? error : undefined;
-
-const awaitRouteRenderThenableEffect = (thenable: unknown): Effect.Effect<void> =>
-  Effect.callback((resume, signal) => {
-    let completed = false;
-    const abort = () => {
-      completed = true;
-      signal.removeEventListener("abort", abort);
-    };
-    const complete = () => {
-      if (completed) {
-        return;
-      }
-      completed = true;
-      signal.removeEventListener("abort", abort);
-      resume(Effect.void);
-    };
-    signal.addEventListener("abort", abort, { once: true });
-
-    try {
-      const then = Reflect.get(Object(thenable), "then");
-      if (typeof then !== "function") {
-        complete();
-        return;
-      }
-      Reflect.apply(then, thenable, [complete, complete]);
-    } catch {
-      complete();
-    }
-  });
-
-const scheduleRouteRenderError = (
-  onCurrentTransition: () => boolean,
-  setRenderError: Setter<unknown>,
-  error: unknown,
-): void => {
-  queueMicrotask(() => {
-    // Let Solid commit the cleared route node before the host ErrorBoundary renders.
-    queueMicrotask(() => {
-      if (onCurrentTransition()) {
-        setRenderError(() => error);
-      }
-    });
-  });
-};
-
 export const makeSolidRouteRenderScopeController = <
   Routes extends readonly AnyRoute[],
   ER,
 >(options: {
   readonly initialInput: SolidRouteRenderInput<Routes, ER>;
   readonly runtime: AnySunfallArcRuntime<ER>;
-  readonly setNode: Setter<JSX.Element>;
-  readonly setRenderError: Setter<unknown>;
-  readonly setRenderSuspension?: Setter<unknown>;
+  /** Solid owner route roots render under; usually the outlet's. */
+  readonly owner: Owner | null;
+  /** Rendered route node; Arc owns outlet state and Solid renders it. */
+  readonly node: WritableSignal<JSX.Element>;
+  /** Route render failure surfaced to the host `<Errored>` boundary. */
+  readonly renderError: WritableSignal<unknown>;
 }): SolidRouteRenderScopeController<Routes, ER> => {
   let renderedState = options.initialInput.state;
   let renderedIdentity = browserRouteRenderIdentity({
@@ -242,17 +204,6 @@ export const makeSolidRouteRenderScopeController = <
   let disposeRoute: Effect.Effect<void, never, never> | undefined;
   let transitionVersion = 0;
   let disposalFiber: Fiber.Fiber<void, unknown> | undefined;
-  let suspensionRetryFiber: Fiber.Fiber<void, unknown> | undefined;
-
-  const interruptSuspensionRetry = (): void => {
-    const fiber = suspensionRetryFiber;
-    suspensionRetryFiber = undefined;
-    if (fiber !== undefined) {
-      void options.runtime.runFork(
-        Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void)),
-      );
-    }
-  };
 
   const disposeStaleRenderedRoute = (rendered: RenderedRouteScope): void => {
     void options.runtime.runFork(
@@ -286,6 +237,9 @@ export const makeSolidRouteRenderScopeController = <
     return startRouteDisposal(currentDispose);
   };
 
+  const render = (input: SolidRouteRenderInput<Routes, ER>): RenderedRouteScope =>
+    renderRouteState(options.owner, input.state, input.renderers, options.runtime);
+
   const renderTransition = (
     input: SolidRouteRenderInput<Routes, ER>,
     transition: number,
@@ -299,39 +253,16 @@ export const makeSolidRouteRenderScopeController = <
 
       let next: RenderedRouteScope;
       try {
-        next = renderRouteState(input.state, input.renderers, options.runtime);
+        next = render(input);
       } catch (error) {
-        const suspension = solidRouteRenderSuspension(error);
-        if (suspension !== undefined) {
-          if (transition !== transitionVersion) {
-            startRouteDisposal(suspension.dispose);
-            return;
-          }
-          if (options.setRenderSuspension === undefined) {
-            startRouteDisposal(suspension.dispose);
-            return;
-          }
-          disposeRoute = suspension.dispose;
-          options.setRenderError(() => undefined);
-          options.setNode(() => undefined);
-          options.setRenderSuspension(() => suspension.thenable);
-          scheduleSuspensionRetry(input, transition, suspension);
-          return;
-        }
-        if (isPromiseLikeValue(error)) {
-          return;
-        }
         const failure = solidRouteRenderFailure(error);
         if (failure !== undefined) {
           startRouteDisposal(failure.dispose);
         }
         if (transition === transitionVersion) {
-          options.setNode(() => undefined);
-          scheduleRouteRenderError(
-            () => transition === transitionVersion,
-            options.setRenderError,
-            failure?.error ?? error,
-          );
+          const renderError = failure?.error ?? error;
+          options.node.set(() => undefined);
+          options.renderError.set(() => renderError);
         }
         return;
       }
@@ -342,90 +273,34 @@ export const makeSolidRouteRenderScopeController = <
       }
 
       disposeRoute = next.dispose;
-      interruptSuspensionRetry();
-      batch(() => {
-        options.setRenderError(() => undefined);
-        options.setRenderSuspension?.(() => undefined);
-        options.setNode(() => next.node);
-      });
+      options.renderError.set(() => undefined);
+      options.node.set(() => next.node);
     });
-
-  function scheduleSuspensionRetry(
-    input: SolidRouteRenderInput<Routes, ER>,
-    transition: number,
-    suspension: SolidRouteRenderSuspension,
-  ): void {
-    interruptSuspensionRetry();
-    suspensionRetryFiber = options.runtime.runFork(
-      awaitRouteRenderThenableEffect(suspension.thenable).pipe(
-        Effect.andThen(
-          Effect.sync(() => {
-            if (transition !== transitionVersion) {
-              return;
-            }
-            suspensionRetryFiber = undefined;
-            options.setRenderSuspension?.(() => undefined);
-            void options.runtime.runFork(
-              renderTransition(input, transition, startCurrentRouteDisposal()),
-            );
-          }),
-        ),
-        Effect.catchCause(() => Effect.void),
-      ),
-    );
-  }
 
   const disposeEffect = (): Effect.Effect<void> =>
     Effect.suspend(() => {
-      interruptSuspensionRetry();
       transitionVersion++;
       return joinRouteDisposal(startCurrentRouteDisposal());
     });
 
   const dispose = (): void => {
-    interruptSuspensionRetry();
     transitionVersion++;
     void startCurrentRouteDisposal();
   };
 
   const renderInitial = (): void => {
     try {
-      const initial = renderRouteState(
-        renderedState,
-        options.initialInput.renderers,
-        options.runtime,
-      );
+      const initial = render(options.initialInput);
       disposeRoute = initial.dispose;
-      batch(() => {
-        options.setRenderSuspension?.(() => undefined);
-        options.setNode(() => initial.node);
-      });
+      options.node.set(() => initial.node);
     } catch (error) {
-      const suspension = solidRouteRenderSuspension(error);
-      if (suspension !== undefined) {
-        if (options.setRenderSuspension === undefined) {
-          startRouteDisposal(suspension.dispose);
-          throw suspension.thenable;
-        }
-        disposeRoute = suspension.dispose;
-        options.setNode(() => undefined);
-        options.setRenderError(() => undefined);
-        options.setRenderSuspension(() => suspension.thenable);
-        scheduleSuspensionRetry(options.initialInput, transitionVersion, suspension);
-        return;
-      }
       const failure = solidRouteRenderFailure(error);
-      if (failure !== undefined) {
-        startRouteDisposal(failure.dispose);
-        options.setNode(() => undefined);
-        scheduleRouteRenderError(
-          () => transitionVersion === 0,
-          options.setRenderError,
-          failure.error,
-        );
-        return;
+      if (failure === undefined) {
+        throw error;
       }
-      throw error;
+      startRouteDisposal(failure.dispose);
+      options.node.set(() => undefined);
+      options.renderError.set(() => failure.error);
     }
   };
 
@@ -446,10 +321,8 @@ export const makeSolidRouteRenderScopeController = <
       renderedState = input.state;
       renderedIdentity = nextIdentity;
       const transition = ++transitionVersion;
-      interruptSuspensionRetry();
-      options.setNode(() => undefined);
-      options.setRenderError(() => undefined);
-      options.setRenderSuspension?.(() => undefined);
+      options.node.set(() => undefined);
+      options.renderError.set(() => undefined);
       void options.runtime.runFork(
         renderTransition(input, transition, startCurrentRouteDisposal()),
       );

@@ -36,7 +36,7 @@ export const ProjectSummaries = Collection.define(
       owner: (project) => project.owner,
     },
     policy: {
-      retry: Schedule.exponential("50 millis").pipe(Schedule.take(2)),
+      retry: Schedule.exponential("50 millis").pipe(Schedule.upTo({ times: 2 })),
     },
     load: () => ProjectApi.use((api) => api.list()),
     update: ({ updates }) =>
@@ -67,7 +67,7 @@ export const ProjectWorkItems = Collection.define(
       owner: (workItem) => workItem.owner,
     },
     policy: {
-      retry: Schedule.exponential("50 millis").pipe(Schedule.take(2)),
+      retry: Schedule.exponential("50 millis").pipe(Schedule.upTo({ times: 2 })),
     },
     load: () => ProjectApi.use((api) => api.listWorkItems()),
     update: ({ updates }) =>
