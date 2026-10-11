@@ -6,7 +6,8 @@ import {
 } from "@sunfall/arc-start";
 import { Effect, Layer, Stream } from "effect";
 import { createComponent, generateHydrationScript, renderToString } from "@solidjs/web";
-import App from "./App.js";
+import { Component } from "@sunfall/arc-solid";
+import ProjectConsole from "./App.js";
 import { ProjectApiLive } from "./domain.js";
 import { ProjectDemoStoreLive } from "./domain.server.js";
 import { ProjectSummaries, ProjectWorkItems } from "./project-collections.js";
@@ -50,7 +51,10 @@ export const handleRequest = createRequestHandler(serverApp, {
     return Effect.gen(function* () {
       const url = new URL(request.url);
       const href = `${url.pathname}${url.search}`;
-      const body = renderToString(() => createComponent(App, { initialHref: href, runtime }));
+      // The same tree the client entry hydrates with `Component.launch`.
+      const body = renderToString(() =>
+        createComponent(Component.embed(ProjectConsole, runtime), { initialHref: href }),
+      );
       const title = isRoutePathMatch("/projects/:id", match)
         ? `${match.params.id} · Sunfall Arc Project Console`
         : "Sunfall Arc Project Console";

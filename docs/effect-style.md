@@ -30,7 +30,7 @@ edge.
 - Treat `Resource.family(...)` as a Resource Definition. Runtime/request state belongs to `ResourceStore`, reached through the Runtime Spine.
 - Use `Effect.catch`, not the Effect 3 name `catchAll`.
 - Prefer explicit `Resource` / `Action` state and Effect recovery combinators over component-level `try` syntax for first-class APIs.
-- Components own an Effect `Scope`; use `useRuntimeEffect`, `useStream`, and Solid `createEffect` (for imperative DOM sinks) instead of a generic `useEffect`.
+- Solid UI is typed `Component`s: runtime state comes from setup-time bindings (`Component.resource`, `action`, `program`, `stream`, `callback`, `router`, `SolidDb.collection` / `liveQuery`) whose services join the Component's `R`, and each instance owns an Effect `Scope`. Use Solid `createEffect` only for imperative DOM sinks; there is no generic `useEffect`.
 - Isomorphic server functions should be split into shared contracts and real server handlers. Shared code defines `Server.contract` values and exports `Server.client(contract)`; `.server.ts` modules call `Server.implement(contract, handler)` and are never imported by the browser graph.
 - Prefer `Schema.TaggedError` for server-function errors because it is a yieldable Effect error and a wire schema at the same time.
 - Mock server contracts with `Server.mock`, `Server.mockClient`, or `Server.mockLayer`; do not import `.server.ts` just to test shared resources and actions.
@@ -185,22 +185,16 @@ together. Use `hydrateFromDocumentEffect(...)` for full browser payloads and
 `hydrateStartPayloadEffect(...)` for already-parsed payloads.
 
 ```tsx
-const user = useResource(() => UserById(props.id));
-// Current or stale value: the view mounts once and refreshes update it in place.
-const current = () => Option.getOrUndefined(AsyncResult.value(user.result()));
-
-return (
-  <Show
-    when={current()}
-    fallback={AsyncResult.builder(user.result())
-      .onFailure((cause) => <UserError cause={cause} />)
-      .orElse(() => (
-        <UserSkeleton />
-      ))}
-  >
-    {(value) => <UserView user={value()} refreshing={user.result().waiting} />}
-  </Show>
-);
+const UserCard = Component.make("UserCard", function* (props: { readonly id: UserId }) {
+  const user = yield* Component.resource(UserById);
+  // The reader suspends until the first value, then keeps the view mounted
+  // while refreshes update it in place.
+  return () => (
+    <Loading fallback={<UserSkeleton />}>
+      <UserView user={user(props.id)} refreshing={user.waiting(props.id)} />
+    </Loading>
+  );
+}).pipe(Component.catchAll((error) => <UserError error={error} />));
 ```
 
 Async state is always Effect's `AsyncResult` (`effect/reactivity`): Resources,
@@ -240,9 +234,11 @@ const SaveUser = Action.define({
   run: (input: UserInput) => saveUser(input),
 });
 
-const action = Action.use(SaveUser);
+// UI binds it in a Component setup; the handle submits locally, or through a
+// runtime-provided ActionTransport when the server serves it.
+const save = yield * Component.action(SaveUser);
 
-yield * action.submitEffect(input);
+yield * save.submitEffect(input);
 ```
 
 Expose progressive actions to Start when the same mutation should work with
@@ -273,25 +269,23 @@ The server receives a Start Action Request, decodes it with the action input
 schema, and maps `ActionResult.redirect` / `ActionResult.validation` to HTTP
 without throwing untyped control flow.
 
-JSON action clients should use the Effect-native transport helper when they want
-server-posted mutations to update client resources without a second fetch:
+With JavaScript, the same Action submits through its Component binding. The
+client runtime decides where it runs: `makeActionTransportLayer({ actions })`
+provides Core's `ActionTransport`, so the Actions the server serves go over the
+network and their responses update client Resources without a second fetch:
 
 ```ts
-const result = yield * submitStartActionEffect(RenameUser, input);
+const runtime = makeRuntime(
+  Layer.mergeAll(
+    makeRpcClientLayer(),
+    makeActionTransportLayer({ actions: [RenameUser] }),
+    UserApiLive,
+  ),
+);
 
-if (result._tag === "Success") {
-  result.hydration?.resources.map((resource) => resource.key);
-}
-```
-
-Components can keep Action-like state while still using the Start transport:
-
-```ts
-const rename = StartAction.use(RenameUser, { runtime });
-
+// In a Component setup: the same handle, local or remote.
+const rename = yield * Component.action(RenameUser);
 yield * rename.submitEffect(input);
-rename.invalidation.get()?.entries.map((entry) => entry.ref.key);
-rename.hydration.get()?.resources.map((resource) => resource.key);
 ```
 
 Start action responses include a serializable invalidation plan and a hydration
@@ -466,16 +460,18 @@ presence.get();
 ```
 
 ```tsx
-const title = Signal.make("Sunfall Arc");
-const runEffect = useRuntimeEffect();
+const Title = Component.make("Title", function* () {
+  const title = Signal.make("Sunfall Arc");
+  // Each call forks in the instance Scope: interrupted when it unmounts.
+  const keepAlive = yield* Component.callback(() => Effect.never);
 
-createEffect(
-  () => title.get(),
-  (value) => {
-    document.title = value;
-  },
-);
+  createEffect(
+    () => title.get(),
+    (value) => {
+      document.title = value;
+    },
+  );
 
-// Interrupted when the component unmounts.
-runEffect(Effect.never);
+  return () => <button onClick={keepAlive}>{title.get()}</button>;
+});
 ```

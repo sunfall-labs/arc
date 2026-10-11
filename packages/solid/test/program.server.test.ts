@@ -2,7 +2,7 @@ import { makeRuntime, Program } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { createComponent, renderToString } from "@solidjs/web";
 import { describe, expect, it } from "vitest";
-import { RuntimeProvider, useProgram } from "../src/index.js";
+import { Component } from "../src/index.js";
 
 interface Board {
   readonly title: string;
@@ -25,27 +25,22 @@ const Counter = Program.define<number, { readonly _tag: "Noop" }>({
   on: { Noop: (model) => model },
 });
 
-describe("useProgram on the server", () => {
+describe("Component.program on the server", () => {
   it("renders the Program model with Solid's server build", async () => {
     const runtime = makeRuntime();
-    const BoardView = () => {
-      const board = useProgram(BoardProgram);
-      const counter = useProgram(Counter);
-      const rows = board
-        .model()
-        .items.map((item) => `[${item.label}]`)
-        .join("");
-      return `${board.model().title}:${rows}#${counter.model()}`;
-    };
+    const BoardView = Component.make("BoardView", function* () {
+      const board = yield* Component.program(BoardProgram);
+      const counter = yield* Component.program(Counter);
+      return () => {
+        const rows = board
+          .model()
+          .items.map((item) => `[${item.label}]`)
+          .join("");
+        return `${board.model().title}:${rows}#${counter.model()}`;
+      };
+    });
 
-    const html = renderToString(() =>
-      createComponent(RuntimeProvider, {
-        runtime,
-        get children() {
-          return createComponent(BoardView, {});
-        },
-      }),
-    );
+    const html = renderToString(() => createComponent(Component.embed(BoardView, runtime), {}));
 
     expect(html.replace(/<!--[^>]*-->/g, "")).toBe("Roadmap:[Plan][Ship]#7");
     await Effect.runPromise(runtime.disposeEffect);

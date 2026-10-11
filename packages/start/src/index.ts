@@ -98,11 +98,16 @@ export {
 } from "./file-route.js";
 
 export {
-  /** Stateful client helpers and HTML form helpers for Start actions. */
+  /** Progressive (no-JS) HTML form helpers for Start actions. */
   StartAction,
-  /** Submits a Start action over the action transport. */
-  submitStartActionEffect,
 } from "./start-action-client.js";
+
+export {
+  /** Builds the `ActionTransport` layer that submits served Actions to the Start server. */
+  makeActionTransportLayer,
+  /** Options for `makeActionTransportLayer(...)`. */
+  type ActionTransportLayerOptions,
+} from "./start-action-transport.js";
 
 export {
   /** Error raised when action form input cannot be encoded. */
@@ -114,8 +119,6 @@ export {
 export {
   /** Error raised when two served actions share a name. */
   StartActionDuplicateName,
-  /** Options for Start action clients. */
-  type StartActionClientOptions,
   /** Resource invalidation plan returned by an action response. */
   type StartActionInvalidationPlan,
 } from "./start-transport-protocol.js";

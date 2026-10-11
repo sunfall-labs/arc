@@ -1,9 +1,13 @@
 import { makeRuntime } from "@sunfall/arc-core";
-import { hydrateFromDocument, makeRpcClientLayer } from "@sunfall/arc-start";
-import { Data, Layer } from "effect";
-import { hydrate, render } from "@solidjs/web";
-import App from "./App.js";
-import { ProjectApiLive } from "./domain.js";
+import { Component } from "@sunfall/arc-solid";
+import {
+  hydrateFromDocument,
+  makeActionTransportLayer,
+  makeRpcClientLayer,
+} from "@sunfall/arc-start";
+import { Data, Effect, Layer } from "effect";
+import ProjectConsole from "./App.js";
+import { ProjectApiLive, projectConsoleActions } from "./domain.js";
 import { ProjectSummaries, ProjectWorkItems } from "./project-collections.js";
 import "./styles.css";
 
@@ -21,16 +25,16 @@ if (!root) {
   });
 }
 
-const runtime = makeRuntime(Layer.mergeAll(makeRpcClientLayer(), ProjectApiLive));
-hydrateFromDocument(document, undefined, {
-  runtime,
-  collections: [ProjectSummaries, ProjectWorkItems],
-});
+const collections = [ProjectSummaries, ProjectWorkItems];
+// Server functions go over RPC, and the Actions the server serves go over the
+// action transport; the UI binds every Action the same way.
+const runtime = makeRuntime(
+  Layer.mergeAll(
+    makeRpcClientLayer(),
+    makeActionTransportLayer({ actions: projectConsoleActions, collections }),
+    ProjectApiLive,
+  ),
+);
+hydrateFromDocument(document, undefined, { runtime, collections });
 
-const Root = () => <App runtime={runtime} />;
-
-if (root.hasChildNodes()) {
-  hydrate(Root, root);
-} else {
-  render(Root, root);
-}
+Effect.runFork(Component.launch(ProjectConsole, root, { runtime, hydrate: root.hasChildNodes() }));

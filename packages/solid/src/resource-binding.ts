@@ -1,87 +1,54 @@
-// Internal Solid Resource bindings shared by the public hooks and Components.
-// Every binding takes its runtime explicitly: hooks pass the nearest
-// `RuntimeProvider` runtime, Components pass the runtime their setup ran in.
+// Internal Solid Resource bindings behind `Component.resource(...)`. Every
+// binding takes its runtime explicitly: the runtime (and setup context) of the
+// Component instance that bound it.
 import {
   Resource,
+  ResourceFailure,
   ResourcePending,
-  Signal,
   type AnySunfallArcRuntime,
   type ResourceRef,
 } from "@sunfall/arc-core";
 import {
   makeResourceUiBindingController,
   makeResourceUiSuspensePreloadController,
-  resourceUiPreloadFailureFor,
   resourceUiRefAccessor,
   resourceUiSameRef,
-  type ResourceUiBindingController,
   type ResourceUiInput,
-  type ResourceUiPreloadFailure,
 } from "@sunfall/arc-core/internal";
-import { Cause, Effect, Exit, Fiber } from "effect";
-import type { AsyncResult } from "effect/reactivity";
+import { Cause, Effect, Exit, Fiber, Option } from "effect";
+import { AsyncResult } from "effect/reactivity";
 import { createMemo, createRenderEffect, onCleanup, type Accessor } from "solid-js";
-import type { UseResourceOptions } from "./hooks.js";
 import { createRuntimeScope } from "./runtime-scope.js";
 
-/** Internal: a Resource ref bound to Solid reactivity under the current owner. */
-export interface ResourceBinding<I, A, E, R, ER> {
-  readonly result: Accessor<AsyncResult.AsyncResult<A, Resource.LoadError<E>>>;
-  readonly preloadFailure: Accessor<Resource.LoadError<E> | ER | undefined>;
-  readonly controller: ResourceUiBindingController<I, A, E, R, ER>;
-}
-
 /** Internal: binds a Resource ref (or ref accessor) to Solid reactivity under the current owner. */
-export const createResourceBinding = <I, A, E, R = unknown, ER = never>(
+const createResourceResult = <I, A, E, R = unknown, ER = never>(
   runtime: AnySunfallArcRuntime<ER>,
   ref: ResourceUiInput<I, A, E, R>,
-  options: UseResourceOptions<E, ER> = {},
-): ResourceBinding<I, A, E, R, ER> => {
+): Accessor<AsyncResult.AsyncResult<A, Resource.LoadError<E>>> => {
   const getRef = resourceUiRefAccessor(ref);
-  // Adapter state lives in an Arc signal: Solid tracks it natively on the
-  // client, and writes stay plain committed values during server rendering.
-  const preloadFailure = Signal.make<ResourceUiPreloadFailure<I, A, E, R, ER> | undefined>(
-    undefined,
-  );
-  const controller = makeResourceUiBindingController<I, A, E, R, ER>({
-    runtime,
-    onPreloadFailureChange: (failure) => {
-      preloadFailure.set(() => failure);
-    },
-  });
+  const controller = makeResourceUiBindingController<I, A, E, R, ER>({ runtime });
   const currentRef = createMemo<ResourceRef<I, A, E, R>>(() => getRef(), {
     equals: (previous, next) => resourceUiSameRef(previous, next),
   });
 
   // Binding a ref and starting its preload are side effects, so they run in the
-  // effect's apply phase, never inside a read. The compute phase tracks the ref
-  // and the (possibly reactive) preload option.
-  createRenderEffect(
-    () => ({ ref: currentRef(), preload: options.preload }),
-    ({ ref: nextRef, preload }) => {
-      if (preload === false) {
-        controller.bindRef(nextRef);
-        controller.interruptPreload();
-        return;
-      }
-
-      controller.startInitialPreload(nextRef, {
-        ...(preload === undefined ? {} : { preload }),
-        onPreloadFailure: (error) => options.onPreloadFailure?.(error),
-      });
-    },
-  );
+  // effect's apply phase, never inside a read.
+  createRenderEffect(currentRef, (nextRef) => {
+    controller.startInitialPreload(nextRef);
+  });
 
   onCleanup(() => {
     controller.dispose();
   });
 
-  return {
-    result: () => controller.result(currentRef()).get(),
-    preloadFailure: () => resourceUiPreloadFailureFor(preloadFailure.get(), currentRef()),
-    controller,
-  };
+  return () => controller.result(currentRef()).get();
 };
+
+/** Internal: a suspending Resource read plus its value-free `AsyncResult`. */
+export interface ResourceSuspense<A, E> {
+  readonly read: Accessor<A>;
+  readonly result: Accessor<AsyncResult.AsyncResult<A, Resource.LoadError<E>>>;
+}
 
 type SuspenseOutcome<A> =
   | { readonly _tag: "Value"; readonly value: A }
@@ -97,14 +64,15 @@ type SuspenseOutcomeToken<A> = ReturnType<typeof suspenseOutcomeToken<A>>;
  * Internal: fiber-backed async memo over a Resource ref, under the current owner.
  *
  * Cached values return synchronously; pending reads suspend the nearest Solid
- * `<Loading>`; failed loads throw `ResourceFailure` to the nearest `<Errored>`.
+ * `<Loading>`; a failed first load throws `ResourceFailure` to the nearest
+ * `<Errored>`, while a failed refresh keeps returning the stale value.
  */
 export const createResourceSuspense = <I, A, E, R = unknown, ER = unknown>(
   runtime: AnySunfallArcRuntime<ER>,
   ref: ResourceUiInput<I, A, E, R>,
-): Accessor<A> => {
+): ResourceSuspense<A, E> => {
   const getRef = resourceUiRefAccessor(ref);
-  const result = createResourceBinding(runtime, getRef).result;
+  const result = createResourceResult(runtime, getRef);
   return createRuntimeScope(runtime, (scope) => {
     const preloadController = makeResourceUiSuspensePreloadController<
       I,
@@ -124,7 +92,15 @@ export const createResourceSuspense = <I, A, E, R = unknown, ER = unknown>(
         return { _tag: "Value", value: exit.value };
       }
       const error = Cause.squash(exit.cause);
-      return error instanceof ResourcePending ? undefined : { _tag: "Failure", error };
+      if (error instanceof ResourcePending) {
+        return undefined;
+      }
+      // A failed refresh keeps serving the last value: content stays mounted
+      // and status chrome reads the failure. Only a first load throws.
+      const stale = error instanceof ResourceFailure ? AsyncResult.value(error.result) : undefined;
+      return stale !== undefined && Option.isSome(stale)
+        ? { _tag: "Value", value: stale.value as A }
+        : { _tag: "Failure", error };
     };
 
     // Settles a preload into a typed outcome inside Effect, so failures reach
@@ -157,12 +133,15 @@ export const createResourceSuspense = <I, A, E, R = unknown, ER = unknown>(
       );
     });
 
-    return () => {
-      const current = outcome();
-      if (current._tag === "Failure") {
-        throw current.error;
-      }
-      return current.value;
+    return {
+      read: () => {
+        const current = outcome();
+        if (current._tag === "Failure") {
+          throw current.error;
+        }
+        return current.value;
+      },
+      result,
     };
   });
 };

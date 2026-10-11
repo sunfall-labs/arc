@@ -1,5 +1,5 @@
 import type { ActionManifestSource, ServerFunctionManifestSource } from "@sunfall/arc-start";
-import { SubmitProjectName } from "./domain.js";
+import { projectConsoleActions, SubmitProjectName } from "./domain.js";
 import {
   advanceProject,
   getProject,
@@ -65,7 +65,7 @@ export const projectConsoleActionSources = [
 ] as const satisfies readonly ActionManifestSource[];
 
 export const projectConsoleServerRegistry = {
-  actions: projectConsoleActionSources.map((source) => source.action),
+  actions: projectConsoleActions,
   serverFunctions: projectConsoleServerFunctionSources.map((source) => source.fn),
 } as const;
 

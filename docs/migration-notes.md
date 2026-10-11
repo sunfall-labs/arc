@@ -29,6 +29,35 @@ The migration is done when models and messages are plain values, Promise work is
 wrapped at the Effect edge before a follow-up message is emitted, and
 `Program.story(...)` can exercise the transitions without mounting a UI.
 
+## From Solid Hooks To Components
+
+Earlier alphas offered two Solid models: hooks under a `RuntimeProvider`
+(`useResource`, `useAction`, `useProgram`, `useStream`, `useRuntimeEffect`,
+`useCollection`, `useLiveQuery`) and typed `Component`s. Components are now the
+only model:
+
+- A component that called hooks becomes
+  `Component.make(name, function* (props) { ...; return () => <View /> })`.
+  Setup runs once per instance, like a hook-calling component body.
+- `useResource` / `useResourceSuspense` become `yield* Component.resource(Family)`
+  and render `reader(input)` under `<Loading>`; status UI reads
+  `reader.waiting(input)` / `reader.failure(input)` instead of `result()`.
+- `useAction(Definition)` and `StartAction.use(Definition)` become
+  `yield* Component.action(Definition)`; a Start client runtime adds
+  `makeActionTransportLayer({ actions })` for the Actions the server serves.
+- `useProgram`, `useStream`, and `useRuntimeEffect` become `Component.program`,
+  `Component.stream`, and `Component.callback`.
+- `useCollection` / `useLiveQuery` become `SolidDb.collection` /
+  `SolidDb.liveQuery`.
+- `<RuntimeProvider runtime>` plus `<RouterProvider routes>` become
+  `yield* Component.router(routes)` and `<RouterProvider router={router}>`, and
+  the client entry becomes `Effect.runFork(Component.launch(App, root,
+{ runtime, hydrate: root.hasChildNodes() }))`; the server renders
+  `Component.embed(App, runtime)`.
+
+The migration is done when every service the tree needs is in its root
+component's `R`, and `Component.launch` type-checks against the runtime.
+
 ## From TanStack Query
 
 TanStack Query usually spreads data behavior across query keys, query functions,
@@ -42,8 +71,10 @@ behind Resource families and Actions:
   Action invalidation plan.
 - Mutation callbacks become `Action.define(...)` definitions with retry,
   concurrency, optimistic work, and invalidation metadata attached to the
-  definition. Start forms then bind those definitions with `StartAction.use(...)`
-  or `StartAction.form(...)`.
+  definition. UI binds them with Solid's `Component.action(...)`; a Start client
+  runtime provides `makeActionTransportLayer(...)` so served Actions submit over
+  the network through the same handle, and `StartAction.form(...)` renders them
+  as progressive no-JS forms.
 - Route loaders call `Resource.prefetchEffect(...)` in `preload` and declare
   `preloadResources` / `preloadCollections`; file routes use
   `defineFileRoute(path)(options)` with exactly the same options as core
@@ -87,8 +118,8 @@ transport:
 - Redirects return `ActionResult.redirect(...)`.
 - Browser forms use `StartAction.form(...)` for no-JS fallback and hydration
   metadata.
-- Client-side submit buttons call `submitEffect(...)`, then fork or run the
-  Effect explicitly at the UI boundary.
+- Client-side submits call the Component's action handle (`submit(input)` from
+  a handler, or `submitEffect(input)` inside a Program or workflow).
 
 The migration is done when the same Action definition owns schema validation,
 no-JS fallback, optimistic behavior when needed, retry/concurrency policy, and

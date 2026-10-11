@@ -6,7 +6,8 @@ import {
 } from "@sunfall/arc-start";
 import { Effect, Stream } from "effect";
 import { createComponent, generateHydrationScript, renderToString } from "@solidjs/web";
-import App from "./App.js";
+import { Component } from "@sunfall/arc-solid";
+import DocsSite from "./App.js";
 import { docsSiteAppBaseOptions } from "./app-definition.js";
 import { DocsContentApiLive } from "./content-live.js";
 import { docsSiteServerRegistry } from "./start-options.js";
@@ -40,10 +41,11 @@ export const handleRequest = createRequestHandler(serverApp, {
     Effect.gen(function* () {
       const url = new URL(request.url);
       const href = `${url.pathname}${url.search}`;
-      // `App` is the whole root on both sides (src/main.tsx hydrates the same
-      // component); its RuntimeProvider supplies the runtime context, so the
-      // server must not add wrappers the client lacks or hydration keys shift.
-      const body = renderToString(() => createComponent(App, { initialHref: href, runtime }));
+      // The same tree src/main.tsx hydrates with `Component.launch`, so the
+      // server adds no wrappers the client lacks (hydration keys stay aligned).
+      const body = renderToString(() =>
+        createComponent(Component.embed(DocsSite, runtime), { initialHref: href }),
+      );
 
       return yield* createStartStreamedHtmlResponseEffect({
         shell: htmlChunk(shellOpen(generateHydrationScript())),

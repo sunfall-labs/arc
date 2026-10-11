@@ -87,31 +87,27 @@ load that TSRX virtual-file path, so `tsgo` is the right default for ordinary
 framework packages and `tsrx-tsc` remains the correctness path for `.tsrx`
 projects.
 
-The default UI integration does not require TSRX `try/pending/catch`. A resource
-exposes its state as Effect's `AsyncResult` plus an Effect API:
+The default UI integration does not require TSRX `try/pending/catch`. A
+Component binds a Resource family in setup and reads it in render through a
+reader that suspends Solid's `<Loading>`:
 
 ```tsx
-const project = useResource(() => ProjectById(props.id));
-const current = () => Option.getOrUndefined(AsyncResult.value(project.result()));
-
-return (
-  <Show
-    when={current()}
-    fallback={AsyncResult.builder(project.result())
-      .onFailure((cause) => <ProjectError cause={cause} />)
-      .orElse(() => (
-        <ProjectSkeleton />
-      ))}
-  >
-    {(value) => <ProjectView project={value()} refreshing={project.result().waiting} />}
-  </Show>
-);
+const ProjectPage = Component.make("ProjectPage", function* (props: { readonly id: ProjectId }) {
+  const project = yield* Component.resource(ProjectById);
+  return () => (
+    <Loading fallback={<ProjectSkeleton />}>
+      <ProjectView project={project(props.id)} refreshing={project.waiting(props.id)} />
+    </Loading>
+  );
+}).pipe(Component.catchTags({ ProjectNotFound: (error) => <ProjectMissing id={error.id} /> }));
 ```
 
-Content is gated on having a value (current or stale), not on each result
-transition, so a refresh updates `ProjectView` in place instead of remounting
-it and whatever forms or Programs it owns; the builder renders only the small
-status fallback. See [Solid Adapter](solid-adapter.md#keep-content-mounted-across-refreshes).
+The reader is the only way to render the value: the first load suspends, and
+later refreshes keep the current (or, after a failed refresh, stale) value, so
+`ProjectView` stays mounted with whatever forms or Programs it owns.
+`waiting(input)` and `failure(input)` are value-free status accessors for the
+chrome. A failed first load throws `ResourceFailure` to the boundary
+`catchTags` installs. See [Solid Adapter](solid-adapter.md#resources-the-reader-is-the-only-way-to-render-content).
 
 ### AsyncResult Is The Async-State Vocabulary
 
@@ -156,7 +152,7 @@ TSRX remains the authoring language for component templates, while Effect handle
 retry, cancellation, scoped cleanup, error recovery, and server boundaries.
 
 Core owns the Resource UI Binding Controller used by the Solid resource
-hooks. That Module keeps ref identity, runtime-bound refresh/prefetch Effects,
+reader. That Module keeps ref identity, runtime-bound refresh/prefetch Effects,
 automatic preload fibers, keyed preload failures, stale preload interruption,
 and Suspense preload-token dedupe adapter-neutral. The Solid adapter still owns
 host reactivity and host Suspense thenable throwing.
@@ -222,19 +218,16 @@ message loop. Promise-shaped host work belongs inside `Effect.tryPromise(...)`
 before the command or subscription emits a plain message.
 
 Started Programs run on the Runtime Spine and expose a readable model signal,
-typed `dispatchEffect(...)`, failures, and disposal:
-
-```ts
-const counter = Program.start(CounterProgram);
-```
-
-A serviceful Program must start with an explicit typed runtime:
+typed `dispatchEffect(...)`, failures, and disposal. A Program always starts on
+an explicit typed runtime (there is no default runtime):
 
 ```ts
 const project = Program.start(ProjectProgram, { runtime });
 ```
 
-That keeps service requirements visible to TypeScript. A Program keeps no
+That keeps service requirements visible to TypeScript. UI code starts Programs
+with Solid's `Component.program(ProjectProgram)`, whose services join the
+component's `R`. A Program keeps no
 history of its own: each committed message is one entry on the app
 [Timeline](#timeline-and-replay), labelled `Program "Counter" message Load`, so
 devtools and tests inspect Program history the same way as every other state
@@ -242,7 +235,7 @@ change.
 
 The model signal is the Effect-side source of truth: every update commits one
 immutable model. Renderers must not turn that single value into coarse
-re-renders, so the Solid adapter's `useProgram(...)` reconciles each commit into
+re-renders, so the Solid adapter's `Component.program(...)` reconciles each commit into
 a fine-grained read-only projection: unchanged subtrees keep their identity,
 arrays reconcile by key (`"id"` by default), and a reader re-runs only when the
 part of the model it read changes. Foldkit-style centralized state, Solid-style
@@ -307,12 +300,15 @@ The Runtime Spine is the one place where host boundaries are allowed to run Effe
 
 - Server function host calls run through the current runtime.
 - `Resource.prefetch` / `refresh` use the current runtime.
-- `Action.use(...).submitEffect` can run on an explicit runtime.
+- `Action.use(definition, { runtime })` and `Program.start(definition, { runtime })`
+  take an explicit runtime; neither falls back to a default.
 - Start request handlers run SSR preload and render through `app.runtime`.
-- Solid `RuntimeProvider` passes the runtime to resources, actions, route
-  preloads (`RouterProvider` reads it from context), route components, and
-  ambient Core helpers used while rendering those components. A missing
-  provider throws `RuntimeContextMissing`; there is no implicit default runtime.
+- Solid Components get their runtime from their entry point
+  (`Component.launch`, `mount`, or `embed`), which checks the tree's services
+  against it; every setup-time binding (resources, actions, programs, streams,
+  callbacks, collections, the router and its route preloads) runs on its
+  instance's runtime with the setup's context. There is no runtime context and
+  no implicit default runtime.
 
 That means services, tagged errors, request context, scopes, retries, and
 fibers all flow through one Effect-native execution model instead of being
@@ -373,14 +369,20 @@ action through the Request Runtime, and maps `ActionResult` values to HTTP:
 
 When a JSON action produces an invalidation plan, Start dehydrates the refreshed
 resource refs from the request-local Resource Store and includes them in the
-response metadata. `submitStartActionEffect(...)` hydrates that payload into the
-client runtime, so server-posted mutations can update the same Resource cache
-graph as local `Action.use(...).submitEffect(...)` calls.
-`StartAction.use(...)` wraps that transport in an Action-like client instance
-for components that need submission state (the same `{ result: AsyncResult, input }` shape) without
-leaving the Start request path. It also exposes read-only `invalidation` and
-`hydration` signals for the latest successful response, giving devtools and UI
-code the same causal facts carried by the transport.
+response metadata.
+
+The client side of that transport is Core's `ActionTransport` service, the
+Action counterpart of `ServerClient`. Every Action instance looks it up when it
+submits: Actions the transport serves run remotely, and the response (decoded
+outcome, hydrated Resources and Collections, invalidations) applies to the
+submitting runtime; every other Action runs its `run` locally. Start provides it
+with `makeActionTransportLayer({ actions })` in the client runtime layer, next
+to `makeRpcClientLayer()`. UI code never chooses: Solid's
+`Component.action(definition)` submits the same way either way, with the same
+result type and error type (the Action's own errors plus `Server.ClientError`).
+A superseded `parallel` submission applies only its invalidations, so hydrated
+values stay latest-only. The server's action endpoint always runs Actions
+locally.
 
 JSON action clients and progressive form helpers share the same Start Action
 Request Codec. Schema-backed input encoding happens before values cross the
@@ -396,10 +398,11 @@ action URL, and hidden metadata fields. Visible form controls are merged over
 the hidden JSON input before schema decode, so a form can carry stable values
 such as `id` and `redirectTo` while the user edits fields like `name`.
 
-This is the progressive enhancement seam: with JavaScript, the Solid handler can
-intercept and fork or run `Action.use(...).submitEffect`; without JavaScript,
-the same form posts to Start and runs the same Action Definition, Capability
-services, schemas, retries, and invalidation policy.
+This is the progressive enhancement seam: with JavaScript, the Solid handler
+intercepts the submit and calls the Component's action handle (which the
+transport routes to the server); without JavaScript, the same form posts to
+Start and runs the same Action Definition, Capability services, schemas,
+retries, and invalidation policy.
 
 ## Resource Dependency Graph
 
@@ -459,7 +462,7 @@ plan.entries.map((entry) => ({
 }));
 ```
 
-`Action.use(...)` exposes the latest `invalidationPlan` as a signal, and
+An Action instance exposes the latest `invalidationPlan` as a signal, and
 `@sunfall/arc-devtools` can serialize the plan into plain data for a panel or
 trace view. The intended debugging loop is “this mutation invalidated these
 domain facts, which matched these live resource refs, for these causes.”
@@ -484,14 +487,14 @@ runtime-native signals.
 ## Components
 
 JSX erases types: every element is `JSX.Element`, so services and typed render
-failures cannot flow through JSX. `Component` (in `@sunfall/arc-solid`) moves
-them onto component **definitions**, composed with `yield*` in a setup
-generator:
+failures cannot flow through JSX. `Component` (in `@sunfall/arc-solid`) is the
+single Solid app model: it moves them onto component **definitions**, composed
+with `yield*` in a per-instance setup generator:
 
 ```tsx
-const ProjectCard = Component.make("ProjectCard", function* () {
+const ProjectCard = Component.make("ProjectCard", function* (props: { readonly id: ProjectId }) {
   const project = yield* Component.resource(ProjectById); // E += typed load error, R += its services
-  return (props: { readonly id: ProjectId }) => <article>{project(props.id).name}</article>;
+  return () => <article>{project(props.id).name}</article>;
 });
 
 const Dashboard = Component.make("Dashboard", function* () {
@@ -504,75 +507,85 @@ const Dashboard = Component.make("Dashboard", function* () {
 ```
 
 A `Component<P, E, R>` is yieldable like an Effect service key: yielding it
-adds its `E` and `R` to the parent and returns a plain Solid component. `E` is
-phantom at the Effect level; setup failures, provided-Layer failures, and failed
-resource reads surface when the component renders, by throwing to the nearest
-Solid `<Errored>`. `catchTags` installs that boundary and removes handled tags
-from `E` (matching a `ResourceFailure` by the `_tag` of `AsyncResult.error(failure.result)`); unmatched
-failures rethrow outward. `Component.resource` contributes only the family's
-typed load error: a load callback that throws synchronously
-(`EffectInputCallbackError`) is a programming defect, re-caused as `Die` so no
-handler can (or must) match it. `provide` removes services from `R`; `launch`,
-`mount`, and `embed` accept only `Component<P, never, never>`.
+adds its `E` and `R` to the parent and returns a plain Solid component whose
+instances run in the parent setup's context. `E` is phantom at the Effect
+level; setup failures, provided-Layer failures, and failed first Resource loads
+surface when the instance renders, by throwing to the nearest Solid `<Errored>`.
+`catchTags` installs that boundary and removes handled tags from `E` (matching a
+`ResourceFailure` by the `_tag` of `AsyncResult.error(failure.result)`), and
+`catchAll` handles every typed failure; unmatched failures and defects rethrow
+outward. `Component.resource` contributes only the family's typed load error: a
+load callback that throws synchronously (`EffectInputCallbackError`) is a
+programming defect, re-caused as `Die` so no handler can (or must) match it.
+`provide` removes services from `R`; `launch`, `mount`, and `embed` accept only
+`Component<P, never, R>` whose `R` their runtime provides.
 
-Two phases keep the cost model honest:
+The cost model:
 
-- **Setup runs once per Arc runtime** (memoized in the runtime's Resource
-  Store), not per instance. Its Scope lives as long as the runtime, so provided
-  scoped Layers and setup finalizers release on runtime disposal. Nested
-  `yield*` runs inline, once per parent setup.
-- **Render runs per instance** under a Solid owner, exactly like a Solid
-  component. Resource reads share one fiber-backed async memo per ref per
-  runtime (the `useResourceSuspense` path); pending reads suspend `<Loading>`.
-  Releasing the last reader defers disposal to a microtask, so an owner that
-  recomputes (or a suspended read re-run) in the same flush keeps the binding.
+- **Setup runs once per instance**, with the instance's props, under its Solid
+  owner (every generator step, even after an asynchronous one), with an
+  instance Scope that closes when Solid disposes the instance. A synchronous
+  setup renders in place; an asynchronous one suspends `<Loading>`.
+- **Setup-time bindings** add their services to `R`: `Component.resource` (a
+  suspending reader plus value-free `waiting`/`failure` status),
+  `Component.action` (a submission handle, local or transported),
+  `Component.program` (a fine-grained model projection), `Component.stream`,
+  `Component.callback` (Effects from DOM handlers, failures handled),
+  `Component.router` (routes' preload and route Component services join `R`),
+  and `@sunfall/arc-solid-db`'s `SolidDb.collection` / `SolidDb.liveQuery`.
+  `Component.instance` is the seam for writing more.
+- **Per-runtime sharing is by construction**: Resources and Collections live in
+  the runtime's stores, and `Component.provide` builds its Layer once per
+  runtime in a host Scope released on runtime disposal. A reader keeps one
+  fiber-backed async memo per ref; releasing the last claim defers disposal to
+  a microtask, so an owner that recomputes (or a suspended read re-run) in the
+  same flush keeps the binding.
+- **Plain Solid components** stay the tool for presentational leaves; they cost
+  nothing.
 
 `Component.launch(App, root, options?)` is the app entry point: an
-`Effect<never, ER>` that keeps the tree mounted until interrupted, like
-`Layer.launch` (`Effect.runFork(Component.launch(App, root))`). It is
-`Effect.scoped` over `Component.mount(...)`, the composable scoped acquisition
-(`Effect<void, ER, Scope>`): setup completes before the first render,
-interrupting the mount interrupts setup, closing the Scope disposes the Solid
+`Effect<never, ER>` that starts the runtime and keeps the tree mounted until
+interrupted, like `Layer.launch` (`Effect.runFork(Component.launch(App, root))`).
+It is `Effect.scoped` over `Component.mount(...)`, the composable scoped
+acquisition (`Effect<void, ER, Scope>`): closing the Scope disposes the Solid
 tree, then any runtime the mount owns, and a failed mount releases what it
-acquired immediately. `Component.embed(...)` renders a component inside an
-existing `RuntimeProvider` tree, sharing the same per-runtime setup.
+acquired immediately. `Component.embed(App, runtime)` renders the same tree as a
+plain Solid component on an explicit runtime.
 
-On the server, `embed` under a Start request runtime runs setup once per
-request and reads route-preloaded Resources synchronously. On the client,
-`launch(App, root, { runtime, hydrate: true })` hydrates that markup with
-Solid's `hydrate`, rendering the same tree `embed` renders, after the Resource
-snapshot is restored into `runtime`.
+On the server, `embed` under a Start request runtime runs each instance's
+setup in that runtime and reads route-preloaded Resources synchronously. On the
+client, `launch(App, root, { runtime, hydrate: true })` hydrates that markup
+with Solid's `hydrate`, rendering the same tree `embed` renders, after the
+Resource snapshot is restored into `runtime`.
 
 ## Component Runtime
 
-Components that call `createComponentScope(...)`, `useRuntimeEffect(...)`,
-`useStream(...)`, or render through `RouterOutlet` get a UI scope backed by
-Effect `Scope`. Closing the UI scope closes the Effect scope, so finalizers run
-and scoped fibers are interrupted. Plain Solid components stay unscoped until
-they opt into one of those Solid Adapter seams.
+Every Component instance owns an Effect `Scope`, and route components rendered
+through `RouterOutlet` additionally get a route UI scope. Closing a scope runs
+its finalizers and interrupts its fibers: streams from `Component.stream`,
+fibers forked by `Component.callback`, Programs, and in-flight Action
+submissions all stop with the instance. Plain Solid components stay unscoped.
 
 ```tsx
-const title = Signal.make("Sunfall Arc");
-const runEffect = useRuntimeEffect();
+const Presence = Component.make("Presence", function* () {
+  // Stream-backed values stop with the instance.
+  const presence = yield* Component.stream(presenceStream, initialPresence);
+  // Background Effect work forked from handlers is interrupted on unmount.
+  const ping = yield* Component.callback(() =>
+    Effect.sleep("1 second").pipe(Effect.andThen(Effect.log("still mounted"))),
+  );
+  const title = Signal.make("Sunfall Arc");
 
-// Imperative DOM sinks use Solid effects; Arc signals track natively.
-createEffect(
-  () => title.get(),
-  (value) => {
-    document.title = value;
-  },
-);
+  // Imperative DOM sinks use Solid effects; Arc signals track natively.
+  createEffect(
+    () => title.get(),
+    (value) => {
+      document.title = value;
+    },
+  );
 
-// Background Effect work is interrupted when the component unmounts.
-runEffect(
-  Effect.gen(function* () {
-    yield* Effect.sleep("1 second");
-    yield* Effect.log("still mounted");
-  }),
-);
-
-// Stream-backed values stop with the component.
-const presence = useStream(presenceStream, initialPresence);
+  return () => <PresencePill presence={presence()} onClick={ping} />;
+});
 ```
 
 Use Solid effects only for imperative sinks. Use `Signal.derive`, `Resource`,
@@ -1213,8 +1226,9 @@ Streams can also drive signals when the stream cannot fail:
 const online = yield * Signal.fromStreamEffect(presenceStream, false);
 ```
 
-In Solid components, `useStream(stream, initial)` is the component-boundary
-helper; its stream fiber is interrupted when the component is disposed.
+In Solid Components, `Component.stream(stream, initial)` is the
+component-boundary binding; its stream fiber is interrupted when the instance is
+disposed.
 
 Fallible streams should first be turned into typed data or represented as `Resource`
 state, because a plain `Signal<A>` always has a current `A` and has no error channel.

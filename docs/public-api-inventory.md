@@ -87,7 +87,8 @@ coverage.
 
 The root export re-exports these local modules:
 
-- `action`, `action-result`, `action-submission`, `app`, `capability`
+- `action`, `action-result`, `action-submission`, `action-transport`, `app`,
+  `capability`
 - `browser-router-history-adapter`, `browser-router-host-controller`,
   `browser-router-kernel`, `browser-router-state`, `effect-like`, `form`,
   `program`, `request-context`
@@ -98,7 +99,8 @@ The root export re-exports these local modules:
 Mixed modules (`action-submission`, the `browser-router-*` modules,
 `effect-like`, `resource-snapshot-codec`, `route-grammar`, `runtime`) are
 selected by name. Their adapter plumbing, plus `definition-registry`,
-`resource-registry`, `resource-ui-binding`, `runtime-provider-lifecycle`,
+`resource-registry`, `resource-ui-binding`, `action-instance` and
+`program-start` (runtime-erased instance constructors for renderer bindings),
 `scope` (the ambient `UiScope`), and `signal-watch`, is exported only from
 `@sunfall/arc-core/internal` for sibling Sunfall Arc packages. Each symbol has
 exactly one import path; nothing is exported from both entrypoints.
@@ -122,10 +124,15 @@ Golden-path public groups:
   typed failures.
 - `makeRuntime`, `runWithRuntime`, `SunfallArcRuntime.provide(...)`,
   `AnySunfallArcRuntime`
-- Runtime Provider lifecycle vocabulary (`RuntimeProviderLifecycleEntry`,
-  `makeRuntimeProviderLifecycleEntry(...)`,
-  `disposeRuntimeProviderLifecycleEntryEffect(...)`, ...) is adapter plumbing
-  exported from `@sunfall/arc-core/internal`.
+- `ActionTransport` (with `ActionTransportResponse`): the Action counterpart of
+  `ServerClient`. Every Action instance looks it up on submit; Actions it
+  serves run remotely and the response applies to the submitting runtime,
+  every other Action runs locally. Start's `makeActionTransportLayer(...)` is
+  the provider.
+- `RouteView`, `RouteViewTypeId`, and `RouteWithComponent`: route components
+  may be renderer component values (Solid's typed `Component`), and
+  `Route.withComponent(...)` keeps the attached component's type
+  (`Route.ComponentOf<R>`) so adapters can check its requirements.
 - `Resource.requestFamily` for Resource state backed by Effect
   `RequestResolver` batching/deduping.
 - `Resource.deleteEffect(ref)` for explicit Effect-first removal from the
@@ -187,9 +194,9 @@ Release decisions:
 - Ambient runtime accessors (`getCurrentRuntime`, `currentOrDefaultRuntime`,
   `defaultRuntime`, `eraseRuntime`, `withResourceStore`, `runFork`) are
   internal adapter plumbing in `@sunfall/arc-core/internal`. App code uses
-  explicit runtime providers, `makeRuntime`, `runWithRuntime`, or adapter hooks
-  such as Solid's `useRuntime` (which throws `RuntimeContextMissing` without a
-  provider).
+  `makeRuntime`, `runWithRuntime`, explicit `{ runtime }` options, or renderer
+  entry points such as Solid's `Component.launch` / `embed`, which take the
+  runtime explicitly.
 - The ambient UI scope (`UiScope`, `makeRuntimeUiScope(...)`,
   `makeRuntimeUiScopeFrame(...)`, `scoped`, `runWithScope`, `getCurrentScope`,
   `onDispose`, `forkScoped`, `watch`) is internal adapter plumbing in
@@ -271,8 +278,9 @@ Release decisions:
 - `Action.use(definition, { runtime })` is a runtime-bound action instance:
   services provided by the explicit runtime are removed from `submitEffect(...)`
   requirements, and the runtime error channel is added to the action error
-  surface. Calling `Action.use(definition)` without an explicit runtime
-  preserves the action's original requirements.
+  surface. The runtime is required: there is no default-runtime fallback.
+  Submissions report `Server.ClientError` beside the Action's own failures,
+  because a runtime-provided `ActionTransport` may serve the Action remotely.
 - The internal Action Execution Workflow Module owns callback normalization,
   retry wrapping, optimistic transaction commit/rollback, stale-submission
   interruption, invalidation planning/execution, and visible submission state
@@ -296,11 +304,11 @@ Release decisions:
   `Program.next(...)` widens variant commands through the Program's message
   union so handlers do not need command-level union generics. Both definition
   surfaces use the same Effect commands and Stream subscriptions.
-  `Program.start(...)` runs service-free Programs against the active Runtime
-  Spine and UI scope. Serviceful Programs must use
-  `Program.start(definition, { runtime })`, which adds runtime
-  startup/provision errors to the failure channel and rejects runtimes that do
-  not provide the Program's update, command, and subscription requirements.
+  `Program.start(definition, { runtime })` always takes an explicit runtime
+  (there is no default-runtime fallback); it adds runtime startup/provision
+  errors to the failure channel and rejects runtimes that do not provide the
+  Program's update, command, and subscription requirements. UI code starts
+  Programs with Solid's `Component.program(...)`.
   Program models and messages are plain data: Promise-shaped values,
   Effect-shaped values, and `undefined`/`void` messages are rejected. Commands
   that intentionally emit nothing reserve `undefined`/`void` as the no-message
@@ -329,8 +337,9 @@ Release decisions:
   `program.ts`.
   `Program.RuntimeError<E, ER = never>` separates Program-domain failures from
   Runtime Spine startup/provision failures. `Program.DispatchError<E, ER>` adds
-  `ProgramDisposed` for live `dispatchEffect(...)` acknowledgement drops; the
-  Solid adapter exposes the same `ER` parameter on `useProgram(...)`.
+  `ProgramDisposed` for live `dispatchEffect(...)` acknowledgement drops. The
+  Solid `Component.program(...)` binding runs on its instance's already-started
+  runtime, so its handle carries no `ER`.
   `Program.step(...)` and `Program.story(...)` are the deterministic test
   surface: they run updates as Effects, expose returned commands without running
   them implicitly, and let tests resolve commands back into typed messages.
@@ -408,7 +417,7 @@ includes:
 
 - Local source modules: `action-manifest`, `file-route`, `hydration`,
   `request-trace`, `server-function-manifest`, `start-action-client`,
-  `start-action-request-codec`, `start-collection-resolution`, `start-fetch`,
+  `start-action-transport`, `start-action-request-codec`, `start-collection-resolution`, `start-fetch`,
   `start-request-handler`, `start-rpc-client`, `start-transport-endpoints`,
   `start-transport-protocol`, `static-client-navigation`, and `streaming`.
 - request handling: `createRequestHandler(app, options)` returns the
@@ -432,10 +441,15 @@ includes:
   `route(path, options)`; Start checks `path` against the discovered file.
   Static preload hints use core `preloadResources` / `preloadCollections`, and
   runtime work lives in `preload`.
-- actions: the `StartAction` namespace (`StartAction.use`, `StartAction.form`,
-  `StartAction.decodeFormDataEffect`, `StartAction.Form`, `StartAction.Result`,
-  `StartAction.State`, `StartAction.Instance`) plus `submitStartActionEffect`,
-  `StartActionClientOptions`, `StartActionFormOptions`,
+- actions: `makeActionTransportLayer(options)` (with
+  `ActionTransportLayerOptions`) provides the Core `ActionTransport` for the
+  Actions the server serves, so the single UI binding (Solid's
+  `Component.action(...)`) submits them over the network with the same result
+  and error types; responses hydrate and invalidate the submitting runtime. A
+  serviceful `StartFetch<E, R>` requires a `transportRuntime`. The
+  `StartAction` namespace keeps only progressive (no-JS) form support:
+  `StartAction.form`, `StartAction.decodeFormDataEffect`, and
+  `StartAction.Form`; plus `StartActionFormOptions`,
   `StartActionInvalidationPlan`, `StartActionFormEncodeError`, and
   `StartActionDuplicateName`.
 - static sites: `makeStartStaticHistoryAdapter`, `currentStartStaticHref`,
@@ -870,42 +884,58 @@ Release decisions:
 
 The root export includes:
 
-- Local source modules: `component`, `hooks`, `link`, `router`, and `runtime`.
-- `Component`: typed component definitions (`Component.make`, `resource`,
-  `catchTags`, `loading`, `provide`, `mount`, `launch`, `embed`) whose services
-  and render failures flow through `yield*` in setup instead of JSX; `launch`
-  is the app entry point, `mount` its composable scoped primitive;
-- `RuntimeProvider`, `useRuntime`, `RuntimeContextMissing`, and component
-  scopes;
-- router APIs: `RouterProvider`, `RouterOutlet`, `RouterLink`, `useRouter`,
-  `isPlainLeftClick`, `RouterContextMissing`, and typed route failure
-  renderers;
-- hooks for signals, streams, programs, resources, suspense, and actions.
+- Local source modules: `component`, `link`, and `router`.
+- `Component`: the single Solid app model. Typed component definitions whose
+  services and render failures flow through `yield*` in setup instead of JSX:
+  `Component.make` (per-instance setup receiving props, returning the render
+  function), setup-time bindings (`resource`, `action`, `program`, `stream`,
+  `callback`, `router`, and the expert `instance` seam for binding authors),
+  boundaries (`catchTags`, `catchAll`, `loading`), `provide`, and the entry
+  points `launch` (the app entry), `mount` (its composable scoped primitive),
+  and `embed` (the server render path, on an explicit runtime);
+- router APIs: `RouterProvider` (renders a router from `Component.router`),
+  `RouterOutlet`, `RouterLink`, `useRouter`, `isPlainLeftClick`,
+  `RouterContextMissing`, `RouterOptions`, and typed route failure renderers.
 
 Release decisions:
 
 - No Core re-exports: `Resource`, `Action`, `Route`, `Signal`, `Program`,
   router state/path types, `RouterRouteNotRegistered`, and `makeRuntime`
   are imported from `@sunfall/arc-core` only.
-- `useRuntime()` (and every hook built on it, including `RouterProvider`)
-  throws `RuntimeContextMissing` when no `RuntimeProvider` is mounted; there is
-  no implicit default runtime.
-- Solid `RuntimeProvider` accepts `onDisposeFailure(...)` only when it owns the
-  runtime through `source` or the empty provider-owned runtime path. The observer is
-  `EffectInput<void, unknown>`: observers may return pure values or Effects,
-  Promise-shaped observers are rejected, observer failures are swallowed after
-  the disposal failure is observed, and the prop is intentionally unavailable
-  for host-owned `runtime` props.
+- There is no hook model and no runtime context: every runtime-backed read or
+  write is a setup-time binding whose services join the component's `R`, and
+  `launch`/`mount`/`embed` check `R` against the runtime they are given.
+  `embed(component, runtime)` takes the runtime explicitly; there is no
+  implicit default runtime and no `RuntimeProvider`.
+- Setup runs once per instance under the instance's Solid owner (every
+  generator step, even after an asynchronous one), with an instance Scope that
+  closes when Solid disposes the instance. Per-runtime sharing is by
+  construction: Resources and Collections live in the runtime's stores, and
+  `Component.provide` builds its Layer once per runtime.
+- `Component.resource(family)` returns a `ResourceReader`: `reader(input)` is
+  the only way to render the value (it suspends the nearest `<Loading>` until
+  the first value and keeps the current or stale value across refreshes, so
+  content stays mounted), and `waiting(input)` / `failure(input)` are the
+  value-free status accessors.
+- `Component.action(definition)` returns an `ActionHandle` (`result`, `input`,
+  `submit`, `submitEffect`, `reset`). A runtime-provided `ActionTransport`
+  (Start's `makeActionTransportLayer`) makes the same handle submit remotely.
+- `Component.program(definition, options?)` returns a `ProgramHandle` whose
+  `model()` is a fine-grained, deeply read-only Solid projection
+  (`Component.ProgramModelView<Model>`) reconciled from the committed model
+  (`committed`); `ProgramOptions.key` (default `"id"`, `null` for positional)
+  sets the array reconcile identity.
+- `Component.router(routes, options?)` creates the instance's router with the
+  setup's runtime and context. The routes' preload services and route
+  Components' services and failures (`RouterServices`, `RouterError`) join the
+  component's type, so `launch` checks them. Route components may be plain
+  Solid functions or typed `Component`s.
 - `RouterProvider` intentionally owns browser `location`, `history`,
   `popstate`, route preload, and route scope lifecycle as one Solid browser
   Adapter (the internal `createBrowserRouter(...)` is not exported). Core remains responsible for route definitions,
   href building, matching, and initial matched-state policy. Solid detects
   existing-DOM hydration by default and also accepts an explicit `hydrating`
   option for tests or custom hosts.
-- `RouterProvider` has no `runtime` prop and does not re-provide
-  `RuntimeContext`: route preloads and route components run on the runtime
-  from the nearest `RuntimeProvider`, which must provide the routes' preload
-  services.
 - `RouterOutletProps<Routes, ER>` preserves route-specific `match` typing for
   pending and failure renderers. The older `RouterOutletProps<ER>` form remains
   usable for broad route-agnostic renderers.
@@ -927,82 +957,39 @@ Release decisions:
   `disposeEffect()` cleanup to the internal Solid Route Render Scope
   Controller. This keeps the public Solid router surface stable while making
   route render lifetime policy local.
-- `useAction(...)` returns a Solid `ActionHandle`: `result()` (the submission
-  `AsyncResult`), `input()` (`Option` of the latest input), and
-  `invalidationPlan()` are Solid accessors, while `submitEffect(...)` and
-  `resetEffect(...)` stay runtime-bound Effect methods. The underlying Core
-  `ActionInstance` remains available at `handle.instance` for advanced
-  integration work. Apps with a fallible Solid Runtime Provider can pass the
-  hook's `ER` generic to expose the runtime error channel on
-  `submitEffect(...)`.
-- `useProgram(...)` starts a Core `Program` under the nearest Solid runtime and
-  owner scope, exposing `model()`, `state()`, `failures()`, `dispatch(...)`, and
-  `dispatchEffect(...)`. `model()` (and its `state()` alias) returns the
-  model as a fine-grained, deeply read-only Solid projection
-  (`ProgramModelView<Model>`) reconciled from `instance.model`, so readers
-  re-run only for the parts they read; `UseProgramOptions.key` (default
-  `"id"`, `null` for positional) sets the array reconcile identity.
-  `dispatchEffect(...)` uses `Program.DispatchError` so `ProgramDisposed`
-  appears only when disposal drops a queued update. This is the simple
-  model/message/update surface for views that want Elm/Foldkit-style clarity
-  without giving up Effect services, commands, streams, fibers, or scoped
-  cleanup. Both dispatch methods accept only concrete Program messages;
-  Promise-shaped messages, Effect-shaped messages, and `undefined` are
-  rejected.
-- `useResource<..., ER>(...)` exposes one `result()` accessor (the Resource
-  `AsyncResult`) and follows the same runtime-bound pattern for
-  `prefetchEffect(...)` and `refreshEffect(...)`. `useResourceResult(...)` is the
-  single-accessor form; `useResourceValue`/`useResourceError`,
-  `ResourceMatch`, and `ResourceSuccessMeta` were removed in favor of
-  `AsyncResult` accessors and `AsyncResult.builder(...)`. Automatic prefetches are
-  Resource Store-owned; Solid owner cleanup and reactive ref changes detach the
-  UI joiner, while Resource deletion/invalidation/runtime disposal cancel the
-  underlying load. The handle also exposes `preloadFailure()` and accepts
-  `onPreloadFailure(...)`; the observer may return a plain value or an
-  EffectInput, while Promise-shaped observers are rejected. Automatic preload
-  failures and Runtime Spine startup/provision failures are visible without
-  changing the Effect-returning public methods.
-- Solid resource hooks consume Core's Resource UI Binding Controller for shared
-  Resource ref identity, automatic preload, preload failure keying, and
-  Suspense preload-token dedupe. Solid remains responsible for Accessor-shaped
-  reactivity, owner cleanup hooks, and the Solid Suspense thenable throw seam.
+- Resource readers consume Core's Resource UI Binding Controller for shared
+  Resource ref identity, automatic preload, and Suspense preload-token dedupe.
+  Solid remains responsible for Accessor-shaped reactivity, owner cleanup, and
+  the async-memo suspension seam.
 
 ### `@sunfall/arc-solid-db`
 
 The root export includes:
 
-- Local source modules: `collection` and `live-query`.
-- `useCollection`, `useLiveQuery`, collection/live-query handles (each with a
-  single `result()` `AsyncResult` accessor beside rows/data), and preload
-  options. `Collection` and `Query` are imported from `@sunfall/arc-db` only.
-- `useCollection(...)` returns reactive reads only (`rows`, `result`, `get`,
+- Local source modules: `collection` and `live-query`, whose bindings index.ts groups under the SolidDb namespace.
+- `SolidDb.collection(definition, options?)` and
+  `SolidDb.liveQuery(query, options?)`: setup-time Component bindings (built on
+  `Component.instance`) returning `CollectionHandle` / `LiveQueryHandle`, each
+  with a single `result()` `AsyncResult` accessor beside rows/data, plus
+  `CollectionBindingOptions` and `LiveQueryBindingOptions`. The collection's or
+  query's services join the component's `R`. `Collection` and `Query` are
+  imported from `@sunfall/arc-db` only.
+- Collection handles are reactive reads only (`rows`, `result`, `get`,
   `index`, `pendingMutations`, `preloadFailure`); writes run the definition's
-  Effects through the runtime runner. `useLiveQuery(...)` runs its query
-  factory tracked, so signal/prop reads rebuild the query (no `deps` option).
+  Effects through `Component.callback(...)`. A live query's factory runs
+  tracked, so signal/prop reads rebuild the query (no `deps` option).
 
 Release decisions:
 
-- The focused Solid DB type test and public API manifest pin `useCollection`, `useLiveQuery`, `CollectionHandle`, and
-  `LiveQueryHandle`, plus `UseCollectionOptions` and `UseLiveQueryOptions`, as
-  direct imports so this Adapter Interface cannot drift silently. The
-  manifest also requires the root Source Surface Modules `collection` and
-  `live-query`.
-- `useCollection(...)` and `useLiveQuery(...)` share one internal Solid DB
-  Reactive Binding Module for runtime capture, source subscriptions, cleanup,
+- The focused Solid DB type test and public API manifest pin `SolidDb`,
+  `CollectionHandle`, `LiveQueryHandle`, `CollectionBindingOptions`, and
+  `LiveQueryBindingOptions` as direct imports so this Adapter Interface cannot
+  drift silently.
+- Both bindings share one internal Solid DB Reactive Binding Module for the
+  instance runtime, source subscriptions, cleanup with the instance owner,
   automatic preload through the DB-owned Collection Reactive Preload
-  Controller, and runtime-bound returned Effects. The public handles remain the
-  supported app surface. Returned `preloadEffect(...)` and
-  `refetchEffect(...)` are already bound to the Solid runtime, so they no longer
-  expose the collection/query service requirement `R`; pass the optional `ER`
-  generic when a fallible Runtime Provider should be reflected in the error
-  channel. `useCollection(...)` also exposes reactive `pendingMutations` and
-  runtime-bound insert, update, delete, write, and flush Effects, so Solid
-  callers do not need to rebind the raw Collection Definition for mutation work.
-- Automatic Solid DB preloads are owner-scoped fibers. Disposing the Solid owner
-  interrupts any in-flight mount preload before it can report a late failure.
-  Automatic preload failure observers may return a plain value or an
-  EffectInput, while Promise-shaped observers are rejected at the EffectInput
-  seam.
+  Controller, and runtime-bound returned Effects (`preloadEffect`,
+  `refetchEffect`), which no longer expose the query's service requirement.
 
 ### `@sunfall/arc-tsrx`
 

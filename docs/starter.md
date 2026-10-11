@@ -33,12 +33,18 @@ The basic starter includes:
 - one file route generated into `src/routeTree.gen.ts`;
 - one route-owned Resource preload declared in route metadata;
 - Start SSR through `createRequestHandler`;
-- browser hydration through the synchronous `hydrateFromDocument` host facade,
-  which runs `hydrateFromDocumentEffect(...)` before the UI mounts;
+- one typed `Component` tree, rendered on the server with
+  `Component.embed(App, runtime)` and hydrated in the browser with
+  `Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() })`
+  after the synchronous `hydrateFromDocument` host facade runs
+  `hydrateFromDocumentEffect(...)`, so the route-preloaded Resource reads
+  synchronously (no loading flash);
 - a production leak scan for `starter.server` sentinels.
 
 Use the project console when you need the larger golden path with forms,
-actions, local-first collections, mocks, and diagnostics. Use the basic starter
+actions (one `Component.action` binding, with the server-served rename routed
+through Start's `makeActionTransportLayer`), local-first collections, mocks, and
+diagnostics. Use the basic starter
 when you need the smallest copyable app shell.
 
 The docs site example lives at

@@ -71,6 +71,8 @@ export {
   type StripRouteParamName,
 } from "./route-grammar.js";
 export { matchRoutesEffect } from "./route-match.js";
+export { makeActionInstance } from "./action-instance.js";
+export { startProgramOnRuntime } from "./program-start.js";
 export {
   currentOrDefaultRuntime,
   defaultRuntime,
@@ -79,6 +81,5 @@ export {
   runFork,
   withResourceStore,
 } from "./runtime.js";
-export * from "./runtime-provider-lifecycle.js";
 export * from "./scope.js";
 export * from "./signal-watch.js";

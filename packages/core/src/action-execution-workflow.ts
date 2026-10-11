@@ -1,4 +1,4 @@
-import { Effect, Fiber } from "effect";
+import { Effect, Fiber, Option } from "effect";
 import {
   ActionResult,
   type ActionResultInvalidationRequirements,
@@ -28,6 +28,8 @@ import {
   runResourceInvalidationPlanEffect,
 } from "./resource-runtime.js";
 import type { ActionDefinition } from "./action.js";
+import { ActionTransport } from "./action-transport.js";
+import type { ServerClientError } from "./server.js";
 
 export const actionCallbackError = (operation: string, cause: unknown): EffectInputCallbackError =>
   cause instanceof EffectInputCallbackError
@@ -77,7 +79,7 @@ export interface ActionExecutionWorkflowOptions<I, A, E, R, ER> {
   readonly submissions: ActionSubmissionController<
     I,
     A,
-    E | ER | EffectInputCallbackError,
+    E | ER | EffectInputCallbackError | ServerClientError,
     ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>>
   >;
   readonly runAtActionBoundary: <Value, Error, Requirements>(
@@ -90,7 +92,7 @@ export interface ActionExecutionWorkflow<I, A, E, R, ER> {
     input: I,
   ) => Effect.Effect<
     A,
-    E | ER | EffectInputCallbackError | ActionInterrupted,
+    E | ER | EffectInputCallbackError | ServerClientError | ActionInterrupted,
     R | ActionResultInvalidationRequirements<A>
   >;
   readonly captureResetEffect: () => Effect.Effect<void>;
@@ -153,10 +155,10 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
 
   const runWorkflow = (
     input: I,
-    submission: ActionSubmissionRun<A, E | ER | EffectInputCallbackError>,
+    submission: ActionSubmissionRun<A, E | ER | EffectInputCallbackError | ServerClientError>,
   ): Effect.Effect<
     A,
-    E | ER | EffectInputCallbackError | ActionInterrupted,
+    E | ER | EffectInputCallbackError | ServerClientError | ActionInterrupted,
     R | ActionResultInvalidationRequirements<A>
   > =>
     Effect.suspend(() => {
@@ -170,6 +172,21 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
           const transaction = makeActionOptimisticTransactionRuntime<R>(definition.name);
           rollback = transaction.rollback;
           rollback = yield* applyOptimistic(input, transaction);
+
+          // A transport that serves this Action runs it remotely and applies
+          // the response (hydration and invalidations) itself.
+          const remote = Option.flatMap(yield* Effect.serviceOption(ActionTransport), (transport) =>
+            transport.submit(definition, input),
+          );
+          if (Option.isSome(remote)) {
+            const response = yield* remote.value;
+            yield* submissions.interruptStaleEffect(submission);
+            yield* response.apply(submissions.acceptsStateUpdate(submission));
+            const remoteValue = yield* response.exit;
+            yield* transaction.commit;
+            rollback = Effect.void as ActionRollback<R>;
+            return remoteValue;
+          }
 
           const value = yield* runEffect(input);
           yield* submissions.interruptStaleEffect(submission);
@@ -198,7 +215,7 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
     input: I,
   ): Effect.Effect<
     A,
-    E | ER | EffectInputCallbackError | ActionInterrupted,
+    E | ER | EffectInputCallbackError | ServerClientError | ActionInterrupted,
     R | ActionResultInvalidationRequirements<A>
   > =>
     runAtActionBoundary(
@@ -206,7 +223,7 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
         return Effect.withFiber((fiber) => {
           const submissionFiber = fiber as ActionSubmissionFiber<
             A,
-            E | ER | EffectInputCallbackError
+            E | ER | EffectInputCallbackError | ServerClientError
           >;
 
           return submissions.beginEffect(submissionFiber).pipe(

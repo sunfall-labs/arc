@@ -1,5 +1,4 @@
-import { Cause, Effect, Exit, Fiber, Option, PubSub, Schema, Scope } from "effect";
-import { AsyncResult } from "effect/reactivity";
+import { Cause, Effect, Exit, Fiber, PubSub, Schema, Scope } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   Action,
@@ -10,7 +9,6 @@ import {
   Route,
   Signal,
   Timeline,
-  type ActionState,
 } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
 import { collectionStoreEffect } from "@sunfall/arc-db/internal";
@@ -46,6 +44,7 @@ import {
   normalizeSunfallArcDevtoolsBridgePayload,
 } from "../src/panel-contract.js";
 import { devtoolsPanelStyles } from "../src/panel-renderer.js";
+import { defaultRuntime } from "@sunfall/arc-core/internal";
 
 type DevtoolsLifecycleType = "pagehide" | "beforeunload";
 
@@ -526,136 +525,6 @@ describe("devtools invalidation plans", () => {
     ]);
   });
 
-  it("tracks Start-shaped action instances without depending on the start package", async () => {
-    const plan: DevtoolsInvalidationPlan = {
-      targets: [
-        {
-          _tag: "Ref",
-          key: "Project.byId:atlas",
-          family: "Project.byId",
-          input: { id: "atlas" },
-        },
-      ],
-      entries: [
-        {
-          ref: {
-            key: "Project.byId:atlas",
-            family: "Project.byId",
-            input: { id: "atlas" },
-          },
-          causes: [
-            {
-              _tag: "Ref",
-              key: "Project.byId:atlas",
-              family: "Project.byId",
-            },
-          ],
-        },
-      ],
-    };
-    const state = Signal.make<ActionState<{ readonly id: string }, unknown, unknown>>({
-      result: AsyncResult.initial(),
-      input: Option.none(),
-    });
-    const invalidation = Signal.make<DevtoolsInvalidationPlan | undefined>(undefined);
-    const store = makeDevtoolsStore();
-
-    await Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function* () {
-          yield* store.trackStartActionEffect({
-            definition: {
-              name: "Project.rename",
-            },
-            state,
-            invalidation,
-          });
-
-          state.set({
-            result: AsyncResult.initial(true),
-            input: Option.some({ id: "atlas" }),
-          });
-          invalidation.set(plan);
-          state.set({
-            result: AsyncResult.success({ _tag: "Success" }, { timestamp: 1 }),
-            input: Option.some({ id: "atlas" }),
-          });
-        }),
-      ),
-    );
-
-    expect(store.getSnapshot().actions).toEqual([
-      {
-        name: "Project.rename",
-        state: "Success",
-        waiting: false,
-        invalidationIndexes: [0],
-      },
-    ]);
-    expect(store.getSnapshot().invalidations).toEqual([plan]);
-    expect(store.getSnapshot().events?.map((event) => event._tag)).toEqual([
-      "ActionState",
-      "ActionState",
-      "ActionState",
-      "ActionState",
-    ]);
-  });
-
-  it("tracks Start-shaped action invalidation changes after terminal state updates", async () => {
-    const plan: DevtoolsInvalidationPlan = {
-      targets: [
-        {
-          _tag: "Ref",
-          key: "Project.byId:atlas",
-          family: "Project.byId",
-          input: { id: "atlas" },
-        },
-      ],
-      entries: [],
-    };
-    const state = Signal.make<ActionState<{ readonly id: string }, unknown, unknown>>({
-      result: AsyncResult.initial(),
-      input: Option.none(),
-    });
-    const invalidation = Signal.make<DevtoolsInvalidationPlan | undefined>(undefined);
-    const store = makeDevtoolsStore();
-
-    await Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function* () {
-          yield* store.trackStartActionEffect({
-            definition: {
-              name: "Project.rename.after-terminal",
-            },
-            state,
-            invalidation,
-          });
-
-          state.set({
-            result: AsyncResult.success({ _tag: "Success" }, { timestamp: 1 }),
-            input: Option.some({ id: "atlas" }),
-          });
-          invalidation.set(plan);
-        }),
-      ),
-    );
-
-    expect(store.getSnapshot().actions).toEqual([
-      {
-        name: "Project.rename.after-terminal",
-        state: "Success",
-        waiting: false,
-        invalidationIndexes: [0],
-      },
-    ]);
-    expect(store.getSnapshot().invalidations).toEqual([plan]);
-    expect(store.getSnapshot().events?.map((event) => event._tag)).toEqual([
-      "ActionState",
-      "ActionState",
-      "ActionState",
-    ]);
-  });
-
   it("tracks action instances as scoped runtime facts", async () => {
     let value = 0;
     const Count = Resource.family({
@@ -672,7 +541,7 @@ describe("devtools invalidation plans", () => {
         }),
       invalidates: () => [ref],
     });
-    const action = Action.use(Increment);
+    const action = Action.use(Increment, { runtime: defaultRuntime });
     const store = makeDevtoolsStore();
 
     await Effect.runPromise(
@@ -833,6 +702,7 @@ describe("devtools invalidation plans", () => {
         initial: { count: 0 },
         update: (model) => Effect.succeed({ count: model.count + 1 }),
       }),
+      { runtime: defaultRuntime },
     );
 
     try {

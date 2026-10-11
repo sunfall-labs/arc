@@ -177,11 +177,11 @@ Actions and forms should not split into "JS app" and "HTML fallback" versions.
 
 One `Action.define` should support:
 
-- component event handlers through `action.submitEffect`;
-- event helpers that fork or run `action.submitEffect` at the host boundary;
-- JSON Start action clients through `submitStartActionEffect`;
-- Action-like full-stack state through `StartAction.use`;
-- plain form posts through `startActionForm`;
+- component event handlers through one `Component.action(...)` binding
+  (`submit` / `submitEffect`);
+- server execution through Start's `ActionTransport`
+  (`makeActionTransportLayer`), chosen by the runtime, not the component;
+- plain form posts through `StartAction.form`;
 - validation, redirects, domain failures, success data, invalidation metadata,
   and hydration payloads.
 
@@ -328,22 +328,20 @@ export const RenameProject = Action.define({
 Component code should stay compact:
 
 ```tsx
-const project = useResource(() => ProjectById(props.id));
-const rename = StartAction.use(RenameProject, { runtime });
+const ProjectPage = Component.make("ProjectPage", function* (props: { readonly id: ProjectId }) {
+  const project = yield* Component.resource(ProjectById);
+  const rename = yield* Component.action(RenameProject);
 
-return () =>
-  AsyncResult.builder(project.result())
-    .onInitial(() => <ProjectSkeleton />)
-    .onFailure((cause, failed) =>
-      Option.match(failed.previousSuccess, {
-        onNone: () => <ProjectError cause={cause} />,
-        onSome: (stale) => <ProjectView project={stale.value} cause={cause} />,
-      }),
-    )
-    .onSuccess((value, success) => (
-      <ProjectForm project={value} action={rename} refreshing={success.waiting} />
-    ))
-    .exhaustive();
+  return () => (
+    <Loading fallback={<ProjectSkeleton />}>
+      <ProjectForm
+        project={project(props.id)}
+        action={rename}
+        refreshing={project.waiting(props.id)}
+      />
+    </Loading>
+  );
+}).pipe(Component.catchAll((error) => <ProjectError error={error} />));
 ```
 
 The power is not in ceremony. The power is that the compiler, runtime, server,

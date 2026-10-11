@@ -88,7 +88,6 @@ const devtoolsCausalGraph: DevtoolsCausalGraph = devtoolsStore.getCausalGraph();
 const devtoolsCausalGraphEffect: Effect.Effect<DevtoolsCausalGraph> =
   devtoolsStore.getCausalGraphEffect();
 declare const devtoolsActionInstance: Parameters<DevtoolsStore["recordActionEffect"]>[0];
-declare const devtoolsStartActionInstance: Parameters<DevtoolsStore["recordStartActionEffect"]>[0];
 declare const devtoolsRoutePlanInput: Parameters<DevtoolsStore["recordRoutePlanEffect"]>[0];
 declare const devtoolsTimelineRecording: Parameters<DevtoolsStore["trackTimelineEffect"]>[0];
 declare const devtoolsTimelineEntry: TimelineEntry;
@@ -96,11 +95,6 @@ const devtoolsRecordActionEffect: Effect.Effect<void> =
   devtoolsStore.recordActionEffect(devtoolsActionInstance);
 const devtoolsTrackActionEffect: Effect.Effect<void, never, Scope.Scope> =
   devtoolsStore.trackActionEffect(devtoolsActionInstance);
-const devtoolsRecordStartActionEffect: Effect.Effect<void> = devtoolsStore.recordStartActionEffect(
-  devtoolsStartActionInstance,
-);
-const devtoolsTrackStartActionEffect: Effect.Effect<void, never, Scope.Scope> =
-  devtoolsStore.trackStartActionEffect(devtoolsStartActionInstance);
 const devtoolsRecordRoutePlanEffect: Effect.Effect<number> =
   devtoolsStore.recordRoutePlanEffect(devtoolsRoutePlanInput);
 const devtoolsTrackTimelineEffect: Effect.Effect<void, never, Scope.Scope> =
@@ -125,8 +119,6 @@ const describedDevtoolsCausalGraph: DevtoolsCausalGraph =
   describeDevtoolsCausalGraph(devtoolsSummaryInput);
 void devtoolsRecordActionEffect;
 void devtoolsTrackActionEffect;
-void devtoolsRecordStartActionEffect;
-void devtoolsTrackStartActionEffect;
 void devtoolsRecordRoutePlanEffect;
 void devtoolsTrackTimelineEffect;
 void devtoolsRecordCustomRuntimeEventEffect;

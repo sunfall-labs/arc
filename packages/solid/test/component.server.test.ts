@@ -3,7 +3,7 @@ import { createRequestHandler } from "@sunfall/arc-start";
 import { Effect, Schema } from "effect";
 import { createComponent, isServer, renderToString } from "@solidjs/web";
 import { describe, expect, it } from "vitest";
-import { Component, RuntimeProvider } from "../src/index.js";
+import { Component } from "../src/index.js";
 import { ssrApp, ssrMarkup } from "./component-ssr-fixture.js";
 
 describe("Component (server)", () => {
@@ -12,7 +12,6 @@ describe("Component (server)", () => {
       Effect.gen(function* () {
         expect(isServer).toBe(true);
         const { App, ProjectById, events } = ssrApp();
-        const Root = Component.embed(App);
         const ProjectRoute = route("/projects/:id", {
           params: Schema.Struct({ id: Schema.String }),
           preload: ({ params }) =>
@@ -22,12 +21,7 @@ describe("Component (server)", () => {
         const handler = createRequestHandler(app, {
           render: ({ runtime, match }) =>
             renderToString(() =>
-              createComponent(RuntimeProvider, {
-                runtime,
-                get children() {
-                  return createComponent(Root, { id: match?.params.id ?? "" });
-                },
-              }),
+              createComponent(Component.embed(App, runtime), { id: match?.params.id ?? "" }),
             ),
         });
         const request = Effect.fn(function* () {
@@ -38,10 +32,10 @@ describe("Component (server)", () => {
         });
 
         expect(yield* request()).toBe(ssrMarkup);
-        // Setup (and its provided Layer) ran in the request runtime, and the
-        // route preload made the read synchronous: no Loading fallback.
+        // Setup ran (and the provided Layer was built) in the request runtime,
+        // and the route preload made the read synchronous: no Loading fallback.
         expect(events).toMatchObject({ layerBuilds: 1, setups: 1, loads: 1, fallbacks: 0 });
-        // Request runtime disposal closed the setup Scope.
+        // Request runtime disposal released the Layer built for it.
         expect(events.released).toBe(1);
 
         expect(yield* request()).toBe(ssrMarkup);

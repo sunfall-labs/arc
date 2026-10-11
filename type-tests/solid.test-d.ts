@@ -16,41 +16,23 @@ import {
   type BrowserRouterRouteForPath,
   type BrowserRouterState,
   type EffectInputCallbackError,
+  type ProgramFailure,
 } from "@sunfall/arc-core";
 import { Cause, Effect, Option, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import {
   Component,
-  RuntimeContext,
-  RuntimeContextMissing,
   RouterContextMissing,
   RouterLink,
   RouterOutlet,
   RouterProvider,
-  RuntimeProvider,
-  createComponentScope,
   isPlainLeftClick,
-  useAction,
-  useProgram,
-  useResource,
-  useResourceResult,
-  useResourceSuspense,
   useRouter,
-  useRuntime,
-  useRuntimeEffect,
-  useStream,
-  type ActionHandle,
   type BrowserRouter,
-  type ProgramHandle,
-  type ProgramModelView,
-  type ResourceHandle,
   type RouterLinkProps,
+  type RouterOptions,
   type RouterProviderProps,
   type RouterOutletProps,
-  type RuntimeEffectRunner,
-  type RuntimeProviderProps,
-  type UseProgramOptions,
-  type UseResourceOptions,
 } from "@sunfall/arc-solid";
 
 interface SolidProject {
@@ -97,61 +79,36 @@ const solidRouterLinkProps: RouterLinkProps<(typeof solidRoutes)[0]> = {
 const solidRouterLinkNode = RouterLink(solidRouterLinkProps);
 const solidRouterOutletNode = RouterOutlet<typeof solidRoutes>({});
 const solidContextMissing = new RouterContextMissing({ hook: "useRouter" });
-const solidRuntimeContextMissing = new RuntimeContextMissing({ hook: "useRuntime" });
 const solidRouteNotRegistered = new RouterRouteNotRegistered({ path: "/" });
+const solidRouterOptions: RouterOptions = { history: solidHistory, hydrating: true };
 const solidProviderProps: RouterProviderProps<typeof solidRoutes> = {
-  routes: solidRoutes,
-  history: solidHistory,
-  hydrating: true,
+  router: solidRouter,
+  notFound: () => "missing",
 };
-const solidProviderRuntimeProps: RouterProviderProps<typeof solidRoutes> = {
+const solidProviderRoutesProps: RouterProviderProps<typeof solidRoutes> = {
+  router: solidRouter,
+  // @ts-expect-error RouterProvider renders a router from `Component.router(...)`, not routes.
   routes: solidRoutes,
-  // @ts-expect-error RouterProvider reads its runtime from RuntimeProvider context.
-  runtime: makeRuntime(),
 };
 const solidCountSignal = Signal.make(0);
 const solidReadSignalValue: number = solidCountSignal.get();
 const solidEffectRuntime = makeRuntime();
-class SolidRuntimeProviderObserverError {
-  readonly _tag = "SolidRuntimeProviderObserverError";
-}
-declare const solidRuntimeProviderObserverPromise: Promise<void>;
-const solidRuntimeProviderFailingObserverProps: RuntimeProviderProps = {
-  onDisposeFailure: () => Effect.fail(new SolidRuntimeProviderObserverError()),
-};
-const solidRuntimeProviderPromiseObserverProps: RuntimeProviderProps = {
-  // @ts-expect-error RuntimeProvider disposal observers must return void or an Effect, not a Promise.
-  onDisposeFailure: () => solidRuntimeProviderObserverPromise,
-};
-// @ts-expect-error host-owned RuntimeProvider instances do not accept disposal observers.
-const solidRuntimeProviderHostOwnedObserverProps: RuntimeProviderProps = {
-  runtime: solidEffectRuntime,
-  onDisposeFailure: () => Effect.void,
-};
-const solidCreateComponentScope: typeof createComponentScope = createComponentScope;
 const solidSignalValue = (): number => solidCountSignal.get();
-const solidStreamValue = useStream(Stream.succeed("ready"), "idle");
-const solidRuntime = useRuntime();
-const solidRuntimeRunner: RuntimeEffectRunner = useRuntimeEffect();
-const solidRuntimeFiber = solidRuntimeRunner(Effect.succeed("ready"));
+const solidStreamValue = Component.stream(Stream.succeed("ready"), "idle");
 const SolidProgram = Program.define<number, "tick">({
   initial: 0,
   update: (model) => Program.next(model + 1),
 });
-const solidProgramHandle: ProgramHandle<
-  number,
-  "tick",
-  EffectInputCallbackError,
-  EffectInputCallbackError | Program.Disposed
-> = useProgram<number, "tick">(SolidProgram);
+declare const solidProgramHandle: Component.ProgramHandle<number, "tick", never>;
+const solidProgramBinding: Effect.Effect<Component.ProgramHandle<number, "tick", never>> =
+  Component.program(SolidProgram);
 // @ts-expect-error Program history lives on the app Timeline, not on the Program handle.
 solidProgramHandle.clearTimeline();
-const solidUnknownProgramHandle = solidProgramHandle as ProgramHandle<
-  number,
-  unknown,
-  EffectInputCallbackError,
-  EffectInputCallbackError | Program.Disposed
->;
+const solidProgramDispatch: Effect.Effect<
+  void,
+  ProgramFailure<"tick", EffectInputCallbackError | Program.Disposed>
+> = solidProgramHandle.dispatchEffect("tick");
+declare const solidUnknownProgramHandle: Component.ProgramHandle<number, unknown, never>;
 const solidProgramCount: number = solidProgramHandle.model();
 void solidProgramCount;
 
@@ -169,7 +126,7 @@ interface SolidBoardModel {
   selected: { id: number } | null;
   format: (value: number) => string;
 }
-type SolidBoardView = ProgramModelView<SolidBoardModel>;
+type SolidBoardView = Component.ProgramModelView<SolidBoardModel>;
 solidTypeEquals<
   SolidBoardView,
   {
@@ -187,16 +144,23 @@ solidTypeEquals<
     readonly format: (value: number) => string;
   }
 >(true);
-solidTypeEquals<ProgramModelView<number>, number>(true);
-solidTypeEquals<ProgramModelView<"idle" | "busy">, "idle" | "busy">(true);
-solidTypeEquals<ProgramModelView<string | undefined>, string | undefined>(true);
-solidTypeEquals<ProgramModelView<unknown>, unknown>(true);
+solidTypeEquals<Component.ProgramModelView<number>, number>(true);
+solidTypeEquals<Component.ProgramModelView<"idle" | "busy">, "idle" | "busy">(true);
+solidTypeEquals<Component.ProgramModelView<string | undefined>, string | undefined>(true);
+solidTypeEquals<Component.ProgramModelView<unknown>, unknown>(true);
 declare const solidBoardProgram: Program.Definition<SolidBoardModel, { readonly _tag: "Noop" }>;
-const solidBoardOptions: UseProgramOptions = { key: (row) => ("id" in row ? row.id : undefined) };
-const solidBoardHandle = useProgram(solidBoardProgram, solidBoardOptions);
+const solidBoardOptions: Component.ProgramOptions = {
+  key: (row) => ("id" in row ? row.id : undefined),
+};
+void Component.program(solidBoardProgram, solidBoardOptions);
+declare const solidBoardHandle: Component.ProgramHandle<
+  SolidBoardModel,
+  { readonly _tag: "Noop" },
+  never
+>;
 const solidBoardView: SolidBoardView = solidBoardHandle.model();
 const solidBoardLabel: string = solidBoardView.rows[0]!.label;
-const solidBoardModelSignal: Signal.Readable<SolidBoardModel> = solidBoardHandle.instance.model;
+const solidBoardModelSignal: Signal.Readable<SolidBoardModel> = solidBoardHandle.committed;
 // @ts-expect-error Program model views are read-only
 solidBoardView.title = "renamed";
 // @ts-expect-error nested Program model objects are read-only
@@ -206,43 +170,28 @@ solidBoardView.tags.push("new");
 // @ts-expect-error Program model Maps are read-only
 solidBoardView.owners.set("a", { name: "Ada" });
 // @ts-expect-error Program model reconcile keys are property names, key functions, or null
-const solidInvalidBoardOptions: UseProgramOptions = { key: 1 };
+const solidInvalidBoardOptions: Component.ProgramOptions = { key: 1 };
 void solidBoardLabel;
 void solidBoardModelSignal;
 void solidInvalidBoardOptions;
-useProgram(solidBoardProgram, { key: "id" });
-useProgram(solidBoardProgram, { key: null });
+void Component.program(solidBoardProgram, { key: "id" });
+void Component.program(solidBoardProgram, { key: null });
 
-// @ts-expect-error Solid Program handles cannot dispatch Promise-shaped messages
-solidUnknownProgramHandle.dispatch(solidRuntimeProviderObserverPromise);
-// @ts-expect-error Solid Program handles cannot Effect-dispatch Promise-shaped messages
-solidUnknownProgramHandle.dispatchEffect(solidRuntimeProviderObserverPromise);
+solidUnknownProgramHandle.dispatch("any message");
 const SolidProjectById = Resource.family<string, SolidProject>({
   name: "Solid.type-test.project",
   load: (id) => Effect.succeed({ id, name: "Atlas" }),
 });
-const solidProjectRef = SolidProjectById("atlas");
-const solidResourceOptions: UseResourceOptions<never> = { preload: false };
-const solidResourcePromiseObserverOptions: UseResourceOptions<never> = {
-  // @ts-expect-error Solid Resource preload observers cannot return Promise-shaped work
-  onPreloadFailure: () => solidRuntimeProviderObserverPromise,
-};
-const solidResourceHandle: ResourceHandle<string, SolidProject, never> = useResource(
-  solidProjectRef,
-  solidResourceOptions,
-);
-const solidResourceState: () => AsyncResult.AsyncResult<SolidProject, Resource.LoadError<never>> =
-  useResourceResult(solidProjectRef);
-const solidResourceValue: Option.Option<SolidProject> = AsyncResult.value(
-  solidResourceHandle.result(),
-);
-const solidResourceError: Option.Option<Resource.LoadError<never>> = AsyncResult.error(
-  solidResourceHandle.result(),
-);
-// @ts-expect-error -- the handle exposes one `result()` accessor, not value/error/match helpers.
-void solidResourceHandle.value;
-// Recommended render: handle failure before success so `previousSuccess` keeps its type.
-const solidResourceRender: string = AsyncResult.builder(solidResourceHandle.result())
+declare const solidProjectReader: Component.ResourceReader<string, SolidProject, never>;
+const solidProjectValue: SolidProject = solidProjectReader("atlas");
+const solidProjectWaiting: boolean = solidProjectReader.waiting("atlas");
+// @ts-expect-error -- content renders through the reader; status chrome carries no value.
+void solidProjectReader.result;
+void Component.resource(SolidProjectById);
+// Status UI renders well with AsyncResult builders: handle failure before
+// success so `previousSuccess` keeps its type.
+declare const solidResult: AsyncResult.AsyncResult<SolidProject, Resource.LoadError<never>>;
+const solidResourceRender: string = AsyncResult.builder(solidResult)
   .onInitial(() => "initial")
   .onFailure((cause, failed) =>
     Option.match(failed.previousSuccess, {
@@ -252,7 +201,7 @@ const solidResourceRender: string = AsyncResult.builder(solidResourceHandle.resu
   )
   .onSuccess((project, success) => (success.waiting ? `${project.name}…` : project.name))
   .exhaustive();
-AsyncResult.builder(solidResourceHandle.result())
+AsyncResult.builder(solidResult)
   .onSuccess((project) => project.name)
   .onFailure(
     (_cause, failed) =>
@@ -263,35 +212,26 @@ const SolidAction = Action.define<{ readonly id: string }, { readonly ok: boolea
   name: "Solid.type-test.action",
   run: ({ id }) => Effect.succeed({ ok: id.length > 0 }),
 });
-const solidAction = useAction(SolidAction);
-const solidActionHandle: ActionHandle<{ readonly id: string }, { readonly ok: boolean }> =
-  solidAction;
+declare const solidAction: Component.ActionHandle<
+  { readonly id: string },
+  { readonly ok: boolean },
+  never
+>;
+void Component.action(SolidAction);
 const solidActionSubmit: Effect.Effect<
   { readonly ok: boolean },
-  EffectInputCallbackError | ActionInterrupted
+  Component.ActionError<never> | ActionInterrupted
 > = solidAction.submitEffect({ id: "atlas" });
 const solidActionStateTag: "Initial" | "Success" | "Failure" = solidAction.result()._tag;
 const solidActionInput: Option.Option<{ readonly id: string }> = solidAction.input();
-solidAction.instance.state.get().result._tag;
-solidAction.invalidationPlan()?.entries.map((entry) => entry.ref.key);
+solidAction.submit({ id: "atlas" });
 const solidExports: Array<unknown> = [
-  RuntimeContext,
   RouterContextMissing,
   RouterLink,
   RouterOutlet,
   RouterProvider,
-  RuntimeProvider,
-  createComponentScope,
   isPlainLeftClick,
-  useAction,
-  useProgram,
-  useResource,
-  useResourceSuspense,
-  useResourceResult,
   useRouter,
-  useRuntime,
-  useRuntimeEffect,
-  useStream,
   solidRouter,
   solidRouterState,
   solidRoutePath,
@@ -307,31 +247,22 @@ const solidExports: Array<unknown> = [
   solidRouterLinkNode,
   solidRouterOutletNode,
   solidContextMissing,
-  solidRuntimeContextMissing,
-  RuntimeContextMissing,
   solidRouteNotRegistered,
+  solidRouterOptions,
   solidReadSignalValue,
   solidEffectRuntime,
-  solidRuntimeProviderFailingObserverProps,
-  solidRuntimeProviderPromiseObserverProps,
-  solidRuntimeProviderHostOwnedObserverProps,
-  solidCreateComponentScope,
-  solidRuntime,
-  solidRuntimeFiber,
-  solidProgramHandle,
-  solidResourceHandle,
-  solidResourceState,
-  solidResourceValue,
-  solidResourceError,
+  solidProgramBinding,
+  solidProgramDispatch,
+  solidProjectValue,
+  solidProjectWaiting,
   solidResourceRender,
   solidActionInput,
   solidSignalValue,
   solidStreamValue,
-  solidActionHandle,
   solidActionSubmit,
   solidActionStateTag,
   solidProviderProps,
-  solidProviderRuntimeProps,
+  solidProviderRoutesProps,
 ];
 type SolidRouter = BrowserRouter | RouterOutletProps;
 type SolidRouterLinkProps = RouterLinkProps<(typeof solidRoutes)[0]>;
@@ -341,24 +272,13 @@ type SolidBrowserRouterPath = BrowserRouterPath<typeof solidRoutes>;
 type SolidBrowserRouterRouteForPath = BrowserRouterRouteForPath<typeof solidRoutes, "/">;
 type SolidBrowserRouterState = BrowserRouterState<typeof solidRoutes>;
 type SolidRouterProviderProps = RouterProviderProps<typeof solidRoutes>;
-type SolidRuntimeProviderProps = RuntimeProviderProps;
 type SolidRouteHrefOptions = Route.HrefOptions<(typeof solidRoutes)[0]>;
-type SolidActionHandle = ActionHandle<{ readonly id: string }, { readonly ok: boolean }>;
-type SolidProgramHandle = ProgramHandle<
-  number,
-  "tick",
-  EffectInputCallbackError,
-  EffectInputCallbackError | Program.Disposed
->;
-type SolidResourceHandle = ResourceHandle<string, SolidProject, never>;
-type SolidUseResourceOptions = UseResourceOptions<never>;
-type SolidRuntimeEffectRunner = RuntimeEffectRunner;
 // Full Component typing coverage lives in type-tests/component.test-d.ts.
 const solidComponent: Component<{}> = Component.make("SolidTypeTest", function* () {
   yield* Effect.void;
   return () => "ok";
 });
-void Component.embed(solidComponent);
+void Component.embed(solidComponent, solidEffectRuntime);
 void solidExports;
 type _SolidRouter = SolidRouter;
 type _SolidRouterLinkProps = SolidRouterLinkProps;
@@ -368,10 +288,4 @@ type _SolidBrowserRouterPath = SolidBrowserRouterPath;
 type _SolidBrowserRouterRouteForPath = SolidBrowserRouterRouteForPath;
 type _SolidBrowserRouterState = SolidBrowserRouterState;
 type _SolidRouterProviderProps = SolidRouterProviderProps;
-type _SolidRuntimeProviderProps = SolidRuntimeProviderProps;
 type _SolidRouteHrefOptions = SolidRouteHrefOptions;
-type _SolidActionHandle = SolidActionHandle;
-type _SolidProgramHandle = SolidProgramHandle;
-type _SolidResourceHandle = SolidResourceHandle;
-type _SolidUseResourceOptions = SolidUseResourceOptions;
-type _SolidRuntimeEffectRunner = SolidRuntimeEffectRunner;

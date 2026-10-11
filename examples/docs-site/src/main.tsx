@@ -1,8 +1,8 @@
 import { makeRuntime } from "@sunfall/arc-core";
+import { Component } from "@sunfall/arc-solid";
 import { hydrateFromDocument } from "@sunfall/arc-start";
-import { Data, Layer } from "effect";
-import { hydrate, render } from "@solidjs/web";
-import App from "./App.js";
+import { Data, Effect, Layer } from "effect";
+import DocsSite from "./App.js";
 import { DocsContentApiStaticClient } from "./content.js";
 import { currentDocsSiteHref } from "./site-base.js";
 
@@ -32,11 +32,10 @@ hydrateFromDocument(document, undefined, {
   ...(import.meta.env.DEV ? {} : { timestamp: "now" as const }),
 });
 
-const hydratedHref = currentDocsSiteHref();
-const Root = () => <App runtime={runtime} hydratedHref={hydratedHref} />;
-
-if (root.hasChildNodes()) {
-  hydrate(Root, root);
-} else {
-  render(Root, root);
-}
+Effect.runFork(
+  Component.launch(DocsSite, root, {
+    runtime,
+    props: { hydratedHref: currentDocsSiteHref() },
+    hydrate: root.hasChildNodes(),
+  }),
+);

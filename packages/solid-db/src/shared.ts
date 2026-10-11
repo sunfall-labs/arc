@@ -9,7 +9,6 @@ import {
   bindCollectionRuntimeEffect,
   makeCollectionReactivePreloadController,
 } from "@sunfall/arc-db/internal";
-import { useRuntime } from "@sunfall/arc-solid";
 import { Effect } from "effect";
 import { createRenderEffect, onCleanup, type Accessor } from "solid-js";
 
@@ -22,7 +21,7 @@ export interface SolidDbReactiveBinding<E, ER = never> {
 }
 
 export interface SolidDbReactiveBindingOptions<E, R = never, ER = never> {
-  readonly runtime?: AnySunfallArcRuntime<ER> | undefined;
+  readonly runtime: AnySunfallArcRuntime<ER>;
   readonly preload?: boolean | undefined;
   /** Preload work for the current sources; preloading restarts when it changes. */
   readonly preloadEffect: Accessor<Effect.Effect<void, E, R>>;
@@ -42,12 +41,13 @@ export interface SolidDbReactiveBindingOptions<E, R = never, ER = never> {
  * Collection reads track their own Arc signals, which Solid tracks natively,
  * so the binding has no subscriptions or invalidation counters. It owns the
  * runtime seam, mount-time and source-change preloading, and runtime-bound
- * Effects so hooks only describe their domain-specific accessors.
+ * Effects so bindings only describe their domain-specific accessors. Call it
+ * under the binding instance's Solid owner.
  */
 export const makeSolidDbReactiveBinding = <E, R = never, ER = never>(
   options: SolidDbReactiveBindingOptions<E, R, ER>,
 ): SolidDbReactiveBinding<E, ER> => {
-  const runtime = options.runtime ?? useRuntime<ER>();
+  const runtime = options.runtime;
   // Adapter state lives in an Arc signal: tracked natively on the client and a
   // plain committed value during server rendering.
   const preloadFailure = Signal.make<E | ER | undefined>(undefined);

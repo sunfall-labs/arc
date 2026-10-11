@@ -8,6 +8,7 @@ import {
   Resource,
 } from "../src/index.js";
 import { ActionResult, type ActionResult as ActionResultValue } from "../src/action-result.js";
+import { defaultRuntime } from "../src/internal.js";
 
 describe("ActionResult", () => {
   const RenameInput = Schema.Struct({
@@ -67,7 +68,7 @@ describe("ActionResult", () => {
         return Effect.succeed(result);
       },
     });
-    const action = Action.use(SubmitProject);
+    const action = Action.use(SubmitProject, { runtime: defaultRuntime });
 
     return Effect.runPromise(
       action.submitEffect("redirect").pipe(
@@ -238,7 +239,7 @@ describe("ActionResult", () => {
           name: "project.submit.promise-result-payload",
           run: () => ActionResult.success(Promise.resolve({ id: "atlas" }) as never),
         });
-        const action = Action.use(SubmitProject);
+        const action = Action.use(SubmitProject, { runtime: defaultRuntime });
 
         const exit = yield* Effect.exit(action.submitEffect("save"));
 
@@ -321,7 +322,7 @@ describe("ActionResult", () => {
           return ActionResult.withInvalidation(ActionResult.success(value), [ref]);
         }),
     });
-    const action = Action.use(Increment);
+    const action = Action.use(Increment, { runtime: defaultRuntime });
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -427,7 +428,7 @@ describe("ActionResult", () => {
         }),
       invalidates: () => [leftRef],
     });
-    const action = Action.use(IncrementBoth);
+    const action = Action.use(IncrementBoth, { runtime: defaultRuntime });
 
     return Effect.runPromise(
       Effect.gen(function* () {

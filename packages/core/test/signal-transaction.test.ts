@@ -2,6 +2,7 @@ import { createEffect, createRoot, createSignal, flush } from "@solidjs/signals"
 import { Data, Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
 import { Program, Signal, Timeline } from "../src/index.js";
+import { defaultRuntime } from "../src/internal.js";
 
 class Boom extends Data.TaggedError("Boom")<{}> {}
 
@@ -308,6 +309,7 @@ describe("Program and Action commits", () => {
             initial: 0,
             update: (model, message) => (message === "fail" ? Effect.fail("boom") : model + 1),
           }),
+          { runtime: defaultRuntime },
         );
 
         yield* program.dispatchEffect("increment");

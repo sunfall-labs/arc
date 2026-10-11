@@ -1,5 +1,5 @@
 import {
-  Action,
+  ActionTransport,
   Server,
   ServerRpcProtocolError,
   applyResponseContextEffect,
@@ -11,11 +11,13 @@ import {
   type AppDefinitionRegistryActionRequirements,
   type AppDefinitionRegistryServerFunctionRequirements,
   type ActionDefinitionRequirements,
+  type AnySunfallArcRuntime,
   type SunfallArcRuntime,
   type Route,
   type ResponseContext,
 } from "@sunfall/arc-core";
-import { Cause, Effect, Exit, type Scope } from "effect";
+import { makeActionInstance } from "@sunfall/arc-core/internal";
+import { Cause, Effect, Exit, Option, type Scope } from "effect";
 import { validateStartActionRequestEffect, validateStartRpcRequestEffect } from "./rpc.js";
 import { makeRequestRuntime, type RequestRuntimeRemainingRequirements } from "./request-runtime.js";
 import {
@@ -311,9 +313,21 @@ export const createServerActionResponseEffectWithRuntime = <
             return input;
           }
 
-          const instance = Action.use(action as unknown as ActionDefinition<any, any, never, any>);
+          // The request runtime is already running this endpoint, so it adds
+          // no startup failures to the submission.
+          const instance = makeActionInstance(
+            action as unknown as ActionDefinition<any, any, never, any>,
+            runtime as unknown as AnySunfallArcRuntime<never>,
+          );
+          // The action endpoint is where served Actions run: never route this
+          // submission through an ActionTransport the calling fiber may carry.
           const exit = yield* Effect.exit(
-            withStartActionObservability(action.name, instance.submitEffect(input)),
+            withStartActionObservability(
+              action.name,
+              Effect.provideService(instance.submitEffect(input), ActionTransport, {
+                submit: () => Option.none(),
+              }),
+            ),
           );
           const failureKind = yield* actionFailureKindEffect(action, exit);
           const metaExit = yield* Effect.exit(

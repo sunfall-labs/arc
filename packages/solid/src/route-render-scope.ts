@@ -66,6 +66,24 @@ const routeRenderDefaults = {
 type RouteComponent = (props: Record<string, unknown>) => JSX.Element;
 
 /**
+ * Renders a route component value that is not a plain function (a typed
+ * `Component`), or returns `undefined` for plain Solid components.
+ */
+export type SolidRouteViewRenderer = (
+  component: unknown,
+  props: Record<string, unknown>,
+) => JSX.Element | undefined;
+
+const renderReadyComponent = (
+  component: unknown,
+  props: Record<string, unknown>,
+  renderView: SolidRouteViewRenderer,
+): JSX.Element =>
+  typeof component === "function"
+    ? createComponent(component as RouteComponent, props)
+    : renderView(component, props);
+
+/**
  * Renders a route component. An unloaded lazy component becomes an async memo
  * over its preload fiber, so it suspends the nearest Solid `<Loading>` boundary
  * and load failures reach the nearest `<Errored>` boundary.
@@ -74,25 +92,26 @@ const renderRouteComponent = <ER>(
   component: unknown,
   props: Record<string, unknown>,
   runtime: AnySunfallArcRuntime<ER>,
+  renderView: SolidRouteViewRenderer,
 ): JSX.Element => {
-  let ready: RouteComponent;
+  let ready: unknown;
   try {
-    ready = Route.readComponent(component) as RouteComponent;
+    ready = Route.readComponent(component);
   } catch (error) {
     const preload = Route.forkLazyComponentSuspense(error, runtime);
     if (preload === undefined) {
       throw error;
     }
-    const loaded = createMemo<RouteComponent>(() =>
+    const loaded = createMemo<{ readonly component: unknown }>(() =>
       Effect.runPromise(
-        Fiber.join(preload).pipe(
-          Effect.map(() => Route.readComponent(component) as RouteComponent),
-        ),
+        Fiber.join(preload).pipe(Effect.map(() => ({ component: Route.readComponent(component) }))),
       ),
     );
-    return createMemo(() => createComponent(loaded(), props)) as unknown as JSX.Element;
+    return createMemo(() =>
+      renderReadyComponent(loaded().component, props, renderView),
+    ) as unknown as JSX.Element;
   }
-  return createComponent(ready, props);
+  return renderReadyComponent(ready, props, renderView);
 };
 
 /**
@@ -150,6 +169,7 @@ const renderRouteState = <Routes extends readonly AnyRoute[], ER>(
   state: BrowserRouterState<Routes, ER>,
   renderers: SolidRouteOutletRenderers<Routes, ER>,
   runtime: AnySunfallArcRuntime<ER>,
+  renderView: SolidRouteViewRenderer,
 ): RenderedRouteScope => {
   const decision = browserRouteRenderDecision(state);
   switch (decision._tag) {
@@ -173,6 +193,7 @@ const renderRouteState = <Routes extends readonly AnyRoute[], ER>(
           decision.component,
           decision.props as unknown as Record<string, unknown>,
           runtime,
+          renderView,
         ),
       );
   }
@@ -191,6 +212,8 @@ export const makeSolidRouteRenderScopeController = <
 >(options: {
   readonly initialInput: SolidRouteRenderInput<Routes, ER>;
   readonly runtime: AnySunfallArcRuntime<ER>;
+  /** Renders route components that are typed `Component` values. */
+  readonly renderView?: SolidRouteViewRenderer;
   /** Solid owner route roots render under; usually the outlet's. */
   readonly owner: Owner | null;
   /** Rendered route node; Arc owns outlet state and Solid renders it. */
@@ -241,7 +264,13 @@ export const makeSolidRouteRenderScopeController = <
   };
 
   const render = (input: SolidRouteRenderInput<Routes, ER>): RenderedRouteScope =>
-    renderRouteState(options.owner, input.state, input.renderers, options.runtime);
+    renderRouteState(
+      options.owner,
+      input.state,
+      input.renderers,
+      options.runtime,
+      options.renderView ?? (() => undefined),
+    );
 
   const renderTransition = (
     input: SolidRouteRenderInput<Routes, ER>,

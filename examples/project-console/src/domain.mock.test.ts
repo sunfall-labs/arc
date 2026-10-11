@@ -20,6 +20,7 @@ import {
   ProjectWorkItems,
   projectWorkQueueQuery,
 } from "./project-collections.js";
+import { defaultRuntime } from "@sunfall/arc-core/internal";
 
 const mockProject = (overrides: Partial<Project> = {}): Project => ({
   id: makeProjectId("mocked"),
@@ -169,7 +170,7 @@ describe("project console contract mocks", () => {
       advance: ({ id }) => Effect.succeed(mockProject({ id, progress: 51 })),
       updateWorkItemStatus: ({ id, status }) => Effect.succeed(mockWorkItem({ id, status })),
     });
-    const action = Action.use(SubmitProjectName);
+    const action = Action.use(SubmitProjectName, { runtime: defaultRuntime });
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -205,7 +206,7 @@ describe("project console contract mocks", () => {
       updateWorkItemStatus: ({ id, status }) => Effect.succeed(mockWorkItem({ id, status })),
     });
     const ref = ProjectById(makeProjectId("mocked"));
-    const action = Action.use(SubmitProjectName);
+    const action = Action.use(SubmitProjectName, { runtime: defaultRuntime });
 
     return Effect.runPromise(
       Effect.gen(function* () {

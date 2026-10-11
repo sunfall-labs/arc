@@ -1,8 +1,7 @@
-import { Effect, Option } from "effect";
-import { AsyncResult } from "effect/reactivity";
+import { Effect } from "effect";
 import { bench, describe } from "vitest";
 import { makeRuntime, Program, Resource, Signal, runWithRuntime } from "@sunfall/arc-core";
-import { RuntimeProvider, useProgram, useResource } from "@sunfall/arc-solid";
+import { Component } from "@sunfall/arc-solid";
 import { For, createComponent, createSignal, flush, insert, render } from "./solid-client-shim.js";
 
 // Client render paths: Arc state flowing into DOM updates through the Solid adapter.
@@ -95,15 +94,7 @@ describe("Sunfall Arc client render", () => {
     const shared = Signal.make(0);
     const Reader = () => textCell(() => String(shared.get()));
     const view = mount(() =>
-      createComponent(
-        RuntimeProvider as never,
-        {
-          runtime,
-          get children() {
-            return Array.from({ length: 1000 }, () => createComponent(Reader as never, {}));
-          },
-        } as never,
-      ),
+      Array.from({ length: 1000 }, () => createComponent(Reader as never, {})),
     );
     for (let update = 1; update <= 50; update++) {
       shared.set(update);
@@ -170,15 +161,7 @@ describe("Sunfall Arc client render", () => {
     const shared = Signal.make(0);
     const Reader = () => textCell(() => String(shared.get()));
     const view = mount(() =>
-      createComponent(
-        RuntimeProvider as never,
-        {
-          runtime,
-          get children() {
-            return Array.from({ length: 1000 }, () => createComponent(Reader as never, {}));
-          },
-        } as never,
-      ),
+      Array.from({ length: 1000 }, () => createComponent(Reader as never, {})),
     );
     for (let update = 1; update <= 50; update++) {
       shared.set(update);
@@ -193,23 +176,13 @@ describe("Sunfall Arc client render", () => {
       initial: 0,
       on: { Increment: (model) => model + 1 },
     });
-    let counter: ReturnType<typeof useProgram<number, { readonly _tag: "Increment" }>> | undefined;
-    const View = () => {
-      counter = useProgram(Counter);
-      const model = counter.model;
-      return textCell(() => String(model()));
-    };
-    const view = mount(() =>
-      createComponent(
-        RuntimeProvider as never,
-        {
-          runtime,
-          get children() {
-            return createComponent(View as never, {});
-          },
-        } as never,
-      ),
-    );
+    let counter: Component.ProgramHandle<number, { readonly _tag: "Increment" }, never> | undefined;
+    const View = Component.make("CounterView", function* () {
+      const handle = yield* Component.program(Counter);
+      counter = handle;
+      return () => textCell(() => String(handle.model()));
+    });
+    const view = mount(() => createComponent(Component.embed(View, runtime) as never, {}));
     const dispatchEffect = counter!.dispatchEffect;
     await Effect.runPromise(
       Effect.forEach(Array.from({ length: 1000 }), () => dispatchEffect({ _tag: "Increment" }), {
@@ -243,35 +216,26 @@ describe("Sunfall Arc client render", () => {
       )
       .join("");
 
+  type BoardHandle = Component.ProgramHandle<Board, BoardMessage, never>;
+
   const mountBoard = (
-    view: (board: ReturnType<typeof useProgram<Board, BoardMessage>>) => unknown,
+    view: (board: BoardHandle) => unknown,
   ): {
     readonly container: HTMLElement;
-    readonly board: ReturnType<typeof useProgram<Board, BoardMessage>>;
+    readonly board: BoardHandle;
     dispose(): void;
   } => {
-    let board: ReturnType<typeof useProgram<Board, BoardMessage>> | undefined;
-    const View = () => {
-      board = useProgram(Board);
-      return view(board);
-    };
-    const mounted = mount(() =>
-      createComponent(
-        RuntimeProvider as never,
-        {
-          runtime,
-          get children() {
-            return createComponent(View as never, {});
-          },
-        } as never,
-      ),
-    );
+    let board: BoardHandle | undefined;
+    const View = Component.make("BoardView", function* () {
+      const handle = yield* Component.program(Board);
+      board = handle;
+      return () => view(handle) as never;
+    });
+    const mounted = mount(() => createComponent(Component.embed(View, runtime) as never, {}));
     return { ...mounted, board: board! };
   };
 
-  const relabelOneRowPerRound = async (
-    board: ReturnType<typeof useProgram<Board, BoardMessage>>,
-  ): Promise<void> => {
+  const relabelOneRowPerRound = async (board: BoardHandle): Promise<void> => {
     for (let round = 0; round < relabelRounds; round++) {
       const id = round * 50;
       await Effect.runPromise(board.dispatchEffect({ _tag: "Relabel", id, label: `edit ${id}` }));
@@ -319,27 +283,19 @@ describe("Sunfall Arc client render", () => {
     ),
   );
 
-  bench("resource bindings: mount and dispose 200 cached useResource rows", () => {
-    const Project = (props: { readonly id: number }) => {
-      const project = useResource(ProjectById(props.id));
-      return textCell(() =>
-        Option.match(AsyncResult.value(project.result()), {
-          onNone: () => "",
-          onSome: (value) => value.label,
-        }),
-      );
-    };
-    const view = mount(() =>
-      createComponent(
-        RuntimeProvider as never,
-        {
-          runtime,
-          get children() {
-            return makeRows(200).map((row) => createComponent(Project as never, { id: row.id }));
-          },
-        } as never,
-      ),
+  bench("resource bindings: mount and dispose 200 Components reading cached Resources", () => {
+    const Project = Component.make("ProjectRow", function* (props: { readonly id: number }) {
+      const project = yield* Component.resource(ProjectById);
+      return () => textCell(() => project(props.id).label);
+    });
+    const Rows = Component.embed(
+      Component.make("ProjectRows", function* () {
+        const Row = yield* Project;
+        return () => makeRows(200).map((row) => Row({ id: row.id }));
+      }),
+      runtime,
     );
+    const view = mount(() => createComponent(Rows as never, {}));
     expectText(
       view.container,
       makeRows(200)

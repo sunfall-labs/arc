@@ -12,6 +12,7 @@ import {
   type ReadableSignal,
   type TimelineEntry,
 } from "../src/index.js";
+import { defaultRuntime } from "../src/internal.js";
 
 /** Renders `read` in a Solid root and returns the latest rendered value after each flush. */
 const render = <A>(read: () => A) => {
@@ -135,6 +136,7 @@ describe("Timeline recording", () => {
             name: "Project.rename",
             run: (name: string) => Effect.succeed({ name }),
           }),
+          { runtime: defaultRuntime },
         );
         yield* action.submitEffect("Atlas");
 
@@ -144,6 +146,7 @@ describe("Timeline recording", () => {
             initial: 0,
             update: (model) => model + 1,
           }),
+          { runtime: defaultRuntime },
         );
         yield* program.dispatchEffect({ _tag: "Increment" });
         yield* program.disposeEffect;

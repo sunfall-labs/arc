@@ -626,9 +626,9 @@ describe("docs site", () => {
     expect(mainSource).toContain("DocsContentApiStaticClient");
     expect(mainSource).toContain('await import("./content-live.js")');
     expect(mainSource).toContain('timestamp: "now"');
-    expect(mainSource).toContain("hydratedHref={hydratedHref}");
-    expect(mainSource).toContain('import { hydrate, render } from "@solidjs/web";');
-    expect(mainSource).toContain("hydrate(Root, root)");
+    expect(mainSource).toContain("hydratedHref: currentDocsSiteHref()");
+    expect(mainSource).toContain("Component.launch(DocsSite, root");
+    expect(mainSource).toContain("hydrate: root.hasChildNodes()");
     expect(mainSource).not.toContain("root.textContent =");
   });
 });

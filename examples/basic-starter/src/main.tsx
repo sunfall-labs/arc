@@ -1,8 +1,7 @@
 import { makeRuntime } from "@sunfall/arc-core";
-import { RuntimeProvider } from "@sunfall/arc-solid";
+import { Component } from "@sunfall/arc-solid";
 import { hydrateFromDocument } from "@sunfall/arc-start";
-import { Data, Layer } from "effect";
-import { hydrate, render } from "@solidjs/web";
+import { Data, Effect, Layer } from "effect";
 import App from "./App.js";
 
 class StarterRootMissing extends Data.TaggedError("StarterRootMissing")<{
@@ -22,14 +21,4 @@ if (!root) {
 const runtime = makeRuntime(Layer.empty);
 hydrateFromDocument(document, undefined, { runtime });
 
-const Root = () => (
-  <RuntimeProvider runtime={runtime}>
-    <App />
-  </RuntimeProvider>
-);
-
-if (root.hasChildNodes()) {
-  hydrate(Root, root);
-} else {
-  render(Root, root);
-}
+Effect.runFork(Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() }));

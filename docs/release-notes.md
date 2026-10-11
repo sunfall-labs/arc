@@ -6,6 +6,68 @@ publication under `https://github.com/sunfall-labs/arc`; this remains a
 release-candidate draft until final npm publication is selected. The selected
 first public alpha version is `0.1.0-alpha.1`.
 
+## Components Are The Single Solid App Model (Breaking)
+
+- Solid UI is built from typed `Component`s only. `Component.make(name,
+function* (props) { ...; return () => <View /> })` setup now runs **once per
+  instance** (with that instance's props, under its Solid owner, with an
+  instance Scope) instead of once per runtime; render is the returned
+  zero-argument function. Per-runtime sharing is by construction: Resources and
+  Collections live in runtime stores, and `Component.provide` builds its Layer
+  once per runtime.
+- Setup-time bindings replace hooks, each adding its services to the
+  component's `R`: `Component.resource` (a suspending `ResourceReader` with
+  value-free `waiting` / `failure` status), `Component.action`,
+  `Component.program`, `Component.stream`, `Component.callback`,
+  `Component.router`, and `SolidDb.collection` / `SolidDb.liveQuery` from
+  `@sunfall/arc-solid-db`. `Component.instance` is the seam for writing more.
+  `Component.catchAll` joins `catchTags`.
+- The Resource reader is the only way to render Resource content. It keeps the
+  current or stale value across refreshes, so content stays mounted; status
+  chrome reads `waiting(input)` / `failure(input)`.
+- `Component.router(routes, options?)` creates the instance's router; the
+  routes' preload services and route Components' services and failures join the
+  component type, so `Component.launch` checks them again. `RouterProvider`
+  now takes `router`. Route components may be typed `Component`s
+  (`Route.withComponent` keeps the component type; core adds `RouteView`,
+  `RouteViewTypeId`, `RouteWithComponent`, and `Route.ComponentOf`).
+- `Component.embed(component, runtime)` takes its runtime explicitly and checks
+  it; the server renders with `embed`, the client hydrates with
+  `launch(..., { hydrate: true })`.
+- Removed: `RuntimeProvider`, `RuntimeProviderProps`, `RuntimeContext`,
+  `RuntimeContextMissing`, `useRuntime`, `createComponentScope`,
+  `useResource`, `useResourceResult`, `useResourceSuspense`, `useAction`,
+  `useProgram`, `useStream`, `useRuntimeEffect`, their handle/option types
+  (`ResourceHandle`, `UseResourceOptions`, `ActionHandle`, `ProgramHandle`,
+  `ProgramModelView`, `UseProgramOptions`, `RuntimeEffectRunner`),
+  `Component.Render<P>`/`Component.PropsOf` (render is now `Component.Render`,
+  children are `Component.Solid<P>`), and Solid DB's `useCollection`,
+  `useLiveQuery`, `UseCollectionOptions`, `UseLiveQueryOptions`. Core's internal
+  runtime-provider lifecycle helpers are removed with them.
+
+## One Action Binding And An Action Transport (Breaking)
+
+- Core adds `ActionTransport` (with `ActionTransportResponse`), the Action
+  counterpart of `ServerClient`: every Action instance looks it up on submit.
+  Served Actions run remotely and their response applies to the submitting
+  runtime; every other Action runs locally. Action submissions now report
+  `Server.ClientError` beside their own failures.
+- Start adds `makeActionTransportLayer({ actions, ... })`; a client runtime
+  that provides it routes served Actions over the network, so UI code submits
+  every Action through `Component.action(...)`. A superseded `parallel`
+  submission applies only its invalidations.
+- Removed: `StartAction.use`, `StartAction.Instance`, `StartAction.Result`,
+  `StartAction.State`, `submitStartActionEffect`, and the public
+  `StartActionClientOptions`. `StartAction.form`,
+  `StartAction.decodeFormDataEffect`, and `StartAction.Form` remain for
+  progressive no-JS forms. Devtools drops the Start-shaped action tracking
+  (`recordStartAction`, `recordStartActionEffect`, `trackStartActionEffect`,
+  `DevtoolsStartActionInstance`); every Action instance is tracked with
+  `recordAction` / `trackActionEffect`.
+- `Action.use(definition, { runtime })` and `Program.start(definition,
+{ runtime })` require an explicit runtime; the default-runtime fallbacks are
+  gone.
+
 ## Whole-App Timeline Replaces Program Timelines (Breaking)
 
 - `Timeline.record(options?)` records every committed signal change set (user

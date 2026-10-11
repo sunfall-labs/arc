@@ -42,12 +42,11 @@ export const ssrApp = () => {
       () => Effect.sync(() => events.released++),
     ),
   );
-  const Card = Component.make("Card", function* () {
+  const Card = Component.make("Card", function* (props: { readonly id: string }) {
     events.setups++;
     const greeter = yield* Greeter;
     const project = yield* Component.resource(ProjectById);
-    return (props: { readonly id: string }) =>
-      reactive(() => `${greeter.greet(props.id)}: ${project(props.id)}`);
+    return () => reactive(() => `${greeter.greet(props.id)}: ${project(props.id)}`);
   });
   const App = Card.pipe(
     Component.loading(() => {

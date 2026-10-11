@@ -11,6 +11,7 @@
         "action",
         "action-result",
         "action-submission",
+        "action-transport",
         "app",
         "browser-router-history-adapter",
         "browser-router-host-controller",
@@ -39,6 +40,8 @@
         "ActionOptions",
         "ActionPolicy",
         "ActionState",
+        "ActionTransport",
+        "ActionTransportResponse",
         "ActionTypeId",
         "ActionUseOptions",
         "BrowserNavigateArgs",
@@ -56,6 +59,8 @@
         "RoutePreloadFailureCodecError",
         "RoutePreloadFailureEncoding",
         "RoutePreloadFailureSnapshot",
+        "RouteView",
+        "RouteWithComponent",
         "StableStringifyCircularData",
         "StableStringifyEncodeFailure",
         "StableStringifyInvalidDate",
@@ -75,6 +80,7 @@
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/core.test-d.ts",
       "sourceSurface": [
+        "action-instance",
         "action-submission",
         "browser-router-history-adapter",
         "browser-router-kernel",
@@ -83,6 +89,7 @@
         "browser-router-state",
         "definition-registry",
         "effect-like",
+        "program-start",
         "resource-registry",
         "resource-runtime",
         "resource-snapshot-codec",
@@ -90,17 +97,10 @@
         "route-grammar",
         "route-match",
         "runtime",
-        "runtime-provider-lifecycle",
         "scope",
         "signal-watch"
       ],
-      "requiredTypeTestImports": [
-        "DisposeRuntimeProviderLifecycleOptions",
-        "RuntimeProviderDisposeObserver",
-        "RuntimeProviderLifecycleEntry",
-        "RuntimeProviderLifecycleOptions",
-        "disposeRuntimeProviderLifecycleEntryEffect"
-      ]
+      "requiredTypeTestImports": ["makeActionInstance", "startProgramOnRuntime"]
     },
     {
       "package": "@sunfall/arc-db",
@@ -202,7 +202,6 @@
         "summary"
       ],
       "requiredTypeTestImports": [
-        "makeDevtoolsStore",
         "DevtoolsRuntimeEvent",
         "DevtoolsSnapshot",
         "DevtoolsStartAppGraphSchemaCoverage",
@@ -213,7 +212,8 @@
         "DevtoolsStoreOptions",
         "DevtoolsUnknownInvalidationTarget",
         "describeInvalidationPlan",
-        "describeRoutePlan"
+        "describeRoutePlan",
+        "makeDevtoolsStore"
       ]
     },
     {
@@ -223,39 +223,20 @@
       "source": "packages/solid/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/solid.test-d.ts",
-      "sourceSurface": ["component", "hooks", "link", "router", "runtime"],
+      "sourceSurface": ["component", "link", "router"],
       "requiredTypeTestImports": [
-        "ActionHandle",
         "BrowserRouter",
         "Component",
-        "ProgramHandle",
-        "ProgramModelView",
-        "ResourceHandle",
-        "RuntimeEffectRunner",
-        "RuntimeContext",
-        "RuntimeContextMissing",
         "RouterContextMissing",
         "RouterLink",
         "RouterLinkProps",
+        "RouterOptions",
         "RouterOutlet",
         "RouterOutletProps",
         "RouterProvider",
         "RouterProviderProps",
-        "RuntimeProvider",
-        "RuntimeProviderProps",
-        "UseProgramOptions",
-        "UseResourceOptions",
-        "createComponentScope",
         "isPlainLeftClick",
-        "useAction",
-        "useProgram",
-        "useResource",
-        "useResourceResult",
-        "useResourceSuspense",
-        "useRouter",
-        "useRuntime",
-        "useRuntimeEffect",
-        "useStream"
+        "useRouter"
       ]
     },
     {
@@ -267,12 +248,11 @@
       "typeTest": "type-tests/solid-db.test-d.ts",
       "sourceSurface": ["collection", "live-query"],
       "requiredTypeTestImports": [
+        "CollectionBindingOptions",
         "CollectionHandle",
+        "LiveQueryBindingOptions",
         "LiveQueryHandle",
-        "UseCollectionOptions",
-        "UseLiveQueryOptions",
-        "useCollection",
-        "useLiveQuery"
+        "SolidDb"
       ]
     },
     {
@@ -290,6 +270,7 @@
         "server-function-manifest",
         "start-action-client",
         "start-action-request-codec",
+        "start-action-transport",
         "start-collection-resolution",
         "start-fetch",
         "start-request-handler",
@@ -301,6 +282,7 @@
       ],
       "requiredTypeTestImports": [
         "ActionManifestSource",
+        "ActionTransportLayerOptions",
         "CreateRequestHandlerOptions",
         "ServerFunctionManifestSource",
         "StartAction",
@@ -318,9 +300,9 @@
         "htmlChunk",
         "hydrateFromDocument",
         "hydrateFromDocumentEffect",
+        "makeActionTransportLayer",
         "makeRpcClientLayer",
-        "makeStartStaticHistoryAdapter",
-        "submitStartActionEffect"
+        "makeStartStaticHistoryAdapter"
       ]
     },
     {

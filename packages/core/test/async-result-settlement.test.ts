@@ -10,7 +10,7 @@ import {
   runWithRuntime,
   type SunfallArcRuntime,
 } from "../src/index.js";
-import { eraseRuntime } from "../src/internal.js";
+import { eraseRuntime, defaultRuntime } from "../src/internal.js";
 import { settleResult, settledResult } from "../src/async-result-settle.js";
 
 const runIn = <A, E, R, Services, RuntimeError>(
@@ -209,7 +209,7 @@ describe("AsyncResult settlement", () => {
       name: "Settlement.action-defect",
       run: () => Effect.die(new Error("action crashed")),
     });
-    const action = Action.use(Crash);
+    const action = Action.use(Crash, { runtime: defaultRuntime });
 
     const exit = await Effect.runPromiseExit(action.submitEffect("go"));
     expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true);
@@ -229,7 +229,7 @@ describe("AsyncResult settlement", () => {
           ? Deferred.succeed(started, undefined).pipe(Effect.andThen(Effect.never))
           : Effect.succeed(name),
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     await Effect.runPromise(action.submitEffect("Ada"));
     const settled = action.state.get();

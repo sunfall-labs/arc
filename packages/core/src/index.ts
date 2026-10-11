@@ -1,5 +1,6 @@
 export * from "./action.js";
 export * from "./action-result.js";
+export { ActionTransport, type ActionTransportResponse } from "./action-transport.js";
 export {
   ActionInterrupted,
   type ActionState,

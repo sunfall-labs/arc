@@ -283,13 +283,15 @@ const update = Program.update<ProjectModel, ProjectMessage>({
 The Solid adapter is intentionally small:
 
 ```tsx
-const program = useProgram(ProjectProgram);
+const OpenProject = Component.make("OpenProject", function* (props: { readonly id: ProjectId }) {
+  const program = yield* Component.program(ProjectProgram); // R += the Program's services
 
-return (
-  <button onClick={() => program.dispatch({ _tag: "Load", id })}>
-    {program.model().loading ? "Loading" : "Open"}
-  </button>
-);
+  return () => (
+    <button onClick={() => program.dispatch({ _tag: "Load", id: props.id })}>
+      {program.model().loading ? "Loading" : "Open"}
+    </button>
+  );
+});
 ```
 
 So the public shape is Foldkit-compact, but commands can require app services,
@@ -339,21 +341,22 @@ the Solid target through TSRX today, rather than pretending it needs a custom UI
 compiler first.
 
 ```tsx
-const project = useResource(ProjectById(props.id));
-const rename = useAction(RenameProject);
-const renameState = rename.state;
-const runtime = useRuntime();
+const RenameForm = Component.make("RenameForm", function* (props: { readonly id: ProjectId }) {
+  const project = yield* Component.resource(ProjectById); // E += load error, R += ProjectApi
+  const rename = yield* Component.action(RenameProject); // local, or remote via ActionTransport
 
-return (
-  <form
-    onSubmit={(event) => {
-      event.preventDefault();
-      void runtime.runFork(rename.submitEffect({ id: props.id, name: nextName() }));
-    }}
-  >
-    <button disabled={renameState()._tag === "Pending"}>Save</button>
-  </form>
-);
+  return () => (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        rename.submit({ id: props.id, name: nextName() });
+      }}
+    >
+      <input value={project(props.id).name} />
+      <button disabled={rename.result().waiting}>Save</button>
+    </form>
+  );
+});
 ```
 
 Solid gives compact UI updates. Sunfall Arc adds the runtime spine around those

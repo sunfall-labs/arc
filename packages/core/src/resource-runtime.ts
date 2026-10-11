@@ -515,7 +515,7 @@ const resourcePending = <I, A, E, R>(
     reason,
     result,
     guidance:
-      "The Resource value is not loaded yet. Run Resource.prefetchEffect(...) before Resource.readEffect(...), or use a UI adapter such as Solid useResourceSuspense(...) for Suspense.",
+      "The Resource value is not loaded yet. Run Resource.prefetchEffect(...) before Resource.readEffect(...), or read it with a UI adapter such as Solid's Component.resource(...) reader for Suspense.",
   });
 
 type ResourceReadDecision<I, A, E, R> =

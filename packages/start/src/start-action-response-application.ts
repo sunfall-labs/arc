@@ -16,7 +16,7 @@ import type {
   StartActionInvalidationTarget,
   StartActionResponseBody,
 } from "./start-action-response-codec.js";
-import type { StartActionClientOptions } from "./start-transport-protocol.js";
+import type { StartCollectionHydrationOptions } from "./hydration.js";
 
 const startActionInvalidationTransportError = (
   body: StartActionResponseBody,
@@ -196,47 +196,29 @@ const startActionResponseInvalidationEffect = (
   });
 
 /**
- * Applies Start action invalidation metadata without applying hydration.
- *
- * Start action clients use this for stale successful parallel submissions: the
+ * Applies only the invalidation metadata of an action response, in the
+ * runtime running this Effect. Superseded `parallel` submissions use it: the
  * visible state and hydrated values stay latest-only, while accepted server
  * mutations still refresh invalidated resources.
  */
-export const applyStartActionInvalidationEffect = <
-  FetchError = never,
-  FetchRequirements = never,
-  RuntimeError = never,
->(
+export const applyStartActionInvalidationEffect = (
   body: StartActionResponseBody,
-  options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError>,
-): Effect.Effect<void, ServerTransportError | RuntimeError, FetchRequirements> => {
-  const effect = startActionResponseInvalidationEffect(body);
-
-  const runtime = options.responseRuntime ?? options.runtime;
-
-  return (runtime ? runtime.provide(effect) : effect) as Effect.Effect<
-    void,
-    ServerTransportError | RuntimeError,
-    FetchRequirements
-  >;
-};
+): Effect.Effect<void, ServerTransportError> =>
+  startActionResponseInvalidationEffect(body) as Effect.Effect<void, ServerTransportError>;
 
 /**
- * Applies accepted Start action response metadata in the browser Runtime Spine.
+ * Applies accepted Start action response metadata in the runtime running this
+ * Effect (the submitting runtime).
  *
  * The workflow validates serialized invalidation targets, hydrates returned
  * resources and collections, filters hydrated refs out of follow-up refresh
  * work, and maps malformed metadata to `ServerTransportError`.
  */
-export const applyStartActionResponseEffect = <
-  FetchError = never,
-  FetchRequirements = never,
-  RuntimeError = never,
->(
+export const applyStartActionResponseEffect = (
   body: StartActionResponseBody,
-  options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError>,
-): Effect.Effect<void, ServerTransportError | RuntimeError, FetchRequirements> => {
-  const effect = Effect.gen(function* () {
+  options: StartCollectionHydrationOptions = {},
+): Effect.Effect<void, ServerTransportError> =>
+  Effect.gen(function* () {
     if ("hydration" in body && body.hydration !== undefined) {
       yield* hydrateStartPayloadEffect(body.hydration, options).pipe(
         Effect.mapError((error) => startActionHydrationTransportError(body, error)),
@@ -250,13 +232,4 @@ export const applyStartActionResponseEffect = <
     );
 
     yield* startActionResponseInvalidationEffect(body, hydratedResources);
-  });
-
-  const runtime = options.responseRuntime ?? options.runtime;
-
-  return (runtime ? runtime.provide(effect) : effect) as Effect.Effect<
-    void,
-    ServerTransportError | RuntimeError,
-    FetchRequirements
-  >;
-};
+  }) as Effect.Effect<void, ServerTransportError>;

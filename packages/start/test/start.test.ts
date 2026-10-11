@@ -53,11 +53,13 @@ import {
   ServerClient,
   ServerTransportError,
   type SunfallArcRuntime,
+  type ActionDefinition,
   type ResourceRef,
 } from "@sunfall/arc-core";
 import {
   defaultRuntime,
   eraseRuntime,
+  makeActionInstance,
   createBrowserRouterKernel,
   clearActionDefinitionRegistryUnsafe,
   resourceDefinitionRegistry,
@@ -90,7 +92,8 @@ import {
   type ServerRpcClientOptions,
   type StartFetch,
   type StartHydrationPayload,
-  submitStartActionEffect,
+  makeActionTransportLayer,
+  type ActionTransportLayerOptions,
   defineFileRoute,
 } from "../src/index.js";
 import {
@@ -374,6 +377,32 @@ const oneShotIterable = <A>(values: readonly A[]) => {
       return iteratorCalls;
     },
   };
+};
+
+/**
+ * Submits `definition` the way UI does: through an Action instance on
+ * `runtime` (the default runtime when omitted) whose submissions see Start's
+ * `ActionTransport` serving it, so the request goes over the action transport
+ * and the response applies to `runtime`.
+ */
+const submitViaActionTransport = <I, A, E, R>(
+  definition: ActionDefinition<I, A, E, R>,
+  input: I,
+  options: Omit<ActionTransportLayerOptions<any, any>, "actions"> & {
+    readonly runtime?: object;
+  } = {},
+) => {
+  const { runtime, ...transport } = options;
+  const instance = makeActionInstance(
+    definition,
+    eraseRuntime((runtime ?? defaultRuntime) as typeof defaultRuntime),
+  );
+  return instance.submitEffect(input).pipe(
+    Effect.provide(
+      // The options mirror whatever fetch typing each test uses.
+      makeActionTransportLayer({ ...transport, actions: [definition] } as never),
+    ),
+  );
 };
 
 describe("Sunfall Arc Start", () => {
@@ -2923,7 +2952,7 @@ describe("Sunfall Arc Start", () => {
 
     await expect(
       Effect.runPromise(
-        submitStartActionEffect(
+        submitViaActionTransport(
           Ping,
           { value: "submit" },
           {
@@ -2932,21 +2961,20 @@ describe("Sunfall Arc Start", () => {
           },
         ),
       ),
-    ).resolves.toMatchObject({
-      _tag: "Success",
-      value: { value: "action:submit" },
-    });
+    ).resolves.toEqual({ value: "action:submit" });
 
-    const startPing = StartAction.use(Ping, {
-      fetch: fetcher,
-      actionManifest: endpoints.actions,
-    });
     await expect(
-      Effect.runPromise(startPing.submitEffect({ value: "stateful" })),
-    ).resolves.toMatchObject({
-      _tag: "Success",
-      value: { value: "action:stateful" },
-    });
+      Effect.runPromise(
+        submitViaActionTransport(
+          Ping,
+          { value: "again" },
+          {
+            fetch: fetcher,
+            actionManifest: endpoints.actions,
+          },
+        ),
+      ),
+    ).resolves.toEqual({ value: "action:again" });
 
     expect(StartAction.form(Ping, { actionManifest: endpoints.actions }).action).toBe(
       endpoints.actions.actionPath,
@@ -3086,7 +3114,7 @@ describe("Sunfall Arc Start", () => {
 
     await expect(
       Effect.runPromise(
-        submitStartActionEffect(
+        submitViaActionTransport(
           Ping,
           { value: "ok" },
           {
@@ -3095,10 +3123,7 @@ describe("Sunfall Arc Start", () => {
           },
         ),
       ),
-    ).resolves.toMatchObject({
-      _tag: "Success",
-      value: { value: "ok" },
-    });
+    ).resolves.toEqual({ value: "ok" });
     expect(calls).toEqual(["https://api.example.test/action"]);
   });
 
@@ -4119,7 +4144,7 @@ describe("Sunfall Arc Start", () => {
       await runInRuntime(clientRuntime, Resource.prefetchEffect(ref));
 
       const result = await Effect.runPromise(
-        submitStartActionEffect(
+        submitViaActionTransport(
           RenameProject,
           { id: "atlas", name: "Renamed From Server" },
           {
@@ -4129,36 +4154,9 @@ describe("Sunfall Arc Start", () => {
         ),
       );
 
-      expect(result).toMatchObject({
-        _tag: "Success",
-        value: {
-          id: "atlas",
-          name: "Renamed From Server",
-        },
-        invalidation: {
-          entries: [
-            {
-              ref: {
-                key: ref.key,
-                family: "Start.action.Project.hydration",
-                input: "atlas",
-              },
-            },
-          ],
-        },
-        hydration: {
-          resources: [
-            {
-              key: ref.key,
-              state: {
-                value: {
-                  id: "atlas",
-                  name: "Renamed From Server",
-                },
-              },
-            },
-          ],
-        },
+      expect(result).toEqual({
+        id: "atlas",
+        name: "Renamed From Server",
       });
       expect(
         runWithRuntime(clientRuntime, () =>
@@ -4169,44 +4167,22 @@ describe("Sunfall Arc Start", () => {
         name: "Renamed From Server",
       });
 
-      const action = StartAction.use(RenameProject, {
-        fetch: fetcher,
-        runtime: clientRuntime,
-      });
+      // A stateful instance on the client runtime submits through the same transport.
+      const action = makeActionInstance(RenameProject, eraseRuntime(clientRuntime));
       await expect(
         Effect.runPromise(
-          action.submitEffect({ id: "atlas", name: "Renamed Through StartAction" }),
+          action
+            .submitEffect({ id: "atlas", name: "Renamed Through Transport" })
+            .pipe(
+              Effect.provide(
+                makeActionTransportLayer({ fetch: fetcher, actions: [RenameProject] }),
+              ),
+            ),
         ),
-      ).resolves.toMatchObject({
+      ).resolves.toEqual({ id: "atlas", name: "Renamed Through Transport" });
+      expect(action.state.get().result).toMatchObject({
         _tag: "Success",
-        value: {
-          id: "atlas",
-          name: "Renamed Through StartAction",
-        },
-      });
-      expect(action.invalidation.get()).toMatchObject({
-        entries: [
-          {
-            ref: {
-              key: ref.key,
-              family: "Start.action.Project.hydration",
-              input: "atlas",
-            },
-          },
-        ],
-      });
-      expect(action.hydration.get()).toMatchObject({
-        resources: [
-          {
-            key: ref.key,
-            state: {
-              value: {
-                id: "atlas",
-                name: "Renamed Through StartAction",
-              },
-            },
-          },
-        ],
+        value: { id: "atlas", name: "Renamed Through Transport" },
       });
       expect(
         runWithRuntime(clientRuntime, () =>
@@ -4214,7 +4190,7 @@ describe("Sunfall Arc Start", () => {
         ),
       ).toEqual({
         id: "atlas",
-        name: "Renamed Through StartAction",
+        name: "Renamed Through Transport",
       });
     } finally {
       await Effect.runPromise(clientRuntime.disposeEffect);
@@ -4309,7 +4285,7 @@ describe("Sunfall Arc Start", () => {
 
       await expect(
         Effect.runPromise(
-          submitStartActionEffect(
+          submitViaActionTransport(
             TouchProject,
             { id: "atlas" },
             {
@@ -4318,12 +4294,7 @@ describe("Sunfall Arc Start", () => {
             },
           ),
         ),
-      ).resolves.toMatchObject({
-        _tag: "Success",
-        value: {
-          ok: true,
-        },
-      });
+      ).resolves.toEqual({ ok: true });
 
       expect(hydratedRef.key).toBe(invalidatedRef.key);
       expect(HydratedProject.options.name).not.toBe(InvalidatedProject.options.name);
@@ -4354,7 +4325,7 @@ describe("Sunfall Arc Start", () => {
     }
   });
 
-  it("applies uncaptured StartAction response metadata to the caller runtime", async () => {
+  it("applies action transport responses to the submitting runtime", async () => {
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
       name: Schema.String,
@@ -4397,8 +4368,6 @@ describe("Sunfall Arc Start", () => {
         input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
       return Effect.orDie(Effect.scoped(handler(new Request(url, init))));
     };
-    const action = StartAction.use(RenameProject, { fetch: fetcher });
-
     try {
       await runInRuntime(runtime, Resource.prefetchEffect(ref));
       expect(
@@ -4409,14 +4378,14 @@ describe("Sunfall Arc Start", () => {
       ).toBe("Initial");
 
       await expect(
-        runInRuntime(runtime, action.submitEffect({ id: "atlas", name: "Caller Runtime" })),
-      ).resolves.toMatchObject({
-        _tag: "Success",
-        value: {
-          id: "atlas",
-          name: "Caller Runtime",
-        },
-      });
+        Effect.runPromise(
+          submitViaActionTransport(
+            RenameProject,
+            { id: "atlas", name: "Caller Runtime" },
+            { fetch: fetcher, runtime },
+          ),
+        ),
+      ).resolves.toEqual({ id: "atlas", name: "Caller Runtime" });
 
       expect(
         runWithRuntime(runtime, () =>
@@ -4468,7 +4437,7 @@ describe("Sunfall Arc Start", () => {
       );
 
     const exit = await Effect.runPromiseExit(
-      submitStartActionEffect(RenameProject, { id: "atlas", name: "Atlas" }, { fetch: badFetch }),
+      submitViaActionTransport(RenameProject, { id: "atlas", name: "Atlas" }, { fetch: badFetch }),
     );
 
     expect(Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined).toBeInstanceOf(
@@ -4498,7 +4467,7 @@ describe("Sunfall Arc Start", () => {
       );
 
     const exit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, { fetch: fetcher }),
+      submitViaActionTransport(Ping, { value: "ok" }, { fetch: fetcher }),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -4564,10 +4533,10 @@ describe("Sunfall Arc Start", () => {
         );
 
     const badExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "x" }, { fetch: validationWithStatus(200) }),
+      submitViaActionTransport(Ping, { value: "x" }, { fetch: validationWithStatus(200) }),
     );
     const ok = await Effect.runPromise(
-      submitStartActionEffect(Ping, { value: "x" }, { fetch: validationWithStatus(422) }),
+      submitViaActionTransport(Ping, { value: "x" }, { fetch: validationWithStatus(422) }),
     );
     const failure = Exit.isFailure(badExit) ? firstFailure(badExit.cause) : undefined;
 
@@ -4660,16 +4629,16 @@ describe("Sunfall Arc Start", () => {
       );
 
     const invalidationExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, { fetch: malformedInvalidation }),
+      submitViaActionTransport(Ping, { value: "ok" }, { fetch: malformedInvalidation }),
     );
     const hydrationExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, { fetch: malformedHydration }),
+      submitViaActionTransport(Ping, { value: "ok" }, { fetch: malformedHydration }),
     );
     const missingSuccessValueExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, { fetch: missingSuccessValue }),
+      submitViaActionTransport(Ping, { value: "ok" }, { fetch: missingSuccessValue }),
     );
     const missingRefInputExit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, { fetch: missingRefInput }),
+      submitViaActionTransport(Ping, { value: "ok" }, { fetch: missingRefInput }),
     );
 
     for (const exit of [
@@ -4719,7 +4688,7 @@ describe("Sunfall Arc Start", () => {
       });
 
     const unknownFamilyExit = await Effect.runPromiseExit(
-      submitStartActionEffect(
+      submitViaActionTransport(
         Ping,
         { value: "ok" },
         {
@@ -4733,7 +4702,7 @@ describe("Sunfall Arc Start", () => {
       ),
     );
     const keyMismatchExit = await Effect.runPromiseExit(
-      submitStartActionEffect(
+      submitViaActionTransport(
         Ping,
         { value: "ok" },
         {
@@ -4747,7 +4716,7 @@ describe("Sunfall Arc Start", () => {
       ),
     );
     const entryMismatchExit = await Effect.runPromiseExit(
-      submitStartActionEffect(
+      submitViaActionTransport(
         Ping,
         { value: "ok" },
         {
@@ -4775,7 +4744,7 @@ describe("Sunfall Arc Start", () => {
       ),
     );
     const malformedTagTargetExit = await Effect.runPromiseExit(
-      submitStartActionEffect(
+      submitViaActionTransport(
         Ping,
         { value: "ok" },
         {
@@ -4788,7 +4757,7 @@ describe("Sunfall Arc Start", () => {
       ),
     );
     const malformedTagCauseExit = await Effect.runPromiseExit(
-      submitStartActionEffect(
+      submitViaActionTransport(
         Ping,
         { value: "ok" },
         {
@@ -4904,12 +4873,9 @@ describe("Sunfall Arc Start", () => {
 
       await expect(
         Effect.runPromise(
-          submitStartActionEffect(Ping, { value: "ok" }, { fetch: fetcher, runtime }),
+          submitViaActionTransport(Ping, { value: "ok" }, { fetch: fetcher, runtime }),
         ),
-      ).resolves.toMatchObject({
-        _tag: "Success",
-        value: { value: "ok" },
-      });
+      ).resolves.toEqual({ value: "ok" });
 
       expect(runtime.runSync(Resource.readEffect(ref))).toBe(1);
     } finally {
@@ -4920,7 +4886,7 @@ describe("Sunfall Arc Start", () => {
     }
   });
 
-  it("applies action response metadata through the explicit app runtime, not the transport runtime", async () => {
+  it("applies action response metadata to the submitting runtime, not the transport runtime", async () => {
     interface TransportToken {
       readonly token: string;
     }
@@ -4974,20 +4940,17 @@ describe("Sunfall Arc Start", () => {
 
       await expect(
         Effect.runPromise(
-          submitStartActionEffect(
+          submitViaActionTransport(
             Ping,
             { value: "submit" },
             {
               fetch: fetcher,
-              responseRuntime: eraseRuntime(appRuntime),
+              runtime: appRuntime,
               transportRuntime,
             },
           ),
         ),
-      ).resolves.toMatchObject({
-        _tag: "Success",
-        value: { value: "transport-ok" },
-      });
+      ).resolves.toEqual({ value: "transport-ok" });
 
       expect(
         runWithRuntime(appRuntime, () =>
@@ -5033,7 +4996,7 @@ describe("Sunfall Arc Start", () => {
       );
 
     const exit = await Effect.runPromiseExit(
-      submitStartActionEffect(Ping, { value: "ok" }, { fetch: fetcher }),
+      submitViaActionTransport(Ping, { value: "ok" }, { fetch: fetcher }),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -5055,7 +5018,7 @@ describe("Sunfall Arc Start", () => {
     const fetchCause = new Error("fetcher failed");
 
     const headerExit = await Effect.runPromiseExit(
-      submitStartActionEffect(
+      submitViaActionTransport(
         Ping,
         { value: "ok" },
         {
@@ -5066,7 +5029,7 @@ describe("Sunfall Arc Start", () => {
       ),
     );
     const fetchExit = await Effect.runPromiseExit(
-      submitStartActionEffect(
+      submitViaActionTransport(
         Ping,
         { value: "ok" },
         {
@@ -5102,7 +5065,7 @@ describe("Sunfall Arc Start", () => {
     });
 
     const exit = await Effect.runPromiseExit(
-      submitStartActionEffect(
+      submitViaActionTransport(
         Ping,
         { value: "ok" },
         {
@@ -5172,7 +5135,7 @@ describe("Sunfall Arc Start", () => {
       await runInRuntime(clientRuntime, Resource.prefetchEffect(ref));
 
       const result = await Effect.runPromise(
-        submitStartActionEffect(
+        submitViaActionTransport(
           RenameProject,
           { id: "atlas", name: "Renamed Through Tag" },
           {
@@ -5182,20 +5145,7 @@ describe("Sunfall Arc Start", () => {
         ),
       );
 
-      expect(result).toMatchObject({
-        _tag: "Success",
-        invalidation: {
-          targets: [
-            {
-              _tag: "Tag",
-              key: "Start.action.Project.tag:atlas",
-              name: "Start.action.Project.tag",
-            },
-          ],
-          entries: [],
-        },
-      });
-      expect(result.hydration).toBeUndefined();
+      expect(result).toEqual({ id: "atlas", name: "Renamed Through Tag" });
       expect(
         runWithRuntime(clientRuntime, () =>
           AsyncResult.getOrElse(Effect.runSync(Resource.statusEffect(ref)).result, () => undefined),
@@ -5274,7 +5224,7 @@ describe("Sunfall Arc Start", () => {
       await runInRuntime(clientRuntime, Resource.prefetchEffect(ref));
 
       const result = await Effect.runPromise(
-        submitStartActionEffect(
+        submitViaActionTransport(
           RenameProject,
           { id: "atlas", name: "Renamed Through Ref" },
           {
@@ -5284,20 +5234,7 @@ describe("Sunfall Arc Start", () => {
         ),
       );
 
-      expect(result).toMatchObject({
-        _tag: "Success",
-        invalidation: {
-          targets: [
-            {
-              _tag: "Ref",
-              key: ref.key,
-              family: "Start.action.Project.ref",
-              input: "atlas",
-            },
-          ],
-        },
-      });
-      expect(result.hydration).toBeUndefined();
+      expect(result).toEqual({ id: "atlas", name: "Renamed Through Ref" });
       expect(
         runWithRuntime(clientRuntime, () =>
           AsyncResult.getOrElse(Effect.runSync(Resource.statusEffect(ref)).result, () => undefined),
@@ -5311,7 +5248,7 @@ describe("Sunfall Arc Start", () => {
     }
   });
 
-  it("exposes a StartAction client instance with Action-like state", async () => {
+  it("submits served Actions through a runtime-provided ActionTransport", async () => {
     const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.action.client.ping",
       input: Schema.Struct({ value: Schema.String }),
@@ -5325,13 +5262,13 @@ describe("Sunfall Arc Start", () => {
     const handler = createRequestHandler(app, {
       actions: [Ping],
     });
-    const runtime = makeRuntime();
     const fetcher: StartFetch = (input, init) => {
       const url =
         input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
       return Effect.orDie(Effect.scoped(handler(new Request(url, init))));
     };
-    const action = StartAction.use(Ping, { fetch: fetcher, runtime });
+    const runtime = makeRuntime(makeActionTransportLayer({ fetch: fetcher, actions: [Ping] }));
+    const action = Action.use(Ping, { runtime });
 
     try {
       expect(action.state.get()).toEqual({ result: AsyncResult.initial(), input: Option.none() });
@@ -5341,24 +5278,20 @@ describe("Sunfall Arc Start", () => {
         input: Option.some({ value: "transport" }),
       });
 
-      await expect(Effect.runPromise(Fiber.join(submission))).resolves.toMatchObject({
-        _tag: "Success",
-        value: { value: "TRANSPORT" },
+      await expect(Effect.runPromise(Fiber.join(submission))).resolves.toEqual({
+        value: "TRANSPORT",
       });
       expect(action.state.get().result).toMatchObject({
         _tag: "Success",
         waiting: false,
-        value: {
-          _tag: "Success",
-          value: { value: "TRANSPORT" },
-        },
+        value: { value: "TRANSPORT" },
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
-  it("applies action concurrency to native StartAction submissions", async () => {
+  it("applies action concurrency to transported submissions", async () => {
     const release = Effect.runSync(Deferred.make<void>());
     let requests = 0;
     const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
@@ -5386,8 +5319,8 @@ describe("Sunfall Arc Start", () => {
           },
         );
       });
-    const runtime = makeRuntime();
-    const action = StartAction.use(Ping, { fetch: fetcher, runtime });
+    const runtime = makeRuntime(makeActionTransportLayer({ fetch: fetcher, actions: [Ping] }));
+    const action = Action.use(Ping, { runtime });
 
     try {
       const first = runtime.runFork(action.submitEffect({ value: "first" }));
@@ -5395,13 +5328,11 @@ describe("Sunfall Arc Start", () => {
       const second = runtime.runFork(action.submitEffect({ value: "second" }));
       Effect.runSync(Deferred.succeed(release, undefined));
 
-      await expect(runInRuntime(runtime, Fiber.join(first))).resolves.toMatchObject({
-        _tag: "Success",
-        value: { value: "response-1" },
+      await expect(runInRuntime(runtime, Fiber.join(first))).resolves.toEqual({
+        value: "response-1",
       });
-      await expect(runInRuntime(runtime, Fiber.join(second))).resolves.toMatchObject({
-        _tag: "Success",
-        value: { value: "response-1" },
+      await expect(runInRuntime(runtime, Fiber.join(second))).resolves.toEqual({
+        value: "response-1",
       });
       expect(requests).toBe(1);
       expect(action.state.get()).toMatchObject({
@@ -5413,7 +5344,7 @@ describe("Sunfall Arc Start", () => {
     }
   });
 
-  it("does not hydrate stale StartAction submissions", async () => {
+  it("keeps the newest hydration when a stale parallel submission settles later", async () => {
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
       name: Schema.String,
@@ -5446,7 +5377,6 @@ describe("Sunfall Arc Start", () => {
       },
       run: ({ name }) => Effect.succeed({ name }),
     });
-    const runtime = makeRuntime();
     const ref = Project("atlas");
     const invalidatedRef = InvalidatedProject("atlas");
     const firstRelease = Effect.runSync(Deferred.make<void>());
@@ -5523,7 +5453,10 @@ describe("Sunfall Arc Start", () => {
         yield* Deferred.await(secondRelease);
         return responseFor("Second", 2);
       });
-    const action = StartAction.use(RenameProject, { fetch: fetcher, runtime });
+    const runtime = makeRuntime(
+      makeActionTransportLayer({ fetch: fetcher, actions: [RenameProject] }),
+    );
+    const action = Action.use(RenameProject, { runtime });
 
     try {
       await runInRuntime(runtime, Resource.prefetchEffect(ref));
@@ -5533,9 +5466,8 @@ describe("Sunfall Arc Start", () => {
       const second = runtime.runFork(action.submitEffect({ name: "Second" }));
 
       Effect.runSync(Deferred.succeed(secondRelease, undefined));
-      await expect(runInRuntime(runtime, Fiber.join(second))).resolves.toMatchObject({
-        _tag: "Success",
-        value: { name: "Second" },
+      await expect(runInRuntime(runtime, Fiber.join(second))).resolves.toEqual({
+        name: "Second",
       });
       expect(
         runWithRuntime(runtime, () =>
@@ -5562,9 +5494,8 @@ describe("Sunfall Arc Start", () => {
         name: "Invalidated By First",
       };
       Effect.runSync(Deferred.succeed(firstRelease, undefined));
-      await expect(runInRuntime(runtime, Fiber.join(first))).resolves.toMatchObject({
-        _tag: "Success",
-        value: { name: "First" },
+      await expect(runInRuntime(runtime, Fiber.join(first))).resolves.toEqual({
+        name: "First",
       });
       expect(
         runWithRuntime(runtime, () =>

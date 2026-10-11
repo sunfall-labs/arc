@@ -10,7 +10,7 @@ import { AsyncResult } from "effect/reactivity";
 import { createComponent, Errored, Loading, render, Show } from "@solidjs/web";
 import { createSignal, resetErrorHalt } from "solid-js";
 import { describe, expect, it, vi } from "vitest";
-import { Component, RuntimeProvider } from "../src/index.js";
+import { Component } from "../src/index.js";
 import { reactive, ssrApp, ssrMarkup } from "./component-ssr-fixture.js";
 
 // Counts reader bindings Components create, to observe binding reuse.
@@ -55,12 +55,15 @@ describe("Component", () => {
       Effect.gen(function* () {
         const container = document.createElement("div");
         const events: Array<string> = [];
-        const Greeting = Component.make("Greeting", function* () {
-          const api = yield* ProjectApi;
-          yield* Effect.addFinalizer(() => Effect.sync(() => events.push("setup finalized")));
-          const name = yield* api.get("atlas").pipe(Effect.orDie);
-          return (props: { readonly greeting: string }) => `${props.greeting} ${name}`;
-        });
+        const Greeting = Component.make(
+          "Greeting",
+          function* (props: { readonly greeting: string }) {
+            const api = yield* ProjectApi;
+            yield* Effect.addFinalizer(() => Effect.sync(() => events.push("setup finalized")));
+            const name = yield* api.get("atlas").pipe(Effect.orDie);
+            return () => `${props.greeting} ${name}`;
+          },
+        );
         const App = Greeting.pipe(
           Component.provide(projectApi((id) => Effect.succeed(id.toUpperCase()))),
         );
@@ -74,43 +77,52 @@ describe("Component", () => {
 
         yield* Scope.close(scope, Exit.void);
         expect(container.textContent).toBe("");
-        // The mount owned its runtime, so runtime disposal closed the setup Scope.
+        // Disposing the tree closed the instance Scope.
         expect(events).toEqual(["setup finalized"]);
       }),
     ));
 
-  it("runs setup once per runtime and render once per instance", () =>
+  it("runs setup and render once per instance, with that instance's props", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
           let setups = 0;
           let renders = 0;
-          const Counter = Component.make("Counter", function* () {
-            yield* Effect.sync(() => setups++);
+          const finalized: Array<string> = [];
+          const Counter = Component.make("Counter", function* (props: { readonly label: string }) {
+            const setup = ++setups;
+            yield* Effect.addFinalizer(() => Effect.sync(() => finalized.push(props.label)));
             return () => {
               renders++;
-              return `setups:${setups}`;
+              return `${props.label}:${setup};`;
             };
           });
+          const [showSecond, setShowSecond] = createSignal(true);
           const Twice = Component.make("Twice", function* () {
             const Inner = yield* Counter;
-            return () => [Inner({}), Inner({})];
+            return () => [
+              Inner({ label: "a" }),
+              createComponent(Show, {
+                get when() {
+                  return showSecond();
+                },
+                children: () => Inner({ label: "b" }),
+              }),
+            ];
           });
 
-          const shared = makeRuntime();
-          yield* Effect.addFinalizer(() => shared.disposeEffect.pipe(Effect.orDie));
-          const first = document.createElement("div");
-          const second = document.createElement("div");
-          yield* Component.mount(Twice, first, { runtime: shared });
-          yield* Component.mount(Twice, second, { runtime: shared });
-          expect(first.textContent).toBe("setups:1setups:1");
-          expect(second.textContent).toBe("setups:1setups:1");
-          expect(setups).toBe(1);
-          expect(renders).toBe(4);
-
-          const third = document.createElement("div");
-          yield* Component.mount(Twice, third);
+          const container = document.createElement("div");
+          yield* Component.mount(Twice, container);
+          expect(container.textContent).toBe("a:1;b:2;");
           expect(setups).toBe(2);
+          expect(renders).toBe(2);
+
+          // Disposing one instance closes only its Scope.
+          setShowSecond(false);
+          yield* waitForText(container, "a:1;");
+          expect(finalized).toEqual(["b"]);
+          setShowSecond(true);
+          yield* waitForText(container, "a:1;b:3;");
         }),
       ),
     ));
@@ -122,9 +134,9 @@ describe("Component", () => {
           const release = yield* Deferred.make<void>();
           let loads = 0;
           const ProjectById = projectFamily();
-          const Card = Component.make("Card", function* () {
+          const Card = Component.make("Card", function* (props: { readonly id: string }) {
             const project = yield* Component.resource(ProjectById);
-            return (props: { readonly id: string }) => reactive(() => project(props.id));
+            return () => reactive(() => project(props.id));
           });
           const App = Component.make("App", function* () {
             const Loaded = yield* Card.pipe(
@@ -162,9 +174,9 @@ describe("Component", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const ProjectById = projectFamily();
-          const Card = Component.make("Card", function* () {
+          const Card = Component.make("Card", function* (props: { readonly id: string }) {
             const project = yield* Component.resource(ProjectById);
-            return (props: { readonly id: string }) => reactive(() => project(props.id));
+            return () => reactive(() => project(props.id));
           });
           const App = Component.make("App", function* () {
             const Safe = yield* Card.pipe(
@@ -244,7 +256,7 @@ describe("Component", () => {
       }),
     ));
 
-  it("interrupts a pending setup when the mount is interrupted and reruns it later", () =>
+  it("interrupts a pending setup when the mount is interrupted and reruns it on remount", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
@@ -279,31 +291,26 @@ describe("Component", () => {
       ),
     ));
 
-  it("embeds into an existing RuntimeProvider tree, suspending while setup runs", () =>
+  it("embeds into a Solid tree on a runtime, suspending while setup runs", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
           const gate = yield* Deferred.make<void>();
           const runtime = makeRuntime();
           yield* Effect.addFinalizer(() => runtime.disposeEffect.pipe(Effect.orDie));
-          const Slow = Component.make("Slow", function* () {
+          const Slow = Component.make("Slow", function* (props: { readonly label: string }) {
             yield* Deferred.await(gate);
-            return (props: { readonly label: string }) => `embedded ${props.label}`;
+            return () => `embedded ${props.label}`;
           });
-          const Embedded = Component.embed(Slow);
+          const Embedded = Component.embed(Slow, runtime);
 
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RuntimeProvider, {
-                runtime,
+              createComponent(Loading, {
+                fallback: "waiting",
                 get children() {
-                  return createComponent(Loading, {
-                    fallback: "waiting",
-                    get children() {
-                      return createComponent(Embedded, { label: "atlas" });
-                    },
-                  });
+                  return createComponent(Embedded, { label: "atlas" });
                 },
               }),
             container,
@@ -364,9 +371,9 @@ describe("Component", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const events: Array<string> = [];
-        const Greeting = Component.make("Greeting", function* () {
+        const Greeting = Component.make("Greeting", function* (props: { readonly name: string }) {
           yield* Effect.addFinalizer(() => Effect.sync(() => events.push("setup finalized")));
-          return (props: { readonly name: string }) => `Hello ${props.name}`;
+          return () => `Hello ${props.name}`;
         });
         const container = document.createElement("div");
 
@@ -390,11 +397,11 @@ describe("Component", () => {
             name: "test/Component/hostRuntime/ProjectName",
             load: (id: string) => ProjectApi.use((api) => api.get(id)),
           });
-          const App = Component.make("HostServicesApp", function* () {
+          const App = Component.make("HostServicesApp", function* (props: { readonly id: string }) {
             const api = yield* ProjectApi;
             const prefix = yield* api.get("prefix");
             const name = yield* Component.resource(ProjectName);
-            return (props: { readonly id: string }) => `${prefix}:${name(props.id)}`;
+            return () => `${prefix}:${name(props.id)}`;
           }).pipe(Component.catchTags({ ProjectNotFound: () => "missing", Forbidden: () => "no" }));
           const runtime = makeRuntime(
             Layer.succeed(ProjectApi, { get: (id: string) => Effect.succeed(id.toUpperCase()) }),
@@ -481,20 +488,20 @@ describe("Component", () => {
           const [shown, setShown] = createSignal(true);
           const Card = Component.make("Card", function* () {
             const project = yield* Component.resource(ProjectById);
-            return () => reactive(() => project("atlas"));
+            return () =>
+              createComponent(Show, {
+                get when() {
+                  return shown();
+                },
+                children: () => reactive(() => project("atlas")),
+              });
           });
           const App = Component.make("App", function* () {
             const Loaded = yield* Card.pipe(
               Component.catchTags({ ProjectNotFound: () => "gone", Forbidden: () => "no" }),
               Component.loading(() => "loading"),
             );
-            return () =>
-              createComponent(Show, {
-                get when() {
-                  return shown();
-                },
-                children: () => Loaded({}),
-              });
+            return () => Loaded({});
           }).pipe(
             Component.provide(
               projectApi((id) => Effect.as(Deferred.await(release), `Project ${id}`)),

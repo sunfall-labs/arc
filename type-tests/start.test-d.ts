@@ -11,7 +11,7 @@ import {
   makeStartStaticHistoryAdapter,
   normalizeStartStaticBasePath,
   stripStartStaticBasePath,
-  submitStartActionEffect,
+  makeActionTransportLayer,
   withStartStaticBasePath,
   StartAction,
   StartActionDuplicateName,
@@ -35,7 +35,7 @@ import {
   type HydrateFromDocumentOptions,
   type ServerFunctionManifestSource,
   type ServerRpcClientOptions,
-  type StartActionClientOptions,
+  type ActionTransportLayerOptions,
   type StartActionFormOptions,
   type StartActionInvalidationPlan,
   type StartCollectionHydrationOptions,
@@ -54,8 +54,14 @@ import {
   type StartStreamedHtmlResponseOptions,
   type StartTransportEndpointOverrides,
 } from "@sunfall/arc-start";
-import { Schema } from "effect";
-import { route, type ActionDefinition, type Route } from "@sunfall/arc-core";
+import { Effect, type Layer, Schema } from "effect";
+import {
+  route,
+  type ActionDefinition,
+  type ActionTransport,
+  type Route,
+  type SunfallArcRuntime,
+} from "@sunfall/arc-core";
 
 const startExports: Array<unknown> = [
   createHtmlResponseEffect,
@@ -70,7 +76,6 @@ const startExports: Array<unknown> = [
   makeStartStaticHistoryAdapter,
   normalizeStartStaticBasePath,
   stripStartStaticBasePath,
-  submitStartActionEffect,
   withStartStaticBasePath,
   StartAction,
   StartActionDuplicateName,
@@ -96,7 +101,7 @@ type StartTypes =
   | HydrateFromDocumentOptions
   | ServerFunctionManifestSource
   | ServerRpcClientOptions
-  | StartActionClientOptions
+  | ActionTransportLayerOptions
   | StartActionFormOptions<{ readonly id: string }>
   | StartActionInvalidationPlan
   | StartCollectionHydrationOptions
@@ -154,17 +159,26 @@ const decodedStartActionFormDataEffect = StartAction.decodeFormDataEffect(
   Schema.Struct({ id: Schema.String }),
   startActionBrowserFormData,
 );
-const startActionSubmitEffect = submitStartActionEffect(startActionDefinition, { id: "atlas" });
-const startActionInstance: StartAction.Instance<typeof startActionDefinition> =
-  StartAction.use(startActionDefinition);
-type StartActionResultPin = StartAction.Result<typeof startActionDefinition>;
-type StartActionStatePin = StartAction.State<typeof startActionDefinition>;
+// Scripted UI submits through `Component.action`; Start routes served Actions
+// over the network by providing the `ActionTransport` service.
+const actionTransportLayer: Layer.Layer<ActionTransport> = makeActionTransportLayer({
+  actions: [startActionDefinition],
+});
+declare const startActionTransportRuntime: SunfallArcRuntime<{ readonly token: string }>;
+const runtimeBackedActionTransportLayer: Layer.Layer<ActionTransport> = makeActionTransportLayer({
+  actions: [startActionDefinition],
+  fetch: () => Effect.die("not used"),
+  transportRuntime: startActionTransportRuntime,
+});
+// @ts-expect-error the transport needs the list of Actions the server serves
+makeActionTransportLayer({});
+// @ts-expect-error StartAction no longer creates stateful client instances; use Component.action
+StartAction.use(startActionDefinition);
 void startActionFormMethod;
 void startActionFormEncodeError;
 void decodedStartActionFormDataEffect;
-void startActionSubmitEffect;
-void startActionInstance;
-type _StartActionPins = StartActionResultPin | StartActionStatePin;
+void actionTransportLayer;
+void runtimeBackedActionTransportLayer;
 
 declare const startRenderContext: StartRenderContext;
 const legacyHydrationScript: string = startRenderContext.legacyHydrationScript;

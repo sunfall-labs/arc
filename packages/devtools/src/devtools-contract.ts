@@ -1,7 +1,5 @@
 import {
   type ActionInstance,
-  type ActionState,
-  type ReadableSignal,
   type ResourceInvalidationPlan,
   type ResourceStoreEvent,
   type Route,
@@ -136,15 +134,6 @@ export type DevtoolsRecordActionStateOptions = {
       readonly serializedInvalidationPlan?: DevtoolsInvalidationPlan | undefined;
     }
 );
-
-/** Minimal Start action instance shape that Devtools can track. */
-export interface DevtoolsStartActionInstance<I = unknown, A = unknown, E = unknown> {
-  readonly definition: {
-    readonly name: string;
-  };
-  readonly state: ReadableSignal<ActionState<I, A, E>>;
-  readonly invalidation: ReadableSignal<DevtoolsInvalidationPlan | undefined>;
-}
 
 /** Collection event DTO mirrored from the DB Collection Store for Devtools panels. */
 export type DevtoolsCollectionStoreEvent =
@@ -552,13 +541,6 @@ export interface DevtoolsStore {
   ) => Effect.Effect<void>;
   readonly trackActionEffect: <I, A, E, R>(
     action: ActionInstance<I, A, E, R>,
-  ) => Effect.Effect<void, never, Scope.Scope>;
-  readonly recordStartAction: <I, A, E>(action: DevtoolsStartActionInstance<I, A, E>) => void;
-  readonly recordStartActionEffect: <I, A, E>(
-    action: DevtoolsStartActionInstance<I, A, E>,
-  ) => Effect.Effect<void>;
-  readonly trackStartActionEffect: <I, A, E>(
-    action: DevtoolsStartActionInstance<I, A, E>,
   ) => Effect.Effect<void, never, Scope.Scope>;
   readonly recordRoutePlan: (plan: Route.NavigationPlan) => number;
   /** Effect variant of `recordRoutePlan(...)`. */

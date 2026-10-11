@@ -3,13 +3,14 @@ import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vitest";
 import {
   Action,
+  ActionTransport,
   EffectInputCallbackError,
   EffectInputPromiseRejected,
   makeRuntime,
   Resource,
   Signal,
 } from "../src/index.js";
-import { eraseRuntime, makeActionSubmissionController } from "../src/internal.js";
+import { eraseRuntime, makeActionSubmissionController, defaultRuntime } from "../src/internal.js";
 import { makeActionOptimisticTransactionRuntime } from "../src/action-optimistic.js";
 
 describe("Action", () => {
@@ -18,7 +19,7 @@ describe("Action", () => {
       name: "rename",
       run: (name: string) => Effect.sleep("1 millis").pipe(Effect.as({ name })),
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     expect(action.state.get().result._tag).toBe("Initial");
     const submission = Effect.runFork(action.submitEffect("Ada"));
@@ -35,7 +36,7 @@ describe("Action", () => {
       name: "rename.effect",
       run: (name: string) => Effect.succeed({ name }),
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     await expect(Effect.runPromise(action.submitEffect("Grace"))).resolves.toEqual({
       name: "Grace",
@@ -51,7 +52,7 @@ describe("Action", () => {
       name: "computation.effect-valued",
       run: () => Effect.succeed(domainEffect),
     });
-    const action = Action.use(BuildComputation);
+    const action = Action.use(BuildComputation, { runtime: defaultRuntime });
 
     const value = await Effect.runPromise(action.submitEffect(undefined));
 
@@ -72,7 +73,7 @@ describe("Action", () => {
                 ? Effect.fail("failed" as const)
                 : Effect.void,
         });
-        const action = Action.use(Complete);
+        const action = Action.use(Complete, { runtime: defaultRuntime });
 
         yield* action.submitEffect("success");
 
@@ -107,7 +108,7 @@ describe("Action", () => {
         throw new Error("rename failed");
       },
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
 
@@ -127,7 +128,7 @@ describe("Action", () => {
       name: "rename.promise-erased",
       run: () => Promise.resolve("Ada") as never,
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
 
@@ -155,7 +156,7 @@ describe("Action", () => {
       },
       run: (name) => Effect.succeed(name),
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
 
@@ -177,7 +178,7 @@ describe("Action", () => {
       optimistic: () => Promise.resolve(Effect.void) as never,
       run: (name) => Effect.succeed(name),
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
 
@@ -210,7 +211,7 @@ describe("Action", () => {
         }),
       run: (name) => Effect.succeed(name),
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
 
@@ -241,7 +242,7 @@ describe("Action", () => {
         }),
       run: (name) => Effect.succeed(name),
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
 
@@ -272,7 +273,7 @@ describe("Action", () => {
         }),
       run: (name) => Effect.succeed(name),
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
 
@@ -380,7 +381,7 @@ describe("Action", () => {
         throw cause;
       },
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
 
@@ -402,7 +403,7 @@ describe("Action", () => {
       run: (name) => Effect.succeed(name),
       invalidates: () => Promise.resolve([]) as never,
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
 
@@ -479,7 +480,7 @@ describe("Action", () => {
       run: (name) => Effect.succeed(name),
       invalidates: () => [Promise.resolve(ref) as never],
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
 
@@ -544,7 +545,9 @@ describe("Action", () => {
       invalidates: () => [ref],
     });
 
-    await Effect.runPromise(Action.use(Increment).submitEffect(undefined));
+    await Effect.runPromise(
+      Action.use(Increment, { runtime: defaultRuntime }).submitEffect(undefined),
+    );
 
     expect(Effect.runSync(Resource.readEffect(ref))).toBe(1);
     expect(load).toHaveBeenCalledTimes(2);
@@ -572,7 +575,9 @@ describe("Action", () => {
       invalidates: () => [CountTag],
     });
 
-    await Effect.runPromise(Action.use(Increment).submitEffect(undefined));
+    await Effect.runPromise(
+      Action.use(Increment, { runtime: defaultRuntime }).submitEffect(undefined),
+    );
 
     expect(Effect.runSync(Resource.readEffect(ref))).toBe(1);
     expect(load).toHaveBeenCalledTimes(2);
@@ -824,7 +829,7 @@ describe("Action", () => {
       run: () => Effect.succeed(1),
       invalidates: () => invalidationTargets,
     });
-    const action = Action.use(Increment);
+    const action = Action.use(Increment, { runtime: defaultRuntime });
 
     await Effect.runPromise(action.submitEffect(undefined));
     invalidationTargets.push(Resource.tag("Count.action-plan-ignored"));
@@ -845,7 +850,7 @@ describe("Action", () => {
       name: "finish",
       run: (value: string) => Effect.succeed(value),
     });
-    const action = Action.use(Finish);
+    const action = Action.use(Finish, { runtime: defaultRuntime });
 
     await Effect.runPromise(
       Effect.all(
@@ -876,7 +881,7 @@ describe("Action", () => {
             )
           : Effect.succeed(value),
     });
-    const action = Action.use(Finish);
+    const action = Action.use(Finish, { runtime: defaultRuntime });
 
     await Effect.runPromise(
       Effect.gen(function* () {
@@ -909,7 +914,7 @@ describe("Action", () => {
             )
           : Effect.succeed(value),
     });
-    const action = Action.use(Finish);
+    const action = Action.use(Finish, { runtime: defaultRuntime });
 
     const first = Effect.runFork(action.submitEffect("first"));
     await Effect.runPromise(Effect.sleep("10 millis"));
@@ -938,7 +943,7 @@ describe("Action", () => {
           return "done";
         }),
     });
-    const action = Action.use(Finish);
+    const action = Action.use(Finish, { runtime: defaultRuntime });
 
     await expect(Effect.runPromise(action.submitEffect(undefined))).resolves.toBe("done");
 
@@ -959,7 +964,7 @@ describe("Action", () => {
         }),
       run: (next) => Effect.succeed(next),
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     const submission = Effect.runFork(action.submitEffect("Published"));
 
@@ -982,7 +987,7 @@ describe("Action", () => {
       run: () => Effect.void,
     });
 
-    await Effect.runPromise(Action.use(Clear).submitEffect(undefined));
+    await Effect.runPromise(Action.use(Clear, { runtime: defaultRuntime }).submitEffect(undefined));
 
     expect(selected.get()).toBeUndefined();
   });
@@ -1021,7 +1026,7 @@ describe("Action", () => {
     });
 
     await expect(
-      Effect.runPromise(Action.use(Publish).submitEffect(undefined)),
+      Effect.runPromise(Action.use(Publish, { runtime: defaultRuntime }).submitEffect(undefined)),
     ).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Action.optimistic(publish.optimistic-commit-before-invalidation).signal",
@@ -1044,7 +1049,7 @@ describe("Action", () => {
         }),
       run: () => Effect.fail("boom"),
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     await expect(Effect.runPromise(action.submitEffect("Published"))).rejects.toBe("boom");
 
@@ -1071,7 +1076,7 @@ describe("Action", () => {
         }),
       run: (next) => (next === "Stale" ? Effect.never : Effect.succeed(next)),
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     const first = Effect.runFork(action.submitEffect("Stale"));
     await Effect.runPromise(Effect.sleep("10 millis"));
@@ -1103,7 +1108,7 @@ describe("Action", () => {
         }),
       run: (next) => Effect.succeed(next),
     });
-    const action = Action.use(Rename);
+    const action = Action.use(Rename, { runtime: defaultRuntime });
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -1147,7 +1152,7 @@ describe("Action", () => {
           return value;
         }),
     });
-    const action = Action.use(Finish);
+    const action = Action.use(Finish, { runtime: defaultRuntime });
 
     const [first, second] = await Effect.runPromise(
       Effect.gen(function* () {
@@ -1189,7 +1194,7 @@ describe("Action", () => {
           return value;
         }),
     });
-    const action = Action.use(Finish);
+    const action = Action.use(Finish, { runtime: defaultRuntime });
 
     const first = Effect.runFork(action.submitEffect("first"));
     await Effect.runPromise(Effect.sleep("10 millis"));
@@ -1226,7 +1231,7 @@ describe("Action", () => {
           return value;
         }),
     });
-    const action = Action.use(Finish);
+    const action = Action.use(Finish, { runtime: defaultRuntime });
 
     const first = Effect.runFork(action.submitEffect("first"));
     await Effect.runPromise(Deferred.await(started));
@@ -1258,7 +1263,7 @@ describe("Action", () => {
           return value;
         }),
     });
-    const action = Action.use(Finish);
+    const action = Action.use(Finish, { runtime: defaultRuntime });
 
     const [firstResult, secondResult] = await Effect.runPromise(
       Effect.gen(function* () {
@@ -1297,7 +1302,7 @@ describe("Action", () => {
             )
           : Effect.succeed(value),
     });
-    const action = Action.use(Finish);
+    const action = Action.use(Finish, { runtime: defaultRuntime });
 
     await expect(
       Effect.runPromise(
@@ -1338,7 +1343,7 @@ describe("Action", () => {
         }),
       invalidates,
     });
-    const action = Action.use(Finish);
+    const action = Action.use(Finish, { runtime: defaultRuntime });
 
     const first = Effect.runFork(action.submitEffect("first"));
     const second = Effect.runFork(action.submitEffect("second"));
@@ -1398,7 +1403,7 @@ describe("Action", () => {
         }),
       invalidates: (_value, input) => [input === "first" ? FirstTag : SecondTag],
     });
-    const action = Action.use(Update);
+    const action = Action.use(Update, { runtime: defaultRuntime });
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -1436,5 +1441,91 @@ describe("Action", () => {
         });
       }),
     );
+  });
+
+  describe("ActionTransport", () => {
+    it("submits served Actions through the runtime's transport and runs others locally", () =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const applied: Array<boolean> = [];
+          let localRuns = 0;
+          const Remote = Action.define({
+            name: "ActionTransport.remote",
+            run: (name: string) => Effect.sync(() => (localRuns++, `local:${name}`)),
+          });
+          const Local = Action.define({
+            name: "ActionTransport.local",
+            run: (name: string) => Effect.sync(() => (localRuns++, `local:${name}`)),
+          });
+          const transport = Layer.succeed(ActionTransport)({
+            submit: (definition, input) =>
+              definition.name === Remote.name
+                ? Option.some(
+                    Effect.succeed({
+                      exit: Exit.succeed(`remote:${String(input)}` as never),
+                      apply: (current: boolean) => Effect.sync(() => applied.push(current)),
+                    }),
+                  )
+                : Option.none(),
+          });
+          const runtime = makeRuntime(transport);
+          const remote = Action.use(Remote, { runtime });
+          const local = Action.use(Local, { runtime });
+
+          expect(yield* remote.submitEffect("atlas")).toBe("remote:atlas");
+          expect(yield* local.submitEffect("atlas")).toBe("local:atlas");
+          expect(localRuns).toBe(1);
+          expect(applied).toEqual([true]);
+          expect(remote.state.get().result).toMatchObject({
+            _tag: "Success",
+            value: "remote:atlas",
+          });
+          yield* runtime.disposeEffect;
+        }),
+      ));
+
+    it("reports remote typed failures and applies superseded parallel responses as stale", () =>
+      Effect.runPromise(
+        Effect.gen(function* () {
+          const applied: Array<boolean> = [];
+          const gates = [yield* Deferred.make<void>(), yield* Deferred.make<void>()];
+          let calls = 0;
+          const Save = Action.define({
+            name: "ActionTransport.parallel",
+            policy: { concurrency: "parallel" },
+            run: (_name: string): Effect.Effect<string, "rejected"> => Effect.fail("rejected"),
+          });
+          const transport = Layer.succeed(ActionTransport)({
+            submit: (_definition, input) => {
+              const gate = gates[calls++]!;
+              return Option.some(
+                Effect.as(Deferred.await(gate), {
+                  exit:
+                    input === "bad" ? Exit.fail("rejected" as never) : Exit.succeed(input as never),
+                  apply: (current: boolean) => Effect.sync(() => applied.push(current)),
+                }),
+              );
+            },
+          });
+          const runtime = makeRuntime(transport);
+          const save = Action.use(Save, { runtime });
+
+          const first = runtime.runFork(save.submitEffect("first"));
+          yield* Effect.sleep("1 millis");
+          const second = runtime.runFork(save.submitEffect("bad"));
+          yield* Effect.sleep("1 millis");
+          yield* Deferred.succeed(gates[1]!, undefined);
+          const secondExit = yield* Fiber.await(second);
+          expect(Exit.isFailure(secondExit)).toBe(true);
+          yield* Deferred.succeed(gates[0]!, undefined);
+          expect(yield* Fiber.join(first)).toBe("first");
+          // The newest submission applied in full; the superseded one only as stale.
+          expect(applied).toEqual([true, false]);
+          expect(Option.getOrUndefined(AsyncResult.error(save.state.get().result))).toBe(
+            "rejected",
+          );
+          yield* runtime.disposeEffect;
+        }),
+      ));
   });
 });

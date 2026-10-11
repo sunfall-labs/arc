@@ -3,7 +3,7 @@ import { createComponent, render } from "@solidjs/web";
 import { flush } from "solid-js";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { RuntimeProvider, useProgram, type ProgramHandle } from "../src/index.js";
+import { Component } from "../src/index.js";
 import { reactive } from "./component-ssr-fixture.js";
 
 type CounterMessage = { readonly _tag: "Increment" };
@@ -27,27 +27,16 @@ describe("Timeline in the Solid DOM", () => {
           const title = Signal.make("Draft", { name: "title" });
           const container = document.createElement("div");
           let program:
-            | ProgramHandle<
-                { readonly count: number },
-                CounterMessage,
-                Program.RuntimeError<never>,
-                Program.DispatchError<never>
-              >
+            | Component.ProgramHandle<{ readonly count: number }, CounterMessage, never>
             | undefined;
 
-          const View = () => {
-            program = useProgram(CounterProgram);
-            const counter = program;
-            return reactive(() => `${title.get()}:${counter.model().count}`);
-          };
+          const View = Component.make("View", function* () {
+            const counter = yield* Component.program(CounterProgram);
+            program = counter;
+            return () => reactive(() => `${title.get()}:${counter.model().count}`);
+          });
           const dispose = render(
-            () =>
-              createComponent(RuntimeProvider, {
-                runtime,
-                get children() {
-                  return createComponent(View, {});
-                },
-              }),
+            () => createComponent(Component.embed(View, runtime), {}),
             container,
           );
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
@@ -69,7 +58,7 @@ describe("Timeline in the Solid DOM", () => {
           yield* program!.dispatchEffect({ _tag: "Increment" });
           flush();
           expect(container.textContent).toBe("Draft:1");
-          expect(Signal.peek(program!.instance.model)).toEqual({ count: 3 });
+          expect(Signal.peek(program!.committed)).toEqual({ count: 3 });
 
           yield* recording.resume();
           flush();

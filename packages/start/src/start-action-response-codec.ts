@@ -8,7 +8,7 @@ import {
   ServerRpcProtocolError,
   ServerTransportError,
   type ActionDefinition,
-  type FormFieldErrors,
+  type ActionRedirectStatus,
   type ResourceInvalidationCause,
   type ResourceInvalidationPlan,
   type ResourceSnapshotCodecError,
@@ -102,88 +102,6 @@ export type StartActionResponseBody =
   | ({ readonly _tag: "Failure"; readonly error: unknown } & StartActionResponseMeta)
   | { readonly _tag: "ServerError"; readonly error: unknown }
   | { readonly _tag: "Defect"; readonly defect: unknown };
-
-/** Decoded client result for a Start action submission. */
-export type StartActionResult<
-  A,
-  Values extends object = Record<string, unknown>,
-  ValidationError = never,
-  E = never,
-> =
-  | ({ readonly _tag: "Success"; readonly value: A } & StartActionResponseMeta)
-  | ({
-      readonly _tag: "ValidationFailure";
-      readonly fieldErrors: FormFieldErrors<Values, ValidationError>;
-      readonly formErrors: readonly ValidationError[];
-      readonly cause?: unknown;
-    } & StartActionResponseMeta)
-  | ({
-      readonly _tag: "Redirect";
-      readonly location: string;
-      readonly status: number;
-      readonly headers?: Readonly<Record<string, string>>;
-      readonly replace?: boolean;
-    } & StartActionResponseMeta)
-  | ({ readonly _tag: "Failure"; readonly error: E } & StartActionResponseMeta);
-
-type StartActionOutputSuccess<A> = [
-  Extract<A, { readonly _tag: "Success"; readonly value: unknown }>,
-] extends [never]
-  ? A
-  : Extract<A, { readonly _tag: "Success"; readonly value: unknown }> extends {
-        readonly value: infer Success;
-      }
-    ? Success
-    : A;
-
-type StartActionOutputValues<A> = [
-  Extract<A, { readonly _tag: "ValidationFailure"; readonly fieldErrors: unknown }>,
-] extends [never]
-  ? Record<string, unknown>
-  : Extract<A, { readonly _tag: "ValidationFailure"; readonly fieldErrors: unknown }> extends {
-        readonly fieldErrors: FormFieldErrors<infer Values, infer _Error>;
-      }
-    ? Values
-    : Record<string, unknown>;
-
-type StartActionOutputValidationError<A> = [
-  Extract<A, { readonly _tag: "ValidationFailure"; readonly formErrors: readonly unknown[] }>,
-] extends [never]
-  ? never
-  : Extract<
-        A,
-        { readonly _tag: "ValidationFailure"; readonly formErrors: readonly unknown[] }
-      > extends {
-        readonly formErrors: readonly (infer ValidationError)[];
-      }
-    ? ValidationError
-    : never;
-
-type StartActionOutputFailure<A, E> = [
-  Extract<A, { readonly _tag: "Failure"; readonly error: unknown }>,
-] extends [never]
-  ? E
-  : Extract<A, { readonly _tag: "Failure"; readonly error: unknown }> extends {
-        readonly error: infer Failure;
-      }
-    ? E | Failure
-    : E;
-
-/** Extracts the output value type from a core `ActionDefinition`. */
-export type ActionDefinitionOutputValue<D> =
-  D extends ActionDefinition<infer _I, infer A, infer _E, infer _R> ? A : never;
-
-/** Extracts the error value type from a core `ActionDefinition`. */
-export type ActionDefinitionErrorValue<D> =
-  D extends ActionDefinition<infer _I, infer _A, infer E, infer _R> ? E : never;
-
-/** Infers the typed Start action client result from an action output and error. */
-export type StartActionResultFor<A, E = never> = StartActionResult<
-  StartActionOutputSuccess<A>,
-  StartActionOutputValues<A>,
-  StartActionOutputValidationError<A>,
-  StartActionOutputFailure<A, E>
->;
 
 const startActionDefectBody = (
   cause: unknown,
@@ -661,13 +579,6 @@ export const parseStartActionResponse = (
     return payload;
   });
 
-const startActionResponseMeta = (body: StartActionResponseBody): StartActionResponseMeta => ({
-  ...("invalidation" in body && body.invalidation !== undefined
-    ? { invalidation: body.invalidation }
-    : {}),
-  ...("hydration" in body && body.hydration !== undefined ? { hydration: body.hydration } : {}),
-});
-
 const hasActionResultTag = (
   value: unknown,
 ): value is Extract<
@@ -680,98 +591,59 @@ const hasActionResultTag = (
     value._tag === "Redirect" ||
     value._tag === "Failure");
 
-const normalizeDecodedActionResult = (
-  decoded: Extract<
-    StartActionResponseBody,
-    { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }
-  >,
-  meta: StartActionResponseMeta,
-): StartActionResult<unknown, Record<string, unknown>, unknown, unknown> => {
-  switch (decoded._tag) {
-    case "Success":
-      return {
-        _tag: "Success",
-        value: decoded.value,
-        ...meta,
-      };
-    case "ValidationFailure":
-      return {
-        _tag: "ValidationFailure",
-        fieldErrors: decoded.fieldErrors as FormFieldErrors<Record<string, unknown>, unknown>,
-        formErrors: decoded.formErrors,
-        ...(decoded.cause === undefined ? {} : { cause: decoded.cause }),
-        ...meta,
-      };
-    case "Redirect":
-      return {
-        _tag: "Redirect",
-        location: decoded.location,
-        status: decoded.status,
-        ...(decoded.headers === undefined ? {} : { headers: decoded.headers }),
-        ...(decoded.replace === undefined ? {} : { replace: decoded.replace }),
-        ...meta,
-      };
-    case "Failure":
-      return {
-        _tag: "Failure",
-        error: decoded.error,
-        ...meta,
-      };
-  }
-};
+/** A decoded remote action outcome: the value or typed error a local `run` would produce. */
+export type StartActionOutcome<A, E> =
+  | { readonly _tag: "Value"; readonly value: A }
+  | { readonly _tag: "Error"; readonly error: E };
 
-const decodeActionOutputResultEffect = (
-  definition: StartActionDefinition,
+/**
+ * Decodes an action response into the outcome a local submission of the same
+ * definition produces: an output schema that describes `ActionResult` values
+ * decodes the whole response; otherwise `Success` decodes the output value,
+ * `Failure` the typed error, and `ValidationFailure` / `Redirect` become the
+ * `ActionResult` values the server action returned.
+ */
+export const decodeStartActionOutcomeEffect = <I, A, E, R>(
+  definition: ActionDefinition<I, A, E, R>,
   body: Extract<
     StartActionResponseBody,
     { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }
   >,
-  meta: StartActionResponseMeta,
-): Effect.Effect<
-  StartActionResult<unknown, Record<string, unknown>, unknown, unknown>,
-  Schema.SchemaError
-> =>
+): Effect.Effect<StartActionOutcome<A, E>, Schema.SchemaError> =>
   Effect.gen(function* () {
-    const decoded = yield* Effect.exit(decodeWithSchema(definition.output, body));
-    if (Exit.isSuccess(decoded) && hasActionResultTag(decoded.value)) {
-      return normalizeDecodedActionResult(decoded.value, meta);
+    const whole = yield* Effect.exit(decodeWithSchema(definition.output, body));
+    if (Exit.isSuccess(whole) && hasActionResultTag(whole.value)) {
+      return { _tag: "Value", value: whole.value as A };
     }
 
     switch (body._tag) {
       case "Success":
         return {
-          _tag: "Success",
-          value: yield* decodeWithSchema(definition.output, body.value),
-          ...meta,
+          _tag: "Value",
+          value: (yield* decodeWithSchema(definition.output, body.value)) as A,
         };
       case "Failure":
         return {
-          _tag: "Failure",
-          error: yield* decodeWithSchema(definition.error, body.error),
-          ...meta,
+          _tag: "Error",
+          error: (yield* decodeWithSchema(definition.error, body.error)) as E,
         };
       case "ValidationFailure":
-        return normalizeDecodedActionResult(body, meta);
+        return {
+          _tag: "Value",
+          value: ActionResult.validation({
+            fieldErrors: body.fieldErrors as never,
+            formErrors: body.formErrors as never,
+            ...(body.cause === undefined ? {} : { cause: body.cause }),
+          }) as A,
+        };
       case "Redirect":
-        return normalizeDecodedActionResult(body, meta);
+        return {
+          _tag: "Value",
+          value: ActionResult.redirect(body.location, {
+            status: body.status as ActionRedirectStatus,
+            ...(body.headers === undefined ? {} : { headers: body.headers }),
+            ...(body.replace === undefined ? {} : { replace: body.replace }),
+          }) as A,
+        };
     }
   });
-
-export const decodeStartActionResponseEffect = <D extends StartActionDefinition>(
-  definition: D,
-  body: Extract<
-    StartActionResponseBody,
-    { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }
-  >,
-): Effect.Effect<
-  StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>,
-  Schema.SchemaError
-> =>
-  Effect.map(
-    decodeActionOutputResultEffect(definition, body, startActionResponseMeta(body)),
-    (decoded) =>
-      decoded as StartActionResultFor<
-        ActionDefinitionOutputValue<D>,
-        ActionDefinitionErrorValue<D>
-      >,
-  );

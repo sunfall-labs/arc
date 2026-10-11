@@ -17,7 +17,8 @@ import {
 } from "@sunfall/arc-core";
 import { eraseRuntime, onDispose } from "@sunfall/arc-core/internal";
 import type { JSX } from "@solidjs/web";
-import type { BrowserRouter } from "../src/index.js";
+import type { AnySunfallArcRuntime, BrowserHistoryAdapter } from "@sunfall/arc-core";
+import type { BrowserRouter, RouterOutletProps, RouterProviderProps } from "../src/index.js";
 
 const { Errored, Loading, Show, children, createRoot, createSignal, getOwner, onCleanup } =
   await import("solid-js");
@@ -25,8 +26,71 @@ const { Errored, Loading, Show, children, createRoot, createSignal, getOwner, on
 /** Reads rendered output the way DOM insertion would; Solid 2 evaluates children lazily. */
 const resolveRendered = (element: unknown): unknown => children(() => element as never)();
 const { createComponent, hydrate, render } = await import("@solidjs/web");
-const { RouterLink, RouterOutlet, RouterProvider, RuntimeProvider, useRouter } =
-  await import("../src/index.js");
+const {
+  Component,
+  RouterLink,
+  RouterOutlet,
+  RouterProvider: BoundRouterProvider,
+  useRouter,
+} = await import("../src/index.js");
+const { createContext, useContext } = await import("solid-js");
+
+// Test shims: the runtime + routes provider pair these tests were written
+// against, rebuilt on `Component.router(...)` (the router is created in a
+// Component instance on the shim runtime) and `RouterProvider`.
+const ShimRuntime = createContext<AnySunfallArcRuntime<never> | null>(null);
+const RuntimeProvider = (props: {
+  readonly runtime: object;
+  readonly children?: JSX.Element;
+}): JSX.Element =>
+  createComponent(ShimRuntime, {
+    get value() {
+      return props.runtime as AnySunfallArcRuntime<never>;
+    },
+    get children() {
+      return props.children;
+    },
+  });
+const RouterProvider = <
+  const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
+>(
+  props: RouterOutletProps<Routes, never> & {
+    readonly routes: Routes;
+    readonly initialHref?: string;
+    readonly hydrating?: boolean;
+    readonly history?: BrowserHistoryAdapter;
+    readonly children?: JSX.Element;
+  },
+): JSX.Element => {
+  const runtime = useContext(ShimRuntime);
+  if (runtime === null) {
+    throw new Error("RouterProvider shim needs a RuntimeProvider shim");
+  }
+  const Tree = Component.make("RouterTree", function* () {
+    const router = yield* Component.router(props.routes, {
+      ...(props.initialHref === undefined ? {} : { initialHref: props.initialHref }),
+      ...(props.hydrating === undefined ? {} : { hydrating: props.hydrating }),
+      ...(props.history === undefined ? {} : { history: props.history }),
+    });
+    return () =>
+      createComponent(BoundRouterProvider<Routes, never>, {
+        router,
+        get pending() {
+          return props.pending;
+        },
+        get failure() {
+          return props.failure;
+        },
+        get notFound() {
+          return props.notFound;
+        },
+        get children() {
+          return props.children;
+        },
+      } as RouterProviderProps<Routes, never>);
+  }) as unknown as Parameters<typeof Component.embed<{}>>[0];
+  return createComponent(Component.embed(Tree, runtime), {});
+};
 const { createBrowserRouter } = await import("../src/router.js");
 const { makeSolidRouteRenderScopeController } = await import("../src/route-render-scope.js");
 

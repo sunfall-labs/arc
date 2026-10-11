@@ -133,6 +133,25 @@ export interface RouteLazyComponent<Component = unknown, E = never> {
   read(): Component;
 }
 
+/**
+ * Marker key carried by renderer components that are values rather than plain
+ * functions (Solid's typed `Component`), so routes accept them as components.
+ */
+export const RouteViewTypeId = "~@sunfall/arc-core/RouteView";
+
+/** A renderer component value accepted as a route component; `P` is its props. */
+export interface RouteView<in P> {
+  readonly [RouteViewTypeId]: { readonly _P: (props: P) => void };
+}
+
+/**
+ * Phantom carried by routes from `Route.withComponent(...)`: the attached
+ * component's type, so renderer adapters can check what it requires.
+ */
+export interface RouteWithComponent<out C> {
+  readonly "~@sunfall/arc-core/RouteComponent"?: C;
+}
+
 /** Error thrown by `Route.readComponent(...)` when a lazy route component is still loading. */
 export class RouteLazyComponentPending<E = never> extends Data.TaggedError(
   "RouteLazyComponentPending",
@@ -861,9 +880,14 @@ export namespace Route {
         }
       : never;
 
-  export type Component<R extends Definition<string, unknown, unknown, any>> = (
-    props: Props<R>,
-  ) => unknown;
+  /** A route component: a plain render function or a renderer component value. */
+  export type Component<R extends Definition<string, unknown, unknown, any>> =
+    | ((props: Props<R>) => unknown)
+    | RouteView<Props<R>>;
+
+  /** The component attached to a route by `withComponent` (`never` when none is known). */
+  export type ComponentOf<R> =
+    R extends RouteWithComponent<infer C> ? Exclude<C, undefined> : never;
 
   export type LazyComponent<ComponentValue = unknown, E = never> = RouteLazyComponent<
     ComponentValue,
@@ -926,7 +950,8 @@ export namespace Route {
   >(
     definition: R,
     component: RouteComponent,
-  ): Definition<R["path"], Params<R>, Search<R>, PreloadRequirements<R>, PreloadFailure<R>> =>
+  ): Definition<R["path"], Params<R>, Search<R>, PreloadRequirements<R>, PreloadFailure<R>> &
+    RouteWithComponent<RouteComponent> =>
     route(definition.path, {
       ...definition.options,
       component,
@@ -936,7 +961,8 @@ export namespace Route {
       Search<R>,
       PreloadRequirements<R>,
       PreloadFailure<R>
-    >;
+    > &
+      RouteWithComponent<RouteComponent>;
 
   /**
    * Returns the first matching route for a URL, or undefined when none match.

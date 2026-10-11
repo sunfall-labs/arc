@@ -30,14 +30,11 @@ On the server, Start runs preload through the request runtime before rendering. 
 export const handleRequest = createRequestHandler(app, {
   render: ({ hydrationPlan, runtime }) =>
     Effect.gen(function* () {
-      const body = renderToString(() => (
-        <RuntimeProvider runtime={runtime}>
-          <App />
-        </RuntimeProvider>
-      ));
+      // `embed` checks the request runtime provides every service App needs.
+      const body = renderToString(() => createComponent(Component.embed(App, runtime), {}));
 
       return yield* createStartStreamedHtmlResponseEffect({
-        shell: htmlChunk("<!doctype html><div id=\"root\">"),
+        shell: htmlChunk('<!doctype html><div id="root">'),
         chunks: Stream.make(htmlChunk(body)),
         hydrationPlan,
         tail: htmlChunk("</div>"),
@@ -48,9 +45,10 @@ export const handleRequest = createRequestHandler(app, {
 
 ## Hydrate before mount
 
-On the client, hydrate the payload before mounting the UI. Components can read synchronously from the hydrated Resource state.
+On the client, hydrate the payload, then hydrate the same Component tree. Resource readers read synchronously from the hydrated state, so there is no loading flash and no refetch.
 
 ```ts
 const runtime = makeRuntime(Layer.empty);
 hydrateFromDocument(document, undefined, { runtime });
+Effect.runFork(Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() }));
 ```

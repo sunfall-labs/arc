@@ -7,10 +7,11 @@ import {
   Program,
   ProgramDisposed,
   RuntimeTypeId,
-  runWithRuntime,
   Timeline,
   type AnySunfallArcRuntime,
+  type SunfallArcRuntime,
 } from "../src/index.js";
+import { defaultRuntime } from "../src/internal.js";
 
 interface CounterApi {
   readonly load: Effect.Effect<number>;
@@ -140,13 +141,12 @@ describe("Program", () => {
           runSync: baseRuntime.runSync,
           disposeEffect: baseRuntime.disposeEffect,
         };
-        const program = runWithRuntime(runtime, () =>
-          Program.start(
-            Program.define<number, "increment">({
-              initial: 0,
-              update: (model) => model + 1,
-            }),
-          ),
+        const program = Program.start(
+          Program.define<number, "increment">({
+            initial: 0,
+            update: (model) => model + 1,
+          }),
+          { runtime: runtime as unknown as SunfallArcRuntime },
         );
 
         program.dispatch("increment");
@@ -169,6 +169,7 @@ describe("Program", () => {
             initial: 0,
             update: (model, message) => (message === "fail" ? Effect.fail("boom") : model + 1),
           }),
+          { runtime: defaultRuntime },
         );
 
         yield* program.dispatchEffect("increment");
@@ -197,6 +198,7 @@ describe("Program", () => {
             initial: 0,
             update: () => Promise.resolve(1) as never,
           }),
+          { runtime: defaultRuntime },
         );
 
         const failure = yield* Effect.flip(program.dispatchEffect("promise"));
@@ -225,6 +227,7 @@ describe("Program", () => {
             initial: 0,
             update: () => Program.next(Promise.resolve(1) as never),
           }),
+          { runtime: defaultRuntime },
         );
 
         const failure = yield* Effect.flip(program.dispatchEffect("promise-step"));
@@ -253,6 +256,7 @@ describe("Program", () => {
             initial: 0,
             update: () => Program.next(Effect.succeed(1) as never),
           }),
+          { runtime: defaultRuntime },
         );
 
         const failure = yield* Effect.flip(program.dispatchEffect("effect-step"));
@@ -277,6 +281,7 @@ describe("Program", () => {
           initial: Promise.resolve(0) as never,
           update: (model) => model,
         }),
+        { runtime: defaultRuntime },
       ),
     ).toThrow(EffectInputCallbackError);
   });
@@ -288,6 +293,7 @@ describe("Program", () => {
           initial: Effect.succeed(0) as never,
           update: (model) => model,
         }),
+        { runtime: defaultRuntime },
       ),
     ).toThrow(EffectInputCallbackError);
   });
@@ -324,6 +330,7 @@ describe("Program", () => {
             initial: 0,
             update: (model) => model + 1,
           }),
+          { runtime: defaultRuntime },
         );
 
         const failure = yield* Effect.flip(
@@ -353,6 +360,7 @@ describe("Program", () => {
             initial: 0,
             update: (model) => model + 1,
           }),
+          { runtime: defaultRuntime },
         );
 
         const failure = yield* Effect.flip(program.dispatchEffect(undefined as never));
@@ -378,6 +386,7 @@ describe("Program", () => {
             initial: 0,
             update: (model) => model + 1,
           }),
+          { runtime: defaultRuntime },
         );
 
         const failure = yield* Effect.flip(
@@ -412,6 +421,7 @@ describe("Program", () => {
                   )
                 : model + 1,
           }),
+          { runtime: defaultRuntime },
         );
 
         yield* program.dispatchEffect("load");
@@ -449,6 +459,7 @@ describe("Program", () => {
                   )
                 : model + 1,
           }),
+          { runtime: defaultRuntime },
         );
 
         yield* program.dispatchEffect("load");
@@ -480,6 +491,7 @@ describe("Program", () => {
                 ? Program.next(model, Program.command<"load", string>(Effect.fail("offline")))
                 : model,
           }),
+          { runtime: defaultRuntime },
         );
 
         yield* program.dispatchEffect("load");
@@ -518,6 +530,7 @@ describe("Program", () => {
                 Stream.succeed(Promise.resolve("increment") as never),
               ),
           }),
+          { runtime: defaultRuntime },
         );
 
         yield* Effect.sleep("0 millis");
@@ -549,6 +562,7 @@ describe("Program", () => {
                 Stream.succeed(Effect.succeed("increment") as never),
               ),
           }),
+          { runtime: defaultRuntime },
         );
 
         yield* Effect.sleep("0 millis");
@@ -655,6 +669,7 @@ describe("Program", () => {
               }
             },
           }),
+          { runtime: defaultRuntime },
         );
 
         yield* program.dispatchEffect({ _tag: "Load" });
@@ -782,6 +797,7 @@ describe("Program", () => {
                   ]
                 : undefined,
           }),
+          { runtime: defaultRuntime },
         );
 
         yield* Deferred.await(ticked);
@@ -811,6 +827,7 @@ describe("Program", () => {
                 ),
               ),
           }),
+          { runtime: defaultRuntime },
         );
 
         yield* Deferred.await(started);
@@ -828,6 +845,7 @@ describe("Program", () => {
             update: () =>
               Deferred.succeed(started, undefined).pipe(Effect.flatMap(() => Effect.never)),
           }),
+          { runtime: defaultRuntime },
         );
 
         const result = yield* Effect.all(
@@ -872,6 +890,7 @@ describe("Program", () => {
             initial: 0,
             update: (model) => model + 1,
           }),
+          { runtime: defaultRuntime },
         );
 
         const unsubscribe = program.model.subscribe(() => {
@@ -904,6 +923,7 @@ describe("Program", () => {
                   )
                 : model + 100,
           }),
+          { runtime: defaultRuntime },
         );
 
         const result = yield* Effect.all(
@@ -975,6 +995,7 @@ describe("Program", () => {
                 return Stream.never;
               }),
           }),
+          { runtime: defaultRuntime },
         );
 
         yield* Deferred.await(initialStarted);
@@ -1026,6 +1047,7 @@ describe("Program", () => {
                     return Stream.never;
                   }),
           }),
+          { runtime: defaultRuntime },
         );
 
         yield* Deferred.await(oldSubscriptionReady);

@@ -2,6 +2,7 @@ import { Cause, Context, Effect, Fiber, Option, Schema, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import {
   Action,
+  ActionTransport,
   ActionTypeId,
   ActionResult,
   Capability,
@@ -76,6 +77,9 @@ import {
   type RouteErrorSchema,
   type RoutePreloadFailureEncoding,
   type RoutePreloadFailureSnapshot,
+  type ActionTransportResponse,
+  type RouteView,
+  type RouteWithComponent,
 } from "@sunfall/arc-core";
 import {
   UiScope,
@@ -91,8 +95,6 @@ import {
   compareRoutePathSegment,
   compareRoutePathSpecificity,
   createBrowserRouterKernel,
-  disposeRuntimeProviderLifecycleEntryEffect,
-  disposeRuntimeProviderLifecycleEffect,
   forkScoped,
   hrefForRouteInput,
   isPlainLeftClick,
@@ -102,7 +104,6 @@ import {
   makeResourceUiBindingController,
   makeResourceUiSuspensePreloadController,
   makeBrowserRouterLinkPreloader,
-  makeRuntimeProviderLifecycleEntry,
   makeRuntimeUiScope,
   makeRuntimeUiScopeFrame,
   matchRoutePath,
@@ -116,6 +117,8 @@ import {
   routePathSlug,
   scoped,
   withResourceStore,
+  makeActionInstance,
+  startProgramOnRuntime,
   type BrowserRouterInitialMatchedHost,
   type BrowserRouterInitialMatchedStateOptions,
   type BrowserRouteOutletDefaultRenderers,
@@ -132,7 +135,6 @@ import {
   type BrowserRouterLinkPreloaderOptions,
   type BrowserRouterLinkPreloaderRuntime,
   type BrowserRouterLinkPreloadDecision,
-  type DisposeRuntimeProviderLifecycleOptions,
   type ResourceUiAutoPreloadOptions,
   type ResourceUiBindingController,
   type ResourceUiBindingControllerOptions,
@@ -140,9 +142,6 @@ import {
   type ResourceUiSuspensePreloadController,
   type ResourceUiSuspensePreloadFiber,
   type ResourceUiSuspensePreloadOptions,
-  type RuntimeProviderDisposeObserver,
-  type RuntimeProviderLifecycleEntry,
-  type RuntimeProviderLifecycleOptions,
   type RuntimeUiScopeFrame,
 } from "@sunfall/arc-core/internal";
 // @ts-expect-error ResourceCollector is an internal preload planning service, not a root export.
@@ -153,21 +152,6 @@ type ResourceCollectedIsNamespaced = import("@sunfall/arc-core").ResourceCollect
 const runtime = makeRuntime();
 const requestRuntime = withResourceStore(runtime, makeResourceStore());
 const runtimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> = runtime.disposeEffect;
-const runtimeProviderLifecycleOptions: RuntimeProviderLifecycleOptions = { runtime };
-const runtimeProviderLifecycleEntry: RuntimeProviderLifecycleEntry =
-  makeRuntimeProviderLifecycleEntry(runtimeProviderLifecycleOptions);
-const runtimeProviderDisposeObserver: RuntimeProviderDisposeObserver = () => Effect.void;
-const runtimeProviderDisposeOptions: DisposeRuntimeProviderLifecycleOptions = {
-  observerOperation: "CoreTypeTestRuntimeProvider.onDisposeFailure",
-  onDisposeFailure: runtimeProviderDisposeObserver,
-};
-const runtimeProviderLifecycleDisposeEffect: Effect.Effect<void> =
-  disposeRuntimeProviderLifecycleEffect(
-    runtimeProviderLifecycleEntry,
-    runtimeProviderDisposeOptions,
-  );
-const runtimeProviderLifecycleTypedDisposeEffect: Effect.Effect<void, RuntimeDisposeError> =
-  disposeRuntimeProviderLifecycleEntryEffect(runtimeProviderLifecycleEntry);
 class CoreAdapterCleanupError {
   readonly _tag = "CoreAdapterCleanupError";
 }
@@ -440,10 +424,6 @@ const coreExports: Array<unknown> = [
   runtime,
   requestRuntime,
   runtimeDisposeEffect,
-  runtimeProviderLifecycleOptions,
-  runtimeProviderLifecycleEntry,
-  runtimeProviderDisposeOptions,
-  runtimeProviderLifecycleDisposeEffect,
   requestRuntimeStoreDisposeEffect,
   routeParamsFromSegments,
   routePathFromSegments,
@@ -645,7 +625,7 @@ const counterInstance: Program.Instance<
   CounterMessage,
   Program.RuntimeError<never>,
   Program.DispatchError<never>
-> = Program.start(counterProgram);
+> = Program.start(counterProgram, { runtime });
 type TaggedCounterModel = { readonly count: number; readonly loading: boolean };
 type TaggedCounterMessage =
   | { readonly _tag: "Increment" }
@@ -905,3 +885,41 @@ type _BrowserHistoryShape = BrowserHistoryShape;
 type _MemoryHistoryShape = MemoryHistoryShape;
 type _BrowserHistoryWindowShape = BrowserHistoryWindowShape;
 type _BrowserNavigateOptionsShape = BrowserNavigateOptionsShape;
+
+// Action transport seam: a transport that serves an Action returns its decoded
+// outcome plus the work that applies the response to the submitting runtime.
+const coreActionTransport: ActionTransport = {
+  submit: (_definition, _input) => Option.none(),
+};
+declare const coreActionTransportResponse: ActionTransportResponse<string, "rejected">;
+const coreActionTransportApply: Effect.Effect<void, Server.ClientError> =
+  coreActionTransportResponse.apply(true);
+const coreActionTransportService: Context.Service<ActionTransport, ActionTransport> =
+  ActionTransport;
+void coreActionTransport;
+void coreActionTransportApply;
+void coreActionTransportService;
+
+// Route components may be renderer component values; `withComponent` keeps the
+// attached component's type for adapters to check.
+declare const coreRouteView: RouteView<Route.Props<typeof coreTypedRoute>>;
+const coreTypedRoute = route("/core-view/:id", {});
+const coreRouteWithView = Route.withComponent(coreTypedRoute, coreRouteView);
+const coreRouteViewCarrier: RouteWithComponent<typeof coreRouteView> = coreRouteWithView;
+const coreRouteViewOf: Route.ComponentOf<typeof coreRouteWithView> = coreRouteView;
+void coreRouteViewCarrier;
+void coreRouteViewOf;
+
+// Internal adapter seams: instances on an erased runtime whose services the
+// adapter checks elsewhere.
+declare const coreErasedRuntime: AnySunfallArcRuntime<never>;
+const coreInternalAction = makeActionInstance(
+  Action.define({ name: "core.internal.action", run: (input: string) => input }),
+  coreErasedRuntime,
+);
+const coreInternalProgram = startProgramOnRuntime(
+  Program.define<number, "tick">({ initial: 0, update: (model) => model + 1 }),
+  coreErasedRuntime,
+);
+void coreInternalAction;
+void coreInternalProgram;

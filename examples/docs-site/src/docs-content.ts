@@ -185,24 +185,26 @@ export const ProjectById = Resource.family({
       {
         _tag: "Code",
         language: "tsx",
-        code: `import { Option } from "effect";
-import { AsyncResult } from "effect/reactivity";
-import { Show } from "solid-js";
+        code: `import { Component } from "@sunfall/arc-solid";
+import { Loading } from "solid-js";
 
-const project = useResource(() => ProjectById(props.params.id));
-// Current or stale value: the view mounts once and refreshes update it in place.
-const current = () => Option.getOrUndefined(AsyncResult.value(project.result()));
+const ProjectPage = Component.make("ProjectPage", function* (
+  props: Route.Props<typeof ProjectRoute>,
+) {
+  // The family's load error joins E and its services join R.
+  const project = yield* Component.resource(ProjectById);
 
-return (
-  <Show
-    when={current()}
-    fallback={AsyncResult.builder(project.result())
-      .onFailure((cause) => <ProjectError cause={cause} />)
-      .orElse(() => <Skeleton />)}
-  >
-    {(value) => <ProjectView project={value()} refreshing={project.result().waiting} />}
-  </Show>
-);`,
+  // Preloaded and hydrated values read synchronously; refreshes keep the view
+  // mounted while waiting() drives the chrome.
+  return () => (
+    <Loading fallback={<Skeleton />}>
+      <ProjectView
+        project={project(props.params.id)}
+        refreshing={project.waiting(props.params.id)}
+      />
+    </Loading>
+  );
+}).pipe(Component.catchAll((error) => <ProjectError error={error} />));`,
       },
       {
         _tag: "Heading",

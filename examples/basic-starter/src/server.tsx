@@ -1,4 +1,4 @@
-import { RuntimeProvider } from "@sunfall/arc-solid";
+import { Component } from "@sunfall/arc-solid";
 import {
   createStartStreamedHtmlResponseEffect,
   createRequestHandler,
@@ -30,14 +30,8 @@ const shellClose = (hydrationScript: string): string => `    ${hydrationScript}
 export const handleRequest = createRequestHandler(app, {
   render: ({ hydrationRootScript, hydrationPlan, runtime }) =>
     Effect.gen(function* () {
-      const body = renderToString(() =>
-        createComponent(RuntimeProvider, {
-          runtime,
-          get children() {
-            return createComponent(App, {});
-          },
-        }),
-      );
+      // The same tree src/main.tsx hydrates with `Component.launch`.
+      const body = renderToString(() => createComponent(Component.embed(App, runtime), {}));
 
       return yield* createStartStreamedHtmlResponseEffect({
         shell: htmlChunk(shellOpen(generateHydrationScript())),

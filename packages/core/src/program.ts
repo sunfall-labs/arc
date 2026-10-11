@@ -59,15 +59,10 @@ import {
   programSubscription,
   programUpdate,
 } from "./program-primitives.js";
-import { makeProgramRuntimeInstance } from "./program-runtime.js";
+import { startProgramOnRuntime } from "./program-start.js";
 import { makeProgramStory } from "./program-story.js";
 import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
-import {
-  currentOrDefaultRuntime,
-  type AnySunfallArcRuntime,
-  type SunfallArcRuntime,
-} from "./runtime.js";
-import { getCurrentScope } from "./scope.js";
+import type { AnySunfallArcRuntime, SunfallArcRuntime } from "./runtime.js";
 
 type ProgramRuntimeProvidedRequirements<R> = R | ResourceStoreState;
 type ProgramRuntimeRemainingRequirements<RIn, RProvided> = Exclude<
@@ -89,52 +84,19 @@ export interface ProgramStartOptions<RRuntime = never, ER = never> {
 type ProgramRuntimeBoundStartOptions<R, RRuntime, ER> = {
   readonly runtime: SunfallArcRuntime<RRuntime, ER> & ProgramRuntimeSatisfied<R, RRuntime>;
 };
-type ProgramStartImplementationOptions<ER> = {
-  readonly runtime?: AnySunfallArcRuntime<ER>;
-};
-
-const startProgramImplementation = <Model, Message, E = never, ER = never>(
-  definition: ProgramDefinition<Model, Message, E, never>,
-  options?: ProgramStartImplementationOptions<ER>,
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> => {
-  const runtime = (options?.runtime ?? currentOrDefaultRuntime()) as AnySunfallArcRuntime<ER>;
-  const scope = getCurrentScope();
-  return makeProgramRuntimeInstance<Model, Message, E, never, ER>({
-    definition,
-    runtime,
-    scope,
-  });
-};
-
-/**
- * Starts a service-free Program against the current Sunfall Arc runtime and optional UI scope.
- *
- * Programs whose update, command, or subscription Effects require services must
- * use `Program.start(definition, { runtime })` so TypeScript can verify the
- * Runtime Spine provides those services.
- */
-function startProgram<Model, Message, E = never>(
-  definition: ProgramDefinition<Model, Message, E, never>,
-): ProgramInstance<Model, Message, ProgramRuntimeError<E>, ProgramDispatchError<E>>;
 /**
  * Starts a Program on an explicit typed Runtime Spine.
  *
  * Runtime startup/provision errors are added to the Program failure channel,
  * and only services supplied by the runtime are discharged from the Program
- * definition requirements.
+ * definition requirements. UI code binds Programs with its renderer adapter
+ * (Solid's `Component.program(...)`), which supplies the runtime.
  */
 function startProgram<Model, Message, E = never, R = never, ER = never, RRuntime = R>(
   definition: ProgramDefinition<Model, Message, E, R>,
   options: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>,
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>>;
-function startProgram<Model, Message, E = never, ER = never>(
-  definition: unknown,
-  options?: ProgramStartImplementationOptions<ER>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> {
-  return startProgramImplementation(
-    definition as ProgramDefinition<Model, Message, E, never>,
-    options,
-  );
+  return startProgramOnRuntime(definition, options.runtime as AnySunfallArcRuntime<ER>);
 }
 
 /** Public namespace facade for defining, starting, testing, and typing Programs. */

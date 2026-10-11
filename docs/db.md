@@ -109,33 +109,40 @@ never wait on load state.
   `Failure` with the source or evaluation `Cause` keeping the last good rows as
   `previousSuccess`, and `waiting` while any source is loading.
 
-Solid DB handles expose those results as one accessor:
-`useCollection(...)` returns reactive reads only (`rows`, `result`, `get`,
-`index`, `pendingMutations`, `preloadFailure`); writes run the definition's
-Effects through the runtime runner (`runEffect(Projects.updateEffect(id, patch))`).
-`useLiveQuery(...)` returns `data`, `result`, `preloadFailure`, `preloadEffect`,
-and `refetchEffect`; its query factory runs tracked, so a signal or prop read in
-the factory rebuilds the query.
+In Solid, collections and live queries are setup-time Component bindings from
+`@sunfall/arc-solid-db`; the collection's (or query's sources') services join
+the Component's `R`, so `Component.launch` checks them.
+`SolidDb.collection(definition, options?)` returns reactive reads only (`rows`,
+`result`, `get`, `index`, `pendingMutations`, `preloadFailure`); writes run the
+definition's Effects through `Component.callback`.
+`SolidDb.liveQuery(query, options?)` returns `data`, `result`,
+`preloadFailure`, `preloadEffect`, and `refetchEffect`; its query factory runs
+tracked, so a signal or prop read in the factory rebuilds the query.
 
 ```tsx
-const projects = useCollection(Projects);
-const result = () => projects.result();
+const ProjectList = Component.make("ProjectList", function* () {
+  const projects = yield* SolidDb.collection(Projects);
+  const archive = yield* Component.callback((id: ProjectId) =>
+    Projects.updateEffect(id, { archived: true }).pipe(Effect.ignore),
+  );
+  const result = () => projects.result();
 
-// Rows are their own signal: render them once, keyed by id, and let the load
-// result drive only the status chrome around them.
-return (
-  <Show when={result()._tag !== "Initial"} fallback={<ProjectSkeleton />}>
-    <For each={projects.rows()} keyed={(project) => project.id}>
-      {(project) => <ProjectRow project={project()} />}
-    </For>
-    <Show when={result().waiting}>
-      <p class="status">Refreshing</p>
+  // Rows are their own signal: render them once, keyed by id, and let the load
+  // result drive only the status chrome around them.
+  return () => (
+    <Show when={result()._tag !== "Initial"} fallback={<ProjectSkeleton />}>
+      <For each={projects.rows()} keyed={(project) => project.id}>
+        {(project) => <ProjectRow project={project()} onArchive={() => archive(project().id)} />}
+      </For>
+      <Show when={result().waiting}>
+        <p class="status">Refreshing</p>
+      </Show>
+      <Show when={Option.getOrUndefined(AsyncResult.cause(result()))}>
+        {(cause) => <ProjectError cause={cause()} />}
+      </Show>
     </Show>
-    <Show when={Option.getOrUndefined(AsyncResult.cause(result()))}>
-      {(cause) => <ProjectError cause={cause()} />}
-    </Show>
-  </Show>
-);
+  );
+});
 ```
 
 Rendering rows inside a builder branch would rebuild the whole list on every

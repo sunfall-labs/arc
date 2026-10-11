@@ -18,7 +18,6 @@ import type {
   DevtoolsRoutePlan,
   DevtoolsRuntimeEvent,
   DevtoolsSnapshot,
-  DevtoolsStartActionInstance,
   DevtoolsStartAppGraphDiagnostics,
   DevtoolsStore,
   DevtoolsStoreOptions,
@@ -55,7 +54,6 @@ const actionStateFacts = <I, A, E>(
 });
 
 type AnyActionInstance = ActionInstance<any, any, any, any>;
-type AnyStartActionInstance = DevtoolsStartActionInstance<any, any, any>;
 
 const normalizeHistoryLimit = (value: number | undefined, fallback: number): number =>
   value === undefined || !Number.isFinite(value) || value <= 0
@@ -396,16 +394,6 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     });
   };
 
-  const recordStartAction = <I, A, E>(action: DevtoolsStartActionInstance<I, A, E>): void => {
-    const { tag, waiting, input } = actionStateFacts(action.state.get());
-    const serializedInvalidationPlan = action.invalidation.get();
-    recordActionState(action.definition.name, tag, {
-      waiting,
-      ...(input === undefined ? {} : { input }),
-      ...(serializedInvalidationPlan === undefined ? {} : { serializedInvalidationPlan }),
-    });
-  };
-
   const recordTimelineEntry = (entry: TimelineEntry): void => {
     recordRuntimeEvent({
       _tag: "TimelineCommit",
@@ -468,25 +456,6 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
       Effect.sync(() => {
         recordAction(action);
         return action.state.subscribe(() => recordAction(action));
-      }),
-      (unsubscribe) => Effect.sync(unsubscribe),
-    ).pipe(Effect.asVoid);
-  const recordStartActionEffect = <I, A, E>(action: DevtoolsStartActionInstance<I, A, E>) =>
-    Effect.sync(() => {
-      recordStartAction(action);
-    });
-  const trackStartActionEffect = <I, A, E>(action: DevtoolsStartActionInstance<I, A, E>) =>
-    Effect.acquireRelease(
-      Effect.sync(() => {
-        recordStartAction(action);
-        const unsubscribeState = action.state.subscribe(() => recordStartAction(action));
-        const unsubscribeInvalidation = action.invalidation.subscribe(() =>
-          recordStartAction(action),
-        );
-        return () => {
-          unsubscribeState();
-          unsubscribeInvalidation();
-        };
       }),
       (unsubscribe) => Effect.sync(unsubscribe),
     ).pipe(Effect.asVoid);
@@ -580,11 +549,6 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     },
     recordActionEffect,
     trackActionEffect,
-    recordStartAction: (action: AnyStartActionInstance) => {
-      Effect.runSync(recordStartActionEffect(action));
-    },
-    recordStartActionEffect,
-    trackStartActionEffect,
     recordRoutePlan: (plan: Route.NavigationPlan) => {
       return Effect.runSync(recordRoutePlanEffect(plan));
     },

@@ -1,40 +1,35 @@
 import type { Collection } from "@sunfall/arc-db";
 import type { EffectInput } from "@sunfall/arc-core";
+import { Component } from "@sunfall/arc-solid";
+import { Effect } from "effect";
 import type { AsyncResult } from "effect/reactivity";
 import type { Accessor } from "solid-js";
 import { makeSolidDbReactiveBinding } from "./shared.js";
 
-/** Options for binding a Collection to Solid reactivity. */
-export interface UseCollectionOptions<E = never, ER = never> {
-  /** Start loading on mount. Defaults to true. */
+/** Options for `SolidDb.collection`. */
+export interface CollectionBindingOptions<E = never> {
+  /** Start loading when the instance mounts. Defaults to true. */
   readonly preload?: boolean;
   /**
    * Observe failures from the automatic mount-time preload.
    *
    * The error is `CollectionRuntimeError<E>`, so output-schema and hydration
    * codec failures are reported beside the collection's own `E` channel. If
-   * this observer fails, the hook ignores that failure after updating
+   * this observer fails, the binding ignores that failure after updating
    * `preloadFailure`. Promise-shaped observers are rejected at the EffectInput
    * seam; adapt host Promise work explicitly with `Effect.tryPromise(...)`.
    */
-  readonly onPreloadFailure?: (
-    error: Collection.RuntimeError<E> | ER,
-  ) => EffectInput<void, unknown>;
+  readonly onPreloadFailure?: (error: Collection.RuntimeError<E>) => EffectInput<void, unknown>;
 }
 
 /**
- * Solid-facing reactive reads for a collection.
+ * Instance-bound reactive reads of a collection, from `SolidDb.collection`.
  *
- * Accessors read from the nearest Sunfall Arc runtime. Writes and loads go
- * through the definition's `*Effect` methods run by the runtime runner, e.g.
- * `runEffect(Todos.updateEffect(id, patch))` with `useRuntimeEffect()`.
+ * Accessors read the instance runtime's Collection Store. Writes and loads go
+ * through the definition's `*Effect` methods, run with `Component.callback`:
+ * `yield* Component.callback((id) => Todos.updateEffect(id, patch))`.
  */
-export interface CollectionHandle<
-  A extends object,
-  K extends Collection.Key,
-  E = never,
-  ER = never,
-> {
+export interface CollectionHandle<A extends object, K extends Collection.Key, E = never> {
   /** Current rows, including optimistic local writes. */
   readonly rows: Accessor<ReadonlyArray<Collection.Row<A, K>>>;
   /**
@@ -44,53 +39,42 @@ export interface CollectionHandle<
    */
   readonly result: Accessor<AsyncResult.AsyncResult<void, Collection.RuntimeError<E>>>;
   /** Failure captured from the automatic mount-time preload, if enabled. */
-  readonly preloadFailure: Accessor<Collection.RuntimeError<E> | ER | undefined>;
-  /** Queued optimistic mutations captured from the current Solid runtime. */
+  readonly preloadFailure: Accessor<Collection.RuntimeError<E> | undefined>;
+  /** Queued optimistic mutations in the instance runtime. */
   readonly pendingMutations: Accessor<ReadonlyArray<Collection.PendingMutation<A, K>>>;
-  /** Read one row by key from the current runtime store. */
+  /** Read one row by key from the instance runtime's store. */
   get(key: K): Collection.Row<A, K> | undefined;
   /** Read rows from a named secondary index bucket. */
   index(index: string, value: Collection.IndexValue): ReadonlyArray<Collection.Row<A, K>>;
 }
 
 /**
- * Subscribes a Solid component to a Sunfall Arc collection.
- *
- * The hook exposes reactive rows, keyed and indexed lookups, load state, and
- * pending mutations. It preloads on mount unless `preload` is false.
- *
- * @example
- * ```tsx
- * const projects = useCollection(Projects);
- * const rows = projects.rows();
- * ```
+ * Binds a collection in a Component setup: reactive rows, keyed and indexed
+ * lookups, load state, and pending mutations, read from the instance runtime.
+ * It preloads on mount unless `preload` is false. The collection's services
+ * join the component's `R`.
  */
-export const useCollection = <
-  A extends object,
-  K extends Collection.Key,
-  E = never,
-  R = never,
-  ER = never,
->(
-  collection: Collection.Definition<A, K, E, R>,
-  options: UseCollectionOptions<E, ER> = {},
-): CollectionHandle<A, K, E, ER> => {
-  const preloadEffect = collection.preloadEffect();
-  const binding = makeSolidDbReactiveBinding<Collection.RuntimeError<E>, R, ER>({
-    preload: options.preload,
-    preloadEffect: () => preloadEffect,
-    onPreloadFailure: options.onPreloadFailure,
-  });
-  const rows = () => binding.read(() => collection.rows());
-  const result = () => binding.read(() => collection.state().get());
-  const pendingMutations = () => binding.read(() => collection.pendingMutations());
-
-  return {
-    rows,
-    result,
-    preloadFailure: binding.preloadFailure,
-    pendingMutations,
-    get: (key) => binding.read(() => collection.get(key)),
-    index: (index, value) => binding.read(() => collection.index(index, value)),
-  };
-};
+export const collection = <A extends object, K extends Collection.Key, E = never, R = never>(
+  definition: Collection.Definition<A, K, E, R>,
+  options: CollectionBindingOptions<E> = {},
+): Effect.Effect<CollectionHandle<A, K, E>, never, R> =>
+  Effect.map(Component.instance, (instance) => {
+    const preloadEffect = definition.preloadEffect();
+    const binding = instance.run(() =>
+      makeSolidDbReactiveBinding<Collection.RuntimeError<E>, R, never>({
+        runtime: instance.runtime,
+        preload: options.preload,
+        preloadEffect: () => preloadEffect,
+        onPreloadFailure: options.onPreloadFailure,
+      }),
+    );
+    const handle: CollectionHandle<A, K, E> = {
+      rows: () => binding.read(() => definition.rows()),
+      result: () => binding.read(() => definition.state().get()),
+      preloadFailure: binding.preloadFailure,
+      pendingMutations: () => binding.read(() => definition.pendingMutations()),
+      get: (key) => binding.read(() => definition.get(key)),
+      index: (index, value) => binding.read(() => definition.index(index, value)),
+    };
+    return handle;
+  }) as Effect.Effect<CollectionHandle<A, K, E>, never, R>;

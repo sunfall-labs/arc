@@ -265,13 +265,13 @@ const allowed = [
       ),
       seam(
         "packages/solid/src/component.ts",
-        "Solid embedded Component setup async memo Adapter",
-        /const setupRenderToken = <P>\(fiber: Fiber\.Fiber<Component\.Render<P>, unknown>\) =>\s*Effect\.runPromise\(Fiber\.join\(fiber\)\);/,
+        "Solid Component instance setup async memo Adapter",
+        /const setupRenderToken = \(fiber: Fiber\.Fiber<Component\.Render, unknown>\) =>\s*Effect\.runPromise\(Effect\.map\(Effect\.exit\(Fiber\.join\(fiber\)\), renderFromExit\)\);/,
       ),
       seam(
         "packages/solid/src/route-render-scope.ts",
         "Solid lazy route component async memo Adapter",
-        /createMemo<RouteComponent>\(\(\) =>\s*Effect\.runPromise\(\s*Fiber\.join\(preload\)\.pipe\(/,
+        /createMemo<\{ readonly component: unknown \}>\(\(\) =>\s*Effect\.runPromise\(\s*Fiber\.join\(preload\)\.pipe\(/,
       ),
       seam(
         "packages/start/src/request-runtime-response.ts",
@@ -398,11 +398,6 @@ const allowed = [
         "type-tests/framework.test-d.ts",
         "Promise negative fixture startResponsePromise",
         /declare const startResponsePromise:\s*Promise<Response>;/,
-      ),
-      seam(
-        "type-tests/solid.test-d.ts",
-        "Solid RuntimeProvider Promise observer negative fixture",
-        /declare const solidRuntimeProviderObserverPromise:\s*Promise<void>;/,
       ),
       seam(
         "type-tests/solid-db.test-d.ts",
@@ -1193,7 +1188,7 @@ const assertMarkdownSnippetExtraction = () => {
       "pnpm verify",
       "```",
       "```tsx",
-      "<RuntimeProvider />",
+      "<RouterProvider />",
       "```",
     ].join("\n"),
   );

@@ -2,6 +2,7 @@ import {
   Cause,
   Effect,
   Fiber,
+  type Layer,
   Metric,
   Request as EffectRequest,
   RequestResolver,
@@ -15,6 +16,7 @@ import {
   Action,
   ActionInterrupted,
   ActionResult,
+  type ActionTransport,
   Capability,
   EffectInputCallbackError,
   Form,
@@ -123,25 +125,13 @@ import {
   type CollectionStoreDiagnosticsSnapshot,
   type CollectionStoreEvent,
 } from "@sunfall/arc-db/internal";
+import { SolidDb, type CollectionHandle, type LiveQueryHandle } from "@sunfall/arc-solid-db";
 import {
-  useCollection,
-  useLiveQuery,
-  type CollectionHandle,
-  type LiveQueryHandle,
-} from "@sunfall/arc-solid-db";
-import {
+  Component,
   RouterContextMissing,
-  RuntimeProvider,
   RouterProvider,
-  useAction,
-  useResource,
-  useResourceSuspense,
-  useProgram,
-  useRuntimeEffect,
   useRouter,
-  useStream,
   type BrowserRouter,
-  type ProgramHandle,
   type RouterLinkProps,
   type RouterOutletProps,
 } from "@sunfall/arc-solid";
@@ -178,7 +168,7 @@ import {
   hydrateFromDocumentEffect,
   makeRpcClientLayer,
   StartAction,
-  submitStartActionEffect,
+  makeActionTransportLayer,
   type StartActionInvalidationPlan,
   type StartFetch,
   type StartHydrationError,
@@ -363,6 +353,9 @@ import {
   routeIdByPath as projectConsoleRouteIdByPath,
   routeByPath as projectConsoleRouteByPath,
 } from "../examples/project-console/src/routeTree.gen.js";
+
+/** Type-level only: the value a setup-time binding produces inside a Component setup. */
+const bound = <A>(_binding: Effect.Effect<A, any, any>): A => undefined as never;
 
 const tsrxOptions: SunfallArcTsrxOptions = {
   optimizeDeps: {
@@ -1466,7 +1459,7 @@ const projectReadEffect: Effect.Effect<
   Resource.ReadError<string, Project, ProjectError | Server.ClientError>,
   ProjectApi
 > = Resource.readEffect(ProjectById("atlas"));
-const projectSuspenseRead: Project = useResourceSuspense(ProjectById("atlas"))();
+const projectSuspenseRead: Project = bound(Component.resource(ProjectById))("atlas");
 const projectResourcePending = new ResourcePending({
   ref: ProjectById("atlas"),
   reason: "Pending",
@@ -2357,42 +2350,6 @@ const runtimeMissingRequirementEffect: Effect.Effect<string, never, RuntimeMissi
 const runtimeMissingRequirementErased: Effect.Effect<string> = typedRuntime.provide(
   RuntimeMissingService.useSync((service) => service.readMissing()),
 );
-RuntimeProvider({ runtime: typedRuntime });
-RuntimeProvider({
-  source: RuntimeDocumentService.layer({
-    readDocument: () => "ok",
-  }),
-  onDisposeFailure: (error) => {
-    const phase: "resource-store" | "managed-runtime" = error.phase;
-    const cause: Cause.Cause<unknown> = error.cause;
-    const typedError: RuntimeDisposeError = error;
-    void phase;
-    void cause;
-    void typedError;
-    return Effect.void;
-  },
-});
-// @ts-expect-error RuntimeProvider ownership must choose either runtime or source
-RuntimeProvider({
-  runtime: typedRuntime,
-  source: RuntimeDocumentService.layer({
-    readDocument: () => "ok",
-  }),
-});
-RuntimeProvider({
-  source: RuntimeDocumentService.layer({
-    readDocument: () => "ok",
-  }),
-  // @ts-expect-error RuntimeProvider dispose observers must return EffectInput, not Promise work
-  onDisposeFailure: () => promisedVoid,
-});
-// @ts-expect-error host-owned runtime providers do not own disposal, so they do not accept disposal observers
-RuntimeProvider({
-  runtime: typedRuntime,
-  onDisposeFailure: () => Effect.void,
-});
-// @ts-expect-error RuntimeProvider source creates provider-owned runtimes; existing runtimes use the runtime prop
-RuntimeProvider({ source: typedRuntime });
 const typedRuntimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> =
   typedRuntime.disposeEffect;
 typedRuntime.runSync(RuntimeDocumentService.useSync((service) => service.readDocument()));
@@ -2571,69 +2528,48 @@ const ProjectNameCards = Collection.liveQuery<
       name: project.name,
     })),
 });
-const solidProjects = useCollection(ProjectsCollection, {
-  preload: false,
-  onPreloadFailure: (error) => {
-    const typedError:
-      | ProjectError
-      | Server.ClientError
-      | CollectionSnapshotCodecError
-      | Schema.SchemaError = error;
-    void typedError;
-    return Effect.void;
-  },
-});
-useCollection(ProjectsCollection, {
-  // @ts-expect-error Solid DB collection preload observers must return EffectInput, not Promise work.
-  onPreloadFailure: () => promisedVoid,
-});
-const solidProjectsHandle: CollectionHandle<
-  Project,
-  string,
-  ProjectError | Server.ClientError,
-  never
-> = solidProjects;
-const solidProjectResource = useResource(ProjectById("atlas"));
-const solidProjectResourceValue: Option.Option<Project> = AsyncResult.value(
-  solidProjectResource.result(),
+// A collection's services join the binding's (and so the Component's) R.
+const solidProjectsBinding: Effect.Effect<
+  CollectionHandle<Project, string, ProjectError | Server.ClientError>,
+  never,
+  ProjectApi
+> = SolidDb.collection(ProjectsCollection);
+void solidProjectsBinding;
+const solidProjects = bound(
+  SolidDb.collection(ProjectsCollection, {
+    preload: false,
+    onPreloadFailure: (error) => {
+      const typedError:
+        | ProjectError
+        | Server.ClientError
+        | CollectionSnapshotCodecError
+        | Schema.SchemaError = error;
+      void typedError;
+      return Effect.void;
+    },
+  }),
 );
-const solidProjectResourcePrefetch: Effect.Effect<
-  Project,
-  Resource.LoadError<ProjectError | Server.ClientError>
-> = solidProjectResource.prefetchEffect();
-interface SolidRuntimeStartupError {
-  readonly _tag: "SolidRuntimeStartupError";
-}
-const solidProjectResourceWithRuntimeError = useResource<
-  string,
-  Project,
+bound(
+  SolidDb.collection(ProjectsCollection, {
+    // @ts-expect-error Solid DB collection preload observers must return EffectInput, not Promise work.
+    onPreloadFailure: () => promisedVoid,
+  }),
+);
+const solidProjectsHandle: CollectionHandle<Project, string, ProjectError | Server.ClientError> =
+  solidProjects;
+// A Resource family's typed error joins E and its services join R.
+const solidProjectReaderBinding: Effect.Effect<
+  Component.ResourceReader<string, Project, ProjectError | Server.ClientError>,
   ProjectError | Server.ClientError,
-  ProjectApi,
-  SolidRuntimeStartupError
->(ProjectById("atlas"), {
-  onPreloadFailure: (error) => {
-    const typedError:
-      | Resource.LoadError<ProjectError | Server.ClientError>
-      | SolidRuntimeStartupError = error;
-    void typedError;
-  },
-});
-useResource(ProjectById("atlas"), {
-  // @ts-expect-error resource preload failure observers must return values or Effects, not Promises
-  onPreloadFailure: () => promisedVoid,
-});
-const solidProjectResourceRuntimeErrorPrefetch: Effect.Effect<
-  Project,
-  Resource.LoadError<ProjectError | Server.ClientError> | SolidRuntimeStartupError
-> = solidProjectResourceWithRuntimeError.prefetchEffect();
-const solidProjectResourcePreloadFailure:
-  | Resource.LoadError<ProjectError | Server.ClientError>
-  | SolidRuntimeStartupError
-  | undefined = solidProjectResourceWithRuntimeError.preloadFailure();
+  ProjectApi
+> = Component.resource(ProjectById);
+const solidProjectReader = bound(solidProjectReaderBinding);
+const solidProjectResourceValue: Project = solidProjectReader("atlas");
+const solidProjectResourceFailure:
+  | Cause.Cause<Resource.LoadError<ProjectError | Server.ClientError>>
+  | undefined = solidProjectReader.failure("atlas");
 void solidProjectResourceValue;
-void solidProjectResourcePrefetch;
-void solidProjectResourceRuntimeErrorPrefetch;
-void solidProjectResourcePreloadFailure;
+void solidProjectResourceFailure;
 const solidProjectPreloadFailure:
   | ProjectError
   | Server.ClientError
@@ -2641,25 +2577,10 @@ const solidProjectPreloadFailure:
   | Schema.SchemaError
   | undefined = solidProjects.preloadFailure();
 solidProjects.pendingMutations().map((pending) => pending.transaction.id);
-// @ts-expect-error writes run `ProjectsCollection.insertEffect(...)` through the runtime runner.
+// @ts-expect-error writes run `ProjectsCollection.insertEffect(...)` through `Component.callback`.
 solidProjects.insertEffect;
 void solidProjectPreloadFailure;
-const solidProjectsWithRuntimeError = useCollection<
-  Project,
-  string,
-  ProjectError | Server.ClientError,
-  ProjectApi,
-  SolidRuntimeStartupError
->(ProjectsCollection, { preload: false });
-const solidProjectRuntimePreloadFailure:
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | SolidRuntimeStartupError
-  | undefined = solidProjectsWithRuntimeError.preloadFailure();
-void solidProjectRuntimePreloadFailure;
-const solidProjectNames = useLiveQuery(
+const solidProjectNamesBinding = SolidDb.liveQuery(
   (query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
   {
     preload: false,
@@ -2675,7 +2596,18 @@ const solidProjectNames = useLiveQuery(
     },
   },
 );
-useLiveQuery<
+// The live query's sources' services join R.
+const solidProjectNamesServices: Effect.Effect<
+  LiveQueryHandle<
+    string,
+    ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError
+  >,
+  never,
+  ProjectApi
+> = solidProjectNamesBinding;
+void solidProjectNamesServices;
+const solidProjectNames = bound(solidProjectNamesBinding);
+SolidDb.liveQuery<
   string,
   ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError,
   ProjectApi
@@ -2685,10 +2617,9 @@ useLiveQuery<
 });
 const solidProjectNamesHandle: LiveQueryHandle<
   string,
-  ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError,
-  never
+  ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError
 > = solidProjectNames;
-useLiveQuery(
+SolidDb.liveQuery(
   (query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
   {
     preload: false,
@@ -2696,13 +2627,13 @@ useLiveQuery(
     deps: () => "atlas",
   },
 );
-const solidProjectStream = useStream(
+const solidProjectStreamBinding: Effect.Effect<() => Project, never, ProjectApi> = Component.stream(
   Stream.suspend(() =>
     Stream.fromEffect(ProjectApi.use((api) => api.get("atlas")).pipe(Effect.orDie)),
   ),
   { id: "loading", name: "Loading" },
 );
-const solidProjectStreamValue: Project = solidProjectStream();
+const solidProjectStreamValue: Project = bound(solidProjectStreamBinding)();
 void solidProjectStreamValue;
 const solidProjectNamesPreloadEffect: Effect.Effect<
   void,
@@ -2729,24 +2660,6 @@ const solidProjectNamesPreloadFailure:
 void solidProjectNamesPreloadEffect;
 void solidProjectNamesError;
 void solidProjectNamesPreloadFailure;
-const solidProjectNamesWithRuntimeError = useLiveQuery<
-  string,
-  ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError,
-  ProjectApi,
-  SolidRuntimeStartupError
->((query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name), {
-  preload: false,
-});
-const solidProjectNamesRuntimeErrorPreloadEffect: Effect.Effect<
-  void,
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | QueryEvaluationError
-  | SolidRuntimeStartupError
-> = solidProjectNamesWithRuntimeError.preloadEffect();
-void solidProjectNamesRuntimeErrorPreloadEffect;
 
 ProjectNameCards.rows().map((project) => {
   project.name.toUpperCase();
@@ -2775,7 +2688,9 @@ const topLevelProjectNameCardsPreload: Effect.Effect<
   | ReadonlyCollectionMutation,
   ProjectApi
 > = TopLevelProjectNameCards.preloadEffect();
-const solidTopLevelProjectNameCards = useCollection(TopLevelProjectNameCards, { preload: false });
+const solidTopLevelProjectNameCards = bound(
+  SolidDb.collection(TopLevelProjectNameCards, { preload: false }),
+);
 const solidTopLevelProjectNameCardsHandle: CollectionHandle<
   { readonly id: string; readonly name: string },
   string,
@@ -2784,8 +2699,7 @@ const solidTopLevelProjectNameCardsHandle: CollectionHandle<
   | CollectionSnapshotCodecError
   | Schema.SchemaError
   | QueryEvaluationError
-  | ReadonlyCollectionMutation,
-  never
+  | ReadonlyCollectionMutation
 > = solidTopLevelProjectNameCards;
 void solidProjectsHandle;
 void solidProjectNamesHandle;
@@ -2967,13 +2881,15 @@ const frameworkGroupKeyAlias: Query.GroupKey<{
 };
 void frameworkGroupKeyAlias;
 
-const projectsHandle = useCollection(ProjectsCollection);
+const projectsHandle = bound(SolidDb.collection(ProjectsCollection));
 projectsHandle.rows().map((project) => project.name);
 projectsHandle.get("atlas")?.name.toUpperCase();
 projectsHandle.index("byName", "Atlas").map((project) => project.name.toUpperCase());
 
-const projectNamesHandle = useLiveQuery((query) =>
-  query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
+const projectNamesHandle = bound(
+  SolidDb.liveQuery((query) =>
+    query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
+  ),
 );
 projectNamesHandle.data().map((name) => name.toUpperCase());
 
@@ -3022,12 +2938,12 @@ const projectProgramRuntime = makeRuntime(
     rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
   }),
 );
-const runUiEffect = useRuntimeEffect<RuntimeStartupError>();
-const uiEffectJoin: Effect.Effect<
-  Project,
-  ProjectError | Server.ClientError | RuntimeStartupError
-> = Fiber.join(runUiEffect(ProjectApi.use((api) => api.get("atlas"))));
-void uiEffectJoin;
+// Event handlers run Effects through `Component.callback`: services join R,
+// and failures must be handled.
+const uiCallback: Effect.Effect<(id: string) => void, never, ProjectApi> = Component.callback(
+  (id: string) => ProjectApi.use((api) => api.get(id)).pipe(Effect.ignore),
+);
+void uiCallback;
 
 type ProjectProgramModel = { readonly selected: Project | undefined; readonly loading: boolean };
 type ProjectProgramMessage =
@@ -3070,7 +2986,7 @@ const ProjectProgram = Program.define<
 });
 
 // @ts-expect-error serviceful Program.start requires an explicit runtime carrying Program services
-Program.start(ProjectProgram);
+Program.start(ProjectProgram, { runtime: makeRuntime() });
 const projectProgramStartOptions: Program.StartOptions<ProjectApi> = {
   runtime: projectProgramRuntime,
 };
@@ -3223,35 +3139,28 @@ void projectProgramStoryEntry;
 void projectProgramRuntimeErrorDispatch;
 void projectProgramStartOptions;
 void missingProgramRuntimeRequirement;
-const solidProjectProgram: ProgramHandle<
-  ProjectProgramModel,
-  ProjectProgramMessage,
-  ProjectError | Server.ClientError | EffectInputCallbackError,
-  ProjectError | Server.ClientError | EffectInputCallbackError | Program.Disposed
-> = useProgram(ProjectProgram);
+const solidProjectProgramBinding: Effect.Effect<
+  Component.ProgramHandle<
+    ProjectProgramModel,
+    ProjectProgramMessage,
+    ProjectError | Server.ClientError
+  >,
+  never,
+  ProjectApi
+> = Component.program(ProjectProgram);
+const solidProjectProgram = bound(solidProjectProgramBinding);
 solidProjectProgram.model().selected?.id.toUpperCase();
 solidProjectProgram.failures().map((failure) => failure.phase);
 // @ts-expect-error Solid Program dispatch messages keep payloads typed
 solidProjectProgram.dispatch({ _tag: "Loaded" });
-const solidProjectProgramWithRuntimeError = useProgram<
-  ProjectProgramModel,
-  ProjectProgramMessage,
-  ProjectError | Server.ClientError,
-  ProjectApi,
-  SolidRuntimeStartupError
->(ProjectProgram);
-const solidProjectProgramRuntimeErrorDispatch: Effect.Effect<
+const solidProjectProgramDispatch: Effect.Effect<
   void,
   Program.Failure<
     ProjectProgramMessage,
-    | ProjectError
-    | Server.ClientError
-    | EffectInputCallbackError
-    | Program.Disposed
-    | SolidRuntimeStartupError
+    ProjectError | Server.ClientError | EffectInputCallbackError | Program.Disposed
   >
-> = solidProjectProgramWithRuntimeError.dispatchEffect({ _tag: "Load", id: "atlas" });
-void solidProjectProgramRuntimeErrorDispatch;
+> = solidProjectProgram.dispatchEffect({ _tag: "Load", id: "atlas" });
+void solidProjectProgramDispatch;
 
 Program.define<number, "bad">({
   initial: 0,
@@ -3466,16 +3375,18 @@ const routePreloadRuntime = makeRuntime(
     warm: () => Effect.void,
   }),
 );
-RouterProvider({
-  routes: [ServicePreloadRoute] as const,
-  initialHref: "/service-projects/atlas",
+// Route preload services join the Component that creates the router, so
+// `launch` checks them against what is provided.
+const ServicePreloadApp = Component.make("ServicePreloadApp", function* () {
+  const router = yield* Component.router([ServicePreloadRoute] as const, {
+    initialHref: "/service-projects/atlas",
+  });
+  return () => RouterProvider({ router });
 });
-RouterProvider({
-  routes: [ServicePreloadRoute] as const,
-  initialHref: "/service-projects/atlas",
-  // @ts-expect-error RouterProvider reads its runtime from RuntimeProvider context
-  runtime: routePreloadRuntime,
-});
+declare const servicePreloadRoot: HTMLElement;
+Component.launch(ServicePreloadApp, servicePreloadRoot, { runtime: routePreloadRuntime });
+// @ts-expect-error a route's preload services must be provided before launch
+Component.launch(ServicePreloadApp, servicePreloadRoot);
 const routePreloadProvidedStartApp = defineApp({
   routes: [ServicePreloadRoute] as const,
   client: {},
@@ -3595,7 +3506,9 @@ Effect.runSync(
 Action.planInvalidationEffect(TouchProject, { id: "atlas", name: "Atlas" }, { id: "atlas" }).pipe(
   Effect.map((plan) => plan.targets.length),
 );
-const touch = Action.use(TouchProject);
+// Action instances run on an explicit runtime; services it lacks stay visible.
+const emptyActionRuntime = makeRuntime();
+const touch = Action.use(TouchProject, { runtime: emptyActionRuntime });
 touch.invalidationPlan.get()?.entries.map((entry) => entry.ref.key);
 const PureServicefulInvalidationAction = Action.define({
   name: "Project.pureServicefulInvalidation",
@@ -3604,12 +3517,15 @@ const PureServicefulInvalidationAction = Action.define({
 });
 const pureServicefulInvalidationSubmit: Effect.Effect<
   Project,
-  EffectInputCallbackError | ActionInterrupted,
+  Server.ClientError | ActionInterrupted,
   ProjectApi
-> = Action.use(PureServicefulInvalidationAction).submitEffect({ id: "atlas" });
+> = Action.use(PureServicefulInvalidationAction, { runtime: emptyActionRuntime }).submitEffect({
+  id: "atlas",
+});
 // @ts-expect-error action invalidation requirements from serviceful Resources stay visible
 const pureServicefulInvalidationSubmitErased: Effect.Effect<Project> = Action.use(
   PureServicefulInvalidationAction,
+  { runtime: emptyActionRuntime },
 ).submitEffect({ id: "atlas" });
 const pureServicefulInvalidationPlan = Effect.runSync(
   Action.planInvalidationEffect(
@@ -3630,12 +3546,15 @@ const ResultServicefulInvalidationAction = Action.define({
 });
 const resultServicefulInvalidationSubmit: Effect.Effect<
   unknown,
-  EffectInputCallbackError | ActionInterrupted,
+  Server.ClientError | ActionInterrupted,
   ProjectApi
-> = Action.use(ResultServicefulInvalidationAction).submitEffect({ id: "atlas" });
+> = Action.use(ResultServicefulInvalidationAction, { runtime: emptyActionRuntime }).submitEffect({
+  id: "atlas",
+});
 // @ts-expect-error ActionResult invalidation requirements stay visible through Action.use
 const resultServicefulInvalidationSubmitErased: Effect.Effect<unknown> = Action.use(
   ResultServicefulInvalidationAction,
+  { runtime: emptyActionRuntime },
 ).submitEffect({ id: "atlas" });
 const resultWithServicefulInvalidation = ActionResult.withInvalidation(
   ActionResult.success({ id: "atlas", name: "Atlas" }),
@@ -3678,16 +3597,16 @@ const ReadDocumentAction = Action.define<void, string, never, RuntimeDocumentSer
   name: "RuntimeDocument.readAction",
   run: () => RuntimeDocumentService.useSync((service) => service.readDocument()),
 });
-const readDocumentAction = Action.use(ReadDocumentAction);
+const readDocumentAction = Action.use(ReadDocumentAction, { runtime: emptyActionRuntime });
 const readDocumentActionSubmit: Effect.Effect<
   string,
-  EffectInputCallbackError | ActionInterrupted,
+  Server.ClientError | ActionInterrupted,
   RuntimeDocumentService
 > = readDocumentAction.submitEffect(undefined);
 const readDocumentRuntimeAction = Action.use(ReadDocumentAction, { runtime: typedRuntime });
 const readDocumentRuntimeActionSubmit: Effect.Effect<
   string,
-  EffectInputCallbackError | ActionInterrupted
+  Server.ClientError | ActionInterrupted
 > = readDocumentRuntimeAction.submitEffect(undefined);
 const readDocumentRuntimeActionDefinitionRun: EffectInput<string, never, RuntimeDocumentService> =
   readDocumentRuntimeAction.definition.run(undefined);
@@ -3710,7 +3629,7 @@ const readDocumentAndMissingRuntimeAction = Action.use(ReadDocumentAndMissingAct
 });
 const readDocumentAndMissingRuntimeActionSubmit: Effect.Effect<
   string,
-  EffectInputCallbackError | ActionInterrupted,
+  Server.ClientError | ActionInterrupted,
   RuntimeMissingService
 > = readDocumentAndMissingRuntimeAction.submitEffect(undefined);
 // @ts-expect-error runtime-bound actions still preserve services not supplied by the runtime
@@ -3728,35 +3647,28 @@ const readDocumentRuntimeErrorAction = Action.use(ReadDocumentAction, {
 });
 const readDocumentRuntimeErrorSubmit: Effect.Effect<
   string,
-  EffectInputCallbackError | ActionInterrupted | RuntimeStartupError
+  Server.ClientError | ActionInterrupted | RuntimeStartupError
 > = readDocumentRuntimeErrorAction.submitEffect(undefined);
-const solidReadDocumentAction = useAction(ReadDocumentAction);
-const solidReadDocumentActionSubmit: Effect.Effect<
-  string,
-  EffectInputCallbackError | ActionInterrupted
-> = solidReadDocumentAction.submitEffect(undefined);
-const solidReadDocumentRuntimeErrorAction = useAction<
-  void,
-  string,
+// Component bindings: the definition's services join the Component's R, and
+// submissions see the instance's context (no runtime errors: it has started).
+const solidReadDocumentActionBinding: Effect.Effect<
+  Component.ActionHandle<void, string, never>,
   never,
-  RuntimeDocumentService,
-  RuntimeStartupError
->(ReadDocumentAction);
-const solidReadDocumentRuntimeErrorSubmit: Effect.Effect<
-  string,
-  EffectInputCallbackError | ActionInterrupted | RuntimeStartupError
-> = solidReadDocumentRuntimeErrorAction.submitEffect(undefined);
+  RuntimeDocumentService
+> = Component.action(ReadDocumentAction);
+const solidReadDocumentAction = bound(solidReadDocumentActionBinding);
+const solidReadDocumentActionSubmit: Effect.Effect<string, Server.ClientError | ActionInterrupted> =
+  solidReadDocumentAction.submitEffect(undefined);
 void readDocumentActionSubmit;
 void readDocumentRuntimeActionSubmit;
 void readDocumentRuntimeActionDefinitionRun;
 void readDocumentRuntimeErrorSubmit;
 void solidReadDocumentActionSubmit;
-void solidReadDocumentRuntimeErrorSubmit;
-const solidTouchProject = useAction(TouchProject);
+const solidTouchProject = bound(Component.action(TouchProject));
 solidTouchProject
   .submitEffect({ id: "atlas" })
   .pipe(Effect.map((project) => project.name.toUpperCase()));
-// @ts-expect-error Solid action hook preserves action input type
+// @ts-expect-error Component action handles preserve the action input type
 solidTouchProject.submitEffect({ slug: "atlas" });
 
 const InferredTouchProject = Action.define({
@@ -3772,10 +3684,10 @@ const InferredTouchProject = Action.define({
   run: (input) => ProjectApi.use((api) => api.rename(input)),
   invalidates: (project, input) => [ProjectTag({ id: project.id }), ProjectTag({ id: input.id })],
 });
-const inferredTouch = Action.use(InferredTouchProject);
+const inferredTouch = Action.use(InferredTouchProject, { runtime: emptyActionRuntime });
 const inferredTouchSubmit: Effect.Effect<
   Project,
-  ProjectError | Server.ClientError | EffectInputCallbackError | ActionInterrupted,
+  ProjectError | Server.ClientError | Server.ClientError | ActionInterrupted,
   ProjectApi
 > = inferredTouch.submitEffect({ id: "atlas", name: "Atlas" });
 void inferredTouchSubmit;
@@ -3814,114 +3726,23 @@ Effect.runSync(
   ),
 );
 
-submitStartActionEffect(TouchProject, { id: "atlas" }).pipe(
-  Effect.map((result) => {
-    if (result._tag === "Success") {
-      result.value.name.toUpperCase();
-    }
-    result.hydration?.resources.map((resource) => resource.key.toUpperCase());
-    result.invalidation?.entries.map((entry) => entry.ref.family.toUpperCase());
-  }),
-);
 interface StartTransportEnv {
   readonly token: string;
 }
 declare const authenticatedStartFetch: StartFetch<never, StartTransportEnv>;
 declare const startTransportRuntime: SunfallArcRuntime<StartTransportEnv, never>;
-const startActionTransportRequirementsEffect: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError,
-  StartTransportEnv
-> = submitStartActionEffect(
-  TouchProject,
-  { id: "atlas" },
-  {
-    fetch: authenticatedStartFetch,
-  },
-);
-const startActionTransportRuntimeOnlyEffect: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError,
-  StartTransportEnv
-> = submitStartActionEffect(
-  TouchProject,
-  { id: "atlas" },
-  {
-    fetch: authenticatedStartFetch,
-    transportRuntime: startTransportRuntime,
-  },
-);
-// @ts-expect-error transportRuntime only provides fetch work; action response metadata still needs an application runtime/caller runtime
-const startActionTransportRuntimeOnlyErased: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError
-> = submitStartActionEffect(
-  TouchProject,
-  { id: "atlas" },
-  {
-    fetch: authenticatedStartFetch,
-    transportRuntime: startTransportRuntime,
-  },
-);
-const startActionHydrationRuntimeProvidedEffect: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError
-> = submitStartActionEffect(
-  TouchProject,
-  { id: "atlas" },
-  {
-    fetch: authenticatedStartFetch,
-    runtime: startTransportRuntime,
-  },
-);
-const startActionSplitRuntimesProvidedEffect: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError
-> = submitStartActionEffect(
-  TouchProject,
-  { id: "atlas" },
-  {
-    fetch: authenticatedStartFetch,
-    responseRuntime: startTransportRuntime,
-    transportRuntime: startTransportRuntime,
-  },
-);
-const startActionWithServicefulTransport = StartAction.use(TouchProject, {
-  fetch: authenticatedStartFetch,
-});
-const startActionWithServicefulTransportSubmit: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError | ActionInterrupted,
-  StartTransportEnv
-> = startActionWithServicefulTransport.submitEffect({ id: "atlas" });
-const startActionWithProvidedTransport = StartAction.use(TouchProject, {
-  fetch: authenticatedStartFetch,
-  transportRuntime: startTransportRuntime,
+// Start provides the ActionTransport that routes served Actions to the server.
+const startActionTransport: Layer.Layer<ActionTransport> = makeActionTransportLayer({
+  actions: [TouchProject],
   actionManifest: { actionPath: "/custom/action" },
 });
-const startActionWithProvidedTransportSubmit: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError | ActionInterrupted,
-  StartTransportEnv
-> = startActionWithProvidedTransport.submitEffect({ id: "atlas" });
-const startActionWithResponseRuntime = StartAction.use(TouchProject, {
+const startActionServicefulTransport: Layer.Layer<ActionTransport> = makeActionTransportLayer({
+  actions: [TouchProject],
   fetch: authenticatedStartFetch,
-  runtime: startTransportRuntime,
   transportRuntime: startTransportRuntime,
 });
-const startActionWithResponseRuntimeSubmit: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError | ActionInterrupted
-> = startActionWithResponseRuntime.submitEffect({ id: "atlas" });
-const startActionWithSplitRuntimes = StartAction.use(TouchProject, {
-  fetch: authenticatedStartFetch,
-  responseRuntime: startTransportRuntime,
-  transportRuntime: startTransportRuntime,
-});
-const startActionWithSplitRuntimesSubmit: Effect.Effect<
-  StartAction.Result<typeof TouchProject>,
-  Server.ClientError | ActionInterrupted
-> = startActionWithSplitRuntimes.submitEffect({ id: "atlas" });
+// @ts-expect-error a serviceful fetch needs a transport runtime that provides its services
+makeActionTransportLayer({ actions: [TouchProject], fetch: authenticatedStartFetch });
 makeRpcClientLayer({
   fetch: authenticatedStartFetch,
   transportRuntime: startTransportRuntime,
@@ -3930,45 +3751,18 @@ makeRpcClientLayer({
 // @ts-expect-error RPC ServerClient layers cannot hide a serviceful fetch without a transport runtime
 makeRpcClientLayer({ fetch: authenticatedStartFetch });
 makeRpcClientLayer({ fetch: authenticatedStartFetch, transportRuntime: startTransportRuntime });
-void startActionTransportRequirementsEffect;
-void startActionTransportRuntimeOnlyEffect;
-void startActionTransportRuntimeOnlyErased;
-void startActionHydrationRuntimeProvidedEffect;
-void startActionSplitRuntimesProvidedEffect;
-void startActionWithServicefulTransportSubmit;
-void startActionWithProvidedTransportSubmit;
-void startActionWithResponseRuntimeSubmit;
-void startActionWithSplitRuntimesSubmit;
+void startActionTransport;
+void startActionServicefulTransport;
 
-// @ts-expect-error Start action submissions require the action input shape
-submitStartActionEffect(TouchProject, { slug: "atlas" });
-
-// @ts-expect-error Start action submissions reject wrong input value types
-submitStartActionEffect(TouchProject, { id: 123 });
-
-submitStartActionEffect(TouchProjectWithResultInvalidation, { id: "atlas" }).pipe(
-  Effect.map((result) => {
-    if (result._tag === "Success") {
-      result.value.name.toUpperCase();
-    }
-  }),
-);
-
-const touchStart = StartAction.use(TouchProject);
-touchStart.state.get().result._tag;
-touchStart.state.get().input.pipe(Option.map((input) => input.id.toUpperCase()));
-touchStart.invalidation.get()?.entries.map((entry) => entry.ref.key.toUpperCase());
-touchStart.hydration.get()?.resources.map((resource) => resource.key.toUpperCase());
-touchStart.submitEffect({ id: "atlas" }).pipe(
-  Effect.map((result) => {
-    if (result._tag === "Success") {
-      result.value.name.toUpperCase();
-    }
-  }),
-);
-
-// @ts-expect-error StartAction client instances preserve action input fields
-touchStart.submitEffect({ slug: "atlas" });
+// The same Action handle submits locally or through the transport: the result
+// and error types are the Action's own (plus transport failures).
+const touchHandle = bound(Component.action(TouchProject));
+touchHandle.submitEffect({ id: "atlas" }).pipe(Effect.map((project) => project.name.toUpperCase()));
+touchHandle.input().pipe(Option.map((input) => input.id.toUpperCase()));
+// @ts-expect-error Action handles preserve action input fields
+touchHandle.submitEffect({ slug: "atlas" });
+// @ts-expect-error StartAction no longer creates client instances; use Component.action
+StartAction.use(TouchProject);
 
 StartAction.form(TouchProject, {
   actionManifest: { actionPath: "/custom/action" },
@@ -4108,9 +3902,6 @@ devtoolsStore.recordActionState("Project.touch", "Success", {
   serializedInvalidationPlan: startInvalidationPlan,
 });
 devtoolsStore.recordActionState("Project.touch", "Success", {
-  serializedInvalidationPlan: touchStart.invalidation.get(),
-});
-devtoolsStore.recordActionState("Project.touch", "Success", {
   invalidationPlan: Effect.runSync(
     Action.planInvalidationEffect(TouchProject, { id: "atlas", name: "Atlas" }, { id: "atlas" }),
   ),
@@ -4123,10 +3914,8 @@ const devtoolsSerializedInvalidationIndexEffect: Effect.Effect<number> =
 devtoolsStore.recordActionStateEffect("Project.touch", "Success", {
   serializedInvalidationPlan: startInvalidationPlan,
 });
-devtoolsStore.recordStartAction(touchStart);
-devtoolsStore.recordStartActionEffect(touchStart);
-const devtoolsTrackStartActionEffect: Effect.Effect<void, never, Scope.Scope> =
-  devtoolsStore.trackStartActionEffect(touchStart);
+const devtoolsTrackActionEffect: Effect.Effect<void, never, Scope.Scope> =
+  devtoolsStore.trackActionEffect(touch);
 
 devtoolsStore.recordActionState("Project.touch", "Success", {
   invalidationPlan: Effect.runSync(
@@ -4148,7 +3937,7 @@ void devtoolsStartAppGraphPanels;
 void devtoolsSetStartAppGraphDiagnosticsEffect;
 void devtoolsStartInvalidationIndex;
 void devtoolsSerializedInvalidationIndexEffect;
-void devtoolsTrackStartActionEffect;
+void devtoolsTrackActionEffect;
 
 // @ts-expect-error invalidation planning value must match the action output type
 Effect.runSync(Action.planInvalidationEffect(TouchProject, { id: "atlas" }, { id: "atlas" }));

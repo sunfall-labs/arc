@@ -1,13 +1,40 @@
 import { makeRuntime, runWithRuntime } from "@sunfall/arc-core";
 import { currentOrDefaultRuntime, eraseRuntime } from "@sunfall/arc-core/internal";
 import { Collection, QueryEvaluationError } from "@sunfall/arc-db";
-import { useCollection, useLiveQuery } from "@sunfall/arc-solid-db";
+import { SolidDb } from "@sunfall/arc-solid-db";
 import { Context, Deferred, Effect, Fiber, Layer, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { createEffect, createRoot, createSignal, flush } from "solid-js";
 import { describe, expect, it } from "vitest";
 import { makeSolidDbReactiveBinding } from "../src/shared.js";
-import { withRuntimeContext } from "./with-runtime-context.js";
+import { bindInInstance } from "./instance-harness.js";
+
+// Test shims: bind collections and live queries in a fresh Component instance
+// on the runtime of the enclosing `withRuntimeContext(...)` call.
+let currentTestRuntime: object | undefined;
+const withRuntimeContext = <A>(runtime: object, f: () => A): A => {
+  const previous = currentTestRuntime;
+  currentTestRuntime = runtime;
+  try {
+    return f();
+  } finally {
+    currentTestRuntime = previous;
+  }
+};
+const testRuntime = () => {
+  if (currentTestRuntime === undefined) {
+    throw new Error("Bind inside withRuntimeContext(...)");
+  }
+  return currentTestRuntime as Parameters<typeof bindInInstance>[0];
+};
+const useCollection = <A extends object, K extends Collection.Key, E = never, R = never>(
+  definition: Collection.Definition<A, K, E, R>,
+  options?: Parameters<typeof SolidDb.collection<A, K, E, R>>[1],
+) => bindInInstance(testRuntime(), SolidDb.collection(definition, options));
+const useLiveQuery = <T, E = never, R = never>(
+  input: Parameters<typeof SolidDb.liveQuery<T, E, R>>[0],
+  options?: Parameters<typeof SolidDb.liveQuery<T, E, R>>[1],
+) => bindInInstance(testRuntime(), SolidDb.liveQuery(input, options));
 
 interface Project {
   readonly id: string;
