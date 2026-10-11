@@ -55,7 +55,8 @@ while examples, diagnostics, and release gates are hardened.
   streamed responses.
 - Local-first Collections with persistence, sync adapter seams, optimistic
   mutation queues, and live query materialization.
-- JSON-safe devtools summaries, causal graphs, Program timelines, request
+- Whole-app Timeline recording and replay, JSON-safe devtools summaries,
+  causal graphs, request
   traces, panel data models, a browser-embeddable panel renderer, a checked
   panel app shell, and a checked browser-extension shell with an
   inspected-window bridge.
@@ -133,7 +134,7 @@ pnpm example:leak-scan
 - `@sunfall/arc-start-fetch`: Fetch-host facade over the tested Start adapters.
 - `@sunfall/arc-db`: Collections, live queries, persistence, and sync adapter
   seams.
-- `@sunfall/arc-devtools`: serializable inspection contracts, Program timeline
+- `@sunfall/arc-devtools`: serializable inspection contracts, Timeline commit
   panels, and a small browser panel renderer for agents, app panels, and
   extension panels.
 - `@sunfall/arc-solid`: Solid runtime provider, router, program/resource/action

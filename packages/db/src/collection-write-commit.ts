@@ -8,6 +8,7 @@ import {
   cloneOptimisticRowStack,
   clonePendingMutationEntry,
   cloneStoredRow,
+  restoreCollectionVersion,
   restoreOptimisticState,
   type CollectionState,
   type OptimisticRowStack,
@@ -43,8 +44,7 @@ export const restoreCollectionStateSnapshot = <A extends object, K extends Colle
   snapshot: CollectionStateSnapshot<A, K>,
 ): void => {
   restoreOptimisticState(state, snapshot.rows, snapshot.pendingMutations, snapshot.optimisticRows);
-  state.indexCache.clear();
-  state.version.set(snapshot.version);
+  restoreCollectionVersion(state, snapshot.version);
 };
 
 interface CollectionWriteCommitOptions<A extends object, K extends CollectionKey, E, R> {

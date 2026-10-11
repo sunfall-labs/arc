@@ -29,7 +29,7 @@ story.
   duplicate panel validation logic.
 - `DevtoolsStore` is an explicit public Interface for recording snapshots,
   app graph diagnostics, route plans, invalidations, runtime events, summaries,
-  Program timeline events, panels, and causal graphs. Store record methods
+  Timeline commits, panels, and causal graphs. Store record methods
   return retained fact indexes when callers need precise runtime-event links.
 
 Summaries, panels, causal graphs, and bridge payloads are JSON-safe projections.
@@ -90,13 +90,14 @@ type is structural, so devtools stays independent of the full-stack package:
 yield * store.trackStartActionEffect(renameStartAction);
 ```
 
-Programs are observed from the public Program instance, not from private queues
-or fibers. The raw Program keeps its typed timeline signal, while devtools copies
-each event through the bounded serialization and redaction policy before
-summaries, panels, bridges, or causal graphs inspect it:
+State history comes from the app `Timeline`, not from private queues or fibers.
+Devtools copies each Timeline entry through the bounded serialization and
+redaction policy before summaries, panels, bridges, or causal graphs inspect it.
+Program message and failure commits land on the Programs panel:
 
 ```ts
-yield * store.trackProgramEffect(projectProgram);
+const recording = yield * Timeline.record();
+yield * store.trackTimelineEffect(recording);
 ```
 
 The default policy redacts common secret-shaped keys such as passwords, tokens,
@@ -251,11 +252,11 @@ Effect-native event streams:
 - `store.trackStartActionEffect(startAction)` observes Start-shaped action
   instances directly and records serialized invalidation metadata on successful
   states.
-- `store.trackProgramEffect(program)` exposes Program message, command,
-  subscription, failure, and disposal timelines without reading private runtime
-  queues. Anonymous tracked Program instances receive stable per-store fallback
-  identities such as `Program#1` so multiple unnamed Programs do not collapse
-  into one panel or graph target.
+- `store.trackTimelineEffect(recording)` records a running Timeline's retained
+  and future entries as `TimelineCommit` runtime events until its Scope closes.
+  Each commit's target is the Program, Action, Resource, or Collection its cause
+  names; unnamed Programs share the `Program` target, so name Programs that
+  should appear separately.
 - `store.recordRequestTraceEffect(trace)` exposes the request-level join across
   request context, response context, services, route plans, resources,
   collections, server functions, actions, streams, fibers, and teardown.

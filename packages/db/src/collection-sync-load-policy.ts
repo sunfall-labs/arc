@@ -18,6 +18,7 @@ import { ingestCollectionOutputRowsEffect } from "./collection-row-ingress.js";
 import {
   applyCollectionBaseRow,
   deleteCollectionBaseRow,
+  commitCollectionLoadState,
   makeCollectionState,
   rebaseCollectionBaseRows,
   type CollectionLoadAttempt,
@@ -95,7 +96,8 @@ const failCollectionLoadEffect = <A extends object, K extends CollectionKey, E, 
   error: Cause,
 ): Effect.Effect<never, Cause> =>
   Effect.gen(function* () {
-    state.loadState.set(
+    commitCollectionLoadState(
+      state,
       AsyncResult.failureWithPrevious(Cause.fail(error as CollectionRuntimeError<E>), {
         previous: Option.some(state.loadState.get()),
       }),
@@ -240,7 +242,7 @@ const stagedLoadedCollectionSnapshotEffect = <A extends object, K extends Collec
 ): Effect.Effect<CollectionSnapshot<A, K>, EffectInputCallbackError> =>
   Effect.try({
     try: () => {
-      const stagedState = makeCollectionState<A, K, E>();
+      const stagedState = makeCollectionState<A, K, E>(definition.name);
       restoreCollectionStateSnapshot(stagedState, snapshotCollectionState(state));
       replaceLoadedCollectionRows(stagedState, rows);
       return collectionSnapshotFromState(definition, stagedState, updatedAt);
@@ -281,7 +283,7 @@ const restoreLoadStateIfCurrentEffect = <A extends object, K extends CollectionK
 ): Effect.Effect<void> =>
   Effect.sync(() => {
     if (isCurrentLoadAttempt(state, attempt)) {
-      state.loadState.set(loadState);
+      commitCollectionLoadState(state, loadState);
     }
   });
 
@@ -342,7 +344,7 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
         replaceLoadedCollectionRows(state, rows);
         state.syncedSource = source;
         state.initialDataError = undefined;
-        state.loadState.set(AsyncResult.success(undefined, { timestamp: updatedAt }));
+        commitCollectionLoadState(state, AsyncResult.success(undefined, { timestamp: updatedAt }));
         yield* publishStoreEvent(store, {
           _tag: "CollectionLoaded",
           collection: definition.name,
@@ -409,7 +411,10 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         }
         if (current._tag === "Initial" && isCurrentLoadAttempt(state, attempt)) {
           const updatedAt = yield* Clock.currentTimeMillis;
-          state.loadState.set(AsyncResult.success(undefined, { timestamp: updatedAt }));
+          commitCollectionLoadState(
+            state,
+            AsyncResult.success(undefined, { timestamp: updatedAt }),
+          );
         }
         return;
       }
@@ -417,7 +422,7 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
       const load = collectionCallbackEffect(operation);
       const previousLoadState = state.loadState.get();
       if (source === undefined && isCurrentLoadAttempt(state, attempt)) {
-        state.loadState.set(AsyncResult.waiting(previousLoadState));
+        commitCollectionLoadState(state, AsyncResult.waiting(previousLoadState));
       }
       const values = yield* (
         source === undefined ? withCollectionPolicyRetry(definition, load) : load

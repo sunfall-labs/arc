@@ -32,7 +32,8 @@
         "scope",
         "server",
         "signal",
-        "stable-stringify"
+        "stable-stringify",
+        "timeline"
       ],
       "requiredTypeTestImports": [
         "ActionConcurrency",

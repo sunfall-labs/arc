@@ -11,7 +11,6 @@ import {
   type EffectInputCallbackError,
   type SunfallArcRuntime,
   type ForkScopedOptions,
-  type ProgramEvent,
   type ProgramFailure,
   type ReadableSignal,
   type ResourceUiInput,
@@ -141,16 +140,12 @@ export interface ProgramHandle<Model, Message, E = never, DispatchE = E> {
   readonly model: Accessor<ProgramModelView<Model>>;
   /** Typed update, command, and subscription failures reported by the Program loop. */
   readonly failures: Accessor<ReadonlyArray<ProgramFailure<Message, E>>>;
-  /** Bounded runtime timeline for messages, commands, subscriptions, and failures. */
-  readonly timeline: Accessor<ReadonlyArray<ProgramEvent<Model, Message, E>>>;
   /** Fire-and-forget dispatch for event handlers. */
   readonly dispatch: Program.Instance<Model, Message, E, DispatchE>["dispatch"];
   /** Effect dispatch that completes after the update commits, or fails if disposal drops it. */
   readonly dispatchEffect: Program.Instance<Model, Message, E, DispatchE>["dispatchEffect"];
   /** Clears accumulated failures. */
   clearFailures(): void;
-  /** Clears retained timeline events without changing model or failures. */
-  clearTimeline(): void;
 }
 
 type SolidActionInvalidationRequirements<A, R> = R | ActionResultInvalidationRequirements<A>;
@@ -273,7 +268,7 @@ const projectModel = <Model>(
 
 /**
  * Starts an Sunfall Arc Program and exposes its model as a fine-grained
- * read-only Solid view, plus failures and timeline as Solid accessors.
+ * read-only Solid view, plus failures as a Solid accessor.
  *
  * @example
  * ```tsx
@@ -299,17 +294,14 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
   );
   const model = projectModel(instance.model, options?.key);
   const failures = accessor(instance.failures);
-  const timeline = accessor(instance.timeline);
 
   return {
     instance,
     model,
     failures,
-    timeline,
     dispatch: instance.dispatch,
     dispatchEffect: instance.dispatchEffect,
     clearFailures: instance.clearFailures,
-    clearTimeline: instance.clearTimeline,
   };
 };
 

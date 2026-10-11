@@ -3,6 +3,7 @@ import { AsyncResult } from "effect/reactivity";
 import { settleResult } from "./async-result-settle.js";
 import type { ResourceInvalidationPlan } from "./resource.js";
 import { Signal, type ReadableSignal } from "./signal.js";
+import type { TimelineActionCause } from "./timeline.js";
 
 /**
  * Submission concurrency policy shared by Core Actions and Start Actions.
@@ -109,18 +110,27 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
     result: AsyncResult.initial(),
     input: Option.none(),
   };
-  const state = Signal.make<ActionState<I, A, E>>(idle);
-  const invalidationPlan = Signal.make<P | undefined>(undefined);
+  const state = Signal.make<ActionState<I, A, E>>(idle, { name: `${options.actionName}.state` });
+  const invalidationPlan = Signal.make<P | undefined>(undefined, {
+    name: `${options.actionName}.invalidationPlan`,
+  });
   // Last settled state and plan, restored when the latest submission is interrupted.
   let settled: { readonly state: ActionState<I, A, E>; readonly plan: P | undefined } = {
     state: idle,
     plan: undefined,
   };
-  const commit = (next: ActionState<I, A, E>, plan: P | undefined): void => {
-    Signal.batch(() => {
-      invalidationPlan.set(plan);
-      state.set(next);
-    });
+  const commit = (
+    next: ActionState<I, A, E>,
+    plan: P | undefined,
+    event: TimelineActionCause["event"],
+  ): void => {
+    Signal.batch(
+      () => {
+        invalidationPlan.set(plan);
+        state.set(next);
+      },
+      { cause: { _tag: "Action", action: options.actionName, event } },
+    );
   };
   let version = 0;
   let currentSubmission: CurrentActionSubmission<A, E> | undefined;
@@ -145,7 +155,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
     currentSubmission = undefined;
     activeSubmissions.clear();
     settled = { state: idle, plan: undefined };
-    commit(idle, undefined);
+    commit(idle, undefined, "reset");
     return interruptFibersEffect(fibers);
   };
   const resetEffect = (): Effect.Effect<void> => Effect.suspend(() => captureResetEffect());
@@ -190,6 +200,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
         commit(
           { result: AsyncResult.waiting(state.get().result), input: Option.some(input) },
           undefined,
+          "submit",
         );
       }),
     interruptStaleEffect: (submission) =>
@@ -215,7 +226,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
 
         const settledExit = exit as Exit.Exit<A, E>;
         if (Exit.isFailure(settledExit) && Cause.hasInterruptsOnly(settledExit.cause)) {
-          commit(settled.state, settled.plan);
+          commit(settled.state, settled.plan, "interrupt");
           return;
         }
 
@@ -227,7 +238,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
         };
         const nextPlan = Exit.isSuccess(settledExit) ? plan : undefined;
         settled = { state: next, plan: nextPlan };
-        commit(next, nextPlan);
+        commit(next, nextPlan, Exit.isSuccess(settledExit) ? "success" : "failure");
       }),
     clearCurrentEffect: (token) =>
       Effect.sync(() => {

@@ -9,6 +9,7 @@ import {
   read,
   RuntimeTypeId,
   runWithRuntime,
+  Timeline,
   type AnySunfallArcRuntime,
 } from "../src/index.js";
 
@@ -468,9 +469,10 @@ describe("Program", () => {
       }),
     ));
 
-  it("records command failure source messages in failures and timeline", () =>
+  it("records command failure source messages in failures and on the Timeline", () =>
     Effect.runPromise(
       Effect.gen(function* () {
+        const recording = yield* Timeline.record();
         const program = Program.start(
           Program.define<number, "load", string>({
             initial: 0,
@@ -491,20 +493,18 @@ describe("Program", () => {
           message: "load",
           error: "offline",
         });
-        const commandFailure = read(program.timeline).find(
-          (event) => event._tag === "CommandFailed",
+        const failureCommit = read(recording.entries).find((entry) =>
+          entry.changes.some((change) => change.signal === program.failures),
         );
-        expect(commandFailure).toMatchObject({
-          _tag: "CommandFailed",
-          source: "load",
-          failure: {
-            message: "load",
-            error: "offline",
-          },
+        expect(failureCommit?.cause).toEqual({
+          _tag: "Program",
+          program: undefined,
+          event: "failure",
+          message: "load",
         });
 
         yield* program.disposeEffect;
-      }),
+      }).pipe(Effect.scoped),
     ));
 
   it("reports erased Promise-shaped subscription messages without enqueueing them", () =>
@@ -628,9 +628,10 @@ describe("Program", () => {
       }),
     ));
 
-  it("records a bounded runtime timeline for messages and commands", () =>
+  it("records Program messages on the app Timeline as model commits", () =>
     Effect.runPromise(
       Effect.gen(function* () {
+        const recording = yield* Timeline.record();
         const loaded = yield* Deferred.make<void>();
         type Model = { readonly count: number; readonly loading: boolean };
         type Message =
@@ -639,8 +640,7 @@ describe("Program", () => {
 
         const program = Program.start(
           Program.define<Model, Message>({
-            name: "Counter.timeline",
-            timeline: { limit: 4 },
+            name: "Counter",
             initial: { count: 0, loading: false },
             update: (model, message) => {
               switch (message._tag) {
@@ -662,47 +662,24 @@ describe("Program", () => {
         yield* Deferred.await(loaded);
         yield* Effect.sleep("10 millis");
 
-        const timeline = read(program.timeline);
-        expect(timeline.map((event) => event._tag)).toEqual([
-          "Message",
-          "CommandStarted",
-          "CommandCompleted",
-          "Message",
-        ]);
-        expect(timeline[0]).toMatchObject({
-          _tag: "Message",
-          program: "Counter.timeline",
-          commandCount: 1,
-        });
-        expect(timeline[2]).toMatchObject({
-          _tag: "CommandCompleted",
-          emitted: { _tag: "Loaded", amount: 2 },
-        });
-
-        program.clearTimeline();
-        expect(read(program.timeline)).toEqual([]);
-        yield* program.disposeEffect;
-      }),
-    ));
-
-  it("omits runtime timeline events when retention is disabled", () =>
-    Effect.runPromise(
-      Effect.gen(function* () {
-        const program = Program.start(
-          Program.define<number, "increment">({
-            timeline: false,
-            initial: 0,
-            update: (model) => model + 1,
-          }),
+        // A Program's history is the app Timeline filtered to its model signal.
+        const history = read(recording.entries).filter((entry) =>
+          entry.changes.some((change) => change.signal === program.model),
         );
-
-        yield* program.dispatchEffect("increment");
-
-        expect(read(program.model)).toBe(1);
-        expect(read(program.timeline)).toEqual([]);
+        expect(history.map((entry) => Timeline.describe(entry.cause))).toEqual([
+          'Program "Counter" message Load',
+          'Program "Counter" message Loaded',
+        ]);
+        expect(history[1]?.changes).toEqual([
+          {
+            signal: program.model,
+            name: "Counter.model",
+            previous: { count: 0, loading: true },
+            next: { count: 2, loading: false },
+          },
+        ]);
         yield* program.disposeEffect;
-        expect(read(program.timeline)).toEqual([]);
-      }),
+      }).pipe(Effect.scoped),
     ));
 
   it("steps story messages and resolves commands explicitly", () =>
@@ -839,8 +816,6 @@ describe("Program", () => {
 
         yield* Deferred.await(started);
         yield* program.disposeEffect;
-
-        expect(read(program.timeline).some((event) => event._tag === "Disposed")).toBe(true);
       }),
     ));
 
@@ -1013,9 +988,6 @@ describe("Program", () => {
         yield* Deferred.await(changedStarted);
 
         expect(startedModels).toEqual([0, 1]);
-        expect(
-          read(program.timeline).filter((event) => event._tag === "SubscriptionStarted"),
-        ).toHaveLength(2);
         yield* program.disposeEffect;
       }),
     ));
@@ -1065,11 +1037,6 @@ describe("Program", () => {
         yield* Effect.sleep("10 millis");
 
         expect(read(program.model)).toEqual({ version: 1 });
-        expect(
-          read(program.timeline).filter(
-            (event) => event._tag === "SubscriptionEmitted" && event.message._tag === "Stale",
-          ),
-        ).toEqual([]);
 
         yield* Deferred.succeed(releaseOldSubscription, undefined).pipe(Effect.ignore);
         yield* program.disposeEffect;

@@ -283,6 +283,35 @@ When Start renders a route preload failure, the server and the hydrating client
 render this view from the same failure, decoded from the wire with the route's
 `error` schema (tag-only without one), so hydration reuses the server markup.
 
+## Debugging And Testing With Timeline Replay
+
+The Solid adapter needs nothing extra for replay: `Timeline.record(...)` from
+`@sunfall/arc-core` records every commit, and travelling re-renders every Solid
+computation that reads an Arc signal, including `useProgram(...)` models,
+Resource results, and Action state, at the travelled commit. Effects keep
+running against the live head, so the UI can be inspected in the past while the
+app keeps working; `resume()` returns the DOM to the head.
+
+```ts
+const recording = yield * Timeline.record();
+yield * program.dispatchEffect({ _tag: "Increment" });
+yield * program.dispatchEffect({ _tag: "Increment" });
+
+const [first] = Signal.peek(recording.entries);
+yield * recording.travel(first!.sequence);
+flush();
+expect(container.textContent).toBe("1"); // the DOM shows the first commit
+
+yield * recording.resume();
+flush();
+expect(container.textContent).toBe("2");
+```
+
+`recording.entries` and `recording.position` are Arc signals, so a debug panel
+renders them like any other state. Run `Timeline.record(...)` in the Scope that
+owns the debugging session (a test, or a devtools mount); closing it uninstalls
+the recorder.
+
 ## Package And Test Shape
 
 Starters and examples compile Solid components through the `@sunfall/arc-tsrx`

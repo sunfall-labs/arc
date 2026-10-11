@@ -8,6 +8,7 @@ import { AsyncResult } from "effect/reactivity";
 import { CollectionStoreTypeId } from "./collection-ids.js";
 import {
   bumpCollectionState,
+  commitCollectionLoadState,
   makeCollectionState,
   type CollectionState,
 } from "./collection-state.js";
@@ -57,12 +58,12 @@ const initializeCollectionState = <A extends object, K extends CollectionKey, E,
     }
     state.initialDataError = undefined;
     // Initial data materializes synchronously outside any Effect, so there is no Clock here.
-    state.loadState.set(AsyncResult.success(undefined, { timestamp: Date.now() }));
+    commitCollectionLoadState(state, AsyncResult.success(undefined, { timestamp: Date.now() }));
     bumpCollectionState(state);
   } catch (error) {
     state.rows.clear();
     state.initialDataError = error as CollectionRuntimeError<E>;
-    state.loadState.set(AsyncResult.fail(state.initialDataError));
+    commitCollectionLoadState(state, AsyncResult.fail(state.initialDataError));
   }
 };
 
@@ -101,7 +102,7 @@ export class RuntimeCollectionStore implements CollectionStore {
       return stateForDefinition<A, K, E>(existing);
     }
 
-    const state = makeCollectionState<A, K, E>();
+    const state = makeCollectionState<A, K, E>(definition.name);
     this.#definitions.add(definition);
     this.#states.set(definition, state);
     initializeCollectionState(definition, state);

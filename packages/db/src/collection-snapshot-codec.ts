@@ -16,6 +16,7 @@ import type {
 import {
   applyCollectionBaseRow,
   cloneStoredRow,
+  commitCollectionLoadState,
   rebaseCollectionBaseRows,
   syncOptimisticRowsFromPendingMutations,
   type CollectionState,
@@ -1050,7 +1051,10 @@ const applyValidatedCollectionSnapshotState = <A extends object, K extends Colle
     rebaseCollectionBaseRows(state, rebaseKeys);
   }
 
-  state.loadState.set(AsyncResult.success(undefined, { timestamp: snapshot.updatedAt }));
+  commitCollectionLoadState(
+    state,
+    AsyncResult.success(undefined, { timestamp: snapshot.updatedAt }),
+  );
   return snapshot;
 };
 

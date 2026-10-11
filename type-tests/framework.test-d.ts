@@ -31,6 +31,12 @@ import {
   RuntimeDisposeError,
   Server,
   Signal,
+  Timeline,
+  TimelineAlreadyRecording,
+  TimelineEntryUnavailable,
+  type TimelineCause,
+  type TimelineEntry,
+  type TimelineRecording,
   browserRouterLinkClickDecision,
   browserRouterLinkPreloadDecision,
   browserRouterLinkPreloadIdentity,
@@ -144,7 +150,7 @@ import {
   normalizeRouteModulePreloadCollections,
   type DevtoolsCollectionStoreEvent,
   type DevtoolsInvalidationPlan,
-  type DevtoolsProgramEvent,
+  type DevtoolsTimelineCommit,
   type DevtoolsPanels,
   type DevtoolsRequestTrace,
   type DevtoolsRequestTraceTeardown,
@@ -3458,7 +3464,6 @@ const ProjectProgram = Program.define<
   ProjectApi
 >({
   name: "ProjectProgram",
-  timeline: { limit: 50 },
   initial: { selected: undefined, loading: false },
   update: (model, message) => {
     switch (message._tag) {
@@ -3499,15 +3504,55 @@ const missingProgramRuntimeRequirement =
   null as unknown as ProjectProgramRemainingRuntimeRequirements;
 const projectProgram = Program.start(ProjectProgram, { runtime: projectProgramRuntime });
 read(projectProgram.model).selected?.name.toUpperCase();
-const projectProgramTimeline: ReadonlyArray<
-  Program.Event<
-    ProjectProgramModel,
-    ProjectProgramMessage,
-    ProjectError | Server.ClientError | EffectInputCallbackError
-  >
-> = read(projectProgram.timeline);
-projectProgramTimeline.map((event) => event.sequence.toFixed());
+const projectTimelineRecord: Effect.Effect<
+  TimelineRecording,
+  TimelineAlreadyRecording,
+  Scope.Scope
+> = Timeline.record({ limit: 50 });
+declare const projectTimeline: TimelineRecording;
+// A Program's history is the app Timeline filtered to its model signal.
+const projectProgramHistory: ReadonlyArray<TimelineEntry> = read(projectTimeline.entries).filter(
+  (entry) => entry.changes.some((change) => change.signal === projectProgram.model),
+);
+projectProgramHistory.map((entry) => entry.sequence.toFixed());
+const projectTimelineLabel: string = Timeline.describe(projectProgramHistory[0]?.cause);
+const projectTimelinePosition: number | undefined = read(projectTimeline.position);
+const projectTimelineTravel: Effect.Effect<void, TimelineEntryUnavailable> =
+  projectTimeline.travel(1);
+const projectTimelineResume: Effect.Effect<void> = projectTimeline.resume();
+// @ts-expect-error travel takes a recorded sequence number
+projectTimeline.travel("1");
+// @ts-expect-error Timeline entries are read-only
+projectTimeline.entries.set([]);
+const projectProgramCause: TimelineCause | undefined = projectProgramHistory[0]?.cause;
+if (projectProgramCause?._tag === "Program") {
+  const program: string | undefined = projectProgramCause.program;
+  const event: "message" | "failure" | "clearFailures" = projectProgramCause.event;
+  void program;
+  void event;
+}
+const renameCause: TimelineCause = { _tag: "User", label: "Rename project" };
+const namedTimelineSignal = Signal.make("Atlas", { name: "Project.title" });
+const labelledTransaction: Effect.Effect<void> = Signal.transaction(
+  Effect.sync(() => namedTimelineSignal.set("Apollo")),
+  { cause: renameCause },
+);
+const labelledBatch: number = Signal.batch(() => 1, { cause: renameCause });
+// @ts-expect-error Timeline causes are a closed tagged union
+Signal.batch(() => 1, { cause: { _tag: "Custom", label: "nope" } });
+// @ts-expect-error signal names are strings
+Signal.make(0, { name: 1 });
+// @ts-expect-error Program history lives on the app Timeline, not on the Program instance
 projectProgram.clearTimeline();
+// @ts-expect-error Program definitions no longer carry per-program timeline retention
+Program.define<number, "tick">({ initial: 0, update: (model) => model, timeline: false });
+void projectTimelineRecord;
+void projectTimelineLabel;
+void projectTimelinePosition;
+void projectTimelineTravel;
+void projectTimelineResume;
+void labelledTransaction;
+void labelledBatch;
 const projectProgramDispatchEffect: Effect.Effect<
   void,
   Program.Failure<
@@ -3608,8 +3653,6 @@ const solidProjectProgram: ProgramHandle<
 > = useProgram(ProjectProgram);
 solidProjectProgram.model().selected?.id.toUpperCase();
 solidProjectProgram.failures().map((failure) => failure.phase);
-solidProjectProgram.timeline().map((event) => event._tag);
-solidProjectProgram.clearTimeline();
 // @ts-expect-error Solid Program dispatch messages keep payloads typed
 solidProjectProgram.dispatch({ _tag: "Loaded" });
 const solidProjectProgramWithRuntimeError = useProgram<
@@ -4465,9 +4508,15 @@ StartAction.form(TouchProject, {
 });
 
 const devtoolsStore: DevtoolsStore = makeDevtoolsStore();
-const devtoolsProgramEvent: DevtoolsProgramEvent = projectProgramTimeline[0]!;
-const devtoolsTrackProgramEffect: Effect.Effect<void, never, Scope.Scope> =
-  devtoolsStore.trackProgramEffect(projectProgram);
+const devtoolsTimelineCommit: DevtoolsTimelineCommit = {
+  sequence: 1,
+  label: Timeline.describe(renameCause),
+  cause: renameCause,
+  changes: [{ signal: "Project.title", previous: "Atlas", next: "Apollo" }],
+};
+devtoolsStore.recordTimelineEntry(projectProgramHistory[0]!);
+const devtoolsTrackTimelineEffect: Effect.Effect<void, never, Scope.Scope> =
+  devtoolsStore.trackTimelineEffect(projectTimeline);
 declare const dbCollectionStoreEvent: Collection.StoreEvent;
 declare const startRuntimeRequestTrace: StartRequestTrace;
 const devtoolsRuntimeRequestTrace: DevtoolsRequestTrace = startRuntimeRequestTrace;
@@ -4486,9 +4535,9 @@ const devtoolsCollectionRuntimeEvent: DevtoolsRuntimeEvent = {
   _tag: "CollectionStoreEvent",
   event: dbCollectionStoreEvent,
 };
-const devtoolsProgramRuntimeEvent: DevtoolsRuntimeEvent = {
-  _tag: "ProgramEvent",
-  event: devtoolsProgramEvent,
+const devtoolsTimelineRuntimeEvent: DevtoolsRuntimeEvent = {
+  _tag: "TimelineCommit",
+  commit: devtoolsTimelineCommit,
 };
 const devtoolsRequestRuntimeEvent: DevtoolsRuntimeEvent = {
   _tag: "RequestTrace",
@@ -4497,7 +4546,7 @@ const devtoolsRequestRuntimeEvent: DevtoolsRuntimeEvent = {
 const devtoolsRuntimeEvents: ReadonlyArray<DevtoolsRuntimeEvent> = [
   devtoolsResourceRuntimeEvent,
   devtoolsCollectionRuntimeEvent,
-  devtoolsProgramRuntimeEvent,
+  devtoolsTimelineRuntimeEvent,
   devtoolsRequestRuntimeEvent,
 ];
 const devtoolsRuntimeSnapshot: DevtoolsSnapshot = {
@@ -4595,7 +4644,7 @@ devtoolsStore.recordActionState("Project.touch", "Success", {
   serializedInvalidationPlan,
 });
 void devtoolsRuntimeSnapshot;
-void devtoolsTrackProgramEffect;
+void devtoolsTrackTimelineEffect;
 void devtoolsStartAppGraphDiagnosticsFromStart;
 void devtoolsLoadedStartAppGraphDiagnostics;
 void normalizedDevtoolsStartAppGraphDiagnostics;

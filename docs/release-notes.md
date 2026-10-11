@@ -6,6 +6,30 @@ publication under `https://github.com/sunfall-labs/arc`; this remains a
 release-candidate draft until final npm publication is selected. The selected
 first public alpha version is `0.1.0-alpha.1`.
 
+## Whole-App Timeline Replaces Program Timelines (Breaking)
+
+- `Timeline.record(options?)` records every committed signal change set (user
+  Signals, Resource entries, Action state, Program models and failures, router
+  state, collection versions and load state) until its Scope closes, with
+  bounded retention (default 1000). Entries carry a `TimelineCause` and
+  `{ signal, name, previous, next }` changes.
+- `recording.travel(sequence)` renders the app at a past commit while committed
+  state, and every Effect computing from it, stays live; `recording.resume()`
+  renders the head again.
+- `Signal.make(initial, { name })` names a signal for entries;
+  `Signal.transaction(effect, { cause })` and `Signal.batch(f, { cause })`
+  label a commit.
+- Removed: Program `timeline` definition option, `ProgramTimelineOptions`,
+  `ProgramEvent` and its event variants (`Program.Event`, `Program.*Event`,
+  `Program.TimelineOptions`), `program.timeline`, `program.clearTimeline()`,
+  and the Solid `useProgram` handle's `timeline()` / `clearTimeline()`. A
+  Program's history is the Timeline filtered to `program.model`.
+- Devtools: `recordProgramEvent(...)`, `recordProgramEventEffect(...)`,
+  `trackProgramEffect(...)`, `DevtoolsProgramEvent`, and the `ProgramEvent`
+  runtime event are replaced by `recordTimelineEntry(...)`,
+  `recordTimelineEntryEffect(...)`, `trackTimelineEffect(recording)`,
+  `DevtoolsTimelineCommit`, and the `TimelineCommit` runtime event.
+
 ## Async State Is AsyncResult (Breaking)
 
 Arc's async state now uses Effect's `AsyncResult`
