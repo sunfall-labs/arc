@@ -1,22 +1,14 @@
-import {
-  collectionReactiveDepsValue,
-  selectCollectionReactiveLiveQuery,
-  type CollectionReactiveLiveQueryInput,
-  type CollectionReactiveLiveQuerySelection,
-  type LiveQuery,
-  type QueryEvaluationError,
-} from "@sunfall/arc-db";
-import type { EffectInput } from "@sunfall/arc-core";
+import { Query, type QueryEvaluationError } from "@sunfall/arc-db";
+import { buildQuery } from "@sunfall/arc-db/internal";
+import { runWithRuntime, type EffectInput } from "@sunfall/arc-core";
 import { useRuntime } from "@sunfall/arc-solid";
 import { Effect } from "effect";
 import type { AsyncResult } from "effect/reactivity";
-import { createMemo, type Accessor } from "solid-js";
+import { createMemo, untrack, type Accessor } from "solid-js";
 import { makeSolidDbReactiveBinding } from "./shared.js";
 
 /** Options for Solid live-query hooks. */
 export interface UseLiveQueryOptions<E = never, ER = never> {
-  /** Solid dependencies that should rebuild the query when they change. */
-  readonly deps?: (() => unknown) | undefined;
   /** Preload all query sources on mount. Defaults to true. */
   readonly preload?: boolean;
   /**
@@ -32,8 +24,8 @@ export interface UseLiveQueryOptions<E = never, ER = never> {
 /**
  * Solid-facing handle for a live query over one or more collections.
  *
- * Data is recomputed when source collections change. Pass `deps` when the query
- * factory also reads Solid signals that should rebuild the query.
+ * Data is recomputed when source collections change, and the query is rebuilt
+ * when a signal or prop read by the query factory changes.
  */
 export interface LiveQueryHandle<T, E = never, ER = never> {
   /** Current live query rows (always the last good rows) from the nearest Solid runtime. */
@@ -52,13 +44,15 @@ export interface LiveQueryHandle<T, E = never, ER = never> {
   refetchEffect(): Effect.Effect<void, E | QueryEvaluationError | ER>;
 }
 
-type LiveQueryInput<T, E, R> = CollectionReactiveLiveQueryInput<T, E, R>;
+type LiveQueryInput<T, E, R> = Query.Factory<T, E, R> | Query.Live<T, E, R>;
 
 /**
  * Subscribes a Solid component to a live query.
  *
- * Pass either a query factory or a prebuilt `LiveQuery`. The hook tracks all
- * source collections and recomputes `data` when they change.
+ * Pass either a query factory or a prebuilt `Query.Live`. The hook tracks all
+ * source collections and recomputes `data` when they change. The factory runs
+ * tracked: a signal or prop it reads (for example `props.projectId`) rebuilds
+ * the query when it changes.
  *
  * @example
  * ```tsx
@@ -74,18 +68,16 @@ export const useLiveQuery = <T, E = never, R = never, ER = never>(
   options: UseLiveQueryOptions<E, ER> = {},
 ): LiveQueryHandle<T, E, ER> => {
   const runtime = useRuntime<ER>();
-  // Re-selects the runtime-bound LiveQuery when explicit deps change; the
-  // previous selection is reused while deps stay equal.
-  const selection = createMemo<CollectionReactiveLiveQuerySelection<T, E, R, typeof runtime>>(
-    (previous) =>
-      selectCollectionReactiveLiveQuery(
-        runtime,
-        input,
-        collectionReactiveDepsValue(options.deps),
-        previous,
-      ),
-  );
-  const live = (): LiveQuery<T, E, R> => selection().live;
+  // The factory runs tracked so its signal/prop reads rebuild the query;
+  // building the live state is untracked so source collection reads stay
+  // inside the live query instead of re-running this memo.
+  const live = createMemo<Query.Live<T, E, R>>(() => {
+    if (typeof input !== "function") {
+      return input;
+    }
+    const builder = runWithRuntime(runtime, () => buildQuery(input));
+    return untrack(() => runWithRuntime(runtime, () => Query.live<T, E, R>(() => builder)));
+  });
   const binding = makeSolidDbReactiveBinding<E | QueryEvaluationError, R, ER>({
     runtime,
     preload: options.preload,

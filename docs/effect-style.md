@@ -30,7 +30,7 @@ edge.
 - Treat `Resource.family(...)` as a Resource Definition. Runtime/request state belongs to `ResourceStore`, reached through the Runtime Spine.
 - Use `Effect.catch`, not the Effect 3 name `catchAll`.
 - Prefer explicit `Resource` / `Action` state and Effect recovery combinators over component-level `try` syntax for first-class APIs.
-- Components own an Effect `Scope`; use `forkScoped`, `watch`, and `onDispose` instead of a generic `useEffect`.
+- Components own an Effect `Scope`; use `useRuntimeEffect`, `useStream`, and Solid `createEffect` (for imperative DOM sinks) instead of a generic `useEffect`.
 - Isomorphic server functions should be split into shared contracts and real server handlers. Shared code defines `Server.contract` values and exports `Server.client(contract)`; `.server.ts` modules call `Server.implement(contract, handler)` and are never imported by the browser graph.
 - Prefer `Schema.TaggedError` for server-function errors because it is a yieldable Effect error and a wire schema at the same time.
 - Mock server contracts with `Server.mock`, `Server.mockClient`, or `Server.mockLayer`; do not import `.server.ts` just to test shared resources and actions.
@@ -165,10 +165,8 @@ for (const entry of plan.entries) {
 }
 ```
 
-Use the Effect form for normal debugging and tooling so synchronous
-`invalidates` callback failures stay in the typed `EffectInputCallbackError`
-channel. The synchronous `Action.planInvalidation(...)` helper is for
-already-total callbacks and quick inspection.
+`Action.planInvalidationEffect(...)` keeps synchronous `invalidates` callback
+failures in the typed `EffectInputCallbackError` channel.
 
 SSR hydration must populate both layers:
 
@@ -184,9 +182,7 @@ Start hydration helpers call `Resource.hydrateEffect(payload)` for resource
 entries and collection hydration for DB snapshots, so the resource signal used
 by components and the Effect cache entry in the active `ResourceStore` update
 together. Use `hydrateFromDocumentEffect(...)` for full browser payloads and
-`hydrateStartPayloadEffect(...)` for already-parsed payloads; reserve
-`Resource.hydrate(payload)` for synchronous host/UI-context facades that are
-already inside the current runtime.
+`hydrateStartPayloadEffect(...)` for already-parsed payloads.
 
 ```tsx
 const user = useResource(() => UserById(props.id));
@@ -253,7 +249,7 @@ Expose progressive actions to Start when the same mutation should work with
 JavaScript disabled:
 
 ```ts
-const form = startActionForm(SubmitProjectName, {
+const form = StartAction.form(SubmitProjectName, {
   input: {
     id: project.id,
     redirectTo: Route.href(ProjectRoute, {
@@ -466,21 +462,20 @@ const presence =
     status: "offline",
   });
 
-read(presence);
+presence.get();
 ```
 
-```ts
+```tsx
 const title = Signal.make("Sunfall Arc");
+const runEffect = useRuntimeEffect();
 
-watch(
-  () => read(title),
-  (value) =>
-    Effect.sync(() => {
-      document.title = value;
-    }),
+createEffect(
+  () => title.get(),
+  (value) => {
+    document.title = value;
+  },
 );
 
-forkScoped(Effect.never);
-
-onDispose(() => Effect.log("component disposed"));
+// Interrupted when the component unmounts.
+runEffect(Effect.never);
 ```

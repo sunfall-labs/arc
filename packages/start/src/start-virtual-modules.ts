@@ -1,9 +1,5 @@
 import { Effect } from "effect";
-import {
-  describeStartAppGraph,
-  serializeStartAppGraph as serializeStartAppGraphArtifact,
-  type StartAppGraph,
-} from "./app-graph.js";
+import { describeStartAppGraph, serializeStartAppGraph, type StartAppGraph } from "./app-graph.js";
 import { serializeActionManifest, type ActionManifest } from "./action-manifest.js";
 import { serializeFileRouteManifest, type FileRouteManifest } from "./file-routes.js";
 import {
@@ -133,7 +129,7 @@ export const createStartAppGraphVirtualModule = (
   graph: StartAppGraph,
   _policy?: StartBuildPolicy,
 ): string => {
-  const serialized = serializeStartAppGraphArtifact(graph);
+  const serialized = serializeStartAppGraph(graph);
   const diagnostics = JSON.stringify(describeStartAppGraph(graph));
   return [
     `export const graph = ${serialized};`,
@@ -151,7 +147,7 @@ export const createStartAppGraphRuntimeDiagnosticsVirtualModule = (
   graph: StartAppGraph,
   policy?: StartBuildPolicy,
 ): string => {
-  const serialized = serializeStartAppGraphArtifact(graph);
+  const serialized = serializeStartAppGraph(graph);
   const diagnosticsPolicy = diagnosticsPolicyLiteral(policy);
   const routeModuleReferences = createFileRouteModuleReferences(graph.routes, {
     importMode: "rootAbsolute",
@@ -173,7 +169,7 @@ export const createStartAppGraphRuntimeDiagnosticsVirtualModule = (
   return [
     'import { Effect } from "effect";',
     'import { Resource, Route } from "@sunfall/arc-core";',
-    'import { describeStartAppGraphRuntimeDiagnostics, startAppGraphCollectionDefinitions, validateStartAppGraphDiagnosticsPolicyExceptionEffect } from "@sunfall/arc-start";',
+    'import { describeStartAppGraphRuntimeDiagnostics, startAppGraphCollectionDefinitions, validateStartAppGraphDiagnosticsPolicyExceptionEffect } from "@sunfall/arc-start/internal";',
     ...(routeModuleImports.length > 0 ? [""] : []),
     ...routeModuleImports,
     ...(routeModuleImports.length > 0 ? [""] : []),

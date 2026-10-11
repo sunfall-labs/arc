@@ -15,12 +15,11 @@
 File routes should declare the data they own. Arc can then explain and verify what a page needs before rendering it.
 
 ```ts
-const RouteBuilder = defineFileRoute("/projects/:id");
-
-export const Route = RouteBuilder.preload({
+export const Route = defineFileRoute("/projects/:id")({
   params: ProjectRouteParams,
-  resources: ({ resource }) => [resource(ProjectById, ({ params }) => params.id)],
-}).route();
+  preloadResources: [ProjectById],
+  preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id)),
+});
 ```
 
 ## Render with preload data
@@ -52,6 +51,6 @@ export const handleRequest = createRequestHandler(app, {
 On the client, hydrate the payload before mounting the UI. Components can read synchronously from the hydrated Resource state.
 
 ```ts
-const runtime = createEffectRuntime(Layer.empty);
+const runtime = makeRuntime(Layer.empty);
 hydrateFromDocument(document, undefined, { runtime });
 ```

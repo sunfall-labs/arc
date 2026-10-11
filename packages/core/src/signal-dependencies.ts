@@ -1,3 +1,4 @@
+import { EffectInputCallbackError } from "./effect-like.js";
 export interface Subscribable {
   subscribe(listener: () => void): () => void;
 }
@@ -135,3 +136,14 @@ export const makeSignalDependencyTracker = <A>(
     },
   };
 };
+
+export const signalEvaluationError = (
+  operation: string,
+  cause: unknown,
+): EffectInputCallbackError =>
+  new EffectInputCallbackError({
+    operation,
+    cause,
+    guidance:
+      "Signal evaluators must be pure and total. Synchronous evaluator throws are reported as typed callback failures.",
+  });

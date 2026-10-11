@@ -1,4 +1,5 @@
-import { RuntimeProvider, createEffectRuntime } from "@sunfall/arc-solid";
+import { makeRuntime } from "@sunfall/arc-core";
+import { RuntimeProvider } from "@sunfall/arc-solid";
 import { hydrateFromDocument } from "@sunfall/arc-start";
 import { Data, Layer } from "effect";
 import { hydrate, render } from "@solidjs/web";
@@ -18,7 +19,7 @@ if (!root) {
   });
 }
 
-const runtime = createEffectRuntime(Layer.empty);
+const runtime = makeRuntime(Layer.empty);
 hydrateFromDocument(document, undefined, { runtime });
 
 const Root = () => (

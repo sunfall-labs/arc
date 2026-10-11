@@ -3,20 +3,21 @@
 import { Cause, Context, Deferred, Effect, Layer, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {
-  eraseRuntime,
   makeMemoryBrowserHistoryAdapter,
   makeRuntime,
-  onDispose,
   Resource,
   route,
   Route,
   RouteNavigationError,
   RoutePreloadError,
+  RouterRouteNotRegistered,
   runWithRuntime,
   Signal,
+  type BrowserRouterState,
 } from "@sunfall/arc-core";
+import { eraseRuntime, onDispose } from "@sunfall/arc-core/internal";
 import type { JSX } from "@solidjs/web";
-import type { BrowserRouter, BrowserRouterState } from "../src/index.js";
+import type { BrowserRouter } from "../src/index.js";
 
 const { Errored, Loading, Show, children, createRoot, createSignal, getOwner, onCleanup } =
   await import("solid-js");
@@ -24,15 +25,9 @@ const { Errored, Loading, Show, children, createRoot, createSignal, getOwner, on
 /** Reads rendered output the way DOM insertion would; Solid 2 evaluates children lazily. */
 const resolveRendered = (element: unknown): unknown => children(() => element as never)();
 const { createComponent, hydrate, render } = await import("@solidjs/web");
-const {
-  createBrowserRouter,
-  RouterLink,
-  RouterOutlet,
-  RouterProvider,
-  RouterRouteNotRegistered,
-  RuntimeProvider,
-  useRouter,
-} = await import("../src/index.js");
+const { RouterLink, RouterOutlet, RouterProvider, RuntimeProvider, useRouter } =
+  await import("../src/index.js");
+const { createBrowserRouter } = await import("../src/router.js");
 const { makeSolidRouteRenderScopeController } = await import("../src/route-render-scope.js");
 
 describe("createBrowserRouter", () => {
@@ -670,12 +665,16 @@ describe("createBrowserRouter", () => {
           yield* Effect.addFinalizer(() => Effect.sync(() => container.remove()));
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes: [ProjectRoute] as const,
-                history,
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
                 get children() {
-                  return createComponent(LinkView, {});
+                  return createComponent(RouterProvider, {
+                    routes: [ProjectRoute] as const,
+                    history,
+                    get children() {
+                      return createComponent(LinkView, {});
+                    },
+                  });
                 },
               }),
             container,
@@ -758,12 +757,16 @@ describe("createBrowserRouter", () => {
           yield* Effect.addFinalizer(() => Effect.sync(() => container.remove()));
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes: [ProjectRoute] as const,
-                initialHref: "/missing",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
                 get children() {
-                  return createComponent(LinkView, {});
+                  return createComponent(RouterProvider, {
+                    routes: [ProjectRoute] as const,
+                    initialHref: "/missing",
+                    get children() {
+                      return createComponent(LinkView, {});
+                    },
+                  });
                 },
               }),
             container,
@@ -839,12 +842,16 @@ describe("createBrowserRouter", () => {
 
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes: [HomeRoute, ProjectRoute] as const,
-                history,
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
                 get children() {
-                  return createComponent(CaptureRouter, {});
+                  return createComponent(RouterProvider, {
+                    routes: [HomeRoute, ProjectRoute] as const,
+                    history,
+                    get children() {
+                      return createComponent(CaptureRouter, {});
+                    },
+                  });
                 },
               }),
             container,
@@ -901,11 +908,15 @@ describe("createBrowserRouter", () => {
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes: [ProjectRoute] as const,
-                initialHref: "/lazy-solid-projects/atlas",
-                hydrating: true,
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
+                get children() {
+                  return createComponent(RouterProvider, {
+                    routes: [ProjectRoute] as const,
+                    initialHref: "/lazy-solid-projects/atlas",
+                    hydrating: true,
+                  });
+                },
               }),
             container,
           );
@@ -951,11 +962,15 @@ describe("createBrowserRouter", () => {
               createComponent(Loading, {
                 fallback: "loading",
                 get children() {
-                  return createComponent(RouterProvider, {
-                    routes: [ProjectRoute] as const,
-                    initialHref: "/ready-lazy-solid-projects/atlas",
-                    hydrating: true,
+                  return createComponent(RuntimeProvider, {
                     runtime: eraseRuntime(runtime),
+                    get children() {
+                      return createComponent(RouterProvider, {
+                        routes: [ProjectRoute] as const,
+                        initialHref: "/ready-lazy-solid-projects/atlas",
+                        hydrating: true,
+                      });
+                    },
                   });
                 },
               }),
@@ -1008,12 +1023,16 @@ describe("createBrowserRouter", () => {
           };
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes: [ProjectRoute] as const,
-                initialHref: "/missing",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
                 get children() {
-                  return createComponent(LinkView, {});
+                  return createComponent(RouterProvider, {
+                    routes: [ProjectRoute] as const,
+                    initialHref: "/missing",
+                    get children() {
+                      return createComponent(LinkView, {});
+                    },
+                  });
                 },
               }),
             container,
@@ -1057,16 +1076,20 @@ describe("createBrowserRouter", () => {
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes: [ProjectRoute] as const,
-                initialHref: "/missing",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
                 get children() {
-                  return createComponent(RouterLink, {
-                    route: ProjectRoute,
-                    options: { params: { id: "atlas" } },
-                    target: "_blank",
-                    children: "Atlas",
+                  return createComponent(RouterProvider, {
+                    routes: [ProjectRoute] as const,
+                    initialHref: "/missing",
+                    get children() {
+                      return createComponent(RouterLink, {
+                        route: ProjectRoute,
+                        options: { params: { id: "atlas" } },
+                        target: "_blank",
+                        children: "Atlas",
+                      });
+                    },
                   });
                 },
               }),
@@ -1128,12 +1151,16 @@ describe("createBrowserRouter", () => {
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes: [ProjectRoute] as const,
-                initialHref: "/missing",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
                 get children() {
-                  return createComponent(LinkGate, {});
+                  return createComponent(RouterProvider, {
+                    routes: [ProjectRoute] as const,
+                    initialHref: "/missing",
+                    get children() {
+                      return createComponent(LinkGate, {});
+                    },
+                  });
                 },
               }),
             container,
@@ -1207,12 +1234,16 @@ describe("createBrowserRouter", () => {
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes: [ProjectRoute] as const,
-                initialHref: "/missing",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
                 get children() {
-                  return createComponent(LinkGate, {});
+                  return createComponent(RouterProvider, {
+                    routes: [ProjectRoute] as const,
+                    initialHref: "/missing",
+                    get children() {
+                      return createComponent(LinkGate, {});
+                    },
+                  });
                 },
               }),
             container,
@@ -1236,9 +1267,12 @@ describe("createBrowserRouter", () => {
             ),
           );
           expect(loads).toBe(1);
-          expect(runWithRuntime(runtime, () => Resource.status(Project("atlas")).result._tag)).toBe(
-            "Success",
-          );
+          expect(
+            runWithRuntime(
+              runtime,
+              () => Effect.runSync(Resource.statusEffect(Project("atlas"))).result._tag,
+            ),
+          ).toBe("Success");
         }),
       ),
     ));
@@ -1269,12 +1303,16 @@ describe("createBrowserRouter", () => {
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes: [ProjectRoute] as const,
-                initialHref: "/projects/atlas",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
                 get children() {
-                  return createComponent(CaptureRouter, {});
+                  return createComponent(RouterProvider, {
+                    routes: [ProjectRoute] as const,
+                    initialHref: "/projects/atlas",
+                    get children() {
+                      return createComponent(CaptureRouter, {});
+                    },
+                  });
                 },
               }),
             container,
@@ -1313,12 +1351,16 @@ describe("createBrowserRouter", () => {
     const container = document.createElement("div");
     const dispose = render(
       () =>
-        createComponent(RouterProvider, {
-          routes: [HomeRoute] as const,
-          initialHref: "/",
+        createComponent(RuntimeProvider, {
           runtime: eraseRuntime(runtime),
           get children() {
-            return createComponent(RouterOutlet, { pending: () => "pending" });
+            return createComponent(RouterProvider, {
+              routes: [HomeRoute] as const,
+              initialHref: "/",
+              get children() {
+                return createComponent(RouterOutlet, { pending: () => "pending" });
+              },
+            });
           },
         }),
       container,
@@ -1886,11 +1928,15 @@ describe("createBrowserRouter", () => {
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes: [ProjectRoute] as const,
-                initialHref: "/pending-runtime/atlas",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
-                pending: () => Resource.status(ref).result._tag,
+                get children() {
+                  return createComponent(RouterProvider, {
+                    routes: [ProjectRoute] as const,
+                    initialHref: "/pending-runtime/atlas",
+                    pending: () => Effect.runSync(Resource.statusEffect(ref)).result._tag,
+                  });
+                },
               }),
             container,
           );
@@ -1939,12 +1985,16 @@ describe("createBrowserRouter", () => {
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes,
-                initialHref: "/old",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
                 get children() {
-                  return createComponent(CaptureRouter, {});
+                  return createComponent(RouterProvider, {
+                    routes,
+                    initialHref: "/old",
+                    get children() {
+                      return createComponent(CaptureRouter, {});
+                    },
+                  });
                 },
               }),
             container,
@@ -2005,12 +2055,16 @@ describe("createBrowserRouter", () => {
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes,
-                initialHref: "/render-good",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
                 get children() {
-                  return createComponent(CaptureRouter, {});
+                  return createComponent(RouterProvider, {
+                    routes,
+                    initialHref: "/render-good",
+                    get children() {
+                      return createComponent(CaptureRouter, {});
+                    },
+                  });
                 },
               }),
             container,
@@ -2067,12 +2121,16 @@ describe("createBrowserRouter", () => {
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes,
-                initialHref: "/preload-good",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
                 get children() {
-                  return createComponent(CaptureRouter, {});
+                  return createComponent(RouterProvider, {
+                    routes,
+                    initialHref: "/preload-good",
+                    get children() {
+                      return createComponent(CaptureRouter, {});
+                    },
+                  });
                 },
               }),
             container,
@@ -2187,12 +2245,16 @@ describe("createBrowserRouter", () => {
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes,
-                initialHref: "/scope-old",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
                 get children() {
-                  return createComponent(CaptureRouter, {});
+                  return createComponent(RouterProvider, {
+                    routes,
+                    initialHref: "/scope-old",
+                    get children() {
+                      return createComponent(CaptureRouter, {});
+                    },
+                  });
                 },
               }),
             container,
@@ -2207,7 +2269,9 @@ describe("createBrowserRouter", () => {
           );
           yield* Effect.sleep("20 millis");
 
-          expect(runWithRuntime(runtime, () => Resource.status(ref).result._tag)).toBe("Initial");
+          expect(
+            runWithRuntime(runtime, () => Effect.runSync(Resource.statusEffect(ref)).result._tag),
+          ).toBe("Initial");
         }),
       ),
     ));
@@ -2232,7 +2296,7 @@ describe("createBrowserRouter", () => {
           const OldRoute = route("/solid-cleanup-runtime-old", {
             component: () => {
               onCleanup(() => {
-                cleanupStatuses.push(Resource.status(ref).result._tag);
+                cleanupStatuses.push(Effect.runSync(Resource.statusEffect(ref)).result._tag);
               });
               return "old";
             },
@@ -2250,15 +2314,19 @@ describe("createBrowserRouter", () => {
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes,
-                initialHref: "/solid-cleanup-runtime-old",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(routerRuntime),
                 get children() {
-                  return createComponent(RuntimeProvider, {
-                    runtime: nestedRuntime,
+                  return createComponent(RouterProvider, {
+                    routes,
+                    initialHref: "/solid-cleanup-runtime-old",
                     get children() {
-                      return createComponent(CaptureRouter, {});
+                      return createComponent(RuntimeProvider, {
+                        runtime: nestedRuntime,
+                        get children() {
+                          return createComponent(CaptureRouter, {});
+                        },
+                      });
                     },
                   });
                 },
@@ -2279,9 +2347,12 @@ describe("createBrowserRouter", () => {
               expect(cleanupStatuses).toEqual(["Success"]);
             }),
           );
-          expect(runWithRuntime(nestedRuntime, () => Resource.status(ref).result._tag)).toBe(
-            "Initial",
-          );
+          expect(
+            runWithRuntime(
+              nestedRuntime,
+              () => Effect.runSync(Resource.statusEffect(ref)).result._tag,
+            ),
+          ).toBe("Initial");
         }),
       ),
     ));
@@ -2323,12 +2394,16 @@ describe("createBrowserRouter", () => {
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes,
-                initialHref: "/solid-old",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
                 get children() {
-                  return createComponent(CaptureRouter, {});
+                  return createComponent(RouterProvider, {
+                    routes,
+                    initialHref: "/solid-old",
+                    get children() {
+                      return createComponent(CaptureRouter, {});
+                    },
+                  });
                 },
               }),
             container,
@@ -2390,12 +2465,16 @@ describe("createBrowserRouter", () => {
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes,
-                initialHref: "/async-old",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
                 get children() {
-                  return createComponent(CaptureRouter, {});
+                  return createComponent(RouterProvider, {
+                    routes,
+                    initialHref: "/async-old",
+                    get children() {
+                      return createComponent(CaptureRouter, {});
+                    },
+                  });
                 },
               }),
             container,
@@ -2453,10 +2532,14 @@ describe("createBrowserRouter", () => {
 
           const dispose = createRoot((rootDispose) => {
             resolveRendered(
-              createComponent(RouterProvider, {
-                routes: [RouteWithCleanup] as const,
-                initialHref: "/cleanup",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(runtime),
+                get children() {
+                  return createComponent(RouterProvider, {
+                    routes: [RouteWithCleanup] as const,
+                    initialHref: "/cleanup",
+                  });
+                },
               }),
             );
             return rootDispose;
@@ -2494,7 +2577,7 @@ describe("createBrowserRouter", () => {
           const ProjectRoute = route("/runtime-projects/:id", {
             preload: () => Resource.prefetchEffect(ref),
             component: () => {
-              const status = Resource.status(ref).result;
+              const status = Effect.runSync(Resource.statusEffect(ref)).result;
               renderedStatus = status._tag;
               const element = document.createElement("span");
               element.textContent = status._tag;
@@ -2504,15 +2587,19 @@ describe("createBrowserRouter", () => {
           const container = document.createElement("div");
           const dispose = render(
             () =>
-              createComponent(RouterProvider, {
-                routes: [ProjectRoute] as const,
-                initialHref: "/runtime-projects/atlas",
+              createComponent(RuntimeProvider, {
                 runtime: eraseRuntime(outerRuntime),
                 get children() {
-                  return createComponent(RuntimeProvider, {
-                    runtime: innerRuntime,
+                  return createComponent(RouterProvider, {
+                    routes: [ProjectRoute] as const,
+                    initialHref: "/runtime-projects/atlas",
                     get children() {
-                      return createComponent(RouterOutlet, {});
+                      return createComponent(RuntimeProvider, {
+                        runtime: innerRuntime,
+                        get children() {
+                          return createComponent(RouterOutlet, {});
+                        },
+                      });
                     },
                   });
                 },
@@ -2528,9 +2615,12 @@ describe("createBrowserRouter", () => {
             }),
           );
 
-          expect(runWithRuntime(innerRuntime, () => Resource.status(ref).result._tag)).toBe(
-            "Initial",
-          );
+          expect(
+            runWithRuntime(
+              innerRuntime,
+              () => Effect.runSync(Resource.statusEffect(ref)).result._tag,
+            ),
+          ).toBe("Initial");
         }),
       ),
     ));

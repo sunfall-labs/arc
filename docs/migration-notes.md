@@ -43,11 +43,11 @@ behind Resource families and Actions:
 - Mutation callbacks become `Action.define(...)` definitions with retry,
   concurrency, optimistic work, and invalidation metadata attached to the
   definition. Start forms then bind those definitions with `StartAction.use(...)`
-  or `startActionForm(...)`.
-- Core route loaders can call `Resource.prefetchEffect(...)` and declare
-  `preloadResources`; file routes should prefer
-  `defineFileRoute(...).preload(...)` so resource selectors, collection preload
-  metadata, schemas, and preload Effects are derived from one route-local shape.
+  or `StartAction.form(...)`.
+- Route loaders call `Resource.prefetchEffect(...)` in `preload` and declare
+  `preloadResources` / `preloadCollections`; file routes use
+  `defineFileRoute(path)(options)` with exactly the same options as core
+  `route(path, options)`.
 
 Keep Promise-returning query functions at the host boundary only. Inside the
 framework slice, prefer Effect loaders so retries, services, scopes, tracing,
@@ -62,7 +62,7 @@ shape but makes app graph facts explicit:
 - File routes use `defineFileRoute(...)` and generated route maps.
 - Server functions use `Server.contract(...)`, `Server.implement(...)`, and
   browser-safe contract imports.
-- Request handling starts at `createRequestHandlerEffect(app)`; Promise
+- Request handling starts at `createRequestHandler(app)`; Promise
   handlers are host convenience boundaries.
 - SSR routes should emit streamed Start hydration through
   `createStartStreamedHtmlResponseEffect(...)`; lower-level
@@ -85,7 +85,7 @@ transport:
 - Validation failures return `ActionResult.validation(...)` with typed field and
   form errors.
 - Redirects return `ActionResult.redirect(...)`.
-- Browser forms use `startActionForm(...)` for no-JS fallback and hydration
+- Browser forms use `StartAction.form(...)` for no-JS fallback and hydration
   metadata.
 - Client-side submit buttons call `submitEffect(...)`, then fork or run the
   Effect explicitly at the UI boundary.
@@ -102,7 +102,7 @@ Capabilities and Layers instead:
 
 - Define a `Capability` for each service interface the app owns.
 - Provide production behavior through a Layer passed to `defineApp({ server })`
-  or `createEffectRuntime(...)`.
+  or `makeRuntime(...)`.
 - Provide test behavior through `Server.mock(...)`, Capability test Layers, or
   a runtime created for the test.
 - Keep server-only implementations in `.server.ts` modules and prove they stay

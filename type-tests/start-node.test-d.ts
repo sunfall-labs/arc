@@ -1,17 +1,12 @@
 import {
   createNodeHandler,
-  createNodeHandlerEffect,
   createNodeServerHandler,
   nodeRequestOrigin,
   nodeRequestToWebRequest,
-  nodeRequestToWebRequestEffect,
   StartNodeAdapterError,
-  StartRequestHandlerError,
   writeNodeResponse,
-  writeNodeResponseEffect,
   type StartForkRuntime,
   type StartNodeHandler,
-  type StartNodeHandlerEffect,
   type StartNodeOriginPolicy,
   type StartNodeRequestOptions,
   type StartNodeServerErrorHandler,
@@ -19,28 +14,23 @@ import {
   type StartNodeServerHandlerOptions,
   type StartNodeServerHandlerRuntimeOptions,
   type WriteNodeResponseOptions,
-} from "@sunfall/arc-start-node";
+} from "@sunfall/arc-start/node";
 import type { SunfallArcRuntime } from "@sunfall/arc-core";
-import type { StartRequestHandlerEffect } from "@sunfall/arc-start";
+import type { StartRequestHandler } from "@sunfall/arc-start";
 import { Effect, Scope } from "effect";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-const nodePackageExports: Array<unknown> = [
+const nodeAdapterExports: Array<unknown> = [
   createNodeHandler,
-  createNodeHandlerEffect,
   createNodeServerHandler,
   nodeRequestOrigin,
   nodeRequestToWebRequest,
-  nodeRequestToWebRequestEffect,
   StartNodeAdapterError,
-  StartRequestHandlerError,
   writeNodeResponse,
-  writeNodeResponseEffect,
 ];
-type NodePackage =
+type NodeAdapter =
   | StartForkRuntime
   | StartNodeHandler
-  | StartNodeHandlerEffect
   | StartNodeOriginPolicy
   | StartNodeRequestOptions
   | StartNodeServerErrorHandler
@@ -48,8 +38,8 @@ type NodePackage =
   | StartNodeServerHandlerOptions
   | StartNodeServerHandlerRuntimeOptions<Scope.Scope>
   | WriteNodeResponseOptions;
-void nodePackageExports;
-type _NodePackage = NodePackage;
+void nodeAdapterExports;
+type _NodeAdapter = NodeAdapter;
 
 interface NodeAdapterTestService {
   readonly nodeAdapterTestService: unique symbol;
@@ -57,8 +47,8 @@ interface NodeAdapterTestService {
 
 declare const nodeRequest: IncomingMessage;
 declare const nodeResponse: ServerResponse;
-declare const scopeOnlyHandler: StartRequestHandlerEffect<Scope.Scope>;
-declare const servicefulHandler: StartRequestHandlerEffect<Scope.Scope | NodeAdapterTestService>;
+declare const scopeOnlyHandler: StartRequestHandler<Scope.Scope>;
+declare const servicefulHandler: StartRequestHandler<Scope.Scope | NodeAdapterTestService>;
 declare const serviceRuntime: SunfallArcRuntime<NodeAdapterTestService>;
 
 const nodeOriginPolicy: StartNodeOriginPolicy = { trustForwardedHeaders: true };
@@ -78,10 +68,6 @@ const nodeRuntimeOptions: StartNodeServerHandlerRuntimeOptions<
   ...nodeRequestOptions,
   runtime: serviceRuntime,
 };
-const nodeHandlerEffect: StartNodeHandlerEffect<Scope.Scope> = createNodeHandlerEffect(
-  scopeOnlyHandler,
-  nodeRequestOptions,
-);
 const nodeHandler: StartNodeHandler<Scope.Scope> = createNodeHandler(
   scopeOnlyHandler,
   nodeRequestOptions,
@@ -96,17 +82,15 @@ const servicefulNodeServerHandler: StartNodeServerHandler = createNodeServerHand
 );
 // @ts-expect-error serviceful Node callback facades must receive a runtime for non-Scope requirements.
 createNodeServerHandler(servicefulHandler, nodeServerOptions);
+// @ts-expect-error effect-first Node adapters cannot hide requirements through partial generics
+const hiddenNodeHandler: StartNodeHandler = createNodeHandler(servicefulHandler);
 nodeRequestOrigin(nodeRequest, nodeRequestOptions).toUpperCase();
 const webRequest: Request = nodeRequestToWebRequest(nodeRequest, nodeRequestOptions);
-nodeRequestToWebRequestEffect(nodeRequest, nodeRequestOptions).pipe(
-  Effect.map((request) => request.url),
-);
-writeNodeResponseEffect(nodeResponse, new Response("ok"), writeOptions).pipe(Effect.asVoid);
 writeNodeResponse(nodeResponse, new Response(null, { status: 204 }), writeOptions).pipe(
   Effect.asVoid,
 );
-void nodeHandlerEffect;
 void nodeHandler;
 void nodeServerHandler;
 void servicefulNodeServerHandler;
+void hiddenNodeHandler;
 void webRequest;

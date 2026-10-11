@@ -1,18 +1,20 @@
 import {
   ActionInterrupted,
-  currentOrDefaultRuntime,
-  getCurrentRuntime,
-  makeActionSubmissionController,
   Server,
   Signal,
-  type ActionSubmissionFiber,
-  type ActionSubmissionRun,
   type ActionState,
   type ActionDefinition,
   type AnySunfallArcRuntime,
   type SunfallArcRuntime,
   type ReadableSignal,
 } from "@sunfall/arc-core";
+import {
+  currentOrDefaultRuntime,
+  getCurrentRuntime,
+  makeActionSubmissionController,
+  type ActionSubmissionFiber,
+  type ActionSubmissionRun,
+} from "@sunfall/arc-core/internal";
 import { Effect, Exit, Fiber } from "effect";
 import type { StartHydrationPayload } from "./hydration.js";
 import { executeStartClientTransportEffect } from "./start-client-transport.js";
@@ -216,8 +218,6 @@ export namespace StartAction {
 
   /**
    * Creates the hidden POST fields needed to submit a Start action from HTML.
-   *
-   * Alias for `startActionForm(...)` that keeps action-related helpers together.
    */
   export const form = <I, A, E, R>(
     definition: ActionDefinition<I, A, E, R>,

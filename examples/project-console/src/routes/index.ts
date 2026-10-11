@@ -1,10 +1,19 @@
+import { Resource } from "@sunfall/arc-core";
 import { defineFileRoute } from "@sunfall/arc-start";
+import { Effect } from "effect";
 import { ProjectList } from "../domain.js";
 import { ProjectSummaries, ProjectWorkItems } from "../project-collections.js";
 
-const RouteBuilder = defineFileRoute("/");
-
-export const Route = RouteBuilder.preload({
-  resources: [RouteBuilder.resource(ProjectList, () => "all" as const)],
-  collections: [ProjectSummaries, ProjectWorkItems],
-}).route();
+export const Route = defineFileRoute("/")({
+  preloadResources: [ProjectList],
+  preloadCollections: [ProjectSummaries, ProjectWorkItems],
+  preload: () =>
+    Effect.all(
+      [
+        Resource.prefetchEffect(ProjectList("all")),
+        ProjectSummaries.preloadEffect(),
+        ProjectWorkItems.preloadEffect(),
+      ],
+      { discard: true },
+    ),
+});

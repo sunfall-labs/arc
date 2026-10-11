@@ -1,14 +1,16 @@
 import {
-  browserRouteRenderIdentity,
-  browserRouteRenderDecision,
-  makeRuntimeUiScopeFrame,
   Route,
   type AnySunfallArcRuntime,
   type WritableSignal,
-  type AnyBrowserRoute,
   type BrowserRouterState,
-  type BrowserRouteOutletRenderers,
 } from "@sunfall/arc-core";
+import {
+  browserRouteRenderIdentity,
+  browserRouteRenderDecision,
+  makeRuntimeUiScopeFrame,
+  type AnyBrowserRoute,
+  type BrowserRouteOutletRenderers,
+} from "@sunfall/arc-core/internal";
 import { Effect, Fiber } from "effect";
 import { createComponent, createMemo, createRoot, runWithOwner, type Owner } from "solid-js";
 import type { JSX } from "@solidjs/web";

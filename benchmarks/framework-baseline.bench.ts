@@ -2,7 +2,6 @@ import {
   Action,
   createBrowserRouterHostController,
   defineApp,
-  eraseRuntime,
   makeMemoryBrowserHistoryAdapter,
   makeRuntime,
   Resource,
@@ -13,16 +12,16 @@ import {
   type BrowserRouterHostController,
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
-import { Collection, eq } from "@sunfall/arc-db";
+import { eraseRuntime } from "@sunfall/arc-core/internal";
+import { Collection } from "@sunfall/arc-db";
+import type { StartHydrationPayload } from "@sunfall/arc-start";
+import { createServerRpcResponseEffect } from "../packages/start/src/start-request-endpoints.js";
 import {
-  createServerRpcResponseEffect,
   createStartHydrationPayload,
   hydrateStartPayloadEffect,
-  preloadRequestEffect,
-  serverRpcPath,
-  startJsonMediaType,
-  type StartHydrationPayload,
-} from "@sunfall/arc-start";
+} from "../packages/start/src/hydration.js";
+import { preloadRequest } from "../packages/start/src/start-request-preload.js";
+import { serverRpcPath, startJsonMediaType } from "../packages/start/src/rpc.js";
 import { Effect, Schema } from "effect";
 import { afterAll, beforeAll, bench, describe } from "vitest";
 import { handleRequest, serverApp } from "../examples/project-console/src/server.js";
@@ -138,7 +137,7 @@ const BenchProjectCards = Collection.liveQuery({
   query: (query) =>
     query
       .from({ project: BenchProjects })
-      .where(({ project }) => eq(project.status, "active"))
+      .where(({ project }) => project.status === "active")
       .select(({ project }) => ({
         id: project.id,
         name: project.name,
@@ -300,11 +299,9 @@ describe("Sunfall Arc release baseline", () => {
     "Resource hot cached read x100",
     () => {
       let seen = "";
-      runWithRuntime(hotRuntime, () => {
-        for (let index = 0; index < 100; index++) {
-          seen = Resource.read(hotResourceRef).id;
-        }
-      });
+      for (let index = 0; index < 100; index++) {
+        seen = hotRuntime.runSync(Resource.readEffect(hotResourceRef)).id;
+      }
       assertBench(seen === "atlas", "Hot cached resource read returned the wrong value.");
     },
     microBenchOptions,
@@ -389,10 +386,7 @@ describe("Sunfall Arc release baseline", () => {
     "Start route preload request",
     async () => {
       const result = await Effect.runPromise(
-        preloadRequestEffect(
-          benchStartApp,
-          new Request("https://example.test/bench/projects/atlas"),
-        ),
+        preloadRequest(benchStartApp, new Request("https://example.test/bench/projects/atlas")),
       );
       assertBench(
         result.resources.resources.length === 1,

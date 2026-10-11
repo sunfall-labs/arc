@@ -1,5 +1,6 @@
 import { Cause, Data, Effect, Exit, Fiber } from "effect";
 import { Route, RouteNavigationError } from "./route.js";
+import { matchRoutesEffect } from "./route-match.js";
 import { takeHydratedRoutePreloadFailure } from "./route-preload-failure-hydration.js";
 import type { AnySunfallArcRuntime } from "./runtime.js";
 import { Signal, type ReadableSignal } from "./signal.js";
@@ -221,7 +222,7 @@ export const createBrowserRouterKernel = <
     );
   const initialMatchedState = options.initialMatchedState ?? defaultInitialMatchedState<Routes, ER>;
   const initialRouterState = (): BrowserRouterState<Routes, ER> => {
-    const matchExit = Effect.runSyncExit(Route.matchEffect(routes, initialHref));
+    const matchExit = Effect.runSyncExit(matchRoutesEffect(routes, initialHref));
     if (Exit.isFailure(matchExit)) {
       return browserRouterFailureState(
         initialHref,
@@ -302,7 +303,7 @@ export const createBrowserRouterKernel = <
   const processNavigation = (href: string): void => {
     const navigationId = ++navigation;
     const currentState = state.get();
-    const matchExit = Effect.runSyncExit(Route.matchEffect(routes, href));
+    const matchExit = Effect.runSyncExit(matchRoutesEffect(routes, href));
 
     disposePreloadScope();
 
@@ -378,7 +379,7 @@ export const createBrowserRouterKernel = <
         }),
     });
     return hrefEffect.pipe(
-      Effect.flatMap((href) => Route.matchEffect(routes, href)),
+      Effect.flatMap((href) => matchRoutesEffect(routes, href)),
       Effect.flatMap((routeMatch) =>
         routeMatch
           ? provideRouterPreloadEffect(runtime, routeMatch, prepareHrefEffect)

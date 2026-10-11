@@ -943,7 +943,7 @@ export namespace Route {
    *
    * This sync helper delegates to each route's `match(...)`; schema-backed
    * params/search decode failures throw. Use `Route.planNavigationEffect(...)`
-   * for an Effect-returning match path with typed `RouteNavigationError`
+   * for an Effect-returning navigation path with typed `RouteNavigationError`
    * failures.
    */
   export const match = <const Routes extends readonly Definition<string, unknown, unknown, any>[]>(
@@ -959,21 +959,6 @@ export namespace Route {
 
     return undefined;
   };
-
-  /**
-   * Effect-returning route matching for adapters that need typed navigation
-   * failures instead of synchronous schema decode throws.
-   */
-  export const matchEffect = <
-    const Routes extends readonly Definition<string, unknown, unknown, any>[],
-  >(
-    routes: Routes,
-    input: string | URL,
-  ): Effect.Effect<Match<Routes[number]> | undefined, RouteNavigationError> =>
-    Effect.try({
-      try: () => match(routes, input),
-      catch: (cause) => routeNavigationError(input, cause),
-    });
 
   /**
    * Runs a matched route's preload function as an Effect.
@@ -1222,7 +1207,10 @@ export namespace Route {
       catch: (cause) => routeNavigationError(input, cause),
     }).pipe(
       Effect.flatMap((href) =>
-        matchEffect(routes, input).pipe(Effect.map((matched) => ({ href, matched }))),
+        Effect.try({
+          try: () => match(routes, input),
+          catch: (cause) => routeNavigationError(input, cause),
+        }).pipe(Effect.map((matched) => ({ href, matched }))),
       ),
       Effect.flatMap(
         ({

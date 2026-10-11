@@ -41,7 +41,7 @@ export const handleRequest = createRequestHandler(serverApp, {
       const url = new URL(request.url);
       const href = `${url.pathname}${url.search}`;
       // `App` is the whole root on both sides (src/main.tsx hydrates the same
-      // component); its RouterProvider supplies the runtime context, so the
+      // component); its RuntimeProvider supplies the runtime context, so the
       // server must not add wrappers the client lacks or hydration keys shift.
       const body = renderToString(() => createComponent(App, { initialHref: href, runtime }));
 

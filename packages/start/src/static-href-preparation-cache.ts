@@ -3,6 +3,7 @@ import {
   type ResourceHydrationPayload,
   type ResourceStoreEvent,
 } from "@sunfall/arc-core";
+import { lookupResourceFamilyEffect } from "@sunfall/arc-core/internal";
 import { Effect, Exit, Fiber, PubSub, Scope } from "effect";
 
 export interface StartStaticNavigationHydrationRuntime<RuntimeError = unknown> {
@@ -49,7 +50,7 @@ export const startStaticHydratedHrefPreparationOutcomeEffect = (
   payload: ResourceHydrationPayload | undefined,
 ): Effect.Effect<StartStaticHrefPreparationOutcome> =>
   Effect.forEach(payload?.resources ?? [], (snapshot) =>
-    Resource.definitionEffect(snapshot.name).pipe(
+    lookupResourceFamilyEffect(snapshot.name).pipe(
       Effect.flatMap((family) =>
         family === undefined
           ? Effect.succeed(undefined)

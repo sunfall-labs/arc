@@ -1,8 +1,9 @@
-import { makeRuntime, Program, runWithRuntime, Signal } from "@sunfall/arc-core";
+import { makeRuntime, Program, Signal } from "@sunfall/arc-core";
 import { Effect, Exit } from "effect";
 import { createEffect, createRoot, flush, mapArray } from "solid-js";
 import { describe, expect, it } from "vitest";
 import { useProgram, type ProgramHandle, type UseProgramOptions } from "../src/index.js";
+import { withRuntimeContext } from "./with-runtime-context.js";
 
 interface Item {
   readonly id: number;
@@ -61,8 +62,8 @@ const mount = <Model, Message>(
 ): Mounted<Model, Message> => {
   const runtime = makeRuntime();
   let disposeRoot: () => void = () => {};
-  const program = runWithRuntime(runtime, () =>
-    createRoot((dispose) => {
+  const program = createRoot((dispose) =>
+    withRuntimeContext(runtime, () => {
       disposeRoot = dispose;
       const handle = useProgram(definition, options);
       setup(handle);

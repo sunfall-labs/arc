@@ -179,17 +179,9 @@ const planFileRouteDefinitionsFileWriteEffect = (
 /**
  * Writes the generated route definitions file when content has changed.
  *
- * Returns `undefined` when generation is disabled and reports whether a file
- * write was necessary otherwise.
+ * Succeeds with `undefined` when generation is disabled and reports whether a
+ * file write was necessary otherwise; filesystem failures stay typed.
  */
-export const writeFileRouteDefinitionsFile = (
-  root: string,
-  manifest: FileRouteManifest,
-  options: FileRouteGenerationOptions = {},
-): FileRouteDefinitionsFileWriteResult | undefined =>
-  Effect.runSync(writeFileRouteDefinitionsFileEffect(root, manifest, options));
-
-/** Effect-first generated route definitions file write with typed filesystem failures. */
 export const writeFileRouteDefinitionsFileEffect = (
   root: string,
   manifest: FileRouteManifest,

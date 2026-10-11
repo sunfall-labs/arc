@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { sunfallArcStart } from "../src/vite.js";
 import {
-  sunfallArcStart,
   loadStartRouteComponentSplitModule,
   resolveStartRouteComponentSplitModuleId,
   transformStartRouteAutoCodeSplitting,
-} from "../src/vite.js";
+} from "../src/route-code-splitting.js";
 
 const splitImportId = (transformed: string): string => {
   const match = transformed.match(/import\("([^"]+)"\)/);
@@ -57,6 +57,7 @@ const typecheckGeneratedRouteModule = (transformed: string): void => {
             skipLibCheck: true,
             paths: {
               "@sunfall/arc-core": [`${workspaceRelative}/packages/core/src/index.ts`],
+              "@sunfall/arc-core/internal": [`${workspaceRelative}/packages/core/src/internal.ts`],
               "@sunfall/arc-start": [`${workspaceRelative}/packages/start/src/index.ts`],
               effect: [`${workspaceRelative}/node_modules/effect/dist/index.d.ts`],
               "effect/*": [

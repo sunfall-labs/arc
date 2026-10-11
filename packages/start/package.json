@@ -43,25 +43,25 @@
       "types": "./dist/diagnostics-report.d.ts",
       "default": "./dist/diagnostics-report.js"
     },
-    "./cli": {
-      "types": "./dist/cli.d.ts",
-      "default": "./dist/cli.js"
+    "./fetch": {
+      "types": "./dist/fetch.d.ts",
+      "default": "./dist/fetch.js"
     },
-    "./adapters": {
-      "types": "./dist/adapters.d.ts",
-      "default": "./dist/adapters.js"
-    },
-    "./fetch-adapter": {
-      "types": "./dist/fetch-adapter.d.ts",
-      "default": "./dist/fetch-adapter.js"
-    },
-    "./node-adapter": {
-      "types": "./dist/node-adapter.d.ts",
-      "default": "./dist/node-adapter.js"
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
     },
     "./virtual": {
       "types": "./dist/virtual.d.ts",
       "default": "./dist/virtual.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "default": "./dist/testing.js"
+    },
+    "./internal": {
+      "types": "./dist/internal.d.ts",
+      "default": "./dist/internal.js"
     }
   },
   "publishConfig": {

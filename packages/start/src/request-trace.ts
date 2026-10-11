@@ -2,15 +2,15 @@ import {
   ResourceStoreDisposeError,
   RuntimeDisposeError,
   runWithRuntime,
-  toEffect,
   type EffectInput,
   type SunfallArcRuntime,
   type ResourceStoreDiagnosticsSnapshot,
   type Route,
 } from "@sunfall/arc-core";
-import type { AnyCollection } from "@sunfall/arc-db";
+import { toEffect } from "@sunfall/arc-core/internal";
+import type { Collection } from "@sunfall/arc-db";
 import { Cause, Clock, Duration, Effect, Exit, Metric, Redacted } from "effect";
-import { makeStartRequestIdEffect, startRequestIdHeader, startTraceparentHeader } from "./rpc.js";
+import { makeStartRequestId, startRequestIdHeader, startTraceparentHeader } from "./rpc.js";
 import {
   resolveStartTransportEndpoints,
   type StartTransportEndpointSource,
@@ -272,13 +272,13 @@ export interface StartRequestTraceFacts {
 /** Collection groups used to build request trace preload diagnostics. */
 export interface StartCollectionPreloadTraceInput {
   /** Collections touched by route resource/preload execution. */
-  readonly routeTouchedCollections: ReadonlyArray<AnyCollection>;
+  readonly routeTouchedCollections: ReadonlyArray<Collection.Any>;
   /** Collections declared statically by the matched route. */
-  readonly routeDeclaredCollections: ReadonlyArray<AnyCollection>;
+  readonly routeDeclaredCollections: ReadonlyArray<Collection.Any>;
   /** Collections registered with the Start app/runtime. */
-  readonly registeredCollections: ReadonlyArray<AnyCollection>;
+  readonly registeredCollections: ReadonlyArray<Collection.Any>;
   /** Collections included in the dehydrated payload. */
-  readonly dehydratedCollections: ReadonlyArray<AnyCollection>;
+  readonly dehydratedCollections: ReadonlyArray<Collection.Any>;
 }
 
 /** Best-effort request diagnostics hook. Failures from the hook are ignored. */
@@ -572,9 +572,11 @@ export const traceRoutePlan = (plan: Route.NavigationPlan): StartRequestTraceRou
   },
 });
 
-const uniqueCollections = (collections: Iterable<AnyCollection>): ReadonlyArray<AnyCollection> => {
+const uniqueCollections = (
+  collections: Iterable<Collection.Any>,
+): ReadonlyArray<Collection.Any> => {
   const names = new Set<string>();
-  const out: Array<AnyCollection> = [];
+  const out: Array<Collection.Any> = [];
   for (const collection of collections) {
     if (!names.has(collection.name)) {
       names.add(collection.name);
@@ -586,7 +588,7 @@ const uniqueCollections = (collections: Iterable<AnyCollection>): ReadonlyArray<
 
 const collectionTraceState = <RuntimeServices, RuntimeError>(
   runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
-  collection: AnyCollection,
+  collection: Collection.Any,
 ): Pick<StartRequestTraceCollection, "state" | "waiting"> => {
   try {
     const result = runWithRuntime(runtime, () => collection.state().get());
@@ -625,7 +627,7 @@ export const startRequestTraceFactsEffect = (
       requestId:
         incomingRequestId && !/[\r\n]/.test(incomingRequestId)
           ? incomingRequestId
-          : yield* makeStartRequestIdEffect,
+          : yield* Effect.sync(makeStartRequestId),
       transport: startRequestTraceTransport(request, endpoints),
       startedAt,
       collections: [],

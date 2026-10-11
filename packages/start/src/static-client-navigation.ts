@@ -4,6 +4,7 @@ import {
   type BrowserHistoryWindow,
   type BrowserNavigateOptions,
 } from "@sunfall/arc-core";
+import { matchRoutesEffect } from "@sunfall/arc-core/internal";
 import { Data, Effect } from "effect";
 import {
   makeStartStaticHrefPreparationCache,
@@ -154,7 +155,7 @@ export const makeStartStaticHrefPreparationEffect = <
     href: string,
   ): Effect.Effect<StartStaticHrefPreparationOutcome, StartStaticNavigationHydrationError> =>
     Effect.gen(function* () {
-      const match = yield* Route.matchEffect(options.routes, href).pipe(
+      const match = yield* matchRoutesEffect(options.routes, href).pipe(
         Effect.catch(() => Effect.succeed(undefined)),
       );
       if (!match || !shouldHydrateHref(match)) {

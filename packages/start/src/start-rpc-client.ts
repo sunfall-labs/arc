@@ -67,24 +67,12 @@ const makeRpcClientFromOptions = <FetchError = never, FetchRequirements = never>
 });
 
 /**
- * Creates a `ServerClient` that invokes server functions through Start RPC.
+ * Layer that provides a Start RPC-backed `ServerClient`.
  *
- * Calls remain Effects. The HTTP request is performed only when the server
- * function Effect is run.
+ * Calls remain Effects; the HTTP request is performed only when a server
+ * function Effect runs. `makeRpcClientLayer()` uses `globalThis.fetch` and the
+ * default Start RPC path.
  */
-export function makeRpcClient<FetchError = never>(
-  options?: ServerRpcRuntimeFreeOptions<FetchError>,
-): ServerClient;
-export function makeRpcClient<FetchError = never, FetchRequirements = never>(
-  options: ServerRpcRuntimeBackedOptions<FetchError, FetchRequirements>,
-): ServerClient;
-export function makeRpcClient<FetchError = never, FetchRequirements = never>(
-  options: ServerRpcClientOptions<FetchError, FetchRequirements, never> = {},
-): ServerClient {
-  return makeRpcClientFromOptions(options);
-}
-
-/** Layer that provides a Start RPC-backed `ServerClient`. */
 export function makeRpcClientLayer<FetchError = never>(
   options?: ServerRpcRuntimeFreeOptions<FetchError>,
 ): Layer.Layer<ServerClient>;
@@ -96,6 +84,3 @@ export function makeRpcClientLayer<FetchError = never, FetchRequirements = never
 ): Layer.Layer<ServerClient> {
   return Layer.succeed(ServerClient)(makeRpcClientFromOptions(options));
 }
-
-/** Default browser RPC layer using `globalThis.fetch` and the Start RPC path. */
-export const BrowserRpcLive = makeRpcClientLayer();

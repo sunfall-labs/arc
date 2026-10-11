@@ -1,33 +1,35 @@
 import {
+  Action,
   ActionInterrupted,
   makeMemoryBrowserHistoryAdapter,
+  makeRuntime,
+  Program,
+  Resource,
   route,
+  Route,
+  RouterRouteNotRegistered,
+  Signal,
+  type BrowserNavigateArgs,
+  type BrowserNavigateOptions,
+  type BrowserRouterError,
+  type BrowserRouterPath,
+  type BrowserRouterRouteForPath,
+  type BrowserRouterState,
   type EffectInputCallbackError,
 } from "@sunfall/arc-core";
 import { Cause, Effect, Option, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import {
-  Action,
   Component,
-  Program,
-  Resource,
-  Route,
   RuntimeContext,
+  RuntimeContextMissing,
   RouterContextMissing,
   RouterLink,
   RouterOutlet,
   RouterProvider,
-  RouterRouteNotRegistered,
   RuntimeProvider,
-  Signal,
-  UiScope,
-  createBrowserRouter,
   createComponentScope,
-  createEffectRuntime,
-  forkScoped,
   isPlainLeftClick,
-  onDispose,
-  read,
   useAction,
   useProgram,
   useResource,
@@ -37,16 +39,8 @@ import {
   useRuntime,
   useRuntimeEffect,
   useStream,
-  watch,
   type ActionHandle,
-  type BrowserNavigateArgs,
-  type BrowserNavigateOptions,
   type BrowserRouter,
-  type BrowserRouterError,
-  type BrowserRouterPath,
-  type BrowserRouterOptions,
-  type BrowserRouterRouteForPath,
-  type BrowserRouterState,
   type ProgramHandle,
   type ProgramModelView,
   type ResourceHandle,
@@ -66,15 +60,7 @@ interface SolidProject {
 
 const solidRoutes = [route("/", {}), route("/projects/:id", {})] as const;
 const solidHistory = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
-const solidBrowserOptions: BrowserRouterOptions<typeof solidRoutes> = {
-  history: solidHistory,
-  hydrating: true,
-};
-const solidRouter: BrowserRouter<typeof solidRoutes> = createBrowserRouter(solidRoutes, {
-  history: solidHistory,
-  hydrating: true,
-});
-const solidRouterFromHook: BrowserRouter<typeof solidRoutes> = useRouter<typeof solidRoutes>();
+const solidRouter: BrowserRouter<typeof solidRoutes> = useRouter<typeof solidRoutes>();
 const solidRouterState: BrowserRouterState<typeof solidRoutes> = solidRouter.state();
 const solidRoutePath: BrowserRouterPath<typeof solidRoutes> = "/";
 type SolidRouteForHome = BrowserRouterRouteForPath<typeof solidRoutes, typeof solidRoutePath>;
@@ -111,16 +97,21 @@ const solidRouterLinkProps: RouterLinkProps<(typeof solidRoutes)[0]> = {
 const solidRouterLinkNode = RouterLink(solidRouterLinkProps);
 const solidRouterOutletNode = RouterOutlet<typeof solidRoutes>({});
 const solidContextMissing = new RouterContextMissing({ hook: "useRouter" });
+const solidRuntimeContextMissing = new RuntimeContextMissing({ hook: "useRuntime" });
 const solidRouteNotRegistered = new RouterRouteNotRegistered({ path: "/" });
 const solidProviderProps: RouterProviderProps<typeof solidRoutes> = {
   routes: solidRoutes,
   history: solidHistory,
   hydrating: true,
 };
+const solidProviderRuntimeProps: RouterProviderProps<typeof solidRoutes> = {
+  routes: solidRoutes,
+  // @ts-expect-error RouterProvider reads its runtime from RuntimeProvider context.
+  runtime: makeRuntime(),
+};
 const solidCountSignal = Signal.make(0);
-const solidReadSignalValue: number = read(solidCountSignal);
-const solidUiScope = new UiScope();
-const solidEffectRuntime = createEffectRuntime();
+const solidReadSignalValue: number = solidCountSignal.get();
+const solidEffectRuntime = makeRuntime();
 class SolidRuntimeProviderObserverError {
   readonly _tag = "SolidRuntimeProviderObserverError";
 }
@@ -137,9 +128,6 @@ const solidRuntimeProviderHostOwnedObserverProps: RuntimeProviderProps = {
   runtime: solidEffectRuntime,
   onDisposeFailure: () => Effect.void,
 };
-const solidForkScoped: typeof forkScoped = forkScoped;
-const solidOnDispose: typeof onDispose = onDispose;
-const solidWatch: typeof watch = watch;
 const solidCreateComponentScope: typeof createComponentScope = createComponentScope;
 const solidSignalValue = (): number => solidCountSignal.get();
 const solidStreamValue = useStream(Stream.succeed("ready"), "idle");
@@ -286,26 +274,14 @@ const solidActionInput: Option.Option<{ readonly id: string }> = solidAction.inp
 solidAction.instance.state.get().result._tag;
 solidAction.invalidationPlan()?.entries.map((entry) => entry.ref.key);
 const solidExports: Array<unknown> = [
-  Action,
-  Program,
-  Resource,
-  Route,
   RuntimeContext,
   RouterContextMissing,
   RouterLink,
   RouterOutlet,
   RouterProvider,
-  RouterRouteNotRegistered,
   RuntimeProvider,
-  Signal,
-  UiScope,
-  createBrowserRouter,
   createComponentScope,
-  createEffectRuntime,
-  forkScoped,
   isPlainLeftClick,
-  onDispose,
-  read,
   useAction,
   useProgram,
   useResource,
@@ -315,9 +291,7 @@ const solidExports: Array<unknown> = [
   useRuntime,
   useRuntimeEffect,
   useStream,
-  watch,
   solidRouter,
-  solidRouterFromHook,
   solidRouterState,
   solidRoutePath,
   solidRouteForPath,
@@ -332,16 +306,14 @@ const solidExports: Array<unknown> = [
   solidRouterLinkNode,
   solidRouterOutletNode,
   solidContextMissing,
+  solidRuntimeContextMissing,
+  RuntimeContextMissing,
   solidRouteNotRegistered,
   solidReadSignalValue,
-  solidUiScope,
   solidEffectRuntime,
   solidRuntimeProviderFailingObserverProps,
   solidRuntimeProviderPromiseObserverProps,
   solidRuntimeProviderHostOwnedObserverProps,
-  solidForkScoped,
-  solidOnDispose,
-  solidWatch,
   solidCreateComponentScope,
   solidRuntime,
   solidRuntimeFiber,
@@ -357,8 +329,8 @@ const solidExports: Array<unknown> = [
   solidActionHandle,
   solidActionSubmit,
   solidActionStateTag,
-  solidBrowserOptions,
   solidProviderProps,
+  solidProviderRuntimeProps,
 ];
 type SolidRouter = BrowserRouter | RouterOutletProps;
 type SolidRouterLinkProps = RouterLinkProps<(typeof solidRoutes)[0]>;
@@ -367,11 +339,9 @@ type SolidBrowserNavigateOptions = BrowserNavigateOptions;
 type SolidBrowserRouterPath = BrowserRouterPath<typeof solidRoutes>;
 type SolidBrowserRouterRouteForPath = BrowserRouterRouteForPath<typeof solidRoutes, "/">;
 type SolidBrowserRouterState = BrowserRouterState<typeof solidRoutes>;
-type SolidBrowserRouterOptions = BrowserRouterOptions;
 type SolidRouterProviderProps = RouterProviderProps<typeof solidRoutes>;
 type SolidRuntimeProviderProps = RuntimeProviderProps;
 type SolidRouteHrefOptions = Route.HrefOptions<(typeof solidRoutes)[0]>;
-type SolidUiScope = UiScope;
 type SolidActionHandle = ActionHandle<{ readonly id: string }, { readonly ok: boolean }>;
 type SolidProgramHandle = ProgramHandle<
   number,
@@ -396,11 +366,9 @@ type _SolidBrowserNavigateOptions = SolidBrowserNavigateOptions;
 type _SolidBrowserRouterPath = SolidBrowserRouterPath;
 type _SolidBrowserRouterRouteForPath = SolidBrowserRouterRouteForPath;
 type _SolidBrowserRouterState = SolidBrowserRouterState;
-type _SolidBrowserRouterOptions = SolidBrowserRouterOptions;
 type _SolidRouterProviderProps = SolidRouterProviderProps;
 type _SolidRuntimeProviderProps = SolidRuntimeProviderProps;
 type _SolidRouteHrefOptions = SolidRouteHrefOptions;
-type _SolidUiScope = SolidUiScope;
 type _SolidActionHandle = SolidActionHandle;
 type _SolidProgramHandle = SolidProgramHandle;
 type _SolidResourceHandle = SolidResourceHandle;

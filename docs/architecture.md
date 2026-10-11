@@ -39,7 +39,7 @@ domain vocabulary.
    action manifests, generated route definitions, and Start app graph
    diagnostics turn definitions into deterministic machine-readable artifacts.
 3. Runtime layer: `SunfallArcRuntime`, request runtimes, `ResourceStore`,
-   `Collection.Store`, UI scopes, route scopes, Program fibers, action fibers,
+   the collection store, UI scopes, route scopes, Program fibers, action fibers,
    server clients, response context, hydration, and event streams execute the
    graph through Effect services and scopes.
 4. Inspection layer: diagnostics, devtools summaries, causal graphs, repair
@@ -119,7 +119,7 @@ status fallback. See [Solid Adapter](solid-adapter.md#keep-content-mounted-acros
 async-state vocabulary. Arc signals own it and Solid renders it:
 
 - `Resource.result(ref)` is `ReadableSignal<AsyncResult<A, Resource.LoadError<E>>>`;
-  `Resource.status(ref)` adds cache-policy facts (`isStale`, `isGcExpired`,
+  `Resource.statusEffect(ref)` adds cache-policy facts (`isStale`, `isGcExpired`,
   `staleAt`, `gcAt`, `ageMillis`, `staleInMillis`, `gcInMillis`) beside `result`.
 - Action instances expose `state: ReadableSignal<{ result: AsyncResult<A, E>; input: Option<I> }>`
   (idle is `Initial`); the latest invalidation plan stays its own signal.
@@ -261,8 +261,8 @@ state.
 Start creates a Request Runtime for every SSR or RPC request. A Request Runtime
 shares the app's Effect services but gets a fresh Resource Store and a
 request-local `Server.localClient(...)`. Route preload, render, server
-functions, hydration payload creation, and synchronous `Resource.read(...)`
-during render all run through that request runtime, then the Resource Store is
+functions, hydration payload creation, and Resource reads during render all
+run through that request runtime, then the Resource Store is
 disposed at request completion to interrupt any lifetime fibers. Internally,
 the Request Runtime Lifecycle Module owns failure/interruption teardown,
 ResponseContext application, request trace emission, runtime disposal, and
@@ -306,9 +306,10 @@ The Runtime Spine is the one place where host boundaries are allowed to run Effe
 - `Resource.prefetch` / `refresh` use the current runtime.
 - `Action.use(...).submitEffect` can run on an explicit runtime.
 - Start request handlers run SSR preload and render through `app.runtime`.
-- Solid `RuntimeProvider` / `RouterProvider` pass the runtime to resources,
-  actions, route preloads, route components, and ambient Core helpers used while
-  rendering those components.
+- Solid `RuntimeProvider` passes the runtime to resources, actions, route
+  preloads (`RouterProvider` reads it from context), route components, and
+  ambient Core helpers used while rendering those components. A missing
+  provider throws `RuntimeContextMissing`; there is no implicit default runtime.
 
 That means services, tagged errors, request context, scopes, retries, and
 fibers all flow through one Effect-native execution model instead of being
@@ -387,7 +388,7 @@ Module for request serialization, fetch invocation, status validation, and
 transport error mapping; the protocol Modules still own RPC/action-specific
 request and response decoding.
 
-The small `startActionForm(action, { input })` helper generates the form method,
+The small `StartAction.form(action, { input })` helper generates the form method,
 action URL, and hidden metadata fields. Visible form controls are merged over
 the hidden JSON input before schema decode, so a form can carry stable values
 such as `id` and `redirectTo` while the user edits fields like `name`.
@@ -436,8 +437,8 @@ request's resource graph into another request.
 Resource, collection, and action definitions also publish static diagnostics for
 tooling.
 `Resource.diagnostics()` reports declared families, tags, schema flags,
-tag-providing behavior, and stale/GC/retry policy. `Collection.diagnostics()`
-reports declared collection names, schema flags, load presence, mutation
+tag-providing behavior, and stale/GC/retry policy. the DB definition registry
+(`@sunfall/arc-db/internal`) reports declared collection names, schema flags, load presence, mutation
 handlers, retry policy, and persistence policy. Start action manifests report
 whether invalidation, optimistic updates, retry policy, and concurrency are known
 for each action. Generated definitions can prove action facts from
@@ -447,7 +448,7 @@ mark the behavior as `unknown`.
 The graph is inspectable before it is executed:
 
 ```ts
-const plan = Resource.planInvalidation([ProjectsTag, ProjectTag({ id: project.id })]);
+const plan = yield * Resource.planInvalidationEffect([ProjectsTag, ProjectTag({ id: project.id })]);
 
 plan.entries.map((entry) => ({
   ref: entry.ref.key,
@@ -542,33 +543,36 @@ snapshot is restored into `runtime`.
 ## Component Runtime
 
 Components that call `createComponentScope(...)`, `useRuntimeEffect(...)`,
-`useStream(...)`, or render through `RouterOutlet` get a `UiScope` backed by
+`useStream(...)`, or render through `RouterOutlet` get a UI scope backed by
 Effect `Scope`. Closing the UI scope closes the Effect scope, so finalizers run
 and scoped fibers are interrupted. Plain Solid components stay unscoped until
 they opt into one of those Solid Adapter seams.
 
-```ts
+```tsx
 const title = Signal.make("Sunfall Arc");
+const runEffect = useRuntimeEffect();
 
-watch(
-  () => read(title),
-  (value) =>
-    Effect.sync(() => {
-      document.title = value;
-    }),
+// Imperative DOM sinks use Solid effects; Arc signals track natively.
+createEffect(
+  () => title.get(),
+  (value) => {
+    document.title = value;
+  },
 );
 
-forkScoped(
+// Background Effect work is interrupted when the component unmounts.
+runEffect(
   Effect.gen(function* () {
     yield* Effect.sleep("1 second");
     yield* Effect.log("still mounted");
   }),
 );
 
-onDispose(() => Effect.log("component disposed"));
+// Stream-backed values stop with the component.
+const presence = useStream(presenceStream, initialPresence);
 ```
 
-Use `watch` only for imperative sinks. Use `Signal.derive`, `Resource`,
+Use Solid effects only for imperative sinks. Use `Signal.derive`, `Resource`,
 `Action`, and `Stream` for application state.
 
 Resource families keep a synchronous signal for UI reads, but their backing
@@ -654,8 +658,8 @@ Route.href(ProjectRoute, {
 ```
 
 The Solid adapter owns browser history through `RouterProvider`. On navigation it
-matches the route, runs `Route.preloadEffect` in an interruptible `UiScope`, then
-mounts the matched route component in a fresh route `UiScope`. Navigating away
+matches the route, runs `Route.preloadEffect` in an interruptible UI scope, then
+mounts the matched route component in a fresh route UI scope. Navigating away
 runs Solid cleanup inside that route runtime/scope before disposing the route
 scope, so cleanup callbacks, streams, watches, actions, and scoped fibers close
 with the page they belong to.
@@ -711,7 +715,7 @@ would send before rendering the page. Start uses this same route plan for
 SSR preload. If a touched resource cannot be serialized, planning fails through
 the typed `ResourceSnapshotCodecError` Effect error channel. When
 `@sunfall/arc-start` is present, it separately composes
-`Collection.collectEffect` around the route plan so DB collection preload can be
+`collectCollectionsEffect` (from `@sunfall/arc-db/internal`) around the route plan so DB collection preload can be
 observed without making `@sunfall/arc-core` depend on `@sunfall/arc-db`.
 
 Routes can also declare the resource families and DB collections their preload
@@ -758,32 +762,35 @@ route-id/segment mismatches before the router sees them.
 The same manifest generates a typed route definition module. On Vite startup and
 build, Start writes `src/routeTree.gen.ts` by default, following the file-based
 routing convention of keeping generated route types in the project for editors,
-agents, and non-Vite tooling. Route files export a named `Route`, usually by
-binding a builder so schemas, preload metadata, and preload work stay together:
+agents, and non-Vite tooling. Route files export a named `Route` built with
+`defineFileRoute(path)(options)`, which takes the same options as core
+`route(path, options)`; static preload hints and preload work stay together:
 
 ```ts
-const RouteBuilder = defineFileRoute("/projects/:id");
-
-export const Route = RouteBuilder.preload({
+export const Route = defineFileRoute("/projects/:id")({
   params: ProjectRouteParams,
   search: ProjectRouteSearch,
-  resources: ({ resource }) => [resource(ProjectById, ({ params }) => params.id)],
-  collections: [ProjectSummaries],
-}).route();
+  preloadResources: [ProjectById],
+  preloadCollections: [ProjectSummaries],
+  preload: ({ params }) =>
+    Effect.all(
+      [Resource.prefetchEffect(ProjectById(params.id)), ProjectSummaries.preloadEffect()],
+      { discard: true },
+    ),
+});
 ```
 
 The generated file imports those route modules, checks each imported route's
 literal `path` against the manifest, and then emits a `routes` tuple, a
-`routeTree` alias, a `routeById` map, a `routeByPath` map, and direct typed href
+`routeById` map, a `routeByPath` map, and direct typed href
 helpers such as `hrefById(...)` and `hrefByPath(...)`. The matching Vite virtual
 module `virtual:sunfall-arc/routes` exposes runtime helpers with Vite-root
 absolute imports. Precise app-specific route id, params, search, href, and match
 type maps live in the written `src/routeTree.gen.ts` module, where editors and
-non-Vite tooling can index them without relying on virtual-module inference. The
-generated file also exports friendly aliases such as `RouteId`, `RoutePath`,
-`ParamsById`, `SearchByPath`, `Href`, `HrefById`, `HrefByPath`, and `Match`,
-giving agents and editors a route-id/path indexed view without introducing a
-second runtime link abstraction. Apps can disable or move the generated file with
+non-Vite tooling can index them without relying on virtual-module inference.
+Each concept has one generated name (`FileRouteId`, `FileRoutePath`,
+`FileRouteParamsById`, `FileRouteHrefOptionsById`, `FileRouteMatch`, and so on);
+there are no short-name aliases. Apps can disable or move the generated file with
 `sunfallArcStart({ fileRouteGeneration: { outputFile: false } })` or a custom
 `outputFile`.
 
@@ -799,7 +806,7 @@ request, run the matched route preload, collect every resource touched by
 `Resource.prefetchEffect`, and serialize successful resource cache entries:
 
 ```ts
-const preloaded = yield * preloadRequestEffect(app, request);
+const preloaded = yield * preloadRequest(app, request);
 preloaded.resources; // { resources: [...] }
 ```
 
@@ -810,10 +817,7 @@ settled `Success`, `{ _tag: "Success", value, waiting: false, timestamp }`, with
 is Success-only: failures can carry server-only causes and are never serialized. Start client hydration applies that payload with
 `hydrateFromDocumentEffect(...)` or `hydrateStartPayloadEffect(...)`; those
 helpers call `Resource.hydrateEffect(payload)` so the visible resource signal
-and Effect `Cache` entry update in the same Runtime Spine. The synchronous
-`Resource.hydrate(payload)` helper is the host/UI-context facade for callers
-that are already inside the current runtime, not the path Start hydration docs
-should teach first.
+and Effect `Cache` entry update in the same Runtime Spine.
 
 A failed route preload is a render outcome in Start: the request renders with
 status 500 and every router on the request runtime starts in the `Failure`
@@ -835,7 +839,7 @@ Resource Store provided by the Runtime Spine. The sync `Resource.hydrationPayloa
 is for already-current UI contexts and tests.
 
 DB collections join the same Start hydration script. When a route preload calls
-`Collection.preloadEffect(...)` or `Collection.refetchEffect(...)`, Start records
+`collection.preloadEffect()` or `collection.refetchEffect()`, Start records
 that Collection Definition and dehydrates its request-runtime snapshot
 automatically:
 
@@ -875,7 +879,7 @@ The browser entrypoint passes the same definitions and browser runtime back to
 one script into the same Runtime Spine that the UI will use:
 
 ```ts
-const runtime = createEffectRuntime(AppLive);
+const runtime = makeRuntime(AppLive);
 
 yield *
   hydrateFromDocumentEffect(document, "__SUNFALL_ARC_HYDRATION__", {
@@ -889,23 +893,13 @@ yield *
 `hydrationRootScript`/`hydrationPlan` pair for streamed HTML. Browser
 entrypoints can call `hydrateFromDocument(...)` before mounting the app, or
 `hydrateFromDocumentEffect(...)` when they want the host runtime to run the
-hydration Effect directly. Lower-level resource-only hosts should prefer
-`yield* Resource.hydrateEffect(payload)` and reserve `Resource.hydrate(payload)`
-for synchronous current-runtime host facades.
+hydration Effect directly. Lower-level resource-only hosts run
+`yield* Resource.hydrateEffect(payload)` on their runtime.
 
 Streamed SSR chunks are emitted as JSON scripts with
-`data-sunfall-arc-hydration-chunk`. Browser entries that progressively inspect the
-document can run the chunk-only transport directly:
-
-```ts
-const chunks = hydrateStartHydrationChunksFromDocument(document, {
-  runtime,
-  collections: [Projects, Tasks],
-});
-```
-
-The Effect form, `hydrateStartHydrationChunksFromDocumentEffect`, is for hosts
-that already run inside the browser runtime. Streamed chunk hydration is
+`data-sunfall-arc-hydration-chunk`; `hydrateFromDocument(...)` /
+`hydrateFromDocumentEffect(...)` apply the root payload first and then every
+streamed chunk. Streamed chunk hydration is
 progressive by design: each parsed Start hydration payload validates before that
 payload mutates Resource or Collection state, but a later chunk failure does not
 roll back chunks that already applied. Consumed DOM chunks are marked with
@@ -923,8 +917,7 @@ payload next to the root. Those scripts solve different problems: Solid maps the
 existing DOM nodes back to computations, while Sunfall Arc restores typed resource
 state and Effect `Cache` entries.
 
-`createRequestHandlerEffect(app)` is the native Effect request boundary.
-`createRequestHandler(app)` is an alias for the same Effect-returning handler.
+`createRequestHandler(app)` is the native Effect request boundary.
 Host facades can own the final runtime seam when a platform contract requires
 one, so Fetch hosts that require `(request) => Promise<Response>` and ordinary
 Node HTTP hosts that require a `createServer` callback do not repeat runtime
@@ -939,22 +932,18 @@ preload and render work, so app services can be normal Effect `Layer`s.
 Every request gets a fresh Request Runtime, so SSR behaves like TanStack Start's
 isomorphic request model without sharing cache state across users.
 
-Deployment adapter implementations live in `@sunfall/arc-start/adapters`.
-Application imports should prefer the host-shaped facades:
-`@sunfall/arc-start-fetch` for Fetch-style hosts and `@sunfall/arc-start-node` for
-Node HTTP. Effect-capable hosts should use `toFetchHandlerEffect(handler)` or
-`toFetchHandler(handler)`. Edge-style hosts that require a Promise-shaped
-export can wrap `createRequestHandlerEffect(app)` with
+Deployment adapters have one import path per host shape:
+`@sunfall/arc-start/fetch` for Fetch-style hosts and `@sunfall/arc-start/node`
+for Node HTTP. Effect-capable hosts use `toFetchHandler(handler)` or
+`createNodeHandler(handler)`. Edge-style hosts that require a Promise-shaped
+export wrap `createRequestHandler(app)` with
 `createFetchHandler(handler, { runtime })`, while Node HTTP servers use
-`createNodeServerHandler(handler, { runtime })`. The Effect-first
-`toFetchHandlerEffect`, `toFetchHandler`, `createNodeHandlerEffect`, and
-`createNodeHandler` functions remain the canonical interfaces for hosts that
-want custom supervision. Host facades provide the per-request Scope themselves
+`createNodeServerHandler(handler, { runtime })`. Host facades provide the per-request Scope themselves
 but require a typed runtime whenever the handler still needs app services. The
 Node adapter callback facades delegate the lower Node/Web exchange mechanics to
 the internal Start Node Web Exchange Module. That Module converts
 `IncomingMessage` to a Web `Request`, makes forwarded-origin trust explicit with
-`trustForwardedHeaders`, writes Web `Response` headers/status back to
+`trustForwardedHeaders` (default `false`), writes Web `Response` headers/status back to
 `ServerResponse`, streams response bodies with Node backpressure and Effect
 interruption through an `AbortSignal`, preserves multiple `Set-Cookie` headers,
 and keeps `HEAD` responses bodyless at the host boundary. Vite dev SSR consumes
@@ -1032,7 +1021,7 @@ export const getProjectLegacy = Server.fn("Project.get", {
 On the server, Start provides a request-local `ServerClient` during request
 preload and render, so shared clients dispatch to registered local handlers
 through the Effect runtime even when the app runtime also provides a remote
-client service. In the browser, `BrowserRpcLive` provides a fetch-backed
+client service. In the browser, `makeRpcClientLayer()` provides a fetch-backed
 `ServerClient` that posts to the configured Start RPC endpoint, defaulting to
 `POST /__sunfall-arc/rpc`. Start action clients and progressive forms use the same
 shared endpoint policy, defaulting to `POST /__sunfall-arc/action`, so custom
@@ -1089,7 +1078,7 @@ families are exposed as source-attributed route facts, and declared preload
 collections are exposed as route-to-collection facts, while runtime route plans
 continue to show the exact resource refs touched for a specific navigation.
 Runtime diagnostics can also include static `Resource.diagnostics()` and
-`Collection.diagnostics()` facts so devtools can explain resource families,
+DB collection registry diagnostics so devtools can explain resource families,
 tags, and DB collection definitions without reading private stores. A shared
 diagnostics DTO decoder is used by Vite, CLI, and virtual modules instead of
 duplicate loose shape guards at each Adapter seam. Builds can enforce static
@@ -1105,9 +1094,8 @@ runtime diagnostics virtual module exports `diagnosticsPolicyViolations` as a re
 `StartAppGraphDiagnosticsPolicyViolation[]` after the diagnostics policy guard
 succeeds; if the guard finds unknown preload declarations, module evaluation
 fails with the diagnostics-bearing policy exception instead.
-CI scripts can call `loadStartAppGraphDiagnostics({ root })` from
-`@sunfall/arc-start/vite` to run the same gate explicitly and receive the resolved
-diagnostics as JSON-safe data. The package binary wraps that API as:
+CI scripts run the same gate explicitly and receive the resolved diagnostics as
+JSON-safe data through the package binary:
 
 ```sh
 sunfall-arc-start diagnostics --root . --json
@@ -1164,10 +1152,10 @@ The render model is latest-value reactive:
 
 ```ts
 const count = Signal.make(0);
-const doubled = Signal.derive(() => read(count) * 2);
+const doubled = Signal.derive(() => count.get() * 2);
 ```
 
-`read(count)` subscribes the current reactive computation and returns the current value
+`count.get()` subscribes the current reactive computation and returns the current value
 synchronously. Rendering consumes invalidations and then reads the latest value; it is
 not required to replay every intermediate update.
 
@@ -1222,8 +1210,8 @@ Streams can also drive signals when the stream cannot fail:
 const online = yield * Signal.fromStreamEffect(presenceStream, false);
 ```
 
-`Signal.fromStream(stream, initial)` is the component-boundary helper. It requires
-an active `UiScope`, so stream fibers are interrupted when the component is disposed.
+In Solid components, `useStream(stream, initial)` is the component-boundary
+helper; its stream fiber is interrupted when the component is disposed.
 
 Fallible streams should first be turned into typed data or represented as `Resource`
 state, because a plain `Signal<A>` always has a current `A` and has no error channel.

@@ -1,6 +1,5 @@
 import {
   Route,
-  invokeEffectInput,
   makeResponseContext,
   runWithRuntime,
   type AppDefinition,
@@ -11,6 +10,7 @@ import {
   type SunfallArcRuntime,
   type ResourceStore as ResourceStoreState,
 } from "@sunfall/arc-core";
+import { invokeEffectInput } from "@sunfall/arc-core/internal";
 import { Effect, Scope } from "effect";
 import { type StartCollectionHydrationOptions } from "./hydration.js";
 import {
@@ -63,11 +63,7 @@ export {
   createServerActionResponseEffect,
   createServerRpcResponseEffect,
 } from "./start-request-endpoints.js";
-export {
-  StartPreloadError,
-  preloadRequest,
-  preloadRequestEffect,
-} from "./start-request-preload.js";
+export { StartPreloadError, preloadRequest } from "./start-request-preload.js";
 export type { StartCollectionPreload, StartPreloadResult } from "./start-request-preload.js";
 export { StartRequestHandlerError } from "./start-request-handler-error.js";
 
@@ -149,22 +145,18 @@ type StartRequestRequirements<
   ServerServices
 >;
 
-/** Effect-returning request handler used by the Start SSR/RPC/action pipeline. */
-export type StartRequestHandlerEffect<Requirements = never> = StartRequestHandlerInput<
-  StartRequestHandlerError,
-  Scope.Scope | Requirements
-> &
-  StartRequestHandlerRequirementsMarker<Scope.Scope | Requirements>;
 /**
- * Public Effect-returning handler consumed by platform adapters and server entries.
+ * Effect-returning request handler built by `createRequestHandler`.
  *
- * This type is the Start library boundary. Fetch and Node adapters expose the
- * host Promise/callback facades; application request handlers stay Effect-first.
+ * This type is the Start library boundary. The `./fetch` and `./node`
+ * adapters expose host Promise/callback facades; application request handlers
+ * stay Effect-first.
  */
 export type StartRequestHandler<Requirements = never> = StartRequestHandlerInput<
   StartRequestHandlerError,
   Scope.Scope | Requirements
->;
+> &
+  StartRequestHandlerRequirementsMarker<Scope.Scope | Requirements>;
 
 /**
  * Builds the main Start request handler for SSR, RPC, and actions.
@@ -175,12 +167,12 @@ export type StartRequestHandler<Requirements = never> = StartRequestHandlerInput
  *
  * @example
  * ```ts
- * const handleRequest = createRequestHandlerEffect(app, {
+ * const handleRequest = createRequestHandler(app, {
  *   render: ({ hydrationRootScript }) => `<div id="app"></div>${hydrationRootScript}`
  * });
  * ```
  */
-export const createRequestHandlerEffect = <
+export const createRequestHandler = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   Client,
   ServerServices,
@@ -197,9 +189,7 @@ export const createRequestHandlerEffect = <
     Actions,
     Registry
   > = {},
-): StartRequestHandlerEffect<
-  StartRequestRequirements<Routes, ServerServices, Registry, Actions>
-> => {
+): StartRequestHandler<StartRequestRequirements<Routes, ServerServices, Registry, Actions>> => {
   const explicitActionMap =
     options.actions === undefined ? undefined : makeActionMap(options.actions);
 
@@ -337,38 +327,5 @@ export const createRequestHandlerEffect = <
       Response,
       StartRequestHandlerError,
       Scope.Scope | StartRequestRequirements<Routes, ServerServices, Registry, Actions>
-    >) as StartRequestHandlerEffect<
-    StartRequestRequirements<Routes, ServerServices, Registry, Actions>
-  >;
+    >) as StartRequestHandler<StartRequestRequirements<Routes, ServerServices, Registry, Actions>>;
 };
-
-/**
- * Primary Start request handler factory for server entry modules.
- *
- * The returned handler returns an `Effect`; use the Fetch/Node adapters when a
- * host expects a Promise-returning or callback-style request function.
- */
-export const createRequestHandler = <
-  const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
-  Client,
-  ServerServices,
-  ServerError,
-  Registry extends AppDefinitionRegistry,
-  Actions extends StartActionDefinition = never,
->(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
-  options: CreateRequestHandlerOptions<
-    Routes,
-    Client,
-    ServerServices,
-    ServerError,
-    Actions,
-    Registry
-  > = {},
-): StartRequestHandlerEffect<StartRequestRequirements<Routes, ServerServices, Registry, Actions>> =>
-  createRequestHandlerEffect(app, options);
-
-/** Alias for `createRequestHandler` for server entry modules. */
-export const createServerHandler = createRequestHandler;
-/** Alias for `createRequestHandlerEffect` for server entry modules. */
-export const createServerHandlerEffect = createRequestHandlerEffect;

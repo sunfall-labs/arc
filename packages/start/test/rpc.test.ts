@@ -8,10 +8,12 @@ import {
   ServerClient,
   ServerTransportError,
 } from "@sunfall/arc-core";
+import { makeRpcClientLayer, type ServerRpcClientOptions, type StartFetch } from "../src/index.js";
 import {
   createServerActionResponseEffect,
   createServerRpcResponseEffect,
-  makeRpcClient,
+} from "../src/start-request-endpoints.js";
+import {
   serverActionPath,
   serverRpcPath,
   startJsonMediaType,
@@ -21,14 +23,20 @@ import {
   startTransportProtocolHeader,
   startTransportProtocolVersion,
   startTransportRequestHeaders,
-  type StartFetch,
-} from "../src/index.js";
+} from "../src/rpc.js";
 import {
   encodeStartClientTransportRequestBodyEffect,
   executeStartClientTransportEffect,
 } from "../src/start-client-transport.js";
 import { resolveStartFetchEffect } from "../src/start-fetch.js";
 import { parseRpcResponse, parseStartActionResponse } from "../src/start-transport-protocol.js";
+
+const makeRpcClient = (options: ServerRpcClientOptions<any, any, never> = {}): ServerClient =>
+  Effect.runSync(
+    Effect.gen(function* () {
+      return yield* ServerClient;
+    }).pipe(Effect.provide(makeRpcClientLayer(options as never))),
+  );
 
 const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 

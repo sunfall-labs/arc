@@ -83,21 +83,8 @@ import {
   programSubscription,
   programUpdate,
 } from "./program-primitives.js";
-export {
-  defineProgram,
-  programCommand,
-  programCommands,
-  programDispatch,
-  programEffect,
-  programEmit,
-  programNext,
-  programStepEffect,
-  programSubscription,
-  programUpdate,
-} from "./program-primitives.js";
 import { makeProgramRuntimeInstance } from "./program-runtime.js";
 import { makeProgramStory } from "./program-story.js";
-export { makeProgramStory } from "./program-story.js";
 import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
 import {
   currentOrDefaultRuntime,
@@ -150,7 +137,7 @@ const startProgramImplementation = <Model, Message, E = never, ER = never>(
  * use `Program.start(definition, { runtime })` so TypeScript can verify the
  * Runtime Spine provides those services.
  */
-export function startProgram<Model, Message, E = never>(
+function startProgram<Model, Message, E = never>(
   definition: ProgramDefinition<Model, Message, E, never>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E>, ProgramDispatchError<E>>;
 /**
@@ -160,39 +147,11 @@ export function startProgram<Model, Message, E = never>(
  * and only services supplied by the runtime are discharged from the Program
  * definition requirements.
  */
-export function startProgram<Model, Message, E = never, R = never, ER = never, RRuntime = R>(
+function startProgram<Model, Message, E = never, R = never, ER = never, RRuntime = R>(
   definition: ProgramDefinition<Model, Message, E, R>,
   options: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>>;
-export function startProgram<Model, Message, E = never, ER = never>(
-  definition: unknown,
-  options?: ProgramStartImplementationOptions<ER>,
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> {
-  return startProgramImplementation(
-    definition as ProgramDefinition<Model, Message, E, never>,
-    options,
-  );
-}
-
-/**
- * Starts a Program while preserving Runtime Spine startup/provision errors in
- * the returned failure channel.
- */
-export function startProgramWithRuntimeError<Model, Message, E = never>(
-  definition: ProgramDefinition<Model, Message, E, never>,
-): ProgramInstance<Model, Message, ProgramRuntimeError<E>, ProgramDispatchError<E>>;
-export function startProgramWithRuntimeError<
-  Model,
-  Message,
-  E = never,
-  R = never,
-  ER = never,
-  RRuntime = R,
->(
-  definition: ProgramDefinition<Model, Message, E, R>,
-  options: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>,
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>>;
-export function startProgramWithRuntimeError<Model, Message, E = never, ER = never>(
+function startProgram<Model, Message, E = never, ER = never>(
   definition: unknown,
   options?: ProgramStartImplementationOptions<ER>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> {

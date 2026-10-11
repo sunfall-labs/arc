@@ -6,42 +6,20 @@ import {
   DevtoolsUnknownInvalidationTarget,
   bootDevtoolsPanels,
   describeDevtoolsCausalGraph,
-  describeDevtoolsCausalGraphEffect,
   describeInvalidationPlan,
   describeRoutePlan,
   describeDevtoolsPanels,
-  describeDevtoolsPanelsEffect,
   describeDevtoolsSummary,
-  describeDevtoolsSummaryEffect,
   devtoolsPanelIds,
   devtoolsPanelSeverities,
-  devtoolsPanelStyles,
   sunfallArcDevtoolsBridgeGlobal,
   installDevtoolsBridge,
   installDevtoolsBridgeEffect,
-  interruptDevtoolsPanelBoot,
-  isDevtoolsPanel,
-  isDevtoolsPanelId,
-  isDevtoolsPanelItem,
-  isDevtoolsPanelMetric,
-  isDevtoolsPanelOverflowItem,
-  isDevtoolsPanels,
-  isDevtoolsPanelSeverity,
   isDevtoolsSerializableValue,
   makeDevtoolsStore,
-  mountDevtoolsPanels,
   mountDevtoolsPanelsEffect,
-  normalizeAppGraphCollectionDefinitions,
-  normalizeAppGraphUnknownRoutePreloadCollections,
-  normalizeDevtoolsAppGraphDiagnostics,
-  normalizeDevtoolsPanels,
-  normalizeSunfallArcDevtoolsBridgePayload,
-  normalizeRouteModulePreloadCollections,
-  resolveDevtoolsPanelContract,
-  resolveDevtoolsPanelsInput,
   resolveSunfallArcDevtoolsBridgePayload,
   renderDevtoolsPanelsHtml,
-  renderDevtoolsPanelsHtmlEffect,
   toDevtoolsSerializableValue,
   type DevtoolsBridgePayload,
   type DevtoolsBridgePayloadContractResolution,
@@ -55,7 +33,6 @@ import {
   type DevtoolsPanelBoot,
   type DevtoolsPanelBootOptions,
   type DevtoolsPanelContractErrorReason,
-  type DevtoolsPanelContractResolution,
   type DevtoolsPanelId,
   type DevtoolsPanelItem,
   type DevtoolsPanelMetric,
@@ -83,7 +60,6 @@ import {
   type DevtoolsSummary,
   type DevtoolsSummaryInput,
   type DevtoolsSummaryRuntimeEvent,
-  type NormalizeDevtoolsAppGraphDiagnosticsOptions,
 } from "@sunfall/arc-devtools";
 
 const devtoolsStoreOptions: DevtoolsStoreOptions = {
@@ -111,9 +87,6 @@ const devtoolsPanelsEffect: Effect.Effect<DevtoolsPanels> = devtoolsStore.getPan
 const devtoolsCausalGraph: DevtoolsCausalGraph = devtoolsStore.getCausalGraph();
 const devtoolsCausalGraphEffect: Effect.Effect<DevtoolsCausalGraph> =
   devtoolsStore.getCausalGraphEffect();
-const devtoolsNormalizeAppGraphOptions: NormalizeDevtoolsAppGraphDiagnosticsOptions = {
-  preserveDerivedPreloadFacts: true,
-};
 declare const devtoolsActionInstance: Parameters<DevtoolsStore["recordActionEffect"]>[0];
 declare const devtoolsStartActionInstance: Parameters<DevtoolsStore["recordStartActionEffect"]>[0];
 declare const devtoolsRoutePlanInput: Parameters<DevtoolsStore["recordRoutePlanEffect"]>[0];
@@ -144,18 +117,11 @@ const devtoolsSummaryInput: DevtoolsSummaryInput = {
   runtimeEvents: [],
 };
 const describedDevtoolsSummary: DevtoolsSummary = describeDevtoolsSummary(devtoolsSummaryInput);
-const describedDevtoolsSummaryEffect: Effect.Effect<DevtoolsSummary> =
-  describeDevtoolsSummaryEffect(devtoolsSummaryInput);
 const describedDevtoolsPanels: DevtoolsPanels = describeDevtoolsPanels({
-  summary: describedDevtoolsSummary,
-});
-const describedDevtoolsPanelsEffect: Effect.Effect<DevtoolsPanels> = describeDevtoolsPanelsEffect({
   summary: describedDevtoolsSummary,
 });
 const describedDevtoolsCausalGraph: DevtoolsCausalGraph =
   describeDevtoolsCausalGraph(devtoolsSummaryInput);
-const describedDevtoolsCausalGraphEffect: Effect.Effect<DevtoolsCausalGraph> =
-  describeDevtoolsCausalGraphEffect(devtoolsSummaryInput);
 void devtoolsRecordActionEffect;
 void devtoolsTrackActionEffect;
 void devtoolsRecordStartActionEffect;
@@ -166,7 +132,6 @@ void devtoolsRecordCustomRuntimeEventEffect;
 
 const devtoolsPanelId: DevtoolsPanelId = devtoolsPanelIds[0]!;
 const devtoolsPanelSeverity: DevtoolsPanelSeverity = devtoolsPanelSeverities[0]!;
-const devtoolsCssText: string = devtoolsPanelStyles;
 const devtoolsPanelMetric: DevtoolsPanelMetric = {
   label: "Requests",
   value: 1,
@@ -199,44 +164,8 @@ const devtoolsPanelUiInput: DevtoolsPanelUiInput = {
   selectedPanelId: "requests",
   maxItemsPerPanel: 4,
 };
-if (isDevtoolsPanelId(devtoolsPanelId) && isDevtoolsPanelSeverity(devtoolsPanelSeverity)) {
-  devtoolsPanelId.toUpperCase();
-  devtoolsPanelSeverity.toUpperCase();
-}
-if (
-  isDevtoolsPanelMetric(devtoolsPanelMetric) &&
-  isDevtoolsPanelItem(devtoolsPanelItem) &&
-  isDevtoolsPanelOverflowItem(devtoolsPanelId, devtoolsPanelItem) &&
-  isDevtoolsPanel(devtoolsPanel) &&
-  isDevtoolsSerializableValue(devtoolsPanelItem.data)
-) {
+if (isDevtoolsSerializableValue(devtoolsPanelItem.data)) {
   devtoolsPanel.items.map((item) => item.label);
-}
-if (isDevtoolsPanels(explicitDevtoolsPanels)) {
-  explicitDevtoolsPanels.panels.map((panel) => panel.id);
-}
-const normalizedDevtoolsPanels: DevtoolsPanels | undefined =
-  normalizeDevtoolsPanels(explicitDevtoolsPanels);
-const resolvedDevtoolsPanelsInput: DevtoolsPanels = resolveDevtoolsPanelsInput(
-  devtoolsPanelsInput,
-  describeDevtoolsPanels,
-);
-const devtoolsPanelContractResolution: DevtoolsPanelContractResolution =
-  resolveDevtoolsPanelContract(explicitDevtoolsPanels);
-if (devtoolsPanelContractResolution._tag === "Valid") {
-  const resolvedPanels: DevtoolsPanels = devtoolsPanelContractResolution.panels;
-  void resolvedPanels;
-}
-const invalidDevtoolsPanelContractResolution = resolveDevtoolsPanelContract({
-  version: 2,
-  panels: [],
-});
-if (invalidDevtoolsPanelContractResolution._tag === "Invalid") {
-  const contractError: DevtoolsPanelContractError = invalidDevtoolsPanelContractResolution.error;
-  const contractReason: DevtoolsPanelContractErrorReason = contractError.reason;
-  const diagnosticPanels: DevtoolsPanels = invalidDevtoolsPanelContractResolution.panels;
-  void contractReason;
-  void diagnosticPanels;
 }
 
 declare const devtoolsPanelRoot: HTMLElement;
@@ -244,26 +173,21 @@ const devtoolsPanelMountOptions: DevtoolsPanelMountOptions = {
   root: devtoolsPanelRoot,
   panels: explicitDevtoolsPanels,
 };
-const devtoolsPanelMount: DevtoolsPanelMount = mountDevtoolsPanels(devtoolsPanelMountOptions);
-devtoolsPanelMount.update({
-  panels: normalizedDevtoolsPanels ?? explicitDevtoolsPanels,
-  selectedPanelId: "actions",
-});
-devtoolsPanelMount.unmount();
 const devtoolsPanelMountEffect: Effect.Effect<DevtoolsPanelMount, never, Scope.Scope> =
-  mountDevtoolsPanelsEffect(devtoolsPanelMountOptions);
+  mountDevtoolsPanelsEffect(devtoolsPanelMountOptions).pipe(
+    Effect.tap((mount) =>
+      Effect.sync(() =>
+        mount.update({ panels: explicitDevtoolsPanels, selectedPanelId: "actions" }),
+      ),
+    ),
+  );
 const renderedDevtoolsHtml: string = renderDevtoolsPanelsHtml(devtoolsPanelUiInput);
-const renderedDevtoolsHtmlEffect: Effect.Effect<string> =
-  renderDevtoolsPanelsHtmlEffect(devtoolsPanelUiInput);
 const devtoolsPanelBootOptions: DevtoolsPanelBootOptions = {
   ...devtoolsPanelMountOptions,
   afterMount: (mount) => Effect.sync(() => mount.update({ selectedPanelId: "diagnostics" })),
 };
 const devtoolsPanelBoot: DevtoolsPanelBoot = bootDevtoolsPanels(devtoolsPanelBootOptions);
 const devtoolsPanelBootInterruptEffect: Effect.Effect<void> = devtoolsPanelBoot.interruptEffect;
-const interruptedDevtoolsPanelBootEffect: Effect.Effect<void> = interruptDevtoolsPanelBoot(
-  devtoolsPanelBoot.fiber,
-);
 const devtoolsBootFiber: Fiber.Fiber<void, never> = devtoolsPanelBoot.fiber;
 devtoolsPanelBoot.interrupt();
 
@@ -509,8 +433,6 @@ const devtoolsBridgePayload: DevtoolsBridgePayload = {
   selectedPanelId: "requests",
   title: "Sunfall Arc Devtools",
 };
-const normalizedBridgePayload: DevtoolsBridgePayload | undefined =
-  normalizeSunfallArcDevtoolsBridgePayload(devtoolsBridgePayload);
 const devtoolsBridgePayloadResolution: DevtoolsBridgePayloadContractResolution =
   resolveSunfallArcDevtoolsBridgePayload(devtoolsBridgePayload);
 if (devtoolsBridgePayloadResolution._tag === "Valid") {
@@ -535,16 +457,8 @@ const devtoolsBridgeInstallEffect: Effect.Effect<void, never, Scope.Scope> =
   installDevtoolsBridgeEffect(() => devtoolsBridgePayload, devtoolsBridgeTarget);
 
 declare const devtoolsAppGraph: DevtoolsStartAppGraphDiagnostics;
-const normalizedDevtoolsAppGraph: DevtoolsStartAppGraphDiagnostics =
-  normalizeDevtoolsAppGraphDiagnostics(devtoolsAppGraph);
-const normalizedAppGraphCollections = normalizeAppGraphCollectionDefinitions(devtoolsAppGraph);
-const normalizedAppGraphUnknownCollectionPreloads =
-  normalizeAppGraphUnknownRoutePreloadCollections(devtoolsAppGraph);
-const normalizedRoutePreloadCollections = normalizeRouteModulePreloadCollections(
-  devtoolsAppGraph.routeModules[0]!,
-);
 const devtoolsStartSchemaCoverage: DevtoolsStartAppGraphSchemaCoverage =
-  normalizedDevtoolsAppGraph.schemaCoverage.actions;
+  devtoolsAppGraph.schemaCoverage.actions;
 type DevtoolsStartUnknowns =
   | DevtoolsStartAppGraphUnknownActionBehaviorEntry
   | DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry
@@ -564,17 +478,10 @@ void devtoolsSummaryEffect;
 void devtoolsPanelsEffect;
 void devtoolsCausalGraphEffect;
 void devtoolsCausalGraph;
-void describedDevtoolsSummaryEffect;
-void describedDevtoolsPanelsEffect;
 void describedDevtoolsCausalGraph;
-void describedDevtoolsCausalGraphEffect;
-void resolvedDevtoolsPanelsInput;
 void devtoolsPanelMountEffect;
-void devtoolsCssText;
 void renderedDevtoolsHtml;
-void renderedDevtoolsHtmlEffect;
 void devtoolsPanelBootInterruptEffect;
-void interruptedDevtoolsPanelBootEffect;
 void devtoolsBootFiber;
 void devtoolsSerializedWithPolicy;
 void invalidDevtoolsSerializationPolicy;
@@ -599,15 +506,9 @@ void devtoolsRecordActionStateEffect;
 void devtoolsRecordActionStateConflictEffect;
 void devtoolsRecordRuntimeEventEffect;
 void devtoolsRecordRequestTraceEffect;
-void normalizedBridgePayload;
 void devtoolsBridgeInstallEffect;
 void devtoolsSetAppGraphDiagnosticsEffect;
 void devtoolsClearAppGraphDiagnosticsEffect;
-void devtoolsNormalizeAppGraphOptions;
 void devtoolsActionInvalidationPlanConflict;
-void normalizedDevtoolsAppGraph;
-void normalizedAppGraphCollections;
-void normalizedAppGraphUnknownCollectionPreloads;
-void normalizedRoutePreloadCollections;
 void devtoolsStartSchemaCoverage;
 type _DevtoolsStartUnknowns = DevtoolsStartUnknowns;

@@ -1,14 +1,14 @@
-import { type AnyCollection } from "@sunfall/arc-db";
+import type { Collection } from "@sunfall/arc-db";
 import { Data, Effect } from "effect";
 
 /** Registry shape Start can use to resolve collection names emitted by routes or hydration payloads. */
 export interface StartCollectionDefinitionRegistry {
   /** Current definitions keyed by Collection name. */
-  definitions(): ReadonlyMap<string, AnyCollection>;
+  definitions(): ReadonlyMap<string, Collection.Any>;
 }
 
 /** App-local resolver used when collections are declared by stable name instead of direct definition. */
-export type StartCollectionDefinitionResolver = (name: string) => AnyCollection | undefined;
+export type StartCollectionDefinitionResolver = (name: string) => Collection.Any | undefined;
 
 /**
  * Collection resolution inputs shared by request preload and browser hydration.
@@ -19,11 +19,11 @@ export type StartCollectionDefinitionResolver = (name: string) => AnyCollection 
  */
 export interface StartCollectionResolutionOptions {
   /** Concrete collection definitions already available to the request or client. */
-  readonly collections?: Iterable<AnyCollection>;
+  readonly collections?: Iterable<Collection.Any>;
   /** Explicit registry used to resolve route-declared or payload collection names. */
   readonly collectionRegistry?:
     | StartCollectionDefinitionRegistry
-    | ReadonlyMap<string, AnyCollection>;
+    | ReadonlyMap<string, Collection.Any>;
   /** Explicit resolver used before the registry when callers need custom lookup policy. */
   readonly resolveCollection?: StartCollectionDefinitionResolver;
 }
@@ -31,9 +31,9 @@ export interface StartCollectionResolutionOptions {
 /** Prepared collection resolver plus the direct collection definitions it was built from. */
 export interface StartCollectionResolution {
   /** Direct collection definitions supplied in `collections`, in iteration order. */
-  readonly registeredCollections: ReadonlyArray<AnyCollection>;
+  readonly registeredCollections: ReadonlyArray<Collection.Any>;
   /** Resolve one stable collection name using Start's request/hydration precedence. */
-  resolve(name: string): AnyCollection | undefined;
+  resolve(name: string): Collection.Any | undefined;
 }
 
 /** Error raised when one Start collection lookup scope contains two different definitions with the same stable name. */
@@ -56,38 +56,17 @@ const duplicateCollectionName = (
 
 /** Convert optional collection iterables into a readonly array without changing definition identity. */
 export const startCollectionArray = (
-  collections: Iterable<AnyCollection> | undefined,
-): ReadonlyArray<AnyCollection> => (collections ? Array.from(collections) : []);
-
-/**
- * De-duplicate collection definitions by stable Collection name while preserving first occurrence.
- *
- * This helper is intentionally pure for diagnostics and display paths. Request
- * preload and hydration should use `uniqueStartCollectionsEffect(...)` so
- * different definitions with the same name fail before any payload is built.
- */
-export const uniqueStartCollections = (
-  collections: Iterable<AnyCollection>,
-): ReadonlyArray<AnyCollection> => {
-  const names = new Set<string>();
-  const out: Array<AnyCollection> = [];
-  for (const collection of collections) {
-    if (!names.has(collection.name)) {
-      names.add(collection.name);
-      out.push(collection);
-    }
-  }
-  return out;
-};
+  collections: Iterable<Collection.Any> | undefined,
+): ReadonlyArray<Collection.Any> => (collections ? Array.from(collections) : []);
 
 /** De-duplicate Start collections, failing when a stable name maps to more than one definition. */
 export const uniqueStartCollectionsEffect = (
-  collections: Iterable<AnyCollection>,
+  collections: Iterable<Collection.Any>,
   source: StartCollectionDuplicateName["source"] = "collections",
-): Effect.Effect<ReadonlyArray<AnyCollection>, StartCollectionDuplicateName> =>
+): Effect.Effect<ReadonlyArray<Collection.Any>, StartCollectionDuplicateName> =>
   Effect.gen(function* () {
-    const definitions = new Map<string, AnyCollection>();
-    const out: Array<AnyCollection> = [];
+    const definitions = new Map<string, Collection.Any>();
+    const out: Array<Collection.Any> = [];
     for (const collection of collections) {
       const existing = definitions.get(collection.name);
       if (existing === collection) {
@@ -112,14 +91,14 @@ export const validateStartCollectionResolutionOptionsEffect = (
 
 const isCollectionLookup = (
   value: unknown,
-): value is Pick<ReadonlyMap<string, AnyCollection>, "get"> =>
+): value is Pick<ReadonlyMap<string, Collection.Any>, "get"> =>
   typeof value === "object" &&
   value !== null &&
   typeof (value as { readonly get?: unknown }).get === "function";
 
 const collectionRegistryDefinitions = (
   registry: StartCollectionResolutionOptions["collectionRegistry"],
-): ReadonlyMap<string, AnyCollection> | undefined => {
+): ReadonlyMap<string, Collection.Any> | undefined => {
   if (registry === undefined) {
     return undefined;
   }
@@ -136,7 +115,7 @@ export const makeStartCollectionResolution = (
   options: StartCollectionResolutionOptions = {},
 ): StartCollectionResolution => {
   const registeredCollections = startCollectionArray(options.collections);
-  const registeredDefinitions = new Map<string, AnyCollection>();
+  const registeredDefinitions = new Map<string, Collection.Any>();
   for (const collection of registeredCollections) {
     if (!registeredDefinitions.has(collection.name)) {
       registeredDefinitions.set(collection.name, collection);
@@ -158,13 +137,13 @@ export const resolveStartCollectionsEffect = <E>(
   names: Iterable<string>,
   options: StartCollectionResolutionOptions,
   toFailure: (name: string) => E,
-): Effect.Effect<ReadonlyArray<AnyCollection>, E> =>
+): Effect.Effect<ReadonlyArray<Collection.Any>, E> =>
   Effect.gen(function* () {
     yield* validateStartCollectionResolutionOptionsEffect(options).pipe(
       Effect.mapError((cause) => toFailure(cause.name)),
     );
     const resolution = makeStartCollectionResolution(options);
-    const resolved: Array<AnyCollection> = [];
+    const resolved: Array<Collection.Any> = [];
     for (const name of names) {
       const collection = resolution.resolve(name);
       if (collection === undefined) {

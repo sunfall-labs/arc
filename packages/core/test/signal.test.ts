@@ -1,23 +1,16 @@
 import { Deferred, Effect, Fiber, Stream } from "effect";
 import { describe, expect, it } from "vitest";
-import {
-  EffectInputCallbackError,
-  read,
-  runWithScope,
-  Signal,
-  UiScope,
-  UiScopeMissing,
-  watch,
-} from "../src/index.js";
+import { EffectInputCallbackError, Signal } from "../src/index.js";
+import { runWithScope, UiScope, watch } from "../src/internal.js";
 
 describe("Signal", () => {
   it("tracks derived dependencies", () => {
     const count = Signal.make(1);
-    const doubled = Signal.derive(() => read(count) * 2);
+    const doubled = Signal.derive(() => count.get() * 2);
 
-    expect(read(doubled)).toBe(2);
+    expect(doubled.get()).toBe(2);
     count.set(3);
-    expect(read(doubled)).toBe(6);
+    expect(doubled.get()).toBe(6);
   });
 
   it("deduplicates repeated derived reads of the same source", () => {
@@ -25,18 +18,18 @@ describe("Signal", () => {
     let computes = 0;
     const repeated = Signal.derive(() => {
       computes++;
-      return read(count) + read(count);
+      return count.get() + count.get();
     });
     const values: number[] = [];
     const unsubscribe = repeated.subscribe(() => {
-      values.push(read(repeated));
+      values.push(repeated.get());
     });
 
-    expect(read(repeated)).toBe(2);
+    expect(repeated.get()).toBe(2);
     count.set(2);
     unsubscribe();
 
-    expect(read(repeated)).toBe(4);
+    expect(repeated.get()).toBe(4);
     expect(computes).toBe(4);
     expect(values).toEqual([4]);
   });
@@ -46,14 +39,14 @@ describe("Signal", () => {
     let computes = 0;
     const derived = Signal.derive(() => {
       computes++;
-      const value = read(count);
+      const value = count.get();
       if (value === 0) {
         count.set(1);
       }
       return value;
     });
 
-    expect(read(derived)).toBe(1);
+    expect(derived.get()).toBe(1);
     expect(computes).toBe(2);
   });
 
@@ -64,16 +57,16 @@ describe("Signal", () => {
     let computes = 0;
     const selected = Signal.derive(() => {
       computes++;
-      return read(useLeft) ? read(left) : read(right);
+      return useLeft.get() ? left.get() : right.get();
     });
 
-    expect(read(selected)).toBe("left");
+    expect(selected.get()).toBe("left");
     useLeft.set(false);
-    expect(read(selected)).toBe("right");
+    expect(selected.get()).toBe("right");
     left.set("stale");
-    expect(read(selected)).toBe("right");
+    expect(selected.get()).toBe("right");
     right.set("fresh");
-    expect(read(selected)).toBe("fresh");
+    expect(selected.get()).toBe("fresh");
     expect(computes).toBe(5);
   });
 
@@ -85,25 +78,25 @@ describe("Signal", () => {
     let computes = 0;
     const selected = Signal.derive(() => {
       computes++;
-      const value = read(left);
-      if (read(shouldThrow)) {
-        read(right);
+      const value = left.get();
+      if (shouldThrow.get()) {
+        right.get();
         throw cause;
       }
       return value;
     });
     const unsubscribe = selected.subscribe(() => undefined);
 
-    expect(read(selected)).toBe(0);
+    expect(selected.get()).toBe(0);
     shouldThrow.set(true);
     const computesAfterFailure = computes;
 
-    expect(() => read(selected)).toThrow(EffectInputCallbackError);
+    expect(() => selected.get()).toThrow(EffectInputCallbackError);
     right.set(1);
     expect(computes).toBe(computesAfterFailure);
 
     shouldThrow.set(false);
-    expect(read(selected)).toBe(0);
+    expect(selected.get()).toBe(0);
     unsubscribe();
   });
 
@@ -111,7 +104,7 @@ describe("Signal", () => {
     const count = Signal.make(0);
     const cause = new Error("derive failed");
     const derived = Signal.derive(() => {
-      const value = read(count);
+      const value = count.get();
       if (value > 0) {
         throw cause;
       }
@@ -123,10 +116,10 @@ describe("Signal", () => {
       unrelatedRuns++;
     });
 
-    expect(read(derived)).toBe(0);
+    expect(derived.get()).toBe(0);
     expect(() => count.set(1)).not.toThrow();
     expect(unrelatedRuns).toBe(1);
-    expect(() => read(derived)).toThrow(EffectInputCallbackError);
+    expect(() => derived.get()).toThrow(EffectInputCallbackError);
 
     derivedUnsubscribe();
     unrelatedUnsubscribe();
@@ -144,9 +137,9 @@ describe("Signal", () => {
       watch(
         () => {
           evaluates++;
-          const value = read(left);
-          if (read(shouldThrow)) {
-            read(right);
+          const value = left.get();
+          if (shouldThrow.get()) {
+            right.get();
             throw cause;
           }
           return value;
@@ -179,18 +172,18 @@ describe("Signal", () => {
     let computes = 0;
     const doubled = Signal.derive(() => {
       computes++;
-      return read(count) * 2;
+      return count.get() * 2;
     });
     const unsubscribe = doubled.subscribe(() => undefined);
 
-    expect(read(doubled)).toBe(2);
+    expect(doubled.get()).toBe(2);
     unsubscribe();
     const computesAfterUnsubscribe = computes;
 
     count.set(2);
 
     expect(computes).toBe(computesAfterUnsubscribe);
-    expect(read(doubled)).toBe(4);
+    expect(doubled.get()).toBe(4);
     expect(computes).toBe(computesAfterUnsubscribe + 1);
   });
 
@@ -214,12 +207,12 @@ describe("Signal", () => {
     const doubled = Signal.derive(() => Signal.peek(count) * 2);
     const values: number[] = [];
     const unsubscribe = doubled.subscribe(() => {
-      values.push(read(doubled));
+      values.push(doubled.get());
     });
 
-    expect(read(doubled)).toBe(2);
+    expect(doubled.get()).toBe(2);
     count.set(2);
-    expect(read(doubled)).toBe(2);
+    expect(doubled.get()).toBe(2);
     expect(values).toEqual([]);
     unsubscribe();
   });
@@ -260,17 +253,8 @@ describe("Signal", () => {
           );
 
           yield* Deferred.await(settled);
-          yield* Effect.sync(() => expect(read(signal)).toBe(2));
+          yield* Effect.sync(() => expect(signal.get()).toBe(2));
         }),
       ),
     ));
-
-  it("requires a UI scope for the boundary stream helper", () => {
-    expect(() => Signal.fromStream(Stream.make(1), 0)).toThrow(UiScopeMissing);
-
-    const scope = new UiScope();
-    const signal = runWithScope(scope, () => Signal.fromStream<number>(Stream.empty, 0));
-
-    expect(read(signal)).toBe(0);
-  });
 });

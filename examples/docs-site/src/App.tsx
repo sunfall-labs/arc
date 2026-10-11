@@ -1,5 +1,11 @@
-import { Route, RouterLink, RouterProvider, useResource, useRouter } from "@sunfall/arc-solid";
-import type { SunfallArcRuntime } from "@sunfall/arc-core";
+import {
+  RouterLink,
+  RouterProvider,
+  RuntimeProvider,
+  useResource,
+  useRouter,
+} from "@sunfall/arc-solid";
+import { Route, type SunfallArcRuntime } from "@sunfall/arc-core";
 import { Cause, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { Show, createMemo, createSignal, onSettled, untrack, type Accessor } from "solid-js";
@@ -157,18 +163,19 @@ export default function App<RuntimeServices = DocsContentApi>(
   });
   const routerProps =
     props.initialHref === undefined
-      ? { routes, runtime, history }
+      ? { routes, history }
       : {
           routes,
-          runtime,
           initialHref: props.initialHref,
           history,
         };
 
   return (
-    <RouterProvider {...routerProps}>
-      <DocsShell />
-    </RouterProvider>
+    <RuntimeProvider runtime={runtime}>
+      <RouterProvider {...routerProps}>
+        <DocsShell />
+      </RouterProvider>
+    </RuntimeProvider>
   );
 }
 
@@ -679,18 +686,15 @@ const blogEffectTestExample = `const IssueApiTest = IssueApi.layer({
 const issue = yield* makeRuntime(IssueApiTest).provide(
   Effect.gen(function* () {
     yield* Resource.prefetchEffect(IssueById(makeIssueId("ISSUE-42")));
-    return Resource.read(IssueById(makeIssueId("ISSUE-42")));
+    return yield* Resource.readEffect(IssueById(makeIssueId("ISSUE-42")));
   }),
 );`;
 
-const blogRouteExample = `const RouteBuilder = defineFileRoute("/issues/:id");
-
-export const Route = RouteBuilder.preload({
+const blogRouteExample = `export const Route = defineFileRoute("/issues/:id")({
   params: IssueRouteParams,
-  resources: ({ resource }) => [
-    resource(IssueById, ({ params }) => params.id),
-  ],
-}).route();`;
+  preloadResources: [IssueById],
+  preload: ({ params }) => Resource.prefetchEffect(IssueById(params.id)),
+});`;
 
 const blogUiExample = `function IssuePage(props: Route.Props<typeof IssueRoute>) {
   const issue = useResource(() => IssueById(props.params.id));

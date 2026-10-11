@@ -1,43 +1,32 @@
 import {
   createFetchHandler,
-  StartRequestHandlerError,
   toFetchHandler,
-  toFetchHandlerEffect,
   type StartFetchHandler,
-  type StartFetchHandlerEffect,
   type StartFetchPromiseHandler,
   type StartFetchPromiseHandlerOptions,
   type StartFetchPromiseHandlerRuntimeOptions,
-} from "@sunfall/arc-start-fetch";
+} from "@sunfall/arc-start/fetch";
 import type { SunfallArcRuntime } from "@sunfall/arc-core";
-import type { StartRequestHandlerEffect } from "@sunfall/arc-start";
+import type { StartRequestHandler } from "@sunfall/arc-start";
 import { Scope } from "effect";
 
-const fetchPackageExports: Array<unknown> = [
-  createFetchHandler,
-  StartRequestHandlerError,
-  toFetchHandler,
-  toFetchHandlerEffect,
-];
-type FetchPackage =
+const fetchAdapterExports: Array<unknown> = [createFetchHandler, toFetchHandler];
+type FetchAdapter =
   | StartFetchHandler
-  | StartFetchHandlerEffect
   | StartFetchPromiseHandler
   | StartFetchPromiseHandlerOptions
   | StartFetchPromiseHandlerRuntimeOptions<Scope.Scope>;
-void fetchPackageExports;
-type _FetchPackage = FetchPackage;
+void fetchAdapterExports;
+type _FetchAdapter = FetchAdapter;
 
 interface FetchAdapterTestService {
   readonly fetchAdapterTestService: unique symbol;
 }
 
-declare const scopeOnlyHandler: StartRequestHandlerEffect<Scope.Scope>;
-declare const servicefulHandler: StartRequestHandlerEffect<Scope.Scope | FetchAdapterTestService>;
+declare const scopeOnlyHandler: StartRequestHandler<Scope.Scope>;
+declare const servicefulHandler: StartRequestHandler<Scope.Scope | FetchAdapterTestService>;
 declare const serviceRuntime: SunfallArcRuntime<FetchAdapterTestService>;
 
-const fetchHandlerEffect: StartFetchHandlerEffect<Scope.Scope> =
-  toFetchHandlerEffect(scopeOnlyHandler);
 const fetchHandler: StartFetchHandler<Scope.Scope> = toFetchHandler(scopeOnlyHandler);
 const fetchPromiseHandler: StartFetchPromiseHandler = createFetchHandler(scopeOnlyHandler);
 const fetchPromiseOptions: StartFetchPromiseHandlerOptions = {};
@@ -52,7 +41,9 @@ const servicefulFetchPromiseHandler: StartFetchPromiseHandler = createFetchHandl
 );
 // @ts-expect-error serviceful Fetch Promise facades must receive a runtime for non-Scope requirements.
 createFetchHandler(servicefulHandler, fetchPromiseOptions);
-void fetchHandlerEffect;
+// @ts-expect-error effect-first fetch adapters cannot hide requirements through partial generics
+const hiddenFetchHandler: StartFetchHandler = toFetchHandler(servicefulHandler);
 void fetchHandler;
 void fetchPromiseHandler;
 void servicefulFetchPromiseHandler;
+void hiddenFetchHandler;

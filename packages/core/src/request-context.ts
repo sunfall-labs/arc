@@ -106,20 +106,17 @@ const parseCookies = (header: string | null): ReadonlyMap<string, string> => {
   return cookies;
 };
 
-/** Creates the request service value from a web `Request`. */
-export const makeRequestContext = (request: Request): RequestContext => ({
-  request,
-  url: new URL(request.url),
-  headers: request.headers,
-  cookies: parseCookies(request.headers.get("cookie")),
-});
-
 /** Creates the request service value and reports host parsing failures as typed Effects. */
 export const makeRequestContextEffect = (
   request: Request,
 ): Effect.Effect<RequestContext, EffectInputCallbackError> =>
   Effect.try({
-    try: () => makeRequestContext(request),
+    try: () => ({
+      request,
+      url: new URL(request.url),
+      headers: request.headers,
+      cookies: parseCookies(request.headers.get("cookie")),
+    }),
     catch: (cause) =>
       new EffectInputCallbackError({
         operation: "RequestContext.make",
@@ -247,19 +244,6 @@ const serializeResponseCookieResult = (
 };
 
 /** Serializes a cookie name, value, and attributes for a `Set-Cookie` header. */
-export const serializeResponseCookie = (
-  name: string,
-  value: string,
-  options: ResponseCookieOptions = {},
-): string => {
-  const result = serializeResponseCookieResult(name, value, options);
-  if (result._tag === "Failure") {
-    throw result.error;
-  }
-  return result.value;
-};
-
-/** Effect version of `serializeResponseCookie(...)` with typed validation errors. */
 export const serializeResponseCookieEffect = (
   name: string,
   value: string,
@@ -354,8 +338,7 @@ export const makeResponseContext = (): ResponseContext => {
   };
 };
 
-/** Applies accumulated status, headers, and cookies to a final `Response`. */
-export const applyResponseContext = (context: ResponseContext, response: Response): Response => {
+const applyResponseContextUnsafe = (context: ResponseContext, response: Response): Response => {
   const headers = new Headers(response.headers);
   context.headers.forEach((value, key) => {
     headers.set(key, value);
@@ -382,7 +365,7 @@ export const applyResponseContextEffect = (
   response: Response,
 ): Effect.Effect<Response, EffectInputCallbackError> =>
   Effect.try({
-    try: () => applyResponseContext(context, response),
+    try: () => applyResponseContextUnsafe(context, response),
     catch: (cause) =>
       new EffectInputCallbackError({
         operation: "ResponseContext.apply",

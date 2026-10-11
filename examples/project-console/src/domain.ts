@@ -1,5 +1,5 @@
 import { Action, ActionResult, Capability, Resource, Server, Signal } from "@sunfall/arc-core";
-import { StartAction, type StartActionForm } from "@sunfall/arc-start";
+import { StartAction } from "@sunfall/arc-start";
 import { Effect, Schedule, Schema, Stream } from "effect";
 import {
   AdvanceProjectInput,
@@ -212,7 +212,7 @@ export const AdvanceProject = Action.define({
 export const projectNameActionTarget = (input: {
   readonly id: ProjectIdType;
   readonly redirectTo?: ProjectReturnTo;
-}): StartActionForm => StartAction.form(SubmitProjectName, { input });
+}): StartAction.Form<typeof SubmitProjectName> => StartAction.form(SubmitProjectName, { input });
 
 export const projectSearch = Signal.make("");
 

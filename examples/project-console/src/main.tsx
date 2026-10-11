@@ -1,5 +1,5 @@
-import { RuntimeProvider, createEffectRuntime } from "@sunfall/arc-solid";
-import { BrowserRpcLive, hydrateFromDocument } from "@sunfall/arc-start";
+import { makeRuntime } from "@sunfall/arc-core";
+import { hydrateFromDocument, makeRpcClientLayer } from "@sunfall/arc-start";
 import { Data, Layer } from "effect";
 import { hydrate, render } from "@solidjs/web";
 import App from "./App.js";
@@ -21,17 +21,13 @@ if (!root) {
   });
 }
 
-const runtime = createEffectRuntime(Layer.mergeAll(BrowserRpcLive, ProjectApiLive));
+const runtime = makeRuntime(Layer.mergeAll(makeRpcClientLayer(), ProjectApiLive));
 hydrateFromDocument(document, undefined, {
   runtime,
   collections: [ProjectSummaries, ProjectWorkItems],
 });
 
-const Root = () => (
-  <RuntimeProvider runtime={runtime}>
-    <App runtime={runtime} />
-  </RuntimeProvider>
-);
+const Root = () => <App runtime={runtime} />;
 
 if (root.hasChildNodes()) {
   hydrate(Root, root);

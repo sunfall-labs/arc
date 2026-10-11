@@ -9,13 +9,12 @@ import {
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
+import { createRequestHandler, StartAction } from "@sunfall/arc-start";
 import {
-  createRequestHandler,
   serverActionPath,
-  startActionForm,
   streamHydrationAttribute,
   type StartHydrationChunk,
-} from "@sunfall/arc-start";
+} from "@sunfall/arc-start/testing";
 import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
@@ -42,7 +41,7 @@ const runInRuntime = <A, E, R, RuntimeServices, RuntimeError>(
   Effect.runPromise((runtime as unknown as AnySunfallArcRuntime<RuntimeError>).provide(effect));
 
 const postActionForm = async (
-  form: ReturnType<typeof startActionForm>,
+  form: StartAction.Form<typeof SubmitProjectName>,
   body: URLSearchParams,
 ): Promise<Response> =>
   runInRuntime(
@@ -102,7 +101,7 @@ describe("project console full-stack golden path", () => {
       name: "Meridian Analytics",
     });
 
-    const form = startActionForm(SubmitProjectName, {
+    const form = StartAction.form(SubmitProjectName, {
       input: {
         id: projectId,
         redirectTo: makeProjectReturnTo("/projects/meridian?tab=activity"),
@@ -200,7 +199,9 @@ describe("project console full-stack golden path", () => {
         }),
       ),
       getKey: (project) => project.id,
-      load: () => Effect.succeed([{ id: "atlas", name: "Collected Atlas" }]),
+      sync: {
+        load: () => Effect.succeed([{ id: "atlas", name: "Collected Atlas" }]),
+      },
     });
     const BoundaryRoute = route("/golden/:id", {
       params: Schema.Struct({ id: Schema.String }),
@@ -217,9 +218,9 @@ describe("project console full-stack golden path", () => {
       client: {},
     });
     const handler = createRequestHandler(boundaryApp, {
-      render: ({ collections, legacyHydrationScript, match }) => {
+      render: ({ collections, legacyHydrationScript, match, runtime }) => {
         const id = match?.params.id ?? "missing";
-        const project = Resource.read(BoundaryResource(id));
+        const project = runtime.runSync(Resource.readEffect(BoundaryResource(id)));
         const collection = collections.collections[0];
         return [
           "<html><body>",

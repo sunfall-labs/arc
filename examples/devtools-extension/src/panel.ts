@@ -1,5 +1,5 @@
 import { Data } from "effect";
-import { bootDevtoolsPanels, interruptDevtoolsPanelBoot } from "@sunfall/arc-devtools";
+import { bootDevtoolsPanels } from "@sunfall/arc-devtools";
 import { sampleDevtoolsPanels } from "./sample.js";
 import { type ChromeInspectedWindowApi } from "./transport.js";
 import { panelTitle, pollInspectedWindowEffect } from "./panel-runtime.js";
@@ -45,4 +45,4 @@ export const devtoolsExtensionPanelBoot = bootDevtoolsPanels({
   },
 });
 export const devtoolsExtensionPanelBootFiber = devtoolsExtensionPanelBoot.fiber;
-export const interruptDevtoolsExtensionPanelBoot = interruptDevtoolsPanelBoot;
+export const interruptDevtoolsExtensionPanelBoot = devtoolsExtensionPanelBoot.interruptEffect;

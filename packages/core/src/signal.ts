@@ -1,11 +1,8 @@
 import { createSignal, getObserver, untrack } from "@solidjs/signals";
-import { Effect, Fiber, Queue, Scope, Stream } from "effect";
-import type { EffectInput } from "./effect-like.js";
-import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
-import { runFork } from "./runtime.js";
-import { getCurrentScope, UiScopeMissing } from "./scope.js";
+import { Effect, Queue, Scope, Stream } from "effect";
 import {
   makeSignalDependencyTracker,
+  signalEvaluationError,
   trackSignalDependency,
   withoutSignalDependencyObserver,
   type SignalDependencyTracker,
@@ -59,123 +56,9 @@ export interface SignalStreamOptions {
   readonly strategy?: "sliding" | "dropping" | "suspend";
 }
 
-/** Options for `watch`, including first-run behavior and equality checks. */
-export interface WatchOptions<A> {
-  /** Run the effect for the initial value. Defaults to true. */
-  readonly immediate?: boolean;
-  /** Equality function used to suppress duplicate watcher executions. Defaults to `Object.is`. */
-  readonly equals?: (left: A, right: A) => boolean;
-}
-
 /** Manually records a dependency on a subscribable source for the active tracker. */
 export const trackDependency = (source: Subscribable): void => {
   trackSignalDependency(source);
-};
-
-const observeDependencies = <A>(
-  evaluate: () => A,
-  onChange: (value: A, previous: A | undefined) => void,
-  options: WatchOptions<A> = {},
-  onFailure?: (error: EffectInputCallbackError) => void,
-): (() => void) => {
-  const equals = options.equals ?? Object.is;
-  let initialized = false;
-  let previous: A | undefined;
-
-  const tracker = makeSignalDependencyTracker(
-    evaluate,
-    (value) => {
-      const changed = !initialized || !equals(previous as A, value);
-      const previousValue = previous;
-      previous = value;
-
-      if (changed && (initialized || options.immediate !== false)) {
-        onChange(value, initialized ? previousValue : undefined);
-      }
-
-      initialized = true;
-    },
-    (cause) => onFailure?.(signalEvaluationError("Signal.watch.evaluate", cause)),
-  );
-
-  tracker.run();
-
-  return () => tracker.dispose();
-};
-
-const signalEvaluationError = (operation: string, cause: unknown): EffectInputCallbackError =>
-  new EffectInputCallbackError({
-    operation,
-    cause,
-    guidance:
-      "Signal evaluators must be pure and total. Synchronous evaluator throws are reported as typed callback failures.",
-  });
-
-/**
- * Runs an Effect whenever the signals read by `evaluate` change.
- *
- * Must be called inside a `UiScope`; disposal interrupts the active watcher
- * fiber and removes dependency subscriptions.
- */
-export const watch = <A, E = never>(
-  evaluate: () => A,
-  effect: (value: A, previous: A | undefined) => EffectInput<void, E, Scope.Scope>,
-  options?: WatchOptions<A>,
-): (() => void) => {
-  const scope = getCurrentScope();
-  if (!scope) {
-    throw new UiScopeMissing({ operation: "watch" });
-  }
-
-  let disposed = false;
-  let fiber: Fiber.Fiber<void, E | EffectInputCallbackError> | undefined;
-
-  const disposeDependencies = observeDependencies(
-    evaluate,
-    (value, previous) => {
-      if (disposed) {
-        return;
-      }
-
-      if (fiber) {
-        void runFork(Fiber.interrupt(fiber));
-      }
-
-      fiber = scope.fork(invokeEffectInput("Signal.watch", effect, value, previous));
-    },
-    options,
-    (error) => {
-      if (disposed) {
-        return;
-      }
-
-      if (fiber) {
-        void runFork(Fiber.interrupt(fiber));
-      }
-
-      fiber = scope.fork(Effect.fail(error));
-    },
-  );
-
-  const dispose = (): Effect.Effect<void> =>
-    Effect.gen(function* () {
-      if (disposed) {
-        return;
-      }
-
-      disposed = true;
-      disposeDependencies();
-      if (fiber) {
-        yield* Fiber.interrupt(fiber);
-        fiber = undefined;
-      }
-    });
-
-  scope.addFinalizer(() => dispose());
-
-  return () => {
-    void runFork(dispose());
-  };
 };
 
 abstract class BaseSignal<A> implements ReadableSignal<A> {
@@ -418,9 +301,6 @@ export namespace Signal {
   /** Creates a derived signal that tracks the signals read by `compute`. */
   export const derive = <A>(compute: () => A): ReadableSignal<A> => new DerivedSignalImpl(compute);
 
-  /** Reads a signal and records dependency tracking when one is active. */
-  export const get = <A>(signal: ReadableSignal<A>): A => signal.get();
-
   /** Reads a signal's committed (or own-transaction) value without recording a dependency. */
   export const peek = <A>(signal: ReadableSignal<A>): A =>
     withoutSignalDependencyObserver(() => untrack(() => signal.get()));
@@ -454,15 +334,6 @@ export namespace Signal {
       signal.set(f);
       return peek(signal);
     });
-
-  /** Writes to a writable signal. */
-  export const set = <A>(signal: WritableSignal<A>, value: A | ((current: A) => A)): void => {
-    signal.set(value);
-  };
-
-  /** Subscribes to change notifications and returns an unsubscribe function. */
-  export const subscribe = <A>(signal: ReadableSignal<A>, listener: () => void): (() => void) =>
-    signal.subscribe(listener);
 
   /** Stream of future signal values. The current value is not emitted immediately. */
   export const changes = <A>(
@@ -507,20 +378,4 @@ export namespace Signal {
 
       return signal;
     });
-
-  /** Creates a signal from a stream using the current `UiScope`. */
-  export const fromStream = <A>(
-    stream: Stream.Stream<A, never, never>,
-    initial: A,
-  ): ReadableSignal<A> => {
-    const scope = getCurrentScope();
-    if (!scope) {
-      throw new UiScopeMissing({ operation: "Signal.fromStream" });
-    }
-
-    const signal = make(initial);
-    scope.fork(stream.pipe(Stream.runForEach((value) => Effect.sync(() => signal.set(value)))));
-
-    return signal;
-  };
 }

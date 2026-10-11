@@ -1,13 +1,13 @@
 import { defineApp, type AppDefinitionRegistryInput } from "@sunfall/arc-core";
 import { ProjectApiLive } from "./domain.js";
-import { routeById, routeTree } from "./routeTree.gen.js";
+import { routeById, routes } from "./routeTree.gen.js";
 
 export const HomeRoute = routeById.route_root;
 export const ProjectsRoute = routeById.route_projects;
 export const ProjectRoute = routeById.route_projects_$id;
 
 export const projectConsoleAppBaseOptions = {
-  routes: routeTree,
+  routes,
   client: { name: "BrowserLive" },
   server: ProjectApiLive,
 } as const;

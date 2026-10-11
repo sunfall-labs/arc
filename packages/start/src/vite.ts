@@ -28,7 +28,7 @@ import {
 } from "./start-vite-diagnostics-loader.js";
 import {
   shouldWriteFileRouteDefinitionsFile,
-  writeFileRouteDefinitionsFile,
+  writeFileRouteDefinitionsFileEffect,
   type FileRouteDefinitionsFileWriteResult,
 } from "./generated-route-definitions.js";
 import {
@@ -47,46 +47,20 @@ import {
 } from "./route-code-splitting.js";
 import { runStartPrerenderEffect } from "./start-prerender.js";
 
-const forbiddenStaticClientRpcImports = new Set([
-  "BrowserRpcLive",
-  "makeRpcClient",
-  "makeRpcClientLayer",
-]);
+const forbiddenStaticClientRpcImports = new Set(["makeRpcClientLayer"]);
 
-export {
-  defaultFileRouteDirectory,
-  defaultFileRouteGeneratedFile,
-  defaultServerEntry,
-  defaultStartBuildPolicy,
-  defaultStartBuildWireSchemaPolicy,
-  discoverFileRoutes,
-  discoverFileRoutesEffect,
-  FileRouteDiscoveryError,
-  makeStartActionManifestEffect,
-  makeStartAppGraphEffect,
-  makeStartBuildAppGraphEffect,
-  makeStartFileRouteManifestEffect,
-  makeStartServerFunctionManifestEffect,
-  serializeStartActionManifest,
-  serializeStartAppGraph,
-  serializeStartFileRouteManifest,
-  serializeStartServerFunctionManifest,
-  StartManifestDirectReferenceError,
-  validateStartBuildPolicyEffect,
-} from "./start-manifest-wall.js";
 export type {
   SunfallArcStartOptions,
   FileRouteDiscoveryOptions,
   FileRouteGenerationOptions,
-  StartAppGraphError,
   StartBuildPolicy,
   StartBuildPolicyError,
   StartStaticClientPolicy,
   StartViteDevSsrOptions,
-  StartManifestDirectReferenceKind,
 } from "./start-manifest-wall.js";
+export { FileRouteDiscoveryError } from "./start-manifest-wall.js";
+export type { FileRouteManifestOptions } from "./file-routes.js";
 export type {
-  ResolvedStartPrerenderOptions,
   StartPrerenderConfig,
   StartPrerenderFailureEvent,
   StartPrerenderOptions,
@@ -94,40 +68,12 @@ export type {
   StartPrerenderPageContext,
   StartPrerenderPageInput,
   StartPrerenderPageOptions,
-  StartPrerenderPlannedPage,
-  StartPrerenderResult,
-  StartPrerenderRunOptions,
   StartPrerenderSuccessEvent,
 } from "./start-prerender.js";
-export {
-  planStartPrerenderPages,
-  resolveStartPrerenderOptions,
-  runStartPrerenderEffect,
-  StartPrerenderError,
-} from "./start-prerender.js";
-export {
-  actionManifestVirtualModuleId,
-  appGraphVirtualModuleId,
-  createActionManifestVirtualModule,
-  createFileRouteDefinitionsVirtualModule,
-  createFileRouteManifestVirtualModule,
-  createServerFunctionManifestVirtualModule,
-  createStartAppGraphRuntimeDiagnosticsVirtualModule,
-  createStartAppGraphVirtualModule,
-  appGraphRuntimeDiagnosticsVirtualModuleId,
-  fileRouteDefinitionsVirtualModuleId,
-  fileRouteManifestVirtualModuleId,
-  serverFunctionManifestVirtualModuleId,
-} from "./start-virtual-modules.js";
+export { StartPrerenderError } from "./start-prerender.js";
 export {
   FileRouteDefinitionsOutputPathError,
   FileRouteDefinitionsFileWriteError,
-  writeFileRouteDefinitionsFileEffect,
-  writeFileRouteDefinitionsFile,
-} from "./generated-route-definitions.js";
-export type {
-  FileRouteDefinitionsFileWriteFailure,
-  FileRouteDefinitionsFileWriteResult,
 } from "./generated-route-definitions.js";
 export {
   StartAppGraphMissingWireSchemas,
@@ -136,49 +82,9 @@ export {
 export {
   StartAppGraphUnknownRoutePreloadCollections,
   StartAppGraphUnknownRoutePreloadResources,
-  validateStartAppGraphDiagnosticsPolicyEffect,
-  validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect,
-  validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect,
 } from "./start-app-graph-diagnostics-policy.js";
-export {
-  StartDevServerError,
-  StartHandlerNotFound,
-  handleSsrDevMiddlewareEffect,
-  handleSsrDevRequest,
-  handleSsrDevRequestEffect,
-  isHtmlResponse,
-  resolveStartHandler,
-  resolveStartHandlerEffect,
-  shouldHandleSsrRequest,
-  startDevServerFromVite,
-} from "./start-vite-dev-ssr.js";
-export type {
-  HandleSsrDevMiddlewareOptions,
-  HandleSsrDevRequestOptions,
-  StartDevMiddlewareNext,
-  StartDevServer,
-  StartSsrHandlerModule,
-  StartSsrRequestHandler,
-  StartViteDevServer,
-} from "./start-vite-dev-ssr.js";
-export {
-  loadStartRouteComponentSplitModule,
-  resolveStartRouteComponentSplitModuleId,
-  startRouteComponentSplitVirtualModuleId,
-  transformStartRouteAutoCodeSplitting,
-} from "./route-code-splitting.js";
-export type { StartRouteAutoCodeSplittingOptions } from "./route-code-splitting.js";
-export {
-  loadStartAppGraphDiagnostics,
-  loadStartAppGraphDiagnosticsEffect,
-  runStartViteDiagnosticsGateEffect,
-  StartAppGraphDiagnosticsRunnerError,
-} from "./start-vite-diagnostics-loader.js";
-export type {
-  LoadedStartAppGraphDiagnostics,
-  LoadStartAppGraphDiagnosticsOptions,
-  StartAppGraphDiagnosticsLoadError,
-} from "./start-vite-diagnostics-loader.js";
+export { StartDevServerError, StartHandlerNotFound } from "./start-vite-dev-ssr.js";
+export { StartAppGraphDiagnosticsRunnerError } from "./start-vite-diagnostics-loader.js";
 
 /** Vite resolved config fields used by the Start plugin. */
 export interface SunfallArcStartResolvedConfig {
@@ -336,10 +242,10 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
       return undefined;
     }
 
-    return writeFileRouteDefinitionsFile(
-      viteRoot,
-      Effect.runSync(makeStartFileRouteManifestEffect(activeOptions)),
-      activeOptions.fileRouteGeneration,
+    return Effect.runSync(
+      Effect.flatMap(makeStartFileRouteManifestEffect(activeOptions), (manifest) =>
+        writeFileRouteDefinitionsFileEffect(viteRoot, manifest, activeOptions.fileRouteGeneration),
+      ),
     );
   };
   const fileRouteVirtualModuleIds = [
@@ -461,7 +367,7 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
       return Effect.runSync(loadStartVirtualModuleEffect(id, activeOptions));
     },
     transform(code, id, options) {
-      if (isServerOnlyModule(id) && !options?.ssr) {
+      if (isStartManifestServerOnlyModule(id) && !options?.ssr) {
         throw new StartServerOnlyModuleError({ id });
       }
       const activeOptions = currentOptions();
@@ -472,7 +378,7 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
             id,
             imports,
             guidance:
-              "Static browser builds cannot import Start RPC client helpers. Use makeStartStaticHistoryAdapter(...) for prerendered static navigation and keep BrowserRpcLive in dev-only code that is not statically imported by the production browser graph.",
+              "Static browser builds cannot import Start RPC client helpers. Use makeStartStaticHistoryAdapter(...) for prerendered static navigation and keep makeRpcClientLayer() in dev-only code that is not statically imported by the production browser graph.",
           });
         }
       }
@@ -527,9 +433,4 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
       }
     },
   };
-};
-
-/** Detects `.server.*` modules that must not be imported by browser builds. */
-export const isServerOnlyModule = (id: string): boolean => {
-  return isStartManifestServerOnlyModule(id);
 };

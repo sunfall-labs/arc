@@ -1,4 +1,4 @@
-import { createEffectRuntime } from "@sunfall/arc-solid";
+import { makeRuntime } from "@sunfall/arc-core";
 import { hydrateFromDocument } from "@sunfall/arc-start";
 import { Data, Layer } from "effect";
 import { hydrate, render } from "@solidjs/web";
@@ -22,11 +22,11 @@ if (!root) {
 
 const runtimeLayer = import.meta.env.DEV
   ? Layer.mergeAll(
-      (await import("@sunfall/arc-start")).BrowserRpcLive,
+      (await import("@sunfall/arc-start")).makeRpcClientLayer(),
       (await import("./content-live.js")).DocsContentApiLive,
     )
   : DocsContentApiStaticClient;
-const runtime = createEffectRuntime(runtimeLayer);
+const runtime = makeRuntime(runtimeLayer);
 hydrateFromDocument(document, undefined, {
   runtime,
   ...(import.meta.env.DEV ? {} : { timestamp: "now" as const }),

@@ -4,20 +4,21 @@
 import {
   Resource,
   ResourcePending,
+  Signal,
+  type AnySunfallArcRuntime,
+  type ResourceRef,
+} from "@sunfall/arc-core";
+import {
   makeResourceUiBindingController,
   makeResourceUiSuspensePreloadController,
   resourceUiPreloadFailureFor,
   resourceUiRefAccessor,
   resourceUiSameRef,
-  runWithRuntime,
-  Signal,
-  type AnySunfallArcRuntime,
-  type ResourceRef,
   type ResourceUiBindingController,
   type ResourceUiInput,
   type ResourceUiPreloadFailure,
-} from "@sunfall/arc-core";
-import { Cause, Effect, Fiber } from "effect";
+} from "@sunfall/arc-core/internal";
+import { Cause, Effect, Exit, Fiber } from "effect";
 import type { AsyncResult } from "effect/reactivity";
 import { createMemo, createRenderEffect, onCleanup, type Accessor } from "solid-js";
 import type { UseResourceOptions } from "./hooks.js";
@@ -118,11 +119,12 @@ export const createResourceSuspense = <I, A, E, R = unknown, ER = unknown>(
     });
 
     const readOutcome = (ref: ResourceRef<I, A, E, R>): SuspenseOutcome<A> | undefined => {
-      try {
-        return { _tag: "Value", value: runWithRuntime(runtime, () => Resource.read(ref)) };
-      } catch (error) {
-        return error instanceof ResourcePending ? undefined : { _tag: "Failure", error };
+      const exit = runtime.runSync(Effect.exit(Resource.readEffect(ref)));
+      if (Exit.isSuccess(exit)) {
+        return { _tag: "Value", value: exit.value };
       }
+      const error = Cause.squash(exit.cause);
+      return error instanceof ResourcePending ? undefined : { _tag: "Failure", error };
     };
 
     // Settles a preload into a typed outcome inside Effect, so failures reach

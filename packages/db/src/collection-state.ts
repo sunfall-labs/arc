@@ -71,6 +71,8 @@ export interface CollectionState<A extends object, K extends CollectionKey, E> {
   persistenceRestored: boolean;
   /** True while this store runs the definition's `follow` stream. */
   following: boolean;
+  /** True while this store runs the definition's `sync.changes` stream. */
+  followingChanges: boolean;
   /** Source snapshot (by reference) that the synced rows were last loaded from. */
   syncedSource: unknown;
 }
@@ -96,6 +98,7 @@ export const makeCollectionState = <
   initialDataError: undefined,
   persistenceRestored: false,
   following: false,
+  followingChanges: false,
   syncedSource: undefined,
 });
 

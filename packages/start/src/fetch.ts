@@ -1,6 +1,6 @@
 import type { SunfallArcRuntime } from "@sunfall/arc-core";
 import { Effect, Scope } from "effect";
-import { StartRequestHandlerError } from "./start-request-handler-error.js";
+import type { StartRequestHandlerError } from "./start-request-handler-error.js";
 import {
   invokeStartRequestHandlerEffect,
   type StartRequestHandlerInput,
@@ -13,8 +13,6 @@ import {
 import { responseWithScopeLifetimeEffect } from "./response-lifetime.js";
 import { mergeStartAbortSignals } from "./start-abort-lifecycle.js";
 
-export { StartRequestHandlerError } from "./start-request-handler-error.js";
-
 type StartFetchRuntimeRequirements<Requirements> = unknown extends Requirements
   ? never
   : Exclude<Requirements, Scope.Scope>;
@@ -22,7 +20,7 @@ type StartFetchRuntimeRequirements<Requirements> = unknown extends Requirements
 /**
  * Compatibility options for Fetch hosts that require a Promise-shaped entrypoint.
  *
- * Application code should prefer `toFetchHandlerEffect(...)` and stay inside
+ * Application code should prefer `toFetchHandler(...)` and stay inside
  * Effect v4. This options type exists only for deployment hosts whose contract
  * is fixed to `(request) => Promise<Response>`.
  */
@@ -83,62 +81,37 @@ const runOptionsForRequest = (
  */
 export type StartFetchPromiseHandler = (request: Request) => Promise<Response>;
 
-/** Effect-first Fetch handler returned by `toFetchHandlerEffect`. */
-export type StartFetchHandlerEffect<Requirements = never> = (
+/** Effect-first Fetch handler returned by `toFetchHandler`. */
+export type StartFetchHandler<Requirements = never> = (
   request: Request,
 ) => Effect.Effect<Response, StartRequestHandlerError, Requirements>;
 
-/** Fetch handler returned by `toFetchHandler`. */
-export type StartFetchHandler<Requirements = never> = StartFetchHandlerEffect<Requirements>;
-
-/** Adapts a Start request handler to the fetch adapter's Effect handler shape. */
-export function toFetchHandlerEffect<Handler extends StartRequestHandlerInput<any, any>>(
-  handler: Handler,
-): StartFetchHandlerEffect<StartRequestHandlerRequirements<Handler>>;
-/**
- * Adapts any typed Start request handler to an Effect-first Fetch handler while
- * preserving its remaining service requirements.
- */
-export function toFetchHandlerEffect<HandlerError, Requirements>(
-  handler: StartRequestHandlerInput<HandlerError, Requirements>,
-): StartFetchHandlerEffect<Requirements>;
-/**
- * Implementation for `toFetchHandlerEffect(...)`; host Promise conversion stays
- * outside this Effect-first Adapter.
- */
-export function toFetchHandlerEffect(
-  handler: StartRequestHandlerInput<any, any>,
-): StartFetchHandlerEffect<any> {
-  return (request) => invokeStartRequestHandlerEffect(handler, request);
-}
-
-/** Adapts a public Start request handler to the fetch adapter Effect shape. */
+/** Adapts a Start request handler to an Effect-first Fetch handler. */
 export function toFetchHandler<Handler extends StartRequestHandlerInput<any, any>>(
   handler: Handler,
 ): StartFetchHandler<StartRequestHandlerRequirements<Handler>>;
 /**
- * Alias overload for typed Start request handlers whose service requirements
- * are already explicit.
+ * Adapts any typed Start request handler to an Effect-first Fetch handler while
+ * preserving its remaining service requirements.
  */
 export function toFetchHandler<HandlerError, Requirements>(
   handler: StartRequestHandlerInput<HandlerError, Requirements>,
 ): StartFetchHandler<Requirements>;
 /**
- * Implementation for the Fetch Effect Adapter alias. It does not run the
- * handler; callers still decide where to provide and execute the returned
- * Effect.
+ * Implementation for `toFetchHandler(...)`; host Promise conversion stays
+ * outside this Effect-first Adapter.
  */
 export function toFetchHandler(
   handler: StartRequestHandlerInput<any, any>,
 ): StartFetchHandler<any> {
-  return toFetchHandlerEffect(handler);
+  return (request) => invokeStartRequestHandlerEffect(handler, request);
 }
 
 /**
  * Creates a compatibility Fetch-host handler for platforms that require
  * `(request) => Promise<Response>`.
  *
- * The canonical adapter is `toFetchHandlerEffect(...)`. This facade is kept for
+ * The canonical adapter is `toFetchHandler(...)`. This facade is kept for
  * deployment compatibility with workers, edge runtimes, Bun, and similar hosts
  * whose public contract is Promise-shaped.
  */
@@ -153,7 +126,7 @@ export function createFetchHandler<
   >
 ): StartFetchPromiseHandler {
   const options = args[0] ?? {};
-  const effectHandler = toFetchHandlerEffect(handler);
+  const effectHandler = toFetchHandler(handler);
   return (request) => {
     const merged = runOptionsForRequest(options.runOptions, request.signal);
     return runStartHostPromise(

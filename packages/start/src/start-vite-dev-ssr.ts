@@ -1,5 +1,6 @@
 import { Cause, Data, Effect, Exit, Scope } from "effect";
-import { toEffect, type EffectInput } from "@sunfall/arc-core";
+import { type EffectInput } from "@sunfall/arc-core";
+import { toEffect } from "@sunfall/arc-core/internal";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   nodeRequestLifecycle,
@@ -295,7 +296,7 @@ export const handleSsrDevMiddlewareEffect = <R = never>(
             ...options.nodeRequest,
             signal,
           });
-          const webResponse = yield* handleSsrDevRequestEffect(server, webRequest, options);
+          const webResponse = yield* handleSsrDevRequest(server, webRequest, options);
           yield* writeNodeExchangeResponseEffect(request, response, webResponse);
         }),
       ({ dispose }) => Effect.sync(dispose),
@@ -481,7 +482,7 @@ const handlerResultEffect = <HandlerError = StartRequestHandlerError, Requiremen
  * Loads the configured server entry, runs its handler, and applies Vite HTML
  * transforms to HTML responses.
  */
-export const handleSsrDevRequestEffect = <R = never>(
+export const handleSsrDevRequest = <R = never>(
   server: StartDevServer<R>,
   request: Request,
   options: HandleSsrDevRequestOptions = {},
@@ -515,11 +516,3 @@ export const handleSsrDevRequestEffect = <R = never>(
 
     return transformedResponse;
   });
-
-/** Alias for `handleSsrDevRequestEffect` on the current dev SSR surface. */
-export const handleSsrDevRequest = <R = never>(
-  server: StartDevServer<R>,
-  request: Request,
-  options: HandleSsrDevRequestOptions = {},
-): Effect.Effect<Response, StartHandlerNotFound | StartDevServerError, R> =>
-  handleSsrDevRequestEffect(server, request, options);

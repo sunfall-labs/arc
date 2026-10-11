@@ -1,6 +1,11 @@
 import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { Resource, makeResourceDefinitionRegistry, type AnyResourceFamily } from "../src/index.js";
+import { Resource, type AnyResourceFamily } from "../src/index.js";
+import {
+  makeResourceDefinitionRegistry,
+  resourceDefinitionRegistry,
+  resourceRegistryDiagnostics,
+} from "../src/internal.js";
 
 let registryTestId = 0;
 
@@ -21,9 +26,9 @@ describe("Resource definition registry", () => {
     Resource.tag(tagName);
     Resource.tag(tagName);
 
-    expect(Resource.definitions().get(familyName)).toBe(Second.family);
-    expect(Resource.definitions().get(familyName)).not.toBe(First.family);
-    expect(Resource.registryDiagnostics().duplicates).toEqual(
+    expect(resourceDefinitionRegistry().get(familyName)).toBe(Second.family);
+    expect(resourceDefinitionRegistry().get(familyName)).not.toBe(First.family);
+    expect(resourceRegistryDiagnostics().duplicates).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           kind: "family",

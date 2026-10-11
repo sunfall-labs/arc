@@ -295,7 +295,7 @@ const allowed = [
     name: "Promise return type",
     seams: [
       seam(
-        "packages/start/src/fetch-adapter.ts",
+        "packages/start/src/fetch.ts",
         "Fetch host Promise handler facade",
         /export type StartFetchPromiseHandler\s*=\s*\(request:\s*Request\)\s*=>\s*Promise<Response>;/,
       ),
@@ -392,12 +392,7 @@ const allowed = [
       seam(
         "type-tests/framework.test-d.ts",
         "Promise negative fixture promisedSqliteRow",
-        /declare const promisedSqliteRow:\s*Promise<Collection\.SQLiteStorageRow\s*\|\s*null>;/,
-      ),
-      seam(
-        "type-tests/framework.test-d.ts",
-        "Promise negative fixture promisedChangeFeedSubscription",
-        /declare const promisedChangeFeedSubscription:\s*Promise<Collection\.ChangeFeedSubscription>;/,
+        /declare const promisedSqliteRow:\s*Promise<SQLitePersistence\.Row\s*\|\s*null>;/,
       ),
       seam(
         "type-tests/framework.test-d.ts",
@@ -416,8 +411,8 @@ const allowed = [
       ),
       seam(
         "type-tests/db.test-d.ts",
-        "DB preload controller observer Promise negative fixture",
-        /declare const dbPreloadObserverPromise:\s*Promise<void>;/,
+        "DB sync adapter Promise negative fixture",
+        /declare const promiseRows:\s*Promise<ReadonlyArray<Project>>;/,
       ),
       seam(
         "type-tests/core.test-d.ts",
@@ -1064,8 +1059,8 @@ const banned = [
       ),
       seam(
         "examples/docs-site/src/main.tsx",
-        "docs-site dev-only BrowserRpcLive dynamic import",
-        /\(await import\(\)\)\.BrowserRpcLive/,
+        "docs-site dev-only makeRpcClientLayer dynamic import",
+        /\(await import\(\)\)\.makeRpcClientLayer\(\)/,
       ),
       seam(
         "examples/docs-site/src/main.tsx",

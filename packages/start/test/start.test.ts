@@ -33,20 +33,16 @@ import { describe, expect, it } from "vitest";
 import {
   Action,
   ActionResult,
-  defaultRuntime,
   defineApp,
   EffectInputCallbackError,
-  eraseRuntime,
   EffectInputPromiseRejected,
   makeRuntime,
-  read,
   Resource,
   ResourceFamily,
   ResourceTypeId,
   RequestContext,
   ResponseContext,
   createBrowserRouterHostController,
-  createBrowserRouterKernel,
   makeMemoryBrowserHistoryAdapter,
   route,
   Route,
@@ -59,41 +55,27 @@ import {
   type SunfallArcRuntime,
   type ResourceRef,
 } from "@sunfall/arc-core";
+import {
+  defaultRuntime,
+  eraseRuntime,
+  createBrowserRouterKernel,
+  clearActionDefinitionRegistryUnsafe,
+  resourceDefinitionRegistry,
+} from "@sunfall/arc-core/internal";
 import { Collection, CollectionSnapshotCodecError } from "@sunfall/arc-db";
+import {
+  collectCollectionsEffect,
+  defaultCollectionDefinitionRegistry,
+  defineCollection,
+  makeCollectionDefinitionRegistry,
+} from "@sunfall/arc-db/internal";
 import type { DevtoolsRequestTrace } from "@sunfall/arc-devtools";
 import {
-  createServerActionResponseEffect,
-  createHydrationScript,
-  createHydrationScriptEffect,
   createHtmlResponseEffect,
-  createStartRenderHydrationPlanEffect,
-  createStreamHydrationScript,
-  createServerRpcResponseEffect,
-  createRequestHandlerEffect,
   createRequestHandler,
-  startRequestCountMetric,
-  startRequestDurationMetric,
-  startRequestStatusMetric,
   hydrateFromDocument,
   hydrateFromDocumentEffect,
-  hydrateStartPayloadEffect,
-  hydrateStartHydrationChunksFromDocument,
-  hydrateStartHydrationChunksFromDocumentEffect,
-  readStartHydrationChunks,
-  makeRpcClient,
-  preloadRequest,
-  preloadRequestEffect,
-  serverActionPath,
-  serverRpcPath,
-  streamHydrationAttribute,
-  streamHydrationConsumedAttribute,
-  streamHydrationSequenceAttribute,
-  startRequestIdHeader,
-  startTransportKindHeader,
-  startTransportProtocolHeader,
-  startTransportProtocolVersion,
-  startActionForm,
-  startActionInputField,
+  makeRpcClientLayer,
   StartHydrationChunkParseError,
   StartHydrationPayloadParseError,
   StartHydrationPayloadSerializeError,
@@ -105,79 +87,139 @@ import {
   StartActionDuplicateName,
   StartTransportEndpointConflictError,
   StartTransportEndpointPathError,
-  FileRoutePreloadError,
+  type ServerRpcClientOptions,
   type StartFetch,
   type StartHydrationPayload,
-  type FileRoutePreloadResource,
   submitStartActionEffect,
+  defineFileRoute,
+} from "../src/index.js";
+import {
+  createServerActionResponseEffect,
+  createServerRpcResponseEffect,
+} from "../src/start-request-endpoints.js";
+import {
+  createHydrationScript,
+  createHydrationScriptEffect,
+  createStreamHydrationScript,
+  hydrateStartPayloadEffect,
+  hydrateStartHydrationChunksFromDocumentEffect,
+  readStartHydrationChunksEffect,
+  streamHydrationAttribute,
+  streamHydrationConsumedAttribute,
+  streamHydrationSequenceAttribute,
+} from "../src/hydration.js";
+import { createStartRenderHydrationPlanEffect } from "../src/render-hydration-plan.js";
+import { preloadRequest } from "../src/start-request-preload.js";
+import {
+  serverActionPath,
+  serverRpcPath,
+  startRequestIdHeader,
+  startTransportKindHeader,
+  startTransportProtocolHeader,
+  startTransportProtocolVersion,
+} from "../src/rpc.js";
+import {
   encodeStartActionRequestEffect,
+  startActionInputField,
+} from "../src/start-action-request-codec.js";
+import {
   resolveStartActionEndpoint,
   resolveStartRpcEndpoint,
   resolveStartTransportEndpoints,
-  defineFileRoute,
-} from "../src/index.js";
+} from "../src/start-transport-endpoints.js";
+import { serializeServerFunctionManifest } from "../src/server-function-manifest.js";
+import { serializeActionManifest } from "../src/action-manifest.js";
+import { serializeFileRouteManifest } from "../src/file-routes.js";
+import { isStartManifestServerOnlyModule } from "../src/manifest-entry-core.js";
 import {
   createStartDiagnosticsReport,
   formatStartDiagnosticsReport,
 } from "../src/diagnostics-report.js";
 import { StartAppGraphDiagnosticsPolicyException } from "../src/start-app-graph-diagnostics-policy.js";
 import { completeRequestRuntimeWithResponse, makeRequestRuntime } from "../src/request-runtime.js";
-import { buildStartRequestTrace, requestRuntimeTeardownSnapshot } from "../src/request-trace.js";
+import {
+  buildStartRequestTrace,
+  requestRuntimeTeardownSnapshot,
+  startRequestCountMetric,
+  startRequestDurationMetric,
+  startRequestStatusMetric,
+} from "../src/request-trace.js";
 import {
   sunfallArcStartVirtualModules,
+  loadStartAppGraphDiagnostics,
   loadStartAppGraphDiagnosticsFromServerEffect,
   loadStartAppGraphDiagnosticsWithOwnedServerEffect,
   loadStartAppGraphDiagnosticsWithServerEffect,
 } from "../src/start-vite-diagnostics-loader.js";
 import {
-  parseStartDiagnosticsCliArgs,
+  parseStartDiagnosticsCliArgsEffect,
   runStartDiagnosticsCli,
-  runStartDiagnosticsCliEffect,
-  runStartDiagnosticsCliMainEffect,
+  runStartDiagnosticsCliMain,
 } from "../src/cli.js";
 import type { StartAgentGraphQueryKind } from "../src/start-agent-graph-contract.js";
 import { startAgentGraphQueryKinds } from "../src/start-agent-graph-vocabulary.js";
 import { startDiagnosticsCliVerifyCommandsForQuery } from "../src/start-diagnostics-cli-contract.js";
-import { describeStartAppGraph } from "../src/app-graph.js";
+import {
+  describeStartAppGraph,
+  serializeStartAppGraph as serializeStartAppGraphValue,
+} from "../src/app-graph.js";
 import {
   actionManifestVirtualModuleId,
   appGraphRuntimeDiagnosticsVirtualModuleId,
   appGraphVirtualModuleId,
-  defaultFileRouteGeneratedFile,
-  defaultFileRouteDirectory,
-  discoverFileRoutes,
-  sunfallArcStart,
   fileRouteDefinitionsVirtualModuleId,
   fileRouteManifestVirtualModuleId,
-  handleSsrDevRequest,
-  handleSsrDevMiddlewareEffect,
-  handleSsrDevRequestEffect,
-  isServerOnlyModule,
-  loadStartAppGraphDiagnostics,
-  loadStartAppGraphDiagnosticsEffect,
+  serverFunctionManifestVirtualModuleId,
+} from "../src/start-virtual-modules.js";
+import {
+  defaultFileRouteGeneratedFile,
+  defaultFileRouteDirectory,
+  discoverFileRoutesEffect,
   makeStartBuildAppGraphEffect,
   makeStartActionManifestEffect,
   makeStartFileRouteManifestEffect,
   makeStartServerFunctionManifestEffect,
+  validateStartBuildPolicyEffect,
+  type FileRouteDiscoveryOptions,
+  type SunfallArcStartOptions,
+} from "../src/start-manifest-wall.js";
+import {
+  handleSsrDevRequest,
+  handleSsrDevMiddlewareEffect,
   resolveStartHandler,
-  serializeStartActionManifest,
-  serializeStartAppGraph,
-  serializeStartFileRouteManifest,
-  serializeStartServerFunctionManifest,
-  serverFunctionManifestVirtualModuleId,
   startDevServerFromVite,
+  shouldHandleSsrRequest,
+} from "../src/start-vite-dev-ssr.js";
+import {
+  sunfallArcStart,
   StartAppGraphDiagnosticsRunnerError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphUnknownActionBehavior,
   StartDevServerError,
   FileRouteDefinitionsOutputPathError,
   StartHandlerNotFound,
-  StartManifestDirectReferenceError,
   StartServerOnlyModuleError,
   StartStaticClientPolicyError,
-  validateStartBuildPolicyEffect,
-  shouldHandleSsrRequest,
 } from "../src/vite.js";
+
+const parseStartDiagnosticsCliArgs = (args: readonly string[]) =>
+  Effect.runSync(parseStartDiagnosticsCliArgsEffect(args));
+const discoverFileRoutes = (options: FileRouteDiscoveryOptions = {}) =>
+  Effect.runSync(discoverFileRoutesEffect(options));
+const serializeStartServerFunctionManifest = (options: SunfallArcStartOptions = {}) =>
+  serializeServerFunctionManifest(Effect.runSync(makeStartServerFunctionManifestEffect(options)));
+const serializeStartActionManifest = (options: SunfallArcStartOptions = {}) =>
+  serializeActionManifest(Effect.runSync(makeStartActionManifestEffect(options)));
+const serializeStartFileRouteManifest = (options: SunfallArcStartOptions = {}) =>
+  serializeFileRouteManifest(Effect.runSync(makeStartFileRouteManifestEffect(options)));
+const serializeStartAppGraph = (options: SunfallArcStartOptions = {}) =>
+  serializeStartAppGraphValue(Effect.runSync(makeStartBuildAppGraphEffect(options)));
+const makeRpcClient = (options: ServerRpcClientOptions<any, any, never> = {}): ServerClient =>
+  Effect.runSync(
+    Effect.gen(function* () {
+      return yield* ServerClient;
+    }).pipe(Effect.provide(makeRpcClientLayer(options as never))),
+  );
 
 const scriptText = (script: string): string =>
   script.replace(/^<script[^>]*>/, "").replace("</script>", "");
@@ -283,6 +325,18 @@ const startDiagnosticsRunnerViteConfig = () => ({
   resolve: {
     alias: [
       { find: "effect", replacement: workspacePackageAlias("node_modules/effect/dist/index.js") },
+      {
+        find: "@sunfall/arc-core/internal",
+        replacement: workspacePackageAlias("packages/core/src/internal.ts"),
+      },
+      {
+        find: "@sunfall/arc-db/internal",
+        replacement: workspacePackageAlias("packages/db/src/internal.ts"),
+      },
+      {
+        find: "@sunfall/arc-start/internal",
+        replacement: workspacePackageAlias("packages/start/src/internal.ts"),
+      },
       {
         find: "@sunfall/arc-core",
         replacement: workspacePackageAlias("packages/core/src/index.ts"),
@@ -800,7 +854,7 @@ describe("Sunfall Arc Start", () => {
     const handler = createRequestHandler(app, {
       render: ({ match }) => {
         const id = match?.params.id ?? "missing";
-        const project = Resource.read(Project(id));
+        const project = Effect.runSync(Resource.readEffect(Project(id)));
         return `<html><body><main>${project.id}:${project.sequence}</main></body></html>`;
       },
     });
@@ -885,11 +939,16 @@ describe("Sunfall Arc Start", () => {
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
       preload: ({ params }) =>
-        Projects.writeInsertEffect({
-          id: params.id,
-          name: `Project ${params.id}`,
-          sequence: ++sequence,
-        }),
+        Projects.applyChangesEffect([
+          {
+            _tag: "Upsert",
+            value: {
+              id: params.id,
+              name: `Project ${params.id}`,
+              sequence: ++sequence,
+            },
+          },
+        ]),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
@@ -936,11 +995,13 @@ describe("Sunfall Arc Start", () => {
     const Projects = Collection.define<{ readonly id: string }>({
       name: "Start.Collection.unloaded-registered",
       getKey: (project) => project.id,
-      load: () =>
-        Effect.sync(() => {
-          loads++;
-          return [{ id: "atlas" }];
-        }),
+      sync: {
+        load: () =>
+          Effect.sync(() => {
+            loads++;
+            return [{ id: "atlas" }];
+          }),
+      },
     });
     const ProjectsRoute = route("/projects", {
       preload: () => Projects.preloadEffect(),
@@ -976,20 +1037,24 @@ describe("Sunfall Arc Start", () => {
     const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
       name: "Start.Collection.route-touched.projects",
       getKey: (project) => project.id,
-      load: () =>
-        Effect.sync(() => {
-          projectLoads += 1;
-          return [{ id: "atlas", name: "Atlas" }];
-        }),
+      sync: {
+        load: () =>
+          Effect.sync(() => {
+            projectLoads += 1;
+            return [{ id: "atlas", name: "Atlas" }];
+          }),
+      },
     });
     const _Tasks = Collection.define<{ readonly id: string; readonly title: string }>({
       name: "Start.Collection.route-touched.tasks",
       getKey: (task) => task.id,
-      load: () =>
-        Effect.sync(() => {
-          taskLoads += 1;
-          return [{ id: "ship", title: "Ship it" }];
-        }),
+      sync: {
+        load: () =>
+          Effect.sync(() => {
+            taskLoads += 1;
+            return [{ id: "ship", title: "Ship it" }];
+          }),
+      },
     });
     const ProjectRoute = route("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
@@ -1050,14 +1115,16 @@ describe("Sunfall Arc Start", () => {
     const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
       name: "Start.Collection.route-nested-collector.projects",
       getKey: (project) => project.id,
-      load: () =>
-        Effect.sync(() => {
-          projectLoads += 1;
-          return [{ id: "atlas", name: "Atlas" }];
-        }),
+      sync: {
+        load: () =>
+          Effect.sync(() => {
+            projectLoads += 1;
+            return [{ id: "atlas", name: "Atlas" }];
+          }),
+      },
     });
     const ProjectRoute = route("/nested-collector-projects", {
-      preload: () => Collection.collectEffect(Projects.preloadEffect()).pipe(Effect.asVoid),
+      preload: () => collectCollectionsEffect(Projects.preloadEffect()).pipe(Effect.asVoid),
     });
     const app = defineApp({
       routes: [ProjectRoute] as const,
@@ -1088,7 +1155,9 @@ describe("Sunfall Arc Start", () => {
     }>({
       name: "Start.Collection.live-query-source.projects",
       getKey: (project) => project.id,
-      load: () => Effect.succeed([{ id: "atlas", name: "Atlas", progress: 72 }]),
+      sync: {
+        load: () => Effect.succeed([{ id: "atlas", name: "Atlas", progress: 72 }]),
+      },
     });
     const ProjectCards = Collection.liveQuery<
       { readonly id: string; readonly name: string },
@@ -1155,11 +1224,13 @@ describe("Sunfall Arc Start", () => {
     const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
       name: "Start.Collection.route-declared.projects",
       getKey: (project) => project.id,
-      load: () =>
-        Effect.sync(() => {
-          projectLoads += 1;
-          return [{ id: "atlas", name: "Atlas" }];
-        }),
+      sync: {
+        load: () =>
+          Effect.sync(() => {
+            projectLoads += 1;
+            return [{ id: "atlas", name: "Atlas" }];
+          }),
+      },
     });
     const ProjectRoute = route("/declared-projects", {
       preloadCollections: [Projects],
@@ -1204,110 +1275,6 @@ describe("Sunfall Arc Start", () => {
     expect(html).toContain("<main>Start.Collection.route-declared.projects</main>");
     expect(html).toContain("<aside>1</aside>");
     expect(html).toContain('"Start.Collection.route-declared.projects"');
-  });
-
-  it("defines file route preload metadata and work from the preload helper", async () => {
-    let resourceLoads = 0;
-    let collectionLoads = 0;
-    let extraPreloads = 0;
-    const ProjectById = Resource.family<string, { readonly id: string; readonly name: string }>({
-      name: "Start.FileRoutePreloadHelper.projectById",
-      load: (id) =>
-        Effect.sync(() => {
-          resourceLoads += 1;
-          return { id, name: "Atlas" };
-        }),
-    });
-    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
-      name: "Start.FileRoutePreloadHelper.projects",
-      getKey: (project) => project.id,
-      load: () =>
-        Effect.sync(() => {
-          collectionLoads += 1;
-          return [{ id: "atlas", name: "Atlas" }];
-        }),
-    });
-    const ProjectRouteBuilder = defineFileRoute("/file-helper-projects/:id");
-    const preload = ProjectRouteBuilder.preload(
-      {
-        params: Schema.Struct({ id: Schema.String }),
-        resources: ({ resource }) => [resource(ProjectById, ({ params }) => params.id)],
-        collections: [Projects],
-      },
-      ({ params }) =>
-        Effect.sync(() => {
-          if (params.id === "atlas") {
-            extraPreloads += 1;
-          }
-        }),
-    );
-    const ProjectRoute = preload.route();
-    const app = defineApp({
-      routes: [ProjectRoute] as const,
-      client: {},
-    });
-
-    expect(Object.keys(preload)).not.toContain("route");
-
-    expect(Route.describePreloadResources(ProjectRoute)).toEqual({
-      status: "declared",
-      families: ["Start.FileRoutePreloadHelper.projectById"],
-    });
-    expect(Route.describePreloadCollections(ProjectRoute)).toEqual({
-      status: "declared",
-      collections: ["Start.FileRoutePreloadHelper.projects"],
-    });
-
-    const result = await Effect.runPromise(
-      preloadRequest(app, new Request("https://example.com/file-helper-projects/atlas")),
-    );
-
-    expect(resourceLoads).toBe(1);
-    expect(collectionLoads).toBe(1);
-    expect(extraPreloads).toBe(1);
-    expect(result.resources.resources.map((resource) => resource.name)).toEqual([
-      "Start.FileRoutePreloadHelper.projectById",
-    ]);
-    expect(result.collectionPreload.routeDeclaredCollections).toEqual([Projects]);
-  });
-
-  it("allows file route preload helpers to declare collections by name", async () => {
-    let collectionLoads = 0;
-    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
-      name: "Start.FileRoutePreloadHelper.named-projects",
-      getKey: (project) => project.id,
-      load: () =>
-        Effect.sync(() => {
-          collectionLoads += 1;
-          return [{ id: "atlas", name: "Atlas" }];
-        }),
-    });
-    const ProjectRouteBuilder = defineFileRoute("/file-helper-named-projects");
-    const preload = ProjectRouteBuilder.preload({
-      collections: [Projects.name],
-    });
-    const ProjectRoute = preload.route();
-    const app = defineApp({
-      routes: [ProjectRoute] as const,
-      client: {},
-    });
-
-    expect(Route.describePreloadCollections(ProjectRoute)).toEqual({
-      status: "declared",
-      collections: [Projects.name],
-    });
-
-    const result = await Effect.runPromise(
-      preloadRequest(app, new Request("https://example.com/file-helper-named-projects"), {
-        collectionRegistry: Collection.defaultRegistry,
-      }),
-    );
-
-    expect(collectionLoads).toBe(1);
-    expect(result.collectionPreload.routeDeclaredCollections).toEqual([Projects]);
-    expect(result.collections.collections.map((collection) => collection.name)).toEqual([
-      Projects.name,
-    ]);
   });
 
   it("renders a failed route preload as the router Failure state on server and hydrating client", async () => {
@@ -1472,274 +1439,20 @@ describe("Sunfall Arc Start", () => {
     expect(failure.cause).toBeInstanceOf(RoutePreloadError);
   });
 
-  it("rejects Promise-shaped file route preload helper work as typed preload failure", async () => {
-    const ProjectRouteBuilder = defineFileRoute("/file-helper-promise");
-    const ProjectRoute = ProjectRouteBuilder({
-      ...ProjectRouteBuilder.preload({}, (() => Effect.runPromise(Effect.void)) as never),
-    });
-    const app = defineApp({
-      routes: [ProjectRoute] as const,
-      client: {},
-    });
-
-    const failure = await Effect.runPromise(
-      Effect.flip(preloadRequest(app, new Request("https://example.com/file-helper-promise"))),
-    );
-
-    expect(failure).toBeInstanceOf(StartPreloadError);
-    expect(failure.operation).toBe("route-navigation");
-    expect(failure.cause).toBeInstanceOf(RoutePreloadError);
-    const routeFailure = failure.cause as RoutePreloadError;
-    expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
-    expect(routeFailure.cause).toMatchObject({
-      operation: "custom-preload",
-      path: "/file-helper-promise",
-    });
-    expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
-  });
-
-  it("rejects file route preload helper work with throwing then getters as typed preload failure", async () => {
-    const ProjectRouteBuilder = defineFileRoute("/file-helper-throwing-then");
-    const throwingThen = Object.defineProperty({}, "then", {
-      get: () => {
-        throw new Error("then getter failed");
-      },
-    });
-    const ProjectRoute = ProjectRouteBuilder({
-      ...ProjectRouteBuilder.preload({}, (() => throwingThen) as never),
-    });
-    const app = defineApp({
-      routes: [ProjectRoute] as const,
-      client: {},
-    });
-
-    const failure = await Effect.runPromise(
-      Effect.flip(
-        preloadRequest(app, new Request("https://example.com/file-helper-throwing-then")),
-      ),
-    );
-
-    expect(failure).toBeInstanceOf(StartPreloadError);
-    expect(failure.operation).toBe("route-navigation");
-    expect(failure.cause).toBeInstanceOf(RoutePreloadError);
-    const routeFailure = failure.cause as RoutePreloadError;
-    expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
-    expect(routeFailure.cause).toMatchObject({
-      operation: "custom-preload",
-      path: "/file-helper-throwing-then",
-    });
-    expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
-  });
-
-  it("rejects Promise-shaped file route resource selector output as typed preload failure", async () => {
-    const ProjectById = Resource.family<string, { readonly id: string }>({
-      name: "Start.FileRoutePreloadHelper.promise-selector.projectById",
-      load: (id) => Effect.succeed({ id }),
-    });
-    const ProjectRouteBuilder = defineFileRoute("/file-helper-promise-selector");
-    const ProjectRoute = ProjectRouteBuilder({
-      ...ProjectRouteBuilder.preload({
-        resources: [
-          ProjectRouteBuilder.resource(ProjectById, (() =>
-            Effect.runPromise(Effect.succeed("atlas"))) as never),
-        ],
-      }),
-    });
-    const app = defineApp({
-      routes: [ProjectRoute] as const,
-      client: {},
-    });
-
-    const failure = await Effect.runPromise(
-      Effect.flip(
-        preloadRequest(app, new Request("https://example.com/file-helper-promise-selector")),
-      ),
-    );
-
-    expect(failure).toBeInstanceOf(StartPreloadError);
-    expect(failure.operation).toBe("route-navigation");
-    expect(failure.cause).toBeInstanceOf(RoutePreloadError);
-    const routeFailure = failure.cause as RoutePreloadError;
-    expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
-    expect(routeFailure.cause).toMatchObject({
-      operation: "resource-selector",
-      path: "/file-helper-promise-selector",
-    });
-    expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
-  });
-
-  it("rejects file route resource selector output with throwing then getters as typed preload failure", async () => {
-    const ProjectById = Resource.family<string, { readonly id: string }>({
-      name: "Start.FileRoutePreloadHelper.throwing-then-selector.projectById",
-      load: (id) => Effect.succeed({ id }),
-    });
-    const throwingThen = Object.defineProperty({}, "then", {
-      get: () => {
-        throw new Error("then getter failed");
-      },
-    });
-    const ProjectRouteBuilder = defineFileRoute("/file-helper-throwing-then-selector");
-    const ProjectRoute = ProjectRouteBuilder({
-      ...ProjectRouteBuilder.preload({
-        resources: [ProjectRouteBuilder.resource(ProjectById, (() => throwingThen) as never)],
-      }),
-    });
-    const app = defineApp({
-      routes: [ProjectRoute] as const,
-      client: {},
-    });
-
-    const failure = await Effect.runPromise(
-      Effect.flip(
-        preloadRequest(app, new Request("https://example.com/file-helper-throwing-then-selector")),
-      ),
-    );
-
-    expect(failure).toBeInstanceOf(StartPreloadError);
-    expect(failure.operation).toBe("route-navigation");
-    expect(failure.cause).toBeInstanceOf(RoutePreloadError);
-    const routeFailure = failure.cause as RoutePreloadError;
-    expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
-    expect(routeFailure.cause).toMatchObject({
-      operation: "resource-selector",
-      path: "/file-helper-throwing-then-selector",
-    });
-    expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
-  });
-
-  it("rejects public file route resource refs returning Promise-shaped work as typed preload failure", async () => {
-    const ProjectById = Resource.family<string, { readonly id: string }>({
-      name: "Start.FileRoutePreloadHelper.promise-resource-refs.projectById",
-      load: (id) => Effect.succeed({ id }),
-    });
-    const ProjectRouteBuilder = defineFileRoute("/file-helper-promise-resource-refs");
-    const resource: FileRoutePreloadResource<
-      "/file-helper-promise-resource-refs",
-      Resource.AnyRef<never>
-    > = {
-      family: { name: ProjectById.family.options.name },
-      refs: (() => Effect.runPromise(Effect.succeed([ProjectById("atlas")]))) as never,
-    };
-    const ProjectRoute = ProjectRouteBuilder({
-      ...ProjectRouteBuilder.preload({
-        resources: [resource],
-      }),
-    });
-    const app = defineApp({
-      routes: [ProjectRoute] as const,
-      client: {},
-    });
-
-    const failure = await Effect.runPromise(
-      Effect.flip(
-        preloadRequest(app, new Request("https://example.com/file-helper-promise-resource-refs")),
-      ),
-    );
-
-    expect(failure).toBeInstanceOf(StartPreloadError);
-    expect(failure.operation).toBe("route-navigation");
-    expect(failure.cause).toBeInstanceOf(RoutePreloadError);
-    const routeFailure = failure.cause as RoutePreloadError;
-    expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
-    expect(routeFailure.cause).toMatchObject({
-      operation: "resource-selector",
-      path: "/file-helper-promise-resource-refs",
-    });
-    expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
-  });
-
-  it("rejects public file route resource refs returning malformed data as typed preload failure", async () => {
-    const ProjectById = Resource.family<string, { readonly id: string }>({
-      name: "Start.FileRoutePreloadHelper.malformed-resource-refs.projectById",
-      load: (id) => Effect.succeed({ id }),
-    });
-    const ProjectRouteBuilder = defineFileRoute("/file-helper-malformed-resource-refs");
-    const resource: FileRoutePreloadResource<
-      "/file-helper-malformed-resource-refs",
-      Resource.AnyRef<never>
-    > = {
-      family: { name: ProjectById.family.options.name },
-      refs: (() => ({ key: ProjectById("atlas").key })) as never,
-    };
-    const ProjectRoute = ProjectRouteBuilder({
-      ...ProjectRouteBuilder.preload({
-        resources: [resource],
-      }),
-    });
-    const app = defineApp({
-      routes: [ProjectRoute] as const,
-      client: {},
-    });
-
-    const failure = await Effect.runPromise(
-      Effect.flip(
-        preloadRequest(app, new Request("https://example.com/file-helper-malformed-resource-refs")),
-      ),
-    );
-
-    expect(failure).toBeInstanceOf(StartPreloadError);
-    expect(failure.operation).toBe("route-navigation");
-    expect(failure.cause).toBeInstanceOf(RoutePreloadError);
-    const routeFailure = failure.cause as RoutePreloadError;
-    expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
-    expect(routeFailure.cause).toMatchObject({
-      operation: "resource-selector",
-      path: "/file-helper-malformed-resource-refs",
-      cause: expect.any(TypeError),
-    });
-  });
-
-  it("captures thrown file route resource selectors as typed preload failure", async () => {
-    const thrown = new Error("bad resource selector");
-    const ProjectById = Resource.family<string, { readonly id: string }>({
-      name: "Start.FileRoutePreloadHelper.selector-error.projectById",
-      load: (id) => Effect.succeed({ id }),
-    });
-    const ProjectRouteBuilder = defineFileRoute("/file-helper-selector-error/:id");
-    const ProjectRoute = ProjectRouteBuilder({
-      ...ProjectRouteBuilder.preload({
-        resources: [
-          ProjectRouteBuilder.resource(ProjectById, () => {
-            throw thrown;
-          }),
-        ],
-      }),
-    });
-    const app = defineApp({
-      routes: [ProjectRoute] as const,
-      client: {},
-    });
-
-    const failure = await Effect.runPromise(
-      Effect.flip(
-        preloadRequest(app, new Request("https://example.com/file-helper-selector-error/atlas")),
-      ),
-    );
-
-    expect(failure).toBeInstanceOf(StartPreloadError);
-    expect(failure.operation).toBe("route-navigation");
-    expect(failure.cause).toBeInstanceOf(RoutePreloadError);
-    const routeFailure = failure.cause as RoutePreloadError;
-    expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
-    expect(routeFailure.cause).toMatchObject({
-      operation: "resource-selector",
-      path: "/file-helper-selector-error/:id",
-      cause: thrown,
-    });
-  });
-
   it("resolves route-declared collections from registered request collections before the default registry", async () => {
     let projectLoads = 0;
-    const registry = Collection.makeRegistry();
-    const Projects = Collection.define<{ readonly id: string; readonly name: string }>(
+    const registry = makeCollectionDefinitionRegistry();
+    const Projects = defineCollection<{ readonly id: string; readonly name: string }>(
       {
         name: "Start.Collection.route-declared.isolated-projects",
         getKey: (project) => project.id,
-        load: () =>
-          Effect.sync(() => {
-            projectLoads += 1;
-            return [{ id: "atlas", name: "Atlas" }];
-          }),
+        sync: {
+          load: () =>
+            Effect.sync(() => {
+              projectLoads += 1;
+              return [{ id: "atlas", name: "Atlas" }];
+            }),
+        },
       },
       registry,
     );
@@ -1751,7 +1464,7 @@ describe("Sunfall Arc Start", () => {
       client: {},
     });
 
-    expect(Collection.definitions().has(Projects.name)).toBe(false);
+    expect(defaultCollectionDefinitionRegistry.definitions().has(Projects.name)).toBe(false);
 
     const result = await Effect.runPromise(
       preloadRequest(app, new Request("https://example.com/isolated-declared-projects"), {
@@ -1777,11 +1490,13 @@ describe("Sunfall Arc Start", () => {
     const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
       name: "Start.Collection.route-declared.default-string",
       getKey: (project) => project.id,
-      load: () =>
-        Effect.sync(() => {
-          projectLoads += 1;
-          return [{ id: "atlas", name: "Atlas" }];
-        }),
+      sync: {
+        load: () =>
+          Effect.sync(() => {
+            projectLoads += 1;
+            return [{ id: "atlas", name: "Atlas" }];
+          }),
+      },
     });
     const ProjectRoute = route("/default-string-declared-projects", {
       preloadCollections: [Projects.name],
@@ -1791,7 +1506,7 @@ describe("Sunfall Arc Start", () => {
       client: {},
     });
 
-    expect(Collection.definitions().get(Projects.name)).toBe(Projects);
+    expect(defaultCollectionDefinitionRegistry.definitions().get(Projects.name)).toBe(Projects);
 
     const error = await Effect.runPromise(
       Effect.flip(
@@ -1808,7 +1523,7 @@ describe("Sunfall Arc Start", () => {
 
     const result = await Effect.runPromise(
       preloadRequest(app, new Request("https://example.com/default-string-declared-projects"), {
-        collectionRegistry: Collection.defaultRegistry,
+        collectionRegistry: defaultCollectionDefinitionRegistry,
       }),
     );
 
@@ -1822,13 +1537,20 @@ describe("Sunfall Arc Start", () => {
     const PrimaryProjects = Collection.define<{ readonly id: string; readonly name: string }>({
       name,
       getKey: (project) => project.id,
-      load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
+      sync: {
+        load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
+      },
     });
-    const ShadowProjects = Collection.define<{ readonly slug: string; readonly title: string }>({
-      name,
-      getKey: (project) => project.slug,
-      load: () => Effect.succeed([{ slug: "shadow", title: "Shadow" }]),
-    });
+    const ShadowProjects = defineCollection<{ readonly slug: string; readonly title: string }>(
+      {
+        name,
+        getKey: (project) => project.slug,
+        sync: {
+          load: () => Effect.succeed([{ slug: "shadow", title: "Shadow" }]),
+        },
+      },
+      makeCollectionDefinitionRegistry(),
+    );
     const ProjectRoute = route("/duplicate-direct-declared-projects", {
       preloadCollections: [name],
     });
@@ -1876,11 +1598,11 @@ describe("Sunfall Arc Start", () => {
     });
 
     const result = await Effect.runPromise(
-      preloadRequestEffect(app, new Request("https://example.com/projects/atlas")),
+      preloadRequest(app, new Request("https://example.com/projects/atlas")),
     );
     const response = await Effect.runPromise(
       Effect.scoped(
-        createRequestHandlerEffect(app, {
+        createRequestHandler(app, {
           render: ({ resources }) => {
             const value: unknown = resources.resources[0]?.state.value;
             const name =
@@ -2563,7 +2285,7 @@ describe("Sunfall Arc Start", () => {
       routes: [Home] as const,
       client: {},
     });
-    const handler = createRequestHandlerEffect(app, {
+    const handler = createRequestHandler(app, {
       render: () => {
         throw thrown;
       },
@@ -2682,8 +2404,8 @@ describe("Sunfall Arc Start", () => {
     });
     const handler = createRequestHandler(app, {
       render: () =>
-        Effect.sync(() => {
-          const project = Resource.read(Project("atlas"));
+        Effect.gen(function* () {
+          const project = yield* Effect.orDie(Resource.readEffect(Project("atlas")));
           return `<html><body>${project.name}</body></html>`;
         }),
     });
@@ -3310,14 +3032,14 @@ describe("Sunfall Arc Start", () => {
     );
     const invalidPathHandlerExit = await Effect.runPromiseExit(
       Effect.scoped(
-        createRequestHandlerEffect(app, { rpcPath: "/__sunfall-arc/rpc\nx" })(
+        createRequestHandler(app, { rpcPath: "/__sunfall-arc/rpc\nx" })(
           new Request("https://example.com/"),
         ),
       ),
     );
     const collidingHandlerExit = await Effect.runPromiseExit(
       Effect.scoped(
-        createRequestHandlerEffect(app, { rpcPath: "/same", actionPath: "/same" })(
+        createRequestHandler(app, { rpcPath: "/same", actionPath: "/same" })(
           new Request("https://example.com/"),
         ),
       ),
@@ -3392,7 +3114,7 @@ describe("Sunfall Arc Start", () => {
     expect(graphFailure).toBeInstanceOf(StartTransportEndpointConflictError);
 
     const diagnosticsExit = await Effect.runPromiseExit(
-      loadStartAppGraphDiagnosticsEffect({
+      loadStartAppGraphDiagnostics({
         configFile: false,
         start: {
           rpcPath: "/same",
@@ -3881,7 +3603,7 @@ describe("Sunfall Arc Start", () => {
         ),
       ),
     );
-    const form = startActionForm(SubmitName, {
+    const form = StartAction.form(SubmitName, {
       input: {
         redirectTo: "/projects/atlas?tab=activity",
       },
@@ -3932,7 +3654,7 @@ describe("Sunfall Arc Start", () => {
     };
 
     const jsonRequest = await Effect.runPromise(encodeStartActionRequestEffect(Submit, input));
-    const form = startActionForm(Submit, { input });
+    const form = StartAction.form(Submit, { input });
     const formInput = form.hiddenFields.find((field) => field.name === startActionInputField);
 
     expect(jsonRequest).toEqual({
@@ -3985,8 +3707,8 @@ describe("Sunfall Arc Start", () => {
     const circular: Record<string, unknown> = {};
     circular.self = circular;
 
-    expect(() => startActionForm(Submit, { input: circular })).toThrow(StartActionFormEncodeError);
-    expect(() => startActionForm(Submit, { input: { count: 1n } })).toThrow(
+    expect(() => StartAction.form(Submit, { input: circular })).toThrow(StartActionFormEncodeError);
+    expect(() => StartAction.form(Submit, { input: { count: 1n } })).toThrow(
       StartActionFormEncodeError,
     );
   });
@@ -4025,7 +3747,7 @@ describe("Sunfall Arc Start", () => {
       routes: [route("/", {})] as const,
       client: {},
     });
-    const form = startActionForm(Submit, { input: { redirectTo: "/projects/json" } });
+    const form = StartAction.form(Submit, { input: { redirectTo: "/projects/json" } });
     const formBody = new URLSearchParams(
       form.hiddenFields.map((field) => [field.name, field.value]),
     );
@@ -4086,7 +3808,7 @@ describe("Sunfall Arc Start", () => {
       routes: [route("/", {})] as const,
       client: {},
     });
-    const form = startActionForm(Submit, { input: { redirectTo: "/projects/html" } });
+    const form = StartAction.form(Submit, { input: { redirectTo: "/projects/html" } });
     const formBody = new URLSearchParams(
       form.hiddenFields.map((field) => [field.name, field.value]),
     );
@@ -4237,7 +3959,7 @@ describe("Sunfall Arc Start", () => {
       Effect.scoped(
         Effect.gen(function* () {
           Server.clearRegistryUnsafe();
-          Action.clearRegistryUnsafe();
+          clearActionDefinitionRegistryUnsafe();
           const handler = createRequestHandler(app);
           const rpc = yield* handler(
             new Request(`https://example.com${serverRpcPath}`, {
@@ -4440,7 +4162,7 @@ describe("Sunfall Arc Start", () => {
       });
       expect(
         runWithRuntime(clientRuntime, () =>
-          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+          AsyncResult.getOrElse(Effect.runSync(Resource.statusEffect(ref)).result, () => undefined),
         ),
       ).toEqual({
         id: "atlas",
@@ -4488,7 +4210,7 @@ describe("Sunfall Arc Start", () => {
       });
       expect(
         runWithRuntime(clientRuntime, () =>
-          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+          AsyncResult.getOrElse(Effect.runSync(Resource.statusEffect(ref)).result, () => undefined),
         ),
       ).toEqual({
         id: "atlas",
@@ -4607,7 +4329,10 @@ describe("Sunfall Arc Start", () => {
       expect(HydratedProject.options.name).not.toBe(InvalidatedProject.options.name);
       expect(
         runWithRuntime(clientRuntime, () =>
-          AsyncResult.getOrElse(Resource.status(hydratedRef).result, () => undefined),
+          AsyncResult.getOrElse(
+            Effect.runSync(Resource.statusEffect(hydratedRef)).result,
+            () => undefined,
+          ),
         ),
       ).toEqual({
         id: "atlas",
@@ -4615,7 +4340,10 @@ describe("Sunfall Arc Start", () => {
       });
       expect(
         runWithRuntime(clientRuntime, () =>
-          AsyncResult.getOrElse(Resource.status(invalidatedRef).result, () => undefined),
+          AsyncResult.getOrElse(
+            Effect.runSync(Resource.statusEffect(invalidatedRef)).result,
+            () => undefined,
+          ),
         ),
       ).toEqual({
         id: "atlas",
@@ -4673,9 +4401,12 @@ describe("Sunfall Arc Start", () => {
 
     try {
       await runInRuntime(runtime, Resource.prefetchEffect(ref));
-      expect(runWithRuntime(defaultRuntime, () => Resource.status(ref).result._tag)).toBe(
-        "Initial",
-      );
+      expect(
+        runWithRuntime(
+          defaultRuntime,
+          () => Effect.runSync(Resource.statusEffect(ref)).result._tag,
+        ),
+      ).toBe("Initial");
 
       await expect(
         runInRuntime(runtime, action.submitEffect({ id: "atlas", name: "Caller Runtime" })),
@@ -4689,15 +4420,18 @@ describe("Sunfall Arc Start", () => {
 
       expect(
         runWithRuntime(runtime, () =>
-          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+          AsyncResult.getOrElse(Effect.runSync(Resource.statusEffect(ref)).result, () => undefined),
         ),
       ).toEqual({
         id: "atlas",
         name: "Caller Runtime",
       });
-      expect(runWithRuntime(defaultRuntime, () => Resource.status(ref).result._tag)).toBe(
-        "Initial",
-      );
+      expect(
+        runWithRuntime(
+          defaultRuntime,
+          () => Effect.runSync(Resource.statusEffect(ref)).result._tag,
+        ),
+      ).toBe("Initial");
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
     }
@@ -5139,7 +4873,7 @@ describe("Sunfall Arc Start", () => {
       output: Schema.Struct({ value: Schema.String }),
       run: ({ value }) => Effect.succeed({ value }),
     });
-    const definitions = Resource.definitions() as Map<string, unknown>;
+    const definitions = resourceDefinitionRegistry() as Map<string, unknown>;
     const globalDefinition = definitions.get("Start.action.client.runtime-local-ref");
     const fetcher: StartFetch = () =>
       Effect.succeed(
@@ -5177,7 +4911,7 @@ describe("Sunfall Arc Start", () => {
         value: { value: "ok" },
       });
 
-      expect(runWithRuntime(runtime, () => read(ref))).toBe(1);
+      expect(runtime.runSync(Resource.readEffect(ref))).toBe(1);
     } finally {
       if (globalDefinition) {
         definitions.set("Start.action.client.runtime-local-ref", globalDefinition);
@@ -5257,7 +4991,7 @@ describe("Sunfall Arc Start", () => {
 
       expect(
         runWithRuntime(appRuntime, () =>
-          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+          AsyncResult.getOrElse(Effect.runSync(Resource.statusEffect(ref)).result, () => undefined),
         ),
       ).toEqual({
         id: "atlas",
@@ -5265,7 +4999,7 @@ describe("Sunfall Arc Start", () => {
       });
       expect(
         runWithRuntime(transportRuntime, () =>
-          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+          AsyncResult.getOrElse(Effect.runSync(Resource.statusEffect(ref)).result, () => undefined),
         ),
       ).toEqual({
         id: "atlas",
@@ -5464,7 +5198,7 @@ describe("Sunfall Arc Start", () => {
       expect(result.hydration).toBeUndefined();
       expect(
         runWithRuntime(clientRuntime, () =>
-          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+          AsyncResult.getOrElse(Effect.runSync(Resource.statusEffect(ref)).result, () => undefined),
         ),
       ).toEqual({
         id: "atlas",
@@ -5566,7 +5300,7 @@ describe("Sunfall Arc Start", () => {
       expect(result.hydration).toBeUndefined();
       expect(
         runWithRuntime(clientRuntime, () =>
-          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+          AsyncResult.getOrElse(Effect.runSync(Resource.statusEffect(ref)).result, () => undefined),
         ),
       ).toEqual({
         id: "atlas",
@@ -5805,7 +5539,7 @@ describe("Sunfall Arc Start", () => {
       });
       expect(
         runWithRuntime(runtime, () =>
-          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+          AsyncResult.getOrElse(Effect.runSync(Resource.statusEffect(ref)).result, () => undefined),
         ),
       ).toEqual({
         id: "atlas",
@@ -5813,7 +5547,10 @@ describe("Sunfall Arc Start", () => {
       });
       expect(
         runWithRuntime(runtime, () =>
-          AsyncResult.getOrElse(Resource.status(invalidatedRef).result, () => undefined),
+          AsyncResult.getOrElse(
+            Effect.runSync(Resource.statusEffect(invalidatedRef)).result,
+            () => undefined,
+          ),
         ),
       ).toEqual({
         id: "atlas",
@@ -5831,7 +5568,7 @@ describe("Sunfall Arc Start", () => {
       });
       expect(
         runWithRuntime(runtime, () =>
-          AsyncResult.getOrElse(Resource.status(ref).result, () => undefined),
+          AsyncResult.getOrElse(Effect.runSync(Resource.statusEffect(ref)).result, () => undefined),
         ),
       ).toEqual({
         id: "atlas",
@@ -5839,7 +5576,10 @@ describe("Sunfall Arc Start", () => {
       });
       expect(
         runWithRuntime(runtime, () =>
-          AsyncResult.getOrElse(Resource.status(invalidatedRef).result, () => undefined),
+          AsyncResult.getOrElse(
+            Effect.runSync(Resource.statusEffect(invalidatedRef)).result,
+            () => undefined,
+          ),
         ),
       ).toEqual({
         id: "atlas",
@@ -5889,7 +5629,7 @@ describe("Sunfall Arc Start", () => {
 
     hydrateFromDocument(document as Pick<Document, "getElementById">);
 
-    expect(Resource.read(ref)).toEqual({ id: "1", name: "Hydrated" });
+    expect(Effect.runSync(Resource.readEffect(ref))).toEqual({ id: "1", name: "Hydrated" });
   });
 
   it("hydrates DB collections from a document script", () => {
@@ -5963,7 +5703,7 @@ describe("Sunfall Arc Start", () => {
           ],
         },
         {
-          collectionRegistry: Collection.defaultRegistry,
+          collectionRegistry: defaultCollectionDefinitionRegistry,
         },
       ),
     );
@@ -6020,7 +5760,7 @@ describe("Sunfall Arc Start", () => {
           ],
         },
         {
-          collectionRegistry: Collection.makeRegistry(),
+          collectionRegistry: makeCollectionDefinitionRegistry(),
         },
       ),
     );
@@ -6040,10 +5780,13 @@ describe("Sunfall Arc Start", () => {
       name,
       getKey: (project) => project.id,
     });
-    const ShadowProjects = Collection.define<{ readonly slug: string; readonly title: string }>({
-      name,
-      getKey: (project) => project.slug,
-    });
+    const ShadowProjects = defineCollection<{ readonly slug: string; readonly title: string }>(
+      {
+        name,
+        getKey: (project) => project.slug,
+      },
+      makeCollectionDefinitionRegistry(),
+    );
 
     const exit = await Effect.runPromiseExit(
       hydrateStartPayloadEffect(
@@ -6121,7 +5864,9 @@ describe("Sunfall Arc Start", () => {
       expect(Exit.isFailure(exit)).toBe(true);
       if (!Exit.isFailure(exit)) return expect.fail("expected failure exit");
       expect(firstFailure(exit.cause)).toBeInstanceOf(CollectionSnapshotCodecError);
-      expect(runWithRuntime(runtime, () => Resource.status(ref).result._tag)).toBe("Initial");
+      expect(
+        runWithRuntime(runtime, () => Effect.runSync(Resource.statusEffect(ref)).result._tag),
+      ).toBe("Initial");
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
     }
@@ -6349,9 +6094,9 @@ describe("Sunfall Arc Start", () => {
         },
       );
 
-      expect(Resource.status(ref).result._tag).toBe("Initial");
+      expect(Effect.runSync(Resource.statusEffect(ref)).result._tag).toBe("Initial");
       expect(Projects.get("atlas")).toBeUndefined();
-      expect(runWithRuntime(runtime, () => Resource.read(ref))).toEqual({
+      expect(runtime.runSync(Resource.readEffect(ref))).toEqual({
         id: "1",
         name: "Runtime Hydrated",
       });
@@ -6414,8 +6159,8 @@ describe("Sunfall Arc Start", () => {
       );
 
       expect(streamElement.getAttribute(streamHydrationConsumedAttribute)).toBe("true");
-      expect(Resource.status(ref).result._tag).toBe("Initial");
-      expect(runWithRuntime(runtime, () => Resource.read(ref))).toEqual({
+      expect(Effect.runSync(Resource.statusEffect(ref)).result._tag).toBe("Initial");
+      expect(runtime.runSync(Resource.readEffect(ref))).toEqual({
         id: "1",
         name: "Hydrated",
       });
@@ -6494,11 +6239,11 @@ describe("Sunfall Arc Start", () => {
         streamRef.key,
       ]);
       expect(streamElement.getAttribute(streamHydrationConsumedAttribute)).toBe("true");
-      expect(runWithRuntime(runtime, () => Resource.read(rootRef))).toEqual({
+      expect(runtime.runSync(Resource.readEffect(rootRef))).toEqual({
         id: "root",
         name: "Root",
       });
-      expect(runWithRuntime(runtime, () => Resource.read(streamRef))).toEqual({
+      expect(runtime.runSync(Resource.readEffect(streamRef))).toEqual({
         id: "stream",
         name: "Stream",
       });
@@ -6659,13 +6404,16 @@ describe("Sunfall Arc Start", () => {
           _tag: "ResourceSnapshotCodecError",
         });
       }
-      expect(runWithRuntime(runtime, () => Resource.read(validRef))).toEqual({
+      expect(runtime.runSync(Resource.readEffect(validRef))).toEqual({
         id: "valid",
         name: "Valid",
       });
-      expect(runWithRuntime(runtime, () => Resource.status(invalidRef).result._tag)).toBe(
-        "Initial",
-      );
+      expect(
+        runWithRuntime(
+          runtime,
+          () => Effect.runSync(Resource.statusEffect(invalidRef)).result._tag,
+        ),
+      ).toBe("Initial");
       expect(
         streamElements.map((element) => element.getAttribute(streamHydrationConsumedAttribute)),
       ).toEqual([null, null]);
@@ -6686,14 +6434,12 @@ describe("Sunfall Arc Start", () => {
           selector === `[${streamHydrationAttribute}]` ? [streamElement] : [],
       };
 
-      const first = hydrateStartHydrationChunksFromDocument(document, {
-        markConsumed: false,
-        runtime,
-      });
-      const second = hydrateStartHydrationChunksFromDocument(document, {
-        markConsumed: false,
-        runtime,
-      });
+      const first = runtime.runSync(
+        hydrateStartHydrationChunksFromDocumentEffect(document, { markConsumed: false }),
+      );
+      const second = runtime.runSync(
+        hydrateStartHydrationChunksFromDocumentEffect(document, { markConsumed: false }),
+      );
 
       expect(first).toHaveLength(1);
       expect(second).toHaveLength(1);
@@ -6703,7 +6449,7 @@ describe("Sunfall Arc Start", () => {
     }
   });
 
-  it("rejects malformed streamed hydration chunks with typed repair guidance", () => {
+  it("rejects malformed streamed hydration chunks with typed repair guidance", async () => {
     const element = {
       textContent: JSON.stringify({ resources: "invalid" }),
       getAttribute: (name: string) => (name === streamHydrationSequenceAttribute ? "4" : null),
@@ -6713,21 +6459,17 @@ describe("Sunfall Arc Start", () => {
         selector === `[${streamHydrationAttribute}]` ? [element] : [],
     };
 
-    expect(() => hydrateStartHydrationChunksFromDocument(document)).toThrow(
-      StartHydrationChunkParseError,
+    const error = await Effect.runPromise(
+      Effect.flip(hydrateStartHydrationChunksFromDocumentEffect(document)),
     );
-
-    try {
-      hydrateStartHydrationChunksFromDocument(document);
-    } catch (error) {
-      expect(error).toMatchObject({
-        sequence: 4,
-        value: { resources: "invalid" },
-      });
-    }
+    expect(error).toBeInstanceOf(StartHydrationChunkParseError);
+    expect(error).toMatchObject({
+      sequence: 4,
+      value: { resources: "invalid" },
+    });
   });
 
-  it("reads legacy streamed root payloads as ordered chunks through the sync facade", () => {
+  it("reads legacy streamed root payloads as ordered chunks", () => {
     const payload = {
       resources: [],
     };
@@ -6740,7 +6482,7 @@ describe("Sunfall Arc Start", () => {
         selector === `[${streamHydrationAttribute}]` ? [element] : [],
     };
 
-    expect(readStartHydrationChunks(document)).toEqual([
+    expect(Effect.runSync(readStartHydrationChunksEffect(document))).toEqual([
       {
         _tag: "StartHydrationChunk",
         version: 1,
@@ -6911,10 +6653,10 @@ describe("Sunfall Arc Start", () => {
   it("keeps .server modules out of the client transform graph", () => {
     const plugin = sunfallArcStart();
 
-    expect(isServerOnlyModule("/src/domain.server.ts")).toBe(true);
-    expect(isServerOnlyModule("/src/domain.server.tsrx")).toBe(true);
-    expect(isServerOnlyModule("/src/domain.contract.ts")).toBe(false);
-    expect(isServerOnlyModule("/src/domain.contract.tsrx")).toBe(false);
+    expect(isStartManifestServerOnlyModule("/src/domain.server.ts")).toBe(true);
+    expect(isStartManifestServerOnlyModule("/src/domain.server.tsrx")).toBe(true);
+    expect(isStartManifestServerOnlyModule("/src/domain.contract.ts")).toBe(false);
+    expect(isStartManifestServerOnlyModule("/src/domain.contract.tsrx")).toBe(false);
     expect(() => plugin.transform("", "/src/domain.server.ts", {})).toThrow(
       StartServerOnlyModuleError,
     );
@@ -6922,54 +6664,6 @@ describe("Sunfall Arc Start", () => {
       StartServerOnlyModuleError,
     );
     expect(plugin.transform("", "/src/domain.server.ts", { ssr: true })).toBeNull();
-  });
-
-  it("rejects direct server function arrays instead of inferring export names from wire names", async () => {
-    const getProject = Server.fn<string, string>("Start.Project.get-by-id", {
-      handler: (id) => Effect.succeed(id),
-    });
-    const exit = await Effect.runPromiseExit(
-      makeStartServerFunctionManifestEffect({
-        serverEntry: "/src/project.server.ts",
-        serverFunctions: [getProject],
-      }),
-    );
-    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
-
-    expect(failure).toBeInstanceOf(StartManifestDirectReferenceError);
-    expect(failure).toMatchObject({
-      kind: "serverFunctions",
-      count: 1,
-      serverEntry: "/src/project.server.ts",
-    });
-    expect((failure as StartManifestDirectReferenceError).guidance).toContain(
-      "serverFunctionSources",
-    );
-    expect((failure as StartManifestDirectReferenceError).guidance).toContain("exportName");
-  });
-
-  it("rejects direct action arrays instead of inferring export names from wire names", async () => {
-    const RenameProject = Action.define<string, string>({
-      name: "Start.Project.rename-from-form",
-      run: (name) => Effect.succeed(name),
-    });
-    const exit = await Effect.runPromiseExit(
-      makeStartActionManifestEffect({
-        serverEntry: "/src/project.actions.ts",
-        // Deliberately invalid: direct action references are rejected at runtime.
-        actions: [RenameProject as never],
-      }),
-    );
-    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
-
-    expect(failure).toBeInstanceOf(StartManifestDirectReferenceError);
-    expect(failure).toMatchObject({
-      kind: "actions",
-      count: 1,
-      serverEntry: "/src/project.actions.ts",
-    });
-    expect((failure as StartManifestDirectReferenceError).guidance).toContain("actionSources");
-    expect((failure as StartManifestDirectReferenceError).guidance).toContain("exportName");
   });
 
   it("emits a production-shaped server function manifest from the Vite preset", async () => {
@@ -7183,8 +6877,8 @@ describe("Sunfall Arc Start", () => {
     expect(String(loaded)).toContain(
       "export const routes = [route_root, route_projects_$id] as const;",
     );
-    expect(String(loaded)).toContain("export const routeTree = routes;");
-    expect(String(loaded)).toContain("export default routes;");
+    expect(String(loaded)).not.toContain("export const routeTree");
+    expect(String(loaded)).not.toContain("export default");
   });
 
   it("discovers file routes from the Vite root when no explicit route input is supplied", async () => {
@@ -7262,19 +6956,17 @@ describe("Sunfall Arc Start", () => {
       expect(generated).toContain(
         'const route_projects_$id_path: "/projects/:id" = route_projects_$id.path;',
       );
-      expect(generated).toContain("export const routeTree = routes;");
       expect(generated).toContain('  "/projects/:id": route_projects_$id');
       expect(generated).toContain("export type FileRouteHrefOptionsById = {");
       expect(generated).toContain(
         "readonly [Id in FileRouteId]: Route.HrefOptions<RouteById[Id]>;",
       );
-      expect(generated).toContain("export const hrefByPath = <Path extends RoutePath>(");
+      expect(generated).toContain("export const hrefByPath = <Path extends FileRoutePath>(");
       expect(generated).toContain(
-        "export type Href<Id extends RouteId> = FileRouteHrefOptions<Id>;",
+        "export type FileRouteMatch<Path extends FileRoutePath> = Route.Match<RouteByPath[Path]>;",
       );
-      expect(generated).toContain(
-        "export type Match<Path extends RoutePath> = FileRouteMatch<Path>;",
-      );
+      expect(generated).not.toContain("export type Href<");
+      expect(generated).not.toContain("export type RouteId =");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -7688,7 +7380,7 @@ describe("Sunfall Arc Start", () => {
     expect(String(loaded)).toMatchInlineSnapshot(`
       "import { Effect } from "effect";
       import { Resource, Route } from "@sunfall/arc-core";
-      import { describeStartAppGraphRuntimeDiagnostics, startAppGraphCollectionDefinitions, validateStartAppGraphDiagnosticsPolicyExceptionEffect } from "@sunfall/arc-start";
+      import { describeStartAppGraphRuntimeDiagnostics, startAppGraphCollectionDefinitions, validateStartAppGraphDiagnosticsPolicyExceptionEffect } from "@sunfall/arc-start/internal";
 
       import { Route as route_projects_$id } from "/src/routes/projects/$id.js";
 
@@ -7777,7 +7469,7 @@ describe("Sunfall Arc Start", () => {
       );
 
       const result = await Effect.runPromise(
-        loadStartAppGraphDiagnosticsEffect({
+        loadStartAppGraphDiagnostics({
           root,
           configFile: false,
           start: {
@@ -7894,7 +7586,7 @@ describe("Sunfall Arc Start", () => {
       );
 
       const result = await Effect.runPromise(
-        loadStartAppGraphDiagnosticsEffect({
+        loadStartAppGraphDiagnostics({
           root,
           configFile: false,
           start: {
@@ -7937,7 +7629,7 @@ describe("Sunfall Arc Start", () => {
       );
 
       const result = await Effect.runPromise(
-        loadStartAppGraphDiagnosticsEffect({
+        loadStartAppGraphDiagnostics({
           root,
           configFile: false,
           vite: {
@@ -7999,7 +7691,7 @@ describe("Sunfall Arc Start", () => {
       );
 
       const result = await Effect.runPromise(
-        loadStartAppGraphDiagnosticsEffect({
+        loadStartAppGraphDiagnostics({
           root,
           start: {
             fileRoutes: ["src/routes/explicit.ts"],
@@ -8042,7 +7734,7 @@ describe("Sunfall Arc Start", () => {
 
       await expect(
         Effect.runPromise(
-          loadStartAppGraphDiagnosticsEffect({
+          loadStartAppGraphDiagnostics({
             root,
             configFile: false,
             vite: {
@@ -8476,7 +8168,7 @@ describe("Sunfall Arc Start", () => {
     const helpStdout: string[] = [];
     const helpStderr: string[] = [];
     const helpResult = await Effect.runPromise(
-      runStartDiagnosticsCliEffect(["--help"], {
+      runStartDiagnosticsCli(["--help"], {
         stdout: (text) => {
           helpStdout.push(text);
         },
@@ -8494,7 +8186,7 @@ describe("Sunfall Arc Start", () => {
     const graphHelpStdout: string[] = [];
     const graphHelpStderr: string[] = [];
     const graphHelpResult = await Effect.runPromise(
-      runStartDiagnosticsCliEffect(["graph", "--help"], {
+      runStartDiagnosticsCli(["graph", "--help"], {
         stdout: (text) => {
           graphHelpStdout.push(text);
         },
@@ -8514,7 +8206,7 @@ describe("Sunfall Arc Start", () => {
     const impactHelpStdout: string[] = [];
     const impactHelpStderr: string[] = [];
     const impactHelpResult = await Effect.runPromise(
-      runStartDiagnosticsCliEffect(["impact", "--help"], {
+      runStartDiagnosticsCli(["impact", "--help"], {
         stdout: (text) => {
           impactHelpStdout.push(text);
         },
@@ -8534,7 +8226,7 @@ describe("Sunfall Arc Start", () => {
     const versionStdout: string[] = [];
     const versionStderr: string[] = [];
     const versionResult = await Effect.runPromise(
-      runStartDiagnosticsCliEffect(["--version"], {
+      runStartDiagnosticsCli(["--version"], {
         stdout: (text) => {
           versionStdout.push(text);
         },
@@ -8551,7 +8243,7 @@ describe("Sunfall Arc Start", () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
     const result = await Effect.runPromise(
-      runStartDiagnosticsCliEffect(["diagnostics", "--json"], {
+      runStartDiagnosticsCli(["diagnostics", "--json"], {
         stdout: (text) => {
           stdout.push(text);
         },
@@ -8610,7 +8302,7 @@ describe("Sunfall Arc Start", () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
     const result = await Effect.runPromise(
-      runStartDiagnosticsCliEffect(["graph", "route", "/projects/:id"], {
+      runStartDiagnosticsCli(["graph", "route", "/projects/:id"], {
         stdout: (text) => {
           stdout.push(text);
         },
@@ -8863,18 +8555,15 @@ describe("Sunfall Arc Start", () => {
       const graphStdout: string[] = [];
       const graphStderr: string[] = [];
       const graphResult = await Effect.runPromise(
-        runStartDiagnosticsCliEffect(
-          ["graph", kind, startAgentGraphCliQueryTextByKind[kind], "--json"],
-          {
-            stdout: (text) => {
-              graphStdout.push(text);
-            },
-            stderr: (text) => {
-              graphStderr.push(text);
-            },
-            loadDiagnosticsEffect,
+        runStartDiagnosticsCli(["graph", kind, startAgentGraphCliQueryTextByKind[kind], "--json"], {
+          stdout: (text) => {
+            graphStdout.push(text);
           },
-        ),
+          stderr: (text) => {
+            graphStderr.push(text);
+          },
+          loadDiagnosticsEffect,
+        }),
       );
       const graphPayload = JSON.parse(graphStdout[0] ?? "{}") as {
         readonly result?: {
@@ -8893,7 +8582,7 @@ describe("Sunfall Arc Start", () => {
       const impactStdout: string[] = [];
       const impactStderr: string[] = [];
       const impactResult = await Effect.runPromise(
-        runStartDiagnosticsCliEffect(
+        runStartDiagnosticsCli(
           [
             "impact",
             kind,
@@ -8943,7 +8632,7 @@ describe("Sunfall Arc Start", () => {
     const stderr: string[] = [];
     const loadOptions: unknown[] = [];
     const result = await Effect.runPromise(
-      runStartDiagnosticsCliEffect(
+      runStartDiagnosticsCli(
         [
           "impact",
           "route",
@@ -9129,7 +8818,7 @@ describe("Sunfall Arc Start", () => {
     const stdout: string[] = [];
     const stderr: string[] = [];
     const result = await Effect.runPromise(
-      runStartDiagnosticsCliEffect(
+      runStartDiagnosticsCli(
         ["impact", "route", "/projects/:id", "--root", "examples/project-console"],
         {
           stdout: (text) => {
@@ -9216,7 +8905,7 @@ describe("Sunfall Arc Start", () => {
   it("returns a usage result for invalid Start diagnostics CLI input", async () => {
     const stderr: string[] = [];
     const result = await Effect.runPromise(
-      runStartDiagnosticsCliEffect(["unknown"], {
+      runStartDiagnosticsCli(["unknown"], {
         stdout: () => undefined,
         stderr: (text) => {
           stderr.push(text);
@@ -9230,7 +8919,7 @@ describe("Sunfall Arc Start", () => {
 
     const extraGraphStderr: string[] = [];
     const extraGraphResult = await Effect.runPromise(
-      runStartDiagnosticsCliEffect(["graph", "route", "/projects/:id", "extra"], {
+      runStartDiagnosticsCli(["graph", "route", "/projects/:id", "extra"], {
         stdout: () => undefined,
         stderr: (text) => {
           extraGraphStderr.push(text);
@@ -9243,7 +8932,7 @@ describe("Sunfall Arc Start", () => {
 
     const missingImpactStderr: string[] = [];
     const missingImpactResult = await Effect.runPromise(
-      runStartDiagnosticsCliEffect(["impact", "route"], {
+      runStartDiagnosticsCli(["impact", "route"], {
         stdout: () => undefined,
         stderr: (text) => {
           missingImpactStderr.push(text);
@@ -9264,7 +8953,7 @@ describe("Sunfall Arc Start", () => {
     try {
       process.exitCode = undefined;
       await Effect.runPromise(
-        runStartDiagnosticsCliMainEffect(["--help"], {
+        runStartDiagnosticsCliMain(["--help"], {
           stdout: () => Effect.fail("stdout unavailable"),
           stderr: (text) => {
             stderr.push(text);
@@ -9307,7 +8996,7 @@ describe("Sunfall Arc Start", () => {
       const stdout: string[] = [];
       const stderr: string[] = [];
       const result = await Effect.runPromise(
-        runStartDiagnosticsCliEffect(["diagnostics"], {
+        runStartDiagnosticsCli(["diagnostics"], {
           stdout: (text) => {
             stdout.push(text);
           },
@@ -9722,7 +9411,7 @@ describe("Sunfall Arc Start", () => {
 
     expect(() =>
       plugin.transform(
-        `import { BrowserRpcLive, hydrateFromDocument } from "@sunfall/arc-start";`,
+        `import { hydrateFromDocument, makeRpcClientLayer } from "@sunfall/arc-start";`,
         "/src/main.tsx",
         { ssr: false },
       ),
@@ -9788,7 +9477,7 @@ describe("Sunfall Arc Start", () => {
 
     await expect(
       Effect.runPromise(
-        handleSsrDevRequestEffect(server, new Request("https://example.com/projects/kepler")),
+        handleSsrDevRequest(server, new Request("https://example.com/projects/kepler")),
       ),
     ).resolves.toBeInstanceOf(Response);
   });
@@ -9821,7 +9510,7 @@ describe("Sunfall Arc Start", () => {
     };
 
     const exit = await Effect.runPromiseExit(
-      handleSsrDevRequestEffect(server, new Request("https://example.com/")),
+      handleSsrDevRequest(server, new Request("https://example.com/")),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -9880,7 +9569,7 @@ describe("Sunfall Arc Start", () => {
     };
 
     const fiber = Effect.runFork(
-      handleSsrDevRequestEffect(
+      handleSsrDevRequest(
         server,
         new Request("https://example.com/", { signal: controller.signal }),
       ),
@@ -9945,7 +9634,7 @@ describe("Sunfall Arc Start", () => {
     };
 
     const exit = await Effect.runPromiseExit(
-      handleSsrDevRequestEffect(
+      handleSsrDevRequest(
         server,
         new Request("https://example.com/", { signal: controller.signal }),
       ),
@@ -9995,7 +9684,7 @@ describe("Sunfall Arc Start", () => {
     };
 
     const fiber = Effect.runFork(
-      handleSsrDevRequestEffect(
+      handleSsrDevRequest(
         server,
         new Request("https://example.com/slow", { signal: controller.signal }),
       ),
@@ -10037,7 +9726,7 @@ describe("Sunfall Arc Start", () => {
     };
 
     const response = await Effect.runPromise(
-      handleSsrDevRequestEffect(server, new Request("https://example.com/scoped")),
+      handleSsrDevRequest(server, new Request("https://example.com/scoped")),
     );
 
     await expect(response.text()).resolves.toContain("scoped");
@@ -10227,7 +9916,7 @@ describe("Sunfall Arc Start", () => {
     };
 
     const response = await Effect.runPromise(
-      handleSsrDevRequestEffect(server, new Request("https://example.com/pass-through")),
+      handleSsrDevRequest(server, new Request("https://example.com/pass-through")),
     );
     const reader = response.body!.getReader();
 
@@ -10285,7 +9974,7 @@ describe("Sunfall Arc Start", () => {
     };
 
     const exit = await Effect.runPromiseExit(
-      handleSsrDevRequestEffect(server, new Request("https://example.com/promise")),
+      handleSsrDevRequest(server, new Request("https://example.com/promise")),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
@@ -10308,7 +9997,7 @@ describe("Sunfall Arc Start", () => {
     };
 
     const exit = await Effect.runPromiseExit(
-      handleSsrDevRequestEffect(server, new Request("https://example.com/invalid")),
+      handleSsrDevRequest(server, new Request("https://example.com/invalid")),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 

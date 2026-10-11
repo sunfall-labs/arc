@@ -1,4 +1,3 @@
-import { Effect } from "effect";
 import {
   factRecord,
   factString,
@@ -271,11 +270,3 @@ export const createStartAgentGraphImpact = (
     }),
   };
 };
-
-/** Effect wrapper for `createStartAgentGraphImpact(...)`. */
-export const createStartAgentGraphImpactEffect = (
-  graph: StartAgentGraph,
-  query: StartAgentGraphQuery,
-  options: StartAgentGraphImpactOptions = {},
-): Effect.Effect<StartAgentGraphImpact> =>
-  Effect.succeed(createStartAgentGraphImpact(graph, query, options));

@@ -2,12 +2,12 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Effect } from "effect";
 import { Window } from "happy-dom";
+import { type StartHydrationPayload } from "@sunfall/arc-start";
 import {
   hydrationScriptId,
   streamHydrationAttribute,
   type StartHydrationChunk,
-  type StartHydrationPayload,
-} from "@sunfall/arc-start";
+} from "@sunfall/arc-start/testing";
 import { app } from "./app-definition.js";
 import { WelcomeRef } from "./starter.js";
 import {

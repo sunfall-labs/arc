@@ -1,11 +1,11 @@
 import { makeRuntime } from "@sunfall/arc-core";
-import { BrowserRpcLive } from "@sunfall/arc-start";
+import { makeRpcClientLayer } from "@sunfall/arc-start";
 import { Layer } from "effect";
 import App from "../src/App.js";
 import { ProjectApiLive } from "../src/domain.js";
 import { ProjectDemoStoreLive } from "../src/domain.server.js";
 
-const browserRuntime = makeRuntime(Layer.mergeAll(BrowserRpcLive, ProjectApiLive));
+const browserRuntime = makeRuntime(Layer.mergeAll(makeRpcClientLayer(), ProjectApiLive));
 const serverRuntime = makeRuntime(Layer.mergeAll(ProjectApiLive, ProjectDemoStoreLive));
 const projectRuntime = makeRuntime(ProjectApiLive);
 const emptyRuntime = makeRuntime(Layer.empty);

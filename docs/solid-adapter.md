@@ -59,9 +59,13 @@ Effect-returning methods:
   `useResourceResult(ref)` returns just the `result` accessor.
 - `useAction(definition)` → `{ result, input, invalidationPlan, submitEffect, resetEffect, reset, instance, definition }`.
   `result()` is `Initial` while idle; `input()` is the latest submission input as an `Option`.
-- `useCollection(collection)` → `rows`, `result` (`AsyncResult<void, E>`), lookups, and Effects.
+- `useCollection(collection)` → reactive reads only: `rows`, `result`
+  (`AsyncResult<void, E>`), `get`, `index`, `pendingMutations`, `preloadFailure`.
+  Writes run the definition's Effects through the runtime runner:
+  `runEffect(Projects.updateEffect(id, patch))` with `useRuntimeEffect()`.
 - `useLiveQuery(query)` → `data` (always the last good rows) and `result`
-  (`AsyncResult<ReadonlyArray<T>, E>`).
+  (`AsyncResult<ReadonlyArray<T>, E>`). The query factory runs tracked: a
+  signal or prop it reads (`props.projectId`) rebuilds the query.
 
 `AsyncResult` answers the common rendering questions directly:
 `AsyncResult.value(result)` (current or stale value), `AsyncResult.error(result)`

@@ -1,12 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import {
-  defaultRuntime,
-  toEffect,
-  type EffectInput,
-  type SunfallArcRuntime,
-} from "@sunfall/arc-core";
+import { type EffectInput, type SunfallArcRuntime } from "@sunfall/arc-core";
+import { defaultRuntime, toEffect } from "@sunfall/arc-core/internal";
 import { Cause, Effect, Scope } from "effect";
-import { StartRequestHandlerError } from "./start-request-handler-error.js";
+import type { StartRequestHandlerError } from "./start-request-handler-error.js";
 import {
   invokeStartRequestHandlerEffect,
   type StartRequestHandlerInput,
@@ -25,14 +21,11 @@ import {
   type StartHostForkRunnerOptions,
 } from "./start-host-runtime-runner.js";
 
-export { StartRequestHandlerError } from "./start-request-handler-error.js";
 export {
   StartNodeAdapterError,
   nodeRequestOrigin,
   nodeRequestToWebRequest,
-  nodeRequestToWebRequestEffect,
   writeNodeResponse,
-  writeNodeResponseEffect,
 } from "./node-web-exchange.js";
 export type {
   StartNodeOriginPolicy,
@@ -40,14 +33,11 @@ export type {
   WriteNodeResponseOptions,
 } from "./node-web-exchange.js";
 
-/** Effect-first Node HTTP handler returned by `createNodeHandlerEffect`. */
-export type StartNodeHandlerEffect<Requirements = never> = (
+/** Effect-first Node HTTP handler returned by `createNodeHandler`. */
+export type StartNodeHandler<Requirements = never> = (
   request: IncomingMessage,
   response: ServerResponse,
 ) => Effect.Effect<Response, StartNodeAdapterError | StartRequestHandlerError, Requirements>;
-
-/** Node HTTP handler returned by `createNodeHandler`. */
-export type StartNodeHandler<Requirements = never> = StartNodeHandlerEffect<Requirements>;
 
 export type { StartForkRuntime } from "./start-host-runtime-runner.js";
 
@@ -104,29 +94,29 @@ export type StartNodeServerHandler = (request: IncomingMessage, response: Server
  *
  * @example
  * ```ts
- * const nodeHandler = createNodeHandlerEffect(startHandler);
+ * const nodeHandler = createNodeHandler(startHandler);
  * ```
  */
-export function createNodeHandlerEffect<Handler extends StartRequestHandlerInput<any, any>>(
+export function createNodeHandler<Handler extends StartRequestHandlerInput<any, any>>(
   handler: Handler,
   options?: StartNodeRequestOptions,
-): StartNodeHandlerEffect<StartRequestHandlerRequirements<Handler>>;
+): StartNodeHandler<StartRequestHandlerRequirements<Handler>>;
 /**
  * Creates an Effect-first Node HTTP handler while preserving explicit handler
  * service requirements for the caller's runtime.
  */
-export function createNodeHandlerEffect<HandlerError, Requirements>(
+export function createNodeHandler<HandlerError, Requirements>(
   handler: StartRequestHandlerInput<HandlerError, Requirements>,
   options?: StartNodeRequestOptions,
-): StartNodeHandlerEffect<Requirements>;
+): StartNodeHandler<Requirements>;
 /**
  * Implementation for the Effect-first Node Adapter. It owns Node/Web request
  * conversion and response writing, but leaves execution to the returned Effect.
  */
-export function createNodeHandlerEffect(
+export function createNodeHandler(
   handler: StartRequestHandlerInput<any, any>,
   options: StartNodeRequestOptions = {},
-): StartNodeHandlerEffect<any> {
+): StartNodeHandler<any> {
   return (request, response) =>
     Effect.gen(function* () {
       const webRequest = yield* nodeRequestToWebRequestEffect(request, options);
@@ -134,30 +124,6 @@ export function createNodeHandlerEffect(
       yield* writeNodeExchangeResponseEffect(request, response, webResponse);
       return webResponse;
     });
-}
-
-/** Alias for `createNodeHandlerEffect`. */
-export function createNodeHandler<Handler extends StartRequestHandlerInput<any, any>>(
-  handler: Handler,
-  options?: StartNodeRequestOptions,
-): StartNodeHandler<StartRequestHandlerRequirements<Handler>>;
-/**
- * Alias overload for typed Start request handlers whose service requirements
- * remain visible on the returned Node Effect handler.
- */
-export function createNodeHandler<HandlerError, Requirements>(
-  handler: StartRequestHandlerInput<HandlerError, Requirements>,
-  options?: StartNodeRequestOptions,
-): StartNodeHandler<Requirements>;
-/**
- * Implementation for the Node Effect Adapter alias. It delegates to
- * `createNodeHandlerEffect(...)` without creating a Promise-shaped host facade.
- */
-export function createNodeHandler(
-  handler: StartRequestHandlerInput<any, any>,
-  options: StartNodeRequestOptions = {},
-): StartNodeHandler<any> {
-  return createNodeHandlerEffect(handler, options);
 }
 
 const defaultNodeServerErrorHandler: StartNodeServerErrorHandler = (error, _request, response) => {
@@ -191,7 +157,7 @@ const reportNodeServerErrorEffect = (
 /**
  * Creates a Node `createServer` callback that runs the adapter Effect.
  *
- * This keeps `createNodeHandlerEffect` available for Effect-first hosts while
+ * This keeps `createNodeHandler` available for Effect-first hosts while
  * giving ordinary Node HTTP integrations a host-shaped callback facade.
  */
 export function createNodeServerHandler<
@@ -204,7 +170,7 @@ export function createNodeServerHandler<
   const options = args[0] ?? {};
   return (request, response) => {
     const lifecycle = nodeRequestLifecycle(request, response);
-    const effectHandler = createNodeHandlerEffect(handler, {
+    const effectHandler = createNodeHandler(handler, {
       ...options,
       signal: lifecycle.signal,
     });

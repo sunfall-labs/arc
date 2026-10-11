@@ -3,8 +3,8 @@ import {
   Resource,
   ResourceFailure,
   type AnySunfallArcRuntime,
-  type ResourceUiInput,
 } from "@sunfall/arc-core";
+import { type ResourceUiInput } from "@sunfall/arc-core/internal";
 import { Cause, Context, Data, Deferred, Effect, Exit, Fiber, Layer, Option, Scope } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { createComponent, Errored, Loading, render, Show } from "@solidjs/web";

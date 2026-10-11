@@ -1,15 +1,9 @@
 import { Cause, Effect, Exit, Schema } from "effect";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import {
-  buildRoutePath,
-  DuplicateRouteParam,
   defineApp,
   EffectInputCallbackError,
   EffectInputPromiseRejected,
-  InvalidRouteParam,
-  matchRoutePath,
-  parseRoutePathSegments,
-  read,
   RequestContext,
   Resource,
   ResponseCookieSerializationError,
@@ -20,12 +14,20 @@ import {
   RoutePreloadError,
   RoutePreloadFailureCodecError,
   type RoutePreloadFailureEncoding,
-  routeParamsFromSegments,
-  routePathFromSegments,
-  routePathSlug,
   Server,
   ServerRouteHandlerError,
 } from "../src/index.js";
+import {
+  buildRoutePath,
+  DuplicateRouteParam,
+  InvalidRouteParam,
+  matchRoutePath,
+  parseRoutePathSegments,
+  routeParamsFromSegments,
+  routePathFromSegments,
+  routePathSlug,
+  matchRoutesEffect,
+} from "../src/internal.js";
 
 describe("route", () => {
   it("builds typed hrefs", () => {
@@ -370,7 +372,10 @@ describe("route", () => {
                 value: { id: "atlas", name: "Atlas" },
               },
             });
-            expect(read(Project("atlas"))).toEqual({ id: "atlas", name: "Atlas" });
+            expect(Effect.runSync(Resource.readEffect(Project("atlas")))).toEqual({
+              id: "atlas",
+              name: "Atlas",
+            });
           }),
         ),
         Effect.asVoid,
@@ -484,7 +489,7 @@ describe("route", () => {
     });
 
     return Effect.runPromise(
-      Effect.flip(Route.matchEffect([ProjectRoute] as const, "/projects/atlas")).pipe(
+      Effect.flip(matchRoutesEffect([ProjectRoute] as const, "/projects/atlas")).pipe(
         Effect.tap((error) =>
           Effect.sync(() => {
             expect(error).toBeInstanceOf(RouteNavigationError);
@@ -503,10 +508,10 @@ describe("route", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const duplicateError = yield* Effect.flip(
-          Route.matchEffect([DuplicateParamRoute] as const, "/projects/atlas/settings"),
+          matchRoutesEffect([DuplicateParamRoute] as const, "/projects/atlas/settings"),
         );
         const invalidError = yield* Effect.flip(
-          Route.matchEffect([InvalidParamRoute] as const, "/invalid-projects/atlas"),
+          matchRoutesEffect([InvalidParamRoute] as const, "/invalid-projects/atlas"),
         );
 
         expect(duplicateError).toBeInstanceOf(RouteNavigationError);

@@ -168,15 +168,15 @@ heads in the same direction, but plugs row state into the active Sunfall Arc
 runtime/resource store:
 
 ```ts
-export const ProjectSummaries = Collection.define(
-  Collection.serverOptions({
-    id: "Projects.collection",
-    output: ProjectSummarySchema,
-    getKey: (project) => project.id,
-    indexes: {
-      status: (project) => project.status,
-      owner: (project) => project.owner,
-    },
+export const ProjectSummaries = Collection.define({
+  name: "Projects.collection",
+  output: ProjectSummarySchema,
+  getKey: (project) => project.id,
+  indexes: {
+    status: (project) => project.status,
+    owner: (project) => project.owner,
+  },
+  sync: {
     load: () => ProjectApi.use((api) => api.list()),
     update: ({ updates }) =>
       Effect.forEach(
@@ -190,8 +190,8 @@ export const ProjectSummaries = Collection.define(
           ).pipe(Effect.asVoid),
         { discard: true },
       ),
-  }),
-);
+  },
+});
 ```
 
 Collections can expose secondary indexes, pending optimistic mutation queues,

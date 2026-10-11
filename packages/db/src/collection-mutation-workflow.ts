@@ -34,12 +34,12 @@ import {
 } from "./collection-value-detachment.js";
 import {
   applyCollectionUpdateEffect,
-  collectionCallbackEffect,
   collectionStateEffect,
   ensureCollectionRowKey,
 } from "./collection-projection-callback-policy.js";
 import { collectionStoreEffect, type RuntimeCollectionStore } from "./runtime-collection-store.js";
 import { withCollectionPolicyRetry } from "./collection-policy.js";
+import { collectionSyncHandlers } from "./sync-adapter.js";
 import type {
   CollectionDefinition,
   CollectionKey,
@@ -105,20 +105,15 @@ const collectionMutationHandlerEffect = <A extends object, K extends CollectionK
     const context: CollectionMutationContext<A, K> = cloneFrozenCollectionValue({
       transaction: cloneFrozenCollectionTransaction(transaction),
     });
-    if (inserts.length > 0 && definition.options.onInsert) {
-      yield* collectionCallbackEffect(() =>
-        definition.options.onInsert!(Object.freeze(inserts), context),
-      );
+    const handlers = collectionSyncHandlers(definition);
+    if (inserts.length > 0 && handlers.onInsert) {
+      yield* handlers.onInsert(Object.freeze(inserts), context);
     }
-    if (updates.length > 0 && definition.options.onUpdate) {
-      yield* collectionCallbackEffect(() =>
-        definition.options.onUpdate!(Object.freeze(updates), context),
-      );
+    if (updates.length > 0 && handlers.onUpdate) {
+      yield* handlers.onUpdate(Object.freeze(updates), context);
     }
-    if (deletes.length > 0 && definition.options.onDelete) {
-      yield* collectionCallbackEffect(() =>
-        definition.options.onDelete!(Object.freeze(deletes), context),
-      );
+    if (deletes.length > 0 && handlers.onDelete) {
+      yield* handlers.onDelete(Object.freeze(deletes), context);
     }
   });
 

@@ -1,5 +1,5 @@
 import type { EffectInput } from "@sunfall/arc-core";
-import { toEffect } from "@sunfall/arc-core";
+import { toEffect } from "@sunfall/arc-core/internal";
 import { Data, Effect, Exit, Stream } from "effect";
 import {
   createStreamHydrationScriptEffect,

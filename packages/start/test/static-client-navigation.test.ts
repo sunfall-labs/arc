@@ -1,16 +1,11 @@
 // @vitest-environment happy-dom
-import {
-  Resource,
-  createBrowserRouterHostController,
-  eraseRuntime,
-  makeRuntime,
-  route,
-} from "@sunfall/arc-core";
+import { Resource, createBrowserRouterHostController, makeRuntime, route } from "@sunfall/arc-core";
+import { eraseRuntime } from "@sunfall/arc-core/internal";
 import { Deferred, Effect, Fiber } from "effect";
 import { Window } from "happy-dom";
 import { describe, expect, it, vi } from "vitest";
+import { createHydrationScript } from "../src/hydration.js";
 import {
-  createHydrationScript,
   makeStartStaticHistoryAdapter,
   normalizeStartStaticBasePath,
   stripStartStaticBasePath,

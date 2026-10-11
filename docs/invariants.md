@@ -96,11 +96,11 @@ documented as outside the current release bar.
 
 - Collection definitions are stable declarations; row state, pending mutation
   queues, load state, and collection event streams belong to the active
-  Resource Store's `Collection.Store`.
-- `Collection.diagnostics()` exposes collection names, schema presence, load
+  Resource Store's collection store.
+- DB collection registry diagnostics (`@sunfall/arc-db/internal`) expose collection names, schema presence, load
   presence, mutation handlers, retry policy, and persistence policy without
   reading live rows or pending mutation queues.
-- Collection diagnostics and adapters can subscribe to events through the public
+- Collection diagnostics and adapters can subscribe to events through the internal
   collection store without reading private row maps.
 - Separate runtimes and request Resource Stores never share collection rows,
   pending mutation queues, or collection event subscriptions.

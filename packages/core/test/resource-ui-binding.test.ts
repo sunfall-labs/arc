@@ -1,13 +1,12 @@
 import { Context, Deferred, Effect, Exit, Fiber, Layer, Option, Scope } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
+import { makeRuntime, Resource } from "../src/index.js";
 import {
   eraseRuntime,
   makeResourceUiBindingController,
   makeResourceUiSuspensePreloadController,
-  makeRuntime,
-  Resource,
-} from "../src/index.js";
+} from "../src/internal.js";
 import { resourceRefStoreKey } from "../src/resource-dependency-graph.js";
 import { unsafeMutableResourceStore } from "../src/resource-store.js";
 

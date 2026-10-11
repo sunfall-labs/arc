@@ -1,7 +1,6 @@
 import {
   Action,
   makeRuntime,
-  onDispose,
   Program,
   Resource,
   ResourceFailure,
@@ -10,6 +9,7 @@ import {
   RuntimeDisposeError,
   runWithRuntime,
 } from "@sunfall/arc-core";
+import { onDispose } from "@sunfall/arc-core/internal";
 import { Cause, Context, Deferred, Effect, Fiber, Layer, Option, Scope, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { children, createRoot, createSignal, flush, NotReadyError } from "solid-js";
@@ -26,6 +26,7 @@ import {
   useRuntimeEffect,
   useStream,
 } from "../src/index.js";
+import { withRuntimeContext } from "./with-runtime-context.js";
 
 interface Project {
   readonly id: string;
@@ -61,8 +62,8 @@ describe("solid hooks", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const project = runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        const project = createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             return useResource(ProjectById("atlas"));
           }),
@@ -100,8 +101,8 @@ describe("solid hooks", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             const project = useResource(ref, { preload: false });
             result = project.result;
@@ -145,8 +146,8 @@ describe("solid hooks", () => {
     try {
       await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
 
-      runWithRuntime(runtime, () =>
-        createRoot((rootDispose) => {
+      createRoot((rootDispose) =>
+        withRuntimeContext(runtime, () => {
           dispose = rootDispose;
           const project = useResource(ref, { preload: false });
           value = () => Option.getOrUndefined(AsyncResult.value(project.result()));
@@ -189,8 +190,8 @@ describe("solid hooks", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const project = runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        const project = createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             return useResource(ProjectById("atlas"), {
               onPreloadFailure: (error) => {
@@ -225,8 +226,8 @@ describe("solid hooks", () => {
       Effect.gen(function* () {
         yield* runtime.provide(Resource.prefetchEffect(ProjectById("atlas")));
 
-        const project = runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        const project = createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             const [projectId, setId] = createSignal("fail");
             setProjectId = setId;
@@ -265,8 +266,8 @@ describe("solid hooks", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const project = runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        const project = createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             const [preload, set] = createSignal(false);
             setPreload = set;
@@ -319,8 +320,8 @@ describe("solid hooks", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const project = runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        const project = createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             const [preload, set] = createSignal(true);
             setPreload = set;
@@ -357,8 +358,8 @@ describe("solid hooks", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const project = runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        const project = createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             const [observerName, set] = createSignal<"first" | "second">("first");
             setObserverName = set;
@@ -402,8 +403,8 @@ describe("solid hooks", () => {
       Effect.gen(function* () {
         yield* runtime.provide(Resource.prefetchEffect(ProjectById("atlas")));
 
-        const value = runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        const value = createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             const readProject = useResourceSuspense(ProjectById("atlas"));
             return readProject();
@@ -432,8 +433,8 @@ describe("solid hooks", () => {
       Effect.gen(function* () {
         yield* runtime.provide(Resource.prefetchEffect(ref));
 
-        const readProject = runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        const readProject = createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             return useResourceSuspense(ref);
           }),
@@ -481,8 +482,8 @@ describe("solid hooks", () => {
             ),
         });
 
-        runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             const readProject = useResourceSuspense(ProjectById("atlas"));
             try {
@@ -534,8 +535,8 @@ describe("solid hooks", () => {
 
         yield* runtime.provide(Resource.prefetchEffect(ProjectById("fast")));
 
-        runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             const [projectId, setId] = createSignal("slow");
             setProjectId = setId;
@@ -603,12 +604,18 @@ describe("solid hooks", () => {
 
         yield* firstRuntime!.provide(Resource.prefetchEffect(ref));
 
-        expect(runWithRuntime(firstRuntime!, () => Resource.status(ref).result._tag)).toBe(
-          "Success",
-        );
-        expect(runWithRuntime(secondRuntime!, () => Resource.status(ref).result._tag)).toBe(
-          "Initial",
-        );
+        expect(
+          runWithRuntime(
+            firstRuntime!,
+            () => Effect.runSync(Resource.statusEffect(ref)).result._tag,
+          ),
+        ).toBe("Success");
+        expect(
+          runWithRuntime(
+            secondRuntime!,
+            () => Effect.runSync(Resource.statusEffect(ref)).result._tag,
+          ),
+        ).toBe("Initial");
         dispose?.();
       }),
     ));
@@ -665,8 +672,8 @@ describe("solid hooks", () => {
           }),
         );
 
-        const name = runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        const name = createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             return useStream(
               Stream.fromEffect(
@@ -697,8 +704,8 @@ describe("solid hooks", () => {
 
     await Effect.runPromise(
       Effect.gen(function* () {
-        const fiber = runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        const fiber = createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             const runEffect = useRuntimeEffect();
             return runEffect(ProjectApi.use((api) => api.get("atlas")));
@@ -763,8 +770,8 @@ describe("solid hooks", () => {
           },
         });
 
-        runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             program = useProgram(definition);
           }),
@@ -802,8 +809,8 @@ describe("solid hooks", () => {
             }).pipe(Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))),
         });
 
-        runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             action = useAction(Save);
           }),
@@ -828,8 +835,8 @@ describe("solid hooks", () => {
     });
     return Effect.runPromise(
       Effect.gen(function* () {
-        runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             action = useAction(Save);
           }),
@@ -869,8 +876,8 @@ describe("solid hooks", () => {
         const started = yield* Deferred.make<void>();
         const interrupted = yield* Deferred.make<void>();
 
-        runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             const runEffect = useRuntimeEffect();
             runEffect(
@@ -909,10 +916,12 @@ describe("solid hooks", () => {
     await Effect.runPromise(
       Effect.gen(function* () {
         yield* runtime.provide(Resource.prefetchEffect(ref));
-        expect(runWithRuntime(runtime, () => Resource.status(ref).result._tag)).toBe("Success");
+        expect(
+          runWithRuntime(runtime, () => Effect.runSync(Resource.statusEffect(ref)).result._tag),
+        ).toBe("Success");
 
-        runWithRuntime(runtime, () =>
-          createRoot((rootDispose) => {
+        createRoot((rootDispose) =>
+          withRuntimeContext(runtime, () => {
             dispose = rootDispose;
             createComponentScope(() => {
               onDispose(() => Resource.deleteEffect(ref));
@@ -923,7 +932,7 @@ describe("solid hooks", () => {
         dispose?.();
         yield* Effect.sleep("20 millis");
 
-        expect(() => runWithRuntime(runtime, () => Resource.read(ref))).toThrow(ResourcePending);
+        expect(() => runtime.runSync(Resource.readEffect(ref))).toThrow(ResourcePending);
         yield* runtime.provide(Resource.prefetchEffect(ref));
         expect(loads).toBe(2);
       }).pipe(

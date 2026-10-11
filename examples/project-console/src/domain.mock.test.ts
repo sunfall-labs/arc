@@ -1,11 +1,4 @@
-import {
-  Action,
-  ActionResult,
-  makeRuntime,
-  read,
-  Resource,
-  runWithRuntime,
-} from "@sunfall/arc-core";
+import { Action, ActionResult, makeRuntime, Resource, runWithRuntime } from "@sunfall/arc-core";
 import { Query } from "@sunfall/arc-db";
 import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
@@ -101,7 +94,9 @@ describe("project console contract mocks", () => {
           ProjectsRef.key,
           ProjectById(id).key,
         ]);
-        expect(Resource.read(ProjectById(id)).name).toBe("Mocked Resource");
+        expect(
+          (yield* Effect.provide(Resource.readEffect(ProjectById(id)), ProjectApiTest)).name,
+        ).toBe("Mocked Resource");
       }),
     );
   });
@@ -184,7 +179,7 @@ describe("project console contract mocks", () => {
         );
 
         expect(result._tag).toBe("ValidationFailure");
-        expect(read(action.state).result).toMatchObject({
+        expect(action.state.get().result).toMatchObject({
           _tag: "Success",
           waiting: false,
           value: {
@@ -226,8 +221,10 @@ describe("project console contract mocks", () => {
         );
 
         expect(result._tag).toBe("Success");
-        expect(Resource.read(ref).name).toBe("Mocked Progressive");
-        expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toContain(
+        expect((yield* Effect.provide(Resource.readEffect(ref), ProjectApiStateful)).name).toBe(
+          "Mocked Progressive",
+        );
+        expect(action.invalidationPlan.get()?.entries.map((entry) => entry.ref.key)).toContain(
           ref.key,
         );
       }),
@@ -288,7 +285,7 @@ describe("project console contract mocks", () => {
           _tag: "Redirect",
           location: "/projects/mocked?tab=activity",
         });
-        expect(runWithRuntime(runtime, () => Resource.read(ref)).name).toBe("Renamed Once");
+        expect(runtime.runSync(Resource.readEffect(ref)).name).toBe("Renamed Once");
         for (let attempt = 0; attempt < 50 && rowName() !== "Renamed Once"; attempt++) {
           yield* Effect.sleep("1 millis");
         }
@@ -339,9 +336,7 @@ describe("project console contract mocks", () => {
           status: "running",
           $synced: false,
         });
-        expect(
-          runWithRuntime(runtime, () => Query.build(projectWorkQueueQuery(id)).execute()),
-        ).toEqual([
+        expect(yield* runtime.provide(Query.onceEffect(projectWorkQueueQuery(id)))).toEqual([
           expect.objectContaining({
             id: workItemId,
             status: "running",

@@ -8,14 +8,13 @@ import {
 import { Window } from "happy-dom";
 import { describe, expect, it, vi } from "vitest";
 import { Effect } from "effect";
+import { hydrateFromDocumentEffect, type StartHydrationDocument } from "@sunfall/arc-start";
 import {
   extractStartStaticHtmlLinks,
-  hydrateFromDocumentEffect,
   startStaticPageOutputPath,
   streamHydrationAttribute,
   type StartHydrationChunk,
-  type StartHydrationDocument,
-} from "@sunfall/arc-start";
+} from "@sunfall/arc-start/testing";
 import {
   DocsContentApiStaticClient,
   makeRecipeSlug,
@@ -623,7 +622,7 @@ describe("docs site", () => {
     expect(historySource).not.toContain("hydrateFromDocumentEffect");
     expect(historySource).not.toContain('"Docs.recipe"');
     expect(mainSource).toContain("import.meta.env.DEV");
-    expect(mainSource).toContain("BrowserRpcLive");
+    expect(mainSource).toContain("makeRpcClientLayer()");
     expect(mainSource).toContain("DocsContentApiStaticClient");
     expect(mainSource).toContain('await import("./content-live.js")');
     expect(mainSource).toContain('timestamp: "now"');

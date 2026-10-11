@@ -59,7 +59,7 @@ export const docsPages = [
       },
       {
         _tag: "Paragraph",
-        text: "Start apps also add the host facade they deploy through, such as @sunfall/arc-start-fetch or @sunfall/arc-start-node.",
+        text: "Start apps deploy through one host adapter subpath: @sunfall/arc-start/fetch or @sunfall/arc-start/node.",
       },
       {
         _tag: "Heading",
@@ -172,14 +172,11 @@ export const ProjectById = Resource.family({
       {
         _tag: "Code",
         language: "tsx",
-        code: `const RouteBuilder = defineFileRoute("/projects/:id");
-
-export const Route = RouteBuilder.preload({
+        code: `export const Route = defineFileRoute("/projects/:id")({
   params: ProjectRouteParams,
-  resources: ({ resource }) => [
-    resource(ProjectById, ({ params }) => params.id),
-  ],
-}).route();`,
+  preloadResources: [ProjectById],
+  preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id)),
+});`,
       },
       {
         _tag: "Heading",
@@ -243,9 +240,7 @@ return (
         _tag: "List",
         items: [
           "@sunfall/arc-core: runtime spine, Signals, Resources, Actions, Forms, Routes, Capabilities, server contracts, and runtime helpers.",
-          "@sunfall/arc-start: SSR, hydration, server functions, Start actions, file routes, manifests, prerendering, diagnostics, and app graph tooling.",
-          "@sunfall/arc-start-fetch: Fetch-host facade for Workers, edge-style runtimes, Bun, and other Request/Response hosts.",
-          "@sunfall/arc-start-node: Node HTTP facade for IncomingMessage/ServerResponse hosts.",
+          "@sunfall/arc-start: SSR, hydration, server functions, Start actions, file routes, manifests, prerendering, diagnostics, and app graph tooling. Host adapters live at @sunfall/arc-start/fetch (Workers, edge runtimes, Bun) and @sunfall/arc-start/node (IncomingMessage/ServerResponse).",
           "@sunfall/arc-db: Collections, live queries, persistence, optimistic mutation queues, and sync adapter seams.",
           "@sunfall/arc-devtools: JSON-safe inspection contracts, app graph summaries, causal graphs, request/resource/action panels, and extension-friendly payloads.",
           "@sunfall/arc-solid: the Solid 2 renderer adapter for routing, runtime providers, Resources, Actions, Programs, streams, and component scopes.",
@@ -270,7 +265,7 @@ return (
     blocks: [
       {
         _tag: "Paragraph",
-        text: "Arc deployment centers on createRequestHandlerEffect(app). The Start request handler runs route preload, rendering, server functions, actions, response context, request tracing, and runtime cleanup through the app runtime.",
+        text: "Arc deployment centers on createRequestHandler(app). The Start request handler runs route preload, rendering, server functions, actions, response context, request tracing, and runtime cleanup through the app runtime.",
       },
       {
         _tag: "Heading",
@@ -279,12 +274,12 @@ return (
       {
         _tag: "Code",
         language: "tsx",
-        code: `import { createRequestHandlerEffect } from "@sunfall/arc-start";
-import { createFetchHandler } from "@sunfall/arc-start-fetch";
+        code: `import { createRequestHandler } from "@sunfall/arc-start";
+import { createFetchHandler } from "@sunfall/arc-start/fetch";
 import { app } from "./app-definition.js";
 
 export default {
-  fetch: createFetchHandler(createRequestHandlerEffect(app), {
+  fetch: createFetchHandler(createRequestHandler(app), {
     runtime: app.runtime,
   }),
 };`,
@@ -297,16 +292,19 @@ export default {
         _tag: "Code",
         language: "tsx",
         code: `import { createServer } from "node:http";
-import { createRequestHandlerEffect } from "@sunfall/arc-start";
-import { createNodeServerHandler } from "@sunfall/arc-start-node";
+import { createRequestHandler } from "@sunfall/arc-start";
+import { createNodeServerHandler } from "@sunfall/arc-start/node";
 import { app } from "./app-definition.js";
 
 createServer(
-  createNodeServerHandler(createRequestHandlerEffect(app), {
+  createNodeServerHandler(createRequestHandler(app), {
     runtime: app.runtime,
-    trustForwardedHeaders: true,
   }),
 ).listen(3000);`,
+      },
+      {
+        _tag: "Paragraph",
+        text: "Forwarded headers are untrusted by default. Pass trustForwardedHeaders: true only behind a proxy that overwrites x-forwarded-proto and x-forwarded-host.",
       },
       {
         _tag: "Heading",
@@ -331,7 +329,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Make sure the file route declares the Resource or Collection it owns with RouteBuilder.preload(...). Start diagnostics can require those declarations at build time.",
+        text: "Make sure the file route declares the Resource or Collection it owns with preloadResources / preloadCollections in defineFileRoute(path)(options). Start diagnostics can require those declarations at build time.",
       },
       {
         _tag: "Heading",

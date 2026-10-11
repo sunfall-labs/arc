@@ -1,5 +1,5 @@
 import { makeRuntime, runWithRuntime } from "@sunfall/arc-core";
-import { Collection, type CollectionSnapshot } from "@sunfall/arc-db";
+import { Collection } from "@sunfall/arc-db";
 import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
@@ -9,7 +9,7 @@ interface Project {
   readonly progress: number;
 }
 
-describe("Collection.persistedOptions", () => {
+describe("Collection persistence options", () => {
   it("restores persisted rows during preload without loading remotely by default", () => {
     const first = makeRuntime();
     const second = makeRuntime();
@@ -17,27 +17,32 @@ describe("Collection.persistedOptions", () => {
     const load = vi.fn(() =>
       Effect.succeed<ReadonlyArray<Project>>([{ id: "remote", name: "Remote", progress: 1 }]),
     );
-    const Projects = Collection.define(
-      Collection.persistedOptions<Project>({
-        name: "Projects.persisted.preload",
-        getKey: (project) => project.id,
+    const Projects = Collection.define<Project>({
+      name: "Projects.persisted.preload",
+      getKey: (project) => project.id,
+      persistence: {
+        storage,
+        key: "projects-preload",
+      },
+      sync: {
         load,
-        persistence: {
-          storage,
-          key: "projects-preload",
-        },
-      }),
-    );
+      },
+    });
 
     return Effect.runPromise(
       Effect.gen(function* () {
         yield* Effect.scoped(
           first.provide(
-            Projects.writeInsertEffect({
-              id: "atlas",
-              name: "Atlas",
-              progress: 72,
-            }),
+            Projects.applyChangesEffect([
+              {
+                _tag: "Upsert",
+                value: {
+                  id: "atlas",
+                  name: "Atlas",
+                  progress: 72,
+                },
+              },
+            ]),
           ),
         );
 
@@ -64,29 +69,34 @@ describe("Collection.persistedOptions", () => {
     const first = makeRuntime();
     const second = makeRuntime();
     const storage = Collection.memoryStorage();
-    const Projects = Collection.define(
-      Collection.persistedOptions<Project>({
-        name: "Projects.persisted.load-after-restore",
-        getKey: (project) => project.id,
+    const Projects = Collection.define<Project>({
+      name: "Projects.persisted.load-after-restore",
+      getKey: (project) => project.id,
+      persistence: {
+        storage,
+        key: "projects-refresh",
+        loadAfterRestore: true,
+      },
+      sync: {
         load: () =>
           Effect.succeed<ReadonlyArray<Project>>([{ id: "lumen", name: "Lumen", progress: 34 }]),
-        persistence: {
-          storage,
-          key: "projects-refresh",
-          loadAfterRestore: true,
-        },
-      }),
-    );
+      },
+    });
 
     return Effect.runPromise(
       Effect.gen(function* () {
         yield* Effect.scoped(
           first.provide(
-            Projects.writeInsertEffect({
-              id: "atlas",
-              name: "Atlas",
-              progress: 72,
-            }),
+            Projects.applyChangesEffect([
+              {
+                _tag: "Upsert",
+                value: {
+                  id: "atlas",
+                  name: "Atlas",
+                  progress: 72,
+                },
+              },
+            ]),
           ),
         );
 
@@ -99,7 +109,7 @@ describe("Collection.persistedOptions", () => {
 
           const persisted = JSON.parse(
             storage.values.get("projects-refresh") ?? "{}",
-          ) as CollectionSnapshot<Project>;
+          ) as Collection.Snapshot<Project>;
           expect(persisted.rows.map((row) => row.key)).toEqual(["lumen"]);
         });
       }).pipe(
@@ -112,18 +122,18 @@ describe("Collection.persistedOptions", () => {
     const runtime = makeRuntime();
     const release = Effect.runSync(Deferred.make<void>());
     const storage = Collection.memoryStorage();
-    const Projects = Collection.define(
-      Collection.persistedOptions<Project, string, never>({
-        name: "Projects.persisted.optimistic",
-        getKey: (project) => project.id,
-        initialData: [{ id: "atlas", name: "Atlas", progress: 72 }],
-        onUpdate: () => Deferred.await(release),
-        persistence: {
-          storage,
-          key: "projects-optimistic",
-        },
-      }),
-    );
+    const Projects = Collection.define<Project, string, never>({
+      name: "Projects.persisted.optimistic",
+      getKey: (project) => project.id,
+      initialData: [{ id: "atlas", name: "Atlas", progress: 72 }],
+      persistence: {
+        storage,
+        key: "projects-optimistic",
+      },
+      sync: {
+        update: () => Deferred.await(release),
+      },
+    });
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -133,7 +143,7 @@ describe("Collection.persistedOptions", () => {
         yield* Effect.sync(() => {
           const pendingSnapshot = JSON.parse(
             storage.values.get("projects-optimistic") ?? "{}",
-          ) as CollectionSnapshot<Project>;
+          ) as Collection.Snapshot<Project>;
           expect(pendingSnapshot.rows).toMatchObject([
             {
               key: "atlas",
@@ -158,7 +168,7 @@ describe("Collection.persistedOptions", () => {
         yield* Effect.sync(() => {
           const committedSnapshot = JSON.parse(
             storage.values.get("projects-optimistic") ?? "{}",
-          ) as CollectionSnapshot<Project>;
+          ) as Collection.Snapshot<Project>;
           expect(committedSnapshot.rows).toMatchObject([
             {
               key: "atlas",

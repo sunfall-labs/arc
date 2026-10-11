@@ -1,14 +1,14 @@
 import {
-  invokeEffectInput,
   runWithRuntime,
   Signal,
   type AnySunfallArcRuntime,
   type EffectInput,
 } from "@sunfall/arc-core";
+import { invokeEffectInput } from "@sunfall/arc-core/internal";
 import {
   bindCollectionRuntimeEffect,
   makeCollectionReactivePreloadController,
-} from "@sunfall/arc-db";
+} from "@sunfall/arc-db/internal";
 import { useRuntime } from "@sunfall/arc-solid";
 import { Effect } from "effect";
 import { createRenderEffect, onCleanup, type Accessor } from "solid-js";

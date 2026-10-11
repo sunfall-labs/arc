@@ -1,17 +1,17 @@
 import {
-  currentOrDefaultRuntime,
-  disposeRuntimeProviderLifecycleEffect,
-  makeRuntime,
-  makeRuntimeProviderLifecycleEntry,
   runWithRuntime,
   type AnySunfallArcRuntime,
   type EffectInput,
   type SunfallArcRuntime,
   type RuntimeDisposeError,
+} from "@sunfall/arc-core";
+import {
+  disposeRuntimeProviderLifecycleEffect,
+  makeRuntimeProviderLifecycleEntry,
   type RuntimeProviderLifecycleEntry,
   type UiScope,
-} from "@sunfall/arc-core";
-import { Effect, Layer, ManagedRuntime } from "effect";
+} from "@sunfall/arc-core/internal";
+import { Data, Effect, Layer, ManagedRuntime } from "effect";
 import { createComponent, createContext, createMemo, onCleanup, useContext } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { createRuntimeScope } from "./runtime-scope.js";
@@ -73,12 +73,24 @@ export type RuntimeProviderProps<RuntimeServices = never, ER = never> =
   | RuntimeProviderSourceProps<RuntimeServices, ER>
   | RuntimeProviderDefaultProps;
 
-/** Creates an Sunfall Arc runtime for Solid applications. */
-export const createEffectRuntime = makeRuntime;
+/** Error thrown when runtime hooks are used outside `RuntimeProvider`. */
+export class RuntimeContextMissing extends Data.TaggedError("RuntimeContextMissing")<{
+  readonly hook: string;
+}> {}
 
-/** Reads the nearest Solid runtime context, falling back to the current/default runtime. */
-export const useRuntime = <ER = never>(): AnySunfallArcRuntime<ER> =>
-  (useContext(RuntimeContext) ?? currentOrDefaultRuntime()) as AnySunfallArcRuntime<ER>;
+/**
+ * Reads the nearest Solid runtime context.
+ *
+ * Throws `RuntimeContextMissing` when no `RuntimeProvider` is mounted above
+ * the caller; there is no implicit default runtime.
+ */
+export const useRuntime = <ER = never>(): AnySunfallArcRuntime<ER> => {
+  const runtime = useContext(RuntimeContext);
+  if (runtime === null) {
+    throw new RuntimeContextMissing({ hook: "useRuntime" });
+  }
+  return runtime as AnySunfallArcRuntime<ER>;
+};
 
 /**
  * Provides an Sunfall Arc runtime to Solid children.

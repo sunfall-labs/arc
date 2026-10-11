@@ -27,7 +27,7 @@ import type {
   LoadedStartAppGraphDiagnostics,
   LoadStartAppGraphDiagnosticsOptions,
   StartAppGraphDiagnosticsLoadError,
-} from "./vite.js";
+} from "./start-vite-diagnostics-loader.js";
 import {
   runStartDiagnosticsCliCommandEffect,
   startDiagnosticsCliErrorPayload,
@@ -524,17 +524,13 @@ export const parseStartDiagnosticsCliArgsEffect = (
   });
 };
 
-/** Parses CLI argv into a diagnostics command or help request. */
-export const parseStartDiagnosticsCliArgs = (args: readonly string[]): StartCliCommand =>
-  Effect.runSync(parseStartDiagnosticsCliArgsEffect(args));
-
 /**
  * Runs the Start diagnostics CLI as an Effect.
  *
  * It loads the resolved app graph through Vite, prints either a formatted
  * report or JSON, and returns the intended process exit code.
  */
-export const runStartDiagnosticsCliEffect = (
+export const runStartDiagnosticsCli = (
   args: readonly string[],
   io: StartDiagnosticsCliIo = {},
 ): Effect.Effect<StartDiagnosticsCliResult, StartDiagnosticsCliWriteError> =>
@@ -595,13 +591,6 @@ export const runStartDiagnosticsCliEffect = (
     return (yield* Ref.get(cliResultRef)) ?? { exitCode: 0 };
   });
 
-/** Alias for `runStartDiagnosticsCliEffect` on the current CLI surface. */
-export const runStartDiagnosticsCli = (
-  args: readonly string[],
-  io: StartDiagnosticsCliIo = {},
-): Effect.Effect<StartDiagnosticsCliResult, StartDiagnosticsCliWriteError> =>
-  runStartDiagnosticsCliEffect(args, io);
-
 const startDiagnosticsCliMainFailureMessage = (error: unknown): string => {
   if (error instanceof StartDiagnosticsCliWriteError) {
     return `Could not write ${error.stream} output.`;
@@ -611,7 +600,7 @@ const startDiagnosticsCliMainFailureMessage = (error: unknown): string => {
 };
 
 /** Runs the diagnostics CLI and assigns `process.exitCode`. */
-export const runStartDiagnosticsCliMainEffect = (
+export const runStartDiagnosticsCliMain = (
   args: readonly string[] = process.argv.slice(2),
   io: StartDiagnosticsCliIo = {},
 ): Effect.Effect<void> => {
@@ -622,7 +611,7 @@ export const runStartDiagnosticsCliMainEffect = (
     });
 
   return Effect.gen(function* () {
-    const result = yield* runStartDiagnosticsCliEffect(args, io);
+    const result = yield* runStartDiagnosticsCli(args, io);
     yield* Effect.sync(() => {
       process.exitCode = result.exitCode;
     });
@@ -641,12 +630,6 @@ export const runStartDiagnosticsCliMainEffect = (
     ),
   );
 };
-
-/** Alias for `runStartDiagnosticsCliMainEffect`. */
-export const runStartDiagnosticsCliMain = (
-  args: readonly string[] = process.argv.slice(2),
-  io: StartDiagnosticsCliIo = {},
-): Effect.Effect<void> => runStartDiagnosticsCliMainEffect(args, io);
 
 const realpathForStartDiagnosticsCliMain = (path: string): string | undefined => {
   try {
@@ -698,5 +681,5 @@ if (isMain) {
       });
     });
   });
-  runMain(runStartDiagnosticsCliMainEffect());
+  runMain(runStartDiagnosticsCliMain());
 }

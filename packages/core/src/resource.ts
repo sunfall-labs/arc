@@ -36,35 +36,22 @@ import {
 import {
   registerResourceDefinition,
   registerResourceTagDefinition,
-  resourceDefinitionRegistry,
   resourceDiagnostics,
-  resourceRegistryDiagnostics,
-  resourceTagDefinitionRegistry,
 } from "./resource-registry.js";
 import {
   collectResourceEffect,
-  dehydrateResources,
   dehydrateResourcesEffect,
   deleteResourceEffect,
-  hydrateResources,
   hydrateResourcesEffect,
-  invalidateResource,
   invalidateResourceEffect,
-  lookupResourceFamilyEffect,
-  planResourceInvalidation,
   planResourceInvalidationEffect,
   prefetchResourceEffect,
   readResourceEffect,
-  readResource,
-  refsForResourceTag,
   refreshResourceEffect,
-  resourceHydrationPayload,
   resourceHydrationPayloadEffect,
   resourceChangesStream,
   resourceResult,
-  resourceStatus,
   resourceStatusEffect,
-  runResourceInvalidationPlan,
   runResourceInvalidationPlanEffect,
   subscribeResourceEventsEffect,
 } from "./resource-runtime.js";
@@ -264,20 +251,17 @@ export interface ResourceHydrationSnapshot<I = unknown, A = unknown> {
 }
 
 /**
- * Payload object accepted by `Resource.hydrateEffect(...)` and `Resource.hydrate(...)`.
+ * Payload object accepted by `Resource.hydrateEffect(...)`.
  *
  * Resource hydration APIs intentionally accept this wrapper shape only; raw
  * snapshot arrays must be wrapped as `{ resources: snapshots }`. Use
- * `Resource.hydrationPayload(...)` or `Resource.hydrationPayloadEffect(...)`
- * when creating a payload from loaded Resource refs.
+ * `Resource.hydrationPayloadEffect(...)` when creating a payload from loaded
+ * Resource refs.
  */
 export interface ResourceHydrationPayload {
   /** Successful Resource snapshots to restore into the active Resource Store. */
   readonly resources: ReadonlyArray<ResourceHydrationSnapshot>;
 }
-
-/** Top-level alias for the payload object accepted by Resource hydration APIs. */
-export type ResourceHydrationInput = ResourceHydrationPayload;
 
 /** Resource load failures plus synchronous Resource callback failures. */
 export type ResourceLoadError<E> = E | EffectInputCallbackError;
@@ -488,8 +472,6 @@ export namespace Resource {
   export type Snapshot<I = unknown, A = unknown> = ResourceHydrationSnapshot<I, A>;
   /** Serializable collection of Resource snapshots for hydration. */
   export type HydrationPayload = ResourceHydrationPayload;
-  /** Alias for the payload object accepted by `Resource.hydrate(...)`. */
-  export type HydrationInput = ResourceHydrationPayload;
   /** Options that control Resource hydration replacement and failure behavior. */
   export type HydrationOptions = ResourceHydrationOptions;
   /** Typed error raised when Resource hydration payloads cannot be decoded. */
@@ -747,34 +729,10 @@ export namespace Resource {
       : makeTagDefinition(name, options);
   }
 
-  /** Registered Resource family definitions for diagnostics and hydration lookup. */
-  export const definitions = (): ReadonlyMap<string, AnyResourceFamily> =>
-    resourceDefinitionRegistry();
-
-  /** Resolves a Resource family by name, preferring the active Resource Store. */
-  export const definitionEffect = (name: string): Effect.Effect<AnyResourceFamily | undefined> =>
-    lookupResourceFamilyEffect(name);
-
-  /** Registered Resource tag definitions for diagnostics and invalidation UIs. */
-  export const tagDefinitions = (): ReadonlyMap<string, ResourceTagDiagnostics> =>
-    resourceTagDefinitionRegistry();
-
   /** Resource registry/cache diagnostics for devtools and adapter health checks. */
   export const diagnostics = (): ResourceDiagnostics => resourceDiagnostics();
 
-  /** Registry diagnostics, including duplicate resource family/tag registrations. */
-  export const registryDiagnostics = resourceRegistryDiagnostics;
-
-  /** Cached refs currently indexed under a Resource tag. */
-  export const refsForTag = (tag: ResourceTag): ReadonlyArray<AnyResourceRef<any>> =>
-    refsForResourceTag(tag);
-
   /** Computes which cached refs would be affected by a ref or tag invalidation. */
-  export const planInvalidation = <R = never>(
-    target: ResourceInvalidationTarget<R>,
-  ): ResourceInvalidationPlan<R> => planResourceInvalidation(target);
-
-  /** Effect version of planInvalidation that uses the ResourceStore in context. */
   export const planInvalidationEffect = <R = never>(
     target: ResourceInvalidationTarget<R>,
   ): Effect.Effect<ResourceInvalidationPlan<R>> => planResourceInvalidationEffect(target);
@@ -803,17 +761,6 @@ export namespace Resource {
   export const result = <I, A, E, R>(
     ref: ResourceRef<I, A, E, R>,
   ): ReadableSignal<AsyncResult.AsyncResult<A, ResourceLoadError<E>>> => resourceResult(ref);
-
-  /**
-   * Synchronous render/host-adapter seam for inspecting a resource ref without
-   * starting a load.
-   *
-   * Effect workflows should prefer statusEffect so the active ResourceStore and
-   * Clock come from Effect context.
-   */
-  export const status = <I, A, E, R>(
-    ref: ResourceRef<I, A, E, R>,
-  ): ResourceStatus<I, A, ResourceLoadError<E>, R, E> => resourceStatus(ref);
 
   /**
    * Effect-first status inspection that reads the ResourceStore and Clock from
@@ -856,20 +803,6 @@ export namespace Resource {
   ): Effect.Effect<Collected<A>, E, R> => collectResourceEffect(effect);
 
   /**
-   * Synchronous render/host-adapter seam for reading a resource value after
-   * Effect preload.
-   *
-   * If the value is missing or the entry has expired it throws ResourcePending.
-   * If loading failed it throws ResourceFailure. Stale values are returned
-   * immediately while refresh runs in the background. Effect workflows should
-   * prefer readEffect so failures stay in the Effect error channel and runtime
-   * state comes from Effect context.
-   */
-  export const read = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): A => {
-    return readResource(ref);
-  };
-
-  /**
    * Effect-first read for an already-loaded resource value.
    *
    * Missing, pending, collected, and failed states are reported as typed Effect
@@ -891,30 +824,11 @@ export namespace Resource {
     plan: ResourceInvalidationPlan<R>,
   ): Effect.Effect<void, never, R> => runResourceInvalidationPlanEffect(plan);
 
-  /** Fire-and-forget runtime boundary for invalidateEffect. */
-  export const invalidate = (target: ResourceInvalidationTarget): void => {
-    invalidateResource(target);
-  };
-
-  /** Fire-and-forget runtime boundary for runInvalidationPlanEffect. */
-  export const runInvalidationPlan = (plan: ResourceInvalidationPlan): void => {
-    runResourceInvalidationPlan(plan);
-  };
-
-  /** Serializes successful resource refs from the current store for hydration. */
-  export const dehydrate = (
-    refs: Iterable<AnyResourceRef<any>>,
-  ): ReadonlyArray<ResourceHydrationSnapshot> => dehydrateResources(refs);
-
-  /** Effect version of dehydrate that reads the ResourceStore from context. */
+  /** Serializes successful resource refs from the active ResourceStore for hydration. */
   export const dehydrateEffect = (
     refs: Iterable<AnyResourceRef<any>>,
   ): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>, ResourceSnapshotCodecError> =>
     dehydrateResourcesEffect(refs);
-
-  /** Builds a validated hydration payload from loaded Resource refs. */
-  export const hydrationPayload = (refs: Iterable<AnyResourceRef<any>>): ResourceHydrationPayload =>
-    resourceHydrationPayload(refs);
 
   /** Builds a validated hydration payload from loaded Resource refs using the ResourceStore in context. */
   export const hydrationPayloadEffect = (
@@ -948,12 +862,4 @@ export namespace Resource {
     void,
     ResourceSnapshotCodecError | ResourceHydrationApplyError | EffectInputCallbackError
   > => hydrateResourcesEffect(input, options);
-
-  /** Synchronous runtime boundary for hydrateEffect. */
-  export const hydrate = (
-    input: ResourceHydrationPayload,
-    options?: ResourceHydrationOptions,
-  ): void => {
-    hydrateResources(input, options);
-  };
 }

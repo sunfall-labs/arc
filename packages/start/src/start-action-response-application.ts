@@ -7,6 +7,7 @@ import {
   type ResourceInvalidation,
   type ResourceInvalidationPlanEntry,
 } from "@sunfall/arc-core";
+import { lookupResourceFamilyEffect } from "@sunfall/arc-core/internal";
 import { Effect } from "effect";
 import { hydrateStartPayloadEffect } from "./hydration.js";
 import type {
@@ -74,7 +75,7 @@ const startActionInvalidationTargetEffect = (
     });
   }
 
-  return Effect.flatMap(Resource.definitionEffect(target.family), (family) => {
+  return Effect.flatMap(lookupResourceFamilyEffect(target.family), (family) => {
     if (!family) {
       return Effect.fail(
         startActionInvalidationTransportError(
@@ -108,7 +109,7 @@ const startActionInvalidationCauseEffect = (
       : Effect.void;
   }
 
-  return Effect.flatMap(Resource.definitionEffect(cause.family), (family) =>
+  return Effect.flatMap(lookupResourceFamilyEffect(cause.family), (family) =>
     family
       ? Effect.void
       : Effect.fail(

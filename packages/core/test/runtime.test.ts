@@ -2,21 +2,22 @@ import { Cause, Context, Deferred, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   Action,
-  disposeRuntimeProviderLifecycleEntryEffect,
-  disposeRuntimeProviderLifecycleEffect,
   disposeResourceStoreEffect,
-  makeRuntimeProviderLifecycleEntry,
   makeResourceStore,
   makeRuntime,
   Resource,
   ResourceStoreDisposeError,
   RuntimeDisposeError,
-  type RuntimeProviderDisposeObserver,
   ResourcePending,
-  runWithRuntime,
   Server,
   ServerClient,
 } from "../src/index.js";
+import {
+  disposeRuntimeProviderLifecycleEntryEffect,
+  disposeRuntimeProviderLifecycleEffect,
+  makeRuntimeProviderLifecycleEntry,
+  type RuntimeProviderDisposeObserver,
+} from "../src/internal.js";
 
 describe("Sunfall Arc runtime", () => {
   interface Numbers {
@@ -120,7 +121,7 @@ describe("Sunfall Arc runtime", () => {
           Effect.tap((value) =>
             Effect.sync(() => {
               expect(value).toBe(5);
-              expect(runWithRuntime(runtime, () => Resource.read(ref))).toBe(5);
+              expect(runtime.runSync(Resource.readEffect(ref))).toBe(5);
             }),
           ),
           Effect.asVoid,
@@ -130,7 +131,7 @@ describe("Sunfall Arc runtime", () => {
     );
   });
 
-  it("keeps provided Resource Store overrides visible to synchronous Resource reads", () => {
+  it("keeps provided Resource Store overrides visible to Resource reads", () => {
     const runtime = makeRuntime(NumbersLive);
     const overrideStore = makeResourceStore();
     const NumberById = Resource.family<string, number, never, Numbers>({
@@ -143,12 +144,10 @@ describe("Sunfall Arc runtime", () => {
       runtime.provide(
         Effect.gen(function* () {
           yield* Resource.prefetchEffect(ref);
-          const value = yield* Effect.sync(() => Resource.read(ref));
+          const value = yield* Resource.readEffect(ref);
           yield* Effect.sync(() => {
             expect(value).toBe(5);
-            expect(() => runWithRuntime(runtime, () => Resource.read(ref))).toThrow(
-              ResourcePending,
-            );
+            expect(() => runtime.runSync(Resource.readEffect(ref))).toThrow(ResourcePending);
           });
         }).pipe(
           Effect.ensuring(

@@ -18,7 +18,6 @@ import { describe, expect, it, vi } from "vitest";
 import {
   EffectInputPromiseRejected,
   makeRuntime,
-  read,
   Resource,
   EffectInputCallbackError,
   ResourceKeyError,
@@ -26,8 +25,8 @@ import {
   ResourcePending,
   ResourceSnapshotCodecError,
   runWithRuntime,
-  validateResourceHydrationSnapshots,
 } from "../src/index.js";
+import { validateResourceHydrationSnapshots, refsForResourceTag } from "../src/internal.js";
 import { parseDuration } from "../src/resource-duration.js";
 import { unsafeMutableResourceStore } from "../src/resource-store.js";
 
@@ -46,11 +45,11 @@ describe("Resource", () => {
     });
 
     const ref = User("1");
-    expect(() => read(ref)).toThrow(ResourcePending);
+    expect(() => Effect.runSync(Resource.readEffect(ref))).toThrow(ResourcePending);
     await Effect.runPromise(Resource.prefetchEffect(ref));
 
-    expect(read(ref)).toEqual({ id: "1", name: "Ada" });
-    expect(read(ref)).toEqual({ id: "1", name: "Ada" });
+    expect(Effect.runSync(Resource.readEffect(ref))).toEqual({ id: "1", name: "Ada" });
+    expect(Effect.runSync(Resource.readEffect(ref))).toEqual({ id: "1", name: "Ada" });
     expect(load).toHaveBeenCalledTimes(1);
   });
 
@@ -346,7 +345,10 @@ describe("Resource", () => {
               { id: "grace", name: "GRACE" },
             ]);
             expect(batches).toEqual([["ada", "grace"]]);
-            expect(read(User("ada"))).toEqual({ id: "ada", name: "ADA" });
+            expect(Effect.runSync(Resource.readEffect(User("ada")))).toEqual({
+              id: "ada",
+              name: "ADA",
+            });
           }),
         ),
       ),
@@ -363,11 +365,11 @@ describe("Resource", () => {
 
     await Effect.runPromise(Resource.prefetchEffect(ref));
     await Effect.runPromise(Resource.prefetchEffect(ref));
-    expect(read(ref)).toBe(1);
+    expect(Effect.runSync(Resource.readEffect(ref))).toBe(1);
     expect(count).toBe(1);
 
     await Effect.runPromise(Resource.refreshEffect(ref));
-    expect(read(ref)).toBe(2);
+    expect(Effect.runSync(Resource.readEffect(ref))).toBe(2);
     expect(count).toBe(2);
   });
 
@@ -420,13 +422,13 @@ describe("Resource", () => {
 
     try {
       await Effect.runPromise(first.provide(Resource.prefetchEffect(ref)));
-      expect(runWithRuntime(first, () => read(ref))).toBe(1);
+      expect(first.runSync(Resource.readEffect(ref))).toBe(1);
       expect(runWithRuntime(second, () => Resource.result(ref).get()._tag)).toBe("Initial");
 
       await Effect.runPromise(second.provide(Resource.prefetchEffect(ref)));
 
-      expect(runWithRuntime(second, () => read(ref))).toBe(2);
-      expect(runWithRuntime(first, () => read(ref))).toBe(1);
+      expect(second.runSync(Resource.readEffect(ref))).toBe(2);
+      expect(first.runSync(Resource.readEffect(ref))).toBe(1);
       expect(count).toBe(2);
     } finally {
       await Effect.runPromise(first.disposeEffect);
@@ -478,14 +480,14 @@ describe("Resource", () => {
     const ref = Project("atlas");
 
     await Effect.runPromise(Resource.prefetchEffect(ref));
-    expect(Resource.refsForTag(ProjectTag({ id: "atlas" })).map((tagRef) => tagRef.key)).toContain(
+    expect(refsForResourceTag(ProjectTag({ id: "atlas" })).map((tagRef) => tagRef.key)).toContain(
       ref.key,
     );
 
     project = { id: "atlas", name: "Renamed" };
     await Effect.runPromise(Resource.invalidateEffect(ProjectTag({ id: "atlas" })));
 
-    expect(read(ref)).toEqual({ id: "atlas", name: "Renamed" });
+    expect(Effect.runSync(Resource.readEffect(ref))).toEqual({ id: "atlas", name: "Renamed" });
     expect(load).toHaveBeenCalledTimes(2);
   });
 
@@ -520,14 +522,14 @@ describe("Resource", () => {
     keyedValue = 2;
     await Effect.runPromise(Resource.invalidateEffect(UnkeyedTag));
 
-    expect(read(unkeyedRef)).toEqual({ value: 2 });
-    expect(read(keyedRef)).toEqual({ value: 1 });
+    expect(Effect.runSync(Resource.readEffect(unkeyedRef))).toEqual({ value: 2 });
+    expect(Effect.runSync(Resource.readEffect(keyedRef))).toEqual({ value: 1 });
     expect(loadUnkeyed).toHaveBeenCalledTimes(2);
     expect(loadKeyed).toHaveBeenCalledTimes(1);
 
     await Effect.runPromise(Resource.invalidateEffect(KeyedTag("atlas")));
 
-    expect(read(keyedRef)).toEqual({ value: 2 });
+    expect(Effect.runSync(Resource.readEffect(keyedRef))).toEqual({ value: 2 });
     expect(loadKeyed).toHaveBeenCalledTimes(2);
   });
 
@@ -546,9 +548,9 @@ describe("Resource", () => {
       await Effect.runPromise(first.provide(Resource.prefetchEffect(ref)));
 
       expect(
-        runWithRuntime(first, () => Resource.refsForTag(ProjectTag).map((tagRef) => tagRef.key)),
+        runWithRuntime(first, () => refsForResourceTag(ProjectTag).map((tagRef) => tagRef.key)),
       ).toEqual([ref.key]);
-      expect(runWithRuntime(second, () => Resource.refsForTag(ProjectTag))).toEqual([]);
+      expect(runWithRuntime(second, () => refsForResourceTag(ProjectTag))).toEqual([]);
     } finally {
       await Effect.runPromise(first.disposeEffect);
       await Effect.runPromise(second.disposeEffect);
@@ -563,7 +565,7 @@ describe("Resource", () => {
     });
     const ref = Count(undefined);
 
-    const status = Resource.status(ref);
+    const status = Effect.runSync(Resource.statusEffect(ref));
 
     expect(status).toMatchObject({
       result: { _tag: "Initial", waiting: false },
@@ -612,7 +614,7 @@ describe("Resource", () => {
       });
       const ref = User("atlas");
 
-      expect(() => runWithRuntime(runtime, () => read(ref))).toThrow(ResourcePending);
+      expect(() => runtime.runSync(Resource.readEffect(ref))).toThrow(ResourcePending);
       const store = unsafeMutableResourceStore(runtime.resourceStore);
       expect(store.families.size).toBe(0);
       expect(store.entries.get(ref.family)).toBeUndefined();
@@ -638,7 +640,7 @@ describe("Resource", () => {
 
       await Effect.runPromise(Resource.prefetchEffect(ref));
 
-      expect(Resource.status(ref)).toMatchObject({
+      expect(Effect.runSync(Resource.statusEffect(ref))).toMatchObject({
         result: { _tag: "Success", value: 1, waiting: false, timestamp: 1_000 },
         isStale: false,
         isGcExpired: false,
@@ -651,7 +653,7 @@ describe("Resource", () => {
 
       vi.setSystemTime(1_151);
 
-      expect(Resource.status(ref)).toMatchObject({
+      expect(Effect.runSync(Resource.statusEffect(ref))).toMatchObject({
         result: { _tag: "Success" },
         isStale: true,
         isGcExpired: false,
@@ -689,7 +691,7 @@ describe("Resource", () => {
     try {
       await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
 
-      const syncStatus = runWithRuntime(runtime, () => Resource.status(ref));
+      const syncStatus = runtime.runSync(Resource.statusEffect(ref));
       const effectStatus = await Effect.runPromise(runtime.provide(Resource.statusEffect(ref)));
 
       expect(syncStatus).toMatchObject({
@@ -705,11 +707,11 @@ describe("Resource", () => {
         isGcExpired: effectStatus.isGcExpired,
         ageMillis: effectStatus.ageMillis,
       });
-      expect(runWithRuntime(runtime, () => read(ref))).toBe(1);
+      expect(runtime.runSync(Resource.readEffect(ref))).toBe(1);
 
       now += 151;
 
-      const staleSyncStatus = runWithRuntime(runtime, () => Resource.status(ref));
+      const staleSyncStatus = runtime.runSync(Resource.statusEffect(ref));
       const staleEffectStatus = await Effect.runPromise(
         runtime.provide(Resource.statusEffect(ref)),
       );
@@ -725,7 +727,7 @@ describe("Resource", () => {
         isGcExpired: staleEffectStatus.isGcExpired,
         ageMillis: staleEffectStatus.ageMillis,
       });
-      expect(runWithRuntime(runtime, () => read(ref))).toBe(1);
+      expect(runtime.runSync(Resource.readEffect(ref))).toBe(1);
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
     }
@@ -851,7 +853,7 @@ describe("Resource", () => {
     const refreshing = Effect.runFork(Resource.refreshEffect(ref));
 
     // A refresh keeps the current tag and marks it waiting: refreshing, not loading.
-    expect(Resource.status(ref).result).toMatchObject({
+    expect(Effect.runSync(Resource.statusEffect(ref)).result).toMatchObject({
       _tag: "Success",
       value: 1,
       waiting: true,
@@ -859,7 +861,7 @@ describe("Resource", () => {
 
     await Effect.runPromise(Deferred.succeed(gate, undefined));
     await expect(Effect.runPromise(Fiber.join(refreshing))).resolves.toBe(2);
-    expect(Resource.status(ref).result).toMatchObject({
+    expect(Effect.runSync(Resource.statusEffect(ref)).result).toMatchObject({
       _tag: "Success",
       value: 2,
       waiting: false,
@@ -889,21 +891,21 @@ describe("Resource", () => {
     await Effect.runPromise(Resource.prefetchEffect(ref));
     const refreshing = Effect.runFork(Resource.refreshEffect(ref));
 
-    const pending = Resource.status(ref).result;
+    const pending = Effect.runSync(Resource.statusEffect(ref)).result;
     expect(pending).toMatchObject({ _tag: "Success", value: undefined, waiting: true });
     expect(AsyncResult.value(pending)).toEqual(Option.some(undefined));
-    expect(read(ref)).toBeUndefined();
+    expect(Effect.runSync(Resource.readEffect(ref))).toBeUndefined();
 
     shouldFail = true;
     await Effect.runPromise(Deferred.succeed(releaseRefresh, undefined));
     await expect(Effect.runPromise(Fiber.join(refreshing))).rejects.toThrow("refresh failed");
 
-    const failed = Resource.status(ref).result;
+    const failed = Effect.runSync(Resource.statusEffect(ref)).result;
     expect(failed).toMatchObject({ _tag: "Failure", waiting: false });
     expect(AsyncResult.value(failed)).toEqual(Option.some(undefined));
 
     try {
-      read(ref);
+      Effect.runSync(Resource.readEffect(ref));
       expect.fail("expected ResourceFailure");
     } catch (error) {
       expect(error).toBeInstanceOf(ResourceFailure);
@@ -942,7 +944,10 @@ describe("Resource", () => {
         Effect.all([Fiber.join(first), Fiber.join(second)], { concurrency: "unbounded" }),
       ),
     ).resolves.toEqual([1, 1]);
-    expect(Resource.status(ref).result).toMatchObject({ _tag: "Success", value: 1 });
+    expect(Effect.runSync(Resource.statusEffect(ref)).result).toMatchObject({
+      _tag: "Success",
+      value: 1,
+    });
   });
 
   it("keeps store-owned in-flight prefetch alive when one joiner is interrupted", async () => {
@@ -971,7 +976,10 @@ describe("Resource", () => {
     await expect(Effect.runPromise(Fiber.join(second))).resolves.toBe(1);
     expect(Exit.isFailure(await Effect.runPromise(Fiber.await(first)))).toBe(true);
     expect(loads).toBe(1);
-    expect(Resource.status(ref).result).toMatchObject({ _tag: "Success", value: 1 });
+    expect(Effect.runSync(Resource.statusEffect(ref)).result).toMatchObject({
+      _tag: "Success",
+      value: 1,
+    });
   });
 
   it("forced invalidation does not join a stale non-forced load", async () => {
@@ -1003,7 +1011,7 @@ describe("Resource", () => {
     await Effect.runPromise(Deferred.succeed(firstRelease, undefined));
     await Effect.runPromise(Fiber.await(prefetch));
 
-    expect(read(ref)).toBe(2);
+    expect(Effect.runSync(Resource.readEffect(ref))).toBe(2);
     expect(loads).toBe(2);
   });
 
@@ -1049,7 +1057,7 @@ describe("Resource", () => {
     await Effect.runPromise(Resource.prefetchEffect(ref));
 
     const targets = [ref, ProjectTag({ id: "atlas" })];
-    const plan = Resource.planInvalidation(targets);
+    const plan = Effect.runSync(Resource.planInvalidationEffect(targets));
     targets.push(ProjectTag({ id: "ignored" }));
 
     expect(plan.targets).toHaveLength(2);
@@ -1077,17 +1085,17 @@ describe("Resource", () => {
     const ref = Project(undefined);
 
     await Effect.runPromise(Resource.prefetchEffect(ref));
-    expect(Resource.refsForTag(SlugTag({ slug: "draft" })).map((tagRef) => tagRef.key)).toEqual([
+    expect(refsForResourceTag(SlugTag({ slug: "draft" })).map((tagRef) => tagRef.key)).toEqual([
       ref.key,
     ]);
 
     slug = "published";
     await Effect.runPromise(Resource.refreshEffect(ref));
 
-    expect(Resource.refsForTag(SlugTag({ slug: "draft" }))).toEqual([]);
-    expect(Resource.refsForTag(SlugTag({ slug: "published" })).map((tagRef) => tagRef.key)).toEqual(
-      [ref.key],
-    );
+    expect(refsForResourceTag(SlugTag({ slug: "draft" }))).toEqual([]);
+    expect(refsForResourceTag(SlugTag({ slug: "published" })).map((tagRef) => tagRef.key)).toEqual([
+      ref.key,
+    ]);
   });
 
   it("expires resource entries with gcFor", async () => {
@@ -1104,13 +1112,13 @@ describe("Resource", () => {
       const ref = Count(undefined);
 
       await Effect.runPromise(Resource.prefetchEffect(ref));
-      expect(read(ref)).toBe(1);
+      expect(Effect.runSync(Resource.readEffect(ref))).toBe(1);
 
       await vi.advanceTimersByTimeAsync(11);
 
-      expect(() => read(ref)).toThrow(ResourcePending);
+      expect(() => Effect.runSync(Resource.readEffect(ref))).toThrow(ResourcePending);
       await Effect.runPromise(Resource.prefetchEffect(ref));
-      expect(read(ref)).toBe(2);
+      expect(Effect.runSync(Resource.readEffect(ref))).toBe(2);
     } finally {
       vi.useRealTimers();
     }
@@ -1125,7 +1133,7 @@ describe("Resource", () => {
     const ref = Count(undefined);
 
     await Effect.runPromise(Resource.prefetchEffect(ref));
-    expect(read(ref)).toBe(1);
+    expect(Effect.runSync(Resource.readEffect(ref))).toBe(1);
 
     const deleted = await Effect.runPromise(
       Effect.scoped(
@@ -1137,9 +1145,9 @@ describe("Resource", () => {
       ),
     );
 
-    expect(() => read(ref)).toThrow(ResourcePending);
+    expect(() => Effect.runSync(Resource.readEffect(ref))).toThrow(ResourcePending);
     await Effect.runPromise(Resource.prefetchEffect(ref));
-    expect(read(ref)).toBe(2);
+    expect(Effect.runSync(Resource.readEffect(ref))).toBe(2);
     expect(count).toBe(2);
     expect(deleted).toMatchObject({
       _tag: "ResourceDeleted",
@@ -1276,7 +1284,7 @@ describe("Resource", () => {
     await expect(Effect.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({
       id: "effect",
     });
-    expect(read(ref)).toEqual({ id: "effect" });
+    expect(Effect.runSync(Resource.readEffect(ref))).toEqual({ id: "effect" });
   });
 
   it("uses Effect schedules for retry policy", async () => {
@@ -1301,7 +1309,7 @@ describe("Resource", () => {
       id: "retry",
     });
     expect(attempts).toBe(3);
-    expect(read(ref)).toEqual({ id: "retry" });
+    expect(Effect.runSync(Resource.readEffect(ref))).toEqual({ id: "retry" });
   });
 
   it("does not retry synchronous resource loader callback throws", async () => {
@@ -1341,9 +1349,9 @@ describe("Resource", () => {
       cause: expect.any(Error),
     });
 
-    expect(() => read(ref)).toThrow(ResourceFailure);
+    expect(() => Effect.runSync(Resource.readEffect(ref))).toThrow(ResourceFailure);
     try {
-      read(ref);
+      Effect.runSync(Resource.readEffect(ref));
       expect.fail("expected failure");
     } catch (error) {
       expect(error).toBeInstanceOf(ResourceFailure);
@@ -1370,8 +1378,8 @@ describe("Resource", () => {
       cause: expect.any(EffectInputPromiseRejected),
     });
 
-    expect(() => read(ref)).toThrow(ResourceFailure);
-    const status = Resource.status(ref);
+    expect(() => Effect.runSync(Resource.readEffect(ref))).toThrow(ResourceFailure);
+    const status = Effect.runSync(Resource.statusEffect(ref));
     expect(status.result).toMatchObject({ _tag: "Failure", waiting: false });
     expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
       EffectInputCallbackError,
@@ -1394,7 +1402,7 @@ describe("Resource", () => {
       cause: expect.any(Error),
     });
 
-    const status = Resource.status(ref);
+    const status = Effect.runSync(Resource.statusEffect(ref));
     expect(status.result._tag).toBe("Failure");
     expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
       EffectInputCallbackError,
@@ -1415,7 +1423,7 @@ describe("Resource", () => {
       cause: expect.any(EffectInputPromiseRejected),
     });
 
-    const status = Resource.status(ref);
+    const status = Effect.runSync(Resource.statusEffect(ref));
     expect(status.result._tag).toBe("Failure");
     expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
       EffectInputCallbackError,
@@ -1437,7 +1445,7 @@ describe("Resource", () => {
       cause: expect.any(EffectInputPromiseRejected),
     });
 
-    const status = Resource.status(ref);
+    const status = Effect.runSync(Resource.statusEffect(ref));
     expect(status.result._tag).toBe("Failure");
     expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
       EffectInputCallbackError,
@@ -1459,7 +1467,7 @@ describe("Resource", () => {
       cause: expect.any(TypeError),
     });
 
-    const status = Resource.status(ref);
+    const status = Effect.runSync(Resource.statusEffect(ref));
     expect(status.result._tag).toBe("Failure");
     expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
       EffectInputCallbackError,
@@ -1490,13 +1498,17 @@ describe("Resource", () => {
       operation: "Resource.provides(User.provides-refresh-atomicity)",
     });
 
-    const failed = Resource.status(ref).result;
+    const failed = Effect.runSync(Resource.statusEffect(ref)).result;
     expect(failed._tag).toBe("Failure");
     expect(AsyncResult.value(failed)).toEqual(Option.some({ id: "old" }));
     expect(
-      Resource.planInvalidation(UserTag({ id: "old" })).entries.map((entry) => entry.ref.key),
+      Effect.runSync(Resource.planInvalidationEffect(UserTag({ id: "old" }))).entries.map(
+        (entry) => entry.ref.key,
+      ),
     ).toEqual([ref.key]);
-    expect(Resource.planInvalidation(UserTag({ id: "new" })).entries).toEqual([]);
+    expect(Effect.runSync(Resource.planInvalidationEffect(UserTag({ id: "new" }))).entries).toEqual(
+      [],
+    );
   });
 
   it("throws typed resource failures with previous data", async () => {
@@ -1512,7 +1524,7 @@ describe("Resource", () => {
     await expect(Effect.runPromise(Resource.refreshEffect(ref))).rejects.toThrow("nope");
 
     try {
-      read(ref);
+      Effect.runSync(Resource.readEffect(ref));
       expect.fail("expected failure");
     } catch (error) {
       expect(error).toBeInstanceOf(ResourceFailure);
@@ -1532,23 +1544,25 @@ describe("Resource", () => {
     });
     const ref = User("1");
 
-    Resource.hydrate({
-      resources: [
-        {
-          name: "User.hydrate",
-          key: ref.key,
-          input: "1",
-          state: {
-            _tag: "Success",
-            waiting: false,
-            value: { id: "1", name: "Hydrated" },
-            timestamp: Date.now(),
+    Effect.runSync(
+      Resource.hydrateEffect({
+        resources: [
+          {
+            name: "User.hydrate",
+            key: ref.key,
+            input: "1",
+            state: {
+              _tag: "Success",
+              waiting: false,
+              value: { id: "1", name: "Hydrated" },
+              timestamp: Date.now(),
+            },
           },
-        },
-      ],
-    });
+        ],
+      }),
+    );
 
-    expect(read(ref)).toEqual({ id: "1", name: "Hydrated" });
+    expect(Effect.runSync(Resource.readEffect(ref))).toEqual({ id: "1", name: "Hydrated" });
     await expect(Effect.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({
       id: "1",
       name: "Hydrated",
@@ -1660,7 +1674,7 @@ describe("Resource", () => {
         ),
       );
 
-      expect(read(ref)).toEqual({ id: "1", name: "Current" });
+      expect(Effect.runSync(Resource.readEffect(ref))).toEqual({ id: "1", name: "Current" });
 
       vi.setSystemTime(181_001);
       await Effect.runPromise(
@@ -1684,7 +1698,7 @@ describe("Resource", () => {
         ),
       );
 
-      expect(read(ref)).toEqual({ id: "1", name: "Target" });
+      expect(Effect.runSync(Resource.readEffect(ref))).toEqual({ id: "1", name: "Target" });
     } finally {
       vi.useRealTimers();
     }
@@ -1726,7 +1740,7 @@ describe("Resource", () => {
       cause: thrown,
     });
 
-    expect(() => read(ref)).toThrow(ResourcePending);
+    expect(() => Effect.runSync(Resource.readEffect(ref))).toThrow(ResourcePending);
     await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
       operation: "Resource.provides(User.hydrate-provides-throw)",
@@ -1780,9 +1794,11 @@ describe("Resource", () => {
       reason: "Expected a resource hydration payload.",
     });
 
-    expect(() => Resource.hydrate(legacySnapshots)).toThrow(ResourceSnapshotCodecError);
+    expect(() => Effect.runSync(Resource.hydrateEffect(legacySnapshots))).toThrow(
+      ResourceSnapshotCodecError,
+    );
     try {
-      Resource.hydrate(legacySnapshots);
+      Effect.runSync(Resource.hydrateEffect(legacySnapshots));
       expect.fail("Expected synchronous Resource hydration to reject legacy snapshot arrays.");
     } catch (error) {
       expect(error).toMatchObject({
@@ -1831,11 +1847,11 @@ describe("Resource", () => {
     try {
       await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
 
-      expect(() => runWithRuntime(runtime, () => Resource.hydrationPayload([ref, ref]))).toThrow(
+      expect(() => runtime.runSync(Resource.hydrationPayloadEffect([ref, ref]))).toThrow(
         ResourceSnapshotCodecError,
       );
       try {
-        runWithRuntime(runtime, () => Resource.hydrationPayload([ref, ref]));
+        runtime.runSync(Resource.hydrationPayloadEffect([ref, ref]));
         expect.fail("Expected Resource.hydrationPayload to reject duplicate ref snapshots.");
       } catch (error) {
         expect(error).toMatchObject({
@@ -1993,7 +2009,7 @@ describe("Resource", () => {
       ),
     ).resolves.toBeUndefined();
 
-    expect(() => read(User({ id: "1" }))).toThrow(ResourcePending);
+    expect(() => Effect.runSync(Resource.readEffect(User({ id: "1" })))).toThrow(ResourcePending);
   });
 
   it("decodes schema-backed hydration inputs and outputs", async () => {
@@ -2024,7 +2040,7 @@ describe("Resource", () => {
       }),
     );
 
-    expect(read(ref)).toEqual({ id: "1", name: "Hydrated" });
+    expect(Effect.runSync(Resource.readEffect(ref))).toEqual({ id: "1", name: "Hydrated" });
   });
 
   it("normalizes resource hydration schema errors through the snapshot codec", async () => {
@@ -2129,7 +2145,7 @@ describe("Resource", () => {
 
       expect(Exit.isFailure(result.exit)).toBe(true);
       expect(Option.isNone(result.event)).toBe(true);
-      expect(() => runWithRuntime(runtime, () => read(firstRef))).toThrow(ResourcePending);
+      expect(() => runtime.runSync(Resource.readEffect(firstRef))).toThrow(ResourcePending);
       await expect(
         Effect.runPromise(runtime.provide(Resource.prefetchEffect(firstRef))),
       ).resolves.toEqual({
@@ -2154,10 +2170,10 @@ describe("Resource", () => {
     const ref = User({ id: "1" });
 
     await Effect.runPromise(Resource.prefetchEffect(ref));
-    const dehydrated = Resource.dehydrate([ref]);
+    const dehydrated = Effect.runSync(Resource.dehydrateEffect([ref]));
     (dehydrated[0]!.state.value as { profile: { name: string } }).profile.name = "Mutated";
 
-    expect(read(ref)).toEqual({
+    expect(Effect.runSync(Resource.readEffect(ref))).toEqual({
       id: "1",
       profile: { name: "Loaded" },
     });
@@ -2185,7 +2201,7 @@ describe("Resource", () => {
     );
     hydratedValue.profile.name = "Mutated";
 
-    expect(read(ref)).toEqual({
+    expect(Effect.runSync(Resource.readEffect(ref))).toEqual({
       id: "1",
       profile: { name: "Hydrated" },
     });
@@ -2206,11 +2222,11 @@ describe("Resource", () => {
     try {
       await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
 
-      const syncSnapshot = runWithRuntime(runtime, () => Resource.dehydrate([ref]));
+      const syncSnapshot = runtime.runSync(Resource.dehydrateEffect([ref]));
       const effectSnapshot = await Effect.runPromise(
         runtime.provide(Resource.dehydrateEffect([ref])),
       );
-      const syncPayload = runWithRuntime(runtime, () => Resource.hydrationPayload([ref]));
+      const syncPayload = runtime.runSync(Resource.hydrationPayloadEffect([ref]));
 
       expect(syncSnapshot[0]).toMatchObject({
         input: "42",
@@ -2331,7 +2347,7 @@ describe("Resource", () => {
     const ref = Project("atlas");
 
     const collected = await Effect.runPromise(Resource.collectEffect(Resource.prefetchEffect(ref)));
-    const snapshot = Resource.dehydrate(collected.refs);
+    const snapshot = Effect.runSync(Resource.dehydrateEffect(collected.refs));
 
     expect(collected.value).toEqual({ id: "atlas" });
     expect(collected.refs.map((touched) => touched.key)).toEqual([ref.key]);

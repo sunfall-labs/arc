@@ -305,6 +305,7 @@ const auditCurrentDocsTextPolicies = () => {
 };
 
 const inventoryRows = new Map();
+const inventoryClassifications = new Map();
 for (const line of inventory.split(/\r?\n/)) {
   const match = line.match(
     /^\|\s*`([^`]+)`\s*\|\s*`([^`]+)`([^|]*)\|\s*`([^`]+)`\s*\|\s*([^|]+)\|/,
@@ -321,6 +322,7 @@ for (const line of inventory.split(/\r?\n/)) {
     );
   }
   inventoryRows.set(key, match[4]);
+  inventoryClassifications.set(key, match[5].trim());
 }
 
 const packageDirectories = readdirSync(packagesDirectory, { withFileTypes: true })
@@ -992,6 +994,25 @@ for (const entry of publicApiManifest.entrypoints ?? []) {
   }
 
   expectedEntrypoints.set(key, entry);
+  // `visibility: "internal"` marks adapter-plumbing subpaths that are exported
+  // for sibling Sunfall Arc packages but are not public API.
+  if (entry.visibility !== undefined && entry.visibility !== "internal") {
+    failures.push(
+      `${entry.package} export ${entry.export} visibility must be omitted (public) or "internal"`,
+    );
+  }
+  if (entry.visibility === "internal") {
+    if (entry.export !== "./internal") {
+      failures.push(
+        `${entry.package} export ${entry.export} is marked internal but is not a ./internal subpath`,
+      );
+    }
+    if (inventoryClassifications.has(key) && inventoryClassifications.get(key) !== "Internal") {
+      failures.push(
+        `${entry.package} export ${entry.export} is marked internal in the manifest but docs/public-api-inventory.md classifies it as ${inventoryClassifications.get(key)}`,
+      );
+    }
+  }
   const expectedImport = importSpecifierFor(entry.package, entry.export);
   if (entry.import !== expectedImport) {
     failures.push(

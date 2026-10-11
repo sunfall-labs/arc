@@ -1,4 +1,3 @@
-import { Effect } from "effect";
 import { makeDevtoolsCausalGraph } from "./causal-graph.js";
 import {
   appGraphCollectionDefinitions,
@@ -8,7 +7,7 @@ import {
 import { normalizeDevtoolsSummaryInput } from "./summary-facts.js";
 import type { DevtoolsSummary, DevtoolsSummaryInput } from "./devtools-contract.js";
 
-export { describeDevtoolsCausalGraph, describeDevtoolsCausalGraphEffect } from "./causal-graph.js";
+export { describeDevtoolsCausalGraph } from "./causal-graph.js";
 
 const stateCounts = (
   entries: Iterable<{ readonly state: string }>,
@@ -94,8 +93,3 @@ export const describeDevtoolsSummary = (input: DevtoolsSummaryInput = {}): Devto
     causalGraph,
   };
 };
-
-/** Effect wrapper for `describeDevtoolsSummary(...)`. */
-export const describeDevtoolsSummaryEffect = (
-  input: DevtoolsSummaryInput = {},
-): Effect.Effect<DevtoolsSummary> => Effect.sync(() => describeDevtoolsSummary(input));

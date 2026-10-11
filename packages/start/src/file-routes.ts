@@ -3,7 +3,7 @@ import {
   isRoutePathSegmentPrefix,
   type RoutePathParam,
   type RoutePathSegment,
-} from "@sunfall/arc-core";
+} from "@sunfall/arc-core/internal";
 import { Data, Effect, Schema } from "effect";
 import {
   decodeFileRoutePath,
@@ -518,13 +518,6 @@ export const filePathToRouteManifestEntry = (
   options: FileRouteManifestOptions = {},
 ): FileRouteManifestEntry | undefined =>
   fileRouteModuleToManifestEntry(filePathToFileRouteModule(filePath, options));
-
-/** Effect variant of `filePathToRouteManifestEntry` that reports invalid route segments. */
-export const filePathToRouteManifestEntryEffect = (
-  filePath: string,
-  options: FileRouteManifestOptions = {},
-): Effect.Effect<FileRouteManifestEntry | undefined, FileRouteManifestInvalidSegment> =>
-  Effect.map(filePathToFileRouteModuleEffect(filePath, options), fileRouteModuleToManifestEntry);
 
 /** Generates sorted route entries from discovered file paths without duplicate validation. */
 export const generateFileRouteManifest = (

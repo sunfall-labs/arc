@@ -2,11 +2,11 @@ import { Effect, Exit, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   EffectInputCallbackError,
-  makeCoreDefinitionRegistry,
   Server,
   ServerClient,
   ServerFunctionNotFound,
 } from "../src/index.js";
+import { makeCoreDefinitionRegistry } from "../src/internal.js";
 
 describe("Server contracts", () => {
   const User = Schema.Struct({

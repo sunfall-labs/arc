@@ -186,10 +186,8 @@ is topology-only; route-module/resource/collection diagnostics live behind the
 explicit `virtual:sunfall-arc/app-graph/runtime-diagnostics` import, which also
 exports typed `diagnosticsPolicyViolations` for devtools and agent consumers.
 Use
-`loadStartAppGraphDiagnostics(...)` from `@sunfall/arc-start/vite` when a CI
-script wants to run the same resolved diagnostics gate through Vite and consume
-the resulting `diagnostics` object. The same path is available as
-`sunfall-arc-start diagnostics --root .`; pass `--json` when the caller wants the
+`sunfall-arc-start diagnostics --root .` when a CI script wants to run the same
+resolved diagnostics gate through Vite; pass `--json` when the caller wants the
 resolved graph payload. The default CLI output is an agent-readable repair
 report grouped by source owner, with concrete edits for missing wire schemas,
 unknown action behavior metadata, and route preload resource/collection

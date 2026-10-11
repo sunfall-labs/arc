@@ -1,8 +1,5 @@
-import {
-  currentOrDefaultRuntime,
-  ResourceStore,
-  type ResourceStore as ResourceStoreState,
-} from "@sunfall/arc-core";
+import { ResourceStore, type ResourceStore as ResourceStoreState } from "@sunfall/arc-core";
+import { currentOrDefaultRuntime } from "@sunfall/arc-core/internal";
 import { Effect, Exit, Option, PubSub, Scope } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { CollectionStoreTypeId } from "./collection-ids.js";

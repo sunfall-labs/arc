@@ -427,12 +427,6 @@ export const loadStartAppGraphDiagnostics = (
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
   loadStartAppGraphDiagnosticsRawEffect(options);
 
-/** Same as `loadStartAppGraphDiagnostics`, with a concrete load-error channel. */
-export const loadStartAppGraphDiagnosticsEffect = (
-  options: LoadStartAppGraphDiagnosticsOptions = {},
-): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
-  loadStartAppGraphDiagnosticsRawEffect(options);
-
 /**
  * Runs the resolved Start diagnostics policy through Vite without requiring
  * application code to import `virtual:sunfall-arc/app-graph`.

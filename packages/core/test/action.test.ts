@@ -3,16 +3,13 @@ import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vitest";
 import {
   Action,
-  eraseRuntime,
   EffectInputCallbackError,
   EffectInputPromiseRejected,
-  makeActionSubmissionController,
   makeRuntime,
-  read,
   Resource,
-  runWithRuntime,
   Signal,
 } from "../src/index.js";
+import { eraseRuntime, makeActionSubmissionController } from "../src/internal.js";
 import { makeActionOptimisticTransactionRuntime } from "../src/action-optimistic.js";
 
 describe("Action", () => {
@@ -23,12 +20,12 @@ describe("Action", () => {
     });
     const action = Action.use(Rename);
 
-    expect(read(action.state).result._tag).toBe("Initial");
+    expect(action.state.get().result._tag).toBe("Initial");
     const submission = Effect.runFork(action.submitEffect("Ada"));
-    expect(read(action.state).result.waiting).toBe(true);
+    expect(action.state.get().result.waiting).toBe(true);
     await Effect.runPromise(Fiber.join(submission));
 
-    expect(read(action.state)).toMatchObject({
+    expect(action.state.get()).toMatchObject({
       result: { _tag: "Success", waiting: false, value: { name: "Ada" } },
     });
   });
@@ -43,7 +40,7 @@ describe("Action", () => {
     await expect(Effect.runPromise(action.submitEffect("Grace"))).resolves.toEqual({
       name: "Grace",
     });
-    expect(read(action.state)).toMatchObject({
+    expect(action.state.get()).toMatchObject({
       result: { _tag: "Success", waiting: false, value: { name: "Grace" } },
     });
   });
@@ -225,7 +222,7 @@ describe("Action", () => {
         operation: "Action.optimistic(rename.optimistic-signal-sync-throw).signal",
         cause,
       });
-      expect(read(title)).toBe("Draft");
+      expect(title.get()).toBe("Draft");
       expect(action.state.get()).toMatchObject({
         result: { _tag: "Failure", waiting: false },
         input: Option.some("Ada"),
@@ -256,7 +253,7 @@ describe("Action", () => {
         operation: "Action.optimistic(rename.optimistic-signal-promise-value).signal",
         cause: expect.any(EffectInputPromiseRejected),
       });
-      expect(read(title)).toBe("Draft");
+      expect(title.get()).toBe("Draft");
       expect(action.state.get()).toMatchObject({
         result: { _tag: "Failure", waiting: false },
         input: Option.some("Ada"),
@@ -287,7 +284,7 @@ describe("Action", () => {
         operation: "Action.optimistic(rename.optimistic-signal-promise-updater).signal",
         cause: expect.any(EffectInputPromiseRejected),
       });
-      expect(read(title)).toBe("Draft");
+      expect(title.get()).toBe("Draft");
       expect(action.state.get()).toMatchObject({
         result: { _tag: "Failure", waiting: false },
         input: Option.some("Ada"),
@@ -313,7 +310,7 @@ describe("Action", () => {
         });
 
         yield* Effect.sync(() => {
-          expect(read(title)).toBe("First:Second");
+          expect(title.get()).toBe("First:Second");
         });
 
         throwOnRebase = true;
@@ -325,7 +322,7 @@ describe("Action", () => {
             operation: "Action.optimistic(rename.optimistic-rebase).signal",
             cause,
           });
-          expect(read(title)).toBe("First:Second");
+          expect(title.get()).toBe("First:Second");
         });
       }),
     ));
@@ -352,8 +349,8 @@ describe("Action", () => {
         });
 
         yield* Effect.sync(() => {
-          expect(read(left)).toBe("left:first:second");
-          expect(read(right)).toBe("right:first:second");
+          expect(left.get()).toBe("left:first:second");
+          expect(right.get()).toBe("right:first:second");
         });
 
         throwOnRightRebase = true;
@@ -368,8 +365,8 @@ describe("Action", () => {
             operation: "Action.optimistic(rename.optimistic-atomic).signal",
             cause,
           });
-          expect(read(left)).toBe("left:base:second");
-          expect(read(right)).toBe("right:base:second");
+          expect(left.get()).toBe("left:base:second");
+          expect(right.get()).toBe("right:base:second");
         });
       }),
     ));
@@ -434,9 +431,11 @@ describe("Action", () => {
       },
     });
 
-    expect(() => Action.planInvalidation(Rename, "Ada", "Ada")).toThrow(EffectInputCallbackError);
+    expect(() => Effect.runSync(Action.planInvalidationEffect(Rename, "Ada", "Ada"))).toThrow(
+      EffectInputCallbackError,
+    );
     try {
-      Action.planInvalidation(Rename, "Ada", "Ada");
+      Effect.runSync(Action.planInvalidationEffect(Rename, "Ada", "Ada"));
       expect.fail("Expected Action.planInvalidation to throw a typed callback error");
     } catch (error) {
       expect(error).toMatchObject({
@@ -454,9 +453,11 @@ describe("Action", () => {
       invalidates: () => Promise.resolve([]) as never,
     });
 
-    expect(() => Action.planInvalidation(Rename, "Ada", "Ada")).toThrow(EffectInputCallbackError);
+    expect(() => Effect.runSync(Action.planInvalidationEffect(Rename, "Ada", "Ada"))).toThrow(
+      EffectInputCallbackError,
+    );
     try {
-      Action.planInvalidation(Rename, "Ada", "Ada");
+      Effect.runSync(Action.planInvalidationEffect(Rename, "Ada", "Ada"));
       expect.fail("Expected Action.planInvalidation to throw a typed callback error");
     } catch (error) {
       expect(error).toMatchObject({
@@ -508,9 +509,11 @@ describe("Action", () => {
       invalidates: () => [Effect.succeed(Project("atlas")) as never],
     });
 
-    expect(() => Action.planInvalidation(Rename, "Ada", "Ada")).toThrow(EffectInputCallbackError);
+    expect(() => Effect.runSync(Action.planInvalidationEffect(Rename, "Ada", "Ada"))).toThrow(
+      EffectInputCallbackError,
+    );
     try {
-      Action.planInvalidation(Rename, "Ada", "Ada");
+      Effect.runSync(Action.planInvalidationEffect(Rename, "Ada", "Ada"));
       expect.fail("Expected Action.planInvalidation to throw a typed callback error");
     } catch (error) {
       expect(error).toMatchObject({
@@ -543,7 +546,7 @@ describe("Action", () => {
 
     await Effect.runPromise(Action.use(Increment).submitEffect(undefined));
 
-    expect(read(ref)).toBe(1);
+    expect(Effect.runSync(Resource.readEffect(ref))).toBe(1);
     expect(load).toHaveBeenCalledTimes(2);
   });
 
@@ -571,7 +574,7 @@ describe("Action", () => {
 
     await Effect.runPromise(Action.use(Increment).submitEffect(undefined));
 
-    expect(read(ref)).toBe(1);
+    expect(Effect.runSync(Resource.readEffect(ref))).toBe(1);
     expect(load).toHaveBeenCalledTimes(2);
   });
 
@@ -602,7 +605,7 @@ describe("Action", () => {
         runtime.provide(Action.use(Increment, { runtime }).submitEffect(undefined)),
       );
 
-      expect(runWithRuntime(runtime, () => read(ref))).toBe(1);
+      expect(runtime.runSync(Resource.readEffect(ref))).toBe(1);
       expect(load).toHaveBeenCalledTimes(2);
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
@@ -673,7 +676,7 @@ describe("Action", () => {
     const action = Action.use(Save, { runtime });
 
     await Effect.runPromise(action.submitEffect(undefined));
-    expect(read(action.state)).toMatchObject({
+    expect(action.state.get()).toMatchObject({
       result: { _tag: "Success", waiting: false, value: "saved" },
     });
 
@@ -681,10 +684,10 @@ describe("Action", () => {
     action.reset();
     await Effect.runPromise(Effect.sleep("10 millis"));
 
-    expect(read(action.state)).toEqual({ result: AsyncResult.initial(), input: Option.none() });
+    expect(action.state.get()).toEqual({ result: AsyncResult.initial(), input: Option.none() });
 
     await Effect.runPromise(action.resetEffect());
-    expect(read(action.state)).toEqual({ result: AsyncResult.initial(), input: Option.none() });
+    expect(action.state.get()).toEqual({ result: AsyncResult.initial(), input: Option.none() });
   });
 
   it("captures active submissions before queued sync reset cleanup executes", async () => {
@@ -727,7 +730,7 @@ describe("Action", () => {
     try {
       const first = Effect.runFork(action.submitEffect("first"));
       await Effect.runPromise(Deferred.await(firstStarted));
-      expect(read(action.state)).toMatchObject({
+      expect(action.state.get()).toMatchObject({
         result: { waiting: true },
         input: Option.some("first"),
       });
@@ -736,7 +739,7 @@ describe("Action", () => {
       action.reset();
 
       expect(queuedResets).toHaveLength(1);
-      expect(read(action.state)).toEqual({ result: AsyncResult.initial(), input: Option.none() });
+      expect(action.state.get()).toEqual({ result: AsyncResult.initial(), input: Option.none() });
 
       const second = Effect.runFork(action.submitEffect("second"));
       await Effect.runPromise(Deferred.await(secondStarted));
@@ -747,7 +750,7 @@ describe("Action", () => {
 
       await expect(Effect.runPromise(Fiber.join(second))).resolves.toBe("second");
       await Effect.runPromise(Fiber.await(first));
-      expect(read(action.state)).toMatchObject({
+      expect(action.state.get()).toMatchObject({
         result: { _tag: "Success", waiting: false, value: "second" },
         input: Option.some("second"),
       });
@@ -772,13 +775,13 @@ describe("Action", () => {
     }
 
     await Effect.runPromise(controller.pendingEffect(firstSubmission, "first"));
-    expect(read(controller.state)).toMatchObject({
+    expect(controller.state.get()).toMatchObject({
       result: { waiting: true },
       input: Option.some("first"),
     });
 
     const cleanup = controller.captureResetEffect();
-    expect(read(controller.state)).toEqual({ result: AsyncResult.initial(), input: Option.none() });
+    expect(controller.state.get()).toEqual({ result: AsyncResult.initial(), input: Option.none() });
 
     const secondFiber = Effect.runFork(
       Effect.never.pipe(Effect.onInterrupt(() => Deferred.succeed(secondInterrupted, undefined))),
@@ -826,14 +829,14 @@ describe("Action", () => {
     await Effect.runPromise(action.submitEffect(undefined));
     invalidationTargets.push(Resource.tag("Count.action-plan-ignored"));
 
-    const plan = read(action.invalidationPlan);
+    const plan = action.invalidationPlan.get();
     expect(plan?.targets).toEqual([CountTag]);
     expect(Object.isFrozen(plan?.targets)).toBe(true);
     expect(plan?.entries.map((entry) => entry.ref.key)).toEqual([ref.key]);
-    expect(read(action.state)).toMatchObject({
+    expect(action.state.get()).toMatchObject({
       result: { _tag: "Success", waiting: false },
     });
-    expect(read(action.invalidationPlan)).toBe(plan);
+    expect(action.invalidationPlan.get()).toBe(plan);
     expect(() => (plan!.targets as Resource.Invalidation[]).push(CountTag)).toThrow(TypeError);
   });
 
@@ -854,7 +857,7 @@ describe("Action", () => {
       ),
     );
 
-    expect(read(action.state)).toMatchObject({
+    expect(action.state.get()).toMatchObject({
       result: { _tag: "Success", waiting: false, value: "second" },
     });
   });
@@ -887,7 +890,7 @@ describe("Action", () => {
     );
 
     expect(interrupted).toBe(true);
-    expect(read(action.state)).toMatchObject({
+    expect(action.state.get()).toMatchObject({
       result: { _tag: "Success", waiting: false, value: "second" },
     });
   });
@@ -914,7 +917,7 @@ describe("Action", () => {
     await Effect.runPromise(Effect.exit(Fiber.join(first)));
 
     expect(interrupted).toBe(true);
-    expect(read(action.state)).toMatchObject({
+    expect(action.state.get()).toMatchObject({
       result: { _tag: "Success", waiting: false, value: "second" },
     });
   });
@@ -940,7 +943,7 @@ describe("Action", () => {
     await expect(Effect.runPromise(action.submitEffect(undefined))).resolves.toBe("done");
 
     expect(attempts).toBe(3);
-    expect(read(action.state)).toMatchObject({
+    expect(action.state.get()).toMatchObject({
       result: { _tag: "Success", waiting: false, value: "done" },
     });
   });
@@ -961,8 +964,8 @@ describe("Action", () => {
     const submission = Effect.runFork(action.submitEffect("Published"));
 
     await expect(Effect.runPromise(Fiber.join(submission))).resolves.toBe("Published");
-    expect(read(title)).toBe("Published");
-    expect(read(action.state)).toMatchObject({
+    expect(title.get()).toBe("Published");
+    expect(action.state.get()).toMatchObject({
       result: { _tag: "Success", waiting: false, value: "Published" },
     });
   });
@@ -981,7 +984,7 @@ describe("Action", () => {
 
     await Effect.runPromise(Action.use(Clear).submitEffect(undefined));
 
-    expect(read(selected)).toBeUndefined();
+    expect(selected.get()).toBeUndefined();
   });
 
   it("does not invalidate resources when optimistic commit fails", async () => {
@@ -1025,8 +1028,8 @@ describe("Action", () => {
     });
 
     expect(load).toHaveBeenCalledTimes(1);
-    expect(read(ref)).toBe(0);
-    expect(read(title)).toBe("Draft");
+    expect(Effect.runSync(Resource.readEffect(ref))).toBe(0);
+    expect(title.get()).toBe("Draft");
   });
 
   it("rolls back optimistic finalizers on failure", async () => {
@@ -1036,8 +1039,8 @@ describe("Action", () => {
       optimistic: (next) =>
         Effect.sync(() => {
           const previous = Signal.peek(title);
-          Signal.set(title, next);
-          return Effect.sync(() => Signal.set(title, previous));
+          title.set(next);
+          return Effect.sync(() => title.set(previous));
         }),
       run: () => Effect.fail("boom"),
     });
@@ -1045,12 +1048,12 @@ describe("Action", () => {
 
     await expect(Effect.runPromise(action.submitEffect("Published"))).rejects.toBe("boom");
 
-    expect(read(title)).toBe("Draft");
-    expect(read(action.state)).toMatchObject({
+    expect(title.get()).toBe("Draft");
+    expect(action.state.get()).toMatchObject({
       result: { _tag: "Failure", waiting: false },
       input: Option.some("Published"),
     });
-    expect(AsyncResult.error(read(action.state).result)).toEqual(Option.some("boom"));
+    expect(AsyncResult.error(action.state.get().result)).toEqual(Option.some("boom"));
   });
 
   it("rolls back interrupted latest optimism before applying the next patch", async () => {
@@ -1072,15 +1075,15 @@ describe("Action", () => {
 
     const first = Effect.runFork(action.submitEffect("Stale"));
     await Effect.runPromise(Effect.sleep("10 millis"));
-    expect(read(title)).toBe("Stale");
+    expect(title.get()).toBe("Stale");
 
     const second = Effect.runFork(action.submitEffect("Published"));
     await Effect.runPromise(Deferred.await(secondOptimisticApplied));
 
-    expect(read(title)).toBe("Published");
+    expect(title.get()).toBe("Published");
     await expect(Effect.runPromise(Fiber.join(second))).resolves.toBe("Published");
     await Effect.runPromise(Fiber.await(first));
-    expect(read(title)).toBe("Published");
+    expect(title.get()).toBe("Published");
   });
 
   it("rolls back optimistic patches when interrupted inside optimistic work", () => {
@@ -1109,7 +1112,7 @@ describe("Action", () => {
           .pipe(Effect.forkChild({ startImmediately: true }));
         yield* Deferred.await(firstOptimisticApplied);
         yield* Effect.sync(() => {
-          expect(read(title)).toBe("Stale");
+          expect(title.get()).toBe("Stale");
         });
 
         const second = yield* action
@@ -1120,8 +1123,8 @@ describe("Action", () => {
 
         yield* Effect.sync(() => {
           expect(secondValue).toBe("Published");
-          expect(read(title)).toBe("Published");
-          expect(read(action.state)).toMatchObject({
+          expect(title.get()).toBe("Published");
+          expect(action.state.get()).toMatchObject({
             result: { _tag: "Success", waiting: false, value: "Published" },
           });
         });
@@ -1165,7 +1168,7 @@ describe("Action", () => {
     expect(second).toBe("first");
 
     expect(runs).toBe(1);
-    expect(read(action.state)).toMatchObject({
+    expect(action.state.get()).toMatchObject({
       result: { _tag: "Success", waiting: false, value: "first" },
       input: Option.some("first"),
     });
@@ -1196,7 +1199,7 @@ describe("Action", () => {
     await expect(Effect.runPromise(Fiber.join(first))).resolves.toBe("first");
     await expect(Effect.runPromise(Fiber.join(second))).resolves.toBe("first");
     expect(runs).toBe(1);
-    expect(read(action.state)).toMatchObject({
+    expect(action.state.get()).toMatchObject({
       result: { _tag: "Success", waiting: false, value: "first" },
       input: Option.some("first"),
     });
@@ -1234,7 +1237,7 @@ describe("Action", () => {
     await Effect.runPromise(Fiber.await(first));
 
     expect(runs).toBe(2);
-    expect(read(action.state)).toMatchObject({
+    expect(action.state.get()).toMatchObject({
       result: { _tag: "Success", waiting: false, value: "second" },
       input: Option.some("second"),
     });
@@ -1305,7 +1308,7 @@ describe("Action", () => {
     ).resolves.toEqual(["first", "second"]);
 
     expect(firstInterrupted).toBe(false);
-    expect(read(action.state)).toMatchObject({
+    expect(action.state.get()).toMatchObject({
       result: { _tag: "Success", waiting: false, value: "second" },
       input: Option.some("second"),
     });
@@ -1353,7 +1356,7 @@ describe("Action", () => {
 
     expect(exits.every(Exit.isFailure)).toBe(true);
     expect(invalidates).not.toHaveBeenCalled();
-    expect(read(action.state)).toEqual({ result: AsyncResult.initial(), input: Option.none() });
+    expect(action.state.get()).toEqual({ result: AsyncResult.initial(), input: Option.none() });
   });
 
   it("keeps stale parallel successes from replacing the latest invalidation plan", () => {
@@ -1415,7 +1418,7 @@ describe("Action", () => {
         const secondValue = yield* Fiber.join(second);
         yield* Effect.sync(() => {
           expect(secondValue).toBe("second");
-          expect(read(action.invalidationPlan)?.targets).toEqual([SecondTag]);
+          expect(action.invalidationPlan.get()?.targets).toEqual([SecondTag]);
           expect(secondLoad).toHaveBeenCalledTimes(2);
         });
 
@@ -1425,8 +1428,8 @@ describe("Action", () => {
         yield* Effect.sync(() => {
           expect(firstValue).toBe("first");
           expect(firstLoad).toHaveBeenCalledTimes(2);
-          expect(read(action.invalidationPlan)?.targets).toEqual([SecondTag]);
-          expect(read(action.state)).toMatchObject({
+          expect(action.invalidationPlan.get()?.targets).toEqual([SecondTag]);
+          expect(action.state.get()).toMatchObject({
             result: { _tag: "Success", waiting: false, value: "second" },
             input: Option.some("second"),
           });

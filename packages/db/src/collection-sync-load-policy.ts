@@ -3,6 +3,7 @@ import { Cause, Clock, Deferred, Effect, Exit, Option, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import type {
   AnyCollection,
+  CollectionChange,
   CollectionDefinition,
   CollectionKey,
   CollectionSnapshot,
@@ -36,6 +37,7 @@ import {
 } from "./collection-write-commit.js";
 import { collectionSnapshotFromState } from "./collection-snapshot-codec.js";
 import { withCollectionPolicyRetry } from "./collection-policy.js";
+import { collectionSyncHandlers } from "./sync-adapter.js";
 
 /** Options for one Collection Sync Load Policy invocation. */
 export interface CollectionSyncLoadPolicyOptions<A> {
@@ -207,8 +209,8 @@ const collectionLoadOperation = <A extends object, K extends CollectionKey, E, R
   force: boolean,
 ): (() => EffectInput<ReadonlyArray<A>, E, R>) | undefined =>
   force
-    ? (definition.options.refetch ?? definition.options.load)
-    : (definition.options.load ?? definition.options.refetch);
+    ? (collectionSyncHandlers(definition).refetch ?? collectionSyncHandlers(definition).load)
+    : collectionSyncHandlers(definition).load;
 
 const restoreBeforePreloadEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -486,45 +488,87 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
   });
 
 /**
- * Starts the definition's `follow` stream for the active Collection Store.
+ * Starts the definition's `sync.follow` and `sync.changes` streams for the
+ * active Collection Store.
  *
- * Runs once per store after a successful preload/refetch. The fiber lives in
- * the store's scope, so store (runtime) disposal interrupts it. Each emission
- * goes through the load policy as a forced attempt, which supersedes stale
- * in-flight loads and rebases pending optimistic mutations exactly like a
- * refetch; an emission that is the snapshot the rows were last loaded from is
- * skipped. A follow failure is recorded like a load failure and clears the
- * running flag, so the next successful preload or refetch restarts it.
+ * Each stream runs once per store after a successful preload/refetch. The
+ * fibers live in the store's scope, so store (runtime) disposal interrupts
+ * them.
+ *
+ * `follow` emissions go through the load policy as forced attempts, which
+ * supersede stale in-flight loads and rebase pending optimistic mutations
+ * exactly like a refetch; an emission that is the snapshot the rows were last
+ * loaded from is skipped. A follow failure is recorded like a load failure
+ * and clears the running flag, so the next successful preload or refetch
+ * restarts it.
+ *
+ * `changes` batches are applied through `applyChanges`. A batch that fails to
+ * apply is published as `CollectionChangeFeedFailure` and the stream keeps
+ * running; a stream failure is published the same way, recorded like a load
+ * failure, and restarts on the next successful preload or refetch.
  */
 export const followCollectionSyncEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
+  applyChanges: (
+    store: RuntimeCollectionStore,
+    changes: ReadonlyArray<CollectionChange<A, K>>,
+  ) => Effect.Effect<void, unknown, R>,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
-    const follow = definition.options.follow;
-    if (follow === undefined) {
+    const { follow, changes } = collectionSyncHandlers(definition);
+    if (follow === undefined && changes === undefined) {
       return;
     }
     const store = yield* collectionStoreEffect;
     const state = yield* collectionStateEffect(definition, store);
-    if (state.following) {
-      return;
+    const publishChangesFailure = (error: unknown): Effect.Effect<void> =>
+      store.publish({
+        _tag: "CollectionChangeFeedFailure",
+        collection: definition.name,
+        error,
+      });
+    if (follow !== undefined && !state.following) {
+      state.following = true;
+      yield* Stream.runForEach(follow(), (source) =>
+        source === state.syncedSource
+          ? Effect.void
+          : runCollectionSyncLoadPolicyEffect(definition, { force: true, source }).pipe(
+              // The policy already recorded the failure on the load state.
+              Effect.catch(() => Effect.void),
+            ),
+      ).pipe(
+        Effect.catch((error: E) => failCollectionLoadEffect(store, definition, state, error)),
+        Effect.ignore,
+        Effect.ensuring(
+          Effect.sync(() => {
+            state.following = false;
+          }),
+        ),
+        Effect.forkIn(store.scope),
+      );
     }
-    state.following = true;
-    yield* Stream.runForEach(follow(), (source) =>
-      source === state.syncedSource
-        ? Effect.void
-        : runCollectionSyncLoadPolicyEffect(definition, { force: true, source }).pipe(
-            // The policy already recorded the failure on the load state.
-            Effect.catch(() => Effect.void),
+    if (changes !== undefined && !state.followingChanges) {
+      state.followingChanges = true;
+      yield* Stream.runForEach(changes(), (batch) =>
+        applyChanges(store, batch).pipe(
+          Effect.catchCause((cause) => publishChangesFailure(collectionCauseError(cause))),
+        ),
+      ).pipe(
+        Effect.catch((error: E) =>
+          publishChangesFailure(error).pipe(
+            Effect.andThen(failCollectionLoadEffect(store, definition, state, error)),
           ),
-    ).pipe(
-      Effect.catch((error: E) => failCollectionLoadEffect(store, definition, state, error)),
-      Effect.ignore,
-      Effect.ensuring(
-        Effect.sync(() => {
-          state.following = false;
-        }),
-      ),
-      Effect.forkIn(store.scope),
-    );
+        ),
+        Effect.ignore,
+        Effect.ensuring(
+          Effect.sync(() => {
+            state.followingChanges = false;
+          }),
+        ),
+        Effect.forkIn(store.scope),
+      );
+    }
   });
+
+const collectionCauseError = (cause: Cause.Cause<unknown>): unknown =>
+  cause.reasons.find(Cause.isFailReason)?.error ?? Cause.squash(cause);

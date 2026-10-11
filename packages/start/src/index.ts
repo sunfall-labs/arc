@@ -1,264 +1,152 @@
 export {
-  startRequestCountMetric,
-  startRequestDurationMetric,
-  startRequestStatusMetric,
+  /** Builds the main Start request handler for SSR, RPC, and actions. */
+  createRequestHandler,
+  /** Error raised when request preload cannot complete. */
+  StartPreloadError,
+  /** Error normalized from any Start request handler failure. */
+  StartRequestHandlerError,
+  /** Options for the main Start request handler. */
+  type CreateRequestHandlerOptions,
+  /** Per-request context passed to a Start SSR render function. */
+  type StartRenderContext,
+  /** Effect-returning request handler consumed by host adapters. */
+  type StartRequestHandler,
+} from "./start-request-handler.js";
+
+export type {
+  /** Best-effort request diagnostics delivered after runtime teardown. */
+  StartRequestTrace,
+  /** Callback receiving request diagnostics after runtime teardown. */
+  StartRequestTraceHandler,
 } from "./request-trace.js";
 
-export * from "./hydration.js";
-export * from "./start-collection-resolution.js";
-export * from "./streaming.js";
-export * from "./render-hydration-plan.js";
-export * from "./server-function-manifest.js";
-export * from "./action-manifest.js";
-export * from "./app-graph.js";
-export * from "./agent-graph.js";
-export * from "./effect-rpc-compat.js";
-export * from "./diagnostics-report.js";
-export * from "./static-export.js";
-export * from "./static-client-navigation.js";
-export * from "./file-route-modules.js";
-export * from "./file-route.js";
+export {
+  /** Builds a buffered HTML response inside Effect. */
+  createHtmlResponseEffect,
+  /** Builds a streamed HTML response with ordered hydration chunks. */
+  createStartStreamedHtmlResponseEffect,
+  /** Wraps a string as an HTML stream chunk. */
+  htmlChunk,
+  /** Error raised when an HTML response stream fails. */
+  StartStreamError,
+  /** Options for buffered HTML responses. */
+  type HtmlResponseOptions,
+  /** One HTML stream chunk. */
+  type HtmlStreamChunk,
+  /** Options for streamed HTML responses. */
+  type StartStreamedHtmlResponseOptions,
+} from "./streaming.js";
 
 export {
-  /** Builds the inline script that transfers Start hydration payloads to HTML. */
-  createHydrationScript,
-  /** Builds the inline hydration script inside Effect, surfacing serialization failures as typed errors. */
-  createHydrationScriptEffect,
-  /** Combines resource and collection payloads into the Start hydration shape. */
-  createStartHydrationPayload,
-  /** Hydrates resources and collections from a Start payload as an Effect. */
-  hydrateStartPayloadEffect,
   /** Reads and hydrates Start payloads from a document as an Effect. */
   hydrateFromDocumentEffect,
-  /** Reads and hydrates streamed hydration chunks as an Effect. */
-  hydrateStartHydrationChunksEffect,
-  /** Reads streamed hydration chunks from a document and hydrates them. */
-  hydrateStartHydrationChunksFromDocumentEffect,
-  /** Synchronous runtime boundary for hydrating a Start payload. */
-  hydrateStartPayload,
-  /** Synchronous runtime boundary for hydrating from a document. */
+  /** Synchronous host-seam facade for document hydration before mount. */
   hydrateFromDocument,
-  /** Serializes a streamed hydration chunk into a script tag. */
-  createStreamHydrationScript,
-  /** Parses ordered streamed hydration chunks from a document-like object. */
-  readStartHydrationChunks,
+  /** Error raised when a streamed hydration chunk cannot be parsed. */
+  StartHydrationChunkParseError,
+  /** Error raised when the root hydration payload cannot be parsed. */
+  StartHydrationPayloadParseError,
   /** Error raised when a Start hydration payload cannot be serialized for HTML. */
   StartHydrationPayloadSerializeError,
-  /** Start SSR hydration payload for resources and collections. */
-  type StartHydrationPayload,
+  /** Options for `hydrateFromDocumentEffect`. */
+  type HydrateFromDocumentEffectOptions,
+  /** Options for `hydrateFromDocument`. */
+  type HydrateFromDocumentOptions,
   /** Shared options for request preload and client hydration collections. */
   type StartCollectionHydrationOptions,
-  /** Options passed to request preload before SSR rendering. */
-  type PreloadRequestOptions,
+  /** Minimal document shape required for root and streamed hydration. */
+  type StartHydrationDocument,
+  /** Errors produced while reading or applying hydration payloads. */
+  type StartHydrationError,
+  /** Start SSR hydration payload for resources and collections. */
+  type StartHydrationPayload,
 } from "./hydration.js";
 
 export {
-  filePathToRouteManifestEntry,
-  filePathToRouteManifestEntryEffect,
-  createFileRouteManifest,
-  deserializeFileRouteManifest,
-  serializeFileRouteManifest,
-  generateFileRouteManifest,
-  generateFileRouteManifestArtifact,
-  generateValidatedFileRouteManifestEffect,
-  generateValidatedFileRouteManifestArtifactEffect,
-  validateFileRouteManifestEffect,
-  defaultFileRouteExtensions,
-  FileRouteManifestDuplicateRoutePath,
-  FileRouteManifestInvalidSegment,
-  FileRouteManifestParseError,
-  FileRouteManifestDuplicateModuleRole,
-  FileRouteManifestRouteModuleMismatch,
-  FileRouteId,
-  FileRouteSourceId,
-  describeFileRouteManifest,
-  filePathToFileRouteModule,
-  filePathToFileRouteModuleEffect,
-  generateFileRouteModules,
-  makeFileRouteId,
-  makeFileRouteSourceId,
-  type FileRouteManifestError,
-  type FileRouteManifest,
-  type FileRouteManifestEntry,
-  type FileRouteManifestModule,
-  type FileRouteManifestOptions,
-  type FileRouteModuleKind,
-  type FileRouteParam,
-  type FileRouteRouteMetadata,
-  type FileRouteSegment,
-} from "./file-routes.js";
+  /** Error raised when request preload finds duplicate collection names. */
+  StartCollectionDuplicateName,
+} from "./start-collection-resolution.js";
 
 export {
-  StartPreloadError,
-  StartRequestHandlerError,
-  createRequestHandler,
-  createRequestHandlerEffect,
-  createServerActionResponseEffect,
-  createServerHandler,
-  createServerHandlerEffect,
-  createServerRpcResponseEffect,
-  preloadRequest,
-  preloadRequestEffect,
-} from "./start-request-handler.js";
-export type {
-  CreateRequestHandlerOptions,
-  StartCollectionPreload,
-  StartPreloadResult,
-  StartRenderContext,
-  StartRequestHandler,
-  StartRequestHandlerEffect,
-} from "./start-request-handler.js";
+  /** Builds the browser RPC `ServerClient` layer; call with no options for defaults. */
+  makeRpcClientLayer,
+} from "./start-rpc-client.js";
 
 export type {
+  /** Options for Start RPC clients. */
   ServerRpcClientOptions,
+  /** Effect-returning fetch used by Start transports. */
   StartFetch,
+  /** Request init accepted by `StartFetch`. */
   StartFetchInit,
+  /** Request input accepted by `StartFetch`. */
   StartFetchInput,
 } from "./start-fetch.js";
 
-export type {
-  StartRequestTrace,
-  StartRequestTraceAction,
-  StartRequestTraceCollection,
-  StartRequestTraceCookie,
-  StartRequestTraceCleanupFailure,
-  StartRequestTraceFiber,
-  StartRequestTraceFiberStatus,
-  StartRequestTraceFailureKind,
-  StartRequestTraceHandler,
-  StartRequestTraceHeader,
-  StartRequestTraceRequest,
-  StartRequestTraceResource,
-  StartRequestTraceResponse,
-  StartRequestTraceRoutePlan,
-  StartRequestTraceServerFunction,
-  StartRequestTraceStatus,
-  StartRequestTraceStream,
-  StartRequestTraceStreamState,
-  StartRequestTraceTeardown,
-  StartRequestTraceTeardownSnapshot,
-  StartRequestTraceTransport,
-} from "./request-trace.js";
-
 export {
-  decodeStartActionFormDataEffect,
-  encodeStartActionFormInputEffect,
-  encodeStartActionInputEffect,
-  encodeStartActionPartialInputEffect,
-  encodeStartActionRequestEffect,
-  readStartActionRequestEffect,
-  StartActionFormEncodeError,
-  startActionForm,
-  startActionFormDataDecodeOptions,
-  startActionInputField,
-  startActionNameField,
-  type StartActionDefinition,
-  type StartActionForm,
-  type StartActionFormField,
-  type StartActionFormOptions,
-  type StartActionRequest,
-} from "./start-action-request-codec.js";
-
-export {
-  describeStartActionInvalidationPlan,
-  isServerActionRequest,
-  isServerRpcRequest,
-  StartActionDuplicateName,
-  type ActionDefinitionErrorValue,
-  type ActionDefinitionInputValue,
-  type ActionDefinitionOutputValue,
-  type StartActionClientOptions,
-  type StartActionInvalidationCause,
-  type StartActionInvalidationPlan,
-  type StartActionInvalidationTarget,
-  type StartActionResponseBody,
-  type StartActionResponseMeta,
-  type StartActionResult,
-  type StartActionResultFor,
-} from "./start-transport-protocol.js";
-
-export { StartAction, submitStartActionEffect } from "./start-action-client.js";
-
-export { BrowserRpcLive, makeRpcClient, makeRpcClientLayer } from "./start-rpc-client.js";
-
-export {
-  acceptsMediaType,
-  hasContentType,
-  makeStartRequestId,
-  makeStartRequestIdEffect,
-  mediaTypeOf,
-  negotiateAcceptedMediaType,
-  serverActionPath,
-  serverRpcPath,
-  startBaggageHeader,
-  startFormUrlEncodedMediaType,
-  startHtmlMediaType,
-  startJsonMediaType,
-  startMultipartFormDataMediaType,
-  startRequestIdHeader,
-  startTraceparentHeader,
-  startTransportDiagnosticsEffect,
-  startTransportEndpointEnvelopeEffect,
-  startTransportKindHeader,
-  startTransportProtocolHeader,
-  startTransportProtocolVersion,
-  startTransportRequestHeaders,
-  startTransportResponseHeaders,
-  StartTransportRequestError,
-  validateStartActionRequestEffect,
-  validateStartActionResponseEffect,
-  validateStartRpcRequestEffect,
-  validateStartRpcResponseEffect,
-  validateStartTransportAcceptEffect,
-  validateStartTransportContentTypeEffect,
-  validateStartTransportMethodEffect,
-  withStartTransportDiagnostics,
-  type StartTransportDiagnostics,
-  type StartTransportDiagnosticsOptions,
-  type StartTransportEndpointEnvelope,
-  type StartTransportKind,
-  type StartTransportRequestHeadersOptions,
-} from "./rpc.js";
-
-export {
-  defaultStartTransportEndpoints,
-  isStartActionEndpointRequest,
-  isStartRpcEndpointRequest,
-  normalizeStartEndpointPath,
-  resolveStartActionEndpoint,
-  resolveStartRpcEndpoint,
-  resolveStartTransportEndpoints,
-  resolveStartTransportEndpointsEffect,
-  startEndpointConflictGuidance,
-  startEndpointPathGuidance,
-  startEndpointPathInvalidReason,
-  StartTransportEndpointConflictError,
+  /** Error raised when a configured transport endpoint path is invalid. */
   StartTransportEndpointPathError,
-  validateStartEndpointPathEffect,
-  type StartActionEndpointManifest,
-  type StartActionEndpointSource,
-  type StartEndpointConflictErrorInput,
-  type StartEndpointPathErrorInput,
-  type StartEndpointPathInvalidReason,
-  type StartRpcEndpointSource,
-  type StartServerFunctionEndpointManifest,
-  type StartTransportEndpointManifestSource,
+  /** Error raised when RPC and action transport endpoints collide. */
+  StartTransportEndpointConflictError,
+  /** Transport endpoint path overrides for request handlers and clients. */
   type StartTransportEndpointOverrides,
-  type StartTransportEndpoints,
-  type StartTransportEndpointSource,
 } from "./start-transport-endpoints.js";
 
 export {
-  Action,
-  defineApp,
-  read,
-  Resource,
-  route,
-  Route,
-  Server,
-  ServerClient,
-  ServerFunctionNotFound,
-  ServerRpcProtocolError,
-  ServerTransportError,
-  Signal,
-} from "@sunfall/arc-core";
+  /** Defines a file-backed route checked against its discovered file path. */
+  defineFileRoute,
+} from "./file-route.js";
+
+export {
+  /** Stateful client helpers and HTML form helpers for Start actions. */
+  StartAction,
+  /** Submits a Start action over the action transport. */
+  submitStartActionEffect,
+} from "./start-action-client.js";
+
+export {
+  /** Error raised when action form input cannot be encoded. */
+  StartActionFormEncodeError,
+  /** Options for `StartAction.form(...)`. */
+  type StartActionFormOptions,
+} from "./start-action-request-codec.js";
+
+export {
+  /** Error raised when two served actions share a name. */
+  StartActionDuplicateName,
+  /** Options for Start action clients. */
+  type StartActionClientOptions,
+  /** Resource invalidation plan returned by an action response. */
+  type StartActionInvalidationPlan,
+} from "./start-transport-protocol.js";
+
+export {
+  /** Error raised when a static base path is invalid. */
+  StartStaticBasePathError,
+  /** Error raised when static client navigation cannot hydrate a target document. */
+  StartStaticNavigationHydrationError,
+  /** Reads the current static-site href relative to the base path. */
+  currentStartStaticHref,
+  /** Builds the history adapter used by static client navigation. */
+  makeStartStaticHistoryAdapter,
+  /** Normalizes a static deployment base path. */
+  normalizeStartStaticBasePath,
+  /** Removes a static deployment base path from an href. */
+  stripStartStaticBasePath,
+  /** Adds a static deployment base path to an href. */
+  withStartStaticBasePath,
+  /** Options for `makeStartStaticHistoryAdapter`. */
+  type StartStaticHistoryAdapterOptions,
+  /** Minimal window shape used by static client navigation. */
+  type StartStaticHistoryWindow,
+} from "./static-client-navigation.js";
+
+export type {
+  /** Hand-authored server-function source passed to the Start Vite plugin. */
+  ServerFunctionManifestSource,
+} from "./server-function-manifest.js";
+
+export type {
+  /** Hand-authored action source passed to the Start Vite plugin. */
+  ActionManifestSource,
+} from "./action-manifest.js";

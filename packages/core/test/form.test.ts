@@ -1,6 +1,6 @@
 import { Context, Data, Deferred, Effect, Exit, Fiber, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { EffectInputCallbackError, Form, read } from "../src/index.js";
+import { EffectInputCallbackError, Form } from "../src/index.js";
 
 type DeepMutable<T> =
   T extends Map<infer K, infer V>
@@ -25,7 +25,7 @@ describe("Form", () => {
       initial: { id: "atlas", name: "Atlas Billing" },
     });
 
-    expect(read(form.state)).toEqual({
+    expect(form.state.get()).toEqual({
       status: "Idle",
       initial: { id: "atlas", name: "Atlas Billing" },
       values: { id: "atlas", name: "Atlas Billing" },
@@ -44,7 +44,7 @@ describe("Form", () => {
 
     form.setField("name", "Atlas Revenue");
 
-    expect(read(form.state)).toMatchObject({
+    expect(form.state.get()).toMatchObject({
       values: { id: "atlas", name: "Atlas Revenue" },
       dirty: { name: true },
       touched: { name: true },
@@ -52,7 +52,7 @@ describe("Form", () => {
 
     form.setField("name", "Atlas Billing");
 
-    expect(read(form.state)).toMatchObject({
+    expect(form.state.get()).toMatchObject({
       values: { id: "atlas", name: "Atlas Billing" },
       dirty: { name: false },
       touched: { name: true },
@@ -83,7 +83,7 @@ describe("Form", () => {
       tags: ["billing", "core"],
     });
 
-    expect(read(form.state)).toMatchObject({
+    expect(form.state.get()).toMatchObject({
       dirty: { details: false },
       touched: { details: true },
     });
@@ -93,7 +93,7 @@ describe("Form", () => {
       tags: ["core", "billing"],
     });
 
-    expect(read(form.state)).toMatchObject({
+    expect(form.state.get()).toMatchObject({
       dirty: { details: true },
       touched: { details: true },
     });
@@ -107,7 +107,7 @@ describe("Form", () => {
 
     form.touchField("name");
 
-    expect(read(form.state)).toMatchObject({
+    expect(form.state.get()).toMatchObject({
       values: { id: "atlas", name: "Atlas Billing" },
       touched: { name: true },
       dirty: {},
@@ -132,7 +132,7 @@ describe("Form", () => {
         ),
         Effect.tap(() =>
           Effect.sync(() =>
-            expect(read(form.state)).toMatchObject({
+            expect(form.state.get()).toMatchObject({
               status: "Valid",
               fieldErrors: {},
               formErrors: [],
@@ -158,7 +158,7 @@ describe("Form", () => {
         Effect.tap((exit) =>
           Effect.sync(() => {
             expect(Exit.isFailure(exit)).toBe(true);
-            const state = read(form.state);
+            const state = form.state.get();
             expect(state.status).toBe("Invalid");
             expect(state.fieldErrors.name?.[0]).toBeInstanceOf(Schema.SchemaError);
           }),
@@ -187,7 +187,7 @@ describe("Form", () => {
         Effect.tap((exit) =>
           Effect.sync(() => {
             expect(Exit.isFailure(exit)).toBe(true);
-            const error = read(form.state).fieldErrors.name?.[0];
+            const error = form.state.get().fieldErrors.name?.[0];
             expect(error).toBeInstanceOf(ProjectNameTooShort);
             if (error instanceof ProjectNameTooShort) {
               expect(error.minimum).toBe(3);
@@ -220,7 +220,7 @@ describe("Form", () => {
       const exit = Effect.runSync(Effect.exit(form.validateEffect()));
 
       expect(Exit.isFailure(exit)).toBe(true);
-      const state = read(form.state);
+      const state = form.state.get();
       expect(state.status).toBe("Invalid");
       expect(state.fieldErrors).toEqual({});
       expect(state.formErrors[0]).toBeInstanceOf(EffectInputCallbackError);
@@ -240,7 +240,7 @@ describe("Form", () => {
     const exit = await Effect.runPromise(Effect.exit(form.validateEffect()));
 
     expect(Exit.isFailure(exit)).toBe(true);
-    const state = read(form.state);
+    const state = form.state.get();
     expect(state.status).toBe("Invalid");
     expect(state.fieldErrors).toEqual({});
     expect(state.formErrors[0]).toBeInstanceOf(EffectInputCallbackError);
@@ -286,7 +286,7 @@ describe("Form", () => {
         Effect.tap((exit) =>
           Effect.sync(() => {
             expect(Exit.isFailure(exit)).toBe(true);
-            expect(read(form.state).fieldErrors.name?.[0]).toBeInstanceOf(ProjectNameReserved);
+            expect(form.state.get().fieldErrors.name?.[0]).toBeInstanceOf(ProjectNameReserved);
           }),
         ),
         Effect.asVoid,
@@ -347,7 +347,7 @@ describe("Form", () => {
     form.setField("name", "Atlas Revenue");
     form.reset({ id: "phoenix", name: "Phoenix Ops" });
 
-    expect(read(form.state)).toEqual({
+    expect(form.state.get()).toEqual({
       status: "Idle",
       initial: { id: "phoenix", name: "Phoenix Ops" },
       values: { id: "phoenix", name: "Phoenix Ops" },
@@ -372,26 +372,26 @@ describe("Form", () => {
     });
 
     initial.details.name = "Mutated";
-    expect(read(form.state).initial.details.name).toBe("Atlas Billing");
-    expect(read(form.state).values.details.name).toBe("Atlas Billing");
+    expect(form.state.get().initial.details.name).toBe("Atlas Billing");
+    expect(form.state.get().values.details.name).toBe("Atlas Billing");
 
-    const exposed = mutableSnapshot(read(form.state));
+    const exposed = mutableSnapshot(form.state.get());
     exposed.initial.details.name = "Externally Mutated";
     exposed.values.details.name = "Externally Mutated";
-    expect(read(form.state).initial.details.name).toBe("Atlas Billing");
-    expect(read(form.state).values.details.name).toBe("Atlas Billing");
+    expect(form.state.get().initial.details.name).toBe("Atlas Billing");
+    expect(form.state.get().values.details.name).toBe("Atlas Billing");
 
     const resetValues = { id: "phoenix", details: { name: "Phoenix Ops" } };
     form.reset(resetValues);
     resetValues.details.name = "Mutated Reset";
-    expect(read(form.state).initial.details.name).toBe("Phoenix Ops");
-    expect(read(form.state).values.details.name).toBe("Phoenix Ops");
+    expect(form.state.get().initial.details.name).toBe("Phoenix Ops");
+    expect(form.state.get().values.details.name).toBe("Phoenix Ops");
 
-    const exposedAfterReset = mutableSnapshot(read(form.state));
+    const exposedAfterReset = mutableSnapshot(form.state.get());
     exposedAfterReset.initial.details.name = "Externally Mutated Reset";
     form.reset();
-    expect(read(form.state).initial.details.name).toBe("Phoenix Ops");
-    expect(read(form.state).values.details.name).toBe("Phoenix Ops");
+    expect(form.state.get().initial.details.name).toBe("Phoenix Ops");
+    expect(form.state.get().values.details.name).toBe("Phoenix Ops");
   });
 
   it("detaches Map, Set, and custom object form snapshots", () => {
@@ -423,7 +423,7 @@ describe("Form", () => {
       initial,
     });
 
-    const state = read(form.state);
+    const state = form.state.get();
     expect(state.initial.meta).toBeInstanceOf(Map);
     expect(state.initial.meta).not.toBe(initial.meta);
     expect(state.initial.meta.get("team")).not.toBe(team);
@@ -436,24 +436,24 @@ describe("Form", () => {
     team.name = "Mutated";
     label.id = "mutated";
     (owner as { name: string }).name = "Grace";
-    expect(read(form.state).initial.meta.get("team")?.name).toBe("Core");
-    expect(Array.from(read(form.state).initial.labels)[0]?.id).toBe("atlas");
-    expect(read(form.state).initial.owner.name).toBe("Ada");
+    expect(form.state.get().initial.meta.get("team")?.name).toBe("Core");
+    expect(Array.from(form.state.get().initial.labels)[0]?.id).toBe("atlas");
+    expect(form.state.get().initial.owner.name).toBe("Ada");
 
-    const exposed = mutableSnapshot(read(form.state));
+    const exposed = mutableSnapshot(form.state.get());
     const exposedTeam = exposed.initial.meta.get("team");
     expect(exposedTeam).toBeDefined();
     exposedTeam!.name = "Externally Mutated";
     exposed.initial.labels.add({ id: "external" });
     exposed.initial.owner.name = "External";
-    expect(read(form.state).initial.meta.get("team")?.name).toBe("Core");
-    expect(read(form.state).initial.labels.size).toBe(1);
-    expect(read(form.state).initial.owner.name).toBe("Ada");
+    expect(form.state.get().initial.meta.get("team")?.name).toBe("Core");
+    expect(form.state.get().initial.labels.size).toBe(1);
+    expect(form.state.get().initial.owner.name).toBe("Ada");
 
     form.setField("meta", new Map([["team", { name: "Core" }]]));
-    expect(read(form.state).dirty.meta).toBe(false);
+    expect(form.state.get().dirty.meta).toBe(false);
     form.setField("meta", new Map([["team", { name: "Runtime" }]]));
-    expect(read(form.state).dirty.meta).toBe(true);
+    expect(form.state.get().dirty.meta).toBe(true);
   });
 
   it("snapshots values passed to in-flight validation and returned validation values", () => {
@@ -484,7 +484,7 @@ describe("Form", () => {
         yield* Deferred.await(started);
 
         initial.details.name = "Mutated Initial";
-        const exposed = mutableSnapshot(read(form.state));
+        const exposed = mutableSnapshot(form.state.get());
         exposed.values.details.name = "Mutated Exposed";
         yield* Deferred.succeed(release, undefined);
 
@@ -492,7 +492,7 @@ describe("Form", () => {
         mutableSnapshot(value).details.name = "Mutated Return";
 
         expect(validatedName).toBe("Atlas Billing");
-        expect(read(form.state).values.details.name).toBe("Atlas Billing");
+        expect(form.state.get().values.details.name).toBe("Atlas Billing");
       }),
     );
   });
@@ -527,7 +527,7 @@ describe("Form", () => {
         yield* Deferred.succeed(release, undefined);
 
         const exit = yield* Fiber.await(validation);
-        const state = read(form.state);
+        const state = form.state.get();
 
         expect(Exit.isFailure(exit)).toBe(true);
         expect(state.status).toBe("Idle");
@@ -558,7 +558,7 @@ describe("Form", () => {
         yield* Deferred.succeed(release, undefined);
 
         const value = yield* Fiber.join(validation);
-        const state = read(form.state);
+        const state = form.state.get();
 
         expect(value).toEqual({ id: "atlas", name: "Atlas Billing" });
         expect(state).toEqual({

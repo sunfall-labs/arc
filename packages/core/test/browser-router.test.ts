@@ -1,23 +1,10 @@
 import { Cause, Context, Deferred, Effect, Fiber, Layer, Schema } from "effect";
 import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import {
-  browserRouterLinkClickDecision,
-  browserRouterLinkPreloadDecision,
-  browserRouterLinkPreloadIdentity,
-  browserRouteRenderDecision,
-  browserRouteRenderIdentity,
-  browserRouteRenderKey,
-  browserRouterInitialMatchedState,
   createBrowserRouterHostController,
-  createBrowserRouterKernel,
-  eraseRuntime,
   EffectInputPromiseRejected,
-  isPlainLeftClick,
-  makeBrowserRouterLinkPreloader,
   makeMemoryBrowserHistoryAdapter,
   makeRuntime,
-  makeWindowBrowserHistoryAdapter,
-  opensOutsideRouter,
   route,
   Route,
   type BrowserHistoryWindow,
@@ -26,6 +13,21 @@ import {
   RouterRouteNotRegistered,
   RoutePreloadError,
 } from "../src/index.js";
+import {
+  browserRouterLinkClickDecision,
+  browserRouterLinkPreloadDecision,
+  browserRouterLinkPreloadIdentity,
+  browserRouteRenderDecision,
+  browserRouteRenderIdentity,
+  browserRouteRenderKey,
+  browserRouterInitialMatchedState,
+  createBrowserRouterKernel,
+  eraseRuntime,
+  isPlainLeftClick,
+  makeBrowserRouterLinkPreloader,
+  makeWindowBrowserHistoryAdapter,
+  opensOutsideRouter,
+} from "../src/internal.js";
 
 describe("browser router kernel", () => {
   interface ProjectApi {

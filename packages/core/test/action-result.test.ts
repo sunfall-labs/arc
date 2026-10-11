@@ -5,7 +5,6 @@ import {
   EffectInputCallbackError,
   EffectInputPromiseRejected,
   Form,
-  read,
   Resource,
 } from "../src/index.js";
 import { ActionResult, type ActionResult as ActionResultValue } from "../src/action-result.js";
@@ -80,7 +79,7 @@ describe("ActionResult", () => {
               expect(result.status).toBe(303);
               expect(result.replace).toBe(true);
             }
-            expect(read(action.state).result).toMatchObject({
+            expect(action.state.get().result).toMatchObject({
               _tag: "Success",
               value: {
                 _tag: "Redirect",
@@ -251,7 +250,7 @@ describe("ActionResult", () => {
             operation: "ActionResult.success",
             cause: expect.any(EffectInputPromiseRejected),
           });
-          expect(read(action.state)).toMatchObject({
+          expect(action.state.get()).toMatchObject({
             result: { _tag: "Failure", waiting: false },
             input: Option.some("save"),
           });
@@ -330,9 +329,9 @@ describe("ActionResult", () => {
         yield* action.submitEffect(undefined);
 
         yield* Effect.sync(() => {
-          expect(read(ref)).toBe(1);
+          expect(Effect.runSync(Resource.readEffect(ref))).toBe(1);
           expect(load).toHaveBeenCalledTimes(2);
-          expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toEqual([
+          expect(action.invalidationPlan.get()?.entries.map((entry) => entry.ref.key)).toEqual([
             ref.key,
           ]);
         });
@@ -437,10 +436,11 @@ describe("ActionResult", () => {
         yield* action.submitEffect(undefined);
 
         yield* Effect.sync(() => {
-          expect(read(leftRef)).toBe(1);
-          expect(read(rightRef)).toBe(1);
+          expect(Effect.runSync(Resource.readEffect(leftRef))).toBe(1);
+          expect(Effect.runSync(Resource.readEffect(rightRef))).toBe(1);
           expect(
-            read(action.invalidationPlan)
+            action.invalidationPlan
+              .get()
               ?.entries.map((entry) => entry.ref.key)
               .sort(),
           ).toEqual([leftRef.key, rightRef.key].sort());

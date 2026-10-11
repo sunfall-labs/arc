@@ -44,29 +44,6 @@ const resultInvalidations = <A>(
 ): ReadonlyArray<ResourceInvalidation<ActionResultInvalidationRequirements<A>>> =>
   ActionResult.is(value) ? ActionResult.invalidations(value as AnyActionResult) : [];
 
-export const invalidationsFor = <I, A, E, R>(
-  definition: ActionDefinition<I, A, E, R>,
-  value: A,
-  input: I,
-): ReadonlyArray<ResourceInvalidation<R | ActionResultInvalidationRequirements<A>>> => {
-  const operation = `Action.invalidates(${definition.name})`;
-  try {
-    const invalidations =
-      definition.invalidates === undefined
-        ? []
-        : validateResourceInvalidationsArraySync(
-            operation,
-            definition.invalidates(value, input),
-            "Action invalidates callbacks must return Resource refs or tags synchronously. Move host Promise work into the action run Effect.",
-          );
-    return [...invalidations, ...resultInvalidations(value)] as ReadonlyArray<
-      ResourceInvalidation<R | ActionResultInvalidationRequirements<A>>
-    >;
-  } catch (cause) {
-    throw actionCallbackError(operation, cause);
-  }
-};
-
 export const invalidationsForEffect = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
   value: A,

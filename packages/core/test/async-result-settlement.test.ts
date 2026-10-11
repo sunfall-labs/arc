@@ -3,15 +3,14 @@ import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
 import {
   Action,
-  eraseRuntime,
   makeRuntime,
-  read,
   Resource,
   ResourceFailure,
   ResourcePending,
   runWithRuntime,
   type SunfallArcRuntime,
 } from "../src/index.js";
+import { eraseRuntime } from "../src/internal.js";
 import { settleResult, settledResult } from "../src/async-result-settle.js";
 
 const runIn = <A, E, R, Services, RuntimeError>(
@@ -67,7 +66,7 @@ describe("AsyncResult settlement", () => {
     expect(AsyncResult.error(result)).toEqual(Option.none());
 
     try {
-      read(ref);
+      Effect.runSync(Resource.readEffect(ref));
       expect.fail("expected ResourceFailure");
     } catch (error) {
       expect(error).toBeInstanceOf(ResourceFailure);
@@ -157,7 +156,7 @@ describe("AsyncResult settlement", () => {
 
     expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).toBe(true);
     expect(Resource.result(ref).get()).toEqual(settled);
-    expect(read(ref)).toBe(3);
+    expect(Effect.runSync(Resource.readEffect(ref))).toBe(3);
   });
 
   it("does not surface interruption of a waiting first load as a Failure", async () => {
@@ -182,7 +181,7 @@ describe("AsyncResult settlement", () => {
       _tag: "Initial",
       waiting: true,
     });
-    expect(() => runWithRuntime(runtime, () => read(ref))).toThrow(ResourcePending);
+    expect(() => runtime.runSync(Resource.readEffect(ref))).toThrow(ResourcePending);
 
     await Effect.runPromise(Fiber.interrupt(refresh));
     await Effect.runPromise(runtime.disposeEffect);

@@ -7,17 +7,10 @@ import {
 } from "./action-submission.js";
 import { type ActionOptimisticTransaction, type ActionRollback } from "./action-optimistic.js";
 import {
-  invalidationsFor,
   invalidationsForEffect,
   makeActionExecutionWorkflow,
 } from "./action-execution-workflow.js";
-import {
-  actionDefinitionRegistry,
-  clearActionDefinitionRegistryUnsafe,
-  coreDefinitionRegistryDiagnostics,
-  getActionDefinition,
-  registerActionDefinition,
-} from "./definition-registry.js";
+import { registerActionDefinition } from "./definition-registry.js";
 import type {
   EffectInput,
   EffectInputError,
@@ -169,17 +162,6 @@ export interface ActionUseOptions<R = never, ER = never> {
 
 export type { ActionOptimisticTransaction, ActionRollback } from "./action-optimistic.js";
 
-export {
-  ActionInterrupted,
-  makeActionSubmissionController,
-  type ActionSubmissionController,
-  type ActionSubmissionControllerOptions,
-  type ActionSubmissionDecision,
-  type ActionSubmissionFiber,
-  type ActionSubmissionRun,
-  type ActionState,
-} from "./action-submission.js";
-
 type AnyActionDefinition = ActionDefinition<any, any, any, any>;
 type ActionRuntimeProvidedRequirements<R> = R | ResourceStoreState;
 type ActionRuntimeRemainingRequirements<RIn, RProvided> = Exclude<
@@ -252,13 +234,6 @@ export namespace Action {
   /** Public namespace alias for the optimistic Action transaction object. */
   export type OptimisticTransaction = ActionOptimisticTransaction;
 
-  export const planInvalidation = <I, A, E, R>(
-    definition: ActionDefinition<I, A, E, R>,
-    value: A,
-    input: I,
-  ): ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>> =>
-    Resource.planInvalidation(invalidationsFor(definition, value, input));
-
   /** Effect-first invalidation planning that reports action callback throws in the error channel. */
   export const planInvalidationEffect = <I, A, E, R>(
     definition: ActionDefinition<I, A, E, R>,
@@ -276,8 +251,8 @@ export namespace Action {
   /**
    * Defines and registers a reusable action without binding it to UI state.
    *
-   * Registered actions are available through `Action.definitions()`,
-   * `Action.get(...)`, and the default `defineApp(...)` registry snapshot. Use
+   * Registered actions are available through the default `defineApp(...)`
+   * registry snapshot. Use
    * `Action.use(...)` to create an instance for a component or interaction
    * boundary.
    *
@@ -447,27 +422,6 @@ export namespace Action {
     registerActionDefinition(action);
     return action;
   }
-
-  /** Registered action definitions keyed by action name. */
-  export const definitions = (): ReadonlyMap<string, AnyActionDefinition> =>
-    actionDefinitionRegistry<AnyActionDefinition>();
-
-  /** Looks up a registered action definition by action name. */
-  export const get = (name: string): AnyActionDefinition | undefined =>
-    getActionDefinition<AnyActionDefinition>(name);
-
-  /** Registry diagnostics, including duplicate action/server registrations. */
-  export const registryDiagnostics = coreDefinitionRegistryDiagnostics;
-
-  /**
-   * Test-only reset for registered action definitions.
-   *
-   * Unsafe because it mutates process-wide state observed by later
-   * `defineApp(...)` calls.
-   */
-  export const clearRegistryUnsafe = (): void => {
-    clearActionDefinitionRegistryUnsafe();
-  };
 
   /**
    * Creates a live action instance with state, optimistic updates, and invalidation.

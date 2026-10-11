@@ -25,64 +25,22 @@ import {
   StableStringifyInvalidDate,
   StableStringifyUnsupportedValue,
   UnsupportedDuration,
-  UiScope,
-  applyResponseContext,
   applyResponseContextEffect,
-  browserRouteRenderDecision,
-  browserRouteActiveRenderer,
-  browserRouteRenderIdentity,
-  browserRouteRenderKey,
-  browserRouterInitialMatchedState,
-  browserRouterLinkClickDecision,
-  browserRouterLinkPreloadDecision,
-  browserRouterLinkPreloadIdentity,
-  buildRoutePath,
-  compareRoutePathSegment,
-  compareRoutePathSpecificity,
-  createBrowserRouterKernel,
   createBrowserRouterHostController,
   defineApp,
-  disposeRuntimeProviderLifecycleEntryEffect,
-  disposeRuntimeProviderLifecycleEffect,
   disposeResourceStoreEffect,
-  forkScoped,
-  hrefForRouteInput,
   isActionDefinition,
-  isPlainLeftClick,
   isPromiseLikeValue,
-  isRouteParamName,
-  isRoutePathSegmentPrefix,
-  makeRequestContext,
   makeRequestContextEffect,
   makeResponseContext,
   makeMemoryBrowserHistoryAdapter,
-  makeWindowBrowserHistoryAdapter,
-  makeResourceUiBindingController,
-  makeResourceUiSuspensePreloadController,
   makeResourceStore,
-  makeBrowserRouterLinkPreloader,
   makeRuntime,
-  makeRuntimeProviderLifecycleEntry,
-  makeRuntimeUiScope,
-  makeRuntimeUiScopeFrame,
-  matchRoutePath,
-  onDispose,
-  onScopeDispose,
-  opensOutsideRouter,
-  parseRoutePathSegments,
-  parseRouteUrl,
   provideRequest,
   provideResponse,
   route,
-  routeParamsFromSegments,
-  routePathFromSegments,
-  routePathSegmentsEqual,
-  routePathSlug,
-  scoped,
-  serializeResponseCookie,
   serializeResponseCookieEffect,
   stableStringify,
-  withResourceStore,
   type ActionConcurrency,
   type ActionDefinition,
   type ActionInstance,
@@ -96,30 +54,13 @@ import {
   type ActionState,
   type BrowserHistoryAdapter,
   type BrowserHistoryWindow,
-  type BrowserRouterInitialMatchedHost,
-  type BrowserRouterInitialMatchedStateOptions,
   type BrowserNavigateOptions,
   type BrowserNavigateArgs,
-  type BrowserRouteOutletDefaultRenderers,
-  type BrowserRouteOutletRenderers,
-  type BrowserRouteReadyRenderProps,
-  type BrowserRouteRenderDecision,
-  type BrowserRouteRenderIdentityInput,
   type BrowserRouterPath,
   type BrowserRouterRouteForPath,
-  type BrowserRouterKernel,
-  type BrowserRouterKernelOptions,
   type BrowserRouterHostController,
-  type BrowserRouterLinkClickDecision,
-  type BrowserRouterLinkPreloader,
-  type BrowserRouterLinkPreloadIdentity,
-  type BrowserRouterLinkPreloadIdentityOptions,
-  type BrowserRouterLinkPreloaderOptions,
-  type BrowserRouterLinkPreloaderRuntime,
-  type BrowserRouterLinkPreloadDecision,
   type ActionUseOptions,
   type AnySunfallArcRuntime,
-  type DisposeRuntimeProviderLifecycleOptions,
   type DurationInput,
   type SunfallArcRuntime,
   type FormInstance,
@@ -130,8 +71,68 @@ import {
   type ResourceTagDefinition,
   type MemoryBrowserHistoryAdapter,
   type ResourceSnapshotCodecOperation,
-  type ResourceHydrationInput,
   type ResourceHydrationPayload,
+  type BrowserRouterError,
+  type RouteErrorSchema,
+  type RoutePreloadFailureEncoding,
+  type RoutePreloadFailureSnapshot,
+} from "@sunfall/arc-core";
+import {
+  UiScope,
+  browserRouteRenderDecision,
+  browserRouteActiveRenderer,
+  browserRouteRenderIdentity,
+  browserRouteRenderKey,
+  browserRouterInitialMatchedState,
+  browserRouterLinkClickDecision,
+  browserRouterLinkPreloadDecision,
+  browserRouterLinkPreloadIdentity,
+  buildRoutePath,
+  compareRoutePathSegment,
+  compareRoutePathSpecificity,
+  createBrowserRouterKernel,
+  disposeRuntimeProviderLifecycleEntryEffect,
+  disposeRuntimeProviderLifecycleEffect,
+  forkScoped,
+  hrefForRouteInput,
+  isPlainLeftClick,
+  isRouteParamName,
+  isRoutePathSegmentPrefix,
+  makeWindowBrowserHistoryAdapter,
+  makeResourceUiBindingController,
+  makeResourceUiSuspensePreloadController,
+  makeBrowserRouterLinkPreloader,
+  makeRuntimeProviderLifecycleEntry,
+  makeRuntimeUiScope,
+  makeRuntimeUiScopeFrame,
+  matchRoutePath,
+  onDispose,
+  opensOutsideRouter,
+  parseRoutePathSegments,
+  parseRouteUrl,
+  routeParamsFromSegments,
+  routePathFromSegments,
+  routePathSegmentsEqual,
+  routePathSlug,
+  scoped,
+  withResourceStore,
+  type BrowserRouterInitialMatchedHost,
+  type BrowserRouterInitialMatchedStateOptions,
+  type BrowserRouteOutletDefaultRenderers,
+  type BrowserRouteOutletRenderers,
+  type BrowserRouteReadyRenderProps,
+  type BrowserRouteRenderDecision,
+  type BrowserRouteRenderIdentityInput,
+  type BrowserRouterKernel,
+  type BrowserRouterKernelOptions,
+  type BrowserRouterLinkClickDecision,
+  type BrowserRouterLinkPreloader,
+  type BrowserRouterLinkPreloadIdentity,
+  type BrowserRouterLinkPreloadIdentityOptions,
+  type BrowserRouterLinkPreloaderOptions,
+  type BrowserRouterLinkPreloaderRuntime,
+  type BrowserRouterLinkPreloadDecision,
+  type DisposeRuntimeProviderLifecycleOptions,
   type ResourceUiAutoPreloadOptions,
   type ResourceUiBindingController,
   type ResourceUiBindingControllerOptions,
@@ -143,11 +144,7 @@ import {
   type RuntimeProviderLifecycleEntry,
   type RuntimeProviderLifecycleOptions,
   type RuntimeUiScopeFrame,
-  type BrowserRouterError,
-  type RouteErrorSchema,
-  type RoutePreloadFailureEncoding,
-  type RoutePreloadFailureSnapshot,
-} from "@sunfall/arc-core";
+} from "@sunfall/arc-core/internal";
 // @ts-expect-error ResourceCollector is an internal preload planning service, not a root export.
 type ResourceCollectorIsInternal = typeof import("@sunfall/arc-core").ResourceCollector;
 // @ts-expect-error ResourceCollected is exposed as Resource.Collected, not as a root export.
@@ -386,7 +383,6 @@ const coreExports: Array<unknown> = [
   StableStringifyUnsupportedValue,
   UnsupportedDuration,
   UiScope,
-  applyResponseContext,
   applyResponseContextEffect,
   browserRouteActiveRenderer,
   browserRouteRenderDecision,
@@ -408,7 +404,6 @@ const coreExports: Array<unknown> = [
   isPromiseLikeValue,
   isRouteParamName,
   isRoutePathSegmentPrefix,
-  makeRequestContext,
   makeRequestContextEffect,
   makeResponseContext,
   makeMemoryBrowserHistoryAdapter,
@@ -419,7 +414,6 @@ const coreExports: Array<unknown> = [
   makeRuntimeUiScope,
   matchRoutePath,
   onDispose,
-  onScopeDispose,
   opensOutsideRouter,
   parseRoutePathSegments,
   parseRouteUrl,
@@ -456,7 +450,6 @@ const coreExports: Array<unknown> = [
   routePathSegmentsEqual,
   routePathSlug,
   scoped,
-  serializeResponseCookie,
   serializeResponseCookieEffect,
   stableStringify,
   browserRouterPath,
@@ -516,8 +509,8 @@ const typeTestResourceSnapshot: Resource.Snapshot<string, string> = {
 const typeTestResourceHydrationPayload: ResourceHydrationPayload = {
   resources: [typeTestResourceSnapshot],
 };
-const typeTestResourceHydrationInput: ResourceHydrationInput = typeTestResourceHydrationPayload;
-const typeTestResourceNamespacePayload: Resource.HydrationPayload = typeTestResourceHydrationInput;
+const typeTestResourceNamespacePayload: Resource.HydrationPayload =
+  typeTestResourceHydrationPayload;
 const collectedResourceEffect: Effect.Effect<
   Resource.Collected<string>,
   Resource.LoadError<string>
@@ -705,24 +698,19 @@ const runtimeUiScope = makeRuntimeUiScope(browserRouterKernelRuntime);
 const runtimeUiScopeFrame: RuntimeUiScopeFrame = makeRuntimeUiScopeFrame(
   browserRouterKernelRuntime,
 );
-const uiScopeCapturedDispose: Effect.Effect<void> = uiScope.captureDisposeEffect();
-const runtimeUiScopeFrameCapturedDispose: Effect.Effect<void> =
-  runtimeUiScopeFrame.captureDisposeEffect();
-runtimeUiScopeFrame.dispose();
+const uiScopeDispose: Effect.Effect<void> = uiScope.disposeEffect();
+const runtimeUiScopeFrameDispose: Effect.Effect<void> = runtimeUiScopeFrame.disposeEffect();
 const scopedValue = scoped(() => "scoped");
-onScopeDispose(() => Effect.void);
+onDispose(() => Effect.void);
 onDispose(() => undefined);
 
 const request = new Request("https://sunfall-arc.test/projects/atlas?tab=overview");
-const requestContext = makeRequestContext(request);
 const requestContextEffect = makeRequestContextEffect(request);
 const responseContext = makeResponseContext();
-const appliedResponse = applyResponseContext(responseContext, new Response("ok"));
-const appliedResponseEffect = applyResponseContextEffect(responseContext, appliedResponse);
+const appliedResponseEffect = applyResponseContextEffect(responseContext, new Response("ok"));
 const providedRequest = provideRequest(request)(Effect.succeed("ok"));
 const providedResponse = provideResponse(responseContext)(Effect.succeed("ok"));
-const cookieHeader = serializeResponseCookie("theme", "dark", { sameSite: "Lax" });
-const cookieHeaderEffect = serializeResponseCookieEffect("theme", "dark");
+const cookieHeaderEffect = serializeResponseCookieEffect("theme", "dark", { sameSite: "Lax" });
 
 const codecOperation: ResourceSnapshotCodecOperation = "decode";
 const codecError = new ResourceSnapshotCodecError({
@@ -852,7 +840,6 @@ void actionFailureCause;
 void typeTestResourceRef;
 void typeTestResourceSnapshot;
 void typeTestResourceHydrationPayload;
-void typeTestResourceHydrationInput;
 void typeTestResourceNamespacePayload;
 void resourceUiBindingController;
 void resourceUiBindingDisposeEffect;
@@ -877,16 +864,14 @@ void counterInstance;
 void uiScope;
 void runtimeUiScope;
 void runtimeUiScopeFrame;
-void uiScopeCapturedDispose;
-void runtimeUiScopeFrameCapturedDispose;
+void uiScopeDispose;
+void runtimeUiScopeFrameDispose;
 void scopedValue;
-void requestContext;
 void requestContextEffect;
 void responseContext;
 void appliedResponseEffect;
 void providedRequest;
 void providedResponse;
-void cookieHeader;
 void cookieHeaderEffect;
 void codecError;
 void routePath;

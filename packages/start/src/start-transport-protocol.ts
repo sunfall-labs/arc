@@ -1,7 +1,5 @@
 import {
-  Action,
   ActionResult,
-  type CoreDefinitionRegistry,
   Server,
   ServerFunctionNotFound,
   ServerRpcProtocolError,
@@ -11,6 +9,7 @@ import {
   type SunfallArcRuntime,
   type ServerFunction,
 } from "@sunfall/arc-core";
+import { type CoreDefinitionRegistry, actionDefinitionRegistry } from "@sunfall/arc-core/internal";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
 import type { StartCollectionHydrationOptions } from "./hydration.js";
 import {
@@ -256,7 +255,7 @@ export const makeActionMap = <Actions extends StartActionDefinition = StartActio
   registry?: CoreDefinitionRegistry<Actions, ServerFunction<any, any, any, any>>,
 ): StartActionMap<Actions> => {
   if (actions === undefined) {
-    return (registry?.actions ?? Action.definitions()) as StartActionMap<Actions>;
+    return (registry?.actions ?? actionDefinitionRegistry()) as StartActionMap<Actions>;
   }
 
   return isStartActionMap(actions) ? actions : materializeStartActionMap(actions);

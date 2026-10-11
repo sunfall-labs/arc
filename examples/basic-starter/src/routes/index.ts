@@ -1,8 +1,8 @@
+import { Resource } from "@sunfall/arc-core";
 import { defineFileRoute } from "@sunfall/arc-start";
 import { WelcomeResource } from "../starter.js";
 
-const RouteBuilder = defineFileRoute("/");
-
-export const Route = RouteBuilder.preload({
-  resources: [RouteBuilder.resource(WelcomeResource, () => "Sunfall Arc")],
-}).route();
+export const Route = defineFileRoute("/")({
+  preloadResources: [WelcomeResource],
+  preload: () => Resource.prefetchEffect(WelcomeResource("Sunfall Arc")),
+});

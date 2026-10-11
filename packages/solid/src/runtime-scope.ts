@@ -1,8 +1,5 @@
-import {
-  makeRuntimeUiScopeFrame,
-  type AnySunfallArcRuntime,
-  type UiScope,
-} from "@sunfall/arc-core";
+import { type AnySunfallArcRuntime } from "@sunfall/arc-core";
+import { makeRuntimeUiScopeFrame, type UiScope } from "@sunfall/arc-core/internal";
 import { onCleanup } from "solid-js";
 
 /**
@@ -16,7 +13,7 @@ export const createRuntimeScope = <A, ER>(
 ): A => {
   const frame = makeRuntimeUiScopeFrame(runtime);
   onCleanup(() => {
-    frame.dispose();
+    void runtime.runFork(frame.disposeEffect());
   });
   return frame.run(() => f(frame.scope));
 };

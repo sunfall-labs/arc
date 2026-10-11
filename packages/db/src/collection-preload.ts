@@ -7,7 +7,7 @@ export interface CollectionPreloadCollector {
    * Ordered collection preload facts observed in the current collector.
    *
    * The list may contain duplicate definition identities. Nested
-   * `Collection.collectEffect(...)` calls append their facts to the parent
+   * `collectCollectionsEffect(...)` calls append their facts to the parent
    * collector; dehydration later dedupes identical definitions and rejects
    * distinct definitions that share a collection name.
    */

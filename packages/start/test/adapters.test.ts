@@ -11,26 +11,16 @@ import { Readable } from "node:stream";
 import { Deferred, Effect, Option } from "effect";
 import { describe, expect, it } from "vitest";
 import { defineApp, makeRuntime, route } from "@sunfall/arc-core";
+import { createFetchHandler, toFetchHandler } from "../src/fetch.js";
 import {
-  createFetchHandler,
   createNodeHandler,
   createNodeServerHandler,
   nodeRequestOrigin,
   nodeRequestToWebRequest,
-  StartRequestHandlerError,
-  toFetchHandler,
-  toFetchHandlerEffect,
-  writeNodeResponseEffect,
-} from "../src/adapters.js";
-import { StartNodeAdapterError } from "../src/node-adapter.js";
-import {
-  createFetchHandler as createPackagedFetchHandler,
-  toFetchHandlerEffect as toPackagedFetchHandlerEffect,
-} from "@sunfall/arc-start-fetch";
-import {
-  createNodeServerHandler as createPackagedNodeServerHandler,
-  nodeRequestOrigin as packagedNodeRequestOrigin,
-} from "@sunfall/arc-start-node";
+  StartNodeAdapterError,
+  writeNodeResponse,
+} from "../src/node.js";
+import { StartRequestHandlerError } from "../src/index.js";
 import { createRequestHandler } from "../src/start-request-handler.js";
 import {
   normalizeStartRequestHandlerError,
@@ -59,7 +49,7 @@ const close = (server: ReturnType<typeof createServer>): Promise<void> =>
   );
 
 describe("Start deployment adapters", () => {
-  it("converts Node requests into Web requests with forwarded origin and body", async () => {
+  it("converts Node requests into Web requests with trusted forwarded origin and body", async () => {
     const nodeRequest = Readable.from([Buffer.from("hello")]) as IncomingMessage;
     nodeRequest.method = "POST";
     nodeRequest.url = "/submit?tab=overview";
@@ -71,7 +61,7 @@ describe("Start deployment adapters", () => {
       "x-sunfall-arc-test": ["first", "second"],
     };
 
-    const request = nodeRequestToWebRequest(nodeRequest);
+    const request = nodeRequestToWebRequest(nodeRequest, { trustForwardedHeaders: true });
 
     expect(request.method).toBe("POST");
     expect(request.url).toBe("https://app.example.com/submit?tab=overview");
@@ -90,6 +80,7 @@ describe("Start deployment adapters", () => {
       "x-forwarded-host": "public.example.com",
     };
 
+    expect(nodeRequestOrigin(nodeRequest)).toBe("http://internal.local");
     expect(nodeRequestOrigin(nodeRequest, { trustForwardedHeaders: true })).toBe(
       "https://public.example.com",
     );
@@ -102,24 +93,26 @@ describe("Start deployment adapters", () => {
   });
 
   it("adapts an Effect request handler to a Node HTTP server", async () => {
-    const nodeHandler = createNodeServerHandler((request) =>
-      Effect.gen(function* () {
-        const body = yield* Effect.tryPromise(() => request.text());
-        return new Response(
-          JSON.stringify({
-            method: request.method,
-            url: request.url,
-            body,
-          }),
-          {
-            status: 201,
-            headers: {
-              "content-type": "application/json",
-              "x-sunfall-arc-adapter": "node",
+    const nodeHandler = createNodeServerHandler(
+      (request) =>
+        Effect.gen(function* () {
+          const body = yield* Effect.tryPromise(() => request.text());
+          return new Response(
+            JSON.stringify({
+              method: request.method,
+              url: request.url,
+              body,
+            }),
+            {
+              status: 201,
+              headers: {
+                "content-type": "application/json",
+                "x-sunfall-arc-adapter": "node",
+              },
             },
-          },
-        );
-      }),
+          );
+        }),
+      { trustForwardedHeaders: true },
     );
     const server = createServer(nodeHandler);
     const port = await listen(server);
@@ -171,7 +164,7 @@ describe("Start deployment adapters", () => {
   it("normalizes synchronous handler throws in fetch adapters", async () => {
     const cause = new Error("sync handler failed");
     const request = new Request("https://example.com/sync-throw");
-    const effectHandler = toFetchHandlerEffect((): Effect.Effect<Response> => {
+    const effectHandler = toFetchHandler((): Effect.Effect<Response> => {
       throw cause;
     });
     const promiseHandler = createFetchHandler(() => {
@@ -194,7 +187,7 @@ describe("Start deployment adapters", () => {
 
   it("normalizes invalid handler return shapes in fetch adapters", async () => {
     const request = new Request("https://example.com/invalid-return");
-    const effectHandler = toFetchHandlerEffect((() => new Response("not an Effect")) as never);
+    const effectHandler = toFetchHandler((() => new Response("not an Effect")) as never);
     const promiseHandler = createFetchHandler((() =>
       Promise.resolve(new Response("not an Effect"))) as never);
 
@@ -216,7 +209,7 @@ describe("Start deployment adapters", () => {
     });
     const cause = new Error("already normalized");
     const normalized = normalizeStartRequestHandlerError(request, cause);
-    const effectHandler = toFetchHandlerEffect(() => Effect.fail(normalized));
+    const effectHandler = toFetchHandler(() => Effect.fail(normalized));
 
     const error = await Effect.runPromise(Effect.flip(effectHandler(request)));
 
@@ -277,7 +270,7 @@ describe("Start deployment adapters", () => {
 
     const error = await Effect.runPromise(
       Effect.flip(
-        writeNodeResponseEffect(
+        writeNodeResponse(
           response,
           new Response("ok", {
             headers: {
@@ -547,7 +540,7 @@ describe("Start deployment adapters", () => {
   });
 
   it("exposes thin fetch adapters for edge-style hosts", async () => {
-    const effectHandler = toFetchHandlerEffect((request) =>
+    const effectHandler = toFetchHandler((request) =>
       Effect.succeed(new Response(new URL(request.url).pathname)),
     );
     const fetchHandler = toFetchHandler((request) => Effect.succeed(new Response(request.method)));
@@ -763,45 +756,9 @@ describe("Start deployment adapters", () => {
     }
   });
 
-  it("exposes host facade packages over the tested adapter implementation", async () => {
-    const nodeRequest = {
-      headers: {
-        host: "node.example.com",
-      },
-    } as IncomingMessage;
-    const effectHandler = toPackagedFetchHandlerEffect((request) =>
-      Effect.succeed(new Response(new URL(request.url).pathname)),
-    );
-
-    expect(packagedNodeRequestOrigin(nodeRequest)).toBe(nodeRequestOrigin(nodeRequest));
-    expect(typeof createPackagedNodeServerHandler(() => Effect.succeed(new Response("ok")))).toBe(
-      "function",
-    );
-    await expect(
-      createPackagedFetchHandler((request) =>
-        Effect.succeed(new Response(new URL(request.url).pathname)),
-      )(new Request("https://example.com/from-fetch-package")),
-    ).resolves.toMatchObject({
-      status: 200,
-    });
-    await expect(
-      Effect.runPromise(effectHandler(new Request("https://example.com/from-package"))),
-    ).resolves.toMatchObject({
-      status: 200,
-    });
-  });
-
-  it("keeps the packaged fetch facade pointed at the fetch-only adapter module", () => {
-    const fetchAdapterSource = readFileSync(
-      new URL("../src/fetch-adapter.ts", import.meta.url),
-      "utf8",
-    );
-    const packagedFetchSource = readFileSync(
-      new URL("../../start-fetch/src/index.ts", import.meta.url),
-      "utf8",
-    );
+  it("keeps the fetch adapter module free of Node imports", () => {
+    const fetchAdapterSource = readFileSync(new URL("../src/fetch.ts", import.meta.url), "utf8");
 
     expect(fetchAdapterSource).not.toContain("node:");
-    expect(packagedFetchSource).toContain("@sunfall/arc-start/fetch-adapter");
   });
 });

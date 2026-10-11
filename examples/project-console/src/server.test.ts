@@ -1,14 +1,13 @@
 import { readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import type { AnySunfallArcRuntime, SunfallArcRuntime } from "@sunfall/arc-core";
+import { StartAction, type StartHydrationPayload } from "@sunfall/arc-start";
 import {
   hydrationScriptId,
   serverActionPath,
-  startActionForm,
   streamHydrationAttribute,
   type StartHydrationChunk,
-  type StartHydrationPayload,
-} from "@sunfall/arc-start";
+} from "@sunfall/arc-start/testing";
 import { Effect } from "effect";
 import { Window } from "happy-dom";
 import { build } from "vite";
@@ -191,7 +190,7 @@ describe("project console SSR", () => {
   });
 
   it("runs progressive project name actions from plain form posts", async () => {
-    const form = startActionForm(SubmitProjectName, {
+    const form = StartAction.form(SubmitProjectName, {
       input: {
         id: makeProjectId("lumen"),
         redirectTo: makeProjectReturnTo("/projects/lumen?tab=activity"),
@@ -222,7 +221,7 @@ describe("project console SSR", () => {
   });
 
   it("returns typed validation data from plain form posts", async () => {
-    const form = startActionForm(SubmitProjectName, {
+    const form = StartAction.form(SubmitProjectName, {
       input: {
         id: makeProjectId("atlas"),
       },
@@ -251,7 +250,7 @@ describe("project console SSR", () => {
   });
 
   it("rejects unsafe branded redirect targets from plain form posts", async () => {
-    const form = startActionForm(SubmitProjectName, {
+    const form = StartAction.form(SubmitProjectName, {
       input: {
         id: makeProjectId("atlas"),
       },
@@ -304,8 +303,8 @@ describe("project console SSR", () => {
     );
     expect(generatedRoutes).toContain('  "/projects/:id": route_projects_$id');
     expect(generatedRoutes).toContain("export const hrefByPath");
-    expect(generatedRoutes).toContain("export type Href<Id extends RouteId>");
-    expect(generatedRoutes).toContain("export type Match<Path extends RoutePath>");
+    expect(generatedRoutes).toContain("export type FileRouteHrefOptions<Id extends FileRouteId>");
+    expect(generatedRoutes).toContain("export type FileRouteMatch<Path extends FileRoutePath>");
     expect(bundleText).not.toContain("seedProjects");
     expect(bundleText).not.toContain("Move invoice preview");
     expect(bundleText).not.toContain("Webhook replay still manual");

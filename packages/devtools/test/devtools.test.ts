@@ -1,11 +1,10 @@
-import { Cause, Effect, Fiber, Option, PubSub, Schema } from "effect";
+import { Cause, Effect, Exit, Fiber, Option, PubSub, Schema, Scope } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
 import {
   Action,
   makeRuntime,
   Program,
-  read as readSignal,
   Resource,
   route,
   Route,
@@ -13,32 +12,24 @@ import {
   type ActionState,
 } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
+import { collectionStoreEffect } from "@sunfall/arc-db/internal";
 import {
   bootDevtoolsPanels,
   DevtoolsActionInvalidationPlanConflict,
   DevtoolsUnknownInvalidationTarget,
   devtoolsPanelIds,
-  devtoolsPanelStyles,
   makeDevtoolsStore,
   describeDevtoolsCausalGraph,
-  describeDevtoolsCausalGraphEffect,
   describeDevtoolsSummary,
-  describeDevtoolsSummaryEffect,
   describeDevtoolsPanels,
-  describeDevtoolsPanelsEffect,
   describeInvalidationPlan,
   describeRoutePlan,
   sunfallArcDevtoolsBridgeGlobal,
   installDevtoolsBridge,
   installDevtoolsBridgeEffect,
-  isDevtoolsPanelId,
-  isDevtoolsPanelItem,
-  isDevtoolsPanels,
   isDevtoolsSerializableValue,
-  mountDevtoolsPanels,
-  normalizeSunfallArcDevtoolsBridgePayload,
+  mountDevtoolsPanelsEffect,
   renderDevtoolsPanelsHtml,
-  renderDevtoolsPanelsHtmlEffect,
   toDevtoolsSerializableValue,
   type DevtoolsBridgeTarget,
   type DevtoolsInvalidationPlan,
@@ -47,6 +38,13 @@ import {
   type DevtoolsStartAppGraphDiagnostics,
 } from "../src/index.js";
 import { stableFactFingerprint } from "../src/fact-identity.js";
+import {
+  isDevtoolsPanelId,
+  isDevtoolsPanelItem,
+  isDevtoolsPanels,
+  normalizeSunfallArcDevtoolsBridgePayload,
+} from "../src/panel-contract.js";
+import { devtoolsPanelStyles } from "../src/panel-renderer.js";
 
 type DevtoolsLifecycleType = "pagehide" | "beforeunload";
 
@@ -101,7 +99,7 @@ describe("devtools invalidation plans", () => {
     };
 
     const conflictOptions = {
-      invalidationPlan: Resource.planInvalidation(Tag),
+      invalidationPlan: Effect.runSync(Resource.planInvalidationEffect(Tag)),
       serializedInvalidationPlan: serialized,
     } as unknown as Parameters<typeof store.recordActionState>[2];
 
@@ -130,7 +128,11 @@ describe("devtools invalidation plans", () => {
 
     await Effect.runPromise(Resource.prefetchEffect(ref));
 
-    expect(describeInvalidationPlan(Resource.planInvalidation(UserTag({ id: "1" })))).toEqual({
+    expect(
+      describeInvalidationPlan(
+        Effect.runSync(Resource.planInvalidationEffect(UserTag({ id: "1" }))),
+      ),
+    ).toEqual({
       targets: [
         {
           _tag: "Tag",
@@ -162,8 +164,8 @@ describe("devtools invalidation plans", () => {
     const SecondTag = Resource.tag("Second.devtools");
     const store = makeDevtoolsStore({ invalidationLimit: 1 });
 
-    store.recordInvalidation(Resource.planInvalidation(FirstTag));
-    store.recordInvalidation(Resource.planInvalidation(SecondTag));
+    store.recordInvalidation(Effect.runSync(Resource.planInvalidationEffect(FirstTag)));
+    store.recordInvalidation(Effect.runSync(Resource.planInvalidationEffect(SecondTag)));
 
     expect(store.getSnapshot().invalidations).toEqual([
       {
@@ -834,7 +836,7 @@ describe("devtools invalidation plans", () => {
 
       const trackedEvents =
         store.getSnapshot().events?.filter((event) => event._tag === "ProgramEvent") ?? [];
-      expect(readSignal(program.model)).toEqual({ count: 1 });
+      expect(program.model.get()).toEqual({ count: 1 });
       expect(trackedEvents.map((event) => event.event._tag)).toEqual(["Message"]);
 
       await Effect.runPromise(program.dispatchEffect({ _tag: "Increment" }));
@@ -944,7 +946,7 @@ describe("devtools invalidation plans", () => {
       }),
     );
     const invalidationPlan = describeInvalidationPlan(
-      Resource.planInvalidation(UserTag({ id: "1" })),
+      Effect.runSync(Resource.planInvalidationEffect(UserTag({ id: "1" }))),
     );
     const summary = describeDevtoolsSummary({
       appGraph: appGraphDiagnostics,
@@ -1089,16 +1091,12 @@ describe("devtools invalidation plans", () => {
       ]),
     });
     expect(JSON.parse(JSON.stringify(panels))).toEqual(panels);
-    await expect(
-      Effect.runPromise(describeDevtoolsSummaryEffect({ appGraph: appGraphDiagnostics })),
-    ).resolves.toMatchObject({
+    expect(describeDevtoolsSummary({ appGraph: appGraphDiagnostics })).toMatchObject({
       graph: {
         _tag: "Available",
       },
     });
-    await expect(
-      Effect.runPromise(describeDevtoolsPanelsEffect({ summary })),
-    ).resolves.toMatchObject({
+    expect(describeDevtoolsPanels({ summary })).toMatchObject({
       panels: expect.arrayContaining([expect.objectContaining({ id: "app-graph" })]),
     });
   });
@@ -1153,16 +1151,6 @@ describe("devtools invalidation plans", () => {
     expect(html).toContain("GET /projects/&lt;atlas&gt;");
     expect(html).toContain("1 more items hidden by the current render limit.");
     expect(html).not.toContain("Ops <Devtools>");
-    await expect(
-      Effect.runPromise(
-        renderDevtoolsPanelsHtmlEffect({
-          panels,
-          title: "Ops <Devtools>",
-          selectedPanelId: "requests",
-          maxItemsPerPanel: 1,
-        }),
-      ),
-    ).resolves.toEqual(html);
   });
 
   it("installs the inspected-window devtools bridge with scoped cleanup", async () => {
@@ -1660,12 +1648,15 @@ describe("devtools invalidation plans", () => {
       removeEventListener: () => undefined,
       contains: () => true,
     } as unknown as HTMLElement;
-    const mount = mountDevtoolsPanels({
-      root,
-      panels: missingPanels,
-      selectedPanelId: "diagnostics",
-      includeStyles: false,
-    });
+    const mountScope = Effect.runSync(Scope.make());
+    Effect.runSync(
+      mountDevtoolsPanelsEffect({
+        root,
+        panels: missingPanels,
+        selectedPanelId: "diagnostics",
+        includeStyles: false,
+      }).pipe(Scope.provide(mountScope)),
+    );
 
     expect(duplicateHtml).toContain("Panel contract error");
     expect(duplicateHtml).toContain("Duplicate panel id");
@@ -1675,7 +1666,8 @@ describe("devtools invalidation plans", () => {
     expect(missingHtml).not.toContain("GET /projects/atlas");
     expect(root.innerHTML).toContain("Panel contract error");
     expect(root.innerHTML).toContain("Missing required panel");
-    mount.unmount();
+    Effect.runSync(Scope.close(mountScope, Exit.void));
+    expect(root.innerHTML).toBe("");
   });
 
   it("releases devtools panel lifecycle listeners on manual boot interrupt", async () => {
@@ -1740,38 +1732,6 @@ describe("devtools invalidation plans", () => {
     await Effect.runPromise(Fiber.await(boot.fiber));
 
     expectNoDevtoolsLifecycleListeners(listeners);
-  });
-
-  it("keeps public devtools Effect wrappers lazy until execution", async () => {
-    const throwingInput = new Proxy(
-      {},
-      {
-        get: (_target, property) => {
-          if (property === "snapshot") {
-            throw new Error("lazy snapshot read");
-          }
-          return undefined;
-        },
-      },
-    );
-
-    expect(() => describeDevtoolsSummaryEffect(throwingInput)).not.toThrow();
-    expect(() => describeDevtoolsCausalGraphEffect(throwingInput)).not.toThrow();
-    expect(() => describeDevtoolsPanelsEffect(throwingInput)).not.toThrow();
-    expect(() => renderDevtoolsPanelsHtmlEffect(throwingInput)).not.toThrow();
-
-    await expect(Effect.runPromise(describeDevtoolsSummaryEffect(throwingInput))).rejects.toThrow(
-      "lazy snapshot read",
-    );
-    await expect(
-      Effect.runPromise(describeDevtoolsCausalGraphEffect(throwingInput)),
-    ).rejects.toThrow("lazy snapshot read");
-    await expect(Effect.runPromise(describeDevtoolsPanelsEffect(throwingInput))).rejects.toThrow(
-      "lazy snapshot read",
-    );
-    await expect(Effect.runPromise(renderDevtoolsPanelsHtmlEffect(throwingInput))).rejects.toThrow(
-      "lazy snapshot read",
-    );
   });
 
   it("renders legacy app graph route modules without preload collection diagnostics", () => {
@@ -2352,7 +2312,7 @@ describe("devtools invalidation plans", () => {
       await Effect.runPromise(Route.planNavigationEffect([UserRoute] as const, "/users/1")),
     );
     const invalidationPlan = describeInvalidationPlan(
-      Resource.planInvalidation(UserTag({ id: "1" })),
+      Effect.runSync(Resource.planInvalidationEffect(UserTag({ id: "1" }))),
     );
     const summary = describeDevtoolsSummary({
       appGraph: appGraphDiagnostics,
@@ -2512,9 +2472,7 @@ describe("devtools invalidation plans", () => {
         },
       }),
     );
-    await expect(
-      Effect.runPromise(describeDevtoolsCausalGraphEffect({ appGraph: appGraphDiagnostics })),
-    ).resolves.toMatchObject({
+    expect(describeDevtoolsCausalGraph({ appGraph: appGraphDiagnostics })).toMatchObject({
       version: 1,
     });
   });
@@ -2643,7 +2601,9 @@ describe("devtools invalidation plans", () => {
         Route.planNavigationEffect([RuntimeTargetRoute] as const, "/runtime-targets/1"),
       ),
     );
-    const invalidationPlan = describeInvalidationPlan(Resource.planInvalidation(RuntimeTargetTag));
+    const invalidationPlan = describeInvalidationPlan(
+      Effect.runSync(Resource.planInvalidationEffect(RuntimeTargetTag)),
+    );
     const summary = describeDevtoolsSummary({
       snapshot: {
         resources: [],
@@ -2741,15 +2701,15 @@ describe("devtools invalidation plans", () => {
       Route.planNavigationEffect([MissingRoute] as const, "/runtime-unrecorded/3"),
     );
     const missingInvalidationPlan = describeInvalidationPlan(
-      Resource.planInvalidation(MissingTag({ id: "3" })),
+      Effect.runSync(Resource.planInvalidationEffect(MissingTag({ id: "3" }))),
     );
     const missingRouteSummary = describeRoutePlan(missingRoutePlan);
     const missingResourceKey = MissingResource("3").key;
     const missingResourceId = `resource:${missingResourceKey}`;
     const missingTargetId = `resource-tag:${missingInvalidationPlan.targets[0]!.key}`;
     const recordedInvalidations = [
-      describeInvalidationPlan(Resource.planInvalidation(FirstTag)),
-      describeInvalidationPlan(Resource.planInvalidation(SecondTag)),
+      describeInvalidationPlan(Effect.runSync(Resource.planInvalidationEffect(FirstTag))),
+      describeInvalidationPlan(Effect.runSync(Resource.planInvalidationEffect(SecondTag))),
     ];
     const summary = describeDevtoolsSummary({
       snapshot: {
@@ -5468,7 +5428,9 @@ describe("devtools invalidation plans", () => {
       }),
     });
     const ref = Project(input);
-    const invalidationPlan = describeInvalidationPlan(Resource.planInvalidation(ref));
+    const invalidationPlan = describeInvalidationPlan(
+      Effect.runSync(Resource.planInvalidationEffect(ref)),
+    );
     const navigationPlan = await Effect.runPromise(
       Route.planNavigationEffect([routeDefinition] as const, "/detached-route/atlas?tab=activity"),
     );
@@ -5619,7 +5581,9 @@ describe("devtools invalidation plans", () => {
     const ProjectRows = Collection.define<{ readonly id: string; readonly name: string }>({
       name: "Golden.Project.collection",
       getKey: (project) => project.id,
-      load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
+      sync: {
+        load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
+      },
     });
     const RenameProject = Action.define<
       { readonly id: string; readonly name: string },
@@ -5663,7 +5627,7 @@ describe("devtools invalidation plans", () => {
             Effect.scoped(
               Effect.gen(function* () {
                 const resourceSubscription = yield* Resource.subscribeEventsEffect();
-                const collectionStore = yield* Collection.storeEffect();
+                const collectionStore = yield* collectionStoreEffect;
                 const collectionSubscription = yield* collectionStore.subscribeEventsEffect();
                 const routePlan = yield* Route.planNavigationEffect(
                   [ProjectRoute] as const,
@@ -5678,8 +5642,8 @@ describe("devtools invalidation plans", () => {
                 );
 
                 yield* action.submitEffect({ id: "atlas", name: "Atlas Prime" });
-                const invalidationPlan = readSignal(action.invalidationPlan);
-                const actionState = readSignal(action.state);
+                const invalidationPlan = action.invalidationPlan.get();
+                const actionState = action.state.get();
 
                 if (invalidationPlan === undefined) {
                   expect.fail("Expected the golden-path action to expose an invalidation plan.");

@@ -3,22 +3,24 @@ import {
   Program,
   Resource,
   runWithRuntime,
-  resourceUiRefAccessor,
   Signal,
   type ActionInstance,
   type ActionResultInvalidationRequirements,
   type EffectInput,
   type EffectInputCallbackError,
   type SunfallArcRuntime,
-  type ForkScopedOptions,
   type ProgramEvent,
   type ProgramFailure,
   type ReadableSignal,
-  type ResourceUiInput,
   type ResourceInvalidationPlan,
   type ResourceRef,
   type ResourceStore,
 } from "@sunfall/arc-core";
+import {
+  resourceUiRefAccessor,
+  type ForkScopedOptions,
+  type ResourceUiInput,
+} from "@sunfall/arc-core/internal";
 import { Effect, Fiber, Stream, type Option } from "effect";
 import type { AsyncResult } from "effect/reactivity";
 import { createProjection, onCleanup, type Accessor } from "solid-js";

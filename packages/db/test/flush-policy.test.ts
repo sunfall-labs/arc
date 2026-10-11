@@ -2,7 +2,6 @@ import { EffectInputPromiseRejected, makeRuntime, runWithRuntime } from "@sunfal
 import { Collection } from "@sunfall/arc-db";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { flushCollectionsPendingMutationsEffect } from "../src/flush-policy.js";
 
 interface Project {
   readonly id: string;
@@ -68,18 +67,22 @@ describe("flushCollectionsPendingMutationsEffect", () => {
     const Projects = Collection.define<Project, string, never>({
       name: "Projects.flush-policy.multi",
       getKey: (project) => project.id,
-      onUpdate: (updates) =>
-        Effect.sync(() => {
-          persistedProjects.push(...updates.map((update) => update.value));
-        }),
+      sync: {
+        update: ({ updates }) =>
+          Effect.sync(() => {
+            persistedProjects.push(...updates.map((update) => update.value));
+          }),
+      },
     });
     const Tasks = Collection.define<Task, string, never>({
       name: "Tasks.flush-policy.multi",
       getKey: (task) => task.id,
-      onUpdate: (updates) =>
-        Effect.sync(() => {
-          persistedTasks.push(...updates.map((update) => update.value));
-        }),
+      sync: {
+        update: ({ updates }) =>
+          Effect.sync(() => {
+            persistedTasks.push(...updates.map((update) => update.value));
+          }),
+      },
     });
 
     return Effect.runPromise(
@@ -174,7 +177,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
         );
 
         const results = yield* runtime.provide(
-          flushCollectionsPendingMutationsEffect([Projects, Tasks]),
+          Collection.flushAllPendingMutationsEffect([Projects, Tasks]),
         );
 
         expect(results).toMatchObject([
@@ -215,18 +218,22 @@ describe("flushCollectionsPendingMutationsEffect", () => {
     const Projects = Collection.define<Project, string, never>({
       name: "Projects.flush-policy.skip",
       getKey: (project) => project.id,
-      onUpdate: (updates) =>
-        Effect.sync(() => {
-          persistedProjects.push(...updates.map((update) => update.value));
-        }),
+      sync: {
+        update: ({ updates }) =>
+          Effect.sync(() => {
+            persistedProjects.push(...updates.map((update) => update.value));
+          }),
+      },
     });
     const Tasks = Collection.define<Task, string, never>({
       name: "Tasks.flush-policy.skip",
       getKey: (task) => task.id,
-      onUpdate: (updates) =>
-        Effect.sync(() => {
-          persistedTasks.push(...updates.map((update) => update.value));
-        }),
+      sync: {
+        update: ({ updates }) =>
+          Effect.sync(() => {
+            persistedTasks.push(...updates.map((update) => update.value));
+          }),
+      },
     });
 
     return Effect.runPromise(
@@ -321,7 +328,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
         );
 
         const results = yield* runtime.provide(
-          flushCollectionsPendingMutationsEffect([Projects, Tasks], {
+          Collection.flushAllPendingMutationsEffect([Projects, Tasks], {
             skip: ({ collection }) =>
               Effect.sync(() => {
                 skipChecks.push(collection.name);
@@ -376,7 +383,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
       await expect(
         Effect.runPromise(
           runtime.provide(
-            flushCollectionsPendingMutationsEffect([Projects], {
+            Collection.flushAllPendingMutationsEffect([Projects], {
               skip: () => {
                 throw cause;
               },
@@ -408,7 +415,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
       await expect(
         Effect.runPromise(
           runtime.provide(
-            flushCollectionsPendingMutationsEffect([Projects], {
+            Collection.flushAllPendingMutationsEffect([Projects], {
               skip: Promise.resolve(true) as never,
             }),
           ),
@@ -430,10 +437,12 @@ describe("flushCollectionsPendingMutationsEffect", () => {
     const Projects = Collection.define<Project, string, never>({
       name: "Projects.background-sync.flush",
       getKey: (project) => project.id,
-      onUpdate: (updates) =>
-        Effect.sync(() => {
-          persistedProjects.push(...updates.map((update) => update.value));
-        }),
+      sync: {
+        update: ({ updates }) =>
+          Effect.sync(() => {
+            persistedProjects.push(...updates.map((update) => update.value));
+          }),
+      },
     });
 
     return Effect.runPromise(
@@ -532,10 +541,12 @@ describe("flushCollectionsPendingMutationsEffect", () => {
     const Projects = Collection.define<Project, string, never>({
       name: "Projects.background-sync.defer",
       getKey: (project) => project.id,
-      onUpdate: (updates) =>
-        Effect.sync(() => {
-          persistedProjects.push(...updates.map((update) => update.value));
-        }),
+      sync: {
+        update: ({ updates }) =>
+          Effect.sync(() => {
+            persistedProjects.push(...updates.map((update) => update.value));
+          }),
+      },
     });
 
     return Effect.runPromise(

@@ -128,9 +128,8 @@ pnpm example:leak-scan
   timelines, Resources, Actions, Forms/FormData decoding, Routes,
   Capabilities, and server contracts.
 - `@sunfall/arc-start`: SSR, hydration, transports, manifests, diagnostics, and
-  Start action clients.
-- `@sunfall/arc-start-node`: Node HTTP facade over the tested Start adapters.
-- `@sunfall/arc-start-fetch`: Fetch-host facade over the tested Start adapters.
+  Start action clients; host adapters live at `@sunfall/arc-start/fetch` and
+  `@sunfall/arc-start/node`.
 - `@sunfall/arc-db`: Collections, live queries, persistence, and sync adapter
   seams.
 - `@sunfall/arc-devtools`: serializable inspection contracts, Program timeline

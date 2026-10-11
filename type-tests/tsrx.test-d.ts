@@ -1,9 +1,6 @@
-import sunfallArcTsrxDefault, {
-  sunfallArcTsrx,
-  type SunfallArcTsrxOptions,
-} from "@sunfall/arc-tsrx";
+import { sunfallArcTsrx, type SunfallArcTsrxOptions } from "@sunfall/arc-tsrx";
 
-const tsrxExports: Array<unknown> = [sunfallArcTsrxDefault, sunfallArcTsrx];
+const tsrxExports: Array<unknown> = [sunfallArcTsrx];
 type TsrxOptions = SunfallArcTsrxOptions;
 void tsrxExports;
 type _TsrxOptions = TsrxOptions;

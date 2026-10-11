@@ -196,9 +196,6 @@ export const makeStartRequestId = (): string =>
   globalThis.crypto?.randomUUID?.() ??
   `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 
-/** Effect wrapper around `makeStartRequestId`. */
-export const makeStartRequestIdEffect: Effect.Effect<string> = Effect.sync(makeStartRequestId);
-
 /** Captures sanitized request diagnostics and request id propagation data. */
 export const startTransportDiagnosticsEffect = (
   kind: StartTransportKind,
@@ -209,7 +206,8 @@ export const startTransportDiagnosticsEffect = (
     const url = new URL(request.url);
     const incomingRequestId = nonEmptySafeHeaderValue(request.headers.get(startRequestIdHeader));
     const envelopeRequestId = nonEmptySafeHeaderValue(options.requestId);
-    const requestId = incomingRequestId ?? envelopeRequestId ?? (yield* makeStartRequestIdEffect);
+    const requestId =
+      incomingRequestId ?? envelopeRequestId ?? (yield* Effect.sync(makeStartRequestId));
     const traceparent = nonEmptySafeHeaderValue(request.headers.get(startTraceparentHeader));
     const baggage = nonEmptySafeHeaderValue(request.headers.get(startBaggageHeader));
     const accept = nonEmptySafeHeaderValue(request.headers.get("accept"));

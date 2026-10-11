@@ -1,5 +1,4 @@
 import { defineApp } from "@sunfall/arc-core";
-import { RuntimeProvider } from "@sunfall/arc-solid";
 import {
   createStartStreamedHtmlResponseEffect,
   createRequestHandler,
@@ -51,14 +50,7 @@ export const handleRequest = createRequestHandler(serverApp, {
     return Effect.gen(function* () {
       const url = new URL(request.url);
       const href = `${url.pathname}${url.search}`;
-      const body = renderToString(() =>
-        createComponent(RuntimeProvider, {
-          runtime,
-          get children() {
-            return createComponent(App, { initialHref: href, runtime });
-          },
-        }),
-      );
+      const body = renderToString(() => createComponent(App, { initialHref: href, runtime }));
       const title = isRoutePathMatch("/projects/:id", match)
         ? `${match.params.id} · Sunfall Arc Project Console`
         : "Sunfall Arc Project Console";

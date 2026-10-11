@@ -177,7 +177,7 @@ export const createServerRpcResponseEffectWithRuntime = <
  * Handles one server-function RPC request and encodes the protocol response.
  *
  * This is the low-level RPC endpoint handler. Most applications use
- * `createRequestHandlerEffect`, which routes RPC, actions, and SSR together.
+ * `createRequestHandler`, which routes RPC, actions, and SSR together.
  */
 export const createServerRpcResponseEffect = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],

@@ -1,11 +1,11 @@
+import { Route } from "@sunfall/arc-core";
 import {
-  Route,
   browserRouterLinkClickDecision,
   browserRouterLinkPreloadDecision,
   browserRouterLinkPreloadIdentity,
   isPlainLeftClick as coreIsPlainLeftClick,
   makeBrowserRouterLinkPreloader,
-} from "@sunfall/arc-core";
+} from "@sunfall/arc-core/internal";
 import { createComponent, createMemo, createRenderEffect, merge, omit, onCleanup } from "solid-js";
 import { Dynamic, type DynamicProps, type JSX } from "@solidjs/web";
 import { useRouter } from "./router.js";

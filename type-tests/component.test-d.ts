@@ -1,8 +1,8 @@
 // Component typing: services (R) and typed render failures (E) flow through
 // component definitions and `yield*`, never through JSX.
 import { Context, Data, Effect, Layer, pipe, Scope } from "effect";
-import { Component, Resource } from "@sunfall/arc-solid";
-import type { AnySunfallArcRuntime, SunfallArcRuntime } from "@sunfall/arc-core";
+import { Component } from "@sunfall/arc-solid";
+import { Resource, type AnySunfallArcRuntime, type SunfallArcRuntime } from "@sunfall/arc-core";
 import type { JSX } from "@solidjs/web";
 
 class ProjectApi extends Context.Service<

@@ -14,6 +14,10 @@ export default defineConfig({
   },
   resolve: {
     alias: [
+      {
+        find: "@sunfall/arc-core/internal",
+        replacement: fromRoot("packages/core/src/internal.ts"),
+      },
       { find: "@sunfall/arc-core", replacement: fromRoot("packages/core/src/index.ts") },
       { find: "@sunfall/arc-devtools", replacement: fromRoot("packages/devtools/src/index.ts") },
     ],

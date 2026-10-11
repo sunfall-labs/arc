@@ -1,10 +1,11 @@
+import { Resource } from "@sunfall/arc-core";
 import { defineFileRoute } from "@sunfall/arc-start";
 import { RecipeIndex } from "../../content.js";
 import { DocsRouteParams } from "../../docs-content.js";
 
-const RouteBuilder = defineFileRoute("/docs/:slug");
-
-export const Route = RouteBuilder.preload({
+export const Route = defineFileRoute("/docs/:slug")({
   params: DocsRouteParams,
-  resources: ({ resource }) => [resource(RecipeIndex, () => "all" as const)],
-}).route();
+  preloadResources: [RecipeIndex],
+  preloadCollections: [],
+  preload: () => Resource.prefetchEffect(RecipeIndex("all")),
+});

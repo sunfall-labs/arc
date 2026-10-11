@@ -13,7 +13,7 @@ import fileRouteManifest, {
   modules as fileRouteModules,
   type FileRouteManifestEntry,
 } from "virtual:sunfall-arc/file-routes";
-import routeTree, {
+import {
   errorBoundaryById,
   errorBoundaryByPath,
   fileRouteErrorBoundaryById,
@@ -33,7 +33,6 @@ import routeTree, {
   routeIdByPath,
   routes as virtualRoutes,
   type FileRoute,
-  type FileRouteByPath,
   type FileRouteErrorBoundary,
   type FileRouteErrorBoundaryById,
   type FileRouteHrefArgs,
@@ -55,23 +54,10 @@ import routeTree, {
   type FileRoutePath,
   type FileRouteSearchById,
   type FileRouteSearchByPath,
-  type Href,
-  type HrefArgs,
-  type HrefArgsById,
-  type HrefArgsByPath,
-  type HrefById,
-  type HrefByPath,
-  type Match,
-  type ParamsById,
-  type ParamsByPath,
   type RouteById,
   type RouteByPath,
-  type RouteId,
   type RouteIdByPath,
-  type RoutePath,
   type RouteTree,
-  type SearchById,
-  type SearchByPath,
 } from "virtual:sunfall-arc/routes";
 import appGraph, {
   diagnostics as appGraphDiagnostics,
@@ -92,7 +78,6 @@ const virtualModuleValues: Array<unknown> = [
   fileRouteEntries,
   fileRouteModules,
   virtualRoutes,
-  routeTree,
   routeById,
   routeByPath,
   routeIdByPath,
@@ -122,8 +107,6 @@ type VirtualManifestEntries =
   | ActionManifestEntry
   | FileRouteManifestEntry;
 type VirtualRouteContracts =
-  | RoutePath
-  | RouteId
   | RouteTree
   | RouteById
   | RouteByPath
@@ -131,35 +114,23 @@ type VirtualRouteContracts =
   | FileRoute
   | FileRouteId
   | FileRoutePath
-  | FileRouteByPath
   | FileRouteParamsById
   | FileRouteSearchById
   | FileRouteHrefOptionsById
-  | FileRouteHrefOptions<RouteId>
+  | FileRouteHrefOptions<FileRouteId>
   | FileRouteHrefArgsById
-  | FileRouteHrefArgs<RouteId>
+  | FileRouteHrefArgs<FileRouteId>
   | FileRouteParamsByPath
   | FileRouteSearchByPath
   | FileRouteHrefOptionsByPath
   | FileRouteHrefArgsByPath
-  | FileRouteMatch<RoutePath>
+  | FileRouteMatch<FileRoutePath>
   | FileRouteLayoutsById
   | FileRouteErrorBoundaryById
   | FileRouteMetadataById
-  | FileRouteLayouts<RouteId>
-  | FileRouteErrorBoundary<RouteId>
-  | FileRouteMetadataModules<RouteId>
-  | ParamsById
-  | SearchById
-  | HrefById
-  | Href<RouteId>
-  | HrefArgsById
-  | HrefArgs<RouteId>
-  | ParamsByPath
-  | SearchByPath
-  | HrefByPath
-  | HrefArgsByPath
-  | Match<RoutePath>
+  | FileRouteLayouts<FileRouteId>
+  | FileRouteErrorBoundary<FileRouteId>
+  | FileRouteMetadataModules<FileRouteId>
   | FileRouteModules
   | FileRouteMetadata;
 type VirtualGraphContracts = StartAppGraphDiagnostics;

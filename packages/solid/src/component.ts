@@ -1,6 +1,5 @@
 import {
   EffectInputCallbackError,
-  eraseRuntime,
   makeRuntime,
   ResourceFailure,
   RuntimeTypeId,
@@ -9,6 +8,7 @@ import {
   type ResourceStoreModule,
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
+import { eraseRuntime } from "@sunfall/arc-core/internal";
 import { Cause, Context, Effect, Exit, Fiber, Layer, Option, Scope } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { pipeArguments, type Pipeable } from "effect/Pipeable";

@@ -1,29 +1,23 @@
 import {
-  Resource,
-  Route,
-  Program,
-  Signal,
   RouterLink,
   RouterOutlet,
   RouterProvider,
+  RuntimeProvider,
   createComponentScope,
-  read,
   useAction,
   useResource,
   useProgram,
   useStream,
   useRouter,
   useRuntimeEffect,
-  watch,
 } from "@sunfall/arc-solid";
-import type { SunfallArcRuntime } from "@sunfall/arc-core";
-import type { CollectionRow } from "@sunfall/arc-db";
+import { Program, Resource, Route, Signal, type SunfallArcRuntime } from "@sunfall/arc-core";
+import type { Collection } from "@sunfall/arc-db";
 import { useCollection, useLiveQuery } from "@sunfall/arc-solid-db";
 import { StartAction } from "@sunfall/arc-start";
 import { Cause, Effect, Option, Schema } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { For, Show, createEffect, onSettled, untrack } from "solid-js";
-import { isServer } from "@solidjs/web";
 import {
   AdvanceProject,
   ProjectById,
@@ -65,8 +59,8 @@ type AppRoutes = typeof routes;
 type ProjectConsoleRuntime<RuntimeServices = ProjectApi> = [ProjectApi] extends [RuntimeServices]
   ? SunfallArcRuntime<RuntimeServices, never>
   : never;
-type ProjectSummaryRow = CollectionRow<ProjectSummary, ProjectId>;
-type ProjectWorkItemRow = CollectionRow<ProjectWorkItem, WorkItemId>;
+type ProjectSummaryRow = Collection.Row<ProjectSummary, ProjectId>;
+type ProjectWorkItemRow = Collection.Row<ProjectWorkItem, WorkItemId>;
 type ProjectNameSubmissionClientResult = StartAction.Result<typeof SubmitProjectName>;
 
 const ProjectNameFormInput = Schema.Struct({
@@ -183,14 +177,14 @@ export default function App<RuntimeServices = ProjectApi>(props: AppProps<Runtim
     never
   >;
   const routerProps =
-    props.initialHref === undefined
-      ? { routes, runtime }
-      : { routes, initialHref: props.initialHref, runtime };
+    props.initialHref === undefined ? { routes } : { routes, initialHref: props.initialHref };
 
   return (
-    <RouterProvider {...routerProps}>
-      <AppShell />
-    </RouterProvider>
+    <RuntimeProvider runtime={runtime}>
+      <RouterProvider {...routerProps}>
+        <AppShell />
+      </RouterProvider>
+    </RuntimeProvider>
   );
 }
 
@@ -233,15 +227,13 @@ function AppShell() {
       return id ? `${id} · Sunfall Arc Project Console` : "Projects · Sunfall Arc Project Console";
     });
 
-    if (!isServer) {
-      watch(
-        () => read(title),
-        (nextTitle) =>
-          Effect.sync(() => {
-            document.title = nextTitle;
-          }),
-      );
-    }
+    // Solid effects run only in the browser, after render.
+    createEffect(
+      () => title.get(),
+      (nextTitle) => {
+        document.title = nextTitle;
+      },
+    );
 
     const refreshVisibleData = () => {
       const id = projectIdFromMatch(router.match());
@@ -302,7 +294,7 @@ function ProjectListPane(props: { readonly selectedId: ProjectId | undefined }) 
           type="search"
           placeholder="Filter projects"
           value={search()}
-          onInput={(event) => Signal.set(projectSearch, event.currentTarget.value)}
+          onInput={(event) => projectSearch.set(event.currentTarget.value)}
         />
       </label>
 
@@ -486,9 +478,7 @@ function ProjectTabs(props: { readonly project: Project; readonly selected: Proj
 }
 
 function WorkQueueSummary(props: { readonly project: Project }) {
-  const queue = useLiveQuery((query) => projectWorkQueueQuery(props.project.id)(query), {
-    deps: () => props.project.id,
-  });
+  const queue = useLiveQuery((query) => projectWorkQueueQuery(props.project.id)(query));
   const items = () => queue.data();
   const blocked = () => items().filter((item) => item.status === "blocked").length;
   const unsynced = () => items().filter((item) => !item.synced).length;
@@ -511,11 +501,11 @@ function WorkQueueSummary(props: { readonly project: Project }) {
 function ProjectWorkQueue(props: { readonly project: Project }) {
   const runEffect = useRuntimeEffect();
   const collection = useCollection(ProjectWorkItems, { preload: false });
-  const queue = useLiveQuery((query) => projectWorkQueueQuery(props.project.id)(query), {
-    deps: () => props.project.id,
-  });
+  const queue = useLiveQuery((query) => projectWorkQueueQuery(props.project.id)(query));
   const moveItem = (id: WorkItemId, status: WorkItemStatus) => {
-    runEffect(collection.updateEffect(id, { status }).pipe(Effect.catchCause(() => Effect.void)));
+    runEffect(
+      ProjectWorkItems.updateEffect(id, { status }).pipe(Effect.catchCause(() => Effect.void)),
+    );
   };
 
   return (
