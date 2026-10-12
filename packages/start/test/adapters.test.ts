@@ -510,6 +510,51 @@ describe("Start deployment adapters", () => {
     }
   });
 
+  it("cancels a streamed Web body when the Node client disconnects mid-stream", async () => {
+    const cancelled = Effect.runSync(Deferred.make<unknown>());
+    const nodeHandler = createNodeHandler(() =>
+      Effect.succeed(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("first"));
+            },
+            cancel(reason) {
+              Effect.runSync(Deferred.succeed(cancelled, reason));
+            },
+          }),
+        ),
+      ),
+    );
+    const server = createServer((request, response) => {
+      void Effect.runFork(Effect.exit(nodeHandler(request, response)));
+    });
+    const port = await listen(server);
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const request = httpRequest({ port, host: "127.0.0.1", path: "/stream" }, (response) => {
+          response.once("data", () => {
+            request.destroy();
+            resolve();
+          });
+        });
+        request.once("error", (error) => {
+          if ((error as NodeJS.ErrnoException).code !== "ECONNRESET") {
+            reject(error);
+          }
+        });
+        request.end();
+      });
+      const reason = await Effect.runPromise(
+        Deferred.await(cancelled).pipe(Effect.timeout("1 second")),
+      );
+      expect(reason).toBeInstanceOf(StartNodeAdapterError);
+    } finally {
+      await close(server);
+    }
+  });
+
   it("preserves multiple Set-Cookie headers at the Node boundary", async () => {
     const nodeHandler = createNodeHandler(() =>
       Effect.succeed(

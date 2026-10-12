@@ -6,6 +6,22 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Lower Fixed Cost Per Request
+
+- A Resource Store creates its event `PubSub` for its first subscriber
+  instead of on creation. A store nobody watches, like each SSR request's,
+  no longer allocates a 1,024-slot buffer per request; publishing to it is
+  free, as before nothing received it.
+- The Node adapter copies a Web `Response` body to the `ServerResponse`
+  chunk by chunk (waiting for `drain`) instead of `stream.pipeline` over
+  `Readable.fromWeb`, which built a Node stream and an abort signal (and a
+  `DOMException` on every finish) per request. A client that disconnects
+  mid-body still cancels the body.
+- Route matching orders a route list once (by specificity) instead of on
+  every match.
+- Server CPU per request for the `benchmarks/compare` detail page (in
+  process, 60 batches): p25 0.76 ms to 0.61 ms, median 0.93 ms to 0.78 ms.
+
 ### Production Server Build
 
 - `vite build` with `sunfallArcStart` now builds a server-rendered app for
