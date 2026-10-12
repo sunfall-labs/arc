@@ -10,7 +10,7 @@ import { Socket, type AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 import { Deferred, Effect, Option } from "effect";
 import { describe, expect, it } from "vitest";
-import { makeRuntime, Route, App } from "@sunfall/arc-core";
+import { makeRuntime, Route } from "@sunfall/arc-core";
 import { createFetchHandler, toFetchHandler } from "../src/fetch.js";
 import {
   createNodeHandler,
@@ -21,7 +21,8 @@ import {
   writeNodeResponse,
 } from "../src/node.js";
 import { StartRequestHandlerError } from "../src/index.js";
-import { createRequestHandler } from "../src/start-request-handler.js";
+import { createStartRequestHandler } from "../src/start-request-handler.js";
+import { makeStartServerApp } from "../src/start-server-app.js";
 import {
   normalizeStartRequestHandlerError,
   StartRequestHandlerInvalidReturn,
@@ -393,11 +394,10 @@ describe("Start deployment adapters", () => {
     }> = [];
     let cancelled: unknown;
     const Home = Route.define("/", {});
-    const app = App.define({
+    const app = makeStartServerApp({
       routes: [Home] as const,
-      client: {},
     });
-    const startHandler = createRequestHandler(app, {
+    const startHandler = createStartRequestHandler(app, {
       onRequestTrace: (trace) =>
         Effect.sync(() => {
           traces.push(trace);

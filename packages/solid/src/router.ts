@@ -31,13 +31,14 @@ import {
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
 
+/** `undefined` means "absent" for every option, so props can pass through as-is. */
 interface BrowserRouterOptionsBase {
   /** Initial URL used for tests or SSR hydration. Defaults to the browser path plus search string. */
-  readonly initialHref?: string;
+  readonly initialHref?: string | undefined;
   /** True when the initial browser render hydrates existing server-rendered DOM. */
-  readonly hydrating?: boolean;
+  readonly hydrating?: boolean | undefined;
   /** Host history Adapter. Defaults to `window.history` when a browser is available. */
-  readonly history?: BrowserHistoryAdapter;
+  readonly history?: BrowserHistoryAdapter | undefined;
 }
 
 /** Options for `Component.router(routes, options)`. */
@@ -67,18 +68,28 @@ export interface BrowserRouter<
   readonly match: Accessor<Route.Match<Routes[number]> | undefined>;
 }
 
-/** Props for `RouterProvider`, including route definitions and render fallbacks. */
-type RouterOutletRoutes<RoutesOrError> = [RoutesOrError] extends [readonly AnyRoute[]]
-  ? RoutesOrError
-  : readonly AnyRoute[];
-type RouterOutletError<RoutesOrError, ER> = [RoutesOrError] extends [readonly AnyRoute[]]
-  ? ER
-  : RoutesOrError;
-type RouterOutletState<RoutesOrError, ER> = BrowserRouterState<
-  RouterOutletRoutes<RoutesOrError>,
-  RouterOutletError<RoutesOrError, ER>
->;
-type TypedRouterOutletProps<Routes extends readonly AnyRoute[], ER> = {
+/** Props for `RouterProvider`: the router from `Component.router(...)` and its subtree. */
+export interface RouterProviderProps<Routes extends readonly AnyRoute[], ER = never> {
+  /** Router created in setup with `Component.router(routes, options)`. */
+  readonly router: BrowserRouter<Routes, ER>;
+  /** Content rendered inside the router; defaults to `<RouterOutlet router={router} />`. */
+  readonly children?: JSX.Element;
+}
+
+/**
+ * Props for `RouterOutlet`: the router it renders plus render fallbacks for
+ * route pending, failure, and not-found states.
+ *
+ * The fallbacks are typed from `router`, so no type arguments are needed. The
+ * `failure` renderer receives the same `BrowserRouterState.Failure` as
+ * `router.state()`; a route's preload failure arrives as
+ * `RoutePreloadError<Route.PreloadFailure<R>>` (its `error` schema type, or
+ * `RoutePreloadUntypedFailure` without one), so a `switch` on `_tag` is
+ * exhaustive.
+ */
+export interface RouterOutletProps<Routes extends readonly AnyRoute[], ER = never> {
+  /** Router created in setup with `Component.router(routes, options)`. */
+  readonly router: BrowserRouter<Routes, ER>;
   readonly pending?: (
     state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Pending" }>,
   ) => JSX.Element;
@@ -87,36 +98,6 @@ type TypedRouterOutletProps<Routes extends readonly AnyRoute[], ER> = {
   ) => JSX.Element;
   readonly notFound?: (
     state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "NotFound" }>,
-  ) => JSX.Element;
-};
-
-/** Props for `RouterProvider`: the router from `Component.router(...)` plus outlet fallbacks. */
-export type RouterProviderProps<Routes extends readonly AnyRoute[], ER = never> = RouterOutletProps<
-  Routes,
-  ER
-> & {
-  /** Router created in setup with `Component.router(routes, options)`. */
-  readonly router: BrowserRouter<Routes, ER>;
-  /** Content rendered inside the router; defaults to a `RouterOutlet` with these fallbacks. */
-  readonly children?: JSX.Element;
-};
-
-/**
- * Render fallbacks for route pending, failure, and not-found states.
- *
- * The `failure` renderer receives the same typed `BrowserRouterState.Failure`
- * shape as `router.state()`, including `Cause<BrowserRouterError<Routes> | ER>`; a
- * route's typed preload failure arrives as `RoutePreloadError<Route.PreloadFailure<R>>`.
- */
-export interface RouterOutletProps<RoutesOrError = readonly AnyRoute[], ER = never> {
-  readonly pending?: (
-    state: Extract<RouterOutletState<RoutesOrError, ER>, { readonly _tag: "Pending" }>,
-  ) => JSX.Element;
-  readonly failure?: (
-    state: Extract<RouterOutletState<RoutesOrError, ER>, { readonly _tag: "Failure" }>,
-  ) => JSX.Element;
-  readonly notFound?: (
-    state: Extract<RouterOutletState<RoutesOrError, ER>, { readonly _tag: "NotFound" }>,
   ) => JSX.Element;
 }
 
@@ -130,7 +111,7 @@ const RouterContext = createContext<BrowserRouter<readonly AnyRoute[], unknown> 
 const viewRenderers = new WeakMap<object, SolidRouteViewRenderer>();
 
 const routerOutletRenderers = <Routes extends readonly AnyRoute[], ER>(
-  props: TypedRouterOutletProps<Routes, ER>,
+  props: RouterOutletProps<Routes, ER>,
 ): SolidRouteOutletRenderers<Routes, ER> => {
   const renderers = {
     ...(props.pending === undefined ? {} : { pending: props.pending }),
@@ -215,17 +196,17 @@ export const useRouter = <
   return router as unknown as BrowserRouter<Routes, ER>;
 };
 
-/** Renders the matched route component and owns its route `UiScope`. */
-export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
-  props: RouterOutletProps<RoutesOrError, ER>,
+/**
+ * Renders `router`'s matched route component and owns its route `UiScope`.
+ * The rendered route subtree sees `router` as its current router.
+ */
+export const RouterOutlet = <const Routes extends readonly AnyRoute[], ER = never>(
+  props: RouterOutletProps<Routes, ER>,
 ): JSX.Element => {
-  type Routes = RouterOutletRoutes<RoutesOrError>;
-  type Error = RouterOutletError<RoutesOrError, ER>;
-  const typedProps = props as TypedRouterOutletProps<Routes, Error>;
-  const router = useRouter<Routes, Error>();
-  const runtime = router.runtime as AnySunfallArcRuntime<Error>;
+  const router = props.router;
+  const runtime = router.runtime as AnySunfallArcRuntime<ER>;
   const renderView = viewRenderers.get(router);
-  const renderers = createMemo(() => routerOutletRenderers(typedProps));
+  const renderers = createMemo(() => routerOutletRenderers(props));
   // Outlet state lives in Arc signals: Solid tracks them natively on the client,
   // and writes stay plain committed values during server rendering.
   const node = Signal.make<JSX.Element>(undefined);
@@ -250,19 +231,23 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
     void Effect.runFork(routeRenderScope.dispose());
   });
 
-  return createMemo(() => {
-    const error = renderError.get();
-    if (error !== undefined) {
-      throw error;
-    }
-    return node.get();
-  }) as unknown as JSX.Element;
+  return createComponent(RouterContext, {
+    value: router as unknown as BrowserRouter<readonly AnyRoute[], unknown>,
+    get children() {
+      return createMemo(() => {
+        const error = renderError.get();
+        if (error !== undefined) {
+          throw error;
+        }
+        return node.get();
+      }) as unknown as JSX.Element;
+    },
+  });
 };
 
 /**
- * Provides a router to its children (`RouterOutlet`, `RouterLink`,
- * `useRouter`), rendering a `RouterOutlet` with the given fallbacks when it
- * has no children.
+ * Provides a router to its children (`RouterLink`, `useRouter`), rendering
+ * `<RouterOutlet router={router} />` when it has no children.
  *
  * The router comes from `Component.router(routes, options)` in a Component's
  * setup, which checks the routes' preload services and route Components'
@@ -272,7 +257,12 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
  * ```tsx
  * const App = Component.define("App", function* () {
  *   const router = yield* Component.router(routes);
- *   return () => <RouterProvider router={router} notFound={() => <NotFound />} />;
+ *   return () => (
+ *     <RouterProvider router={router}>
+ *       <Nav />
+ *       <RouterOutlet router={router} notFound={() => <NotFound />} />
+ *     </RouterProvider>
+ *   );
  * });
  * ```
  */
@@ -284,12 +274,6 @@ export const RouterProvider = <const Routes extends readonly AnyRoute[], ER = ne
       return props.router as unknown as BrowserRouter<readonly AnyRoute[], unknown>;
     },
     get children() {
-      return (
-        props.children ??
-        createComponent(
-          RouterOutlet as (props: RouterOutletProps<Routes, ER>) => JSX.Element,
-          props as RouterOutletProps<Routes, ER>,
-        )
-      );
+      return props.children ?? createComponent(RouterOutlet<Routes, ER>, { router: props.router });
     },
   });

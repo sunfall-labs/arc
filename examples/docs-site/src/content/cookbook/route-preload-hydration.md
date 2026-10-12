@@ -24,34 +24,19 @@ export const Route = FileRoute.define("/projects/:id")({
 
 ## Render with preload data
 
-On the server, Start runs preload through the request runtime before rendering. The response carries streamed hydration chunks for the touched Resources.
+On the server, Start runs preload through the request runtime, then renders the app's root into its document. The response carries streamed hydration chunks for the touched Resources.
 
 ```ts
-export const handleRequest = createRequestHandler(app, {
-  render: ({ hydrationPlan, runtime }) =>
-    Effect.gen(function* () {
-      // `embed` checks the request runtime provides every service App needs.
-      const body = renderToString(() => createComponent(Component.embed(App, runtime), {}));
+export const app = App.define({ root: Root, routes, client: AppLive });
 
-      return yield* createStartStreamedHtmlResponse({
-        shell: htmlChunk('<!doctype html><div id="root">'),
-        chunks: Stream.make(htmlChunk(body)),
-        hydrationPlan,
-        tail: htmlChunk("</div>"),
-      });
-    }),
-});
+// server.tsx: the server Layer must provide everything the root needs.
+export const handleRequest = createRequestHandler(app, { server: AppServerLive });
 ```
 
 ## Hydrate before mount
 
-On the client, hydrate the payload, then hydrate the same Component tree. Resource readers read synchronously from the hydrated state, so there is no loading flash and no refresh.
+On the client, `App.launch` restores the payload into the browser runtime, then hydrates the same Component tree. Resource readers read synchronously from the hydrated state, so there is no loading flash and no refresh.
 
 ```ts
-const runtime = makeRuntime(Layer.empty);
-Effect.runFork(
-  runtime
-    .provide(hydrateFromDocument(document))
-    .pipe(Effect.andThen(Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() }))),
-);
+Effect.runFork(App.launch(app));
 ```

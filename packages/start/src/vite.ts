@@ -1,5 +1,6 @@
 import { Data, Effect } from "effect";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { existsSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
 import type { UserConfig } from "vite";
 import {
@@ -12,8 +13,14 @@ import {
   normalizeStartManifestIterableOptions,
   normalizeStartBuildPolicy,
   withDiscoveredFileRoutes,
+  type StartManifestOptions,
   type SunfallArcStartOptions,
 } from "./start-manifest-wall.js";
+import {
+  deriveStartDefinitionSourcesEffect,
+  type StartDefinitionSourcesError,
+  type StartDerivedDefinitionSources,
+} from "./start-definition-sources.js";
 import {
   appGraphRuntimeDiagnosticsVirtualModuleId,
   appGraphVirtualModuleId,
@@ -46,8 +53,6 @@ import {
   transformStartRouteAutoCodeSplitting,
 } from "./route-code-splitting.js";
 import { runStartPrerenderEffect } from "./start-prerender.js";
-
-const forbiddenStaticClientRpcImports = new Set(["makeRpcClientLayer"]);
 
 export type {
   SunfallArcStartOptions,
@@ -100,7 +105,10 @@ export interface SunfallArcStartResolvedConfig {
 /** Vite plugin shape returned by `sunfallArcStart`. */
 export interface SunfallArcStartPlugin {
   readonly name: typeof sunfallArcStartPluginName;
-  readonly config: (config?: UserConfig) => UserConfig;
+  readonly config: (
+    config?: UserConfig,
+    env?: { readonly command?: "build" | "serve"; readonly mode?: string },
+  ) => Promise<UserConfig>;
   readonly configResolved: (config: SunfallArcStartResolvedConfig) => void;
   readonly buildStart: () => void | Promise<void>;
   readonly closeBundle: () => void | Promise<void>;
@@ -150,35 +158,7 @@ export class StartServerOnlyModuleError extends Data.TaggedError("StartServerOnl
   readonly id: string;
 }> {}
 
-/** Error thrown when a static browser build imports Start client transport helpers. */
-export class StartStaticClientPolicyError extends Data.TaggedError("StartStaticClientPolicyError")<{
-  readonly id: string;
-  readonly imports: readonly string[];
-  readonly guidance: string;
-}> {}
-
-const forbiddenStaticClientRpcImportNames = (code: string): readonly string[] => {
-  const imports = new Set<string>();
-  const namedImportPattern =
-    /import\s+(?:type\s+)?\{(?<specifiers>[\s\S]*?)\}\s+from\s+["']@sunfall\/arc-start["']/gu;
-  for (const match of code.matchAll(namedImportPattern)) {
-    const specifiers = match.groups?.specifiers ?? "";
-    for (const rawSpecifier of specifiers.split(",")) {
-      const imported = rawSpecifier
-        .trim()
-        .replace(/^type\s+/u, "")
-        .split(/\s+as\s+/iu)[0]
-        ?.trim();
-      if (imported !== undefined && forbiddenStaticClientRpcImports.has(imported)) {
-        imports.add(imported);
-      }
-    }
-  }
-
-  return [...imports].sort();
-};
-
-const shouldEnforceStaticClientPolicy = (
+const isStaticClientBuild = (
   command: "build" | "serve" | undefined,
   options: SunfallArcStartOptions,
 ): boolean => {
@@ -214,9 +194,38 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
   let viteCommand: "build" | "serve" | undefined;
   let viteMode: string | undefined;
   let viteOutDir = "dist";
+  let derivedSources: StartDerivedDefinitionSources | undefined;
 
-  const currentOptions = (): SunfallArcStartOptions =>
-    withDiscoveredFileRoutes({ ...normalizedOptions, serverEntry }, viteRoot);
+  const currentOptions = (): StartManifestOptions =>
+    withDiscoveredFileRoutes({ ...normalizedOptions, ...derivedSources, serverEntry }, viteRoot);
+
+  // Server functions and Actions come from what the server entry's handler
+  // serves; prebuilt manifests (generated build steps) replace the derivation.
+  const deriveSourcesEffect = (
+    command: "build" | "serve" | undefined,
+    mode: string | undefined,
+  ): Effect.Effect<StartDerivedDefinitionSources | undefined, StartDefinitionSourcesError> =>
+    normalizedOptions.serverFunctionManifest !== undefined &&
+    normalizedOptions.actionManifest !== undefined
+      ? Effect.succeed(undefined)
+      : deriveStartDefinitionSourcesEffect({
+          root: viteRoot,
+          serverEntry,
+          ...(normalizedOptions.handlerExport === undefined
+            ? {}
+            : { handlerExport: normalizedOptions.handlerExport }),
+          vite: startDiagnosticsInlineConfig(viteUserConfig, viteRoot, mode),
+        }).pipe(
+          Effect.catchTag("StartDefinitionSourcesLoadError", (error) =>
+            // A dev server still starts on a broken server module; its SSR
+            // middleware reports the error per request. Builds fail.
+            command === "build"
+              ? Effect.fail(error)
+              : Effect.logWarning(
+                  `[sunfall-arc-start] ${error.message} The app graph lists no server functions or Actions until the server entry loads.`,
+                ).pipe(Effect.as(undefined)),
+          ),
+        );
 
   const shouldRunDiagnosticsGate = (): boolean => {
     const policy = normalizeStartBuildPolicy(normalizedOptions.buildPolicy);
@@ -303,16 +312,31 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
 
   return {
     name: sunfallArcStartPluginName,
-    config(config: UserConfig = {}) {
+    config(config: UserConfig = {}, env) {
       viteUserConfig = config;
       viteRoot = resolvePath(config.root ?? process.cwd());
-      const activeOptions = currentOptions();
-      const graph = Effect.runSync(makeStartBuildAppGraphEffect(activeOptions));
-
-      return {
-        appType: "custom",
-        define: createStartManifestWallDefineValues(graph),
-      };
+      return runStartHostPromise(
+        Effect.gen(function* () {
+          if (existsSync(resolvePath(viteRoot, `.${serverEntry}`))) {
+            // Deriving loads the server entry, which imports the generated routes.
+            writeCurrentFileRouteDefinitions();
+          }
+          derivedSources = yield* deriveSourcesEffect(env?.command, env?.mode);
+          const activeOptions = currentOptions();
+          const graph = yield* makeStartBuildAppGraphEffect(activeOptions);
+          const userConfig: UserConfig = {
+            appType: "custom",
+            define: {
+              ...createStartManifestWallDefineValues(graph),
+              // Static-client builds compile the RPC client out of `App.launch`.
+              __SUNFALL_ARC_BROWSER_RPC__: JSON.stringify(
+                !isStaticClientBuild(env?.command, activeOptions),
+              ),
+            },
+          };
+          return userConfig;
+        }),
+      );
     },
     configResolved(config) {
       viteRoot = config.root;
@@ -371,17 +395,6 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
         throw new StartServerOnlyModuleError({ id });
       }
       const activeOptions = currentOptions();
-      if (!options?.ssr && shouldEnforceStaticClientPolicy(viteCommand, activeOptions)) {
-        const imports = forbiddenStaticClientRpcImportNames(code);
-        if (imports.length > 0) {
-          throw new StartStaticClientPolicyError({
-            id,
-            imports,
-            guidance:
-              "Static browser builds cannot import Start RPC client helpers. Use makeStartStaticHistoryAdapter(...) for prerendered static navigation and keep makeRpcClientLayer() in dev-only code that is not statically imported by the production browser graph.",
-          });
-        }
-      }
       if (!options?.ssr && activeOptions.autoCodeSplitting !== false && isFileRouteUpdate(id)) {
         return transformStartRouteAutoCodeSplitting(code, id, { root: viteRoot });
       }

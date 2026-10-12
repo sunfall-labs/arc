@@ -1,7 +1,11 @@
-import { Effect, Option } from "effect";
-import { AsyncResult } from "effect/reactivity";
+import { Cause, Effect } from "effect";
 import { Context } from "effect";
-import { Collection, type QueryEvaluationError } from "@sunfall/arc-db";
+import {
+  Collection,
+  type CollectionSnapshotCodecError,
+  type QueryEvaluationError,
+} from "@sunfall/arc-db";
+import type { EffectInputCallbackError } from "@sunfall/arc-core";
 import {
   SolidDb,
   type CollectionBindingOptions,
@@ -17,9 +21,9 @@ interface SolidDbProject {
 
 declare const solidDbProjects: CollectionHandle<SolidDbProject, string, "load">;
 declare const solidDbLiveProjects: LiveQueryHandle<SolidDbProject, "query">;
-declare const solidDbPreloadObserverPromise: Promise<void>;
 
-// Bindings: a collection's services join the binding's (and so the Component's) R.
+// Bindings: a collection's declared load error joins the binding's (and so the
+// Component's) E, like a Resource reader's; its services join R.
 interface ProjectFeed {
   readonly list: () => Effect.Effect<ReadonlyArray<SolidDbProject>, "load">;
 }
@@ -32,93 +36,77 @@ declare const ServicefulProjects: Collection.Definition<
 >;
 const solidDbCollectionBinding: Effect.Effect<
   CollectionHandle<SolidDbProject, string, "load">,
-  never,
+  "load",
   ProjectFeed
 > = SolidDb.collection(ServicefulProjects);
+// Contract violations (callback throws, rows the schema rejects) are defects, not E.
+declare const ContractErrorProjects: Collection.Definition<
+  SolidDbProject,
+  string,
+  "load" | EffectInputCallbackError | CollectionSnapshotCodecError
+>;
+const solidDbContractBinding: Effect.Effect<unknown, "load"> =
+  SolidDb.collection(ContractErrorProjects);
 declare const ServiceFreeProjects: Collection.Definition<SolidDbProject, string>;
-const solidDbLiveQueryBinding: Effect.Effect<LiveQueryHandle<string, unknown>> = SolidDb.liveQuery(
-  (query) => query.from({ project: ServiceFreeProjects }).select(({ project }) => project.name),
+// Sources that cannot fail add nothing to E (their codec failures are defects).
+const solidDbLiveQueryBinding: Effect.Effect<unknown> = SolidDb.liveQuery((query) =>
+  query.from({ project: ServiceFreeProjects }).select(({ project }) => project.name),
 );
 
 const solidDbExports: Array<unknown> = [SolidDb.collection, SolidDb.liveQuery];
 type Handles = CollectionHandle<any, any> | LiveQueryHandle<any, any>;
-type Options = CollectionBindingOptions<"load"> | LiveQueryBindingOptions<"query">;
-const solidDbCollectionOptions: CollectionBindingOptions<"load"> = {
-  onPreloadFailure: () => Effect.void,
-};
-const solidDbLiveQueryOptions: LiveQueryBindingOptions<"query"> = {
-  onPreloadFailure: () => Effect.void,
-};
-const solidDbDepsLiveQueryOptions: LiveQueryBindingOptions<"query"> = {
+type Options = CollectionBindingOptions | LiveQueryBindingOptions;
+const solidDbCollectionOptions: CollectionBindingOptions = { preload: false };
+const solidDbDepsLiveQueryOptions: LiveQueryBindingOptions = {
   // @ts-expect-error the query factory is tracked; signal/prop reads in it rebuild the query.
   deps: () => "status",
 };
-const solidDbBadCollectionOptions: CollectionBindingOptions<"load"> = {
-  // @ts-expect-error Solid DB preload observers must return void or Effect, not Promise
-  onPreloadFailure: () => solidDbPreloadObserverPromise,
-};
-const solidDbBadLiveQueryOptions: LiveQueryBindingOptions<"query"> = {
-  // @ts-expect-error Solid DB live-query preload observers must return void or Effect, not Promise
-  onPreloadFailure: () => solidDbPreloadObserverPromise,
+const solidDbObserverOptions: CollectionBindingOptions = {
+  // @ts-expect-error failures surface through `failure()` and `<Errored>`, not an observer.
+  onPreloadFailure: () => Effect.void,
 };
 
-// The collection handle is reactive reads only.
+// The collection handle is reactive reads plus the shared status vocabulary.
 const solidDbRows: ReadonlyArray<Collection.Row<SolidDbProject, string>> = solidDbProjects.rows();
 const solidDbRow: Collection.Row<SolidDbProject, string> | undefined = solidDbProjects.get("atlas");
 const solidDbIndex: ReadonlyArray<Collection.Row<SolidDbProject, string>> = solidDbProjects.index(
   "byName",
   "Atlas",
 );
-const solidDbPendingMutations: ReadonlyArray<Collection.PendingMutation<SolidDbProject, string>> =
-  solidDbProjects.pendingMutations();
-const solidDbPreloadFailure: Collection.RuntimeError<"load"> | undefined =
-  solidDbProjects.preloadFailure();
-const solidDbCollectionResult: () => AsyncResult.AsyncResult<
-  void,
-  Collection.RuntimeError<"load">
-> = solidDbProjects.result;
-// @ts-expect-error writes run `collection.update(...)` through `Component.callback`.
-solidDbProjects.updateEffect;
-// @ts-expect-error loads run `collection.refresh()` through `Component.callback`.
-solidDbProjects.refetchEffect;
-// @ts-expect-error handles expose one `result()` accessor instead of state/waiting/error.
-void solidDbProjects.state;
+const solidDbWaiting: boolean = solidDbProjects.waiting();
+const solidDbFailure: Cause.Cause<"load"> | undefined = solidDbProjects.failure();
+// @ts-expect-error Actions change rows: a collection handle has no writes.
+solidDbProjects.update;
+// @ts-expect-error status is `waiting()` / `failure()`, one vocabulary across handles.
+void solidDbProjects.result;
+// @ts-expect-error the failed first load throws to `<Errored>`; there is no separate accessor.
+void solidDbProjects.preloadFailure;
 
 const solidDbLivePreload: Effect.Effect<void, "query" | QueryEvaluationError> =
   solidDbLiveProjects.preload();
 const solidDbLiveRefetch: Effect.Effect<void, "query" | QueryEvaluationError> =
   solidDbLiveProjects.refresh();
 const solidDbLiveData: () => ReadonlyArray<SolidDbProject> = solidDbLiveProjects.rows;
-const solidDbLiveState: () => AsyncResult.AsyncResult<
-  ReadonlyArray<SolidDbProject>,
-  "query" | QueryEvaluationError
-> = solidDbLiveProjects.result;
-const solidDbLiveWaiting: boolean = solidDbLiveProjects.result().waiting;
-const solidDbLiveError: Option.Option<"query" | QueryEvaluationError> = AsyncResult.error(
-  solidDbLiveProjects.result(),
-);
-const solidDbLivePreloadFailure: () => "query" | QueryEvaluationError | undefined =
-  solidDbLiveProjects.preloadFailure;
+const solidDbLiveWaiting: boolean = solidDbLiveProjects.waiting();
+const solidDbLiveFailure: Cause.Cause<"query"> | undefined = solidDbLiveProjects.failure();
+// @ts-expect-error status is `waiting()` / `failure()`, one vocabulary across handles.
+void solidDbLiveProjects.result;
 void solidDbExports;
 void solidDbCollectionBinding;
+void solidDbContractBinding;
 void solidDbLiveQueryBinding;
 void solidDbRows;
 void solidDbRow;
 void solidDbIndex;
-void solidDbPendingMutations;
-void solidDbPreloadFailure;
-void solidDbCollectionResult;
+void solidDbWaiting;
+void solidDbFailure;
 void solidDbLivePreload;
 void solidDbLiveRefetch;
 void solidDbLiveData;
-void solidDbLiveState;
 void solidDbLiveWaiting;
-void solidDbLiveError;
-void solidDbLivePreloadFailure;
+void solidDbLiveFailure;
 void solidDbCollectionOptions;
-void solidDbLiveQueryOptions;
 void solidDbDepsLiveQueryOptions;
-void solidDbBadCollectionOptions;
-void solidDbBadLiveQueryOptions;
+void solidDbObserverOptions;
 type _Handles = Handles;
 type _Options = Options;

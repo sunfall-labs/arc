@@ -6,6 +6,59 @@ publication under `https://github.com/sunfall-labs/arc`; this remains a
 release-candidate draft until final npm publication is selected. The selected
 first public alpha version is `0.1.0-alpha.1`.
 
+## Mutations Are Actions; One Failure Rule (Breaking)
+
+- Actions are the one way to change server data. `Action.define({ optimistic })`
+  receives a transaction that patches Signals (`transaction.signal`) and
+  Collection rows (`transaction.insert/update/delete(collection, ...)`) and
+  returns an `Effect<void>`; the transaction commits or rolls back every patch
+  (the rollback-Effect return and `Action.Rollback` are removed).
+- Collection write paths are removed: `insert`/`update`/`delete`,
+  `sync.insert/update/delete`, `pendingMutations()`, `flushPendingMutations()`,
+  `Collection.flushAllPendingMutations`, `Collection.backgroundSyncPendingMutations`,
+  the persisted pending-mutation queue (`pendingMutations` in snapshots,
+  `persistOnMutation`), the collection `input` schema, and the
+  `CollectionMutation*` store events. A `sync: ResourceRef` collection takes
+  optimistic writes from Actions with no hand-written `load`/`refresh`/`follow`.
+  `applyChanges` remains for remote feeds and local-only collections.
+- A failure that can reach rendering joins a Component's `E`:
+  `SolidDb.collection` and `SolidDb.liveQuery` now add their declared load
+  errors (a never-loaded collection whose load failed throws to `<Errored>`),
+  like `Component.resource`. Work you start returns its failures to you.
+- Action callbacks that break their contract (`run`, `optimistic`,
+  `invalidates` throwing or returning a Promise; an optimistic row the schema
+  rejects) are defects: submissions fail with `E | Server.ClientError` only.
+- One status vocabulary: Action, collection, and live-query handles expose
+  `waiting()` and `failure()` (the Resource reader's names). Collection and
+  live-query handles drop `result()`, `preloadFailure()`, and the
+  `onPreloadFailure` option; `Component.Instance.fail(cause)` throws a typed
+  render-time failure for custom bindings.
+
+## Routing And Resource Preload (Breaking)
+
+- Resource loads fail only with the declared error `E`: a `load` or
+  `provides` callback that throws (or returns a Promise or invalid tags) is a
+  defect carrying `EffectInputCallbackError`. `Resource.LoadError<E>` is
+  removed, and route preloads no longer need
+  `Effect.catchTag("EffectInputCallbackError", Effect.die)`.
+- `Resource.preload` and `Resource.refresh` take one ref or an array of refs
+  (loaded concurrently, values in order), matching `Resource.invalidate`.
+- `Route.define` infers `preload` from its own body, then checks its failure
+  against `error`; a mismatch is reported on `error` as
+  `RoutePreloadFailureNotInErrorSchema<Undeclared>`. `CheckedRouteOptions`,
+  `RouteOptionsInput`, and `RouteDefinitionFromOptions` are replaced by
+  `RouteDefineOptions` and `RouteFactory<Path>` (`Route.Factory<Path>`, also
+  `FileRoute.Factory<Path>`). Route components attach only through
+  `Route.withComponent`.
+- A route without an `error` schema fails with `RoutePreloadUntypedFailure`
+  (only the failure's `tag`) on server, client, and after hydration, instead
+  of `unknown`; a preload that cannot fail has `never`.
+- `Route.withComponent(route, component, props)` maps route props to a
+  feature component's props, replacing per-route adapter Components.
+- `RouterOutlet` takes the `router` it renders, typing its fallbacks without
+  type arguments; `RouterProvider` takes only `router` and `children`. Router
+  options accept `undefined` as "absent".
+
 ## One Name Per Operation (Breaking)
 
 - Definition constructors are `define`, namespaced: `Resource.define` (which
@@ -138,7 +191,7 @@ Arc's async state now uses Effect's `AsyncResult`
 (`import { AsyncResult } from "effect/reactivity"`) everywhere, held in Arc
 signals and rendered by Solid:
 
-- `Resource.result(ref)` is `AsyncResult<A, Resource.LoadError<E>>`. Pending is
+- `Resource.result(ref)` is `AsyncResult<A, E>`. Pending is
   `waiting` on the current tag (`Initial`, `Success`, or `Failure`);
   `previous` became `previousSuccess`, `updatedAt` became `timestamp`, and
   `error: E` became `cause: Cause<E>`. `ResourceState`, `Resource.State`,

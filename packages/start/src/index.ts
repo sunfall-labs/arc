@@ -1,14 +1,39 @@
 export {
-  /** Builds the main Start request handler for SSR, RPC, and actions. */
+  /** Start apps: `App.define` (shared definition) and `App.launch` (browser entry). */
+  App,
+  /** Raised by `App.launch` when the document has no app root element. */
+  StartRootMissing,
+  /** Any app definition. */
+  type AnyAppDefinition,
+  /** Failures `App.launch` can end with besides the client Layer's own. */
+  type AppLaunchError,
+  /** Services `App.launch` adds to the app's client Layer. */
+  type AppLaunchServices,
+  /** A Start app definition built by `App.define`. */
+  type AppDefinition,
+} from "./start-app.js";
+
+export {
+  /** Builds the Start request handler for an app: SSR, RPC, and actions. */
   createRequestHandler,
+  /** Options for `createRequestHandler`: the server half of a Start app. */
+  type CreateRequestHandlerOptions,
+} from "./start-app-request-handler.js";
+
+export type {
+  /** The head and response headers a Start app sets for a page. */
+  StartDocument,
+  /** Request facts a `document` function sees. */
+  StartDocumentContext,
+  /** Attributes of one `<meta>` or `<link>` tag. */
+  StartDocumentTagAttributes,
+} from "./start-document.js";
+
+export {
   /** Error raised when request preload cannot complete. */
   StartPreloadError,
   /** Error normalized from any Start request handler failure. */
   StartRequestHandlerError,
-  /** Options for the main Start request handler. */
-  type CreateRequestHandlerOptions,
-  /** Per-request context passed to a Start SSR render function. */
-  type StartRenderContext,
   /** Effect-returning request handler consumed by host adapters. */
   type StartRequestHandler,
 } from "./start-request-handler.js";
@@ -21,20 +46,8 @@ export type {
 } from "./request-trace.js";
 
 export {
-  /** Builds a buffered HTML response inside Effect. */
-  createHtmlResponse,
-  /** Builds a streamed HTML response with ordered hydration chunks. */
-  createStartStreamedHtmlResponse,
-  /** Wraps a string as an HTML stream chunk. */
-  htmlChunk,
   /** Error raised when an HTML response stream fails. */
   StartStreamError,
-  /** Options for buffered HTML responses. */
-  type HtmlResponseOptions,
-  /** One HTML stream chunk. */
-  type HtmlStreamChunk,
-  /** Options for streamed HTML responses. */
-  type StartStreamedHtmlResponseOptions,
 } from "./streaming.js";
 
 export {
@@ -63,14 +76,7 @@ export {
   StartCollectionDuplicateName,
 } from "./start-collection-resolution.js";
 
-export {
-  /** Builds the browser RPC `ServerClient` layer; call with no options for defaults. */
-  makeRpcClientLayer,
-} from "./start-rpc-client.js";
-
 export type {
-  /** Options for Start RPC clients. */
-  ServerRpcClientOptions,
   /** Effect-returning fetch used by Start transports. */
   StartFetch,
   /** Request init accepted by `StartFetch`. */
@@ -97,13 +103,6 @@ export {
   /** Progressive (no-JS) HTML form helpers for Start actions. */
   StartAction,
 } from "./start-action-client.js";
-
-export {
-  /** Builds the `ActionTransport` layer that submits served Actions to the Start server. */
-  makeActionTransportLayer,
-  /** Options for `makeActionTransportLayer(...)`. */
-  type ActionTransportLayerOptions,
-} from "./start-action-transport.js";
 
 export {
   /** Error raised when action form input cannot be encoded. */
@@ -139,13 +138,3 @@ export {
   /** Minimal window shape used by static client navigation. */
   type StartStaticHistoryWindow,
 } from "./static-client-navigation.js";
-
-export type {
-  /** Hand-authored server-function source passed to the Start Vite plugin. */
-  ServerFunctionManifestSource,
-} from "./server-function-manifest.js";
-
-export type {
-  /** Hand-authored action source passed to the Start Vite plugin. */
-  ActionManifestSource,
-} from "./action-manifest.js";

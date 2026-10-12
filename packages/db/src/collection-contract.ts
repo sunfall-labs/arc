@@ -1,4 +1,5 @@
 import {
+  type ActionOptimisticRows,
   type EffectInputCallbackError,
   type EffectInput,
   type ReadableSignal,
@@ -32,60 +33,21 @@ export type CollectionRow<A extends object, K extends CollectionKey = Collection
 /**
  * Failure channel for collection runtime reads and loads.
  *
- * `E` comes from the collection loader or mutation handlers. Snapshot codec
+ * `E` comes from the collection's sync source and persistence. Snapshot codec
  * errors cover malformed persisted/hydrated rows and output-schema validation
  * failures, while EffectInput callback errors report synchronous throws before a
- * loader, handler, adapter, or persistence callback can return a value or
- * Effect.
+ * loader, adapter, or persistence callback can return a value or Effect.
  */
 export type CollectionRuntimeError<E = never> =
   | E
   | CollectionSnapshotCodecError
   | EffectInputCallbackError;
 
-/** A single optimistic mutation captured inside a transaction. */
-export type CollectionMutation<A extends object, K extends CollectionKey> =
-  | { readonly _tag: "Insert"; readonly key: K; readonly value: A; readonly previous?: A }
-  | {
-      readonly _tag: "Update";
-      readonly key: K;
-      readonly previous: A;
-      readonly value: A;
-      readonly changes: Partial<A>;
-    }
-  | { readonly _tag: "Delete"; readonly key: K; readonly previous: A };
-
-/** A batch of local collection mutations sent to mutation handlers as one unit. */
-export interface CollectionTransaction<A extends object, K extends CollectionKey> {
-  readonly id: string;
-  readonly collection: string;
-  readonly mutations: ReadonlyArray<CollectionMutation<A, K>>;
-}
-
-/** Row snapshot saved before an optimistic mutation so rollback can restore state. */
-export interface CollectionRollbackRow<A extends object, K extends CollectionKey> {
-  readonly key: K;
-  readonly row?: CollectionRowSnapshot<A, K>;
-}
-
-/** Queued optimistic transaction waiting for its mutation handler to commit. */
-export interface CollectionPendingMutation<A extends object, K extends CollectionKey> {
-  readonly transaction: CollectionTransaction<A, K>;
-  readonly rollbackRows: ReadonlyArray<CollectionRollbackRow<A, K>>;
-  readonly createdAt: number;
-  readonly attempts: number;
-}
-
-/** Context passed to collection mutation handlers. */
-export interface CollectionMutationContext<A extends object, K extends CollectionKey> {
-  readonly transaction: CollectionTransaction<A, K>;
-}
-
 /**
  * Collection execution policy.
  *
- * The retry schedule wraps loads and queued mutation handlers, preserving their
- * original Effect error and requirement channels.
+ * The retry schedule wraps loads, preserving their original Effect error and
+ * requirement channels.
  */
 export interface CollectionPolicy<E = never> {
   readonly retry?: RetrySchedule<E>;
@@ -121,38 +83,14 @@ export type CollectionIndexInput<A extends object> =
 /** Named secondary index map attached to a Collection definition. */
 export type CollectionIndexRecord<A extends object> = Record<string, CollectionIndexInput<A>>;
 
-/** Insert payload delivered to a collection sync adapter. */
-export interface CollectionSyncInsertPayload<A extends object, K extends CollectionKey> {
-  readonly values: ReadonlyArray<A>;
-  readonly transaction: CollectionTransaction<A, K>;
-}
-
-/** Update payload delivered to a collection sync adapter. */
-export interface CollectionSyncUpdatePayload<A extends object, K extends CollectionKey> {
-  readonly updates: ReadonlyArray<{
-    readonly key: K;
-    readonly value: A;
-    readonly previous: A;
-    readonly changes: Partial<A>;
-  }>;
-  readonly transaction: CollectionTransaction<A, K>;
-}
-
-/** Delete payload delivered to a collection sync adapter. */
-export interface CollectionSyncDeletePayload<A extends object, K extends CollectionKey> {
-  readonly deletes: ReadonlyArray<{
-    readonly key: K;
-    readonly previous: A;
-  }>;
-  readonly transaction: CollectionTransaction<A, K>;
-}
-
 /**
- * Transport adapter that backs a collection.
+ * Read adapter that backs a collection.
  *
  * Every operation may return a plain value or an Effect, and may be a Server
- * function directly (`load: listTodos`, `update: updateTodos`). Failures become
- * the collection error channel `E`; required services become `R`.
+ * function directly (`load: listTodos`). Failures become the collection error
+ * channel `E`; required services become `R`. Writes are Actions: an Action's
+ * `optimistic` patches the rows, its `run` writes the backend, and its
+ * `invalidates` reloads the source this adapter reads.
  *
  * - `load` fills rows on the first preload; `refresh` forces a fresh read and
  *   falls back to `load` (and `load` falls back to `refresh`).
@@ -162,9 +100,7 @@ export interface CollectionSyncDeletePayload<A extends object, K extends Collect
  *   mutations stay applied on top), and store disposal interrupts it.
  * - `changes` streams incremental remote changes (`Upsert`/`Update`/`Delete`).
  *   It starts and stops exactly like `follow`; each batch is applied like
- *   `applyChanges` without queuing mutation handlers.
- * - `insert`, `update`, and `delete` commit optimistic local writes. A failure
- *   rolls back the affected rows.
+ *   `applyChanges`.
  */
 export interface CollectionSyncAdapter<
   A extends object,
@@ -178,9 +114,6 @@ export interface CollectionSyncAdapter<
   readonly refresh?: () => EffectInput<ReadonlyArray<A>, E, R>;
   readonly follow?: () => Stream.Stream<ReadonlyArray<A>, E, R>;
   readonly changes?: () => Stream.Stream<ReadonlyArray<CollectionChange<A, K>>, E, R>;
-  readonly insert?: (payload: CollectionSyncInsertPayload<A, K>) => EffectInput<void, E, R>;
-  readonly update?: (payload: CollectionSyncUpdatePayload<A, K>) => EffectInput<void, E, R>;
-  readonly delete?: (payload: CollectionSyncDeletePayload<A, K>) => EffectInput<void, E, R>;
 }
 
 /**
@@ -200,8 +133,9 @@ export type CollectionSync<
  *
  * `sync` backs the collection: an inline `CollectionSyncAdapter` or a
  * `Resource.Ref`. Without `sync` the collection is local-only. Adapter
- * failures use the Effect error channel `E` and roll back affected rows;
- * required services are carried in `R`.
+ * failures use the Effect error channel `E`; required services are carried in
+ * `R`. Actions write it: `transaction.update(todos, id, patch)` in an Action's
+ * `optimistic`.
  *
  * @example
  * ```ts
@@ -209,10 +143,7 @@ export type CollectionSync<
  *   name: "todos",
  *   output: Todo,
  *   getKey: (todo) => todo.id,
- *   sync: {
- *     load: listTodos,
- *     update: updateTodos,
- *   },
+ *   sync: TodosRef,
  * });
  * ```
  */
@@ -224,11 +155,9 @@ export interface CollectionOptions<
 > {
   /** Stable collection identity used by stores, snapshots, persistence, and devtools. */
   readonly name: string;
-  /** Optional schema for mutation input values. */
-  readonly input?: unknown;
   /** Optional schema for loaded and written row values. */
   readonly output?: unknown;
-  /** Load, mutation, and retry policy for this collection. */
+  /** Load retry policy for this collection. */
   readonly policy?: CollectionPolicy<E>;
   /** Persistence storage and restore settings for this collection. */
   readonly persistence?: CollectionPersistenceConfig<E, R>;
@@ -246,15 +175,16 @@ export interface CollectionOptions<
  * Runtime handle returned by `Collection.define`.
  *
  * Read methods are synchronous and reactive through `state`/`version` signals.
- * Load and mutation Effects expose the collection error channel `E` and
- * requirements `R`; run them through the runtime at UI boundaries.
+ * Load Effects expose the collection error channel `E` and requirements `R`;
+ * run them through the runtime at UI boundaries. Actions patch the rows
+ * optimistically (the definition is an `ActionOptimisticRows`).
  */
 export interface CollectionDefinition<
   A extends object,
   K extends CollectionKey = string,
   E = never,
   R = never,
-> {
+> extends ActionOptimisticRows<A, K> {
   readonly [CollectionTypeId]: typeof CollectionTypeId;
   readonly options: CollectionOptions<A, K, E, R>;
   readonly name: string;
@@ -274,7 +204,7 @@ export interface CollectionDefinition<
   version(): ReadableSignal<number>;
   /** Read one row by key from the current in-memory state. */
   get(key: K): CollectionRow<A, K> | undefined;
-  /** Read all current rows, including local optimistic rows. */
+  /** Read all current rows, including rows Actions are optimistically patching. */
   rows(): ReadonlyArray<CollectionRow<A, K>>;
   /** Read rows from a named secondary index bucket. */
   index(index: string, value: CollectionIndexValue): ReadonlyArray<CollectionRow<A, K>>;
@@ -284,15 +214,11 @@ export interface CollectionDefinition<
   preload(): Effect.Effect<void, CollectionRuntimeError<E>, R>;
   /** Force a fresh load even when the collection is already ready. */
   refresh(): Effect.Effect<void, CollectionRuntimeError<E>, R>;
-  /** Synchronously read queued optimistic mutations from the current runtime store. */
-  pendingMutations(): ReadonlyArray<CollectionPendingMutation<A, K>>;
-  /** Retry all queued mutation handlers for this collection. */
-  flushPendingMutations(): Effect.Effect<
-    ReadonlyArray<CollectionTransaction<A, K>>,
-    CollectionRuntimeError<E>,
-    R
-  >;
-  /** Capture a durable serializable snapshot with an Effect-provided timestamp. */
+  /**
+   * Capture a durable serializable snapshot of the synced rows, with an
+   * Effect-provided timestamp. Optimistic Action patches are not included: they
+   * belong to in-flight submissions.
+   */
   snapshot(): Effect.Effect<
     CollectionSnapshot<A, K>,
     CollectionSnapshotCodecError | EffectInputCallbackError
@@ -312,29 +238,9 @@ export interface CollectionDefinition<
     storage: CollectionPersistenceStorage<PE, PR>,
     options?: CollectionPersistOptions & CollectionHydrateOptions,
   ): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR>;
-  /** Optimistically insert rows and run the insert handler. */
-  insert(
-    input: A | ReadonlyArray<A>,
-  ): Effect.Effect<CollectionTransaction<A, K>, CollectionRuntimeError<E>, R>;
-  /** Optimistically update one row and run the update handler. */
-  update(
-    key: K,
-    update: CollectionUpdate<A>,
-  ): Effect.Effect<
-    CollectionTransaction<A, K>,
-    CollectionRuntimeError<E> | CollectionRowNotFound | CollectionRowKeyChanged,
-    R
-  >;
-  /** Optimistically delete one row and run the delete handler. */
-  delete(
-    key: K,
-  ): Effect.Effect<
-    CollectionTransaction<A, K>,
-    CollectionRuntimeError<E> | CollectionRowNotFound,
-    R
-  >;
   /**
-   * Apply remote changes directly, without queuing mutation handlers.
+   * Write rows directly: remote change feeds and local-only collections.
+   * Server data changes through Actions instead.
    *
    * Changes apply in order as one write: `Upsert` stores a full row, `Update`
    * patches an existing row (failing with `CollectionRowNotFound` or
@@ -387,15 +293,7 @@ export type CollectionRequirements<C> =
       ? R
       : never;
 
-/**
- * Update input for `update`.
- *
- * Pass a partial patch or mutate/return a shallow draft copy of the previous
- * value.
- */
-export type CollectionUpdate<A extends object> = Partial<A> | ((draft: A) => A | void);
-
-/** Metadata for direct writes that bypass mutation handlers. */
+/** Metadata for `applyChanges` writes. */
 export interface CollectionWriteOptions {
   readonly origin?: CollectionOrigin;
   readonly synced?: boolean;
@@ -416,7 +314,7 @@ export interface CollectionRowSnapshot<A extends object, K extends CollectionKey
 }
 
 /**
- * Serializable collection state including rows and queued local mutations.
+ * Serializable synced collection state.
  *
  * Use this for SSR hydration, offline restore, or custom persistence. The value
  * is plain JSON-compatible as long as row values and keys are.
@@ -427,7 +325,6 @@ export interface CollectionSnapshot<
 > {
   readonly name: string;
   readonly rows: ReadonlyArray<CollectionRowSnapshot<A, K>>;
-  readonly pendingMutations: ReadonlyArray<CollectionPendingMutation<A, K>>;
   readonly updatedAt: number;
 }
 
@@ -473,7 +370,6 @@ export interface CollectionPersistenceConfig<
   readonly restoreOnPreload?: boolean;
   readonly loadAfterRestore?: boolean;
   readonly persistOnLoad?: boolean;
-  readonly persistOnMutation?: boolean;
   readonly persistOnWrite?: boolean;
 }
 
@@ -494,8 +390,8 @@ export interface CollectionMemoryStorage extends CollectionPersistenceStorage<ne
  * Static metadata extracted from a Collection Definition for manifests and
  * diagnostics.
  *
- * Boolean fields report whether schemas, handlers, sync, persistence, or retry
- * policy were declared; they do not represent runtime health.
+ * Boolean fields report whether schemas, sync, persistence, or retry policy
+ * were declared; they do not represent runtime health.
  */
 export interface CollectionDefinitionDiagnostics {
   readonly name: string;
@@ -504,7 +400,6 @@ export interface CollectionDefinitionDiagnostics {
    * remote change application. Concrete writable definitions report `false`.
    */
   readonly readOnly: boolean;
-  readonly inputSchema: boolean;
   readonly outputSchema: boolean;
   readonly initialData: boolean;
   readonly indexes: readonly {
@@ -512,11 +407,6 @@ export interface CollectionDefinitionDiagnostics {
     readonly unique: boolean;
   }[];
   readonly load: boolean;
-  readonly handlers: {
-    readonly insert: boolean;
-    readonly update: boolean;
-    readonly delete: boolean;
-  };
   readonly policy: {
     readonly retry: boolean;
   };
@@ -528,7 +418,6 @@ export interface CollectionDefinitionDiagnostics {
     readonly restoreOnPreload: boolean;
     readonly loadAfterRestore: boolean;
     readonly persistOnLoad: boolean;
-    readonly persistOnMutation: boolean;
     readonly persistOnWrite: boolean;
   };
 }
@@ -570,57 +459,21 @@ export type CollectionStoreEvent =
       readonly key: string;
       readonly count: number;
     }
-  /** An optimistic transaction was queued; `pending` is queue length after enqueue. */
-  | {
-      readonly _tag: "CollectionMutationQueued";
-      readonly collection: string;
-      readonly transaction: string;
-      readonly mutations: number;
-      readonly pending: number;
-    }
-  /** A queued transaction started running its mutation handler. */
-  | {
-      readonly _tag: "CollectionMutateStarted";
-      readonly collection: string;
-      readonly transaction: string;
-      readonly mutations: number;
-    }
-  /** A transaction left the queue; `pending` is queue length after dequeue. */
-  | {
-      readonly _tag: "CollectionMutationDequeued";
-      readonly collection: string;
-      readonly transaction: string;
-      readonly pending: number;
-    }
-  /** A mutation handler committed successfully. */
-  | {
-      readonly _tag: "CollectionMutateCommitted";
-      readonly collection: string;
-      readonly transaction: string;
-      readonly mutations: number;
-    }
-  /** A mutation handler failed and optimistic changes were rolled back. */
-  | {
-      readonly _tag: "CollectionMutateRolledBack";
-      readonly collection: string;
-      readonly transaction: string;
-      readonly error: unknown;
-    }
   /** A `sync.changes` stream or one of its batches failed. */
   | {
       readonly _tag: "CollectionChangeFeedFailure";
       readonly collection: string;
       readonly error: unknown;
     }
-  /** Rows were written directly without queuing mutation handlers. */
+  /** Rows were written directly (`applyChanges`, `sync.changes`). */
   | { readonly _tag: "CollectionWritten"; readonly collection: string; readonly mutations: number };
 
 /** Stable Collection Store count snapshot that does not expose private row maps. */
 export interface CollectionStoreDiagnosticsSnapshot {
   readonly collectionCount: number;
   readonly rowCount: number;
+  /** Action submissions whose optimistic patches have not settled. */
   readonly pendingMutationCount: number;
-  readonly activeMutationCount: number;
   readonly optimisticRowCount: number;
   readonly loadingCount: number;
   readonly failureCount: number;
@@ -634,7 +487,7 @@ export interface CollectionStoreDiagnostics {
 /**
  * Runtime-local Collection Store contract.
  *
- * Stores own collection rows, pending mutation queues, lifecycle events, and
+ * Stores own collection rows, optimistic Action patches, lifecycle events, and
  * diagnostics for one Sunfall Arc Runtime Spine or request scope. Framework
  * adapters read it through `@sunfall/arc-db/internal`.
  */

@@ -1,23 +1,21 @@
+import { projectConsoleActions } from "./domain.js";
+import { serverFunctions } from "./domain.server.js";
 import { routeById, routes } from "./routeTree.gen.js";
-import {
-  projectConsoleActionSources,
-  projectConsoleServerFunctionSources,
-} from "./start-options.js";
 
-// Narrow example-only fallback used by SSR headers/tests before Vite virtual
-// modules are available. Production app topology should come from the generated
-// `virtual:sunfall-arc/app-graph` artifact.
+// Narrow example-only summary used by SSR headers and tests. Production app
+// topology comes from the generated `virtual:sunfall-arc/app-graph` artifact,
+// which the Start plugin derives from the same definitions.
 export const projectConsoleStartGraph = {
   routes,
   routeById,
-  serverFunctions: projectConsoleServerFunctionSources,
-  actions: projectConsoleActionSources,
+  serverFunctions,
+  actions: projectConsoleActions,
 } as const;
 
 export const projectConsoleStartGraphSummary = {
   routes: projectConsoleStartGraph.routes.map((route) => route.path),
-  serverFunctions: projectConsoleStartGraph.serverFunctions.map((source) => source.fn.name),
-  actions: projectConsoleStartGraph.actions.map((source) => source.action.name),
+  serverFunctions: projectConsoleStartGraph.serverFunctions.map((fn) => fn.name),
+  actions: projectConsoleStartGraph.actions.map((action) => action.name),
 } as const;
 
 export const projectConsoleStartGraphHeader = [

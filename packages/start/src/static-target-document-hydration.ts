@@ -124,7 +124,7 @@ export const hydrateStartStaticTargetDocumentEffect = <RuntimeError = unknown>(
         staticHydrationError(options.href, options.browserHref, "ParseFailed", { cause }),
     });
     const hydrateEffect = options.runtime.provide(
-      hydrateFromDocument(staticDocument, undefined, {
+      hydrateFromDocument(staticDocument, {
         timestamp: "now",
         skipFresh: true,
       }).pipe(Effect.flatMap(startStaticHydratedHrefPreparationOutcomeEffect)),

@@ -321,6 +321,11 @@ const allowed = [
       ),
       seam(
         "packages/start/src/vite.ts",
+        "Vite plugin config hook contract",
+        /\) => Promise<UserConfig>;/,
+      ),
+      seam(
+        "packages/start/src/vite.ts",
         "Vite plugin buildStart hook contract",
         /readonly buildStart:\s*\(\)\s*=>\s*void\s*\|\s*Promise<void>;/,
       ),
@@ -400,11 +405,6 @@ const allowed = [
         /declare const startResponsePromise:\s*Promise<Response>;/,
       ),
       seam(
-        "type-tests/solid-db.test-d.ts",
-        "Solid DB preload observer Promise negative fixture",
-        /declare const solidDbPreloadObserverPromise:\s*Promise<void>;/,
-      ),
-      seam(
         "type-tests/db.test-d.ts",
         "DB sync adapter Promise negative fixture",
         /declare const promiseRows:\s*Promise<ReadonlyArray<Project>>;/,
@@ -413,6 +413,11 @@ const allowed = [
         "type-tests/core.test-d.ts",
         "Core Resource UI preload observer Promise negative fixture",
         /declare const resourceUiPreloadObserverPromise:\s*Promise<void>;/,
+      ),
+      seam(
+        "type-tests/route-inference.test-d.tsx",
+        "Route preload Promise negative fixture",
+        /declare const pendingWork:\s*Promise<void>;/,
       ),
       seam(
         "type-tests/framework.test-d.ts",
@@ -1051,16 +1056,6 @@ const banned = [
         "docs/sunfall-arc-framework-comparison.md:86:snippet-3.ts",
         "React Router comparison mutation await",
         /await renameProject\(name\)/,
-      ),
-      seam(
-        "examples/docs-site/src/main.tsx",
-        "docs-site dev-only makeRpcClientLayer dynamic import",
-        /\(await import\(\)\)\.makeRpcClientLayer\(\)/,
-      ),
-      seam(
-        "examples/docs-site/src/main.tsx",
-        "docs-site dev-only content-live dynamic import",
-        /\(await import\(\)\)\.DocsContentApiLive/,
       ),
     ],
   },

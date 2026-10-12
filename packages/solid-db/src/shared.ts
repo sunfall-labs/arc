@@ -1,38 +1,70 @@
 import {
+  EffectInputCallbackError,
   runWithRuntime,
-  Signal,
   type AnySunfallArcRuntime,
-  type EffectInput,
 } from "@sunfall/arc-core";
-import { invokeEffectInput } from "@sunfall/arc-core/internal";
+import { CollectionSnapshotCodecError, QueryEvaluationError } from "@sunfall/arc-db";
 import {
   bindCollectionRuntimeEffect,
   makeCollectionReactivePreloadController,
 } from "@sunfall/arc-db/internal";
-import { Effect } from "effect";
+import type { Component } from "@sunfall/arc-solid";
+import { Cause, Effect, Option } from "effect";
+import type { AsyncResult } from "effect/reactivity";
 import { createRenderEffect, onCleanup, type Accessor } from "solid-js";
 
-export interface SolidDbReactiveBinding<E, ER = never> {
-  readonly runtime: AnySunfallArcRuntime<ER>;
-  readonly preloadFailure: Accessor<E | ER | undefined>;
-  /** Reads collection state from the bound runtime's Collection Store. */
+/**
+ * Failures a collection or live query read can throw to `<Errored>`: its
+ * declared errors. Contract violations (a throwing callback, a row the output
+ * schema rejects, an invalid query plan) are defects instead.
+ */
+export type RenderError<E> = Exclude<
+  E,
+  EffectInputCallbackError | CollectionSnapshotCodecError | QueryEvaluationError
+>;
+
+const isContractViolation = (error: unknown): boolean =>
+  error instanceof EffectInputCallbackError ||
+  error instanceof CollectionSnapshotCodecError ||
+  error instanceof QueryEvaluationError;
+
+/** Re-causes contract violations as defects, leaving only declared failures typed. */
+export const renderFailureCause = <E>(cause: Cause.Cause<E>): Cause.Cause<RenderError<E>> =>
+  cause.reasons.some((reason) => Cause.isFailReason(reason) && isContractViolation(reason.error))
+    ? (Cause.fromReasons(
+        cause.reasons.map((reason) =>
+          Cause.isFailReason(reason) && isContractViolation(reason.error)
+            ? Cause.makeDieReason(reason.error)
+            : reason,
+        ),
+      ) as Cause.Cause<RenderError<E>>)
+    : (cause as Cause.Cause<RenderError<E>>);
+
+/** The settled failure of the latest load, if it failed. */
+export const settledFailure = <A, E>(
+  result: AsyncResult.AsyncResult<A, E>,
+): Cause.Cause<RenderError<E>> | undefined =>
+  result._tag === "Failure" && !result.waiting ? renderFailureCause(result.cause) : undefined;
+
+export interface SolidDbReactiveBinding<E> {
+  /**
+   * Reads collection state from the bound runtime's Collection Store. While
+   * the source has never loaded and its latest load failed, the read throws
+   * that failure to the nearest `<Errored>`.
+   */
   read<A>(read: () => A): A;
-  bindEffect<A, E2, R>(effect: Effect.Effect<A, E2, R>): Effect.Effect<A, E2 | ER>;
+  bindEffect<A, E2, R>(effect: Effect.Effect<A, E2, R>): Effect.Effect<A, E2>;
+  /** The latest load result, read in the bound runtime. */
+  readonly result: () => AsyncResult.AsyncResult<unknown, E>;
 }
 
-export interface SolidDbReactiveBindingOptions<E, R = never, ER = never> {
-  readonly runtime: AnySunfallArcRuntime<ER>;
+export interface SolidDbReactiveBindingOptions<E, R = never> {
+  readonly instance: Component.Instance;
   readonly preload?: boolean | undefined;
   /** Preload work for the current sources; preloading restarts when it changes. */
-  readonly load: Accessor<Effect.Effect<void, E, R>>;
-  /**
-   * Observer for automatic preload failures.
-   *
-   * Return a plain value or an Effect. Promise-shaped observers are rejected at
-   * the EffectInput seam; observer failures are ignored after the failure is
-   * recorded.
-   */
-  readonly onPreloadFailure?: ((error: E | ER) => EffectInput<void, unknown>) | undefined;
+  readonly load: Accessor<Effect.Effect<void, unknown, R>>;
+  /** The sources' latest load result. */
+  readonly result: () => AsyncResult.AsyncResult<unknown, E>;
 }
 
 /**
@@ -40,36 +72,16 @@ export interface SolidDbReactiveBindingOptions<E, R = never, ER = never> {
  *
  * Collection reads track their own Arc signals, which Solid tracks natively,
  * so the binding has no subscriptions or invalidation counters. It owns the
- * runtime seam, mount-time and source-change preloading, and runtime-bound
- * Effects so bindings only describe their domain-specific accessors. Call it
- * under the binding instance's Solid owner.
+ * runtime seam, mount-time and source-change preloading, the render-time
+ * failure throw, and runtime-bound Effects so bindings only describe their
+ * domain-specific accessors. Call it under the binding instance's Solid owner.
  */
-export const makeSolidDbReactiveBinding = <E, R = never, ER = never>(
-  options: SolidDbReactiveBindingOptions<E, R, ER>,
-): SolidDbReactiveBinding<E, ER> => {
-  const runtime = options.runtime;
-  // Adapter state lives in an Arc signal: tracked natively on the client and a
-  // plain committed value during server rendering.
-  const preloadFailure = Signal.make<E | ER | undefined>(undefined);
-  const preloadController = makeCollectionReactivePreloadController<E, ER>({
-    runtime,
-    onSuccess: () => preloadFailure.set(() => undefined),
-    onFailure: (error) =>
-      Effect.sync(() => preloadFailure.set(() => error)).pipe(
-        Effect.andThen(
-          options.onPreloadFailure === undefined
-            ? Effect.void
-            : invokeEffectInput(
-                "SolidDbReactiveBinding.onPreloadFailure",
-                options.onPreloadFailure,
-                error,
-              ).pipe(
-                Effect.catchCause(() => Effect.void),
-                Effect.asVoid,
-              ),
-        ),
-      ),
-  });
+export const makeSolidDbReactiveBinding = <E, R = never>(
+  options: SolidDbReactiveBindingOptions<E, R>,
+): SolidDbReactiveBinding<E> => {
+  const { instance } = options;
+  const runtime: AnySunfallArcRuntime<never> = instance.runtime;
+  const preloadController = makeCollectionReactivePreloadController({ runtime });
 
   // Preloading is a side effect, so it runs in the apply phase whenever the
   // source set (and with it the preload work) changes.
@@ -82,10 +94,20 @@ export const makeSolidDbReactiveBinding = <E, R = never, ER = never>(
     void Effect.runFork(preloadController.interrupt());
   });
 
+  const result = () => runWithRuntime(runtime, options.result);
   return {
-    runtime,
-    preloadFailure: () => preloadFailure.get(),
-    read: (read) => runWithRuntime(runtime, read),
+    result,
+    read: (read) => {
+      const current = result();
+      if (
+        current._tag === "Failure" &&
+        !current.waiting &&
+        Option.isNone(current.previousSuccess)
+      ) {
+        instance.fail(renderFailureCause(current.cause));
+      }
+      return runWithRuntime(runtime, read);
+    },
     bindEffect: (effect) => bindCollectionRuntimeEffect(runtime, effect),
   };
 };

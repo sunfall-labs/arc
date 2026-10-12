@@ -9,7 +9,7 @@ import {
   DocsPageRoute,
   HomeRoute,
   RecipeRoute,
-} from "./app-definition.js";
+} from "./site-routes.js";
 import {
   RecipeBySlug,
   RecipeIndex,
@@ -1210,32 +1210,23 @@ const DocsRouteOutlet = Component.define("DocsRouteOutlet", function* () {
 });
 
 /**
- * The docs site: one Component tree from the client entry (`launch`) and the
- * server render (`embed`).
+ * The docs site root: Start renders it on the server and `App.launch`
+ * hydrates it in the browser.
  */
-const DocsSite = Component.define(
-  "DocsSite",
-  function* (props: { readonly initialHref?: string; readonly hydratedHref?: string }) {
-    const { runtime } = yield* Component.instance;
-    const history = makeDocsSiteHistoryAdapter({
-      runtime,
-      routes,
-      ...(props.hydratedHref === undefined ? {} : { hydratedHrefs: [props.hydratedHref] }),
-    });
-    const router = yield* Component.router(routes, {
-      history,
-      ...(props.initialHref === undefined ? {} : { initialHref: props.initialHref }),
-    });
-    const Outlet = yield* DocsRouteOutlet;
-    const RecipeIndexNav = yield* RecipeNavList;
+const DocsSite = Component.define("DocsSite", function* (props: { readonly href: string }) {
+  const { runtime } = yield* Component.instance;
+  // The server rendered `props.href`, so its data is already hydrated.
+  const history = makeDocsSiteHistoryAdapter({ runtime, routes, hydratedHrefs: [props.href] });
+  const router = yield* Component.router(routes, { history, initialHref: props.href });
+  const Outlet = yield* DocsRouteOutlet;
+  const RecipeIndexNav = yield* RecipeNavList;
 
-    return () => (
-      <RouterProvider router={router}>
-        <DocsShell Outlet={Outlet} RecipeIndex={RecipeIndexNav} />
-      </RouterProvider>
-    );
-  },
-);
+  return () => (
+    <RouterProvider router={router}>
+      <DocsShell Outlet={Outlet} RecipeIndex={RecipeIndexNav} />
+    </RouterProvider>
+  );
+});
 
 export default DocsSite;
 

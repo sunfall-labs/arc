@@ -4,18 +4,11 @@ import { AsyncResult } from "effect/reactivity";
 import type {
   CollectionDefinition,
   CollectionKey,
-  CollectionMutation,
   CollectionRuntimeError,
   CollectionOrigin,
   CollectionRow,
-  CollectionTransaction,
 } from "./collection-contract.js";
-import {
-  cloneCollectionMutation,
-  cloneCollectionTransaction,
-  cloneCollectionValue,
-  detachCollectionRow,
-} from "./collection-value-detachment.js";
+import { cloneCollectionValue, detachCollectionRow } from "./collection-value-detachment.js";
 import type { CollectionIndexCacheEntry } from "./collection-index-materialization.js";
 
 export interface StoredRow<A extends object, K extends CollectionKey> {
@@ -25,28 +18,25 @@ export interface StoredRow<A extends object, K extends CollectionKey> {
   origin: CollectionOrigin;
 }
 
-export interface PendingMutationEntry<A extends object, K extends CollectionKey> {
-  readonly transaction: CollectionTransaction<A, K>;
-  readonly rollbackRows: Map<K, StoredRow<A, K> | undefined>;
-  readonly createdAt: number;
-  attempts: number;
-  activeAttempt: PendingMutationAttempt<A, K> | undefined;
-}
-
-export interface PendingMutationAttempt<A extends object, K extends CollectionKey> {
-  readonly id: number;
-  readonly deferred: Deferred.Deferred<CollectionTransaction<A, K>, any>;
-}
-
 export interface CollectionLoadAttempt {
   readonly generation: number;
   readonly force: boolean;
   readonly deferred: Deferred.Deferred<void, any>;
 }
 
+/** One row change an Action's optimistic transaction layers over the synced base. */
+export type OptimisticRowMutation<A extends object, K extends CollectionKey> =
+  | { readonly _tag: "Insert"; readonly key: K; readonly value: A }
+  | { readonly _tag: "Update"; readonly key: K; readonly changes: Partial<A> }
+  | { readonly _tag: "Delete"; readonly key: K };
+
+/**
+ * A patch owned by one Action submission. `committed` patches wait for the
+ * patches below them to settle before they fold into the base.
+ */
 export interface OptimisticRowPatch<A extends object, K extends CollectionKey> {
   readonly transactionId: string;
-  readonly mutation: CollectionMutation<A, K>;
+  readonly mutation: OptimisticRowMutation<A, K>;
   committed: boolean;
 }
 
@@ -58,14 +48,13 @@ export interface OptimisticRowStack<A extends object, K extends CollectionKey> {
 export interface CollectionState<A extends object, K extends CollectionKey, E> {
   /** Collection name, used for signal labels and `Timeline` causes. */
   readonly name: string;
+  /** Visible rows: the synced base with optimistic patches applied. */
   readonly rows: Map<K, StoredRow<A, K>>;
-  readonly pendingMutations: Map<string, PendingMutationEntry<A, K>>;
+  /** Synced base and pending Action patches for each optimistically patched key. */
   readonly optimisticRows: Map<K, OptimisticRowStack<A, K>>;
   readonly indexCache: Map<string, CollectionIndexCacheEntry<A, K>>;
   readonly version: WritableSignal<number>;
   readonly loadState: WritableSignal<AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>>;
-  nextTransactionId: number;
-  nextMutationAttemptId: number;
   loadGeneration: number;
   activeLoad: CollectionLoadAttempt | undefined;
   initialized: boolean;
@@ -84,7 +73,6 @@ export const makeCollectionState = <A extends object, K extends CollectionKey, E
 ): CollectionState<A, K, E> => ({
   name,
   rows: new Map(),
-  pendingMutations: new Map(),
   optimisticRows: new Map(),
   indexCache: new Map(),
   version: Signal.make(0, { name: `${name}.version` }),
@@ -92,8 +80,6 @@ export const makeCollectionState = <A extends object, K extends CollectionKey, E
     AsyncResult.initial(),
     { name: `${name}.loadState` },
   ),
-  nextTransactionId: 0,
-  nextMutationAttemptId: 0,
   loadGeneration: 0,
   activeLoad: undefined,
   initialized: false,
@@ -146,19 +132,6 @@ export const augmentCollectionRow = <A extends object, K extends CollectionKey>(
     origin: row.origin,
   });
 
-export const markStoredRowsSynced = <A extends object, K extends CollectionKey>(
-  state: CollectionState<A, K, any>,
-  keys: ReadonlyArray<K>,
-): void => {
-  for (const key of keys) {
-    const row = state.rows.get(key);
-    if (row) {
-      row.synced = true;
-    }
-  }
-  bumpCollectionState(state);
-};
-
 export const cloneStoredRow = <A extends object, K extends CollectionKey>(
   row: StoredRow<A, K>,
 ): StoredRow<A, K> => ({
@@ -178,55 +151,19 @@ export const cloneOptimisticRowStack = <A extends object, K extends CollectionKe
   base: cloneRollbackRow(stack.base),
   patches: stack.patches.map((patch) => ({
     transactionId: patch.transactionId,
-    mutation: cloneCollectionMutation(patch.mutation),
+    mutation: cloneCollectionValue(patch.mutation),
     committed: patch.committed,
   })),
 });
 
-export const clonePendingMutationEntry = <A extends object, K extends CollectionKey>(
-  entry: PendingMutationEntry<A, K>,
-  options: { readonly preserveActiveAttempt?: boolean } = {},
-): PendingMutationEntry<A, K> => ({
-  transaction: cloneCollectionTransaction(entry.transaction),
-  rollbackRows: new Map(
-    Array.from(entry.rollbackRows, ([key, row]) => [key, cloneRollbackRow(row)]),
-  ),
-  createdAt: entry.createdAt,
-  attempts: entry.attempts,
-  activeAttempt: options.preserveActiveAttempt === true ? entry.activeAttempt : undefined,
-});
-
-export const restoreStoredRows = <A extends object, K extends CollectionKey>(
-  state: CollectionState<A, K, any>,
-  snapshots: ReadonlyMap<K, StoredRow<A, K> | undefined>,
-): void => {
-  for (const [key, row] of snapshots) {
-    if (row) {
-      state.rows.set(key, cloneStoredRow(row));
-    } else {
-      state.rows.delete(key);
-    }
-  }
-  bumpCollectionState(state);
-};
-
 export const restoreOptimisticState = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
   rows: ReadonlyMap<K, StoredRow<A, K>>,
-  pendingMutations: ReadonlyMap<string, PendingMutationEntry<A, K>>,
   optimisticRows: ReadonlyMap<K, OptimisticRowStack<A, K>>,
 ): void => {
   state.rows.clear();
   for (const [key, row] of rows) {
     state.rows.set(key, cloneStoredRow(row));
-  }
-
-  state.pendingMutations.clear();
-  for (const [id, entry] of pendingMutations) {
-    state.pendingMutations.set(
-      id,
-      clonePendingMutationEntry(entry, { preserveActiveAttempt: true }),
-    );
   }
 
   state.optimisticRows.clear();
@@ -235,13 +172,9 @@ export const restoreOptimisticState = <A extends object, K extends CollectionKey
   }
 };
 
-export const optimisticMutationKeys = <A extends object, K extends CollectionKey>(
-  transaction: CollectionTransaction<A, K>,
-): ReadonlyArray<K> => Array.from(new Set(transaction.mutations.map((mutation) => mutation.key)));
-
 const applyOptimisticMutationToRow = <A extends object, K extends CollectionKey>(
   row: StoredRow<A, K> | undefined,
-  mutation: CollectionMutation<A, K>,
+  mutation: OptimisticRowMutation<A, K>,
 ): StoredRow<A, K> | undefined => {
   switch (mutation._tag) {
     case "Insert":
@@ -251,15 +184,16 @@ const applyOptimisticMutationToRow = <A extends object, K extends CollectionKey>
         synced: false,
         origin: "local",
       };
-    case "Update": {
-      const previous = row?.value ?? mutation.previous;
-      return {
-        key: mutation.key,
-        value: cloneCollectionValue({ ...previous, ...mutation.changes } as A),
-        synced: false,
-        origin: "local",
-      };
-    }
+    case "Update":
+      // A row the base no longer has stays gone: the update has nothing to patch.
+      return row === undefined
+        ? undefined
+        : {
+            key: mutation.key,
+            value: cloneCollectionValue({ ...row.value, ...mutation.changes } as A),
+            synced: false,
+            origin: "local",
+          };
     case "Delete":
       return undefined;
   }
@@ -304,10 +238,6 @@ const rebaseOptimisticRow = <A extends object, K extends CollectionKey>(
   let row = cloneRollbackRow(stack.base);
   let hasPendingPatch = false;
   for (const patch of stack.patches) {
-    const pending = state.pendingMutations.get(patch.transactionId);
-    if (pending) {
-      pending.rollbackRows.set(key, cloneRollbackRow(row));
-    }
     row = applyOptimisticMutationToRow(row, patch.mutation);
     hasPendingPatch = hasPendingPatch || !patch.committed;
     if (row) {
@@ -333,27 +263,18 @@ export const rebaseOptimisticRows = <A extends object, K extends CollectionKey>(
   bumpCollectionState(state);
 };
 
-export const applyOptimisticTransaction = <A extends object, K extends CollectionKey>(
+/** Layers `mutation` over the row's current patches as part of `transactionId`. */
+export const applyOptimisticRowMutation = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
-  transaction: CollectionTransaction<A, K>,
-  snapshots: ReadonlyMap<K, StoredRow<A, K> | undefined>,
+  transactionId: string,
+  mutation: OptimisticRowMutation<A, K>,
 ): void => {
-  for (const mutation of transaction.mutations) {
-    let stack = state.optimisticRows.get(mutation.key);
-    if (!stack) {
-      stack = {
-        base: cloneRollbackRow(snapshots.get(mutation.key)),
-        patches: [],
-      };
-      state.optimisticRows.set(mutation.key, stack);
-    }
-    stack.patches.push({
-      transactionId: transaction.id,
-      mutation,
-      committed: false,
-    });
+  let stack = state.optimisticRows.get(mutation.key);
+  if (!stack) {
+    stack = { base: cloneRollbackRow(state.rows.get(mutation.key)), patches: [] };
+    state.optimisticRows.set(mutation.key, stack);
   }
-  rebaseOptimisticRows(state, optimisticMutationKeys(transaction));
+  stack.patches.push({ transactionId, mutation, committed: false });
 };
 
 export const applyCollectionBaseRow = <A extends object, K extends CollectionKey>(
@@ -398,92 +319,82 @@ export const rebaseCollectionBaseRows = <A extends object, K extends CollectionK
   bumpCollectionState(state);
 };
 
-const hasOptimisticTransaction = <A extends object, K extends CollectionKey>(
+const optimisticTransactionKeys = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
-  transaction: CollectionTransaction<A, K>,
-): boolean =>
-  optimisticMutationKeys(transaction).some((key) =>
-    state.optimisticRows.get(key)?.patches.some((patch) => patch.transactionId === transaction.id),
-  );
+  transactionId: string,
+): ReadonlyArray<K> =>
+  Array.from(state.optimisticRows)
+    .filter(([, stack]) => stack.patches.some((patch) => patch.transactionId === transactionId))
+    .map(([key]) => key);
 
+/**
+ * Commits a transaction's patches: each folds into the synced base as soon as
+ * the patches below it settle, and the next sync replaces it.
+ */
 export const commitOptimisticTransaction = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
-  transaction: CollectionTransaction<A, K>,
-): boolean => {
-  if (!hasOptimisticTransaction(state, transaction)) {
-    return false;
+  transactionId: string,
+): void => {
+  const keys = optimisticTransactionKeys(state, transactionId);
+  if (keys.length === 0) {
+    return;
   }
-
-  const keys = optimisticMutationKeys(transaction);
   for (const key of keys) {
-    const stack = state.optimisticRows.get(key);
-    if (!stack) {
-      continue;
-    }
-    for (const patch of stack.patches) {
-      if (patch.transactionId === transaction.id) {
+    for (const patch of state.optimisticRows.get(key)!.patches) {
+      if (patch.transactionId === transactionId) {
         patch.committed = true;
       }
     }
   }
   rebaseOptimisticRows(state, keys);
-  return true;
 };
 
+/** Drops a transaction's patches and rebases the patches other transactions still own. */
 export const rollbackOptimisticTransaction = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
-  transaction: CollectionTransaction<A, K>,
-): boolean => {
-  if (!hasOptimisticTransaction(state, transaction)) {
-    return false;
+  transactionId: string,
+): void => {
+  const keys = optimisticTransactionKeys(state, transactionId);
+  if (keys.length === 0) {
+    return;
   }
-
-  const keys = optimisticMutationKeys(transaction);
   for (const key of keys) {
-    const stack = state.optimisticRows.get(key);
-    if (!stack) {
-      continue;
-    }
-    const remaining = stack.patches.filter((patch) => patch.transactionId !== transaction.id);
+    const stack = state.optimisticRows.get(key)!;
+    const remaining = stack.patches.filter((patch) => patch.transactionId !== transactionId);
     stack.patches.splice(0, stack.patches.length, ...remaining);
   }
   rebaseOptimisticRows(state, keys);
-  return true;
 };
 
-export const syncOptimisticRowsFromPendingMutations = <A extends object, K extends CollectionKey>(
-  state: CollectionState<A, K, any>,
-): void => {
-  const desired = new Map<K, OptimisticRowStack<A, K>>();
-  const rebaseKeys = new Set<K>(state.optimisticRows.keys());
-
-  for (const entry of state.pendingMutations.values()) {
-    for (const mutation of entry.transaction.mutations) {
-      let stack = desired.get(mutation.key);
-      if (!stack) {
-        const existing = state.optimisticRows.get(mutation.key);
-        const rollback = entry.rollbackRows.has(mutation.key)
-          ? entry.rollbackRows.get(mutation.key)
-          : state.rows.get(mutation.key);
-        stack = {
-          base: existing ? cloneRollbackRow(existing.base) : cloneRollbackRow(rollback),
-          patches: [],
-        };
-        desired.set(mutation.key, stack);
+/** Distinct transactions with patches that have not committed yet. */
+export const pendingOptimisticTransactionCount = (
+  state: CollectionState<any, any, any>,
+): number => {
+  const ids = new Set<string>();
+  for (const stack of state.optimisticRows.values()) {
+    for (const patch of stack.patches) {
+      if (!patch.committed) {
+        ids.add(patch.transactionId);
       }
-      stack.patches.push({
-        transactionId: entry.transaction.id,
-        mutation,
-        committed: false,
-      });
-      rebaseKeys.add(mutation.key);
     }
   }
+  return ids.size;
+};
 
-  state.optimisticRows.clear();
-  for (const [key, stack] of desired) {
-    state.optimisticRows.set(key, stack);
+/** The synced base rows, without optimistic patches: what snapshots carry. */
+export const collectionBaseRows = <A extends object, K extends CollectionKey>(
+  state: CollectionState<A, K, any>,
+): ReadonlyArray<StoredRow<A, K>> => {
+  const rows: Array<StoredRow<A, K>> = [];
+  for (const [key, row] of state.rows) {
+    if (!state.optimisticRows.has(key)) {
+      rows.push(row);
+    }
   }
-
-  rebaseOptimisticRows(state, Array.from(rebaseKeys));
+  for (const stack of state.optimisticRows.values()) {
+    if (stack.base) {
+      rows.push(stack.base);
+    }
+  }
+  return rows;
 };

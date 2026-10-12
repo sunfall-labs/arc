@@ -2,7 +2,6 @@ import {
   Route,
   makeResponseContext,
   runWithRuntime,
-  type AppDefinition,
   type AppDefinitionRegistry,
   type AppDefinitionRegistryRequirements,
   type ActionDefinitionRequirements,
@@ -13,6 +12,7 @@ import {
 import { invokeEffectInput } from "@sunfall/arc-core/internal";
 import { Effect, Scope } from "effect";
 import { type StartCollectionHydrationOptions } from "./hydration.js";
+import type { StartServerApp } from "./start-server-app.js";
 import {
   makeRequestRuntime,
   provideRequestRuntime,
@@ -68,44 +68,37 @@ export type { StartCollectionPreload, StartPreloadResult } from "./start-request
 export { StartRequestHandlerError } from "./start-request-handler-error.js";
 
 /**
- * Per-request context passed to a Start SSR render function.
+ * Per-request context passed to the internal render step.
  *
  * The runtime and resource store are request-scoped. Start disposes them when
- * the response completes, including streamed responses. Non-streaming
- * renderers can include `legacyHydrationScript` in HTML to transfer the full
- * preloaded resource and collection state to the browser. Streaming renderers
- * should use `hydrationPlan` or `hydrationRootScript` so route resources are
- * emitted only through streamed hydration chunks.
+ * the response completes, including streamed responses. `hydrationPlan.root`
+ * carries the root payload script for streamed renderers (route Resources go
+ * through `hydrationPlan.streamedResourceChunks`); `hydrationPlan.legacy`
+ * carries the full payload for buffered renderers.
  */
 export interface StartRenderContext<
   Routes extends readonly Route.Definition<string, unknown, unknown, any>[] =
     readonly Route.Definition<string, unknown, unknown, any>[],
-  Client = unknown,
   ServerServices = never,
   ServerError = never,
   Registry extends AppDefinitionRegistry = AppDefinitionRegistry,
 > extends StartPreloadResult<Routes> {
   readonly request: Request;
-  readonly app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>;
+  readonly app: StartServerApp<Routes, ServerServices, ServerError, Registry>;
   readonly runtime: SunfallArcRuntime<ServerServices, ServerError>;
   readonly resourceStore: ResourceStoreState;
-  /** Full hydration payload script for non-streaming renderers. */
-  readonly legacyHydrationScript: string;
-  /** Root-only hydration script derived from `hydrationPlan` for streamed renderers. */
-  readonly hydrationRootScript: string;
   readonly hydrationPlan: StartRenderHydrationPlan;
 }
 
 /**
- * Options for the main Start request handler.
+ * Options for the internal request handler under `createRequestHandler`.
  *
- * Configure SSR rendering, the server action set for this handler, and an
- * optional request trace hook. Handler execution stays Effect-first internally;
- * platform adapters decide where any Promise boundary lives.
+ * Configures the render step, the served action set, and an optional request
+ * trace hook. Handler execution stays Effect-first internally; platform
+ * adapters decide where any Promise boundary lives.
  */
-export interface CreateRequestHandlerOptions<
+export interface StartRequestHandlerOptions<
   Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
-  Client = unknown,
   ServerServices = never,
   ServerError = never,
   Actions extends StartActionDefinition = StartActionDefinition,
@@ -125,7 +118,7 @@ export interface CreateRequestHandlerOptions<
   readonly appGraph?: StartTransportEndpointManifestSource;
   /** Render the preloaded request context to HTML or a custom Response. */
   readonly render?: (
-    context: StartRenderContext<Routes, Client, ServerServices, ServerError, Registry>,
+    context: StartRenderContext<Routes, ServerServices, ServerError, Registry>,
   ) => EffectInput<string | Response, never, RequestRuntimeProvidedRequirements<ServerServices>>;
   /** Actions served by the action transport. Defaults to globally registered actions. */
   readonly actions?: Iterable<Actions>;
@@ -133,7 +126,7 @@ export interface CreateRequestHandlerOptions<
   readonly onRequestTrace?: StartRequestTraceHandler;
 }
 
-type StartRequestRequirements<
+export type StartRequestRequirements<
   Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   ServerServices,
   Registry extends AppDefinitionRegistry,
@@ -159,36 +152,19 @@ export type StartRequestHandler<Requirements = never> = StartRequestHandlerInput
   StartRequestHandlerRequirementsMarker<Scope.Scope | Requirements>;
 
 /**
- * Builds the main Start request handler for SSR, RPC, and actions.
- *
- * The returned handler is platform-neutral and returns an Effect. Fetch, Node,
- * or test hosts should run that Effect at the host boundary, or adapt it with
- * the Start Node/fetch helpers.
- *
- * @example
- * ```ts
- * const handleRequest = createRequestHandler(app, {
- *   render: ({ hydrationRootScript }) => `<div id="app"></div>${hydrationRootScript}`
- * });
- * ```
+ * The request handler under `createRequestHandler`: SSR (through `render`),
+ * RPC, and actions for a resolved server app. Internal to Start; apps use
+ * `createRequestHandler(app, ...)`, which renders the app's root itself.
  */
-export const createRequestHandler = <
+export const createStartRequestHandler = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
-  Client,
   ServerServices,
   ServerError,
   Registry extends AppDefinitionRegistry,
   Actions extends StartActionDefinition = never,
 >(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
-  options: CreateRequestHandlerOptions<
-    Routes,
-    Client,
-    ServerServices,
-    ServerError,
-    Actions,
-    Registry
-  > = {},
+  app: StartServerApp<Routes, ServerServices, ServerError, Registry>,
+  options: StartRequestHandlerOptions<Routes, ServerServices, ServerError, Actions, Registry> = {},
 ): StartRequestHandler<StartRequestRequirements<Routes, ServerServices, Registry, Actions>> => {
   const explicitActionMap =
     options.actions === undefined ? undefined : makeActionMap(options.actions);
@@ -268,12 +244,8 @@ export const createRequestHandler = <
           ...(preloaded.routeFailure === undefined ? {} : { routeFailure: preloaded.routeFailure }),
           runtime: requestRuntime,
           resourceStore: requestRuntime.resourceStore,
-          hydrationRootScript: hydrationPlan.root.script,
           hydrationPlan,
-          get legacyHydrationScript() {
-            return hydrationPlan.legacy.script;
-          },
-        } satisfies StartRenderContext<Routes, Client, ServerServices, ServerError, Registry>;
+        } satisfies StartRenderContext<Routes, ServerServices, ServerError, Registry>;
 
         if (options.render) {
           const renderEffect = invokeEffectInput("Start.render", () =>

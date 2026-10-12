@@ -40,7 +40,7 @@ const form = StartAction.form(SubmitProjectName, {
 
 ## Enhance without changing semantics
 
-Enhanced clients intercept submit and call the same Action through its Component binding. The client runtime's `makeActionTransportLayer({ actions: [SubmitProjectName] })` routes it to the server, so the handle (and its result type) is the same one a local Action uses.
+Enhanced clients intercept submit and call the same Action through its Component binding. Listing it in `App.define({ actions: [SubmitProjectName] })` makes `App.launch` route it to the server, so the handle (and its result type) is the same one a local Action uses.
 
 ```ts
 const rename = yield * Component.action(SubmitProjectName);

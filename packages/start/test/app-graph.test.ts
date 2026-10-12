@@ -330,16 +330,10 @@ describe("Start app graph", () => {
                 collectionDefinitions: [
                   {
                     name: "Projects",
-                    inputSchema: true,
                     outputSchema: true,
                     initialData: false,
                     indexes: [],
                     load: true,
-                    handlers: {
-                      insert: false,
-                      update: false,
-                      delete: false,
-                    },
                     policy: {
                       retry: false,
                     },
@@ -1096,7 +1090,6 @@ describe("Start app graph", () => {
             {
               name: "ProjectRows",
               readOnly: false,
-              inputSchema: false,
               outputSchema: false,
               initialData: false,
               indexes: [
@@ -1106,11 +1099,6 @@ describe("Start app graph", () => {
                 },
               ],
               load: false,
-              handlers: {
-                insert: false,
-                update: false,
-                delete: false,
-              },
               policy: {
                 retry: false,
               },
@@ -1120,7 +1108,6 @@ describe("Start app graph", () => {
                 restoreOnPreload: false,
                 loadAfterRestore: false,
                 persistOnLoad: false,
-                persistOnMutation: false,
                 persistOnWrite: false,
               },
             },
@@ -1155,7 +1142,7 @@ describe("Start app graph", () => {
         (serverFunctionFacts.wire as Record<string, unknown>).missing = ["mutated"];
         (resourceFacts.policy as Record<string, unknown>).retry = true;
         (collectionFacts.indexes as Record<string, unknown>[])[0]!.name = "mutated";
-        (collectionFacts.handlers as Record<string, unknown>).insert = true;
+        (collectionFacts.policy as Record<string, unknown>).retry = true;
         (findingFacts.details as string[])[0] = "mutated detail";
         findingFacts.issue = "mutated issue";
 
@@ -1208,8 +1195,8 @@ describe("Start app graph", () => {
                 name: "byProjectId",
               },
             ],
-            handlers: {
-              insert: false,
+            policy: {
+              retry: false,
             },
           });
 
@@ -1501,16 +1488,10 @@ describe("Start app graph", () => {
             {
               name: "ProjectRows",
               readOnly: false,
-              inputSchema: false,
               outputSchema: false,
               initialData: false,
               indexes: [],
               load: false,
-              handlers: {
-                insert: false,
-                update: false,
-                delete: false,
-              },
               policy: {
                 retry: false,
               },
@@ -1520,7 +1501,6 @@ describe("Start app graph", () => {
                 restoreOnPreload: false,
                 loadAfterRestore: false,
                 persistOnLoad: false,
-                persistOnMutation: false,
                 persistOnWrite: false,
               },
             },

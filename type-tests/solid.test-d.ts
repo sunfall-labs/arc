@@ -62,13 +62,20 @@ const solidRouterLinkProps: RouterLinkProps<(typeof solidRoutes)[0]> = {
   children: "Home",
 };
 const solidRouterLinkNode = RouterLink(solidRouterLinkProps);
-const solidRouterOutletNode = RouterOutlet<typeof solidRoutes>({});
+const solidRouterOutletNode = RouterOutlet({ router: solidRouter, notFound: () => "missing" });
+// @ts-expect-error RouterOutlet renders the router it is given; its fallbacks are typed from it.
+RouterOutlet({});
 const solidContextMissing = new RouterContextMissing({ hook: "useRouter" });
 const solidRouteNotRegistered = new RouterRouteNotRegistered({ path: "/" });
 const solidRouterOptions: RouterOptions = { history: solidHistory, hydrating: true };
+// `undefined` means "absent", so optional props pass straight through.
+declare const solidMaybeHref: string | undefined;
+const solidRouterOptionalOptions: RouterOptions = {
+  initialHref: solidMaybeHref,
+  history: undefined,
+};
 const solidProviderProps: RouterProviderProps<typeof solidRoutes> = {
   router: solidRouter,
-  notFound: () => "missing",
 };
 const solidProviderRoutesProps: RouterProviderProps<typeof solidRoutes> = {
   router: solidRouter,
@@ -175,7 +182,7 @@ void solidProjectReader.result;
 void Component.resource(SolidProjectById);
 // Status UI renders well with AsyncResult builders: handle failure before
 // success so `previousSuccess` keeps its type.
-declare const solidResult: AsyncResult.AsyncResult<SolidProject, Resource.LoadError<never>>;
+declare const solidResult: AsyncResult.AsyncResult<SolidProject, never>;
 const solidResourceRender: string = AsyncResult.builder(solidResult)
   .onInitial(() => "initial")
   .onFailure((cause, failed) =>
@@ -249,8 +256,9 @@ const solidExports: Array<unknown> = [
   solidActionStateTag,
   solidProviderProps,
   solidProviderRoutesProps,
+  solidRouterOptionalOptions,
 ];
-type SolidRouter = BrowserRouter | RouterOutletProps;
+type SolidRouter = BrowserRouter | RouterOutletProps<typeof solidRoutes>;
 type SolidRouterLinkProps = RouterLinkProps<(typeof solidRoutes)[0]>;
 type SolidBrowserNavigateArgs = BrowserNavigateArgs<(typeof solidRoutes)[0]>;
 type SolidBrowserNavigateOptions = BrowserNavigateOptions;

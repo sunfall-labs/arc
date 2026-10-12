@@ -19,7 +19,9 @@ pnpm --filter @sunfall/arc-starter-basic verify
 The starter proves:
 
 - Start SSR with an Effect-returning `createRequestHandler`;
-- browser hydration that runs `hydrateFromDocument(...)` on the client runtime
-  before `Component.launch` hydrates the server markup;
+- one app definition (`App.define` in `src/app-definition.ts`) that the
+  server handler and the browser entry both derive their wiring from;
+- browser hydration in one line: `App.launch(app)` restores the server's
+  payload and hydrates the server markup;
 - a route-owned Resource preload declared in file route metadata;
 - server-only module leakage checks after production build.

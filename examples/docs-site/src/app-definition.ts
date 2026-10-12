@@ -1,31 +1,14 @@
-import { type AppDefinitionRegistryInput, App } from "@sunfall/arc-core";
+import { App } from "@sunfall/arc-start";
+import DocsSite from "./App.js";
 import { DocsContentApiStaticClient } from "./content.js";
-import { routeById, routes } from "./routeTree.gen.js";
+import { DocsContentApiLive } from "./content-live.js";
+import { routes } from "./routeTree.gen.js";
 
-export const HomeRoute = routeById.route_root;
-export const DocsOverviewRoute = routeById.route_docs;
-export const DocsPageRoute = routeById.route_docs_$slug;
-export const BlogPostRoute = routeById.route_blog_introducing_sunfall_arc;
-export const CookbookRoute = routeById.route_cookbook;
-export const RecipeRoute = routeById.route_cookbook_$slug;
-
-export const docsSiteAppBaseOptions = {
+// The one app definition. In dev the browser loads recipes through server
+// functions over RPC; the static production build reads only prerendered
+// data, and Start compiles the RPC client out of `App.launch`.
+export const app = App.define({
+  root: DocsSite,
   routes,
-  client: { name: "BrowserLive" },
-  server: DocsContentApiStaticClient,
-} as const;
-
-export const docsSiteEmptyRegistry = {
-  actions: [],
-  serverFunctions: [],
-} as const;
-
-export const createDocsSiteApp = <const RegistryInput extends AppDefinitionRegistryInput>(
-  registry: RegistryInput,
-) =>
-  App.define({
-    ...docsSiteAppBaseOptions,
-    registry,
-  });
-
-export const app = createDocsSiteApp(docsSiteEmptyRegistry);
+  client: import.meta.env.DEV ? DocsContentApiLive : DocsContentApiStaticClient,
+});

@@ -136,7 +136,6 @@ export const graphSummary = (
       definitions: collections.map((collection) => ({
         ...collection,
         indexes: [...(collection.indexes ?? [])],
-        handlers: { ...collection.handlers },
         policy: { ...collection.policy },
         ...(collection.sync === undefined ? {} : { sync: { ...collection.sync } }),
         persistence: { ...collection.persistence },

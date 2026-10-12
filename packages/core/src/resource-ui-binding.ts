@@ -4,7 +4,7 @@ import type { AnySunfallArcRuntime } from "./runtime.js";
 import { runWithRuntime } from "./runtime.js";
 import type { EffectInput } from "./effect-like.js";
 import { invokeEffectInput } from "./effect-like.js";
-import type { ResourceLoadError, ResourceRef } from "./resource.js";
+import type { ResourceRef } from "./resource.js";
 import {
   prefetchResourceEffect,
   releaseResourceRefEffect,
@@ -22,7 +22,7 @@ export type ResourceUiInput<I, A, E, R = unknown> =
 /** Failure from an automatic UI preload, keyed to the Resource ref that caused it. */
 export interface ResourceUiPreloadFailure<I, A, E, R, ER> {
   readonly ref: ResourceRef<I, A, E, R>;
-  readonly error: ResourceLoadError<E> | ER;
+  readonly error: E | ER;
 }
 
 /** Options for automatic mount/owner-time Resource UI preloads. */
@@ -36,7 +36,7 @@ export interface ResourceUiAutoPreloadOptions<E, ER> {
    * the EffectInput seam; adapt host Promise work explicitly with
    * `Effect.tryPromise(...)` before returning it.
    */
-  readonly onPreloadFailure?: (error: ResourceLoadError<E> | ER) => EffectInput<void, unknown>;
+  readonly onPreloadFailure?: (error: E | ER) => EffectInput<void, unknown>;
 }
 
 /** Options for a Resource UI Binding Controller. */
@@ -60,13 +60,11 @@ export interface ResourceUiBindingControllerOptions<I, A, E, R, ER> {
  */
 export interface ResourceUiBindingController<I, A, E, R, ER> {
   /** Runtime-bound Resource `AsyncResult` signal for the supplied ref. */
-  result(
-    ref: ResourceRef<I, A, E, R>,
-  ): ReadableSignal<AsyncResult.AsyncResult<A, ResourceLoadError<E>>>;
+  result(ref: ResourceRef<I, A, E, R>): ReadableSignal<AsyncResult.AsyncResult<A, E>>;
   /** Runtime-bound refresh Effect for the supplied ref. */
-  refresh(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E> | ER>;
+  refresh(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, E | ER>;
   /** Runtime-bound preload Effect for the supplied ref. */
-  preload(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E> | ER>;
+  preload(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, E | ER>;
   /** Marks a ref as current, clearing stale keyed failures and interrupting stale preload joins. */
   bindRef(ref: ResourceRef<I, A, E, R>): void;
   /** Starts the automatic preload when the current Resource state is still initial. */
@@ -79,18 +77,16 @@ export interface ResourceUiBindingController<I, A, E, R, ER> {
   /** Disposes controller-owned preload and retained-ref work as an Effect. */
   dispose(): Effect.Effect<void>;
   /** Returns the current automatic preload failure only when it belongs to `ref`. */
-  preloadFailureFor(ref: ResourceRef<I, A, E, R>): ResourceLoadError<E> | ER | undefined;
+  preloadFailureFor(ref: ResourceRef<I, A, E, R>): E | ER | undefined;
 }
 
 /** Fiber joined by UI Suspense adapters while a Resource preload is pending. */
-export type ResourceUiSuspensePreloadFiber<A, E, ER> = Fiber.Fiber<A, ResourceLoadError<E> | ER>;
+export type ResourceUiSuspensePreloadFiber<A, E, ER> = Fiber.Fiber<A, E | ER>;
 
 /** Options for converting a Resource preload fiber to a host Suspense token. */
 export interface ResourceUiSuspensePreloadOptions<_I, A, E, R, ER, Token> {
   /** Optional adapter fork hook, used when a UI scope should own the waiting fiber. */
-  readonly fork?: (
-    effect: Effect.Effect<A, ResourceLoadError<E>, R>,
-  ) => ResourceUiSuspensePreloadFiber<A, E, ER>;
+  readonly fork?: (effect: Effect.Effect<A, E, R>) => ResourceUiSuspensePreloadFiber<A, E, ER>;
   /** Converts the waiting fiber to the host token the UI Suspense adapter throws. */
   readonly toHostToken: (fiber: ResourceUiSuspensePreloadFiber<A, E, ER>) => Token;
 }
@@ -132,7 +128,7 @@ export const resourceUiSameRef = <I, A, E, R>(
 export const resourceUiPreloadFailureFor = <I, A, E, R, ER>(
   failure: ResourceUiPreloadFailure<I, A, E, R, ER> | undefined,
   ref: ResourceRef<I, A, E, R>,
-): ResourceLoadError<E> | ER | undefined =>
+): E | ER | undefined =>
   failure !== undefined && resourceUiSameRef(failure.ref, ref) ? failure.error : undefined;
 
 /** Binds a Resource Effect to the adapter runtime that owns Resource Store state. */
@@ -274,28 +270,22 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     setPreloadFailure(undefined);
   };
 
-  const result = (
-    ref: ResourceRef<I, A, E, R>,
-  ): ReadableSignal<AsyncResult.AsyncResult<A, ResourceLoadError<E>>> =>
+  const result = (ref: ResourceRef<I, A, E, R>): ReadableSignal<AsyncResult.AsyncResult<A, E>> =>
     runWithRuntime(options.runtime, () => resourceResult(ref));
 
-  const prefetchEffect = (
-    ref: ResourceRef<I, A, E, R>,
-  ): Effect.Effect<A, ResourceLoadError<E> | ER> =>
+  const prefetchEffect = (ref: ResourceRef<I, A, E, R>): Effect.Effect<A, E | ER> =>
     resourceUiBindRuntimeEffect(options.runtime, prefetchResourceEffect(ref)).pipe(
       Effect.tap(() => Effect.sync(() => clearPreloadFailureForRef(ref))),
     );
 
-  const refreshEffect = (
-    ref: ResourceRef<I, A, E, R>,
-  ): Effect.Effect<A, ResourceLoadError<E> | ER> =>
+  const refreshEffect = (ref: ResourceRef<I, A, E, R>): Effect.Effect<A, E | ER> =>
     resourceUiBindRuntimeEffect(options.runtime, refreshResourceEffect(ref)).pipe(
       Effect.tap(() => Effect.sync(() => clearPreloadFailureForRef(ref))),
     );
 
   const notifyPreloadFailure = (
     observer: ResourceUiAutoPreloadOptions<E, ER>["onPreloadFailure"],
-    error: ResourceLoadError<E> | ER,
+    error: E | ER,
   ): Effect.Effect<void> =>
     observer === undefined
       ? Effect.void

@@ -14,7 +14,6 @@ import {
   StartHandlerNotFound,
   StartPrerenderError,
   StartServerOnlyModuleError,
-  StartStaticClientPolicyError,
   type FileRouteDiscoveryOptions,
   type FileRouteGenerationOptions,
   type FileRouteManifestOptions,
@@ -49,7 +48,6 @@ const viteExports: Array<unknown> = [
   StartHandlerNotFound,
   StartPrerenderError,
   StartServerOnlyModuleError,
-  StartStaticClientPolicyError,
 ];
 type ViteTypes =
   | FileRouteDiscoveryOptions

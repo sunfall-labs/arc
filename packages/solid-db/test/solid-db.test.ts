@@ -1,12 +1,12 @@
-import { makeRuntime, runWithRuntime } from "@sunfall/arc-core";
-import { currentOrDefaultRuntime, eraseRuntime } from "@sunfall/arc-core/internal";
+import { Action, makeRuntime, runWithRuntime } from "@sunfall/arc-core";
+import { currentOrDefaultRuntime } from "@sunfall/arc-core/internal";
 import { Collection, QueryEvaluationError } from "@sunfall/arc-db";
+import { Component } from "@sunfall/arc-solid";
 import { SolidDb } from "@sunfall/arc-solid-db";
-import { Context, Deferred, Effect, Fiber, Layer, Option } from "effect";
+import { Cause, Context, Data, Deferred, Effect, Fiber, Layer, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { createEffect, createRoot, createSignal, flush } from "solid-js";
-import { describe, expect, it } from "vitest";
-import { makeSolidDbReactiveBinding } from "../src/shared.js";
+import { describe, expect, it, vi } from "vitest";
 import { bindInInstance } from "./instance-harness.js";
 
 // Test shims: bind collections and live queries in a fresh Component instance
@@ -41,30 +41,6 @@ interface Project {
   readonly name: string;
   readonly active: boolean;
 }
-
-const makeDelayedCleanupRuntime = () => {
-  const runtime = makeRuntime();
-  let delayForks = false;
-  const delayedRuntime: typeof runtime = {
-    ...runtime,
-    runFork: ((
-      effect: Effect.Effect<unknown, unknown, unknown>,
-      options?: Parameters<typeof runtime.runFork>[1],
-    ) =>
-      runtime.runFork(
-        (delayForks ? Effect.sleep("100 millis").pipe(Effect.andThen(effect)) : effect) as never,
-        options,
-      )) as typeof runtime.runFork,
-  };
-
-  return {
-    runtime: delayedRuntime,
-    delayForks: () => {
-      delayForks = true;
-    },
-    disposeEffect: runtime.dispose,
-  };
-};
 
 /** Flattens an `AsyncResult` into matchable facts: tag, waiting, value/timestamp, typed error, and previous success value. */
 const asyncResultFacts = (result: AsyncResult.AsyncResult<unknown, unknown>) => {
@@ -219,14 +195,12 @@ describe("solid-db", () => {
     });
   });
 
-  it("exposes automatic preload failures through typed Solid accessors", () => {
+  it("throws a never-loaded collection's typed load failure from its rows and reports it as failure()", () => {
     let dispose: (() => void) | undefined;
 
     return Effect.runPromise(
       Effect.gen(function* () {
         const failure = { _tag: "ProjectLoadError" as const, message: "blocked" };
-        const observedCollectionFailures: Array<unknown> = [];
-        const observedLiveFailures: Array<unknown> = [];
         const Projects = Collection.define<Project, string, typeof failure>({
           name: "SolidDb.preload-failure.projects",
           getKey: (project) => project.id,
@@ -239,24 +213,12 @@ describe("solid-db", () => {
           withRuntimeContext(currentOrDefaultRuntime(), () => {
             dispose = rootDispose;
             return {
-              projects: useCollection(Projects, {
-                onPreloadFailure: (error) =>
-                  Effect.sync(() => {
-                    observedCollectionFailures.push(error);
-                  }).pipe(Effect.andThen(Effect.fail("collection observer failed"))),
-              }),
-              activeNames: useLiveQuery(
-                (query) =>
-                  query
-                    .from({ project: Projects })
-                    .where(({ project }) => project.active)
-                    .select(({ project }) => project.name),
-                {
-                  onPreloadFailure: (error) =>
-                    Effect.sync(() => {
-                      observedLiveFailures.push(error);
-                    }).pipe(Effect.andThen(Effect.fail("live query observer failed"))),
-                },
+              projects: useCollection(Projects),
+              activeNames: useLiveQuery((query) =>
+                query
+                  .from({ project: Projects })
+                  .where(({ project }) => project.active)
+                  .select(({ project }) => project.name),
               ),
             };
           }),
@@ -264,15 +226,65 @@ describe("solid-db", () => {
 
         yield* Effect.sleep("0 millis");
 
-        expect(handles.projects.preloadFailure()).toEqual(failure);
-        expect(handles.activeNames.preloadFailure()).toEqual(failure);
-        expect(observedCollectionFailures).toEqual([failure]);
-        expect(observedLiveFailures).toEqual([failure]);
+        expect(Cause.squash(handles.projects.failure()!)).toEqual(failure);
+        expect(Cause.squash(handles.activeNames.failure()!)).toEqual(failure);
+        expect(handles.projects.waiting()).toBe(false);
+        // The rows cannot render: the read throws the typed failure to <Errored>.
+        expect(() => handles.projects.rows()).toThrow(expect.objectContaining(failure));
+        expect(() => handles.projects.get("atlas")).toThrow(expect.objectContaining(failure));
+        expect(() => handles.activeNames.rows()).toThrow(expect.objectContaining(failure));
       }).pipe(Effect.ensuring(Effect.sync(() => dispose?.()))),
     );
   });
 
-  it("ignores automatic preload failures from superseded DB generations after refresh", () => {
+  it("hands a never-loaded collection's typed failure to catchTags, and refresh failures to failure()", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          class ProjectsUnavailable extends Data.TaggedError("ProjectsUnavailable")<{}> {}
+          let fail = true;
+          const Projects = Collection.define<Project, string, ProjectsUnavailable>({
+            name: "SolidDb.render-failure.projects",
+            getKey: (project) => project.id,
+            sync: {
+              load: () =>
+                fail
+                  ? Effect.fail(new ProjectsUnavailable())
+                  : Effect.succeed([{ id: "atlas", name: "Atlas", active: true }]),
+            },
+          });
+          const List = Component.define("List", function* () {
+            const projects = yield* SolidDb.collection(Projects);
+            return (() =>
+              `${projects
+                .rows()
+                .map((project) => project.name)
+                .join(",")}|${projects.failure() === undefined ? "ok" : "stale"}`) as never;
+          });
+          // The load error joined List's E: the boundary must handle it.
+          const App = List.pipe(Component.catchTags({ ProjectsUnavailable: () => "unavailable" }));
+          const container = document.createElement("div");
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+          yield* Component.mount(App, container, { runtime });
+
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(container.textContent).toBe("unavailable")),
+          );
+
+          fail = false;
+          yield* runtime.provide(Projects.refresh());
+          fail = true;
+          yield* runtime.provide(Projects.refresh()).pipe(Effect.ignore);
+          // Rows loaded once, so a failed refresh keeps them and reports failure().
+          expect(runWithRuntime(runtime, () => Projects.rows().map((row) => row.id))).toEqual([
+            "atlas",
+          ]);
+        }),
+      ),
+    ));
+
+  it("reports no failure once a refresh supersedes a failing preload", () => {
     let dispose: (() => void) | undefined;
 
     return Effect.runPromise(
@@ -280,7 +292,6 @@ describe("solid-db", () => {
         const staleStarted = yield* Deferred.make<void>();
         const staleFailure = "stale-db-preload-failed" as const;
         const staleRelease = yield* Deferred.make<void, typeof staleFailure>();
-        const observedFailures: Array<unknown> = [];
         const Projects = Collection.define<Project, string, typeof staleFailure>({
           name: "SolidDb.preload-superseded-db-generation.projects",
           getKey: (project) => project.id,
@@ -301,11 +312,7 @@ describe("solid-db", () => {
         const handle = createRoot((rootDispose) =>
           withRuntimeContext(currentOrDefaultRuntime(), () => {
             dispose = rootDispose;
-            return useCollection(Projects, {
-              onPreloadFailure: (error) => {
-                observedFailures.push(error);
-              },
-            });
+            return useCollection(Projects);
           }),
         );
 
@@ -318,8 +325,7 @@ describe("solid-db", () => {
         yield* Deferred.fail(staleRelease, staleFailure);
         yield* Effect.sleep("20 millis");
 
-        expect(handle.preloadFailure()).toBeUndefined();
-        expect(observedFailures).toEqual([]);
+        expect(handle.failure()).toBeUndefined();
         expect(handle.rows().map((project) => project.name)).toEqual(["Atlas Fresh"]);
       }).pipe(Effect.ensuring(Effect.sync(() => dispose?.()))),
     );
@@ -369,8 +375,10 @@ describe("solid-db", () => {
 
         yield* Effect.sleep("0 millis");
 
-        expect(handle.preloadFailure()).toBeInstanceOf(QueryEvaluationError);
-        expect(handle.preloadFailure()).toMatchObject({
+        // An invalid query plan is a defect: it is not part of the binding's E.
+        expect(Cause.hasDies(handle.failure()!)).toBe(true);
+        expect(Cause.squash(handle.failure()!)).toBeInstanceOf(QueryEvaluationError);
+        expect(Cause.squash(handle.failure()!)).toMatchObject({
           _tag: "QueryEvaluationError",
           operation: "evaluate",
           cause: {
@@ -385,120 +393,6 @@ describe("solid-db", () => {
     );
   });
 
-  it("ignores preload failure observer throws after recording failures", () => {
-    let dispose: (() => void) | undefined;
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const failure = { _tag: "ProjectLoadError" as const, message: "blocked" };
-        const observedCollectionFailures: Array<unknown> = [];
-        const observedLiveFailures: Array<unknown> = [];
-        const Projects = Collection.define<Project, string, typeof failure>({
-          name: "SolidDb.preload-observer-throw.projects",
-          getKey: (project) => project.id,
-          sync: {
-            load: () => Effect.fail(failure),
-          },
-        });
-
-        const handles = createRoot((rootDispose) =>
-          withRuntimeContext(currentOrDefaultRuntime(), () => {
-            dispose = rootDispose;
-            return {
-              projects: useCollection(Projects, {
-                onPreloadFailure: (error) => {
-                  observedCollectionFailures.push(error);
-                  throw new Error("collection observer failed");
-                },
-              }),
-              activeNames: useLiveQuery(
-                (query) =>
-                  query
-                    .from({ project: Projects })
-                    .where(({ project }) => project.active)
-                    .select(({ project }) => project.name),
-                {
-                  onPreloadFailure: (error) => {
-                    observedLiveFailures.push(error);
-                    throw new Error("live query observer failed");
-                  },
-                },
-              ),
-            };
-          }),
-        );
-
-        yield* Effect.sleep("0 millis");
-
-        expect(handles.projects.preloadFailure()).toEqual(failure);
-        expect(handles.activeNames.preloadFailure()).toEqual(failure);
-        expect(observedCollectionFailures).toEqual([failure]);
-        expect(observedLiveFailures).toEqual([failure]);
-      }).pipe(Effect.ensuring(Effect.sync(() => dispose?.()))),
-    );
-  });
-
-  it("ignores stale automatic preload failures after sources change", () => {
-    let dispose: (() => void) | undefined;
-    let delayed: ReturnType<typeof makeDelayedCleanupRuntime> | undefined;
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const staleRelease = yield* Deferred.make<void>();
-        const staleFailure = "stale-preload-failed" as const;
-        const observedFailures: Array<unknown> = [];
-        delayed = makeDelayedCleanupRuntime();
-        const runtime = delayed;
-        const ActiveProjects = Collection.define<Project>({
-          name: "SolidDb.preload-stale-source.active",
-          getKey: (project) => project.id,
-        });
-        const ArchivedProjects = Collection.define<Project>({
-          name: "SolidDb.preload-stale-source.archived",
-          getKey: (project) => project.id,
-        });
-        let selectArchive: ((value: boolean) => boolean) | undefined;
-
-        const handle = createRoot((rootDispose) =>
-          withRuntimeContext(currentOrDefaultRuntime(), () => {
-            dispose = rootDispose;
-            const [archive, setArchive] = createSignal(false);
-            selectArchive = setArchive;
-            // Switching sources switches the preload work, which restarts preloading.
-            return makeSolidDbReactiveBinding<typeof staleFailure | Collection.RuntimeError>({
-              runtime: eraseRuntime(runtime.runtime),
-              load: () =>
-                archive()
-                  ? ArchivedProjects.preload()
-                  : ActiveProjects.preload().pipe(
-                      Effect.andThen(Deferred.await(staleRelease)),
-                      Effect.andThen(Effect.fail(staleFailure)),
-                    ),
-              onPreloadFailure: (error) => {
-                observedFailures.push(error);
-              },
-            });
-          }),
-        );
-
-        yield* Effect.sleep("0 millis");
-        runtime.delayForks();
-        selectArchive?.(true);
-        flush();
-        yield* Deferred.succeed(staleRelease, undefined);
-        yield* Effect.sleep("20 millis");
-
-        expect(handle.preloadFailure()).toBeUndefined();
-        expect(observedFailures).toEqual([]);
-      }).pipe(
-        Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(
-          Effect.suspend(() => (delayed ? Effect.orDie(delayed.disposeEffect) : Effect.void)),
-        ),
-      ),
-    );
-  });
-
   it("interrupts automatic preload when the Solid owner is disposed", () => {
     let dispose: (() => void) | undefined;
 
@@ -506,7 +400,6 @@ describe("solid-db", () => {
       Effect.gen(function* () {
         let started = false;
         let interrupted = false;
-        const observedFailures: Array<unknown> = [];
         const Projects = Collection.define<Project>({
           name: "SolidDb.preload-cleanup.projects",
           getKey: (project) => project.id,
@@ -528,11 +421,7 @@ describe("solid-db", () => {
         createRoot((rootDispose) =>
           withRuntimeContext(currentOrDefaultRuntime(), () => {
             dispose = rootDispose;
-            useCollection(Projects, {
-              onPreloadFailure: (error) => {
-                observedFailures.push(error);
-              },
-            });
+            useCollection(Projects);
           }),
         );
 
@@ -544,51 +433,7 @@ describe("solid-db", () => {
         yield* Effect.sleep("0 millis");
 
         expect(interrupted).toBe(true);
-        expect(observedFailures).toEqual([]);
       }).pipe(Effect.ensuring(Effect.sync(() => dispose?.()))),
-    );
-  });
-
-  it("ignores stale automatic preload failures after owner disposal", () => {
-    let dispose: (() => void) | undefined;
-    let delayed: ReturnType<typeof makeDelayedCleanupRuntime> | undefined;
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const staleRelease = yield* Deferred.make<void>();
-        const staleFailure = "stale-unmount-preload-failed" as const;
-        const observedFailures: Array<unknown> = [];
-        delayed = makeDelayedCleanupRuntime();
-        const runtime = delayed;
-
-        createRoot((rootDispose) =>
-          withRuntimeContext(currentOrDefaultRuntime(), () => {
-            dispose = rootDispose;
-            makeSolidDbReactiveBinding<typeof staleFailure>({
-              runtime: eraseRuntime(runtime.runtime),
-              load: () =>
-                Deferred.await(staleRelease).pipe(Effect.andThen(Effect.fail(staleFailure))),
-              onPreloadFailure: (error) => {
-                observedFailures.push(error);
-              },
-            });
-          }),
-        );
-
-        yield* Effect.sleep("0 millis");
-        runtime.delayForks();
-        dispose?.();
-        dispose = undefined;
-        yield* Deferred.succeed(staleRelease, undefined);
-        yield* Effect.sleep("20 millis");
-
-        expect(observedFailures).toEqual([]);
-      }).pipe(
-        Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(
-          Effect.suspend(() => (delayed ? Effect.orDie(delayed.disposeEffect) : Effect.void)),
-        ),
-      ),
     );
   });
 
@@ -650,7 +495,7 @@ describe("solid-db", () => {
     );
   });
 
-  it("reads collection mutations and pending mutations run through the Solid runtime", () => {
+  it("reads an Action's optimistic rows through the Solid handle until it settles", () => {
     let dispose: (() => void) | undefined;
 
     return Effect.runPromise(
@@ -673,17 +518,29 @@ describe("solid-db", () => {
               }),
           }),
         );
-        const Projects = Collection.define<Project, string, never, ProjectMutationApi>({
+        const Projects = Collection.define<Project>({
           name: "SolidDb.collection-adapter.projects",
           getKey: (project) => project.id,
           initialData: [{ id: "atlas", name: "Atlas", active: true }],
-          sync: {
-            insert: ({ values: projects }) => ProjectMutationApi.use((api) => api.insert(projects)),
-            update: ({ updates: projects }) =>
-              ProjectMutationApi.use((api) => api.update(projects)),
-            delete: ({ deletes: projects }) =>
-              ProjectMutationApi.use((api) => api.delete(projects)),
-          },
+        });
+        const InsertProject = Action.define({
+          name: "SolidDb.collection-adapter.insert",
+          optimistic: (project: Project, transaction) => transaction.insert(Projects, project),
+          run: (project: Project) => ProjectMutationApi.use((api) => api.insert([project])),
+        });
+        const RenameProject = Action.define({
+          name: "SolidDb.collection-adapter.rename",
+          optimistic: (input: { readonly id: string; readonly name: string }, transaction) =>
+            transaction.update(Projects, input.id, { name: input.name }),
+          run: (input: { readonly id: string; readonly name: string }) =>
+            ProjectMutationApi.use((api) =>
+              api.update([{ key: input.id, value: { ...input, active: true } }]),
+            ),
+        });
+        const DeleteProject = Action.define({
+          name: "SolidDb.collection-adapter.delete",
+          optimistic: (id: string, transaction) => transaction.delete(Projects, id),
+          run: (id: string) => ProjectMutationApi.use((api) => api.delete([{ key: id }])),
         });
 
         try {
@@ -697,19 +554,28 @@ describe("solid-db", () => {
           );
 
           const insert = runtime.runFork(
-            Projects.insert({ id: "lumen", name: "Lumen", active: false }),
+            Action.use(InsertProject, { runtime }).submit({
+              id: "lumen",
+              name: "Lumen",
+              active: false,
+            }),
           );
           yield* Effect.sleep("0 millis");
 
-          expect(projects.pendingMutations()).toHaveLength(1);
-          expect(projects.rows().map((project) => project.id)).toEqual(["atlas", "lumen"]);
+          expect(projects.rows().map((project) => [project.id, project.$synced])).toEqual([
+            ["atlas", true],
+            ["lumen", false],
+          ]);
 
           yield* Deferred.succeed(releaseInsert, undefined);
           yield* Fiber.join(insert);
 
-          expect(projects.pendingMutations()).toEqual([]);
-          yield* runtime.provide(Projects.update("atlas", { name: "Atlas Prime" }));
-          yield* runtime.provide(Projects.delete("lumen"));
+          expect(projects.get("lumen")?.$synced).toBe(true);
+          yield* Action.use(RenameProject, { runtime }).submit({
+            id: "atlas",
+            name: "Atlas Prime",
+          });
+          yield* Action.use(DeleteProject, { runtime }).submit("lumen");
           yield* runtime.provide(
             Projects.applyChanges([
               { _tag: "Upsert", value: { id: "orion", name: "Orion", active: true } },
@@ -718,7 +584,6 @@ describe("solid-db", () => {
           );
           yield* runtime.provide(Projects.applyChanges([{ _tag: "Delete", key: "orion" }]));
 
-          expect(yield* runtime.provide(Projects.flushPendingMutations())).toEqual([]);
           expect(calls).toEqual(["insert:lumen", "update:atlas", "delete:lumen"]);
           expect(projects.rows().map((project) => project.name)).toEqual(["Atlas Prime"]);
         } finally {
@@ -832,8 +697,11 @@ describe("solid-db", () => {
             return useCollection(ProjectCards, { preload: false });
           }),
         );
-        const first = cards.result();
-        const second = cards.result();
+        // The stable result identity belongs to the definition; the handle projects it.
+        const result = () => ProjectCards.result().get();
+        expect(cards.waiting()).toBe(false);
+        const first = result();
+        const second = result();
 
         expect(asyncResultFacts(first)).toMatchObject({ _tag: "Success", waiting: false });
         expect(asyncResultFacts(second)).toMatchObject({ _tag: "Success", waiting: false });
@@ -846,7 +714,7 @@ describe("solid-db", () => {
           { _tag: "Update", key: "atlas", changes: { active: false } },
         ]);
         yield* Effect.sleep("0 millis");
-        const unchanged = cards.result();
+        const unchanged = result();
         if (unchanged._tag !== "Success") {
           expect.fail("Expected live query collection to remain ready.");
         }
@@ -856,7 +724,7 @@ describe("solid-db", () => {
           { _tag: "Update", key: "atlas", changes: { name: "Atlas Prime" } },
         ]);
         yield* Effect.sleep("0 millis");
-        const changed = cards.result();
+        const changed = result();
         if (changed._tag !== "Success") {
           expect.fail("Expected live query collection to remain ready.");
         }
@@ -865,7 +733,7 @@ describe("solid-db", () => {
     );
   });
 
-  it("represents live query evaluation failures without throwing from accessors", () => {
+  it("reports live query evaluation failures as defects without throwing over the last good rows", () => {
     let dispose: (() => void) | undefined;
 
     const Projects = Collection.define<Project>({
@@ -892,10 +760,10 @@ describe("solid-db", () => {
 
     try {
       expect(() => handle.rows()).not.toThrow();
-      expect(asyncResultFacts(handle.result())).toMatchObject({
-        _tag: "Failure",
-        error: { _tag: "QueryEvaluationError", operation: "filter" },
-        previous: [],
+      expect(Cause.hasDies(handle.failure()!)).toBe(true);
+      expect(Cause.squash(handle.failure()!)).toMatchObject({
+        _tag: "QueryEvaluationError",
+        operation: "filter",
       });
     } finally {
       dispose?.();

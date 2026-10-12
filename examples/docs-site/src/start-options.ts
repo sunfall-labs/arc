@@ -1,8 +1,5 @@
 import { readdirSync } from "node:fs";
-import type { ServerFunctionManifestSource } from "@sunfall/arc-start";
 import { normalizeDocsSiteBasePath } from "./base-path.js";
-import { getRecipe, listRecipeSummaries } from "./content.contract.js";
-import { getRecipeServer, listRecipeSummariesServer } from "./content.server.js";
 import { DocsPageSlug } from "./docs-slugs.js";
 
 const docsSiteBasePath = normalizeDocsSiteBasePath(
@@ -19,32 +16,8 @@ export const docsSitePrerenderPages = [
   ...docsSiteRecipePrerenderPages,
 ];
 
-export const docsSiteServerFunctionSources = [
-  {
-    fn: listRecipeSummariesServer,
-    module: "/src/content.server.ts",
-    exportName: "listRecipeSummariesServer",
-    clientModule: "/src/content.contract.ts",
-    clientExportName: "listRecipeSummaries",
-  },
-  {
-    fn: getRecipeServer,
-    module: "/src/content.server.ts",
-    exportName: "getRecipeServer",
-    clientModule: "/src/content.contract.ts",
-    clientExportName: "getRecipe",
-  },
-] as const satisfies readonly ServerFunctionManifestSource[];
-
-export const docsSiteServerRegistry = {
-  actions: [],
-  serverFunctions: docsSiteServerFunctionSources.map((source) => source.fn),
-} as const;
-
 export const docsSiteStartOptions = {
   serverEntry: "/src/server.tsx",
-  serverFunctionSources: docsSiteServerFunctionSources,
-  actionSources: [],
   fileRouteOptions: {
     routeDirectory: "src/routes",
   },
@@ -74,6 +47,3 @@ export const docsSiteStartOptions = {
     },
   },
 } as const;
-
-void getRecipe;
-void listRecipeSummaries;

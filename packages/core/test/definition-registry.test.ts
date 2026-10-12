@@ -1,8 +1,10 @@
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { Action, Server, App } from "../src/index.js";
+import { Action, Server } from "../src/index.js";
 import {
+  makeCoreDefinitionRegistry,
   makeCoreDefinitionRegistryAdapter,
+  snapshotCoreDefinitionRegistry,
   actionDefinitionRegistry,
   getActionDefinition,
   coreDefinitionRegistryDiagnostics,
@@ -40,10 +42,7 @@ describe("Core definition registry", () => {
       handler: () => Effect.succeed("before"),
     });
 
-    const app = App.define({
-      routes: [] as const,
-      client: {},
-    });
+    const app = { registry: snapshotCoreDefinitionRegistry() };
 
     const AfterAction = Action.define({
       name: registryName("snapshot-after-action"),
@@ -77,14 +76,12 @@ describe("Core definition registry", () => {
       handler: () => Effect.succeed("local"),
     });
 
-    const app = App.define({
-      routes: [] as const,
-      client: {},
-      registry: {
+    const app = {
+      registry: makeCoreDefinitionRegistry({
         actions: [LocalAction],
         serverFunctions: [localServer],
-      },
-    });
+      }),
+    };
 
     expect(app.registry.actions.get(LocalAction.name)).toBe(LocalAction);
     expect(app.registry.serverFunctions.get(localServer.name)).toBe(localServer);
@@ -103,14 +100,12 @@ describe("Core definition registry", () => {
       handler: () => Effect.succeed("local"),
     });
 
-    const app = App.define({
-      routes: [] as const,
-      client: {},
-      registry: {
+    const app = {
+      registry: makeCoreDefinitionRegistry({
         actions: new Map([["wrong-action-key", LocalAction]]),
         serverFunctions: new Map([["wrong-server-key", localServer]]),
-      },
-    });
+      }),
+    };
 
     expect(app.registry.actions.get(LocalAction.name)).toBe(LocalAction);
     expect(app.registry.actions.has("wrong-action-key")).toBe(false);

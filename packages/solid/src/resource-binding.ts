@@ -24,7 +24,7 @@ import { createRuntimeScope } from "./runtime-scope.js";
 const createResourceResult = <I, A, E, R = unknown, ER = never>(
   runtime: AnySunfallArcRuntime<ER>,
   ref: ResourceUiInput<I, A, E, R>,
-): Accessor<AsyncResult.AsyncResult<A, Resource.LoadError<E>>> => {
+): Accessor<AsyncResult.AsyncResult<A, E>> => {
   const getRef = resourceUiRefAccessor(ref);
   const controller = makeResourceUiBindingController<I, A, E, R, ER>({ runtime });
   const currentRef = createMemo<ResourceRef<I, A, E, R>>(() => getRef(), {
@@ -47,7 +47,7 @@ const createResourceResult = <I, A, E, R = unknown, ER = never>(
 /** Internal: a suspending Resource read plus its value-free `AsyncResult`. */
 export interface ResourceSuspense<A, E> {
   readonly read: Accessor<A>;
-  readonly result: Accessor<AsyncResult.AsyncResult<A, Resource.LoadError<E>>>;
+  readonly result: Accessor<AsyncResult.AsyncResult<A, E>>;
 }
 
 type SuspenseOutcome<A> =

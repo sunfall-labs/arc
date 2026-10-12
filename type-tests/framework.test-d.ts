@@ -30,6 +30,7 @@ import {
   ResponseContext,
   Route,
   RoutePreloadError,
+  RoutePreloadUntypedFailure,
   RuntimeDisposeError,
   Server,
   Signal,
@@ -62,7 +63,6 @@ import {
   type TimelineCause,
   type TimelineEntry,
   type TimelineRecording,
-  App,
 } from "@sunfall/arc-core";
 import {
   browserRouterLinkClickDecision,
@@ -158,21 +158,22 @@ import {
   normalizeRouteModulePreloadCollections,
 } from "../packages/devtools/src/app-graph-normalizer.js";
 import {
+  App,
   createRequestHandler,
-  createStartStreamedHtmlResponse,
   hydrateFromDocument,
-  makeRpcClientLayer,
   StartAction,
-  makeActionTransportLayer,
+  type AppLaunchError,
   type StartActionInvalidationPlan,
   type StartFetch,
   type StartHydrationError,
   type StartRequestHandler,
   type StartRequestHandlerError,
   type StartRequestTrace,
-  type StartStreamedHtmlResponseOptions,
   FileRoute,
 } from "@sunfall/arc-start";
+import { makeActionTransportLayer } from "../packages/start/src/start-action-transport.js";
+import { makeRpcClientLayer } from "../packages/start/src/start-rpc-client.js";
+import { makeStartServerApp } from "../packages/start/src/start-server-app.js";
 import {
   createFileRouteDefinitionsModule,
   createFileRouteModuleReferences,
@@ -682,9 +683,12 @@ const browserHistoryCommittedHref: string = browserHistoryAdapter.commit("/proje
 void browserHistoryEntries;
 void browserHistoryCurrentHref;
 void browserHistoryCommittedHref;
-const projectRouterFailureRenderer: NonNullable<RouterOutletProps<ProjectError>["failure"]> = (
-  state,
-) => {
+const projectRouterFailureRenderer: NonNullable<
+  RouterOutletProps<
+    readonly Route.Definition<string, unknown, unknown, any>[],
+    ProjectError
+  >["failure"]
+> = (state) => {
   const cause: Cause.Cause<
     BrowserRouterError<readonly Route.Definition<string, unknown, unknown, any>[]> | ProjectError
   > = state.cause;
@@ -697,7 +701,10 @@ const projectRouterFailureRenderer: NonNullable<RouterOutletProps<ProjectError>[
   return undefined;
 };
 void projectRouterFailureRenderer;
-const projectRouterOutletProps: RouterOutletProps<readonly [typeof ProjectRoute], ProjectError> = {
+const projectRouterOutletProps: Omit<
+  RouterOutletProps<readonly [typeof ProjectRoute], ProjectError>,
+  "router"
+> = {
   pending: (state) => {
     const match: Route.Match<typeof ProjectRoute> = state.match;
     match.params.id.toUpperCase();
@@ -735,8 +742,13 @@ const typedProjectRouteFailureWrong: Route.PreloadFailure<typeof TypedProjectRou
 const untypedPreloadRoute = Route.define("/untyped-projects/:id", {
   preload: () => Effect.fail("x"),
 });
-const untypedProjectRouteFailure: unknown extends Route.PreloadFailure<typeof untypedPreloadRoute>
-  ? true
+// Without an `error` schema only the failure's `_tag` crosses the wire.
+const untypedProjectRouteFailure: [Route.PreloadFailure<typeof untypedPreloadRoute>] extends [
+  RoutePreloadUntypedFailure,
+]
+  ? [RoutePreloadUntypedFailure] extends [Route.PreloadFailure<typeof untypedPreloadRoute>]
+    ? true
+    : false
   : false = true;
 const staticRoute = Route.define("/static");
 const staticRouteFailure: [Route.PreloadFailure<typeof staticRoute>] extends [never]
@@ -747,20 +759,23 @@ const typedProjectPreload: Effect.Effect<
   RoutePreloadError<TypedProjectNotFound | TypedProjectForbidden>
 > = Route.preload(TypedProjectRoute.match("/typed-projects/atlas")!);
 Route.define("/typed-projects/:id", {
-  error: TypedProjectNotFound,
   // @ts-expect-error preload may fail only with the route error schema's type
+  error: TypedProjectNotFound,
   preload: () => Effect.fail(new TypedProjectForbidden({ id: "atlas" })),
 });
 Route.define("/typed-projects/:id", {
-  error: TypedProjectNotFound,
   // @ts-expect-error untyped failures are rejected when the route declares an error schema
+  error: TypedProjectNotFound,
   preload: () => Effect.fail("missing"),
 });
 Route.define("/typed-projects/:id", {
   error: TypedProjectNotFound,
   preload: () => Effect.void,
 });
-const typedProjectOutletProps: RouterOutletProps<readonly [typeof TypedProjectRoute]> = {
+const typedProjectOutletProps: Omit<
+  RouterOutletProps<readonly [typeof TypedProjectRoute]>,
+  "router"
+> = {
   failure: (state) => {
     if (state.error?._tag === "RoutePreloadError") {
       const failure: TypedProjectNotFound | TypedProjectForbidden = state.error.cause;
@@ -1358,7 +1373,7 @@ const projectSuspenseRead: Project = bound(Component.resource(ProjectById))("atl
 const projectResourcePending = new ResourcePending({
   ref: ProjectById("atlas"),
   reason: "Pending",
-  result: AsyncResult.initial<Project, Resource.LoadError<ProjectError | Server.ClientError>>(true),
+  result: AsyncResult.initial<Project, ProjectError | Server.ClientError>(true),
   guidance: "Preload before reading.",
 });
 const projectResourcePendingState: "Initial" | "Pending" | "Collected" =
@@ -1369,21 +1384,20 @@ const projectResourcePendingPrevious: Option.Option<Project> = AsyncResult.value
 const projectResourcePendingHasPrevious: boolean = Option.isSome(projectResourcePendingPrevious);
 const projectResourceFailure = new ResourceFailure({
   ref: ProjectById("atlas"),
-  result: AsyncResult.fail<Resource.LoadError<ProjectError | Server.ClientError>, Project>({
+  result: AsyncResult.fail<ProjectError | Server.ClientError, Project>({
     _tag: "ProjectError",
     message: "not found",
   } as ProjectError | Server.ClientError),
 });
-const projectResourceFailureError: Option.Option<
-  Resource.LoadError<ProjectError | Server.ClientError>
-> = AsyncResult.error(projectResourceFailure.result);
+const projectResourceFailureError: Option.Option<ProjectError | Server.ClientError> =
+  AsyncResult.error(projectResourceFailure.result);
 const projectResourceFailureHasPrevious: boolean = Option.isSome(
   projectResourceFailure.result.previousSuccess,
 );
 const typedProjectResourceFailure: ResourceFailure<
   string,
   Project,
-  Resource.LoadError<ProjectError | Server.ClientError>,
+  ProjectError | Server.ClientError,
   ProjectApi,
   ProjectError | Server.ClientError
 > = projectResourceFailure;
@@ -1559,11 +1573,8 @@ const InferredProjectById = Resource.define({
   load: (id) => ProjectApi.use((api) => api.get(id)),
   provides: (project) => [ProjectTag({ id: project.id })],
 });
-const inferredProjectEffect: Effect.Effect<
-  Project,
-  Resource.LoadError<ProjectError | Server.ClientError>,
-  ProjectApi
-> = Resource.preload(InferredProjectById(atlasProjectId));
+const inferredProjectEffect: Effect.Effect<Project, ProjectError | Server.ClientError, ProjectApi> =
+  Resource.preload(InferredProjectById(atlasProjectId));
 void inferredProjectEffect;
 
 // @ts-expect-error inferred branded resource inputs reject accidental plain strings
@@ -1586,16 +1597,6 @@ const ProjectsCollection = Collection.define<
   },
   sync: {
     load: () => ProjectApi.use((api) => Effect.map(api.get("atlas"), (project) => [project])),
-    update: ({ updates, transaction }) =>
-      ProjectApi.use((api) => {
-        transaction.mutations.map((mutation) => mutation.key);
-        return api
-          .rename({
-            id: updates[0]!.key,
-            name: updates[0]!.value.name,
-          })
-          .pipe(Effect.asVoid);
-      }),
   },
 });
 
@@ -1614,15 +1615,6 @@ const InferredProjectsCollection = Collection.define({
   getKey: (project) => project.id,
   sync: {
     load: () => ProjectApi.use((api) => Effect.map(api.get("atlas"), (project) => [project])),
-    update: ({ updates }) =>
-      ProjectApi.use((api) =>
-        api
-          .rename({
-            id: updates[0]!.key,
-            name: updates[0]!.value.name,
-          })
-          .pipe(Effect.asVoid),
-      ),
   },
 });
 const inferredCollectionPreload: Effect.Effect<
@@ -1645,18 +1637,12 @@ projectsSnapshot.rows.map((row) => {
   // @ts-expect-error collection snapshots preserve row value shape
   row.value.slug;
 });
-projectsSnapshot.pendingMutations.map((pending) =>
-  pending.transaction.mutations.map((mutation) => mutation.key.toUpperCase()),
-);
+// @ts-expect-error snapshots carry synced rows only; optimistic patches stay with their Action
+projectsSnapshot.pendingMutations;
 
 Effect.map(ProjectsCollection.snapshot(), (snapshot) => snapshot.rows.map((row) => row.value.name));
-ProjectsCollection.pendingMutations().map((pending) => pending.attempts.toFixed());
-Effect.map(ProjectsCollection.flushPendingMutations(), (transactions) =>
-  transactions.map((transaction) =>
-    transaction.mutations.map((mutation) => mutation.key.toUpperCase()),
-  ),
-);
-ProjectsCollection.flushPendingMutations();
+// @ts-expect-error Actions change rows: a collection has no write methods for server data
+ProjectsCollection.update("atlas", { name: "Atlas" });
 const projectHydrateEffect: Effect.Effect<
   void,
   CollectionSnapshotCodecError | EffectInputCallbackError
@@ -1704,11 +1690,6 @@ const ServerProjectsCollection = Collection.define<
   getKey: (project) => project.id,
   sync: {
     load: ListProjectsForCollection,
-    update: (payload) => {
-      payload.updates[0]!.key.toUpperCase();
-      payload.transaction.mutations.map((mutation) => mutation.key.toUpperCase());
-      return Effect.void;
-    },
   },
 });
 
@@ -1719,10 +1700,6 @@ declare const promisedSqliteRow: Promise<SQLitePersistence.Row | null>;
 const syncAdapter: Collection.SyncAdapter<Project> = {
   name: "projects-sync",
   load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
-  update: (payload) => {
-    payload.updates.map((update) => update.key.toUpperCase());
-    payload.transaction.id.toUpperCase();
-  },
 };
 const promiseSyncAdapter: Collection.SyncAdapter<Project> = {
   name: "projects-promise-sync",
@@ -1747,7 +1724,7 @@ const ResourceProjectsCollection = Collection.define({
 });
 const resourceProjectsPreload: Effect.Effect<
   void,
-  Collection.RuntimeError<Resource.LoadError<ProjectError>>
+  Collection.RuntimeError<ProjectError>
 > = ResourceProjectsCollection.preload();
 void resourceProjectsPreload;
 // Remote changes stream through sync.changes; the collection owns the subscription.
@@ -1778,54 +1755,6 @@ Collection.define<Project>({
   },
 });
 
-const flushAllProjectsEffect: Effect.Effect<
-  ReadonlyArray<Collection.FlushAllPendingMutationsResult>,
-  ProjectError | Server.ClientError | CollectionSnapshotCodecError | EffectInputCallbackError,
-  ProjectApi
-> = Collection.flushAllPendingMutations([ProjectsCollection, ServerProjectsCollection]);
-Effect.map(flushAllProjectsEffect, (results) =>
-  results.map((result) => result.transactions.map((transaction) => transaction.collection)),
-);
-const backgroundSyncAdapter: Collection.BackgroundSyncAdapter = {
-  name: "online",
-  shouldFlush: (context) => {
-    context.trigger.toUpperCase();
-    context.collections.map((collection) => collection.toUpperCase());
-    context.pending.map((pending) =>
-      pending.transactions.map((transaction) => transaction.collection),
-    );
-    return true;
-  },
-};
-const promiseBackgroundSyncAdapter: Collection.BackgroundSyncAdapter = {
-  name: "promise-online",
-  // @ts-expect-error background sync adapters must return Effect or a pure value, not Promise
-  shouldFlush: () => promisedBoolean,
-};
-const backgroundSyncProjectsEffect: Effect.Effect<
-  Collection.BackgroundSyncResult,
-  ProjectError | Server.ClientError | CollectionSnapshotCodecError | EffectInputCallbackError,
-  ProjectApi
-> = Collection.backgroundSyncPendingMutations([ProjectsCollection], {
-  trigger: "online",
-  adapter: backgroundSyncAdapter,
-});
-Effect.map(backgroundSyncProjectsEffect, (result) => {
-  result.trigger.toUpperCase();
-  result.pending.map((pending) => pending.collection.toUpperCase());
-  return result.results.map((flushResult) => flushResult._tag);
-});
-Effect.map(
-  Collection.backgroundSyncPendingMutations([ProjectsCollection], {
-    trigger: "online",
-    adapter: backgroundSyncAdapter,
-  }),
-  (result) => {
-    result.trigger.toUpperCase();
-    result.pending.map((pending) => pending.collection.toUpperCase());
-    return result.results.map((flushResult) => flushResult._tag);
-  },
-);
 const collectionChanges: ReadonlyArray<Collection.Change<Project, string>> = [
   { _tag: "Upsert", value: { id: "atlas", name: "Atlas" } },
   { _tag: "Delete", key: "lumen" },
@@ -1834,17 +1763,6 @@ ProjectsCollection.applyChanges(collectionChanges, {
   origin: "remote",
   synced: true,
 });
-Effect.map(
-  Collection.flushAllPendingMutations([ProjectsCollection], {
-    skip: ({ collection }) => collection.name === "Projects.collection",
-  }),
-  (results) => results.map((result) => result._tag),
-);
-Collection.flushAllPendingMutations([ProjectsCollection], {
-  // @ts-expect-error static flush skip values must return Effect or a pure value, not Promise
-  skip: promisedBoolean,
-});
-
 const sqliteStorage = SQLitePersistence.storage(
   {
     table: () => ({
@@ -2010,10 +1928,18 @@ Effect.map(collectCollectionsEffect(ProjectsCollection.preload()), (collected) =
   collected.definitions.map((definition) => definition.name);
 });
 
-const StartApp = App.define({
-  routes: [ProjectRoute] as const,
-  client: {},
+const StartRoot = Component.define("StartRoot", function* () {
+  yield* Effect.void;
+  return () => "start";
 });
+const StartApp = App.define({
+  root: StartRoot,
+  routes: [ProjectRoute] as const,
+  collections: [ProjectsCollection],
+});
+const StartServerApp = makeStartServerApp({ routes: [ProjectRoute] as const });
+const startLaunchEffect: Effect.Effect<never, AppLaunchError> = App.launch(StartApp);
+void startLaunchEffect;
 const requestTraceHandler = (trace: StartRequestTrace) => {
   const devtoolsTrace: DevtoolsRequestTrace = trace;
   const teardownStartedAt: number | undefined = trace.teardown?.startedAt;
@@ -2051,18 +1977,13 @@ const startRequestTraceTeardown: StartRequestTraceTeardown = {
 const devtoolsRequestTraceTeardown: DevtoolsRequestTraceTeardown = startRequestTraceTeardown;
 void devtoolsRequestTraceTeardown;
 createRequestHandler(StartApp, {
-  collections: [ProjectsCollection],
   onRequestTrace: requestTraceHandler,
-  render: ({ collections, collectionPreload, hydration }) => {
-    collections.collections.map((snapshot) => snapshot.name);
-    collectionPreload.routeTouchedCollections.map((collection) => collection.name);
-    collectionPreload.routeDeclaredCollections.map((collection) => collection.name);
-    collectionPreload.registeredCollections.map((collection) => collection.name);
-    collectionPreload.dehydratedCollections.map((collection) => collection.name);
-    collectionPreload.hydration.collections.map((snapshot) => snapshot.rows.length);
-    hydration.collections?.map((snapshot) => snapshot.rows.length);
-    return "";
-  },
+  document: ({ match, request }) => ({
+    title: match?.href ?? request.url,
+    meta: [{ name: "description", content: "Projects" }],
+    links: [{ rel: "stylesheet", href: "/src/styles.css" }],
+    headers: { "x-start": "yes" },
+  }),
 });
 virtualDiagnosticsPolicyViolations.map((violation) => {
   violation.message.toUpperCase();
@@ -2075,8 +1996,8 @@ virtualDiagnosticsPolicyViolations.map((violation) => {
   }
 });
 createRequestHandler(StartApp, {
-  // @ts-expect-error Start render callbacks must return Effect or a pure value, not Promise
-  render: () => promisedString,
+  // @ts-expect-error Start document functions return a StartDocument, not a Promise
+  document: () => promisedString,
 });
 createRequestHandler(StartApp, {
   // @ts-expect-error request trace handlers must return Effect or a pure value, not Promise
@@ -2116,15 +2037,6 @@ Metric.value(startRequestDurationMetric).pipe(Effect.map((state) => state.count.
 Metric.value(startRequestStatusMetric).pipe(
   Effect.map((state) => state.occurrences.size.toFixed()),
 );
-const streamedHtmlResponseOptions: StartStreamedHtmlResponseOptions = {
-  shell: "<html><body>",
-  hydrationPlan: { streamedResourceChunks: [] },
-  tail: "</body></html>",
-};
-const streamedHtmlResponseEffect: Effect.Effect<Response> = createStartStreamedHtmlResponse(
-  streamedHtmlResponseOptions,
-);
-void streamedHtmlResponseEffect;
 void startRequestHandler;
 void syncStartRequestHandler;
 void viteStartSsrRequestHandler;
@@ -2132,11 +2044,11 @@ void promiseViteStartSsrRequestHandler;
 void scopedViteStartSsrRequestHandler;
 void serviceViteStartSsrRequestHandler;
 void startVitePlugin;
-preloadRequest(StartApp, new Request("https://example.com/projects/atlas"), {
+preloadRequest(StartServerApp, new Request("https://example.com/projects/atlas"), {
   collections: [ProjectsCollection],
 });
 Effect.map(
-  preloadRequest(StartApp, new Request("https://example.com/projects/atlas")),
+  preloadRequest(StartServerApp, new Request("https://example.com/projects/atlas")),
   (result) => result.routePlan.href,
 );
 toFetchHandler(createRequestHandler(StartApp));
@@ -2208,15 +2120,17 @@ void rootNodeRuntimeOptions;
 void rootFetchPromiseOptions;
 void rootFetchRuntimeOptions;
 void rootFetchPromise;
-Effect.map(preloadRequest(StartApp, new Request("https://example.com/projects/atlas")), (result) =>
-  result.collectionPreload.routeDeclaredCollections.map((collection) => collection.name),
+Effect.map(
+  preloadRequest(StartServerApp, new Request("https://example.com/projects/atlas")),
+  (result) =>
+    result.collectionPreload.routeDeclaredCollections.map((collection) => collection.name),
 );
 const hydrationDocument: Pick<Document, "getElementById"> = {
   getElementById: () => null,
 };
 const hydrationRuntime = makeRuntime();
 hydrationRuntime.runSync(
-  hydrateFromDocument(hydrationDocument, undefined, {
+  hydrateFromDocument(hydrationDocument, {
     collections: [ProjectsCollection],
   }),
 );
@@ -2287,13 +2201,12 @@ void servicefulDevSsrEffect;
 // @ts-expect-error Runtime Spine exposes provide/runFork/runSync, not Promise runners
 hydrationRuntime.runPromise(Effect.void);
 hydrationRuntime.runSync(
-  hydrateFromDocument(hydrationDocument, undefined, {
+  hydrateFromDocument(hydrationDocument, {
     collections: [ProjectsCollection],
   }),
 );
 const startHydrationEffect: Effect.Effect<unknown, StartHydrationError> = hydrateFromDocument(
   hydrationDocument,
-  undefined,
   {
     collections: [ProjectsCollection],
   },
@@ -2316,10 +2229,35 @@ hydrationRuntime.runSync(
   }),
 );
 
-ProjectsCollection.update("atlas", { name: "Atlas Revenue" });
-
-// @ts-expect-error collection key type is preserved
-ProjectsCollection.update(123, { name: "Atlas Revenue" });
+// Actions patch collection rows optimistically, typed by the collection's row and key.
+const RenameProjectRow = Action.define({
+  name: "Projects.renameRow",
+  input: Schema.Struct({ id: Schema.String, name: Schema.String }),
+  output: ProjectSchema,
+  optimistic: (input, transaction) =>
+    Effect.gen(function* () {
+      yield* transaction.update(ProjectsCollection, input.id, { name: input.name });
+      yield* transaction.update(ProjectsCollection, input.id, (draft) => ({ ...draft, name: "x" }));
+      yield* transaction.insert(ProjectsCollection, { id: input.id, name: input.name });
+      yield* transaction.insert(ProjectsCollection, [{ id: input.id, name: input.name }]);
+      yield* transaction.delete(ProjectsCollection, input.id);
+      // @ts-expect-error collection key type is preserved
+      yield* transaction.update(ProjectsCollection, 123, { name: input.name });
+      // @ts-expect-error optimistic patches are checked against the row type
+      yield* transaction.update(ProjectsCollection, input.id, { slug: input.name });
+      // @ts-expect-error inserted rows must be complete rows
+      yield* transaction.insert(ProjectsCollection, { id: input.id });
+    }),
+  run: (input) => ProjectApi.use((api) => api.rename(input)),
+});
+// Patches cannot fail: a rejected row is a defect, so `optimistic` adds nothing to E.
+const renameProjectRowError: Action.Definition<
+  { readonly id: string; readonly name: string },
+  Project,
+  ProjectError | Server.ClientError,
+  ProjectApi
+> = RenameProjectRow;
+void renameProjectRowError;
 
 Collection.define<Project>({
   name: "Projects.badCollection",
@@ -2418,33 +2356,15 @@ const ProjectNameCards = Collection.liveQuery<
       name: project.name,
     })),
 });
-// A collection's services join the binding's (and so the Component's) R.
+// A collection's load error joins the binding's (and so the Component's) E,
+// and its services join R, exactly like a Resource reader.
 const solidProjectsBinding: Effect.Effect<
   CollectionHandle<Project, string, ProjectError | Server.ClientError>,
-  never,
+  ProjectError | Server.ClientError,
   ProjectApi
 > = SolidDb.collection(ProjectsCollection);
 void solidProjectsBinding;
-const solidProjects = bound(
-  SolidDb.collection(ProjectsCollection, {
-    preload: false,
-    onPreloadFailure: (error) => {
-      const typedError:
-        | ProjectError
-        | Server.ClientError
-        | CollectionSnapshotCodecError
-        | Schema.SchemaError = error;
-      void typedError;
-      return Effect.void;
-    },
-  }),
-);
-bound(
-  SolidDb.collection(ProjectsCollection, {
-    // @ts-expect-error Solid DB collection preload observers must return EffectInput, not Promise work.
-    onPreloadFailure: () => promisedVoid,
-  }),
-);
+const solidProjects = bound(SolidDb.collection(ProjectsCollection, { preload: false }));
 const solidProjectsHandle: CollectionHandle<Project, string, ProjectError | Server.ClientError> =
   solidProjects;
 // A Resource family's typed error joins E and its services join R.
@@ -2455,56 +2375,33 @@ const solidProjectReaderBinding: Effect.Effect<
 > = Component.resource(ProjectById);
 const solidProjectReader = bound(solidProjectReaderBinding);
 const solidProjectResourceValue: Project = solidProjectReader("atlas");
-const solidProjectResourceFailure:
-  | Cause.Cause<Resource.LoadError<ProjectError | Server.ClientError>>
-  | undefined = solidProjectReader.failure("atlas");
+const solidProjectResourceFailure: Cause.Cause<ProjectError | Server.ClientError> | undefined =
+  solidProjectReader.failure("atlas");
 void solidProjectResourceValue;
 void solidProjectResourceFailure;
-const solidProjectPreloadFailure:
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | undefined = solidProjects.preloadFailure();
-solidProjects.pendingMutations().map((pending) => pending.transaction.id);
-// @ts-expect-error writes run `ProjectsCollection.insert(...)` through `Component.callback`.
+// Collection and Resource handles share one status vocabulary.
+const solidProjectsWaiting: boolean = solidProjects.waiting();
+const solidProjectsFailure: Cause.Cause<ProjectError | Server.ClientError> | undefined =
+  solidProjects.failure();
+// @ts-expect-error Actions change rows: a collection handle has no writes.
 solidProjects.insertEffect;
-void solidProjectPreloadFailure;
+void solidProjectsWaiting;
+void solidProjectsFailure;
 const solidProjectNamesBinding = SolidDb.liveQuery(
   (query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
-  {
-    preload: false,
-    onPreloadFailure: (error) => {
-      const typedError:
-        | ProjectError
-        | Server.ClientError
-        | CollectionSnapshotCodecError
-        | Schema.SchemaError
-        | QueryEvaluationError = error;
-      void typedError;
-      return Effect.void;
-    },
-  },
+  { preload: false },
 );
-// The live query's sources' services join R.
+// The live query's sources' load errors join E (codec failures are defects); services join R.
 const solidProjectNamesServices: Effect.Effect<
   LiveQueryHandle<
     string,
     ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError
   >,
-  never,
+  ProjectError | Server.ClientError | Schema.SchemaError,
   ProjectApi
 > = solidProjectNamesBinding;
 void solidProjectNamesServices;
 const solidProjectNames = bound(solidProjectNamesBinding);
-SolidDb.liveQuery<
-  string,
-  ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError,
-  ProjectApi
->((query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name), {
-  // @ts-expect-error Solid DB live-query preload observers must return EffectInput, not Promise work.
-  onPreloadFailure: () => promisedVoid,
-});
 const solidProjectNamesHandle: LiveQueryHandle<
   string,
   ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError
@@ -2533,29 +2430,18 @@ const solidProjectNamesPreloadEffect: Effect.Effect<
   | Schema.SchemaError
   | QueryEvaluationError
 > = solidProjectNames.preload();
-const solidProjectNamesError: Option.Option<
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | QueryEvaluationError
-> = AsyncResult.error(solidProjectNames.result());
-const solidProjectNamesPreloadFailure:
-  | ProjectError
-  | Server.ClientError
-  | CollectionSnapshotCodecError
-  | Schema.SchemaError
-  | QueryEvaluationError
-  | undefined = solidProjectNames.preloadFailure();
+const solidProjectNamesFailure:
+  | Cause.Cause<ProjectError | Server.ClientError | Schema.SchemaError>
+  | undefined = solidProjectNames.failure();
 void solidProjectNamesPreloadEffect;
-void solidProjectNamesError;
-void solidProjectNamesPreloadFailure;
+void solidProjectNamesFailure;
 
 ProjectNameCards.rows().map((project) => {
   project.name.toUpperCase();
   project.$synced.valueOf();
 });
-Effect.map(ProjectNameCards.update("atlas", { name: "Atlas Prime" }), () => undefined);
+// @ts-expect-error live-query collections are derived: they have no writes
+ProjectNameCards.update("atlas", { name: "Atlas Prime" });
 
 const TopLevelProjectNameCards = Collection.liveQuery({
   name: "ProjectNameCards.topLevel",
@@ -3211,54 +3097,55 @@ const serviceRouteNavigationPlan: Effect.Effect<
   Route.NavigationError,
   RoutePreloadApi
 > = Route.planNavigation([ServicePreloadRoute] as const, "/service-projects/atlas");
-const routePreloadMissingStartApp = App.define({
+const routePreloadStartApp = App.define({
+  root: StartRoot,
   routes: [ServicePreloadRoute] as const,
-  client: {},
+});
+// The server runtime lacks the route's preload service, so it stays a handler requirement.
+const routePreloadMissingHandler = createRequestHandler(routePreloadStartApp, {
   server: typedRuntime,
 });
 const routePreloadMissingStartEffect: Effect.Effect<unknown, unknown, RoutePreloadApi> =
   preloadRequest(
-    routePreloadMissingStartApp,
+    makeStartServerApp({ routes: [ServicePreloadRoute] as const, server: typedRuntime }),
     new Request("https://example.com/service-projects/atlas"),
   );
 const routePreloadMissingStartHandlerEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
   Scope.Scope | RoutePreloadApi
-> = createRequestHandler(routePreloadMissingStartApp)(
-  new Request("https://example.com/service-projects/atlas"),
-);
+> = routePreloadMissingHandler(new Request("https://example.com/service-projects/atlas"));
 const routePreloadMissingFetchAdapterEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
   Scope.Scope | RoutePreloadApi
-> = toFetchHandler(createRequestHandler(routePreloadMissingStartApp))(
+> = toFetchHandler(routePreloadMissingHandler)(
   new Request("https://example.com/service-projects/atlas"),
 );
 const routePreloadMissingNodeAdapterEffect: Effect.Effect<
   Response,
   StartNodeAdapterError | StartRequestHandlerError,
   Scope.Scope | RoutePreloadApi
-> = createNodeHandler(createRequestHandler(routePreloadMissingStartApp))(
+> = createNodeHandler(routePreloadMissingHandler)(
   { method: "GET", url: "/", headers: {} } as import("node:http").IncomingMessage,
   {} as import("node:http").ServerResponse,
 );
 // @ts-expect-error bare fetch handler aliases default to service-free, so route preload services stay visible
 const erasedRoutePreloadFetchHandler: StartFetchHandler = toFetchHandler(
-  createRequestHandler(routePreloadMissingStartApp),
+  routePreloadMissingHandler,
 );
 // @ts-expect-error bare Node handler aliases default to service-free, so route preload services stay visible
 const erasedRoutePreloadNodeHandler: StartNodeHandler = createNodeHandler(
-  createRequestHandler(routePreloadMissingStartApp),
+  routePreloadMissingHandler,
 );
 // @ts-expect-error Promise-shaped fetch facades must receive a runtime for non-Scope handler requirements
-createFetchHandler(createRequestHandler(routePreloadMissingStartApp));
+createFetchHandler(routePreloadMissingHandler);
 // @ts-expect-error Node callback facades must receive a runtime for non-Scope handler requirements
-createNodeServerHandler(createRequestHandler(routePreloadMissingStartApp));
+createNodeServerHandler(routePreloadMissingHandler);
 // @ts-expect-error effect-first fetch adapters cannot hide requirements through partial generics
-toFetchHandler<StartRequestHandlerError>(createRequestHandler(routePreloadMissingStartApp));
+toFetchHandler<StartRequestHandlerError>(routePreloadMissingHandler);
 // @ts-expect-error effect-first Node adapters cannot hide requirements through partial generics
-createNodeHandler<StartRequestHandlerError>(createRequestHandler(routePreloadMissingStartApp));
+createNodeHandler<StartRequestHandlerError>(routePreloadMissingHandler);
 const routePreloadRuntime = makeRuntime(
   RoutePreloadApi.layer({
     warm: () => Effect.void,
@@ -3276,30 +3163,23 @@ declare const servicePreloadRoot: HTMLElement;
 Component.launch(ServicePreloadApp, servicePreloadRoot, { runtime: routePreloadRuntime });
 // @ts-expect-error a route's preload services must be provided before launch
 Component.launch(ServicePreloadApp, servicePreloadRoot);
-const routePreloadProvidedStartApp = App.define({
-  routes: [ServicePreloadRoute] as const,
-  client: {},
-  server: routePreloadRuntime,
-});
 const routePreloadProvidedStartEffect: Effect.Effect<unknown, unknown> = preloadRequest(
-  routePreloadProvidedStartApp,
+  makeStartServerApp({ routes: [ServicePreloadRoute] as const, server: routePreloadRuntime }),
   new Request("https://example.com/service-projects/atlas"),
 );
 const routePreloadProvidedStartHandlerEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
   Scope.Scope
-> = createRequestHandler(routePreloadProvidedStartApp)(
+> = createRequestHandler(routePreloadStartApp, { server: routePreloadRuntime })(
   new Request("https://example.com/service-projects/atlas"),
 );
-const routePreloadFetchFacade = createFetchHandler(
-  createRequestHandler(routePreloadMissingStartApp),
-  { runtime: routePreloadRuntime },
-);
-const routePreloadNodeFacade = createNodeServerHandler(
-  createRequestHandler(routePreloadMissingStartApp),
-  { runtime: routePreloadRuntime },
-);
+const routePreloadFetchFacade = createFetchHandler(routePreloadMissingHandler, {
+  runtime: routePreloadRuntime,
+});
+const routePreloadNodeFacade = createNodeServerHandler(routePreloadMissingHandler, {
+  runtime: routePreloadRuntime,
+});
 const RegistryReadDocumentAction = Action.define<any, string, never, RuntimeDocumentService>({
   name: "RuntimeDocument.registryAction",
   run: () => RuntimeDocumentService.use((service) => service.readDocument()),
@@ -3310,48 +3190,33 @@ const RegistryReadDocumentRpc = Server.fn<void, string, never, RuntimeDocumentSe
     handler: () => RuntimeDocumentService.use((service) => service.readDocument()),
   },
 );
-const startRegistryMissingApp = App.define({
+// The app's Actions and the handler's server functions add their services to
+// the handler's requirements unless the server runtime provides them.
+const startRegistryApp = App.define({
+  root: StartRoot,
   routes: [] as const,
-  client: {},
-  registry: {
-    actions: new Map([["RuntimeDocument.registryAction", RegistryReadDocumentAction]]),
-    serverFunctions: new Map([["RuntimeDocument.registryRpc", RegistryReadDocumentRpc]]),
-  },
+  actions: [RegistryReadDocumentAction],
 });
 const startRegistryMissingHandlerEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
   Scope.Scope | RuntimeDocumentService
-> = createRequestHandler(startRegistryMissingApp)(
+> = createRequestHandler(startRegistryApp, { serverFunctions: [RegistryReadDocumentRpc] })(
   new Request("https://example.com/__sunfall-arc/rpc"),
 );
-const startRegistryProvidedApp = App.define({
-  routes: [] as const,
-  client: {},
-  server: typedRuntime,
-  registry: {
-    actions: new Map([["RuntimeDocument.registryAction", RegistryReadDocumentAction]]),
-    serverFunctions: new Map([["RuntimeDocument.registryRpc", RegistryReadDocumentRpc]]),
-  },
-});
 const startRegistryProvidedHandlerEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
   Scope.Scope
-> = createRequestHandler(startRegistryProvidedApp)(
-  new Request("https://example.com/__sunfall-arc/rpc"),
-);
+> = createRequestHandler(startRegistryApp, {
+  server: typedRuntime,
+  serverFunctions: [RegistryReadDocumentRpc],
+})(new Request("https://example.com/__sunfall-arc/rpc"));
 const startOptionsActionHandlerEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
   Scope.Scope | RuntimeDocumentService
-> = createRequestHandler(
-  App.define({
-    routes: [] as const,
-    client: {},
-  }),
-  { actions: [RegistryReadDocumentAction] },
-)(new Request("https://example.com/__sunfall-arc/action"));
+> = createRequestHandler(startRegistryApp)(new Request("https://example.com/__sunfall-arc/action"));
 void serviceRoutePreloadRequirements;
 void serviceRoutePreload;
 void serviceRoutePreloadPlan;
@@ -3383,7 +3248,6 @@ const TouchProject = Action.define<{ readonly id: string }, Project>({
       yield* transaction.signal(unknownLabel, promisedProject);
       // @ts-expect-error optimistic signal updaters cannot hide Promise-shaped returns behind unknown
       yield* transaction.signal<unknown>(unknownLabel, () => promisedProject);
-      return Effect.void;
     }),
   run: ({ id }) => Effect.succeed({ id, name: "Touched" }),
   invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
@@ -3559,6 +3423,15 @@ const solidTouchProject = bound(Component.action(TouchProject));
 solidTouchProject.submit({ id: "atlas" }).pipe(Effect.map((project) => project.name.toUpperCase()));
 // @ts-expect-error Component action handles preserve the action input type
 solidTouchProject.submit({ slug: "atlas" });
+// Action handles report status with the Resource reader's names.
+const solidTouchWaiting: boolean = solidTouchProject.waiting();
+const solidTouchFailure: Cause.Cause<Server.ClientError> | undefined = solidTouchProject.failure();
+void solidTouchWaiting;
+void solidTouchFailure;
+// @ts-expect-error a callback that breaks its contract is a defect, not part of the handle's errors
+const solidTouchCallbackFailure: Cause.Cause<EffectInputCallbackError> =
+  solidTouchProject.failure()!;
+void solidTouchCallbackFailure;
 
 const InferredTouchProject = Action.define({
   name: "Project.inferredTouch",
@@ -3568,7 +3441,6 @@ const InferredTouchProject = Action.define({
     Effect.gen(function* () {
       const label = Signal.make("idle");
       yield* transaction.signal(label, id);
-      return Effect.void;
     }),
   run: (input) => ProjectApi.use((api) => api.rename(input)),
   invalidates: (project, input) => [ProjectTag({ id: project.id }), ProjectTag({ id: input.id })],
@@ -3903,7 +3775,7 @@ Action.define({
 
 Action.define<{ readonly id: string }, Project>({
   name: "Project.promiseOptimistic",
-  // @ts-expect-error optimistic callbacks must return a rollback Effect, not Promise
+  // @ts-expect-error optimistic callbacks must return an Effect, not Promise
   optimistic: () => promisedVoid,
   run: ({ id }) => Effect.succeed({ id, name: "Touched" }),
 });
@@ -3918,14 +3790,14 @@ Action.define<{ readonly id: string }, Project>({
 Action.define<{ readonly id: string }, Project>({
   name: "Project.badOptimisticInput",
   // @ts-expect-error optimistic input comes from the action input type
-  optimistic: (input: { readonly slug: string }) => Effect.succeed(Effect.void),
+  optimistic: (input: { readonly slug: string }) => Effect.void,
   run: ({ id }) => Effect.succeed({ id, name: "Touched" }),
 });
 
 Action.define<{ readonly id: string }, Project>({
-  name: "Project.badOptimisticRollback",
-  // @ts-expect-error optimistic must return a rollback Effect
-  optimistic: ({ id }) => Effect.succeed(id),
+  name: "Project.badOptimisticFailure",
+  // @ts-expect-error optimistic patches cannot fail: the transaction owns rollback
+  optimistic: () => Effect.fail("patch-failed" as const),
   run: ({ id }) => Effect.succeed({ id, name: "Touched" }),
 });
 

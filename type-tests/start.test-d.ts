@@ -1,15 +1,11 @@
 import {
-  createHtmlResponse,
+  App,
   createRequestHandler,
-  createStartStreamedHtmlResponse,
   currentStartStaticHref,
-  htmlChunk,
   hydrateFromDocument,
-  makeRpcClientLayer,
   makeStartStaticHistoryAdapter,
   normalizeStartStaticBasePath,
   stripStartStaticBasePath,
-  makeActionTransportLayer,
   withStartStaticBasePath,
   StartAction,
   StartActionDuplicateName,
@@ -20,55 +16,49 @@ import {
   StartHydrationPayloadSerializeError,
   StartPreloadError,
   StartRequestHandlerError,
+  StartRootMissing,
   StartStaticBasePathError,
   StartStaticNavigationHydrationError,
   StartStreamError,
   StartTransportEndpointConflictError,
   StartTransportEndpointPathError,
-  type ActionManifestSource,
+  type AnyAppDefinition,
+  type AppDefinition,
+  type AppLaunchError,
+  type AppLaunchServices,
   type CreateRequestHandlerOptions,
-  type HtmlResponseOptions,
-  type HtmlStreamChunk,
   type HydrateFromDocumentOptions,
-  type ServerFunctionManifestSource,
-  type ServerRpcClientOptions,
-  type ActionTransportLayerOptions,
   type StartActionFormOptions,
   type StartActionInvalidationPlan,
   type StartCollectionHydrationOptions,
+  type StartDocument,
+  type StartDocumentContext,
+  type StartDocumentTagAttributes,
   type StartFetch,
   type StartFetchInit,
   type StartFetchInput,
   type StartHydrationDocument,
   type StartHydrationError,
   type StartHydrationPayload,
-  type StartRenderContext,
   type StartRequestHandler,
   type StartRequestTrace,
   type StartRequestTraceHandler,
   type StartStaticHistoryAdapterOptions,
   type StartStaticHistoryWindow,
-  type StartStreamedHtmlResponseOptions,
   type StartTransportEndpointOverrides,
   FileRoute,
 } from "@sunfall/arc-start";
-import { Effect, type Layer, Schema } from "effect";
-import {
-  type ActionDefinition,
-  type ActionTransport,
-  Route,
-  type SunfallArcRuntime,
-} from "@sunfall/arc-core";
+import { Component } from "@sunfall/arc-solid";
+import { Context, Effect, Layer, Schema } from "effect";
+import { type ActionDefinition, Route } from "@sunfall/arc-core";
 
 const startExports: Array<unknown> = [
-  createHtmlResponse,
+  App.define,
+  App.launch,
   createRequestHandler,
-  createStartStreamedHtmlResponse,
   currentStartStaticHref,
   FileRoute.define,
-  htmlChunk,
   hydrateFromDocument,
-  makeRpcClientLayer,
   makeStartStaticHistoryAdapter,
   normalizeStartStaticBasePath,
   stripStartStaticBasePath,
@@ -82,6 +72,7 @@ const startExports: Array<unknown> = [
   StartHydrationPayloadSerializeError,
   StartPreloadError,
   StartRequestHandlerError,
+  StartRootMissing,
   StartStaticBasePathError,
   StartStaticNavigationHydrationError,
   StartStreamError,
@@ -89,33 +80,66 @@ const startExports: Array<unknown> = [
   StartTransportEndpointPathError,
 ];
 type StartTypes =
-  | ActionManifestSource
-  | CreateRequestHandlerOptions<readonly Route.Definition<string, unknown, unknown, any>[]>
-  | HtmlResponseOptions
-  | HtmlStreamChunk
+  | AnyAppDefinition
+  | AppDefinition
+  | AppLaunchError
+  | AppLaunchServices
+  | App.LaunchOptions
+  | App.RootProps
+  | CreateRequestHandlerOptions
   | HydrateFromDocumentOptions
-  | ServerFunctionManifestSource
-  | ServerRpcClientOptions
-  | ActionTransportLayerOptions
   | StartActionFormOptions<{ readonly id: string }>
   | StartActionInvalidationPlan
   | StartCollectionHydrationOptions
+  | StartDocument
+  | StartDocumentContext
+  | StartDocumentTagAttributes
   | StartFetch
   | StartFetchInit
   | StartFetchInput
   | StartHydrationDocument
   | StartHydrationError
   | StartHydrationPayload
-  | StartRenderContext
   | StartRequestHandler
   | StartRequestTrace
   | StartRequestTraceHandler
   | StartStaticHistoryAdapterOptions
   | StartStaticHistoryWindow
-  | StartStreamedHtmlResponseOptions<never, never>
   | StartTransportEndpointOverrides;
 void startExports;
 type _StartTypes = StartTypes;
+
+// One app definition; the client and server Layers must each provide what the
+// root needs.
+class Greeting extends Context.Service<Greeting, { readonly text: string }>()("Greeting") {}
+const GreetingLive = Layer.succeed(Greeting)({ text: "hi" });
+const GreetingRoot = Component.define("GreetingRoot", function* (props: App.RootProps) {
+  const greeting = yield* Greeting;
+  return () => `${greeting.text} ${props.href}`;
+});
+const greetingApp = App.define({ root: GreetingRoot, routes: [], client: GreetingLive });
+// @ts-expect-error the client Layer must provide the root's services
+App.define({ root: GreetingRoot, routes: [] });
+const greetingHandler: StartRequestHandler = createRequestHandler(greetingApp, {
+  server: GreetingLive,
+  document: ({ request }) => ({ title: request.url, lang: "en" }),
+});
+// @ts-expect-error the server Layer must provide the root's services
+createRequestHandler(greetingApp);
+const NeedyRoot = Component.define("Needy", function* (props: { readonly id: string }) {
+  yield* Effect.void;
+  return () => props.id;
+});
+// @ts-expect-error the root receives `App.RootProps`; other required props cannot be supplied
+App.define({ root: NeedyRoot, routes: [] });
+const greetingLaunch: Effect.Effect<never, AppLaunchError> = App.launch(greetingApp, {
+  href: "/",
+  hydration: { timestamp: "now" },
+});
+void greetingHandler;
+void greetingLaunch;
+// @ts-expect-error hydration options are an object; there is no positional id
+hydrateFromDocument(document, undefined, {});
 
 const typedFileRoute = FileRoute.define("/typed/:id")({
   preloadResources: [],
@@ -154,32 +178,11 @@ const decodedStartActionFormDataEffect = StartAction.decodeFormData(
   Schema.Struct({ id: Schema.String }),
   startActionBrowserFormData,
 );
-// Scripted UI submits through `Component.action`; Start routes served Actions
-// over the network by providing the `ActionTransport` service.
-const actionTransportLayer: Layer.Layer<ActionTransport> = makeActionTransportLayer({
-  actions: [startActionDefinition],
-});
-declare const startActionTransportRuntime: SunfallArcRuntime<{ readonly token: string }>;
-const runtimeBackedActionTransportLayer: Layer.Layer<ActionTransport> = makeActionTransportLayer({
-  actions: [startActionDefinition],
-  fetch: () => Effect.die("not used"),
-  transportRuntime: startActionTransportRuntime,
-});
-// @ts-expect-error the transport needs the list of Actions the server serves
-makeActionTransportLayer({});
 // @ts-expect-error StartAction no longer creates stateful client instances; use Component.action
 StartAction.use(startActionDefinition);
 void startActionFormMethod;
 void startActionFormEncodeError;
 void decodedStartActionFormDataEffect;
-void actionTransportLayer;
-void runtimeBackedActionTransportLayer;
-
-declare const startRenderContext: StartRenderContext;
-const legacyHydrationScript: string = startRenderContext.legacyHydrationScript;
-const hydrationRootScript: string = startRenderContext.hydrationRootScript;
-void legacyHydrationScript;
-void hydrationRootScript;
 
 const endpointConflict = new StartTransportEndpointConflictError({
   rpcPath: "/same",
@@ -196,9 +199,6 @@ const endpointOverrides: StartTransportEndpointOverrides = { rpcPath: "/rpc" };
 void endpointConflict;
 void endpointPathError;
 void endpointOverrides;
-
-const rpcClientLayer = makeRpcClientLayer();
-void rpcClientLayer;
 
 const traceHandler: StartRequestTraceHandler = (trace: StartRequestTrace) => {
   const status: StartRequestTrace["status"] = trace.status;

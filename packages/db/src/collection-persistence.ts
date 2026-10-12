@@ -12,7 +12,6 @@ import {
   type CollectionPersistenceStore,
 } from "./collection-definition-snapshot.js";
 export type { CollectionPersistenceStore } from "./collection-definition-snapshot.js";
-import { advanceCollectionTransactionIdentity } from "./collection-mutation-queue.js";
 import {
   collectionSnapshotFromState,
   CollectionSnapshotCodecError,
@@ -20,7 +19,6 @@ import {
   encodeCollectionSnapshotEffect,
   hydrateCollectionSnapshotStateEffect,
   validateCollectionHydrationPayload,
-  validateCollectionSnapshotStateHydrationEffect,
   validateCollectionSnapshotDefinitionEffect,
   validateCollectionHydrationPayloadEffect,
   type CollectionSnapshotCodecOperation,
@@ -226,13 +224,7 @@ const hydrateCollectionEffectUnsafe = (
       definition,
       snapshot,
     );
-    yield* validateCollectionSnapshotStateHydrationEffect(state, validatedSnapshot, options);
-    const hydrated = yield* hydrateCollectionSnapshotStateEffect(
-      state,
-      validatedSnapshot,
-      options,
-      (id) => advanceCollectionTransactionIdentity(state, id),
-    );
+    const hydrated = yield* hydrateCollectionSnapshotStateEffect(state, validatedSnapshot, options);
     yield* dbStore.publish({
       _tag: "CollectionHydrated",
       collection: definition.name,
@@ -447,7 +439,7 @@ export const persistCollectionForReasonEffect = <A extends object, K extends Col
   definition: CollectionDefinition<A, K, E, R>,
   store: CollectionPersistenceStore,
   storeEffect: Effect.Effect<CollectionPersistenceStore>,
-  reason: "load" | "mutation" | "write",
+  reason: "load" | "write",
 ): Effect.Effect<void, E | CollectionSnapshotCodecError | EffectInputCallbackError, R> => {
   const config = collectionPersistenceConfig(definition);
   if (!config) {
@@ -455,11 +447,7 @@ export const persistCollectionForReasonEffect = <A extends object, K extends Col
   }
 
   const shouldPersist =
-    reason === "load"
-      ? config.persistOnLoad !== false
-      : reason === "mutation"
-        ? config.persistOnMutation !== false
-        : config.persistOnWrite !== false;
+    reason === "load" ? config.persistOnLoad !== false : config.persistOnWrite !== false;
 
   if (!shouldPersist) {
     return Effect.succeed(undefined);
@@ -650,15 +638,6 @@ const planCollectionsHydrationEffect = (
     }
 
     const store = yield* storeEffect;
-    for (const { collection, snapshot } of entries) {
-      if (!hasStoreExplicitCollectionSnapshotMarker(collection)) {
-        yield* validateCollectionSnapshotStateHydrationEffect(
-          store.state(collection),
-          snapshot,
-          options,
-        );
-      }
-    }
     return { store, entries };
   });
 

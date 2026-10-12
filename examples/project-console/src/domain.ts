@@ -5,6 +5,7 @@ import {
   AdvanceProjectInput,
   ProjectSchema,
   ProjectSummarySchema,
+  ProjectWorkItemSchema,
   ProjectId as ProjectIdSchema,
   ProjectNameSubmissionResultSchema,
   SubmitProjectNameInput,
@@ -170,14 +171,27 @@ export const ProjectById = Resource.define({
 
 export const ProjectsRef = ProjectList("all");
 
+export const WorkItemsTag = Resource.tag("WorkItems");
+
+export const ProjectWorkItemList = Resource.define({
+  name: "Project.workItems.list",
+  input: Schema.Literal("all"),
+  output: Schema.Array(ProjectWorkItemSchema),
+  load: () => ProjectApi.use((api) => api.listWorkItems()),
+  provides: () => [WorkItemsTag],
+  policy: {
+    retry: Schedule.exponential("50 millis").pipe(Schedule.upTo({ times: 2 })),
+  },
+});
+
+export const WorkItemsRef = ProjectWorkItemList("all");
+
 export const preloadProjectsEffect = Resource.preload(ProjectsRef);
 
 export const preloadProjectRouteEffect = (
   params: ProjectRouteParamsType,
 ): Effect.Effect<void, ProjectRemoteError, ProjectApi> =>
-  Effect.asVoid(
-    Effect.all([Resource.preload(ProjectsRef), Resource.preload(ProjectById(params.id))]),
-  );
+  Effect.asVoid(Resource.preload([ProjectsRef, ProjectById(params.id)]));
 
 export const SubmitProjectName = Action.define({
   name: "Project.name.submit",
@@ -195,21 +209,11 @@ export const SubmitProjectName = Action.define({
       : projectResourceInvalidations(input.id),
 });
 
-export const AdvanceProject = Action.define({
-  name: "Project.advance",
-  input: AdvanceProjectInput,
-  output: ProjectSchema,
-  policy: {
-    concurrency: "exhaust",
-  },
-  run: (input) => ProjectApi.use((api) => api.advance(input)),
-  invalidates: (project) => projectResourceInvalidations(project.id),
-});
-
 /**
  * Actions the Start server serves. The server registers them, and the client
  * runtime's `makeActionTransportLayer` submits them over the network; every
- * other Action (like `AdvanceProject`) runs locally through the same binding.
+ * other Action (like `AdvanceProject` in `project-collections.ts`) runs locally
+ * through the same binding.
  */
 export const projectConsoleActions = [SubmitProjectName] as const;
 

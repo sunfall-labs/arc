@@ -1,62 +1,17 @@
-import { App } from "@sunfall/arc-core";
-import {
-  createStartStreamedHtmlResponse,
-  createRequestHandler,
-  htmlChunk,
-} from "@sunfall/arc-start";
-import { Effect, Stream } from "effect";
-import { createComponent, generateHydrationScript, renderToString } from "@solidjs/web";
-import { Component } from "@sunfall/arc-solid";
-import DocsSite from "./App.js";
-import { docsSiteAppBaseOptions } from "./app-definition.js";
+import { createRequestHandler } from "@sunfall/arc-start";
+import { app } from "./app-definition.js";
 import { DocsContentApiLive } from "./content-live.js";
-import { docsSiteServerRegistry } from "./start-options.js";
+import { docsSiteServerFunctions } from "./content.server.js";
 import "./styles.css";
 
-export const serverApp = App.define({
-  ...docsSiteAppBaseOptions,
+export const handleRequest = createRequestHandler(app, {
   server: DocsContentApiLive,
-  registry: docsSiteServerRegistry,
-});
-
-const shellOpen = (solidHydrationScript: string): string => `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sunfall Arc Cookbook</title>
-    <link rel="stylesheet" href="/src/styles.css" data-sunfall-arc-docs-dev-style />
-    ${solidHydrationScript}
-  </head>
-  <body>
-    <div id="root">`;
-
-const shellClose = (hydrationScript: string): string => `    ${hydrationScript}
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
-</html>`;
-
-export const handleRequest = createRequestHandler(serverApp, {
-  render: ({ request, hydrationPlan, runtime }) =>
-    Effect.gen(function* () {
-      const url = new URL(request.url);
-      const href = `${url.pathname}${url.search}`;
-      // The same tree src/main.tsx hydrates with `Component.launch`, so the
-      // server adds no wrappers the client lacks (hydration keys stay aligned).
-      const body = renderToString(() =>
-        createComponent(Component.embed(DocsSite, runtime), { initialHref: href }),
-      );
-
-      return yield* createStartStreamedHtmlResponse({
-        shell: htmlChunk(shellOpen(generateHydrationScript())),
-        chunks: Stream.make(htmlChunk(`${body}</div>\n`)),
-        hydrationPlan,
-        tail: htmlChunk(shellClose(hydrationPlan.root.script)),
-        headers: {
-          "x-sunfall-arc-docs": "cookbook",
-        },
-      });
-    }),
+  serverFunctions: docsSiteServerFunctions,
+  document: () => ({
+    title: "Sunfall Arc Cookbook",
+    links: [{ rel: "stylesheet", href: "/src/styles.css", "data-sunfall-arc-docs-dev-style": "" }],
+    headers: { "x-sunfall-arc-docs": "cookbook" },
+  }),
 });
 
 export default handleRequest;

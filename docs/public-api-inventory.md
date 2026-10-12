@@ -87,8 +87,8 @@ coverage.
 
 The root export re-exports these local modules:
 
-- `action`, `action-result`, `action-submission`, `action-transport`, `app`,
-  `capability`
+- `action`, `action-result`, `action-submission`, `action-transport`, `app`
+  (registry requirement types only), `capability`
 - `browser-router-history-adapter`, `browser-router-host-controller`,
   `browser-router-kernel`, `browser-router-state`, `effect-like`, `form`,
   `program`, `request-context`
@@ -111,8 +111,8 @@ event/fiber/module seams without exposing mutable cache internals.
 
 Golden-path public groups:
 
-- `App`, `Route`, `Resource`, `Action`, `ActionResult`,
-  `Program`
+- `Route`, `Resource`, `Action`, `ActionResult`, `Program` (the app
+  definition, `App`, is Start's)
 - `Server`, `ServerClient`, request/response context services
 - `Signal`, `Form`, `Capability`
 - `Timeline`: `Timeline.record(options?)` is a scoped Effect returning a
@@ -127,8 +127,8 @@ Golden-path public groups:
 - `ActionTransport` (with `ActionTransportResponse`): the Action counterpart of
   `ServerClient`. Every Action instance looks it up on submit; Actions it
   serves run remotely and the response applies to the submitting runtime,
-  every other Action runs locally. Start's `makeActionTransportLayer(...)` is
-  the provider.
+  every other Action runs locally. Start's `App.launch(app)` provides it for
+  the app's Actions.
 - `RouteView`, `RouteViewTypeId`, and `RouteWithComponent`: route components
   may be renderer component values (Solid's typed `Component`), and
   `Route.withComponent(...)` keeps the attached component's type
@@ -223,16 +223,20 @@ Release decisions:
   `Route.planNavigation(...)` preserve the service requirements and the
   typed preload failure (`Route.PreloadFailure<R>`) declared by routes. A
   route's `error` option (`RouteErrorSchema<E>`, a service-free Schema codec)
-  types its preload failure as `RoutePreloadError<E>`; preloads that fail with
-  anything else are compile errors. `BrowserRouterError<Routes>` is the typed
+  types its preload failure as `RoutePreloadError<E>`; `preload` is inferred
+  from its own body and failures the schema does not cover are compile errors
+  reported on `error` as `RoutePreloadFailureNotInErrorSchema<Undeclared>`
+  (a Promise-returning preload reports `RoutePreloadReturnsPromise`). Without
+  an `error` schema a failing preload reports `RoutePreloadUntypedFailure`
+  (only the failure's `tag`), on server, client, and after hydration alike. `BrowserRouterError<Routes>` is the typed
   failure union in router `Failure` state. `Route.preloadFailureSnapshot`
   and `Route.preloadFailureCauseFromSnapshot` own the
   `RoutePreloadFailureSnapshot` wire form (`RoutePreloadFailureEncoding`):
   schema-encoded JSON with an `error` schema, the failure `_tag` only without
   one, and a `RoutePreloadFailureCodecError` defect when the failure cannot
-  cross with the schema. `CheckedRouteOptions<Options>` and
-  `RouteDefinitionFromOptions<Path, Options>` let builders such as Start file
-  routes reuse `Route.define(...)` option checking and inference. Planning Effects also expose
+  cross with the schema. `RouteFactory<Path>` (`Route.Factory<Path>`)
+  with `RouteDefineOptions<...>` lets builders such as Start file routes reuse
+  `Route.define(...)` option checking and inference. Planning Effects also expose
   `ResourceSnapshotCodecError` when touched resources cannot be serialized into
   hydration payloads. Solid and Start adapters may discharge service
   requirements only by running through a Runtime Spine.
@@ -282,6 +286,14 @@ Release decisions:
   surface. The runtime is required: there is no default-runtime fallback.
   Submissions report `Server.ClientError` beside the Action's own failures,
   because a runtime-provided `ActionTransport` may serve the Action remotely.
+  A `run`, `optimistic`, or `invalidates` callback that breaks its contract is
+  a defect, not part of the error type.
+- Actions are the one mutation path. `optimistic(input, transaction)` patches
+  Signals (`transaction.signal`) and Collection rows
+  (`transaction.insert/update/delete`) for the life of one submission; the
+  transaction commits or rolls back every patch. `ActionOptimisticRows` and
+  `ActionOptimisticRowsTypeId` are the expert seam row stores implement
+  (Collections do); application code never implements it.
 - The internal Action Execution Workflow Module owns callback normalization,
   retry wrapping, optimistic transaction commit/rollback, stale-submission
   interruption, invalidation planning/execution, and visible submission state
@@ -362,11 +374,12 @@ Release decisions:
   failures through the function error schema; client-side failures such as
   `EffectInputCallbackError`, schema errors, and transport errors stay in the
   client error channel.
-- `Resource.LoadError<E>` is public hover vocabulary for Resource state,
-  status, `preload(...)`, `refresh(...)`, and Solid
-  resource handles. It means the declared load error `E` plus
-  `EffectInputCallbackError` from synchronous `load`/`provides` callback
-  throws.
+- Resource state, status, `preload(...)`, `refresh(...)`, and Solid resource
+  readers fail only with the Resource's declared load error `E`. A `load` or
+  `provides` callback that breaks its contract (throws synchronously, returns
+  a Promise or invalid tags) is a defect carrying `EffectInputCallbackError`.
+  `preload`/`refresh` take one ref or an array of refs (loaded concurrently,
+  values in order), the same target shape as `invalidate`.
 - `ResourceKeyError` is public hover vocabulary for the default Resource key
   codec. It tells callers when JSON-compatible values plus Date, URL, Map, and
   Set are not enough and an explicit `key` callback is required.
@@ -411,48 +424,63 @@ Release decisions:
   plumbing halves of `action-submission`, `resource-snapshot-codec`, and
   `route-grammar` are internal Modules exported from
   `@sunfall/arc-core/internal` for sibling adapter packages. App code uses the
-  higher-level `Action`, `Resource`, `Route`, `Server`, and `App.define`
-  facades.
+  higher-level `Action`, `Resource`, `Route`, and `Server` facades (and
+  Start's `App.define`).
 
 ### `@sunfall/arc-start`
 
 The root export is the application surface only (about forty names). It
 includes:
 
-- Local source modules: `action-manifest`, `file-route`, `hydration`,
-  `request-trace`, `server-function-manifest`, `start-action-client`,
-  `start-action-transport`, `start-action-request-codec`, `start-collection-resolution`, `start-fetch`,
-  `start-request-handler`, `start-rpc-client`, `start-transport-endpoints`,
+- Local source modules: `file-route`, `hydration`, `request-trace`,
+  `start-action-client`,
+  `start-action-request-codec`, `start-app`, `start-app-request-handler`,
+  `start-collection-resolution`, `start-document`, `start-fetch`,
+  `start-request-handler`, `start-transport-endpoints`,
   `start-transport-protocol`, `static-client-navigation`, and `streaming`.
-- request handling: `createRequestHandler(app, options)` returns the
+- the app: `App.define({ root, routes, collections?, actions?, client? })`
+  returns the one `AppDefinition` both entries derive from (`AnyAppDefinition`
+  accepts any). The root is a Solid `Component<App.RootProps, never, R>`; the
+  client Layer must provide `R` (minus `AppLaunchServices`) or `App.define`
+  does not compile. `App.launch(app, options?)` (`App.LaunchOptions`: `href`,
+  `hydration`, `transport`) is the browser entry: it builds the runtime from
+  the client Layer plus the action transport and (outside static builds) the
+  RPC `ServerClient`, restores the server's hydration payload with the app's
+  Collections, and hydrates the root; it fails with the client Layer's error,
+  `StartRootMissing`, or a hydration error (`AppLaunchError`).
+- request handling: `createRequestHandler(app, options?)` returns the
   Effect-returning `StartRequestHandler` (one name; there are no
-  `createServerHandler*` or `*Effect` aliases). `CreateRequestHandlerOptions`,
-  `StartRenderContext`, `StartRequestTrace`, and `StartRequestTraceHandler`
-  describe its options, render context, and the `onRequestTrace` hook.
-  `StartRenderContext.hydrationRootScript` is the streamed renderer's root-only
-  script; `legacyHydrationScript` is the full non-streaming payload.
-- HTML responses: `createStartStreamedHtmlResponse`,
-  `createHtmlResponse`, `htmlChunk`, and `StartStreamError`.
-- hydration: `hydrateFromDocument(document, id?, options?)` is the one
-  document hydration entry: an Effect the client entry runs on its runtime
-  (`runtime.provide(...)`) before `Component.launch(..., { hydrate: true })`.
-  There is no synchronous facade.
+  `createServerHandler*` or `*Effect` aliases). `CreateRequestHandlerOptions`
+  holds the server half: `server` (the server Layer, which must provide the
+  root's services), `serverFunctions` (implementations served over RPC),
+  `document`, `endpoints`, and `onRequestTrace`. Page requests render
+  `app.root` into Start's document; there is no render callback and no
+  hand-written HTML shell. `StartRequestTrace` and `StartRequestTraceHandler`
+  describe the trace hook.
+- documents: `document: (context: StartDocumentContext) => StartDocument`
+  sets `lang`, `title`, `meta` and `links` (`StartDocumentTagAttributes`,
+  HTML-escaped), `clientEntry`, and response `headers`. Start emits the
+  doctype, charset and viewport, Solid's hydration bootstrap, the
+  `<div id="root">` app markup, the streamed and root hydration payloads, and
+  the entry script, in that order. `StartStreamError` names an HTML stream
+  failure.
+- hydration: `hydrateFromDocument(document?, options?)` (`options.id` selects
+  the root payload script) is the document hydration primitive `App.launch`
+  runs; there is no positional id and no synchronous facade.
   `StartHydrationPayload`, `StartHydrationDocument`, `StartHydrationError`, and
   the `StartHydration*ParseError` / `StartHydrationPayloadSerializeError`
   classes are public error vocabulary.
-- RPC: `makeRpcClientLayer(options?)` is the single browser `ServerClient`
-  layer constructor (`makeRpcClientLayer()` uses the default transport).
-  Service-backed `StartFetch<E, R>` requires an explicit `transportRuntime`.
+- transports: `App.launch` owns the browser RPC client and the action
+  transport; `App.LaunchOptions.transport` sets their `endpoints`, `fetch`
+  (`StartFetch`, `StartFetchInit`, `StartFetchInput`), and `headers`.
 - file routes: `FileRoute.define(path)(options)` takes the same options as core
   `Route.define(path, options)`; Start checks `path` against the discovered file.
   Static preload hints use core `preloadResources` / `preloadCollections`, and
   runtime work lives in `preload`.
-- actions: `makeActionTransportLayer(options)` (with
-  `ActionTransportLayerOptions`) provides the Core `ActionTransport` for the
-  Actions the server serves, so the single UI binding (Solid's
-  `Component.action(...)`) submits them over the network with the same result
-  and error types; responses hydrate and invalidate the submitting runtime. A
-  serviceful `StartFetch<E, R>` requires a `transportRuntime`. The
+- actions: the app's `actions` are the Actions the server serves; `App.launch`
+  routes their submissions from the single UI binding (Solid's
+  `Component.action(...)`) over the network with the same result and error
+  types, and responses hydrate and invalidate the submitting runtime. The
   `StartAction` namespace keeps only progressive (no-JS) form support:
   `StartAction.form`, `StartAction.decodeFormData`, and
   `StartAction.Form`; plus `StartActionFormOptions`,
@@ -464,8 +492,11 @@ includes:
   `StartStaticNavigationHydrationError`.
 - transport configuration: `StartTransportEndpointOverrides`,
   `StartTransportEndpointPathError`, and `StartTransportEndpointConflictError`.
-- manifest source types for the Vite plugin: `ServerFunctionManifestSource` and
-  `ActionManifestSource`.
+- there are no hand-written manifest sources: the Vite plugin derives the
+  server-function and Action manifests from the server entry's
+  `createRequestHandler(app, { serverFunctions })`, naming each definition by
+  the module export it came from (and a server function's browser client by
+  its `Server.client` export of the same name).
 
 Manifest make/serialize/deserialize, stable ids, client-reference
 classification, generated route module codegen, transport header constants and
@@ -517,7 +548,7 @@ Release decisions:
   and `StartActionInvalidationPlan` with `DevtoolsInvalidationPlan`, so Start
   and Devtools never import each other.
 - The root does not re-export Core symbols; import `Action`, `Resource`,
-  `Route`, `Server`, `Signal`, and `App.define` from `@sunfall/arc-core`.
+  `Route`, `Server`, and `Signal` from `@sunfall/arc-core`.
 - `virtual:sunfall-arc/routes` intentionally exposes broad route maps; apps that
   need exact literal route ids, paths, params, search, or href options import
   the written generated route definitions artifact.
@@ -533,7 +564,7 @@ The root export includes:
   `collection-persistence`, `collection-snapshot-codec`, `query-builder`,
   `query-plan`, and `sqlite-persistence`.
 - Namespace-backed source modules: `collection-contract`, `collection-runtime`,
-  `flush-policy`, and `live-query-collection` back the Collection namespace
+  and `live-query-collection` back the Collection namespace
   types and functions; the root re-exports no flat aliases from them.
 - One path per concern: the root exports only the `Collection`, `Query`, and
   `SQLitePersistence` namespaces plus tagged error classes
@@ -543,8 +574,10 @@ The root export includes:
   `CollectionStorageError`, `QueryEvaluationError`, `UnsupportedLiveQuery`,
   `SQLitePersistence*` errors).
 - `Collection.define({ ..., sync })` is the single way to back a collection;
-  `sync` is an inline `Collection.SyncAdapter` or a `Resource.Ref`. Remote rows
-  arrive through `sync.changes` or the definition's `applyChanges(...)`.
+  `sync` is an inline `Collection.SyncAdapter` (reads only) or a
+  `Resource.Ref`. Remote rows arrive through `sync.changes` or the definition's
+  `applyChanges(...)`; server data changes only through Actions, whose
+  `optimistic` patches the rows.
 - `@sunfall/arc-db/internal` (Internal) carries adapter plumbing for Solid DB,
   Start, and devtools: `bindCollectionRuntimeEffect`,
   `makeCollectionReactivePreloadController`, `collectCollectionsEffect`,
@@ -562,15 +595,9 @@ Release decisions:
   Statement rows fail as `SQLitePersistenceInvalidRow` when SQLite clients
   return malformed field types instead of being coerced at the Adapter
   boundary.
-- Mutation, transaction, and snapshot types are expert public for tests,
-  persistence, and sync adapters.
-- `Collection.FlushAllPendingMutationsError`,
-  `Collection.FlushAllPendingMutationsRequirements`,
-  `Collection.BackgroundSyncError`, and
-  `Collection.BackgroundSyncRequirements` mirror the computed channels from the
-  flush policy Module. Adapter and app code can hover the `Collection.*` facade
-  instead of importing internal flush-policy names to understand handler, skip,
-  adapter, and runtime requirements.
+- Snapshot types are expert public for tests, persistence, and SSR. A
+  snapshot carries the synced rows only; optimistic Action patches never cross
+  it.
 - The Runtime Collection Store Module owns runtime/request-local store creation,
   Resource Store module-registry lookup, initial data materialization,
   diagnostics snapshots, event subscriptions, and synchronous store override
@@ -579,23 +606,21 @@ Release decisions:
   writes, change-feed batch application, row metadata, hydration/persistence
   facades, event publication, and live-query-visible versioning together while
   delegating store lookup/lifecycle to the Runtime Collection Store Module,
-  load/refresh ordering to the Collection Sync Load Policy Module, and queued
-  optimistic mutation execution to the Collection Mutation Workflow Module. Sync
-  adapters emit batches and loader/mutation Effects; they do not own store
-  mutation or in-flight load policy.
+  load/refresh ordering to the Collection Sync Load Policy Module, and the
+  optimistic layer model (synced base plus per-submission patches) to the
+  Collection State Module. Sync adapters emit batches and loader Effects; they
+  do not own store mutation or in-flight load policy.
 - The internal Collection Sync Load Policy Module owns `preload(...)` and
   `refresh(...)` orchestration: in-flight `Deferred` ownership/joining,
   stale generation checks, restore-before-load, load/refresh selection, retry
   scheduling, row replacement, load lifecycle events, and load persistence. It
   is not exported; public access remains the same Collection load/refresh
   Effects.
-- The internal Collection Mutation Workflow Module owns `insert(...)`,
-  `update(...)`, `delete(...)`, and `flushPendingMutations()`
-  orchestration: mutation row ingress, transaction construction, handler DTO
-  detachment, active `Deferred` attempt joining, retry scheduling, optimistic
-  commit/rollback, mutation lifecycle events, mutation persistence, and restored
-  pending replay. It is not exported; public access remains the same Collection
-  mutation and flush Effects.
+- Collection Runtime implements the `ActionOptimisticRows` seam: an Action's
+  `transaction.insert/update/delete` ingests rows through the output schema,
+  layers them over the synced base as patches owned by that submission, and
+  hands Core a commit (fold into the base) and rollback (drop and rebase). A
+  rejected row is a defect. Patches skip persistence and store events.
 - The internal Collection Change Feed Runtime Module owns scoped feed
   subscription lifecycle, dispatcher consumer fibers, adapter
   subscribe/unsubscribe normalization, default write-option application,
@@ -702,8 +727,7 @@ Release decisions:
   package seam because public access remains through the DB root and
   `Collection.sqlite*` helpers.
 - `Collection.resourceSyncAdapter(...)` returns a sync adapter whose load and
-  refresh errors use `Resource.LoadError<E>`, because Resource callbacks can
-  fail before the underlying user error channel `E` is reached.
+  refresh errors are the Resource's declared error `E`.
   Its `follow` stream is `Resource.changes(ref)`, so a loaded collection
   reconciles its synced rows on every later success of the Resource.
 - `Resource.changes(ref)` streams a ref's settled success values (the cached
@@ -922,11 +946,14 @@ Release decisions:
   the first value and keeps the current or stale value across refreshes, so
   content stays mounted), and `waiting(input)` / `failure(input)` are the
   value-free status accessors.
-- `Component.action(definition)` returns an `ActionHandle` (`result`, `input`,
-  `submit`, `reset`); `submit(input)` and `reset()` return Effects, which event
-  handlers run through `Component.callback` (handling failures there). A
-  runtime-provided `ActionTransport` (Start's `makeActionTransportLayer`) makes
-  the same handle submit remotely.
+- `Component.action(definition)` returns an `ActionHandle` (`waiting`,
+  `failure`, `result`, `input`, `submit`, `reset`); `waiting()` / `failure()`
+  use the Resource reader's status names, and `result()` keeps the full
+  `AsyncResult`. `submit(input)` and `reset()` return Effects, which event
+  handlers run through `Component.callback` (handling failures there: a
+  submission's failures belong to its caller, never to the Component's `E`). A
+  runtime-provided `ActionTransport` (provided by Start's `App.launch` for the
+  app's Actions) makes the same handle submit remotely.
 - `Component.program(definition, options?)` returns a `ProgramHandle` whose
   `model()` is a fine-grained, deeply read-only Solid projection
   (`Component.ProgramModelView<Model>`) reconciled from the committed model
@@ -951,9 +978,14 @@ Release decisions:
   href building, matching, and initial matched-state policy. Solid detects
   existing-DOM hydration by default and also accepts an explicit `hydrating`
   option for tests or custom hosts.
-- `RouterOutletProps<Routes, ER>` preserves route-specific `match` typing for
-  pending and failure renderers. The older `RouterOutletProps<ER>` form remains
-  usable for broad route-agnostic renderers.
+- `RouterOutlet` takes the `router` it renders; `RouterOutletProps<Routes, ER>`
+  types its pending, failure, and not-found renderers from that router, so no
+  type arguments are needed. `RouterProvider` takes only `router` and
+  `children` (defaulting to `<RouterOutlet router={router} />`). Router
+  options accept `undefined` as "absent".
+- `Route.withComponent(route, component, props?)` attaches a route component:
+  without `props` it takes `Route.Props<typeof route>`; with `props` the
+  mapper turns route props into the component's props.
 - `RouterLink` is the typed anchor path: it builds `Route.href(...)`, preloads on
   hover through the router runtime, preserves modified-click/browser-handled
   behavior, and navigates only plain left clicks. The Solid adapter delegates
@@ -983,14 +1015,15 @@ The root export includes:
 - `SolidDb.collection(definition, options?)` and
   `SolidDb.liveQuery(query, options?)`: setup-time Component bindings (built on
   `Component.instance`) returning `CollectionHandle` / `LiveQueryHandle`, each
-  with a single `result()` `AsyncResult` accessor beside rows/data, plus
-  `CollectionBindingOptions` and `LiveQueryBindingOptions`. The collection's or
-  query's services join the component's `R`. `Collection` and `Query` are
-  imported from `@sunfall/arc-db` only.
-- Collection handles are reactive reads only (`rows`, `result`, `get`,
-  `index`, `pendingMutations`, `preloadFailure`); writes run the definition's
-  Effects through `Component.callback(...)`. A live query's factory runs
-  tracked, so signal/prop reads rebuild the query (no `deps` option).
+  with `waiting()` / `failure()` status beside rows (the vocabulary every
+  binding uses), plus `CollectionBindingOptions` and `LiveQueryBindingOptions`.
+  The collection's or query's declared load errors join the component's `E`
+  (a never-loaded collection whose load failed throws to `<Errored>`) and its
+  services join `R`. `Collection` and `Query` are imported from
+  `@sunfall/arc-db` only.
+- Collection handles are reactive reads (`rows`, `get`, `index`, `waiting`,
+  `failure`); Actions change the rows. A live query's factory runs tracked, so
+  signal/prop reads rebuild the query (no `deps` option).
 
 Release decisions:
 

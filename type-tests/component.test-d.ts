@@ -127,8 +127,7 @@ type _bound = Assert<
 declare const reader: Component.ResourceReader<string, string, ProjectNotFound>;
 const readerValue: string = reader("atlas");
 const readerWaiting: boolean = reader.waiting("atlas");
-const readerFailure: Cause.Cause<Resource.LoadError<ProjectNotFound>> | undefined =
-  reader.failure("atlas");
+const readerFailure: Cause.Cause<ProjectNotFound> | undefined = reader.failure("atlas");
 void readerValue;
 void readerWaiting;
 void readerFailure;

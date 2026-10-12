@@ -29,7 +29,7 @@ while examples, diagnostics, and release gates are hardened.
 - Request-local runtimes and resource stores for SSR, RPC, Start actions, and
   streamed responses.
 - Local-first Collections with persistence, sync adapter seams, optimistic
-  mutation queues, and live query materialization.
+  rows patched by Actions, and live query materialization.
 - Whole-app Timeline recording and replay, JSON-safe devtools summaries,
   causal graphs, request
   traces, panel data models, a browser-embeddable panel renderer, a checked

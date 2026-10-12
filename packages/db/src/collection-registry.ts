@@ -34,7 +34,6 @@ export const collectionDefinitionDiagnostics = (
   return {
     name: options.name,
     readOnly: definition.readOnly === true,
-    inputSchema: options.input !== undefined,
     outputSchema: options.output !== undefined,
     initialData: options.initialData !== undefined,
     indexes: Array.from(collectionIndexes(options), ([name, index]) => ({
@@ -42,11 +41,6 @@ export const collectionDefinitionDiagnostics = (
       unique: index.unique === true,
     })).sort((left, right) => left.name.localeCompare(right.name)),
     load: sync.load !== undefined,
-    handlers: {
-      insert: sync.onInsert !== undefined,
-      update: sync.onUpdate !== undefined,
-      delete: sync.onDelete !== undefined,
-    },
     policy: {
       retry: options.policy?.retry !== undefined,
     },
@@ -58,7 +52,6 @@ export const collectionDefinitionDiagnostics = (
       restoreOnPreload: persistence !== undefined && persistence.restoreOnPreload !== false,
       loadAfterRestore: persistence?.loadAfterRestore === true,
       persistOnLoad: persistence !== undefined && persistence.persistOnLoad !== false,
-      persistOnMutation: persistence !== undefined && persistence.persistOnMutation !== false,
       persistOnWrite: persistence !== undefined && persistence.persistOnWrite !== false,
     },
   };

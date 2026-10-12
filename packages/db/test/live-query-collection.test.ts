@@ -1313,7 +1313,6 @@ describe("Collection.liveQuery", () => {
               origin: "remote",
             },
           ],
-          pendingMutations: [],
           updatedAt: 1,
         };
         const failure = yield* Effect.flip(Projects.hydrate(snapshot));
@@ -1724,7 +1723,6 @@ describe("Collection.liveQuery", () => {
         const snapshot: Collection.Snapshot<ProjectCard, string> = {
           name: "ProjectCards.live-query-collection.readonly-hydrate",
           rows: [],
-          pendingMutations: [],
           updatedAt: 1,
         };
 
@@ -2051,37 +2049,4 @@ describe("Collection.liveQuery", () => {
         }),
       ),
     ));
-
-  it("rejects local mutations because derived collections are read-only", () => {
-    const Projects = Collection.define<Project>({
-      name: "Projects.live-query-collection.readonly-source",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-    });
-    const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
-      name: "ProjectCards.live-query-collection.readonly",
-      getKey: (project) => project.id,
-      query: (query) =>
-        query.from({ project: Projects }).select(({ project }) => ({
-          id: project.id,
-          name: project.name,
-          progress: project.progress,
-        })),
-    });
-
-    return Effect.runPromise(
-      Effect.exit(ActiveProjectCards.update("atlas", { progress: 90 })).pipe(
-        Effect.tap((exit) =>
-          Effect.sync(() => {
-            expect(Exit.isFailure(exit)).toBe(true);
-            const failure = Exit.isFailure(exit)
-              ? exit.cause.reasons.find((reason) => reason._tag === "Fail")
-              : undefined;
-            expect(failure?.error).toBeInstanceOf(ReadonlyCollectionMutation);
-          }),
-        ),
-        Effect.asVoid,
-      ),
-    );
-  });
 });

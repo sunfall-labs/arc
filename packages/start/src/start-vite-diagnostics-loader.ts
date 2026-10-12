@@ -18,7 +18,7 @@ import {
   defaultServerEntry,
   normalizeStartManifestIterableOptions,
   withDiscoveredFileRoutes,
-  type SunfallArcStartOptions,
+  type StartManifestOptions,
 } from "./start-manifest-wall.js";
 import {
   appGraphRuntimeDiagnosticsVirtualModuleId,
@@ -40,7 +40,7 @@ export interface LoadStartAppGraphDiagnosticsOptions {
   readonly root?: string;
   readonly configFile?: string | false;
   readonly mode?: string;
-  readonly start?: SunfallArcStartOptions;
+  readonly start?: StartManifestOptions;
   readonly vite?: InlineConfig;
 }
 
@@ -94,12 +94,12 @@ interface SunfallArcStartVirtualModulesPlugin {
 }
 
 export const sunfallArcStartVirtualModules = (
-  options: SunfallArcStartOptions = {},
+  options: StartManifestOptions = {},
 ): SunfallArcStartVirtualModulesPlugin => {
   const normalizedOptions = normalizeStartManifestIterableOptions(options);
   const serverEntry = normalizedOptions.serverEntry ?? defaultServerEntry;
   let viteRoot = process.cwd();
-  const currentOptions = (): SunfallArcStartOptions =>
+  const currentOptions = (): StartManifestOptions =>
     withDiscoveredFileRoutes({ ...normalizedOptions, serverEntry }, viteRoot);
 
   return {

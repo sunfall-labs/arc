@@ -1,13 +1,12 @@
-import { EffectInputCallbackError, type EffectInput } from "@sunfall/arc-core";
+import {
+  EffectInputCallbackError,
+  type ActionOptimisticRowUpdate,
+  type EffectInput,
+} from "@sunfall/arc-core";
 import { invokeEffectInput } from "@sunfall/arc-core/internal";
 import { Effect } from "effect";
 import { CollectionRowKeyChanged } from "./collection-errors.js";
-import type {
-  AnyCollection,
-  CollectionDefinition,
-  CollectionKey,
-  CollectionUpdate,
-} from "./collection-contract.js";
+import type { AnyCollection, CollectionDefinition, CollectionKey } from "./collection-contract.js";
 import type { CollectionState } from "./collection-state.js";
 import { applyCollectionUpdate } from "./collection-value-detachment.js";
 import type { RuntimeCollectionStore } from "./runtime-collection-store.js";
@@ -65,6 +64,6 @@ export const ensureCollectionRowKey = <A extends object, K extends CollectionKey
 export const applyCollectionUpdateEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   previous: A,
-  update: CollectionUpdate<A>,
+  update: ActionOptimisticRowUpdate<A>,
 ): Effect.Effect<ReturnType<typeof applyCollectionUpdate<A>>, EffectInputCallbackError> =>
   collectionProjectionEffect(definition, "update", () => applyCollectionUpdate(previous, update));

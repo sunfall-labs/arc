@@ -158,7 +158,6 @@ describe("Start streaming", () => {
               origin: "remote",
             },
           ],
-          pendingMutations: [],
           updatedAt: 2,
         },
       ],

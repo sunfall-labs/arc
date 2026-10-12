@@ -307,62 +307,217 @@ const forkRouteLazyComponentSuspense = <RuntimeError, E = never>(
     : runtime.runFork(pendingEffect.pipe(Effect.asVoid));
 };
 
-/**
- * Route configuration with optional schema decoding and Effect-first preload work.
- *
- * `preload` can read resources or run Effects before navigation/render.
- * Declare `preloadResources` or `preloadCollections` when adapters need static
- * preload hints.
- */
-export interface RouteOptions<
-  Path extends string,
-  Params,
-  Search,
-  PreloadRequirements = never,
-  PreloadError = unknown,
+/** Props a route passes to its component: decoded params and search plus the match. */
+export interface RouteComponentProps<
+  R extends RouteDefinition<string, unknown, unknown, unknown, unknown> = RouteDefinition<
+    string,
+    unknown,
+    unknown,
+    unknown,
+    unknown
+  >,
 > {
+  readonly params: RouteParams<R>;
+  readonly search: RouteSearch<R>;
+  readonly match: RouteMatch<R>;
+}
+
+/**
+ * Runtime options a route definition carries.
+ *
+ * `Route.define(path, options)` checks the options' types (`RouteDefineOptions`);
+ * the stored options stay loosely typed and the definition's generics carry
+ * the precise params, search, preload services, and preload failure.
+ */
+export interface RouteOptions<Path extends string, Params, Search, PreloadRequirements = never> {
   /** Optional schema that decodes path params after route matching. */
   readonly params?: AnySchema<Params>;
   /** Optional schema that decodes URL search values after route matching. */
   readonly search?: AnySchema<Search>;
+  /** Optional schema for the typed preload failure; see `RouteDefineOptions.error`. */
+  readonly error?: RouteErrorSchema<any>;
+  /** Effect-first work run before navigation/render. */
+  readonly preload?: (
+    context: RouteContext<RouteDefinition<Path, Params, Search, PreloadRequirements, any>>,
+  ) => RoutePreloadResult<PreloadRequirements, unknown>;
+  /** Static resource preload hints used by Start diagnostics and devtools. */
+  readonly preloadResources?: readonly RoutePreloadResourceInput[];
+  /** Static collection preload hints used by Start diagnostics and devtools. */
+  readonly preloadCollections?: readonly RoutePreloadCollectionInput[];
+  /** Framework-owned component value attached by `Route.withComponent(...)`. */
+  readonly component?: unknown;
+  /** Maps the route's component props to the attached component's props. */
+  readonly componentProps?: (props: RouteComponentProps<any>) => unknown;
+}
+
+type IsUndefined<T> = [T] extends [undefined] ? true : false;
+
+type ParamsFromSchema<Path extends string, ParamsSchema> =
+  IsUndefined<ParamsSchema> extends true ? ParamsForPath<Path> : SchemaType<ParamsSchema>;
+
+type SearchFromSchema<SearchSchema> =
+  IsUndefined<SearchSchema> extends true ? Record<string, never> : SchemaType<SearchSchema>;
+
+/**
+ * Failure of a route preload whose route declares no `error` schema.
+ *
+ * Without a schema only the failure's `_tag` can cross the wire, so the
+ * router reports every schema-less preload failure as this value, on the
+ * server, on the client, and after hydration alike. Declare an `error` schema
+ * to keep the failure's data.
+ */
+export class RoutePreloadUntypedFailure extends Data.TaggedError("RoutePreloadUntypedFailure")<{
+  /** `_tag` of the original failure, when it had one. */
+  readonly tag?: string;
+}> {
+  override get message(): string {
+    return this.tag === undefined
+      ? "Route preload failed (declare an `error` schema to keep the failure)"
+      : `Route preload failed with "${this.tag}" (declare an \`error\` schema to keep its data)`;
+  }
+}
+
+/**
+ * Typed preload failure for a route: the `error` schema's type when one is
+ * declared, `RoutePreloadUntypedFailure` when the preload can fail without
+ * one, and `never` when the preload cannot fail.
+ */
+type PreloadFailureFor<ErrorSchema, Out> = [Out] extends [never]
+  ? never
+  : IsUndefined<ErrorSchema> extends true
+    ? [EffectInputError<Out>] extends [never]
+      ? never
+      : RoutePreloadUntypedFailure
+    : SchemaType<ErrorSchema>;
+
+/**
+ * Readable type error: the route preload can fail with `Undeclared`, which
+ * the route's `error` schema does not cover. Widen the schema (e.g.
+ * `Schema.Union([...])`) or handle those failures in the preload.
+ */
+export interface RoutePreloadFailureNotInErrorSchema<Undeclared> {
+  readonly "~route-error": "This route's preload can fail with errors its `error` schema does not declare";
+  readonly undeclared: Undeclared;
+}
+
+/**
+ * Readable type error: the route preload returned a Promise-shaped value.
+ * Return an Effect instead, adapting host Promise work with `Effect.tryPromise`.
+ */
+export interface RoutePreloadReturnsPromise {
+  readonly "~route-preload": "Route preload must return void or an Effect, not a Promise";
+}
+
+type RoutePreloadCheck<ErrorSchema, Out> = [Out] extends [never]
+  ? unknown
+  : [EnsureEffectInput<Out>] extends [never]
+    ? { readonly preload: RoutePreloadReturnsPromise }
+    : IsUndefined<ErrorSchema> extends true
+      ? unknown
+      : [EffectInputError<Out>] extends [SchemaType<ErrorSchema>]
+        ? unknown
+        : {
+            readonly error: RoutePreloadFailureNotInErrorSchema<
+              Exclude<EffectInputError<Out>, SchemaType<ErrorSchema>>
+            >;
+          };
+
+/**
+ * Options accepted by `Route.define(path, options)` (and Start's
+ * `FileRoute.define(path)(options)`).
+ *
+ * `preload` is inferred from its own body: its params come from `params` (or
+ * the path), its services and failures from what it returns. With an `error`
+ * schema the inferred failure must be covered by the schema's type; a
+ * mismatch is reported on `error` as `RoutePreloadFailureNotInErrorSchema`.
+ */
+export type RouteDefineOptions<
+  Path extends string,
+  ParamsSchema,
+  SearchSchema,
+  ErrorSchema,
+  Out,
+> = {
+  /** Optional schema that decodes path params after route matching. */
+  readonly params?: ParamsSchema;
+  /** Optional schema that decodes URL search values after route matching. */
+  readonly search?: SearchSchema;
   /**
-   * Optional schema for the typed preload failure. When present, `preload`
-   * may fail only with this schema's type, and Start sends a server-rendered
-   * failure to the client encoded with it. Without it only the failure `_tag`
-   * crosses the wire.
+   * Optional schema for the typed preload failure, like Effect RPC's `error`.
+   * When present, `preload` may fail only with this schema's type, and Start
+   * sends a server-rendered failure to the client encoded with it. Without
+   * it a failing preload reports `RoutePreloadUntypedFailure` (its `_tag` only).
    */
-  readonly error?: RouteErrorSchema<PreloadError>;
+  readonly error?: ErrorSchema;
   /**
    * Effect-first work run before navigation/render. Promise returns are
    * rejected; synchronous throws are defects, not typed failures.
    */
   readonly preload?: (
-    context: RouteContext<RouteDefinition<Path, Params, Search, PreloadRequirements>>,
-  ) => RoutePreloadResult<PreloadRequirements, PreloadError>;
+    context: RouteContext<
+      RouteDefinition<
+        Path,
+        ParamsFromSchema<Path, ParamsSchema>,
+        SearchFromSchema<SearchSchema>,
+        any,
+        any
+      >
+    >,
+  ) => Out;
   /** Static resource preload hints used by Start diagnostics and devtools. */
   readonly preloadResources?: readonly RoutePreloadResourceInput[];
   /** Static collection preload hints used by Start diagnostics and devtools. */
   readonly preloadCollections?: readonly RoutePreloadCollectionInput[];
-  /** Framework-owned component value attached by UI adapters. */
-  readonly component?: unknown;
-}
+  /**
+   * The route's component as a plain render function taking this route's
+   * `Route.Props`, or a lazy component. Start file routes declare it here so
+   * the Vite plugin can code-split it. A typed `Component` (whose services and
+   * failures the router must check) or a component taking mapped props is
+   * attached with `Route.withComponent(route, component, props?)`.
+   */
+  readonly component?:
+    | ((props: DefinedRouteProps<Path, ParamsSchema, SearchSchema>) => unknown)
+    | RouteLazyComponent<unknown, unknown>;
+} & RoutePreloadCheck<ErrorSchema, Out>;
 
-export interface RouteOptionsInput {
-  readonly params?: AnySchema<unknown>;
-  readonly search?: AnySchema<unknown>;
-  readonly error?: RouteErrorSchema;
-  readonly preload?: (context: any) => RoutePreloadResult<unknown>;
-  readonly preloadResources?: readonly RoutePreloadResourceInput[];
-  readonly preloadCollections?: readonly RoutePreloadCollectionInput[];
-  readonly component?: unknown;
+/** Component props of the route `Route.define(path, options)` creates. */
+type DefinedRouteProps<Path extends string, ParamsSchema, SearchSchema> = RouteComponentProps<
+  RouteDefinition<
+    Path,
+    ParamsFromSchema<Path, ParamsSchema>,
+    SearchFromSchema<SearchSchema>,
+    any,
+    any
+  >
+>;
+
+/**
+ * Typed route constructor for one path: `Route.define(path, options)` and
+ * Start's `FileRoute.define(path)` share it.
+ */
+export interface RouteFactory<Path extends string> {
+  <
+    ParamsSchema extends AnySchema | undefined = undefined,
+    SearchSchema extends AnySchema | undefined = undefined,
+    ErrorSchema extends RouteErrorSchema<any> | undefined = undefined,
+    Out = never,
+  >(
+    options: RouteDefineOptions<Path, ParamsSchema, SearchSchema, ErrorSchema, Out>,
+  ): RouteDefinition<
+    Path,
+    ParamsFromSchema<Path, ParamsSchema>,
+    SearchFromSchema<SearchSchema>,
+    EffectInputRequirements<Out>,
+    PreloadFailureFor<ErrorSchema, Out>
+  >;
 }
 
 /**
  * Runtime route object produced by `route`.
  *
- * `PreloadError` is the typed preload failure: `never` for routes without
- * `preload`, the `error` schema's type when one is declared, and `unknown`
- * for preloads without an `error` schema.
+ * `PreloadError` is the typed preload failure: the `error` schema's type when
+ * one is declared, `RoutePreloadUntypedFailure` for a preload that can fail
+ * without one, and `never` when the route cannot fail to preload.
  */
 export interface RouteDefinition<
   Path extends string,
@@ -372,7 +527,9 @@ export interface RouteDefinition<
   PreloadError = unknown,
 > {
   readonly path: Path;
-  readonly options: RouteOptions<Path, Params, Search, PreloadRequirements, PreloadError>;
+  readonly options: RouteOptions<Path, Params, Search, PreloadRequirements>;
+  /** Phantom: the route's typed preload failure (see `Route.PreloadFailure`). */
+  readonly "~preloadFailure"?: (_: never) => PreloadError;
   /** Builds an href from typed path params and optional search values. */
   build(params: Params, search?: Partial<Search>): string;
   /**
@@ -384,28 +541,6 @@ export interface RouteDefinition<
    */
   match(input: string | URL): RouteMatch<this> | undefined;
 }
-
-type ParamsFromOptions<Path extends string, Options> = Options extends {
-  readonly params: infer Schema;
-}
-  ? SchemaType<Schema>
-  : ParamsForPath<Path>;
-
-type SearchFromOptions<Options> = Options extends { readonly search: infer Schema }
-  ? SchemaType<Schema>
-  : Record<string, never>;
-
-type PreloadRequirementsFromOptions<Options> = Options extends {
-  readonly preload: (...args: any) => infer Out;
-}
-  ? EffectInputRequirements<Out>
-  : never;
-
-type PreloadErrorFromOptions<Options> = Options extends { readonly preload: unknown }
-  ? Options extends { readonly error: infer ErrorSchema }
-    ? SchemaType<ErrorSchema>
-    : unknown
-  : never;
 
 /** Params type carried by a route definition. */
 export type RouteParams<R> =
@@ -514,7 +649,7 @@ const routePreloadCauseTag = (cause: unknown): string | undefined =>
     : undefined;
 
 const routePreloadCauseSummary = (cause: unknown): string | undefined =>
-  routePreloadCauseTag(cause) ??
+  (cause instanceof RoutePreloadUntypedFailure ? cause.tag : routePreloadCauseTag(cause)) ??
   (cause instanceof Error && cause.message.length > 0 ? cause.message : undefined);
 
 /** A matched route's preload failed; `cause` is the typed preload failure. */
@@ -584,36 +719,6 @@ export class RouteNavigationError extends Data.TaggedError("RouteNavigationError
 export type RoutePreloadPlanError<E = unknown> = RoutePreloadError<E> | ResourceSnapshotCodecError;
 
 export type RouteNavigationPlanError<E = unknown> = RouteNavigationError | RoutePreloadPlanError<E>;
-
-type CheckedRoutePreloadOutput<Out, Options> = Options extends {
-  readonly error: infer ErrorSchema;
-}
-  ? [EffectInputError<Out>] extends [SchemaType<ErrorSchema>]
-    ? EnsureEffectInput<Out>
-    : Effect.Effect<unknown, SchemaType<ErrorSchema>, EffectInputRequirements<Out>>
-  : EnsureEffectInput<Out>;
-
-type CheckedRoutePreload<Options> = Options extends {
-  readonly preload: (...args: infer Args) => infer Out;
-}
-  ? { readonly preload: (...args: Args) => CheckedRoutePreloadOutput<Out, Options> }
-  : {};
-
-/**
- * Route options checked against their preload callback: Promise returns are
- * rejected, and with an `error` schema the preload may fail only with that
- * schema's type.
- */
-export type CheckedRouteOptions<Options> = Options & CheckedRoutePreload<Options>;
-
-/** Route definition that `Route.define(path, options)` returns for `Options`. */
-export type RouteDefinitionFromOptions<Path extends string, Options> = RouteDefinition<
-  Path,
-  ParamsFromOptions<Path, Options>,
-  SearchFromOptions<Options>,
-  PreloadRequirementsFromOptions<Options>,
-  PreloadErrorFromOptions<Options>
->;
 
 const appendSearch = (path: string, search: Record<string, unknown> | undefined): string => {
   if (!search) {
@@ -748,6 +853,44 @@ const orderedRouteDefinitions = <
     })
     .map((entry) => entry.definition);
 
+const untypedPreloadFailure = (cause: unknown): RoutePreloadUntypedFailure => {
+  if (cause instanceof RoutePreloadUntypedFailure) {
+    return cause;
+  }
+  const tag = routePreloadCauseTag(cause);
+  return new RoutePreloadUntypedFailure(tag === undefined ? {} : { tag });
+};
+
+const makeRouteDefinition = (
+  path: string,
+  options: RouteOptions<string, unknown, unknown, unknown>,
+): RouteDefinition<string, unknown, unknown, unknown, unknown> => {
+  const definition: RouteDefinition<string, unknown, unknown, unknown, unknown> = {
+    path,
+    options,
+    build(params, search) {
+      const compiled = buildRoutePath(path, params as Record<string, unknown>);
+      return appendSearch(compiled, search as Record<string, unknown> | undefined);
+    },
+    match(input) {
+      const url = parseRouteUrl(input);
+      const params = matchRoutePath(path, url.pathname);
+      if (!params) {
+        return undefined;
+      }
+
+      return {
+        route: definition,
+        params: decode(options.params, params),
+        search: decode(options.search, searchObject(url.searchParams)),
+        pathname: url.pathname,
+        href: `${url.pathname}${url.search}`,
+      } as RouteMatch<typeof definition>;
+    },
+  };
+  return definition;
+};
+
 /** Helpers for matching, building, and preloading route definitions. */
 export namespace Route {
   export type Definition<
@@ -780,7 +923,7 @@ export namespace Route {
   /** Service requirements needed by a route preload callback. */
   export type PreloadRequirements<R> = RoutePreloadRequirements<R>;
 
-  /** Typed preload failure of a route: its `error` schema type, `unknown` without one, `never` without preload. */
+  /** Typed preload failure of a route: its `error` schema type, `RoutePreloadUntypedFailure` without one, `never` when it cannot fail. */
   export type PreloadFailure<R> = RoutePreloadFailure<R>;
 
   export type HrefOptions<R extends Definition<string, unknown, unknown, any>> =
@@ -806,19 +949,17 @@ export namespace Route {
   /** Error union for matching and preloading a navigation to one of the routes `R`. */
   export type NavigationError<R = Definition> = RouteNavigationPlanError<PreloadFailure<R>>;
 
-  export type Props<R> =
-    R extends RouteDefinition<infer _Path, infer Params, infer Search, infer _PreloadRequirements>
-      ? {
-          readonly params: Params;
-          readonly search: Search;
-          readonly match: Match<R>;
-        }
-      : never;
+  /** Props a route passes to its component: decoded params and search plus the match. */
+  export type Props<R extends Definition<string, unknown, unknown, any, any>> =
+    RouteComponentProps<R>;
 
-  /** A route component: a plain render function or a renderer component value. */
-  export type Component<R extends Definition<string, unknown, unknown, any>> =
-    | ((props: Props<R>) => unknown)
-    | RouteView<Props<R>>;
+  /** A component taking props `P`: a plain render function or a renderer component value. */
+  export type ComponentFor<P> = ((props: P) => unknown) | RouteView<P>;
+
+  /** A route component taking the route's own `Props<R>`. */
+  export type Component<R extends Definition<string, unknown, unknown, any>> = ComponentFor<
+    Props<R>
+  >;
 
   /** The component attached to a route by `withComponent` (`never` when none is known). */
   export type ComponentOf<R> =
@@ -838,15 +979,16 @@ export namespace Route {
   > = RouteLazyComponentModule<ComponentValue, ExportName>;
 
   /**
-   * Eager or lazy component descriptor accepted by a route.
+   * Eager or lazy component descriptor taking props `P`.
    *
    * `E` is the lazy importer error channel. It defaults to `unknown` because
    * attaching a component is render-only; callers that need the lazy preload
    * error channel should work with `Route.LazyComponent<Component, E>` directly.
    */
-  export type ComponentInput<R extends Definition<string, unknown, unknown, any>, E = unknown> =
-    | Component<R>
-    | LazyComponent<Component<R>, E>;
+  export type ComponentInput<P, E = unknown> = ComponentFor<P> | LazyComponent<ComponentFor<P>, E>;
+
+  /** Route constructor for one path; see `RouteFactory`. */
+  export type Factory<Path extends string> = RouteFactory<Path>;
 
   /**
    * Defines a typed route with path params, optional search decoding, and preload work.
@@ -865,52 +1007,27 @@ export namespace Route {
   export function define<const Path extends string>(
     path: Path,
   ): RouteDefinition<Path, ParamsForPath<Path>, Record<string, never>, never, never>;
-  export function define<const Path extends string, const Options extends RouteOptionsInput>(
+  export function define<
+    const Path extends string,
+    ParamsSchema extends AnySchema | undefined = undefined,
+    SearchSchema extends AnySchema | undefined = undefined,
+    ErrorSchema extends RouteErrorSchema<any> | undefined = undefined,
+    Out = never,
+  >(
     path: Path,
-    options: CheckedRouteOptions<Options>,
+    options: RouteDefineOptions<Path, ParamsSchema, SearchSchema, ErrorSchema, Out>,
   ): RouteDefinition<
     Path,
-    ParamsFromOptions<Path, Options>,
-    SearchFromOptions<Options>,
-    PreloadRequirementsFromOptions<Options>,
-    PreloadErrorFromOptions<Options>
+    ParamsFromSchema<Path, ParamsSchema>,
+    SearchFromSchema<SearchSchema>,
+    EffectInputRequirements<Out>,
+    PreloadFailureFor<ErrorSchema, Out>
   >;
-  export function define<const Path extends string, const Options extends RouteOptionsInput>(
-    path: Path,
-    options: CheckedRouteOptions<Options> = {} as CheckedRouteOptions<Options>,
-  ): RouteDefinitionFromOptions<Path, Options> {
-    type Params = ParamsFromOptions<Path, Options>;
-    type Search = SearchFromOptions<Options>;
-    type PreloadRequirements = PreloadRequirementsFromOptions<Options>;
-    type PreloadError = PreloadErrorFromOptions<Options>;
-
-    const definition: RouteDefinition<Path, Params, Search, PreloadRequirements, PreloadError> = {
-      path,
-      options: options as RouteOptions<Path, Params, Search, PreloadRequirements, PreloadError>,
-      build(params, search) {
-        const record = params as Record<string, unknown>;
-        const compiled = buildRoutePath(path, record);
-
-        return appendSearch(compiled, search as Record<string, unknown> | undefined);
-      },
-      match(input) {
-        const url = parseRouteUrl(input);
-        const params = matchRoutePath(path, url.pathname);
-        if (!params) {
-          return undefined;
-        }
-
-        return {
-          route: definition,
-          params: decode<Params>(options.params, params),
-          search: decode<Search>(options.search, searchObject(url.searchParams)),
-          pathname: url.pathname,
-          href: `${url.pathname}${url.search}`,
-        } as RouteMatch<typeof definition>;
-      },
-    };
-
-    return definition;
+  export function define(
+    path: string,
+    options: object = {},
+  ): RouteDefinition<string, unknown, unknown, unknown, unknown> {
+    return makeRouteDefinition(path, options as RouteOptions<string, unknown, unknown, unknown>);
   }
 
   /** Creates a route component descriptor backed by a lazily imported module. */
@@ -937,32 +1054,55 @@ export namespace Route {
     return definition.build((options.params ?? {}) as Params<R>, options.search);
   };
 
+  /** Route returned by `withComponent`: the same route carrying its component `C`. */
+  export type WithComponent<R extends Definition<string, unknown, unknown, any>, C> = Definition<
+    R["path"],
+    Params<R>,
+    Search<R>,
+    PreloadRequirements<R>,
+    PreloadFailure<R>
+  > &
+    RouteWithComponent<C>;
+
   /**
-   * Returns a route with a replacement eager or lazy component descriptor.
+   * Returns the route rendering `component` (eager or lazy).
    *
-   * Params, search, preload requirements, and other route options are preserved;
-   * only the component descriptor changes.
+   * Without `props`, the component takes the route's own `Route.Props<R>`.
+   * With `props`, it maps the route props (params, search, match) to the
+   * component's props, so a feature component binds to a route directly:
+   *
+   * @example
+   * ```tsx
+   * Route.withComponent(ProjectRoute, ProjectPage, ({ params }) => ({ id: params.id }))
+   * ```
+   *
+   * Params, search, preload, and the other route options are preserved.
    */
-  export const withComponent = <
+  export function withComponent<
     R extends Definition<string, unknown, unknown, any>,
-    E = unknown,
-    RouteComponent extends ComponentInput<R, E> = ComponentInput<R, E>,
+    C extends ComponentInput<Props<R>>,
+  >(definition: R, component: C): WithComponent<R, C>;
+  export function withComponent<
+    R extends Definition<string, unknown, unknown, any>,
+    P,
+    C extends ComponentInput<P>,
   >(
     definition: R,
-    component: RouteComponent,
-  ): Definition<R["path"], Params<R>, Search<R>, PreloadRequirements<R>, PreloadFailure<R>> &
-    RouteWithComponent<RouteComponent> =>
-    define(definition.path, {
-      ...definition.options,
+    component: C & ComponentInput<P>,
+    props: (route: Props<R>) => NoInfer<P>,
+  ): WithComponent<R, C>;
+  export function withComponent(
+    definition: Definition<string, unknown, unknown, any>,
+    component: unknown,
+    props?: (route: RouteComponentProps<any>) => unknown,
+  ): Definition<string, unknown, unknown, any> {
+    const { componentProps: _previous, ...options } = definition.options;
+    return makeRouteDefinition(definition.path, {
+      ...options,
       component,
-    }) as unknown as Definition<
-      R["path"],
-      Params<R>,
-      Search<R>,
-      PreloadRequirements<R>,
-      PreloadFailure<R>
-    > &
-      RouteWithComponent<RouteComponent>;
+      ...(props === undefined ? {} : { componentProps: props }),
+    });
+  }
 
   /**
    * Returns the first matching route for a URL, or undefined when none match.
@@ -1000,9 +1140,10 @@ export namespace Route {
   /**
    * Runs a matched route's preload function as an Effect.
    *
-   * Typed preload failures become `RoutePreloadError<Route.PreloadFailure<R>>`.
-   * Synchronous throws and Promise returns break the preload contract and are
-   * defects.
+   * Typed preload failures become `RoutePreloadError<Route.PreloadFailure<R>>`;
+   * without an `error` schema the failure is `RoutePreloadUntypedFailure`
+   * carrying its `_tag`. Synchronous throws and Promise returns break the
+   * preload contract and are defects.
    */
   export const preload = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>,
@@ -1018,7 +1159,14 @@ export namespace Route {
           >);
     }).pipe(
       Effect.asVoid,
-      Effect.mapError((cause) => routePreloadError(match, cause)),
+      Effect.mapError((cause) =>
+        routePreloadError(
+          match,
+          (match.route.options.error === undefined
+            ? untypedPreloadFailure(cause)
+            : cause) as PreloadFailure<R>,
+        ),
+      ),
     );
 
   /**
@@ -1127,7 +1275,7 @@ export namespace Route {
     });
     const schema = definition.options.error;
     if (schema === undefined) {
-      const tag = routePreloadCauseTag(error.cause);
+      const tag = untypedPreloadFailure(error.cause).tag;
       return Effect.succeed(snapshot({ _tag: "Untyped", ...(tag === undefined ? {} : { tag }) }));
     }
     return Schema.encodeUnknownEffect(Schema.toCodecJson(schema))(error.cause).pipe(
@@ -1145,8 +1293,8 @@ export namespace Route {
    * Rebuilds the router failure a snapshot describes for `definition`.
    *
    * An `Encoded` failure decodes with the route's `error` schema into the
-   * typed `RoutePreloadError` cause; an `Untyped` one rebuilds `cause` as
-   * `{ _tag }`. A failure that cannot cross the wire with the route's schema
+   * typed `RoutePreloadError` cause; an `Untyped` one rebuilds it as
+   * `RoutePreloadUntypedFailure` with the same `tag`. A failure that cannot cross the wire with the route's schema
    * (unencodable, undecodable, or mismatched with the route) is a
    * `RoutePreloadFailureCodecError` defect.
    */
@@ -1175,10 +1323,11 @@ export namespace Route {
       case "Unencodable":
         return codecDefect("encode");
       case "Untyped":
-        // Without an `error` schema the route's failure type is `unknown`.
         return schema === undefined
           ? fail(
-              (failure.tag === undefined ? undefined : { _tag: failure.tag }) as PreloadFailure<R>,
+              new RoutePreloadUntypedFailure(
+                failure.tag === undefined ? {} : { tag: failure.tag },
+              ) as PreloadFailure<R>,
             )
           : codecDefect("decode");
       case "Encoded": {

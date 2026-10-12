@@ -22,7 +22,7 @@ edge.
 - Retry, cancellation, scheduling, and cleanup should delegate to Effect primitives such as `Schedule`, fiber interruption, and scopes.
 - Resource lifetime work, including GC, should use `Effect.sleep` and fibers rather than host timers.
 - Promise interop is allowed only at UI/runtime boundaries such as Suspense, Web Streams, executable CLIs, and compatibility host adapters.
-- `App.define({ server })` is the server-side dependency provider for SSR/request work. Prefer an Effect `Layer` there.
+- `createRequestHandler(app, { server })` is the server-side dependency provider for SSR/request work, and the app's `client` Layer is the browser's (`App.define({ client })`). Prefer Effect `Layer`s there; each must provide everything the app's root needs.
 - Start request work uses a fresh Request Runtime with the app services, a request-local `ResourceStore`, and a request-local `Server.localClient(...)`; do not share resource cache state or remote browser RPC clients across SSR requests.
 - Start streamed responses keep the Request Runtime open until the response body closes or is cancelled.
 - Start action requests should run Action Definitions through the Request Runtime; do not create separate mutation handlers that bypass Capability services, schemas, retries, or invalidation.
@@ -181,8 +181,8 @@ yield *
 Start hydration helpers call `Resource.hydrate(payload)` for resource
 entries and collection hydration for DB snapshots, so the resource signal used
 by components and the Effect cache entry in the active `ResourceStore` update
-together. Use `hydrateFromDocument(...)` for full browser payloads and
-`hydrateStartPayloadEffect(...)` for already-parsed payloads.
+together. `App.launch(app)` runs `hydrateFromDocument(...)` for the full browser
+payload; use `hydrateStartPayloadEffect(...)` for already-parsed payloads.
 
 ```tsx
 const UserCard = Component.define("UserCard", function* (props: { readonly id: UserId }) {
@@ -270,18 +270,14 @@ schema, and maps `ActionResult.redirect` / `ActionResult.validation` to HTTP
 without throwing untyped control flow.
 
 With JavaScript, the same Action submits through its Component binding. The
-client runtime decides where it runs: `makeActionTransportLayer({ actions })`
-provides Core's `ActionTransport`, so the Actions the server serves go over the
-network and their responses update client Resources without a second fetch:
+runtime decides where it runs: listing it in the app's `actions` makes
+`App.launch` provide Core's `ActionTransport` for it, so the Actions the server
+serves go over the network and their responses update client Resources without
+a second fetch:
 
 ```ts
-const runtime = makeRuntime(
-  Layer.mergeAll(
-    makeRpcClientLayer(),
-    makeActionTransportLayer({ actions: [RenameUser] }),
-    UserApiLive,
-  ),
-);
+export const app = App.define({ root: Root, routes, actions: [RenameUser], client: UserApiLive });
+Effect.runFork(App.launch(app));
 
 // In a Component setup: the same handle, local or remote.
 const rename = yield * Component.action(RenameUser);
@@ -431,15 +427,9 @@ const UsersLive = Layer.succeed(Users)({
   get: (id: string) => Effect.succeed({ id }),
 });
 
-const app = App.define({
-  routes,
-  client: BrowserLive,
-  server: UsersLive,
-});
+const app = App.define({ root: Root, routes, client: BrowserLive });
 
-yield * app.runtime.provide(Users.use((users) => users.get("1")));
-
-const handler = createRequestHandler(app); // native Effect handler
+const handler = createRequestHandler(app, { server: UsersLive }); // native Effect handler
 const fetchEffect = toFetchHandler(handler); // fetch-shaped Effect adapter
 ```
 

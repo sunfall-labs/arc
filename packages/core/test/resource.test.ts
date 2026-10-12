@@ -1,4 +1,5 @@
 import {
+  Cause,
   Clock,
   Deferred,
   Effect,
@@ -30,6 +31,10 @@ import { validateResourceHydrationSnapshots, refsForResourceTag } from "../src/i
 import { parseDuration } from "../src/resource-duration.js";
 import { unsafeMutableResourceStore } from "../src/resource-store.js";
 
+/** A broken load/provides callback is a defect: it is the failure's squashed `Die`. */
+const resourceDefect = (result: AsyncResult.AsyncResult<unknown, unknown>): unknown =>
+  result._tag === "Failure" && Cause.hasDies(result.cause) ? Cause.squash(result.cause) : undefined;
+
 describe("Resource", () => {
   it("parses the full numeric duration strings accepted by the public type", () => {
     expect(parseDuration("1.5 seconds")).toBe(1_500);
@@ -51,6 +56,26 @@ describe("Resource", () => {
     expect(Effect.runSync(Resource.read(ref))).toEqual({ id: "1", name: "Ada" });
     expect(Effect.runSync(Resource.read(ref))).toEqual({ id: "1", name: "Ada" });
     expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it("preloads and refreshes one ref or an array of refs, yielding values in order", async () => {
+    const load = vi.fn((id: string) => Effect.succeed({ id }));
+    const User = Resource.define({ name: "User.target-shape", load });
+
+    expect(await Effect.runPromise(Resource.preload(User("1")))).toEqual({ id: "1" });
+    expect(await Effect.runPromise(Resource.preload([User("1"), User("2")]))).toEqual([
+      { id: "1" },
+      { id: "2" },
+    ]);
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(await Effect.runPromise(Resource.refresh([User("2"), User("1")]))).toEqual([
+      { id: "2" },
+      { id: "1" },
+    ]);
+    expect(load).toHaveBeenCalledTimes(4);
+    expect(
+      await Effect.runPromise(Resource.collect(Resource.preload([User("3"), User("4")]))),
+    ).toMatchObject({ refs: [User("3"), User("4")] });
   });
 
   it("preserves explicitly wrapped Effect values as resource values", async () => {
@@ -1330,7 +1355,7 @@ describe("Resource", () => {
     expect(attempts).toBe(1);
   });
 
-  it("captures synchronous resource loader throws in the Effect error channel", async () => {
+  it("reports synchronous resource loader throws as defects", async () => {
     const User = Resource.define({
       name: "User.sync-loader-throw",
       load: (_id: string) => {
@@ -1351,17 +1376,13 @@ describe("Resource", () => {
       expect.fail("expected failure");
     } catch (error) {
       expect(error).toBeInstanceOf(ResourceFailure);
-      expect(
-        Option.getOrUndefined(
-          AsyncResult.error(
-            (error as ResourceFailure<string, unknown, EffectInputCallbackError>).result,
-          ),
-        ),
-      ).toBeInstanceOf(EffectInputCallbackError);
+      expect(resourceDefect((error as ResourceFailure<string, unknown>).result)).toBeInstanceOf(
+        EffectInputCallbackError,
+      );
     }
   });
 
-  it("captures erased Promise-shaped resource loader returns as failures instead of leaving pending state", async () => {
+  it("reports erased Promise-shaped resource loader returns as defects instead of leaving pending state", async () => {
     const User = Resource.define({
       name: "User.promise-loader-erased",
       load: (_id: string) => Promise.resolve({ id: "promise" }) as never,
@@ -1377,12 +1398,10 @@ describe("Resource", () => {
     expect(() => Effect.runSync(Resource.read(ref))).toThrow(ResourceFailure);
     const status = Effect.runSync(Resource.status(ref));
     expect(status.result).toMatchObject({ _tag: "Failure", waiting: false });
-    expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
-      EffectInputCallbackError,
-    );
+    expect(resourceDefect(status.result)).toBeInstanceOf(EffectInputCallbackError);
   });
 
-  it("captures synchronous resource provides throws in the Effect error channel", async () => {
+  it("reports synchronous resource provides throws as defects", async () => {
     const User = Resource.define({
       name: "User.sync-provides-throw",
       load: (id: string) => Effect.succeed({ id }),
@@ -1400,12 +1419,10 @@ describe("Resource", () => {
 
     const status = Effect.runSync(Resource.status(ref));
     expect(status.result._tag).toBe("Failure");
-    expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
-      EffectInputCallbackError,
-    );
+    expect(resourceDefect(status.result)).toBeInstanceOf(EffectInputCallbackError);
   });
 
-  it("captures erased Promise-shaped resource provides returns in the Effect error channel", async () => {
+  it("reports erased Promise-shaped resource provides returns as defects", async () => {
     const User = Resource.define({
       name: "User.promise-provides-erased",
       load: (id: string) => Effect.succeed({ id }),
@@ -1421,12 +1438,10 @@ describe("Resource", () => {
 
     const status = Effect.runSync(Resource.status(ref));
     expect(status.result._tag).toBe("Failure");
-    expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
-      EffectInputCallbackError,
-    );
+    expect(resourceDefect(status.result)).toBeInstanceOf(EffectInputCallbackError);
   });
 
-  it("captures erased Promise-shaped resource provides entries in the Effect error channel", async () => {
+  it("reports erased Promise-shaped resource provides entries as defects", async () => {
     const UserTag = Resource.tag("User.provides-entry-promise");
     const User = Resource.define({
       name: "User.provides-entry-promise",
@@ -1443,12 +1458,10 @@ describe("Resource", () => {
 
     const status = Effect.runSync(Resource.status(ref));
     expect(status.result._tag).toBe("Failure");
-    expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
-      EffectInputCallbackError,
-    );
+    expect(resourceDefect(status.result)).toBeInstanceOf(EffectInputCallbackError);
   });
 
-  it("captures erased Effect-shaped resource provides entries in the Effect error channel", async () => {
+  it("reports erased Effect-shaped resource provides entries as defects", async () => {
     const UserTag = Resource.tag("User.provides-entry-effect");
     const User = Resource.define({
       name: "User.provides-entry-effect",
@@ -1465,9 +1478,7 @@ describe("Resource", () => {
 
     const status = Effect.runSync(Resource.status(ref));
     expect(status.result._tag).toBe("Failure");
-    expect(Option.getOrUndefined(AsyncResult.error(status.result))).toBeInstanceOf(
-      EffectInputCallbackError,
-    );
+    expect(resourceDefect(status.result)).toBeInstanceOf(EffectInputCallbackError);
   });
 
   it("keeps previous resource value and tag facts when provides fails during refresh", async () => {

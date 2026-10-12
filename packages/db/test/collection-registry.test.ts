@@ -106,7 +106,6 @@ describe("Collection registry", () => {
           restoreOnPreload: true,
           loadAfterRestore: false,
           persistOnLoad: true,
-          persistOnMutation: true,
           persistOnWrite: true,
         },
       }),
@@ -126,19 +125,18 @@ describe("Collection registry", () => {
           restoreOnPreload: false,
           loadAfterRestore: false,
           persistOnLoad: false,
-          persistOnMutation: false,
           persistOnWrite: false,
         },
       }),
     ]);
   });
 
-  it("reports sync handlers from the backing adapter", () => {
+  it("reports the backing sync adapter", () => {
     const registry = makeCollectionDefinitionRegistry();
     defineCollection<Project>(
       {
         ...projectOptions("Projects.registry.sync"),
-        sync: { name: "projects-api", load: () => [], update: () => undefined },
+        sync: { name: "projects-api", load: () => [] },
       },
       registry,
     );
@@ -147,7 +145,6 @@ describe("Collection registry", () => {
       expect.objectContaining({
         name: "Projects.registry.sync",
         load: true,
-        handlers: { insert: false, update: true, delete: false },
         sync: { adapter: "projects-api" },
       }),
     ]);

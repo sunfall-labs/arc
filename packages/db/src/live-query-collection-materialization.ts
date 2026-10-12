@@ -287,7 +287,6 @@ export const makeLiveQueryCollectionMaterialization = <
         synced: true,
         origin: "remote",
       })),
-      pendingMutations: [],
       updatedAt,
     });
     type LoadResult = AsyncResult.AsyncResult<void, LiveQueryCollectionLoadStateError<E>>;

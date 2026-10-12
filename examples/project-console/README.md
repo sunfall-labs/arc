@@ -3,7 +3,7 @@
 This example is the copyable golden path for Sunfall Arc. It exercises branded
 routes, file-route generation, Resources, Collections, Start server functions,
 Start actions, no-JS form fallback, SSR, hydration, capability-based mocking,
-indexed live queries, optimistic collection mutations, and the production
+indexed live queries, Actions that patch collection rows optimistically, and the production
 server-only leak scan.
 
 ## Run In This Repository
@@ -40,8 +40,11 @@ pnpm verify
   starter's own `verify` script, and clean generated install/build artifacts.
 - Keep `src/domain.contract.ts` browser-safe. Put server implementations and
   seed data in `src/domain.server.ts`.
-- Keep `src/start-options.ts` explicit. It is the app graph source for server
-  functions, actions, file routes, diagnostics, and generated route output.
+- `src/app-definition.ts` is the one app definition. The Start Vite plugin
+  derives the app graph's server functions and Actions from
+  `createRequestHandler(app, { serverFunctions })` in `src/server.tsx`;
+  `src/start-options.ts` holds only file-route, diagnostics, and build-policy
+  options.
 - Keep `src/routeTree.gen.ts` generated. Do not hand-edit it.
 - Keep `pnpm leak-scan` in your copied app. It checks the built client for
   server-only module names and seed-data strings.

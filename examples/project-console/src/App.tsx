@@ -6,7 +6,6 @@ import { StartAction } from "@sunfall/arc-start";
 import { Cause, Effect, Schema } from "effect";
 import { For, Loading, Show, createEffect, onSettled, untrack } from "solid-js";
 import {
-  AdvanceProject,
   ProjectById,
   ProjectsRef,
   SubmitProjectName,
@@ -28,14 +27,20 @@ import {
   type WorkItemId,
   type WorkItemStatus,
 } from "./domain.js";
-import { HomeRoute, ProjectRoute, ProjectsRoute } from "./app-definition.js";
 import {
+  AdvanceProject,
+  MoveWorkItem,
   ProjectSummaries,
   ProjectWorkItems,
   projectWorkQueueQuery,
   type ProjectWorkQueueItem,
 } from "./project-collections.js";
 import { HealthBadge, Metric, PresencePill } from "./ui.tsrx";
+import { routeById } from "./routeTree.gen.js";
+
+const HomeRoute = routeById.route_root;
+const ProjectsRoute = routeById.route_projects;
+const ProjectRoute = routeById.route_projects_$id;
 
 type ProjectSummaryRow = Collection.Row<ProjectSummary, ProjectId>;
 type ProjectWorkItemRow = Collection.Row<ProjectWorkItem, WorkItemId>;
@@ -182,26 +187,14 @@ const ProjectRows = Component.define(
       );
     };
     const rows = () => filteredProjects(projects.rows());
-    const result = () => projects.result();
-    const failure = () => {
-      const current = result();
-      return current._tag === "Failure" && !current.waiting ? current.cause : undefined;
-    };
-    // Rows are their own signal: the load result only decides the chrome around
-    // them, so a refresh never remounts the list.
-    const hasRows = () =>
-      projects.rows().length > 0 || (result()._tag === "Success" && !result().waiting);
+    // Rows are their own signal: `waiting` and `failure` only decide the chrome
+    // around them, so a refresh never remounts the list. A first load that
+    // fails throws to the boundary below instead.
+    const hasRows = () => projects.rows().length > 0 || !projects.waiting();
 
     return () => (
       <div class="projectList">
-        <Show
-          when={hasRows()}
-          fallback={
-            <Show when={failure() === undefined}>
-              <ProjectListSkeleton />
-            </Show>
-          }
-        >
+        <Show when={hasRows()} fallback={<ProjectListSkeleton />}>
           {/* Keyed by id: a refetch hands back new row objects, the same rows stay mounted. */}
           <For each={rows()} keyed={(project) => project.id}>
             {(project) => (
@@ -214,14 +207,16 @@ const ProjectRows = Component.define(
           </Show>
         </Show>
 
-        <Show when={hasRows() && result().waiting}>
+        <Show when={hasRows() && projects.waiting()}>
           <p class="inlineStatus">Refreshing projects</p>
         </Show>
-        <Show when={failure()}>{(cause) => <InlineFailure error={Cause.squash(cause())} />}</Show>
+        <Show when={projects.failure()}>
+          {(cause) => <InlineFailure error={Cause.squash(cause())} />}
+        </Show>
       </div>
     );
   },
-);
+).pipe(Component.catchAll((error) => <InlineFailure error={error} />));
 
 const AppShell = Component.define("AppShell", function* () {
   const presence = yield* Component.stream(makePresenceStream(), initialPresence);
@@ -293,7 +288,8 @@ const AppShell = Component.define("AppShell", function* () {
             </div>
           </header>
 
-          <RouterOutlet<AppRoutes>
+          <RouterOutlet
+            router={router}
             pending={() => <ProjectSkeleton />}
             failure={(state) => <FailureView error={state.error} />}
             notFound={() => <NotFoundView />}
@@ -384,7 +380,7 @@ const WorkQueueSummary = Component.define(
       </section>
     );
   },
-);
+).pipe(Component.catchAll((error) => <InlineFailure error={error} />));
 
 const ProjectWorkQueue = Component.define(
   "ProjectWorkQueue",
@@ -393,8 +389,10 @@ const ProjectWorkQueue = Component.define(
     const queue = yield* SolidDb.liveQuery((query) =>
       projectWorkQueueQuery(props.project.id)(query),
     );
+    // The row moves at once (`$synced: false`) and settles with the Action.
+    const move = yield* Component.action(MoveWorkItem);
     const moveItem = yield* Component.callback((id: WorkItemId, status: WorkItemStatus) =>
-      ProjectWorkItems.update(id, { status }).pipe(Effect.ignore),
+      move.submit({ id, status }).pipe(Effect.ignore),
     );
 
     return () => (
@@ -404,7 +402,7 @@ const ProjectWorkQueue = Component.define(
             <p class="eyebrow">Collection + Query.live</p>
             <h3>{props.project.name} work queue</h3>
           </div>
-          <Show when={queue.result().waiting}>
+          <Show when={queue.waiting()}>
             <p class="inlineStatus">Refreshing work items</p>
           </Show>
         </div>
@@ -427,7 +425,7 @@ const ProjectWorkQueue = Component.define(
       </section>
     );
   },
-);
+).pipe(Component.catchAll((error) => <InlineFailure error={error} />));
 
 function WorkQueueRow(props: {
   readonly item: ProjectWorkQueueItem;
@@ -710,13 +708,13 @@ const ProjectActions = Component.define(
  */
 const ProjectPage = Component.define(
   "ProjectPage",
-  function* (props: Route.Props<typeof ProjectRoute>) {
+  function* (props: { readonly id: ProjectId; readonly tab: ProjectTab }) {
     const project = yield* Component.resource(ProjectById);
     const Summary = yield* WorkQueueSummary;
     const WorkQueue = yield* ProjectWorkQueue;
     const Actions = yield* ProjectActions;
-    const id = () => props.params.id;
-    const tab = (): ProjectTab => props.search.tab ?? "overview";
+    const id = () => props.id;
+    const tab = () => props.tab;
 
     const TabPanel = (panel: { readonly project: Project }) => (
       <Show
@@ -804,22 +802,22 @@ const ProjectPage = Component.define(
 
 const HomeUiRoute = Route.withComponent(HomeRoute, HomeRouteView);
 const ProjectsUiRoute = Route.withComponent(ProjectsRoute, ProjectIndexRouteView);
-const ProjectUiRoute = Route.withComponent(ProjectRoute, ProjectPage);
+const ProjectUiRoute = Route.withComponent(ProjectRoute, ProjectPage, ({ params, search }) => ({
+  id: params.id,
+  tab: search.tab ?? "overview",
+}));
 const routes = [HomeUiRoute, ProjectsUiRoute, ProjectUiRoute] as const;
 
 /**
- * The Project Console: one Component tree from the client entry (`launch`) and
- * the server render (`embed`). Its routes' preload services and route
- * Components' services join its `R`, so `launch` checks the runtime provides
- * them.
+ * The Project Console root: Start renders it on the server and `App.launch`
+ * hydrates it in the browser. Its routes' preload services and route
+ * Components' services join its `R`, so `App.define` and
+ * `createRequestHandler` check the client and server Layers provide them.
  */
 const ProjectConsole = Component.define(
   "ProjectConsole",
-  function* (props: { readonly initialHref?: string }) {
-    const router = yield* Component.router(
-      routes,
-      props.initialHref === undefined ? {} : { initialHref: props.initialHref },
-    );
+  function* (props: { readonly href: string }) {
+    const router = yield* Component.router(routes, { initialHref: props.href });
     const Shell = yield* AppShell;
     return () => (
       <RouterProvider router={router}>

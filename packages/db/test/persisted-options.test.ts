@@ -1,4 +1,4 @@
-import { makeRuntime, runWithRuntime } from "@sunfall/arc-core";
+import { Action, makeRuntime, runWithRuntime } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
 import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it, vi } from "vitest";
@@ -114,8 +114,9 @@ describe("Collection persistence options", () => {
     );
   });
 
-  it("persists in-flight optimistic mutation queues and the committed result", () => {
+  it("never persists an Action's optimistic patch: storage keeps the synced rows", () => {
     const runtime = makeRuntime();
+    const started = Effect.runSync(Deferred.make<void>());
     const release = Effect.runSync(Deferred.make<void>());
     const storage = Collection.memoryStorage();
     const Projects = Collection.define<Project, string, never>({
@@ -126,55 +127,39 @@ describe("Collection persistence options", () => {
         storage,
         key: "projects-optimistic",
       },
-      sync: {
-        update: () => Deferred.await(release),
-      },
     });
+    const Advance = Action.define({
+      name: "Projects.persisted.optimistic.advance",
+      optimistic: (_input: void, transaction) =>
+        transaction.update(Projects, "atlas", { progress: 80 }),
+      run: (_input: void) =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(started, undefined);
+          yield* Deferred.await(release);
+        }),
+    });
+    const persisted = () =>
+      JSON.parse(storage.values.get("projects-optimistic") ?? "{}") as Collection.Snapshot<Project>;
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const update = runtime.runFork(Projects.update("atlas", { progress: 80 }));
-        yield* Effect.sleep("10 millis");
+        yield* runtime.provide(Projects.persist(storage, { key: "projects-optimistic" }));
+        const submission = runtime.runFork(Action.use(Advance, { runtime }).submit(undefined));
+        yield* Deferred.await(started);
+        yield* runtime.provide(Projects.persist(storage, { key: "projects-optimistic" }));
 
-        yield* Effect.sync(() => {
-          const pendingSnapshot = JSON.parse(
-            storage.values.get("projects-optimistic") ?? "{}",
-          ) as Collection.Snapshot<Project>;
-          expect(pendingSnapshot.rows).toMatchObject([
-            {
-              key: "atlas",
-              value: { id: "atlas", name: "Atlas", progress: 80 },
-              synced: false,
-              origin: "local",
-            },
-          ]);
-          expect(pendingSnapshot.pendingMutations).toMatchObject([
-            {
-              transaction: {
-                collection: "Projects.persisted.optimistic",
-                mutations: [{ _tag: "Update", key: "atlas", changes: { progress: 80 } }],
-              },
-            },
-          ]);
-        });
+        expect(persisted().rows).toMatchObject([
+          { key: "atlas", value: { progress: 72 }, synced: true, origin: "remote" },
+        ]);
+        expect(persisted()).not.toHaveProperty("pendingMutations");
 
         yield* Deferred.succeed(release, undefined);
-        yield* Fiber.join(update);
+        yield* Fiber.join(submission);
+        yield* runtime.provide(Projects.persist(storage, { key: "projects-optimistic" }));
 
-        yield* Effect.sync(() => {
-          const committedSnapshot = JSON.parse(
-            storage.values.get("projects-optimistic") ?? "{}",
-          ) as Collection.Snapshot<Project>;
-          expect(committedSnapshot.rows).toMatchObject([
-            {
-              key: "atlas",
-              value: { id: "atlas", name: "Atlas", progress: 80 },
-              synced: true,
-              origin: "local",
-            },
-          ]);
-          expect(committedSnapshot.pendingMutations).toEqual([]);
-        });
+        expect(persisted().rows).toMatchObject([
+          { key: "atlas", value: { progress: 80 }, synced: true, origin: "local" },
+        ]);
       }).pipe(
         Effect.ensuring(
           Deferred.succeed(release, undefined).pipe(

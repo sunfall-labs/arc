@@ -87,9 +87,9 @@ describe("Resource UI Binding Controller", () => {
     });
     const failedRef = ProjectById("fail");
     const okRef = ProjectById("atlas");
-    const changes: Array<Resource.LoadError<typeof failure> | undefined> = [];
-    const observed: Array<Resource.LoadError<typeof failure>> = [];
-    const observedThroughEffect: Array<Resource.LoadError<typeof failure>> = [];
+    const changes: Array<typeof failure | undefined> = [];
+    const observed: Array<typeof failure> = [];
+    const observedThroughEffect: Array<typeof failure> = [];
     const controller = makeResourceUiBindingController<
       string,
       Project,
@@ -149,7 +149,7 @@ describe("Resource UI Binding Controller", () => {
     });
     const prefetchRef = ProjectById("preload");
     const refreshRef = ProjectById("refresh");
-    const changes: Array<Resource.LoadError<typeof failure> | undefined> = [];
+    const changes: Array<typeof failure | undefined> = [];
     const controller = makeResourceUiBindingController<
       string,
       Project,
@@ -441,7 +441,7 @@ describe("Resource UI Binding Controller", () => {
       load: (id) => Effect.succeed({ id, name: id }),
     });
     let nextForkLabel = "first";
-    const fork = (): Fiber.Fiber<Project, Resource.LoadError<never>> => {
+    const fork = (): Fiber.Fiber<Project, never> => {
       const label = nextForkLabel;
       const preloadEffect = Effect.sync(() => {
         starts.push(label);
@@ -452,7 +452,7 @@ describe("Resource UI Binding Controller", () => {
             finalizers.push(label);
           }),
         ),
-      ) as Effect.Effect<Project, Resource.LoadError<never>, never>;
+      ) as Effect.Effect<Project, never, never>;
       return baseRuntime.runFork(preloadEffect);
     };
     const firstRef = ProjectById("first");
@@ -463,7 +463,7 @@ describe("Resource UI Binding Controller", () => {
       never,
       never,
       never,
-      Fiber.Fiber<Project, Resource.LoadError<never>>
+      Fiber.Fiber<Project, never>
     >(eraseRuntime(runtime));
 
     return Effect.runPromise(
@@ -523,7 +523,7 @@ describe("Resource UI Binding Controller", () => {
           never,
           Scope.Scope,
           never,
-          Fiber.Fiber<Project, Resource.LoadError<never>>
+          Fiber.Fiber<Project, never>
         >(eraseRuntime(runtime));
 
         controller.hostToken(ref, {
@@ -555,7 +555,7 @@ describe("Resource UI Binding Controller", () => {
       never,
       never,
       never,
-      Fiber.Fiber<Project, Resource.LoadError<never>>
+      Fiber.Fiber<Project, never>
     >(eraseRuntime(runtime));
 
     return Effect.runPromise(
@@ -598,7 +598,7 @@ describe("Resource UI Binding Controller", () => {
       never,
       Scope.Scope,
       never,
-      Fiber.Fiber<Project, Resource.LoadError<never>>
+      Fiber.Fiber<Project, never>
     >(eraseRuntime(runtime));
     const ref = ProjectById("atlas");
 
