@@ -2,6 +2,6 @@
   "manifest_version": 3,
   "name": "Sunfall Arc Devtools",
   "version": "0.0.0",
-  "description": "Sunfall Arc request trace and runtime panels.",
+  "description": "Sunfall Arc request and runtime panels.",
   "devtools_page": "devtools.html"
 }

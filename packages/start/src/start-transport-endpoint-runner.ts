@@ -14,11 +14,10 @@ import {
   provideRequestRuntime,
   type RequestRuntimeRemainingRequirements,
 } from "./request-runtime.js";
-import type { StartRequestTraceFacts, StartRequestTraceTransport } from "./request-trace.js";
-import { recordStartRequestTraceFailure } from "./request-trace-recorder.js";
+import { recordStartRequestFailure, type StartRequestFacts } from "./request-trace.js";
 
 interface StartTransportEndpointRunnerAdapter<Requirements> {
-  readonly kind: Extract<StartRequestTraceTransport, "rpc" | "action">;
+  readonly kind: "rpc" | "action";
   readonly validateRequest: (request: Request) => Effect.Effect<void, StartTransportRequestError>;
   readonly transportFailureResponse: (error: StartTransportRequestError) => Response;
   readonly run: () => Effect.Effect<Response, unknown, Requirements>;
@@ -43,7 +42,7 @@ export const runStartTransportEndpoint = <RuntimeServices, RuntimeError, Require
   readonly runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>;
   readonly responseContext: ResponseContext;
   readonly registry?: AppDefinitionRegistry;
-  readonly traceFacts?: StartRequestTraceFacts;
+  readonly facts?: StartRequestFacts;
   readonly adapter: StartTransportEndpointRunnerAdapter<Requirements>;
 }): Effect.Effect<
   Response,
@@ -52,14 +51,14 @@ export const runStartTransportEndpoint = <RuntimeServices, RuntimeError, Require
 > =>
   Effect.gen(function* () {
     const envelope = yield* startTransportEndpointEnvelope(options.adapter.kind, options.request, {
-      requestId: options.traceFacts?.requestId,
+      requestId: options.facts?.requestId,
     });
     const diagnostics = envelope.diagnostics;
     const validation = yield* options.adapter.validateRequest(options.request).pipe(
       Effect.as(undefined),
       Effect.catch((error) =>
         Effect.sync(() => {
-          recordStartRequestTraceFailure(options.traceFacts, "transport");
+          recordStartRequestFailure(options.facts, "transport");
           return options.adapter.transportFailureResponse(error);
         }),
       ),
@@ -82,7 +81,7 @@ export const runStartTransportEndpoint = <RuntimeServices, RuntimeError, Require
       ),
       Effect.catch((error) =>
         Effect.sync(() => {
-          recordStartRequestTraceFailure(options.traceFacts, "defect");
+          recordStartRequestFailure(options.facts, "defect");
           return options.adapter.runtimeFailureResponse(error);
         }),
       ),

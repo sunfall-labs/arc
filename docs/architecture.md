@@ -43,7 +43,7 @@ domain vocabulary.
    server clients, response context, hydration, and event streams execute the
    graph through Effect services and scopes.
 4. Inspection layer: diagnostics, devtools summaries, causal graphs, repair
-   reports, the app Timeline, request traces, type tests, integration tests,
+   reports, the app Timeline, request spans, type tests, integration tests,
    and agent workflows consume public graph/runtime facts rather than private
    maps.
 
@@ -298,7 +298,7 @@ functions, hydration payload creation, and Resource reads during render all
 run through that request runtime, then the Resource Store is
 disposed at request completion to interrupt any lifetime fibers. Internally,
 the Request Runtime Lifecycle Module owns failure/interruption teardown,
-ResponseContext application, request trace emission, runtime disposal, and
+ResponseContext application, ending the request span, runtime disposal, and
 streamed response finalization after the request handler has selected the
 response Effect to run.
 
@@ -726,22 +726,18 @@ An Action instance exposes the latest `invalidationPlan` as a signal, and
 trace view. The intended debugging loop is “this mutation invalidated these
 domain facts, which matched these live resource refs, for these causes.”
 
-`Devtools.RequestTrace` is the request-level join point for the same public
-facts. A trace records request and response context, service names, route plans,
-resources, server functions, actions, streams, fibers, status, and
-teardown in JSON-safe data. Start request handlers expose an `onRequestTrace`
-hook that emits a structurally compatible payload for SSR, server RPC, Start
-actions, response stream close, stream cancellation, and request failure paths.
-Teardown facts include runtime disposal, reason, start/completion timestamps,
-duration, and before/after Resource Store snapshots.
-
-The same request boundary is also wrapped in Effect observability primitives.
-Start adds an `sunfall-arc.start.request` span with request annotations, child
-spans for server RPC and Start action execution, log annotations for request
-identity, and exported Effect metrics for request count, request duration, and
-request status. The JSON-safe `onRequestTrace` hook remains the devtools data
-contract, while Effect tracers, loggers, and metric exporters can consume the
-runtime-native signals.
+Requests are traced with Effect's own tracing. Start wraps each request in a
+`sunfall-arc.start.request` span (parented on an incoming W3C `traceparent` or
+B3 header), with child spans for server RPC and Start action execution, log
+annotations for request identity, and Effect metrics for request count,
+duration, and status. The request span carries the request's facts as
+attributes: the matched route (`http.route`), preloaded and hydrated Resource
+keys, the failure kind, the response status, the streamed body's final state,
+and request runtime teardown (whether disposal finished, fibers left behind,
+any cleanup failure). The span stays open until a streamed body closes, errors,
+or is cancelled, so its duration covers the whole response. Any Effect `Tracer`
+sees these spans: an OpenTelemetry exporter, or `Devtools.layerTracer(store)`,
+which records ended spans for the Requests panel.
 
 ## Components
 
@@ -965,16 +961,17 @@ route props to a feature component's own props (checked against them). It is
 the only way to attach one: route options take no `component`. Routes compare by
 path, so `RouterLink`, `navigate`, and
 `Route.isMatch` given the route reach the copy `withComponent` returned.
-In the browser, Start's Vite plugin splits the component a `withComponent`
-call attaches into its own chunk when that call is its only use (an import
-used nowhere else, or a module-local declaration that depends on no other
-module-local binding). Only the runtime value becomes a lazy component that
-the router loads before rendering; the call's source types are unchanged, so
-the router still checks the split Component's services and failures.
-`App.launch` loads the initial route's split component before hydrating
+A route component loads as its own chunk when it is attached as a lazy
+component, `Route.withComponent(route, Route.lazyComponent(importer))`; the
+router loads it before rendering and still checks its services and failures
+through the loaded module's type. In a Start app the file-route generator
+writes that call for you: a sibling `<route>.component.tsx` module (beside
+`<route>.ts`) default-exports the route's component, taking
+`Route.Props<typeof route>`, and the generated route tree attaches it lazily.
+The server preloads a matched route's lazy component before rendering, and
+`App.launch` loads the initial route's before hydrating
 (`Route.preloadComponent` on a route reaches the components its copies
-attach), so the first client pass renders the server markup.
-`autoCodeSplitting: false` keeps every route component eager.
+attach), so both first passes render the same markup.
 A route's preload failure is typed. `preload` is inferred from its own body
 (params from `params` or the path, services and failures from what it
 returns), so inline pipelines keep their types. Like an Effect RPC `error`
@@ -1047,34 +1044,29 @@ dev, the Start SSR middleware logs a warning (`Effect.logWarning`) once per
 loaded server entry for each route whose preload declares no
 `preloadResources`.
 
-File routes are manifest-first in v0. The pure helpers
-`generateFileRouteManifest(files, { routeDirectory })` and
-`generateValidatedFileRouteManifestArtifact` turn known route module paths
-into route metadata. The Start Vite plugin is the filesystem boundary: when no
-explicit `fileRoutes` or `fileRouteManifest` is supplied, it discovers route
-modules from the Vite root's `src/routes` directory and feeds that deterministic
-file list into the validated manifest generator. The generated artifact is
-`FileRouteManifest`, a deterministic object with `version`, `routeDirectory`,
-and sorted entries. Each entry carries a stable Schema-branded `routeId`, a
-branded source `id`, browser/server `moduleId`, `routePath`, parsed segments,
-and typed param metadata.
+File routes are manifest-first. The Start Vite plugin is the filesystem
+boundary: when no explicit `fileRoutes` or `fileRouteManifest` is supplied, it
+discovers route modules from the Vite root's `src/routes` directory and feeds
+that deterministic file list into one validated manifest generator. The
+generated artifact is `FileRouteManifest`, a deterministic object with
+`version`, `routeDirectory`, sorted route `entries`, and every discovered
+`module` (routes plus their component, layout, error boundary, and metadata
+modules). Each carries its `routeId`, source `id`, browser/server `moduleId`,
+`routePath`, parsed segments, and param metadata.
 
 The supported conventions are intentionally narrow: nested directories, `index`
 routes, dynamic `$id` segments, optional `$id?` segments, route groups like
-`(app)` ignored in the URL, pathless layout directories beginning with `_`, and
+`(app)` ignored in the URL, pathless layout directories beginning with `_`,
 layout leaf files named `layout`, `_layout`, `+layout`, or beginning with `_`
-ignored entirely.
+ignored entirely, and route component files named `<route>.component`.
 
-Production generators should use `generateValidatedFileRouteManifest` or
-`generateValidatedFileRouteManifestArtifact`. They reject files that
-collapse to the same route path after route groups and pathless segments are
-removed, and malformed dynamic segments like `$123`, keeping bad route graphs
-out of builds. Discovered `.d.ts` files are ignored before manifest generation.
+Generation rejects files that collapse to the same route path after route
+groups and pathless segments are removed, route ids that collide, duplicate
+support modules in one scope, and malformed dynamic segments like `$123`,
+keeping bad route graphs out of builds. Discovered `.d.ts` files are ignored.
 The Start Vite plugin exposes the same artifact as the Vite virtual module
-`virtual:sunfall-arc/file-routes`, which exports `manifest`, `entries`, and the
-default manifest. Serialized artifacts can be parsed again with
-`deserializeFileRouteManifest`, which revalidates the branded ids and rejects
-route-id/segment mismatches before the router sees them.
+`virtual:sunfall-arc/file-routes`, which exports `manifest`, `entries`,
+`modules`, and the default manifest.
 
 The same manifest generates a typed route definition module. On Vite startup and
 build, Start writes `src/routeTree.gen.ts` by default, following the file-based
@@ -1082,7 +1074,8 @@ routing convention of keeping generated route types in the project for editors,
 agents, and non-Vite tooling. Route files export a named `route` built with
 core `Route.define(path, options)`, the same constructor as anywhere else;
 static preload hints and preload work stay together, and the component is
-attached where the app builds its router:
+attached where the app builds its router, or in a sibling
+`$id.component.tsx` module that the generated tree attaches as a lazy chunk:
 
 ```ts
 export const route = Route.define("/projects/:id", {
@@ -1096,8 +1089,10 @@ export const route = Route.define("/projects/:id", {
 The generated file imports those route modules and checks each imported route's
 declared `path` against the path derived from its file: a literal-typed
 assignment makes a mismatch a type error, and a load-time assertion makes it a
-startup and prerender failure for builds that skip type checking. It then emits
-a `routes` tuple and a
+startup and prerender failure for builds that skip type checking. A route with
+a sibling component module becomes
+`Route.withComponent(route, Route.lazyComponent(Effect.tryPromise(() => import("./routes/projects/$id.component.js"))))`.
+It then emits a `routes` tuple and a
 `routeById` map of the route definitions (hrefs come from
 `Route.href(routeById.route_projects_$id, ...)`, like any definition). The
 matching Vite virtual

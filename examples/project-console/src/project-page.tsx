@@ -24,10 +24,8 @@ import {
   type ProjectWorkQueueItem,
 } from "./project-actions.js";
 import { HealthBadge, Metric } from "./ui.tsrx";
-import { routeById } from "./routeTree.gen.js";
+import { route as ProjectRoute } from "./routes/projects/$id.js";
 import { FailureView, InlineFailure, ProjectSkeleton, statusLabel } from "./project-views.js";
-
-const ProjectRoute = routeById.route_projects_$id;
 
 const ProjectNameFormInput = Schema.Struct({
   name: Schema.String,

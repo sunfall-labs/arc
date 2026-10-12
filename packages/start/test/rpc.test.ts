@@ -14,7 +14,6 @@ import {
   serverRpcPath,
   startJsonMediaType,
   startRequestIdHeader,
-  startTraceparentHeader,
   startTransportKindHeader,
   startTransportProtocolHeader,
   startTransportProtocolVersion,
@@ -24,7 +23,8 @@ import {
   executeStartClientTransport,
 } from "../src/start-client-transport.js";
 import { resolveStartFetch } from "../src/start-fetch.js";
-import { parseRpcResponse, parseStartActionResponse } from "../src/start-transport-protocol.js";
+import { parseStartActionResponse } from "../src/start-action-response-codec.js";
+import { parseRpcResponse } from "../src/start-transport-protocol.js";
 
 const makeRpcClient = (options: ServerRpcClientOptions<any, any, never> = {}): Server.Client =>
   Effect.runSync(
@@ -88,7 +88,7 @@ describe("Start RPC transport", () => {
                 accept: startJsonMediaType,
                 "content-type": "text/plain",
                 [startRequestIdHeader]: "req-rpc-content-type",
-                [startTraceparentHeader]: traceparent,
+                traceparent,
               },
               body: JSON.stringify({ name: "missing", input: {} }),
             }),
@@ -99,7 +99,7 @@ describe("Start RPC transport", () => {
             expect(response.status).toBe(415);
             expect(response.headers.get(startRequestIdHeader)).toBe("req-rpc-content-type");
             // Trace context parents the server span; it is never echoed back.
-            expect(response.headers.get(startTraceparentHeader)).toBeNull();
+            expect(response.headers.get("traceparent")).toBeNull();
             expect(response.headers.get(startTransportKindHeader)).toBe("rpc");
             expect(response.headers.get(startTransportProtocolHeader)).toBe(
               startTransportProtocolVersion,
@@ -422,7 +422,7 @@ describe("Start RPC transport", () => {
           Effect.sync(() => {
             expect(value).toBe("ok");
             expect(observedHeaders?.get(startRequestIdHeader)).toBe("req-client");
-            expect(observedHeaders?.get(startTraceparentHeader)).toBe(
+            expect(observedHeaders?.get("traceparent")).toBe(
               `00-${span.traceId}-${span.spanId}-01`,
             );
             expect(observedHeaders?.get("accept")).toBe(startJsonMediaType);

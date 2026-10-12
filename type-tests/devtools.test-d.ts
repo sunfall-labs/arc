@@ -1,4 +1,4 @@
-import { Effect, Scope, type Fiber } from "effect";
+import { Effect, Scope, type Fiber, type Layer, type Tracer } from "effect";
 import type { Resource, Timeline } from "@sunfall/arc-core";
 import {
   Devtools,
@@ -17,7 +17,7 @@ type DevtoolsSummaryRuntimeEvent = Devtools.Summary["runtime"]["events"][number]
 const devtoolsStoreOptions: Devtools.StoreOptions = {
   invalidationLimit: 4,
   routePlanLimit: 4,
-  requestTraceLimit: 4,
+  spanLimit: 4,
   eventLimit: 16,
   serializationPolicy: {
     maxDepth: 4,
@@ -151,7 +151,7 @@ const invalidDevtoolsPanelSeverity: DevtoolsPanelSeverity = "critical";
 // @ts-expect-error invalidation targets are Resource or ResourceTag nodes, not their own public node kind
 const invalidDevtoolsCausalNodeKind: DevtoolsCausalNodeKind = "InvalidationTarget";
 const devtoolsCausalNodeKind: DevtoolsCausalNodeKind = "RoutePlan";
-const devtoolsCausalEdgeKind: DevtoolsCausalEdgeKind = "Records";
+const devtoolsCausalEdgeKind: DevtoolsCausalEdgeKind = "Observes";
 
 const serializedInvalidationPlan: Devtools.InvalidationPlan = {
   targets: [
@@ -192,40 +192,15 @@ const serializedRoutePlan: Devtools.RoutePlan = {
     resourceCount: 0,
   },
 };
-const devtoolsRequestTrace: Devtools.RequestTrace = {
-  request: {
-    id: "request-1",
-    method: "GET",
-    url: "https://example.test/projects/atlas",
-    path: "/projects/atlas",
-    transport: "ssr",
-  },
-  services: [],
-  resources: [],
-  serverFunctions: [],
-  actions: [],
-  fibers: [],
-  streams: [],
+const devtoolsSpan: Devtools.Span = {
+  traceId: "trace-1",
+  spanId: "span-1",
+  name: "sunfall-arc.start.request",
+  kind: "server",
+  startTime: 10,
+  durationMillis: 7,
   status: "success",
-  teardown: {
-    runtimeDisposed: true,
-    reason: "response-end",
-    startedAt: 10,
-    completedAt: 17,
-    durationMillis: 7,
-    beforeDispose: {
-      fiberCount: 2,
-      familyCount: 1,
-      moduleCount: 1,
-      tagCount: 1,
-    },
-    afterDispose: {
-      fiberCount: 0,
-      familyCount: 1,
-      moduleCount: 0,
-      tagCount: 1,
-    },
-  },
+  attributes: { "url.path": "/projects/atlas", "http.route": "/projects/:id" },
 };
 const devtoolsTimelineCommit: Devtools.TimelineCommit = {
   sequence: 1,
@@ -275,10 +250,6 @@ const devtoolsRuntimeEvents: ReadonlyArray<Devtools.RuntimeEvent> = [
     plan: serializedRoutePlan,
   },
   {
-    _tag: "RequestTrace",
-    trace: devtoolsRequestTrace,
-  },
-  {
     _tag: "Custom",
     name: "host:ready",
     payload: { ready: true },
@@ -289,7 +260,7 @@ const devtoolsRuntimeSnapshot: Devtools.Snapshot = {
   actions: [],
   invalidations: [serializedInvalidationPlan],
   routePlans: [serializedRoutePlan],
-  requestTraces: [devtoolsRequestTrace],
+  spans: [devtoolsSpan],
   events: devtoolsRuntimeEvents,
 };
 const devtoolsSummaryRuntimeEvent: DevtoolsSummaryRuntimeEvent = {
@@ -350,12 +321,15 @@ const devtoolsRecordActionStateConflictEffect: Effect.Effect<
   serializedInvalidationPlan,
 } as unknown as Devtools.RecordActionStateOptions);
 const devtoolsRecordRuntimeEventEffect: Effect.Effect<void> = devtoolsStore.recordRuntimeEvent(
-  devtoolsRuntimeEvents[7]!,
+  devtoolsRuntimeEvents[5]!,
 );
 Effect.runSync(devtoolsStore.recordRuntimeEvent(devtoolsRuntimeEvents[0]!));
-Effect.runSync(devtoolsStore.recordRequestTrace(devtoolsRequestTrace));
-const devtoolsRecordRequestTraceEffect: Effect.Effect<void> =
-  devtoolsStore.recordRequestTrace(devtoolsRequestTrace);
+declare const endedSpan: Tracer.Span;
+const devtoolsRecordSpanEffect: Effect.Effect<void> = devtoolsStore.recordSpan(endedSpan);
+const devtoolsTracerLayer: Layer.Layer<never> = Devtools.layerTracer(devtoolsStore);
+const devtoolsSummaryRequests: ReadonlyArray<Devtools.SummaryRequest> = Devtools.describeSummary({
+  spans: [devtoolsSpan],
+}).requests;
 
 const devtoolsBridgePayload: Devtools.BridgePayload = {
   panels: explicitDevtoolsPanels,
@@ -419,7 +393,9 @@ void devtoolsTimelineCommitWithSignal;
 void devtoolsRecordActionStateEffect;
 void devtoolsRecordActionStateConflictEffect;
 void devtoolsRecordRuntimeEventEffect;
-void devtoolsRecordRequestTraceEffect;
+void devtoolsRecordSpanEffect;
+void devtoolsTracerLayer;
+void devtoolsSummaryRequests;
 void devtoolsBridgeInstallEffect;
 void devtoolsBridgeUninstall;
 void devtoolsActionInvalidationPlanConflict;

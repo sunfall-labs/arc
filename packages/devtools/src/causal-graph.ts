@@ -1,23 +1,15 @@
 import {
   devtoolsActionNodeId as actionNodeId,
   devtoolsCausalEdgeId as causalEdgeId,
-  devtoolsEndpointNodeId as endpointNodeId,
   devtoolsInvalidationNodeId as invalidationNodeId,
   devtoolsInvalidationTargetNodeId as targetNodeId,
-  devtoolsRequestTraceNodeId as requestTraceNodeId,
   devtoolsResourceNodeId as resourceNodeId,
   devtoolsRuntimeEventNodeId as runtimeEventNodeId,
   devtoolsRuntimeTargetLabel as runtimeTargetLabel,
-  devtoolsServerFunctionNodeId as serverFunctionNodeId,
 } from "./graph-ids.js";
-import { stableFactFingerprint } from "./fact-identity.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
 import { projectDevtoolsRoutePlanFacts } from "./route-plan-facts.js";
-import {
-  normalizeDevtoolsSummaryInput,
-  summarizeRequestTrace,
-  summarizeRoutePlan,
-} from "./summary-facts.js";
+import { normalizeDevtoolsSummaryInput } from "./summary-facts.js";
 import type {
   DevtoolsCausalEdge,
   DevtoolsCausalGraph,
@@ -25,11 +17,9 @@ import type {
   DevtoolsSnapshot,
   DevtoolsSummaryInput,
   DevtoolsSummaryInvalidationPlan,
-  DevtoolsSummaryRequestTrace,
   DevtoolsSummaryResource,
   DevtoolsSummaryRoutePlan,
   DevtoolsSummaryRuntimeEvent,
-  DevtoolsRequestTrace,
 } from "./devtools-contract.js";
 
 const addNode = (nodes: Map<string, DevtoolsCausalNode>, node: DevtoolsCausalNode): void => {
@@ -52,39 +42,10 @@ const addEdge = (
   });
 };
 
-const routePlanSummaryFingerprint = (plan: DevtoolsSummaryRoutePlan): string =>
-  stableFactFingerprint([
-    plan._tag,
-    plan.href,
-    plan.path,
-    plan.params,
-    plan.search,
-    plan.resourceCount,
-    plan.hydrationResourceCount,
-    plan.hydratedResourceKeys,
-    plan.resources,
-  ]) ?? "";
-
-const requestRoutePlanSummary = (
-  routePlans: ReadonlyArray<DevtoolsSummaryRoutePlan>,
-  trace: DevtoolsRequestTrace,
-  fallbackIndex: number,
-): DevtoolsSummaryRoutePlan | undefined => {
-  if (trace.routePlan === undefined) {
-    return undefined;
-  }
-
-  const fallback = summarizeRoutePlan(trace.routePlan, fallbackIndex);
-  const fingerprint = routePlanSummaryFingerprint(fallback);
-  return routePlans.find((plan) => routePlanSummaryFingerprint(plan) === fingerprint) ?? fallback;
-};
-
 interface DevtoolsCausalGraphInput {
   readonly snapshot: DevtoolsSnapshot;
   readonly invalidations: ReadonlyArray<DevtoolsSummaryInvalidationPlan>;
   readonly routePlans: ReadonlyArray<DevtoolsSummaryRoutePlan>;
-  readonly requestTraces: ReadonlyArray<DevtoolsRequestTrace>;
-  readonly requestTraceSummaries: ReadonlyArray<DevtoolsSummaryRequestTrace>;
   readonly resources: ReadonlyArray<DevtoolsSummaryResource>;
   readonly runtimeEvents: ReadonlyArray<DevtoolsSummaryRuntimeEvent>;
 }
@@ -219,121 +180,6 @@ export const makeDevtoolsCausalGraph = (input: DevtoolsCausalGraphInput): Devtoo
     projectDevtoolsRoutePlanFacts(plan, routePlanSink);
   }
 
-  input.requestTraces.forEach((trace, index) => {
-    const traceSummary = input.requestTraceSummaries[index] ?? summarizeRequestTrace(trace, index);
-    const traceId = requestTraceNodeId(traceSummary);
-    addNode(nodes, {
-      id: traceId,
-      kind: "RequestTrace",
-      label: `${trace.request.method} ${trace.request.path}`,
-      data: toDevtoolsSerializableValue({
-        request: trace.request,
-        response: trace.response ?? null,
-        services: trace.services,
-        status: trace.status,
-        failureKind: trace.failureKind ?? null,
-        teardown: trace.teardown ?? null,
-        fibers: trace.fibers,
-        streams: trace.streams,
-      }),
-    });
-
-    if (trace.request.transport === "rpc" || trace.request.transport === "action") {
-      const endpointId = endpointNodeId(trace.request.transport);
-      addNode(nodes, {
-        id: endpointId,
-        kind: "Endpoint",
-        label: trace.request.transport,
-        data: {
-          transport: trace.request.transport,
-        },
-      });
-      connect({
-        kind: "UsesEndpoint",
-        source: traceId,
-        target: endpointId,
-        label: "uses",
-        data: {
-          transport: trace.request.transport,
-        },
-      });
-    }
-
-    const plan = requestRoutePlanSummary(input.routePlans, trace, input.routePlans.length + index);
-    if (plan) {
-      const { routePlanId } = projectDevtoolsRoutePlanFacts(plan, routePlanSink);
-      connect({
-        kind: "Records",
-        source: traceId,
-        target: routePlanId,
-        label: "records",
-        data: null,
-      });
-    }
-
-    for (const resource of trace.resources) {
-      const resourceId = resourceNodeId(resource.key);
-      addNode(nodes, {
-        id: resourceId,
-        kind: "Resource",
-        label: resource.family,
-        data: {
-          family: resource.family,
-          input: resource.input === undefined ? null : toDevtoolsSerializableValue(resource.input),
-          key: resource.key,
-          state: resource.state ?? null,
-        },
-      });
-      connect({
-        kind: "Records",
-        source: traceId,
-        target: resourceId,
-        label: "records",
-        data: {
-          targetKind: "Resource",
-        },
-      });
-    }
-
-    for (const action of trace.actions) {
-      const actionId = actionNodeId(action.name);
-      addNode(nodes, {
-        id: actionId,
-        kind: "Action",
-        label: action.name,
-        data: toDevtoolsSerializableValue(action),
-      });
-      connect({
-        kind: "Records",
-        source: traceId,
-        target: actionId,
-        label: "records",
-        data: {
-          targetKind: "Action",
-        },
-      });
-    }
-
-    for (const serverFunction of trace.serverFunctions) {
-      const serverFunctionId = serverFunctionNodeId(serverFunction.name);
-      addNode(nodes, {
-        id: serverFunctionId,
-        kind: "ServerFunction",
-        label: serverFunction.name,
-        data: toDevtoolsSerializableValue(serverFunction),
-      });
-      connect({
-        kind: "Records",
-        source: traceId,
-        target: serverFunctionId,
-        label: "records",
-        data: {
-          targetKind: "ServerFunction",
-        },
-      });
-    }
-  });
-
   for (const plan of input.invalidations) {
     projectInvalidationFacts(plan);
   }
@@ -397,8 +243,6 @@ export const describeDevtoolsCausalGraph = (
     snapshot: normalized.snapshot,
     invalidations: normalized.invalidations,
     routePlans: normalized.routePlans,
-    requestTraces: normalized.requestTraces,
-    requestTraceSummaries: normalized.requestTraceSummaries,
     resources: normalized.resources,
     runtimeEvents: normalized.runtimeEvents,
   });

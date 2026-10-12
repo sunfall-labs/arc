@@ -17,15 +17,13 @@ const stateCounts = (
     .map(([state, count]) => ({ state, count }));
 };
 
-/** Projects snapshots, traces, and events into a stable Devtools summary. */
+/** Projects snapshots, spans, and events into a stable Devtools summary. */
 export const describeDevtoolsSummary = (input: DevtoolsSummaryInput = {}): DevtoolsSummary => {
   const normalized = normalizeDevtoolsSummaryInput(input);
   const causalGraph = makeDevtoolsCausalGraph({
     snapshot: normalized.snapshot,
     invalidations: normalized.invalidations,
     routePlans: normalized.routePlans,
-    requestTraces: normalized.requestTraces,
-    requestTraceSummaries: normalized.requestTraceSummaries,
     resources: normalized.resources,
     runtimeEvents: normalized.runtimeEvents,
   });
@@ -37,7 +35,8 @@ export const describeDevtoolsSummary = (input: DevtoolsSummaryInput = {}): Devto
       runtimeActionCount: normalized.snapshot.actions.length,
       invalidationPlanCount: normalized.invalidations.length,
       routePlanCount: normalized.routePlans.length,
-      requestTraceCount: normalized.requestTraceSummaries.length,
+      requestCount: normalized.requests.length,
+      spanCount: normalized.spans.length,
       runtimeEventCount: normalized.runtimeEvents.length,
       notFoundRoutePlanCount: normalized.routePlans.filter((plan) => plan._tag === "NotFound")
         .length,
@@ -64,9 +63,7 @@ export const describeDevtoolsSummary = (input: DevtoolsSummaryInput = {}): Devto
         plan._tag === "NotFound" ? [plan.href] : [],
       ),
     },
-    requests: {
-      traces: normalized.requestTraceSummaries,
-    },
+    requests: normalized.requests,
     resources: normalized.resources,
     causalGraph,
   };

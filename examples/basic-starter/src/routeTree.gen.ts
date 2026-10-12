@@ -49,7 +49,7 @@ export const errorBoundaryById = <Id extends FileRouteId>(id: Id): FileRouteErro
 export const metadataById = <Id extends FileRouteId>(id: Id): FileRouteMetadataModules<Id> =>
   fileRouteMetadataById[id];
 
-/** Route, layout, error boundary, and metadata modules discovered by Start. */
+/** Route, component, layout, error boundary, and metadata modules discovered by Start. */
 export const fileRouteModules = [
   {
     id: "index",
@@ -61,26 +61,6 @@ export const fileRouteModules = [
     segments: [],
     params: [],
     exportName: "route",
-  },
-] as const;
-/** Parent, layout, error boundary, and metadata relationships for each generated route. */
-export const fileRouteMetadata = [
-  {
-    routeId: "route_root",
-    routePath: "/",
-    routeModule: {
-      id: "index",
-      kind: "Route",
-      routeId: "route_root",
-      moduleId: "src/routes/index.ts",
-      filePath: "src/routes/index.ts",
-      routePath: "/",
-      segments: [],
-      params: [],
-      exportName: "route",
-    },
-    layouts: [],
-    metadataModules: [],
   },
 ] as const;
 
@@ -119,5 +99,3 @@ export type FileRouteErrorBoundary<Id extends FileRouteId> =
 export type FileRouteMetadataModules<Id extends FileRouteId> = FileRouteMetadataById[Id];
 /** Static metadata for all file-route modules discovered by Start. */
 export type FileRouteModules = typeof fileRouteModules;
-/** Static parent/layout/error/metadata relationships for generated routes. */
-export type FileRouteMetadata = typeof fileRouteMetadata;

@@ -306,7 +306,7 @@ yield* store.trackTimeline(recording);
 ```
 
 Those rows go through the same bounded/redacted Devtools serialization contract
-as request traces and action inputs.
+as request spans and action inputs.
 
 ## Compared With Solid
 

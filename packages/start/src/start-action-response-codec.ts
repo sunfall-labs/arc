@@ -3,14 +3,25 @@ import {
   isResourceRef,
   isResourceTag,
   Resource,
+  ResourceTagIdentityTypeId,
+  ResourceTagTypeId,
   Server,
   ServerFunctionNotFound,
   ServerRpcProtocolError,
   ServerTransportError,
   type Action,
 } from "@sunfall/arc-core";
+import {
+  decodeServerWire,
+  encodeServerWire,
+  lookupResourceFamily,
+} from "@sunfall/arc-core/internal";
 import { Cause, Effect, Exit, Schema } from "effect";
-import { createStartHydrationPayload, type StartHydrationPayload } from "./hydration.js";
+import {
+  createStartHydrationPayload,
+  hydrateStartPayload,
+  type StartHydrationPayload,
+} from "./hydration.js";
 import {
   hasContentType,
   negotiateAcceptedMediaType,
@@ -21,57 +32,63 @@ import {
 } from "./rpc.js";
 import { readStartTransportResponseText } from "./start-transport-body.js";
 import { type StartActionDefinition } from "./start-action-request-codec.js";
-import { decodeServerWire, encodeServerWire } from "@sunfall/arc-core/internal";
+
+const refFields = { key: Schema.String, family: Schema.String };
+const Ref = Schema.Struct({ ...refFields, input: Schema.Unknown });
+const Tag = Schema.TaggedStruct("Tag", { key: Schema.String, name: Schema.String });
+
+const InvalidationPlan = Schema.Struct({
+  targets: Schema.Array(Schema.Union([Schema.TaggedStruct("Ref", Ref.fields), Tag])),
+  entries: Schema.Array(
+    Schema.Struct({
+      ref: Ref,
+      // Causes omit the ref input so fan-out stays small on the wire.
+      causes: Schema.Array(Schema.Union([Schema.TaggedStruct("Ref", refFields), Tag])),
+    }),
+  ),
+});
+
+// Resource snapshots are checked when the payload hydrates.
+const HydrationPayload = Schema.Struct({
+  resources: Schema.Array(Schema.Unknown),
+}) as unknown as Schema.Codec<StartHydrationPayload>;
+
+const meta = {
+  invalidation: Schema.optionalKey(InvalidationPlan),
+  hydration: Schema.optionalKey(HydrationPayload),
+};
+
+/** Wire response body of the Start action transport, as an Effect Schema tagged union. */
+const StartActionResponseBody = Schema.TaggedUnion({
+  Success: { value: Schema.Unknown, ...meta },
+  ValidationFailure: {
+    fieldErrors: Schema.Unknown,
+    formErrors: Schema.Array(Schema.Unknown),
+    cause: Schema.optionalKey(Schema.Unknown),
+    ...meta,
+  },
+  Redirect: {
+    location: Schema.String,
+    status: Schema.Int,
+    headers: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
+    replace: Schema.optionalKey(Schema.Boolean),
+    ...meta,
+  },
+  Failure: { error: Schema.Unknown, ...meta },
+  ServerError: { error: Schema.Unknown },
+  Defect: { defect: Schema.Unknown },
+});
+
+/** Wire response body used by the Start action transport. */
+export type StartActionResponseBody = typeof StartActionResponseBody.Type;
 
 /**
- * Serializable invalidation target emitted by a Start action response.
+ * Serializable description of resources invalidated by a Start action.
  *
- * Ref targets include the concrete resource input for client-side hydration and
- * invalidation. Tag targets represent broad invalidation groups.
+ * Ref targets carry the resource input for client-side invalidation; causes
+ * omit it so responses can explain fan-out without duplicating inputs.
  */
-export type StartActionInvalidationTarget =
-  | {
-      readonly _tag: "Ref";
-      readonly key: string;
-      readonly family: string;
-      readonly input: unknown;
-    }
-  | {
-      readonly _tag: "Tag";
-      readonly key: string;
-      readonly name: string;
-    };
-
-/**
- * Serializable reason a resource ref was included in an action invalidation plan.
- *
- * Causes omit the original input so action responses can explain fan-out
- * without duplicating potentially large resource inputs.
- */
-export type StartActionInvalidationCause =
-  | {
-      readonly _tag: "Ref";
-      readonly key: string;
-      readonly family: string;
-    }
-  | {
-      readonly _tag: "Tag";
-      readonly key: string;
-      readonly name: string;
-    };
-
-/** Serializable description of resources invalidated by a Start action. */
-export interface StartActionInvalidationPlan {
-  readonly targets: ReadonlyArray<StartActionInvalidationTarget>;
-  readonly entries: ReadonlyArray<{
-    readonly ref: {
-      readonly key: string;
-      readonly family: string;
-      readonly input: unknown;
-    };
-    readonly causes: ReadonlyArray<StartActionInvalidationCause>;
-  }>;
-}
+export type StartActionInvalidationPlan = typeof InvalidationPlan.Type;
 
 /** Optional client-side work bundled with a Start action response. */
 export interface StartActionResponseMeta {
@@ -79,144 +96,77 @@ export interface StartActionResponseMeta {
   readonly hydration?: StartHydrationPayload;
 }
 
-/** Wire response body used by the Start action transport. */
-export type StartActionResponseBody =
-  | ({ readonly _tag: "Success"; readonly value: unknown } & StartActionResponseMeta)
-  | ({
-      readonly _tag: "ValidationFailure";
-      readonly fieldErrors: unknown;
-      readonly formErrors: readonly unknown[];
-      readonly cause?: unknown;
-    } & StartActionResponseMeta)
-  | ({
-      readonly _tag: "Redirect";
-      readonly location: string;
-      readonly status: number;
-      readonly headers?: Readonly<Record<string, string>>;
-      readonly replace?: boolean;
-    } & StartActionResponseMeta)
-  | ({ readonly _tag: "Failure"; readonly error: unknown } & StartActionResponseMeta)
-  | { readonly _tag: "ServerError"; readonly error: unknown }
-  | { readonly _tag: "Defect"; readonly defect: unknown };
-
-const startActionDefectBody = (
-  cause: unknown,
-): Extract<StartActionResponseBody, { readonly _tag: "Defect" }> => ({
-  _tag: "Defect",
-  defect: Server.serializeDefect(cause),
-});
+type StartActionDomainBody = Extract<
+  StartActionResponseBody,
+  { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }
+>;
 
 const actionJson = (body: StartActionResponseBody, status = 200): Response => {
-  const headers = {
-    "content-type": startJsonMediaType,
-  };
-
+  const headers = { "content-type": startJsonMediaType };
   try {
     return new Response(JSON.stringify(body), { status, headers });
   } catch (cause) {
-    return new Response(JSON.stringify(startActionDefectBody(cause)), {
+    return new Response(JSON.stringify({ _tag: "Defect", defect: Server.serializeDefect(cause) }), {
       status: 500,
       headers,
     });
   }
 };
 
-const actionServerErrorBody = (
-  error: ServerRpcProtocolError | ServerFunctionNotFound,
-): Extract<StartActionResponseBody, { readonly _tag: "ServerError" }> => ({
-  _tag: "ServerError",
-  error: Server.serializeServerError(error),
-});
+const defectJson = (defect: unknown, status = 500): Response =>
+  actionJson({ _tag: "Defect", defect: Server.serializeDefect(defect) }, status);
 
-export const actionRuntimeFailureResponse = (error: unknown): Response =>
-  actionJson(startActionDefectBody(error), 500);
+const serverErrorJson = (
+  error: ServerRpcProtocolError | ServerFunctionNotFound,
+  status: number,
+): Response =>
+  actionJson({ _tag: "ServerError", error: Server.serializeServerError(error) }, status);
+
+export const actionRuntimeFailureResponse = (error: unknown): Response => defectJson(error);
 
 export const actionProtocolFailureResponse = (
   error: ServerRpcProtocolError,
   status = 400,
-): Response => actionJson(actionServerErrorBody(error), status);
+): Response => serverErrorJson(error, status);
 
-const withTransportRequestErrorHeaders = (
-  response: Response,
+export const actionTransportRequestFailureResponse = (
   error: StartTransportRequestError,
 ): Response => {
+  const response = actionProtocolFailureResponse(error.error, error.status);
   if (error.allow) {
     response.headers.set("allow", error.allow);
   }
   return response;
 };
 
-export const actionTransportRequestFailureResponse = (
-  error: StartTransportRequestError,
-): Response =>
-  withTransportRequestErrorHeaders(actionProtocolFailureResponse(error.error, error.status), error);
-
 export const actionFunctionNotFoundResponse = (actionName: string): Response =>
-  actionJson(actionServerErrorBody(new ServerFunctionNotFound({ functionName: actionName })), 404);
-
-const firstFail = <E>(cause: Cause.Cause<E>): E | undefined => {
-  const reason = cause.reasons.find(Cause.isFailReason);
-  return reason?.error;
-};
-
-const firstDefect = <E>(cause: Cause.Cause<E>): unknown | undefined => {
-  const reason = cause.reasons.find(Cause.isDieReason);
-  return reason?.defect;
-};
-
-const describeStartActionInvalidationTarget = (
-  target: Resource.InvalidationPlan<any>["targets"][number],
-): StartActionInvalidationTarget | undefined => {
-  if (isResourceRef(target)) {
-    return {
-      _tag: "Ref",
-      key: target.key,
-      family: target.family.options.name,
-      input: target.input,
-    };
-  }
-
-  if (isResourceTag(target)) {
-    return {
-      _tag: "Tag",
-      key: target.key,
-      name: target.name,
-    };
-  }
-
-  return undefined;
-};
-
-const describeStartActionInvalidationCause = (
-  cause: Resource.InvalidationCause,
-): StartActionInvalidationCause =>
-  cause._tag === "Ref"
-    ? {
-        _tag: "Ref",
-        key: cause.ref.key,
-        family: cause.ref.family.options.name,
-      }
-    : {
-        _tag: "Tag",
-        key: cause.tag.key,
-        name: cause.tag.name,
-      };
+  serverErrorJson(new ServerFunctionNotFound({ functionName: actionName }), 404);
 
 /** Converts a runtime invalidation plan into the serializable action payload. */
 export const describeStartActionInvalidationPlan = (
   plan: Resource.InvalidationPlan<any>,
 ): StartActionInvalidationPlan => ({
-  targets: plan.targets.flatMap((target) => {
-    const described = describeStartActionInvalidationTarget(target);
-    return described === undefined ? [] : [described];
-  }),
+  targets: plan.targets.flatMap((target): StartActionInvalidationPlan["targets"] =>
+    isResourceRef(target)
+      ? [
+          {
+            _tag: "Ref" as const,
+            key: target.key,
+            family: target.family.options.name,
+            input: target.input,
+          },
+        ]
+      : isResourceTag(target)
+        ? [{ _tag: "Tag" as const, key: target.key, name: target.name }]
+        : [],
+  ),
   entries: plan.entries.map((entry) => ({
-    ref: {
-      key: entry.ref.key,
-      family: entry.ref.family.options.name,
-      input: entry.ref.input,
-    },
-    causes: entry.causes.map(describeStartActionInvalidationCause),
+    ref: { key: entry.ref.key, family: entry.ref.family.options.name, input: entry.ref.input },
+    causes: entry.causes.map((cause) =>
+      cause._tag === "Ref"
+        ? { _tag: "Ref" as const, key: cause.ref.key, family: cause.ref.family.options.name }
+        : { _tag: "Tag" as const, key: cause.tag.key, name: cause.tag.name },
+    ),
   })),
 });
 
@@ -241,67 +191,46 @@ export const actionResponseMode = (request: Request): "json" | "redirect" =>
     ? "json"
     : "redirect";
 
-const encodeActionResultEffect = (
-  action: StartActionDefinition,
-  result: unknown,
-): Effect.Effect<unknown, Schema.SchemaError> => encodeServerWire(action.output, result);
-
-const encodedActionResultOrSelf = (
-  action: StartActionDefinition,
-  result: unknown,
-): Effect.Effect<unknown> =>
-  Effect.map(Effect.exit(encodeActionResultEffect(action, result)), (exit) =>
-    Exit.isSuccess(exit) ? exit.value : result,
-  );
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
-const hasOwn = (value: Record<string, unknown>, key: string): boolean =>
-  Object.prototype.hasOwnProperty.call(value, key);
-
-const actionResultResponseEffect = (
+/** Encodes a successful action value; an output schema may describe the whole `ActionResult`. */
+const actionValueResponse = (
   action: StartActionDefinition,
   result: unknown,
-  meta: StartActionResponseMeta = {},
-  mode: "json" | "redirect" = "redirect",
-): Effect.Effect<Response, never> => {
-  const actionResult = ActionResult.is(result) ? result : undefined;
-
-  if (actionResult && ActionResult.isRedirect(actionResult)) {
-    if (mode === "json") {
-      return Effect.succeed(
-        actionJson({
-          _tag: "Redirect",
-          location: actionResult.location,
-          status: actionResult.status,
-          ...(actionResult.headers === undefined ? {} : { headers: actionResult.headers }),
-          ...(actionResult.replace === undefined ? {} : { replace: actionResult.replace }),
-          ...meta,
-        }),
-      );
+  meta: StartActionResponseMeta,
+  mode: "json" | "redirect",
+): Effect.Effect<Response> =>
+  Effect.gen(function* () {
+    const actionResult = ActionResult.is(result) ? result : undefined;
+    if (actionResult && ActionResult.isRedirect(actionResult)) {
+      const { location, status, headers, replace } = actionResult;
+      return mode === "json"
+        ? actionJson({
+            _tag: "Redirect",
+            location,
+            status,
+            ...(headers === undefined ? {} : { headers }),
+            ...(replace === undefined ? {} : { replace }),
+            ...meta,
+          })
+        : new Response(null, { status, headers: { location, ...headers } });
     }
 
-    return Effect.succeed(
-      new Response(null, {
-        status: actionResult.status,
-        headers: {
-          location: actionResult.location,
-          ...actionResult.headers,
-        },
-      }),
-    );
-  }
+    const whole = yield* Effect.exit(encodeServerWire(action.output, result));
+    if (actionResult === undefined) {
+      return Exit.isSuccess(whole)
+        ? actionJson({ _tag: "Success", value: whole.value, ...meta })
+        : defectJson(Cause.pretty(whole.cause));
+    }
+    // The encoded whole result, when the output schema describes `ActionResult` values.
+    const encoded =
+      Exit.isSuccess(whole) && isRecord(whole.value) && whole.value._tag === actionResult._tag
+        ? whole.value
+        : undefined;
+    const source = (encoded ?? actionResult) as Record<string, unknown>;
 
-  if (actionResult && ActionResult.isValidationFailure(actionResult)) {
-    return Effect.map(encodedActionResultOrSelf(action, result), (encoded) => {
-      const source = (
-        isRecord(encoded) && encoded._tag === "ValidationFailure" ? encoded : actionResult
-      ) as {
-        readonly fieldErrors?: unknown;
-        readonly formErrors?: unknown;
-        readonly cause?: unknown;
-      };
+    if (ActionResult.isValidationFailure(actionResult)) {
       return actionJson(
         {
           _tag: "ValidationFailure",
@@ -312,118 +241,49 @@ const actionResultResponseEffect = (
         },
         422,
       );
-    });
-  }
-
-  if (actionResult && ActionResult.isFailure(actionResult)) {
-    return Effect.map(encodedActionResultOrSelf(action, result), (encoded) => {
-      const source = (isRecord(encoded) && encoded._tag === "Failure" ? encoded : actionResult) as {
-        readonly error?: unknown;
-      };
-      return actionJson({
-        _tag: "Failure",
-        error: source.error,
-        ...meta,
-      });
-    });
-  }
-
-  if (actionResult && ActionResult.isSuccess(actionResult)) {
-    return Effect.gen(function* () {
-      const encodedResult = yield* Effect.exit(encodeActionResultEffect(action, result));
-      if (
-        Exit.isSuccess(encodedResult) &&
-        isRecord(encodedResult.value) &&
-        encodedResult.value._tag === "Success" &&
-        "value" in encodedResult.value
-      ) {
-        return actionJson({
-          _tag: "Success",
-          value: encodedResult.value.value,
-          ...meta,
-        });
-      }
-
-      const encodedValue = yield* Effect.exit(encodeServerWire(action.output, actionResult.value));
-      if (Exit.isSuccess(encodedValue)) {
-        return actionJson({
-          _tag: "Success",
-          value: encodedValue.value,
-          ...meta,
-        });
-      }
-
-      return actionJson(
-        {
-          _tag: "Defect",
-          defect: Server.serializeDefect(Cause.pretty(encodedValue.cause)),
-        },
-        500,
-      );
-    });
-  }
-
-  return Effect.gen(function* () {
-    const encoded = yield* Effect.exit(encodeServerWire(action.output, result));
-    if (Exit.isSuccess(encoded)) {
-      return actionJson({
-        _tag: "Success",
-        value: encoded.value,
-        ...meta,
-      });
     }
-
-    return actionJson(
-      {
-        _tag: "Defect",
-        defect: Server.serializeDefect(Cause.pretty(encoded.cause)),
-      },
-      500,
-    );
+    if (ActionResult.isFailure(actionResult)) {
+      return actionJson({ _tag: "Failure", error: source.error, ...meta });
+    }
+    const value =
+      encoded !== undefined && "value" in encoded
+        ? Exit.succeed(encoded.value)
+        : yield* Effect.exit(
+            encodeServerWire(action.output, (actionResult as { readonly value: unknown }).value),
+          );
+    return Exit.isSuccess(value)
+      ? actionJson({ _tag: "Success", value: value.value, ...meta })
+      : defectJson(Cause.pretty(value.cause));
   });
-};
 
+/** Encodes an action submission's Exit as the action transport response. */
 export const actionExitResponse = <ActionError>(
   action: StartActionDefinition,
   exit: Exit.Exit<unknown, ActionError>,
   meta: StartActionResponseMeta = {},
   mode: "json" | "redirect" = "redirect",
-): Effect.Effect<Response, never> => {
+): Effect.Effect<Response> => {
   if (Exit.isSuccess(exit)) {
-    return actionResultResponseEffect(action, exit.value, meta, mode);
+    return actionValueResponse(action, exit.value, meta, mode);
   }
 
-  const failure = firstFail(exit.cause);
+  const failure = exit.cause.reasons.find(Cause.isFailReason);
   if (failure !== undefined) {
-    if (Schema.isSchemaError(failure)) {
+    if (Schema.isSchemaError(failure.error)) {
       return Effect.succeed(
         actionProtocolFailureResponse(
           new ServerRpcProtocolError({
-            message: failure.message,
-            payload: Server.serializeDefect(failure),
+            message: failure.error.message,
+            payload: Server.serializeDefect(failure.error),
           }),
         ),
       );
     }
-
-    return Effect.gen(function* () {
-      const encoded = yield* Effect.exit(encodeServerWire(action.error, failure));
-      if (Exit.isSuccess(encoded)) {
-        return actionJson({
-          _tag: "Failure",
-          error: encoded.value,
-          ...meta,
-        });
-      }
-
-      return actionJson(
-        {
-          _tag: "Defect",
-          defect: Server.serializeDefect(Cause.pretty(encoded.cause)),
-        },
-        500,
-      );
-    });
+    return Effect.map(Effect.exit(encodeServerWire(action.error, failure.error)), (encoded) =>
+      Exit.isSuccess(encoded)
+        ? actionJson({ _tag: "Failure", error: encoded.value, ...meta })
+        : defectJson(Cause.pretty(encoded.cause)),
+    );
   }
 
   if (exit.cause.reasons.some(Cause.isInterruptReason)) {
@@ -431,10 +291,7 @@ export const actionExitResponse = <ActionError>(
       actionJson(
         {
           _tag: "Defect",
-          defect: {
-            _tag: "Interrupted",
-            message: "The action fiber was interrupted.",
-          },
+          defect: { _tag: "Interrupted", message: "The action fiber was interrupted." },
         },
         499,
       ),
@@ -442,100 +299,11 @@ export const actionExitResponse = <ActionError>(
   }
 
   return Effect.succeed(
-    actionJson(
-      {
-        _tag: "Defect",
-        defect: Server.serializeDefect(firstDefect(exit.cause) ?? Cause.pretty(exit.cause)),
-      },
-      500,
-    ),
+    defectJson(exit.cause.reasons.find(Cause.isDieReason)?.defect ?? Cause.pretty(exit.cause)),
   );
 };
 
-const isStringRecord = (value: unknown): value is Record<string, string> =>
-  isRecord(value) && Object.values(value).every((entry) => typeof entry === "string");
-
-const isStartActionResponseBody = (value: unknown): value is StartActionResponseBody => {
-  if (!isRecord(value) || !isStartActionResponseMeta(value)) {
-    return false;
-  }
-
-  switch (value._tag) {
-    case "Success":
-      return hasOwn(value, "value");
-    case "ValidationFailure":
-      return hasOwn(value, "fieldErrors") && Array.isArray(value.formErrors);
-    case "Redirect":
-      return (
-        typeof value.location === "string" &&
-        Number.isInteger(value.status) &&
-        (value.headers === undefined || isStringRecord(value.headers)) &&
-        (value.replace === undefined || typeof value.replace === "boolean")
-      );
-    case "Failure":
-    case "ServerError":
-      return hasOwn(value, "error");
-    case "Defect":
-      return hasOwn(value, "defect");
-    default:
-      return false;
-  }
-};
-
-const isStartActionInvalidationTarget = (
-  value: unknown,
-): value is StartActionInvalidationTarget => {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  if (value._tag === "Ref") {
-    return (
-      typeof value.key === "string" && typeof value.family === "string" && hasOwn(value, "input")
-    );
-  }
-
-  return value._tag === "Tag" && typeof value.key === "string" && typeof value.name === "string";
-};
-
-const isStartActionInvalidationCause = (value: unknown): value is StartActionInvalidationCause => {
-  if (!isRecord(value)) {
-    return false;
-  }
-
-  if (value._tag === "Ref") {
-    return typeof value.key === "string" && typeof value.family === "string";
-  }
-
-  return value._tag === "Tag" && typeof value.key === "string" && typeof value.name === "string";
-};
-
-const isStartActionInvalidationPlan = (value: unknown): value is StartActionInvalidationPlan => {
-  if (!isRecord(value) || !Array.isArray(value.targets) || !Array.isArray(value.entries)) {
-    return false;
-  }
-
-  return (
-    value.targets.every(isStartActionInvalidationTarget) &&
-    value.entries.every(
-      (entry) =>
-        isRecord(entry) &&
-        isRecord(entry.ref) &&
-        typeof entry.ref.key === "string" &&
-        typeof entry.ref.family === "string" &&
-        hasOwn(entry.ref, "input") &&
-        Array.isArray(entry.causes) &&
-        entry.causes.every(isStartActionInvalidationCause),
-    )
-  );
-};
-
-const isStartHydrationPayload = (value: unknown): value is StartHydrationPayload =>
-  isRecord(value) && Array.isArray(value.resources);
-
-const isStartActionResponseMeta = (value: Record<string, unknown>): boolean =>
-  (value.invalidation === undefined || isStartActionInvalidationPlan(value.invalidation)) &&
-  (value.hydration === undefined || isStartHydrationPayload(value.hydration));
+const isStartActionResponseBody = Schema.is(StartActionResponseBody);
 
 export const parseStartActionResponse = (
   response: Response,
@@ -565,26 +333,20 @@ export const parseStartActionResponse = (
         payload,
       });
     }
-
     return payload;
   });
-
-const hasActionResultTag = (
-  value: unknown,
-): value is Extract<
-  StartActionResponseBody,
-  { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }
-> =>
-  isRecord(value) &&
-  (value._tag === "Success" ||
-    value._tag === "ValidationFailure" ||
-    value._tag === "Redirect" ||
-    value._tag === "Failure");
 
 /** A decoded remote action outcome: the value or typed error a local `run` would produce. */
 export type StartActionOutcome<A, E> =
   | { readonly _tag: "Value"; readonly value: A }
   | { readonly _tag: "Error"; readonly error: E };
+
+const actionResultTags: ReadonlySet<unknown> = new Set([
+  "Success",
+  "ValidationFailure",
+  "Redirect",
+  "Failure",
+]);
 
 /**
  * Decodes an action response into the outcome a local submission of the same
@@ -595,14 +357,11 @@ export type StartActionOutcome<A, E> =
  */
 export const decodeStartActionOutcome = <I, A, E, R>(
   definition: Action.Definition<I, A, E, R>,
-  body: Extract<
-    StartActionResponseBody,
-    { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }
-  >,
+  body: StartActionDomainBody,
 ): Effect.Effect<StartActionOutcome<A, E>, Schema.SchemaError> =>
   Effect.gen(function* () {
     const whole = yield* Effect.exit(decodeServerWire(definition.output, body));
-    if (Exit.isSuccess(whole) && hasActionResultTag(whole.value)) {
+    if (Exit.isSuccess(whole) && isRecord(whole.value) && actionResultTags.has(whole.value._tag)) {
       return { _tag: "Value", value: whole.value as A };
     }
 
@@ -636,4 +395,137 @@ export const decodeStartActionOutcome = <I, A, E, R>(
           }) as A,
         };
     }
+  });
+
+type WireInvalidation =
+  | StartActionInvalidationPlan["targets"][number]
+  | StartActionInvalidationPlan["entries"][number]["causes"][number];
+
+/**
+ * Resolves one wire invalidation target (or cause) against the runtime's
+ * Resource families; a Ref without `input` (a cause) only checks its family.
+ */
+const resolveInvalidation = (
+  body: StartActionResponseBody,
+  target: WireInvalidation,
+): Effect.Effect<Resource.Invalidation<any> | undefined, ServerTransportError> => {
+  const invalid = (message: string) =>
+    Effect.fail(
+      new ServerTransportError({
+        reason: "InvalidResponse",
+        message: `Start action invalidation metadata ${message}`,
+        payload: { body, target },
+      }),
+    );
+  if (target._tag === "Tag") {
+    const identity =
+      target.key === target.name
+        ? { _tag: "Unkeyed" as const, name: target.name }
+        : target.key.startsWith(`${target.name}:`)
+          ? {
+              _tag: "Keyed" as const,
+              name: target.name,
+              key: target.key.slice(target.name.length + 1),
+            }
+          : undefined;
+    return identity === undefined
+      ? invalid("did not match the Resource tag key.")
+      : Effect.succeed({
+          [ResourceTagTypeId]: ResourceTagTypeId,
+          [ResourceTagIdentityTypeId]: identity,
+          name: target.name,
+          key: target.key,
+        });
+  }
+  return Effect.flatMap(lookupResourceFamily(target.family), (family) => {
+    if (!family) {
+      return invalid("referenced an unknown Resource family.");
+    }
+    if (!("input" in target)) {
+      return Effect.succeed(undefined);
+    }
+    const ref = family.ref(target.input);
+    return ref.key === target.key
+      ? Effect.succeed(ref)
+      : invalid("did not match the Resource input.");
+  });
+};
+
+const resourceIdentity = (name: string, key: string): string => JSON.stringify([name, key]);
+
+/**
+ * Validates the response's invalidation metadata and runs the invalidation in
+ * the current runtime, skipping refs whose fresh values were hydrated.
+ */
+const runResponseInvalidation = (
+  body: StartActionResponseBody,
+  hydrated: ReadonlySet<string>,
+): Effect.Effect<void, ServerTransportError> =>
+  Effect.gen(function* () {
+    const plan = "invalidation" in body ? body.invalidation : undefined;
+    if (plan === undefined) {
+      return;
+    }
+    const targets = yield* Effect.forEach(plan.targets, (target) =>
+      resolveInvalidation(body, target),
+    );
+    yield* Effect.forEach(
+      plan.entries.flatMap((entry) => [{ _tag: "Ref" as const, ...entry.ref }, ...entry.causes]),
+      (target) => resolveInvalidation(body, target),
+      { discard: true },
+    );
+    if (targets.length === 0) {
+      return;
+    }
+    const planned = yield* Resource.planInvalidation(targets as Array<Resource.Invalidation<any>>);
+    yield* Resource.runInvalidationPlan({
+      targets: planned.targets,
+      entries: planned.entries.filter(
+        (entry) => !hydrated.has(resourceIdentity(entry.ref.family.options.name, entry.ref.key)),
+      ),
+    });
+  }) as Effect.Effect<void, ServerTransportError>;
+
+/**
+ * Applies only the invalidation metadata of an action response, in the
+ * runtime running this Effect. Superseded `parallel` submissions use it: the
+ * visible state and hydrated values stay latest-only, while accepted server
+ * mutations still refresh invalidated resources.
+ */
+export const applyStartActionInvalidation = (
+  body: StartActionResponseBody,
+): Effect.Effect<void, ServerTransportError> => runResponseInvalidation(body, new Set());
+
+/**
+ * Applies accepted Start action response metadata in the runtime running this
+ * Effect (the submitting runtime): hydrates returned resources, then runs the
+ * invalidation for the refs that were not hydrated. Malformed metadata fails
+ * with `ServerTransportError`.
+ */
+export const applyStartActionResponse = (
+  body: StartActionResponseBody,
+): Effect.Effect<void, ServerTransportError> =>
+  Effect.gen(function* () {
+    const hydration = "hydration" in body ? body.hydration : undefined;
+    if (hydration !== undefined) {
+      yield* hydrateStartPayload(hydration).pipe(
+        Effect.mapError(
+          (cause) =>
+            new ServerTransportError({
+              reason: "InvalidResponse",
+              message: "Start action response metadata could not be applied.",
+              cause,
+              payload: body,
+            }),
+        ),
+      );
+    }
+    yield* runResponseInvalidation(
+      body,
+      new Set(
+        (hydration?.resources ?? []).map((resource) =>
+          resourceIdentity(resource.name, resource.key),
+        ),
+      ),
+    );
   });

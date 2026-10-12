@@ -21,12 +21,12 @@ import {
   type RequestRuntimeProvidedRequirements,
   type RequestRuntimeRemainingRequirements,
 } from "./request-runtime.js";
-import { startRequestTraceFacts, type StartRequestTraceHandler } from "./request-trace.js";
-import { runRequestRuntimeLifecycle } from "./request-runtime-lifecycle.js";
 import {
-  recordStartRequestTraceFailure,
-  recordStartRequestTracePreload,
-} from "./request-trace-recorder.js";
+  recordStartRequestFailure,
+  recordStartRequestRoutePlan,
+  startRequestFacts,
+} from "./request-trace.js";
+import { runRequestRuntimeLifecycle } from "./request-runtime-lifecycle.js";
 import {
   createStartRenderHydrationPlan,
   type StartRenderHydrationPlan,
@@ -88,8 +88,7 @@ export interface StartRenderContext<
 /**
  * Options for the internal request handler under `createRequestHandler`.
  *
- * Configures the render step, the served action set, and an optional request
- * trace hook. Handler execution stays Effect-first internally; platform
+ * Configures the render step and the served action set. Handler execution stays Effect-first internally; platform
  * adapters decide where any Promise boundary lives.
  */
 export interface StartRequestHandlerOptions<
@@ -105,8 +104,6 @@ export interface StartRequestHandlerOptions<
   ) => EffectInput<string | Response, never, RequestRuntimeProvidedRequirements<ServerServices>>;
   /** Actions served by the action transport. Defaults to globally registered actions. */
   readonly actions?: Iterable<Actions>;
-  /** Receives best-effort request diagnostics after runtime teardown. */
-  readonly onRequestTrace?: StartRequestTraceHandler;
 }
 
 export type StartRequestRequirements<
@@ -165,7 +162,7 @@ export const createStartRequestHandler = <
     Effect.gen(function* () {
       const requestRuntime = makeRequestRuntime(app);
       const responseContext = makeResponseContext();
-      const traceFacts = yield* startRequestTraceFacts(request);
+      const facts = yield* startRequestFacts(request);
       const responseEffect = Effect.gen(function* () {
         if (isServerRpcRequest(request)) {
           return yield* createServerRpcResponseEffectWithRuntime(
@@ -173,7 +170,7 @@ export const createStartRequestHandler = <
             request,
             requestRuntime,
             responseContext,
-            traceFacts,
+            facts,
           );
         }
 
@@ -184,7 +181,7 @@ export const createStartRequestHandler = <
             requestRuntime,
             explicitActionMap,
             responseContext,
-            traceFacts,
+            facts,
             workflows,
           );
         }
@@ -196,7 +193,7 @@ export const createStartRequestHandler = <
           responseContext,
           "render",
         );
-        recordStartRequestTracePreload(traceFacts, preloaded.routePlan);
+        recordStartRequestRoutePlan(facts, preloaded.routePlan);
         // Probed after preload, so a submission reported settled is one the
         // preloaded state already reflects.
         const actionMap = yield* Effect.try(() =>
@@ -226,7 +223,7 @@ export const createStartRequestHandler = <
         if (preloaded.routeFailure !== undefined) {
           // The page renders the route's failure view; `render` may still set
           // a more specific status through `ResponseContext`.
-          recordStartRequestTraceFailure(traceFacts, "domain");
+          recordStartRequestFailure(facts, "domain");
           yield* responseContext.setStatus(500);
         }
         const context = {
@@ -283,9 +280,8 @@ export const createStartRequestHandler = <
         request,
         runtime: requestRuntime,
         responseContext,
-        traceFacts,
+        facts,
         responseEffect,
-        ...(options.onRequestTrace === undefined ? {} : { onRequestTrace: options.onRequestTrace }),
       });
     }).pipe(
       Effect.mapError((cause) => normalizeStartRequestHandlerError(request, cause)),

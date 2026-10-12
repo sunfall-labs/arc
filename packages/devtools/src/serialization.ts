@@ -1,21 +1,15 @@
 import { isResourceRef, isResourceTag, type Route, type Resource } from "@sunfall/arc-core";
-import { Data } from "effect";
+import { Cause, Data, Exit, type Tracer } from "effect";
 import type {
   DevtoolsInvalidationCause,
   DevtoolsInvalidationPlan,
   DevtoolsInvalidationTarget,
-  DevtoolsRequestTrace,
-  DevtoolsRequestTraceCookie,
-  DevtoolsRequestTraceCleanupFailure,
-  DevtoolsRequestTraceHeader,
-  DevtoolsRequestTraceRequest,
-  DevtoolsRequestTraceResponse,
-  DevtoolsRequestTraceTeardown,
   DevtoolsRoutePlan,
   DevtoolsRuntimeEvent,
   DevtoolsSerializationPolicy,
   DevtoolsSerializableValue,
   DevtoolsSnapshot,
+  DevtoolsSpan,
 } from "./devtools-contract.js";
 
 /** Error raised when a live invalidation plan contains a non-serializable target shape. */
@@ -955,62 +949,6 @@ export const copyInvalidationPlan = (
   };
 };
 
-const copyTraceHeaders = (
-  headers: ReadonlyArray<DevtoolsRequestTraceHeader> | undefined,
-  policy: NormalizedDevtoolsSerializationPolicy,
-): ReadonlyArray<DevtoolsRequestTraceHeader> | undefined =>
-  headers === undefined
-    ? undefined
-    : headers
-        .map((header) =>
-          shouldRedactKey(header.name, policy)
-            ? {
-                name: redactedTraceText,
-                value: redactedTraceText,
-              }
-            : { ...header },
-        )
-        .sort((left, right) => left.name.localeCompare(right.name));
-
-const defaultRedactedCookieName = (name: string): boolean => {
-  const segments = keySegments(name);
-  return (
-    defaultRedactedKey(name) ||
-    segments.some(
-      (segment) =>
-        segment === "session" ||
-        segment === "sid" ||
-        segment === "csrf" ||
-        segment === "xsrf" ||
-        segment === "jwt",
-    )
-  );
-};
-
-const shouldRedactCookieName = (
-  name: string,
-  policy: NormalizedDevtoolsSerializationPolicy,
-): boolean =>
-  defaultRedactedCookieName(name) ||
-  policy.redactKeys.some((matcher) =>
-    typeof matcher === "string"
-      ? name.toLowerCase() === matcher.toLowerCase()
-      : regexRedactsKey(matcher, name),
-  );
-
-const copyTraceCookies = (
-  cookies: ReadonlyArray<DevtoolsRequestTraceCookie> | undefined,
-  policy: NormalizedDevtoolsSerializationPolicy,
-): ReadonlyArray<DevtoolsRequestTraceCookie> | undefined =>
-  cookies === undefined
-    ? undefined
-    : cookies
-        .map((cookie) => ({
-          name: shouldRedactCookieName(cookie.name, policy) ? redactedTraceText : cookie.name,
-          value: redactedTraceText,
-        }))
-        .sort((left, right) => left.name.localeCompare(right.name));
-
 const decodeSearchParamName = (name: string): string => {
   try {
     return decodeURIComponent(name.replace(/\+/g, " "));
@@ -1060,20 +998,6 @@ const redactTraceUrlQuery = (
   return `${value.slice(0, queryIndex + 1)}${redactedSearch}${value.slice(searchEnd)}`;
 };
 
-const copyRequestTraceCleanupFailure = (
-  cleanupFailure: DevtoolsRequestTraceCleanupFailure,
-  policy: DevtoolsSerializationPolicy | undefined,
-): DevtoolsRequestTraceCleanupFailure => {
-  const normalizedPolicy = normalizeSerializationPolicy(policy);
-  return {
-    _tag: cleanupFailure._tag,
-    message:
-      cleanupFailure.message.length <= normalizedPolicy.maxStringLength
-        ? cleanupFailure.message
-        : cleanupFailure.message.slice(0, normalizedPolicy.maxStringLength),
-  };
-};
-
 /** Deep-copies a Devtools route plan, including params/search/resource inputs. */
 export const copyDevtoolsRoutePlan = (
   plan: DevtoolsRoutePlan,
@@ -1105,84 +1029,49 @@ export const copyDevtoolsRoutePlan = (
   };
 };
 
-const copyRequestTraceTeardown = (
-  teardown: DevtoolsRequestTraceTeardown,
-  policy?: DevtoolsSerializationPolicy,
-): DevtoolsRequestTraceTeardown => ({
-  runtimeDisposed: teardown.runtimeDisposed,
-  ...(teardown.reason === undefined ? {} : { reason: teardown.reason }),
-  ...(teardown.at === undefined ? {} : { at: teardown.at }),
-  ...(teardown.startedAt === undefined ? {} : { startedAt: teardown.startedAt }),
-  ...(teardown.completedAt === undefined ? {} : { completedAt: teardown.completedAt }),
-  ...(teardown.durationMillis === undefined ? {} : { durationMillis: teardown.durationMillis }),
-  ...(teardown.beforeDispose === undefined ? {} : { beforeDispose: { ...teardown.beforeDispose } }),
-  ...(teardown.afterDispose === undefined ? {} : { afterDispose: { ...teardown.afterDispose } }),
-  ...(teardown.cleanupFailure === undefined
-    ? {}
-    : { cleanupFailure: copyRequestTraceCleanupFailure(teardown.cleanupFailure, policy) }),
-});
+const urlAttribute = (key: string): boolean =>
+  key === "url.full" || key.endsWith(".href") || key.endsWith(".url");
 
-/** Deep-copies a request trace and sorts copied header/cookie collections for stable panels. */
-export const copyRequestTrace = (
-  trace: DevtoolsRequestTrace,
+/** Copies a recorded span, redacting attribute keys and URL queries through the policy. */
+export const copyDevtoolsSpan = (
+  span: DevtoolsSpan,
   policy?: DevtoolsSerializationPolicy,
-): DevtoolsRequestTrace => {
+): DevtoolsSpan => {
   const state = initialDetachedCopyState(policy);
-  const request: DevtoolsRequestTraceRequest = {
-    method: trace.request.method,
-    url: redactTraceUrlQuery(trace.request.url, state.policy),
-    path: redactTraceUrlQuery(trace.request.path, state.policy),
-    transport: trace.request.transport,
-    ...(trace.request.id === undefined ? {} : { id: trace.request.id }),
-    ...(trace.request.traceparent === undefined ? {} : { traceparent: trace.request.traceparent }),
-    ...(trace.request.headers === undefined
-      ? {}
-      : { headers: copyTraceHeaders(trace.request.headers, state.policy)! }),
-    ...(trace.request.cookies === undefined
-      ? {}
-      : { cookies: copyTraceCookies(trace.request.cookies, state.policy)! }),
-  };
-  const response: DevtoolsRequestTraceResponse | undefined =
-    trace.response === undefined
-      ? undefined
-      : {
-          status: trace.response.status,
-          ...(trace.response.statusText === undefined
-            ? {}
-            : { statusText: trace.response.statusText }),
-          ...(trace.response.headers === undefined
-            ? {}
-            : { headers: copyTraceHeaders(trace.response.headers, state.policy)! }),
-          ...(trace.response.setCookieCount === undefined
-            ? {}
-            : { setCookieCount: trace.response.setCookieCount }),
-        };
-
+  const attributes: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(span.attributes)) {
+    attributes[key] =
+      typeof value === "string" && urlAttribute(key)
+        ? redactTraceUrlQuery(value, state.policy)
+        : value;
+  }
   return {
-    request,
-    ...(response === undefined ? {} : { response }),
-    services: [...trace.services].sort(),
-    ...(trace.routePlan === undefined
-      ? {}
-      : { routePlan: copyDevtoolsRoutePlan(trace.routePlan, policy) }),
-    resources: trace.resources.map((resource) => ({
-      ...resource,
-      ...(resource.input === undefined ? {} : { input: copyDetachedValue(resource.input, state) }),
-    })),
-    serverFunctions: trace.serverFunctions.map((serverFunction) => ({ ...serverFunction })),
-    actions: trace.actions.map((action) => ({
-      ...action,
-      ...(action.invalidationIndexes === undefined
-        ? {}
-        : { invalidationIndexes: [...action.invalidationIndexes] }),
-    })),
-    fibers: trace.fibers.map((fiber) => ({ ...fiber })),
-    streams: trace.streams.map((stream) => ({ ...stream })),
-    status: trace.status,
-    ...(trace.failureKind === undefined ? {} : { failureKind: trace.failureKind }),
-    ...(trace.teardown === undefined
-      ? {}
-      : { teardown: copyRequestTraceTeardown(trace.teardown, policy) }),
+    ...span,
+    attributes: copyDetachedValue(attributes, state) as DevtoolsSpan["attributes"],
+  };
+};
+
+/** Describes an ended Effect span as a Devtools span fact. */
+export const describeSpan = (span: Tracer.Span): DevtoolsSpan => {
+  const status = span.status;
+  const startTime = Number(status.startTime / 1_000_000n);
+  const endTime = status._tag === "Ended" ? Number(status.endTime / 1_000_000n) : startTime;
+  const parent = span.parent._tag === "Some" ? span.parent.value.spanId : undefined;
+  return {
+    traceId: span.traceId,
+    spanId: span.spanId,
+    ...(parent === undefined ? {} : { parentSpanId: parent }),
+    name: span.name,
+    kind: span.kind,
+    startTime,
+    durationMillis: Math.max(0, endTime - startTime),
+    status:
+      status._tag !== "Ended" || Exit.isSuccess(status.exit)
+        ? "success"
+        : Cause.hasInterruptsOnly(status.exit.cause)
+          ? "interrupted"
+          : "failure",
+    attributes: Object.fromEntries(span.attributes),
   };
 };
 
@@ -1221,11 +1110,6 @@ export const copyDevtoolsRuntimeEvent = (
         ...event,
         plan: copyDevtoolsRoutePlan(event.plan, policy),
       };
-    case "RequestTrace":
-      return {
-        ...event,
-        trace: copyRequestTrace(event.trace, policy),
-      };
     case "Custom":
       return {
         ...event,
@@ -1250,9 +1134,9 @@ export const copyDevtoolsSnapshot = (
   })),
   invalidations: snapshot.invalidations.map((plan) => copyInvalidationPlan(plan, policy)),
   routePlans: snapshot.routePlans.map((plan) => copyDevtoolsRoutePlan(plan, policy)),
-  ...(snapshot.requestTraces === undefined
+  ...(snapshot.spans === undefined
     ? {}
-    : { requestTraces: snapshot.requestTraces.map((trace) => copyRequestTrace(trace, policy)) }),
+    : { spans: snapshot.spans.map((span) => copyDevtoolsSpan(span, policy)) }),
   ...(snapshot.events === undefined
     ? {}
     : { events: snapshot.events.map((event) => copyDevtoolsRuntimeEvent(event, policy)) }),

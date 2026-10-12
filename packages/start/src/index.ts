@@ -30,13 +30,6 @@ export {
   type StartRequestHandler,
 } from "./start-request-handler.js";
 
-export type {
-  /** Best-effort request diagnostics delivered after runtime teardown. */
-  StartRequestTrace,
-  /** Callback receiving request diagnostics after runtime teardown. */
-  StartRequestTraceHandler,
-} from "./request-trace.js";
-
 export {
   /** Error raised when an HTML response stream fails. */
   StartStreamError,

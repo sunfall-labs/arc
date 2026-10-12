@@ -160,9 +160,9 @@
         "Devtools.CausalGraph",
         "Devtools.InvalidationPlan",
         "Devtools.Panels",
-        "Devtools.RequestTrace",
         "Devtools.RuntimeEvent",
         "Devtools.Snapshot",
+        "Devtools.Span",
         "Devtools.Store",
         "Devtools.StoreOptions",
         "Devtools.Summary",
@@ -201,7 +201,6 @@
       "typeTest": "type-tests/start.test-d.ts",
       "sourceSurface": [
         "hydration",
-        "request-trace",
         "start-action-client",
         "start-action-request-codec",
         "start-app",
@@ -305,7 +304,6 @@
         "errorBoundaryById",
         "metadataById",
         "routeFileRouteModules",
-        "routeFileRouteMetadata",
         "RouteTree",
         "RouteById",
         "FileRouteId",
@@ -321,8 +319,7 @@
         "FileRouteLayouts",
         "FileRouteErrorBoundary",
         "FileRouteMetadataModules",
-        "FileRouteModules",
-        "FileRouteMetadata"
+        "FileRouteModules"
       ]
     },
     {

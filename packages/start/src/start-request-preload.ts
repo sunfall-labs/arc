@@ -158,6 +158,11 @@ export const preloadRequestEffectWithRuntime = <
           new URL(request.url),
           routePreloadFailure,
         ).pipe(Effect.mapError((cause) => preloadError("route-navigation", cause, { request })));
+        // A lazy route component loads before render, so the server renders it
+        // in the first pass; a failed load surfaces where the router renders it.
+        if (routePlan.match !== undefined) {
+          yield* Effect.ignore(Route.preloadComponent(routePlan.match));
+        }
         const hydration = createStartHydrationPayload(routePlan.resources, routeFailure);
         return {
           match: routePlan.match,

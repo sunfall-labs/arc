@@ -1,86 +1,58 @@
-import { type EffectInput, type SunfallArcRuntime } from "@sunfall/arc-core";
+import type { SunfallArcRuntime } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import {
-  invokeStartEffectInputCallback,
-  requestRuntimeDisposeTrace,
-  type StartRequestTraceCleanupFailure,
-  type StartRequestTraceFailureKind,
-  type StartRequestTraceStatus,
-  type StartRequestTraceStream,
-  type StartRequestTraceTeardownSnapshot,
+  disposeRequestRuntime,
+  type StartRequestFailureKind,
+  type StartRequestStatus,
+  type StartRequestStream,
+  type StartRequestTeardown,
 } from "./request-trace.js";
-import { responseWithStreamFinalizer, type StartResponseStreamFinalizeEvent } from "./streaming.js";
+import { responseWithStreamFinalizer } from "./streaming.js";
 
 export interface RequestRuntimeFinalizeState {
-  readonly stream?: StartRequestTraceStream;
-  readonly status: StartRequestTraceStatus;
-  readonly failureKind?: StartRequestTraceFailureKind;
+  readonly status: StartRequestStatus;
+  readonly failureKind?: StartRequestFailureKind;
   readonly teardownReason: string;
-  readonly runtimeDisposed: boolean;
-  readonly beforeDispose: StartRequestTraceTeardownSnapshot;
-  readonly afterDispose: StartRequestTraceTeardownSnapshot;
-  readonly completedAt: number;
-  readonly cleanupFailure?: StartRequestTraceCleanupFailure;
+  readonly teardown: StartRequestTeardown;
+  readonly stream?: StartRequestStream;
 }
 
-export interface RequestRuntimeStreamFinalizeState extends RequestRuntimeFinalizeState {
-  readonly stream: StartRequestTraceStream;
-}
-
-const requestRuntimeStreamFinalizer = <RuntimeServices, RuntimeError>(
-  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
-  options: {
-    readonly onFinalize?: (state: RequestRuntimeFinalizeState) => EffectInput<void, never, never>;
-  },
-): ((event: StartResponseStreamFinalizeEvent) => Effect.Effect<void>) => {
-  let disposed = false;
-
-  return (event) =>
-    Effect.gen(function* () {
-      const shouldDispose = yield* Effect.sync(() => {
-        if (disposed) {
-          return false;
-        }
-
-        disposed = true;
-        return true;
-      });
-      if (!shouldDispose) {
-        return;
-      }
-
-      const state: RequestRuntimeStreamFinalizeState = {
-        ...(yield* requestRuntimeDisposeTrace(runtime)),
-        stream: event.stream,
-        status: event.status,
-        ...(event.failureKind === undefined ? {} : { failureKind: event.failureKind }),
-        teardownReason: event.teardownReason,
-      };
-      yield* invokeStartEffectInputCallback(options.onFinalize, state);
-    });
-};
-
+/**
+ * Disposes the request runtime once the response is done: immediately for a
+ * bodiless response, or when a streamed body closes, errors, or is cancelled.
+ * `onFinalize` runs once after disposal; its failures are ignored.
+ */
 export const completeRequestRuntimeWithResponse = <RuntimeServices, RuntimeError>(
   runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
   response: Response,
-  options: {
-    /** Runs once the request runtime is disposed; stream responses populate `stream`. */
-    readonly onFinalize?: (state: RequestRuntimeFinalizeState) => EffectInput<void, never, never>;
-  } = {},
-): Effect.Effect<Response> =>
-  response.body
-    ? Effect.succeed(
-        responseWithStreamFinalizer(response, {
-          runEffect: (effect) => Effect.runPromise(runtime.provide(effect)),
-          onFinalize: requestRuntimeStreamFinalizer(runtime, options),
+  onFinalize: (state: RequestRuntimeFinalizeState) => Effect.Effect<void> = () => Effect.void,
+): Effect.Effect<Response> => {
+  const finalize = (state: Omit<RequestRuntimeFinalizeState, "teardown">) =>
+    Effect.flatMap(disposeRequestRuntime(runtime), (teardown) =>
+      Effect.suspend(() => onFinalize({ ...state, teardown })).pipe(
+        Effect.catchCause(() => Effect.void),
+      ),
+    );
+  if (!response.body) {
+    return Effect.as(finalize({ status: "success", teardownReason: "response-end" }), response);
+  }
+  let finalized = false;
+  return Effect.succeed(
+    responseWithStreamFinalizer(response, {
+      runEffect: (effect) => Effect.runPromise(runtime.provide(effect)),
+      onFinalize: (event) =>
+        Effect.suspend(() => {
+          if (finalized) {
+            return Effect.void;
+          }
+          finalized = true;
+          return finalize({
+            stream: event.stream,
+            status: event.status,
+            ...(event.failureKind === undefined ? {} : { failureKind: event.failureKind }),
+            teardownReason: event.teardownReason,
+          });
         }),
-      )
-    : Effect.gen(function* () {
-        const teardown = yield* requestRuntimeDisposeTrace(runtime);
-        yield* invokeStartEffectInputCallback(options.onFinalize, {
-          status: "success",
-          teardownReason: "response-end",
-          ...teardown,
-        });
-        return response;
-      });
+    }),
+  );
+};

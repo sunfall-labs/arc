@@ -7,19 +7,28 @@ import {
 } from "./start-transport-body.js";
 import { encodeServerWire } from "@sunfall/arc-core/internal";
 
-/** JSON payload accepted by the Start action transport. */
-export interface StartActionRequest {
-  readonly name: string;
-  readonly input: unknown;
+/** Longest submission id the action endpoint accepts. */
+export const startActionSubmissionIdMaxLength = 128;
+
+const StartActionRequestSchema = Schema.Struct({
+  name: Schema.String,
+  input: Schema.Unknown,
   /**
    * Durable submission id. The endpoint deduplicates by `name` and `id`, so
    * a replayed submission returns its original response.
    */
-  readonly id?: string;
-}
+  id: Schema.optionalKey(
+    Schema.String.check(
+      Schema.isMinLength(1),
+      Schema.isMaxLength(startActionSubmissionIdMaxLength),
+    ),
+  ),
+});
 
-/** Longest submission id the action endpoint accepts. */
-export const startActionSubmissionIdMaxLength = 128;
+/** JSON payload accepted by the Start action transport. */
+export type StartActionRequest = typeof StartActionRequestSchema.Type;
+
+const isStartActionRequest = Schema.is(StartActionRequestSchema);
 
 /** Hidden field emitted by `startActionForm(...)` for progressive HTML POSTs. */
 export interface StartActionFormField {
@@ -113,32 +122,22 @@ export class StartActionFormEncodeError extends Data.TaggedError("StartActionFor
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
+// Encodes only the present fields of a struct schema; other schemas encode whole.
 // Effect schemas are callable, so detect them with `Schema.isSchema`, not `typeof`.
-const structSchemaFields = (schema: unknown): Record<string, unknown> | undefined => {
-  const fields = Schema.isSchema(schema)
-    ? (schema as { readonly fields?: unknown }).fields
-    : undefined;
-  return isRecord(fields) ? fields : undefined;
-};
-
 const encodePartialWithSchema = (
   schema: unknown,
   input: unknown,
 ): Effect.Effect<unknown, Schema.SchemaError> => {
-  const fields = structSchemaFields(schema);
-  if (!Schema.isSchema(schema) || fields === undefined || !isRecord(input)) {
+  const fields = Schema.isSchema(schema)
+    ? (schema as { readonly fields?: unknown }).fields
+    : undefined;
+  if (!isRecord(fields) || !isRecord(input)) {
     return encodeServerWire(schema, input);
   }
-
-  const presentFields: Record<string, Schema.Schema<unknown>> = {};
-  for (const key of Object.keys(input)) {
-    const field = fields[key];
-    if (Schema.isSchema(field)) {
-      presentFields[key] = field as Schema.Schema<unknown>;
-    }
-  }
-
-  return Schema.encodeUnknownEffect(Schema.Struct(presentFields))(input) as Effect.Effect<
+  const present = Object.fromEntries(
+    Object.keys(input).flatMap((key) => (Schema.isSchema(fields[key]) ? [[key, fields[key]]] : [])),
+  ) as Schema.Struct.Fields;
+  return Schema.encodeUnknownEffect(Schema.Struct(present))(input) as Effect.Effect<
     unknown,
     Schema.SchemaError
   >;
@@ -213,13 +212,7 @@ const encodeStartActionFormInputSync = (action: StartActionDefinition, input: un
   if (Exit.isSuccess(exit)) {
     return exit.value;
   }
-
-  const failure = exit.cause.reasons.find(Cause.isFailReason)?.error;
-  if (failure !== undefined) {
-    throw failure;
-  }
-
-  throw startActionFormEncodeError(action, "schema-encode", input, Cause.squash(exit.cause));
+  throw Cause.squash(exit.cause);
 };
 
 /** Creates the hidden POST fields needed to submit a Start action from HTML. */
@@ -248,34 +241,18 @@ export const startActionForm = <I, A, E, R>(
 const readActionJsonEffect = (
   request: Request,
 ): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>
-  Effect.gen(function* () {
-    const payload = yield* readStartTransportJsonBody(
-      request,
-      "Expected a JSON action request body.",
-    );
-    if (!isRecord(payload) || typeof payload.name !== "string" || !("input" in payload)) {
-      return yield* new ServerRpcProtocolError({
-        message: "Expected an action request with string name and input fields.",
-        payload,
-      });
-    }
-    const id = payload.id;
-    if (
-      id !== undefined &&
-      (typeof id !== "string" || id.length === 0 || id.length > startActionSubmissionIdMaxLength)
-    ) {
-      return yield* new ServerRpcProtocolError({
-        message: `Expected the action request id to be a string of 1 to ${startActionSubmissionIdMaxLength} characters.`,
-        payload,
-      });
-    }
-
-    return {
-      name: payload.name,
-      input: payload.input,
-      ...(id === undefined ? {} : { id }),
-    };
-  });
+  Effect.flatMap(
+    readStartTransportJsonBody(request, "Expected a JSON action request body."),
+    (payload) =>
+      isStartActionRequest(payload)
+        ? Effect.succeed(payload)
+        : Effect.fail(
+            new ServerRpcProtocolError({
+              message: `Expected an action request with string name and input fields, and an optional id of 1 to ${startActionSubmissionIdMaxLength} characters.`,
+              payload,
+            }),
+          ),
+  );
 
 const formValue = (value: FormDataEntryValue): unknown =>
   typeof value === "string" ? value : value.name;

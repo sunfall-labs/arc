@@ -19,8 +19,6 @@ export const startHtmlMediaType = "text/html";
 
 /** Request/response correlation header propagated by Start transports. */
 export const startRequestIdHeader = "x-sunfall-arc-request-id";
-/** W3C trace context header read for request trace facts. */
-export const startTraceparentHeader = "traceparent";
 /** Response diagnostics header describing the transport kind. */
 export const startTransportKindHeader = "x-sunfall-arc-transport";
 /** Response diagnostics header describing the Start transport protocol version. */
