@@ -13,6 +13,7 @@ import {
 } from "@sunfall/arc-db/internal";
 import { Deferred, Effect, Fiber, PubSub, Queue, Schema, Stream } from "effect";
 import { describe, expect, it, vi } from "vitest";
+import { flipContractDefect } from "./contract-defect.js";
 
 interface Project {
   readonly id: string;
@@ -66,7 +67,7 @@ describe("Collection sync adapters", () => {
     );
   });
 
-  it("keeps synchronous sync adapter throws in the Effect error channel", () =>
+  it("reports synchronous sync adapter throws as defects", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const loadFailure = new Error("load exploded");
@@ -80,7 +81,7 @@ describe("Collection sync adapters", () => {
             },
           },
         });
-        const loadError = yield* Effect.flip(LoadProjects.preload());
+        const loadError = yield* flipContractDefect(LoadProjects.preload());
 
         expect(loadError).toBeInstanceOf(EffectInputCallbackError);
         expect((loadError as EffectInputCallbackError).cause).toBe(loadFailure);

@@ -4,7 +4,7 @@ import {
   stableStringify,
   type ReadableSignal,
 } from "@sunfall/arc-core";
-import { Effect, Option } from "effect";
+import { Cause, Effect, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import type { ReadonlyCollectionMutation } from "./collection-errors.js";
 import {
@@ -38,9 +38,8 @@ type LiveQueryCollectionMaterializationOperation = "load" | "snapshot";
 
 type LiveQueryCollectionError<E> = E | QueryEvaluationError | ReadonlyCollectionMutation;
 
-type LiveQueryCollectionLoadStateError<E> =
-  | LiveQueryCollectionError<E>
-  | LiveQueryCollectionMaterializationError;
+/** Load state failure: materialization contract violations are recorded as defects. */
+type LiveQueryCollectionLoadStateError<E> = LiveQueryCollectionError<E>;
 
 type LiveQueryCollectionDefinitionForMaterialization<
   A extends object,
@@ -322,7 +321,9 @@ export const makeLiveQueryCollectionMaterialization = <
           case "Success": {
             const current = currentProjection();
             if (materializationError) {
-              return AsyncResult.fail(materializationError, { previousSuccess: lastSuccess() });
+              return AsyncResult.failure(Cause.die(materializationError), {
+                previousSuccess: lastSuccess(),
+              });
             }
             return ready(current.updatedAt, state.waiting);
           }

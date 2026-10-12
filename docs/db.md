@@ -93,13 +93,22 @@ Collection and live-query load state uses Effect's `AsyncResult`
 Resources and Actions. Rows are always their own signal, so local-first reads
 never wait on load state.
 
-- `collection.result()` is
-  `ReadableSignal<AsyncResult<void, Collection.RuntimeError<E>>>`: `Initial`
+- `collection.result()` is `ReadableSignal<AsyncResult<void, E>>`: `Initial`
   before the first load, `Success` (timestamped with the load's `Clock` time)
   once rows are loaded, and `Failure` carrying the load `Cause` with the last
   success as `previousSuccess`. A preload or refresh marks the current result
   `waiting` instead of switching tags; an interrupted load returns to the prior
   settled result.
+- `preload()`, `refresh()`, `result()`, and `applyChanges(...)` fail only with
+  the collection's declared `E` (plus `CollectionRowNotFound` /
+  `CollectionRowKeyChanged` for updates), the same rule as Resources: a row
+  the output schema rejects (`CollectionSnapshotCodecError`) or a sync,
+  persistence, or `getKey` callback that throws or returns a Promise
+  (`EffectInputCallbackError`) breaks the collection's contract and is a
+  defect. A route can put `collection.preload()` in its preload as is.
+  `snapshot`, `hydrate`, `persist`, and `restore` still return codec and
+  callback failures: they move data across a boundary that can hand them
+  malformed input.
 - `liveQuery.result` is `ReadableSignal<AsyncResult<ReadonlyArray<T>, E | QueryEvaluationError>>`
   beside `liveQuery.rows` (always the last good rows). It folds source load
   results and evaluation failures: `Initial` while any source has never loaded,
@@ -363,7 +372,7 @@ or devtools panel inspected the derived collection. Duplicate source rows with
 the same derived key are projected once through the same keyed materialization
 used by `rows()`, `get(...)`, indexes, snapshots, state, and `version()`.
 That projection now uses the shared row-ingress key policy, so invalid derived
-keys and `getKey` callback throws fail through typed collection snapshot or
+keys and `getKey` callback throws are defects carrying collection snapshot or
 callback errors instead of bypassing normal validation.
 
 Because the rows are derived, `hydrate(...)` and `restore(...)` fail

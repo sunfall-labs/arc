@@ -13,6 +13,7 @@ import type { Collection } from "@sunfall/arc-db";
 import {
   collectCollectionsEffect,
   dehydrateCollectionsEffect,
+  forgetFailedCollectionLoadsEffect,
   isCollection,
 } from "@sunfall/arc-db/internal";
 import { Data, Effect } from "effect";
@@ -208,9 +209,10 @@ const preloadRouteDeclaredCollectionsEffect = (
 /**
  * The client restores a hydrated collection snapshot as a completed load, so
  * the payload carries only writable collections whose state this request
- * knows: loaded, or holding rows it wrote. A collection the request
- * never loaded (or failed to load) stays out of the payload: the server
- * rendered it as not-yet-loaded, and so does the client, which loads it itself.
+ * knows: loaded, or holding rows it wrote. A collection the request never
+ * loaded, or failed to load, stays out of the payload: the server renders it
+ * as not-yet-loaded (`forgetFailedCollectionLoadsEffect`), and so does the
+ * client, which loads it itself.
  */
 const startCollectionCanHydrate = (
   runtime: AnySunfallArcRuntime<unknown>,
@@ -245,6 +247,13 @@ const startCollectionPreloadEffect = (
             Effect.mapError((cause) => preloadError("collection-hydration", cause)),
           )
         : emptyCollectionHydrationPayload;
+    // A failure has no hydrated form, so the server must not render it: the
+    // client starts from the never-loaded state it would otherwise not match.
+    yield* forgetFailedCollectionLoadsEffect([
+      ...registeredCollections,
+      ...routeDeclaredCollections,
+      ...routeTouchedCollections,
+    ]);
 
     return {
       routeTouchedCollections,

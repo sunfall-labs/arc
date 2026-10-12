@@ -137,10 +137,15 @@ const routeOutsideRouterError = (definition: AnyBrowserRoute): RouteNavigationEr
     cause: new RouterRouteNotRegistered({ path: definition.path }),
   });
 
+/**
+ * Routes compare by path, like `Route.isMatch`, so a link to a route also
+ * reaches the copy `Route.withComponent(...)` registered with the router.
+ */
 const routerHasRoute = <Routes extends readonly AnyBrowserRoute[]>(
   routes: Routes,
   definition: AnyBrowserRoute,
-): definition is Routes[number] => (routes as readonly AnyBrowserRoute[]).includes(definition);
+): definition is Routes[number] =>
+  (routes as readonly AnyBrowserRoute[]).some((route) => route.path === definition.path);
 
 const routeMembershipFailureState = <Routes extends readonly AnyBrowserRoute[], ER>(
   href: string,

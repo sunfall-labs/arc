@@ -516,16 +516,17 @@ The routes preload the collection so SSR renders its rows:
 -  preload: ({ params }) => Resource.preload([ProjectsRef, ProjectById(params.id)]),
 +  preloadCollections: [Projects],
 +  preload: ({ params }) =>
-+    Effect.all([Projects.preload().pipe(Effect.orDie), Resource.preload(ProjectById(params.id))]),
++    Effect.all([Projects.preload(), Resource.preload(ProjectById(params.id))]),
  });
 
 ```
 
 - The rename Action did not change. Its `ProjectsTag` invalidation reloads
   `ProjectList`, and the collection follows the Resource with no second fetch.
-- `Projects.preload()` can also fail with Collection runtime errors (snapshot
-  codec, callback contract) that `error: ProjectNotFound` does not declare, so
-  the route makes them defects with `Effect.orDie`.
+- `Projects.preload()` fails only with the collection's declared error (here
+  none, because `ProjectsRef` cannot fail), so it joins the route's preload
+  as is. Like a Resource load, a row the output schema rejects or a sync
+  callback that throws is a defect, not a typed failure.
 - Collection rows stay readable while a load is in flight and after a failed
   refresh, so there is no `<Loading>`: `waiting()` and `failure()` drive the
   chrome. If the collection never loaded and its load failed, the rows throw

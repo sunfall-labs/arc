@@ -36,6 +36,7 @@ export {
   defineCollection,
   dehydrateCollections,
   dehydrateCollectionsEffect,
+  forgetFailedCollectionLoadsEffect,
   hydrateCollectionsEffect,
   subscribeCollectionEventsEffect,
   validateCollectionsHydrationEffect,

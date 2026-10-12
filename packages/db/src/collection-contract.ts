@@ -31,12 +31,10 @@ export type CollectionRow<A extends object, K extends CollectionKey = Collection
 };
 
 /**
- * Failure channel for collection runtime reads and loads.
- *
- * `E` comes from the collection's sync source and persistence. Snapshot codec
- * errors cover malformed persisted/hydrated rows and output-schema validation
- * failures, while EffectInput callback errors report synchronous throws before a
- * loader, adapter, or persistence callback can return a value or Effect.
+ * Internal failure channel of the collection load machinery: the declared `E`
+ * from the sync source and persistence, plus the contract violations (a row
+ * the output schema rejects, a callback that throws) that the public
+ * `preload`, `refresh`, `result`, and `applyChanges` re-raise as defects.
  */
 export type CollectionRuntimeError<E = never> =
   | E
@@ -199,7 +197,7 @@ export interface CollectionDefinition<
    * their own signal, so local writes keep rows available while a later load
    * is waiting or failed.
    */
-  result(): ReadableSignal<AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>>;
+  result(): ReadableSignal<AsyncResult.AsyncResult<void, E>>;
   /** Reactive version signal that changes when rows or pending mutations change. */
   version(): ReadableSignal<number>;
   /** Read one row by key from the current in-memory state. */
@@ -210,10 +208,13 @@ export interface CollectionDefinition<
   index(index: string, value: CollectionIndexValue): ReadonlyArray<CollectionRow<A, K>>;
   /** Read the first row from a named secondary index bucket. */
   firstByIndex(index: string, value: CollectionIndexValue): CollectionRow<A, K> | undefined;
-  /** Ensure the collection has loaded once. */
-  preload(): Effect.Effect<void, CollectionRuntimeError<E>, R>;
-  /** Force a fresh load even when the collection is already ready. */
-  refresh(): Effect.Effect<void, CollectionRuntimeError<E>, R>;
+  /**
+   * Ensure the collection has loaded once. Fails only with the declared `E`:
+   * a row the output schema rejects or a sync callback that throws is a defect.
+   */
+  preload(): Effect.Effect<void, E, R>;
+  /** Force a fresh load even when the collection is already ready; fails like `preload`. */
+  refresh(): Effect.Effect<void, E, R>;
   /**
    * Capture a durable serializable snapshot of the synced rows, with an
    * Effect-provided timestamp. Optimistic Action patches are not included: they
@@ -245,16 +246,13 @@ export interface CollectionDefinition<
    * Changes apply in order as one write: `Upsert` stores a full row, `Update`
    * patches an existing row (failing with `CollectionRowNotFound` or
    * `CollectionRowKeyChanged`), and `Delete` removes a row if present.
-   * Rows default to `origin: "remote"` and `synced: true`.
+   * Rows default to `origin: "remote"` and `synced: true`. A row the output
+   * schema rejects is a defect.
    */
   applyChanges(
     changes: ReadonlyArray<CollectionChange<A, K>>,
     options?: CollectionWriteOptions,
-  ): Effect.Effect<
-    void,
-    CollectionRuntimeError<E> | CollectionRowNotFound | CollectionRowKeyChanged,
-    R
-  >;
+  ): Effect.Effect<void, E | CollectionRowNotFound | CollectionRowKeyChanged, R>;
 }
 
 /**

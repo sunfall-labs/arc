@@ -123,24 +123,29 @@ const UntypedUiRoute = Route.withComponent(
   (props: Route.Props<typeof UntypedRoute>) => <p>{props.params.id}</p>,
 );
 
-// A file route declares a plain render function inline (Start code-splits
-// it); it takes the route's own props. Typed Components go through withComponent.
-const InlineRoute = Route.define("/inline/:id", {
-  params: Schema.Struct({ id: TaskId }),
-  component: ({ params }) => {
-    expectType<Equal<typeof params, { readonly id: TaskId }>>();
-    return <p>{params.id}</p>;
-  },
+// `Route.withComponent` is the one way to attach a component; route options
+// carry no `component`, so a typed Component cannot bypass the router's check.
+Route.define("/inline/:id", {
+  // @ts-expect-error attach components with Route.withComponent
+  component: ({ params }: Route.Props<typeof TaskRoute>) => <p>{params.id}</p>,
 });
-expectType<Equal<Route.Params<typeof InlineRoute>, { readonly id: TaskId }>>();
-Route.define("/inline-wrong/:id", {
-  // @ts-expect-error an inline component takes the route's own props
-  component: (props: { readonly slug: string }) => <p>{props.slug}</p>,
-});
-Route.define("/inline-component/:id", {
-  // @ts-expect-error a typed Component's services must reach the router: use withComponent
-  component: TaskPage,
-});
+
+// A lazily loaded typed Component keeps its services and failures in the
+// router's check (Start's code splitting produces exactly this at runtime).
+const LazyTaskPage = Route.lazyComponent<"TaskPage", typeof TaskPage>(
+  Effect.succeed({ TaskPage }),
+  "TaskPage",
+);
+const LazyTaskUiRoute = Route.withComponent(TaskRoute, LazyTaskPage, ({ params }) => ({
+  id: params.id,
+}));
+expectType<Equal<Component.RouterError<readonly [typeof LazyTaskUiRoute]>, TaskNotFound>>();
+expectType<
+  Equal<
+    Component.RouterServices<readonly [typeof LazyTaskUiRoute]>,
+    Component.RouterServices<readonly [typeof TaskUiRoute]>
+  >
+>();
 
 const routes = [TaskUiRoute, UntypedUiRoute] as const;
 

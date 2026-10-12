@@ -155,6 +155,17 @@ const plugin: SunfallArcStartPlugin = sunfallArcStart({
   serverEntry: "/src/server.tsx",
   fileRouteOptions: { routeDirectory: "src/routes" },
 });
+// Server functions and Actions come only from the server entry's handler.
+sunfallArcStart({
+  serverEntry: "/src/server.tsx",
+  // @ts-expect-error the plugin derives the server-function manifest; there is no option for it
+  serverFunctionManifest: [],
+});
+sunfallArcStart({
+  serverEntry: "/src/server.tsx",
+  // @ts-expect-error the plugin derives the Action manifest; there is no option for it
+  actionManifest: [],
+});
 const prerenderError = new StartPrerenderError({
   operation: "render-page",
   message: "Could not render.",

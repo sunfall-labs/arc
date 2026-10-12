@@ -28,6 +28,7 @@ import { IncomingMessage, type ServerResponse } from "node:http";
 import { Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
 import {
@@ -130,8 +131,7 @@ import {
   resolveStartRpcEndpoint,
   resolveStartTransportEndpoints,
 } from "../src/start-transport-endpoints.js";
-import { serializeServerFunctionManifest } from "../src/server-function-manifest.js";
-import { serializeActionManifest } from "../src/action-manifest.js";
+import { makeActionManifest } from "../src/action-manifest.js";
 import { serializeFileRouteManifest } from "../src/file-routes.js";
 import { isStartManifestServerOnlyModule } from "../src/manifest-entry-core.js";
 import {
@@ -162,6 +162,7 @@ import type { StartAgentGraphQueryKind } from "../src/start-agent-graph-contract
 import { startAgentGraphQueryKinds } from "../src/start-agent-graph-vocabulary.js";
 import { startDiagnosticsCliVerifyCommandsForQuery } from "../src/start-diagnostics-cli-contract.js";
 import {
+  createStartAppGraph,
   describeStartAppGraph,
   serializeStartAppGraph as serializeStartAppGraphValue,
 } from "../src/app-graph.js";
@@ -178,12 +179,10 @@ import {
   defaultFileRouteDirectory,
   discoverFileRoutesEffect,
   makeStartBuildAppGraphEffect,
-  makeStartActionManifestEffect,
   makeStartFileRouteManifestEffect,
-  makeStartServerFunctionManifestEffect,
   validateStartBuildPolicyEffect,
   type FileRouteDiscoveryOptions,
-  type SunfallArcStartOptions,
+  type StartManifestOptions,
 } from "../src/start-manifest-wall.js";
 import {
   handleSsrDevRequest,
@@ -207,14 +206,35 @@ const parseStartDiagnosticsCliArgs = (args: readonly string[]) =>
   Effect.runSync(parseStartDiagnosticsCliArgsEffect(args));
 const discoverFileRoutes = (options: FileRouteDiscoveryOptions = {}) =>
   Effect.runSync(discoverFileRoutesEffect(options));
-const serializeStartServerFunctionManifest = (options: SunfallArcStartOptions = {}) =>
-  serializeServerFunctionManifest(Effect.runSync(makeStartServerFunctionManifestEffect(options)));
-const serializeStartActionManifest = (options: SunfallArcStartOptions = {}) =>
-  serializeActionManifest(Effect.runSync(makeStartActionManifestEffect(options)));
-const serializeStartFileRouteManifest = (options: SunfallArcStartOptions = {}) =>
+const serializeStartFileRouteManifest = (options: StartManifestOptions = {}) =>
   serializeFileRouteManifest(Effect.runSync(makeStartFileRouteManifestEffect(options)));
-const serializeStartAppGraph = (options: SunfallArcStartOptions = {}) =>
+const serializeStartAppGraph = (options: StartManifestOptions = {}) =>
   serializeStartAppGraphValue(Effect.runSync(makeStartBuildAppGraphEffect(options)));
+const sourceAlias = (path: string): string =>
+  fileURLToPath(new URL(`../../${path}`, import.meta.url));
+/**
+ * A small app whose server entry serves one server function and one Action;
+ * the Start plugin derives its manifests from that entry.
+ */
+const derivedManifestsConfig = {
+  root: fileURLToPath(new URL("./fixtures/derived-manifests", import.meta.url)),
+  resolve: {
+    alias: {
+      "@sunfall/arc-core/internal": sourceAlias("core/src/internal.ts"),
+      "@sunfall/arc-core": sourceAlias("core/src/index.ts"),
+      "@sunfall/arc-db/internal": sourceAlias("db/src/internal.ts"),
+      "@sunfall/arc-db": sourceAlias("db/src/index.ts"),
+      "@sunfall/arc-solid": sourceAlias("solid/src/index.ts"),
+      "@sunfall/arc-start/internal": sourceAlias("start/src/internal.ts"),
+      "@sunfall/arc-start": sourceAlias("start/src/index.ts"),
+    },
+  },
+};
+const derivedManifestsOptions = {
+  serverEntry: "/src/server.ts",
+  fileRoutes: [] as readonly string[],
+  fileRouteGeneration: { outputFile: false as const },
+};
 const makeRpcClient = (options: ServerRpcClientOptions<any, any, never> = {}): ServerClient =>
   Effect.runSync(
     Effect.gen(function* () {
@@ -4340,6 +4360,62 @@ describe("Sunfall Arc Start", () => {
     }
   });
 
+  it("applies an Action's optimistic only on the submitting client, not at the endpoint", async () => {
+    const optimisticSites: Array<string> = [];
+    let site = "client";
+    let runs = 0;
+    const Rename = Action.define<string, string>({
+      name: "Start.action.optimistic-site",
+      input: Schema.String,
+      output: Schema.String,
+      optimistic: () =>
+        Effect.sync(() => {
+          optimisticSites.push(site);
+        }),
+      run: (name) =>
+        Effect.sync(() => {
+          runs++;
+          return name;
+        }),
+    });
+    const handler = createStartRequestHandler(
+      makeStartServerApp({ routes: [Route.define("/", {})] as const }),
+      { actions: [Rename] },
+    );
+    const fetcher: StartFetch = (input, init) => {
+      const url =
+        input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
+      site = "endpoint";
+      return Effect.orDie(Effect.scoped(handler(new Request(url, init)))).pipe(
+        Effect.ensuring(Effect.sync(() => (site = "client"))),
+      );
+    };
+
+    await expect(
+      Effect.runPromise(submitViaActionTransport(Rename, "Atlas", { fetch: fetcher })),
+    ).resolves.toBe("Atlas");
+    expect(runs).toBe(1);
+    expect(optimisticSites).toEqual(["client"]);
+
+    // A direct endpoint request (a progressive form post) runs the Action
+    // without any optimistic work.
+    optimisticSites.length = 0;
+    const response = await Effect.runPromise(
+      Effect.scoped(
+        handler(
+          new Request(`https://example.com${serverActionPath}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ name: Rename.name, input: "Borealis" }),
+          }),
+        ),
+      ),
+    );
+    expect(response.status).toBe(200);
+    expect(runs).toBe(2);
+    expect(optimisticSites).toEqual([]);
+  });
+
   it("decodes Start action client success values with the action output schema", async () => {
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
@@ -6516,120 +6592,67 @@ describe("Sunfall Arc Start", () => {
     expect(plugin.transform("", "/src/domain.server.ts", { ssr: true })).toBeNull();
   });
 
-  it("emits a production-shaped server function manifest from the Vite preset", async () => {
-    const manifest = serializeStartServerFunctionManifest({
-      serverFunctionManifest: [
-        {
-          name: "Start.Project.manifest",
-          module: "/src/project/project.server.tsrx",
-          exportName: "getProject",
-          clientModule: "/src/project/project.contract.tsrx",
-          clientExportName: "getProject",
-          inputSchema: true,
-          outputSchema: true,
-        },
-      ],
-    });
-    const plugin = sunfallArcStart({
-      serverFunctionManifest: [
-        {
-          name: "Start.Project.manifest",
-          module: "/src/project/project.server.tsrx",
-          exportName: "getProject",
-          clientModule: "/src/project/project.contract.tsrx",
-          clientExportName: "getProject",
-          inputSchema: true,
-          outputSchema: true,
-        },
-      ],
-    });
-    const config = await plugin.config();
+  it("emits the server function manifest derived from the server entry", async () => {
+    const plugin = sunfallArcStart(derivedManifestsOptions);
+    const config = await plugin.config(derivedManifestsConfig);
     const resolved = plugin.resolveId(serverFunctionManifestVirtualModuleId);
     const loaded = resolved === null ? undefined : plugin.load(resolved);
+    const manifest = JSON.parse(String(config.define?.__SUNFALL_ARC_SERVER_FUNCTIONS__));
 
-    expect(JSON.parse(manifest)).toMatchObject({
+    expect(manifest).toMatchObject({
       version: 1,
       entries: [
         {
-          name: "Start.Project.manifest",
+          name: "Fixture.project.get",
           server: {
+            module: "/src/project/project.server.ts",
+            exportName: "getProject",
             moduleKind: "server-only",
           },
           client: {
             _tag: "Import",
-            module: "/src/project/project.contract.tsrx",
+            module: "/src/project/project.contract.ts",
+            exportName: "getProject",
             moduleKind: "contract",
           },
         },
       ],
     });
-    expect(config).toMatchObject({
-      define: {
-        __SUNFALL_ARC_SERVER_FUNCTIONS__: manifest,
-      },
-    });
     expect(resolved).toBe(`\0${serverFunctionManifestVirtualModuleId}`);
     expect(String(loaded)).toContain("export const manifest = ");
-    expect(String(loaded)).toContain("Start.Project.manifest");
+    expect(String(loaded)).toContain("Fixture.project.get");
     expect(String(loaded)).toContain("export const entries = manifest.entries;");
   });
 
-  it("emits a production-shaped action manifest from the Vite preset", async () => {
-    const manifest = serializeStartActionManifest({
-      actionManifest: [
-        {
-          name: "Start.Project.renameAction",
-          module: "/src/project/domain.ts",
-          exportName: "RenameProject",
-          clientModule: "/src/project/domain.ts",
-          clientExportName: "RenameProject",
-          inputSchema: true,
-          outputSchema: true,
-        },
-      ],
-    });
-    const plugin = sunfallArcStart({
-      actionManifest: [
-        {
-          name: "Start.Project.renameAction",
-          module: "/src/project/domain.ts",
-          exportName: "RenameProject",
-          clientModule: "/src/project/domain.ts",
-          clientExportName: "RenameProject",
-          inputSchema: true,
-          outputSchema: true,
-        },
-      ],
-    });
-    const config = await plugin.config();
+  it("emits the action manifest derived from the server entry", async () => {
+    const plugin = sunfallArcStart(derivedManifestsOptions);
+    const config = await plugin.config(derivedManifestsConfig);
     const resolved = plugin.resolveId(actionManifestVirtualModuleId);
     const loaded = resolved === null ? undefined : plugin.load(resolved);
+    const manifest = JSON.parse(String(config.define?.__SUNFALL_ARC_ACTIONS__));
 
-    expect(JSON.parse(manifest)).toMatchObject({
+    expect(manifest).toMatchObject({
       version: 1,
       actionPath: "/__sunfall-arc/action",
       entries: [
         {
-          name: "Start.Project.renameAction",
+          name: "Fixture.project.rename",
           server: {
+            module: "/src/project/project.actions.ts",
+            exportName: "RenameProject",
             moduleKind: "shared",
           },
           client: {
             _tag: "Import",
-            module: "/src/project/domain.ts",
+            module: "/src/project/project.actions.ts",
             moduleKind: "shared",
           },
         },
       ],
     });
-    expect(config).toMatchObject({
-      define: {
-        __SUNFALL_ARC_ACTIONS__: manifest,
-      },
-    });
     expect(resolved).toBe(`\0${actionManifestVirtualModuleId}`);
     expect(String(loaded)).toContain("export const manifest = ");
-    expect(String(loaded)).toContain("Start.Project.renameAction");
+    expect(String(loaded)).toContain("Fixture.project.rename");
     expect(String(loaded)).toContain("export const entries = manifest.entries;");
   });
 
@@ -6988,33 +7011,15 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("emits and loads a production-shaped app graph from the Vite preset", async () => {
-    const options = {
-      serverFunctionManifest: [
-        {
-          name: "Start.Project.appGraph",
-          module: "/src/project/project.server.ts",
-          exportName: "getProject",
-          inputSchema: true,
-          outputSchema: true,
-        },
-      ],
-      actionManifest: [
-        {
-          name: "Start.Project.appGraph.rename",
-          module: "/src/project/project.actions.ts",
-          exportName: "RenameProject",
-          inputSchema: true,
-          outputSchema: true,
-        },
-      ],
+    const plugin = sunfallArcStart({
+      ...derivedManifestsOptions,
       fileRoutes: ["src/routes/projects/$id.tsx", "src/routes/index.tsx"],
       fileRouteOptions: {
         routeDirectory: "src/routes",
       },
-    };
-    const graph = serializeStartAppGraph(options);
-    const plugin = sunfallArcStart(options);
-    const config = await plugin.config();
+    });
+    const config = await plugin.config(derivedManifestsConfig);
+    const graph = String(config.define?.__SUNFALL_ARC_APP_GRAPH__);
     const resolved = plugin.resolveId(appGraphVirtualModuleId);
     const loaded = resolved === null ? undefined : plugin.load(resolved);
 
@@ -7033,27 +7038,22 @@ describe("Sunfall Arc Start", () => {
       serverFunctions: {
         entries: [
           {
-            name: "Start.Project.appGraph",
+            name: "Fixture.project.get",
           },
         ],
       },
       actions: {
         entries: [
           {
-            name: "Start.Project.appGraph.rename",
+            name: "Fixture.project.rename",
           },
         ],
       },
     });
-    expect(config).toMatchObject({
-      define: {
-        __SUNFALL_ARC_APP_GRAPH__: graph,
-      },
-    });
     expect(resolved).toBe(`\0${appGraphVirtualModuleId}`);
     expect(String(loaded)).toMatchInlineSnapshot(`
-      "export const graph = {"version":1,"routes":{"version":1,"routeDirectory":"src/routes","entries":[{"id":"index","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[]},{"id":"projects/$id","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}]}],"modules":[{"id":"index","kind":"Route","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[],"exportName":"Route"},{"id":"projects/$id","kind":"Route","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}],"exportName":"Route"}]},"serverFunctions":{"version":1,"rpcPath":"/__sunfall-arc/rpc","entries":[{"id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Rpc","id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","rpcPath":"/__sunfall-arc/rpc"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false}}]},"actions":{"version":1,"actionPath":"/__sunfall-arc/action","entries":[{"id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Post","id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","actionPath":"/__sunfall-arc/action"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false},"behavior":{"invalidates":"unknown","optimistic":"unknown","retry":"unknown","concurrency":"unknown"}}]}};
-      export const diagnostics = {"version":1,"routeCount":2,"serverFunctionCount":1,"actionCount":1,"routePaths":["/","/projects/:id"],"routeModules":[{"routeId":"route_root","routePath":"/","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","pathParamCount":0,"hasPathParams":false,"params":[],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]},"component":"unknown"},{"routeId":"route_projects_$id","routePath":"/projects/:id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","pathParamCount":1,"hasPathParams":true,"params":[{"name":"id","optional":false}],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]},"component":"unknown"}],"serverFunctionModules":[{"id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Rpc","rpcPath":"/__sunfall-arc/rpc"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]}}],"actionModules":[{"id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Post","actionPath":"/__sunfall-arc/action"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]},"behavior":{"invalidates":"unknown","optimistic":"unknown","retry":"unknown","concurrency":"unknown"}}],"resourceFamilies":[],"resourceTags":[],"collectionDefinitions":[],"serverOnlyModules":["/src/project/project.server.ts"],"browserClientModules":[],"rpcPath":"/__sunfall-arc/rpc","actionPath":"/__sunfall-arc/action","schemaCoverage":{"serverFunctions":{"total":1,"input":1,"output":1,"error":0},"actions":{"total":1,"input":1,"output":1,"error":0}},"missingSchemas":[{"kind":"serverFunction","name":"Start.Project.appGraph","input":true,"output":true,"error":false},{"kind":"action","name":"Start.Project.appGraph.rename","input":true,"output":true,"error":false}],"unknownActionBehavior":[{"kind":"action","name":"Start.Project.appGraph.rename","invalidates":"unknown","optimistic":"unknown","retry":"unknown","concurrency":"unknown"}],"unknownRoutePreloadResources":[],"unknownRoutePreloadCollections":[]};
+      "export const graph = {"version":1,"routes":{"version":1,"routeDirectory":"src/routes","entries":[{"id":"index","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[]},{"id":"projects/$id","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}]}],"modules":[{"id":"index","kind":"Route","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[],"exportName":"Route"},{"id":"projects/$id","kind":"Route","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}],"exportName":"Route"}]},"serverFunctions":{"version":1,"rpcPath":"/__sunfall-arc/rpc","entries":[{"id":"sf_1qfaiav_fixture-project-get","name":"Fixture.project.get","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Import","id":"sf_1qfaiav_fixture-project-get","name":"Fixture.project.get","rpcPath":"/__sunfall-arc/rpc","module":"/src/project/project.contract.ts","exportName":"getProject","moduleKind":"contract"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false}}]},"actions":{"version":1,"actionPath":"/__sunfall-arc/action","entries":[{"id":"act_gx6dkz_fixture-project-rename","name":"Fixture.project.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Import","id":"act_gx6dkz_fixture-project-rename","name":"Fixture.project.rename","actionPath":"/__sunfall-arc/action","module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false},"behavior":{"invalidates":"absent","optimistic":"absent","retry":"absent","concurrency":"latest"}}]}};
+      export const diagnostics = {"version":1,"routeCount":2,"serverFunctionCount":1,"actionCount":1,"routePaths":["/","/projects/:id"],"routeModules":[{"routeId":"route_root","routePath":"/","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","pathParamCount":0,"hasPathParams":false,"params":[],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]},"component":"unknown"},{"routeId":"route_projects_$id","routePath":"/projects/:id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","pathParamCount":1,"hasPathParams":true,"params":[{"name":"id","optional":false}],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]},"component":"unknown"}],"serverFunctionModules":[{"id":"sf_1qfaiav_fixture-project-get","name":"Fixture.project.get","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Import","rpcPath":"/__sunfall-arc/rpc","module":"/src/project/project.contract.ts","exportName":"getProject","moduleKind":"contract"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]}}],"actionModules":[{"id":"act_gx6dkz_fixture-project-rename","name":"Fixture.project.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Import","actionPath":"/__sunfall-arc/action","module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]},"behavior":{"invalidates":"absent","optimistic":"absent","retry":"absent","concurrency":"latest"}}],"resourceFamilies":[],"resourceTags":[],"collectionDefinitions":[],"serverOnlyModules":["/src/project/project.server.ts"],"browserClientModules":["/src/project/project.actions.ts","/src/project/project.contract.ts"],"rpcPath":"/__sunfall-arc/rpc","actionPath":"/__sunfall-arc/action","schemaCoverage":{"serverFunctions":{"total":1,"input":1,"output":1,"error":0},"actions":{"total":1,"input":1,"output":1,"error":0}},"missingSchemas":[{"kind":"serverFunction","name":"Fixture.project.get","input":true,"output":true,"error":false},{"kind":"action","name":"Fixture.project.rename","input":true,"output":true,"error":false}],"unknownActionBehavior":[],"unknownRoutePreloadResources":[],"unknownRoutePreloadCollections":[]};
       export const diagnosticsPolicyViolations = [];
       export const routes = graph.routes;
       export const serverFunctions = graph.serverFunctions;
@@ -7084,46 +7084,27 @@ describe("Sunfall Arc Start", () => {
     );
     expect(String(loaded)).not.toContain("routeModulePresence");
     expect(String(loaded)).toContain("export const routes = graph.routes;");
-    expect(String(loaded)).toContain("Start.Project.appGraph.rename");
+    expect(String(loaded)).toContain("Fixture.project.rename");
   });
 
-  it("normalizes one-shot manifest iterables once for Vite config and virtual module loads", async () => {
+  it("normalizes one-shot file route iterables once for Vite config and virtual module loads", async () => {
     const fileRoutes = oneShotIterable(["src/routes/projects/$id.tsx", "src/routes/index.tsx"]);
-    const serverFunctionManifest = oneShotIterable([
-      {
-        name: "Start.Project.one-shot-manifest",
-        module: "/src/project/project.server.ts",
-        exportName: "getProject",
-      },
-    ]);
-    const actionManifest = oneShotIterable([
-      {
-        name: "Start.Project.one-shot-manifest.rename",
-        module: "/src/project/project.actions.ts",
-        exportName: "RenameProject",
-      },
-    ]);
     const plugin = sunfallArcStart({
-      serverFunctionManifest: serverFunctionManifest.iterable,
-      actionManifest: actionManifest.iterable,
+      ...derivedManifestsOptions,
       fileRoutes: fileRoutes.iterable,
       fileRouteOptions: {
         routeDirectory: "src/routes",
       },
     });
-    const config = await plugin.config();
+    const config = await plugin.config(derivedManifestsConfig);
     const appGraphId = plugin.resolveId(appGraphVirtualModuleId);
     const diagnosticsId = plugin.resolveId(appGraphRuntimeDiagnosticsVirtualModuleId);
     const appGraphModule = appGraphId === null ? undefined : plugin.load(appGraphId);
     const diagnosticsModule = diagnosticsId === null ? undefined : plugin.load(diagnosticsId);
 
     expect(fileRoutes.iteratorCalls).toBe(1);
-    expect(serverFunctionManifest.iteratorCalls).toBe(1);
-    expect(actionManifest.iteratorCalls).toBe(1);
-    expect(String(config.define?.__SUNFALL_ARC_APP_GRAPH__)).toContain(
-      "Start.Project.one-shot-manifest",
-    );
-    expect(String(appGraphModule)).toContain("Start.Project.one-shot-manifest.rename");
+    expect(String(config.define?.__SUNFALL_ARC_APP_GRAPH__)).toContain("Fixture.project.get");
+    expect(String(appGraphModule)).toContain("Fixture.project.rename");
     expect(String(diagnosticsModule)).toContain("src/routes/projects/$id.tsx");
   });
 
@@ -9121,23 +9102,26 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("exposes typed static build policy validation over Start app graph manifests", async () => {
+    const getProject = Server.fn<string, string>("Start.Project.policy", {
+      input: Schema.String,
+      handler: (id) => Effect.succeed(id),
+    });
+    const RenameProject = Action.define({
+      name: "Start.Project.policy.rename",
+      input: Schema.String,
+      output: Schema.String,
+      run: (name) => Effect.succeed(name),
+    });
     const graph = await Effect.runPromise(
       makeStartBuildAppGraphEffect({
-        serverFunctionManifest: [
-          {
-            name: "Start.Project.policy",
-            module: "/src/project/project.server.ts",
-            exportName: "getProject",
-            inputSchema: true,
-          },
+        serverFunctionSources: [
+          { fn: getProject, module: "/src/project/project.server.ts", exportName: "getProject" },
         ],
-        actionManifest: [
+        actionSources: [
           {
-            name: "Start.Project.policy.rename",
+            action: RenameProject,
             module: "/src/project/project.actions.ts",
             exportName: "RenameProject",
-            inputSchema: true,
-            outputSchema: true,
           },
         ],
       }),
@@ -9169,10 +9153,14 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("can fail the Start build policy on unknown action behavior metadata", async () => {
-    const graph = await Effect.runPromise(
-      makeStartBuildAppGraphEffect({
-        buildPolicy: false,
-        actionManifest: [
+    // Derived Actions always report their behavior; a hand-built manifest
+    // entry without it reports "unknown".
+    const base = await Effect.runPromise(makeStartBuildAppGraphEffect({ buildPolicy: false }));
+    const graph = createStartAppGraph({
+      routes: base.routes,
+      serverFunctions: base.serverFunctions,
+      actions: await Effect.runPromise(
+        makeActionManifest([
           {
             name: "Start.Project.policy.unknown-action",
             module: "/src/project/project.actions.ts",
@@ -9180,9 +9168,9 @@ describe("Sunfall Arc Start", () => {
             inputSchema: true,
             outputSchema: true,
           },
-        ],
-      }),
-    );
+        ]),
+      ),
+    });
     const exit = await Effect.runPromiseExit(
       validateStartBuildPolicyEffect(graph, {
         wireSchemas: false,
@@ -9208,19 +9196,15 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("enforces configured build policy before the Vite preset emits app graph defines", async () => {
+    // The fixture's server function declares no error schema.
     const plugin = sunfallArcStart({
-      buildPolicy: true,
-      serverFunctionManifest: [
-        {
-          name: "Start.Project.buildWall",
-          module: "/src/project/project.server.ts",
-          exportName: "getProject",
-          inputSchema: true,
-        },
-      ],
+      ...derivedManifestsOptions,
+      buildPolicy: { wireSchemas: { requireError: true } },
     });
 
-    await expect(plugin.config()).rejects.toThrow(StartAppGraphMissingWireSchemas);
+    await expect(plugin.config(derivedManifestsConfig)).rejects.toThrow(
+      StartAppGraphMissingWireSchemas,
+    );
   });
 
   it("compiles the browser RPC client out of App.launch for static builds", async () => {

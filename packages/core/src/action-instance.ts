@@ -2,7 +2,10 @@ import { Effect } from "effect";
 import type { ActionInstance, ActionDefinition } from "./action.js";
 import type { ActionResultInvalidationRequirements } from "./action-result.js";
 import { makeActionSubmissionController, type ActionInterrupted } from "./action-submission.js";
-import { makeActionExecutionWorkflow } from "./action-execution-workflow.js";
+import {
+  makeActionExecutionWorkflow,
+  type ActionExecutionSite,
+} from "./action-execution-workflow.js";
 import type { ResourceInvalidationPlan } from "./resource.js";
 import type { AnySunfallArcRuntime } from "./runtime.js";
 import type { ServerClientError } from "./server.js";
@@ -10,11 +13,13 @@ import type { ServerClientError } from "./server.js";
 /**
  * Internal: creates an Action instance on an erased runtime. `Action.use`
  * checks the runtime's services at its typed facade; renderer adapters pass a
- * runtime whose services they check elsewhere.
+ * runtime whose services they check elsewhere. Start's action endpoint passes
+ * `site: "endpoint"`.
  */
 export const makeActionInstance = <I, A, E, R, ER>(
   definition: ActionDefinition<I, A, E, R>,
   runtime: AnySunfallArcRuntime<ER>,
+  site: ActionExecutionSite = "client",
 ): ActionInstance<I, A, E | ER, never, E, R, R | ActionResultInvalidationRequirements<A>> => {
   const submissions = makeActionSubmissionController<
     I,
@@ -31,6 +36,7 @@ export const makeActionInstance = <I, A, E, R, ER>(
     definition,
     submissions,
     runAtActionBoundary: (effect) => runtime.provide(effect),
+    site,
   });
 
   return {

@@ -40,6 +40,7 @@ import {
   hydrateCollectionSnapshotStateEffect,
 } from "../src/collection-snapshot-codec.js";
 import { QueryBuilder } from "../src/query-builder.js";
+import { exitContractDefect, flipContractDefect } from "./contract-defect.js";
 
 interface Project {
   readonly id: string;
@@ -101,7 +102,7 @@ const ProjectSchema = Schema.Struct({
 
 const ProjectRowsSchema = Schema.Array(ProjectSchema);
 
-/** Flattens an `AsyncResult` into matchable facts: tag, waiting, value/timestamp, typed error, and previous success value. */
+/** Flattens an `AsyncResult` into matchable facts: tag, waiting, value/timestamp, typed error, defect, and previous success value. */
 const asyncResultFacts = (result: AsyncResult.AsyncResult<unknown, unknown>) => {
   switch (result._tag) {
     case "Initial":
@@ -118,6 +119,7 @@ const asyncResultFacts = (result: AsyncResult.AsyncResult<unknown, unknown>) => 
         _tag: result._tag,
         waiting: result.waiting,
         error: Option.getOrUndefined(AsyncResult.error(result)),
+        defect: result.cause.reasons.find(Cause.isDieReason)?.defect,
         previous: Option.getOrUndefined(AsyncResult.value(result)),
         cause: result.cause,
       };
@@ -857,7 +859,8 @@ describe("Collection", () => {
     expect(Projects.get("atlas")).toBeUndefined();
     expect(asyncResultFacts(Projects.result().get())).toMatchObject({
       _tag: "Failure",
-      error: {
+      error: undefined,
+      defect: {
         _tag: "CollectionSnapshotCodecError",
         operation: "load",
       },
@@ -893,7 +896,8 @@ describe("Collection", () => {
     expect(PromiseRows.rows()).toEqual([]);
     expect(asyncResultFacts(PromiseRows.result().get())).toMatchObject({
       _tag: "Failure",
-      error: {
+      error: undefined,
+      defect: {
         _tag: "CollectionSnapshotCodecError",
         operation: "load",
         reason: "PromiseLikeValue",
@@ -902,7 +906,8 @@ describe("Collection", () => {
     expect(EffectRows.rows()).toEqual([]);
     expect(asyncResultFacts(EffectRows.result().get())).toMatchObject({
       _tag: "Failure",
-      error: {
+      error: undefined,
+      defect: {
         _tag: "CollectionSnapshotCodecError",
         operation: "load",
         reason: "EffectLikeValue",
@@ -911,7 +916,8 @@ describe("Collection", () => {
     expect(ThrowingThenRows.rows()).toEqual([]);
     expect(asyncResultFacts(ThrowingThenRows.result().get())).toMatchObject({
       _tag: "Failure",
-      error: {
+      error: undefined,
+      defect: {
         _tag: "CollectionSnapshotCodecError",
         operation: "load",
         reason: "PromiseLikeValue",
@@ -938,7 +944,8 @@ describe("Collection", () => {
     expect(Projects.rows()).toEqual([]);
     expect(asyncResultFacts(Projects.result().get())).toMatchObject({
       _tag: "Failure",
-      error: {
+      error: undefined,
+      defect: {
         _tag: "EffectInputCallbackError",
         operation: "Collection.rowValue.load",
       },
@@ -993,7 +1000,7 @@ describe("Collection", () => {
     expect(Projects.get("lumen")?.meta.labels).toEqual(["written"]);
   });
 
-  it("reports synchronous load callback throws through the Effect error channel", () => {
+  it("reports synchronous load callback throws as defects", () => {
     const Projects = Collection.define<Project, string, Error>({
       name: "Projects.load-sync-throw",
       getKey: (project) => project.id,
@@ -1008,10 +1015,7 @@ describe("Collection", () => {
       Effect.gen(function* () {
         const exit = yield* Effect.exit(Projects.preload());
         yield* Effect.sync(() => {
-          expect(Exit.isFailure(exit)).toBe(true);
-          const failure = Exit.isFailure(exit)
-            ? exit.cause.reasons.find(Cause.isFailReason)?.error
-            : undefined;
+          const failure = exitContractDefect(exit);
           expect(failure).toBeInstanceOf(EffectInputCallbackError);
           expect((failure as EffectInputCallbackError).cause).toBeInstanceOf(Error);
           expect(((failure as EffectInputCallbackError).cause as Error).message).toBe(
@@ -1022,7 +1026,7 @@ describe("Collection", () => {
     );
   });
 
-  it("reports synchronous getKey throws during collection loads through the Effect error channel", () => {
+  it("reports synchronous getKey throws during collection loads as defects", () => {
     const thrown = new Error("key failed");
     const Projects = Collection.define<Project>({
       name: "Projects.load-key-sync-throw",
@@ -1039,7 +1043,7 @@ describe("Collection", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const failure = yield* Effect.flip(Projects.preload());
+        const failure = yield* flipContractDefect(Projects.preload());
         yield* Effect.sync(() => {
           expect(failure).toBeInstanceOf(EffectInputCallbackError);
           expect((failure as EffectInputCallbackError).operation).toBe(
@@ -1048,14 +1052,15 @@ describe("Collection", () => {
           expect((failure as EffectInputCallbackError).cause).toBe(thrown);
           expect(asyncResultFacts(Projects.result().get())).toMatchObject({
             _tag: "Failure",
-            error: failure,
+            error: undefined,
+            defect: failure,
           });
         });
       }),
     );
   });
 
-  it("reports synchronous getKey throws during direct writes through the Effect error channel", () => {
+  it("reports synchronous getKey throws during direct writes as defects", () => {
     const thrown = new Error("write key failed");
     const Projects = Collection.define<Project>({
       name: "Projects.write-key-sync-throw",
@@ -1066,7 +1071,7 @@ describe("Collection", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const failure = yield* Effect.flip(
+        const failure = yield* flipContractDefect(
           Projects.applyChanges([
             {
               _tag: "Upsert",
@@ -1106,7 +1111,7 @@ describe("Collection", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const failure = yield* Effect.flip(Projects.preload());
+        const failure = yield* flipContractDefect(Projects.preload());
         yield* Effect.sync(() => {
           expect(load).toHaveBeenCalledTimes(1);
           expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
@@ -1117,7 +1122,8 @@ describe("Collection", () => {
           expect(Projects.rows()).toEqual([]);
           expect(asyncResultFacts(Projects.result().get())).toMatchObject({
             _tag: "Failure",
-            error: failure,
+            error: undefined,
+            defect: failure,
           });
         });
       }),
@@ -1155,18 +1161,16 @@ describe("Collection", () => {
         load: () => Effect.succeed([]),
       },
     });
-    const ProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError<string>>(
-      {
-        name: "ProjectCards.collection-diagnostics",
-        getKey: (project) => project.id,
-        query: (query) =>
-          query.from({ project: Projects }).select(({ project }) => ({
-            id: project.id,
-            name: project.name,
-            progress: project.progress,
-          })),
-      },
-    );
+    const ProjectCards = Collection.liveQuery<ProjectCard, string, string>({
+      name: "ProjectCards.collection-diagnostics",
+      getKey: (project) => project.id,
+      query: (query) =>
+        query.from({ project: Projects }).select(({ project }) => ({
+          id: project.id,
+          name: project.name,
+          progress: project.progress,
+        })),
+    });
 
     expect(
       defaultCollectionDefinitionRegistry.definitions().get("Projects.collection-diagnostics"),
@@ -3087,7 +3091,7 @@ describe("Collection", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const failure = yield* Effect.flip(
+        const failure = yield* flipContractDefect(
           runtime.provide(
             Projects.applyChanges([
               {
@@ -3125,7 +3129,7 @@ describe("Collection", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const failure = yield* Effect.flip(
+        const failure = yield* flipContractDefect(
           runtime.provide(
             Projects.applyChanges([
               {
@@ -3190,8 +3194,8 @@ describe("Collection", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const loadFailure = yield* Effect.flip(runtime.provide(LoadingProjects.preload()));
-        const writeFailure = yield* Effect.flip(
+        const loadFailure = yield* flipContractDefect(runtime.provide(LoadingProjects.preload()));
+        const writeFailure = yield* flipContractDefect(
           runtime.provide(
             Projects.applyChanges([
               {
@@ -3206,7 +3210,7 @@ describe("Collection", () => {
             ]),
           ),
         );
-        const changeFailure = yield* Effect.flip(
+        const changeFailure = yield* flipContractDefect(
           runtime.provide(
             Projects.applyChanges([
               {
@@ -3242,15 +3246,17 @@ describe("Collection", () => {
             }),
           ),
         );
-        const hostileLoadFailure = yield* Effect.flip(runtime.provide(HostileProjects.preload()));
-        const hostileWriteFailure = yield* Effect.flip(
+        const hostileLoadFailure = yield* flipContractDefect(
+          runtime.provide(HostileProjects.preload()),
+        );
+        const hostileWriteFailure = yield* flipContractDefect(
           runtime.provide(
             HostileProjects.applyChanges(
               Array.from([throwingRow()].flat(), (value) => ({ _tag: "Upsert" as const, value })),
             ),
           ),
         );
-        const hostileChangeFailure = yield* Effect.flip(
+        const hostileChangeFailure = yield* flipContractDefect(
           runtime.provide(
             HostileProjects.applyChanges([
               {
@@ -3308,7 +3314,8 @@ describe("Collection", () => {
           asyncResultFacts(runWithRuntime(runtime, () => Projects.result().get())),
         ).toMatchObject({
           _tag: "Failure",
-          error: { _tag: "CollectionSnapshotCodecError", operation: "load" },
+          error: undefined,
+          defect: { _tag: "CollectionSnapshotCodecError", operation: "load" },
         });
       }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
@@ -3661,7 +3668,7 @@ describe("Collection", () => {
       getKey: (project) => project.id,
       initialData: [{ id: "existing-project", name: "Existing", status: "active", progress: 1 }],
     });
-    const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
+    const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
       name: "ProjectCards.snapshot-codec-preflight-live",
       getKey: (project) => project.id,
       query: (query) =>
@@ -4048,9 +4055,9 @@ describe("Collection", () => {
               PersistedProjects.restore(storage, { key: "projects-schema-validation" }),
             ),
           ),
-          Effect.flip(runtime.provide(LoadingProjects.preload())),
-          Effect.flip(runtime.provide(RefetchProjects.refresh())),
-          Effect.flip(
+          flipContractDefect(runtime.provide(LoadingProjects.preload())),
+          flipContractDefect(runtime.provide(RefetchProjects.refresh())),
+          flipContractDefect(
             runtime.provide(Projects.applyChanges([{ _tag: "Upsert", value: invalidProject }])),
           ),
         ]);
@@ -4068,7 +4075,7 @@ describe("Collection", () => {
             },
           ]),
         );
-        const applyUpdateFailure = yield* Effect.flip(
+        const applyUpdateFailure = yield* flipContractDefect(
           runtime.provide(
             Projects.applyChanges([
               {
@@ -4096,13 +4103,15 @@ describe("Collection", () => {
             asyncResultFacts(runWithRuntime(runtime, () => LoadingProjects.result().get())),
           ).toMatchObject({
             _tag: "Failure",
-            error: preloadFailure,
+            error: undefined,
+            defect: preloadFailure,
           });
           expect(
             asyncResultFacts(runWithRuntime(runtime, () => RefetchProjects.result().get())),
           ).toMatchObject({
             _tag: "Failure",
-            error: refetchFailure,
+            error: undefined,
+            defect: refetchFailure,
           });
           expect(runWithRuntime(runtime, () => Projects.rows())).toMatchObject([
             { id: "atlas", progress: 72 },
@@ -4180,7 +4189,7 @@ describe("Collection", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const failure = yield* Effect.flip(
+        const failure = yield* flipContractDefect(
           runtime.provide(
             Projects.applyChanges([{ _tag: "Update", key: "atlas", changes: changes }]),
           ),
@@ -4838,7 +4847,7 @@ describe("Query", () => {
         { id: "alpha", name: "Alpha", status: "active", progress: 10 },
       ],
     });
-    const factory: Query.Factory<string, Collection.RuntimeError> = (query) =>
+    const factory: Query.Factory<string, never> = (query) =>
       query
         .from({ project: Projects })
         .orderBy(({ project }) => project.progress)
@@ -5320,7 +5329,7 @@ describe("Query", () => {
       });
     const cases: ReadonlyArray<{
       readonly operation: "filter" | "join" | "order" | "projection" | "aggregate";
-      readonly factory: Query.Factory<unknown, Collection.RuntimeError>;
+      readonly factory: Query.Factory<unknown, never>;
     }> = [
       {
         operation: "filter",
@@ -5437,7 +5446,7 @@ describe("Query", () => {
     });
     const cases: ReadonlyArray<{
       readonly operation: "projection" | "aggregate";
-      readonly factory: Query.Factory<unknown, Collection.RuntimeError>;
+      readonly factory: Query.Factory<unknown, never>;
     }> = [
       {
         operation: "projection",

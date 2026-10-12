@@ -1,3 +1,4 @@
+import { collectionContractDefects } from "./collection-contract-defects.js";
 import { ActionOptimisticRowsTypeId, EffectInputCallbackError } from "@sunfall/arc-core";
 import { Clock, Effect } from "effect";
 import { CollectionTypeId } from "./collection-ids.js";
@@ -121,8 +122,8 @@ export const makeLiveQueryCollectionDefinition = <
     rows: () => materialization.rows(),
     index: (index, value) => materialization.index(index, value),
     firstByIndex: (index, value) => materialization.firstByIndex(index, value),
-    preload: () => live.preload(),
-    refresh: () => live.refresh(),
+    preload: () => live.preload().pipe(collectionContractDefects),
+    refresh: () => live.refresh().pipe(collectionContractDefects),
     snapshot: () =>
       Effect.gen(function* () {
         const store = yield* collectionStoreEffect;

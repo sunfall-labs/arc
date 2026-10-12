@@ -1095,6 +1095,63 @@ describe("createBrowserRouter", () => {
       ),
     ));
 
+  it("navigates RouterLinks to a route whose withComponent copy the router registered", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+
+          const ProjectRoute = Route.define("/copied-link-projects/:id");
+          const ProjectUiRoute = Route.withComponent(
+            ProjectRoute,
+            ({ params }: Route.Props<typeof ProjectRoute>) => `Project ${params.id}`,
+          );
+          const container = document.createElement("div");
+          let router: BrowserRouter<readonly [typeof ProjectUiRoute]> | undefined;
+          const LinkView = () => {
+            router = useRouter<readonly [typeof ProjectUiRoute]>();
+            // The page links to the base route, not the copy carrying its component.
+            return createComponent(RouterLink, {
+              route: ProjectRoute,
+              options: { params: { id: "atlas" } },
+              children: "Atlas",
+            });
+          };
+          const dispose = render(
+            () =>
+              createComponent(RuntimeProvider, {
+                runtime: eraseRuntime(runtime),
+                get children() {
+                  return createComponent(RouterProvider, {
+                    routes: [ProjectUiRoute] as const,
+                    initialHref: "/missing",
+                    get children() {
+                      return createComponent(LinkView, {});
+                    },
+                  });
+                },
+              }),
+            container,
+          );
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          const click = new MouseEvent("click", { bubbles: true, button: 0, cancelable: true });
+          container.querySelector("a")?.dispatchEvent(click);
+
+          expect(click.defaultPrevented).toBe(true);
+          yield* Effect.promise(() =>
+            vi.waitFor(() =>
+              expect(router?.state()).toMatchObject({
+                _tag: "Ready",
+                href: "/copied-link-projects/atlas",
+              }),
+            ),
+          );
+        }),
+      ),
+    ));
+
   it("does not start RouterLink hover preloads when target disables router handling", () =>
     Effect.runPromise(
       Effect.scoped(

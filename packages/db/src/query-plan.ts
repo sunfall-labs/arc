@@ -8,7 +8,6 @@ import { Data } from "effect";
 import type {
   AnyCollection,
   CollectionError,
-  CollectionRuntimeError,
   CollectionRequirements,
   CollectionRow,
   CollectionRowValue,
@@ -74,9 +73,12 @@ export type AnyQueryContext = Record<string, any>;
 /** Erased Collection row used by query joins. */
 export type AnyCollectionRow = CollectionRow<any, any>;
 
-/** Union of source collection runtime errors for a query source map. */
-export type QuerySourcesError<Sources extends SourceRecord> = CollectionRuntimeError<
-  CollectionError<Sources[keyof Sources]>
+/**
+ * Union of the source collections' declared load errors for a query source
+ * map (their contract violations are defects).
+ */
+export type QuerySourcesError<Sources extends SourceRecord> = CollectionError<
+  Sources[keyof Sources]
 >;
 
 /** Union of source collection service requirements for a query source map. */

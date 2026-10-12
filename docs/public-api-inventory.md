@@ -683,10 +683,11 @@ Release decisions:
   `Collection.RowNotFound`, `Collection.ReadonlyMutation`,
   `Collection.SnapshotCodecError`, and `Collection.StorageError` in new
   namespace-first adapter code.
-- Multi-collection flush and background sync error channels use
-  `CollectionRuntimeError<E>` for each collection, so handler failures, snapshot
-  codec failures, and synchronous callback failures stay visible through the
-  coordination APIs.
+- Collection `preload`, `refresh`, `result`, and `applyChanges` fail only with
+  the collection's declared `E` (and the row-update errors): snapshot codec
+  failures and synchronous callback failures in the load and write paths are
+  defects, the same rule as Resource loads. There is no public
+  `Collection.RuntimeError`.
 - `CollectionOptions.refresh` is public as the forced-refresh companion to
   `load`. The Collection Runtime owns the first preload versus forced refresh
   selection so shared Collection Definitions remain runtime/request-local.

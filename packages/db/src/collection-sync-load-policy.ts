@@ -1,3 +1,4 @@
+import { collectionLoadFailureCause } from "./collection-contract-defects.js";
 import { EffectInputCallbackError, type EffectInput } from "@sunfall/arc-core";
 import { Cause, Clock, Deferred, Effect, Exit, Option, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
@@ -100,9 +101,10 @@ const failCollectionLoadEffect = <A extends object, K extends CollectionKey, E, 
   Effect.gen(function* () {
     commitCollectionLoadState(
       state,
-      AsyncResult.failureWithPrevious(Cause.fail(error as CollectionRuntimeError<E>), {
-        previous: Option.some(state.loadState.get()),
-      }),
+      AsyncResult.failureWithPrevious(
+        collectionLoadFailureCause(error as CollectionRuntimeError<E>) as Cause.Cause<E>,
+        { previous: Option.some(state.loadState.get()) },
+      ),
     );
     yield* publishStoreEvent(store, {
       _tag: "CollectionLoadFailure",
@@ -281,7 +283,7 @@ const persistLoadSnapshotEffect = <A extends object, K extends CollectionKey, E,
 const restoreLoadStateIfCurrentEffect = <A extends object, K extends CollectionKey, E>(
   state: CollectionState<A, K, E>,
   attempt: CollectionLoadAttempt,
-  loadState: AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>,
+  loadState: AsyncResult.AsyncResult<void, E>,
 ): Effect.Effect<void> =>
   Effect.sync(() => {
     if (isCurrentLoadAttempt(state, attempt)) {
@@ -296,7 +298,7 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
   attempt: CollectionLoadAttempt,
   rows: ReadonlyArray<StoredRow<A, K>>,
   source: ReadonlyArray<A>,
-  previousLoadState: AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>,
+  previousLoadState: AsyncResult.AsyncResult<void, E>,
   updatedAt: number,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   withCollectionDurableCommitPermit(
@@ -356,6 +358,35 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
       }),
     ),
   );
+
+/**
+ * Returns each writable collection whose first load failed (a settled
+ * `Failure` with no earlier success) to its never-loaded state.
+ *
+ * A server render reads collections this way: a failure never crosses the
+ * hydration payload, so the hydrating client starts never-loaded too, renders
+ * the same output, and loads the collection itself.
+ */
+export const forgetFailedCollectionLoadsEffect = (
+  collections: Iterable<AnyCollection>,
+): Effect.Effect<void> =>
+  Effect.gen(function* () {
+    const store = yield* collectionStoreEffect;
+    for (const definition of collections) {
+      if (definition.readOnly === true) {
+        continue;
+      }
+      // A throwing state projection breaks the collection's contract: a defect.
+      const state = yield* collectionStateEffect(
+        definition as CollectionDefinition<any, any, unknown, unknown>,
+        store,
+      ).pipe(Effect.orDie);
+      const result = state.loadState.get();
+      if (result._tag === "Failure" && !result.waiting && Option.isNone(result.previousSuccess)) {
+        commitCollectionLoadState(state, AsyncResult.initial());
+      }
+    }
+  });
 
 /**
  * Runs the Collection Sync Load Policy for `preload` and `refresh`.

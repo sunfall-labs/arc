@@ -1117,8 +1117,8 @@ function's browser client is the `Server.client(...)` export with the same
 name, usually in a contract module. A served definition that no module exports
 fails the build with `StartDefinitionNotExported`; a server entry that does not
 load fails the build and leaves the dev server's graph empty until it loads.
-Prebuilt `serverFunctionManifest` / `actionManifest` plugin options (generated
-build steps) replace the derivation.
+The derivation is the only source: the plugin has no option that lists
+server functions or Actions.
 
 The same Vite boundary also emits a Start App Graph. The graph is versioned,
 deterministic, and machine-readable: `routes`, `serverFunctions`, and `actions`

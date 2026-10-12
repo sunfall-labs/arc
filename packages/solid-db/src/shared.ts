@@ -11,6 +11,7 @@ import {
 import type { Component } from "@sunfall/arc-solid";
 import { Cause, Effect, Option } from "effect";
 import type { AsyncResult } from "effect/reactivity";
+import { isServer } from "@solidjs/web";
 import { createRenderEffect, onCleanup, type Accessor } from "solid-js";
 
 /**
@@ -84,9 +85,11 @@ export const makeSolidDbReactiveBinding = <E, R = never>(
   const preloadController = makeCollectionReactivePreloadController({ runtime });
 
   // Preloading is a side effect, so it runs in the apply phase whenever the
-  // source set (and with it the preload work) changes.
+  // source set (and with it the preload work) changes. A server render only
+  // reads: the route preload loads what it renders, and a load started here
+  // would change the state the hydrating client restores mid-render.
   createRenderEffect(options.load, (preloadEffect) => {
-    preloadController.start(preloadEffect, options.preload !== false);
+    preloadController.start(preloadEffect, !isServer && options.preload !== false);
   });
 
   onCleanup(() => {
