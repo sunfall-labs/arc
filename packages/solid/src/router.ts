@@ -28,6 +28,7 @@ import {
   type SolidRouteOutletRenderers,
   type SolidRouteViewRenderer,
 } from "./route-render-scope.js";
+import { renderFailure } from "./render-failure.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
 
@@ -237,7 +238,7 @@ export const RouterOutlet = <const Routes extends readonly AnyRoute[], ER = neve
       return createMemo(() => {
         const error = renderError.get();
         if (error !== undefined) {
-          throw error;
+          throw renderFailure(error);
         }
         return node.get();
       }) as unknown as JSX.Element;

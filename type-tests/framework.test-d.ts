@@ -26,6 +26,7 @@ import {
   ResourceHydrationApplyError,
   ResourcePending,
   ResourceStoreDisposeError,
+  ResourceUntypedFailure,
   ResourceSnapshotCodecError,
   ResponseContext,
   Route,
@@ -2374,15 +2375,17 @@ void solidProjectsBinding;
 const solidProjects = bound(SolidDb.collection(ProjectsCollection, { preload: false }));
 const solidProjectsHandle: CollectionHandle<Project, string, ProjectError | Server.ClientError> =
   solidProjects;
-// A Resource family's typed error joins E and its services join R.
+// A Resource family's render failure joins E and its services join R. This
+// family declares no `error` schema, so a render reports only the failure's
+// `_tag`, as `ResourceUntypedFailure`.
 const solidProjectReaderBinding: Effect.Effect<
-  Component.ResourceReader<string, Project, ProjectError | Server.ClientError>,
-  ProjectError | Server.ClientError,
+  Component.ResourceReader<string, Project, ResourceUntypedFailure>,
+  ResourceUntypedFailure,
   ProjectApi
 > = Component.resource(ProjectById);
 const solidProjectReader = bound(solidProjectReaderBinding);
 const solidProjectResourceValue: Project = solidProjectReader("atlas");
-const solidProjectResourceFailure: Cause.Cause<ProjectError | Server.ClientError> | undefined =
+const solidProjectResourceFailure: Cause.Cause<ResourceUntypedFailure> | undefined =
   solidProjectReader.failure("atlas");
 void solidProjectResourceValue;
 void solidProjectResourceFailure;

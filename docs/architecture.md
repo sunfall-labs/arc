@@ -111,8 +111,10 @@ The reader is the only way to render the value: the first load suspends, and
 later refreshes keep the current (or, after a failed refresh, stale) value, so
 `ProjectView` stays mounted with whatever forms or Programs it owns.
 `waiting(input)` and `failure(input)` are value-free status accessors for the
-chrome. A failed first load throws `ResourceFailure` to the boundary
-`catchTags` installs. See [Solid Adapter](solid-adapter.md#resources-the-reader-is-the-only-way-to-render-content).
+chrome. A failed first load throws to the boundary `catchTags` installs, which
+matches the family's render failure: its `error` schema's type (here
+`ProjectNotFound`), or `ResourceUntypedFailure` (the `tag` only) for a family
+without one. See [Solid Adapter](solid-adapter.md#resources-the-reader-is-the-only-way-to-render-content).
 
 ### AsyncResult Is The Async-State Vocabulary
 
@@ -556,12 +558,15 @@ adds its `E` and `R` to the parent and returns a plain Solid component whose
 instances run in the parent setup's context. `E` is phantom at the Effect
 level; setup failures, provided-Layer failures, and failed first Resource loads
 surface when the instance renders, by throwing to the nearest Solid `<Errored>`.
-`catchTags` installs that boundary and removes handled tags from `E` (matching a
-`ResourceFailure` by the `_tag` of `AsyncResult.error(failure.result)`), and
+`catchTags` installs that boundary and removes handled tags from `E`, and
 `catchAll` handles every typed failure; unmatched failures and defects rethrow
-outward. `Component.resource` contributes only the family's typed load error: a
-load callback that throws synchronously (`EffectInputCallbackError`) is a
-programming defect, re-caused as `Die` so no handler can (or must) match it.
+outward. `Component.resource` contributes only the family's render failure
+(`Resource.RenderError`): the type of its `error` schema, which `load` must
+fail within, or `ResourceUntypedFailure` for a family without one, since only a
+failure's `_tag` can cross a server render without a schema (see
+[SSR Hydration](#ssr-hydration)). A load callback that throws synchronously
+(`EffectInputCallbackError`) is a programming defect, re-caused as `Die` so no
+handler can (or must) match it.
 `SolidDb.collection` and `SolidDb.liveQuery` contribute their declared load
 errors the same way (rows throw a never-loaded collection's failed load), while
 `Component.action` contributes nothing: `submit` returns its failures to the
@@ -933,6 +938,27 @@ their output agrees, and only fields the schema declares leave the server.
 Without an `error` schema only the failure `_tag` crosses and the rebuilt cause
 is `{ _tag }`. A failure that does not encode (or decode) with the schema
 renders as a `RoutePreloadFailureCodecError` defect, without its data.
+
+A failure that reaches a Solid `<Errored>` boundary during a server render
+follows the same rule. Solid serializes whatever such a boundary catches into
+the page so the hydrating client can rethrow it into the same boundary, so the
+Solid adapter never throws a raw failure on the server: every failure it throws
+to `<Errored>` (Resource reads, setup failures, binding reads, the router's
+default failure view) is first turned into a plain wire value, and that value
+is all Solid serializes. A failed Resource read crosses as a
+`ResourceFailureSnapshot`: encoded with the family's `error` schema when it has
+one (only declared fields leave the server), or just the failure's `_tag`
+without one. `catchTags` and `catchAll`, on the server and on the hydrating
+client, decode the typed failure from that same wire value (a genuine
+`ProjectNotFound` instance, or `ResourceUntypedFailure` with the `tag`), so both
+renders agree; the hydrating boundary renders its fallback without running its
+children, so the Resource is not loaded again. A failure that does not encode
+(or decode) with the schema becomes a `ResourceFailureCodecError` defect. Setup
+failures and defects carry nothing across: on the server they are opaque, and
+no `catchTags` handler matches them there (put failing data behind a Resource
+with an `error` schema to render it during SSR). Collections never reach this
+path during SSR (a failed first load renders as not yet loaded), and Action
+failures never throw to a boundary: `submit` returns them.
 
 Preload dehydration has both sync and Effect forms. Runtime/request work should
 prefer `Resource.hydrationPayload(refs)` so the payload is read from the

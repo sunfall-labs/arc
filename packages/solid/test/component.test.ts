@@ -5,7 +5,18 @@ import {
   type AnySunfallArcRuntime,
 } from "@sunfall/arc-core";
 import { type ResourceUiInput } from "@sunfall/arc-core/internal";
-import { Cause, Context, Data, Deferred, Effect, Exit, Fiber, Layer, Option, Scope } from "effect";
+import {
+  Cause,
+  Context,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Option,
+  Schema,
+  Scope,
+} from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { createComponent, Errored, Loading, render, Show } from "@solidjs/web";
 import { createSignal, resetErrorHalt, type Accessor } from "solid-js";
@@ -33,8 +44,10 @@ class ProjectApi extends Context.Service<
   ProjectApi,
   { readonly get: (id: string) => Effect.Effect<string, ProjectNotFound | Forbidden> }
 >()("@sunfall/arc-solid/test/Component/ProjectApi") {}
-class ProjectNotFound extends Data.TaggedError("ProjectNotFound")<{ readonly id: string }> {}
-class Forbidden extends Data.TaggedError("Forbidden")<{}> {}
+class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
+  id: Schema.String,
+}) {}
+class Forbidden extends Schema.TaggedError<Forbidden>()("Forbidden", {}) {}
 
 const waitForText = (container: Element, text: string) =>
   Effect.promise(() => vi.waitFor(() => expect(container.textContent).toBe(text)));
@@ -46,6 +59,7 @@ let familyId = 0;
 const projectFamily = () =>
   Resource.define({
     name: `SolidComponent.ProjectById.${familyId++}`,
+    error: Schema.Union([ProjectNotFound, Forbidden]),
     load: (id: string) => ProjectApi.use((api) => api.get(id)),
   });
 
@@ -384,6 +398,7 @@ describe("Component", () => {
         Effect.gen(function* () {
           const Broken = Resource.define({
             name: `SolidComponent.Broken.${familyId++}`,
+            error: ProjectNotFound,
             load: (_id: string): Effect.Effect<string, ProjectNotFound> => {
               throw new Error("callback bug");
             },
@@ -449,6 +464,7 @@ describe("Component", () => {
         Effect.gen(function* () {
           const ProjectName = Resource.define({
             name: "test/Component/hostRuntime/ProjectName",
+            error: Schema.Union([ProjectNotFound, Forbidden]),
             load: (id: string) => ProjectApi.use((api) => api.get(id)),
           });
           const App = Component.define(

@@ -123,6 +123,8 @@ export const ProjectById = Resource.define({
   name: "Projects.byId",
   input: ProjectId,
   output: Project,
+  // The typed failure: a failed read renders it with its fields, also across SSR.
+  error: ProjectNotFound,
   load: (id) => ProjectApi.use((api) => api.get(id)),
   provides: (project) => [ProjectTag({ id: project.id })],
 });
@@ -134,8 +136,13 @@ export const ProjectById = Resource.define({
   Layer calls server functions (see the
   [Resource from a server function](../examples/docs-site/src/content/cookbook/resource-from-server-function.md)
   recipe).
-- `ProjectById` loads one project and can fail with `ProjectNotFound`. That
-  failure is part of its type, and every Component that reads it inherits it.
+- `ProjectById` loads one project and can fail with `ProjectNotFound`.
+  `error: ProjectNotFound` declares that failure as a schema: `load` may fail
+  only with it, every Component that reads the Resource inherits it, and when a
+  server render shows the failure it crosses to the page encoded by that
+  schema, so the hydrating client renders the same typed value. A Resource
+  without `error` renders a failed read as `ResourceUntypedFailure`, which
+  carries only the failure's `tag`; no other failure data leaves the server.
 
 ### 2. A Component that reads it
 
@@ -155,7 +162,7 @@ import { ProjectById, type Project, type ProjectId } from "./projects.js";
 export const ProjectPage = Component.define(
   "ProjectPage",
   function* (props: { readonly id: ProjectId }) {
-    // E += ProjectNotFound (the load error), R += ProjectApi (the load service).
+    // E += ProjectNotFound (its `error` schema), R += ProjectApi (the load service).
     const project = yield* Component.resource(ProjectById);
 
     return () => (
@@ -185,9 +192,10 @@ function ProjectHeader(props: { readonly project: Project }) {
 - `project(props.id)` suspends the nearest `<Loading>` on the first load only.
   After that the content stays mounted across refreshes; `waiting` and
   `failure` drive the status chrome around it.
-- The load's `ProjectNotFound` joined the Component's error type, so
-  `Component.catchTags` must handle it before the app can launch. Remove the
-  boundary and `App.define` stops compiling.
+- The Resource's declared `ProjectNotFound` joined the Component's error type,
+  so `Component.catchTags` must handle it before the app can launch. Remove the
+  boundary and `App.define` stops compiling. During SSR the server and the
+  hydrating client both render this fallback from the schema-encoded failure.
 - `ProjectHeader` is a plain Solid function. Presentational leaves need no
   Component.
 
@@ -395,7 +403,7 @@ The page yields the form like any child Component:
 
  export const ProjectPage = Component.define(
 @@ -9,4 +10,5 @@
-     // E += ProjectNotFound (the load error), R += ProjectApi (the load service).
+     // E += ProjectNotFound (its `error` schema), R += ProjectApi (the load service).
      const project = yield* Component.resource(ProjectById);
 +    const Rename = yield* RenameForm;
 
@@ -712,6 +720,11 @@ test's Scope and assert on the DOM after `travel`
   their load errors to the Component; `catchTags` or `catchAll` removes them;
   `launch` refuses what is left. Work you start (`submit`, `dispatch`,
   `preload`) returns its failures, and callbacks must handle them.
+- **Declare `error` where failures render.** A Resource read or route preload
+  that fails during SSR crosses to the page only as its `error` schema encodes
+  it. Without a schema it renders as `ResourceUntypedFailure` /
+  `RoutePreloadUntypedFailure` (the `tag` only), on the server and the client
+  alike.
 - **One status vocabulary.** Every binding reports `waiting()` and
   `failure()`: readers, collections, live queries, and Actions.
 - **Run work through `Component.callback`.** `submit`, `dispatch`, `preload`,

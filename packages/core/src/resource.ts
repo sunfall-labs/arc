@@ -17,7 +17,12 @@ import type {
 import { EffectInputPromiseRejected } from "./effect-like.js";
 import { isEffectLikeValue, isPromiseLikeValue } from "./effect-input-sync.js";
 import type { DurationInput } from "./resource-duration.js";
-import { ResourceKeyError, type ResourceFailure, type ResourcePending } from "./resource-errors.js";
+import {
+  ResourceKeyError,
+  type ResourceFailure,
+  type ResourcePending,
+  type ResourceUntypedFailure,
+} from "./resource-errors.js";
 import {
   ResourceTagIdentityTypeId,
   ResourceTagTypeId,
@@ -67,8 +72,10 @@ export {
 export {
   MissingResourceInput,
   ResourceFailure,
+  ResourceFailureCodecError,
   ResourceKeyError,
   ResourcePending,
+  ResourceUntypedFailure,
 } from "./resource-errors.js";
 
 /** Cache lifecycle policy for a resource family. */
@@ -91,6 +98,68 @@ export interface ResourcePolicy<E = never> {
 export type RetrySchedule<E> = Schedule.Schedule<unknown, any>;
 
 /**
+ * Schema for a Resource family's typed load failure, like a route's `error`.
+ *
+ * A server render that shows a failed Resource read encodes the failure with
+ * this schema (as JSON) and the hydrating client decodes it back into the same
+ * typed value, so both renders show the real failure with its declared
+ * fields. Encoding and decoding run synchronously, so the schema cannot
+ * require services.
+ */
+export type ResourceErrorSchema<E = unknown> = Schema.Codec<E, unknown, never, never>;
+
+type IsUndefined<T> = [T] extends [undefined] ? true : false;
+type ErrorSchemaType<S> = S extends { readonly Type: infer A } ? A : never;
+
+/** Declared load error of a family: its `error` schema's type, else the load's inferred error. */
+type ResourceDeclaredError<ErrorSchema, LoadError> =
+  IsUndefined<ErrorSchema> extends true ? LoadError : ErrorSchemaType<ErrorSchema>;
+
+/**
+ * Render failure of a family's reads: its `error` schema's type when one is
+ * declared, `ResourceUntypedFailure` when the load can fail without one, and
+ * `never` when it cannot fail.
+ */
+type ResourceRenderErrorFor<ErrorSchema, LoadError> =
+  IsUndefined<ErrorSchema> extends true
+    ? [LoadError] extends [never]
+      ? never
+      : ResourceUntypedFailure
+    : ErrorSchemaType<ErrorSchema>;
+
+/**
+ * Readable type error: the Resource load can fail with `Undeclared`, which
+ * the family's `error` schema does not cover. Widen the schema (e.g.
+ * `Schema.Union([...])`) or handle those failures in `load`.
+ */
+export interface ResourceLoadFailureNotInErrorSchema<Undeclared> {
+  readonly "~resource-error": "This Resource's load can fail with errors its `error` schema does not declare";
+  readonly undeclared: Undeclared;
+}
+
+type ResourceErrorSchemaCheck<ErrorSchema, LoadError> =
+  IsUndefined<ErrorSchema> extends true
+    ? unknown
+    : [LoadError] extends [ErrorSchemaType<ErrorSchema>]
+      ? unknown
+      : {
+          readonly error: ResourceLoadFailureNotInErrorSchema<
+            Exclude<LoadError, ErrorSchemaType<ErrorSchema>>
+          >;
+        };
+
+/** The `error` option every `Resource.define` overload takes, with its coverage check. */
+type ResourceErrorOption<ErrorSchema, LoadError> = {
+  /**
+   * Optional schema for the typed load failure. When present, `load` may fail
+   * only with this schema's type, the family's error is that type, and a
+   * server render sends a failed read to the client encoded with it. Without
+   * it a failed read renders as `ResourceUntypedFailure` (its `_tag` only).
+   */
+  readonly error?: ErrorSchema;
+} & ResourceErrorSchemaCheck<ErrorSchema, LoadError>;
+
+/**
  * Configuration for a typed resource family.
  *
  * A family maps an input to a cached Effect load. Use `provides` to attach tags
@@ -101,7 +170,8 @@ export interface ResourceFamilyOptions<I, A, E = never, R = never> {
   readonly name: string;
   readonly input?: unknown;
   readonly output?: unknown;
-  readonly error?: unknown;
+  /** Optional schema for the typed load failure; see `ResourceErrorSchema`. */
+  readonly error?: ResourceErrorSchema<any>;
   readonly policy?: ResourcePolicy<E>;
   /** Optional stable key override. Defaults to a stable stringify of the input. */
   readonly key?: (input: I) => string;
@@ -439,22 +509,35 @@ type CheckedResourceLoad<I, Definition> = Definition extends {
   ? { readonly load: (input: I) => EnsureEffectInput<Out> }
   : never;
 
-type ResourceRefFactory<I, A, E = never, R = never> = ((input: I) => ResourceRef<I, A, E, R>) & {
+/**
+ * Ref factory returned by `Resource.define(...)`: call it with an input to get
+ * a ref. `RenderError` is the failure a render of its reads reports (see
+ * `Resource.RenderError`).
+ */
+export type ResourceRefFactory<
+  I,
+  A,
+  E = never,
+  R = never,
+  RenderError = [E] extends [never] ? never : ResourceUntypedFailure,
+> = ((input: I) => ResourceRef<I, A, E, R>) & {
   readonly family: ResourceFamily<I, A, E, R>;
+  /** Phantom: the failure a render of this family's reads reports. */
+  readonly "~renderError"?: (_: never) => RenderError;
 };
 
 type RejectPromiseEffectInput<Out> = EnsureEffectInput<Out> extends never ? never : unknown;
 
 type ResourceFamilyCommonOptions<I, A, E, R> = Omit<
   ResourceFamilyOptions<I, A, E, R>,
-  "input" | "output" | "load"
+  "input" | "output" | "load" | "error"
 >;
 
 const makeResourceFamily = <I, A, E, R>(
   options: ResourceFamilyOptions<I, A, E, R>,
-): ResourceRefFactory<I, A, E, R> => {
+): ResourceRefFactory<I, A, E, R, unknown> => {
   const family = new ResourceFamily(options);
-  const makeRef = ((input: I) => family.ref(input)) as ResourceRefFactory<I, A, E, R>;
+  const makeRef = ((input: I) => family.ref(input)) as ResourceRefFactory<I, A, E, R, unknown>;
 
   Object.defineProperty(makeRef, "family", {
     value: family,
@@ -528,6 +611,23 @@ export namespace Resource {
   > = ResourceRequestFamilyOptions<I, Req, EX, RX>;
   /** Value returned from `collect(...)` with the Resource refs touched by preload/read work. */
   export type Collected<A> = ResourceCollected<A>;
+  /** Schema for a family's typed load failure (the `error` option). */
+  export type ErrorSchema<E = unknown> = ResourceErrorSchema<E>;
+  /** Ref factory returned by `Resource.define(...)`. */
+  export type RefFactory<
+    I,
+    A,
+    E = never,
+    R = never,
+    RenderError = [E] extends [never] ? never : ResourceUntypedFailure,
+  > = ResourceRefFactory<I, A, E, R, RenderError>;
+  /**
+   * Failure a render of a family's reads reports: its `error` schema's type,
+   * `ResourceUntypedFailure` for a family that can fail without one, `never`
+   * when it cannot fail.
+   */
+  export type RenderError<F> =
+    F extends ResourceRefFactory<any, any, any, any, infer RenderError> ? RenderError : never;
 
   /**
    * Defines a resource family and returns a ref factory.
@@ -550,18 +650,27 @@ export namespace Resource {
    * const user = yield* Resource.preload(ref);
    * ```
    */
-  export function define<I, Req extends EffectRequest.Any, EX = never, RX = never>(
-    options: ResourceRequestFamilyOptions<I, Req, EX, RX>,
+  export function define<
+    I,
+    Req extends EffectRequest.Any,
+    EX = never,
+    RX = never,
+    ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
+  >(
+    options: Omit<ResourceRequestFamilyOptions<I, Req, EX, RX>, "error"> &
+      ResourceErrorOption<ErrorSchema, EffectRequest.Error<Req> | EX>,
   ): ResourceRefFactory<
     I,
     EffectRequest.Success<Req>,
-    EffectRequest.Error<Req> | EX,
-    EffectRequest.Services<Req> | RX
+    ResourceDeclaredError<ErrorSchema, EffectRequest.Error<Req> | EX>,
+    EffectRequest.Services<Req> | RX,
+    ResourceRenderErrorFor<ErrorSchema, EffectRequest.Error<Req> | EX>
   >;
   export function define<
     const Input extends Schema.Top,
     const Output extends Schema.Top,
     Out extends EffectInput<Schema.Schema.Type<Output>, any, any>,
+    ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
   >(
     options: ResourceFamilyCommonOptions<
       Schema.Schema.Type<Input>,
@@ -572,73 +681,89 @@ export namespace Resource {
       readonly input: Input;
       readonly output: Output;
       readonly load: (input: Schema.Schema.Type<Input>) => EnsureEffectInput<Out>;
-    } & RejectPromiseEffectInput<Out>,
+    } & ResourceErrorOption<ErrorSchema, EffectInputError<Out>> &
+      RejectPromiseEffectInput<Out>,
   ): ResourceRefFactory<
     Schema.Schema.Type<Input>,
     Schema.Schema.Type<Output>,
-    EffectInputError<Out>,
-    EffectInputRequirements<Out>
+    ResourceDeclaredError<ErrorSchema, EffectInputError<Out>>,
+    EffectInputRequirements<Out>,
+    ResourceRenderErrorFor<ErrorSchema, EffectInputError<Out>>
   >;
   export function define<
     const Input extends Schema.Top,
     Load extends (input: Schema.Schema.Type<Input>) => unknown,
+    ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
   >(
-    options: Omit<
-      ResourceFamilyOptions<
-        Schema.Schema.Type<Input>,
-        EffectInputValue<ReturnType<Load>>,
-        EffectInputError<ReturnType<Load>>,
-        EffectInputRequirements<ReturnType<Load>>
-      >,
-      "input" | "output" | "load"
+    options: ResourceFamilyCommonOptions<
+      Schema.Schema.Type<Input>,
+      EffectInputValue<ReturnType<Load>>,
+      EffectInputError<ReturnType<Load>>,
+      EffectInputRequirements<ReturnType<Load>>
     > & {
       readonly input: Input;
       readonly output?: never;
       readonly load: Load &
         ((input: Schema.Schema.Type<Input>) => EnsureEffectInput<ReturnType<Load>>);
-    } & RejectPromiseEffectInput<ReturnType<Load>>,
+    } & ResourceErrorOption<ErrorSchema, EffectInputError<ReturnType<Load>>> &
+      RejectPromiseEffectInput<ReturnType<Load>>,
   ): ResourceRefFactory<
     Schema.Schema.Type<Input>,
     EffectInputValue<ReturnType<Load>>,
-    EffectInputError<ReturnType<Load>>,
-    EffectInputRequirements<ReturnType<Load>>
+    ResourceDeclaredError<ErrorSchema, EffectInputError<ReturnType<Load>>>,
+    EffectInputRequirements<ReturnType<Load>>,
+    ResourceRenderErrorFor<ErrorSchema, EffectInputError<ReturnType<Load>>>
   >;
   export function define<
     I,
     const Output extends Schema.Top,
     Out extends EffectInput<Schema.Schema.Type<Output>, any, any>,
+    ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
   >(
-    options: Omit<
-      ResourceFamilyOptions<
-        I,
-        Schema.Schema.Type<Output>,
-        EffectInputError<Out>,
-        EffectInputRequirements<Out>
-      >,
-      "input" | "output" | "load"
+    options: ResourceFamilyCommonOptions<
+      I,
+      Schema.Schema.Type<Output>,
+      EffectInputError<Out>,
+      EffectInputRequirements<Out>
     > & {
       readonly input?: never;
       readonly output: Output;
       readonly load: (input: I) => EnsureEffectInput<Out>;
-    } & RejectPromiseEffectInput<Out>,
+    } & ResourceErrorOption<ErrorSchema, EffectInputError<Out>> &
+      RejectPromiseEffectInput<Out>,
   ): ResourceRefFactory<
     I,
     Schema.Schema.Type<Output>,
-    EffectInputError<Out>,
-    EffectInputRequirements<Out>
+    ResourceDeclaredError<ErrorSchema, EffectInputError<Out>>,
+    EffectInputRequirements<Out>,
+    ResourceRenderErrorFor<ErrorSchema, EffectInputError<Out>>
   >;
   export function define<
     I,
     A,
     E = never,
     R = never,
-    Definition extends Omit<ResourceFamilyOptions<I, A, E, R>, "load"> & {
+    Definition extends Omit<ResourceFamilyOptions<I, A, E, R>, "load" | "error"> & {
+      readonly error?: ResourceErrorSchema<E>;
       readonly load: (input: I) => EffectInput<A, E, R>;
-    } = Omit<ResourceFamilyOptions<I, A, E, R>, "load"> & {
+    } = Omit<ResourceFamilyOptions<I, A, E, R>, "load" | "error"> & {
+      readonly error?: ResourceErrorSchema<E>;
       readonly load: (input: I) => EffectInput<A, E, R>;
     },
-  >(options: Definition & CheckedResourceLoad<I, Definition>): ResourceRefFactory<I, A, E, R>;
-  export function define<I, Load extends (input: I) => unknown>(
+  >(
+    options: Definition & CheckedResourceLoad<I, Definition>,
+  ): ResourceRefFactory<
+    I,
+    A,
+    E,
+    R,
+    ResourceRenderErrorFor<Definition extends { readonly error: infer S } ? S : undefined, E>
+  >;
+  export function define<
+    I,
+    Load extends (input: I) => unknown,
+    ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
+  >(
     options: Omit<
       ResourceFamilyOptions<
         I,
@@ -646,16 +771,18 @@ export namespace Resource {
         EffectInputError<ReturnType<Load>>,
         EffectInputRequirements<ReturnType<Load>>
       >,
-      "output" | "load"
+      "output" | "load" | "error"
     > & {
       readonly output?: never;
       readonly load: Load & ((input: I) => EnsureEffectInput<ReturnType<Load>>);
-    } & RejectPromiseEffectInput<ReturnType<Load>>,
+    } & ResourceErrorOption<ErrorSchema, EffectInputError<ReturnType<Load>>> &
+      RejectPromiseEffectInput<ReturnType<Load>>,
   ): ResourceRefFactory<
     I,
     EffectInputValue<ReturnType<Load>>,
-    EffectInputError<ReturnType<Load>>,
-    EffectInputRequirements<ReturnType<Load>>
+    ResourceDeclaredError<ErrorSchema, EffectInputError<ReturnType<Load>>>,
+    EffectInputRequirements<ReturnType<Load>>,
+    ResourceRenderErrorFor<ErrorSchema, EffectInputError<ReturnType<Load>>>
   >;
   export function define(options: unknown): any {
     if (isRequestFamilyOptions(options)) {

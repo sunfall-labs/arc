@@ -99,7 +99,8 @@ The root export re-exports these local modules:
 Mixed modules (`action-submission`, the `browser-router-*` modules,
 `effect-like`, `resource-snapshot-codec`, `route-grammar`, `runtime`) are
 selected by name. Their adapter plumbing, plus `definition-registry`,
-`resource-registry`, `resource-ui-binding`, `action-instance` and
+`resource-registry`, `resource-ui-binding`, `resource-failure-snapshot` (the
+SSR wire codec for failed Resource reads), `action-instance` and
 `program-start` (runtime-erased instance constructors for renderer bindings),
 `scope` (the ambient `UiScope`), and `signal-watch`, is exported only from
 `@sunfall/arc-core/internal` for sibling Sunfall Arc packages. Each symbol has

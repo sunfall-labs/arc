@@ -1,6 +1,6 @@
 // Component typing: services (R) and typed render failures (E) flow through
 // component definitions and `yield*`, never through JSX.
-import { Cause, Context, Data, Effect, Layer, pipe, Scope, Stream } from "effect";
+import { Cause, Context, Data, Effect, Layer, pipe, Schema, Scope, Stream } from "effect";
 import { Component, RouterProvider } from "@sunfall/arc-solid";
 import {
   Action,
@@ -10,6 +10,7 @@ import {
   type ActionInterrupted,
   type AnySunfallArcRuntime,
   type EffectInputCallbackError,
+  type ResourceUntypedFailure,
   type Server,
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
@@ -22,8 +23,10 @@ class ProjectApi extends Context.Service<
 class Realtime extends Context.Service<Realtime, { readonly feed: () => ReadonlyArray<string> }>()(
   "type-tests/Component/Realtime",
 ) {}
-class ProjectNotFound extends Data.TaggedError("ProjectNotFound")<{ readonly id: string }> {}
-class Forbidden extends Data.TaggedError("Forbidden")<{}> {}
+class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
+  id: Schema.String,
+}) {}
+class Forbidden extends Schema.TaggedError<Forbidden>()("Forbidden", {}) {}
 class ConfigMissing extends Data.TaggedError("ConfigMissing")<{}> {}
 
 type Assert<T extends true> = T;
@@ -32,6 +35,7 @@ type Parts<C> = C extends Component<infer P, infer E, infer R> ? { P: P; E: E; R
 
 const ProjectById = Resource.define({
   name: "type-tests/Component/ProjectById",
+  error: Schema.Union([ProjectNotFound, Forbidden]),
   load: (id: string) => ProjectApi.use((api) => api.get(id)),
 });
 
@@ -123,6 +127,75 @@ type _bound = Assert<
     >
   >
 >;
+// A Resource's `error` schema defines its declared error and the failure its
+// reads render; Effects (preloads, actions) see the declared error.
+const TypedProject = Resource.define({
+  name: "type-tests/Component/TypedProject",
+  error: ProjectNotFound,
+  load: (id: string): Effect.Effect<string, ProjectNotFound> =>
+    Effect.fail(new ProjectNotFound({ id })),
+});
+type _typedRender = Assert<Eq<Resource.RenderError<typeof TypedProject>, ProjectNotFound>>;
+const typedPreload = Resource.preload(TypedProject("atlas"));
+type _typedPreload = Assert<Eq<typeof typedPreload, Effect.Effect<string, ProjectNotFound>>>;
+// A schema wider than the load's failures widens the declared error.
+const WideProject = Resource.define({
+  name: "type-tests/Component/WideProject",
+  error: Schema.Union([ProjectNotFound, Forbidden]),
+  load: (id: string): Effect.Effect<string, ProjectNotFound> =>
+    Effect.fail(new ProjectNotFound({ id })),
+});
+const widePreload = Resource.preload(WideProject("atlas"));
+type _widePreload = Assert<
+  Eq<typeof widePreload, Effect.Effect<string, ProjectNotFound | Forbidden>>
+>;
+type _wideRender = Assert<
+  Eq<Resource.RenderError<typeof WideProject>, ProjectNotFound | Forbidden>
+>;
+Resource.define({
+  name: "type-tests/Component/UncoveredProject",
+  // @ts-expect-error the load can fail with Forbidden, which the schema does not declare
+  error: ProjectNotFound,
+  load: (_id: string) => Effect.fail(new Forbidden()),
+});
+Resource.define({
+  name: "type-tests/Component/NotASchema",
+  // @ts-expect-error `error` must be a Schema codec
+  error: ProjectNotFound as unknown as string,
+  load: (id: string) => Effect.fail(new ProjectNotFound({ id })),
+});
+
+// Without a schema, Effects see the load's own failure, but a render reports
+// only its `_tag`: the reader's failure is ResourceUntypedFailure.
+class DatabaseDown extends Data.TaggedError("DatabaseDown")<{ readonly secret: string }> {}
+const UntypedStats = Resource.define({
+  name: "type-tests/Component/UntypedStats",
+  load: (_: "all"): Effect.Effect<number, DatabaseDown> =>
+    Effect.fail(new DatabaseDown({ secret: "" })),
+});
+const untypedPreload = Resource.preload(UntypedStats("all"));
+type _untypedPreload = Assert<Eq<typeof untypedPreload, Effect.Effect<number, DatabaseDown>>>;
+type _untypedRender = Assert<Eq<Resource.RenderError<typeof UntypedStats>, ResourceUntypedFailure>>;
+const StatsCard = Component.define("StatsCard", function* () {
+  const stats = yield* Component.resource(UntypedStats);
+  const failure: Cause.Cause<ResourceUntypedFailure> | undefined = stats.failure("all");
+  void failure;
+  return () => String(stats("all"));
+});
+type _statsCard = Assert<Eq<Parts<typeof StatsCard>["E"], ResourceUntypedFailure>>;
+const SafeStats = StatsCard.pipe(
+  Component.catchTags({ ResourceUntypedFailure: (error) => `stats failed: ${error.tag}` }),
+);
+type _safeStats = Assert<Eq<Parts<typeof SafeStats>["E"], never>>;
+// @ts-expect-error the load's own tag never reaches a render without a schema
+StatsCard.pipe(Component.catchTags({ DatabaseDown: () => "down" }));
+// A family that cannot fail renders no failure.
+const Greeting = Resource.define({
+  name: "type-tests/Component/Greeting",
+  load: (name: string) => Effect.succeed(`hello ${name}`),
+});
+type _greetingRender = Assert<Eq<Resource.RenderError<typeof Greeting>, never>>;
+
 // Status chrome carries no value: content renders only through the reader.
 declare const reader: Component.ResourceReader<string, string, ProjectNotFound>;
 const readerValue: string = reader("atlas");

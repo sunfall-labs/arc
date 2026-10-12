@@ -31,6 +31,14 @@ export {
 } from "./browser-router-state.js";
 export * from "./definition-registry.js";
 export { catchEffectInputPromiseDefect, invokeEffectInput, toEffect } from "./effect-like.js";
+export {
+  resourceFailureSnapshot,
+  resourceRenderCause,
+  resourceRenderCauseFromSnapshot,
+  resourceRenderError,
+  type ResourceFailureEncoding,
+  type ResourceFailureSnapshot,
+} from "./resource-failure-snapshot.js";
 export * from "./resource-registry.js";
 export { lookupResourceFamilyEffect, refsForResourceTag } from "./resource-runtime.js";
 export {

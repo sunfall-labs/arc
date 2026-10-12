@@ -7,7 +7,19 @@ import {
   ResourceFailure,
   Route,
 } from "@sunfall/arc-core";
-import { Cause, Context, Data, Deferred, Effect, Exit, Fiber, Layer, Option, Stream } from "effect";
+import {
+  Cause,
+  Context,
+  Data,
+  Deferred,
+  Effect,
+  Exit,
+  Fiber,
+  Layer,
+  Option,
+  Schema,
+  Stream,
+} from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { createComponent, Errored, Loading, render } from "@solidjs/web";
 import { createContext, createRoot, flush, NotReadyError, useContext } from "solid-js";
@@ -63,6 +75,7 @@ describe("Component bindings", () => {
           const runtime = makeRuntime();
           const ProjectById = Resource.define<string, Project, string>({
             name: "SolidBindings.stale-failure",
+            error: Schema.String,
             load: (id) => (fail ? Effect.fail("offline") : Effect.succeed({ id, name: "Atlas" })),
           });
           const ref = ProjectById("atlas");

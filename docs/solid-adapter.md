@@ -151,15 +151,19 @@ to get a Resource value into JSX:
   value, so **content stays mounted across refreshes**: inputs keep their text,
   focus and scroll stay put, and Programs or Actions in the subtree keep
   running.
-- A failed first load throws `ResourceFailure` to the nearest `<Errored>`;
-  `catchTags` matches the typed load error's `_tag` (`catchAll` handles every
-  typed failure). A load callback that throws synchronously is a defect: it is
-  re-caused as `Die` and never matched by a typed handler.
+- A failed first load throws to the nearest `<Errored>`; `catchTags` matches
+  the family's render failure by `_tag` (`catchAll` handles every typed
+  failure). That failure is the type of the family's `error` schema
+  (`Resource.define({ ..., error: ProjectNotFound })`, which `load` must fail
+  within), or `ResourceUntypedFailure` (the failure's `tag` only) for a family
+  without one, on the server, on the client, and after hydration alike. A load
+  callback that throws synchronously is a defect: it is re-caused as `Die` and
+  never matched by a typed handler.
 
 Status chrome reads value-free accessors, so nothing renders content from a
 status: `reader.waiting(input)` (a load or refresh is in flight) and
-`reader.failure(input)` (the settled failure `Cause`, for an inline error beside
-the stale content).
+`reader.failure(input)` (the settled failure `Cause`, with typed failures as the
+family renders them, for an inline error beside the stale content).
 
 ```tsx
 return () => (
@@ -303,9 +307,9 @@ query. Both read the instance runtime's Collection Store.
 
 ## Boundaries And Provision
 
-- `Component.catchTags(handlers)`: a Solid `<Errored>` matched by `_tag` (a
-  `ResourceFailure` matches by the `_tag` of its typed load error); only tags in
-  `E` are accepted, each handler receives exactly that member of `E` plus
+- `Component.catchTags(handlers)`: a Solid `<Errored>` matched by the typed
+  failure's `_tag` (a failed Resource read matches by its render failure); only
+  tags in `E` are accepted, each handler receives exactly that member of `E` plus
   Solid's `reset`, and handled tags leave `E`. Unmatched failures, including
   defects, reach outer boundaries.
 - `Component.catchAll(handler)`: one handler for every typed failure; removes
@@ -360,6 +364,16 @@ once); request runtime disposal releases them. Route-preloaded and hydrated
 Resources read synchronously on both sides, so there is no `<Loading>` flash
 and no refresh. An asynchronous setup renders the nearest `<Loading>` fallback
 under `renderToString`.
+
+A failure caught by an `<Errored>` during the server render is serialized into
+the page by Solid, so the adapter throws only a safe wire value there: a failed
+Resource read encoded with its family's `error` schema (or just its `_tag`
+without one), and nothing at all for setup failures and defects. `catchTags`
+and `catchAll` decode the typed failure from that value on both sides, so the
+hydrating client renders the same fallback (with a real `ProjectNotFound`
+instance) without re-running the read. Setup failures are opaque on the server
+and no handler matches them there; keep data that can fail during SSR behind a
+Resource with an `error` schema.
 
 ## Routing
 
