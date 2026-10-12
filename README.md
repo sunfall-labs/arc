@@ -1,130 +1,247 @@
-# Sunfall Arc
+<p align="center">
+  <a href="https://sunfall-labs.github.io/arc/">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/arc-banner-dark.svg" />
+      <source media="(prefers-color-scheme: light)" srcset="docs/assets/arc-banner.svg" />
+      <img src="docs/assets/arc-banner.svg" alt="Sunfall Arc: a terracotta arc setting into the horizon on warm ivory" width="800" />
+    </picture>
+  </a>
+</p>
 
-Sunfall Arc is an experimental, Effect-native TypeScript framework for
-correctness by construction in full-stack apps. It treats application behavior
-as typed definitions that humans, tests, devtools, and agents can all inspect.
+<h1 align="center">Sunfall Arc</h1>
 
-**Start with [The Golden Path](docs/golden-path.md).** It tells you which tool
-to use for each job (Resource for reads, including keyed rows, Action for
-writes, State for client state, Component for screens, Route for
-pages) and builds one feature end to end, from a Resource to SSR,
-hydration, and Timeline debugging. Its snippets are type-checked by
-`pnpm typecheck`.
+<p align="center">
+  <strong>Full-stack TypeScript, correct by construction.</strong>
+</p>
 
-The project is still pre-release. Framework packages are MIT-licensed and
-configured for public alpha publication; the workspace root and copyable
-examples/starters remain private so only the library packages are publishable
-while examples, diagnostics, and release gates are hardened.
+<p align="center">
+  <a href="https://sunfall-labs.github.io/arc/">Website</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="docs/golden-path.md">Golden path</a> ·
+  <a href="#packages">Packages</a> ·
+  <a href="docs/architecture.md">Architecture</a> ·
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
 
-## What This Repo Proves
+Arc is a full-stack framework built on [Effect](https://effect.website) and
+[Solid](https://www.solidjs.com). Reads, writes, client state, screens, and
+routes are typed, named definitions, so the compiler, your tests, and the
+Timeline all see the same app.
 
-- One typed UI model: `Component.define` setups bind States, Resources,
-  Actions, live queries, and the router, and their services and typed failures
-  accumulate into the component type that `Component.launch` checks.
-- Humans and agents can co-develop against explicit app structure: typed
-  definitions, generated route artifacts, definition diagnostics, and
-  verification gates.
-- Effect-first States, Resources, Actions, Forms, Routes, Effect services,
-  and server contracts through the Solid 2 adapter.
-- Request-local runtimes and resource stores for SSR, RPC, Start actions, and
-  streamed responses.
-- One server-data model: Resources with keyed rows, indexes, change feeds,
-  persistence, optimistic row patches from Actions, and incremental live
-  queries over those rows.
-- Whole-app Timeline recording and replay, JSON-safe devtools summaries,
-  causal graphs, request
-  traces, panel data models, a browser-embeddable panel renderer, a checked
-  panel app shell, and a checked browser-extension shell with an
-  inspected-window bridge.
-- Deterministic Start manifests and build diagnostics with repair guidance.
-- Copyable basic and project console starters with SSR, hydration,
-  route-owned Resource preload, checked standalone packaging, and server-only
-  leak scans.
+| Compile-time confidence                                                                                                                          | Named, durable changes                                                                                                                                 | Effect all the way down                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| A failure that can reach the screen unhandled, or a service no Layer provides, is a type error. The app does not compile until it is dealt with. | Writes are Actions, with optimistic patches and an offline outbox. Every state change has a name (a State message, an Action, a load) on the Timeline. | Services, Layers, Schema, RPC, Workflow, and tracing stay Effect primitives. Arc builds on them rather than wrapping them. |
 
-## Start Here
+> [!IMPORTANT]
+> **Arc is pre-1.0. The current release is an early public alpha.** APIs can
+> still change between alphas; read the [migration notes](docs/migration-notes.md)
+> when you upgrade. Arc runs on Solid 2 (release candidate `2.0.0-rc.14`) and Effect
+> `4.0.3`; install those exact versions so the app shares one Effect and one
+> Solid with the framework.
 
-Read in this order when you are new to the repo:
+## Quick start
 
-1. [The Golden Path](docs/golden-path.md): which tool for which job, and one
-   feature built end to end
-2. [Basic and project-console starters](docs/starter.md)
+```sh
+pnpm add @sunfall/arc-core @sunfall/arc-solid @sunfall/arc-start \
+         effect@4.0.3 solid-js@2.0.0-rc.14 @solidjs/web@2.0.0-rc.14
+```
+
+One feature, whole: an Effect service, a Resource that reads through it, an
+Action that writes optimistically, a Component that must handle the read's
+failure, a Route, and the app definition both hosts share. It is compiled with
+the framework on every change, so it cannot drift.
+
+`src/app.tsx`:
+
+<!-- snippet: type-tests/readme/app.tsx -->
+
+```tsx
+import { Action, Resource, Route } from "@sunfall/arc-core";
+import { Component, RouterOutlet, RouterProvider } from "@sunfall/arc-solid";
+import { App } from "@sunfall/arc-start";
+import { Context, Effect, Layer, Schema } from "effect";
+import { Loading } from "solid-js";
+
+const Todo = Schema.Struct({ id: Schema.String, title: Schema.String, done: Schema.Boolean });
+type Todo = typeof Todo.Type;
+
+class TodoNotFound extends Schema.TaggedError<TodoNotFound>()("TodoNotFound", {
+  id: Schema.String,
+}) {}
+
+// The backend boundary: an Effect service. Each host provides it with a Layer.
+interface Todos {
+  readonly get: (id: string) => Effect.Effect<Todo, TodoNotFound>;
+  readonly toggle: (id: string) => Effect.Effect<Todo, TodoNotFound>;
+}
+const Todos = Context.Service<Todos>("Todos");
+
+const rows = new Map<string, Todo>([["1", { id: "1", title: "Try Arc", done: false }]]);
+const find = (id: string): Effect.Effect<Todo, TodoNotFound> => {
+  const todo = rows.get(id);
+  return todo === undefined ? Effect.fail(new TodoNotFound({ id })) : Effect.succeed(todo);
+};
+export const TodosMemory = Layer.succeed(Todos, {
+  get: find,
+  toggle: (id) =>
+    find(id).pipe(
+      Effect.map((todo) => ({ ...todo, done: !todo.done })),
+      Effect.tap((todo) => Effect.sync(() => rows.set(id, todo))),
+    ),
+});
+
+// A Resource: a named, cached, typed read.
+const TodoById = Resource.define({
+  name: "Todos.byId",
+  input: Schema.String,
+  output: Todo,
+  error: TodoNotFound,
+  load: (id) => Todos.use((todos) => todos.get(id)),
+});
+
+// An Action: a named write. The checkbox flips at once; a failure rolls it back.
+const ToggleTodo = Action.define({
+  name: "Todos.toggle",
+  input: Schema.String,
+  output: Todo,
+  optimistic: (id, transaction) =>
+    transaction.set(TodoById(id), (todo) => ({ ...todo, done: !todo.done })),
+  run: (id) => Todos.use((todos) => todos.toggle(id)),
+});
+
+// A Component. Reading TodoById adds TodoNotFound to its type until it is handled.
+const TodoPage = Component.define("TodoPage", function* (props: { readonly id: string }) {
+  const todo = yield* Component.resource(TodoById);
+  const toggle = yield* Component.action(ToggleTodo);
+  const flip = yield* Component.callback("flip", () => toggle.submit(props.id).pipe(Effect.ignore));
+  return () => (
+    <Loading fallback={<p>Loading</p>}>
+      <label>
+        <input type="checkbox" checked={todo(props.id).done} onChange={() => flip()} />
+        {todo(props.id).title}
+      </label>
+    </Loading>
+  );
+}).pipe(Component.catchTags({ TodoNotFound: (error) => <p>No todo {error.id}.</p> }));
+
+const TodoRoute = Route.define("/todos/:id", { params: Schema.Struct({ id: Schema.String }) });
+const routes = [
+  Route.withComponent(TodoRoute, TodoPage, ({ params }) => ({ id: params.id })),
+] as const;
+
+const Root = Component.define("Root", function* (props: { readonly href: string }) {
+  const router = yield* Component.router(routes, { initialHref: props.href });
+  return () => (
+    <RouterProvider router={router}>
+      <RouterOutlet router={router} />
+    </RouterProvider>
+  );
+});
+
+// One definition for both hosts. Without TodosMemory, this line does not compile.
+export const app = App.define({ root: Root, routes, actions: [ToggleTodo], client: TodosMemory });
+```
+
+The server renders it, and the browser hydrates it:
+
+<!-- snippet: type-tests/readme/server.ts -->
+
+```ts
+import { createRequestHandler } from "@sunfall/arc-start";
+import { app, TodosMemory } from "./app.js";
+
+// Server rendering: runs the route's preload, renders, and streams the hydration payload.
+export const handleRequest = createRequestHandler(app, { server: TodosMemory });
+```
+
+<!-- snippet: type-tests/readme/main.ts -->
+
+```ts
+import { App } from "@sunfall/arc-start";
+import { Effect } from "effect";
+import { app } from "./app.js";
+
+// The browser: restores the server's data and hydrates its markup.
+Effect.runFork(App.launch(app));
+```
+
+Delete the `catchTags` line and `App.define` stops compiling; so does a client
+Layer that does not provide `Todos`. For a runnable project with the Vite
+plugin, file routes, and a dev server, copy
+[`examples/basic-starter`](examples/basic-starter), then read
+[The Golden Path](docs/golden-path.md), which builds a fuller feature step by
+step.
+
+## Concepts
+
+Seven definitions and your Effect services are the whole vocabulary.
+
+| Concept         | What it is                                                                         | Defined with               |
+| --------------- | ---------------------------------------------------------------------------------- | -------------------------- |
+| Resource        | A named, cached, typed read; add `rows` for keyed lists with indexes.              | `Resource.define`          |
+| Action          | A named write with `optimistic` patches, `invalidates` tags, and `durable` outbox. | `Action.define`            |
+| State           | Client state, changed only by its named messages.                                  | `State.define`             |
+| Component       | Binds Resources, Actions, and States to the screen; its failures are in its type.  | `Component.define`         |
+| Route           | A URL with decoded params, a preload, and a typed failure.                         | `Route.define`             |
+| App             | One definition for server rendering and browser hydration.                         | `App.define`               |
+| Timeline        | Records every commit by name and travels back to any of them.                      | `Timeline.record`          |
+| Effect services | Your backends, with a Layer per host.                                              | `Context.Service`, `Layer` |
+
+## Packages
+
+| Package                 | What it provides                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `@sunfall/arc-core`     | Resources, Actions, States, Routes, the Timeline, Signals, forms, and server contracts.                            |
+| `@sunfall/arc-solid`    | `Component`, the router (`RouterProvider`, `RouterOutlet`, `RouterLink`), and Solid bindings for every definition. |
+| `@sunfall/arc-start`    | `App`, server rendering, hydration, transports, and the Vite plugin; hosts at `/fetch` and `/node`.                |
+| `@sunfall/arc-db`       | Incremental live queries that join and aggregate the rows of Resources.                                            |
+| `@sunfall/arc-devtools` | JSON-safe devtools snapshots, summaries, causal graphs, and panels.                                                |
+| `@sunfall/arc-tsrx`     | The TSRX and Solid Vite preset used by the starters.                                                               |
+
+All packages are MIT-licensed and published under the `alpha` dist-tag.
+
+## Examples and starters
+
+- [`examples/basic-starter`](examples/basic-starter): the smallest full-stack
+  app to copy: one file route, a route-owned Resource preload, SSR, and
+  hydration.
+- [`examples/project-console`](examples/project-console): the full golden path
+  with Resource rows, live queries, Actions, forms, and server functions.
+- [`examples/docs-site`](examples/docs-site): the
+  [website](https://sunfall-labs.github.io/arc/), built with Arc.
+- [`examples/devtools-panel`](examples/devtools-panel) and
+  [`examples/devtools-extension`](examples/devtools-extension): the devtools
+  panel in an app shell and in a browser extension.
+
+## Documentation
+
+1. [The Golden Path](docs/golden-path.md): which definition for which job, and
+   one feature built end to end. Start here.
+2. [Starters](docs/starter.md)
 3. [Solid adapter](docs/solid-adapter.md)
 4. [Architecture](docs/architecture.md)
-5. [Effect style guide](docs/effect-style.md)
+5. [Rows and queries](docs/db.md)
 6. [Deployment](docs/deployment.md)
+7. [Devtools](docs/devtools.md)
 
-Useful deeper references:
+Reference: [Effect style guide](docs/effect-style.md) ·
+[Invariants](docs/invariants.md) ·
+[Public API inventory](docs/public-api-inventory.md) ·
+[Migration notes](docs/migration-notes.md) ·
+[Comparison](docs/comparison.md) · [Changelog](CHANGELOG.md)
 
-- [Rows and queries](docs/db.md): Resource rows, live queries, change feeds,
-  and persistence
-- [Devtools](docs/devtools.md)
-- [Migration notes](docs/migration-notes.md)
-- [Invariants](docs/invariants.md)
-- [Public API inventory](docs/public-api-inventory.md)
-- [Comparison with other frameworks](docs/comparison.md)
-- [Changelog](CHANGELOG.md)
-- [Contributing and releasing](CONTRIBUTING.md)
-- [Docs site design reference](Design.md)
-- [Devtools panel example](examples/devtools-panel/README.md)
-- [Devtools extension example](examples/devtools-extension/README.md)
-- [Project console example](examples/project-console/README.md)
+## Contributing
+
+```sh
+pnpm install
+pnpm verify
+```
+
+`pnpm verify` is the gate for every change: build, format, lint, typecheck
+(including the compiled snippets in this README and the docs), tests, audits,
+example and starter verifies, and package dry runs.
+[CONTRIBUTING.md](CONTRIBUTING.md) covers the workflow and releases.
 
 ## License
 
 MIT. See [LICENSE](LICENSE).
-
-## Development
-
-Install dependencies:
-
-```sh
-pnpm install
-```
-
-Run the full gate:
-
-```sh
-pnpm verify
-```
-
-Useful focused commands:
-
-```sh
-pnpm build
-pnpm typecheck        # includes docs:snippets (golden-path snippets match their fixtures)
-pnpm test
-pnpm benchmark
-pnpm devtools-panel:verify
-pnpm devtools-extension:verify
-pnpm starter:verify
-pnpm starter:package
-pnpm example:pack-dry-run
-pnpm example:typecheck
-pnpm example:test
-pnpm example:build
-pnpm example:leak-scan
-```
-
-## Package Map
-
-- `@sunfall/arc-core`: runtime spine, States, read-only Signals, the
-  Timeline, Resources, Actions, Forms/FormData decoding, Routes,
-  and server contracts.
-- `@sunfall/arc-start`: SSR, hydration, transports, manifests, diagnostics, and
-  Start action clients; host adapters live at `@sunfall/arc-start/fetch` and
-  `@sunfall/arc-start/node`.
-- `@sunfall/arc-db`: the Query engine: incremental live queries over the rows
-  of Resources.
-- `@sunfall/arc-devtools`: serializable inspection contracts, Timeline commit
-  panels, and a small browser panel renderer for agents, app panels, and
-  extension panels.
-- `@sunfall/arc-solid`: Solid runtime provider, router, state/resource/action
-  bindings, live query bindings, streams, and component scopes.
-- `@sunfall/arc-tsrx`: TSRX/Solid Vite preset for examples and starters.
-
-## Release Bar
-
-A release requires a green `pnpm verify`, current benchmark baselines, package
-dry-run evidence, and public API decisions recorded in the
-[Public API inventory](docs/public-api-inventory.md). See
-[CONTRIBUTING.md](CONTRIBUTING.md) for the publishing process.

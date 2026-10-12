@@ -1,7 +1,7 @@
 {
   "name": "@sunfall/arc-db",
   "version": "0.1.0-alpha.1",
-  "description": "Sunfall Arc local-first collections, live queries, persistence, and sync adapters.",
+  "description": "Incremental Sunfall Arc live queries over the rows of Resources.",
   "keywords": [
     "collections",
     "effect",

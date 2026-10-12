@@ -36,6 +36,12 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 /** Docs whose TypeScript fences must all be compiled snippets, with their fixture directories. */
 const checkedDocs = [
   {
+    doc: "README.md",
+    fixtureDirectory: "type-tests/readme",
+    // Pins the README's claims about the quick start's types.
+    unshown: ["claims.ts"],
+  },
+  {
     doc: "docs/golden-path.md",
     fixtureDirectory: "type-tests/golden-path",
     // Fixture files that pin type claims but are not shown in the doc.
