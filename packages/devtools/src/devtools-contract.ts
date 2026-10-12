@@ -1,12 +1,4 @@
-import {
-  type ActionInstance,
-  type ResourceInvalidationPlan,
-  type ResourceStoreEvent,
-  type Route,
-  type TimelineCause,
-  type TimelineEntry,
-  type TimelineRecording,
-} from "@sunfall/arc-core";
+import type { Route, Action, Resource, Timeline } from "@sunfall/arc-core";
 import { Data, type Effect, type Fiber, type Scope } from "effect";
 
 /**
@@ -126,7 +118,7 @@ export type DevtoolsRecordActionStateOptions = {
   readonly waiting?: boolean;
 } & (
   | {
-      readonly invalidationPlan?: ResourceInvalidationPlan<any> | undefined;
+      readonly invalidationPlan?: Resource.InvalidationPlan<any> | undefined;
       readonly serializedInvalidationPlan?: never;
     }
   | {
@@ -184,7 +176,7 @@ export interface DevtoolsTimelineCommit {
   /** `Timeline.describe(cause)`, e.g. `ProjectPage.rename`. */
   readonly label: string;
   /** The named transition or framework event that made the commit. */
-  readonly cause: TimelineCause;
+  readonly cause: Timeline.Cause;
   readonly changes: ReadonlyArray<DevtoolsTimelineChange>;
 }
 
@@ -356,7 +348,7 @@ export type DevtoolsRuntimeEvent =
       readonly _tag: "ResourceStoreEvent";
       readonly sequence?: number;
       readonly at?: number;
-      readonly event: ResourceStoreEvent;
+      readonly event: Resource.StoreEvent;
     }
   | {
       readonly _tag: "CollectionStoreEvent";
@@ -478,7 +470,7 @@ export interface DevtoolsStore {
   /** Remove stored app-graph diagnostics without clearing runtime facts. */
   readonly clearAppGraphDiagnostics: () => Effect.Effect<void>;
   /** Serialize and retain a live Resource invalidation plan, returning its retained index. */
-  readonly recordInvalidation: (plan: ResourceInvalidationPlan) => Effect.Effect<number>;
+  readonly recordInvalidation: (plan: Resource.InvalidationPlan) => Effect.Effect<number>;
   /** Retain an already-serialized invalidation plan, returning its retained index. */
   readonly recordSerializedInvalidation: (plan: DevtoolsInvalidationPlan) => Effect.Effect<number>;
   /** Record one action state transition, with optional input and invalidation plan facts. */
@@ -488,23 +480,25 @@ export interface DevtoolsStore {
     actionOptions?: DevtoolsRecordActionStateOptions,
   ) => Effect.Effect<void, DevtoolsActionInvalidationPlanConflict>;
   /** Record an Action instance's current state and invalidation plan. */
-  readonly recordAction: <I, A, E, R>(action: ActionInstance<I, A, E, R>) => Effect.Effect<void>;
+  readonly recordAction: <I, A, E, R>(action: Action.Instance<I, A, E, R>) => Effect.Effect<void>;
   /** Records an Action instance's state changes until the scope closes. */
   readonly trackAction: <I, A, E, R>(
-    action: ActionInstance<I, A, E, R>,
+    action: Action.Instance<I, A, E, R>,
   ) => Effect.Effect<void, never, Scope.Scope>;
   /** Serialize and retain a live route navigation plan, returning its retained index. */
   readonly recordRoutePlan: (plan: Route.NavigationPlan) => Effect.Effect<number>;
   /** Retain an already-serialized route plan, returning its retained index. */
   readonly recordSerializedRoutePlan: (plan: DevtoolsRoutePlan) => Effect.Effect<number>;
   /** Record a Core Resource Store event as a runtime event. */
-  readonly recordResourceEvent: (event: ResourceStoreEvent) => Effect.Effect<void>;
+  readonly recordResourceEvent: (event: Resource.StoreEvent) => Effect.Effect<void>;
   /** Record a DB Collection Store event as a runtime event. */
   readonly recordCollectionEvent: (event: DevtoolsCollectionStoreEvent) => Effect.Effect<void>;
   /** Record one Core `Timeline` entry as a runtime event. */
-  readonly recordTimelineEntry: (entry: TimelineEntry) => Effect.Effect<void>;
+  readonly recordTimelineEntry: (entry: Timeline.Entry) => Effect.Effect<void>;
   /** Records a running `Timeline` recording's retained and future entries until the scope closes. */
-  readonly trackTimeline: (recording: TimelineRecording) => Effect.Effect<void, never, Scope.Scope>;
+  readonly trackTimeline: (
+    recording: Timeline.Recording,
+  ) => Effect.Effect<void, never, Scope.Scope>;
   /** Record a prebuilt runtime event, assigning sequence and serialization bounds. */
   readonly recordRuntimeEvent: (event: DevtoolsRuntimeEvent) => Effect.Effect<void>;
   /** Record one structural request trace and normalize its fact identity. */

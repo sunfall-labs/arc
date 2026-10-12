@@ -3,5 +3,5 @@
  * `yield* SolidDb.collection(Projects)` and `yield* SolidDb.liveQuery(query)`
  * inside `Component.define(...)`.
  */
-export { collection } from "./collection.js";
-export { liveQuery } from "./live-query.js";
+export { collection, type CollectionBindingOptions, type CollectionHandle } from "./collection.js";
+export { liveQuery, type LiveQueryBindingOptions, type LiveQueryHandle } from "./live-query.js";

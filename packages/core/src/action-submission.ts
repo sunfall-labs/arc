@@ -1,19 +1,11 @@
 import { Cause, Clock, Data, Effect, Exit, Fiber, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { settleResult } from "./async-result-settle.js";
+import type { ActionConcurrency } from "./action.js";
 import type { ResourceInvalidationPlan } from "./resource.js";
 import { Signal, type ReadableSignal } from "./signal.js";
 import type { TimelineActionCause } from "./timeline.js";
 import { batchSignalWrites } from "./signal-transaction.js";
-
-/**
- * Submission concurrency policy shared by Core Actions and Start Actions.
- *
- * `latest` interrupts the previous run and only the newest run may update
- * state; `parallel` lets each run execute but only the latest state update is
- * accepted; `exhaust` joins the in-flight run instead of starting another.
- */
-export type ActionSubmissionConcurrency = "latest" | "parallel" | "exhaust";
 
 /** Typed interruption used when a stale `latest` submission tries to continue. */
 export class ActionInterrupted extends Data.TaggedError("ActionInterrupted")<{
@@ -100,7 +92,7 @@ export interface ActionSubmissionControllerOptions {
   /** Human-readable action name included in interruption diagnostics. */
   readonly actionName: string;
   /** Submission concurrency policy. Defaults to `latest`. */
-  readonly concurrency?: ActionSubmissionConcurrency | undefined;
+  readonly concurrency?: ActionConcurrency | undefined;
 }
 
 /** Creates the shared submission controller used by Action and StartAction clients. */

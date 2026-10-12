@@ -155,7 +155,7 @@ export const validateResourceInvalidationTargetSync = <R = never>(
       );
 };
 
-export const recordResourceProvidedTags = <I, A, E, R>(
+export const recordResourceProvidedTagsSync = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   tags: readonly ResourceTag[],
   store: ResourceStoreState,
@@ -187,7 +187,7 @@ export const recordResourceProvidedTags = <I, A, E, R>(
  * invalid metadata breaks the Resource contract: it is a defect
  * (`EffectInputCallbackError` as `Die`), never a typed load failure.
  */
-export const resourceProvidedTagsEffect = <I, A, E, R>(
+export const resourceProvidedTags = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   value: A,
 ): Effect.Effect<readonly ResourceTag[]> =>
@@ -217,14 +217,14 @@ export const resourceProvidedTagsEffect = <I, A, E, R>(
     }
   });
 
-export const recordResourceProvidedTagsEffect = <I, A, E, R>(
+export const recordResourceProvidedTags = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   value: A,
   store: ResourceStoreState,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
-    const tags = yield* resourceProvidedTagsEffect(ref, value);
-    recordResourceProvidedTags(ref, tags, store);
+    const tags = yield* resourceProvidedTags(ref, value);
+    recordResourceProvidedTagsSync(ref, tags, store);
   });
 
 export const resourceRefsForTag = (

@@ -1,11 +1,4 @@
-import {
-  isResourceRef,
-  isResourceTag,
-  type ResourceInvalidation,
-  type ResourceInvalidationCause,
-  type ResourceInvalidationPlan,
-  type Route,
-} from "@sunfall/arc-core";
+import { isResourceRef, isResourceTag, type Route, type Resource } from "@sunfall/arc-core";
 import { Data } from "effect";
 import type {
   DevtoolsCollectionStoreEvent,
@@ -46,7 +39,7 @@ const describeResourceRef = (ref: {
   input: copyDetachedValue(ref.input),
 });
 
-const describeTarget = (target: ResourceInvalidation): DevtoolsInvalidationTarget => {
+const describeTarget = (target: Resource.Invalidation): DevtoolsInvalidationTarget => {
   if (isResourceRef(target)) {
     return {
       _tag: "Ref",
@@ -68,7 +61,7 @@ const describeTarget = (target: ResourceInvalidation): DevtoolsInvalidationTarge
   });
 };
 
-const describeCause = (cause: ResourceInvalidationCause): DevtoolsInvalidationCause => {
+const describeCause = (cause: Resource.InvalidationCause): DevtoolsInvalidationCause => {
   switch (cause._tag) {
     case "Ref":
       return {
@@ -921,7 +914,7 @@ const copyDetachedValue = <A>(
 
 /** Converts a live Core invalidation plan into a detached Devtools DTO. */
 export const describeInvalidationPlan = (
-  plan: ResourceInvalidationPlan<any>,
+  plan: Resource.InvalidationPlan<any>,
 ): DevtoolsInvalidationPlan => ({
   targets: plan.targets.map(describeTarget),
   entries: plan.entries.map((entry) => ({

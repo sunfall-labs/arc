@@ -16,12 +16,12 @@ import {
 } from "../src/file-route-modules.js";
 import {
   fileRouteDefinitionsVirtualModuleId,
-  loadStartVirtualModuleEffect,
+  loadStartVirtualModule,
   resolveStartVirtualModuleId,
 } from "../src/start-virtual-modules.js";
 import {
   FileRouteDefinitionsFileWriteError,
-  writeFileRouteDefinitionsFileEffect,
+  writeFileRouteDefinitionsFile,
 } from "../src/generated-route-definitions.js";
 
 describe("file route definition module generation", () => {
@@ -867,7 +867,7 @@ describe("file route definition module generation", () => {
 
       const error = await Effect.runPromise(
         Effect.flip(
-          writeFileRouteDefinitionsFileEffect(root, manifest, {
+          writeFileRouteDefinitionsFile(root, manifest, {
             outputFile: "blocked/routeTree.gen.ts",
           }),
         ),
@@ -903,7 +903,7 @@ describe("file route definition module generation", () => {
       );
 
       const error = await Effect.runPromise(
-        Effect.flip(writeFileRouteDefinitionsFileEffect(root, manifest)),
+        Effect.flip(writeFileRouteDefinitionsFile(root, manifest)),
       );
 
       expect(error).toBeInstanceOf(FileRouteDefinitionsModuleInvalidIdentifier);
@@ -939,7 +939,7 @@ describe("file route definition module generation", () => {
 
     const error = await Effect.runPromise(
       Effect.flip(
-        loadStartVirtualModuleEffect(resolvedId, {
+        loadStartVirtualModule(resolvedId, {
           fileRouteManifest: manifest,
         }),
       ),

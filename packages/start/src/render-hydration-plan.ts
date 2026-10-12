@@ -1,9 +1,9 @@
-import type { ResourceHydrationPayload, RoutePreloadFailureSnapshot } from "@sunfall/arc-core";
+import type { Resource, Route } from "@sunfall/arc-core";
 import type { Collection } from "@sunfall/arc-db";
 import { Effect } from "effect";
 import {
+  createHydrationScriptSync,
   createHydrationScript,
-  createHydrationScriptEffect,
   createStartHydrationPayload,
   type StartHydrationPayload,
   type StartHydrationPayloadSerializeError,
@@ -30,16 +30,16 @@ export interface StartRenderHydrationPlan {
 /** Inputs for building the root-plus-streamed SSR hydration plan. */
 export interface CreateStartRenderHydrationPlanOptions {
   /** Resource hydration payload collected during request preload/render. */
-  readonly resources: ResourceHydrationPayload;
+  readonly resources: Resource.HydrationPayload;
   /** Collection hydration payload captured for the request runtime. */
   readonly collections: Collection.HydrationPayload;
   /** Route preload failure the request renders; carried by the root payload. */
-  readonly routeFailure?: RoutePreloadFailureSnapshot;
+  readonly routeFailure?: Route.PreloadFailureSnapshot;
   /** Pending durable submissions the server settled before rendering; carried by the root payload. */
   readonly settledSubmissions?: ReadonlyArray<string>;
 }
 
-const emptyResourceHydrationPayload: ResourceHydrationPayload = { resources: [] };
+const emptyResourceHydrationPayload: Resource.HydrationPayload = { resources: [] };
 
 /**
  * Builds the hydration plan used by streamed renderers.
@@ -48,7 +48,7 @@ const emptyResourceHydrationPayload: ResourceHydrationPayload = { resources: [] 
  * Route resource refs move into streamed chunks so a renderer cannot emit the
  * same resource pair in both the root script and the stream.
  */
-export const createStartRenderHydrationPlanEffect = (
+export const createStartRenderHydrationPlan = (
   options: CreateStartRenderHydrationPlanOptions,
 ): Effect.Effect<StartRenderHydrationPlan, StartHydrationPayloadSerializeError> =>
   Effect.gen(function* () {
@@ -64,7 +64,7 @@ export const createStartRenderHydrationPlanEffect = (
       ),
       ...settled,
     };
-    const rootScript = yield* createHydrationScriptEffect(rootPayload);
+    const rootScript = yield* createHydrationScript(rootPayload);
     const legacyPayload: StartHydrationPayload = {
       ...createStartHydrationPayload(options.resources, options.collections, options.routeFailure),
       ...settled,
@@ -83,7 +83,7 @@ export const createStartRenderHydrationPlanEffect = (
       legacy: {
         payload: legacyPayload,
         get script() {
-          legacyScript ??= createHydrationScript(legacyPayload);
+          legacyScript ??= createHydrationScriptSync(legacyPayload);
           return legacyScript;
         },
       },

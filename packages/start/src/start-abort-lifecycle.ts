@@ -83,7 +83,7 @@ export const mergeStartAbortSignals = (
 /**
  * Installs a scoped abort finalizer and removes the listener when the scope ends.
  */
-export const runStartAbortFinalizerOnSignalEffect = (
+export const runStartAbortFinalizerOnSignal = (
   signal: AbortSignal,
   finalizer: (reason: unknown) => void,
 ): Effect.Effect<void, never, Scope.Scope> =>

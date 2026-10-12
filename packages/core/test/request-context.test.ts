@@ -64,16 +64,16 @@ describe("serializeResponseCookie", () => {
         httpOnly: true,
         secure: true,
         partitioned: true,
-        sameSite: "None",
+        sameSite: "none",
       }),
     ).toBe(
       "session=a%20b; Max-Age=60; Domain=example.com; Path=/app; Priority=High; Expires=Tue, 01 Jan 2030 00:00:00 GMT; HttpOnly; Secure; Partitioned; SameSite=None",
     );
   });
 
-  it("normalizes SameSite casing", () => {
+  it("serializes SameSite values in attribute casing", () => {
     expect(serialize("a", "1", { sameSite: "strict" })).toBe("a=1; SameSite=Strict");
-    expect(serialize("a", "1", { sameSite: "Lax" })).toBe("a=1; SameSite=Lax");
+    expect(serialize("a", "1", { sameSite: "lax" })).toBe("a=1; SameSite=Lax");
     expect(serialize("a", "1", { sameSite: "none" })).toBe("a=1; SameSite=None");
   });
 
@@ -99,6 +99,7 @@ describe("serializeResponseCookie", () => {
     ["a", "1", { expires: new Date(Number.NaN) }, "Expires"],
     ["a", "1", { sameSite: "Loose" as never }, "SameSite"],
     ["a", "1", { sameSite: "constructor" as never }, "SameSite"],
+    ["a", "1", { sameSite: "Strict" as never }, "SameSite"],
   ] satisfies ReadonlyArray<readonly [string, string, ResponseCookieOptions, string]>)(
     "rejects %j=%j %j as a %s error",
     (name, value, options, attribute) => {

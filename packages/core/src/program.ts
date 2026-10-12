@@ -34,15 +34,13 @@ export {
   type ProgramSubscriptionInput,
   type ProgramTaggedMessage,
   type ProgramUpdate,
-  type ProgramSubscriptionError,
-  type ProgramSubscriptionRequirements,
 } from "./program-contract.js";
 import {
   defineProgram,
   programCommands,
   programEmit,
   programNext,
-  programStep,
+  programStepSync,
   programSubscription,
 } from "./program-primitives.js";
 import { startProgramOnRuntime } from "./program-start.js";
@@ -115,6 +113,8 @@ export namespace Program {
   export type DispatchError<E, ER = never> = ProgramDispatchError<E, ER>;
   /** Error reported when an Effect dispatch cannot apply because the Program was disposed. */
   export type Disposed = ProgramDisposed;
+  /** Error reported when an Effect dispatch cannot apply because the Program was disposed. */
+  export const Disposed = ProgramDisposed;
   /** Tagged message shape every Program message has. */
   export type TaggedMessage = ProgramTaggedMessage;
   /** Exhaustive pure handlers keyed by each message `_tag`. */
@@ -171,7 +171,7 @@ export namespace Program {
    * expect(Effect.runSync(loading.commands[0].effect)).toEqual({ _tag: "Loaded", count: 3 });
    * ```
    */
-  export const step = programStep;
+  export const step = programStepSync;
   /** Starts a Program on the current or explicit Runtime Spine and UI scope. */
   export const start = startProgram;
   /**

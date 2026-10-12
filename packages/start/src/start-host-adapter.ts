@@ -28,15 +28,15 @@ export const startRequestHandlerError = (
   cause: unknown,
 ): StartRequestHandlerError => normalizeStartRequestHandlerError(request, cause);
 
-export function invokeStartRequestHandlerEffect<Handler extends StartRequestHandlerInput<any, any>>(
+export function invokeStartRequestHandler<Handler extends StartRequestHandlerInput<any, any>>(
   handler: Handler,
   request: Request,
 ): Effect.Effect<Response, StartRequestHandlerError, StartRequestHandlerRequirements<Handler>>;
-export function invokeStartRequestHandlerEffect<HandlerError, R>(
+export function invokeStartRequestHandler<HandlerError, R>(
   handler: StartRequestHandlerInput<HandlerError, R>,
   request: Request,
 ): Effect.Effect<Response, StartRequestHandlerError, R>;
-export function invokeStartRequestHandlerEffect(
+export function invokeStartRequestHandler(
   handler: StartRequestHandlerInput<any, any>,
   request: Request,
 ): Effect.Effect<Response, StartRequestHandlerError, any> {

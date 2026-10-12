@@ -1,4 +1,4 @@
-import type { ActionConcurrency, ActionDefinition } from "@sunfall/arc-core";
+import type { Action } from "@sunfall/arc-core";
 import { Data, Effect, Schema } from "effect";
 import {
   assembleCallableManifestEntry,
@@ -9,7 +9,7 @@ import {
   isStartManifestServerOnlyModule,
   parseSerializedStartManifestJson,
   stableManifestEntryId,
-  validateManifestEndpointPathEffect,
+  validateManifestEndpointPath,
   validateManifestEntrySet,
   type StartManifestEndpointPathErrorInput,
   type StartManifestModuleKind,
@@ -59,10 +59,10 @@ export interface ActionManifestDefinition {
   /** Whether the action policy includes retry behavior. */
   readonly retry?: boolean;
   /** Action concurrency policy captured for diagnostics and clients. */
-  readonly concurrency?: ActionConcurrency;
+  readonly concurrency?: Action.Concurrency;
 }
 
-type AnyActionDefinition = ActionDefinition<any, any, any, any>;
+type AnyActionDefinition = Action.Definition<any, any, any, any>;
 
 /** Registered action plus module metadata discovered by build tools. */
 export interface ActionManifestSource {
@@ -89,7 +89,7 @@ export interface ActionWireContract {
 /** Tri-state flag used when behavior is present, absent, or unknown in raw artifacts. */
 export type ActionBehaviorPresence = "present" | "absent" | "unknown";
 /** Captured action concurrency policy, or `unknown` for untrusted raw artifacts. */
-export type ActionManifestConcurrency = ActionConcurrency | "unknown";
+export type ActionManifestConcurrency = Action.Concurrency | "unknown";
 
 /** Behavior metadata exposed for action diagnostics and generated clients. */
 export interface ActionBehaviorMetadata {
@@ -295,7 +295,7 @@ const actionManifestInvalidEndpointPath = (
 const normalizeActionManifestPathEffect = (
   actionPath: string | undefined,
 ): Effect.Effect<string, ActionManifestInvalidEndpointPath> =>
-  validateManifestEndpointPathEffect(actionPath ?? defaultStartTransportEndpoints.actionPath, {
+  validateManifestEndpointPath(actionPath ?? defaultStartTransportEndpoints.actionPath, {
     field: "actionPath",
     invalidPath: actionManifestInvalidEndpointPath,
   });

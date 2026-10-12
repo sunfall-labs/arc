@@ -22,14 +22,8 @@ import {
   StartStreamError,
   StartTransportEndpointConflictError,
   StartTransportEndpointPathError,
-  type AnyAppDefinition,
-  type AppDefinition,
-  type AppLaunchError,
-  type AppLaunchServices,
   type CreateRequestHandlerOptions,
   type HydrateFromDocumentOptions,
-  type StartActionFormOptions,
-  type StartActionInvalidationPlan,
   type StartCollectionHydrationOptions,
   type StartDocument,
   type StartDocumentContext,
@@ -49,7 +43,7 @@ import {
 } from "@sunfall/arc-start";
 import { Component } from "@sunfall/arc-solid";
 import { Context, Effect, Layer, Schedule, Schema } from "effect";
-import { type ActionDefinition } from "@sunfall/arc-core";
+import type { Action } from "@sunfall/arc-core";
 
 const startExports: Array<unknown> = [
   App.define,
@@ -78,16 +72,16 @@ const startExports: Array<unknown> = [
   StartTransportEndpointPathError,
 ];
 type StartTypes =
-  | AnyAppDefinition
-  | AppDefinition
-  | AppLaunchError
-  | AppLaunchServices
+  | App.Any
+  | App.Definition
+  | App.LaunchError
+  | App.LaunchServices
   | App.LaunchOptions
   | App.RootProps
   | CreateRequestHandlerOptions
   | HydrateFromDocumentOptions
-  | StartActionFormOptions<{ readonly id: string }>
-  | StartActionInvalidationPlan
+  | StartAction.FormOptions<{ readonly id: string }>
+  | StartAction.InvalidationPlan
   | StartCollectionHydrationOptions
   | StartDocument
   | StartDocumentContext
@@ -130,7 +124,7 @@ const NeedyRoot = Component.define("Needy", function* (props: { readonly id: str
 });
 // @ts-expect-error the root receives `App.RootProps`; other required props cannot be supplied
 App.define({ root: NeedyRoot, routes: [] });
-const greetingLaunch: Effect.Effect<never, AppLaunchError> = App.launch(greetingApp, {
+const greetingLaunch: Effect.Effect<never, App.LaunchError> = App.launch(greetingApp, {
   href: "/",
   hydration: { timestamp: "now" },
 });
@@ -139,13 +133,13 @@ void greetingLaunch;
 // @ts-expect-error hydration options are an object; there is no positional id
 hydrateFromDocument(document, undefined, {});
 
-declare const startActionDefinition: ActionDefinition<
+declare const startActionDefinition: Action.Definition<
   { readonly id: string },
   unknown,
   never,
   never
 >;
-const startActionFormOptions: StartActionFormOptions<{ readonly id: string }> = {
+const startActionFormOptions: StartAction.FormOptions<{ readonly id: string }> = {
   input: { id: "atlas" },
 };
 const startActionForm: StartAction.Form<typeof startActionDefinition> = StartAction.form(

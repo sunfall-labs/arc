@@ -5,7 +5,6 @@ import {
   EffectInputPromiseRejected,
   makeRuntime,
   Program,
-  ProgramDisposed,
   Timeline,
 } from "../src/index.js";
 import { defaultRuntime } from "../src/internal.js";
@@ -811,13 +810,13 @@ describe("Program", () => {
           if (Exit.isFailure(exit)) {
             const failure = exit.cause.reasons.find(Cause.isFailReason)?.error;
             expect(failure).toMatchObject({ _tag: "ProgramFailure", phase: "Update" });
-            expect(failure?.error).toBeInstanceOf(ProgramDisposed);
+            expect(failure?.error).toBeInstanceOf(Program.Disposed);
           }
         }
         expect(program.model.get()).toBe(0);
 
         const afterDispose = yield* Effect.flip(program.dispatch({ _tag: "First" }));
-        expect(afterDispose.error).toBeInstanceOf(ProgramDisposed);
+        expect(afterDispose.error).toBeInstanceOf(Program.Disposed);
       }),
     ));
 

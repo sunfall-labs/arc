@@ -61,7 +61,7 @@ export const withCollectionDurableCommitPermit = <A, E, R>(
  * restore on persistence failure, and publish one `CollectionWritten` fact on
  * success.
  */
-export const commitCollectionWriteEffect = <A extends object, K extends CollectionKey, E, R>(
+export const commitCollectionWrite = <A extends object, K extends CollectionKey, E, R>(
   options: CollectionWriteCommitOptions<A, K, E, R>,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   withCollectionDurableCommitPermit(

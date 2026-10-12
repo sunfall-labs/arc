@@ -35,7 +35,7 @@ describe("Signal transactions", () => {
         );
         const inside = yield* Signal.transaction(
           Effect.gen(function* () {
-            count.set((n) => n + 1);
+            count.update((n) => n + 1);
             const own = Signal.peek(count);
             yield* Deferred.succeed(midway, undefined);
             yield* Deferred.await(release);
@@ -136,7 +136,7 @@ describe("Signal transactions", () => {
       Signal.transaction(
         Effect.gen(function* () {
           yield* Signal.transaction(Signal.updateAndGet(count, (n) => n + 1));
-          Signal.batch(() => count.set((n) => n + 1));
+          Signal.batch(() => count.update((n) => n + 1));
           yield* Signal.updateAndGet(count, (n) => n + 1);
         }),
         { name: "outer" },
@@ -241,7 +241,7 @@ describe("Signal transactions", () => {
     const inside = Signal.batch(
       () => {
         count.set(1);
-        count.set((n) => n + 1);
+        count.update((n) => n + 1);
         return Signal.peek(count);
       },
       { name: "edit" },
@@ -300,8 +300,8 @@ describe("Signal transactions", () => {
         if (value === 1) {
           setRawModel(rawModel() + 1);
           setRawModel(rawModel() + 1);
-          Signal.batch(() => model.set((n) => n + 1), { name: "increment" });
-          Signal.batch(() => model.set((n) => n + 1), { name: "increment" });
+          Signal.batch(() => model.update((n) => n + 1), { name: "increment" });
+          Signal.batch(() => model.update((n) => n + 1), { name: "increment" });
         }
       });
       return disposeRoot;
@@ -382,7 +382,7 @@ describe("Signal Solid projection", () => {
     const view = Signal.make<() => string>(first, { name: "view" });
     const { seen, dispose } = render(() => view.get());
 
-    Signal.batch(() => view.set(() => second), { name: "swap" });
+    Signal.batch(() => view.set(second), { name: "swap" });
     flush();
     dispose();
 

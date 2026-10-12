@@ -1,9 +1,4 @@
-import {
-  isEffectLike,
-  isPromiseLikeValue,
-  type PlainValue,
-  type ReadableSignal,
-} from "@sunfall/arc-core";
+import { isEffectLike, isPromiseLikeValue, type PlainValue, type Signal } from "@sunfall/arc-core";
 import { Data, Effect } from "effect";
 import type { AsyncResult } from "effect/reactivity";
 import { makeLiveQueryState } from "./live-query-state.js";
@@ -39,11 +34,11 @@ import {
 } from "./query-plan.js";
 import {
   executeQueryPlan,
-  preloadQueryExecutionPlanEffect,
+  preloadQueryExecutionPlan,
   queryExecutionPlanDiagnostics,
 } from "./query-execution-plan.js";
 import { makeQuerySourceAdapter } from "./query-source-adapter.js";
-import { collectionStoreEffect, runWithCollectionStore } from "./runtime-collection-store.js";
+import { activeCollectionStore, runWithCollectionStore } from "./runtime-collection-store.js";
 import type {
   AnyCollection,
   CollectionError,
@@ -391,7 +386,7 @@ const queryFactoryResultRejected = (
         ? "Query factories must return a QueryBuilder synchronously. Move async work into collection Effects before building the query."
         : reason === "effect"
           ? "Query factories must return a QueryBuilder, not an Effect. Move Effect work into collection sources and keep the factory synchronous."
-          : "Query factories must return the QueryBuilder produced by Query.from(...).",
+          : "Query factories must return the QueryBuilder produced by query.from(...).",
   });
 
 const validateQueryFactoryResult = <T, E, R>(value: unknown): AnyQueryBuilder<T, E, R> => {
@@ -441,8 +436,8 @@ export interface QueryRoot {
  * channels.
  */
 export interface LiveQuery<T, E = never, R = never> {
-  readonly rows: ReadableSignal<ReadonlyArray<T>>;
-  readonly state: ReadableSignal<
+  readonly rows: Signal.Readable<ReadonlyArray<T>>;
+  readonly state: Signal.Readable<
     AsyncResult.AsyncResult<ReadonlyArray<T>, E | QueryEvaluationError>
   >;
   readonly sources: ReadonlyArray<AnyCollection>;
@@ -585,7 +580,7 @@ export const buildQuery = <T, E = never, R = never>(
 /**
  * Query API for composing derived views over collections.
  *
- * Query factories receive `Query.from`/`query.from` and return an immutable
+ * Query factories receive the query root and start with `query.from(...)`, returning an immutable
  * builder. Use `once` for one-shot reads and `live` for reactive data.
  */
 export namespace Query {
@@ -631,8 +626,6 @@ export namespace Query {
     Aggregates extends AnyQueryAggregateRecord,
   > = QueryAggregateResult<TKey, Aggregates>;
 
-  /** Start a query from one or more named collection sources. */
-  export const from = queryRoot.from;
   /** Count non-null aggregate values in `groupBy`. */
   export const count = aggregateCount;
   /** Sum numeric aggregate values in `groupBy`. */
@@ -680,8 +673,8 @@ export namespace Query {
         try: () => buildOrThrowQueryEvaluationError(factory),
         catch: (cause) => toQueryEvaluationError("evaluate", cause),
       });
-      yield* preloadQueryExecutionPlanEffect<E, R>(builder, false);
-      const store = yield* collectionStoreEffect;
+      yield* preloadQueryExecutionPlan<E, R>(builder, false);
+      const store = yield* activeCollectionStore;
       return yield* Effect.try({
         try: () => runWithCollectionStore(store, () => builder.execute()),
         catch: (cause) => toQueryEvaluationError("evaluate", cause),

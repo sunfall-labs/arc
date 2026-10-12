@@ -3,15 +3,13 @@ import {
   provideRequest,
   provideResponse,
   Server,
-  ServerClient,
   type SunfallArcRuntime,
   type RequestContext,
   type ResourceStore as ResourceStoreState,
   type ResponseContext,
   type Route,
-  type AppDefinitionRegistry,
 } from "@sunfall/arc-core";
-import { withResourceStore } from "@sunfall/arc-core/internal";
+import { withResourceStore, type AppDefinitionRegistry } from "@sunfall/arc-core/internal";
 import type { StartServerApp } from "./start-server-app.js";
 import { Effect, type Scope } from "effect";
 export {
@@ -35,7 +33,7 @@ export type RequestRuntimeProvidedRequirements<RuntimeServices> =
   | ResourceStoreState
   | RequestContext
   | ResponseContext
-  | ServerClient;
+  | Server.Client;
 
 export type RequestRuntimeRemainingRequirements<RIn, RuntimeServices> = Exclude<
   RIn,
@@ -45,12 +43,12 @@ export type RequestRuntimeRemainingRequirements<RIn, RuntimeServices> = Exclude<
 export const provideLocalServerClient = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   registry?: AppDefinitionRegistry,
-): Effect.Effect<A, E, Exclude<R, ServerClient>> =>
+): Effect.Effect<A, E, Exclude<R, Server.Client>> =>
   Effect.provideService(
     effect,
-    ServerClient,
+    Server.Client,
     Server.localClient(registry === undefined ? {} : { registry }),
-  ) as Effect.Effect<A, E, Exclude<R, ServerClient>>;
+  ) as Effect.Effect<A, E, Exclude<R, Server.Client>>;
 
 export const provideRequestRuntime = <A, E, R, RuntimeServices, RuntimeError>(
   runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,

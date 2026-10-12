@@ -1,5 +1,6 @@
 import { collectionContractDefects } from "./collection-contract-defects.js";
-import { ActionOptimisticRowsTypeId, EffectInputCallbackError } from "@sunfall/arc-core";
+import { EffectInputCallbackError } from "@sunfall/arc-core";
+import { ActionOptimisticRowsTypeId } from "@sunfall/arc-core/internal";
 import { Clock, Effect } from "effect";
 import { CollectionTypeId } from "./collection-ids.js";
 import { ReadonlyCollectionMutation } from "./collection-errors.js";
@@ -9,9 +10,9 @@ import {
   withCollectionDurableSnapshotPermits,
   type StoreExplicitCollectionSnapshotImplementation,
 } from "./collection-definition-snapshot.js";
-import { persistCollectionSnapshotEffect } from "./collection-persistence.js";
+import { persistCollectionSnapshot } from "./collection-persistence.js";
 import { makeLiveQueryCollectionMaterialization } from "./live-query-collection-materialization.js";
-import { collectionStoreEffect, type RuntimeCollectionStore } from "./runtime-collection-store.js";
+import { activeCollectionStore, type RuntimeCollectionStore } from "./runtime-collection-store.js";
 import { Query, type LiveQuery, type QueryFactory } from "./query-builder.js";
 import {
   defaultCollectionDefinitionRegistry,
@@ -125,7 +126,7 @@ export const makeLiveQueryCollectionDefinition = <
     refresh: () => live.refresh().pipe(collectionContractDefects),
     snapshot: () =>
       Effect.gen(function* () {
-        const store = yield* collectionStoreEffect;
+        const store = yield* activeCollectionStore;
         const updatedAt = yield* Clock.currentTimeMillis;
         return yield* withCollectionDurableSnapshotPermits(
           store,
@@ -143,14 +144,14 @@ export const makeLiveQueryCollectionDefinition = <
     hydrate: () => Effect.fail(readonlySnapshotCodecFailure("hydrate")),
     persist: (persistOptions?: CollectionPersistOptions) =>
       Effect.gen(function* () {
-        const store = yield* collectionStoreEffect;
+        const store = yield* activeCollectionStore;
         const updatedAt = yield* Clock.currentTimeMillis;
         const snapshot = yield* withCollectionDurableSnapshotPermits(
           store,
           [definition],
           materialization.snapshotWithStoreEffect(store, updatedAt),
         );
-        yield* persistCollectionSnapshotEffect(
+        yield* persistCollectionSnapshot(
           definition,
           Effect.succeed(snapshot),
           persistOptions,

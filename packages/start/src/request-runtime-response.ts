@@ -1,8 +1,8 @@
 import { type EffectInput, type SunfallArcRuntime } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import {
-  invokeStartEffectInputCallbackEffect,
-  requestRuntimeDisposeTraceEffect,
+  invokeStartEffectInputCallback,
+  requestRuntimeDisposeTrace,
   type StartRequestTraceCleanupFailure,
   type StartRequestTraceFailureKind,
   type StartRequestTraceStatus,
@@ -50,13 +50,13 @@ const requestRuntimeStreamFinalizer = <RuntimeServices, RuntimeError>(
       }
 
       const state: RequestRuntimeStreamFinalizeState = {
-        ...(yield* requestRuntimeDisposeTraceEffect(runtime)),
+        ...(yield* requestRuntimeDisposeTrace(runtime)),
         stream: event.stream,
         status: event.status,
         ...(event.failureKind === undefined ? {} : { failureKind: event.failureKind }),
         teardownReason: event.teardownReason,
       };
-      yield* invokeStartEffectInputCallbackEffect(options.onFinalize, state);
+      yield* invokeStartEffectInputCallback(options.onFinalize, state);
     });
 };
 
@@ -76,8 +76,8 @@ export const completeRequestRuntimeWithResponse = <RuntimeServices, RuntimeError
         }),
       )
     : Effect.gen(function* () {
-        const teardown = yield* requestRuntimeDisposeTraceEffect(runtime);
-        yield* invokeStartEffectInputCallbackEffect(options.onFinalize, {
+        const teardown = yield* requestRuntimeDisposeTrace(runtime);
+        yield* invokeStartEffectInputCallback(options.onFinalize, {
           status: "success",
           teardownReason: "response-end",
           ...teardown,

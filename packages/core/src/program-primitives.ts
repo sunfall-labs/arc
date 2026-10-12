@@ -99,7 +99,7 @@ export const defineProgram = <Model, Message extends ProgramTaggedMessage, E = n
  * transition returned, without running them. A throwing handler, a missing
  * handler, or a Promise-shaped model throws.
  */
-export const programStep = <Model, Message extends ProgramTaggedMessage, E = never, R = never>(
+export const programStepSync = <Model, Message extends ProgramTaggedMessage, E = never, R = never>(
   definition: ProgramDefinition<Model, Message, E, R>,
   model: Model,
   message: ProgramMessageValue<Message>,
@@ -119,14 +119,14 @@ export const programStep = <Model, Message extends ProgramTaggedMessage, E = nev
   return step;
 };
 
-/** Runs `programStep` for the runtime, turning a throw into `EffectInputCallbackError`. */
-export const programStepEffect = <Model, Message extends ProgramTaggedMessage, E, R>(
+/** Runs `programStepSync` for the runtime, turning a throw into `EffectInputCallbackError`. */
+export const programStep = <Model, Message extends ProgramTaggedMessage, E, R>(
   definition: ProgramDefinition<Model, Message, E, R>,
   model: Model,
   message: ProgramMessageValue<Message>,
 ): Effect.Effect<ProgramStep<Model, Message, E, R>, EffectInputCallbackError> =>
   Effect.try({
-    try: () => programStep(definition, model, message),
+    try: () => programStepSync(definition, model, message),
     catch: (cause) =>
       cause instanceof EffectInputCallbackError
         ? cause
@@ -157,7 +157,7 @@ export const validateProgramModelSync = <Model>(
     programModelPromiseGuidance,
   ) as ProgramModelValue<Model>;
 
-export const validateProgramMessageEffect = <Message>(
+export const validateProgramMessage = <Message>(
   operation: string,
   message: Message,
 ): Effect.Effect<ProgramMessageValue<Message>, EffectInputCallbackError> =>

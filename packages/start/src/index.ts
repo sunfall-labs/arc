@@ -3,14 +3,6 @@ export {
   App,
   /** Raised by `App.launch` when the document has no app root element. */
   StartRootMissing,
-  /** Any app definition. */
-  type AnyAppDefinition,
-  /** Failures `App.launch` can end with besides the client Layer's own. */
-  type AppLaunchError,
-  /** Services `App.launch` adds to the app's client Layer. */
-  type AppLaunchServices,
-  /** A Start app definition built by `App.define`. */
-  type AppDefinition,
 } from "./start-app.js";
 
 export {
@@ -102,15 +94,11 @@ export {
 export {
   /** Error raised when action form input cannot be encoded. */
   StartActionFormEncodeError,
-  /** Options for `StartAction.form(...)`. */
-  type StartActionFormOptions,
 } from "./start-action-request-codec.js";
 
 export {
   /** Error raised when two served actions share a name. */
   StartActionDuplicateName,
-  /** Resource invalidation plan returned by an action response. */
-  type StartActionInvalidationPlan,
 } from "./start-transport-protocol.js";
 
 export {

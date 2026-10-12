@@ -60,7 +60,7 @@ export interface ServerRpcClientOptions<
   readonly headers?: HeadersInit | (() => HeadersInit);
 }
 
-export const getStartTransportHeadersEffect = (
+export const getStartTransportHeaders = (
   options: Pick<ServerRpcClientOptions, "headers">,
 ): Effect.Effect<Headers, ServerTransportError> =>
   Effect.gen(function* () {
@@ -103,7 +103,7 @@ export const getStartTransportHeadersEffect = (
     return headers;
   });
 
-export const callStartFetchEffect = <FetchError, FetchRequirements>(
+export const callStartFetch = <FetchError, FetchRequirements>(
   fetcher: StartFetch<FetchError, FetchRequirements>,
   input: StartFetchInput,
   init: StartFetchInit,
@@ -151,7 +151,7 @@ const withStartFetchAbortSignal = (
   };
 };
 
-export const resolveStartFetchEffect = <FetchError = never, FetchRequirements = never>(
+export const resolveStartFetch = <FetchError = never, FetchRequirements = never>(
   fetcher: StartFetch<FetchError, FetchRequirements> | undefined,
   unavailableMessage: string,
 ): Effect.Effect<

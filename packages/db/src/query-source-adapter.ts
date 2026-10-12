@@ -1,4 +1,4 @@
-import type { ReadableSignal } from "@sunfall/arc-core";
+import type { Signal } from "@sunfall/arc-core";
 import type { Effect } from "effect";
 import type { AsyncResult } from "effect/reactivity";
 import { collectionIndexJoinKeys, collectionIndexes } from "./collection-index-materialization.js";
@@ -21,8 +21,8 @@ export interface QueryCollectionSourceAdapter {
   hasIndex(index: string): boolean;
   indexRows(index: string, value: CollectionIndexValue): ReadonlyArray<QuerySourceRow>;
   indexJoinKeys(index: string, row: QuerySourceRow): ReadonlyArray<CollectionIndexValue>;
-  version(): ReadableSignal<number>;
-  state(): ReadableSignal<AsyncResult.AsyncResult<void, any>>;
+  version(): Signal.Readable<number>;
+  state(): Signal.Readable<AsyncResult.AsyncResult<void, any>>;
   preload(force: boolean): Effect.Effect<void, any, any>;
 }
 

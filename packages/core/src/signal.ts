@@ -53,8 +53,8 @@ export interface ReadableSignal<A> extends Subscribable {
  * when `Object.is` sees a change.
  */
 export interface WritableSignal<A> extends ReadableSignal<A> {
-  /** Replaces the value or computes a next value from the current one. */
-  set(value: A | ((current: A) => A)): void;
+  /** Replaces the value. */
+  set(value: A): void;
   /** Computes and writes a next value from the current one. */
   update(f: (current: A) => A): void;
 }
@@ -193,10 +193,8 @@ class WritableSignalImpl<A>
     return readSignalTransactionValue(this) as A;
   }
 
-  set(value: A | ((current: A) => A)): void {
-    const next =
-      typeof value === "function" ? (value as (current: A) => A)(this.readVisible()) : value;
-    writeSignalTransactionValue(this, next);
+  set(value: A): void {
+    writeSignalTransactionValue(this, value);
   }
 
   readCommitted(): unknown {
@@ -216,7 +214,7 @@ class WritableSignalImpl<A>
   }
 
   update(f: (current: A) => A): void {
-    this.set(f);
+    writeSignalTransactionValue(this, f(this.readVisible()));
   }
 }
 
@@ -361,6 +359,10 @@ export namespace Signal {
   export type Readable<A> = ReadableSignal<A>;
   export type Writable<A> = WritableSignal<A>;
   export type StreamOptions = SignalStreamOptions;
+  /** Options for `Signal.make`. */
+  export type Options = SignalOptions;
+  /** Options for `Signal.transaction` and `Signal.batch`. */
+  export type TransactionOptions = SignalTransactionOptions;
 
   /**
    * Creates a writable signal. `name` labels its `Timeline` changes and the
@@ -408,7 +410,7 @@ export namespace Signal {
     f: (current: A) => A,
   ): Effect.Effect<A> =>
     Effect.sync(() => {
-      signal.set(f);
+      signal.update(f);
       return peek(signal);
     });
 

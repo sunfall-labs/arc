@@ -1,4 +1,4 @@
-import { EffectInputCallbackError, Signal, type ReadableSignal } from "@sunfall/arc-core";
+import { EffectInputCallbackError, Signal } from "@sunfall/arc-core";
 import { stableStringify } from "@sunfall/arc-core/internal";
 import { Cause, Effect, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
@@ -63,10 +63,10 @@ interface ProjectionIndexCacheEntry<A extends object, K extends CollectionKey> {
 }
 
 interface LiveQueryCollectionStoreMaterialization<A extends object, K extends CollectionKey, E> {
-  readonly stateSignal: ReadableSignal<
+  readonly stateSignal: Signal.Readable<
     AsyncResult.AsyncResult<void, LiveQueryCollectionLoadStateError<E>>
   >;
-  readonly versionSignal: ReadableSignal<number>;
+  readonly versionSignal: Signal.Readable<number>;
   get(key: K): CollectionRow<A, K> | undefined;
   rows(): ReadonlyArray<CollectionRow<A, K>>;
   index(index: string, value: CollectionIndexValue): ReadonlyArray<CollectionRow<A, K>>;
@@ -87,8 +87,8 @@ export interface LiveQueryCollectionMaterialization<
   K extends CollectionKey,
   E = never,
 > {
-  state(): ReadableSignal<AsyncResult.AsyncResult<void, LiveQueryCollectionLoadStateError<E>>>;
-  version(): ReadableSignal<number>;
+  state(): Signal.Readable<AsyncResult.AsyncResult<void, LiveQueryCollectionLoadStateError<E>>>;
+  version(): Signal.Readable<number>;
   get(key: K): CollectionRow<A, K> | undefined;
   rows(): ReadonlyArray<CollectionRow<A, K>>;
   index(index: string, value: CollectionIndexValue): ReadonlyArray<CollectionRow<A, K>>;

@@ -16,8 +16,8 @@ export interface RequestContext {
 
 export const RequestContext = Context.Service<RequestContext>("@sunfall/arc-core/RequestContext");
 
-/** Accepted SameSite spellings for response cookies. */
-export type ResponseCookieSameSite = "Strict" | "Lax" | "None" | "strict" | "lax" | "none";
+/** SameSite values for response cookies (serialized as `Strict`, `Lax`, or `None`). */
+export type ResponseCookieSameSite = "strict" | "lax" | "none";
 
 /** Attributes used when serializing a `Set-Cookie` response header. */
 export interface ResponseCookieOptions {
@@ -153,19 +153,20 @@ const makeResponseCookie = (
   options: ResponseCookieOptions,
 ): Result.Result<Cookies.Cookie, ResponseCookieSerializationError> => {
   // Effect's cookie validation covers name/value/domain/path/Infinity; NaN, invalid
-  // dates, and untyped SameSite spellings would otherwise serialize silently.
+  // dates, and untyped SameSite values would otherwise serialize silently.
   if (options.maxAge !== undefined && Number.isNaN(options.maxAge)) {
     return Result.fail(cookieSerializationError("Max-Age", options.maxAge));
   }
   if (options.expires !== undefined && !Number.isFinite(options.expires.getTime())) {
     return Result.fail(cookieSerializationError("Expires", options.expires));
   }
-  const lowerSameSite = options.sameSite?.toLowerCase();
-  const sameSite =
-    lowerSameSite === "strict" || lowerSameSite === "lax" || lowerSameSite === "none"
-      ? lowerSameSite
-      : undefined;
-  if (options.sameSite !== undefined && sameSite === undefined) {
+  const sameSite = options.sameSite;
+  if (
+    sameSite !== undefined &&
+    sameSite !== "strict" &&
+    sameSite !== "lax" &&
+    sameSite !== "none"
+  ) {
     return Result.fail(cookieSerializationError("SameSite", options.sameSite));
   }
   let made: Result.Result<Cookies.Cookie, Cookies.CookiesError>;

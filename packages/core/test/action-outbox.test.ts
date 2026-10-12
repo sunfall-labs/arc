@@ -10,7 +10,6 @@ import {
   ServerTransportError,
   Signal,
   Timeline,
-  type ActionTransportResponse,
 } from "../src/index.js";
 
 /** A `KeyValueStore` over a Map the test can inspect, shared across "reloads". */
@@ -70,7 +69,7 @@ const fakeServer = (values: ReadonlyMap<string, string>) => {
           return Effect.succeed({
             exit: state.respond(input),
             apply: () => Effect.void,
-          } as ActionTransportResponse<any, any>);
+          } as Action.TransportResponse<any, any>);
         }),
       ),
   });

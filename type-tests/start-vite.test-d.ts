@@ -24,7 +24,6 @@ import {
   type StartPrerenderPage,
   type StartPrerenderPageContext,
   type StartPrerenderPageInput,
-  type StartPrerenderPageOptions,
   type StartPrerenderSuccessEvent,
   type StartStaticClientPolicy,
   type StartViteDevSsrOptions,
@@ -59,7 +58,6 @@ type ViteTypes =
   | StartPrerenderPage
   | StartPrerenderPageContext
   | StartPrerenderPageInput
-  | StartPrerenderPageOptions
   | StartPrerenderSuccessEvent
   | StartStaticClientPolicy
   | StartViteDevSsrOptions
@@ -106,7 +104,6 @@ const devSsrOptions: StartViteDevSsrOptions<"dev-ssr-runtime"> = {
 };
 const prerenderStartOptions = {
   prerender: {
-    enabled: true,
     autoSubfolderIndex: true,
     autoStaticPathsDiscovery: true,
     crawlLinks: true,
@@ -117,7 +114,7 @@ const prerenderStartOptions = {
       {
         path: "/docs/static",
         outputPath: "docs/static/index.html",
-        prerender: { enabled: true },
+        prerender: true,
       },
     ],
     filter: ({ path }) => !path.startsWith("/private"),

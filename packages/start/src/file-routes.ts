@@ -6,9 +6,9 @@ import {
 } from "@sunfall/arc-core/internal";
 import { Data, Effect, Schema } from "effect";
 import {
+  decodeFileRoutePathSync,
   decodeFileRoutePath,
-  decodeFileRoutePathEffect,
-  decodeSerializedFileRoutePathEffect,
+  decodeSerializedFileRoutePath,
   type DecodedFileRoutePath,
   type FileRoutePathDecodeInvalidSegment,
   isFileRoutePathlessSegment,
@@ -314,7 +314,7 @@ const decodeManifestPathFields = (
   },
   owner: string,
 ): Effect.Effect<DecodedFileRoutePath, FileRouteManifestParseError> =>
-  decodeSerializedFileRoutePathEffect(value, { owner }).pipe(
+  decodeSerializedFileRoutePath(value, { owner }).pipe(
     Effect.mapError(
       (error) =>
         new FileRouteManifestParseError({
@@ -436,7 +436,7 @@ const manifestEntryToRouteModule = (entry: FileRouteManifestEntry): FileRouteMan
 });
 
 /** Converts one file path to a route/layout/error/metadata module when it matches route conventions. */
-export const filePathToFileRouteModule = (
+export const filePathToFileRouteModuleSync = (
   filePath: string,
   options: FileRouteManifestOptions = {},
 ): FileRouteManifestModule | undefined => {
@@ -458,7 +458,7 @@ export const filePathToFileRouteModule = (
   const kind = fileRouteModuleKindFromLeaf(leaf);
   const routeSegments =
     kind === "Route" && leaf !== "index" ? rawSegments : rawSegments.slice(0, -1);
-  const decodedPath = decodeFileRoutePath(routeSegments);
+  const decodedPath = decodeFileRoutePathSync(routeSegments);
   if (!decodedPath) {
     return undefined;
   }
@@ -476,8 +476,8 @@ export const filePathToFileRouteModule = (
   };
 };
 
-/** Effect variant of `filePathToFileRouteModule` that reports invalid route segments. */
-export const filePathToFileRouteModuleEffect = (
+/** Effect variant of `filePathToFileRouteModuleSync` that reports invalid route segments. */
+export const filePathToFileRouteModule = (
   filePath: string,
   options: FileRouteManifestOptions = {},
 ): Effect.Effect<FileRouteManifestModule | undefined, FileRouteManifestInvalidSegment> =>
@@ -500,7 +500,7 @@ export const filePathToFileRouteModuleEffect = (
     const kind = fileRouteModuleKindFromLeaf(leaf);
     const routeSegments =
       kind === "Route" && leaf !== "index" ? rawSegments : rawSegments.slice(0, -1);
-    const decodedPath = yield* decodeFileRoutePathEffect(routeSegments).pipe(
+    const decodedPath = yield* decodeFileRoutePath(routeSegments).pipe(
       Effect.mapError((error) => invalidSegmentFromPathDecodeError(error, normalized)),
     );
 
@@ -522,7 +522,7 @@ export const filePathToRouteManifestEntry = (
   filePath: string,
   options: FileRouteManifestOptions = {},
 ): FileRouteManifestEntry | undefined =>
-  fileRouteModuleToManifestEntry(filePathToFileRouteModule(filePath, options));
+  fileRouteModuleToManifestEntry(filePathToFileRouteModuleSync(filePath, options));
 
 /** Generates sorted route entries from discovered file paths without duplicate validation. */
 export const generateFileRouteManifest = (
@@ -538,7 +538,7 @@ export const generateFileRouteModules = (
   filePaths: Iterable<string>,
   options: FileRouteManifestOptions = {},
 ): readonly FileRouteManifestModule[] =>
-  Array.from(filePaths, (filePath) => filePathToFileRouteModule(filePath, options))
+  Array.from(filePaths, (filePath) => filePathToFileRouteModuleSync(filePath, options))
     .filter((module): module is FileRouteManifestModule => module !== undefined)
     .sort(compareManifestModules);
 
@@ -548,7 +548,7 @@ export const generateFileRouteModules = (
  * Duplicate support modules are duplicate only within the same module kind,
  * route path, and source-id scope.
  */
-export const validateFileRouteManifestEffect = (
+export const validateFileRouteManifest = (
   entries: Iterable<FileRouteManifestEntry>,
   modules?: Iterable<FileRouteManifestModule>,
 ): Effect.Effect<readonly FileRouteManifestEntry[], FileRouteManifestError> =>
@@ -818,7 +818,7 @@ const decodeSerializedManifest = (
     const modules = hasSerializedModules
       ? yield* Effect.forEach(value.modules as ReadonlyArray<unknown>, decodeSerializedModule)
       : [];
-    const validated = yield* validateFileRouteManifestEffect(
+    const validated = yield* validateFileRouteManifest(
       entries,
       hasSerializedModules ? modules : undefined,
     );
@@ -860,7 +860,7 @@ const generateFileRouteManifestParts = (
   options: FileRouteManifestOptions = {},
 ): FileRouteManifestParts => {
   const modules = Array.from(filePaths, (filePath) =>
-    filePathToFileRouteModule(filePath, options),
+    filePathToFileRouteModuleSync(filePath, options),
   ).filter((module): module is FileRouteManifestModule => module !== undefined);
 
   return {
@@ -884,14 +884,14 @@ const generateValidatedFileRouteManifestPartsEffect = (
 ): Effect.Effect<FileRouteManifestParts, FileRouteManifestError> =>
   Effect.gen(function* () {
     const modules = yield* Effect.forEach(filePaths, (filePath) =>
-      filePathToFileRouteModuleEffect(filePath, options),
+      filePathToFileRouteModule(filePath, options),
     ).pipe(
       Effect.map((modules) =>
         modules.filter((module): module is FileRouteManifestModule => module !== undefined),
       ),
     );
     const entries = manifestEntriesFromModules(modules);
-    const validated = yield* validateFileRouteManifestEffect(entries, modules);
+    const validated = yield* validateFileRouteManifest(entries, modules);
 
     return {
       entries: validated,
@@ -900,7 +900,7 @@ const generateValidatedFileRouteManifestPartsEffect = (
   });
 
 /** Generates validated route entries and reports manifest errors in the Effect channel. */
-export const generateValidatedFileRouteManifestEffect = (
+export const generateValidatedFileRouteManifest = (
   filePaths: Iterable<string>,
   options: FileRouteManifestOptions = {},
 ): Effect.Effect<readonly FileRouteManifestEntry[], FileRouteManifestError> =>
@@ -910,7 +910,7 @@ export const generateValidatedFileRouteManifestEffect = (
   );
 
 /** Generates a validated full manifest artifact with route and companion modules. */
-export const generateValidatedFileRouteManifestArtifactEffect = (
+export const generateValidatedFileRouteManifestArtifact = (
   filePaths: Iterable<string>,
   options: FileRouteManifestOptions = {},
 ): Effect.Effect<FileRouteManifest, FileRouteManifestError> =>

@@ -2,7 +2,7 @@ import type { EffectInput } from "@sunfall/arc-core";
 import { toEffect } from "@sunfall/arc-core/internal";
 import { Data, Effect, Exit, Stream } from "effect";
 import {
-  createStreamHydrationScriptEffect,
+  createStreamHydrationScript,
   StartHydrationPayloadSerializeError,
   type StartHydrationPayload,
 } from "./hydration.js";
@@ -14,8 +14,8 @@ import type {
 } from "./request-trace.js";
 
 export {
+  createStreamHydrationScriptSync,
   createStreamHydrationScript,
-  createStreamHydrationScriptEffect,
   serializeStreamHydrationPayload,
   streamHydrationAttribute,
   streamHydrationConsumedAttribute,
@@ -164,7 +164,7 @@ const responseStreamFinalizerStates = new WeakMap<Response, StartResponseStreamF
  * consumed, the held success finalizer is replaced with the supplied failure
  * event so request traces do not report premature success.
  */
-export const suspendResponseStreamSuccessFinalizerEffect = <A, E, R>(
+export const suspendResponseStreamSuccessFinalizer = <A, E, R>(
   response: Response,
   effect: Effect.Effect<A, E, R>,
   failureEvent: StartResponseStreamFinalizeFailureEvent<A, E>,
@@ -217,7 +217,7 @@ export const bytesChunk = (bytes: Uint8Array): HtmlStreamChunk => ({
 /**
  * Creates a typed streamed hydration chunk.
  *
- * Omit `sequence` to let `createHtmlStream(...)` assign monotonically
+ * Omit `sequence` to let `createHtmlStreamSync(...)` assign monotonically
  * increasing hydration script sequence numbers.
  */
 export const streamHydrationChunk = (
@@ -256,10 +256,9 @@ const encodeInputEffect = (
       case "Bytes":
         return Effect.succeed(input.bytes);
       case "Hydration":
-        return createStreamHydrationScriptEffect(
-          input.payload,
-          input.sequence ?? hydrationSequence,
-        ).pipe(Effect.map((script) => textEncoder.encode(script)));
+        return createStreamHydrationScript(input.payload, input.sequence ?? hydrationSequence).pipe(
+          Effect.map((script) => textEncoder.encode(script)),
+        );
     }
   }
 
@@ -310,7 +309,7 @@ const tailStream = <E, R>(
  * Hydration chunks without explicit sequence numbers are numbered in emission
  * order, so streamed clients can replay them deterministically.
  */
-export const createHtmlStream = <E = never, R = never>(
+export const createHtmlStreamSync = <E = never, R = never>(
   options: HtmlStreamOptions<E, R>,
 ): Stream.Stream<Uint8Array, HtmlStreamEncodingError<E>, R> => {
   const shell = streamFromEffectInput("Shell", options.shell);
@@ -326,19 +325,17 @@ export const createHtmlStream = <E = never, R = never>(
   );
 };
 
-/** Effect wrapper for `createHtmlStream(...)`. */
-export const createHtmlStreamEffect = <E = never, R = never>(
+/** Effect wrapper for `createHtmlStreamSync(...)`. */
+export const createHtmlStream = <E = never, R = never>(
   options: HtmlStreamOptions<E, R>,
 ): Effect.Effect<Stream.Stream<Uint8Array, HtmlStreamEncodingError<E>, R>> =>
-  Effect.succeed(createHtmlStream(options));
+  Effect.succeed(createHtmlStreamSync(options));
 
 /** Converts a Start HTML byte stream into a platform `ReadableStream`. */
-export const createReadableHtmlStreamEffect = <E = never, R = never>(
+export const createReadableHtmlStream = <E = never, R = never>(
   options: HtmlStreamOptions<E, R>,
 ): Effect.Effect<ReadableStream<Uint8Array>, never, R> =>
-  Effect.flatMap(createHtmlStreamEffect(options), (stream) =>
-    Stream.toReadableStreamEffect(stream),
-  );
+  Effect.flatMap(createHtmlStream(options), (stream) => Stream.toReadableStreamEffect(stream));
 
 const htmlHeaders = (input: HeadersInit | undefined): Headers => {
   const headers = new Headers(input);
@@ -357,7 +354,7 @@ const htmlHeaders = (input: HeadersInit | undefined): Headers => {
 export const createHtmlResponse = <E = never, R = never>(
   options: HtmlResponseOptions<E, R>,
 ): Effect.Effect<Response, never, R> =>
-  Effect.map(createReadableHtmlStreamEffect(options), (body) => {
+  Effect.map(createReadableHtmlStream(options), (body) => {
     const init: ResponseInit = {
       headers: htmlHeaders(options.headers),
     };

@@ -12,7 +12,6 @@ import {
   RoutePreloadError,
   RoutePreloadFailureCodecError,
   RoutePreloadUntypedFailure,
-  type RoutePreloadFailureEncoding,
   Server,
   ServerRouteHandlerError,
 } from "../src/index.js";
@@ -25,7 +24,7 @@ import {
   routeParamsFromSegments,
   routePathFromSegments,
   routePathSlug,
-  matchRoutesEffect,
+  matchRoutes,
 } from "../src/internal.js";
 
 describe("route", () => {
@@ -40,7 +39,7 @@ describe("route", () => {
     const ProjectRoute = Route.define("/projects/:id");
 
     expect(Route.href(ProjectRoute, { params: { id: "atlas" } })).toBe("/projects/atlas");
-    expect(ProjectRoute.match("/projects/atlas")?.params).toEqual({ id: "atlas" });
+    expect(Route.match([ProjectRoute], "/projects/atlas")?.params).toEqual({ id: "atlas" });
   });
 
   it("infers route props", () => {
@@ -60,10 +59,10 @@ describe("route", () => {
     expect(Route.href(MaybeProjectRoute)).toBe("/projects");
     expect(Route.href(MaybeProjectRoute, { params: {} })).toBe("/projects");
     expect(Route.href(MaybeProjectRoute, { params: { id: "atlas" } })).toBe("/projects/atlas");
-    expect(MaybeProjectRoute.match("/projects")?.params).toEqual({});
-    expect(MaybeProjectRoute.match("/projects/atlas")?.params).toEqual({ id: "atlas" });
-    expect(NestedMaybeProjectRoute.match("/projects/settings")?.params).toEqual({});
-    expect(NestedMaybeProjectRoute.match("/projects/atlas/settings")?.params).toEqual({
+    expect(Route.match([MaybeProjectRoute], "/projects")?.params).toEqual({});
+    expect(Route.match([MaybeProjectRoute], "/projects/atlas")?.params).toEqual({ id: "atlas" });
+    expect(Route.match([NestedMaybeProjectRoute], "/projects/settings")?.params).toEqual({});
+    expect(Route.match([NestedMaybeProjectRoute], "/projects/atlas/settings")?.params).toEqual({
       id: "atlas",
     });
     expectTypeOf<Route.Props<typeof MaybeProjectRoute>>().toMatchTypeOf<{
@@ -154,7 +153,7 @@ describe("route", () => {
           preloaded = params.id;
         }),
     });
-    const match = ProjectRoute.match("/projects/atlas");
+    const match = Route.match([ProjectRoute], "/projects/atlas");
 
     expect(match).toBeDefined();
     const effect = Route.preload(match!);
@@ -174,7 +173,7 @@ describe("route", () => {
         throw "preload-failed";
       },
     });
-    const match = ProjectRoute.match("/projects/atlas");
+    const match = Route.match([ProjectRoute], "/projects/atlas");
 
     expect(match).toBeDefined();
     let effect: Effect.Effect<void, RoutePreloadError> | undefined;
@@ -202,7 +201,7 @@ describe("route", () => {
     const ProjectRoute = Route.define("/projects/:id", {
       preload: () => Promise.resolve(undefined) as never,
     });
-    const match = ProjectRoute.match("/projects/atlas");
+    const match = Route.match([ProjectRoute], "/projects/atlas");
 
     expect(match).toBeDefined();
 
@@ -231,7 +230,7 @@ describe("route", () => {
         error: ProjectNotFound,
         preload: ({ params }) => Effect.fail(new ProjectNotFound({ id: params.id })),
       });
-      const match = ProjectRoute.match("/projects/atlas")!;
+      const match = Route.match([ProjectRoute], "/projects/atlas")!;
 
       const error = yield* Effect.flip(Route.preload(match));
       expectTypeOf(error).toEqualTypeOf<RoutePreloadError<ProjectNotFound>>();
@@ -253,7 +252,7 @@ describe("route", () => {
         preload: ({ params }) =>
           Effect.fail(new ProjectNotFound({ id: params.id, at: new Date(0) })),
       });
-      const match = ProjectRoute.match("/projects/atlas")!;
+      const match = Route.match([ProjectRoute], "/projects/atlas")!;
       const error = yield* Effect.flip(Route.preload(match));
 
       const snapshot = yield* Route.preloadFailureSnapshot(ProjectRoute, error);
@@ -282,7 +281,9 @@ describe("route", () => {
       const ProjectRoute = Route.define("/projects/:id", {
         preload: () => Effect.fail(new ProjectMissing({ secret: "db-host" })),
       });
-      const error = yield* Effect.flip(Route.preload(ProjectRoute.match("/projects/atlas")!));
+      const error = yield* Effect.flip(
+        Route.preload(Route.match([ProjectRoute], "/projects/atlas")!),
+      );
 
       const snapshot = yield* Route.preloadFailureSnapshot(ProjectRoute, error);
       expect(snapshot.failure).toEqual({ _tag: "Untyped", tag: "ProjectMissing" });
@@ -302,13 +303,15 @@ describe("route", () => {
         error: ProjectNotFound,
         preload: () => Effect.fail("not-a-project-not-found" as never),
       });
-      const error = yield* Effect.flip(Route.preload(ProjectRoute.match("/projects/atlas")!));
+      const error = yield* Effect.flip(
+        Route.preload(Route.match([ProjectRoute], "/projects/atlas")!),
+      );
 
       const snapshot = yield* Route.preloadFailureSnapshot(ProjectRoute, error);
       expect(snapshot.failure).toEqual({ _tag: "Unencodable" });
       expect(JSON.stringify(snapshot)).not.toContain("not-a-project-not-found");
 
-      const defect = (failure: RoutePreloadFailureEncoding) =>
+      const defect = (failure: Route.PreloadFailureEncoding) =>
         Cause.squash(Route.preloadFailureCauseFromSnapshot(ProjectRoute, { ...snapshot, failure }));
       expect(defect({ _tag: "Unencodable" })).toEqual(
         new RoutePreloadFailureCodecError({
@@ -454,7 +457,7 @@ describe("route", () => {
     });
 
     let effect:
-      | Effect.Effect<Route.NavigationPlan<typeof ProjectRoute>, Route.NavigationError>
+      | Effect.Effect<Route.NavigationPlan<typeof ProjectRoute>, Route.NavigationPlanError>
       | undefined;
     expect(() => {
       effect = Route.planNavigation([ProjectRoute] as const, "/projects/atlas");
@@ -479,7 +482,7 @@ describe("route", () => {
     });
 
     return Effect.runPromise(
-      Effect.flip(matchRoutesEffect([ProjectRoute] as const, "/projects/atlas")).pipe(
+      Effect.flip(matchRoutes([ProjectRoute] as const, "/projects/atlas")).pipe(
         Effect.tap((error) =>
           Effect.sync(() => {
             expect(error).toBeInstanceOf(RouteNavigationError);
@@ -498,10 +501,10 @@ describe("route", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const duplicateError = yield* Effect.flip(
-          matchRoutesEffect([DuplicateParamRoute] as const, "/projects/atlas/settings"),
+          matchRoutes([DuplicateParamRoute] as const, "/projects/atlas/settings"),
         );
         const invalidError = yield* Effect.flip(
-          matchRoutesEffect([InvalidParamRoute] as const, "/invalid-projects/atlas"),
+          matchRoutes([InvalidParamRoute] as const, "/invalid-projects/atlas"),
         );
 
         expect(duplicateError).toBeInstanceOf(RouteNavigationError);
@@ -519,16 +522,16 @@ describe("route", () => {
       params: Schema.Struct({ id: Schema.Number }),
     });
 
-    expect(() => ProjectRoute.match("/projects/atlas")).toThrow();
+    expect(() => Route.match([ProjectRoute], "/projects/atlas")).toThrow();
     expect(() => Route.match([ProjectRoute] as const, "/projects/atlas")).toThrow();
   });
 });
 
 describe("Server", () => {
   it("runs Effect-backed server functions", () => {
-    const getNumber = Server.fn<void, number>("Number.get", {
-      handler: (_input) => Effect.succeed(42),
-    });
+    const getNumber = Server.implement(Server.contract<void, number>("Number.get"), (_input) =>
+      Effect.succeed(42),
+    );
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -552,11 +555,13 @@ describe("Server", () => {
   });
 
   it("invokes schema-backed server functions across the wire", () => {
-    const echo = Server.fn<{ readonly value: string }, { readonly value: string }>("Echo", {
-      input: Schema.Struct({ value: Schema.String }),
-      output: Schema.Struct({ value: Schema.String }),
-      handler: ({ value }) => Effect.succeed({ value: value.toUpperCase() }),
-    });
+    const echo = Server.implement(
+      Server.contract<{ readonly value: string }, { readonly value: string }>("Echo", {
+        input: Schema.Struct({ value: Schema.String }),
+        output: Schema.Struct({ value: Schema.String }),
+      }),
+      ({ value }) => Effect.succeed({ value: value.toUpperCase() }),
+    );
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -637,7 +642,7 @@ describe("Server", () => {
           yield* response.setCookie("session", "abc123", {
             httpOnly: true,
             path: "/",
-            sameSite: "Lax",
+            sameSite: "lax",
           });
           return new Response("ok");
         }),

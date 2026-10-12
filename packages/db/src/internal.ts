@@ -15,7 +15,7 @@ import {
 } from "./collection-preload.js";
 
 export {
-  bindCollectionRuntimeEffect,
+  bindCollectionRuntime,
   makeCollectionReactivePreloadController,
   type CollectionReactivePreloadController,
   type CollectionReactivePreloadControllerOptions,
@@ -31,15 +31,15 @@ export {
   type CollectionDefinitionRegistryAdapter,
 } from "./collection-registry.js";
 export {
-  collectionStoreEffect,
+  activeCollectionStore,
   currentCollectionStore,
   defineCollection,
+  dehydrateCollectionsSync,
   dehydrateCollections,
-  dehydrateCollectionsEffect,
-  forgetFailedCollectionLoadsEffect,
-  hydrateCollectionsEffect,
-  subscribeCollectionEventsEffect,
-  validateCollectionsHydrationEffect,
+  forgetFailedCollectionLoads,
+  hydrateCollections,
+  subscribeCollectionEvents,
+  validateCollectionsHydration,
 } from "./collection-runtime.js";
 export { buildQuery } from "./query-builder.js";
 export type {
@@ -66,7 +66,7 @@ export const isCollection = (value: unknown): value is AnyCollection =>
  * collectors propagate their facts to the parent collector; dehydration dedupes
  * identical definitions and rejects distinct same-name definitions.
  */
-export const collectCollectionsEffect = <A, E, R>(
+export const collectCollections = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<CollectionPreloadCollected<A>, E, R> =>
   Effect.gen(function* () {

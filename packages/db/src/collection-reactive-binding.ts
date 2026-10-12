@@ -2,7 +2,7 @@ import type { AnySunfallArcRuntime } from "@sunfall/arc-core";
 import { Effect, Fiber } from "effect";
 
 /** Provides the runtime and scopes a collection/live-query Effect. */
-export const bindCollectionRuntimeEffect = <A, E, R, ER = never>(
+export const bindCollectionRuntime = <A, E, R, ER = never>(
   runtime: AnySunfallArcRuntime<ER>,
   effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | ER> => Effect.scoped(runtime.provide(effect));
@@ -66,7 +66,7 @@ export const makeCollectionReactivePreloadController = <ER = never>(
     }
 
     preloadFiber = options.runtime.runFork(
-      bindCollectionRuntimeEffect(options.runtime, preloadEffect).pipe(
+      bindCollectionRuntime(options.runtime, preloadEffect).pipe(
         Effect.catchCause(() => Effect.void),
       ),
     );

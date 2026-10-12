@@ -4,11 +4,10 @@ import {
   makeRuntime,
   runWithRuntime,
   Signal,
-  type ActionOptimisticTransaction,
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
-import { currentCollectionStore, subscribeCollectionEventsEffect } from "@sunfall/arc-db/internal";
+import { currentCollectionStore, subscribeCollectionEvents } from "@sunfall/arc-db/internal";
 import { Cause, Deferred, Effect, Exit, Fiber, PubSub, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 
@@ -48,7 +47,7 @@ const gatedRun = (gate: Gate) =>
 /** An Action that applies `patch` optimistically and runs `run`. */
 const patchAction = (
   name: string,
-  patch: (transaction: ActionOptimisticTransaction) => Effect.Effect<void>,
+  patch: (transaction: Action.OptimisticTransaction) => Effect.Effect<void>,
   run: Effect.Effect<void, string> = Effect.void,
   concurrency: Action.Concurrency = "parallel",
 ) =>
@@ -522,7 +521,7 @@ describe("Action optimistic Collection patches", () => {
         runtime.provide(
           Effect.scoped(
             Effect.gen(function* () {
-              const subscription = yield* subscribeCollectionEventsEffect();
+              const subscription = yield* subscribeCollectionEvents();
               yield* Projects.refresh();
               return yield* PubSub.take(subscription);
             }),

@@ -118,8 +118,8 @@ rejects) is a defect, never part of `E`.
 | `Component.stream(name, stream, init)`  | `Accessor<A>` of the latest element, committed as `<Component>.<name>`                               | stream services                                                      |
 | `Component.callback(name, f)`           | `(...args) => void` that runs `f(...args)` as the transition `<Component>.<name>` (failures handled) | callback services                                                    |
 | `Component.router(routes, options?)`    | the instance's `BrowserRouter<Routes>`                                                               | route preload and route Component services, route Component failures |
-| `SolidDb.collection(definition, opts?)` | `CollectionHandle`: `rows`, `get`, `index`, `waiting`, `failure`                                     | load error to `E`, collection services                               |
-| `SolidDb.liveQuery(query, opts?)`       | `LiveQueryHandle`: `rows`, `waiting`, `failure`, `preload` (Effect), `refresh` (Effect)              | source load errors to `E`, source services                           |
+| `SolidDb.collection(definition, opts?)` | `SolidDb.CollectionHandle`: `rows`, `get`, `index`, `waiting`, `failure`                             | load error to `E`, collection services                               |
+| `SolidDb.liveQuery(query, opts?)`       | `SolidDb.LiveQueryHandle`: `rows`, `waiting`, `failure`, `preload` (Effect), `refresh` (Effect)      | source load errors to `E`, source services                           |
 
 Handles share one vocabulary. Status is `waiting()` (work in flight) and
 `failure()` (the settled `Cause` of the latest load or submission, if it

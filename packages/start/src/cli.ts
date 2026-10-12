@@ -29,10 +29,10 @@ import type {
   StartAppGraphDiagnosticsLoadError,
 } from "./start-vite-diagnostics-loader.js";
 import {
-  runStartDiagnosticsCliCommandEffect,
+  runStartDiagnosticsCliCommand,
   startDiagnosticsCliErrorPayload,
   StartDiagnosticsCliWriteError,
-  writeStartDiagnosticsCliLineEffect,
+  writeStartDiagnosticsCliLine,
 } from "./start-diagnostics-cli-runner.js";
 export { StartDiagnosticsCliWriteError } from "./start-diagnostics-cli-runner.js";
 
@@ -472,12 +472,12 @@ const flushStartDiagnosticsCliConsoleLinesEffect = (
   write: (text: string) => EffectInput<void, unknown>,
   lines: readonly string[],
 ): Effect.Effect<void, StartDiagnosticsCliWriteError> =>
-  Effect.forEach(lines, (line) => writeStartDiagnosticsCliLineEffect(stream, write, line), {
+  Effect.forEach(lines, (line) => writeStartDiagnosticsCliLine(stream, write, line), {
     discard: true,
   });
 
 /** Parses CLI argv into a diagnostics command or help request as an Effect. */
-export const parseStartDiagnosticsCliArgsEffect = (
+export const parseStartDiagnosticsCliArgs = (
   args: readonly string[],
 ): Effect.Effect<StartCliCommand, StartDiagnosticsCliUsageError> => {
   return Effect.gen(function* () {
@@ -550,7 +550,7 @@ export const runStartDiagnosticsCli = (
 
     const cliResultRef = yield* Ref.make<StartDiagnosticsCliResult | undefined>(undefined);
     const command = makeStartDiagnosticsCliCommand((parsedCommand) =>
-      runStartDiagnosticsCliCommandEffect(parsedCommand, {
+      runStartDiagnosticsCliCommand(parsedCommand, {
         ...io,
         stdout,
         stderr,
@@ -584,7 +584,7 @@ export const runStartDiagnosticsCli = (
       }
 
       const payload = startDiagnosticsCliErrorPayload(grammarResult.cause);
-      yield* writeStartDiagnosticsCliLineEffect("stderr", stderr, String(payload.message));
+      yield* writeStartDiagnosticsCliLine("stderr", stderr, String(payload.message));
       return { exitCode: 1 };
     }
 
@@ -621,7 +621,7 @@ export const runStartDiagnosticsCliMain = (
         yield* Effect.sync(() => {
           process.exitCode = 1;
         });
-        yield* writeStartDiagnosticsCliLineEffect(
+        yield* writeStartDiagnosticsCliLine(
           "stderr",
           stderr,
           `Sunfall Arc diagnostics CLI failed: ${startDiagnosticsCliMainFailureMessage(error)}`,

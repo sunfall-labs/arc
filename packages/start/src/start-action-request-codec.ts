@@ -1,21 +1,10 @@
-import {
-  Form,
-  Server,
-  ServerRpcProtocolError,
-  type ActionDefinition,
-  type FormDataDecodeOptions,
-} from "@sunfall/arc-core";
+import { Form, Server, ServerRpcProtocolError, type Action } from "@sunfall/arc-core";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
 import { hasContentType, startJsonMediaType } from "./rpc.js";
+import { resolveStartActionEndpoint } from "./start-transport-endpoints.js";
 import {
-  resolveStartActionEndpoint,
-  type StartActionEndpointManifest,
-  type StartTransportEndpointManifestSource,
-  type StartTransportEndpointOverrides,
-} from "./start-transport-endpoints.js";
-import {
-  readStartTransportFormDataBodyEffect,
-  readStartTransportJsonBodyEffect,
+  readStartTransportFormDataBody,
+  readStartTransportJsonBody,
 } from "./start-transport-body.js";
 import { encodeWithSchema } from "./start-schema-codec.js";
 
@@ -57,24 +46,19 @@ export interface StartActionForm {
 
 /** Options used to build a progressive HTML form for a typed Start action. */
 export interface StartActionFormOptions<I> {
-  /** Form action URL. Defaults to the Start action endpoint. */
+  /**
+   * Form action URL. Defaults to the Start action endpoint; pass the app's
+   * configured `actionPath` (or any absolute URL) when it differs.
+   */
   readonly action?: string;
-  /** Action endpoint path. Defaults to the shared Start action path. */
-  readonly actionPath?: string;
-  /** Endpoint pair resolved from the Start transport endpoint policy. */
-  readonly endpoints?: StartTransportEndpointOverrides;
-  /** Action manifest whose `actionPath` should be used when no explicit action is supplied. */
-  readonly actionManifest?: StartActionEndpointManifest;
-  /** App graph whose action manifest should supply the action path. */
-  readonly appGraph?: StartTransportEndpointManifestSource;
   /** Partial input serialized into the hidden input field. */
   readonly input?: Partial<I>;
 }
 
 /** Any core action definition that can be exposed through Start actions. */
 export type StartActionDefinition =
-  | ActionDefinition<any, any, never, any>
-  | ActionDefinition<any, any, any, any>;
+  | Action.Definition<any, any, never, any>
+  | Action.Definition<any, any, any, any>;
 
 /** Hidden form field that carries the action name for progressive POST forms. */
 export const startActionNameField = "__sunfall_arc_action";
@@ -84,7 +68,7 @@ export const startActionInputField = "__sunfall_arc_input";
 const startActionTransportFields = [startActionNameField, startActionInputField] as const;
 
 const startActionOmittedFormFields = (
-  omitFields: FormDataDecodeOptions["omitFields"],
+  omitFields: Form.DataOptions["omitFields"],
 ): ReadonlySet<string> => {
   const fields = new Set<string>(startActionTransportFields);
 
@@ -102,8 +86,8 @@ const startActionOmittedFormFields = (
  * transport fields while preserving any app-level omitted fields.
  */
 export const startActionFormDataDecodeOptions = (
-  options: FormDataDecodeOptions = {},
-): FormDataDecodeOptions => ({
+  options: Form.DataOptions = {},
+): Form.DataOptions => ({
   ...options,
   omitFields: startActionOmittedFormFields(options.omitFields),
 });
@@ -115,11 +99,15 @@ export const startActionFormDataDecodeOptions = (
  * automatically ignores the hidden action name and encoded-default-input fields
  * emitted by `StartAction.form(...)`.
  */
-export const decodeStartActionFormDataEffect = <S extends Schema.Top>(
+export const decodeStartActionFormData = <S extends Schema.Top>(
   schema: S,
   formData: FormData,
-  options: FormDataDecodeOptions = {},
-) => Form.decodeFormData(schema, formData, startActionFormDataDecodeOptions(options));
+  options: Form.DataOptions = {},
+): Effect.Effect<
+  Form.SchemaValues<S>,
+  Form.ValidationError<Form.SchemaValues<S>, Schema.SchemaError>,
+  Form.SchemaServices<S>
+> => Form.decodeFormData(schema, formData, startActionFormDataDecodeOptions(options));
 
 /** Error raised by the synchronous progressive form encoding facade. */
 export class StartActionFormEncodeError extends Data.TaggedError("StartActionFormEncodeError")<{
@@ -165,24 +153,24 @@ const encodePartialWithSchema = (
 };
 
 /** Encodes a Start action input through the action's declared wire schema. */
-export const encodeStartActionInputEffect = (
+export const encodeStartActionInput = (
   action: StartActionDefinition,
   input: unknown,
 ): Effect.Effect<unknown, Schema.SchemaError> => encodeWithSchema(action.input, input);
 
 /** Encodes a partial Start action input through the present fields of a struct input schema. */
-export const encodeStartActionPartialInputEffect = (
+export const encodeStartActionPartialInput = (
   action: StartActionDefinition,
   input: unknown,
 ): Effect.Effect<unknown, Schema.SchemaError> => encodePartialWithSchema(action.input, input);
 
 /** Builds the shared Start action JSON request body before transport stringification. */
-export const encodeStartActionRequestEffect = (
+export const encodeStartActionRequest = (
   action: StartActionDefinition,
   input: unknown,
   submissionId?: string,
 ): Effect.Effect<StartActionRequest, Schema.SchemaError> =>
-  Effect.map(encodeStartActionInputEffect(action, input), (encodedInput) => ({
+  Effect.map(encodeStartActionInput(action, input), (encodedInput) => ({
     name: action.name,
     input: encodedInput,
     ...(submissionId === undefined ? {} : { id: submissionId }),
@@ -204,12 +192,12 @@ const startActionFormEncodeError = (
   });
 
 /** Encodes progressive form default input through the same action request codec used by JSON submits. */
-export const encodeStartActionFormInputEffect = (
+export const encodeStartActionFormInput = (
   action: StartActionDefinition,
   input: unknown,
 ): Effect.Effect<string, StartActionFormEncodeError> =>
   Effect.gen(function* () {
-    const encodedInput = yield* encodeStartActionPartialInputEffect(action, input).pipe(
+    const encodedInput = yield* encodeStartActionPartialInput(action, input).pipe(
       Effect.mapError((cause) => startActionFormEncodeError(action, "schema-encode", input, cause)),
     );
 
@@ -228,8 +216,8 @@ export const encodeStartActionFormInputEffect = (
     });
   });
 
-const encodeStartActionFormInput = (action: StartActionDefinition, input: unknown): string => {
-  const exit = Effect.runSyncExit(encodeStartActionFormInputEffect(action, input));
+const encodeStartActionFormInputSync = (action: StartActionDefinition, input: unknown): string => {
+  const exit = Effect.runSyncExit(encodeStartActionFormInput(action, input));
   if (Exit.isSuccess(exit)) {
     return exit.value;
   }
@@ -244,11 +232,13 @@ const encodeStartActionFormInput = (action: StartActionDefinition, input: unknow
 
 /** Creates the hidden POST fields needed to submit a Start action from HTML. */
 export const startActionForm = <I, A, E, R>(
-  definition: ActionDefinition<I, A, E, R>,
+  definition: Action.Definition<I, A, E, R>,
   options: StartActionFormOptions<I> = {},
 ): StartActionForm => ({
   method: "post",
-  action: String(resolveStartActionEndpoint(options)),
+  action: String(
+    resolveStartActionEndpoint(options.action === undefined ? {} : { action: options.action }),
+  ),
   hiddenFields: [
     {
       name: startActionNameField,
@@ -259,7 +249,7 @@ export const startActionForm = <I, A, E, R>(
       : [
           {
             name: startActionInputField,
-            value: encodeStartActionFormInput(definition, options.input),
+            value: encodeStartActionFormInputSync(definition, options.input),
           },
         ]),
   ],
@@ -269,7 +259,7 @@ const readActionJsonEffect = (
   request: Request,
 ): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>
   Effect.gen(function* () {
-    const payload = yield* readStartTransportJsonBodyEffect(
+    const payload = yield* readStartTransportJsonBody(
       request,
       "Expected a JSON action request body.",
     );
@@ -326,7 +316,7 @@ const readActionFormEffect = (
   request: Request,
 ): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>
   Effect.gen(function* () {
-    const formData = yield* readStartTransportFormDataBodyEffect(
+    const formData = yield* readStartTransportFormDataBody(
       request,
       "Expected an action form body.",
     );
@@ -373,7 +363,7 @@ const readActionFormEffect = (
  * `startActionNameField`, optional `startActionInputField`, and remaining
  * fields as user input.
  */
-export const readStartActionRequestEffect = (
+export const readStartActionRequest = (
   request: Request,
 ): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>
   hasContentType(request.headers, [startJsonMediaType])

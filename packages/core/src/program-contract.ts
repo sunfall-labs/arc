@@ -1,11 +1,5 @@
 import { Data, type Effect, type Stream } from "effect";
-import type {
-  EffectInput,
-  EffectInputCallbackError,
-  EffectInputError,
-  EffectInputRequirements,
-  PlainValue,
-} from "./effect-like.js";
+import type { EffectInput, EffectInputCallbackError, PlainValue } from "./effect-like.js";
 import type { ReadableSignal } from "./signal.js";
 
 /** Runtime marker for values created by `Program.next(...)` or `Program.commands(...)`. */
@@ -123,11 +117,6 @@ export type ProgramSubscriptionInput<Message, E = never, R = never> =
   | false
   | null
   | undefined;
-
-/** Extracts the error channel from a Program subscription EffectInput. */
-export type ProgramSubscriptionError<Out> = EffectInputError<Out>;
-/** Extracts the requirement channel from a Program subscription EffectInput. */
-export type ProgramSubscriptionRequirements<Out> = EffectInputRequirements<Out>;
 
 /** Definition for a headless model/message loop with Effect-owned work. */
 export interface ProgramDefinition<

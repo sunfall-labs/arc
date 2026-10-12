@@ -319,7 +319,7 @@ export const App = Component.define("App", function* (props: { readonly href: st
   Resources' declared errors: a load callback that throws is a defect.
 - `preload` is inferred from its own body, then checked against `error`: fail
   with anything the schema does not declare and the type error names it
-  (`RoutePreloadFailureNotInErrorSchema<...>`).
+  (`Route.PreloadFailureNotInErrorSchema<...>`).
 - `error: ProjectNotFound` makes the preload's failure typed end to end: the
   `RouterOutlet` failure view, typed from its `router`, narrows
   `error.cause._tag` to read `id`, and during SSR the server and the hydrating

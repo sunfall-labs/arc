@@ -1,15 +1,8 @@
-import {
-  Action,
-  EffectInputCallbackError,
-  Resource,
-  Server,
-  makeRuntime,
-  type ServerClientError,
-} from "@sunfall/arc-core";
+import { Action, EffectInputCallbackError, Resource, Server, makeRuntime } from "@sunfall/arc-core";
 import { Collection, CollectionSnapshotCodecError } from "@sunfall/arc-db";
 import {
   defaultCollectionDefinitionRegistry,
-  subscribeCollectionEventsEffect,
+  subscribeCollectionEvents,
 } from "@sunfall/arc-db/internal";
 import { Deferred, Effect, Fiber, PubSub, Queue, Schema, Stream } from "effect";
 import { describe, expect, it, vi } from "vitest";
@@ -181,16 +174,17 @@ describe("Collection sync adapters", () => {
   it("accepts Server functions directly as sync adapter operations", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
-        const load = Server.fn<void, ReadonlyArray<Project>>("Projects.sync.server.load", {
-          handler: () =>
+        const load = Server.implement(
+          Server.contract<void, ReadonlyArray<Project>>("Projects.sync.server.load"),
+          () =>
             Effect.succeed<ReadonlyArray<Project>>([
               { id: "atlas", name: "Atlas", archived: false },
             ]),
-        });
+        );
         const Projects = Collection.define<
           Project,
           string,
-          ServerClientError | EffectInputCallbackError
+          Server.ClientError | EffectInputCallbackError
         >({
           name: "Projects.sync.server",
           getKey: (project) => project.id,
@@ -309,7 +303,7 @@ describe("Collection sync changes", () => {
         .provide(
           Effect.scoped(
             Effect.gen(function* () {
-              const events = yield* subscribeCollectionEventsEffect();
+              const events = yield* subscribeCollectionEvents();
               yield* Projects.preload();
               yield* Queue.offer(remote, [
                 { _tag: "Update", key: "missing", changes: { name: "Ghost" } },

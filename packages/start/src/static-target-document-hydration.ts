@@ -1,7 +1,7 @@
 import { Data, Effect } from "effect";
 import { hydrateFromDocument } from "./hydration.js";
 import {
-  startStaticHydratedHrefPreparationOutcomeEffect,
+  startStaticHydratedHrefPreparationOutcome,
   type StartStaticHrefPreparationOutcome,
   type StartStaticNavigationHydrationRuntime,
 } from "./static-href-preparation-cache.js";
@@ -77,7 +77,7 @@ const defaultParseDocument = ():
     ? undefined
     : (html) => new DOMParser().parseFromString(html, "text/html");
 
-export const hydrateStartStaticTargetDocumentEffect = <RuntimeError = unknown>(
+export const hydrateStartStaticTargetDocument = <RuntimeError = unknown>(
   options: StartStaticTargetDocumentHydrationOptions<RuntimeError>,
 ): Effect.Effect<StartStaticHrefPreparationOutcome, StartStaticNavigationHydrationError> =>
   Effect.gen(function* () {
@@ -127,7 +127,7 @@ export const hydrateStartStaticTargetDocumentEffect = <RuntimeError = unknown>(
       hydrateFromDocument(staticDocument, {
         timestamp: "now",
         skipFresh: true,
-      }).pipe(Effect.flatMap(startStaticHydratedHrefPreparationOutcomeEffect)),
+      }).pipe(Effect.flatMap(startStaticHydratedHrefPreparationOutcome)),
     ) as Effect.Effect<StartStaticHrefPreparationOutcome, unknown>;
     return yield* hydrateEffect.pipe(
       Effect.mapError((cause) =>

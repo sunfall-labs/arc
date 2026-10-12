@@ -1,5 +1,5 @@
 import { Effect, Scope, type Fiber } from "effect";
-import type { ResourceInvalidationPlan, TimelineEntry } from "@sunfall/arc-core";
+import type { Resource, Timeline } from "@sunfall/arc-core";
 import {
   DevtoolsActionInvalidationPlanConflict,
   DevtoolsPanelContractError,
@@ -88,7 +88,7 @@ const devtoolsCausalGraphEffect: Effect.Effect<DevtoolsCausalGraph> =
 declare const devtoolsActionInstance: Parameters<DevtoolsStore["recordAction"]>[0];
 declare const devtoolsRoutePlanInput: Parameters<DevtoolsStore["recordRoutePlan"]>[0];
 declare const devtoolsTimelineRecording: Parameters<DevtoolsStore["trackTimeline"]>[0];
-declare const devtoolsTimelineEntry: TimelineEntry;
+declare const devtoolsTimelineEntry: Timeline.Entry;
 const devtoolsRecordActionEffect: Effect.Effect<void> =
   devtoolsStore.recordAction(devtoolsActionInstance);
 const devtoolsTrackActionEffect: Effect.Effect<void, never, Scope.Scope> =
@@ -371,7 +371,7 @@ const invalidDevtoolsRuntimeEvent: DevtoolsRuntimeEvent = {
   sequence: 1,
 };
 
-declare const devtoolsLiveInvalidationPlan: ResourceInvalidationPlan;
+declare const devtoolsLiveInvalidationPlan: Resource.InvalidationPlan;
 declare const devtoolsLiveRoutePlan: Parameters<typeof describeRoutePlan>[0];
 const describedLiveInvalidationPlan: DevtoolsInvalidationPlan = describeInvalidationPlan(
   devtoolsLiveInvalidationPlan,

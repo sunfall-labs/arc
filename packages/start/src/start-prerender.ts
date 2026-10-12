@@ -11,13 +11,13 @@ import { createServer, type InlineConfig, type ViteDevServer } from "vite";
 import type { FileRouteManifest } from "./file-routes.js";
 import type { StartNodeRequestOptions } from "./node-web-exchange.js";
 import {
-  resolveStartHandlerEffect,
+  resolveStartHandler,
   type StartSsrHandlerModule,
   type StartSsrRequestHandler,
   type StartViteDevServer,
 } from "./start-vite-dev-ssr.js";
-import { responseWithScopeLifetimeEffect } from "./response-lifetime.js";
-import { suspendResponseStreamSuccessFinalizerEffect } from "./streaming.js";
+import { responseWithScopeLifetime } from "./response-lifetime.js";
+import { suspendResponseStreamSuccessFinalizer } from "./streaming.js";
 import { defaultServerEntry } from "./start-manifest-wall.js";
 import {
   extractStartStaticHtmlLinks,
@@ -25,22 +25,14 @@ import {
   startStaticPageOutputPath,
 } from "./static-export.js";
 
-/** Per-page prerender override for explicit pages. */
-export interface StartPrerenderPageOptions {
-  /** Whether this explicit page should be prerendered. Defaults to true. */
-  readonly enabled?: boolean;
-  /** HTML output path relative to the build output directory. */
-  readonly outputPath?: string;
-}
-
 /** Explicit page entry added to the static prerender plan. */
 export interface StartPrerenderPage {
   /** Root-relative page path to prerender. */
   readonly path: string;
   /** HTML output path relative to the build output directory. */
   readonly outputPath?: string;
-  /** Per-page prerender override. */
-  readonly prerender?: boolean | StartPrerenderPageOptions;
+  /** Set to `false` to drop this page from the plan, including discovered routes. Defaults to true. */
+  readonly prerender?: boolean;
 }
 
 /** Explicit prerender page input accepted by `StartPrerenderOptions.pages`. */
@@ -68,8 +60,6 @@ export interface StartPrerenderFailureEvent {
 
 /** Static prerender options consumed by the Start Vite build hook. */
 export interface StartPrerenderOptions {
-  /** Enables static prerendering after a production Vite build. */
-  readonly enabled?: boolean;
   /** Origin used when constructing build-time SSR requests. */
   readonly origin?: string;
   /** Write `/docs` to `docs/index.html` instead of `docs.html`. Defaults to true. */
@@ -94,7 +84,7 @@ export interface StartPrerenderOptions {
   readonly onError?: (event: StartPrerenderFailureEvent) => EffectInput<void, unknown, never>;
 }
 
-/** Boolean shorthand or option object for configuring Start prerendering. */
+/** `true` for defaults, an option object to customize, or `false` to disable Start prerendering. */
 export type StartPrerenderConfig = boolean | StartPrerenderOptions;
 
 /** Runtime input for executing the Start prerender Effect. */
@@ -112,7 +102,7 @@ export interface StartPrerenderRunOptions {
   readonly nodeRequest?: StartNodeRequestOptions;
 }
 
-/** Summary returned by `runStartPrerenderEffect(...)`. */
+/** Summary returned by `runStartPrerender(...)`. */
 export interface StartPrerenderResult {
   readonly pages: readonly StartPrerenderSuccessEvent[];
   readonly failures: readonly StartPrerenderFailureEvent[];
@@ -222,9 +212,6 @@ export const resolveStartPrerenderOptions = (
     return undefined;
   }
   const options = config === true ? {} : config;
-  if (options.enabled === false) {
-    return undefined;
-  }
 
   return {
     origin: options.origin ?? defaultPrerenderOrigin,
@@ -248,14 +235,10 @@ const explicitPageOptions = (
     return { path: normalizeStartStaticPath(input), enabled: true };
   }
 
-  const path = normalizeStartStaticPath(input.path);
-  const prerender = input.prerender;
-  const pageOptions = typeof prerender === "object" && prerender !== null ? prerender : {};
-  const outputPath = pageOptions.outputPath ?? input.outputPath;
   return {
-    path,
-    ...(outputPath === undefined ? {} : { outputPath }),
-    enabled: prerender === false || pageOptions.enabled === false ? false : true,
+    path: normalizeStartStaticPath(input.path),
+    ...(input.outputPath === undefined ? {} : { outputPath: input.outputPath }),
+    enabled: input.prerender !== false,
   };
 };
 
@@ -543,7 +526,7 @@ const renderPageAttempt = (
         page.path,
       ),
     });
-    const handler = yield* resolveStartHandlerEffect(
+    const handler = yield* resolveStartHandler(
       module as StartSsrHandlerModule<unknown, unknown>,
       runOptions.handlerExport === undefined ? {} : { handlerExport: runOptions.handlerExport },
     ).pipe(
@@ -562,7 +545,7 @@ const renderPageAttempt = (
           cause,
         }),
     });
-    const response = yield* responseWithScopeLifetimeEffect(
+    const response = yield* responseWithScopeLifetime(
       toEffect(result as EffectInput<Response, unknown, Scope.Scope>),
     ).pipe(
       Effect.mapError((cause) =>
@@ -701,7 +684,7 @@ const callError = (
   );
 
 /** Runs static prerendering as an Effect for Vite and test host adapters. */
-export const runStartPrerenderEffect = (
+export const runStartPrerender = (
   runOptions: StartPrerenderRunOptions,
 ): Effect.Effect<StartPrerenderResult, StartPrerenderError> =>
   Effect.gen(function* () {
@@ -781,7 +764,7 @@ export const runStartPrerenderEffect = (
             continue;
           }
 
-          const rawHtml = yield* suspendResponseStreamSuccessFinalizerEffect(
+          const rawHtml = yield* suspendResponseStreamSuccessFinalizer(
             renderOutcome.response,
             Effect.tryPromise({
               try: () => renderOutcome.response.text(),

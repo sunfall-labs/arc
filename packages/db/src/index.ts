@@ -2,7 +2,7 @@ import type {
   EffectInputError,
   EffectInputRequirements,
   EnsureEffectInput,
-  ResourceRef,
+  Resource,
 } from "@sunfall/arc-core";
 import type { Schema, Stream } from "effect";
 import type { KeyValueStore } from "effect/persistence";
@@ -77,7 +77,7 @@ type CollectionStreamRequirements<S> = S extends Stream.Stream<any, any, infer R
 
 type CollectionSyncError<Sync> = [Sync] extends [never]
   ? never
-  : Sync extends ResourceRef<any, any, infer E, any>
+  : Sync extends Resource.Ref<any, any, infer E, any>
     ? E
     :
         | EffectInputError<CollectionSyncEffectOutputs<Sync>>
@@ -85,7 +85,7 @@ type CollectionSyncError<Sync> = [Sync] extends [never]
 
 type CollectionSyncRequirements<Sync> = [Sync] extends [never]
   ? never
-  : Sync extends ResourceRef<any, any, any, infer R>
+  : Sync extends Resource.Ref<any, any, any, infer R>
     ? R
     :
         | EffectInputRequirements<CollectionSyncEffectOutputs<Sync>>

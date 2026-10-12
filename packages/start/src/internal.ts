@@ -8,4 +8,4 @@ export {
   describeStartAppGraphRuntimeDiagnostics,
   startAppGraphCollectionDefinitions,
 } from "./app-graph.js";
-export { validateStartAppGraphDiagnosticsPolicyExceptionEffect } from "./start-app-graph-diagnostics-policy.js";
+export { validateStartAppGraphDiagnosticsPolicyException } from "./start-app-graph-diagnostics-policy.js";

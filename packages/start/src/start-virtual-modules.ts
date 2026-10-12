@@ -9,10 +9,10 @@ import {
   type FileRouteDefinitionsModuleError,
 } from "./file-route-modules.js";
 import {
-  makeStartActionManifestEffect,
-  makeStartBuildAppGraphEffect,
-  makeStartFileRouteManifestEffect,
-  makeStartServerFunctionManifestEffect,
+  makeStartActionManifest,
+  makeStartBuildAppGraph,
+  makeStartFileRouteManifest,
+  makeStartServerFunctionManifest,
   normalizeStartBuildPolicy,
   type StartManifestOptions,
   type StartAppGraphError,
@@ -169,7 +169,7 @@ export const createStartAppGraphRuntimeDiagnosticsVirtualModule = (
   return [
     'import { Effect } from "effect";',
     'import { Resource, Route } from "@sunfall/arc-core";',
-    'import { describeStartAppGraphRuntimeDiagnostics, startAppGraphCollectionDefinitions, validateStartAppGraphDiagnosticsPolicyExceptionEffect } from "@sunfall/arc-start/internal";',
+    'import { describeStartAppGraphRuntimeDiagnostics, startAppGraphCollectionDefinitions, validateStartAppGraphDiagnosticsPolicyException } from "@sunfall/arc-start/internal";',
     ...(routeModuleImports.length > 0 ? [""] : []),
     ...routeModuleImports,
     ...(routeModuleImports.length > 0 ? [""] : []),
@@ -186,7 +186,7 @@ export const createStartAppGraphRuntimeDiagnosticsVirtualModule = (
     "  collectionDefinitions",
     "});",
     `const diagnosticsPolicy = ${diagnosticsPolicy};`,
-    "export const diagnosticsPolicyViolations = Effect.runSync(validateStartAppGraphDiagnosticsPolicyExceptionEffect(diagnostics, diagnosticsPolicy));",
+    "export const diagnosticsPolicyViolations = Effect.runSync(validateStartAppGraphDiagnosticsPolicyException(diagnostics, diagnosticsPolicy));",
     "export const routes = graph.routes;",
     "export const serverFunctions = graph.serverFunctions;",
     "export const actions = graph.actions;",
@@ -209,34 +209,31 @@ const createStartAppGraphRuntimeDiagnosticsVirtualModuleEffect = (
     }
   });
 
-export const loadStartVirtualModuleEffect = (
+export const loadStartVirtualModule = (
   id: string,
   options: StartManifestOptions = {},
 ): Effect.Effect<string | null, StartVirtualModuleLoadError> => {
   switch (id) {
     case resolvedServerFunctionManifestVirtualModuleId:
       return Effect.map(
-        makeStartServerFunctionManifestEffect(options),
+        makeStartServerFunctionManifest(options),
         createServerFunctionManifestVirtualModule,
       );
     case resolvedActionManifestVirtualModuleId:
-      return Effect.map(makeStartActionManifestEffect(options), createActionManifestVirtualModule);
+      return Effect.map(makeStartActionManifest(options), createActionManifestVirtualModule);
     case resolvedFileRouteManifestVirtualModuleId:
-      return Effect.map(
-        makeStartFileRouteManifestEffect(options),
-        createFileRouteManifestVirtualModule,
-      );
+      return Effect.map(makeStartFileRouteManifest(options), createFileRouteManifestVirtualModule);
     case resolvedFileRouteDefinitionsVirtualModuleId:
       return Effect.flatMap(
-        makeStartFileRouteManifestEffect(options),
+        makeStartFileRouteManifest(options),
         createFileRouteDefinitionsVirtualModuleEffect,
       );
     case resolvedAppGraphVirtualModuleId:
-      return Effect.map(makeStartBuildAppGraphEffect(options), (graph) =>
+      return Effect.map(makeStartBuildAppGraph(options), (graph) =>
         createStartAppGraphVirtualModule(graph, normalizeStartBuildPolicy(options.buildPolicy)),
       );
     case resolvedAppGraphRuntimeDiagnosticsVirtualModuleId:
-      return Effect.flatMap(makeStartBuildAppGraphEffect(options), (graph) =>
+      return Effect.flatMap(makeStartBuildAppGraph(options), (graph) =>
         createStartAppGraphRuntimeDiagnosticsVirtualModuleEffect(
           graph,
           normalizeStartBuildPolicy(options.buildPolicy),

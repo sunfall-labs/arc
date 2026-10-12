@@ -31,7 +31,7 @@ edge.
 - Solid UI is typed `Component`s: runtime state comes from setup-time bindings (`Component.resource`, `action`, `program`, `stream`, `callback`, `router`, `SolidDb.collection` / `liveQuery`) whose services join the Component's `R`, and each instance owns an Effect `Scope`. Use Solid `createEffect` only for imperative DOM sinks; there is no generic `useEffect`.
 - Isomorphic server functions should be split into shared contracts and real server handlers. Shared code defines `Server.contract` values and exports `Server.client(contract)`; `.server.ts` modules call `Server.implement(contract, handler)` and are never imported by the browser graph.
 - Prefer `Schema.TaggedError` for server-function errors because it is a yieldable Effect error and a wire schema at the same time.
-- Mock server contracts with `Server.mock`, `Server.mockClient`, or `Server.mockLayer`; do not import `.server.ts` just to test shared resources and actions.
+- Mock server contracts with `Server.mock(...)` handlers provided through `Server.mockLayer(...)`; do not import `.server.ts` just to test shared resources and actions.
 - Prefer named `Capability` services for app features. Resources and actions should usually depend on `ProjectApi.use(...)`, while server functions, browser RPC, and test doubles are layers behind that capability.
 - Model mutation dependencies with typed `Resource.tag` values. Actions should invalidate domain facts, not string cache keys.
 - Use `Schema.brand` for domain ids and generated framework ids that cross API seams. A route param, server function input, resource key, action input, or manifest id should be a decoded `ProjectId`, `ServerFunctionId`, `ActionId`, or `FileRouteId`, not a plain `string`.
@@ -170,7 +170,7 @@ SSR hydration must populate both layers:
 
 ```ts
 yield *
-  hydrateStartPayloadEffect(payload, {
+  hydrateStartPayload(payload, {
     runtime,
     collections: [Projects, Tasks],
   });
@@ -180,7 +180,7 @@ Start hydration helpers call `Resource.hydrate(payload)` for resource
 entries and collection hydration for DB snapshots, so the resource signal used
 by components and the Effect cache entry in the active `ResourceStore` update
 together. `App.launch(app)` runs `hydrateFromDocument(...)` for the full browser
-payload; use `hydrateStartPayloadEffect(...)` for already-parsed payloads.
+payload; use `hydrateStartPayload(...)` for already-parsed payloads.
 
 ```tsx
 const UserCard = Component.define("UserCard", function* (props: { readonly id: UserId }) {
@@ -340,7 +340,7 @@ const ProjectApiLive = ProjectApi.layer({
   rename: renameProject.effect,
 });
 
-const ProjectApiTest = ProjectApi.mock({
+const ProjectApiTest = ProjectApi.layer({
   get: (id) => Effect.succeed({ id, name: "Mock Project" }),
   rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
 });
@@ -372,9 +372,11 @@ export const getProject = Server.implement(GetProject, ({ id }) =>
 ```ts
 const testProject =
   yield *
-  Server.provideMocks(
+  Effect.provide(
     getProject.effect({ id: makeProjectId("atlas") }),
-    Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Test Project" })),
+    Server.mockLayer(
+      Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Test Project" })),
+    ),
   );
 
 const TestServerLive = Server.mockLayer(
@@ -383,17 +385,7 @@ const TestServerLive = Server.mockLayer(
 ```
 
 ```ts
-// Server.fn remains available as a low-level primitive, but contracts avoid
-// repeating names and schemas between shared clients and server handlers.
-export const getProjectLegacy = Server.fn("Project.get", {
-  input: GetProject.input,
-  output: GetProject.output,
-  error: GetProject.error,
-  handler: ({ id }) => Projects.use((projects) => projects.get(id)),
-});
-
 yield * getProject.effect({ id: makeProjectId("atlas") });
-yield * getProjectLegacy.invoke({ id: makeProjectId("atlas") });
 ```
 
 ```ts

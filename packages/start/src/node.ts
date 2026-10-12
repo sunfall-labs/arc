@@ -4,19 +4,19 @@ import { defaultRuntime, toEffect } from "@sunfall/arc-core/internal";
 import { Cause, Effect, Scope } from "effect";
 import type { StartRequestHandlerError } from "./start-request-handler-error.js";
 import {
-  invokeStartRequestHandlerEffect,
+  invokeStartRequestHandler,
   type StartRequestHandlerInput,
   type StartRequestHandlerRequirements,
 } from "./start-host-adapter.js";
 import {
   nodeRequestLifecycle,
-  nodeRequestToWebRequestEffect,
-  writeNodeExchangeResponseEffect,
+  tryNodeRequestToWebRequest,
+  writeNodeExchangeResponse,
   type StartNodeAdapterError,
   type StartNodeRequestOptions,
 } from "./node-web-exchange.js";
 import {
-  forkStartHostEffect,
+  forkStartHost,
   interruptStartHostFiberOnSignal,
   type StartHostForkRunnerOptions,
 } from "./start-host-runtime-runner.js";
@@ -119,9 +119,9 @@ export function createNodeHandler(
 ): StartNodeHandler<any> {
   return (request, response) =>
     Effect.gen(function* () {
-      const webRequest = yield* nodeRequestToWebRequestEffect(request, options);
-      const webResponse = yield* invokeStartRequestHandlerEffect(handler, webRequest);
-      yield* writeNodeExchangeResponseEffect(request, response, webResponse);
+      const webRequest = yield* tryNodeRequestToWebRequest(request, options);
+      const webResponse = yield* invokeStartRequestHandler(handler, webRequest);
+      yield* writeNodeExchangeResponse(request, response, webResponse);
       return webResponse;
     });
 }
@@ -190,7 +190,7 @@ export function createNodeServerHandler<
     };
 
     try {
-      const fiber = forkStartHostEffect(
+      const fiber = forkStartHost(
         effectHandler(request, response).pipe(
           Effect.asVoid,
           Effect.catchCause((cause) =>

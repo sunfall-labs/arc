@@ -1,4 +1,4 @@
-import type { ActionOutboxEntry } from "@sunfall/arc-core";
+import type { Action } from "@sunfall/arc-core";
 import { Option, Schema } from "effect";
 import * as Cookies from "effect/http/Cookies";
 
@@ -30,7 +30,7 @@ export interface StartPendingSubmission {
 
 /** The `Set-Cookie`-shaped string `document.cookie` takes for `pending`. */
 export const startActionOutboxCookie = (
-  pending: ReadonlyArray<Pick<ActionOutboxEntry, "action" | "id">>,
+  pending: ReadonlyArray<Pick<Action.OutboxEntry, "action" | "id">>,
   secure: boolean,
 ): string => {
   const entries = pending

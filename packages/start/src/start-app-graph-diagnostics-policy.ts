@@ -71,7 +71,7 @@ const shouldReportUnknownRoutePreloadResources = (
   entry.preloadResources.status === "unknown";
 
 /** Validates resource preload declarations against diagnostics policy. */
-export const validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect = (
+export const validateStartAppGraphRoutePreloadResourcesDiagnostics = (
   diagnostics: StartAppGraphDiagnostics,
   policy: StartAppGraphRoutePreloadResourcesPolicy = {},
 ): Effect.Effect<void, StartAppGraphUnknownRoutePreloadResources> => {
@@ -182,7 +182,7 @@ export const enforceStartAppGraphDiagnosticsPolicy = (
 };
 
 /** Effect validation that preserves grouped diagnostics policy violations. */
-export const validateStartAppGraphDiagnosticsPolicyExceptionEffect = (
+export const validateStartAppGraphDiagnosticsPolicyException = (
   diagnostics: StartAppGraphDiagnostics,
   policy: StartAppGraphDiagnosticsPolicy | false | null | undefined,
 ): Effect.Effect<
@@ -196,7 +196,7 @@ export const validateStartAppGraphDiagnosticsPolicyExceptionEffect = (
 };
 
 /** Validates collection preload declarations against diagnostics policy. */
-export const validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect = (
+export const validateStartAppGraphRoutePreloadCollectionsDiagnostics = (
   diagnostics: StartAppGraphDiagnostics,
   policy: StartAppGraphRoutePreloadCollectionsPolicy = {},
 ): Effect.Effect<void, StartAppGraphUnknownRoutePreloadCollections> => {
@@ -213,7 +213,7 @@ export const validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect = (
 };
 
 /** Validates diagnostics policy and fails with the first typed policy error. */
-export const validateStartAppGraphDiagnosticsPolicyEffect = (
+export const validateStartAppGraphDiagnosticsPolicy = (
   diagnostics: StartAppGraphDiagnostics,
   policy: StartAppGraphDiagnosticsPolicy = {},
 ): Effect.Effect<void, StartAppGraphDiagnosticsPolicyError> =>

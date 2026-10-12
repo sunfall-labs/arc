@@ -7,7 +7,7 @@ const Projects = Collection.define({
   output: ProjectSchema,
   getKey: (project) => project.id,
   sync: {
-    load: listProjects, // Server.fn<void, ReadonlyArray<Project>>
+    load: listProjects, // Server.Fn<void, ReadonlyArray<Project>>
   },
 });
 // #endregion

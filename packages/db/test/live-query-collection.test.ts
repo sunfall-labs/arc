@@ -9,10 +9,10 @@ import {
   ReadonlyCollectionMutation,
 } from "@sunfall/arc-db";
 import {
-  collectCollectionsEffect,
-  dehydrateCollectionsEffect,
-  subscribeCollectionEventsEffect,
-  validateCollectionsHydrationEffect,
+  collectCollections,
+  dehydrateCollections,
+  subscribeCollectionEvents,
+  validateCollectionsHydration,
 } from "@sunfall/arc-db/internal";
 import { Cause, Deferred, Effect, Exit, Fiber, Option, PubSub } from "effect";
 import type { KeyValueStore } from "effect/persistence";
@@ -895,7 +895,7 @@ describe("Collection.liveQuery", () => {
         });
 
         const snapshot = yield* ActiveProjectCards.snapshot();
-        const payload = yield* dehydrateCollectionsEffect([ActiveProjectCards]);
+        const payload = yield* dehydrateCollections([ActiveProjectCards]);
 
         expect(snapshot.rows.map((row) => row.key)).toEqual(["atlas"]);
         expect(payload.collections).toHaveLength(1);
@@ -972,10 +972,10 @@ describe("Collection.liveQuery", () => {
           const firstSnapshot = yield* firstRuntime.provide(ActiveProjectCards.snapshot());
           const secondSnapshot = yield* secondRuntime.provide(ActiveProjectCards.snapshot());
           const firstPayload = yield* firstRuntime.provide(
-            dehydrateCollectionsEffect([ActiveProjectCards]),
+            dehydrateCollections([ActiveProjectCards]),
           );
           const secondPayload = yield* secondRuntime.provide(
-            dehydrateCollectionsEffect([ActiveProjectCards]),
+            dehydrateCollections([ActiveProjectCards]),
           );
 
           yield* firstRuntime.provide(ActiveProjectCards.persist({ key: firstKey }));
@@ -1228,7 +1228,7 @@ describe("Collection.liveQuery", () => {
         });
         markStoreExplicitCollectionSnapshotDefinition(Projects);
 
-        const failure = yield* Effect.flip(dehydrateCollectionsEffect([Projects]));
+        const failure = yield* Effect.flip(dehydrateCollections([Projects]));
 
         expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
         expect(failure).toMatchObject({
@@ -1318,7 +1318,7 @@ describe("Collection.liveQuery", () => {
                   progress: project.progress,
                 })),
           });
-          const subscription = yield* subscribeCollectionEventsEffect();
+          const subscription = yield* subscribeCollectionEvents();
 
           yield* ActiveProjectCards.persist({ key }).pipe(Effect.provide(storage.layer));
 
@@ -1875,12 +1875,12 @@ describe("Collection.liveQuery", () => {
               })),
         });
 
-        const collected = yield* collectCollectionsEffect(ActiveProjectCards.preload());
-        const payload = yield* dehydrateCollectionsEffect(collected.definitions);
+        const collected = yield* collectCollections(ActiveProjectCards.preload());
+        const payload = yield* dehydrateCollections(collected.definitions);
 
         expect(collected.definitions.map((definition) => definition.name)).toEqual([Projects.name]);
         expect(payload.collections.map((snapshot) => snapshot.name)).toEqual([Projects.name]);
-        yield* validateCollectionsHydrationEffect(collected.definitions, payload);
+        yield* validateCollectionsHydration(collected.definitions, payload);
       }),
     ));
 
@@ -1903,7 +1903,7 @@ describe("Collection.liveQuery", () => {
                 progress: project.progress,
               })),
           });
-          const subscription = yield* subscribeCollectionEventsEffect();
+          const subscription = yield* subscribeCollectionEvents();
 
           const failure = yield* Effect.flip(ActiveProjectCards.applyChanges([]));
           const event = yield* PubSub.take(subscription).pipe(Effect.timeoutOption("20 millis"));
@@ -1939,7 +1939,7 @@ describe("Collection.liveQuery", () => {
                 progress: project.progress,
               })),
           });
-          const subscription = yield* subscribeCollectionEventsEffect();
+          const subscription = yield* subscribeCollectionEvents();
 
           const failure = yield* Effect.flip(
             ActiveProjectCards.applyChanges([

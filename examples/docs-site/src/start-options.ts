@@ -25,7 +25,6 @@ export const docsSiteStartOptions = {
     outputFile: "src/routeTree.gen.ts",
   },
   prerender: {
-    enabled: true,
     autoSubfolderIndex: true,
     autoStaticPathsDiscovery: true,
     crawlLinks: docsSiteBasePath === "/",

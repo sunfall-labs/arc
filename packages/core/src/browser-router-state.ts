@@ -10,7 +10,7 @@ export type AnyBrowserRoute = Route.Definition<string, unknown, unknown, any>;
  * route component load failures.
  */
 export type BrowserRouterError<Routes extends readonly AnyBrowserRoute[]> =
-  | Route.NavigationError<Routes[number]>
+  | Route.NavigationPlanError<Routes[number]>
   | RouteLazyComponentFailed<unknown>;
 
 /**

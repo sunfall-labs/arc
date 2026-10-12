@@ -35,7 +35,7 @@ const transportBodyReadError = (
  * one-shot read and protocol-failure mapping shared by every Start JSON
  * request path.
  */
-export const readStartTransportJsonBodyEffect = (
+export const readStartTransportJsonBody = (
   body: StartTransportJsonBodySource,
   message: string,
 ): Effect.Effect<unknown, ServerRpcProtocolError> =>
@@ -50,7 +50,7 @@ export const readStartTransportJsonBodyEffect = (
  * This is the only Start action path that should call the host `formData()`
  * reader directly; callers receive typed protocol failures instead.
  */
-export const readStartTransportFormDataBodyEffect = (
+export const readStartTransportFormDataBody = (
   body: StartTransportFormDataBodySource,
   message: string,
 ): Effect.Effect<FormData, ServerRpcProtocolError> =>
@@ -66,7 +66,7 @@ export const readStartTransportFormDataBodyEffect = (
  * stream/body failures become typed `ServerTransportError` values before JSON
  * decoding begins.
  */
-export const readStartTransportResponseTextEffect = (
+export const readStartTransportResponseText = (
   response: StartTransportTextBodySource,
   message: string,
 ): Effect.Effect<string, ServerTransportError> =>

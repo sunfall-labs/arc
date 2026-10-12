@@ -6,6 +6,48 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### One Name, One Form (Breaking)
+
+- Every public type has one name. Package roots export namespaces plus the
+  values with no namespace home (error classes, Type IDs, guards, services,
+  runtime helpers); the flat duplicates of namespace members are gone
+  (`ActionDefinition` is only `Action.Definition`, `ResourceRef` only
+  `Resource.Ref`, `RouteMatch` / `RouteContext` only `Route.Match` /
+  `Route.Context`, `ServerClient` only `Server.Client`). Prefixed types that
+  had no namespace home moved in (`ActionResult.*`, `Action.Options`,
+  `Form.Options`, `Resource.Family`, `Route.View`, `Signal.Options`,
+  `Timeline.Entry`, `App.Definition`, `StartAction.FormOptions`,
+  `SolidDb.CollectionHandle`, ...). Cross-package plumbing types moved to
+  `@sunfall/arc-core/internal`. Public root exports: core 295 to 118, start
+  47 to 41, solid-db 5 to 1.
+- Identical types merged: `RouteErrorSchema` into `Resource.ErrorSchema`,
+  `ActionSubmissionConcurrency` into `Action.Concurrency`, and
+  `ProgramSubscriptionError` / `ProgramSubscriptionRequirements` into
+  `EffectInputError` / `EffectInputRequirements`. `Route.PreloadError` /
+  `Route.NavigationError` are renamed `Route.PreloadPlanError` /
+  `Route.NavigationPlanError`, so they no longer read like the
+  `RoutePreloadError` / `RouteNavigationError` classes.
+- One form per call: `form.validate()` (not `Form.validate(form)`), the
+  validator's `errors.field/fields/form` (not `Form.error` /
+  `Form.fieldError`), `ActionResult.validation(...)` (not `fields` /
+  `fieldError` / `formError`), `ActionResult.fromValidation(form.validate())`
+  (not `validateForm` / `fromValidationEffect`), `query.from(...)` in the
+  factory (not `Query.from`), `Route.href` / `Route.match` (not
+  `route.build` / `route.match`), `Server.implement(Server.contract(...))`
+  (not `Server.fn` / `Server.stub`), `Server.mockLayer` (not `mockClient` /
+  `provideMocks`), `Server.functions().get` (not `Server.get`),
+  `capability.layer` (not `mock` / `provide`), and `signal.update(f)` (not
+  `signal.set(f)`; `set` takes a value).
+- One spelling per option: `StartAction.form(action, { action })` is the only
+  way to set the form URL; a prerender page sets `outputPath` and
+  `prerender: false` directly (`StartPrerenderPageOptions` is gone) and the
+  prerender options object has no `enabled` flag (`false` disables); cookie
+  `sameSite` is lowercase only.
+- No exported name ends in `Effect`
+  (`generateValidatedFileRouteManifestEffect` is
+  `generateValidatedFileRouteManifest`, and so on); where a throwing twin
+  existed it is suffixed `Sync`.
+
 ### Every State Change Has A Name (Breaking)
 
 - Signals change only inside named transitions, so the Timeline reads like a

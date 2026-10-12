@@ -1,19 +1,13 @@
 import { Cause, Data, Deferred, Effect, Exit, Fiber, Layer, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import {
-  EffectInputPromiseRejected,
-  Server,
-  ServerClient,
-  ServerTransportError,
-  Route,
-} from "@sunfall/arc-core";
+import { EffectInputPromiseRejected, Server, ServerTransportError, Route } from "@sunfall/arc-core";
 import type { StartFetch } from "../src/index.js";
 import { makeRpcClientLayer } from "../src/start-rpc-client.js";
 import type { ServerRpcClientOptions } from "../src/start-fetch.js";
 import { makeStartServerApp } from "../src/start-server-app.js";
 import {
-  createServerActionResponseEffect,
-  createServerRpcResponseEffect,
+  createServerActionResponse,
+  createServerRpcResponse,
 } from "../src/start-request-endpoints.js";
 import {
   serverActionPath,
@@ -26,16 +20,16 @@ import {
   startTransportProtocolVersion,
 } from "../src/rpc.js";
 import {
-  encodeStartClientTransportRequestBodyEffect,
-  executeStartClientTransportEffect,
+  encodeStartClientTransportRequestBody,
+  executeStartClientTransport,
 } from "../src/start-client-transport.js";
-import { resolveStartFetchEffect } from "../src/start-fetch.js";
+import { resolveStartFetch } from "../src/start-fetch.js";
 import { parseRpcResponse, parseStartActionResponse } from "../src/start-transport-protocol.js";
 
-const makeRpcClient = (options: ServerRpcClientOptions<any, any, never> = {}): ServerClient =>
+const makeRpcClient = (options: ServerRpcClientOptions<any, any, never> = {}): Server.Client =>
   Effect.runSync(
     Effect.gen(function* () {
-      return yield* ServerClient;
+      return yield* Server.Client;
     }).pipe(Effect.provide(makeRpcClientLayer(options as never))),
   );
 
@@ -86,7 +80,7 @@ describe("Start RPC transport", () => {
     return Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const response = yield* createServerRpcResponseEffect(
+          const response = yield* createServerRpcResponse(
             app,
             new Request(`https://example.com${serverRpcPath}`, {
               method: "POST",
@@ -130,7 +124,7 @@ describe("Start RPC transport", () => {
     return Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const response = yield* createServerRpcResponseEffect(
+          const response = yield* createServerRpcResponse(
             app,
             new Request(`https://example.com${serverRpcPath}`, {
               method: "POST",
@@ -161,7 +155,7 @@ describe("Start RPC transport", () => {
     return Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const response = yield* createServerRpcResponseEffect(
+          const response = yield* createServerRpcResponse(
             app,
             new Request(`https://example.com${serverRpcPath}`, {
               method: "GET",
@@ -189,7 +183,7 @@ describe("Start RPC transport", () => {
     return Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const response = yield* createServerActionResponseEffect(
+          const response = yield* createServerActionResponse(
             app,
             new Request(`https://example.com${serverActionPath}`, {
               method: "POST",
@@ -253,7 +247,7 @@ describe("Start RPC transport", () => {
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const rpcRequestResponse = yield* createServerRpcResponseEffect(
+          const rpcRequestResponse = yield* createServerRpcResponse(
             app,
             new Request(
               `https://example.com${serverRpcPath}`,
@@ -267,7 +261,7 @@ describe("Start RPC transport", () => {
               }),
             ),
           );
-          const actionRequestResponse = yield* createServerActionResponseEffect(
+          const actionRequestResponse = yield* createServerActionResponse(
             app,
             new Request(
               `https://example.com${serverActionPath}`,
@@ -338,7 +332,7 @@ describe("Start RPC transport", () => {
     return Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const response = yield* createServerActionResponseEffect(
+          const response = yield* createServerActionResponse(
             app,
             new Request(`https://example.com${serverActionPath}`, {
               method: "POST",
@@ -368,7 +362,7 @@ describe("Start RPC transport", () => {
     return Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const response = yield* createServerActionResponseEffect(
+          const response = yield* createServerActionResponse(
             app,
             new Request(`https://example.com${serverActionPath}`, {
               method: "POST",
@@ -409,7 +403,7 @@ describe("Start RPC transport", () => {
         }),
       );
     };
-    const runtime = Layer.succeed(ServerClient)(
+    const runtime = Layer.succeed(Server.Client)(
       makeRpcClient({
         fetch: fetcher,
         headers: { [startRequestIdHeader]: "req-client" },
@@ -450,14 +444,14 @@ describe("Start RPC transport", () => {
         const echo = Server.client(Echo);
         const headerCause = new Error("headers failed");
         const fetchCause = new Error("fetcher failed");
-        const headerRuntime = Layer.succeed(ServerClient)(
+        const headerRuntime = Layer.succeed(Server.Client)(
           makeRpcClient({
             headers: () => {
               throw headerCause;
             },
           }),
         );
-        const fetchRuntime = Layer.succeed(ServerClient)(
+        const fetchRuntime = Layer.succeed(Server.Client)(
           makeRpcClient({
             fetch: () => {
               throw fetchCause;
@@ -500,7 +494,7 @@ describe("Start RPC transport", () => {
           output: Schema.String,
         });
         const echo = Server.client(Echo);
-        const fetchRuntime = Layer.succeed(ServerClient)(
+        const fetchRuntime = Layer.succeed(Server.Client)(
           makeRpcClient({
             fetch: (() =>
               Effect.runPromise(
@@ -539,7 +533,7 @@ describe("Start RPC transport", () => {
           output: Schema.String,
         });
         const echo = Server.client(Echo);
-        const headerRuntime = Layer.succeed(ServerClient)(
+        const headerRuntime = Layer.succeed(Server.Client)(
           makeRpcClient({
             headers: (() => Promise.resolve({ authorization: "Bearer token" })) as never,
           }),
@@ -573,7 +567,7 @@ describe("Start RPC transport", () => {
             throw new Error("then getter failed");
           },
         });
-        const headerRuntime = Layer.succeed(ServerClient)(
+        const headerRuntime = Layer.succeed(Server.Client)(
           makeRpcClient({
             headers: () => throwingThenHeaders as never,
           }),
@@ -627,7 +621,7 @@ describe("Start RPC transport", () => {
           );
         }) as typeof globalThis.fetch;
 
-        const runtime = Layer.succeed(ServerClient)(
+        const runtime = Layer.succeed(Server.Client)(
           makeRpcClient({
             endpoint: `https://example.com${serverRpcPath}`,
           }),
@@ -699,7 +693,7 @@ describe("Start RPC transport", () => {
           return Effect.runPromise(Effect.succeed(new Response("ok")));
         }) as typeof globalThis.fetch;
 
-        const fetcher = yield* resolveStartFetchEffect(
+        const fetcher = yield* resolveStartFetch(
           undefined,
           "No fetch implementation is available for server functions.",
         );
@@ -735,10 +729,10 @@ describe("Start RPC transport", () => {
         const circular: Record<string, unknown> = {};
         circular.self = circular;
         const encodeExit = yield* Effect.exit(
-          encodeStartClientTransportRequestBodyEffect("rpc", circular),
+          encodeStartClientTransportRequestBody("rpc", circular),
         );
         const rpcDefectExit = yield* Effect.exit(
-          executeStartClientTransportEffect({
+          executeStartClientTransport({
             kind: "rpc",
             endpoint: "https://example.com/__sunfall-arc/rpc",
             request: {
@@ -762,7 +756,7 @@ describe("Start RPC transport", () => {
           }),
         );
         const rpcSuccessBadStatusExit = yield* Effect.exit(
-          executeStartClientTransportEffect({
+          executeStartClientTransport({
             kind: "rpc",
             endpoint: "https://example.com/__sunfall-arc/rpc",
             request: {
@@ -786,7 +780,7 @@ describe("Start RPC transport", () => {
           }),
         );
         const actionDefectExit = yield* Effect.exit(
-          executeStartClientTransportEffect({
+          executeStartClientTransport({
             kind: "action",
             endpoint: "https://example.com/__sunfall-arc/action",
             request: {
@@ -860,7 +854,7 @@ describe("Start RPC transport", () => {
       output: Schema.String,
     });
     const echo = Server.client(Echo);
-    const runtime = Layer.succeed(ServerClient)(
+    const runtime = Layer.succeed(Server.Client)(
       makeRpcClient({
         fetch: () =>
           Effect.succeed(

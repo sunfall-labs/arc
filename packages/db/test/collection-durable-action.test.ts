@@ -5,7 +5,6 @@ import {
   makeRuntime,
   runWithRuntime,
   ServerTransportError,
-  type ActionTransportResponse,
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
@@ -36,7 +35,7 @@ const fakeServer = () => {
           return Effect.succeed({
             exit: Exit.succeed(input),
             apply: () => Effect.void,
-          } as ActionTransportResponse<any, any>);
+          } as Action.TransportResponse<any, any>);
         }),
       ),
   });

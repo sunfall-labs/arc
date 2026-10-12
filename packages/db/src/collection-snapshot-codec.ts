@@ -264,7 +264,7 @@ export const collectionRowValueSchema = (output: unknown): Schema.Codec<unknown,
   return element === undefined ? CollectionPlainValueSchema : Schema.make(element);
 };
 
-export const decodeCollectionOutputValuesEffect = <A extends object>(
+export const decodeCollectionOutputValues = <A extends object>(
   schema: unknown,
   values: ReadonlyArray<A>,
   operation: CollectionSnapshotCodecOperation,
@@ -323,7 +323,7 @@ const decodeCollectionDefinitionValuesEffect = <A extends object, K extends Coll
   operation: CollectionSnapshotCodecOperation,
   path: string,
 ): Effect.Effect<ReadonlyArray<A>, CollectionSnapshotCodecError> =>
-  decodeCollectionOutputValuesEffect(definition.options.output, values, operation, path);
+  decodeCollectionOutputValues(definition.options.output, values, operation, path);
 
 const describeCollectionKey = (key: CollectionKey): string =>
   typeof key === "string" ? JSON.stringify(key) : String(key);
@@ -391,10 +391,7 @@ const validateCollectionPlainSnapshotValueEffect = (
           }),
   });
 
-export const validateCollectionSnapshotDefinitionEffect = <
-  A extends object,
-  K extends CollectionKey,
->(
+export const validateCollectionSnapshotDefinition = <A extends object, K extends CollectionKey>(
   definition: CollectionSnapshotDefinition<A, K>,
   value: CollectionSnapshot<A, K>,
   operation: CollectionSnapshotCodecOperation = "hydrate",
@@ -448,7 +445,7 @@ export const validateCollectionSnapshotDefinitionEffect = <
     return { ...snapshot, rows };
   });
 
-export const validateCollectionHydrationPayload = (
+export const validateCollectionHydrationPayloadSync = (
   value: unknown,
   operation: CollectionSnapshotCodecOperation = "hydrate",
 ): CollectionHydrationPayload => {
@@ -460,12 +457,12 @@ export const validateCollectionHydrationPayload = (
   };
 };
 
-export const validateCollectionHydrationPayloadEffect = (
+export const validateCollectionHydrationPayload = (
   value: unknown,
   operation: CollectionSnapshotCodecOperation = "hydrate",
 ): Effect.Effect<CollectionHydrationPayload, CollectionSnapshotCodecError> =>
   Effect.try({
-    try: () => validateCollectionHydrationPayload(value, operation),
+    try: () => validateCollectionHydrationPayloadSync(value, operation),
     catch: catchSnapshotCodecError(operation, "$"),
   });
 
@@ -530,7 +527,7 @@ const applyValidatedCollectionSnapshotState = <A extends object, K extends Colle
   return snapshot;
 };
 
-export const hydrateCollectionSnapshotStateEffect = <A extends object, K extends CollectionKey, E>(
+export const hydrateCollectionSnapshotState = <A extends object, K extends CollectionKey, E>(
   state: CollectionState<A, K, E>,
   value: CollectionSnapshot<A, K>,
   options: CollectionHydrateOptions,

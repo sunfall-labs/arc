@@ -142,7 +142,7 @@ describe("Sunfall Arc client render", () => {
     for (let round = 0; round < 5; round++) {
       Signal.batch(
         () =>
-          rows.set((current) =>
+          rows.update((current) =>
             current.map((row, index) =>
               index % 10 === 0 ? { ...row, label: `${row.label} !${round}` } : row,
             ),

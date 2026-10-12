@@ -60,7 +60,7 @@ export const startCollectionArray = (
 ): ReadonlyArray<Collection.Any> => (collections ? Array.from(collections) : []);
 
 /** De-duplicate Start collections, failing when a stable name maps to more than one definition. */
-export const uniqueStartCollectionsEffect = (
+export const uniqueStartCollections = (
   collections: Iterable<Collection.Any>,
   source: StartCollectionDuplicateName["source"] = "collections",
 ): Effect.Effect<ReadonlyArray<Collection.Any>, StartCollectionDuplicateName> =>
@@ -82,12 +82,10 @@ export const uniqueStartCollectionsEffect = (
   });
 
 /** Validate direct collection resolution inputs before resolving names. */
-export const validateStartCollectionResolutionOptionsEffect = (
+export const validateStartCollectionResolutionOptions = (
   options: StartCollectionResolutionOptions = {},
 ): Effect.Effect<void, StartCollectionDuplicateName> =>
-  Effect.asVoid(
-    uniqueStartCollectionsEffect(startCollectionArray(options.collections), "collections"),
-  );
+  Effect.asVoid(uniqueStartCollections(startCollectionArray(options.collections), "collections"));
 
 const isCollectionLookup = (
   value: unknown,
@@ -133,13 +131,13 @@ export const makeStartCollectionResolution = (
 };
 
 /** Resolve several collection names inside Effect, failing through the caller's typed error constructor. */
-export const resolveStartCollectionsEffect = <E>(
+export const resolveStartCollections = <E>(
   names: Iterable<string>,
   options: StartCollectionResolutionOptions,
   toFailure: (name: string) => E,
 ): Effect.Effect<ReadonlyArray<Collection.Any>, E> =>
   Effect.gen(function* () {
-    yield* validateStartCollectionResolutionOptionsEffect(options).pipe(
+    yield* validateStartCollectionResolutionOptions(options).pipe(
       Effect.mapError((cause) => toFailure(cause.name)),
     );
     const resolution = makeStartCollectionResolution(options);
@@ -151,7 +149,7 @@ export const resolveStartCollectionsEffect = <E>(
       }
       resolved.push(collection);
     }
-    return yield* uniqueStartCollectionsEffect(resolved, "route-preload").pipe(
+    return yield* uniqueStartCollections(resolved, "route-preload").pipe(
       Effect.mapError((cause) => toFailure(cause.name)),
     );
   });

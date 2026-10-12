@@ -21,7 +21,7 @@ const streamFinalizeExit = (
  * Runs a response-producing Effect in a manually-owned Scope and releases that
  * Scope when the response body closes, errors, or is cancelled.
  */
-export const responseWithScopeLifetimeEffect = <E, R>(
+export const responseWithScopeLifetime = <E, R>(
   effect: Effect.Effect<Response, E, R | Scope.Scope>,
   options: ResponseScopeLifetimeOptions = {},
 ): Effect.Effect<Response, E, Exclude<R, Scope.Scope>> =>

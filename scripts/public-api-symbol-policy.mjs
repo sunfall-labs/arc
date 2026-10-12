@@ -95,8 +95,6 @@ export const publicHoverDocGroups = [
         "ValidationError",
         "DataFileMode",
         "DataOptions",
-        "error",
-        "fieldError",
         "make",
       ],
     },
@@ -219,8 +217,6 @@ export const publicHoverDocGroups = [
       "ProgramHandlerMap",
       "ProgramSubscription",
       "ProgramSubscriptionInput",
-      "ProgramSubscriptionError",
-      "ProgramSubscriptionRequirements",
       "ProgramDefinition",
       "ProgramRuntimeError",
       "ProgramInstance",
@@ -329,7 +325,7 @@ export const publicHoverDocGroups = [
       "resourceUiRefAccessor",
       "resourceUiSameRef",
       "resourceUiPreloadFailureFor",
-      "resourceUiBindRuntimeEffect",
+      "resourceUiBindRuntime",
       "makeResourceUiBindingController",
       "makeResourceUiSuspensePreloadController",
     ],
@@ -474,7 +470,6 @@ export const publicHoverDocGroups = [
         "Aggregate",
         "Aggregates",
         "AggregateResult",
-        "from",
         "count",
         "sum",
         "avg",
@@ -628,7 +623,7 @@ export const publicHoverDocGroups = [
     declarations: [
       "StartAppGraphUnknownRoutePreloadResources",
       "StartAppGraphUnknownRoutePreloadCollections",
-      "validateStartAppGraphDiagnosticsPolicyExceptionEffect",
+      "validateStartAppGraphDiagnosticsPolicyException",
     ],
   },
   {
@@ -638,7 +633,6 @@ export const publicHoverDocGroups = [
   {
     file: "packages/start/src/start-prerender.ts",
     declarations: [
-      "StartPrerenderPageOptions",
       "StartPrerenderPage",
       "StartPrerenderPageInput",
       "StartPrerenderPageContext",

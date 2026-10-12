@@ -16,7 +16,7 @@ import {
 } from "effect";
 import { KeyValueStore } from "effect/persistence";
 import type { ActionDefinition } from "./action.js";
-import { applyActionOptimisticEffect, executeActionEffect } from "./action-execution-workflow.js";
+import { applyActionOptimistic, executeAction } from "./action-execution-workflow.js";
 import {
   makeActionOptimisticTransactionRuntime,
   type ActionOptimisticTransactionRuntime,
@@ -267,7 +267,7 @@ export const makeActionOutboxLayer = (
           commit(live.record.action, "replay");
 
           const exit = yield* Effect.exit(
-            executeActionEffect({
+            executeAction({
               definition: live.definition,
               input: live.input,
               transaction: live.transaction,
@@ -381,7 +381,7 @@ export const makeActionOutboxLayer = (
           // fully pending (patch applied, record stored) or not at all.
           yield* Effect.uninterruptible(
             Effect.gen(function* () {
-              yield* applyActionOptimisticEffect(definition, input, live.transaction, "queue");
+              yield* applyActionOptimistic(definition, input, live.transaction, "queue");
               yield* mutateStored((submissions) => [...submissions, record]).pipe(
                 Effect.catch((error) =>
                   Effect.andThen(live.transaction.rollback, Effect.die(error)),
@@ -487,7 +487,7 @@ export const makeActionOutboxLayer = (
             const patched = yield* Effect.exit(
               settled.has(record.id)
                 ? Effect.void
-                : applyActionOptimisticEffect(definition, input, transaction, "restore"),
+                : applyActionOptimistic(definition, input, transaction, "restore"),
             );
             if (Exit.isFailure(patched)) {
               yield* transaction.rollback;
