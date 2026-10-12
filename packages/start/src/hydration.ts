@@ -1,5 +1,4 @@
 import { type EffectInputCallbackError, Resource, Route } from "@sunfall/arc-core";
-import { validateResourceHydrationPayload } from "@sunfall/arc-core/internal";
 import { Cause, Data, Effect, Exit, type Schema } from "effect";
 import {
   hydrationScriptId,
@@ -514,7 +513,7 @@ export const hydrateStartPayload = (
   options: HydrateStartPayloadEffectOptions = {},
 ): Effect.Effect<void, StartHydrationCodecError> =>
   Effect.gen(function* () {
-    yield* validateResourceHydrationPayload(payload);
+    // `Resource.hydrate` validates the payload's shape before applying it.
     yield* Resource.hydrate(payload, options);
     if (payload.routeFailure !== undefined) {
       yield* Route.hydratePreloadFailure(payload.routeFailure);

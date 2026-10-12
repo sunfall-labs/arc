@@ -6,6 +6,18 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Hydration Payloads Are Copied Once
+
+- Validating a Resource hydration payload checks its shape and no longer
+  deep-copies every snapshot's input and value. A server render copied a
+  1,000-row Resource four times on its way to JSON (schema encode, a clone,
+  and two validations), and the browser validated the parsed payload twice
+  (once discarded) before decoding it. Now the server's only copy is the
+  schema encode (or a clone for a family without schemas, so a payload never
+  aliases Resource state), and the browser validates once and decodes once.
+- Server CPU per render of the `benchmarks/compare` list (1,000 rows, in
+  process, 60 batches): p25 6.2 ms to 5.3 ms.
+
 ### Lower Fixed Cost Per Request
 
 - A Resource Store creates its event `PubSub` for its first subscriber
@@ -174,7 +186,7 @@ Found by building `examples/tracker`, a real issue tracker on SQLite.
   no-JavaScript post: visible fields merged over the default input
   `StartAction.form(action, { input })` encoded. It used to drop the
   defaults, so an enhanced form missed fields (an `id`) its no-JS post had.
-||||||| parent of 50ba169 (Make RouterLink cheap on the server and before first intent)
+  ||||||| parent of 50ba169 (Make RouterLink cheap on the server and before first intent)
 
 ### Rejected Path Params Are Not Found (Breaking)
 
