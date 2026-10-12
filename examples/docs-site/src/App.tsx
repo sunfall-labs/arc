@@ -348,13 +348,7 @@ const DocsRouteOutlet = Component.define("DocsRouteOutlet", function* () {
         case "Pending":
           return <LoadingView />;
         case "Failure":
-          // A URL whose params decode to no page (an unknown docs slug) fails
-          // before any route matches; it shows the same page as an unmatched URL.
-          return current.match === undefined && current.error?._tag === "RouteNavigationError" ? (
-            <NotFoundView />
-          ) : (
-            <FailureView error={current.error} />
-          );
+          return <FailureView error={current.error} />;
         case "NotFound":
           return <NotFoundView />;
         case "Ready":
@@ -438,15 +432,6 @@ function DocsShell(props: {
   };
   const hasSidebar = () => section() === "docs" || section() === "cookbook";
   const currentPath = () => match()?.route.path;
-  // Every site route preloads the recipe index, so it is loaded once any
-  // route is Ready. A not-found page preloads nothing: leaving it, the links
-  // wait for the navigation to settle, because static navigation hydrates the
-  // index from the target page as part of that preload.
-  let recipeIndexLoaded = false;
-  const showRecipeLinks = (): boolean => {
-    recipeIndexLoaded ||= router.state()._tag === "Ready";
-    return recipeIndexLoaded && section() !== "none";
-  };
 
   onSettled(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -602,7 +587,8 @@ function DocsShell(props: {
                 Cookbook
               </RouterLink>
             </p>
-            {!showRecipeLinks() ? null : (
+            {/* Every site route preloads the recipe index; a 404 has no route to preload it. */}
+            {section() === "none" ? null : (
               <RecipeLinks
                 activeSlug={currentPath() === RecipeRoute.path ? activeSlug() : undefined}
               />

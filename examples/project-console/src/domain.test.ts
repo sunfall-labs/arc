@@ -42,7 +42,7 @@ describe("project console domain", () => {
 
     expect(match?.params.id).toBe(makeProjectId("atlas"));
     expect(match?.search.tab).toBe("settings");
-    expect(() => Route.match([ProjectRoute], "/projects/Atlas")).toThrow();
+    expect(Route.match([ProjectRoute], "/projects/Atlas")).toBeUndefined();
   });
 
   it("normalizes ProjectError class instances and plain decoded objects", () => {

@@ -718,6 +718,22 @@ describe("devtools invalidation plans", () => {
     });
   });
 
+  it("reports a URL whose params the route schema rejects as a not-found route plan", async () => {
+    const UserRoute = Route.define("/users/:id", {
+      params: Schema.Struct({ id: Schema.FiniteFromString }),
+    });
+    const plan = describeRoutePlan(
+      await Effect.runPromise(Route.planNavigation([UserRoute] as const, "/users/ada")),
+    );
+
+    expect(plan).toMatchObject({ _tag: "NotFound", href: "/users/ada" });
+    expect(
+      Devtools.describeSummary({
+        snapshot: { resources: [], actions: [], invalidations: [], routePlans: [plan] },
+      }).overview,
+    ).toMatchObject({ routePlanCount: 1, notFoundRoutePlanCount: 1 });
+  });
+
   it("combines runtime plans into a panel summary", async () => {
     const UserTag = Resource.tag<{ readonly id: string }>("User.summary-devtools", {
       key: ({ id }) => id,

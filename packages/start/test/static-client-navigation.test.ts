@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { Resource, createBrowserRouterHostController, makeRuntime, Route } from "@sunfall/arc-core";
 import { eraseRuntime } from "@sunfall/arc-core/internal";
-import { Cause, Deferred, Effect, Exit, Fiber } from "effect";
+import { Cause, Deferred, Effect, Exit, Fiber, Schema } from "effect";
 import { Window } from "happy-dom";
 import { describe, expect, it, vi } from "vitest";
 import { createHydrationScriptSync } from "../src/hydration.js";
@@ -163,6 +163,90 @@ describe("Start static client navigation", () => {
           expect(String(fetch.mock.calls[0]?.[0])).toBe("https://docs.test/app/projects/1");
           expect(window.location.pathname).toBe("/app/projects/1");
           expect(project).toEqual({ id: "1", name: "Hydrated project" });
+        }),
+      ),
+    ));
+
+  it("publishes the target match only after its static document hydrated", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const ProjectById = Resource.define({
+            name: "Start.Static.Project.leave-not-found",
+            load: (
+              _id: string,
+            ): Effect.Effect<{ readonly id: string; readonly name: string }, Error> =>
+              Effect.fail(new Error("static host has no RPC loader")),
+          });
+          const ProjectRoute = Route.define("/projects/:id", {
+            params: Schema.Struct({ id: Schema.Literals(["1"]) }),
+            preloadResources: [ProjectById],
+            preload: ({ params }) => Resource.preload(ProjectById(params.id)),
+          });
+          const routes = [ProjectRoute] as const;
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+          const window = new Window({ url: "https://docs.test/app/projects/unknown" });
+          const ref = ProjectById("1");
+          const html = `<!doctype html><html><body>${createHydrationScriptSync({
+            resources: [
+              {
+                name: ref.family.options.name,
+                key: ref.key,
+                input: "1",
+                state: {
+                  _tag: "Success",
+                  waiting: false,
+                  value: { id: "1", name: "Hydrated project" },
+                  timestamp: 1,
+                },
+              },
+            ],
+          })}</body></html>`;
+          let respond: (response: Response) => void = () => undefined;
+          const fetch = vi.fn(
+            (_input: RequestInfo | URL, _init?: RequestInit) =>
+              new Promise<Response>((resolve) => {
+                respond = resolve;
+              }),
+          );
+          const history = makeStartStaticHistoryAdapter({
+            runtime,
+            routes,
+            basePath: "/app/",
+            getWindow: () => asHistoryWindow(window),
+            fetch,
+            parseDocument: parseHtmlDocument,
+          });
+          // Params the route schema rejects identify no page.
+          const router = createBrowserRouterHostController(routes, {
+            history,
+            runtime: eraseRuntime(runtime),
+          });
+          yield* Effect.addFinalizer(() => router.dispose());
+          expect(router.state.get()).toEqual({ _tag: "NotFound", href: "/projects/unknown" });
+
+          // What UI rendered for the published match would read at that moment.
+          const published: string[] = [];
+          const unsubscribe = router.state.subscribe(() => {
+            const state = router.state.get();
+            if (state._tag === "Pending" || state._tag === "Ready") {
+              const status = Effect.runSync(runtime.provide(Resource.status(ref)));
+              published.push(`${state._tag}:${status.result._tag}`);
+            }
+          });
+          yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
+
+          router.navigate(ProjectRoute, { params: { id: "1" } });
+          yield* Effect.promise(() => vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1)));
+          // While the host prepares the href, the router stays where it was.
+          expect(router.state.get()).toEqual({ _tag: "NotFound", href: "/projects/unknown" });
+
+          respond(new Response(html));
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(router.state.get()._tag).toBe("Ready")),
+          );
+          expect(published).toEqual(["Pending:Success", "Ready:Success"]);
         }),
       ),
     ));

@@ -609,6 +609,9 @@ describe("browser router kernel", () => {
             runtime: eraseRuntime(runtime),
           });
           yield* Effect.addFinalizer(() => router.dispose());
+          const states: string[] = [];
+          const unsubscribe = router.state.subscribe(() => states.push(router.state.get()._tag));
+          yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
 
           router.navigate(Project, { params: { id: "atlas" } });
           yield* Effect.promise(() =>
@@ -619,6 +622,8 @@ describe("browser router kernel", () => {
               }),
             ),
           );
+          // The match of a page the host does not have is never published.
+          expect(states).toEqual(["NotFound"]);
           yield* router.preload(Project, { params: { id: "curie" } });
           expect(preloads).toBe(0);
         }),

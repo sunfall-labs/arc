@@ -128,11 +128,13 @@ const isHrefNotFound = (prepared: void | HrefNotFound): prepared is HrefNotFound
 /**
  * Prepares the href, then preloads the route. Succeeds with `NotFound`
  * (skipping route preload) when the host preparation reports no page.
+ * `onPrepared` runs once the host has the page, before route preload.
  */
 const provideRouterPreloadEffect = <ER, R extends AnyBrowserRoute>(
   runtime: AnySunfallArcRuntime<ER>,
   match: Route.Match<R>,
   prepareHrefEffect: (href: string) => Effect.Effect<void | HrefNotFound, RouteNavigationError>,
+  onPrepared: Effect.Effect<void> = Effect.void,
 ): Effect.Effect<void | HrefNotFound, BrowserRouterError<readonly [R]> | ER> =>
   runtime.provide(
     Effect.scoped(
@@ -140,9 +142,13 @@ const provideRouterPreloadEffect = <ER, R extends AnyBrowserRoute>(
         Effect.flatMap((prepared) =>
           isHrefNotFound(prepared)
             ? Effect.succeed(prepared)
-            : Effect.all([Route.preload(match), Route.preloadComponent(match)], {
-                discard: true,
-              }),
+            : onPrepared.pipe(
+                Effect.andThen(
+                  Effect.all([Route.preload(match), Route.preloadComponent(match)], {
+                    discard: true,
+                  }),
+                ),
+              ),
         ),
       ),
     ),
@@ -308,11 +314,23 @@ export const createBrowserRouterKernel = <
 
     const scope = makeRuntimeUiScope(runtime);
     preloadScope = scope;
-    if (currentState._tag !== "Ready" || currentState.href !== href) {
-      setState({ _tag: "Pending", href, match: nextMatch });
-    }
+    // The target match is published (`Pending`) only once the host has
+    // prepared the href: until then the host may still answer that it has no
+    // page, and on a static host the target's route data is not hydrated yet,
+    // so UI rendered for the match would read data nothing can load. Without
+    // host preparation this runs synchronously, inside `fork`.
+    const enterPending = Effect.sync(() => {
+      if (
+        navigationId === navigation &&
+        (currentState._tag !== "Ready" || currentState.href !== href)
+      ) {
+        setState({ _tag: "Pending", href, match: nextMatch });
+      }
+    });
 
-    const fiber = scope.fork(provideRouterPreloadEffect(runtime, nextMatch, prepareHrefEffect));
+    const fiber = scope.fork(
+      provideRouterPreloadEffect(runtime, nextMatch, prepareHrefEffect, enterPending),
+    );
 
     void runtime.runFork(
       Effect.gen(function* () {
