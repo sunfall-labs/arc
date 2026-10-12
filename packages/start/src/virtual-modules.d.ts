@@ -80,8 +80,6 @@ declare module "virtual:sunfall-arc/routes" {
   export type RouteTree = typeof routes;
   /** Broad map type keyed by generated route id. */
   export type RouteById = typeof routeById;
-  /** One generated file route definition. */
-  export type FileRoute = RouteTree[number];
   /** Broad file route id union for virtual modules. */
   export type FileRouteId = keyof RouteById;
   /** Params mapped by route id. Written generated files narrow this per app. */

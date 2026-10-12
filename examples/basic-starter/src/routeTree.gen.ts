@@ -3,9 +3,20 @@
 
 import { Route } from "@sunfall/arc-core";
 
-import { Route as route_root } from "./routes/index.js";
+import { route as route_root } from "./routes/index.js";
 
 const route_root_path: "/" = route_root.path;
+
+for (const [route, path, file] of [
+  [route_root, "/", "src/routes/index.ts"],
+] as const) {
+  if ((route.path as string) !== path) {
+    throw new Error(
+      `${file} declares Route.define(${JSON.stringify(route.path)}), ` +
+        `but its file location maps to ${JSON.stringify(path)}.`,
+    );
+  }
+}
 
 export { route_root };
 
@@ -49,7 +60,7 @@ export const fileRouteModules = [
     routePath: "/",
     segments: [],
     params: [],
-    exportName: "Route",
+    exportName: "route",
   },
 ] as const;
 /** Parent, layout, error boundary, and metadata relationships for each generated route. */
@@ -66,7 +77,7 @@ export const fileRouteMetadata = [
       routePath: "/",
       segments: [],
       params: [],
-      exportName: "Route",
+      exportName: "route",
     },
     layouts: [],
     metadataModules: [],
@@ -77,8 +88,6 @@ export const fileRouteMetadata = [
 export type RouteTree = typeof routes;
 /** Map type keyed by generated route id. */
 export type RouteById = typeof routeById;
-/** Union of every generated route definition. */
-export type FileRoute = RouteTree[number];
 /** Union of generated route ids such as `route_projects_$id`. */
 export type FileRouteId = keyof RouteById;
 /** Params for each generated route id. */

@@ -924,8 +924,7 @@ A route's component is attached with `Route.withComponent(route, component)`,
 where it takes `Route.Props<typeof route>`, or with
 `Route.withComponent(route, component, (route) => props)`, which maps the
 route props to a feature component's own props (checked against them). It is
-the only way to attach one: route options (and `FileRoute.define` options) take
-no `component`. Routes compare by path, so `RouterLink`, `navigate`, and
+the only way to attach one: route options take no `component`. Routes compare by path, so `RouterLink`, `navigate`, and
 `Route.isMatch` given the route reach the copy `withComponent` returned.
 In the browser, Start's Vite plugin splits the component a `withComponent`
 call attaches into its own chunk when that call is its only use (an import
@@ -1045,13 +1044,13 @@ route-id/segment mismatches before the router sees them.
 The same manifest generates a typed route definition module. On Vite startup and
 build, Start writes `src/routeTree.gen.ts` by default, following the file-based
 routing convention of keeping generated route types in the project for editors,
-agents, and non-Vite tooling. Route files export a named `Route` built with
-`FileRoute.define(path)(options)`, which takes the same options as core
-`Route.define(path, options)`; static preload hints and preload work stay
-together, and the component is attached where the app builds its router:
+agents, and non-Vite tooling. Route files export a named `route` built with
+core `Route.define(path, options)`, the same constructor as anywhere else;
+static preload hints and preload work stay together, and the component is
+attached where the app builds its router:
 
 ```ts
-export const Route = FileRoute.define("/projects/:id")({
+export const route = Route.define("/projects/:id", {
   params: ProjectRouteParams,
   search: ProjectRouteSearch,
   preloadResources: [ProjectById],
@@ -1063,8 +1062,10 @@ export const Route = FileRoute.define("/projects/:id")({
 });
 ```
 
-The generated file imports those route modules, checks each imported route's
-literal `path` against the manifest, and then emits a `routes` tuple and a
+The generated file imports those route modules and checks each imported route's
+declared `path` against the path derived from its file: a literal-typed
+assignment makes a mismatch a type error, and a load-time assertion makes it a
+startup and prerender failure for builds that skip type checking. It then emits a `routes` tuple and a
 `routeById` map of the route definitions (hrefs come from
 `Route.href(routeById.route_projects_$id, ...)`, like any definition). The
 matching Vite virtual

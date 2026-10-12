@@ -98,23 +98,4 @@ export namespace Capability {
       provide: (effect, service) => Effect.provideService(effect, tag, service),
     };
   };
-
-  /** Builds a Layer that provides a concrete implementation for a capability. */
-  export const layer = <Identifier, Shape>(
-    capability: Capability<Identifier, Shape>,
-    service: Shape,
-  ): Layer.Layer<Identifier> => capability.layer(service);
-
-  /** Builds a test Layer for a capability implementation. */
-  export const mock = <Identifier, Shape>(
-    capability: Capability<Identifier, Shape>,
-    service: Shape,
-  ): Layer.Layer<Identifier> => capability.mock(service);
-
-  /** Provides a capability implementation directly to one Effect. */
-  export const provide = <Identifier, Shape, A, E, R>(
-    capability: Capability<Identifier, Shape>,
-    effect: Effect.Effect<A, E, R>,
-    service: Shape,
-  ): Effect.Effect<A, E, Exclude<R, Identifier>> => capability.provide(effect, service);
 }

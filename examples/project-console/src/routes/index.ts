@@ -1,10 +1,9 @@
-import { Resource } from "@sunfall/arc-core";
-import { FileRoute } from "@sunfall/arc-start";
+import { Resource, Route } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { ProjectList } from "../domain.js";
 import { ProjectSummaries, ProjectWorkItems } from "../project-collections.js";
 
-export const Route = FileRoute.define("/")({
+export const route = Route.define("/", {
   preloadResources: [ProjectList],
   preloadCollections: [ProjectSummaries, ProjectWorkItems],
   preload: () =>

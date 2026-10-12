@@ -24,7 +24,7 @@ import {
   updateWorkItemStatus,
 } from "./domain.js";
 import { ProjectDemoStoreLive } from "./domain.server.js";
-import { Route as ProjectRoute } from "./routes/projects/$id.js";
+import { route as ProjectRoute } from "./routes/projects/$id.js";
 
 const withLocalServer = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
   Effect.provideService(effect, ServerClient, Server.localClient());

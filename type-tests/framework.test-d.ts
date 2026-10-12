@@ -167,7 +167,6 @@ import {
   type StartRequestHandler,
   type StartRequestHandlerError,
   type StartRequestTrace,
-  FileRoute,
 } from "@sunfall/arc-start";
 import { makeActionTransportLayer } from "../packages/start/src/start-action-transport.js";
 import { makeRpcClientLayer } from "../packages/start/src/start-rpc-client.js";
@@ -958,8 +957,8 @@ Route.href(OptionalProjectRoute, { params: { id: "atlas" } });
 Route.href(OptionalProjectRoute, { params: { slug: "atlas" } });
 
 const generatedRouteTree = [
-  FileRoute.define("/")({}),
-  FileRoute.define("/generated-projects/:id")({}),
+  Route.define("/", {}),
+  Route.define("/generated-projects/:id", {}),
 ] as const;
 const generatedRouteById = {
   route_root: generatedRouteTree[0],
@@ -1034,7 +1033,6 @@ const emptyFileRouteManifest: FileRouteManifest = {
 const fileRouteDefinitionsOptions: FileRouteDefinitionsModuleOptions = {
   generatedFile: "src/routeTree.gen.ts",
   importMode: "relative",
-  routeModuleExportName: "Route",
 };
 const generatedFileRouteModule: string = createFileRouteDefinitionsModule(
   emptyFileRouteManifest,
@@ -2926,11 +2924,6 @@ Route.define("/promise-preload", {
 // @ts-expect-error annotated route preload results still reject Promise-shaped values
 const annotatedPromiseRoutePreloadResult: RoutePreloadResult = promisedVoid;
 
-FileRoute.define("/promise-file-preload")({
-  // @ts-expect-error file route preload must return Effect or a pure value, not Promise
-  preload: () => promisedVoid,
-});
-
 interface RoutePreloadApi {
   readonly warm: (id: string) => Effect.Effect<void>;
 }
@@ -2939,7 +2932,7 @@ const RoutePreloadApi = Capability.define<RoutePreloadApi>("RoutePreloadApi");
 const ServicePreloadRoute = Route.define("/service-projects/:id", {
   preload: ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id)),
 });
-const FileRoutePreloadHelperRoute = FileRoute.define("/file-preload-helper/:id")({
+const FileRoutePreloadHelperRoute = Route.define("/file-preload-helper/:id", {
   preloadResources: [ProjectById],
   preloadCollections: [ProjectsCollection],
   preload: ({ params }) =>
@@ -2961,7 +2954,7 @@ const fileRoutePreloadHelperEffect: Effect.Effect<
   Route.PreloadError,
   ProjectApi | RoutePreloadApi
 > = Route.preload(fileRoutePreloadHelperMatch);
-const BrandedFileRoutePreloadHelperRoute = FileRoute.define("/file-preload-branded/:id")({
+const BrandedFileRoutePreloadHelperRoute = Route.define("/file-preload-branded/:id", {
   params: Schema.Struct({ id: ProjectId }),
   search: Schema.Struct({ tab: Schema.optional(ProjectTab) }),
   preloadResources: [BrandedProjectById],

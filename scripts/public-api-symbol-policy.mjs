@@ -60,7 +60,7 @@ export const publicHoverDocGroups = [
     declarations: ["CapabilityTypeId", "isCapability"],
     allDeclarations: ["Capability"],
     namespaceDeclarations: {
-      Capability: ["Any", "Shape", "Identifier", "define", "layer", "mock", "provide"],
+      Capability: ["Any", "Shape", "Identifier", "define"],
     },
   },
   {
@@ -397,10 +397,6 @@ export const publicHoverDocGroups = [
       "devtoolsPanelIds",
       "devtoolsPanelSeverities",
     ],
-  },
-  {
-    file: "packages/start/src/file-route.ts",
-    declarations: ["FileRoute"],
   },
   {
     file: "packages/db/src/collection-index-materialization.ts",

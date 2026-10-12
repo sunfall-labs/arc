@@ -257,9 +257,8 @@ Release decisions:
   `RoutePreloadFailureSnapshot` wire form (`RoutePreloadFailureEncoding`):
   schema-encoded JSON with an `error` schema, the failure `_tag` only without
   one, and a `RoutePreloadFailureCodecError` defect when the failure cannot
-  cross with the schema. `RouteFactory<Path>` (`Route.Factory<Path>`)
-  with `RouteDefineOptions<...>` lets builders such as Start file routes reuse
-  `Route.define(...)` option checking and inference. Planning Effects also expose
+  cross with the schema. `RouteDefineOptions<...>` names the options
+  `Route.define(path, options)` checks. Planning Effects also expose
   `ResourceSnapshotCodecError` when touched resources cannot be serialized into
   hydration payloads. Solid and Start adapters may discharge service
   requirements only by running through a Runtime Spine.
@@ -455,8 +454,7 @@ commands)`, never an Effect. `Program.emit(...)`
 The root export is the application surface only (about forty names). It
 includes:
 
-- Local source modules: `file-route`, `hydration`, `request-trace`,
-  `start-action-client`,
+- Local source modules: `hydration`, `request-trace`, `start-action-client`,
   `start-action-request-codec`, `start-app`, `start-app-request-handler`,
   `start-collection-resolution`, `start-document`, `start-fetch`,
   `start-request-handler`, `start-transport-endpoints`,
@@ -507,10 +505,12 @@ includes:
   restores the ones the server reports settled (`settledSubmissions` in the
   hydration payload) without re-patching them. Start adds no exports for
   either.
-- file routes: `FileRoute.define(path)(options)` takes the same options as core
-  `Route.define(path, options)`; Start checks `path` against the discovered file.
-  Static preload hints use core `preloadResources` / `preloadCollections`, and
-  runtime work lives in `preload`.
+- file routes: a route module exports `route = Route.define(path, options)`;
+  Start has no route constructor of its own. The generated route tree checks
+  the declared `path` against the path derived from the file, as a type error
+  and again when the tree loads. Static preload hints use core
+  `preloadResources` / `preloadCollections`, and runtime work lives in
+  `preload`.
 - actions: the app's `actions` are the Actions the server serves; `App.launch`
   routes their submissions from the single UI binding (Solid's
   `Component.action(...)`) over the network with the same result and error

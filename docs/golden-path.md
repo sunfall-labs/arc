@@ -19,7 +19,7 @@ type-checks it and fails if a snippet on this page no longer matches its file
 | run a state machine with many messages                               | **Program**: `Program.define`, bound with `Component.program`                | one or two independent values: use Signals                                         |
 | keep normalized rows with indexes, live queries, or optimistic edits | **Collection**: `Collection.define({ sync: ref })`, backed by a Resource     | you only render a list you fetched: a Resource is enough                           |
 | build a screen or feature that reads or writes state                 | **Component**: `Component.define`                                            | it only renders props: write a plain Solid function                                |
-| map a URL to a screen and its data                                   | **Route**: `Route.define`, or `FileRoute.define` in Start                    | the state is not addressable (a modal, a tab): use a Signal                        |
+| map a URL to a screen and its data                                   | **Route**: `Route.define`                                                    | the state is not addressable (a modal, a tab): use a Signal                        |
 | call a backend or service                                            | **Capability**: `Capability.define` plus a Layer per host                    | it is pure computation: write a function                                           |
 | wire and start the app                                               | `App.define`, then `createRequestHandler` (server) and `App.launch` (client) | never skip it: this is where missing services and unhandled failures become errors |
 | answer "how did the UI get into this state?"                         | **Timeline**: `Timeline.record`, then `travel`                               | production telemetry: use [devtools](devtools.md) summaries                        |
@@ -326,8 +326,9 @@ export const App = Component.define("App", function* (props: { readonly href: st
 - Preloaded Resources read synchronously in the page, so navigation and
   hydration show no loading flash.
 - In a Start app, each route moves to `src/routes/<path>.ts` as
-  `export const Route = FileRoute.define(path)(sameOptions)`, and the Vite
-  plugin generates `routeTree.gen.ts`. The options are identical. The app
+  `export const route = Route.define(path, sameOptions)`, and the Vite
+  plugin generates `routeTree.gen.ts`, which fails when the declared path
+  differs from the one the file location implies. The app
   still attaches components with `Route.withComponent`, and the plugin
   lazy-loads a page Component imported only for that call, keeping its type.
 

@@ -423,8 +423,7 @@ type RoutePreloadCheck<ErrorSchema, Out> = [Out] extends [never]
           };
 
 /**
- * Options accepted by `Route.define(path, options)` (and Start's
- * `FileRoute.define(path)(options)`).
+ * Options accepted by `Route.define(path, options)`.
  *
  * `preload` is inferred from its own body: its params come from `params` (or
  * the path), its services and failures from what it returns. With an `error`
@@ -469,27 +468,6 @@ export type RouteDefineOptions<
   /** Static collection preload hints used by Start diagnostics and devtools. */
   readonly preloadCollections?: readonly RoutePreloadCollectionInput[];
 } & RoutePreloadCheck<ErrorSchema, Out>;
-
-/**
- * Typed route constructor for one path: `Route.define(path, options)` and
- * Start's `FileRoute.define(path)` share it.
- */
-export interface RouteFactory<Path extends string> {
-  <
-    ParamsSchema extends AnySchema | undefined = undefined,
-    SearchSchema extends AnySchema | undefined = undefined,
-    ErrorSchema extends RouteErrorSchema<any> | undefined = undefined,
-    Out = never,
-  >(
-    options: RouteDefineOptions<Path, ParamsSchema, SearchSchema, ErrorSchema, Out>,
-  ): RouteDefinition<
-    Path,
-    ParamsFromSchema<Path, ParamsSchema>,
-    SearchFromSchema<SearchSchema>,
-    EffectInputRequirements<Out>,
-    PreloadFailureFor<ErrorSchema, Out>
-  >;
-}
 
 /**
  * Runtime route object produced by `route`.
@@ -984,9 +962,6 @@ export namespace Route {
    * error channel should work with `Route.LazyComponent<Component, E>` directly.
    */
   export type ComponentInput<P, E = unknown> = ComponentFor<P> | LazyComponent<ComponentFor<P>, E>;
-
-  /** Route constructor for one path; see `RouteFactory`. */
-  export type Factory<Path extends string> = RouteFactory<Path>;
 
   /**
    * Defines a typed route with path params, optional search decoding, and preload work.

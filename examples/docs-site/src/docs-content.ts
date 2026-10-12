@@ -214,7 +214,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Make sure the file route declares the Resource or Collection it owns with preloadResources / preloadCollections in FileRoute.define(path)(options). Start diagnostics can require those declarations at build time.",
+        text: "Make sure the file route declares the Resource or Collection it owns with preloadResources / preloadCollections in Route.define(path, options). Start diagnostics can require those declarations at build time.",
       },
       {
         _tag: "Heading",
