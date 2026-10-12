@@ -255,6 +255,19 @@ The production build's 430 kB framework chunk was `_key-*.js`, named after
   (`packages/start/src/start-chunk-naming.ts`). Test:
   `packages/start/test/production-server.test.ts` ("chunk naming").
 
+### 24. Framework development: the dev server mixed dist and source
+
+`vite.config.ts` loaded `@sunfall/arc-start/vite` from `dist` (Node resolves
+it, not Vite's aliases) while the app's SSR modules used the source aliases,
+so a framework change needed `pnpm build` and a dev-server restart before the
+plugin half of it took effect. Repository-only; copied apps are unaffected.
+
+- Fix: the tracker's and the docs site's `vite.config.ts` import the Start
+  and tsrx plugins from `packages/*/src`; Vite bundles them into the config,
+  so a plugin change restarts the dev server on its own. What still loads
+  from `dist` (the plugins' imports of `@sunfall/arc-core`, and the starter
+  templates' plugins) is in `CONTRIBUTING.md`.
+
 ## Open
 
 ### 18. Change feeds also start in SSR request runtimes (fixed)
@@ -303,10 +316,3 @@ missing list.
 
 - Proposal: derive the static list from the families `preload` touches in the
   route plan at build time, or check them against each other in dev.
-
-### 24. Framework development: the dev server mixes dist and source
-
-`vite.config.ts` loads `@sunfall/arc-start/vite` from `dist` (Node resolves
-it, not Vite's aliases) while the app's SSR modules use the source aliases,
-so a framework change needs `pnpm build` and a dev-server restart before the
-plugin half of it takes effect. Repository-only; copied apps are unaffected.

@@ -16,6 +16,21 @@ that drifts from the framework fails the gate), the example and starter
 verifies, starter package generation, and package dry runs. `pnpm benchmark`
 runs the benchmarks for measurement.
 
+### Framework Changes In The Example Apps
+
+The examples alias `@sunfall/arc-*` to the packages' `src`, so a framework
+change reaches the app's modules under `vite dev` and in tests without a
+build. Vite loads `vite.config.ts` itself with Node, outside those aliases:
+
+- `examples/tracker` and `examples/docs-site` import the Start and tsrx
+  plugins from `packages/*/src`, so a plugin change restarts their dev server
+  on its own.
+- The plugins' own imports of `@sunfall/arc-core` (the dev host's runtime and
+  handler adapter) still resolve to `packages/core/dist`, and so do all of
+  `examples/project-console` and `examples/basic-starter`'s plugin imports:
+  those apps are starter templates and import the published entry points.
+  Changes there need `pnpm build` and a dev-server restart.
+
 ### Docs Stay Checked
 
 - `pnpm docs:snippets` (part of `pnpm typecheck`) requires every TypeScript
