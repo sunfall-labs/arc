@@ -3,10 +3,7 @@ import { AsyncResult } from "effect/reactivity";
 import { parseDuration } from "./resource-duration.js";
 import { publishResourceStoreEvent } from "./resource-events.js";
 import type { ResourceRef, ResourceStatus } from "./resource.js";
-import {
-  resourceStoreFiber,
-  type MutableResourceStore as ResourceStoreState,
-} from "./resource-store.js";
+import type { MutableResourceStore as ResourceStoreState } from "./resource-store.js";
 import { Signal, type WritableSignal } from "./signal.js";
 import type { TimelineResourceCause } from "./timeline.js";
 
@@ -125,7 +122,6 @@ export const inspectResourceStatus = <I, A, E, R, RefError = E>(
 
 export const interruptResourceGc = <A, E>(
   entry: ResourceLifetimeEntry<A, E>,
-  store: ResourceStoreState,
 ): Effect.Effect<boolean> =>
   Effect.suspend(() => {
     const fiber = entry.gcFiber;
@@ -134,28 +130,21 @@ export const interruptResourceGc = <A, E>(
     }
 
     entry.gcFiber = undefined;
-    store.fiberRegistry.untrack(resourceStoreFiber(fiber));
     return Fiber.interrupt(fiber).pipe(Effect.as(true));
   });
 
 export const clearResourceInFlight = <A, E>(
   entry: ResourceLifetimeEntry<A, E>,
-  store: ResourceStoreState,
   token: object,
 ): Effect.Effect<void> =>
   Effect.sync(() => {
-    const inFlight = entry.inFlight;
-    if (inFlight?.token !== token) {
-      return;
+    if (entry.inFlight?.token === token) {
+      entry.inFlight = undefined;
     }
-
-    entry.inFlight = undefined;
-    store.fiberRegistry.untrack(resourceStoreFiber(inFlight.fiber));
   });
 
 export const interruptResourceInFlight = <A, E>(
   entry: ResourceLifetimeEntry<A, E>,
-  store: ResourceStoreState,
 ): Effect.Effect<boolean> =>
   Effect.suspend(() => {
     const inFlight = entry.inFlight;
@@ -164,37 +153,7 @@ export const interruptResourceInFlight = <A, E>(
       return Effect.succeed(false);
     }
 
-    store.fiberRegistry.untrack(resourceStoreFiber(inFlight.fiber));
     return Fiber.interrupt(inFlight.fiber).pipe(Effect.as(true));
-  });
-
-export const trackResourceFiber = <A, E>(
-  store: ResourceStoreState,
-  fiber: Fiber.Fiber<A, E>,
-): Effect.Effect<void> =>
-  Effect.sync(() => {
-    const trackedFiber = resourceStoreFiber(fiber);
-    if (fiber.pollUnsafe() !== undefined) {
-      return;
-    }
-    store.fiberRegistry.track(trackedFiber);
-    const removeObserver = fiber.addObserver(() => {
-      store.fiberRegistry.untrack(trackedFiber);
-    });
-    if (fiber.pollUnsafe() !== undefined) {
-      removeObserver();
-      store.fiberRegistry.untrack(trackedFiber);
-    }
-  });
-
-export const forkTrackedDetachedResourceEffect = <A, E, R>(
-  store: ResourceStoreState,
-  effect: Effect.Effect<A, E, R>,
-): Effect.Effect<Fiber.Fiber<A, E>, never, R> =>
-  Effect.gen(function* () {
-    const fiber = yield* Effect.forkDetach(effect, { startImmediately: true });
-    yield* trackResourceFiber(store, fiber);
-    return fiber;
   });
 
 export const scheduleResourceGc = <I, A, E, R, RefError = E>(
@@ -208,7 +167,7 @@ export const scheduleResourceGc = <I, A, E, R, RefError = E>(
   isRetained: () => boolean = () => false,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
-    const interrupted = yield* interruptResourceGc(entry, store);
+    const interrupted = yield* interruptResourceGc(entry);
     if (interrupted) {
       yield* publishResourceStoreEvent(store, {
         _tag: "ResourceGcInterrupted",
@@ -225,20 +184,16 @@ export const scheduleResourceGc = <I, A, E, R, RefError = E>(
       return;
     }
 
-    const fiber = yield* Effect.forkDetach(
+    entry.gcFiber = yield* store.fiberRegistry.run(
       Effect.gen(function* () {
         yield* sleepResourceGcEffect(gcFor);
         entry.gcFiber = undefined;
-        store.fiberRegistry.untrack(resourceStoreFiber(fiber));
         if (isRetained()) {
           return;
         }
         yield* deleteEntryEffect(ref, store);
       }),
-      { startImmediately: true },
     );
-    entry.gcFiber = fiber;
-    store.fiberRegistry.track(resourceStoreFiber(fiber));
     yield* publishResourceStoreEvent(store, {
       _tag: "ResourceGcScheduled",
       name: ref.family.options.name,

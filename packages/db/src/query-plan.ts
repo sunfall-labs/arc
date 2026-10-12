@@ -1,9 +1,5 @@
-import {
-  isEffectLike,
-  isPromiseLikeValue,
-  stableStringify,
-  type PlainValue,
-} from "@sunfall/arc-core";
+import { isEffectLike, isPromiseLikeValue, type PlainValue } from "@sunfall/arc-core";
+import { stableStringify } from "@sunfall/arc-core/internal";
 import { Data } from "effect";
 import type {
   AnyCollection,

@@ -690,7 +690,7 @@ describe("Server", () => {
       }),
     ));
 
-  it("reports malformed request cookies through ServerRouteHandlerError", () => {
+  it("keeps malformed percent-encoded request cookies as their raw value", () => {
     const serverRoute = Server.route("GET", "/cookies", () =>
       RequestContext.use(({ cookies }) =>
         Effect.succeed(new Response(cookies.get("session") ?? "missing")),
@@ -698,27 +698,18 @@ describe("Server", () => {
     );
 
     return Effect.runPromise(
-      Effect.flip(
-        Server.handleRoute(
+      Effect.gen(function* () {
+        const response = yield* Server.handleRoute(
           serverRoute,
           new Request("https://example.com/cookies", {
             headers: {
               cookie: "session=%E0%A4%A",
             },
           }),
-        ),
-      ).pipe(
-        Effect.tap((error) =>
-          Effect.sync(() => {
-            expect(error).toBeInstanceOf(ServerRouteHandlerError);
-            expect(error.cause).toMatchObject({
-              _tag: "EffectInputCallbackError",
-              operation: "RequestContext.make",
-            });
-          }),
-        ),
-        Effect.asVoid,
-      ),
+        );
+        const body = yield* Effect.promise(() => response.text());
+        expect(body).toBe("%E0%A4%A");
+      }),
     );
   });
 

@@ -28,7 +28,6 @@ import {
 } from "./resource-snapshot-codec.js";
 import {
   clearResourceInFlight,
-  forkTrackedDetachedResourceEffect,
   inspectResourceStatus,
   interruptResourceGc,
   interruptResourceInFlight,
@@ -40,7 +39,6 @@ import {
   scheduleResourceGc,
   setResourcePending,
   shouldShowResourcePending,
-  trackResourceFiber,
   type ResourceLifetimeEntry as ResourceEntry,
 } from "./resource-lifetime.js";
 import {
@@ -221,7 +219,7 @@ export const retainResourceRefEffect = <I, A, E, R>(
     store.retainedRefs.set(key, (store.retainedRefs.get(key) ?? 0) + 1);
     const entry = peekResourceEntry(ref, store);
     if (entry !== undefined) {
-      yield* interruptResourceGc(entry, store).pipe(Effect.asVoid);
+      yield* interruptResourceGc(entry).pipe(Effect.asVoid);
     }
   });
 
@@ -367,7 +365,7 @@ export const runResourceEffect = <I, A, E, R>(
       if (!options.force || currentInFlight.force) {
         return yield* Fiber.join(currentInFlight.fiber);
       }
-      yield* interruptResourceInFlight(entry, store);
+      yield* interruptResourceInFlight(entry);
     }
 
     const current = entry.state.get();
@@ -400,7 +398,7 @@ export const runResourceEffect = <I, A, E, R>(
         );
 
         if (shouldShowPending) {
-          yield* interruptResourceGc(entry, store);
+          yield* interruptResourceGc(entry);
           setResourcePending(entry);
           yield* publishResourceStoreEvent(store, {
             _tag: "ResourcePending",
@@ -448,7 +446,7 @@ export const runResourceEffect = <I, A, E, R>(
         yield* invalidateCachedResourceEffect(ref, store);
         commitResourceState(entry, settled, settled._tag === "Failure" ? "failure" : "interrupt");
         if (settled._tag === "Failure") {
-          yield* interruptResourceGc(entry, store);
+          yield* interruptResourceGc(entry);
           yield* publishResourceStoreEvent(store, {
             _tag: "ResourceFailure",
             name: ref.family.options.name,
@@ -472,16 +470,15 @@ export const runResourceEffect = <I, A, E, R>(
         }
         return yield* Effect.failCause(exit.cause);
       }),
-    ).pipe(Effect.ensuring(clearResourceInFlight(entry, store, token)));
-    const fiber = yield* Effect.forkDetach(loadEffect, { startImmediately: true });
+    ).pipe(Effect.ensuring(clearResourceInFlight(entry, token)));
+    const fiber = yield* store.fiberRegistry.run(loadEffect);
     entry.inFlight = {
       token,
       force: options.force,
       fiber,
     };
-    yield* trackResourceFiber(store, fiber);
     if (fiber.pollUnsafe() !== undefined) {
-      yield* clearResourceInFlight(entry, store, token);
+      yield* clearResourceInFlight(entry, token);
     }
 
     return yield* Fiber.join(fiber);
@@ -612,8 +609,7 @@ export const readResourceEffect = <I, A, E, R>(
         return yield* Effect.fail(decision.failure);
       case "Value":
         if (decision.refresh) {
-          yield* forkTrackedDetachedResourceEffect(
-            store,
+          yield* store.fiberRegistry.run(
             refreshResourceEffect(ref).pipe(Effect.catchCause(() => Effect.void)),
           );
         }
@@ -701,8 +697,8 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
   Effect.gen(function* () {
     rememberResourceRef(ref, store);
     const entry = resourceEntry(ref, store);
-    yield* interruptResourceInFlight(entry, store);
-    yield* interruptResourceGc(entry, store);
+    yield* interruptResourceInFlight(entry);
+    yield* interruptResourceGc(entry);
     recordResourceProvidedTags(ref, tags, store);
     commitResourceState(entry, state, "hydrate");
     yield* Cache.set(resourceCache(ref.family, store), ref.key, state.value);
@@ -754,8 +750,8 @@ export const deleteResourceFromStoreEffect = <I, A, E, R>(
     if (entry) {
       // In-flight first: an interrupted load settles (and may reschedule GC)
       // before the GC fiber is interrupted and the entry is reset.
-      yield* interruptResourceInFlight(entry, store);
-      yield* interruptResourceGc(entry, store);
+      yield* interruptResourceInFlight(entry);
+      yield* interruptResourceGc(entry);
       resetResourceEntry(entry);
     }
 

@@ -1,4 +1,5 @@
-import { EffectInputCallbackError, stableStringify } from "@sunfall/arc-core";
+import { EffectInputCallbackError } from "@sunfall/arc-core";
+import { stableStringify } from "@sunfall/arc-core/internal";
 import { Data } from "effect";
 import type {
   AnyCollection,

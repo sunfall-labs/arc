@@ -53,7 +53,6 @@ export {
   type ResourceStoreDiagnosticsSnapshot,
   type ResourceStoreEvent,
   type ResourceStoreEventBus,
-  type ResourceStoreFiber,
   type ResourceStoreFiberRegistry,
   type ResourceStoreInvalidationCause,
   type ResourceStoreModule,
@@ -74,5 +73,4 @@ export {
 } from "./runtime.js";
 export * from "./server.js";
 export * from "./signal.js";
-export * from "./stable-stringify.js";
 export * from "./timeline.js";

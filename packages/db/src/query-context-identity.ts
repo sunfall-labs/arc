@@ -1,4 +1,4 @@
-import { stableStringify } from "@sunfall/arc-core";
+import { stableStringify } from "@sunfall/arc-core/internal";
 import type { CollectionKey } from "./collection-contract.js";
 import type { AnyCollectionRow, AnyQueryContext } from "./query-plan.js";
 

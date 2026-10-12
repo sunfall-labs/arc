@@ -12,6 +12,7 @@ import {
   Schema,
   Scope,
   Stream,
+  Tracer,
 } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { EventEmitter } from "node:events";
@@ -1654,15 +1655,15 @@ describe("Sunfall Arc Start", () => {
     const handler = createStartRequestHandler(app, {
       render: ({ runtime }) =>
         Effect.gen(function* () {
-          const fiber = yield* Effect.never.pipe(
-            Effect.ensuring(
-              Effect.sync(() => {
-                interrupted = true;
-              }),
+          yield* runtime.resourceStore.fiberRegistry.run(
+            Effect.never.pipe(
+              Effect.ensuring(
+                Effect.sync(() => {
+                  interrupted = true;
+                }),
+              ),
             ),
-            Effect.forkDetach({ startImmediately: true }),
           );
-          runtime.resourceStore.fiberRegistry.track(fiber as Fiber.Fiber<unknown, never>);
           fiberCount = () => Effect.runSync(runtime.resourceStore.fiberRegistry.size);
 
           return new Response(
@@ -2347,6 +2348,44 @@ describe("Sunfall Arc Start", () => {
     expect(response.headers.get("content-type")).toBe("text/html");
     expect(response.headers.getSetCookie()).toEqual(["theme=dark; Path=/; Secure; SameSite=None"]);
     await expect(response.text()).resolves.toContain("context");
+  });
+
+  it("parents the Start request span on an incoming traceparent", async () => {
+    const traceId = "4bf92f3577b34da6a3ce929d0e0e4736";
+    const parentSpanId = "00f067aa0ba902b7";
+    const spans: Array<Tracer.Span> = [];
+    const Home = Route.define("/", {});
+    const app = makeStartServerApp({
+      routes: [Home] as const,
+    });
+    const handler = createStartRequestHandler(app, {
+      render: () =>
+        Effect.orDie(
+          Effect.map(Effect.currentSpan, (span) => {
+            spans.push(span);
+            return "<html><body>traced</body></html>";
+          }),
+        ),
+    });
+
+    await Effect.runPromise(
+      Effect.scoped(
+        handler(
+          new Request("https://example.com/", {
+            headers: { traceparent: `00-${traceId}-${parentSpanId}-01` },
+          }),
+        ),
+      ),
+    );
+
+    let requestSpan: Tracer.AnySpan | undefined = spans[0];
+    while (requestSpan?._tag === "Span" && requestSpan.name !== "sunfall-arc.start.request") {
+      requestSpan = Option.getOrUndefined(requestSpan.parent);
+    }
+    expect(requestSpan).toMatchObject({ _tag: "Span", name: "sunfall-arc.start.request", traceId });
+    const parent =
+      requestSpan?._tag === "Span" ? Option.getOrUndefined(requestSpan.parent) : undefined;
+    expect(parent).toMatchObject({ _tag: "ExternalSpan", traceId, spanId: parentSpanId });
   });
 
   it("fails invalid response context status through the typed Start request error path", async () => {

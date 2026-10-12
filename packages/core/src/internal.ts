@@ -54,6 +54,7 @@ export {
   validateResourceHydrationSnapshots,
 } from "./resource-snapshot-codec.js";
 export * from "./resource-ui-binding.js";
+export * from "./stable-stringify.js";
 export {
   buildRoutePath,
   compareRoutePathSegment,

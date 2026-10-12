@@ -1,4 +1,5 @@
-import { Context, Data, Effect } from "effect";
+import { Context, Data, Duration, Effect, Result } from "effect";
+import * as Cookies from "effect/http/Cookies";
 import { EffectInputCallbackError } from "./effect-like.js";
 
 /** Request-scoped service available while handling Start/server requests. */
@@ -9,7 +10,7 @@ export interface RequestContext {
   readonly url: URL;
   /** Incoming request headers. */
   readonly headers: Headers;
-  /** Parsed `Cookie` header values. Duplicate cookie names keep the last value. */
+  /** Parsed `Cookie` header values. Duplicate cookie names keep the first value (the most specific path, per RFC 6265); undecodable values stay percent-encoded. */
   readonly cookies: ReadonlyMap<string, string>;
 }
 
@@ -32,8 +33,12 @@ export interface ResponseCookieOptions {
   readonly httpOnly?: boolean;
   /** Adds the Secure attribute. */
   readonly secure?: boolean;
-  /** Adds the SameSite attribute. */
+  /** Adds the SameSite attribute (serialized as `Strict`, `Lax`, or `None`). */
   readonly sameSite?: ResponseCookieSameSite;
+  /** Adds the Partitioned (CHIPS) attribute. */
+  readonly partitioned?: boolean;
+  /** Adds the Priority attribute. */
+  readonly priority?: "low" | "medium" | "high";
 }
 
 /** Cookie attributes accepted when expiring a cookie. */
@@ -91,18 +96,13 @@ export const ResponseContext = Context.Service<ResponseContext>(
 
 const parseCookies = (header: string | null): ReadonlyMap<string, string> => {
   const cookies = new Map<string, string>();
-  if (!header) {
-    return cookies;
-  }
-
-  for (const part of header.split(";")) {
-    const [rawKey, ...rawValue] = part.trim().split("=");
-    if (!rawKey) {
-      continue;
+  if (header) {
+    for (const [name, value] of Object.entries(Cookies.parseHeader(header))) {
+      if (name !== "") {
+        cookies.set(name, value);
+      }
     }
-    cookies.set(decodeURIComponent(rawKey), decodeURIComponent(rawValue.join("=")));
   }
-
   return cookies;
 };
 
@@ -128,119 +128,66 @@ export const makeRequestContext = (
 
 const isSetCookieHeader = (name: string): boolean => name.toLowerCase() === "set-cookie";
 
-type CookieSerializationResult =
-  | { readonly _tag: "Success"; readonly value: string }
-  | { readonly _tag: "Failure"; readonly error: ResponseCookieSerializationError };
-
-const cookieSerializationSuccess = (value: string): CookieSerializationResult => ({
-  _tag: "Success",
-  value,
-});
-
-const cookieSerializationFailure = (
+const cookieSerializationError = (
   attribute: string,
   cause: unknown,
-): CookieSerializationResult => ({
-  _tag: "Failure",
-  error: new ResponseCookieSerializationError({
+): ResponseCookieSerializationError =>
+  new ResponseCookieSerializationError({
     attribute,
     cause,
     guidance:
       "Response cookie names, values, and attributes must be valid Set-Cookie data. Wrap host-specific cookie work in an Effect and keep invalid values in the Effect error channel.",
-  }),
-});
-
-const normalizeSameSite = (sameSite: ResponseCookieSameSite): CookieSerializationResult => {
-  const lower = sameSite.toLowerCase();
-  if (lower !== "strict" && lower !== "lax" && lower !== "none") {
-    return cookieSerializationFailure("SameSite", sameSite);
-  }
-  return cookieSerializationSuccess(`${lower.charAt(0).toUpperCase()}${lower.slice(1)}`);
-};
-
-const hasInvalidCookieAttributeCharacter = (value: string): boolean =>
-  value.includes(";") ||
-  Array.from(value).some((character) => {
-    const code = character.charCodeAt(0);
-    return code <= 0x1f || code === 0x7f;
   });
 
-const validateCookieAttribute = (
-  name: string,
-  value: string | undefined,
-): CookieSerializationResult | undefined => {
-  if (value !== undefined && hasInvalidCookieAttributeCharacter(value)) {
-    return cookieSerializationFailure(name, value);
-  }
-  return undefined;
+const cookieErrorAttribute: Record<Cookies.CookiesErrorReason["_tag"], string> = {
+  InvalidCookieName: "Name",
+  InvalidCookieValue: "Value",
+  InvalidCookieDomain: "Domain",
+  InvalidCookiePath: "Path",
+  CookieInfinityMaxAge: "Max-Age",
 };
 
-const encodeCookieComponent = (attribute: string, value: string): CookieSerializationResult => {
-  try {
-    return cookieSerializationSuccess(encodeURIComponent(value));
-  } catch (cause) {
-    return cookieSerializationFailure(attribute, cause);
-  }
-};
-
-const serializeResponseCookieResult = (
+const makeResponseCookie = (
   name: string,
   value: string,
-  options: ResponseCookieOptions = {},
-): CookieSerializationResult => {
-  const domainValidation = validateCookieAttribute("Domain", options.domain);
-  if (domainValidation) {
-    return domainValidation;
-  }
-  const pathValidation = validateCookieAttribute("Path", options.path);
-  if (pathValidation) {
-    return pathValidation;
-  }
-  if (options.maxAge !== undefined && !Number.isFinite(options.maxAge)) {
-    return cookieSerializationFailure("Max-Age", options.maxAge);
+  options: ResponseCookieOptions,
+): Result.Result<Cookies.Cookie, ResponseCookieSerializationError> => {
+  // Effect's cookie validation covers name/value/domain/path/Infinity; NaN, invalid
+  // dates, and untyped SameSite spellings would otherwise serialize silently.
+  if (options.maxAge !== undefined && Number.isNaN(options.maxAge)) {
+    return Result.fail(cookieSerializationError("Max-Age", options.maxAge));
   }
   if (options.expires !== undefined && !Number.isFinite(options.expires.getTime())) {
-    return cookieSerializationFailure("Expires", options.expires);
+    return Result.fail(cookieSerializationError("Expires", options.expires));
   }
-
-  const encodedName = encodeCookieComponent("Name", name);
-  if (encodedName._tag === "Failure") {
-    return encodedName;
+  const lowerSameSite = options.sameSite?.toLowerCase();
+  const sameSite =
+    lowerSameSite === "strict" || lowerSameSite === "lax" || lowerSameSite === "none"
+      ? lowerSameSite
+      : undefined;
+  if (options.sameSite !== undefined && sameSite === undefined) {
+    return Result.fail(cookieSerializationError("SameSite", options.sameSite));
   }
-  const encodedValue = encodeCookieComponent("Value", value);
-  if (encodedValue._tag === "Failure") {
-    return encodedValue;
+  let made: Result.Result<Cookies.Cookie, Cookies.CookiesError>;
+  try {
+    made = Cookies.makeCookie(name, value, {
+      domain: options.domain,
+      path: options.path,
+      expires: options.expires,
+      maxAge: options.maxAge === undefined ? undefined : Duration.seconds(options.maxAge),
+      httpOnly: options.httpOnly,
+      secure: options.secure,
+      partitioned: options.partitioned,
+      priority: options.priority,
+      sameSite,
+    });
+  } catch (cause) {
+    // encodeURIComponent throws URIError for lone surrogates in the value.
+    return Result.fail(cookieSerializationError("Value", cause));
   }
-
-  const parts = [`${encodedName.value}=${encodedValue.value}`];
-
-  if (options.maxAge !== undefined) {
-    parts.push(`Max-Age=${Math.trunc(options.maxAge)}`);
-  }
-  if (options.domain !== undefined) {
-    parts.push(`Domain=${options.domain}`);
-  }
-  if (options.path !== undefined) {
-    parts.push(`Path=${options.path}`);
-  }
-  if (options.expires !== undefined) {
-    parts.push(`Expires=${options.expires.toUTCString()}`);
-  }
-  if (options.httpOnly) {
-    parts.push("HttpOnly");
-  }
-  if (options.secure) {
-    parts.push("Secure");
-  }
-  if (options.sameSite !== undefined) {
-    const sameSite = normalizeSameSite(options.sameSite);
-    if (sameSite._tag === "Failure") {
-      return sameSite;
-    }
-    parts.push(`SameSite=${sameSite.value}`);
-  }
-
-  return cookieSerializationSuccess(parts.join("; "));
+  return Result.mapError(made, (error) =>
+    cookieSerializationError(cookieErrorAttribute[error.reason._tag], error),
+  );
 };
 
 /** Serializes a cookie name, value, and attributes for a `Set-Cookie` header. */
@@ -248,10 +195,8 @@ export const serializeResponseCookie = (
   name: string,
   value: string,
   options: ResponseCookieOptions = {},
-): Effect.Effect<string, ResponseCookieSerializationError> => {
-  const result = serializeResponseCookieResult(name, value, options);
-  return result._tag === "Success" ? Effect.succeed(result.value) : Effect.fail(result.error);
-};
+): Effect.Effect<string, ResponseCookieSerializationError> =>
+  Effect.map(Effect.fromResult(makeResponseCookie(name, value, options)), Cookies.serializeCookie);
 
 /** Creates an empty mutable response context. */
 export const makeResponseContext = (): ResponseContext => {
