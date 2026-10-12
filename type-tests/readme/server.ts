@@ -30,6 +30,6 @@ export const implementations = [
   Action.implement(ToggleTodo, (id) => Todos.use((todos) => todos.toggle(id))),
 ];
 
-// Server rendering: runs the route's preload, renders, and streams the hydration
+// Server rendering: runs the route's preload, renders, and sends the hydration
 // payload; serves the load and the Action. Without TodosMemory, this does not compile.
 export const handleRequest = createRequestHandler(app, { server: TodosMemory, implementations });

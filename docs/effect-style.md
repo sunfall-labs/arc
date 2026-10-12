@@ -22,7 +22,7 @@ edge.
 - Promise interop is allowed only at UI/runtime boundaries such as Suspense, Web Streams, executable CLIs, and compatibility host adapters.
 - `createRequestHandler(app, { server, implementations })` is the server-side dependency provider for SSR/request work, and the app's `client` Layer is the browser's (`App.define({ client })`). Prefer Effect `Layer`s there; the server Layer must provide everything the root and the implementations need, the client Layer everything the root needs in the browser.
 - Start request work uses a fresh Request Runtime with the app services, a request-local `ResourceStore`, and a request-local `Server.localClient(...)`; do not share resource cache state or remote browser RPC clients across SSR requests.
-- Start streamed responses keep the Request Runtime open until the response body closes or is cancelled.
+- A rendered page is one complete body, so Start disposes its Request Runtime once the response exists; a custom render's streamed `Response` keeps the Request Runtime open until its body closes or is cancelled.
 - Start action requests run served Actions' `Action.implement` bodies through the Request Runtime; do not create separate mutation handlers that bypass Effect services, schemas, retries, or invalidation.
 - Run application work through `SunfallArcRuntime`; use raw `Effect.runPromise` only in tests or in the runtime implementation itself.
 - Treat `Resource.define(...)` as a Resource Definition. Runtime/request state belongs to `ResourceStore`, reached through the Runtime Spine.
@@ -36,7 +36,7 @@ edge.
 - Prefer named Effect services (`Context.Service`) for app features. Server implementations should usually depend on `ProjectStore.use(...)`, which the server Layer provides; test doubles are Layers behind the same service.
 - Configure browser transport concerns (auth headers, retries, a custom fetch) on the `HttpClient` the client Layer provides; Start's `RpcClient` and action transport both post through it.
 - Model mutation dependencies with typed `Resource.tag` values. Actions should invalidate domain facts, not string cache keys.
-- Use `Schema.brand` for domain ids and generated framework ids that cross API seams. A route param, server function input, resource key, action input, or manifest id should be a decoded `ProjectId`, `ServerFunctionId`, `ActionId`, or `FileRouteId`, not a plain `string`.
+- Use `Schema.brand` for domain ids that cross API seams. A route param, served Resource or Action input, server function input, or resource key should be a decoded domain id such as `ProjectId` or `IssueKey`, not a plain `string`.
 - Add type tests for API rules that should fail at compile time. A passing runtime test is not enough when the framework can reject the mistake earlier.
 - Host adapters should expose Effect-native handlers. If a platform contract requires a Promise, the app entrypoint should call through the active `SunfallArcRuntime`.
 
@@ -439,25 +439,25 @@ yield* Signal.values(counter.model).pipe(
 ```
 
 ```tsx
-const TitleText = State.define({
-  name: "Title.text",
-  initial: "Sunfall Arc",
-  on: { Rename: (_title, message: { readonly title: string }) => message.title },
+const ThemeChoice = State.define({
+  name: "Theme.choice",
+  initial: "light",
+  on: { Choose: (_theme, message: { readonly theme: string }) => message.theme },
 });
 
-const Title = Component.define("Title", function* () {
-  const title = yield* Component.state(TitleText);
+const Theme = Component.define("Theme", function* () {
+  const theme = yield* Component.state(ThemeChoice);
   // Each call forks in the instance Scope (interrupted when it unmounts) as
-  // the named transition `Title.keepAlive`.
+  // the named transition `Theme.keepAlive`.
   const keepAlive = yield* Component.callback("keepAlive", () => Effect.never);
 
   createEffect(
-    () => title.model(),
+    () => theme.model(),
     (value) => {
-      document.title = value;
+      document.documentElement.dataset.theme = value;
     },
   );
 
-  return () => <button onClick={keepAlive}>{title.model()}</button>;
+  return () => <button onClick={keepAlive}>{theme.model()}</button>;
 });
 ```

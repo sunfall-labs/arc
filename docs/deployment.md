@@ -76,9 +76,11 @@ Use `createFetchHandler` when the host itself expects
 import { createRequestHandler } from "@sunfall/arc-start";
 import { createFetchHandler } from "@sunfall/arc-start/fetch";
 import { app } from "./app-definition.js";
-import { AppServerLive } from "./app.server.js";
+import { AppServerLive, implementations } from "./app.server.js";
 
-const fetch = createFetchHandler(createRequestHandler(app, { server: AppServerLive }));
+const fetch = createFetchHandler(
+  createRequestHandler(app, { server: AppServerLive, implementations }),
+);
 
 export default {
   fetch,
@@ -94,9 +96,11 @@ import { createServer } from "node:http";
 import { createRequestHandler } from "@sunfall/arc-start";
 import { createNodeServerHandler } from "@sunfall/arc-start/node";
 import { app } from "./app-definition.js";
-import { AppServerLive } from "./app.server.js";
+import { AppServerLive, implementations } from "./app.server.js";
 
-const handler = createNodeServerHandler(createRequestHandler(app, { server: AppServerLive }));
+const handler = createNodeServerHandler(
+  createRequestHandler(app, { server: AppServerLive, implementations }),
+);
 
 createServer(handler).listen(3000);
 ```
@@ -129,9 +133,11 @@ as shown above. Bun's HTTP server uses the same boundary:
 import { createRequestHandler } from "@sunfall/arc-start";
 import { createFetchHandler } from "@sunfall/arc-start/fetch";
 import { app } from "./app-definition.js";
-import { AppServerLive } from "./app.server.js";
+import { AppServerLive, implementations } from "./app.server.js";
 
-const fetch = createFetchHandler(createRequestHandler(app, { server: AppServerLive }));
+const fetch = createFetchHandler(
+  createRequestHandler(app, { server: AppServerLive, implementations }),
+);
 
 Bun.serve({
   fetch,
@@ -201,10 +207,19 @@ page with `outputPath: "404.html"`; to skip it, return `false` from `filter`
 for the page whose `source` is `"not-found"`. Outside a prerender, Start
 answers every unmatched URL with status 404 and the same not-found render.
 
-For a fully static deployment, set `buildPolicy.staticClient: { target: "static" }`:
-the browser build then compiles the server-function `RpcClient` out of
-`App.launch`, so the app's client Layer must serve data from the prerendered
-pages (the docs site's `DocsContentApiStaticClient` is the example).
+For a fully static deployment, set
+`buildPolicy.staticClient: { target: "static" }`. With `forbidBrowserRpc`
+(default `true`), the browser build compiles the `RpcClient` out of
+`App.launch`, so the browser never calls a served Resource's load: every
+value it renders comes from a prerendered page. The first page hydrates from
+its own payload, and client navigation through
+`makeStartStaticHistoryAdapter` fetches the target's prerendered page and
+hydrates the Resources its preload loaded before the route renders. The docs
+site is the example: its recipes are served Resources (`Resource.define`
+without `load`, implemented with `Resource.implement` in a `*.server.ts`
+module), which run in-process while prerendering and over RPC only in dev
+(`examples/docs-site/src/start-options.ts`). Set `forbidBrowserRpc: false` to
+keep the RPC client in a static build whose host also serves the RPC path.
 
 ## Current Limits
 

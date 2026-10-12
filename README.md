@@ -165,7 +165,7 @@ export const implementations = [
   Action.implement(ToggleTodo, (id) => Todos.use((todos) => todos.toggle(id))),
 ];
 
-// Server rendering: runs the route's preload, renders, and streams the hydration
+// Server rendering: runs the route's preload, renders, and sends the hydration
 // payload; serves the load and the Action. Without TodosMemory, this does not compile.
 export const handleRequest = createRequestHandler(app, { server: TodosMemory, implementations });
 ```
@@ -223,7 +223,7 @@ All packages are MIT-licensed and published under the `alpha` dist-tag.
   app to copy: one file route, a route-owned Resource preload, SSR, and
   hydration.
 - [`examples/project-console`](examples/project-console): the full golden path
-  with Resource rows, live queries, Actions, forms, and server functions.
+  with Resource rows, live queries, forms, and served Resources and Actions.
 - [`examples/tracker`](examples/tracker): a team issue tracker on SQLite with
   sessions, a live board, URL-addressable search, and offline moves, with the
   [friction log](examples/tracker/FRICTION.md) building it produced.

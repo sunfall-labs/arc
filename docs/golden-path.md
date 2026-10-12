@@ -660,7 +660,7 @@ export const app = App.define({
 
 The server adds what only it has: its Layer and the implementations. Each
 request runs the matched route's preload on a request runtime, renders the
-root into Start's document, and streams the hydration payload; the same
+root into Start's document, and sends it with the hydration payload; the same
 handler answers the browser's loads and Action submissions:
 
 `src/server.tsx`:

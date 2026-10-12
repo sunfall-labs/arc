@@ -51,5 +51,5 @@ The example proves:
 - server-only Markdown loading and frontmatter validation;
 - served Resources for the recipe index and recipe detail reads;
 - route-owned Resource preload for the cookbook index and recipe pages;
-- Start SSR, streamed hydration chunks, production prerender/static output, and
+- Start SSR, Resource hydration chunks, production prerender/static output, and
   a server-only leak scan.

@@ -371,7 +371,7 @@ Sunfall Arc already has a few unusually useful proof points:
 - Resources (and their rows) are scoped to the active runtime/request store.
 - Start file routes produce a deterministic, validated route manifest and a
   typed `routeTree.gen.ts`.
-- The example app proves SSR, streamed hydration, branded route params,
+- The example app proves SSR, hydration, branded route params,
   no-JS form posts (a validation failure renders the page again with its
   errors and posted values), redirects, indexed rows, optimistic
   mutation, mocking through Effect service Layers, and server-only leak scanning.

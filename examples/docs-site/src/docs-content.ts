@@ -167,10 +167,12 @@ export const docsPages = [
         code: `import { createRequestHandler } from "@sunfall/arc-start";
 import { createFetchHandler } from "@sunfall/arc-start/fetch";
 import { app } from "./app-definition.js";
-import { AppServerLive } from "./app.server.js";
+import { AppServerLive, implementations } from "./app.server.js";
 
 export default {
-  fetch: createFetchHandler(createRequestHandler(app, { server: AppServerLive })),
+  fetch: createFetchHandler(
+    createRequestHandler(app, { server: AppServerLive, implementations }),
+  ),
 };`,
       },
       {
@@ -184,10 +186,12 @@ export default {
 import { createRequestHandler } from "@sunfall/arc-start";
 import { createNodeServerHandler } from "@sunfall/arc-start/node";
 import { app } from "./app-definition.js";
-import { AppServerLive } from "./app.server.js";
+import { AppServerLive, implementations } from "./app.server.js";
 
 createServer(
-  createNodeServerHandler(createRequestHandler(app, { server: AppServerLive })),
+  createNodeServerHandler(
+    createRequestHandler(app, { server: AppServerLive, implementations }),
+  ),
 ).listen(3000);`,
       },
       {
