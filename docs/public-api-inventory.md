@@ -547,7 +547,7 @@ includes:
   `stripStartStaticBasePath`, `StartStaticBasePathError`, and
   `StartStaticNavigationHydrationError`.
 
-File-route manifest serialization, generated route module codegen, transport
+File-route manifest generation, generated route module codegen, transport
 header constants and media types, `validateStart*Effect` validators, request
 metrics, and hydration chunk primitives are package-internal. `vite.ts` and
 tests import them from source.

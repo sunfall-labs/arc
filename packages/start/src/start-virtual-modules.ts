@@ -1,12 +1,7 @@
 import { Effect } from "effect";
-import {
-  serializeFileRouteManifest,
-  type FileRouteManifest,
-  type FileRouteManifestError,
-} from "./file-routes.js";
+import type { FileRouteManifestError } from "./file-routes.js";
 import {
   createFileRouteDefinitionsModule,
-  isFileRouteDefinitionsModuleError,
   type FileRouteDefinitionsModuleError,
 } from "./file-route-modules.js";
 import { makeStartFileRouteManifest, type SunfallArcStartOptions } from "./start-manifest-wall.js";
@@ -21,44 +16,12 @@ const resolvedFileRouteDefinitionsVirtualModuleId = `\0${fileRouteDefinitionsVir
 
 export type StartVirtualModuleLoadError = FileRouteManifestError | FileRouteDefinitionsModuleError;
 
-export const resolveStartVirtualModuleId = (id: string): string | null => {
-  switch (id) {
-    case fileRouteManifestVirtualModuleId:
-      return resolvedFileRouteManifestVirtualModuleId;
-    case fileRouteDefinitionsVirtualModuleId:
-      return resolvedFileRouteDefinitionsVirtualModuleId;
-    default:
-      return null;
-  }
-};
-
-/** Creates the Vite virtual module source for the file-route manifest. */
-export const createFileRouteManifestVirtualModule = (manifest: FileRouteManifest): string => {
-  const serialized = serializeFileRouteManifest(manifest);
-  return [
-    `export const manifest = ${serialized};`,
-    "export const entries = manifest.entries;",
-    "export const modules = manifest.modules;",
-    "export default manifest;",
-  ].join("\n");
-};
-
-export const createFileRouteDefinitionsVirtualModule = (manifest: FileRouteManifest): string =>
-  createFileRouteDefinitionsModule(manifest, { importMode: "rootAbsolute" });
-
-const createFileRouteDefinitionsVirtualModuleEffect = (
-  manifest: FileRouteManifest,
-): Effect.Effect<string, FileRouteDefinitionsModuleError> =>
-  Effect.suspend(() => {
-    try {
-      return Effect.succeed(createFileRouteDefinitionsVirtualModule(manifest));
-    } catch (cause) {
-      if (isFileRouteDefinitionsModuleError(cause)) {
-        return Effect.fail(cause);
-      }
-      throw cause;
-    }
-  });
+export const resolveStartVirtualModuleId = (id: string): string | null =>
+  id === fileRouteManifestVirtualModuleId
+    ? resolvedFileRouteManifestVirtualModuleId
+    : id === fileRouteDefinitionsVirtualModuleId
+      ? resolvedFileRouteDefinitionsVirtualModuleId
+      : null;
 
 export const loadStartVirtualModule = (
   id: string,
@@ -66,11 +29,17 @@ export const loadStartVirtualModule = (
 ): Effect.Effect<string | null, StartVirtualModuleLoadError> => {
   switch (id) {
     case resolvedFileRouteManifestVirtualModuleId:
-      return Effect.map(makeStartFileRouteManifest(options), createFileRouteManifestVirtualModule);
+      return Effect.map(makeStartFileRouteManifest(options), (manifest) =>
+        [
+          `export const manifest = ${JSON.stringify(manifest)};`,
+          "export const entries = manifest.entries;",
+          "export const modules = manifest.modules;",
+          "export default manifest;",
+        ].join("\n"),
+      );
     case resolvedFileRouteDefinitionsVirtualModuleId:
-      return Effect.flatMap(
-        makeStartFileRouteManifest(options),
-        createFileRouteDefinitionsVirtualModuleEffect,
+      return Effect.flatMap(makeStartFileRouteManifest(options), (manifest) =>
+        createFileRouteDefinitionsModule(manifest, { importMode: "rootAbsolute" }),
       );
     default:
       return Effect.succeed(null);

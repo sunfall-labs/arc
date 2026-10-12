@@ -67,7 +67,7 @@ export const errorBoundaryById = <Id extends FileRouteId>(id: Id): FileRouteErro
 export const metadataById = <Id extends FileRouteId>(id: Id): FileRouteMetadataModules<Id> =>
   fileRouteMetadataById[id];
 
-/** Route, layout, error boundary, and metadata modules discovered by Start. */
+/** Route, component, layout, error boundary, and metadata modules discovered by Start. */
 export const fileRouteModules = [
   {
     id: "projects/$id.component",
@@ -149,84 +149,6 @@ export const fileRouteModules = [
     exportName: "route",
   },
 ] as const;
-/** Parent, layout, error boundary, and metadata relationships for each generated route. */
-export const fileRouteMetadata = [
-  {
-    routeId: "route_root",
-    routePath: "/",
-    routeModule: {
-      id: "index",
-      kind: "Route",
-      routeId: "route_root",
-      moduleId: "src/routes/index.ts",
-      filePath: "src/routes/index.ts",
-      routePath: "/",
-      segments: [],
-      params: [],
-      exportName: "route",
-    },
-    layouts: [],
-    metadataModules: [],
-  },
-  {
-    routeId: "route_projects",
-    routePath: "/projects",
-    routeModule: {
-      id: "projects/index",
-      kind: "Route",
-      routeId: "route_projects",
-      moduleId: "src/routes/projects/index.ts",
-      filePath: "src/routes/projects/index.ts",
-      routePath: "/projects",
-      segments: [
-        {
-          _tag: "Static",
-          value: "projects",
-        },
-      ],
-      params: [],
-      exportName: "route",
-    },
-    parentRouteId: "route_root",
-    parentRoutePath: "/",
-    layouts: [],
-    metadataModules: [],
-  },
-  {
-    routeId: "route_projects_$id",
-    routePath: "/projects/:id",
-    routeModule: {
-      id: "projects/$id",
-      kind: "Route",
-      routeId: "route_projects_$id",
-      moduleId: "src/routes/projects/$id.ts",
-      filePath: "src/routes/projects/$id.ts",
-      routePath: "/projects/:id",
-      segments: [
-        {
-          _tag: "Static",
-          value: "projects",
-        },
-        {
-          _tag: "Dynamic",
-          name: "id",
-          optional: false,
-        },
-      ],
-      params: [
-        {
-          name: "id",
-          optional: false,
-        },
-      ],
-      exportName: "route",
-    },
-    parentRouteId: "route_projects",
-    parentRoutePath: "/projects",
-    layouts: [],
-    metadataModules: [],
-  },
-] as const;
 
 /** Tuple type for the generated app-specific route tree. */
 export type RouteTree = typeof routes;
@@ -263,5 +185,3 @@ export type FileRouteErrorBoundary<Id extends FileRouteId> =
 export type FileRouteMetadataModules<Id extends FileRouteId> = FileRouteMetadataById[Id];
 /** Static metadata for all file-route modules discovered by Start. */
 export type FileRouteModules = typeof fileRouteModules;
-/** Static parent/layout/error/metadata relationships for generated routes. */
-export type FileRouteMetadata = typeof fileRouteMetadata;

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { Effect } from "effect";
-import { generateFileRouteManifestArtifact } from "../src/file-routes.js";
+import { generateFileRouteManifest } from "../src/file-routes.js";
 import {
   planStartPrerenderPages,
   resolveStartPrerenderOptions,
@@ -12,14 +12,16 @@ import {
 } from "../src/start-prerender.js";
 import { sunfallArcStart } from "../src/vite.js";
 
-const manifest = generateFileRouteManifestArtifact(
-  [
-    "src/routes/index.tsx",
-    "src/routes/about.tsx",
-    "src/routes/posts/$slug.tsx",
-    "src/routes/admin.tsx",
-  ],
-  { routeDirectory: "src/routes" },
+const manifest = Effect.runSync(
+  generateFileRouteManifest(
+    [
+      "src/routes/index.tsx",
+      "src/routes/about.tsx",
+      "src/routes/posts/$slug.tsx",
+      "src/routes/admin.tsx",
+    ],
+    { routeDirectory: "src/routes" },
+  ),
 );
 
 const writePrerenderFixture = (

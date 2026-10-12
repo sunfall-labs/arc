@@ -1,34 +1,13 @@
 import {
   compareRoutePathSegment,
-  isRoutePathSegmentPrefix,
+  isRouteParamName,
+  routeParamsFromSegments,
+  routePathFromSegments,
+  routePathSlug,
   type RoutePathParam,
   type RoutePathSegment,
 } from "@sunfall/arc-core/internal";
-import { Data, Effect, Schema } from "effect";
-import {
-  decodeFileRoutePathSync,
-  decodeFileRoutePath,
-  decodeSerializedFileRoutePath,
-  type DecodedFileRoutePath,
-  type FileRoutePathDecodeInvalidSegment,
-  isFileRoutePathlessSegment,
-} from "./file-route-segments.js";
-
-/** Branded id derived from a source file path in the routes directory. */
-export const FileRouteSourceId = Schema.String.pipe(Schema.brand("FileRouteSourceId"));
-export type FileRouteSourceId = typeof FileRouteSourceId.Type;
-
-/** Branded route id generated from decoded file-route path segments. */
-export const FileRouteId = Schema.String.pipe(Schema.brand("FileRouteId"));
-export type FileRouteId = typeof FileRouteId.Type;
-
-/** Brands a normalized source id. */
-export const makeFileRouteSourceId = (id: string): FileRouteSourceId =>
-  Schema.decodeUnknownSync(FileRouteSourceId)(id);
-
-/** Brands a generated route id. */
-export const makeFileRouteId = (id: string): FileRouteId =>
-  Schema.decodeUnknownSync(FileRouteId)(id);
+import { Data, Effect } from "effect";
 
 /** Decoded route path segment used by file-route manifests. */
 export type FileRouteSegment = RoutePathSegment;
@@ -48,12 +27,12 @@ export type FileRouteModuleKind = "Route" | "Component" | "Layout" | "ErrorBound
 
 /** One module discovered from the file-route tree. */
 export interface FileRouteManifestModule {
-  /** Source-file identity relative to the route directory. */
-  readonly id: FileRouteSourceId;
+  /** Source-file identity relative to the route directory, without extension. */
+  readonly id: string;
   /** Role this module plays for its route path. */
   readonly kind: FileRouteModuleKind;
   /** Generated route identity shared by all modules for the same route path. */
-  readonly routeId: FileRouteId;
+  readonly routeId: string;
   /** Importable module id used by generated virtual modules. */
   readonly moduleId: string;
   /** Normalized file path on disk. */
@@ -69,22 +48,7 @@ export interface FileRouteManifestModule {
 }
 
 /** Route entry used by generated route definitions. */
-export interface FileRouteManifestEntry {
-  /** Source-file identity for the route module. */
-  readonly id: FileRouteSourceId;
-  /** Generated route identity. */
-  readonly routeId: FileRouteId;
-  /** Importable module id for the route module. */
-  readonly moduleId: string;
-  /** Normalized file path on disk. */
-  readonly filePath: string;
-  /** Runtime route path, e.g. `/projects/:id`. */
-  readonly routePath: string;
-  /** Decoded route path segments. */
-  readonly segments: readonly FileRouteSegment[];
-  /** Path parameters present in `routePath`. */
-  readonly params: readonly FileRouteParam[];
-}
+export type FileRouteManifestEntry = Omit<FileRouteManifestModule, "kind" | "exportName">;
 
 /** Complete file-route manifest emitted by discovery and virtual modules. */
 export interface FileRouteManifest {
@@ -92,22 +56,10 @@ export interface FileRouteManifest {
   readonly version: 1;
   /** Route entries that produce runtime route definitions. */
   readonly entries: readonly FileRouteManifestEntry[];
-  /** All route-related modules, including layout/error/metadata modules. */
+  /** All route-related modules, including component/layout/error/metadata modules. */
   readonly modules: readonly FileRouteManifestModule[];
   /** Optional route directory used to make file paths relative. */
   readonly routeDirectory?: string;
-}
-
-/** Per-route metadata projected from a complete file-route manifest. */
-export interface FileRouteRouteMetadata {
-  readonly routeId: FileRouteId;
-  readonly routePath: string;
-  readonly routeModule: FileRouteManifestModule;
-  readonly parentRouteId?: FileRouteId;
-  readonly parentRoutePath?: string;
-  readonly layouts: readonly FileRouteManifestModule[];
-  readonly errorBoundary?: FileRouteManifestModule;
-  readonly metadataModules: readonly FileRouteManifestModule[];
 }
 
 /** Options for turning file paths into route manifest entries. */
@@ -129,7 +81,7 @@ export class FileRouteManifestDuplicateRoutePath extends Data.TaggedError(
 export class FileRouteManifestDuplicateRouteId extends Data.TaggedError(
   "FileRouteManifestDuplicateRouteId",
 )<{
-  readonly routeId: FileRouteId;
+  readonly routeId: string;
   readonly first: FileRouteManifestEntry;
   readonly second: FileRouteManifestEntry;
 }> {}
@@ -163,11 +115,6 @@ export class FileRouteManifestRouteModuleMismatch extends Data.TaggedError(
   readonly second?: FileRouteManifestModule;
 }> {}
 
-export class FileRouteManifestParseError extends Data.TaggedError("FileRouteManifestParseError")<{
-  readonly message: string;
-  readonly cause?: unknown;
-}> {}
-
 export type FileRouteManifestError =
   | FileRouteManifestDuplicateRoutePath
   | FileRouteManifestDuplicateRouteId
@@ -189,104 +136,87 @@ export const defaultFileRouteExtensions = [
 const normalizePath = (path: string): string =>
   path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
 
-const normalizeModuleId = (filePath: string): string =>
-  normalizePath(filePath).split(/[?#]/, 1)[0] ?? filePath;
-
 const stripLeadingCurrentDirectory = (path: string): string =>
   path.startsWith("./") ? path.slice(2) : path;
 
 const stripRouteDirectory = (filePath: string, routeDirectory: string | undefined): string => {
-  if (!routeDirectory) {
-    return stripLeadingCurrentDirectory(filePath);
-  }
-
-  const root = stripLeadingCurrentDirectory(normalizePath(routeDirectory));
   const relative = stripLeadingCurrentDirectory(filePath);
-
-  if (relative === root) {
-    return "";
+  if (!routeDirectory) {
+    return relative;
   }
-
-  return relative.startsWith(`${root}/`) ? relative.slice(root.length + 1) : relative;
+  const root = stripLeadingCurrentDirectory(normalizePath(routeDirectory));
+  return relative === root
+    ? ""
+    : relative.startsWith(`${root}/`)
+      ? relative.slice(root.length + 1)
+      : relative;
 };
 
-const stripExtension = (
-  path: string,
-  extensions: readonly string[],
-): { readonly path: string; readonly extension: string } | undefined => {
-  const sorted = [...extensions].sort((left, right) => right.length - left.length);
-
-  for (const extension of sorted) {
-    if (path.endsWith(extension)) {
-      return { path: path.slice(0, -extension.length), extension };
-    }
-
-    const queryIndex = path.indexOf(`${extension}?`);
-    const hashIndex = path.indexOf(`${extension}#`);
-    const suffixIndex =
-      queryIndex === -1
-        ? hashIndex
-        : hashIndex === -1
-          ? queryIndex
-          : Math.min(queryIndex, hashIndex);
-
-    if (suffixIndex !== -1) {
-      return { path: path.slice(0, suffixIndex), extension };
+/** Strips the longest matching extension and any query or hash after it (`$id?` is a name). */
+const stripExtension = (path: string, extensions: readonly string[]): string | undefined => {
+  for (const extension of [...extensions].sort((left, right) => right.length - left.length)) {
+    const escaped = extension.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const match = new RegExp(`^(.*?)${escaped}(?:[?#].*)?$`).exec(path);
+    if (match !== null) {
+      return match[1];
     }
   }
-
   return undefined;
 };
 
-const isErrorBoundaryFile = (segment: string): boolean =>
-  segment === "error" ||
-  segment === "_error" ||
-  segment === "+error" ||
-  segment === "error-boundary" ||
-  segment === "_error-boundary" ||
-  segment === "+error-boundary";
+const isFileRoutePathlessSegment = (segment: string): boolean =>
+  segment.startsWith("_") && segment.length > 1;
 
-const isMetadataFile = (segment: string): boolean =>
-  segment === "meta" ||
-  segment === "_meta" ||
-  segment === "+meta" ||
-  segment === "metadata" ||
-  segment === "_metadata" ||
-  segment === "+metadata" ||
-  segment === "head" ||
-  segment === "_head" ||
-  segment === "+head";
+/**
+ * Decodes one file-name segment: route groups `(name)` and pathless `_name`
+ * segments add nothing to the URL, `$id` / `$id?` are params.
+ */
+const decodeSegment = (
+  segment: string,
+  filePath: string,
+): Effect.Effect<RoutePathSegment | undefined, FileRouteManifestInvalidSegment> => {
+  const group = segment.startsWith("(") && segment.endsWith(")") && segment.length > 2;
+  if (group || isFileRoutePathlessSegment(segment)) {
+    return Effect.succeed(undefined);
+  }
+  if (!segment.startsWith("$")) {
+    return Effect.succeed({ _tag: "Static", value: segment });
+  }
+  const raw = segment.slice(1);
+  const optional = raw.endsWith("?");
+  const name = optional ? raw.slice(0, -1) : raw;
+  return isRouteParamName(name)
+    ? Effect.succeed({ _tag: "Dynamic", name, optional })
+    : Effect.fail(
+        new FileRouteManifestInvalidSegment({ filePath, segment, reason: "InvalidParamName" }),
+      );
+};
 
-const isLayoutFile = (segment: string): boolean =>
-  segment === "layout" ||
-  segment === "_layout" ||
-  segment === "+layout" ||
-  isFileRoutePathlessSegment(segment);
+const leafNames = (...names: readonly string[]): ReadonlySet<string> =>
+  new Set(names.flatMap((name) => [name, `_${name}`, `+${name}`]));
 
+const errorBoundaryLeaves = leafNames("error", "error-boundary");
+const metadataLeaves = leafNames("meta", "metadata", "head");
+const layoutLeaves = leafNames("layout");
 const componentSuffix = ".component";
 
-const fileRouteModuleKindFromLeaf = (segment: string): FileRouteModuleKind => {
-  if (segment.endsWith(componentSuffix) && segment.length > componentSuffix.length) {
-    return "Component";
-  }
-  if (isErrorBoundaryFile(segment)) {
-    return "ErrorBoundary";
-  }
-  if (isMetadataFile(segment)) {
-    return "Metadata";
-  }
-  if (isLayoutFile(segment)) {
-    return "Layout";
-  }
-  return "Route";
-};
+const fileRouteModuleKindFromLeaf = (segment: string): FileRouteModuleKind =>
+  segment.endsWith(componentSuffix) && segment.length > componentSuffix.length
+    ? "Component"
+    : errorBoundaryLeaves.has(segment)
+      ? "ErrorBoundary"
+      : metadataLeaves.has(segment)
+        ? "Metadata"
+        : layoutLeaves.has(segment) || isFileRoutePathlessSegment(segment)
+          ? "Layout"
+          : "Route";
 
 /** The route segments a module's file location maps to. */
 const fileRouteSegmentsFor = (
   kind: FileRouteModuleKind,
   rawSegments: readonly string[],
-  leaf: string,
 ): readonly string[] => {
+  const leaf = rawSegments.at(-1) ?? "";
   const route = kind === "Component" ? leaf.slice(0, -componentSuffix.length) : leaf;
   return (kind === "Route" || kind === "Component") && route !== "index"
     ? [...rawSegments.slice(0, -1), route]
@@ -298,105 +228,45 @@ const fileRouteSegmentsFor = (
  * `route = Route.define(path, options)`; Start checks the declared path against
  * the path derived from the file location.
  */
-export const fileRouteModuleExportName = (kind: FileRouteModuleKind): string => {
-  switch (kind) {
-    case "Route":
-      return "route";
-    case "Component":
-      return "default";
-    case "Layout":
-      return "Layout";
-    case "ErrorBoundary":
-      return "ErrorBoundary";
-    case "Metadata":
-      return "Metadata";
-  }
-};
+export const fileRouteModuleExportName = (kind: FileRouteModuleKind): string =>
+  kind === "Route" ? "route" : kind === "Component" ? "default" : kind;
 
 const compareString = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;
 
-const invalidSegmentFromPathDecodeError = (
-  error: FileRoutePathDecodeInvalidSegment,
-  filePath: string,
-): FileRouteManifestInvalidSegment =>
-  new FileRouteManifestInvalidSegment({
-    filePath,
-    segment: error.segment,
-    reason: error.reason,
-  });
-
-const decodeManifestPathFields = (
-  value: {
-    readonly routeId: string;
-    readonly routePath: string;
-    readonly segments: readonly unknown[];
-    readonly params: readonly unknown[];
-  },
-  owner: string,
-): Effect.Effect<DecodedFileRoutePath, FileRouteManifestParseError> =>
-  decodeSerializedFileRoutePath(value, { owner }).pipe(
-    Effect.mapError(
-      (error) =>
-        new FileRouteManifestParseError({
-          message: error.message,
-        }),
-    ),
-  );
-
-const compareManifestEntries = (
+const compareBySegmentsThenPath = (
   left: FileRouteManifestEntry,
   right: FileRouteManifestEntry,
 ): number => {
   const length = Math.max(left.segments.length, right.segments.length);
-
   for (let index = 0; index < length; index++) {
     const comparison = compareRoutePathSegment(left.segments[index], right.segments[index]);
     if (comparison !== 0) {
       return comparison;
     }
   }
-
   return compareString(left.filePath, right.filePath);
 };
 
 const compareManifestModules = (
   left: FileRouteManifestModule,
   right: FileRouteManifestModule,
-): number => {
-  const kind = compareString(left.kind, right.kind);
-  if (kind !== 0) {
-    return kind;
-  }
+): number => compareString(left.kind, right.kind) || compareBySegmentsThenPath(left, right);
 
-  const length = Math.max(left.segments.length, right.segments.length);
-  for (let index = 0; index < length; index++) {
-    const comparison = compareRoutePathSegment(left.segments[index], right.segments[index]);
-    if (comparison !== 0) {
-      return comparison;
-    }
-  }
-
-  return compareString(left.filePath, right.filePath);
-};
-
-const fileRouteSourceSegments = (value: { readonly id: FileRouteSourceId }): readonly string[] =>
-  String(value.id)
-    .split("/")
-    .filter((segment) => segment.length > 0);
-
+/**
+ * The source directory a module applies to: support modules apply to their
+ * directory, route modules (other than `index`) to their own path.
+ */
 const fileRouteSourceScope = (value: {
-  readonly id: FileRouteSourceId;
+  readonly id: string;
   readonly kind?: FileRouteModuleKind;
 }): readonly string[] => {
-  const segments = fileRouteSourceSegments(value);
+  const segments = value.id.split("/").filter((segment) => segment.length > 0);
   const leaf = segments.at(-1);
   if (leaf === undefined) {
     return [];
   }
-
-  const kind = value.kind ?? "Route";
-  return kind !== "Route" || leaf === "index" ? segments.slice(0, -1) : segments;
+  return (value.kind ?? "Route") !== "Route" || leaf === "index" ? segments.slice(0, -1) : segments;
 };
 
 const isFileRouteSourceScopePrefix = (
@@ -405,161 +275,75 @@ const isFileRouteSourceScopePrefix = (
 ): boolean =>
   parent.length <= child.length && parent.every((segment, index) => child[index] === segment);
 
-const fileRouteSourceScopeKey = (value: {
-  readonly id: FileRouteSourceId;
-  readonly kind?: FileRouteModuleKind;
-}): string => fileRouteSourceScope(value).join("/");
-
 const compareBySourceScopeDepthThenPath = (
-  left: {
-    readonly id: FileRouteSourceId;
-    readonly filePath: string;
-    readonly kind?: FileRouteModuleKind;
-  },
-  right: {
-    readonly id: FileRouteSourceId;
-    readonly filePath: string;
-    readonly kind?: FileRouteModuleKind;
-  },
-): number => {
-  const depth = fileRouteSourceScope(left).length - fileRouteSourceScope(right).length;
-  return depth === 0 ? compareString(left.filePath, right.filePath) : depth;
-};
+  left: FileRouteManifestModule,
+  right: FileRouteManifestModule,
+): number =>
+  fileRouteSourceScope(left).length - fileRouteSourceScope(right).length ||
+  compareString(left.filePath, right.filePath);
 
-const fileRouteModuleToManifestEntry = (
-  module: FileRouteManifestModule | undefined,
-): FileRouteManifestEntry | undefined => {
-  if (!module || module.kind !== "Route") {
-    return undefined;
-  }
-
-  return {
-    id: module.id,
-    routeId: module.routeId,
-    moduleId: module.moduleId,
-    filePath: module.filePath,
-    routePath: module.routePath,
-    segments: module.segments,
-    params: module.params,
-  };
-};
+const manifestEntry = ({
+  kind: _kind,
+  exportName: _exportName,
+  ...entry
+}: FileRouteManifestModule): FileRouteManifestEntry => entry;
 
 const manifestEntryToRouteModule = (entry: FileRouteManifestEntry): FileRouteManifestModule => ({
-  id: entry.id,
+  ...entry,
   kind: "Route",
-  routeId: entry.routeId,
-  moduleId: entry.moduleId,
-  filePath: entry.filePath,
-  routePath: entry.routePath,
-  segments: entry.segments,
-  params: entry.params,
   exportName: fileRouteModuleExportName("Route"),
 });
 
-/** Converts one file path to a route/layout/error/metadata module when it matches route conventions. */
-export const filePathToFileRouteModuleSync = (
-  filePath: string,
-  options: FileRouteManifestOptions = {},
-): FileRouteManifestModule | undefined => {
-  const normalized = normalizePath(filePath);
-  const relative = stripRouteDirectory(normalized, options.routeDirectory);
-  const stripped = stripExtension(relative, options.extensions ?? defaultFileRouteExtensions);
-
-  if (!stripped) {
-    return undefined;
-  }
-
-  const rawSegments = stripped.path.split("/").filter((segment) => segment.length > 0);
-  const leaf = rawSegments.at(-1);
-
-  if (!leaf) {
-    return undefined;
-  }
-
-  const kind = fileRouteModuleKindFromLeaf(leaf);
-  const routeSegments = fileRouteSegmentsFor(kind, rawSegments, leaf);
-  const decodedPath = decodeFileRoutePathSync(routeSegments);
-  if (!decodedPath) {
-    return undefined;
-  }
-
-  return {
-    id: makeFileRouteSourceId(stripped.path),
-    kind,
-    routeId: makeFileRouteId(decodedPath.routeId),
-    moduleId: normalizeModuleId(normalized),
-    filePath: normalized,
-    routePath: decodedPath.routePath,
-    segments: decodedPath.segments,
-    params: decodedPath.params,
-    exportName: fileRouteModuleExportName(kind),
-  };
-};
-
-/** Effect variant of `filePathToFileRouteModuleSync` that reports invalid route segments. */
+/** Converts one file path to a route/component/layout/error/metadata module when it matches route conventions. */
 export const filePathToFileRouteModule = (
   filePath: string,
   options: FileRouteManifestOptions = {},
 ): Effect.Effect<FileRouteManifestModule | undefined, FileRouteManifestInvalidSegment> =>
   Effect.gen(function* () {
     const normalized = normalizePath(filePath);
-    const relative = stripRouteDirectory(normalized, options.routeDirectory);
-    const stripped = stripExtension(relative, options.extensions ?? defaultFileRouteExtensions);
-
-    if (!stripped) {
-      return undefined;
-    }
-
-    const rawSegments = stripped.path.split("/").filter((segment) => segment.length > 0);
+    const id = stripExtension(
+      stripRouteDirectory(normalized, options.routeDirectory),
+      options.extensions ?? defaultFileRouteExtensions,
+    );
+    const rawSegments = id?.split("/").filter((segment) => segment.length > 0) ?? [];
     const leaf = rawSegments.at(-1);
-
-    if (!leaf) {
+    if (id === undefined || leaf === undefined) {
       return undefined;
     }
 
     const kind = fileRouteModuleKindFromLeaf(leaf);
-    const routeSegments = fileRouteSegmentsFor(kind, rawSegments, leaf);
-    const decodedPath = yield* decodeFileRoutePath(routeSegments).pipe(
-      Effect.mapError((error) => invalidSegmentFromPathDecodeError(error, normalized)),
-    );
+    const segments = (yield* Effect.forEach(fileRouteSegmentsFor(kind, rawSegments), (segment) =>
+      decodeSegment(segment, normalized),
+    )).filter((segment): segment is RoutePathSegment => segment !== undefined);
+    const routePath = routePathFromSegments(segments);
 
     return {
-      id: makeFileRouteSourceId(stripped.path),
+      id,
       kind,
-      routeId: makeFileRouteId(decodedPath.routeId),
-      moduleId: normalizeModuleId(normalized),
+      routeId: routePath === "/" ? "route_root" : `route_${routePathSlug(routePath)}`,
+      moduleId: normalized.split(/[?#]/, 1)[0] ?? normalized,
       filePath: normalized,
-      routePath: decodedPath.routePath,
-      segments: decodedPath.segments,
-      params: decodedPath.params,
+      routePath,
+      segments,
+      params: routeParamsFromSegments(segments),
       exportName: fileRouteModuleExportName(kind),
     };
   });
 
-/** Converts one file path to a route entry, ignoring non-route companion modules. */
-export const filePathToRouteManifestEntry = (
-  filePath: string,
-  options: FileRouteManifestOptions = {},
-): FileRouteManifestEntry | undefined =>
-  fileRouteModuleToManifestEntry(filePathToFileRouteModuleSync(filePath, options));
-
-/** Generates sorted route entries from discovered file paths without duplicate validation. */
-export const generateFileRouteManifest = (
-  filePaths: Iterable<string>,
-  options: FileRouteManifestOptions = {},
-): readonly FileRouteManifestEntry[] =>
-  Array.from(filePaths, (filePath) => filePathToRouteManifestEntry(filePath, options))
-    .filter((entry): entry is FileRouteManifestEntry => entry !== undefined)
-    .sort(compareManifestEntries);
-
-/** Generates sorted route, layout, error-boundary, and metadata modules from discovered file paths. */
-export const generateFileRouteModules = (
-  filePaths: Iterable<string>,
-  options: FileRouteManifestOptions = {},
-): readonly FileRouteManifestModule[] =>
-  Array.from(filePaths, (filePath) => filePathToFileRouteModuleSync(filePath, options))
-    .filter((module): module is FileRouteManifestModule => module !== undefined)
-    .sort(compareManifestModules);
+const firstDuplicate = <A>(
+  values: Iterable<A>,
+  key: (value: A) => string,
+): readonly [A, A] | undefined => {
+  const seen = new Map<string, A>();
+  for (const value of values) {
+    const existing = seen.get(key(value));
+    if (existing !== undefined) {
+      return [existing, value];
+    }
+    seen.set(key(value), value);
+  }
+  return undefined;
+};
 
 /**
  * Validates duplicate route paths and route/module consistency.
@@ -572,115 +356,68 @@ export const validateFileRouteManifest = (
   modules?: Iterable<FileRouteManifestModule>,
 ): Effect.Effect<readonly FileRouteManifestEntry[], FileRouteManifestError> =>
   Effect.gen(function* () {
-    const byRoutePath = new Map<string, FileRouteManifestEntry>();
-    const byRouteId = new Map<string, FileRouteManifestEntry>();
-    const result = Array.from(entries).sort(compareManifestEntries);
+    const result = Array.from(entries).sort(compareBySegmentsThenPath);
     const moduleResult = Array.from(modules ?? []);
-    const validateRouteModules = modules !== undefined;
-    const byModuleRole = new Map<string, FileRouteManifestModule>();
 
+    const samePath = firstDuplicate(result, (entry) => entry.routePath);
+    if (samePath !== undefined) {
+      return yield* new FileRouteManifestDuplicateRoutePath({
+        routePath: samePath[1].routePath,
+        first: samePath[0],
+        second: samePath[1],
+      });
+    }
+    const sameId = firstDuplicate(result, (entry) => entry.routeId);
+    if (sameId !== undefined) {
+      return yield* new FileRouteManifestDuplicateRouteId({
+        routeId: sameId[1].routeId,
+        first: sameId[0],
+        second: sameId[1],
+      });
+    }
+    const sameRole = firstDuplicate(
+      moduleResult.filter((module) => module.kind !== "Route"),
+      (module) => `${module.kind}:${module.routePath}:${fileRouteSourceScope(module).join("/")}`,
+    );
+    if (sameRole !== undefined) {
+      return yield* new FileRouteManifestDuplicateModuleRole({
+        kind: sameRole[1].kind as Exclude<FileRouteModuleKind, "Route">,
+        routePath: sameRole[1].routePath,
+        first: sameRole[0],
+        second: sameRole[1],
+      });
+    }
+    if (modules === undefined) {
+      return result;
+    }
+
+    const routeModuleKey = (value: FileRouteManifestEntry): string =>
+      `${value.routePath}\u0000${value.moduleId}`;
+    const entryKeys = new Set(result.map(routeModuleKey));
+    const routeModules = moduleResult.filter((module) => module.kind === "Route");
+    const orphan = routeModules.find((module) => !entryKeys.has(routeModuleKey(module)));
+    if (orphan !== undefined) {
+      return yield* new FileRouteManifestRouteModuleMismatch({
+        reason: "OrphanRouteModule",
+        routePath: orphan.routePath,
+        moduleId: orphan.moduleId,
+        module: orphan,
+      });
+    }
     for (const entry of result) {
-      const existing = byRoutePath.get(entry.routePath);
-      if (existing) {
-        return yield* Effect.fail(
-          new FileRouteManifestDuplicateRoutePath({
-            routePath: entry.routePath,
-            first: existing,
-            second: entry,
-          }),
-        );
-      }
-      byRoutePath.set(entry.routePath, entry);
-
-      const existingRouteId = byRouteId.get(entry.routeId);
-      if (existingRouteId) {
-        return yield* Effect.fail(
-          new FileRouteManifestDuplicateRouteId({
-            routeId: entry.routeId,
-            first: existingRouteId,
-            second: entry,
-          }),
-        );
-      }
-      byRouteId.set(entry.routeId, entry);
-    }
-
-    for (const module of moduleResult) {
-      if (module.kind === "Route") {
-        continue;
-      }
-
-      const key = `${module.kind}:${module.routePath}:${fileRouteSourceScopeKey(module)}`;
-      const existing = byModuleRole.get(key);
-      if (existing) {
-        return yield* Effect.fail(
-          new FileRouteManifestDuplicateModuleRole({
-            kind: module.kind,
-            routePath: module.routePath,
-            first: existing,
-            second: module,
-          }),
-        );
-      }
-      byModuleRole.set(key, module);
-    }
-
-    if (validateRouteModules) {
-      const routeModulesByEntry = new Map<string, FileRouteManifestModule[]>();
-      const entryKeys = new Set<string>();
-      const routeModuleKey = (routePath: string, moduleId: string) =>
-        `${routePath}\u0000${moduleId}`;
-      for (const entry of result) {
-        entryKeys.add(routeModuleKey(entry.routePath, entry.moduleId));
-      }
-      for (const module of moduleResult) {
-        if (module.kind !== "Route") {
-          continue;
-        }
-
-        const key = routeModuleKey(module.routePath, module.moduleId);
-        if (!entryKeys.has(key)) {
-          return yield* Effect.fail(
-            new FileRouteManifestRouteModuleMismatch({
-              reason: "OrphanRouteModule",
-              routePath: module.routePath,
-              moduleId: module.moduleId,
-              module,
-            }),
-          );
-        }
-        routeModulesByEntry.set(key, [...(routeModulesByEntry.get(key) ?? []), module]);
-      }
-      for (const entry of result) {
-        const key = routeModuleKey(entry.routePath, entry.moduleId);
-        const matching = routeModulesByEntry.get(key) ?? [];
-        if (matching.length === 0) {
-          return yield* Effect.fail(
-            new FileRouteManifestRouteModuleMismatch({
-              reason: "MissingRouteModule",
-              routePath: entry.routePath,
-              moduleId: entry.moduleId,
-              entry,
-            }),
-          );
-        }
-        if (matching.length > 1) {
-          const first = matching[0]!;
-          const second = matching[1]!;
-          return yield* Effect.fail(
-            new FileRouteManifestRouteModuleMismatch({
-              reason: "DuplicateRouteModule",
-              routePath: entry.routePath,
-              moduleId: entry.moduleId,
-              entry,
-              first,
-              second,
-            }),
-          );
-        }
+      const matching = routeModules.filter(
+        (module) => routeModuleKey(module) === routeModuleKey(entry),
+      );
+      if (matching.length !== 1) {
+        return yield* new FileRouteManifestRouteModuleMismatch({
+          reason: matching.length === 0 ? "MissingRouteModule" : "DuplicateRouteModule",
+          routePath: entry.routePath,
+          moduleId: entry.moduleId,
+          entry,
+          ...(matching.length === 0 ? {} : { first: matching[0]!, second: matching[1]! }),
+        });
       }
     }
-
     return result;
   });
 
@@ -690,317 +427,66 @@ export const createFileRouteManifest = (
   options: FileRouteManifestOptions = {},
   modules: Iterable<FileRouteManifestModule> = [],
 ): FileRouteManifest => {
-  const routeDirectory =
-    options.routeDirectory === undefined
-      ? {}
-      : { routeDirectory: normalizePath(options.routeDirectory) };
-  const sortedEntries = Array.from(entries).sort(compareManifestEntries);
+  const sortedEntries = Array.from(entries).sort(compareBySegmentsThenPath);
   const explicitModules = Array.from(modules);
-  const sortedModules = (
-    explicitModules.length === 0 ? sortedEntries.map(manifestEntryToRouteModule) : explicitModules
-  ).sort(compareManifestModules);
-
   return {
     version: 1,
-    ...routeDirectory,
+    ...(options.routeDirectory === undefined
+      ? {}
+      : { routeDirectory: normalizePath(options.routeDirectory) }),
     entries: sortedEntries,
-    modules: sortedModules,
+    modules: (explicitModules.length === 0
+      ? sortedEntries.map(manifestEntryToRouteModule)
+      : explicitModules
+    ).sort(compareManifestModules),
   };
 };
 
-/** Serializes a file-route manifest for virtual-module handoff. */
-export const serializeFileRouteManifest = (manifest: FileRouteManifest): string =>
-  JSON.stringify(manifest);
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-const isNonEmptyString = (value: unknown): value is string =>
-  typeof value === "string" && value.length > 0;
-
-const isIdentifier = (value: string): boolean => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value);
-
-const isFileRouteModuleKind = (value: unknown): value is FileRouteModuleKind =>
-  value === "Route" ||
-  value === "Component" ||
-  value === "Layout" ||
-  value === "ErrorBoundary" ||
-  value === "Metadata";
-
-const decodeSerializedModule = (
-  value: unknown,
-  index: number,
-): Effect.Effect<FileRouteManifestModule, FileRouteManifestParseError> =>
-  Effect.gen(function* () {
-    if (
-      !isRecord(value) ||
-      !isNonEmptyString(value.id) ||
-      !isFileRouteModuleKind(value.kind) ||
-      !isNonEmptyString(value.routeId) ||
-      !isNonEmptyString(value.moduleId) ||
-      !isNonEmptyString(value.filePath) ||
-      !isNonEmptyString(value.routePath) ||
-      !Array.isArray(value.segments) ||
-      !Array.isArray(value.params) ||
-      !isNonEmptyString(value.exportName) ||
-      !isIdentifier(value.exportName)
-    ) {
-      return yield* Effect.fail(
-        new FileRouteManifestParseError({
-          message: `File route module ${index} has invalid top-level fields.`,
-        }),
-      );
-    }
-
-    const decodedPath = yield* decodeManifestPathFields(
-      {
-        routeId: value.routeId,
-        routePath: value.routePath,
-        segments: value.segments,
-        params: value.params,
-      },
-      `File route module ${index}`,
-    );
-
-    return {
-      id: makeFileRouteSourceId(value.id),
-      kind: value.kind,
-      routeId: makeFileRouteId(decodedPath.routeId),
-      moduleId: normalizeModuleId(value.moduleId),
-      filePath: normalizePath(value.filePath),
-      routePath: decodedPath.routePath,
-      segments: decodedPath.segments,
-      params: decodedPath.params,
-      exportName: value.exportName,
-    };
-  });
-
-const decodeSerializedEntry = (
-  value: unknown,
-  index: number,
-): Effect.Effect<FileRouteManifestEntry, FileRouteManifestParseError> =>
-  Effect.gen(function* () {
-    if (
-      !isRecord(value) ||
-      !isNonEmptyString(value.id) ||
-      !isNonEmptyString(value.routeId) ||
-      !isNonEmptyString(value.moduleId) ||
-      !isNonEmptyString(value.filePath) ||
-      !isNonEmptyString(value.routePath) ||
-      !Array.isArray(value.segments) ||
-      !Array.isArray(value.params)
-    ) {
-      return yield* Effect.fail(
-        new FileRouteManifestParseError({
-          message: `File route manifest entry ${index} has invalid top-level fields.`,
-        }),
-      );
-    }
-
-    const decodedPath = yield* decodeManifestPathFields(
-      {
-        routeId: value.routeId,
-        routePath: value.routePath,
-        segments: value.segments,
-        params: value.params,
-      },
-      `File route manifest entry ${index}`,
-    );
-
-    return {
-      id: makeFileRouteSourceId(value.id),
-      routeId: makeFileRouteId(decodedPath.routeId),
-      moduleId: normalizeModuleId(value.moduleId),
-      filePath: normalizePath(value.filePath),
-      routePath: decodedPath.routePath,
-      segments: decodedPath.segments,
-      params: decodedPath.params,
-    };
-  });
-
-const decodeSerializedManifest = (
-  value: unknown,
-): Effect.Effect<FileRouteManifest, FileRouteManifestParseError | FileRouteManifestError> =>
-  Effect.gen(function* () {
-    if (
-      !isRecord(value) ||
-      value.version !== 1 ||
-      !Array.isArray(value.entries) ||
-      (value.modules !== undefined && !Array.isArray(value.modules)) ||
-      (value.routeDirectory !== undefined && !isNonEmptyString(value.routeDirectory))
-    ) {
-      return yield* Effect.fail(
-        new FileRouteManifestParseError({
-          message: "Expected a version 1 file route manifest.",
-        }),
-      );
-    }
-
-    const entries = yield* Effect.forEach(value.entries, decodeSerializedEntry);
-    const hasSerializedModules = value.modules !== undefined;
-    const modules = hasSerializedModules
-      ? yield* Effect.forEach(value.modules as ReadonlyArray<unknown>, decodeSerializedModule)
-      : [];
-    const validated = yield* validateFileRouteManifest(
-      entries,
-      hasSerializedModules ? modules : undefined,
-    );
-
-    return createFileRouteManifest(
-      validated,
-      value.routeDirectory === undefined ? {} : { routeDirectory: value.routeDirectory },
-      modules,
-    );
-  });
-
-/** Parses and validates a serialized file-route manifest. */
-export const deserializeFileRouteManifest = (
-  serialized: string,
-): Effect.Effect<FileRouteManifest, FileRouteManifestParseError | FileRouteManifestError> =>
-  Effect.try({
-    try: () => JSON.parse(serialized) as unknown,
-    catch: (cause) =>
-      new FileRouteManifestParseError({
-        message: "File route manifest is not valid JSON.",
-        cause,
-      }),
-  }).pipe(Effect.flatMap(decodeSerializedManifest));
-
-interface FileRouteManifestParts {
-  readonly entries: readonly FileRouteManifestEntry[];
-  readonly modules: readonly FileRouteManifestModule[];
-}
-
-const manifestEntriesFromModules = (
-  modules: Iterable<FileRouteManifestModule>,
-): readonly FileRouteManifestEntry[] =>
-  Array.from(modules, fileRouteModuleToManifestEntry)
-    .filter((entry): entry is FileRouteManifestEntry => entry !== undefined)
-    .sort(compareManifestEntries);
-
-const generateFileRouteManifestParts = (
-  filePaths: Iterable<string>,
-  options: FileRouteManifestOptions = {},
-): FileRouteManifestParts => {
-  const modules = Array.from(filePaths, (filePath) =>
-    filePathToFileRouteModuleSync(filePath, options),
-  ).filter((module): module is FileRouteManifestModule => module !== undefined);
-
-  return {
-    entries: manifestEntriesFromModules(modules),
-    modules: modules.sort(compareManifestModules),
-  };
-};
-
-/** Generates the full manifest artifact used by Start virtual modules. */
-export const generateFileRouteManifestArtifact = (
-  filePaths: Iterable<string>,
-  options: FileRouteManifestOptions = {},
-): FileRouteManifest => {
-  const parts = generateFileRouteManifestParts(filePaths, options);
-  return createFileRouteManifest(parts.entries, options, parts.modules);
-};
-
-const generateValidatedFileRouteManifestPartsEffect = (
-  filePaths: Iterable<string>,
-  options: FileRouteManifestOptions = {},
-): Effect.Effect<FileRouteManifestParts, FileRouteManifestError> =>
-  Effect.gen(function* () {
-    const modules = yield* Effect.forEach(filePaths, (filePath) =>
-      filePathToFileRouteModule(filePath, options),
-    ).pipe(
-      Effect.map((modules) =>
-        modules.filter((module): module is FileRouteManifestModule => module !== undefined),
-      ),
-    );
-    const entries = manifestEntriesFromModules(modules);
-    const validated = yield* validateFileRouteManifest(entries, modules);
-
-    return {
-      entries: validated,
-      modules: modules.sort(compareManifestModules),
-    };
-  });
-
-/** Generates validated route entries and reports manifest errors in the Effect channel. */
-export const generateValidatedFileRouteManifest = (
-  filePaths: Iterable<string>,
-  options: FileRouteManifestOptions = {},
-): Effect.Effect<readonly FileRouteManifestEntry[], FileRouteManifestError> =>
-  Effect.map(
-    generateValidatedFileRouteManifestPartsEffect(filePaths, options),
-    (parts) => parts.entries,
-  );
-
-/** Generates a validated full manifest artifact with route and companion modules. */
-export const generateValidatedFileRouteManifestArtifact = (
+/** Generates a validated manifest with route and companion modules from file paths. */
+export const generateFileRouteManifest = (
   filePaths: Iterable<string>,
   options: FileRouteManifestOptions = {},
 ): Effect.Effect<FileRouteManifest, FileRouteManifestError> =>
-  Effect.map(generateValidatedFileRouteManifestPartsEffect(filePaths, options), (parts) =>
-    createFileRouteManifest(parts.entries, options, parts.modules),
-  );
-
-const compareByDepthThenPath = (
-  left: { readonly segments: readonly FileRouteSegment[]; readonly filePath: string },
-  right: { readonly segments: readonly FileRouteSegment[]; readonly filePath: string },
-): number => {
-  const depth = left.segments.length - right.segments.length;
-  return depth === 0 ? compareString(left.filePath, right.filePath) : depth;
-};
+  Effect.gen(function* () {
+    const modules = (yield* Effect.forEach(filePaths, (filePath) =>
+      filePathToFileRouteModule(filePath, options),
+    )).filter((module): module is FileRouteManifestModule => module !== undefined);
+    const entries = yield* validateFileRouteManifest(
+      modules.filter((module) => module.kind === "Route").map(manifestEntry),
+      modules,
+    );
+    return createFileRouteManifest(entries, options, modules);
+  });
 
 /**
- * Projects a manifest into per-route metadata including parent/layout/error relationships.
- *
- * Support modules are inherited by source-id scope, so pathless/grouped
- * siblings with the same URL path do not accidentally share layout, error, or
- * metadata modules.
+ * The support modules that wrap a route: layouts and metadata from source-scope
+ * root to leaf, and the nearest error boundary. Support modules are inherited
+ * by source-id scope, so pathless/grouped siblings with the same URL path do
+ * not share layout, error, or metadata modules.
  */
-export const describeFileRouteManifest = (
+export const fileRouteSupportModules = (
   manifest: FileRouteManifest,
-): readonly FileRouteRouteMetadata[] => {
-  const modules =
-    manifest.modules.length === 0
-      ? manifest.entries.map(manifestEntryToRouteModule)
-      : manifest.modules;
-  const routeModules = modules.filter((module) => module.kind === "Route");
-
-  return manifest.entries.map((entry) => {
-    const routeModule =
-      routeModules.find(
-        (module) => module.routePath === entry.routePath && module.moduleId === entry.moduleId,
-      ) ?? manifestEntryToRouteModule(entry);
-    const parent = manifest.entries
-      .filter(
-        (candidate) =>
-          candidate.routePath !== entry.routePath &&
-          isRoutePathSegmentPrefix(candidate.segments, entry.segments),
-      )
-      .sort((left, right) => compareByDepthThenPath(right, left))[0];
-    const scopedModules = modules
-      .filter((module) =>
-        isFileRouteSourceScopePrefix(fileRouteSourceScope(module), fileRouteSourceScope(entry)),
-      )
-      .sort(compareBySourceScopeDepthThenPath);
-    const layouts = scopedModules.filter((module) => module.kind === "Layout");
-    const errorBoundary = scopedModules
-      .filter((module) => module.kind === "ErrorBoundary")
-      .sort((left, right) => compareByDepthThenPath(right, left))[0];
-    const metadataModules = scopedModules.filter((module) => module.kind === "Metadata");
-
-    return {
-      routeId: entry.routeId,
-      routePath: entry.routePath,
-      routeModule,
-      ...(parent === undefined
-        ? {}
-        : {
-            parentRouteId: parent.routeId,
-            parentRoutePath: parent.routePath,
-          }),
-      layouts,
-      ...(errorBoundary === undefined ? {} : { errorBoundary }),
-      metadataModules,
-    };
-  });
+  entry: FileRouteManifestEntry,
+): {
+  readonly layouts: readonly FileRouteManifestModule[];
+  readonly errorBoundary?: FileRouteManifestModule;
+  readonly metadataModules: readonly FileRouteManifestModule[];
+} => {
+  const scoped = manifest.modules
+    .filter((module) =>
+      isFileRouteSourceScopePrefix(fileRouteSourceScope(module), fileRouteSourceScope(entry)),
+    )
+    .sort(compareBySourceScopeDepthThenPath);
+  const errorBoundary = scoped
+    .filter((module) => module.kind === "ErrorBoundary")
+    .sort(
+      (left, right) =>
+        right.segments.length - left.segments.length ||
+        compareString(right.filePath, left.filePath),
+    )[0];
+  return {
+    layouts: scoped.filter((module) => module.kind === "Layout"),
+    ...(errorBoundary === undefined ? {} : { errorBoundary }),
+    metadataModules: scoped.filter((module) => module.kind === "Metadata"),
+  };
 };

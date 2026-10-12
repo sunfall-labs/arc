@@ -8,7 +8,7 @@ import {
   isFileRouteDiscoveryFile,
   makeStartFileRouteManifest,
   normalizeStartManifestIterableOptions,
-  withDiscoveredFileRoutesSync,
+  withDiscoveredFileRoutes,
   type SunfallArcStartOptions,
 } from "./start-manifest-wall.js";
 import {
@@ -205,7 +205,7 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
   let viteBuildManifest: boolean | string | undefined;
 
   const currentOptions = (): SunfallArcStartOptions =>
-    withDiscoveredFileRoutesSync({ ...normalizedOptions, serverEntry }, viteRoot);
+    Effect.runSync(withDiscoveredFileRoutes({ ...normalizedOptions, serverEntry }, viteRoot));
 
   const writeCurrentFileRouteDefinitions = (): FileRouteDefinitionsFileWriteResult | undefined => {
     const activeOptions = currentOptions();

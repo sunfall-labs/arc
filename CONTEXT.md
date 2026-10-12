@@ -94,7 +94,7 @@
 - **Streaming Response**: an Effect Stream of HTML, bytes, and hydration chunks that can be adapted to a Web `Response` at the host seam. The Start streaming Module also owns generic Web response body finalization so Runtime lifecycle code can observe close/error/cancel events without owning `ReadableStream` mechanics.
 - **Start Hydration Payload**: the serializable Start payload that restores Resource state (rows included, as part of each value) into the browser Runtime Spine.
 - **Start Hydration Transport**: the Start module that serializes, emits, reads, and applies Start Hydration Payloads for initial document scripts and streamed hydration chunks. Its parse, decode, encode, and read implementation is Effect-first; synchronous helpers are host-boundary facades that unwrap the same typed transport failures.
-- **Start Manifest Wall**: the Start Module (`start-manifest-wall.ts`) that owns plugin options, file-route discovery, and the file-route manifest. File-route manifests use deterministic branded ids, typed parsing, and duplicate detection before bundling.
+- **Start Manifest Wall**: the Start Module (`start-manifest-wall.ts`) that owns plugin options, file-route discovery, and the file-route manifest. File-route manifests are deterministic and validated (duplicate paths, ids, and support modules; malformed params) before bundling.
 - **Generated Route Definitions Artifact**: the written `routeTree.gen.ts` surface that turns the Start file-route manifest into app-specific literal route ids, the `routeById` definition map, id-keyed params/search/href option maps, and LSP hoverable route types (routes are addressed by definition; `Route.isMatch(route, match)` narrows a match). The Vite virtual route module stays broad because it must type-check before app-specific generation exists.
 - **Generated Route Definitions File Writer**: the Start Vite helper that plans and writes `routeTree.gen.ts`. It exposes an Effect-first writer with typed generation and filesystem errors for CI/agent diagnostics and keeps the synchronous writer as the Vite host hook boundary.
 - **Start Transport Protocol**: the Effect-native Module that owns Start RPC request/response protocol, shared action map construction, request endpoint checks, RPC failure classification, and action map construction.
@@ -156,7 +156,7 @@
 - Mutations invalidate domain facts through the Resource Dependency Graph, not route names, component trees, or ad hoc cache strings.
 - Devtools and diagnostics should subscribe to Resource Event Stream facts instead of coupling to Resource Store internals.
 - Streaming should preserve native Effect `Stream` semantics until the final host adapter creates a Web `ReadableStream` or `Response`.
-- Start file-route manifests should be deterministic, Schema-branded at identifier fields, deserializable through typed Effect parsers, and validated before production bundling.
+- Start file-route manifests should be deterministic and validated before production bundling.
 - App construction should capture Core Definition Registry snapshots or accept explicit registry inputs so route/app graphs do not accidentally depend on later global registrations.
 - Progressive action redirects and validation failures should be typed data, not untyped thrown control flow.
 - Progressive form posts should use Start Action Requests so JS-enhanced and no-JS submissions execute the same Action Definition and services.

@@ -4,7 +4,6 @@ import {
   ServerFunctionNotFound,
   ServerRpcProtocolError,
   ServerTransportError,
-  type Action,
 } from "@sunfall/arc-core";
 import {
   type CoreDefinitionRegistry,
@@ -38,10 +37,6 @@ export interface StartActionClientOptions<
   FetchError = never,
   FetchRequirements = never,
 > extends ServerRpcClientOptions<FetchError, FetchRequirements, never> {}
-
-/** Extracts the input value type from a core `ActionDefinition`. */
-export type ActionDefinitionInputValue<D> =
-  D extends Action.Definition<infer I, infer _A, infer _E, infer _R> ? I : never;
 
 /** True when a request targets the Start server-function RPC endpoint. */
 export const isServerRpcRequest = (request: Request): boolean =>

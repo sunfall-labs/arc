@@ -110,7 +110,7 @@ import {
   encodeStartActionRequest,
   startActionInputField,
 } from "../src/start-action-request-codec.js";
-import { serializeFileRouteManifest } from "../src/file-routes.js";
+
 import { completeRequestRuntimeWithResponse, makeRequestRuntime } from "../src/request-runtime.js";
 import {
   startRequestCountMetric,
@@ -147,7 +147,7 @@ import {
 const discoverFileRoutesSync = (options: FileRouteDiscoveryOptions = {}) =>
   Effect.runSync(discoverFileRoutes(options));
 const serializeStartFileRouteManifest = (options: SunfallArcStartOptions = {}) =>
-  serializeFileRouteManifest(Effect.runSync(makeStartFileRouteManifest(options)));
+  JSON.stringify(Effect.runSync(makeStartFileRouteManifest(options)));
 /** The file-route manifest the plugin serves as `virtual:sunfall-arc/file-routes`. */
 const loadFileRouteManifestModule = (plugin: ReturnType<typeof sunfallArcStart>): unknown => {
   const resolved = plugin.resolveId(fileRouteManifestVirtualModuleId);

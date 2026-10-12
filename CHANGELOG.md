@@ -6,6 +6,15 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### File-Route Manifests Are Plain Validated Data (Breaking)
+
+- File-route manifests drop their serialize/deserialize round trip and
+  Schema-branded ids; one validated generator, `generateFileRouteManifest`,
+  replaces the Sync/Effect and entries/artifact variants.
+- The generated route tree and `virtual:sunfall-arc/routes` drop
+  `fileRouteMetadata` / `FileRouteMetadata`; `layoutsById`,
+  `errorBoundaryById` and `metadataById` carry a route's support modules.
+
 ### Route Code Splitting Is Explicit (Breaking)
 
 - The Vite plugin no longer rewrites `Route.withComponent(...)` calls to split

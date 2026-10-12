@@ -1044,34 +1044,29 @@ dev, the Start SSR middleware logs a warning (`Effect.logWarning`) once per
 loaded server entry for each route whose preload declares no
 `preloadResources`.
 
-File routes are manifest-first in v0. The pure helpers
-`generateFileRouteManifest(files, { routeDirectory })` and
-`generateValidatedFileRouteManifestArtifact` turn known route module paths
-into route metadata. The Start Vite plugin is the filesystem boundary: when no
-explicit `fileRoutes` or `fileRouteManifest` is supplied, it discovers route
-modules from the Vite root's `src/routes` directory and feeds that deterministic
-file list into the validated manifest generator. The generated artifact is
-`FileRouteManifest`, a deterministic object with `version`, `routeDirectory`,
-and sorted entries. Each entry carries a stable Schema-branded `routeId`, a
-branded source `id`, browser/server `moduleId`, `routePath`, parsed segments,
-and typed param metadata.
+File routes are manifest-first. The Start Vite plugin is the filesystem
+boundary: when no explicit `fileRoutes` or `fileRouteManifest` is supplied, it
+discovers route modules from the Vite root's `src/routes` directory and feeds
+that deterministic file list into one validated manifest generator. The
+generated artifact is `FileRouteManifest`, a deterministic object with
+`version`, `routeDirectory`, sorted route `entries`, and every discovered
+`module` (routes plus their component, layout, error boundary, and metadata
+modules). Each carries its `routeId`, source `id`, browser/server `moduleId`,
+`routePath`, parsed segments, and param metadata.
 
 The supported conventions are intentionally narrow: nested directories, `index`
 routes, dynamic `$id` segments, optional `$id?` segments, route groups like
-`(app)` ignored in the URL, pathless layout directories beginning with `_`, and
+`(app)` ignored in the URL, pathless layout directories beginning with `_`,
 layout leaf files named `layout`, `_layout`, `+layout`, or beginning with `_`
 ignored entirely, and route component files named `<route>.component`.
 
-Production generators should use `generateValidatedFileRouteManifest` or
-`generateValidatedFileRouteManifestArtifact`. They reject files that
-collapse to the same route path after route groups and pathless segments are
-removed, and malformed dynamic segments like `$123`, keeping bad route graphs
-out of builds. Discovered `.d.ts` files are ignored before manifest generation.
+Generation rejects files that collapse to the same route path after route
+groups and pathless segments are removed, route ids that collide, duplicate
+support modules in one scope, and malformed dynamic segments like `$123`,
+keeping bad route graphs out of builds. Discovered `.d.ts` files are ignored.
 The Start Vite plugin exposes the same artifact as the Vite virtual module
-`virtual:sunfall-arc/file-routes`, which exports `manifest`, `entries`, and the
-default manifest. Serialized artifacts can be parsed again with
-`deserializeFileRouteManifest`, which revalidates the branded ids and rejects
-route-id/segment mismatches before the router sees them.
+`virtual:sunfall-arc/file-routes`, which exports `manifest`, `entries`,
+`modules`, and the default manifest.
 
 The same manifest generates a typed route definition module. On Vite startup and
 build, Start writes `src/routeTree.gen.ts` by default, following the file-based

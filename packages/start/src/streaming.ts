@@ -208,12 +208,6 @@ export const htmlChunk = (html: string): HtmlStreamChunk => ({
   html,
 });
 
-/** Creates a typed pre-encoded byte chunk. */
-export const bytesChunk = (bytes: Uint8Array): HtmlStreamChunk => ({
-  _tag: "Bytes",
-  bytes,
-});
-
 /**
  * Creates a typed streamed hydration chunk.
  *
