@@ -1,7 +1,6 @@
 import { Context, Data, Effect, type Cause, type Duration, type Schedule } from "effect";
 import type { ActionDefinition } from "./action.js";
-import type { ServerClientError } from "./server.js";
-import { ServerTransportError } from "./server-wire-codec.js";
+import { ActionTransportError, type ActionClientError } from "./action-transport.js";
 import { SignalWrites, type ReadableSignal } from "./signal.js";
 
 /**
@@ -71,7 +70,7 @@ export interface ActionOutboxOptions {
  * failures, protocol failures, and defects are final.
  */
 export const isRetryableActionFailure = (error: unknown): boolean => {
-  if (!(error instanceof ServerTransportError)) {
+  if (!(error instanceof ActionTransportError)) {
     return false;
   }
   if (error.reason === "Network" || error.reason === "Interrupted") {
@@ -149,7 +148,7 @@ export interface ActionOutbox extends ActionOutboxView {
   readonly submit: <I, A, E, R>(
     definition: ActionDefinition<I, A, E, R>,
     input: I,
-  ) => Effect.Effect<A, E | ServerClientError | ActionQueued>;
+  ) => Effect.Effect<A, E | ActionClientError | ActionQueued>;
   /**
    * Restores persisted submissions once: re-applies their optimistic patches
    * in order on top of the current (hydrated) state, except for submissions

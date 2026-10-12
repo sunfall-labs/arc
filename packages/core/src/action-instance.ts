@@ -8,7 +8,7 @@ import {
 } from "./action-execution-workflow.js";
 import type { ResourceInvalidationPlan } from "./resource.js";
 import type { AnySunfallArcRuntime } from "./runtime.js";
-import type { ServerClientError } from "./server.js";
+import type { ActionClientError } from "./action-transport.js";
 
 /**
  * Internal: creates an Action instance on an erased runtime. `Action.use`
@@ -24,7 +24,7 @@ export const makeActionInstance = <I, A, E, R, ER>(
   const submissions = makeActionSubmissionController<
     I,
     A,
-    E | ER | ServerClientError,
+    E | ER | ActionClientError,
     ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>>
   >(
     definition.policy?.concurrency === undefined
@@ -45,7 +45,7 @@ export const makeActionInstance = <I, A, E, R, ER>(
     invalidationPlan: submissions.invalidationPlan,
     submit: workflow.submit as (
       input: I,
-    ) => Effect.Effect<A, E | ER | ServerClientError | ActionInterrupted>,
+    ) => Effect.Effect<A, E | ER | ActionClientError | ActionInterrupted>,
     reset: workflow.reset,
   };
 };

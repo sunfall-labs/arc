@@ -7,11 +7,13 @@ import {
   makeRuntime,
   Resource,
   Route,
-  ServerTransportError,
+  ActionTransportError,
 } from "@sunfall/arc-core";
 import { App, StartRootMissing } from "@sunfall/arc-start";
 import { createComponent } from "@solidjs/web";
 import { Context, Effect, Exit, Fiber, Layer, Option, Schedule, Schema } from "effect";
+import * as HttpClient from "effect/http/HttpClient";
+import * as HttpClientResponse from "effect/http/HttpClientResponse";
 import { KeyValueStore } from "effect/persistence";
 import { describe, expect, it, vi } from "vitest";
 import { Component, RouterProvider } from "../src/index.js";
@@ -100,7 +102,7 @@ describe("App.launch", () => {
                 submit: () =>
                   Option.some(
                     Effect.fail(
-                      new ServerTransportError({ reason: "Network", message: "offline" }),
+                      new ActionTransportError({ reason: "Network", message: "offline" }),
                     ),
                   ),
               }),
@@ -137,14 +139,22 @@ describe("App.launch", () => {
             root: Root,
             routes: [] as const,
             actions: [Rename],
-            client: storageLayer,
+            client: Layer.mergeAll(
+              storageLayer,
+              // Still offline: the replay fails retryably, so the patch stays.
+              Layer.succeed(HttpClient.HttpClient)(
+                HttpClient.make((request) =>
+                  Effect.succeed(
+                    HttpClientResponse.fromWeb(request, new Response("", { status: 503 })),
+                  ),
+                ),
+              ),
+            ),
           });
           const fiber = Effect.runFork(
             App.launch(app, {
               href: "/projects/atlas",
               outbox: { retry: Schedule.recurs(0) },
-              // Still offline: the replay fails retryably, so the patch stays.
-              transport: { fetch: () => Effect.succeed(new Response("", { status: 503 })) },
             }),
           );
           // Restoring after hydration patches the hydrated entry. Restoring

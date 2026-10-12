@@ -2,7 +2,7 @@ import {
   Action,
   ActionTransport,
   makeRuntime,
-  ServerTransportError,
+  ActionTransportError,
   State,
 } from "@sunfall/arc-core";
 import { Cause, Effect, Exit, Layer, Option, Schedule, Schema } from "effect";
@@ -41,7 +41,7 @@ describe("durable Actions in Components", () => {
                       apply: () => Effect.void,
                     } as Action.TransportResponse<any, any>)
                   : Effect.fail(
-                      new ServerTransportError({ reason: "Network", message: "offline" }),
+                      new ActionTransportError({ reason: "Network", message: "offline" }),
                     ),
               ),
           });

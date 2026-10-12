@@ -1,4 +1,5 @@
-import { Context, Data, Effect, Layer, Option, Schema } from "effect";
+import { Context, Data, Effect, Exit, Layer, Option, Schema } from "effect";
+import { Rpc, RpcSerialization, type RpcClientError } from "effect/rpc";
 import {
   clearServerFunctionDefinitionRegistryUnsafe,
   coreDefinitionRegistryDiagnostics,
@@ -14,43 +15,6 @@ import type {
   EnsureEffectInputValue,
 } from "./effect-like.js";
 import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
-import {
-  applyResponseContext,
-  makeResponseContext,
-  provideRequest,
-  provideResponse,
-  type RequestContext,
-  type ResponseContext,
-} from "./request-context.js";
-import {
-  decodeServerFunctionError,
-  decodeServerFunctionInput,
-  decodeServerFunctionOutput,
-  decodeServerRpcRequest,
-  decodeServerRpcResponse,
-  decodeServerWire,
-  deserializeServerError as deserializeServerWireError,
-  encodeServerFunctionError,
-  encodeServerFunctionInput,
-  encodeServerFunctionOutput,
-  encodeServerWire,
-  serializeServerDefect,
-  serializeServerError as serializeServerWireError,
-  ServerFunctionNotFound,
-  ServerRpcProtocolError,
-  ServerTransportError,
-  serverWireManifest,
-  type ServerRpcRequest,
-  type ServerRpcResponse,
-} from "./server-wire-codec.js";
-
-export {
-  ServerFunctionNotFound,
-  ServerRpcProtocolError,
-  ServerTransportError,
-} from "./server-wire-codec.js";
-
-export type { ServerRpcRequest, ServerRpcResponse } from "./server-wire-codec.js";
 
 export const ServerFunctionTypeId: unique symbol = Symbol.for(
   "@sunfall/arc-core/ServerFunction",
@@ -64,15 +28,34 @@ export const ServerFunctionMockTypeId: unique symbol = Symbol.for(
   "@sunfall/arc-core/ServerFunctionMock",
 ) as typeof ServerFunctionMockTypeId;
 
-/** Schema metadata shared by server function clients, implementations, and mocks. */
-export interface ServerFunctionContractDefinition<_I, _A, _E = never> {
-  readonly input?: unknown;
-  readonly output?: unknown;
-  readonly error?: unknown;
+/** No `ServerClient` or registered implementation answers a server function call. */
+export class ServerFunctionNotFound extends Data.TaggedError("ServerFunctionNotFound")<{
+  readonly functionName: string;
+}> {}
+
+/** A schema a server function sends over the wire: it needs no services to encode or decode. */
+export type ServerFunctionSchema = Schema.Codec<unknown, unknown, never, never>;
+
+/** The `effect/rpc` definition behind a server function (its tag is the function name). */
+export type ServerFunctionRpc = Rpc.AnyWithProps;
+
+/**
+ * Wire schemas of a server function. `input` and `output` are required;
+ * `error` defaults to `Schema.Never` (the function has no typed failures).
+ */
+export interface ServerFunctionContractDefinition<
+  Input extends ServerFunctionSchema,
+  Output extends ServerFunctionSchema,
+  Error extends ServerFunctionSchema = typeof Schema.Never,
+> {
+  readonly input: Input;
+  readonly output: Output;
+  readonly error?: Error;
 }
 
 /**
- * Transport-safe description of a server function.
+ * Transport-safe description of a server function: an `effect/rpc` `Rpc`
+ * named after the function.
  *
  * Contracts are defined in shared code, then turned into a client stub with
  * Server.client or a server implementation with Server.implement.
@@ -85,26 +68,14 @@ export interface ServerFunctionContract<I, A, E = never> {
     readonly Error: E;
   };
   readonly name: string;
-  readonly input?: unknown;
-  readonly output?: unknown;
-  readonly error?: unknown;
+  readonly rpc: ServerFunctionRpc;
 }
 
 /** Test implementation for a server function contract. */
 export interface ServerFunctionMock<I, A, E = never, R = never> {
   readonly [ServerFunctionMockTypeId]: typeof ServerFunctionMockTypeId;
   readonly name: string;
-  readonly input?: unknown;
-  readonly output?: unknown;
-  readonly error?: unknown;
-  readonly handler: (input: I) => EffectInput<A, E, R>;
-}
-
-/** Server-side handler definition behind `Server.implement`. */
-export interface ServerFunctionDefinition<I, A, E = never, R = never> {
-  readonly input?: unknown;
-  readonly output?: unknown;
-  readonly error?: unknown;
+  readonly rpc: ServerFunctionRpc;
   readonly handler: (input: I) => EffectInput<A, E, R>;
 }
 
@@ -117,16 +88,13 @@ export interface ServerFunctionDefinition<I, A, E = never, R = never> {
 export interface ServerFunction<I, A, E = never, R = never> {
   readonly [ServerFunctionTypeId]: typeof ServerFunctionTypeId;
   readonly name: string;
-  readonly input?: unknown;
-  readonly output?: unknown;
-  readonly error?: unknown;
+  /** The `effect/rpc` definition Start serves and calls over HTTP. */
+  readonly rpc: ServerFunctionRpc;
   readonly hasHandler: boolean;
-  effect(input: I): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R>;
+  effect(input: I): Effect.Effect<A, E | ServerClientError, R>;
+  /** Runs the implementation's handler in-process, without wire schemas. */
   local(input: I): Effect.Effect<A, E | EffectInputCallbackError | ServerFunctionNotFound, R>;
-  invoke(
-    input: unknown,
-  ): Effect.Effect<unknown, E | EffectInputCallbackError | ServerClientError, R>;
-  (input: I): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R>;
+  (input: I): Effect.Effect<A, E | ServerClientError, R>;
 }
 
 /** Options for local ServerClient dispatch. */
@@ -140,28 +108,20 @@ export interface LocalServerClientOptions {
   readonly registry?: CoreDefinitionRegistry<any, AnyServerFunction>;
 }
 
-/** HTTP route handler used by server adapters. */
-export interface ServerRoute<E = never, R = never> {
-  readonly method: string;
-  readonly path: string;
-  readonly handler: (request: Request) => Effect.Effect<Response, E | ServerRouteHandlerError, R>;
-}
-
-export class ServerRouteHandlerError extends Data.TaggedError("ServerRouteHandlerError")<{
-  readonly method: string;
-  readonly path: string;
-  readonly cause: unknown;
-}> {}
-
+/**
+ * Failures a server function call reports beside the function's own:
+ * `RpcClientError` (HTTP transport), `ServerFunctionNotFound` (nothing
+ * answers the call), `SchemaError` (a value does not match the contract's
+ * wire schemas in-process), and `EffectInputCallbackError` (a handler threw).
+ */
 export type ServerClientError =
-  | EffectInputCallbackError
-  | Schema.SchemaError
+  | RpcClientError.RpcClientError
   | ServerFunctionNotFound
-  | ServerRpcProtocolError
-  | ServerTransportError;
+  | Schema.SchemaError
+  | EffectInputCallbackError;
 
 /**
- * Transport abstraction used by server function clients.
+ * Transport used by server function clients.
  *
  * Provide this service to redirect `.effect` calls through a remote or mock client
  * instead of the local implementation.
@@ -170,7 +130,7 @@ export interface ServerClient {
   readonly call: <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     input: I,
-  ) => Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R>;
+  ) => Effect.Effect<A, E | ServerClientError, R>;
 }
 
 export const ServerClient = Context.Service<ServerClient>("@sunfall/arc-core/ServerClient");
@@ -188,71 +148,10 @@ type CheckedServerContractHandlerOutput<Out, A, E> =
     : EffectInputError<Out> extends E | EffectInputCallbackError
       ? Out
       : never;
-type ServerFunctionDefinitionInput<I, A, E, R> = Omit<
-  ServerFunctionDefinition<I, A, E, R>,
-  "handler"
-> & {
-  readonly handler: (input: I) => EffectInput<A, E, R>;
-};
 
 type AnyServerFunction = ServerFunction<any, any, any, any>;
 type AnyServerFunctionContract = ServerFunctionContract<any, any, any>;
 type AnyServerFunctionMock = ServerFunctionMock<any, any, any, any>;
-
-const mockFor = <I, A, E, R>(
-  mocks: ReadonlyMap<string, AnyServerFunctionMock>,
-  fn: ServerFunction<I, A, E, R>,
-): ServerFunctionMock<I, A, E, R> | undefined =>
-  mocks.get(fn.name) as ServerFunctionMock<I, A, E, R> | undefined;
-
-const serverRouteHandlerError = (
-  route: Pick<ServerRoute, "method" | "path">,
-  cause: unknown,
-): ServerRouteHandlerError =>
-  cause instanceof ServerRouteHandlerError
-    ? cause
-    : new ServerRouteHandlerError({
-        method: route.method,
-        path: route.path,
-        cause,
-      });
-
-const mapServerRouteBoundaryError = <E>(
-  route: Pick<ServerRoute, "method" | "path">,
-  error: E | ServerRouteHandlerError | EffectInputCallbackError,
-): E | ServerRouteHandlerError =>
-  error instanceof ServerRouteHandlerError || error instanceof EffectInputCallbackError
-    ? serverRouteHandlerError(route, error)
-    : error;
-
-const isServerClientError = (error: unknown): error is ServerClientError =>
-  error instanceof EffectInputCallbackError ||
-  Schema.isSchemaError(error) ||
-  error instanceof ServerFunctionNotFound ||
-  error instanceof ServerRpcProtocolError ||
-  error instanceof ServerTransportError;
-
-const roundTripServerFunctionError = <I, A, E, R>(
-  fn: ServerFunction<I, A, E, R>,
-  error: E | ServerClientError,
-): Effect.Effect<E | ServerClientError, Schema.SchemaError> =>
-  isServerClientError(error)
-    ? Effect.succeed(error)
-    : Effect.flatMap(encodeServerFunctionError(fn, error as E), (encoded) =>
-        decodeServerFunctionError(fn, encoded),
-      );
-
-const catchServerFunctionError = <I, A, E, R, Value, Error, Requirements>(
-  fn: ServerFunction<I, A, E, R>,
-  effect: Effect.Effect<Value, Error, Requirements>,
-): Effect.Effect<Value, Error | E | ServerClientError, Requirements> =>
-  effect.pipe(
-    Effect.catch((error: Error) =>
-      Effect.flatMap(roundTripServerFunctionError(fn, error as E | ServerClientError), (decoded) =>
-        Effect.fail(decoded),
-      ),
-    ),
-  );
 
 export const isServerFunction = (value: unknown): value is AnyServerFunction =>
   typeof value === "function" &&
@@ -264,42 +163,89 @@ export const isServerFunctionContract = (value: unknown): value is AnyServerFunc
   (value as { [ServerFunctionContractTypeId]?: unknown })[ServerFunctionContractTypeId] ===
     ServerFunctionContractTypeId;
 
-const defineServerFunction = <I, A, E = never, R = never>(
+interface WireCodecs {
+  readonly payload: Schema.Codec<unknown, unknown>;
+  readonly success: Schema.Codec<unknown, unknown>;
+  readonly error: Schema.Codec<unknown, unknown>;
+}
+
+const wireCodecCache = new WeakMap<ServerFunctionRpc, WireCodecs>();
+
+/** The JSON codecs `RpcSerialization.json` puts on the wire for one Rpc. */
+const wireCodecs = (rpc: ServerFunctionRpc): WireCodecs => {
+  let codecs = wireCodecCache.get(rpc);
+  if (codecs === undefined) {
+    const codecFor = RpcSerialization.json.codecFor;
+    codecs = {
+      payload: codecFor(rpc.payloadSchema) as Schema.Codec<unknown, unknown>,
+      success: codecFor(rpc.successSchema) as Schema.Codec<unknown, unknown>,
+      error: codecFor(rpc.errorSchema) as Schema.Codec<unknown, unknown>,
+    };
+    wireCodecCache.set(rpc, codecs);
+  }
+  return codecs;
+};
+
+const roundTrip = <A>(
+  codec: Schema.Codec<unknown, unknown>,
+  value: unknown,
+): Effect.Effect<A, Schema.SchemaError> =>
+  Effect.flatMap(Schema.encodeUnknownEffect(codec)(value), (encoded) =>
+    Schema.decodeUnknownEffect(codec)(encoded),
+  ) as Effect.Effect<A, Schema.SchemaError>;
+
+/**
+ * Runs a server function in-process with the same schema round trips the
+ * wire applies: the input, the success value, and typed failures pass
+ * through the Rpc's JSON codecs, so SSR and mocks see what a browser would.
+ */
+const callThroughWireSchemas = <I, A, E, R>(
+  fn: ServerFunction<I, A, E, R>,
+  input: I,
+  run: (input: I) => Effect.Effect<A, E | EffectInputCallbackError | ServerFunctionNotFound, R>,
+): Effect.Effect<A, E | ServerClientError, R> =>
+  Effect.gen(function* () {
+    const codecs = wireCodecs(fn.rpc);
+    const decodedInput = yield* roundTrip<I>(codecs.payload, input);
+    const exit = yield* Effect.exit(run(decodedInput));
+    if (Exit.isSuccess(exit)) {
+      return yield* roundTrip<A>(codecs.success, exit.value);
+    }
+    const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+    if (
+      failure === undefined ||
+      failure.error instanceof EffectInputCallbackError ||
+      failure.error instanceof ServerFunctionNotFound
+    ) {
+      return yield* Effect.failCause(exit.cause);
+    }
+    return yield* Effect.fail(yield* roundTrip<E>(codecs.error, failure.error));
+  });
+
+const makeServerFunction = <I, A, E, R>(
   name: string,
-  definition: ServerFunctionDefinitionInput<I, A, E, R>,
+  rpc: ServerFunctionRpc,
+  handler: ((input: I) => EffectInput<A, E, R>) | undefined,
 ): ServerFunction<I, A, E, R> => {
-  const local = (input: I): Effect.Effect<A, E | EffectInputCallbackError, R> =>
-    invokeEffectInput(`Server.implement(${name}).handler`, definition.handler, input);
-  const effect = (
+  const local = (
     input: I,
-  ): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R> =>
-    Effect.gen(function* () {
-      const client = yield* Effect.serviceOption(ServerClient);
-      if (Option.isSome(client)) {
-        return yield* client.value.call(callable, input);
-      }
-      return yield* local(input);
-    });
-  const invoke = (
-    input: unknown,
-  ): Effect.Effect<unknown, E | EffectInputCallbackError | ServerClientError, R> =>
-    Effect.gen(function* () {
-      const decoded = yield* decodeServerWire<I>(definition.input, input);
-      const value = yield* local(decoded);
-      return yield* encodeServerWire(definition.output, value);
-    });
+  ): Effect.Effect<A, E | EffectInputCallbackError | ServerFunctionNotFound, R> =>
+    handler === undefined
+      ? Effect.fail(new ServerFunctionNotFound({ functionName: name }))
+      : invokeEffectInput(`Server.implement(${name}).handler`, handler, input);
+  const effect = (input: I): Effect.Effect<A, E | ServerClientError, R> =>
+    Effect.flatMap(Effect.serviceOption(ServerClient), (client) =>
+      Option.isSome(client) ? client.value.call(callable, input) : local(input),
+    );
   const callable = ((input: I) => effect(input)) as ServerFunction<I, A, E, R>;
 
   Object.defineProperties(callable, {
     [ServerFunctionTypeId]: { value: ServerFunctionTypeId },
     name: { value: name },
-    input: { value: definition.input, enumerable: true },
-    output: { value: definition.output, enumerable: true },
-    error: { value: definition.error, enumerable: true },
-    hasHandler: { value: true, enumerable: true },
+    rpc: { value: rpc, enumerable: true },
+    hasHandler: { value: handler !== undefined, enumerable: true },
     effect: { value: effect, enumerable: true },
     local: { value: local, enumerable: true },
-    invoke: { value: invoke, enumerable: true },
   });
 
   registerServerFunctionDefinition(callable);
@@ -314,66 +260,18 @@ const mockClient = (...mocks: readonly AnyServerFunctionMock[]): ServerClient =>
     call: <I, A, E, R>(
       fn: ServerFunction<I, A, E, R>,
       input: I,
-    ): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R> =>
-      Effect.gen(function* () {
-        const mock = mockFor(byName, fn);
-        if (!mock) {
-          return yield* Effect.fail(new ServerFunctionNotFound({ functionName: fn.name }));
-        }
-
-        const encodedInput = yield* encodeServerWire(fn.input, input);
-        const decodedInput = yield* decodeServerWire<I>(mock.input, encodedInput);
-        const value = yield* catchServerFunctionError(
-          fn,
-          invokeEffectInput(`Server.mock(${fn.name}).handler`, mock.handler, decodedInput),
-        );
-        const encodedOutput = yield* encodeServerWire(mock.output, value);
-        return yield* decodeServerWire<A>(fn.output, encodedOutput);
-      }),
+    ): Effect.Effect<A, E | ServerClientError, R> => {
+      const mock = byName.get(fn.name) as ServerFunctionMock<I, A, E, R> | undefined;
+      return mock === undefined
+        ? Effect.fail(new ServerFunctionNotFound({ functionName: fn.name }))
+        : callThroughWireSchemas(fn, input, (decoded) =>
+            invokeEffectInput(`Server.mock(${fn.name}).handler`, mock.handler, decoded),
+          );
+    },
   };
 };
 
-/**
- * Creates and registers a client-only server function stub for `Server.client`.
- *
- * Calls require a provided `ServerClient`; without one, the stub fails with
- * `ServerFunctionNotFound`.
- */
-const serverFunctionStub = <I, A, E = never>(
-  name: string,
-  definition: Omit<ServerFunctionDefinition<I, A, E, never>, "handler">,
-): ServerFunction<I, A, E, never> => {
-  const missing = (): ServerFunctionNotFound => new ServerFunctionNotFound({ functionName: name });
-  const local = (_input: I): Effect.Effect<A, ServerFunctionNotFound> => Effect.fail(missing());
-  const effect = (input: I): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError> =>
-    Effect.gen(function* () {
-      const client = yield* Effect.serviceOption(ServerClient);
-      if (Option.isSome(client)) {
-        return yield* client.value.call(callable, input);
-      }
-      return yield* Effect.fail(missing());
-    });
-  const invoke = (_input: unknown): Effect.Effect<unknown, ServerFunctionNotFound> =>
-    Effect.fail(missing());
-  const callable = ((input: I) => effect(input)) as ServerFunction<I, A, E, never>;
-
-  Object.defineProperties(callable, {
-    [ServerFunctionTypeId]: { value: ServerFunctionTypeId },
-    name: { value: name },
-    input: { value: definition.input, enumerable: true },
-    output: { value: definition.output, enumerable: true },
-    error: { value: definition.error, enumerable: true },
-    hasHandler: { value: false, enumerable: true },
-    effect: { value: effect, enumerable: true },
-    local: { value: local, enumerable: true },
-    invoke: { value: invoke, enumerable: true },
-  });
-
-  registerServerFunctionDefinition(callable);
-  return callable;
-};
-
-/** Helpers for contracts, client stubs, server implementations, mocks, and routes. */
+/** Helpers for contracts, client stubs, server implementations, and mocks. */
 export namespace Server {
   export type Fn<I, A, E = never, R = never> = ServerFunction<I, A, E, R>;
   export type Contract<I, A, E = never> = ServerFunctionContract<I, A, E>;
@@ -382,47 +280,53 @@ export namespace Server {
   export type Client = ServerClient;
   /** Transport used by server function clients; provide it to route `.effect` calls. */
   export const Client = ServerClient;
-  /** Schema metadata shared by server function clients, implementations, and mocks. */
-  export type ContractDefinition<I, A, E = never> = ServerFunctionContractDefinition<I, A, E>;
-  /** HTTP route handler used by server adapters. */
-  export type Route<E = never, R = never> = ServerRoute<E, R>;
+  /** Wire schemas of a server function contract. */
+  export type ContractDefinition<
+    Input extends ServerFunctionSchema,
+    Output extends ServerFunctionSchema,
+    Error extends ServerFunctionSchema = typeof Schema.Never,
+  > = ServerFunctionContractDefinition<Input, Output, Error>;
+  /** A schema a server function sends over the wire. */
+  export type WireSchema = ServerFunctionSchema;
   /** Options for `Server.localClient`. */
   export type LocalClientOptions = LocalServerClientOptions;
   export type ClientError = ServerClientError;
-  export type RpcRequest = ServerRpcRequest;
-  export type RpcResponse = ServerRpcResponse;
 
   /**
-   * Defines a shared server function contract.
+   * Defines a shared server function contract: an `effect/rpc` `Rpc` named
+   * after the function. Its types come from the schemas.
    *
    * @example
    * ```ts
-   * const GetUser = Server.contract<{ id: string }, User>("GetUser", {
-   *   input: GetUserInput,
-   *   output: User
+   * const GetUser = Server.contract("GetUser", {
+   *   input: Schema.Struct({ id: Schema.String }),
+   *   output: User,
+   *   error: UserNotFound,
    * });
    * ```
    */
-  export const contract = <I, A, E = never>(
+  export const contract = <
+    Input extends ServerFunctionSchema,
+    Output extends ServerFunctionSchema,
+    Error extends ServerFunctionSchema = typeof Schema.Never,
+  >(
     name: string,
-    definition: ServerFunctionContractDefinition<I, A, E> = {},
-  ): ServerFunctionContract<I, A, E> => ({
+    definition: ServerFunctionContractDefinition<Input, Output, Error>,
+  ): ServerFunctionContract<Input["Type"], Output["Type"], Error["Type"]> => ({
     [ServerFunctionContractTypeId]: ServerFunctionContractTypeId,
     name,
-    input: definition.input,
-    output: definition.output,
-    error: definition.error,
+    rpc: Rpc.make(name, {
+      payload: definition.input,
+      success: definition.output,
+      error: definition.error ?? Schema.Never,
+    }) as unknown as ServerFunctionRpc,
   });
 
   /** Creates a client stub from a shared contract. */
   export const client = <I, A, E = never>(
     contract: ServerFunctionContract<I, A, E>,
   ): ServerFunction<I, A, E, never> =>
-    serverFunctionStub(contract.name, {
-      input: contract.input,
-      output: contract.output,
-      error: contract.error,
-    });
+    makeServerFunction<I, A, E, never>(contract.name, contract.rpc, undefined);
 
   /**
    * Implements a shared contract with a local handler.
@@ -445,18 +349,17 @@ export namespace Server {
     ServerContractError<Contract>,
     EffectInputRequirements<Out>
   > =>
-    defineServerFunction(contract.name, {
-      input: contract.input,
-      output: contract.output,
-      error: contract.error,
-      handler: handler as (
+    makeServerFunction(
+      contract.name,
+      contract.rpc,
+      handler as (
         input: ServerContractInput<Contract>,
       ) => EffectInput<
         ServerContractOutput<Contract>,
         ServerContractError<Contract>,
         EffectInputRequirements<Out>
       >,
-    });
+    );
 
   /** Creates a mock handler for a contract, provided through `Server.mockLayer`. */
   export const mock = <Contract extends AnyServerFunctionContract, Out>(
@@ -476,9 +379,7 @@ export namespace Server {
   > => ({
     [ServerFunctionMockTypeId]: ServerFunctionMockTypeId,
     name: contract.name,
-    input: contract.input,
-    output: contract.output,
-    error: contract.error,
+    rpc: contract.rpc,
     handler: handler as (
       input: ServerContractInput<Contract>,
     ) => EffectInput<
@@ -488,7 +389,10 @@ export namespace Server {
     >,
   });
 
-  /** Builds a `ServerClient` Layer backed by local test mocks. */
+  /**
+   * Builds a `ServerClient` Layer backed by local test mocks. Calls pass
+   * through the contract's wire schemas, as they would over HTTP.
+   */
   export const mockLayer = (
     ...mocks: readonly AnyServerFunctionMock[]
   ): Layer.Layer<ServerClient> => Layer.succeed(ServerClient)(mockClient(...mocks));
@@ -511,146 +415,26 @@ export namespace Server {
   };
 
   /**
-   * Creates an adapter-neutral HTTP route whose handler is normalized to an Effect.
-   */
-  export const route = <E = never, R = never>(
-    method: string,
-    path: string,
-    handler: (request: Request) => EffectInput<Response, E, R>,
-  ): ServerRoute<E, R> => ({
-    method,
-    path,
-    handler: (request) =>
-      invokeEffectInput(`Server.route(${method} ${path}).handler`, handler, request).pipe(
-        Effect.mapError((error) =>
-          error instanceof EffectInputCallbackError
-            ? new ServerRouteHandlerError({ method, path, cause: error })
-            : error,
-        ),
-      ),
-  });
-
-  /**
-   * Handles one ServerRoute as an Effect and applies request/response context.
+   * Creates a ServerClient that runs registered implementations in-process.
    *
-   * Use this in server adapters that already run Effect.
-   */
-  export const handleRoute = <E, R>(
-    route: ServerRoute<E, R>,
-    request: Request,
-  ): Effect.Effect<
-    Response,
-    E | ServerRouteHandlerError,
-    Exclude<Exclude<R, ResponseContext>, RequestContext>
-  > =>
-    Effect.suspend(() => {
-      const responseContext = makeResponseContext();
-      return Effect.try({
-        try: () => route.handler(request),
-        catch: (cause) => serverRouteHandlerError(route, cause),
-      }).pipe(
-        Effect.flatMap((response) =>
-          provideRequest(request)(provideResponse(responseContext)(response)),
-        ),
-        Effect.mapError((error) => mapServerRouteBoundaryError(route, error)),
-        Effect.flatMap((response) =>
-          applyResponseContext(responseContext, response).pipe(
-            Effect.mapError((error) => serverRouteHandlerError(route, error)),
-          ),
-        ),
-      );
-    });
-
-  /** Builds a schema-presence manifest from registered server functions. */
-  export const manifest = (
-    functions: Iterable<AnyServerFunction>,
-  ): Array<{
-    readonly name: string;
-    readonly inputSchema: boolean;
-    readonly outputSchema: boolean;
-    readonly errorSchema: boolean;
-  }> => serverWireManifest(functions);
-
-  /** Encodes a function input through the function's input schema when present. */
-  export const encodeInput = <I, A, E, R>(
-    fn: ServerFunction<I, A, E, R>,
-    input: I,
-  ): Effect.Effect<unknown, Schema.SchemaError> => encodeServerFunctionInput(fn, input);
-
-  /** Decodes an unknown wire input through the function's input schema when present. */
-  export const decodeInput = <I, A, E, R>(
-    fn: ServerFunction<I, A, E, R>,
-    input: unknown,
-  ): Effect.Effect<I, Schema.SchemaError> => decodeServerFunctionInput(fn, input);
-
-  /** Encodes a function output through the function's output schema when present. */
-  export const encodeOutput = <I, A, E, R>(
-    fn: ServerFunction<I, A, E, R>,
-    output: A,
-  ): Effect.Effect<unknown, Schema.SchemaError> => encodeServerFunctionOutput(fn, output);
-
-  /** Decodes an unknown wire output through the function's output schema when present. */
-  export const decodeOutput = <I, A, E, R>(
-    fn: ServerFunction<I, A, E, R>,
-    output: unknown,
-  ): Effect.Effect<A, Schema.SchemaError> => decodeServerFunctionOutput(fn, output);
-
-  /** Encodes a function failure through the function's error schema when present. */
-  export const encodeError = <I, A, E, R>(
-    fn: ServerFunction<I, A, E, R>,
-    error: E,
-  ): Effect.Effect<unknown, Schema.SchemaError> => encodeServerFunctionError(fn, error);
-
-  /** Decodes an unknown wire failure through the function's error schema when present. */
-  export const decodeError = <I, A, E, R>(
-    fn: ServerFunction<I, A, E, R>,
-    error: unknown,
-  ): Effect.Effect<E, Schema.SchemaError> => decodeServerFunctionError(fn, error);
-
-  /** Decodes the generic server-function RPC request envelope. */
-  export const decodeRpcRequest = (
-    input: unknown,
-  ): Effect.Effect<ServerRpcRequest, Schema.SchemaError> => decodeServerRpcRequest(input);
-
-  /** Decodes the generic server-function RPC response envelope. */
-  export const decodeRpcResponse = (
-    input: unknown,
-  ): Effect.Effect<ServerRpcResponse, Schema.SchemaError> => decodeServerRpcResponse(input);
-
-  /**
-   * Creates a ServerClient that invokes registered local handlers.
-   *
-   * Useful for SSR tests and host adapters that want RPC-like schema round trips
-   * without crossing an HTTP transport.
+   * Start's request runtime provides it during SSR, so server-function calls
+   * made while rendering never cross HTTP. Calls pass through the contract's
+   * wire schemas, so values match what the HTTP client would decode.
    */
   export const localClient = (options: LocalServerClientOptions = {}): ServerClient => ({
     call: <I, A, E, R>(
       fn: ServerFunction<I, A, E, R>,
       input: I,
-    ): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R> =>
-      Effect.gen(function* () {
-        const target =
-          options.registry === undefined
-            ? getServerFunctionDefinition<ServerFunction<I, A, E, R>>(fn.name)
-            : (options.registry.serverFunctions.get(fn.name) as
-                | ServerFunction<I, A, E, R>
-                | undefined);
-        if (!target?.hasHandler) {
-          return yield* Effect.fail(new ServerFunctionNotFound({ functionName: fn.name }));
-        }
-
-        const encodedInput = yield* Server.encodeInput(fn, input);
-        const encodedOutput = yield* catchServerFunctionError(fn, target.invoke(encodedInput));
-        return yield* Server.decodeOutput(fn, encodedOutput);
-      }),
+    ): Effect.Effect<A, E | ServerClientError, R> => {
+      const target =
+        options.registry === undefined
+          ? getServerFunctionDefinition<ServerFunction<I, A, E, R>>(fn.name)
+          : (options.registry.serverFunctions.get(fn.name) as
+              | ServerFunction<I, A, E, R>
+              | undefined);
+      return target?.hasHandler
+        ? callThroughWireSchemas(fn, input, target.local)
+        : Effect.fail(new ServerFunctionNotFound({ functionName: fn.name }));
+    },
   });
-
-  /** Serializes thrown defects into JSON-safe diagnostic data when possible. */
-  export const serializeDefect = serializeServerDefect;
-
-  /** Serializes known server RPC errors for transport responses. */
-  export const serializeServerError = serializeServerWireError;
-
-  /** Decodes known server RPC errors, falling back to a protocol error. */
-  export const deserializeServerError = deserializeServerWireError;
 }
