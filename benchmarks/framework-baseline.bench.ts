@@ -88,13 +88,10 @@ const routeTable = [
   ),
 ] as const;
 
-const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
-  "Benchmark.echo.rpc",
-  {
-    input: Schema.Struct({ value: Schema.String }),
-    output: Schema.Struct({ value: Schema.String }),
-  },
-);
+const Echo = Server.contract("Benchmark.echo.rpc", {
+  input: Schema.Struct({ value: Schema.String }),
+  output: Schema.Struct({ value: Schema.String }),
+});
 const echo = Server.implement(Echo, ({ value }) => Effect.succeed({ value: value.toUpperCase() }));
 
 const benchRpcApp = makeStartServerApp({

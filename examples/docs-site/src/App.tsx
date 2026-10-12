@@ -516,11 +516,7 @@ export const UpdateIssueStatusInput = Schema.Struct({
   status: IssueStatus,
 });`;
 
-const blogContractExample = `export const GetIssue = Server.contract<
-  { readonly id: IssueId },
-  Issue,
-  IssueError
->("Issue.get", {
+const blogContractExample = `export const GetIssue = Server.contract("Issue.get", {
   input: Schema.Struct({ id: IssueId }),
   output: IssueSchema,
   error: IssueErrorSchema,

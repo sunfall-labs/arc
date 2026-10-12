@@ -78,6 +78,7 @@
       "typeTest": "type-tests/core.test-d.ts",
       "sourceSurface": [
         "action-instance",
+        "action-transport",
         "action-submission",
         "app",
         "browser-router-history-adapter",
@@ -101,7 +102,6 @@
         "route-match",
         "runtime",
         "scope",
-        "server-wire-codec",
         "signal",
         "signal-transaction",
         "signal-watch",
@@ -207,9 +207,7 @@
         "start-app",
         "start-app-request-handler",
         "start-document",
-        "start-fetch",
         "start-request-handler",
-        "start-transport-protocol",
         "static-client-navigation",
         "streaming"
       ],

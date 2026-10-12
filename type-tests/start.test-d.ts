@@ -24,9 +24,6 @@ import {
   type StartDocument,
   type StartDocumentContext,
   type StartDocumentTagAttributes,
-  type StartFetch,
-  type StartFetchInit,
-  type StartFetchInput,
   type StartHydrationDocument,
   type StartHydrationError,
   type StartHydrationPayload,
@@ -75,9 +72,6 @@ type StartTypes =
   | StartDocument
   | StartDocumentContext
   | StartDocumentTagAttributes
-  | StartFetch
-  | StartFetchInit
-  | StartFetchInput
   | StartHydrationDocument
   | StartHydrationError
   | StartHydrationPayload
