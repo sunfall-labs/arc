@@ -122,10 +122,26 @@ export type StateSubscriptionInput<Message, E = never, R = never> =
   | null
   | undefined;
 
+/**
+ * Who owns the instance a renderer binding (`Component.state`) returns:
+ * `"component"` (the default) gives each binding Component instance its own;
+ * `"app"` gives the runtime one, shared by every binding (one per request
+ * during a server render).
+ */
+export type StateScope = "component" | "app";
+
 /** Definition for a headless model/message loop with Effect-owned work. */
 export interface StateDefinition<Model, Message extends StateTaggedMessage, E = never, R = never> {
   /** Stable name: labels the model on the `Timeline` and names its `State` causes. */
   readonly name: string;
+  /**
+   * Who owns the instance `Component.state` returns: each Component instance
+   * (`"component"`, the default) or the runtime (`"app"`). An app State
+   * starts on its first binding, with that binding's services, and runs until
+   * the runtime is disposed; every binding shares its model. `State.start`
+   * always starts a new instance its caller owns.
+   */
+  readonly scope?: StateScope;
   readonly initial: StateModelValue<Model>;
   /** Exhaustive pure message handlers keyed by each message `_tag`. */
   readonly on: StateHandlerMap<Model, Message, E, R>;

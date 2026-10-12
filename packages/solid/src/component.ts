@@ -22,6 +22,7 @@ import {
   resourceRowPositions,
   resourceRowsIndex,
   SignalWrites,
+  appStateOnRuntime,
   startStateOnRuntime,
   withSignalTransition,
   type ResourceStoreModule,
@@ -235,6 +236,21 @@ const withSetupContext = (
     runSync: (effect) => runtime.runSync(withContext(effect)),
   };
 };
+
+/**
+ * The runtime an app State (`scope: "app"`) starts on: the instance's runtime
+ * with the setup's services, minus the instance's own `Scope` and identity,
+ * so the State's commands and subscriptions outlive the Component that
+ * happened to bind it first.
+ */
+const appStateRuntime: Effect.Effect<AnySunfallArcRuntime<never>> = Effect.gen(function* () {
+  const state = yield* currentInstance("Component.state");
+  const context = yield* Effect.context<never>();
+  return withSetupContext(
+    state.runtime,
+    Context.omit(Scope.Scope, CurrentInstance)(context) as Context.Context<never>,
+  ) as AnySunfallArcRuntime<never>;
+});
 
 /**
  * Wraps a generator so every step of the setup body runs under the instance's
@@ -965,11 +981,17 @@ export namespace Component {
     }) as Effect.Effect<ActionHandle<I, A, E>, never, R | ActionResult.InvalidationRequirements<A>>;
 
   /**
-   * Starts a State for this instance and returns its handle: the model as a
-   * read-only Solid view, and one DOM-ready sender per message. The
-   * definition's services join the component's `R`; the State stops when the
-   * instance is disposed. Each instance owns its own State, so keying a
+   * Binds a State and returns its handle: the model as a read-only Solid
+   * view, and one DOM-ready sender per message. The definition's services join
+   * the component's `R`. By default the State is this instance's own and stops
+   * when the instance is disposed. Each instance owns its own State, so keying a
    * component on an entity (`<Editor id={id} />`) gives each entity a fresh one.
+   *
+   * An app State (`State.define({ scope: "app", ... })`) is the runtime's one
+   * instance instead: every binding returns a handle on the same model, the
+   * first binding starts it with its services, and it runs until the runtime
+   * is disposed (so a server render gets one per request). Unmounting a
+   * binder never stops it.
    *
    * @example
    * ```tsx
@@ -987,10 +1009,15 @@ export namespace Component {
   ): Effect.Effect<StateHandle<Model, Message, E>, never, R> =>
     Effect.gen(function* () {
       const current = yield* instance;
-      const started = current.run(() =>
-        startStateOnRuntime<Model, Message, E, R, never>(definition, current.runtime),
-      );
-      yield* Effect.addFinalizer(() => started.dispose);
+      const started =
+        definition.scope === "app"
+          ? appStateOnRuntime<Model, Message, E, R, never>(definition, yield* appStateRuntime)
+          : current.run(() =>
+              startStateOnRuntime<Model, Message, E, R, never>(definition, current.runtime),
+            );
+      if (definition.scope !== "app") {
+        yield* Effect.addFinalizer(() => started.dispose);
+      }
       const model = current.run(() =>
         projectModel(started.model, definition.initial, options?.key),
       );

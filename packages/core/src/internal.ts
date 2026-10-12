@@ -71,6 +71,7 @@ export type {
   ResourceStoreModule,
   ResourceStoreModuleRegistry,
 } from "./resource-store.js";
+export { makeRequestResourceStore } from "./resource-store.js";
 export {
   activeResourceStore,
   currentResourceStore,
@@ -123,7 +124,7 @@ export { ResourceFamily } from "./resource.js";
 export { makeActionInstance } from "./action-instance.js";
 export { decodeFormValuesEffect } from "./form.js";
 export { SignalWrites, type WritableSignal } from "./signal.js";
-export { startStateOnRuntime } from "./state-start.js";
+export { appStateOnRuntime, startStateOnRuntime } from "./state-start.js";
 export {
   currentOrDefaultRuntime,
   defaultRuntime,

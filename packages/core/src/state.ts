@@ -7,6 +7,7 @@ import {
   type StateHandlerMap,
   type StateInstance,
   type StatePhase,
+  type StateScope,
   type StateRef,
   StateDisposed,
   type StateRuntimeError,
@@ -30,6 +31,7 @@ export {
   type StateHandlerMap,
   type StateInstance,
   type StatePhase,
+  type StateScope,
   type StateRef,
   type StateRuntimeError,
   type StateStep,
@@ -141,6 +143,12 @@ export namespace State {
   >;
   /** Visible runtime phase for a started State. */
   export type Phase = StatePhase;
+  /**
+   * Who owns the instance `Component.state` binds: each Component instance
+   * (`"component"`, the default) or the runtime (`"app"`, one shared instance
+   * per runtime, so one per request during a server render).
+   */
+  export type Scope = StateScope;
   /** Value a message handler returns: the next model, or the next model plus commands. */
   export type Update<Model, Message, E = never, R = never> = StateUpdate<Model, Message, E, R>;
   /** Next model plus the commands a transition returned, unrun. */
@@ -170,6 +178,11 @@ export namespace State {
    * emit the State's own messages, name the union up front with
    * `State.define<Model, Message>()({ ... })`.
    *
+   * `scope: "app"` makes every `Component.state` binding share the runtime's
+   * one instance (a toast, a cart): it outlives the Components that bind it,
+   * and a server render gets one per request. The default gives each
+   * Component instance its own.
+   *
    * @example
    * ```ts
    * const MenuOpen = State.define({ name: "Menu.open", initial: false, on: { Toggle: (open) => !open } });
@@ -190,7 +203,11 @@ export namespace State {
    * ```
    */
   export const step = stateStepSync;
-  /** Starts a State on the current or explicit Runtime Spine and UI scope. */
+  /**
+   * Starts a new State instance on an explicit Runtime Spine (and the current
+   * UI scope, when there is one) for headless code and tests, whatever the
+   * definition's `scope`: the caller owns it.
+   */
   export const start = startState;
   /**
    * Returns a pure model update step, optionally with commands.

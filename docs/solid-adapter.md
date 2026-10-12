@@ -284,6 +284,21 @@ const Menu = Component.define("Menu", function* () {
 - **Keying gives a fresh State.** Each instance owns its State, so a
   Component keyed on an entity (`<Show when={project.id} keyed>`) gets a
   fresh State per entity and needs no prop-sync message.
+- **`scope: "app"` shares one State.** A State the shell renders and the
+  pages update (an undo toast) declares `scope: "app"`; every
+  `Component.state(UndoToast)` binding then returns a handle on the runtime's
+  one instance. The first binding starts it with its services (minus its own
+  Scope, so commands outlive it), unmounting a binder never stops it, and
+  disposing the runtime does. A server render's request runtime has its own,
+  so requests never share one; the browser starts its own from `initial`.
+
+<!-- prettier-ignore -->
+```tsx
+const UndoToast = State.define({ name: "Shell.undoToast", scope: "app", initial: { text: "" }, on: { Show: (_model, message: { readonly text: string }) => ({ text: message.text }) } });
+
+// The board: `toast.send.Show({ text: "Deleted TRK-12" })`; the shell renders `toast.model().text`.
+const toast = yield* Component.state(UndoToast);
+```
 
 A primitive model (a toggle, a search string) is read straight from the
 State's signal. An object model is reconciled into a fine-grained read-only

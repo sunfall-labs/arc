@@ -16,7 +16,7 @@ import {
 } from "../../../model.js";
 import { ProjectHeader } from "../../../project-header.js";
 import { Board, CurrentUser, Labels, Projects, Team } from "../../../resources.js";
-import { useShell } from "../../../shell.js";
+import { UndoToast } from "../../../shell.js";
 import { Avatar, Icon, LabelChips, PriorityIcon } from "../../../ui.js";
 import { route as IssueRoute } from "../../issues/$id.js";
 import { route as NewIssueRoute } from "./new.js";
@@ -54,7 +54,8 @@ const BoardView = Component.define(
     const ui = yield* Component.state(BoardUi);
     const move = yield* Component.action(MoveIssue);
     const remove = yield* Component.action(DeleteIssue);
-    const shell = useShell();
+    // The shell's toast: an app State, so this binding shares its model.
+    const toast = yield* Component.state(UndoToast);
 
     const people = () => new Map<string, User>(team("all").map((member) => [member.id, member]));
     const column = (status: IssueStatus): ReadonlyArray<IssueRow> => {
@@ -75,7 +76,9 @@ const BoardView = Component.define(
     );
     const deleteIssue = yield* Component.callback("delete", (issue: IssueRow) =>
       remove.submit({ id: issue.id }).pipe(
-        Effect.tap(() => Effect.sync(() => shell.deleted({ id: issue.id, title: issue.title }))),
+        Effect.tap(() =>
+          toast.dispatch({ _tag: "Deleted", issue: { id: issue.id, title: issue.title } }),
+        ),
         Effect.ignore,
       ),
     );

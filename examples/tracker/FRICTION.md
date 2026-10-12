@@ -203,25 +203,34 @@ declares a string-only `CreateIssueForm` and normalizes it in `run`
   absent/one/many, `Form.optional` for `""`) so a domain schema can decode a
   posted form.
 
-### 18. Change feeds also start in SSR request runtimes
+### 18. Change feeds also start in SSR request runtimes (fixed)
 
-A board loaded during SSR starts its `rows.changes` poller in the request
-runtime, which is interrupted when the response ends. Harmless (the poller
+A board loaded during SSR started its `rows.changes` poller in the request
+runtime, which was interrupted when the response ended. Harmless (the poller
 sleeps first) but wasted work, and a feed with side effects would run on the
 server.
 
-- Proposal: request runtimes do not start change feeds; hydration (fix 7)
-  starts them in the browser.
+- Fix: a Start request runtime's Resource Store never follows change feeds
+  (`makeRequestResourceStore` in `packages/core/src/resource-store.ts`, used
+  by `makeRequestRuntime` in `packages/start/src/request-runtime.ts`);
+  hydration (fix 7) starts them in the browser.
+- Tests: `packages/start/test/server-render.test.ts`,
+  `packages/core/test/resource-rows.test.ts`.
 
-### 19. Sharing a client State across the app needs a Solid context
+### 19. Sharing a client State across the app needs a Solid context (fixed)
 
 The undo toast is shown by the board and the issue page but owned by the
-shell. `Component.state` is per instance and `State.start` is shared across
-SSR requests, so the shell passes its handle down through a Solid context
-(`src/shell.tsx`).
+shell. `Component.state` was per instance and `State.start` is shared across
+SSR requests, so the shell passed its handle down through a Solid context.
 
-- Proposal: `Component.provideState(Definition)` on a parent and
-  `Component.useState(Definition)` below it, scoped to the parent instance.
+- Fix: `State.define({ scope: "app", ... })`. Every `Component.state` binding
+  of an app State returns the runtime's one instance (one per request during
+  SSR), started by the first binding and stopped with the runtime
+  (`appStateOnRuntime` in `packages/core/src/state-start.ts`). The shell, the
+  board, and the issue page each bind `Component.state(UndoToast)`
+  (`src/shell.tsx`); the context is gone.
+- Tests: `packages/solid/test/state.test.ts` ("Component.state with an app
+  State"), `packages/start/test/server-render.test.ts`.
 
 ### 20. No production SSR server
 

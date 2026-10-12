@@ -2,7 +2,13 @@ import { Deferred, Effect, Exit, Fiber, Option, Queue, Schema, Stream } from "ef
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
 import { Action, makeRuntime, Resource, Signal, Timeline } from "../src/index.js";
-import { defaultRuntime, resourceRowsGet, resourceRowsIndex } from "../src/internal.js";
+import {
+  defaultRuntime,
+  makeRequestResourceStore,
+  resourceRowsGet,
+  resourceRowsIndex,
+  withResourceStore,
+} from "../src/internal.js";
 
 const Project = Schema.Struct({
   id: Schema.String,
@@ -280,19 +286,19 @@ describe("Resource rows", () => {
           started.push(rows.map((row) => row.id));
           return Stream.fromQueue(queue);
         });
-        const server = makeRuntime();
+        // A server request's store loads and hydrates but never follows the feed.
+        const server = withResourceStore(makeRuntime(), makeRequestResourceStore());
         yield* server.provide(Resource.preload(fixture.ref));
         const payload = yield* server.provide(Resource.hydrationPayload([fixture.ref]));
+        yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)));
+        expect(started).toEqual([]);
         yield* server.dispose;
 
         const browser = makeRuntime();
         yield* browser.provide(Resource.hydrate(payload));
         yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)));
-        // The server's load started one feed; the hydrated browser entry its own.
-        expect(started).toEqual([
-          ["atlas", "orion"],
-          ["atlas", "orion"],
-        ]);
+        // Only the hydrated browser entry follows the feed.
+        expect(started).toEqual([["atlas", "orion"]]);
         yield* Queue.offer(queue, [{ _tag: "Delete", key: "orion" }]);
         yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)));
         expect(browser.runSync(Resource.read(fixture.ref)).map((row) => row.id)).toEqual(["atlas"]);
