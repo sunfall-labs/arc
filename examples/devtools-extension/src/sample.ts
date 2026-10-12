@@ -1,7 +1,7 @@
-import { describeDevtoolsPanels, type DevtoolsPanels } from "@sunfall/arc-devtools";
+import { Devtools } from "@sunfall/arc-devtools";
 
-export const sampleDevtoolsPanels = (): DevtoolsPanels =>
-  describeDevtoolsPanels({
+export const sampleDevtoolsPanels = (): Devtools.Panels =>
+  Devtools.describePanels({
     requestTraces: [
       {
         request: {

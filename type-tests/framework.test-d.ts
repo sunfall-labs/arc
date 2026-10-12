@@ -100,21 +100,7 @@ import {
   type RouterLinkProps,
   type RouterOutletProps,
 } from "@sunfall/arc-solid";
-import {
-  describeDevtoolsPanels,
-  describeDevtoolsSummary,
-  makeDevtoolsStore,
-  type DevtoolsInvalidationPlan,
-  type DevtoolsTimelineCommit,
-  type DevtoolsPanels,
-  type DevtoolsRequestTrace,
-  type DevtoolsRequestTraceTeardown,
-  type DevtoolsRuntimeEvent,
-  type DevtoolsSnapshot,
-  type DevtoolsStartAppGraphDiagnostics,
-  type DevtoolsStore,
-  type DevtoolsSummary,
-} from "@sunfall/arc-devtools";
+import { Devtools } from "@sunfall/arc-devtools";
 import { normalizeDevtoolsAppGraphDiagnostics } from "../packages/devtools/src/app-graph-normalizer.js";
 import {
   App,
@@ -1556,7 +1542,7 @@ const StartServerApp = makeStartServerApp({ routes: [ProjectRoute] as const });
 const startLaunchEffect: Effect.Effect<never, App.LaunchError> = App.launch(StartApp);
 void startLaunchEffect;
 const requestTraceHandler = (trace: StartRequestTrace) => {
-  const devtoolsTrace: DevtoolsRequestTrace = trace;
+  const devtoolsTrace: Devtools.RequestTrace = trace;
   const teardownStartedAt: number | undefined = trace.teardown?.startedAt;
   const teardownCompletedAt: number | undefined = trace.teardown?.completedAt;
   const teardownDurationMillis: number | undefined = trace.teardown?.durationMillis;
@@ -1589,7 +1575,8 @@ const startRequestTraceTeardown: StartRequestTraceTeardown = {
     tagCount: 1,
   },
 };
-const devtoolsRequestTraceTeardown: DevtoolsRequestTraceTeardown = startRequestTraceTeardown;
+const devtoolsRequestTraceTeardown: NonNullable<Devtools.RequestTrace["teardown"]> =
+  startRequestTraceTeardown;
 void devtoolsRequestTraceTeardown;
 createRequestHandler(StartApp, {
   onRequestTrace: requestTraceHandler,
@@ -3099,8 +3086,8 @@ StartAction.form(TouchProject, {
   input: { id: 123 },
 });
 
-const devtoolsStore: DevtoolsStore = makeDevtoolsStore();
-const devtoolsTimelineCommit: DevtoolsTimelineCommit = {
+const devtoolsStore: Devtools.Store = Devtools.makeStore();
+const devtoolsTimelineCommit: Devtools.TimelineCommit = {
   sequence: 1,
   label: Timeline.describe(renameCause),
   cause: renameCause,
@@ -3110,8 +3097,8 @@ Effect.runSync(devtoolsStore.recordTimelineEntry(projectProgramHistory[0]!));
 const devtoolsTrackTimelineEffect: Effect.Effect<void, never, Scope.Scope> =
   devtoolsStore.trackTimeline(projectTimeline);
 declare const startRuntimeRequestTrace: StartRequestTrace;
-const devtoolsRuntimeRequestTrace: DevtoolsRequestTrace = startRuntimeRequestTrace;
-const devtoolsResourceRuntimeEvent: DevtoolsRuntimeEvent = {
+const devtoolsRuntimeRequestTrace: Devtools.RequestTrace = startRuntimeRequestTrace;
+const devtoolsResourceRuntimeEvent: Devtools.RuntimeEvent = {
   _tag: "ResourceStoreEvent",
   sequence: 1,
   event: {
@@ -3122,20 +3109,20 @@ const devtoolsResourceRuntimeEvent: DevtoolsRuntimeEvent = {
     previous: false,
   },
 };
-const devtoolsTimelineRuntimeEvent: DevtoolsRuntimeEvent = {
+const devtoolsTimelineRuntimeEvent: Devtools.RuntimeEvent = {
   _tag: "TimelineCommit",
   commit: devtoolsTimelineCommit,
 };
-const devtoolsRequestRuntimeEvent: DevtoolsRuntimeEvent = {
+const devtoolsRequestRuntimeEvent: Devtools.RuntimeEvent = {
   _tag: "RequestTrace",
   trace: devtoolsRuntimeRequestTrace,
 };
-const devtoolsRuntimeEvents: ReadonlyArray<DevtoolsRuntimeEvent> = [
+const devtoolsRuntimeEvents: ReadonlyArray<Devtools.RuntimeEvent> = [
   devtoolsResourceRuntimeEvent,
   devtoolsTimelineRuntimeEvent,
   devtoolsRequestRuntimeEvent,
 ];
-const devtoolsRuntimeSnapshot: DevtoolsSnapshot = {
+const devtoolsRuntimeSnapshot: Devtools.Snapshot = {
   resources: [],
   actions: [],
   invalidations: [],
@@ -3144,22 +3131,22 @@ const devtoolsRuntimeSnapshot: DevtoolsSnapshot = {
 };
 Effect.runSync(devtoolsStore.recordRuntimeEvent(devtoolsResourceRuntimeEvent));
 declare const startAppGraphDiagnostics: StartAppGraphDiagnostics;
-const devtoolsStartAppGraphDiagnosticsFromStart: DevtoolsStartAppGraphDiagnostics =
+const devtoolsStartAppGraphDiagnosticsFromStart: Devtools.AppGraphDiagnostics =
   startAppGraphDiagnostics;
-const devtoolsLoadedStartAppGraphDiagnostics: DevtoolsStartAppGraphDiagnostics =
+const devtoolsLoadedStartAppGraphDiagnostics: Devtools.AppGraphDiagnostics =
   loadedStartDiagnostics.diagnostics;
-const normalizedDevtoolsStartAppGraphDiagnostics: DevtoolsStartAppGraphDiagnostics =
+const normalizedDevtoolsStartAppGraphDiagnostics: Devtools.AppGraphDiagnostics =
   normalizeDevtoolsAppGraphDiagnostics(loadedStartDiagnostics.diagnostics);
-const devtoolsStartAppGraphSummary: DevtoolsSummary = describeDevtoolsSummary({
+const devtoolsStartAppGraphSummary: Devtools.Summary = Devtools.describeSummary({
   appGraph: loadedStartDiagnostics.diagnostics,
 });
-const devtoolsStartAppGraphPanels: DevtoolsPanels = describeDevtoolsPanels({
+const devtoolsStartAppGraphPanels: Devtools.Panels = Devtools.describePanels({
   appGraph: loadedStartDiagnostics.diagnostics,
 });
 Effect.runSync(devtoolsStore.setAppGraphDiagnostics(loadedStartDiagnostics.diagnostics));
 const devtoolsSetStartAppGraphDiagnosticsEffect: Effect.Effect<void> =
   devtoolsStore.setAppGraphDiagnostics(loadedStartDiagnostics.diagnostics);
-const serializedInvalidationPlan: DevtoolsInvalidationPlan = {
+const serializedInvalidationPlan: Devtools.InvalidationPlan = {
   targets: [
     {
       _tag: "Tag",
@@ -3185,7 +3172,7 @@ const serializedInvalidationPlan: DevtoolsInvalidationPlan = {
   ],
 };
 const startInvalidationPlan: StartAction.InvalidationPlan = serializedInvalidationPlan;
-const devtoolsInvalidationPlanFromStart: DevtoolsInvalidationPlan = startInvalidationPlan;
+const devtoolsInvalidationPlanFromStart: Devtools.InvalidationPlan = startInvalidationPlan;
 Effect.runSync(
   devtoolsStore.recordActionState("Project.touch", "Success", {
     serializedInvalidationPlan: startInvalidationPlan,

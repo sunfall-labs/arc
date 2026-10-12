@@ -148,24 +148,26 @@
       "source": "packages/devtools/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/devtools.test-d.ts",
-      "sourceSurface": [
-        "bridge",
-        "devtools-contract",
-        "panel-contract",
-        "serialization",
-        "summary"
-      ],
+      "sourceSurface": ["devtools", "devtools-contract", "panel-contract"],
       "requiredTypeTestImports": [
-        "DevtoolsRuntimeEvent",
-        "DevtoolsSnapshot",
-        "DevtoolsStartAppGraphSchemaCoverage",
-        "DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry",
-        "DevtoolsStore",
-        "DevtoolsStoreOptions",
-        "DevtoolsUnknownInvalidationTarget",
-        "describeInvalidationPlan",
-        "describeRoutePlan",
-        "makeDevtoolsStore"
+        "Devtools",
+        "DevtoolsActionInvalidationPlanConflict",
+        "DevtoolsPanelContractError"
+      ],
+      "typeTestReferences": [
+        "Devtools.AppGraphDiagnostics",
+        "Devtools.BridgePayload",
+        "Devtools.BridgePayloadResolution",
+        "Devtools.CausalGraph",
+        "Devtools.InvalidationPlan",
+        "Devtools.Panels",
+        "Devtools.RequestTrace",
+        "Devtools.RuntimeEvent",
+        "Devtools.Snapshot",
+        "Devtools.Store",
+        "Devtools.StoreOptions",
+        "Devtools.Summary",
+        "Devtools.makeStore"
       ]
     },
     {

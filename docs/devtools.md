@@ -9,23 +9,23 @@ story.
 
 ## Model
 
-- `DevtoolsSnapshot` captures runtime facts: resource states, action states,
+- `Devtools.Snapshot` captures runtime facts: resource states, action states,
   invalidation plans, route plans, request traces, app graph diagnostics, and
   runtime events.
-- `DevtoolsSummary` normalizes those facts into stable panel data, counts, route
+- `Devtools.Summary` normalizes those facts into stable panel data, counts, route
   inspectors, request inspectors, invalidation inspectors, resource indexes, and
   a causal graph.
-- `DevtoolsCausalGraph` turns facts into deterministic nodes and edges for
+- `Devtools.CausalGraph` turns facts into deterministic nodes and edges for
   request traces, routes, route plans, resources, resource families, actions,
   invalidations, schema coverage, missing schemas,
   runtime events, endpoints, and modules. Route preload ResourceFamily nodes
   prefer app graph definitions when present, so schema, tag, and policy depth
   is not lost when preload facts arrive before app graph facts.
-- `DevtoolsPanels` is the shared UI-facing contract for app shells, browser
+- `Devtools.Panels` is the shared UI-facing contract for app shells, browser
   extensions, agents, tests, and HTML renderers. Runtime guards and bridge
   payload normalization live in `@sunfall/arc-devtools` so hosts do not need to
   duplicate panel validation logic.
-- `DevtoolsStore` is an explicit public Interface for recording snapshots,
+- `Devtools.Store` is an explicit public Interface for recording snapshots,
   app graph diagnostics, route plans, invalidations, runtime events, summaries,
   Timeline commits, panels, and causal graphs. Store record methods
   return retained fact indexes when callers need precise runtime-event links.
@@ -45,7 +45,7 @@ request id when the same trace is observed twice.
 Every store read/write has an Effect form:
 
 ```ts
-const store = makeDevtoolsStore();
+const store = Devtools.makeStore();
 
 yield * store.recordResourceEvent(event);
 yield * store.recordRequestTrace(trace);
@@ -104,7 +104,7 @@ API keys, credentials, cookies, and authorization fields. Hosts can add
 application-specific keys at the store boundary:
 
 ```ts
-const store = makeDevtoolsStore({
+const store = Devtools.makeStore({
   serializationPolicy: {
     redactKeys: ["tenantSecret", /private/i],
   },
@@ -264,7 +264,7 @@ Effect-native event streams:
   the semantic invalidation facts: targeted tags/refs, matched live resources,
   and the exact causes for each invalidated resource.
 
-Adapters record those facts into `makeDevtoolsStore()` through its Effect
+Adapters record those facts into `Devtools.makeStore()` through its Effect
 methods. `getSummary()` then provides route, invalidation, runtime, and
 request/resource inspectors, while `getCausalGraph()` links the golden
 path with deterministic edges such as request trace `UsesEndpoint`, request
@@ -285,7 +285,7 @@ limits decide which trace facts remain attached.
 
 ## Panel Model
 
-`describeDevtoolsPanels(...)` and `store.getPanels()` provide the first
+`Devtools.describePanels(...)` and `store.getPanels()` provide the first
 UI-facing panel contract. The result is JSON-safe and ordered for direct
 rendering:
 
@@ -314,11 +314,11 @@ failures, and disposal, plus per-program summary rows.
 
 ## Browser Panel Renderer
 
-`renderDevtoolsPanelsHtml(...)` turns the panel contract into deterministic HTML
+`Devtools.renderPanelsHtml(...)` turns the panel contract into deterministic HTML
 for a browser-embedded panel, documentation preview, or app shell:
 
 ```ts
-const html = renderDevtoolsPanelsHtml({
+const html = Devtools.renderPanelsHtml({
   panels: yield * store.getPanels(),
   selectedPanelId: "requests",
   maxItemsPerPanel: 12,
@@ -333,7 +333,7 @@ lifecycle ownership can mount the same contract through Effect:
 
 ```ts
 yield *
-  mountDevtoolsPanels({
+  Devtools.mountPanels({
     root: document.getElementById("sunfall-arc-devtools")!,
     panels: yield * store.getPanels(),
   });
@@ -348,7 +348,7 @@ inspected-window bridge through the devtools package:
 
 ```ts
 yield *
-  installDevtoolsBridge(() => ({
+  Devtools.installBridge(() => ({
     panels: Effect.runSync(store.getPanels()),
     selectedPanelId: "requests",
     title: "Sunfall Arc Devtools",
@@ -359,31 +359,29 @@ The scoped bridge restores any previous `globalThis.__SUNFALL_ARC_DEVTOOLS__`
 value when the Effect scope closes (or on its `uninstall()`). Extension
 transports should
 resolve inspected-window values with
-`resolveSunfallArcDevtoolsBridgePayload(...)` before rendering so invalid bridge
+`Devtools.resolveBridgePayload(...)` before rendering so invalid bridge
 payloads can be reported as typed diagnostics instead of collapsing to
 `undefined`. This applies the same panel id, severity, metric, item,
 finite-number, plain-record, bounded string, and JSON-safe data checks used by
 the package tests. Oversized display strings are truncated at the bridge seam,
 oversized item lists are windowed with a deterministic overflow row, and
 oversized item data object keys are rejected so richer renderers do not silently
-rename structured data. Use `normalizeSunfallArcDevtoolsBridgePayload(...)` only
-when a host deliberately wants the weaker optional payload facade and does not
-need contract error details.
+rename structured data.
 
 The checked app-shell integration lives at
 [`examples/devtools-panel`](../examples/devtools-panel). It mounts sample
-public facts through `mountDevtoolsPanels(...)` and verifies typecheck,
+public facts through `Devtools.mountPanels(...)` and verifies typecheck,
 render output, and production build.
 
 The checked browser-extension shell lives at
 [`examples/devtools-extension`](../examples/devtools-extension). It emits a
 Manifest V3 devtools page, registers `panel.html` through the browser devtools
 panel host, mounts the same public panel contract through
-`mountDevtoolsPanels(...)`, and reads live inspected-page panel payloads
+`Devtools.mountPanels(...)`, and reads live inspected-page panel payloads
 from `globalThis.__SUNFALL_ARC_DEVTOOLS__` through
 `chrome.devtools.inspectedWindow.eval`. The bridge accepts either a
-`DevtoolsPanels` payload wrapper or a provider function returning that wrapper,
-uses the shared `sunfallArcDevtoolsBridgeGlobal` key from `@sunfall/arc-devtools`,
+`Devtools.Panels` payload wrapper or a provider function returning that wrapper,
+uses the shared `Devtools.bridgeGlobal` key from `@sunfall/arc-devtools`,
 structurally validates the panel ids, severities, metrics, items, and
 bounded JSON-safe item data before rendering inspected-window data, bounds hung
 inspected-window eval calls with a timeout, uses sample facts only as the

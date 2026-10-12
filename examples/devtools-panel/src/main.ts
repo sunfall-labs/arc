@@ -1,5 +1,5 @@
 import { Data } from "effect";
-import { bootDevtoolsPanels } from "@sunfall/arc-devtools";
+import { Devtools } from "@sunfall/arc-devtools";
 import { sampleDevtoolsPanels } from "./sample.js";
 import "./styles.css";
 
@@ -9,7 +9,7 @@ class DevtoolsRootMissing extends Data.TaggedError("DevtoolsRootMissing")<{
 }> {}
 
 export const bootDevtoolsPanel = (root: HTMLElement) =>
-  bootDevtoolsPanels({
+  Devtools.bootPanels({
     root,
     panels: sampleDevtoolsPanels(),
     selectedPanelId: "requests",
@@ -25,7 +25,7 @@ if (!root) {
   });
 }
 
-export const devtoolsPanelBoot = bootDevtoolsPanels({
+export const devtoolsPanelBoot = Devtools.bootPanels({
   root,
   panels: sampleDevtoolsPanels(),
   selectedPanelId: "requests",

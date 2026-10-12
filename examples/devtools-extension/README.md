@@ -1,7 +1,7 @@
 # Sunfall Arc Devtools Extension
 
 This checked package builds the browser-extension shell for the public
-`DevtoolsPanels` renderer and the inspected-window bridge.
+`Devtools.Panels` renderer and the inspected-window bridge.
 
 Verify it:
 
@@ -10,16 +10,16 @@ pnpm --filter @sunfall/arc-example-devtools-extension verify
 ```
 
 The build emits a Manifest V3 extension with `devtools.html`, `panel.html`, and
-`manifest.json` in `dist`. The panel uses `mountDevtoolsPanels(...)`, so
+`manifest.json` in `dist`. The panel uses `Devtools.mountPanels(...)`, so
 DOM lifecycle ownership stays inside an Effect scope before crossing the
 browser-extension boundary. It renders checked sample facts as a fallback, then
 polls the inspected page for live panel data through:
 
 ```ts
-import { installDevtoolsBridge } from "@sunfall/arc-devtools";
+import { Devtools } from "@sunfall/arc-devtools";
 
 yield *
-  installDevtoolsBridge(() => ({
+  Devtools.installBridge(() => ({
     panels: Effect.runSync(store.getPanels()),
     selectedPanelId: "requests",
     title: "Sunfall Arc Devtools",

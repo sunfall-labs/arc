@@ -47,6 +47,31 @@ Resource reader, and patch them on the Resource ref.
   `UnknownCollectionIndex` are removed: an update of a missing key is a no-op,
   and a key change or an unknown index is a defect.
 
+## From Flat Devtools Names
+
+`@sunfall/arc-devtools` exports one `Devtools` namespace plus its two error
+classes (`DevtoolsActionInvalidationPlanConflict`,
+`DevtoolsPanelContractError`). Drop the `Devtools` prefix or infix and read the
+name off the namespace:
+
+| Before                                                                       | After                                                              |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `makeDevtoolsStore(options)`                                                 | `Devtools.makeStore(options)`                                      |
+| `describeDevtoolsSummary` / `describeDevtoolsCausalGraph`                    | `Devtools.describeSummary` / `Devtools.describeCausalGraph`        |
+| `describeDevtoolsPanels` / `renderDevtoolsPanelsHtml`                        | `Devtools.describePanels` / `Devtools.renderPanelsHtml`            |
+| `mountDevtoolsPanels` / `bootDevtoolsPanels`                                 | `Devtools.mountPanels` / `Devtools.bootPanels`                     |
+| `installDevtoolsBridge` / `sunfallArcDevtoolsBridgeGlobal`                   | `Devtools.installBridge` / `Devtools.bridgeGlobal`                 |
+| `resolveSunfallArcDevtoolsBridgePayload`                                     | `Devtools.resolveBridgePayload`                                    |
+| `toDevtoolsSerializableValue`                                                | `Devtools.toSerializable`                                          |
+| `DevtoolsStore`, `DevtoolsSnapshot`, `DevtoolsPanels`, `DevtoolsSummary`     | `Devtools.Store`, `Devtools.Snapshot`, `Devtools.Panels`, ...      |
+| `DevtoolsStartAppGraphDiagnostics`                                           | `Devtools.AppGraphDiagnostics`                                     |
+| `DevtoolsBridgePayloadContractResolution`                                    | `Devtools.BridgePayloadResolution`                                 |
+| `DevtoolsPanelItem`, `DevtoolsPanelMetric`, `DevtoolsPanelId`                | `Devtools.Panel["items"][number]`, `["metrics"][number]`, `["id"]` |
+| `DevtoolsCausalNodeKind` / `DevtoolsCausalEdgeKind`                          | `Devtools.CausalGraph["nodes"][number]["kind"]` / `["edges"]...`   |
+| `DevtoolsRequestTraceTeardown` and other `DevtoolsRequestTrace*` parts       | `NonNullable<Devtools.RequestTrace["teardown"]>`, ...              |
+| `describeInvalidationPlan(plan)` / `describeRoutePlan(plan)`                 | `store.recordInvalidation(plan)` / `store.recordRoutePlan(plan)`   |
+| `isDevtoolsSerializableValue`, `devtoolsPanelIds`, `devtoolsPanelSeverities` | removed; validate payloads with `Devtools.resolveBridgePayload`    |
+
 ## From Duplicate Names And Forms
 
 Every public thing now has one name and one form. Types a namespace owns are

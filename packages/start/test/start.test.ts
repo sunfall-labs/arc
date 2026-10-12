@@ -61,7 +61,7 @@ import {
   resourceDefinitionRegistry,
   ResourceFamily,
 } from "@sunfall/arc-core/internal";
-import type { DevtoolsRequestTrace } from "@sunfall/arc-devtools";
+import type { Devtools } from "@sunfall/arc-devtools";
 import {
   hydrateFromDocument,
   StartHydrationChunkParseError,
@@ -688,7 +688,7 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("emits Devtools-compatible request traces for SSR requests", async () => {
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const Project = Resource.define({
       name: "Start.Project.trace",
       load: (id: string) => Effect.succeed({ id }),
@@ -1160,7 +1160,7 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("emits request traces when streamed responses are cancelled", async () => {
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
       routes: [Home] as const,
@@ -1243,7 +1243,7 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("records Start stream failure phases in request trace stream summaries", async () => {
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
       routes: [Home] as const,
@@ -1485,7 +1485,7 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("emits request traces when request handlers fail", async () => {
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
       routes: [Home] as const,
@@ -1547,7 +1547,7 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("preserves the original handler failure when request runtime cleanup fails", async () => {
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
       routes: [Home] as const,
@@ -1602,7 +1602,7 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("emits cancelled request traces when handlers are interrupted before a response", async () => {
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
       routes: [Home] as const,
@@ -1900,7 +1900,7 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("fails invalid response context status through the typed Start request error path", async () => {
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
       routes: [Home] as const,
@@ -2177,7 +2177,7 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("emits request traces for RPC and Start action transports", async () => {
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
       "Start.echo.trace",
       {
@@ -2286,7 +2286,7 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("records Start action invalidation indexes in request traces", async () => {
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
       name: Schema.String,
@@ -2380,7 +2380,7 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("uses one generated request id for transport diagnostics and request traces", async () => {
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
       "Start.echo.trace.generated-id",
       {
@@ -2429,7 +2429,7 @@ describe("Sunfall Arc Start", () => {
       serverFunctions: { rpcPath: "/custom/start-rpc" },
       actions: { actionPath: "/custom/start-action" },
     } as const;
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
       "Start.echo.custom-endpoint",
       {
@@ -2676,7 +2676,7 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("classifies RPC and Start action request trace failures by layer", async () => {
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const FailsDomain = Server.contract<{ readonly value: string }, string, string>(
       "Start.trace.failure.domain",
       {
@@ -2884,7 +2884,7 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("classifies Start action response encoding and hydration metadata defects in request traces", async () => {
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
       name: Schema.String,
@@ -8351,7 +8351,7 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("does not finalize dev SSR request traces as success before host transform failures", async () => {
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
     });
@@ -8401,7 +8401,7 @@ describe("Sunfall Arc Start", () => {
     const controller = new AbortController();
     const started = Effect.runSync(Deferred.make<void>());
     const cancelled = Effect.runSync(Deferred.make<unknown>());
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
     });
@@ -8467,7 +8467,7 @@ describe("Sunfall Arc Start", () => {
 
   it("keeps dev SSR transform failures as failures when abort happens after HTML read", async () => {
     const controller = new AbortController();
-    const traces: DevtoolsRequestTrace[] = [];
+    const traces: Devtools.RequestTrace[] = [];
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
     });

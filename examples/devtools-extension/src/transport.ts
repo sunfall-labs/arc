@@ -1,9 +1,5 @@
 import { Data, Effect } from "effect";
-import {
-  sunfallArcDevtoolsBridgeGlobal,
-  resolveSunfallArcDevtoolsBridgePayload,
-  type DevtoolsBridgePayload,
-} from "@sunfall/arc-devtools";
+import { Devtools } from "@sunfall/arc-devtools";
 
 export interface ChromeDevtoolsEvalException {
   readonly isException?: boolean;
@@ -44,7 +40,7 @@ const normalizeTimeoutMillis = (value: number | undefined): number =>
 
 export const sunfallArcDevtoolsBridgeExpression = [
   "(() => {",
-  `  const bridge = globalThis.${sunfallArcDevtoolsBridgeGlobal};`,
+  `  const bridge = globalThis.${Devtools.bridgeGlobal};`,
   '  return typeof bridge === "function" ? bridge() : bridge ?? null;',
   "})()",
 ].join("\n");
@@ -53,7 +49,7 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
   api: ChromeInspectedWindowApi | undefined,
   expression = sunfallArcDevtoolsBridgeExpression,
   options: InspectedWindowEvalOptions = {},
-): Effect.Effect<DevtoolsBridgePayload | undefined, DevtoolsExtensionTransportError> => {
+): Effect.Effect<Devtools.BridgePayload | undefined, DevtoolsExtensionTransportError> => {
   const evaluate = api?.devtools?.inspectedWindow?.eval;
   if (!evaluate) {
     return Effect.succeed(undefined);
@@ -72,7 +68,7 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
       }
     };
     const complete = (
-      effect: Effect.Effect<DevtoolsBridgePayload, DevtoolsExtensionTransportError>,
+      effect: Effect.Effect<Devtools.BridgePayload, DevtoolsExtensionTransportError>,
     ) => {
       if (completed) {
         return;
@@ -91,7 +87,7 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
             operation: "read-inspected-window",
             reason: "Timeout",
             error: { timeoutMillis },
-            guidance: `The inspected-window eval for globalThis.${sunfallArcDevtoolsBridgeGlobal} did not call back within ${timeoutMillis}ms.`,
+            guidance: `The inspected-window eval for globalThis.${Devtools.bridgeGlobal} did not call back within ${timeoutMillis}ms.`,
           }),
         ),
       );
@@ -108,7 +104,7 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
                   operation: "read-inspected-window",
                   reason: "EvaluationFailure",
                   error: exceptionInfo,
-                  guidance: `Expose globalThis.${sunfallArcDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`,
+                  guidance: `Expose globalThis.${Devtools.bridgeGlobal} as a Devtools.Panels payload or provider function.`,
                 }),
               ),
             );
@@ -122,14 +118,14 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
                   operation: "read-inspected-window",
                   reason: "MissingBridge",
                   error: result,
-                  guidance: `Expose globalThis.${sunfallArcDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`,
+                  guidance: `Expose globalThis.${Devtools.bridgeGlobal} as a Devtools.Panels payload or provider function.`,
                 }),
               ),
             );
             return;
           }
 
-          const resolution = resolveSunfallArcDevtoolsBridgePayload(result);
+          const resolution = Devtools.resolveBridgePayload(result);
           if (resolution._tag === "Invalid") {
             complete(
               Effect.fail(
@@ -140,7 +136,7 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
                     contract: resolution.error,
                     payload: result,
                   },
-                  guidance: `globalThis.${sunfallArcDevtoolsBridgeGlobal} returned a value that does not satisfy the DevtoolsPanels bridge contract.`,
+                  guidance: `globalThis.${Devtools.bridgeGlobal} returned a value that does not satisfy the Devtools.Panels bridge contract.`,
                 }),
               ),
             );
@@ -155,7 +151,7 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
                 operation: "read-inspected-window",
                 reason: "EvaluationFailure",
                 error,
-                guidance: `Expose globalThis.${sunfallArcDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`,
+                guidance: `Expose globalThis.${Devtools.bridgeGlobal} as a Devtools.Panels payload or provider function.`,
               }),
             ),
           );
@@ -168,7 +164,7 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
             operation: "read-inspected-window",
             reason: "EvaluationFailure",
             error,
-            guidance: `Expose globalThis.${sunfallArcDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`,
+            guidance: `Expose globalThis.${Devtools.bridgeGlobal} as a Devtools.Panels payload or provider function.`,
           }),
         ),
       );

@@ -724,7 +724,7 @@ An Action instance exposes the latest `invalidationPlan` as a signal, and
 trace view. The intended debugging loop is “this mutation invalidated these
 domain facts, which matched these live resource refs, for these causes.”
 
-`DevtoolsRequestTrace` is the request-level join point for the same public
+`Devtools.RequestTrace` is the request-level join point for the same public
 facts. A trace records request and response context, service names, route plans,
 resources, server functions, actions, streams, fibers, status, and
 teardown in JSON-safe data. Start request handlers expose an `onRequestTrace`
