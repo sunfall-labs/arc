@@ -127,6 +127,12 @@ link to them from a discovered page when `crawlLinks` is enabled. The build
 writes ordinary HTML files into Vite's output directory, using
 `/page/index.html` paths by default.
 
+Prerendering calls the server entry's handler in-process through a temporary
+Vite server, then swaps the page's dev entry script and dev stylesheets for the
+built entry chunk and its CSS from Vite's build manifest. The plugin turns on
+`build.manifest` (a string `build.manifest` path is respected), so
+`dist/.vite/manifest.json` ships with the build.
+
 For a fully static deployment, set `buildPolicy.staticClient: { target: "static" }`:
 the browser build then compiles the server-function RPC client out of
 `App.launch`, so the app's client Layer must serve data from the prerendered

@@ -70,8 +70,10 @@ export interface SunfallArcStartResolvedConfig {
   readonly command?: "build" | "serve";
   readonly mode?: string;
   readonly configFile?: string | false;
+  readonly base?: string;
   readonly build?: {
     readonly outDir?: string;
+    readonly manifest?: boolean | string;
   };
 }
 
@@ -205,6 +207,8 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
   let viteCommand: "build" | "serve" | undefined;
   let viteMode: string | undefined;
   let viteOutDir = "dist";
+  let viteBase = "/";
+  let viteBuildManifest: boolean | string | undefined;
 
   const currentOptions = (): SunfallArcStartOptions =>
     withDiscoveredFileRoutesSync({ ...normalizedOptions, serverEntry }, viteRoot);
@@ -277,8 +281,13 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
     config(config: UserConfig = {}, env) {
       viteUserConfig = config;
       viteRoot = resolvePath(config.root ?? process.cwd());
+      const manifest = config.build?.manifest;
       return {
         appType: "custom",
+        // Prerendering swaps the dev entry for the built assets listed in Vite's build manifest.
+        ...(env?.command === "build" && normalizedOptions.prerender && !config.build?.ssr
+          ? { build: { manifest: typeof manifest === "string" ? manifest : true } }
+          : {}),
         define: {
           // Static-client builds compile the RPC client out of `App.launch`.
           __SUNFALL_ARC_BROWSER_RPC__: JSON.stringify(
@@ -292,6 +301,8 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
       viteCommand = config.command;
       viteMode = config.mode;
       viteOutDir = config.build?.outDir ?? "dist";
+      viteBase = config.base ?? "/";
+      viteBuildManifest = config.build?.manifest;
       refreshFileRouteArtifacts();
     },
     buildStart() {
@@ -313,14 +324,13 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
           manifest: Effect.runSync(makeStartFileRouteManifest(activeOptions)),
           prerender: activeOptions.prerender ?? normalizedOptions.prerender,
           vite: prerenderInlineConfig(viteUserConfig, viteRoot, viteMode),
+          base: viteBase,
+          ...(typeof viteBuildManifest === "string" ? { buildManifest: viteBuildManifest } : {}),
           serverEntry,
           ...(normalizedOptions.handlerExport === undefined
             ? {}
             : { handlerExport: normalizedOptions.handlerExport }),
           ...(viteMode === undefined ? {} : { mode: viteMode }),
-          ...(normalizedOptions.nodeRequest === undefined
-            ? {}
-            : { nodeRequest: normalizedOptions.nodeRequest }),
         }).pipe(Effect.asVoid),
         prerenderRunnerOptions,
       );

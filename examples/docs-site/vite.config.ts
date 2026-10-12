@@ -18,7 +18,6 @@ export default defineConfig({
     sunfallArcStart(docsSiteStartOptions),
   ],
   build: {
-    manifest: true,
     rolldownOptions: {
       output: {
         codeSplitting: {

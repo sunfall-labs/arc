@@ -6,6 +6,17 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Start Prerender Reads Vite's Build Manifest (Breaking)
+
+- Prerendering swaps the dev entry script and dev stylesheets for the built
+  entry chunk and its CSS listed in Vite's build manifest, instead of copying
+  tags out of the built `index.html`. The Start plugin turns
+  `build.manifest` on when `prerender` is set. The temporary Vite server is a
+  scoped resource, and `retryCount`/`retryDelay` run through `Effect.retry`.
+- `StartPrerenderError`'s `close-server` and `create-directory` operations are
+  gone: a server close failure is logged, and directory creation reports
+  `write-page`.
+
 ### Requests Are Traced As Effect Spans (Breaking)
 
 - `createRequestHandler`'s `onRequestTrace` option and the `StartRequestTrace`

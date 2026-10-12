@@ -129,6 +129,7 @@ services (`ActionTransport`, `ActionOutbox`, `ResourceStore`,
 | `StartAction.form(action, { actionPath / endpoints / actionManifest / appGraph })`                    | `StartAction.form(action)` (posts to `/__sunfall-arc/action`)                                                       |
 | prerender `{ enabled: true, ... }` / `{ enabled: false }`                                             | prerender `{ ... }` / `false`                                                                                       |
 | prerender page `{ path, prerender: { enabled, outputPath } }`                                         | `{ path, outputPath, prerender: false }`                                                                            |
+| `StartPrerenderError` operation `"close-server"` / `"create-directory"`                               | a logged warning / `"write-page"`                                                                                   |
 | cookie `sameSite: "Strict"` / `"Lax"` / `"None"`                                                      | `sameSite: "strict"` / `"lax"` / `"none"`                                                                           |
 | `generateValidatedFileRouteManifestEffect` and other `*Effect` exports                                | `generateValidatedFileRouteManifest` (a throwing twin, where one existed, is `*Sync`)                               |
 
