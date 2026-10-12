@@ -29,10 +29,11 @@ edge.
 - Use `Effect.catch`, not the Effect 3 name `catchAll`.
 - Prefer explicit `Resource` / `Action` state and Effect recovery combinators over component-level `try` syntax for first-class APIs.
 - Solid UI is typed `Component`s: runtime state comes from setup-time bindings (`Component.resource`, `action`, `state`, `stream`, `callback`, `router`, `liveQuery`) whose services join the Component's `R`, and each instance owns an Effect `Scope`. Use Solid `createEffect` only for imperative DOM sinks; there is no generic `useEffect`.
-- Isomorphic server functions should be split into shared contracts and real server handlers. Shared code defines `Server.contract` values and exports `Server.client(contract)`; `.server.ts` modules call `Server.implement(contract, handler)` and are never imported by the browser graph.
+- Isomorphic server functions should be split into shared contracts and real server handlers. Shared code defines `Server.contract` values (each an `effect/rpc` `Rpc`, with required `input` and `output` schemas) and exports `Server.client(contract)`; `.server.ts` modules call `Server.implement(contract, handler)` and are never imported by the browser graph.
 - Prefer `Schema.TaggedError` for server-function errors because it is a yieldable Effect error and a wire schema at the same time.
 - Mock server contracts with `Server.mock(...)` handlers provided through `Server.mockLayer(...)`; do not import `.server.ts` just to test shared resources and actions.
 - Prefer named Effect services (`Context.Service`) for app features. Resources and actions should usually depend on `ProjectApi.use(...)`, while server functions, browser RPC, and test doubles are Layers behind that service.
+- Configure browser transport concerns (auth headers, retries, a custom fetch) on the `HttpClient` the client Layer provides; Start's `RpcClient` and action transport both post through it.
 - Model mutation dependencies with typed `Resource.tag` values. Actions should invalidate domain facts, not string cache keys.
 - Use `Schema.brand` for domain ids and generated framework ids that cross API seams. A route param, server function input, resource key, action input, or manifest id should be a decoded `ProjectId`, `ServerFunctionId`, `ActionId`, or `FileRouteId`, not a plain `string`.
 - Add type tests for API rules that should fail at compile time. A passing runtime test is not enough when the framework can reject the mistake earlier.
@@ -121,8 +122,8 @@ const UserById = Resource.define({
 ```
 
 Use this for route preloads and server-function-backed resources when the
-transport or service Layer can answer a batch. Direct server-function RPC
-batching is a larger transport concern; until that lands, keep server contracts
+transport or service Layer can answer a batch. Start's server-function
+transport sends one `effect/rpc` request per HTTP POST; keep server contracts
 as the service boundary and put the batched resolver behind the resource or
 service implementation.
 

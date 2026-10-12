@@ -6,6 +6,35 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Server Functions Run On effect/rpc (Breaking)
+
+- Every server function is an `effect/rpc` `Rpc`. `Server.contract(name, {
+input, output, error? })` requires `input` and `output` schemas (`error`
+  defaults to `Schema.Never`) and infers its types from them; the contract and
+  `Server.Fn` carry the `Rpc` as `.rpc`. `Server.Fn.invoke`, the
+  `input`/`output`/`error` fields, `Server.manifest`, the encode/decode and
+  envelope helpers, and the internal server wire codec are gone.
+- Start serves `POST /__sunfall-arc/rpc` with `RpcServer.toHttpEffect` over an
+  `RpcGroup` of the handler's `serverFunctions` (JSON serialization); handlers
+  still run in the request runtime (`RequestContext`, `ResponseContext`,
+  server services). The browser `Server.Client` is an `RpcClient` over
+  `HttpClient`, so `traceparent` propagation comes from `HttpClient`. SSR
+  calls stay in-process; mocks and the local client round-trip values through
+  the Rpc's JSON codecs. `Server.ClientError` is `RpcClientError` |
+  `ServerFunctionNotFound` | `Schema.SchemaError` | `EffectInputCallbackError`;
+  payload decode failures, unknown functions, and handler defects arrive as
+  defects. RPC responses are always `200` `effect/rpc` JSON messages.
+- `Server.route` / `Server.handleRoute` / `ServerRouteHandlerError` are
+  removed: HTTP routes belong to `effect/http`.
+- The action transport keeps its protocol (no-JS forms, redirects, durable
+  submissions) but posts through the same `HttpClient`. `App.launch` uses the
+  client Layer's `HttpClient`, else `FetchHttpClient` (`App.LaunchServices`
+  includes `HttpClient`); `App.LaunchOptions.transport` and `StartFetch` /
+  `StartFetchInit` / `StartFetchInput` are removed. The action transport's
+  errors are its own: `ActionTransportError`, `ActionProtocolError`,
+  `ActionNotFound`, with `Action.ClientError` replacing `Server.ClientError`
+  on submissions (and Solid's `Component.ActionError`).
+
 ### State Is The One Writable Client State (Breaking)
 
 - `Program` is renamed `State`, and it is now the only way to hold writable

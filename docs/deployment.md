@@ -102,6 +102,16 @@ Vercel and Netlify Node functions use `@sunfall/arc-start/node` when the host
 provides Node `IncomingMessage`/`ServerResponse` values, and
 `@sunfall/arc-start/fetch` for their edge runtimes.
 
+Every host serves server functions and Actions through the same handler, at
+two fixed paths: `POST /__sunfall-arc/rpc` (an `effect/rpc` `RpcServer` with
+JSON serialization, answering one request per POST) and
+`POST /__sunfall-arc/action`. Route both to the Start handler; there is
+nothing else to mount. Responses from the RPC path are always `200` JSON
+arrays of `effect/rpc` messages (typed failures and defects travel inside
+them), so proxies should not rewrite or cache that path. The browser reaches
+both through the client Layer's `HttpClient` (else `FetchHttpClient`) on the
+page's origin.
+
 Static hosts can prerender routes during the production Vite build:
 
 ```ts
@@ -134,7 +144,7 @@ built entry chunk and its CSS from Vite's build manifest. The plugin turns on
 `dist/.vite/manifest.json` ships with the build.
 
 For a fully static deployment, set `buildPolicy.staticClient: { target: "static" }`:
-the browser build then compiles the server-function RPC client out of
+the browser build then compiles the server-function `RpcClient` out of
 `App.launch`, so the app's client Layer must serve data from the prerendered
 pages (the docs site's `DocsContentApiStaticClient` is the example).
 
