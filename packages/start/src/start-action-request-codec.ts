@@ -103,7 +103,11 @@ export const decodeStartActionFormData = <S extends Schema.Top>(
   schema: S,
   formData: FormData,
   options: Form.DataOptions = {},
-) => Form.decodeFormData(schema, formData, startActionFormDataDecodeOptions(options));
+): Effect.Effect<
+  Form.SchemaValues<S>,
+  Form.ValidationError<Form.SchemaValues<S>, Schema.SchemaError>,
+  Form.SchemaServices<S>
+> => Form.decodeFormData(schema, formData, startActionFormDataDecodeOptions(options));
 
 /** Error raised by the synchronous progressive form encoding facade. */
 export class StartActionFormEncodeError extends Data.TaggedError("StartActionFormEncodeError")<{
