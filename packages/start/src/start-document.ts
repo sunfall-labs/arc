@@ -10,19 +10,18 @@ export const defaultStartClientEntry = "/src/main.tsx";
 export type StartDocumentTagAttributes = Readonly<Record<string, string>>;
 
 /**
- * The parts of the HTML document a Start app owns.
+ * The parts of the HTML document a Start app owns besides its head.
  *
- * Start renders the rest: the doctype, charset and viewport, Solid's
- * hydration bootstrap, the app root element, the streamed and root hydration
- * payloads, and the browser entry script, in the order hydration needs.
+ * The head (`<title>` and `<meta>` tags) is the matched route's `head`
+ * through the app's `App.define({ head })`, so the browser can keep it in
+ * step on navigation. Start renders the rest: the doctype, charset and
+ * viewport, Solid's hydration bootstrap, the app root element, the streamed
+ * and root hydration payloads, and the browser entry script, in the order
+ * hydration needs.
  */
 export interface StartDocument {
   /** `<html lang>`. Defaults to `"en"`. */
   readonly lang?: string;
-  /** `<title>` text. */
-  readonly title?: string;
-  /** Extra `<meta>` tags, e.g. `{ name: "description", content: "..." }`. */
-  readonly meta?: ReadonlyArray<StartDocumentTagAttributes>;
   /** `<link>` tags, e.g. `{ rel: "stylesheet", href: "/src/styles.css" }`. */
   readonly links?: ReadonlyArray<StartDocumentTagAttributes>;
   /**
@@ -62,6 +61,18 @@ const escapeHtml = (value: string): string =>
 
 const attributeNamePattern = /^[A-Za-z_:][-A-Za-z0-9_:.]*$/u;
 
+/**
+ * Marks the `<meta>` tags rendered from the page's head, which `App.launch`
+ * replaces when the head changes.
+ */
+export const startHeadAttribute = "data-arc-head";
+
+/** The `<meta>` tags of a head: its description first, then its `meta`. */
+export const startHeadMetaTags = (head: Route.Head): ReadonlyArray<Route.HeadTag> => [
+  ...(head.description === undefined ? [] : [{ name: "description", content: head.description }]),
+  ...(head.meta ?? []),
+];
+
 const renderTag = (tag: "meta" | "link", attributes: StartDocumentTagAttributes): string =>
   `<${tag}${Object.entries(attributes)
     .filter(([name]) => attributeNamePattern.test(name))
@@ -81,6 +92,7 @@ export interface StartDocumentShell {
 /** Renders the document shell around the app markup. */
 export const renderStartDocumentShell = (
   document: StartDocument,
+  head: Route.Head,
   scripts: {
     /** Solid's hydration bootstrap (`generateHydrationScript()`). */
     readonly solidHydration: string;
@@ -88,17 +100,19 @@ export const renderStartDocumentShell = (
     readonly rootHydration: string;
   },
 ): StartDocumentShell => {
-  const head = [
+  const headHtml = [
     '<meta charset="UTF-8" />',
     '<meta name="viewport" content="width=device-width, initial-scale=1.0" />',
-    ...(document.meta ?? []).map((attributes) => renderTag("meta", attributes)),
-    ...(document.title === undefined ? [] : [`<title>${escapeHtml(document.title)}</title>`]),
+    ...startHeadMetaTags(head).map((attributes) =>
+      renderTag("meta", { ...attributes, [startHeadAttribute]: "" }),
+    ),
+    ...(head.title === undefined ? [] : [`<title>${escapeHtml(head.title)}</title>`]),
     ...(document.links ?? []).map((attributes) => renderTag("link", attributes)),
     scripts.solidHydration,
   ].join("");
   const clientEntry = escapeHtml(document.clientEntry ?? defaultStartClientEntry);
   return {
-    open: `<!doctype html><html lang="${escapeHtml(document.lang ?? "en")}"><head>${head}</head><body><div id="${startRootElementId}">`,
+    open: `<!doctype html><html lang="${escapeHtml(document.lang ?? "en")}"><head>${headHtml}</head><body><div id="${startRootElementId}">`,
     closeRoot: "</div>",
     close: `${scripts.rootHydration}<script type="module" src="${clientEntry}"></script></body></html>`,
   };

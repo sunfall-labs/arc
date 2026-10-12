@@ -2,6 +2,7 @@ import { Resource, Route } from "@sunfall/arc-core";
 import { Effect, Schema } from "effect";
 import { IssueStatus, ProjectKey, TrackerError, lenientSearch } from "../../../model.js";
 import { Labels } from "../../../resources.js";
+import { projectName } from "../../../page-head.js";
 import { preloadShell, routeVerdicts } from "../../../session.js";
 
 /** The new-issue form. It works without JavaScript: the form posts the CreateIssue Action. */
@@ -14,4 +15,5 @@ export const route = Route.define("/projects/:key/new", {
       Effect.andThen(Resource.preload(Labels(params.key))),
       routeVerdicts(href),
     ),
+  head: ({ params, read }) => ({ title: `New issue in ${projectName(read, params.key)}` }),
 });

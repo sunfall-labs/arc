@@ -2,7 +2,7 @@ import { State } from "@sunfall/arc-core";
 import { Component, RouterLink } from "@sunfall/arc-solid";
 import { homeSnippets } from "./snippets.js";
 import { BlogPostRoute, CookbookRoute, DocsPageRoute } from "./site-routes.js";
-import { ArrowIcon, CodeBlock, DocumentTitle, GitHubIcon, githubUrl } from "./ui.js";
+import { ArrowIcon, CodeBlock, GitHubIcon, githubUrl } from "./ui.js";
 import { RecipeIndexGrid } from "./recipes.js";
 
 type SampleKey = "resource" | "action" | "component";
@@ -101,7 +101,6 @@ export const HomeView = Component.define("HomeView", function* () {
 
   return () => (
     <article class="home">
-      <DocumentTitle title={undefined} />
       <header class="hero">
         <RouterLink route={BlogPostRoute} class="heroBadge">
           <span class="heroBadgeTag">Public alpha</span>

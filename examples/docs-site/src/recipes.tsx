@@ -19,7 +19,7 @@ import {
 } from "./page-rail.js";
 import { RecipeRoute } from "./site-routes.js";
 import { FailureView, LoadingView } from "./status-views.js";
-import { AnchoredHeading, ArrowIcon, CodeBlock, DocumentTitle, InlineText } from "./ui.js";
+import { AnchoredHeading, ArrowIcon, CodeBlock, InlineText } from "./ui.js";
 
 export const categoryLabel = (category: RecipeCategory): string => {
   switch (category) {
@@ -143,7 +143,6 @@ function RecipeDetail(props: {
 
   return (
     <article class={["docPage", { refreshing: props.refreshing }]}>
-      <DocumentTitle title={props.recipe.title} />
       <div class="docColumn">
         <header class="pageHeader">
           <p class="eyebrow">Cookbook · {categoryLabel(props.recipe.category)}</p>

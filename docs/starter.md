@@ -49,12 +49,14 @@ The whole wiring:
 
 ```ts
 // src/app-definition.ts
-export const app = App.define({ root: Root, routes });
+export const app = App.define({
+  root: Root,
+  routes,
+  head: (page) => ({ ...page, title: page.title ?? "Sunfall Arc Starter" }),
+});
 
 // src/server.tsx
-export const handleRequest = createRequestHandler(app, {
-  document: () => ({ title: "Sunfall Arc Starter" }),
-});
+export const handleRequest = createRequestHandler(app);
 
 // src/main.tsx
 Effect.runFork(App.launch(app));

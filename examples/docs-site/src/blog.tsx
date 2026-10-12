@@ -2,7 +2,7 @@ import { RouterLink } from "@sunfall/arc-solid";
 import { PageRail, createPageRailItems } from "./page-rail.js";
 import { DocsPageRoute } from "./site-routes.js";
 import { goldenPathSnippets, homeSnippets } from "./snippets.js";
-import { AnchoredHeading, ArrowIcon, CodeBlock, DocumentTitle, InlineText } from "./ui.js";
+import { AnchoredHeading, ArrowIcon, CodeBlock, InlineText } from "./ui.js";
 
 const sections = [
   "The problem: facts scattered across libraries",
@@ -72,7 +72,6 @@ const p = (text: string) => (
 export function BlogPostView() {
   return (
     <article class="docPage blogPost">
-      <DocumentTitle title="Introducing Sunfall Arc" />
       <div class="docColumn">
         <header class="pageHeader">
           <p class="eyebrow">Blog · Introducing Sunfall Arc</p>

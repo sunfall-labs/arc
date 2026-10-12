@@ -12,4 +12,11 @@ export const app = App.define({
   root: ProjectConsole,
   routes,
   client: KeyValueStore.layerStorage(() => localStorage),
+  head: (page) => ({
+    ...page,
+    title:
+      page.title === undefined
+        ? "Sunfall Arc Project Console"
+        : `${page.title} · Sunfall Arc Project Console`,
+  }),
 });

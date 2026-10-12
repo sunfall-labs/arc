@@ -7,4 +7,6 @@ import { routes } from "./routeTree.gen.js";
 export const app = App.define({
   root: Root,
   routes,
+  // Every page's head: a route's `head` title, or the app's name.
+  head: (page) => ({ ...page, title: page.title ?? "Sunfall Arc Starter" }),
 });

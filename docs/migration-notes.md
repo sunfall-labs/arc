@@ -5,6 +5,20 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From `document({ title, meta })`
+
+The page's head is the matched route's `head`, through the app's `head`. The
+server renders it and `App.launch` keeps it current on navigation.
+
+| Before                                                                                                 | After                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
+| `document: ({ match }) => ({ title: Route.isMatch(IssueRoute, match) ? match.params.id : "Tracker" })` | `Route.define("/issues/:id", { preload, head: ({ params, read }) => ({ title: read(IssueById(params.id))?.title }) })`   |
+| a title suffix or fallback in `document`                                                               | `App.define({ head: (page, status) => ({ ...page, title: page.title === undefined ? "App" : `${page.title} · App` }) })` |
+| `document: () => ({ meta: [{ name: "color-scheme", content: "light dark" }] })`                        | the app's `head` returns the `meta` every page carries                                                                   |
+| `document: () => ({ meta: [{ name: "description", content }] })` per route                             | the route's `head` returns `description`                                                                                 |
+| a `createEffect` that writes `document.title` on navigation                                            | nothing: `App.launch` writes `document.title` and the head's `<meta>` tags                                               |
+| `StartDocument.title`, `StartDocument.meta`                                                            | removed; `document` returns `lang`, `links`, `clientEntry`, and `headers`                                                |
+
 ## From `preloadResources`
 
 A route's `preload` is the only place it says what it loads; Start hydrates

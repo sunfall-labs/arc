@@ -101,6 +101,7 @@
         "resource-ui-binding",
         "route",
         "route-grammar",
+        "route-head",
         "route-match",
         "runtime",
         "scope",

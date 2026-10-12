@@ -1,6 +1,7 @@
 import { App } from "@sunfall/arc-start";
 import { KeyValueStore } from "effect/persistence";
 import Tracker from "./App.js";
+import { trackerHead } from "./page-head.js";
 import { routes } from "./routeTree.gen.js";
 
 // The one app definition: `server.tsx` and `main.tsx` both derive their
@@ -11,4 +12,5 @@ export const app = App.define({
   root: Tracker,
   routes,
   client: KeyValueStore.layerStorage(() => localStorage),
+  head: trackerHead,
 });

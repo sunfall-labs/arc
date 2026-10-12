@@ -23,4 +23,8 @@ export const route = Route.define("/issues/:id", {
       ),
       routeVerdicts(href),
     ),
+  head: ({ params, read }) => {
+    const issue = read(IssueById(params.id));
+    return { title: issue === undefined ? params.id : `${params.id} ${issue.title}` };
+  },
 });

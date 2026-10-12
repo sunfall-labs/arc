@@ -2,12 +2,14 @@ import {
   isActionDefinition,
   isServerFunction,
   Resource,
+  Signal,
   type Action,
   type Route,
   type RuntimeSource,
   type Server,
 } from "@sunfall/arc-core";
 import {
+  settledRouteHead,
   storeResourceRefs,
   type ActionDefinitionRequirements,
   type AppDefinitionRegistry,
@@ -66,7 +68,11 @@ export interface CreateRequestHandlerOptions<
    * modules, which never reach the browser bundle.
    */
   readonly implementations?: ReadonlyArray<Implementations>;
-  /** The page's head and response headers, per request. */
+  /**
+   * The document's language, links, browser entry, and response headers, per
+   * request. The head's title and `<meta>` tags come from the matched route's
+   * `head` through `App.define({ head })`.
+   */
   readonly document?: (context: StartDocumentContext<Routes>) => StartDocument;
 }
 
@@ -115,7 +121,15 @@ const renderAppDocumentEffect = <Routes extends readonly AnyRoute[], ServerServi
       context.runtime as never,
     );
     const body = renderToString(() => createComponent(Root, props));
-    const shell = renderStartDocumentShell(page, {
+    // The head of the page the render's router settled on, read after the
+    // render so it is the page the body shows. A root without a router has
+    // no route head.
+    const settled = Signal.peek(settledRouteHead(context.resourceStore));
+    const head = app.head(
+      settled?.head ?? {},
+      settled?.status ?? (context.match === undefined ? "NotFound" : "Ready"),
+    );
+    const shell = renderStartDocumentShell(page, head, {
       solidHydration: generateHydrationScript(),
       rootHydration: context.hydrationPlan.root.script,
     });
@@ -210,7 +224,7 @@ type ServerlessApp<RootServices> = [
  * export const handleRequest = createRequestHandler(app, {
  *   server: AppServerLive,
  *   implementations: [renameProject, projectById],
- *   document: () => ({ title: "Projects" }),
+ *   document: () => ({ headers: { "cache-control": "no-store" } }),
  * });
  * ```
  */

@@ -553,7 +553,9 @@ includes:
   `app.root` into Start's document; there is no render callback and no
   hand-written HTML shell. Requests are traced as Effect spans
   (`sunfall-arc.start.request`); there is no request-trace callback.
-- documents: `document: (context: StartDocumentContext) => StartDocument`
+- documents: `document: (context: StartDocumentContext) => StartDocument` (language, links,
+  browser entry, headers); the head is each route's `head` through
+  `App.define({ head: (page, status) => Route.Head })`
   sets `lang`, `title`, `meta` and `links` (`StartDocumentTagAttributes`,
   HTML-escaped), `clientEntry`, and response `headers`. Start emits the
   doctype, charset and viewport, Solid's hydration bootstrap, the

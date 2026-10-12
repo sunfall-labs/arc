@@ -50,11 +50,17 @@ const render = (handler: ReturnType<typeof createRequestHandler>, url: string) =
 
 describe("createRequestHandler(app)", () => {
   it("renders the app root into Start's document with hydration in order", async () => {
-    const handler = createRequestHandler(app, {
+    // A root without a router has no route head: the app's head is the page's.
+    const headApp = App.define({
+      root: Root,
+      routes: [ProjectRoute] as const,
+      client: Layer.succeed(Greeting)({ text: "client" }),
+      head: () => ({ title: "Project <atlas>", description: 'say "hi"' }),
+    });
+    const handler = createRequestHandler(headApp, {
       server: Layer.succeed(Greeting)({ text: "server" }),
       document: ({ match }) => ({
-        title: `Project <${match?.href ?? "none"}>`,
-        meta: [{ name: "description", content: 'say "hi"' }],
+        lang: match === undefined ? "en" : "en-GB",
         links: [{ rel: "stylesheet", href: "/src/styles.css" }],
         headers: { "x-start-app": "yes" },
       }),
@@ -64,11 +70,13 @@ describe("createRequestHandler(app)", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("x-start-app")).toBe("yes");
     expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
-    expect(html.startsWith('<!doctype html><html lang="en"><head><meta charset="UTF-8" />')).toBe(
-      true,
+    expect(
+      html.startsWith('<!doctype html><html lang="en-GB"><head><meta charset="UTF-8" />'),
+    ).toBe(true);
+    expect(html).toContain("<title>Project &lt;atlas&gt;</title>");
+    expect(html).toContain(
+      '<meta name="description" content="say &quot;hi&quot;" data-arc-head="" />',
     );
-    expect(html).toContain("<title>Project &lt;/projects/atlas?tab=1&gt;</title>");
-    expect(html).toContain('<meta name="description" content="say &quot;hi&quot;" />');
     expect(html).toContain('<link rel="stylesheet" href="/src/styles.css" />');
     // The root renders with the server Layer and the request href.
     expect(html).toContain('<div id="root">server /projects/atlas?tab=1</div>');

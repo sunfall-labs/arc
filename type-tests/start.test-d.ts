@@ -97,7 +97,7 @@ const greetingApp = App.define({ root: GreetingRoot, routes: [], client: Greetin
 App.define({ root: GreetingRoot, routes: [] });
 const greetingHandler: StartRequestHandler = createRequestHandler(greetingApp, {
   server: GreetingLive,
-  document: ({ request }) => ({ title: request.url, lang: "en" }),
+  document: ({ request }) => ({ lang: request.url.endsWith("/de") ? "de" : "en" }),
 });
 // @ts-expect-error the server Layer must provide the root's services
 createRequestHandler(greetingApp);

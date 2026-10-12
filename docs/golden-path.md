@@ -248,8 +248,9 @@ function ProjectHeader(props: { readonly project: Project }) {
 
 ### 3. Routes with typed params and a typed error
 
-A Route owns a URL, its decoded params, the data it preloads, and the typed
-failure of that preload.
+A Route owns a URL, its decoded params, the data it preloads, the typed
+failure of that preload, and the page's head (`title`, `description`,
+`meta`) derived from that data.
 
 `src/routes.ts`:
 
@@ -258,7 +259,7 @@ failure of that preload.
 ```ts
 import { Resource, Route } from "@sunfall/arc-core";
 import { Schema } from "effect";
-import { ProjectById, ProjectId, ProjectList, ProjectNotFound, ProjectsRef } from "./projects.js";
+import { ProjectById, ProjectId, ProjectNotFound, ProjectsRef } from "./projects.js";
 
 export const ProjectsRoute = Route.define("/", {
   preload: () => Resource.preload(ProjectsRef),
@@ -270,10 +271,18 @@ export const ProjectRoute = Route.define("/projects/:id", {
   // failure with it so the hydrating client renders the same failure view.
   error: ProjectNotFound,
   preload: ({ params }) => Resource.preload([ProjectsRef, ProjectById(params.id)]),
+  // The tab title, from what the preload loaded; kept current on navigation.
+  head: ({ params, read }) => ({ title: read(ProjectById(params.id))?.name }),
 });
 
 export const routes = [ProjectsRoute, ProjectRoute] as const;
 ```
+
+`head` runs once the preload succeeded: on the server for the rendered
+document, and in the browser after each navigation, where Start keeps
+`document.title` and the head's `<meta>` tags in step. `read(ref)` returns
+what the preload loaded, and the head follows it: rename the project and the
+tab title changes.
 
 The sidebar reads the list through the same reader pattern; `RouterLink`
 checks `params` against the route's schema.
@@ -638,7 +647,15 @@ import { App as Root } from "./app.js";
 import { routes } from "./routes.js";
 
 // Every read and write runs on the server, so the browser needs no Layer of its own.
-export const app = App.define({ root: Root, routes });
+export const app = App.define({
+  root: Root,
+  routes,
+  // Every page's head: the route's title with the app's name.
+  head: (page) => ({
+    ...page,
+    title: page.title === undefined ? "Projects" : `${page.title} · Projects`,
+  }),
+});
 ```
 
 The server adds what only it has: its Layer and the implementations. Each
@@ -661,9 +678,6 @@ export const handleRequest = createRequestHandler(app, {
   // Provides what the implementations need (`ProjectStore`).
   server: ProjectStoreMemory,
   implementations: [projectList, projectById, renameProject],
-  document: ({ match }) => ({
-    title: match === undefined ? "Projects" : `Projects · ${match.href}`,
-  }),
 });
 ```
 
@@ -689,9 +703,13 @@ Effect.runFork(App.launch(app));
 - The root must be fully handled, and each side's Layer must provide what it
   needs: drop `ProjectStore` from `server` and `createRequestHandler` stops
   compiling, because the implementations need it.
-- `document` sets the head and response headers. Start writes the rest of the
-  page (Solid's hydration bootstrap, the root element, the payload scripts, the
-  entry script), so there is no HTML to keep in sync.
+- `App.define({ head })` turns a route's head into the page's: the app's
+  title suffix, its fallback title (a route without `head`, a not-found page,
+  a failed preload), and the `<meta>` tags every page carries. The handler's
+  optional `document` adds the language, `<link>` tags, and response
+  headers. Start writes the rest of the page (Solid's hydration bootstrap, the
+  root element, the payload scripts, the entry script), so there is no HTML to
+  keep in sync.
 - A real Start app also adds the Vite plugin, which generates file routes and
   serves the handler in dev. Copy that wiring from
   [`examples/basic-starter`](../examples/basic-starter) or

@@ -281,6 +281,28 @@ a missing list.
   about (`packages/core/src/route.ts`; `start-route-preload-warnings.ts` is
   deleted).
 
+### 21. `document()` could not read route data
+
+The tab title for an issue page could only use the URL (`TRK-12 · Tracker`),
+not the issue's title: `document` received `{ request, match }`, not the
+preloaded Resources, and client navigation never updated the title at all.
+
+- Fix: a route derives its head from its data, `Route.define(path, { head:
+({ params, read }) => ({ title, description, meta }) })`, where
+  `read(ref)` is what the preload loaded; `App.define({ head: (page, status)
+=> ... })` adds the app's suffix, fallback, not-found title, and shared
+  tags. The browser router records the page it settles on in the runtime's
+  Resource Store (`packages/core/src/route-head.ts`); Start renders the head
+  from that record on the server, and `App.launch` keeps `document.title`
+  and the head's `<meta>` tags in step with it, following the Resources the
+  head reads (`packages/start/src/start-app.ts`). `document` no longer takes
+  `title` or `meta`. The tracker's issue tab reads `TRK-12 <title> · Tracker`
+  (`src/routes/**`, `src/page-head.ts`).
+- Tests: `packages/core/test/route-head.test.ts`,
+  `packages/start/test/route-verdicts.test.ts`,
+  `packages/solid/test/app-launch.test.ts` ("keeps document.title ...");
+  app: `examples/tracker/src/server.test.ts`.
+
 ## Open
 
 ### 18. Change feeds also start in SSR request runtimes (fixed)
@@ -311,12 +333,3 @@ SSR requests, so the shell passed its handle down through a Solid context.
   (`src/shell.tsx`); the context is gone.
 - Tests: `packages/solid/test/state.test.ts` ("Component.state with an app
   State"), `packages/start/test/server-render.test.ts`.
-
-### 21. `document()` cannot read route data
-
-The tab title for an issue page can only use the URL (`TRK-12 · Tracker`), not
-the issue's title: `document` receives `{ request, match }`, not the preloaded
-Resources (`src/server.tsx`).
-
-- Proposal: pass `document` a synchronous `read(ref)` over the request's
-  preloaded Resources.

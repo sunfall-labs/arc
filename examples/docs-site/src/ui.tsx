@@ -1,8 +1,8 @@
 import { isPlainLeftClick, useRouter } from "@sunfall/arc-solid";
-import { createEffect, createSignal } from "solid-js";
+import { Effect } from "effect";
+import { createSignal } from "solid-js";
 import type { JSX } from "@solidjs/web";
 import { codeLanguageLabel, highlightCode } from "./code-highlighting.js";
-import { documentTitle } from "./page-meta.js";
 
 export const githubUrl = "https://github.com/sunfall-labs/arc";
 
@@ -37,10 +37,6 @@ export function InlineText(props: { readonly text: string }) {
   );
 }
 
-/** Strips inline Markdown for plain-text uses such as `<title>`. */
-export const plainText = (text: string): string =>
-  text.replace(/`([^`]+)`/gu, "$1").replace(/\*\*([^*]+)\*\*/gu, "$1");
-
 /**
  * A link inside docs prose. Site-relative links (`/docs/...`) get the base
  * path and navigate through the router; everything else opens as written.
@@ -63,17 +59,6 @@ function InlineLink(props: { readonly href: string; readonly children: JSX.Eleme
   );
 }
 
-/** Keeps `document.title` in step with client navigation; the server writes the first one. */
-export function DocumentTitle(props: { readonly title: string | undefined }) {
-  createEffect(
-    () => documentTitle(props.title === undefined ? undefined : plainText(props.title)),
-    (title) => {
-      document.title = title;
-    },
-  );
-  return null;
-}
-
 export function CodeBlock(props: {
   readonly code: string;
   readonly language?: string | undefined;
@@ -84,11 +69,20 @@ export function CodeBlock(props: {
   let copiedTimeout: number | undefined;
 
   const copyCode = () => {
-    void navigator.clipboard?.writeText(props.code).then(() => {
-      window.clearTimeout(copiedTimeout);
-      setCopied(true);
-      copiedTimeout = window.setTimeout(() => setCopied(false), 1600);
-    });
+    const clipboard = navigator.clipboard;
+    if (clipboard === undefined) {
+      return;
+    }
+    Effect.runFork(
+      Effect.tryPromise(() => clipboard.writeText(props.code)).pipe(
+        Effect.map(() => {
+          window.clearTimeout(copiedTimeout);
+          setCopied(true);
+          copiedTimeout = window.setTimeout(() => setCopied(false), 1600);
+        }),
+        Effect.ignore,
+      ),
+    );
   };
 
   return (

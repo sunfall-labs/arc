@@ -10,4 +10,5 @@ export const route = Route.define("/items/:id", {
     Resource.preload(ItemById(params.id)).pipe(
       Effect.catchTag("ItemNotFound", () => Route.notFound()),
     ),
+  head: ({ params }) => ({ title: `Item ${params.id}` }),
 });

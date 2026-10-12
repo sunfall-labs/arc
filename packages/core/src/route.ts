@@ -7,6 +7,7 @@ import type {
 import { toEffect } from "./effect-like.js";
 import {
   type AnyResourceRef,
+  type ResourceRef,
   type ResourceErrorSchema,
   type ResourceHydrationPayload,
 } from "./resource.js";
@@ -300,6 +301,8 @@ export interface RouteOptions<Path extends string, Params, Search, PreloadRequir
   readonly preload?: (
     context: RouteContext<RouteDefinition<Path, Params, Search, PreloadRequirements, any>>,
   ) => RoutePreloadResult<PreloadRequirements, unknown>;
+  /** The page's head, from the match and the preloaded data; see `RouteDefineOptions.head`. */
+  readonly head?: (context: RouteHeadContext<any>) => RouteHead;
   /** Framework-owned component value attached by `Route.withComponent(...)`. */
   readonly component?: unknown;
   /** Maps the route's component props to the attached component's props. */
@@ -419,6 +422,24 @@ export type RouteDefineOptions<
       >
     >,
   ) => Out;
+  /**
+   * The page's head (`title`, `description`, `meta`), computed once the
+   * preload has succeeded: on the server for the rendered document, and in
+   * the browser after each navigation settles. `read(ref)` returns what the
+   * preload loaded. A route without `head`, a not-found page, and a failed
+   * preload have an empty head, which the app's `App.define({ head })` fills.
+   */
+  readonly head?: (
+    context: RouteHeadContext<
+      RouteDefinition<
+        Path,
+        ParamsFromSchema<Path, ParamsSchema>,
+        SearchFromSchema<SearchSchema>,
+        any,
+        any
+      >
+    >,
+  ) => RouteHead;
 } & RoutePreloadCheck<ErrorSchema, Out>;
 
 /**
@@ -505,6 +526,47 @@ export type RouteContext<R extends RouteDefinition<string, unknown, unknown, unk
   readonly search: RouteSearch<R>;
   readonly pathname: string;
   readonly href: string;
+};
+
+/** Attributes of one `<meta>` tag, e.g. `{ property: "og:title", content: "..." }`. */
+export type RouteHeadTag = Readonly<Record<string, string>>;
+
+/**
+ * A page's head: what `<title>` and `<meta>` say about it. A route derives it
+ * from its params and preloaded data (`Route.define(path, { head })`); Start
+ * renders it into the document and keeps `document.title` and the head's
+ * `<meta>` tags in step on client navigation.
+ */
+export interface RouteHead {
+  /** `<title>` text. */
+  readonly title?: string | undefined;
+  /** `<meta name="description">` content. */
+  readonly description?: string | undefined;
+  /** Other `<meta>` tags (`og:*`, `twitter:*`, ...). */
+  readonly meta?: ReadonlyArray<RouteHeadTag> | undefined;
+}
+
+/**
+ * How the page a head belongs to settled: its route is ready, nothing was
+ * found, or the preload failed. Only a `Ready` page has its route's head.
+ */
+export type RouteHeadStatus = "Ready" | "NotFound" | "Failure";
+
+/** What a route's `head` sees: its match, and the Resources its preload loaded. */
+export type RouteHeadContext<
+  R extends RouteDefinition<string, unknown, unknown, unknown> = RouteDefinition<
+    string,
+    unknown,
+    unknown,
+    unknown
+  >,
+> = RouteContext<R> & {
+  /**
+   * The loaded value of a Resource (patches included), or `undefined` when it
+   * is not loaded. In the browser the head follows it: a rename that changes
+   * the value changes the title.
+   */
+  readonly read: <I, A, E, RR>(ref: ResourceRef<I, A, E, RR>) => A | undefined;
 };
 
 /** Successful route match with decoded params and search values. */
@@ -994,6 +1056,19 @@ export namespace Route {
 
   /** Serializable route preload failure carried from the server render to the client. */
   export type PreloadFailureSnapshot = RoutePreloadFailureSnapshot;
+
+  /** A page's head (`title`, `description`, `meta`), from a route's `head`. */
+  export type Head = RouteHead;
+
+  /** How the page a head belongs to settled (`Ready`, `NotFound`, `Failure`). */
+  export type HeadStatus = RouteHeadStatus;
+
+  /** Attributes of one `<meta>` tag in a `Route.Head`. */
+  export type HeadTag = RouteHeadTag;
+
+  /** What a route's `head` sees: its match and `read(ref)` over the preloaded Resources. */
+  export type HeadContext<R extends Definition<string, unknown, unknown, any>> =
+    RouteHeadContext<R>;
 
   /** Renderer component value taking props `P`. */
   export type View<P> = RouteView<P>;

@@ -102,7 +102,6 @@ describe("project console SSR", () => {
     expect(html).toContain("Kepler Search");
     expect(html).toContain("Next milestone");
     expect(html).toContain("Indexed work queue");
-    expect(html).toContain("sunfall-arc-start-graph");
     expect(html).toContain("window._$HY");
     expect(html).toContain("__SUNFALL_ARC_HYDRATION__");
     expect(html).toContain("data-sunfall-arc-hydration-chunk");

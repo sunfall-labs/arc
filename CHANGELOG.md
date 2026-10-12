@@ -6,6 +6,32 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Page Heads Come From The Route's Data
+
+Found by `examples/tracker`, whose issue tab could only show the issue's id:
+`document` saw the URL, not what the preload loaded.
+
+- `Route.define(path, { head })` derives the page's head (`title`,
+  `description`, `meta`) from the typed match and `read(ref)`, the value a
+  Resource the preload loaded (`Route.Head`, `Route.HeadContext`). It runs
+  once the preload succeeded.
+- `App.define({ head: (page, status) => Route.Head })` turns a route's head
+  into the page's: the app's title suffix, its fallback, not-found
+  (`status: "NotFound"`) and failure titles, and the `<meta>` tags every page
+  carries (`Route.HeadStatus`). It defaults to the route's head.
+- The server renders that head into the document. In the browser,
+  `App.launch` keeps `document.title` and the head's `<meta>` tags (marked
+  `data-arc-head`) in step: after every navigation settles, and when a
+  Resource the route's `head` reads changes (renaming an issue retitles its
+  tab). Pending navigations keep the previous head.
+- `StartDocument` loses `title` and `meta`: the head has one source, so the
+  server's document and client navigation cannot disagree. `document` keeps
+  `lang`, `links`, `clientEntry`, and `headers`.
+- The tracker, the docs site (whose per-component `DocumentTitle` and raw
+  frontmatter parsing in `server.tsx` are gone), the project console (and its
+  hand-written `document.title` effect), the starter, and the compare app use
+  route heads.
+
 ### A Route Declares What It Loads Once
 
 - `Route.define`'s `preloadResources` is gone, with

@@ -13,4 +13,5 @@ export const route = Route.define("/signin", {
         user === null ? Effect.void : Route.redirect(safeRedirect(search.next)),
       ),
     ),
+  head: () => ({ title: "Sign in" }),
 });

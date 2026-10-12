@@ -1024,22 +1024,52 @@ reading private cache maps.
 
 ## Streaming Responses
 
-Start renders every page into one document shell. The app supplies only the
-parts it owns through `document`:
+Start renders every page into one document shell. The app supplies the parts
+it owns: the head through routes and `App.define({ head })`, the rest through
+the handler's `document`:
 
 ```ts
+const ProjectRoute = Route.define("/projects/:id", {
+  params: Schema.Struct({ id: ProjectId }),
+  preload: ({ params }) => Resource.preload(ProjectById(params.id)),
+  head: ({ params, read }) => ({ title: read(ProjectById(params.id))?.name ?? params.id }),
+});
+
+const app = App.define({
+  root: Root,
+  routes: [ProjectRoute] as const,
+  head: (page, status) => ({
+    ...page,
+    title:
+      status === "NotFound"
+        ? "Not found · Projects"
+        : page.title === undefined
+          ? "Projects"
+          : `${page.title} · Projects`,
+  }),
+});
+
 createRequestHandler(app, {
   server: AppServerLive,
-  document: ({ match }) => ({
-    title: match === undefined ? "Projects" : `Projects · ${match.href}`,
+  document: () => ({
     links: [{ rel: "stylesheet", href: "/src/styles.css" }],
     headers: { "x-app": "projects" },
   }),
 });
 ```
 
-Start writes the doctype, charset and viewport, the escaped `meta`/`link`
-tags, Solid's hydration bootstrap, `<div id="root">` with the rendered root,
+A route's `head` runs once its preload succeeded; `read(ref)` is what the
+preload loaded. The browser router records the page it settles on in the
+runtime's Resource Store (a ready route's match, or a not-found or failed
+page), and that record is the one source for the head on both sides. On the
+server, Start reads it after rendering the root, so the head describes the page
+the body shows. In the browser, `App.launch` derives the head from it, tracking
+the Resources the route's `head` reads, and writes `document.title` and the
+head's `<meta>` tags (marked `data-arc-head`) when it changes: after each
+navigation, and when a value the head reads changes.
+
+Start writes the doctype, charset and viewport, the head's escaped `meta` tags
+and `<title>`, the document's `link` tags, Solid's hydration bootstrap, `<div id="root">` with the rendered root,
 the streamed Resource chunks, the root hydration payload, and the browser
 entry script, in that order. There is no hand-written HTML to drift from what
 hydration needs.

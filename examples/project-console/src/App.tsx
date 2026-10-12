@@ -1,7 +1,7 @@
 import { Component, RouterLink, RouterOutlet, RouterProvider, useRouter } from "@sunfall/arc-solid";
-import { Action, Resource, Route, Signal, State } from "@sunfall/arc-core";
+import { Action, Resource, Route, State } from "@sunfall/arc-core";
 import { Cause, Effect } from "effect";
-import { For, Loading, Show, createEffect, onSettled } from "solid-js";
+import { For, Loading, Show, onSettled } from "solid-js";
 import {
   ProjectById,
   ProjectList,
@@ -149,18 +149,6 @@ const AppShell = Component.define("AppShell", function* () {
   return () => {
     const router = useRouter<AppRoutes>();
     const selectedId = () => projectIdFromMatch(router.match());
-    const title = Signal.derive(() => {
-      const id = selectedId();
-      return id ? `${id} · Sunfall Arc Project Console` : "Projects · Sunfall Arc Project Console";
-    });
-
-    // Solid effects run only in the browser, after render.
-    createEffect(
-      () => title.get(),
-      (nextTitle) => {
-        document.title = nextTitle;
-      },
-    );
 
     return (
       <main class="appShell">

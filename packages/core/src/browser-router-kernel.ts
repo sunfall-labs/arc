@@ -23,6 +23,7 @@ import {
   type BrowserRouterState,
 } from "./browser-router-state.js";
 import { batchSignalWrites } from "./signal-transaction.js";
+import { publishSettledRoute } from "./route-head.js";
 
 /** Positional arguments accepted by router navigation helpers for one route. */
 export type BrowserNavigateArgs<R extends AnyBrowserRoute> =
@@ -331,13 +332,28 @@ export const createBrowserRouterKernel = <
       yield* disposePreloadScopeEffect();
     });
 
-  const setState = (next: BrowserRouterState<Routes, ER>): void => {
-    batchSignalWrites(() => state.set(next), {
-      _tag: "Router",
-      href: next.href,
-      status: next._tag,
-    });
+  // The page's head follows the settled state: a ready route's own, else none.
+  const publishSettled = (next: BrowserRouterState<Routes, ER>): void => {
+    if (next._tag === "Ready") {
+      publishSettledRoute(runtime.resourceStore, { status: "Ready", match: next.match });
+    } else if (next._tag !== "Pending") {
+      publishSettledRoute(runtime.resourceStore, { status: next._tag });
+    }
   };
+  const setState = (next: BrowserRouterState<Routes, ER>): void => {
+    batchSignalWrites(
+      () => {
+        state.set(next);
+        publishSettled(next);
+      },
+      { _tag: "Router", href: next.href, status: next._tag },
+    );
+  };
+  batchSignalWrites(() => publishSettled(state.get()), {
+    _tag: "Router",
+    href: initialHref,
+    status: state.get()._tag,
+  });
 
   const followRedirect = (target: HrefRedirect): void => {
     if (redirects >= maxRouteRedirects) {

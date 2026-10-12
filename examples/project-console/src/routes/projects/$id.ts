@@ -1,6 +1,6 @@
 import { Resource, Route } from "@sunfall/arc-core";
 import { Effect, Filter } from "effect";
-import { WorkItemsRef, preloadProjectRouteEffect } from "../../domain.js";
+import { ProjectById, WorkItemsRef, preloadProjectRouteEffect } from "../../domain.js";
 import { ProjectNotFound, ProjectRouteParams, ProjectRouteSearch } from "../../model.js";
 
 export const route = Route.define("/projects/:id", {
@@ -17,4 +17,6 @@ export const route = Route.define("/projects/:id", {
       // failure is a defect for the nearest error boundary.
       Effect.catchFilter(Filter.tagged("ProjectNotFound"), Effect.fail, Effect.die),
     ),
+  // The tab title names the project the preload loaded.
+  head: ({ params, read }) => ({ title: read(ProjectById(params.id))?.name ?? params.id }),
 });
