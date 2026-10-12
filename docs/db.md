@@ -141,11 +141,12 @@ export const CreateProject = Action.define({
 });
 ```
 
-- `transaction.insert(ref, rows)`, `transaction.update(ref, key, patch |
-row => next)`, and `transaction.delete(ref, key)` take a ref of a Resource
-  with `rows`; the key and row types come from its `rows`. A Resource without
-  `rows` does not compile there; `transaction.set(ref, value => next)`
-  patches any entry's whole value, rows or not.
+- `transaction.insert(ref, row | rows)`, `transaction.update(ref, key,
+patch)` (a partial row or a pure `row => next` updater), and
+  `transaction.delete(ref, key)` take a ref of a Resource with `rows`; the key
+  and row types come from its `rows`. A Resource without `rows` does not
+  compile there; `transaction.set(ref, value => next)` patches any entry's
+  whole value, rows or not.
 - An insert replaces a row with the same key or appends; an update keeps the
   row's position. An update or delete of a key the value does not hold is a
   no-op, and an update that changes the key is a defect. An entry that has not

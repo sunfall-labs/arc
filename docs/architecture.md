@@ -22,10 +22,9 @@ target. The public API is owned by Sunfall Arc:
 Future versions can add a custom TSRX host profile once the runtime semantics are stable.
 
 This architecture document explains the concrete shape of the framework: the
-runtime spine,
-dependency injection, routing, resources, queries, actions, server
-contracts, SSR, hydration, diagnostics, and devtools all converge on one typed
-app graph.
+runtime spine, dependency injection, routing, resources, queries, actions,
+server contracts, SSR, hydration, diagnostics, and devtools all converge on one
+typed app graph.
 
 ## Target Architecture
 
@@ -115,7 +114,8 @@ later refreshes keep the current (or, after a failed refresh, stale) value, so
 chrome. A failed first load throws to the boundary `catchTags` installs, which
 matches the family's render failure: its `error` schema's type (here
 `ProjectNotFound`), or `ResourceUntypedFailure` (the `tag` only) for a family
-without one. See [Solid Adapter](solid-adapter.md#resources-the-reader-is-the-only-way-to-render-content).
+without one. See
+[Solid Adapter](solid-adapter.md#resources-the-reader-is-the-only-way-to-render-content).
 
 ### AsyncResult Is The Async-State Vocabulary
 
@@ -132,8 +132,9 @@ async-state vocabulary. Arc signals own it and Solid renders it:
   breaks its contract is a defect, not part of `E`); the latest invalidation
   plan stays its own signal.
 - A live query's `state` is `AsyncResult<ReadonlyArray<T>, E>` beside the
-  always-available `rows`. Every `AsyncResult`-valued accessor is named
-  `result`; Solid handles project it to `waiting()` and `failure()`.
+  always-available `rows`. Solid handles project every `AsyncResult` (a
+  Resource's or Action's `result`, a live query's `state`) to `waiting()` and
+  `failure()`.
 
 Settlement semantics are shared. A load or submission marks the current result
 `waiting` without changing its tag, so a refresh is `Success` with
@@ -343,7 +344,8 @@ The Runtime Spine is the one place where host boundaries are allowed to run Effe
   runtime built from the app's client Layer.
 - Solid Components get their runtime from their entry point
   (`App.launch` or `createRequestHandler` in a Start app; `Component.launch`,
-  `mount`, or `embed` otherwise), which checks the tree's services against it; every setup-time binding (resources, actions, programs, streams,
+  `mount`, or `embed` otherwise), which checks the tree's services against it;
+  every setup-time binding (resources, actions, programs, streams,
   callbacks, live queries, the router and its route preloads) runs on its
   instance's runtime with the setup's context. There is no runtime context and
   no implicit default runtime.
@@ -388,10 +390,9 @@ export const SubmitProjectName = Action.define({
   run: (input) => ProjectApi.use((api) => api.submitName(input)),
 });
 
-export const handleRequest = createRequestHandler(app, {
-  actions: [SubmitProjectName],
-  render,
-});
+export const app = App.define({ root, routes, actions: [SubmitProjectName], client: AppLive });
+
+export const handleRequest = createRequestHandler(app, { server: AppServerLive });
 ```
 
 `POST /__sunfall-arc/action` accepts either JSON (`{ name, input }`) or ordinary
@@ -451,7 +452,7 @@ for the life of one submission:
 ```ts
 optimistic: (input, transaction) =>
   Effect.all([
-    transaction.update(Projects, input.id, { name: input.name }),
+    transaction.update(ProjectsRef, input.id, { name: input.name }),
     transaction.set(ProjectById(input.id), (project) => ({ ...project, name: input.name })),
     transaction.set(lastRenamed, input.id),
   ]),
@@ -535,7 +536,10 @@ export const AdvanceProject = Action.define({
   output: ProjectSchema,
   durable: { maxAge: "1 day" },
   optimistic: ({ id }, transaction) =>
-    transaction.update(Projects, id, (project) => ({ ...project, progress: project.progress + 8 })),
+    transaction.update(ProjectsRef, id, (project) => ({
+      ...project,
+      progress: project.progress + 8,
+    })),
   run: (input) => ProjectApi.use((api) => api.advance(input)),
 });
 ```
@@ -552,7 +556,8 @@ Outbox (`ActionOutbox`, provided by `Action.outboxLayer()`; Start's
   with `KeyValueStore.toSchemaStore`. In a Start app it is the browser's one
   store, shared with persisted Resources: the client Layer's, else
   `localStorage`. Elsewhere the runtime's Layer chooses it
-  (`KeyValueStore.layerMemory` in tests, `layerSql`/`layerFileSystem`). The optimistic intent is the input itself: `optimistic` is a pure
+  (`KeyValueStore.layerMemory` in tests, `layerSql`/`layerFileSystem`). The
+  optimistic intent is the input itself: `optimistic` is a pure
   function of it, so restoring re-runs it instead of serializing patches.
 - **`submit` settles or queues.** It succeeds or fails with the outcome when
   the submission settles while the caller waits (online, this is the same
@@ -591,8 +596,8 @@ Outbox (`ActionOutbox`, provided by `Action.outboxLayer()`; Start's
   replay order), `failures`, and `dismiss(id)`. A runtime without an outbox,
   such as a server render, reports nothing pending, so a Component can render
   "3 changes waiting to sync" without a server-side service. The outbox
-  commits with Timeline causes `Action{event:"queue" | "restore" | "replay" |
-"success" | "failure" | "dismiss"}`.
+  commits with Timeline causes `Action "<name>" queue`, `restore`, `replay`,
+  `success`, `failure`, and `dismiss`.
 - **Client-only.** The endpoint site never consults an outbox, and the server
   render path never persists anything. Non-durable Actions pay nothing: the
   workflow checks `definition.durable` before it looks for an outbox.
@@ -889,8 +894,7 @@ array holes, marker-shaped plain objects, and typed unsupported-value failures.
 Visible resource entry GC is also Effect-native. Successful loads fork an
 immediately-started, interruptible `Effect.sleep(gcFor)` fiber; refreshes,
 failures, hydration, explicit deletion, and Resource Store disposal interrupt the
-old lifetime fiber before moving the entry to its next state. The Promise
-methods are only host/UI adapters over the Effect forms.
+old lifetime fiber before moving the entry to its next state.
 
 The Resource Store also exposes an Effect `PubSub` event stream. Consumers can
 subscribe with `Resource.subscribeEvents()` to observe pending, success,
@@ -961,7 +965,8 @@ A route's component is attached with `Route.withComponent(route, component)`,
 where it takes `Route.Props<typeof route>`, or with
 `Route.withComponent(route, component, (route) => props)`, which maps the
 route props to a feature component's own props (checked against them). It is
-the only way to attach one: route options take no `component`. Routes compare by path, so `RouterLink`, `navigate`, and
+the only way to attach one: route options take no `component`. Routes compare by
+path, so `RouterLink`, `navigate`, and
 `Route.isMatch` given the route reach the copy `withComponent` returned.
 In the browser, Start's Vite plugin splits the component a `withComponent`
 call attaches into its own chunk when that call is its only use (an import
@@ -1094,7 +1099,8 @@ export const route = Route.define("/projects/:id", {
 The generated file imports those route modules and checks each imported route's
 declared `path` against the path derived from its file: a literal-typed
 assignment makes a mismatch a type error, and a load-time assertion makes it a
-startup and prerender failure for builds that skip type checking. It then emits a `routes` tuple and a
+startup and prerender failure for builds that skip type checking. It then emits
+a `routes` tuple and a
 `routeById` map of the route definitions (hrefs come from
 `Route.href(routeById.route_projects_$id, ...)`, like any definition). The
 matching Vite virtual
@@ -1128,7 +1134,8 @@ The payload includes the resource family name, stable key, and original input
 (Arc's envelope) plus `state`: the `AsyncResult.Schema`-style JSON encoding of a
 settled `Success`, `{ _tag: "Success", value, waiting: false, timestamp }`, with
 `value` encoded through the family's `output` schema when one exists. Hydration
-is Success-only: failures can carry server-only causes and are never serialized. Start client hydration applies that payload with
+is Success-only: failures can carry server-only causes and are never serialized.
+Start client hydration applies that payload with
 `hydrateFromDocument(...)` or `hydrateStartPayload(...)`; those
 helpers call `Resource.hydrate(payload)` so the visible resource signal
 and Effect `Cache` entry update in the same Runtime Spine.
@@ -1167,10 +1174,8 @@ no `catchTags` handler matches them there (put failing data behind a Resource
 with an `error` schema to render it during SSR). Action failures never throw
 to a boundary: `submit` returns them.
 
-Preload dehydration has both sync and Effect forms. Runtime/request work should
-prefer `Resource.hydrationPayload(refs)` so the payload is read from the
-Resource Store provided by the Runtime Spine. The sync `Resource.hydrationPayload`
-is for already-current UI contexts and tests.
+`Resource.hydrationPayload(refs)` builds the preload payload as an Effect, read
+from the Resource Store the Runtime Spine provides.
 
 Rows need no hydration channel of their own: a Resource with `rows` hydrates
 as its value, and the browser rebuilds key positions and index buckets lazily
@@ -1222,7 +1227,8 @@ for Node HTTP. Effect-capable hosts use `toFetchHandler(handler)` or
 `createNodeHandler(handler)`. Edge-style hosts that require a Promise-shaped
 export wrap `createRequestHandler(app)` with
 `createFetchHandler(handler, { runtime })`, while Node HTTP servers use
-`createNodeServerHandler(handler, { runtime })`. Host facades provide the per-request Scope themselves
+`createNodeServerHandler(handler, { runtime })`. Host facades provide the
+per-request Scope themselves
 but require a typed runtime whenever the handler still needs app services. The
 Node adapter callback facades delegate the lower Node/Web exchange mechanics to
 the internal Start Node Web Exchange Module. That Module converts
@@ -1520,7 +1526,8 @@ Effect-first APIs:
   reload resources as Effects.
 - `action.submit(input)` runs action workflows, optimistic patches,
   concurrency, and invalidation as an Effect.
-- `serverFunction.effect(input)` is the local Effect API; `serverFunction.invoke(raw)` is the schema-validated wire API.
+- `serverFunction.effect(input)` is the local Effect API;
+  `serverFunction.invoke(raw)` is the schema-validated wire API.
 
 Resource retry policy is an Effect `Schedule`, not a framework-specific retry
 DSL:
@@ -1611,7 +1618,8 @@ deterministic.
   renders it.
 - **Names** come from `Signal.make(initial, { name })`, where `name` is
   required. Framework signals name themselves (`Board.model`,
-  `Project.rename.state`, `Project.get(<key>)`, `Router.state`). A router outlet's rendered node is derived
+  `Project.rename.state`, `Project.get(<key>)`, `Router.state`). A router
+  outlet's rendered node is derived
   from recorded router state, so it is bookkeeping, not recorded: travel
   re-renders the travelled route.
 - **Travel renders the past; it does not rewrite state.** Committed state stays
@@ -1641,7 +1649,8 @@ deterministic.
   recorded. Travel does not move the browser URL: a travelled router renders the old route while
   history stays at the head.
 
-Devtools consumes the same entries: `store.trackTimeline(recording)`
+A devtools store (`Devtools.makeStore()`) consumes the same entries:
+`store.trackTimeline(recording)`
 records each entry as a JSON-safe `TimelineCommit` runtime event, linked to the
 Program, Action, or Resource fact its cause names.
 
