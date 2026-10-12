@@ -6,6 +6,22 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Refresh Never Disturbs What Didn't Change
+
+- The Resource Store shares every new value of an entry with the one it
+  replaces: a refresh, invalidation, hydration refetch, `rows.changes` batch,
+  or optimistic patch, fold, or rollback keeps each deep-equal part as the
+  previous object, and an equal value as the previous value. Plain objects and
+  arrays compare field by field; Dates, Maps, Sets, and Schema/Data classes
+  compare with `Equal`. Rows match by `rows.key` (generalizing the previous
+  row-only diff), so a changed row also reuses its unchanged parts.
+- Solid: `reader(input)` returns a read-only fine-grained view of the value
+  (the projection `Component.state` already uses), keyed by `rows.key` or
+  `"id"`. A binding re-runs only when the field it reads changes, so
+  `<input value={props.project.name} />` keeps typed text across a refresh,
+  even one that changes a sibling field. `reader.get` and `reader.index`
+  return the view's rows.
+
 ### State Is The One Writable Client State (Breaking)
 
 - `Program` is renamed `State`, and it is now the only way to hold writable

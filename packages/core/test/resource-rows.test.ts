@@ -85,6 +85,15 @@ describe("Resource rows", () => {
         expect(next).not.toBe(first);
         expect(next[0]).toEqual({ ...atlas, name: "Atlas 2" });
         expect(next[1]).toBe(first[1]);
+        // A changed row still reuses its unchanged parts.
+        expect(next[0]!.tags).toBe(first[0]!.tags);
+
+        // Rows match by key, not position: a reorder keeps every row.
+        fixture.server.rows = [orion, { ...atlas, name: "Atlas 2" }];
+        const reordered = yield* Resource.refresh(fixture.ref);
+        expect(reordered).not.toBe(next);
+        expect(reordered[0]).toBe(next[1]);
+        expect(reordered[1]).toBe(next[0]);
       }),
     ));
 

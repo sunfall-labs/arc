@@ -37,10 +37,11 @@ export const ProjectsRef = ProjectList("all");
 - Rows are derived from the loaded value, never copied: the cache, tags,
   `staleFor`/`gcFor`, typed `error`, hydration, and `Resource.preload` /
   `refresh` / `invalidate` all work exactly as for any Resource.
-- A reload replaces the rows. It is diffed by key against the previous value:
-  a row equal to its previous version keeps its object identity (and when
-  nothing changed, the whole array does), so keyed `<For>` lists keep their
-  DOM and live queries skip unchanged rows.
+- A reload replaces the rows. It shares structure with the previous value,
+  matching rows by key: a row equal to its previous version keeps its object
+  identity, a changed row reuses its unchanged parts, and when nothing changed
+  the whole array does, so keyed `<For>` lists keep their DOM and live queries
+  skip unchanged rows.
 - Lookups are built lazily per value and cached: the key positions on the
   first `get`, an index's buckets on its first `index` read.
 

@@ -2,7 +2,7 @@ import { Component, RouterLink, useRouter } from "@sunfall/arc-solid";
 import { Route, State } from "@sunfall/arc-core";
 import { StartAction } from "@sunfall/arc-start";
 import { Cause, Effect, Schema } from "effect";
-import { For, Loading, Show, createMemo, untrack } from "solid-js";
+import { For, Loading, Show, untrack } from "solid-js";
 import {
   ProjectById,
   SubmitProjectName,
@@ -260,9 +260,6 @@ const ProjectActions = Component.define(
     const router = useRouter();
     // Fixed for this instance: the page remounts it for another project.
     const id = untrack(() => props.project.id);
-    // A refresh delivers a new project object; only a real name change may
-    // reach the input, so text typed but not submitted survives a refresh.
-    const name = createMemo(() => props.project.name);
     // The rename patches the sidebar row and the ProjectById header at once,
     // and its invalidations reload both before the redirect lands.
     const rename = yield* Component.action(SubmitProjectName);
@@ -388,7 +385,7 @@ const ProjectActions = Component.define(
             <span>Name</span>
             <input
               name="name"
-              value={name()}
+              value={props.project.name}
               aria-invalid={model().validation === undefined ? "false" : "true"}
               aria-describedby={model().validation === undefined ? undefined : "project-name-error"}
             />

@@ -8,9 +8,9 @@
 export {
   applyResourceRowChanges,
   applyResourceRowPatch,
-  reconcileResourceRows,
   resourceRowIndexBucket,
   resourceRowKey,
+  resourceRowPositions,
   resourceRowsGet,
   resourceRowsIndex,
   type ResourceRowPatch,

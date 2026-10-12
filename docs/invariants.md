@@ -95,12 +95,17 @@ documented as outside the current release bar.
 - Failures are observable state, but failed cache lookups are not retained as
   successful cache hits.
 - Resource events are published through the Resource Store event stream.
+- Every write of an entry's value (load, hydration, rows change, optimistic
+  patch, fold, rollback) shares structure with the value it replaces: a part
+  deep-equal to its previous version is the previous object, so an equal
+  reload shows the previous value itself. Solid readers project the shared
+  value, so a binding re-runs only when the field it reads changes.
 
 ## Resource Rows
 
 - Rows are derived from a Resource's value, never stored separately: the value
   is the one cached, hydrated, and persisted copy.
-- A reload is diffed by key; a row equal to its previous version keeps its
+- A reload is shared by key; a row equal to its previous version keeps its
   object identity. Lookups (key positions, index buckets) are cached per value
   and never mutate a shown array.
 - Row patches are optimistic layers over the entry's synced value, owned by
