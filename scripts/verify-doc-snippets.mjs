@@ -18,6 +18,12 @@
 // `<!-- snippet: before.tsx -> after.tsx -->` before a ```diff fence shows the
 // unified diff between two fixture files instead, so a step that changes a
 // few lines shows just those lines and still cannot drift.
+//
+// `<!-- snippet: type-tests/docs/db/sync.ts#changes -->` shows one region of a
+// fixture: the lines between `// #region changes` and the next
+// `// #endregion`, dedented. The rest of the file (imports, the model the
+// snippet refers to) is still type-checked but not shown. Region marker lines
+// never appear in a shown file.
 
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
@@ -35,16 +41,51 @@ const checkedDocs = [
     // Fixture files that pin type claims but are not shown in the doc.
     unshown: ["claims.ts", "projects.memory.ts"],
   },
+  {
+    doc: "docs/db.md",
+    fixtureDirectory: "type-tests/docs/db",
+    // The shared model the snippets refer to.
+    unshown: ["model.ts"],
+  },
 ];
 
-const markerPattern = /^<!-- snippet: (\S+)(?: -> (\S+))? -->$/;
+const markerPattern = /^<!-- snippet: ([^\s#]+)(?:#([\w-]+))?(?: -> (\S+))? -->$/;
+const regionStartPattern = /^\s*\/\/ #region (\S+)\s*$/;
+const regionEndPattern = /^\s*\/\/ #endregion\b/;
 const fencePattern = /^```(\S*)\s*$/;
 const typeScriptLanguages = new Set(["ts", "tsx", "typescript"]);
 
 class DocSnippetDrift extends Data.TaggedError("DocSnippetDrift") {}
 
 const readText = (file) => readFileSync(join(root, file), "utf8");
-const readSource = (file) => readText(file).replace(/\n+$/, "");
+const isRegionMarker = (line) => regionStartPattern.test(line) || regionEndPattern.test(line);
+const readSource = (file) =>
+  readText(file)
+    .split("\n")
+    .filter((line) => !isRegionMarker(line))
+    .join("\n")
+    .replace(/\n+$/, "");
+
+/** The dedented lines of `// #region <name>`, or undefined when the file has no such region. */
+const readRegion = (file, name) => {
+  const lines = readText(file).split("\n");
+  const start = lines.findIndex((line) => regionStartPattern.exec(line)?.[1] === name);
+  if (start === -1) {
+    return undefined;
+  }
+  let end = start + 1;
+  while (end < lines.length && !regionEndPattern.test(lines[end])) {
+    end += 1;
+  }
+  const body = lines.slice(start + 1, end).filter((line) => !isRegionMarker(line));
+  const indent = Math.min(
+    ...body.filter((line) => line.trim() !== "").map((line) => /^\s*/.exec(line)[0].length),
+  );
+  return body
+    .map((line) => line.slice(indent))
+    .join("\n")
+    .replace(/^\n+|\n+$/g, "");
+};
 
 const diffContext = 2;
 
@@ -114,9 +155,11 @@ const unifiedDiff = (before, after) => {
 };
 
 const expectedBody = (snippet) =>
-  snippet.after === undefined
-    ? readSource(snippet.file)
-    : unifiedDiff(readSource(snippet.file).split("\n"), readSource(snippet.after).split("\n"));
+  snippet.region !== undefined
+    ? readRegion(snippet.file, snippet.region)
+    : snippet.after === undefined
+      ? readSource(snippet.file)
+      : unifiedDiff(readSource(snippet.file).split("\n"), readSource(snippet.after).split("\n"));
 
 /** Returns the doc rewritten from its fixtures, plus every problem found. */
 const syncDoc = ({ doc, fixtureDirectory, unshown }) => {
@@ -130,7 +173,7 @@ const syncDoc = ({ doc, fixtureDirectory, unshown }) => {
     const line = lines[index];
     const marker = markerPattern.exec(line);
     if (marker) {
-      pendingSnippet = { file: marker[1], after: marker[2], line: index + 1 };
+      pendingSnippet = { file: marker[1], region: marker[2], after: marker[3], line: index + 1 };
       output.push(line);
       continue;
     }
@@ -180,6 +223,15 @@ const syncDoc = ({ doc, fixtureDirectory, unshown }) => {
         shown.add(pendingSnippet.after);
       }
       const source = expectedBody(pendingSnippet);
+      if (source === undefined) {
+        problems.push(
+          `${doc}:${pendingSnippet.line}: ${pendingSnippet.file} has no // #region ${pendingSnippet.region}`,
+        );
+        output.push(...lines.slice(index, closing + 1));
+        pendingSnippet = undefined;
+        index = closing;
+        continue;
+      }
       if (source !== body) {
         problems.push(
           `${doc}:${index + 1}: snippet differs from ${pendingSnippet.after ?? pendingSnippet.file} ` +

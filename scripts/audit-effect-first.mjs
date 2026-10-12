@@ -320,6 +320,11 @@ const allowed = [
         /f:\s*\(\)\s*=>\s*Promise<A>/,
       ),
       seam(
+        "type-tests/docs/db/sync-tanstack-query.ts",
+        "TanStack Query host surface the db.md recipe wraps with Effect.tryPromise",
+        /type HostPromise<A> = Promise<A>;/,
+      ),
+      seam(
         "packages/start/src/vite.ts",
         "Vite plugin config hook contract",
         /\) => Promise<UserConfig>;/,

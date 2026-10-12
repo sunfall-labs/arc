@@ -135,6 +135,8 @@ then loads it, and a failure reaches `catchTags` there.
 `preload`, and `refresh`; its query factory runs tracked, so a signal or prop
 read in the factory rebuilds the query.
 
+<!-- snippet: type-tests/docs/db/component.tsx#component -->
+
 ```tsx
 const ProjectList = Component.define("ProjectList", function* () {
   const projects = yield* SolidDb.collection(Projects); // E += the load error
@@ -170,12 +172,14 @@ A collection has no write methods of its own for server data. An Action is the
 one mutation path: its `optimistic` patches rows before `run`, `run` writes the
 backend, and `invalidates` reloads the source the collection follows.
 
+<!-- snippet: type-tests/docs/db/writes.ts#archive -->
+
 ```ts
-const ArchiveProject = Action.define({
+export const ArchiveProject = Action.define({
   name: "Projects.archive",
   input: Schema.Struct({ id: ProjectId }),
   output: Project,
-  optimistic: ({ id }, transaction) => transaction.update(Projects, id, { archived: true }),
+  optimistic: ({ id }, transaction) => transaction.update(Projects, id, { status: "archived" }),
   run: ({ id }) => ProjectApi.use((api) => api.archive(id)),
   invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
 });
@@ -214,6 +218,8 @@ whose rows are client state. It is not a way to change server data.
 
 The public query API is intentionally small:
 
+<!-- snippet: type-tests/docs/db/queries.ts#active-names -->
+
 ```ts
 const ActiveProjectNames = Query.live((query) =>
   query
@@ -243,6 +249,8 @@ filters, grouping, ordering, or windows.
 
 Use explicit keyed joins when the relationship is known:
 
+<!-- snippet: type-tests/docs/db/queries.ts#join -->
+
 ```ts
 const ProjectTasks = Query.live((query) =>
   query
@@ -263,8 +271,10 @@ lookup buckets and invalidates those buckets when the collection version
 changes. Index values must be scalar plain values; Dates are supported only
 when valid:
 
+<!-- snippet: type-tests/docs/db/indexes.ts#tasks -->
+
 ```ts
-const Tasks = Collection.define<Task>({
+export const Tasks = Collection.define<Task>({
   name: "Tasks",
   getKey: (task) => task.id,
   indexes: {
@@ -279,8 +289,10 @@ const atlasTasks = Tasks.index("byProject", "atlas");
 Indexed joins use the declared index buckets instead of scanning the right-hand
 collection for every left-side row:
 
+<!-- snippet: type-tests/docs/db/queries.ts#indexed-join -->
+
 ```ts
-const ProjectTasks = Query.live((query) =>
+const IndexedProjectTasks = Query.live((query) =>
   query
     .from({ project: Projects })
     .joinIndexed("task", Tasks, ({ project }) => project.id, "byProject")
@@ -297,6 +309,8 @@ builds index buckets from the materialized projection and caches them per
 projection revision.
 
 Query plans can be inspected without reaching into the builder implementation:
+
+<!-- snippet: type-tests/docs/db/queries.ts#diagnostics -->
 
 ```ts
 const plan = Query.diagnostics((query) =>
@@ -325,6 +339,8 @@ Promise-shaped, Effect-shaped, or non-builder query factory results, and invalid
 `QueryEvaluationError` instead of leaking raw exceptions.
 
 Grouped aggregates are also live:
+
+<!-- snippet: type-tests/docs/db/queries.ts#group-by -->
 
 ```ts
 const ProjectStatusCounts = Query.live((query) =>
@@ -357,10 +373,11 @@ predicate helper functions.
 
 Derived query results can be exposed as a read-only Collection Definition:
 
+<!-- snippet: type-tests/docs/db/queries.ts#live-query-collection -->
+
 ```ts
 const ActiveProjectCards = Collection.liveQuery({
   name: "ProjectCards.active",
-  getKey: (project) => project.id,
   query: (query) =>
     query
       .from({ project: Projects })
@@ -370,6 +387,8 @@ const ActiveProjectCards = Collection.liveQuery({
         name: project.name,
         progress: project.progress,
       })),
+  // After `query`, so the row type is inferred from its `select`.
+  getKey: (card) => card.id,
 });
 ```
 
@@ -407,9 +426,12 @@ Remote collection work uses Effect policy, not a framework retry DSL. The
 Collection Policy Module (an Action's writes retry with its own
 `policy.retry`):
 
+<!-- snippet: type-tests/docs/db/policy.ts#retry -->
+
 ```ts
-const Projects = Collection.define<Project>({
+const Projects = Collection.define({
   name: "Projects",
+  output: ProjectSchema,
   getKey: (project) => project.id,
   policy: {
     retry: Schedule.exponential("100 millis").pipe(Schedule.upTo({ times: 3 })),
@@ -429,6 +451,8 @@ every retry fails, the layer rolls back.
 return a plain value or an Effect, and may be Server functions directly; server
 client failures join the collection error channel:
 
+<!-- snippet: type-tests/docs/db/sync-server-fn.ts#server-fn -->
+
 ```ts
 const Projects = Collection.define({
   name: "Projects",
@@ -446,9 +470,12 @@ enters the adapter. Method-style adapters keep their receiver. An adapter `name`
 
 A Resource ref can back a collection directly:
 
+<!-- snippet: type-tests/docs/db/sync-resource.ts#resource -->
+
 ```ts
-const ProjectRows = Resource.define<void, ReadonlyArray<Project>>({
+const ProjectRows = Resource.define({
   name: "Project.rows",
+  output: Schema.Array(ProjectSchema),
   load: () => ProjectApi.use((api) => api.list()),
 });
 
@@ -479,9 +506,12 @@ like a load failure and restarts on the next successful preload or refresh.
 `changes` is a `Stream` of incremental remote change batches. It has the same
 lifecycle as `follow`; the collection owns the subscription:
 
+<!-- snippet: type-tests/docs/db/sync-changes.ts#changes -->
+
 ```ts
-const Projects = Collection.define<Project>({
+const Projects = Collection.define({
   name: "Projects",
+  output: ProjectSchema,
   getKey: (project) => project.id,
   sync: {
     load: () => ProjectApi.use((api) => api.list()),
@@ -505,13 +535,14 @@ For one-off imperative writes of authoritative data, `applyChanges(...)`
 applies a batch in order. Rows default to `origin: "remote"` and
 `synced: true`:
 
+<!-- snippet: type-tests/docs/db/sync-changes.ts#apply-changes -->
+
 ```ts
-yield *
-  Projects.applyChanges([
-    { _tag: "Upsert", value: { id: "atlas", name: "Atlas Prime" } },
-    { _tag: "Update", key: "orion", changes: { name: "Orion Prime" } },
-    { _tag: "Delete", key: "lumen" },
-  ]);
+const renameRemotely = Projects.applyChanges([
+  { _tag: "Upsert", value: { id: "atlas", name: "Atlas Prime", status: "active", progress: 40 } },
+  { _tag: "Update", key: "orion", changes: { name: "Orion Prime" } },
+  { _tag: "Delete", key: "lumen" },
+]);
 ```
 
 `Update` fails with `CollectionRowNotFound` or `CollectionRowKeyChanged`; a
@@ -524,9 +555,12 @@ effect.
 A query client is just another inline adapter
 (`projectsQuery` is `{ queryKey: ["projects"], queryFn: listProjects }`):
 
+<!-- snippet: type-tests/docs/db/sync-tanstack-query.ts#tanstack-query -->
+
 ```ts
-const Projects = Collection.define<Project>({
+const Projects = Collection.define({
   name: "Projects",
+  output: ProjectSchema,
   getKey: (project) => project.id,
   sync: {
     name: "tanstack-query:projects",
@@ -544,10 +578,14 @@ const Projects = Collection.define<Project>({
 Collections expose synchronous inspection helpers for UI/runtime-bound code and
 Effect forms for durable SSR, route preload, tests, and server adapters:
 
-```ts
-const snapshot = yield * Projects.snapshot();
+<!-- snippet: type-tests/docs/db/persistence.ts#snapshot -->
 
-yield * Projects.hydrate(snapshot);
+```ts
+const roundTrip = Effect.gen(function* () {
+  const snapshot = yield* Projects.snapshot();
+
+  yield* Projects.hydrate(snapshot);
+});
 ```
 
 Use `snapshot(...)` for hydration, persistence, and server payloads. The
@@ -573,10 +611,14 @@ collection name and `version` to `1`. Rows are encoded through the collection
 `output` schema's JSON codec (`KeyValueStore.toSchemaStore`), so a `Date` field
 round-trips as a `Date`; collections without `output` store plain JSON values.
 
+<!-- snippet: type-tests/docs/db/persistence.ts#persist -->
+
 ```ts
-yield * Projects.persist();
-yield * Projects.restore();
-yield * Projects.persist({ key: "projects", version: 2 });
+const persistence = Effect.gen(function* () {
+  yield* Projects.persist();
+  yield* Projects.restore();
+  yield* Projects.persist({ key: "projects", version: 2 });
+}).pipe(Effect.provide(KeyValueStore.layerMemory));
 ```
 
 `persist(options?)` and `restore(options?)` use the definition's `persistence`
@@ -588,8 +630,10 @@ value the schema rejects fails as `CollectionSnapshotCodecError`.
 Use a Collection Persistence Policy when a collection should own its durable
 restore/writeback loop:
 
+<!-- snippet: type-tests/docs/db/persistence.ts#policy -->
+
 ```ts
-const Projects = Collection.define({
+const PersistedProjects = Collection.define({
   name: "Projects",
   output: ProjectSchema,
   getKey: (project) => project.id,
@@ -608,18 +652,26 @@ snapshots under the old prefix are never read, so the collection resyncs.
 `Collection.define(...)` adds `KeyValueStore` to a persisted collection's `R`
 and `KeyValueStoreError` to its `E`. With explicit type arguments, spell them:
 
+<!-- snippet: type-tests/docs/db/persistence.ts#explicit-types -->
+
 ```ts
-const Projects = Collection.define<
+const LocalProjects = Collection.define<
   Project,
   string,
   KeyValueStore.KeyValueStoreError,
   KeyValueStore.KeyValueStore
->({ ... });
+>({
+  name: "LocalProjects",
+  getKey: (project) => project.id,
+  persistence: { key: "local-projects" },
+});
 ```
 
 The app's Layer chooses the store. In a Start app, provide it in the client
 Layer; collections (under `arc/collections/`) and the Action Outbox (under
 `arc/actions/v1/`) share it without key collisions:
+
+<!-- snippet: type-tests/docs/db/start.tsx#client-layer -->
 
 ```ts
 export const app = App.define({
@@ -638,6 +690,8 @@ too (`KeyValueStore.layerMemory` keeps it request-agnostic and empty).
 Tests use `KeyValueStore.layerMemory`. SQLite or Postgres hosts use
 `KeyValueStore.layerSql` over their own `SqlClient` (for example
 `@effect/sql-sqlite-node`):
+
+<!-- snippet: type-tests/docs/db/persistence.ts#sql -->
 
 ```ts
 const PersistenceLive = KeyValueStore.layerSql({ table: "arc_kv" }).pipe(
@@ -669,6 +723,8 @@ preloads that call `collection.preload()` or
 `collection.refresh()` are collected automatically and dehydrated from
 the request runtime:
 
+<!-- snippet: type-tests/docs/db/start.tsx#route-preload -->
+
 ```ts
 const ProjectRoute = Route.define("/projects/:id", {
   preload: () => Projects.preload(),
@@ -689,12 +745,19 @@ process-global DB registry. Resolved route declarations are preloaded when the
 route did not already touch them and are included in the request-runtime
 hydration payload:
 
+<!-- snippet: type-tests/docs/db/start.tsx#declared-collections -->
+
 ```ts
 // Declared once: the server dehydrates them, the browser hydrates them.
-export const app = App.define({ root: Root, routes, collections: [Projects, Tasks] });
+const app = App.define({
+  root: Root,
+  routes,
+  collections: [Projects, Tasks],
+  client: AppClientLive,
+});
 
 // src/server.tsx
-export const handleRequest = createRequestHandler(app, { server: AppServerLive });
+const handleRequest = createRequestHandler(app, { server: AppServerLive });
 
 // src/main.tsx
 Effect.runFork(App.launch(app));
