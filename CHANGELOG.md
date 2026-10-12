@@ -282,6 +282,10 @@ Entries are newest first.
 
 ### Durable Submissions And Tracing Papercuts
 
+- Start's action request and response wire bodies are Effect Schemas (a
+  `Schema.Struct` request and a `Schema.TaggedUnion` response) instead of
+  hand-written guards, and response metadata application lives in the
+  response codec. The wire format is unchanged.
 - `Action.restoreOutbox` is a function: `Action.restoreOutbox(options?)` takes
   `ActionOutboxRestoreOptions` (`settled`: ids the hydrated state already
   reflects, restored without re-applying their optimistic patch). Start's

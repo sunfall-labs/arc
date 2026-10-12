@@ -27,47 +27,7 @@ import type { StartActionDefinition } from "./start-action-request-codec.js";
 import type { StartRequestFailureKind } from "./request-trace.js";
 import type { ServerRpcClientOptions } from "./start-fetch.js";
 
-export {
-  actionExitResponse,
-  actionFunctionNotFoundResponse,
-  actionProtocolFailureResponse,
-  actionResponseMeta,
-  actionResponseMode,
-  actionRuntimeFailureResponse,
-  actionTransportRequestFailureResponse,
-  decodeStartActionOutcome,
-  describeStartActionInvalidationPlan,
-  parseStartActionResponse,
-} from "./start-action-response-codec.js";
-export type {
-  StartActionInvalidationCause,
-  StartActionInvalidationPlan,
-  StartActionInvalidationTarget,
-  StartActionResponseBody,
-  StartActionResponseMeta,
-  StartActionOutcome,
-} from "./start-action-response-codec.js";
-
-export { applyStartActionResponse } from "./start-action-response-application.js";
-
-export {
-  encodeStartActionFormInput,
-  encodeStartActionInput,
-  encodeStartActionPartialInput,
-  encodeStartActionRequest,
-  readStartActionRequest,
-  StartActionFormEncodeError,
-  startActionForm,
-  startActionInputField,
-  startActionNameField,
-} from "./start-action-request-codec.js";
-export type {
-  StartActionDefinition,
-  StartActionForm,
-  StartActionFormField,
-  StartActionFormOptions,
-  StartActionRequest,
-} from "./start-action-request-codec.js";
+export type { StartActionDefinition } from "./start-action-request-codec.js";
 
 /**
  * Action transport settings for clients that submit Start actions: RPC-style

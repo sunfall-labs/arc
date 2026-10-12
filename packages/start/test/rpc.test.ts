@@ -23,7 +23,8 @@ import {
   executeStartClientTransport,
 } from "../src/start-client-transport.js";
 import { resolveStartFetch } from "../src/start-fetch.js";
-import { parseRpcResponse, parseStartActionResponse } from "../src/start-transport-protocol.js";
+import { parseStartActionResponse } from "../src/start-action-response-codec.js";
+import { parseRpcResponse } from "../src/start-transport-protocol.js";
 
 const makeRpcClient = (options: ServerRpcClientOptions<any, any, never> = {}): Server.Client =>
   Effect.runSync(
