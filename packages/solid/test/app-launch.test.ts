@@ -1,9 +1,18 @@
 // `App.launch` (from @sunfall/arc-start) in Solid's browser build: it restores
 // the server's hydration payload and hydrates the server-rendered root.
-import { makeRuntime, Resource, Route } from "@sunfall/arc-core";
+import {
+  Action,
+  ActionQueued,
+  ActionTransport,
+  makeRuntime,
+  Resource,
+  Route,
+  ServerTransportError,
+} from "@sunfall/arc-core";
 import { App, StartRootMissing } from "@sunfall/arc-start";
 import { createComponent } from "@solidjs/web";
-import { Effect, Exit, Fiber } from "effect";
+import { Context, Effect, Exit, Fiber, Layer, Option, Schedule, Schema } from "effect";
+import { KeyValueStore } from "effect/persistence";
 import { describe, expect, it, vi } from "vitest";
 import { Component, RouterProvider } from "../src/index.js";
 import {
@@ -56,6 +65,96 @@ describe("App.launch", () => {
           yield* Fiber.interrupt(fiber);
           // Interrupting disposes the tree and the runtime (and its Layer).
           expect(events.released).toBe(1);
+        }),
+      ),
+    ));
+
+  it("re-applies a pending durable submission's Resource patch after hydration", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const { App: Card, ProjectById, events } = ssrApp();
+          const Rename = Action.define({
+            name: `AppLaunch.durable-resource-patch.${ProjectById.family.options.name}`,
+            input: Schema.Struct({ id: Schema.String }),
+            durable: { maxAge: "1 hour" },
+            optimistic: ({ id }, transaction) =>
+              transaction.set(ProjectById(id), (name) => `${name} (renamed)`),
+            run: ({ id }) => Effect.succeed(id),
+          });
+          const Root = Component.define("Root", function* (props: App.RootProps) {
+            const Page = yield* Card;
+            return () => createComponent(Page, { id: props.href.split("/").pop() ?? "" });
+          });
+          // The browser's storage, shared by the previous page and the reload.
+          const storage = Context.get(
+            yield* Layer.build(KeyValueStore.layerMemory),
+            KeyValueStore.KeyValueStore,
+          );
+          const storageLayer = Layer.succeed(KeyValueStore.KeyValueStore)(storage);
+
+          // The previous page queued the rename while offline.
+          const previous = makeRuntime(
+            Layer.mergeAll(
+              Layer.succeed(ActionTransport)({
+                submit: () =>
+                  Option.some(
+                    Effect.fail(
+                      new ServerTransportError({ reason: "Network", message: "offline" }),
+                    ),
+                  ),
+              }),
+              Action.outboxLayer({ retry: Schedule.recurs(0) }).pipe(Layer.provide(storageLayer)),
+            ),
+          );
+          const queued = yield* Effect.flip(
+            Action.use(Rename, { runtime: previous }).submit({ id: "atlas" }),
+          );
+          expect(queued).toBeInstanceOf(ActionQueued);
+          yield* previous.dispose;
+
+          // The reload's document: the server never saw the rename.
+          const server = makeRuntime();
+          yield* Effect.addFinalizer(() => server.dispose.pipe(Effect.orDie));
+          yield* server.provide(Resource.preload(ProjectById("atlas")));
+          const resources = yield* server.provide(
+            Resource.hydrationPayload([ProjectById("atlas")]),
+          );
+          const hydrationGlobal = globalThis as { _$HY?: unknown };
+          hydrationGlobal._$HY = { events: [], completed: new WeakSet(), r: {} };
+          document.body.innerHTML = `<div id="root">${ssrMarkup}</div>${createHydrationScript(
+            createStartHydrationPayload(resources),
+          )}`;
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => {
+              delete hydrationGlobal._$HY;
+              document.body.innerHTML = "";
+            }),
+          );
+          const root = document.getElementById("root")!;
+
+          const app = App.define({
+            root: Root,
+            routes: [] as const,
+            actions: [Rename],
+            client: storageLayer,
+          });
+          const fiber = Effect.runFork(
+            App.launch(app, {
+              href: "/projects/atlas",
+              outbox: { retry: Schedule.recurs(0) },
+              // Still offline: the replay fails retryably, so the patch stays.
+              transport: { fetch: () => Effect.succeed(new Response("", { status: 503 })) },
+            }),
+          );
+          // Restoring after hydration patches the hydrated entry. Restoring
+          // first would find it unloaded and patch nothing.
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(root.textContent).toBe("Hello atlas: Project atlas (renamed)")),
+          );
+          expect(events).toMatchObject({ loads: 1, fallbacks: 0 });
+
+          yield* Fiber.interrupt(fiber);
         }),
       ),
     ));

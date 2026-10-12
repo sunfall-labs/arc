@@ -1,8 +1,10 @@
 import { Action } from "@sunfall/arc-core";
 import { Collection, Query } from "@sunfall/arc-db";
+import { Effect } from "effect";
 import {
   AdvanceProjectInput,
   ProjectApi,
+  ProjectById,
   ProjectSchema,
   ProjectSummarySchema,
   ProjectWorkItemSchema,
@@ -48,9 +50,9 @@ export const ProjectWorkItems = Collection.define({
 });
 
 /**
- * Advances a project. The sidebar row shows the progress bump at once
- * (`$synced: false`); success keeps it until the `Projects` reload lands, and
- * a failure rolls it back.
+ * Advances a project. The sidebar row (`$synced: false`) and the project page
+ * show the progress bump at once; success keeps it until the `Projects` and
+ * `Project` reloads land, and a failure rolls it back.
  *
  * Durable: offline, the advance is queued in the Action Outbox (its bump stays
  * visible, across reloads too) and replays once the browser is back online.
@@ -65,10 +67,16 @@ export const AdvanceProject = Action.define({
   },
   durable: { maxAge: "1 day" },
   optimistic: ({ id }, transaction) =>
-    transaction.update(ProjectSummaries, id, (project) => ({
-      ...project,
-      progress: Math.min(100, project.progress + 8),
-    })),
+    Effect.all([
+      transaction.update(ProjectSummaries, id, (project) => ({
+        ...project,
+        progress: Math.min(100, project.progress + 8),
+      })),
+      transaction.set(ProjectById(id), (project) => ({
+        ...project,
+        progress: Math.min(100, project.progress + 8),
+      })),
+    ]),
   run: (input) => ProjectApi.use((api) => api.advance(input)),
   invalidates: (project) => projectResourceInvalidations(project.id),
 });

@@ -173,6 +173,72 @@ describe("Component bindings", () => {
         ),
       ));
 
+    it("shows an Action's optimistic patch through the reader, over a refresh, without a fallback", () =>
+      Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const server = { name: "Atlas" };
+            const reload = yield* Deferred.make<void>();
+            let loads = 0;
+            const ProjectById = Resource.define<string, Project>({
+              name: "SolidBindings.optimistic-reader",
+              load: (id) =>
+                Effect.suspend(() =>
+                  loads++ === 0
+                    ? Effect.succeed({ id, name: server.name })
+                    : Effect.as(Deferred.await(reload), { id, name: server.name }),
+                ),
+            });
+            const ref = ProjectById("atlas");
+            const gate = yield* Deferred.make<void, string>();
+            const Rename = Action.define({
+              name: "SolidBindings.optimistic-reader.rename",
+              optimistic: (name: string, transaction) =>
+                transaction.set(ref, (project) => ({ ...project, name })),
+              run: (_name: string) => Deferred.await(gate),
+            });
+            const runtime = makeRuntime();
+            yield* Effect.addFinalizer(() => runtime.dispose.pipe(Effect.orDie));
+            let fallbacks = 0;
+            const Card = Component.define("Card", function* () {
+              const project = yield* Component.resource(ProjectById);
+              return () => [
+                (() => project("atlas").name) as never,
+                (() => (project.waiting("atlas") ? " refreshing" : "")) as never,
+                (() => (project.failure("atlas") === undefined ? "" : " failed")) as never,
+              ];
+            }).pipe(
+              Component.loading(() => {
+                fallbacks++;
+                return "loading";
+              }),
+            );
+
+            const container = document.createElement("div");
+            yield* Component.mount(Card, container, { runtime });
+            yield* waitForText(container, "Atlas");
+            const content = container.firstChild;
+
+            const submission = runtime.runFork(Action.use(Rename, { runtime }).submit("Atlas 2"));
+            yield* waitForText(container, "Atlas 2");
+
+            // A refresh during the submission keeps the patch on top.
+            server.name = "Atlas (server)";
+            runtime.runFork(Resource.refresh(ref));
+            yield* waitForText(container, "Atlas 2 refreshing");
+            yield* Deferred.succeed(reload, undefined);
+            yield* waitForText(container, "Atlas 2");
+
+            // A failure rolls back to the refreshed value.
+            yield* Deferred.fail(gate, "rejected");
+            yield* Fiber.await(submission);
+            yield* waitForText(container, "Atlas (server)");
+            expect(container.firstChild).toBe(content);
+            expect(fallbacks).toBe(0);
+          }),
+        ),
+      ));
+
     it("retains mounted resource values through gcFor", async () => {
       vi.useFakeTimers();
       let dispose: (() => void) | undefined;

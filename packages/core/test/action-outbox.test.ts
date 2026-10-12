@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   Action,
   ActionQueued,
+  ActionResult,
   ActionSubmissionExpired,
   ActionTransport,
   makeRuntime,
@@ -95,7 +96,7 @@ const defineApp = (name: string, maxAge: string = "1 hour") => {
     name,
     input: Advance,
     durable: { maxAge: maxAge as "1 hour" },
-    optimistic: (input, transaction) => transaction.signal(total, (value) => value + input.by),
+    optimistic: (input, transaction) => transaction.set(total, (value) => value + input.by),
     run: (input) => Effect.succeed(input.by),
   });
   return { total, AdvanceAction };
@@ -174,6 +175,35 @@ describe("Action outbox (durable submissions)", () => {
         expect(replayed.map((sent) => sent.id)).toEqual(pendingIds);
         expect(Signal.peek(total)).toBe(7);
         expect(storedIds(values)).toEqual([]);
+        yield* runtime.dispose;
+      }),
+    ));
+
+  it("rolls back a queued patch when the replay answers with a rejected ActionResult", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const { values, storage } = memoryStorage();
+        const server = fakeServer(values);
+        // The server's recorded outcome for the submission is a validation failure.
+        server.state.respond = () =>
+          Exit.succeed(ActionResult.validation({ formErrors: ["Not allowed."] }));
+        const { total, AdvanceAction } = defineApp("Outbox.rejected");
+        const runtime = makeRuntime(
+          Layer.mergeAll(
+            server.layer,
+            Action.outboxLayer({ retry: fastRetry }).pipe(Layer.provide(storage)),
+          ),
+        );
+
+        yield* Effect.flip(Action.use(AdvanceAction, { runtime }).submit({ id: "atlas", by: 8 }));
+        expect(Signal.peek(total)).toBe(8);
+
+        server.state.online = true;
+        const outbox = yield* runtime.provide(Action.outbox);
+        yield* waitFor(() => Signal.peek(outbox.pending).length === 0);
+        // The change did not happen: the patch rolled back instead of folding in.
+        expect(Signal.peek(total)).toBe(0);
+        expect(Signal.peek(outbox.failures)).toEqual([]);
         yield* runtime.dispose;
       }),
     ));

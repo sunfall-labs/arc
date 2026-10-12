@@ -1453,10 +1453,6 @@ const resourceHydrateEffect: Effect.Effect<
 Resource.hydrate([resourceSnapshot]);
 const resourceDecodeEffect: Effect.Effect<Resource.HydrationPayload, Resource.SnapshotCodecError> =
   Resource.decodeHydrationPayload('{"resources":[]}');
-const resourceDehydrateEffect: Effect.Effect<
-  ReadonlyArray<Resource.Snapshot>,
-  Resource.SnapshotCodecError
-> = Resource.dehydrate([]);
 const resourceHydrationPayload: Effect.Effect<
   Resource.HydrationPayload,
   Resource.SnapshotCodecError
@@ -1470,7 +1466,6 @@ declare const frameworkResourceInvalidationPlanAlias: Resource.InvalidationPlan;
 declare const frameworkResourceHydrationPayloadAlias: Resource.HydrationPayload;
 declare const frameworkResourceHydrationOptionsAlias: Resource.HydrationOptions;
 declare const frameworkResourceStatusAlias: Resource.Status<string, Project>;
-void resourceDehydrateEffect;
 void resourceHydrationPayload;
 void directResourceHydrationPayload;
 void frameworkResourceTagAlias;
@@ -2139,7 +2134,7 @@ const renameProjectRowPlan: Effect.Effect<
 Action.planOptimistic(RenameProjectRow, { id: "atlas" });
 const renameProjectRowChange = (change: Action.OptimisticChange): unknown => {
   switch (change._tag) {
-    case "Signal":
+    case "Set":
       return change.value;
     case "Insert":
       return change.values;
@@ -3131,17 +3126,61 @@ const TouchProject = Action.define<{ readonly id: string }, Project>({
     Effect.gen(function* () {
       const label = Signal.make("idle", { name: "label" });
       const unknownLabel = Signal.make<unknown>("idle", { name: "unknownLabel" });
-      yield* transaction.signal(label, id);
+      yield* transaction.set(label, id);
       // @ts-expect-error optimistic patches must match the target signal value type
-      yield* transaction.signal(label, 123);
+      yield* transaction.set(label, 123);
       // @ts-expect-error optimistic signal values cannot hide Promise-shaped values behind unknown
-      yield* transaction.signal(unknownLabel, promisedProject);
+      yield* transaction.set(unknownLabel, promisedProject);
       // @ts-expect-error optimistic signal updaters cannot hide Promise-shaped returns behind unknown
-      yield* transaction.signal<unknown>(unknownLabel, () => promisedProject);
+      yield* transaction.set<unknown>(unknownLabel, () => promisedProject);
     }),
   run: ({ id }) => Effect.succeed({ id, name: "Touched" }),
   invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
 });
+
+// `transaction.set` patches a Resource entry: the updater receives the
+// Resource's output type, and any family's ref works.
+const RenameProjectEverywhere = Action.define<{ readonly id: string; readonly name: string }, void>(
+  {
+    name: "Project.renameEverywhere",
+    optimistic: ({ id, name }, transaction) =>
+      Effect.gen(function* () {
+        yield* transaction.set(ProjectById(id), (project) => {
+          const current: Project = project;
+          return { ...current, name };
+        });
+        yield* transaction.set(ProjectRowsResource(undefined), (projects) =>
+          projects.map((project) => (project.id === id ? { ...project, name } : project)),
+        );
+        // A plain value replaces the entry's value.
+        yield* transaction.set(ProjectById(id), { id, name });
+        // The ref's load requirements are not needed to patch its entry.
+        const serviceless: Effect.Effect<void> = transaction.set(
+          ServicefulProjectResource(id),
+          (project) => project,
+        );
+        yield* serviceless;
+        // @ts-expect-error the updater must return the Resource's output type
+        yield* transaction.set(ProjectById(id), (project) => project.name);
+        // @ts-expect-error a plain value must be the Resource's output type
+        yield* transaction.set(ProjectById(id), { id });
+        // @ts-expect-error Resource patches cannot be Promise-shaped
+        yield* transaction.set(ProjectById(id), () => promisedProject);
+        // @ts-expect-error only writable Signals and Resource refs can be set
+        yield* transaction.set(ProjectById, (project: Project) => project);
+        const derivedLabel = Signal.derive(() => "label");
+        // @ts-expect-error only writable Signals and Resource refs can be set
+        yield* transaction.set(derivedLabel, "next");
+        // @ts-expect-error only writable Signals and Resource refs can be set
+        yield* transaction.set({ id, name }, { id, name });
+      }),
+    run: () => Effect.void,
+  },
+);
+const renameProjectEverywhereChange = (change: Action.OptimisticChange): unknown =>
+  change._tag === "Set" ? [change.target, change.value] : undefined;
+void RenameProjectEverywhere;
+void renameProjectEverywhereChange;
 
 Effect.runSync(
   Action.planInvalidation(TouchProject, { id: "atlas", name: "Atlas" }, { id: "atlas" }),
@@ -3332,7 +3371,7 @@ const InferredTouchProject = Action.define({
   optimistic: ({ id }, transaction) =>
     Effect.gen(function* () {
       const label = Signal.make("idle", { name: "label" });
-      yield* transaction.signal(label, id);
+      yield* transaction.set(label, id);
     }),
   run: (input) => ProjectApi.use((api) => api.rename(input)),
   invalidates: (project, input) => [ProjectTag({ id: project.id }), ProjectTag({ id: input.id })],

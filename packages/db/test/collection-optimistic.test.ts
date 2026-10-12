@@ -644,7 +644,7 @@ describe("Action optimistic Collection patches", () => {
               (transaction) =>
                 Effect.all([
                   transaction.update(Projects, "atlas", { name: "Renamed" }),
-                  transaction.signal(lastRenamed, "atlas"),
+                  transaction.set(lastRenamed, "atlas"),
                 ]),
               Effect.fail("nope"),
             ),

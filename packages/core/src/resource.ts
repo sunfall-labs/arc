@@ -52,7 +52,6 @@ import {
 } from "./resource-registry.js";
 import {
   collectResource,
-  dehydrateResources,
   deleteResource,
   hydrateResources,
   invalidateResource,
@@ -1029,12 +1028,6 @@ export namespace Resource {
   export const runInvalidationPlan = <R = never>(
     plan: ResourceInvalidationPlan<R>,
   ): Effect.Effect<void, never, R> => runResourceInvalidationPlan(plan);
-
-  /** Serializes successful resource refs from the active ResourceStore for hydration. */
-  export const dehydrate = (
-    refs: Iterable<AnyResourceRef<any>>,
-  ): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>, ResourceSnapshotCodecError> =>
-    dehydrateResources(refs);
 
   /** Builds a validated hydration payload from loaded Resource refs using the ResourceStore in context. */
   export const hydrationPayload = (

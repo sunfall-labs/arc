@@ -44,6 +44,10 @@ import {
   scheduleResourceGc,
   setResourcePending,
   shouldShowResourcePending,
+  syncedResourceState,
+  applyResourceOptimisticPatches,
+  type ResourceOptimisticLayers,
+  type ResourceOptimisticPatch,
   type ResourceLifetimeEntry as ResourceEntry,
 } from "./resource-lifetime.js";
 import {
@@ -325,7 +329,10 @@ export const resourceChangesStream = <I, A, E, R>(ref: ResourceRef<I, A, E, R>):
         Stream.filter((event) => isSettledResourceEvent(ref as AnyResourceRef, event)),
       );
       return Stream.concat(Stream.succeed(undefined), settled).pipe(
-        Stream.map(() => peekResourceEntry(ref, store)?.state.get()),
+        Stream.map(() => {
+          const entry = peekResourceEntry(ref, store);
+          return entry === undefined ? undefined : syncedResourceState(entry);
+        }),
         Stream.filter((result): result is AsyncResult.Success<A, E> => result?._tag === "Success"),
         Stream.map((result) => result.value),
         Stream.changesWith((left, right) => left === right),
@@ -367,7 +374,8 @@ export const runResource = <I, A, E, R>(
       yield* interruptResourceInFlight(entry);
     }
 
-    const current = entry.state.get();
+    // Loads see the synced value: optimistic patches are for readers only.
+    const current = syncedResourceState(entry);
     const now = yield* Clock.currentTimeMillis;
     const retained = isResourceRefRetained(ref as AnyResourceRef, store);
     if (
@@ -386,7 +394,7 @@ export const runResource = <I, A, E, R>(
     // the entry `waiting`. Only the load itself is interruptible.
     const loadEffect = Effect.uninterruptibleMask((restore) =>
       Effect.gen(function* () {
-        const current = entry.state.get();
+        const current = syncedResourceState(entry);
         const pendingNow = yield* Clock.currentTimeMillis;
         const shouldShowPending = shouldShowResourcePending(
           ref as ResourceRef<unknown, A, E, unknown>,
@@ -417,7 +425,7 @@ export const runResource = <I, A, E, R>(
           ),
         );
         const now = yield* Clock.currentTimeMillis;
-        const previous = entry.state.get();
+        const previous = syncedResourceState(entry);
         const settled = settleResult(
           Exit.map(exit, (loaded) => loaded.value),
           previous,
@@ -647,7 +655,7 @@ export const runResourceInvalidationPlan = <R = never>(
     }
   });
 
-export const dehydrateResources = (
+const dehydrateResources = (
   refs: Iterable<AnyResourceRef<any>>,
 ): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>, ResourceSnapshotCodecError> =>
   Effect.gen(function* () {
@@ -661,7 +669,8 @@ export const dehydrateResources = (
       if (entry === undefined) {
         continue;
       }
-      const state = entry.state.get();
+      // Snapshots carry the synced value: optimistic patches never cross a wire.
+      const state = syncedResourceState(entry);
       if (state._tag === "Success") {
         snapshot.push(yield* resourceHydrationSnapshotFromRef(ref, state, `$[${pathIndex}]`));
       }
@@ -825,7 +834,8 @@ export const hydrateResources = (
         `${path}.state.value`,
       );
       if (options.skipFresh === true && now !== undefined) {
-        const current = peekResourceEntry(ref, store)?.state.get() ?? AsyncResult.initial();
+        const entry = peekResourceEntry(ref, store);
+        const current = entry === undefined ? AsyncResult.initial() : syncedResourceState(entry);
         const status = inspectResourceStatus(ref, current, now);
         if (current._tag === "Success" && !status.isStale && !status.isGcExpired) {
           continue;
@@ -843,3 +853,109 @@ export const hydrateResources = (
       { discard: true },
     );
   });
+
+/** A Resource entry one Action submission patched, bound to its store. */
+export interface ResourceOptimisticTarget {
+  readonly ref: AnyResourceRef;
+  readonly store: ResourceStoreState;
+  readonly entry: ResourceEntry<any, any>;
+}
+
+/** The visible value of `ref` in the caller's store, patches included; none until loaded. */
+export const peekResourceValueEffect = <I, A, E, R>(
+  ref: ResourceRef<I, A, E, R>,
+): Effect.Effect<Option.Option<A>> =>
+  Effect.map(resourceStoreEffect, (store) => {
+    const entry = peekResourceEntry(ref, store);
+    return entry === undefined ? Option.none() : AsyncResult.value(entry.state.get());
+  });
+
+/**
+ * Layers `transaction`'s patch over the loaded value of `ref` in the caller's
+ * store and shows the patched value, committing under the caller's named
+ * transition. An entry with no value yet is left alone (`undefined`). Fails
+ * with what a patch throws, applying nothing.
+ */
+export const patchResourceEffect = <I, A, E, R>(
+  ref: ResourceRef<I, A, E, R>,
+  transaction: symbol,
+  apply: (value: A) => A,
+): Effect.Effect<ResourceOptimisticTarget | undefined, unknown> =>
+  Effect.gen(function* () {
+    const store = yield* resourceStoreEffect;
+    const entry = peekResourceEntry(ref, store);
+    if (entry === undefined) {
+      return undefined;
+    }
+    const synced = syncedResourceState(entry);
+    if (Option.isNone(AsyncResult.value(synced))) {
+      return undefined;
+    }
+    const patches = [...(entry.optimistic?.patches ?? []), { transaction, apply }];
+    const visible = yield* Effect.try({
+      try: () => applyResourceOptimisticPatches(synced, patches),
+      catch: (cause) => cause,
+    });
+    entry.state.set(visible);
+    entry.optimistic = { synced, patches };
+    return { ref: ref as AnyResourceRef, store, entry };
+  });
+
+/** How a patched entry settles: computed first, then written in one batch. */
+export interface ResourceOptimisticSettlePlan {
+  readonly target: ResourceOptimisticTarget;
+  readonly layers: ResourceOptimisticLayers<any, any> | undefined;
+  readonly visible: AsyncResult.AsyncResult<any, any>;
+  /** The synced value with the transaction's patches folded in (commit only). */
+  readonly committed: AsyncResult.AsyncResult<any, any> | undefined;
+}
+
+/**
+ * Plans removing `transaction`'s patches from an entry: a commit folds them
+ * into the synced value, a rollback drops them, and other submissions'
+ * patches rebase on the result. Throws when a patch throws.
+ */
+export const planResourceOptimisticSettle = (
+  target: ResourceOptimisticTarget,
+  transaction: symbol,
+  commit: boolean,
+): ResourceOptimisticSettlePlan | undefined => {
+  const layers = target.entry.optimistic;
+  if (layers === undefined) {
+    return undefined;
+  }
+  let synced = layers.synced;
+  const rest: Array<ResourceOptimisticPatch> = [];
+  for (const patch of layers.patches) {
+    if (patch.transaction !== transaction) {
+      rest.push(patch);
+    } else if (commit) {
+      synced = applyResourceOptimisticPatches(synced, [patch]);
+    }
+  }
+  return {
+    target,
+    layers: rest.length === 0 ? undefined : { synced, patches: rest },
+    visible: applyResourceOptimisticPatches(synced, rest),
+    committed: commit ? synced : undefined,
+  };
+};
+
+/** Writes a settle plan; run it inside the batch that names the commit. */
+export const applyResourceOptimisticSettle = (plan: ResourceOptimisticSettlePlan): void => {
+  plan.target.entry.optimistic = plan.layers;
+  plan.target.entry.state.set(plan.visible);
+};
+
+/**
+ * Keeps the Resource cache in step with a committed fold, so a load that
+ * reuses the cache sees the folded value until the next reload replaces it.
+ */
+export const cacheResourceOptimisticCommitEffect = (
+  plan: ResourceOptimisticSettlePlan,
+): Effect.Effect<void> => {
+  const { committed, target } = plan;
+  return committed?._tag === "Success"
+    ? Cache.set(resourceCache(target.ref.family, target.store), target.ref.key, committed.value)
+    : Effect.void;
+};

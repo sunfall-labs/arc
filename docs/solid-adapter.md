@@ -194,17 +194,25 @@ latest success kept as `previousSuccess`). `reset()` is an Effect too.
 Unmounting interrupts in-flight submissions.
 
 Actions are the one way to change server data, including rows the screen must
-show before the server answers. `optimistic` patches Signals and Collection
-rows through its transaction before `run`; success folds the patches in (a
-collection row keeps its new value until the `invalidates` reload replaces
-it), and a failure or interruption rolls them back:
+show before the server answers. `optimistic` patches Signals, Resource entries,
+and Collection rows through its transaction before `run`; success folds the
+patches in (a patched value stays until the `invalidates` reload replaces it),
+and a failure or interruption rolls them back. A patched Resource entry reads
+through `Component.resource` like any other value: the reader returns the
+patched value and `waiting`/`failure` keep the entry's own status, so the
+patch never suspends or flashes a fallback, and a refresh in flight keeps it
+on top:
 
 ```ts
 const RenameProject = Action.define({
   name: "Projects.rename",
   input: RenameInput,
   output: Project,
-  optimistic: (input, transaction) => transaction.update(Projects, input.id, { name: input.name }),
+  optimistic: (input, transaction) =>
+    Effect.all([
+      transaction.update(Projects, input.id, { name: input.name }),
+      transaction.set(ProjectById(input.id), (project) => ({ ...project, name: input.name })),
+    ]),
   run: (input) => ProjectApi.use((api) => api.rename(input)),
   invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
 });

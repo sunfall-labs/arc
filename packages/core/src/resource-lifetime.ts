@@ -14,10 +14,28 @@ export interface ResourceInFlight<A, E> {
   fiber: Fiber.Fiber<A, E>;
 }
 
+/** One Action submission's optimistic patch to a Resource entry's value. */
+export interface ResourceOptimisticPatch {
+  readonly transaction: symbol;
+  readonly apply: (value: any) => any;
+}
+
+/**
+ * Optimistic layers over an entry: `synced` is the result the store loaded or
+ * hydrated, and the entry's `state` shows it with `patches` applied in order.
+ */
+export interface ResourceOptimisticLayers<A, E> {
+  readonly synced: AsyncResult.AsyncResult<A, E>;
+  readonly patches: ReadonlyArray<ResourceOptimisticPatch>;
+}
+
 export interface ResourceLifetimeEntry<A, E> {
   readonly resource: string;
   readonly key: string;
+  /** The visible result: the synced result with any optimistic patches applied. */
   readonly state: WritableSignal<AsyncResult.AsyncResult<A, E>>;
+  /** Present while in-flight Action submissions patch this entry. */
+  optimistic: ResourceOptimisticLayers<A, E> | undefined;
   inFlight: ResourceInFlight<A, E> | undefined;
   gcFiber: Fiber.Fiber<void, never> | undefined;
 }
@@ -31,9 +49,33 @@ export const makeResourceEntry = <A, E>(
   state: Signal.make<AsyncResult.AsyncResult<A, E>>(AsyncResult.initial(), {
     name: `${resource}(${key})`,
   }),
+  optimistic: undefined,
   inFlight: undefined,
   gcFiber: undefined,
 });
+
+/**
+ * The entry's synced result: what loads, hydration, and snapshots see, without
+ * any optimistic patch.
+ */
+export const syncedResourceState = <A, E>(
+  entry: ResourceLifetimeEntry<A, E>,
+): AsyncResult.AsyncResult<A, E> => entry.optimistic?.synced ?? entry.state.get();
+
+/**
+ * Applies optimistic patches, in order, to a synced result's value (and to a
+ * failure's previous success); an `Initial` result has no value to patch.
+ * Throws when a patch throws.
+ */
+export const applyResourceOptimisticPatches = <A, E>(
+  synced: AsyncResult.AsyncResult<A, E>,
+  patches: ReadonlyArray<ResourceOptimisticPatch>,
+): AsyncResult.AsyncResult<A, E> =>
+  patches.length === 0
+    ? synced
+    : AsyncResult.map(synced, (value) =>
+        patches.reduce((current, patch) => patch.apply(current) as A, value),
+      );
 
 export const isResourceStateStale = <A, E, RefError>(
   ref: ResourceRef<unknown, A, RefError, unknown>,
@@ -203,23 +245,33 @@ export const scheduleResourceGc = <I, A, E, R, RefError = E>(
     });
   });
 
-/** The one write path for an entry's state, labelled for `Timeline` entries. */
+/**
+ * The one write path for an entry's synced state, labelled for `Timeline`
+ * entries. Optimistic patches stay on top: the entry shows the new synced
+ * result with them applied.
+ */
 export const commitResourceState = <A, E>(
   entry: ResourceLifetimeEntry<A, E>,
   state: AsyncResult.AsyncResult<A, E>,
   event: TimelineResourceCause["event"],
 ): void => {
-  batchSignalWrites(() => entry.state.set(state), {
-    _tag: "Resource",
-    resource: entry.resource,
-    key: entry.key,
-    event,
-  });
+  const layers = entry.optimistic;
+  const visible =
+    layers === undefined ? state : applyResourceOptimisticPatches(state, layers.patches);
+  batchSignalWrites(
+    () => {
+      if (layers !== undefined) {
+        entry.optimistic = { synced: state, patches: layers.patches };
+      }
+      entry.state.set(visible);
+    },
+    { _tag: "Resource", resource: entry.resource, key: entry.key, event },
+  );
 };
 
 /** Marks the current result `waiting`, keeping its tag (stale-while-refreshing). */
 export const setResourcePending = <A, E>(entry: ResourceLifetimeEntry<A, E>): void => {
-  commitResourceState(entry, AsyncResult.waiting(entry.state.get()), "load");
+  commitResourceState(entry, AsyncResult.waiting(syncedResourceState(entry)), "load");
 };
 
 export const resetResourceEntry = <A, E>(entry: ResourceLifetimeEntry<A, E>): void => {

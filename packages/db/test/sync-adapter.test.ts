@@ -532,6 +532,73 @@ describe("Collection sync follow", () => {
     );
   });
 
+  it("patches rows and Resource entries in one submission, keeping the followed base synced", () => {
+    const runtime = makeRuntime();
+    const fixture = makeProjects("Projects.follow.optimistic-resources");
+    const ProjectById = Resource.define<string, Project>({
+      name: "Projects.follow.optimistic-resources.byId",
+      load: (id: string) => Effect.succeed<Project>({ id, name: "Atlas", archived: false }),
+    });
+    const rows = () => runtime.runSync(Effect.sync(() => fixture.Projects.rows()));
+    const detail = () => runtime.runSync(Resource.read(ProjectById("atlas")));
+    const list = () => runtime.runSync(Resource.read(fixture.ref));
+
+    return Effect.runPromise(
+      runtime
+        .provide(
+          Effect.gen(function* () {
+            yield* fixture.Projects.preload();
+            yield* Resource.preload(ProjectById("atlas"));
+            const release = yield* Deferred.make<void, string>();
+            const Rename = Action.define({
+              name: "Projects.follow.optimistic-resources.rename",
+              optimistic: (input: { readonly name: string }, transaction) =>
+                Effect.all([
+                  transaction.update(fixture.Projects, "atlas", { name: input.name }),
+                  transaction.set(ProjectById("atlas"), (project) => ({
+                    ...project,
+                    name: input.name,
+                  })),
+                  // The Resource the collection follows: its readers see the
+                  // patch, but the rows sync from its synced value.
+                  transaction.set(fixture.ref, (projects) =>
+                    projects.map((project) => ({ ...project, archived: true })),
+                  ),
+                ]),
+              run: (_input: { readonly name: string }) => Deferred.await(release),
+            });
+            const submission = yield* Effect.forkChild(
+              Action.use(Rename, { runtime }).submit({ name: "Atlas Local" }),
+            );
+            yield* eventually(() => detail().name === "Atlas Local");
+            expect(rows()).toMatchObject([
+              { name: "Atlas Local", archived: false, $synced: false },
+            ]);
+            expect(list()).toMatchObject([{ name: "Atlas", archived: true }]);
+
+            // A followed reload rebases the row layer; the list patch stays a
+            // reader-only layer over the reloaded value.
+            fixture.setRows([{ id: "atlas", name: "Atlas Remote", archived: false }]);
+            yield* Resource.invalidate(fixture.Tag);
+            yield* eventually(() => fixture.loads.count === 2);
+            expect(list()).toMatchObject([{ name: "Atlas Remote", archived: true }]);
+            expect(rows()).toMatchObject([
+              { name: "Atlas Local", archived: false, $synced: false },
+            ]);
+
+            yield* Deferred.fail(release, "nope");
+            yield* Fiber.await(submission);
+            expect(detail().name).toBe("Atlas");
+            expect(list()).toMatchObject([{ name: "Atlas Remote", archived: false }]);
+            expect(rows()).toMatchObject([
+              { name: "Atlas Remote", archived: false, $synced: true },
+            ]);
+          }),
+        )
+        .pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
+    );
+  });
+
   it("follows hydrated state without fetching again on the client", () => {
     const server = makeRuntime();
     const client = makeRuntime();

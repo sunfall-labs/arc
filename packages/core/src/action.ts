@@ -73,7 +73,7 @@ export interface ActionPolicy<E = never> {
  *
  * Schema metadata is shared with clients for input/output/error validation.
  * `run` stays Effect-first; Promise-shaped callbacks are rejected by the
- * public types. `optimistic` patches Signals and Collection rows through its
+ * public types. `optimistic` patches Signals, Resource entries, and Collection rows through its
  * transaction before `run`; the patches fold in on success and roll back on
  * failure or interruption.
  */
@@ -105,7 +105,7 @@ export interface ActionDefinition<I, A, E = never, R = never> {
    */
   readonly run: (input: I) => EffectInput<A, E, R>;
   /**
-   * Patches Signals and Collection rows before `run`. The transaction owns
+   * Patches Signals, Resource entries, and Collection rows before `run`. The transaction owns
    * every patch: success folds them in, failure or interruption rolls them back.
    */
   readonly optimistic?: (
@@ -142,7 +142,7 @@ export interface ActionOptions<I, A, E = never, R = never> {
    */
   readonly run: (input: I) => EffectInput<A, E, R>;
   /**
-   * Patches Signals and Collection rows before `run`. The transaction owns
+   * Patches Signals, Resource entries, and Collection rows before `run`. The transaction owns
    * every patch: success folds them in, failure or interruption rolls them back.
    */
   readonly optimistic?: (
@@ -344,16 +344,18 @@ export namespace Action {
 
   /**
    * Plans what a definition's `optimistic` patch changes for `input`, without
-   * applying anything: no runtime, store, or backend is involved. Each Signal
-   * patch reports the value the signal would read (computed from its current
-   * value); each row change reports the store and the change as given. A
-   * definition without `optimistic` plans nothing. This is how optimistic
-   * patches are tested.
+   * applying anything: nothing is written and no backend is involved. Each
+   * `set` reports the value its Signal or Resource entry would read, computed
+   * from the current value (a Resource entry the caller's store has not
+   * loaded plans no change); each row change reports the store and the change
+   * as given. A definition without `optimistic` plans nothing. This is how
+   * optimistic patches are tested.
    *
    * @example
    * ```ts
    * const changes = yield* Action.planOptimistic(RenameProject, { id, name: "Atlas 2" });
-   * // [{ _tag: "Update", rows: Projects, key: id, update: { name: "Atlas 2" } }]
+   * // [{ _tag: "Update", rows: Projects, key: id, update: { name: "Atlas 2" } },
+   * //  { _tag: "Set", target: ProjectById(id), value: { ...project, name: "Atlas 2" } }]
    * ```
    */
   export const planOptimistic = <I, A, E, R>(

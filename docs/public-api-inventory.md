@@ -190,9 +190,10 @@ retry? })` (`Action.OutboxOptions`) provides the `ActionOutbox` service over
   as `EffectInputCallbackError`.
 - `Action.planOptimistic(definition, input)` (`Action.OptimisticChange`) is the
   test surface for `optimistic`: it runs the callback against a recording
-  transaction and returns the changes it would make (a Signal's next value, or
-  a row store plus the `Insert`/`Update`/`Delete` change as given) without
-  applying any or needing a runtime, store, or backend.
+  transaction and returns the changes it would make (`Set` with the value a
+  Signal or loaded Resource entry would read, or a row store plus the
+  `Insert`/`Update`/`Delete` change as given) without applying any or calling
+  a backend.
 - `PlainValue` is the expert-public type vocabulary for non-executable data
   seams. Promise-shaped values must be adapted through `Effect.tryPromise(...)`,
   and direct Effect values are executable work unless wrapped as
@@ -328,9 +329,12 @@ Release decisions:
   A `run`, `optimistic`, or `invalidates` callback that breaks its contract is
   a defect, not part of the error type.
 - Actions are the one mutation path. `optimistic(input, transaction)` patches
-  Signals (`transaction.signal`) and Collection rows
+  Signals and Resource entries (`transaction.set(signal | ref, update)`, the
+  update a value or a pure updater typed by the target) and Collection rows
   (`transaction.insert/update/delete`) for the life of one submission; the
-  transaction commits or rolls back every patch. `ActionOptimisticRows` and
+  transaction commits or rolls back every patch. A Resource patch layers over
+  the entry's synced value: readers see it, loads and snapshots do not, and an
+  entry that has not loaded is left alone. A run that returns a rejected `ActionResult` (`ValidationFailure`, `Failure`) rolls the patches back as a failure does. `ActionOptimisticRows` and
   `ActionOptimisticRowsTypeId` are the expert seam row stores implement
   (Collections do); application code never implements it.
 - The internal Action Execution Workflow Module owns callback normalization,
@@ -423,7 +427,7 @@ commands)`, never an Effect. `Program.emit(...)`
   codec. It tells callers when JSON-compatible values plus Date, URL, Map, and
   Set are not enough and an explicit `key` callback is required.
 - Resource operations have one Effect form each (`status`, `read`,
-  `dehydrate`, `hydrationPayload`, `hydrate`,
+  `hydrationPayload`, `hydrate`,
   `planInvalidation`, `invalidate`, `runInvalidationPlan`);
   the synchronous twins that ran on an ambient/default runtime are removed.
   Host seams run them on an explicit runtime (`runtime.runSync(...)`).
@@ -439,7 +443,7 @@ commands)`, never an Effect. `Program.emit(...)`
   The result type is exposed as `Resource.Collected<A>`; the internal
   `ResourceCollector` service and flat `ResourceCollected` alias are not root
   exports.
-- Resource dehydrate and hydration payload Effects now schema-encode inputs and
+- Resource hydration payload Effects now schema-encode inputs and
   success values before they cross snapshot seams, so Start, Solid, and tests
   observe the same wire policy as hydrate.
 - `resource-ui-binding` is the internal Resource UI Binding Controller

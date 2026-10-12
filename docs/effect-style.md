@@ -222,7 +222,7 @@ const SaveUser = Action.define({
   },
   optimistic: (input: UserInput, transaction) =>
     Effect.gen(function* () {
-      yield* transaction.signal(selectedUserName, input.name);
+      yield* transaction.set(selectedUserName, input.name);
 
       return Effect.sync(() => {
         // Optional extra rollback for patches outside the transaction helpers.

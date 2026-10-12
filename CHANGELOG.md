@@ -6,6 +6,38 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Optimistic Patches Reach Resources (Breaking)
+
+- An Action's `optimistic` transaction patches any Resource entry with
+  `transaction.set(ref, update)`, e.g.
+  `transaction.set(ProjectById(id), (project) => ({ ...project, name }))`.
+  The updater receives the Resource's output type. The patch layers over the
+  entry's synced value for the life of the submission: readers
+  (`Resource.result`, `Resource.read`, the Solid reader with its `waiting`
+  and `failure`) see it with no Suspense flash, a reload in flight replaces
+  the value underneath and keeps the patch on top, success folds it in until
+  the `invalidates` reload, and a failure or interruption rolls it back and
+  rebases other submissions' patches. Loads (`Resource.preload`, `refresh`,
+  `changes`, and so a Collection following the Resource) and SSR snapshots
+  see only the synced value; an entry that has not loaded is left alone.
+  Durable submissions re-apply their Resource patches after hydration.
+- `transaction.set` is the one verb for patching a value, Signal or Resource
+  entry; `transaction.signal(signal, update)` is removed (use
+  `transaction.set(signal, update)`). Row stores keep
+  `transaction.insert/update/delete`.
+- `Action.planOptimistic` reports value patches as
+  `{ _tag: "Set", target, value }` (the Signal or Resource ref, and the value
+  it would read) instead of `{ _tag: "Signal", signal, value }`; a Resource
+  entry the caller's runtime has not loaded plans no change.
+- The golden path's rename now patches the sidebar row and the project page
+  at once, and the project console's rename and advance Actions patch the
+  `ProjectById` entry.
+- A run that returns a rejected `ActionResult` (`ValidationFailure` or
+  `Failure`) rolls the submission's optimistic patches back exactly as a
+  failure does (Timeline cause `failure`), instead of folding them in; this
+  holds for local runs, remote responses, and durable replays. `Success` and
+  `Redirect` results commit as before.
+
 ### One Name, One Form (Breaking)
 
 - Every public type has one name. Package roots export namespaces plus the
@@ -43,6 +75,8 @@ Entries are newest first.
   `prerender: false` directly (`StartPrerenderPageOptions` is gone) and the
   prerender options object has no `enabled` flag (`false` disables); cookie
   `sameSite` is lowercase only.
+- `Resource.dehydrate(refs)` is removed; `Resource.hydrationPayload(refs)` is
+  the one way to snapshot loaded refs (read `.resources` for the snapshots).
 - No exported name ends in `Effect`
   (`generateValidatedFileRouteManifestEffect` is
   `generateValidatedFileRouteManifest`, and so on); where a throwing twin
