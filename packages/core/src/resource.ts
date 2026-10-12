@@ -34,8 +34,8 @@ import type { ReadableSignal } from "./signal.js";
 import { encodeResourceKey } from "./resource-key-codec.js";
 import type { ResourceCollected } from "./resource-collector.js";
 import {
-  decodeResourceHydrationPayloadEffect,
-  encodeResourceHydrationPayloadEffect,
+  decodeResourceHydrationPayload,
+  encodeResourceHydrationPayload,
   ResourceHydrationApplyError,
   type ResourceSnapshotCodecError,
 } from "./resource-snapshot-codec.js";
@@ -45,21 +45,21 @@ import {
   resourceDiagnostics,
 } from "./resource-registry.js";
 import {
-  collectResourceEffect,
-  dehydrateResourcesEffect,
-  deleteResourceEffect,
-  hydrateResourcesEffect,
-  invalidateResourceEffect,
-  planResourceInvalidationEffect,
-  prefetchResourceEffect,
-  readResourceEffect,
-  refreshResourceEffect,
-  resourceHydrationPayloadEffect,
+  collectResource,
+  dehydrateResources,
+  deleteResource,
+  hydrateResources,
+  invalidateResource,
+  planResourceInvalidation,
+  prefetchResource,
+  readResource,
+  refreshResource,
+  resourceHydrationPayload,
   resourceChangesStream,
   resourceResult,
-  resourceStatusEffect,
-  runResourceInvalidationPlanEffect,
-  subscribeResourceEventsEffect,
+  resourceStatus,
+  runResourceInvalidationPlan,
+  subscribeResourceEvents,
 } from "./resource-runtime.js";
 
 export { isResourceRef, isResourceTag } from "./resource-dependency-graph.js";
@@ -876,9 +876,9 @@ export namespace Resource {
   /** Computes which cached refs would be affected by a ref or tag invalidation. */
   export const planInvalidation = <R = never>(
     target: ResourceInvalidationTarget<R>,
-  ): Effect.Effect<ResourceInvalidationPlan<R>> => planResourceInvalidationEffect(target);
+  ): Effect.Effect<ResourceInvalidationPlan<R>> => planResourceInvalidation(target);
 
-  export const subscribeEvents = subscribeResourceEventsEffect;
+  export const subscribeEvents = subscribeResourceEvents;
 
   /**
    * Streams a ref's settled success values.
@@ -909,7 +909,7 @@ export namespace Resource {
    */
   export const status = <I, A, E, R>(
     ref: ResourceRef<I, A, E, R>,
-  ): Effect.Effect<ResourceStatus<I, A, E, R, E>> => resourceStatusEffect(ref);
+  ): Effect.Effect<ResourceStatus<I, A, E, R, E>> => resourceStatus(ref);
 
   const forTarget = <const Target extends ResourceRefTarget>(
     target: Target,
@@ -939,7 +939,7 @@ export namespace Resource {
     ResourceRefTargetValue<Target>,
     ResourceRefTargetError<Target>,
     ResourceRefTargetRequirements<Target>
-  > => forTarget(target, refreshResourceEffect);
+  > => forTarget(target, refreshResource);
 
   /**
    * Ensures a ref, or every ref of an array concurrently, is loaded as an
@@ -958,7 +958,7 @@ export namespace Resource {
     ResourceRefTargetValue<Target>,
     ResourceRefTargetError<Target>,
     ResourceRefTargetRequirements<Target>
-  > => forTarget(target, prefetchResourceEffect);
+  > => forTarget(target, prefetchResource);
 
   /**
    * Deletes a resource ref from the active Resource Store.
@@ -968,12 +968,12 @@ export namespace Resource {
    * `ResourceDeleted`.
    */
   export const evict = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<void> =>
-    deleteResourceEffect(ref);
+    deleteResource(ref);
 
   /** Runs an Effect and returns the resource refs it touched through preload/refresh. */
   export const collect = <A, E, R>(
     effect: Effect.Effect<A, E, R>,
-  ): Effect.Effect<Collected<A>, E, R> => collectResourceEffect(effect);
+  ): Effect.Effect<Collected<A>, E, R> => collectResource(effect);
 
   /**
    * Effect-first read for an already-loaded resource value.
@@ -983,43 +983,42 @@ export namespace Resource {
    */
   export const read = <I, A, E, R>(
     ref: ResourceRef<I, A, E, R>,
-  ): Effect.Effect<A, ResourceReadError<I, A, E, R>, R> => readResourceEffect(ref);
+  ): Effect.Effect<A, ResourceReadError<I, A, E, R>, R> => readResource(ref);
 
   /**
    * Invalidates refs or tags and refreshes affected resources as an Effect.
    */
   export const invalidate = <R = never>(
     target: ResourceInvalidationTarget<R>,
-  ): Effect.Effect<void, never, R> => invalidateResourceEffect(target);
+  ): Effect.Effect<void, never, R> => invalidateResource(target);
 
   /** Runs a previously computed invalidation plan as an Effect. */
   export const runInvalidationPlan = <R = never>(
     plan: ResourceInvalidationPlan<R>,
-  ): Effect.Effect<void, never, R> => runResourceInvalidationPlanEffect(plan);
+  ): Effect.Effect<void, never, R> => runResourceInvalidationPlan(plan);
 
   /** Serializes successful resource refs from the active ResourceStore for hydration. */
   export const dehydrate = (
     refs: Iterable<AnyResourceRef<any>>,
   ): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>, ResourceSnapshotCodecError> =>
-    dehydrateResourcesEffect(refs);
+    dehydrateResources(refs);
 
   /** Builds a validated hydration payload from loaded Resource refs using the ResourceStore in context. */
   export const hydrationPayload = (
     refs: Iterable<AnyResourceRef<any>>,
   ): Effect.Effect<ResourceHydrationPayload, ResourceSnapshotCodecError> =>
-    resourceHydrationPayloadEffect(refs);
+    resourceHydrationPayload(refs);
 
   /** Encodes a validated hydration payload as JSON. */
   export const encodeHydrationPayload = (
     payload: ResourceHydrationPayload,
-  ): Effect.Effect<string, ResourceSnapshotCodecError> =>
-    encodeResourceHydrationPayloadEffect(payload);
+  ): Effect.Effect<string, ResourceSnapshotCodecError> => encodeResourceHydrationPayload(payload);
 
   /** Decodes and validates a hydration payload from JSON. */
   export const decodeHydrationPayload = (
     encoded: string,
   ): Effect.Effect<ResourceHydrationPayload, ResourceSnapshotCodecError> =>
-    decodeResourceHydrationPayloadEffect(encoded);
+    decodeResourceHydrationPayload(encoded);
 
   /**
    * Restores successful resource snapshots into the current ResourceStore.
@@ -1032,5 +1031,5 @@ export namespace Resource {
     input: ResourceHydrationPayload,
     options?: ResourceHydrationOptions,
   ): Effect.Effect<void, ResourceSnapshotCodecError | ResourceHydrationApplyError> =>
-    hydrateResourcesEffect(input, options);
+    hydrateResources(input, options);
 }

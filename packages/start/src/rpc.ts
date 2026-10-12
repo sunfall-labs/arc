@@ -185,7 +185,7 @@ export const makeStartRequestId = (): string =>
   `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
 
 /** Captures sanitized request diagnostics and request id propagation data. */
-export const startTransportDiagnosticsEffect = (
+export const startTransportDiagnostics = (
   kind: StartTransportKind,
   request: Request,
   options: StartTransportDiagnosticsOptions = {},
@@ -211,12 +211,12 @@ export const startTransportDiagnosticsEffect = (
   });
 
 /** Constructs the Start Transport Endpoint Envelope for one RPC/action request. */
-export const startTransportEndpointEnvelopeEffect = (
+export const startTransportEndpointEnvelope = (
   kind: StartTransportKind,
   request: Request,
   options: StartTransportDiagnosticsOptions = {},
 ): Effect.Effect<StartTransportEndpointEnvelope> =>
-  Effect.map(startTransportDiagnosticsEffect(kind, request, options), (diagnostics) => ({
+  Effect.map(startTransportDiagnostics(kind, request, options), (diagnostics) => ({
     kind,
     requestId: diagnostics.requestId,
     diagnostics,
@@ -247,7 +247,7 @@ export const withStartTransportDiagnostics = (
   });
 
 /** Validates Accept headers and returns a typed 406 transport request error on mismatch. */
-export const validateStartTransportAcceptEffect = (
+export const validateStartTransportAccept = (
   kind: StartTransportKind,
   request: Request,
   mediaTypes: readonly string[],
@@ -269,7 +269,7 @@ export const validateStartTransportAcceptEffect = (
       );
 
 /** Validates Content-Type headers and returns a typed 415 transport request error on mismatch. */
-export const validateStartTransportContentTypeEffect = (
+export const validateStartTransportContentType = (
   kind: StartTransportKind,
   request: Request,
   mediaTypes: readonly string[],
@@ -291,7 +291,7 @@ export const validateStartTransportContentTypeEffect = (
       );
 
 /** Validates HTTP method and returns a typed 405 transport request error on mismatch. */
-export const validateStartTransportMethodEffect = (
+export const validateStartTransportMethod = (
   kind: StartTransportKind,
   request: Request,
   method: string,
@@ -310,26 +310,26 @@ export const validateStartTransportMethodEffect = (
       );
 
 /** Validates a server-function RPC request. */
-export const validateStartRpcRequestEffect = (
+export const validateStartRpcRequest = (
   request: Request,
 ): Effect.Effect<void, StartTransportRequestError> =>
   Effect.gen(function* () {
-    yield* validateStartTransportMethodEffect("rpc", request, "POST");
-    yield* validateStartTransportAcceptEffect("rpc", request, [startJsonMediaType]);
-    yield* validateStartTransportContentTypeEffect("rpc", request, [startJsonMediaType]);
+    yield* validateStartTransportMethod("rpc", request, "POST");
+    yield* validateStartTransportAccept("rpc", request, [startJsonMediaType]);
+    yield* validateStartTransportContentType("rpc", request, [startJsonMediaType]);
   });
 
 /** Validates an action transport request, including progressive form media types. */
-export const validateStartActionRequestEffect = (
+export const validateStartActionRequest = (
   request: Request,
 ): Effect.Effect<void, StartTransportRequestError> =>
   Effect.gen(function* () {
-    yield* validateStartTransportMethodEffect("action", request, "POST");
-    yield* validateStartTransportAcceptEffect("action", request, [
+    yield* validateStartTransportMethod("action", request, "POST");
+    yield* validateStartTransportAccept("action", request, [
       startJsonMediaType,
       startHtmlMediaType,
     ]);
-    yield* validateStartTransportContentTypeEffect("action", request, [
+    yield* validateStartTransportContentType("action", request, [
       startJsonMediaType,
       startFormUrlEncodedMediaType,
       startMultipartFormDataMediaType,
@@ -354,7 +354,7 @@ const validateStartJsonResponseEffect = (
       );
 
 /** Validates that an RPC response uses the JSON transport media type. */
-export const validateStartRpcResponseEffect = (
+export const validateStartRpcResponse = (
   response: Response,
 ): Effect.Effect<void, ServerTransportError> =>
   validateStartJsonResponseEffect(
@@ -363,7 +363,7 @@ export const validateStartRpcResponseEffect = (
   );
 
 /** Validates that a Start action response uses the JSON transport media type. */
-export const validateStartActionResponseEffect = (
+export const validateStartActionResponse = (
   response: Response,
 ): Effect.Effect<void, ServerTransportError> =>
   validateStartJsonResponseEffect(

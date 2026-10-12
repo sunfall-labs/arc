@@ -116,7 +116,7 @@ const decodeFileRoutePathSegmentEffect = (
   }
 };
 
-export const decodeFileRoutePathEffect = (
+export const decodeFileRoutePath = (
   rawSegments: readonly string[],
 ): Effect.Effect<DecodedFileRoutePath, FileRoutePathDecodeInvalidSegment> =>
   Effect.forEach(rawSegments, decodeFileRoutePathSegmentEffect).pipe(
@@ -127,10 +127,10 @@ export const decodeFileRoutePathEffect = (
     ),
   );
 
-export const decodeFileRoutePath = (
+export const decodeFileRoutePathSync = (
   rawSegments: readonly string[],
 ): DecodedFileRoutePath | undefined => {
-  const exit = Effect.runSyncExit(decodeFileRoutePathEffect(rawSegments));
+  const exit = Effect.runSyncExit(decodeFileRoutePath(rawSegments));
   return Exit.isSuccess(exit) ? exit.value : undefined;
 };
 
@@ -202,7 +202,7 @@ const decodeSerializedParam = (
   );
 };
 
-export const decodeSerializedFileRoutePathEffect = (
+export const decodeSerializedFileRoutePath = (
   value: SerializedFileRoutePathFields,
   options: SerializedFileRoutePathDecodeOptions,
 ): Effect.Effect<DecodedFileRoutePath, SerializedFileRoutePathDecodeError> =>

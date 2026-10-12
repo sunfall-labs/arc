@@ -170,7 +170,7 @@ SSR hydration must populate both layers:
 
 ```ts
 yield *
-  hydrateStartPayloadEffect(payload, {
+  hydrateStartPayload(payload, {
     runtime,
     collections: [Projects, Tasks],
   });
@@ -180,7 +180,7 @@ Start hydration helpers call `Resource.hydrate(payload)` for resource
 entries and collection hydration for DB snapshots, so the resource signal used
 by components and the Effect cache entry in the active `ResourceStore` update
 together. `App.launch(app)` runs `hydrateFromDocument(...)` for the full browser
-payload; use `hydrateStartPayloadEffect(...)` for already-parsed payloads.
+payload; use `hydrateStartPayload(...)` for already-parsed payloads.
 
 ```tsx
 const UserCard = Component.define("UserCard", function* (props: { readonly id: UserId }) {

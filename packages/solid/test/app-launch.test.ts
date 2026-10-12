@@ -6,7 +6,10 @@ import { createComponent } from "@solidjs/web";
 import { Effect, Exit, Fiber } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { Component, RouterProvider } from "../src/index.js";
-import { createHydrationScript, createStartHydrationPayload } from "../../start/src/hydration.js";
+import {
+  createHydrationScriptSync,
+  createStartHydrationPayload,
+} from "../../start/src/hydration.js";
 import { ssrApp, ssrMarkup } from "./component-ssr-fixture.js";
 
 describe("App.launch", () => {
@@ -30,7 +33,7 @@ describe("App.launch", () => {
           );
           const hydrationGlobal = globalThis as { _$HY?: unknown };
           hydrationGlobal._$HY = { events: [], completed: new WeakSet(), r: {} };
-          document.body.innerHTML = `<div id="root">${ssrMarkup}</div>${createHydrationScript(
+          document.body.innerHTML = `<div id="root">${ssrMarkup}</div>${createHydrationScriptSync(
             createStartHydrationPayload(resources),
           )}`;
           yield* Effect.addFinalizer(() =>
@@ -94,7 +97,7 @@ describe("App.launch", () => {
 
           const hydrationGlobal = globalThis as { _$HY?: unknown };
           hydrationGlobal._$HY = { events: [], completed: new WeakSet(), r: {} };
-          document.body.innerHTML = `<div id="root">Project atlas</div>${createHydrationScript(
+          document.body.innerHTML = `<div id="root">Project atlas</div>${createHydrationScriptSync(
             createStartHydrationPayload({ resources: [] }),
           )}`;
           yield* Effect.addFinalizer(() =>

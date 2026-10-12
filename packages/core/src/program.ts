@@ -42,7 +42,7 @@ import {
   programCommands,
   programEmit,
   programNext,
-  programStep,
+  programStepSync,
   programSubscription,
 } from "./program-primitives.js";
 import { startProgramOnRuntime } from "./program-start.js";
@@ -171,7 +171,7 @@ export namespace Program {
    * expect(Effect.runSync(loading.commands[0].effect)).toEqual({ _tag: "Loaded", count: 3 });
    * ```
    */
-  export const step = programStep;
+  export const step = programStepSync;
   /** Starts a Program on the current or explicit Runtime Spine and UI scope. */
   export const start = startProgram;
   /**

@@ -3,9 +3,9 @@ import { Effect, Option } from "effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpTraceContext from "effect/http/HttpTraceContext";
 import {
-  callStartFetchEffect,
-  getStartTransportHeadersEffect,
-  resolveStartFetchEffect,
+  callStartFetch,
+  getStartTransportHeaders,
+  resolveStartFetch,
   type ServerRpcClientOptions,
   type StartFetch,
   type StartFetchInit,
@@ -66,7 +66,7 @@ const startClientTransportMessages = (
         defect: "Start action failed with a defect.",
       };
 
-export const encodeStartClientTransportRequestBodyEffect = (
+export const encodeStartClientTransportRequestBody = (
   kind: StartTransportKind,
   request: unknown,
 ): Effect.Effect<string, ServerTransportError> =>
@@ -193,7 +193,7 @@ const injectStartClientTraceContextEffect = (headers: Headers): Effect.Effect<vo
     }
   });
 
-export const executeStartClientTransportEffect = <
+export const executeStartClientTransport = <
   Body extends StartClientTransportBody,
   ParseError = never,
   FetchError = never,
@@ -207,11 +207,11 @@ export const executeStartClientTransportEffect = <
 > =>
   Effect.gen(function* () {
     const messages = startClientTransportMessages(options.kind);
-    const fetcher = yield* resolveStartFetchEffect(options.fetch, messages.unavailable);
-    const body = yield* encodeStartClientTransportRequestBodyEffect(options.kind, options.request);
-    const headers = yield* getStartTransportHeadersEffect(options);
+    const fetcher = yield* resolveStartFetch(options.fetch, messages.unavailable);
+    const body = yield* encodeStartClientTransportRequestBody(options.kind, options.request);
+    const headers = yield* getStartTransportHeaders(options);
     yield* injectStartClientTraceContextEffect(headers);
-    const response = yield* callStartFetchEffect(
+    const response = yield* callStartFetch(
       fetcher,
       options.endpoint,
       {

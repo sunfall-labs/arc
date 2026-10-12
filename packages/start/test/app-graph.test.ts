@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createStartAppGraph,
   collectStartAppGraphDiagnosticsPolicyViolations,
-  decodeStartAppGraphDiagnosticsDtoEffect,
+  decodeStartAppGraphDiagnosticsDto,
   deserializeStartAppGraph,
   describeStartAppGraphRuntimeDiagnostics,
   describeStartAppGraph,
@@ -17,11 +17,11 @@ import {
   StartAppGraphUnknownRoutePreloadResources,
   unknownRoutePreloadCollectionsForDiagnostics,
   unknownRoutePreloadResourcesForDiagnostics,
-  validateStartAppGraphDiagnosticsPolicyExceptionEffect,
-  validateStartAppGraphDiagnosticsPolicyEffect,
-  validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect,
-  validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect,
-  validateStartAppGraphWireSchemasEffect,
+  validateStartAppGraphDiagnosticsPolicyException,
+  validateStartAppGraphDiagnosticsPolicy,
+  validateStartAppGraphRoutePreloadCollectionsDiagnostics,
+  validateStartAppGraphRoutePreloadResourcesDiagnostics,
+  validateStartAppGraphWireSchemas,
 } from "../src/app-graph.js";
 import {
   createStartAgentGraphImpact,
@@ -276,12 +276,12 @@ describe("Start app graph", () => {
       Effect.gen(function* () {
         const graph = yield* makeGraphEffect();
         const diagnostics = describeStartAppGraph(graph);
-        const decoded = yield* decodeStartAppGraphDiagnosticsDtoEffect({
+        const decoded = yield* decodeStartAppGraphDiagnosticsDto({
           diagnostics,
           diagnosticsPolicyViolations: [],
         });
         const invalidDiagnosticsExit = yield* Effect.exit(
-          decodeStartAppGraphDiagnosticsDtoEffect({
+          decodeStartAppGraphDiagnosticsDto({
             diagnostics: {
               ...diagnostics,
               routeModules: [{}],
@@ -291,7 +291,7 @@ describe("Start app graph", () => {
         );
         const invalidRegistryExits = yield* Effect.all([
           Effect.exit(
-            decodeStartAppGraphDiagnosticsDtoEffect({
+            decodeStartAppGraphDiagnosticsDto({
               diagnostics: {
                 ...diagnostics,
                 resourceFamilies: [
@@ -305,7 +305,7 @@ describe("Start app graph", () => {
             }),
           ),
           Effect.exit(
-            decodeStartAppGraphDiagnosticsDtoEffect({
+            decodeStartAppGraphDiagnosticsDto({
               diagnostics: {
                 ...diagnostics,
                 resourceTags: [
@@ -319,7 +319,7 @@ describe("Start app graph", () => {
             }),
           ),
           Effect.exit(
-            decodeStartAppGraphDiagnosticsDtoEffect({
+            decodeStartAppGraphDiagnosticsDto({
               diagnostics: {
                 ...diagnostics,
                 collectionDefinitions: [
@@ -340,7 +340,7 @@ describe("Start app graph", () => {
           ),
         ]);
         const invalidPolicyExit = yield* Effect.exit(
-          decodeStartAppGraphDiagnosticsDtoEffect({
+          decodeStartAppGraphDiagnosticsDto({
             diagnostics,
             diagnosticsPolicyViolations: [
               {
@@ -352,7 +352,7 @@ describe("Start app graph", () => {
           }),
         );
         const invalidEndpointExit = yield* Effect.exit(
-          decodeStartAppGraphDiagnosticsDtoEffect({
+          decodeStartAppGraphDiagnosticsDto({
             diagnostics: {
               ...diagnostics,
               rpcPath: "/same",
@@ -363,7 +363,7 @@ describe("Start app graph", () => {
         );
         const invalidSemanticExits = yield* Effect.all([
           Effect.exit(
-            decodeStartAppGraphDiagnosticsDtoEffect({
+            decodeStartAppGraphDiagnosticsDto({
               diagnostics: {
                 ...diagnostics,
                 routeCount: diagnostics.routeCount + 1,
@@ -372,7 +372,7 @@ describe("Start app graph", () => {
             }),
           ),
           Effect.exit(
-            decodeStartAppGraphDiagnosticsDtoEffect({
+            decodeStartAppGraphDiagnosticsDto({
               diagnostics: {
                 ...diagnostics,
                 routeModules: [
@@ -387,7 +387,7 @@ describe("Start app graph", () => {
             }),
           ),
           Effect.exit(
-            decodeStartAppGraphDiagnosticsDtoEffect({
+            decodeStartAppGraphDiagnosticsDto({
               diagnostics: {
                 ...diagnostics,
                 schemaCoverage: {
@@ -404,7 +404,7 @@ describe("Start app graph", () => {
         ]);
         const invalidEnumExits = yield* Effect.all([
           Effect.exit(
-            decodeStartAppGraphDiagnosticsDtoEffect({
+            decodeStartAppGraphDiagnosticsDto({
               diagnostics: {
                 ...diagnostics,
                 routeModules: [
@@ -421,7 +421,7 @@ describe("Start app graph", () => {
             }),
           ),
           Effect.exit(
-            decodeStartAppGraphDiagnosticsDtoEffect({
+            decodeStartAppGraphDiagnosticsDto({
               diagnostics: {
                 ...diagnostics,
                 routeModules: [
@@ -438,7 +438,7 @@ describe("Start app graph", () => {
             }),
           ),
           Effect.exit(
-            decodeStartAppGraphDiagnosticsDtoEffect({
+            decodeStartAppGraphDiagnosticsDto({
               diagnostics: {
                 ...diagnostics,
                 actionModules: [
@@ -489,10 +489,10 @@ describe("Start app graph", () => {
       Effect.gen(function* () {
         const graph = yield* makeGraphEffect();
 
-        yield* validateStartAppGraphWireSchemasEffect(graph);
+        yield* validateStartAppGraphWireSchemas(graph);
 
         const exit = yield* Effect.exit(
-          validateStartAppGraphWireSchemasEffect(graph, { requireError: true }),
+          validateStartAppGraphWireSchemas(graph, { requireError: true }),
         );
 
         yield* Effect.sync(() => {
@@ -562,7 +562,7 @@ describe("Start app graph", () => {
         };
 
         const exit = yield* Effect.exit(
-          validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect(withUnknownPreloadResources),
+          validateStartAppGraphRoutePreloadResourcesDiagnostics(withUnknownPreloadResources),
         );
 
         yield* Effect.sync(() => {
@@ -581,14 +581,14 @@ describe("Start app graph", () => {
           });
         });
 
-        yield* validateStartAppGraphDiagnosticsPolicyEffect(declaredDiagnostics, {
+        yield* validateStartAppGraphDiagnosticsPolicy(declaredDiagnostics, {
           routePreloadResources: {
             requireDeclaredForPreload: true,
           },
         });
 
         const policyExit = yield* Effect.exit(
-          validateStartAppGraphDiagnosticsPolicyExceptionEffect(withUnknownPreloadResources, {
+          validateStartAppGraphDiagnosticsPolicyException(withUnknownPreloadResources, {
             routePreloadResources: {
               requireDeclaredForPreload: true,
             },
@@ -654,9 +654,7 @@ describe("Start app graph", () => {
         };
 
         const exit = yield* Effect.exit(
-          validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect(
-            withUnknownPreloadCollections,
-          ),
+          validateStartAppGraphRoutePreloadCollectionsDiagnostics(withUnknownPreloadCollections),
         );
 
         yield* Effect.sync(() => {
@@ -675,7 +673,7 @@ describe("Start app graph", () => {
           });
         });
 
-        yield* validateStartAppGraphDiagnosticsPolicyEffect(declaredDiagnostics, {
+        yield* validateStartAppGraphDiagnosticsPolicy(declaredDiagnostics, {
           routePreloadCollections: {
             requireDeclaredForPreload: true,
           },
@@ -740,7 +738,7 @@ describe("Start app graph", () => {
             },
           }),
         ).toEqual([]);
-        yield* validateStartAppGraphDiagnosticsPolicyExceptionEffect(withUnknownPreloads, false);
+        yield* validateStartAppGraphDiagnosticsPolicyException(withUnknownPreloads, false);
       }),
     );
   });

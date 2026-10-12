@@ -28,35 +28,35 @@ import {
 } from "./collection-state.js";
 import { rowsByCollectionIndex } from "./collection-index-materialization.js";
 import type { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
-import { ingestCollectionOutputRowsEffect } from "./collection-row-ingress.js";
+import { ingestCollectionOutputRows } from "./collection-row-ingress.js";
 import { collectionValueChanges } from "./collection-value-detachment.js";
 import {
-  applyCollectionUpdateEffect,
-  collectionStateEffect,
+  applyCollectionUpdate,
+  collectionState,
   ensureCollectionRowKey,
 } from "./collection-projection-callback-policy.js";
 import {
+  dehydrateCollectionsSync as dehydrateCollectionsWithStoreSync,
   dehydrateCollections as dehydrateCollectionsWithStore,
-  dehydrateCollectionsEffect as dehydrateCollectionsWithStoreEffect,
-  hydrateCollectionEffect as hydrateCollectionWithStoreEffect,
-  hydrateCollectionsEffect as hydrateCollectionsWithStoreEffect,
-  validateCollectionsHydrationEffect as validateCollectionsHydrationWithStoreEffect,
-  persistCollectionEffect,
-  persistCollectionForReasonEffect,
-  restoreCollectionEffect,
-  snapshotCollectionEffect as snapshotCollectionWithStoreEffect,
+  hydrateCollection as hydrateCollectionWithStoreEffect,
+  hydrateCollections as hydrateCollectionsWithStoreEffect,
+  validateCollectionsHydration as validateCollectionsHydrationWithStoreEffect,
+  persistCollection,
+  persistCollectionForReason,
+  restoreCollection,
+  snapshotCollection as snapshotCollectionWithStoreEffect,
 } from "./collection-persistence.js";
-import { commitCollectionWriteEffect } from "./collection-write-commit.js";
+import { commitCollectionWrite } from "./collection-write-commit.js";
 import {
   defaultCollectionDefinitionRegistry,
   type CollectionDefinitionRegistryAdapter,
 } from "./collection-registry.js";
 import {
-  followCollectionSyncEffect,
-  runCollectionSyncLoadPolicyEffect,
+  followCollectionSync,
+  runCollectionSyncLoadPolicy,
 } from "./collection-sync-load-policy.js";
 import {
-  collectionStoreEffect,
+  activeCollectionStore,
   currentCollectionStore,
   type RuntimeCollectionStore,
 } from "./runtime-collection-store.js";
@@ -77,13 +77,13 @@ import type {
   CollectionWriteOptions,
 } from "./collection-contract.js";
 
-export { forgetFailedCollectionLoadsEffect } from "./collection-sync-load-policy.js";
+export { forgetFailedCollectionLoads } from "./collection-sync-load-policy.js";
 export {
-  collectionStoreEffect,
+  activeCollectionStore,
   currentCollectionStore,
   runWithCollectionStore,
   storeFor,
-  subscribeCollectionEventsEffect,
+  subscribeCollectionEvents,
   type RuntimeCollectionStore,
 } from "./runtime-collection-store.js";
 
@@ -100,7 +100,7 @@ const publishStoreEvent = (
   event: CollectionStoreEvent,
 ): Effect.Effect<void> => store.publish(event);
 
-const collectionState = <A extends object, K extends CollectionKey, E, R>(
+const collectionStateSync = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   store: RuntimeCollectionStore = currentCollectionStore() as RuntimeCollectionStore,
 ): CollectionState<A, K, E> => {
@@ -112,57 +112,57 @@ const rowsByIndex = <A extends object, K extends CollectionKey, E, R>(
   index: string,
   value: CollectionIndexValue,
 ): ReadonlyArray<CollectionRow<A, K>> => {
-  const state = collectionState(definition);
+  const state = collectionStateSync(definition);
   return rowsByCollectionIndex(definition, state, index, value);
 };
 
-const snapshotCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
+const snapshotCollection = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
 ): Effect.Effect<
   CollectionSnapshot<A, K>,
   CollectionSnapshotCodecError | EffectInputCallbackError
-> => snapshotCollectionWithStoreEffect(definition, collectionStoreEffect);
+> => snapshotCollectionWithStoreEffect(definition, activeCollectionStore);
 
-const hydrateCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
+const hydrateCollection = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   snapshot: CollectionSnapshot<A, K>,
   options: CollectionHydrateOptions = {},
   store?: RuntimeCollectionStore,
 ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
-  hydrateCollectionWithStoreEffect(definition, snapshot, options, collectionStoreEffect, store);
+  hydrateCollectionWithStoreEffect(definition, snapshot, options, activeCollectionStore, store);
 
 const persistForReasonEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   store: RuntimeCollectionStore,
   reason: "load" | "write",
 ): Effect.Effect<void, E | CollectionSnapshotCodecError | EffectInputCallbackError, R> =>
-  persistCollectionForReasonEffect(definition, store, collectionStoreEffect, reason);
+  persistCollectionForReason(definition, store, activeCollectionStore, reason);
 
-export const dehydrateCollections = (
+export const dehydrateCollectionsSync = (
   collections: Iterable<AnyCollection>,
   store: RuntimeCollectionStore = currentCollectionStore() as RuntimeCollectionStore,
-): CollectionHydrationPayload => dehydrateCollectionsWithStore(collections, store);
+): CollectionHydrationPayload => dehydrateCollectionsWithStoreSync(collections, store);
 
-export const dehydrateCollectionsEffect = (
+export const dehydrateCollections = (
   collections: Iterable<AnyCollection>,
 ): Effect.Effect<
   CollectionHydrationPayload,
   CollectionSnapshotCodecError | EffectInputCallbackError
-> => dehydrateCollectionsWithStoreEffect(collections, collectionStoreEffect);
+> => dehydrateCollectionsWithStore(collections, activeCollectionStore);
 
-export const hydrateCollectionsEffect = (
+export const hydrateCollections = (
   collections: Iterable<AnyCollection>,
   payload: CollectionHydrationPayload,
   options: CollectionHydrateOptions = {},
 ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
-  hydrateCollectionsWithStoreEffect(collections, payload, options, collectionStoreEffect);
+  hydrateCollectionsWithStoreEffect(collections, payload, options, activeCollectionStore);
 
-export const validateCollectionsHydrationEffect = (
+export const validateCollectionsHydration = (
   collections: Iterable<AnyCollection>,
   payload: CollectionHydrationPayload,
   options: CollectionHydrateOptions = {},
 ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
-  validateCollectionsHydrationWithStoreEffect(collections, payload, options, collectionStoreEffect);
+  validateCollectionsHydrationWithStoreEffect(collections, payload, options, activeCollectionStore);
 
 type CollectionChangeOperation<A extends object, K extends CollectionKey> =
   | { readonly _tag: "Put"; readonly row: StoredRow<A, K> }
@@ -192,14 +192,14 @@ const applyCollectionChangesWithStoreEffect = <A extends object, K extends Colle
       return;
     }
 
-    const state = yield* collectionStateEffect(definition, dbStore);
+    const state = yield* collectionState(definition, dbStore);
     const ingestOptions = (path: string) => ({
       operation: "write" as const,
       path,
       synced: options.synced ?? true,
       origin: options.origin ?? "remote",
     });
-    const upsertRows = yield* ingestCollectionOutputRowsEffect(
+    const upsertRows = yield* ingestCollectionOutputRows(
       definition,
       changes.flatMap((change) => (change._tag === "Upsert" ? [change.value] : [])),
       ingestOptions(`$.collections[${definition.name}].changes`),
@@ -240,8 +240,8 @@ const applyCollectionChangesWithStoreEffect = <A extends object, K extends Colle
               key: change.key,
             });
           }
-          const updated = yield* applyCollectionUpdateEffect(definition, row.value, change.changes);
-          const [next] = yield* ingestCollectionOutputRowsEffect(
+          const updated = yield* applyCollectionUpdate(definition, row.value, change.changes);
+          const [next] = yield* ingestCollectionOutputRows(
             definition,
             [updated.value],
             ingestOptions(`$.collections[${definition.name}].changes[${index}]`),
@@ -266,7 +266,7 @@ const applyCollectionChangesWithStoreEffect = <A extends object, K extends Colle
       return;
     }
 
-    yield* commitCollectionWriteEffect({
+    yield* commitCollectionWrite({
       collection: definition.name,
       state,
       mutations: operations.length,
@@ -295,7 +295,7 @@ const applyCollectionChangesEffect = <A extends object, K extends CollectionKey,
   CollectionRuntimeError<E> | CollectionRowNotFound | CollectionRowKeyChanged,
   R
 > =>
-  Effect.flatMap(collectionStoreEffect, (dbStore) =>
+  Effect.flatMap(activeCollectionStore, (dbStore) =>
     applyCollectionChangesWithStoreEffect(definition, dbStore, changes, options),
   );
 
@@ -321,7 +321,7 @@ const optimisticRowMutationsEffect = <A extends object, K extends CollectionKey,
 ): Effect.Effect<ReadonlyArray<OptimisticRowMutation<A, K>>, unknown> =>
   Effect.gen(function* () {
     const ingest = (values: ReadonlyArray<A>) =>
-      ingestCollectionOutputRowsEffect(definition, values, {
+      ingestCollectionOutputRows(definition, values, {
         operation: "mutation",
         path: `$.collections[${definition.name}].optimistic`,
         synced: false,
@@ -341,7 +341,7 @@ const optimisticRowMutationsEffect = <A extends object, K extends CollectionKey,
         if (!row) {
           return [];
         }
-        const updated = yield* applyCollectionUpdateEffect(definition, row.value, change.update);
+        const updated = yield* applyCollectionUpdate(definition, row.value, change.update);
         const [next] = yield* ingest([updated.value]);
         yield* ensureCollectionRowKey(definition, change.key, next!.key);
         return [
@@ -373,8 +373,8 @@ const applyOptimisticRowsEffect = <A extends object, K extends CollectionKey, E,
         new ReadonlyCollectionMutation({ collection: definition.name, operation: "optimistic" }),
       );
     }
-    const store = yield* collectionStoreEffect;
-    const state = yield* collectionStateEffect(definition, store);
+    const store = yield* activeCollectionStore;
+    const state = yield* collectionState(definition, store);
     const mutations = yield* optimisticRowMutationsEffect(definition, state, change);
     if (mutations.length > 0) {
       for (const mutation of mutations) {
@@ -407,7 +407,7 @@ export const defineCollection = <
 ): CollectionDefinition<A, K, E, R> => {
   let definition: CollectionDefinition<A, K, E, R>;
   const followSync = Effect.suspend(() =>
-    followCollectionSyncEffect(definition, (store, changes) =>
+    followCollectionSync(definition, (store, changes) =>
       applyCollectionChangesWithStoreEffect(definition, store, changes),
     ),
   );
@@ -420,16 +420,16 @@ export const defineCollection = <
     options,
     name: options.name,
     getKey: options.getKey,
-    result: () => collectionState(definition).loadState,
-    version: () => collectionState(definition).version,
+    result: () => collectionStateSync(definition).loadState,
+    version: () => collectionStateSync(definition).version,
     get: (key: K) => {
-      const state = collectionState(definition);
+      const state = collectionStateSync(definition);
       state.version.get();
       const row = state.rows.get(key);
       return row ? augmentCollectionRow(definition, row) : undefined;
     },
     rows: () => {
-      const state = collectionState(definition);
+      const state = collectionStateSync(definition);
       state.version.get();
       return Array.from(state.rows.values(), (row) => augmentCollectionRow(definition, row));
     },
@@ -439,22 +439,22 @@ export const defineCollection = <
     preload: () =>
       Effect.gen(function* () {
         yield* recordCollectionPreload(definition);
-        yield* runCollectionSyncLoadPolicyEffect(definition, { force: false });
+        yield* runCollectionSyncLoadPolicy(definition, { force: false });
         yield* followSync;
       }).pipe(collectionContractDefects),
     refresh: () =>
       Effect.gen(function* () {
         yield* recordCollectionPreload(definition);
-        yield* runCollectionSyncLoadPolicyEffect(definition, { force: true });
+        yield* runCollectionSyncLoadPolicy(definition, { force: true });
         yield* followSync;
       }).pipe(collectionContractDefects),
-    snapshot: () => snapshotCollectionEffect(definition),
+    snapshot: () => snapshotCollection(definition),
     hydrate: (snapshot: CollectionSnapshot<A, K>, hydrateOptions?: CollectionHydrateOptions) =>
-      hydrateCollectionEffect(definition, snapshot, hydrateOptions),
+      hydrateCollection(definition, snapshot, hydrateOptions),
     persist: (persistOptions?: CollectionPersistOptions) =>
-      persistCollectionEffect(definition, persistOptions, collectionStoreEffect),
+      persistCollection(definition, persistOptions, activeCollectionStore),
     restore: (restoreOptions?: CollectionPersistOptions & CollectionHydrateOptions) =>
-      restoreCollectionEffect(definition, restoreOptions, collectionStoreEffect),
+      restoreCollection(definition, restoreOptions, activeCollectionStore),
     applyChanges: (
       changes: ReadonlyArray<CollectionChange<A, K>>,
       writeOptions?: CollectionWriteOptions,

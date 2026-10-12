@@ -7,7 +7,7 @@ import { generateFileRouteManifestArtifact } from "../src/file-routes.js";
 import {
   planStartPrerenderPages,
   resolveStartPrerenderOptions,
-  runStartPrerenderEffect,
+  runStartPrerender,
   StartPrerenderError,
 } from "../src/start-prerender.js";
 import { sunfallArcStart } from "../src/vite.js";
@@ -126,7 +126,7 @@ describe("Start prerender planning", () => {
 
       const result = await Effect.runPromise(
         Effect.scoped(
-          runStartPrerenderEffect({
+          runStartPrerender({
             root,
             outDir,
             manifest,
@@ -161,7 +161,7 @@ describe("Start prerender planning", () => {
 
       const result = await Effect.runPromise(
         Effect.scoped(
-          runStartPrerenderEffect({
+          runStartPrerender({
             root,
             outDir,
             manifest,
@@ -196,7 +196,7 @@ describe("Start prerender planning", () => {
       const error = await Effect.runPromise(
         Effect.flip(
           Effect.scoped(
-            runStartPrerenderEffect({
+            runStartPrerender({
               root,
               outDir,
               manifest,
@@ -231,7 +231,7 @@ describe("Start prerender planning", () => {
       const error = await Effect.runPromise(
         Effect.flip(
           Effect.scoped(
-            runStartPrerenderEffect({
+            runStartPrerender({
               root,
               outDir,
               manifest,
@@ -267,7 +267,7 @@ describe("Start prerender planning", () => {
       const outDir = writePrerenderFixture(root);
       const result = await Effect.runPromise(
         Effect.scoped(
-          runStartPrerenderEffect({
+          runStartPrerender({
             root,
             outDir,
             manifest,
@@ -301,7 +301,7 @@ describe("Start prerender planning", () => {
       const error = await Effect.runPromise(
         Effect.flip(
           Effect.scoped(
-            runStartPrerenderEffect({
+            runStartPrerender({
               root,
               outDir,
               manifest,
@@ -378,7 +378,7 @@ describe("Start prerender planning", () => {
       const error = await Effect.runPromise(
         Effect.flip(
           Effect.scoped(
-            runStartPrerenderEffect({
+            runStartPrerender({
               root,
               outDir,
               manifest,

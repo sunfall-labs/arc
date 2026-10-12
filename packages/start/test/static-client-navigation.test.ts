@@ -4,7 +4,7 @@ import { eraseRuntime } from "@sunfall/arc-core/internal";
 import { Deferred, Effect, Fiber } from "effect";
 import { Window } from "happy-dom";
 import { describe, expect, it, vi } from "vitest";
-import { createHydrationScript } from "../src/hydration.js";
+import { createHydrationScriptSync } from "../src/hydration.js";
 import {
   makeStartStaticHistoryAdapter,
   normalizeStartStaticBasePath,
@@ -114,7 +114,7 @@ describe("Start static client navigation", () => {
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const window = new Window({ url: "https://docs.test/app/" });
           const ref = ProjectById("1");
-          const html = `<!doctype html><html><body>${createHydrationScript({
+          const html = `<!doctype html><html><body>${createHydrationScriptSync({
             resources: [
               {
                 name: ref.family.options.name,
@@ -191,7 +191,7 @@ describe("Start static client navigation", () => {
             yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
             const window = new Window({ url: "https://docs.test/app/" });
             const ref = ProjectById("1");
-            const html = `<!doctype html><html><body>${createHydrationScript({
+            const html = `<!doctype html><html><body>${createHydrationScriptSync({
               resources: [
                 {
                   name: ref.family.options.name,
@@ -252,7 +252,7 @@ describe("Start static client navigation", () => {
             preload: ({ params }) => Resource.preload(ProjectById(params.id)),
           });
           const ref = ProjectById("1");
-          const html = `<!doctype html><html><body>${createHydrationScript({
+          const html = `<!doctype html><html><body>${createHydrationScriptSync({
             resources: [
               {
                 name: ref.family.options.name,
@@ -326,7 +326,7 @@ describe("Start static client navigation", () => {
             const window = new Window({ url: "https://docs.test/app/" });
             const ref = ProjectById("1");
             const html = (): string =>
-              `<!doctype html><html><body>${createHydrationScript({
+              `<!doctype html><html><body>${createHydrationScriptSync({
                 resources: [
                   {
                     name: ref.family.options.name,
@@ -387,7 +387,7 @@ describe("Start static client navigation", () => {
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const window = new Window({ url: "https://docs.test/app/" });
           const ref = ProjectById("1");
-          const html = `<!doctype html><html><body>${createHydrationScript({
+          const html = `<!doctype html><html><body>${createHydrationScriptSync({
             resources: [
               {
                 name: ref.family.options.name,

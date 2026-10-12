@@ -6,7 +6,7 @@ import {
 } from "@sunfall/arc-core";
 import { Effect, Layer } from "effect";
 import { type ServerRpcClientOptions } from "./start-fetch.js";
-import { executeStartClientTransportEffect } from "./start-client-transport.js";
+import { executeStartClientTransport } from "./start-client-transport.js";
 import { resolveStartRpcEndpoint } from "./start-transport-endpoints.js";
 import { parseRpcResponse } from "./start-transport-protocol.js";
 
@@ -43,7 +43,7 @@ const makeRpcClientFromOptions = <FetchError = never, FetchRequirements = never>
         name: fn.name,
         input: encodedInput,
       };
-      const { body: rpcResponse } = yield* executeStartClientTransportEffect({
+      const { body: rpcResponse } = yield* executeStartClientTransport({
         kind: "rpc",
         ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
         ...(options.headers === undefined ? {} : { headers: options.headers }),

@@ -12,9 +12,9 @@ import {
   type ResourceHydrationPayload,
 } from "./resource.js";
 import {
-  collectResourceEffect,
-  resourceHydrationPayloadEffect,
-  resourceStoreEffect,
+  collectResource,
+  resourceHydrationPayload,
+  activeResourceStore,
 } from "./resource-runtime.js";
 import type { ResourceSnapshotCodecError } from "./resource-snapshot-codec.js";
 import { hydrateRoutePreloadFailure } from "./route-preload-failure-hydration.js";
@@ -1339,15 +1339,15 @@ export namespace Route {
   export const hydratePreloadFailure = (
     snapshot: RoutePreloadFailureSnapshot,
   ): Effect.Effect<void> =>
-    Effect.map(resourceStoreEffect, (store) => hydrateRoutePreloadFailure(store, snapshot));
+    Effect.map(activeResourceStore, (store) => hydrateRoutePreloadFailure(store, snapshot));
 
   /** Runs matched route preload and captures touched resources for hydration. */
   export const planPreload = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>,
   ): Effect.Effect<PreloadPlan<R>, PreloadError<R>, PreloadRequirements<R>> =>
-    collectResourceEffect(preload(match)).pipe(
+    collectResource(preload(match)).pipe(
       Effect.flatMap((collected) =>
-        resourceHydrationPayloadEffect(collected.refs).pipe(
+        resourceHydrationPayload(collected.refs).pipe(
           Effect.map((resources) => ({
             match,
             refs: collected.refs,

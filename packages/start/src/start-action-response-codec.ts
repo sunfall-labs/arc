@@ -20,10 +20,10 @@ import {
   negotiateAcceptedMediaType,
   startHtmlMediaType,
   startJsonMediaType,
-  validateStartActionResponseEffect,
+  validateStartActionResponse,
   type StartTransportRequestError,
 } from "./rpc.js";
-import { readStartTransportResponseTextEffect } from "./start-transport-body.js";
+import { readStartTransportResponseText } from "./start-transport-body.js";
 import { type StartActionDefinition } from "./start-action-request-codec.js";
 import { decodeWithSchema, encodeWithSchema } from "./start-schema-codec.js";
 
@@ -224,7 +224,7 @@ export const describeStartActionInvalidationPlan = (
   })),
 });
 
-export const actionResponseMetaEffect = (
+export const actionResponseMeta = (
   plan: ResourceInvalidationPlan<any> | undefined,
 ): Effect.Effect<StartActionResponseMeta, ResourceSnapshotCodecError> =>
   plan === undefined
@@ -389,7 +389,7 @@ const actionResultResponseEffect = (
   });
 };
 
-export const actionExitResponseEffect = <ActionError>(
+export const actionExitResponse = <ActionError>(
   action: StartActionDefinition,
   exit: Exit.Exit<unknown, ActionError>,
   meta: StartActionResponseMeta = {},
@@ -549,8 +549,8 @@ export const parseStartActionResponse = (
   response: Response,
 ): Effect.Effect<StartActionResponseBody, ServerTransportError> =>
   Effect.gen(function* () {
-    yield* validateStartActionResponseEffect(response);
-    const text = yield* readStartTransportResponseTextEffect(
+    yield* validateStartActionResponse(response);
+    const text = yield* readStartTransportResponseText(
       response,
       "Could not read the action response body.",
     );
@@ -601,7 +601,7 @@ export type StartActionOutcome<A, E> =
  * `Failure` the typed error, and `ValidationFailure` / `Redirect` become the
  * `ActionResult` values the server action returned.
  */
-export const decodeStartActionOutcomeEffect = <I, A, E, R>(
+export const decodeStartActionOutcome = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
   body: Extract<
     StartActionResponseBody,

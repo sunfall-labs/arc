@@ -13,7 +13,7 @@ import {
 } from "./collection-value-detachment.js";
 import {
   CollectionSnapshotCodecError,
-  decodeCollectionOutputValuesEffect,
+  decodeCollectionOutputValues,
   decodeCollectionOutputValuesSync,
   validateCollectionKey,
   type CollectionSnapshotCodecOperation,
@@ -196,7 +196,7 @@ const storedRowsFromDecodedValuesSync = <A extends object, K extends CollectionK
   return rows;
 };
 
-export const ingestCollectionOutputRowsEffect = <A extends object, K extends CollectionKey, E, R>(
+export const ingestCollectionOutputRows = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   values: ReadonlyArray<A>,
   options: CollectionRowIngressOptions,
@@ -205,7 +205,7 @@ export const ingestCollectionOutputRowsEffect = <A extends object, K extends Col
   CollectionSnapshotCodecError | EffectInputCallbackError
 > =>
   Effect.flatMap(
-    decodeCollectionOutputValuesEffect(
+    decodeCollectionOutputValues(
       definition.options.output,
       values,
       options.operation,

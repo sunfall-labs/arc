@@ -24,7 +24,7 @@ import * as Headers from "effect/http/Headers";
 import * as HttpTraceContext from "effect/http/HttpTraceContext";
 import { makeStartRequestId, startRequestIdHeader, startTraceparentHeader } from "./rpc.js";
 import {
-  resolveStartTransportEndpoints,
+  resolveStartTransportEndpointsSync,
   type StartTransportEndpointSource,
 } from "./start-transport-endpoints.js";
 
@@ -299,7 +299,7 @@ export type StartRequestTraceHandler = (
 ) => EffectInput<void, never, never>;
 
 /** Invokes Start best-effort EffectInput callbacks without leaking callback defects. */
-export const invokeStartEffectInputCallbackEffect = <Input>(
+export const invokeStartEffectInputCallback = <Input>(
   callback: ((input: Input) => EffectInput<void, never, never>) | undefined,
   input: Input,
 ): Effect.Effect<void> =>
@@ -328,7 +328,7 @@ export const startRequestTraceTransport = (
   endpoints?: StartTransportEndpointSource,
 ): StartRequestTraceTransport => {
   const pathname = new URL(request.url).pathname;
-  const resolved = resolveStartTransportEndpoints(endpoints);
+  const resolved = resolveStartTransportEndpointsSync(endpoints);
   return pathname === resolved.rpcPath
     ? "rpc"
     : pathname === resolved.actionPath
@@ -473,7 +473,7 @@ export const startRequestFinalStatus = (
 ): StartRequestTraceStatus =>
   facts.failureKind === undefined || status === "cancelled" ? status : "failure";
 
-export const finalizeStartRequestMetricsEffect = (
+export const finalizeStartRequestMetrics = (
   request: Request,
   facts: StartRequestTraceFacts,
   options: {
@@ -638,7 +638,7 @@ export const traceCollectionPreload = <RuntimeServices, RuntimeError>(
     })
     .sort((left, right) => left.name.localeCompare(right.name));
 
-export const startRequestTraceFactsEffect = (
+export const startRequestTraceFacts = (
   request: Request,
   endpoints?: StartTransportEndpointSource,
 ): Effect.Effect<StartRequestTraceFacts> =>
@@ -658,10 +658,10 @@ export const startRequestTraceFactsEffect = (
     };
   });
 
-export const emitStartRequestTraceEffect = (
+export const emitStartRequestTrace = (
   handler: StartRequestTraceHandler | undefined,
   trace: StartRequestTrace,
-): Effect.Effect<void> => invokeStartEffectInputCallbackEffect(handler, trace);
+): Effect.Effect<void> => invokeStartEffectInputCallback(handler, trace);
 
 export const buildStartRequestTrace = (
   request: Request,
@@ -703,7 +703,7 @@ export const buildStartRequestTrace = (
   };
 };
 
-export const requestRuntimeDisposeTraceEffect = <RuntimeServices, RuntimeError>(
+export const requestRuntimeDisposeTrace = <RuntimeServices, RuntimeError>(
   runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
 ): Effect.Effect<{
   readonly runtimeDisposed: boolean;

@@ -45,7 +45,7 @@ export const runStartHostPromise = <A, E, R, RuntimeError = never>(
   Effect.runPromise(hostPromiseRuntime(options.runtime).provide(effect), options.runOptions);
 
 /** Forks a scoped host facade Effect from callback-shaped hosts such as Node and Vite. */
-export const forkStartHostEffect = <A, E, R, RuntimeError = never>(
+export const forkStartHost = <A, E, R, RuntimeError = never>(
   effect: Effect.Effect<A, E, R>,
   options: StartHostForkRunnerOptions<RuntimeError> = {},
 ): Fiber.Fiber<A, E | RuntimeError> =>

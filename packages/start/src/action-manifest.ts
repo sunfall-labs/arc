@@ -9,7 +9,7 @@ import {
   isStartManifestServerOnlyModule,
   parseSerializedStartManifestJson,
   stableManifestEntryId,
-  validateManifestEndpointPathEffect,
+  validateManifestEndpointPath,
   validateManifestEntrySet,
   type StartManifestEndpointPathErrorInput,
   type StartManifestModuleKind,
@@ -295,7 +295,7 @@ const actionManifestInvalidEndpointPath = (
 const normalizeActionManifestPathEffect = (
   actionPath: string | undefined,
 ): Effect.Effect<string, ActionManifestInvalidEndpointPath> =>
-  validateManifestEndpointPathEffect(actionPath ?? defaultStartTransportEndpoints.actionPath, {
+  validateManifestEndpointPath(actionPath ?? defaultStartTransportEndpoints.actionPath, {
     field: "actionPath",
     invalidPath: actionManifestInvalidEndpointPath,
   });

@@ -7,9 +7,9 @@ import {
   type ResourceInvalidation,
   type ResourceInvalidationPlanEntry,
 } from "@sunfall/arc-core";
-import { lookupResourceFamilyEffect } from "@sunfall/arc-core/internal";
+import { lookupResourceFamily } from "@sunfall/arc-core/internal";
 import { Effect } from "effect";
-import { hydrateStartPayloadEffect } from "./hydration.js";
+import { hydrateStartPayload } from "./hydration.js";
 import type {
   StartActionInvalidationCause,
   StartActionInvalidationPlan,
@@ -75,7 +75,7 @@ const startActionInvalidationTargetEffect = (
     });
   }
 
-  return Effect.flatMap(lookupResourceFamilyEffect(target.family), (family) => {
+  return Effect.flatMap(lookupResourceFamily(target.family), (family) => {
     if (!family) {
       return Effect.fail(
         startActionInvalidationTransportError(
@@ -109,7 +109,7 @@ const startActionInvalidationCauseEffect = (
       : Effect.void;
   }
 
-  return Effect.flatMap(lookupResourceFamilyEffect(cause.family), (family) =>
+  return Effect.flatMap(lookupResourceFamily(cause.family), (family) =>
     family
       ? Effect.void
       : Effect.fail(
@@ -201,7 +201,7 @@ const startActionResponseInvalidationEffect = (
  * visible state and hydrated values stay latest-only, while accepted server
  * mutations still refresh invalidated resources.
  */
-export const applyStartActionInvalidationEffect = (
+export const applyStartActionInvalidation = (
   body: StartActionResponseBody,
 ): Effect.Effect<void, ServerTransportError> =>
   startActionResponseInvalidationEffect(body) as Effect.Effect<void, ServerTransportError>;
@@ -214,13 +214,13 @@ export const applyStartActionInvalidationEffect = (
  * resources and collections, filters hydrated refs out of follow-up refresh
  * work, and maps malformed metadata to `ServerTransportError`.
  */
-export const applyStartActionResponseEffect = (
+export const applyStartActionResponse = (
   body: StartActionResponseBody,
   options: StartCollectionHydrationOptions = {},
 ): Effect.Effect<void, ServerTransportError> =>
   Effect.gen(function* () {
     if ("hydration" in body && body.hydration !== undefined) {
-      yield* hydrateStartPayloadEffect(body.hydration, options).pipe(
+      yield* hydrateStartPayload(body.hydration, options).pipe(
         Effect.mapError((error) => startActionHydrationTransportError(body, error)),
       );
     }

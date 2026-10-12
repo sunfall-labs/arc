@@ -269,7 +269,7 @@ export const collectionValueChanges = <A extends object>(previous: A, value: A):
   return changes;
 };
 
-export const applyCollectionUpdate = <A extends object>(
+export const applyCollectionUpdateSync = <A extends object>(
   previous: A,
   update: ActionOptimisticRowUpdate<A>,
 ): {

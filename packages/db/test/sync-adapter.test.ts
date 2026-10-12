@@ -9,7 +9,7 @@ import {
 import { Collection, CollectionSnapshotCodecError } from "@sunfall/arc-db";
 import {
   defaultCollectionDefinitionRegistry,
-  subscribeCollectionEventsEffect,
+  subscribeCollectionEvents,
 } from "@sunfall/arc-db/internal";
 import { Deferred, Effect, Fiber, PubSub, Queue, Schema, Stream } from "effect";
 import { describe, expect, it, vi } from "vitest";
@@ -309,7 +309,7 @@ describe("Collection sync changes", () => {
         .provide(
           Effect.scoped(
             Effect.gen(function* () {
-              const events = yield* subscribeCollectionEventsEffect();
+              const events = yield* subscribeCollectionEvents();
               yield* Projects.preload();
               yield* Queue.offer(remote, [
                 { _tag: "Update", key: "missing", changes: { name: "Ghost" } },

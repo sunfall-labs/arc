@@ -8,7 +8,7 @@ import {
   formatStartAgentGraphImpact,
   queryStartAgentGraph,
 } from "./agent-graph.js";
-import { decodeStartAppGraphDiagnosticsDtoEffect } from "./app-graph.js";
+import { decodeStartAppGraphDiagnosticsDto } from "./app-graph.js";
 import {
   createStartDiagnosticsReport,
   formatStartDiagnosticsReport,
@@ -97,7 +97,7 @@ const diagnosticsReportFromErrorEffect = (
   cause: unknown,
 ): Effect.Effect<StartDiagnosticsReport | undefined> =>
   isRecord(cause)
-    ? decodeStartAppGraphDiagnosticsDtoEffect({
+    ? decodeStartAppGraphDiagnosticsDto({
         diagnostics: cause.diagnostics,
         diagnosticsPolicyViolations: "violations" in cause ? cause.violations : [],
       }).pipe(
@@ -146,7 +146,7 @@ const loadDiagnosticsFromIo = (
   return loadStartAppGraphDiagnostics;
 };
 
-export const writeStartDiagnosticsCliLineEffect = (
+export const writeStartDiagnosticsCliLine = (
   stream: StartDiagnosticsCliOutputStream,
   write: (text: string) => EffectInput<void, unknown>,
   text: string,
@@ -170,7 +170,7 @@ export const writeStartDiagnosticsCliLineEffect = (
  * diagnostics loading, graph/impact projection, output formatting, and
  * load-failure reporting.
  */
-export const runStartDiagnosticsCliCommandEffect = (
+export const runStartDiagnosticsCliCommand = (
   command: Exclude<StartCliCommand, { readonly _tag: "Help" }>,
   io: StartDiagnosticsCliCommandIo,
 ): Effect.Effect<StartDiagnosticsCliResult, StartDiagnosticsCliWriteError> =>
@@ -194,13 +194,13 @@ export const runStartDiagnosticsCliCommandEffect = (
             impactOptions(command.options),
           );
           if (command.options.json) {
-            yield* writeStartDiagnosticsCliLineEffect(
+            yield* writeStartDiagnosticsCliLine(
               "stdout",
               stdout,
               JSON.stringify(impact, null, command.options.pretty ? 2 : 0),
             );
           } else {
-            yield* writeStartDiagnosticsCliLineEffect(
+            yield* writeStartDiagnosticsCliLine(
               "stdout",
               stdout,
               formatStartAgentGraphImpact(impact),
@@ -210,7 +210,7 @@ export const runStartDiagnosticsCliCommandEffect = (
         }
 
         if (command.options.json) {
-          yield* writeStartDiagnosticsCliLineEffect(
+          yield* writeStartDiagnosticsCliLine(
             "stdout",
             stdout,
             JSON.stringify(
@@ -225,7 +225,7 @@ export const runStartDiagnosticsCliCommandEffect = (
             ),
           );
         } else {
-          yield* writeStartDiagnosticsCliLineEffect(
+          yield* writeStartDiagnosticsCliLine(
             "stdout",
             stdout,
             formatStartAgentGraph(
@@ -241,13 +241,13 @@ export const runStartDiagnosticsCliCommandEffect = (
 
       const result = loaded.result;
       if (command.options.json) {
-        yield* writeStartDiagnosticsCliLineEffect(
+        yield* writeStartDiagnosticsCliLine(
           "stdout",
           stdout,
           JSON.stringify(result, null, command.options.pretty ? 2 : 0),
         );
       } else {
-        yield* writeStartDiagnosticsCliLineEffect(
+        yield* writeStartDiagnosticsCliLine(
           "stdout",
           stdout,
           formatStartDiagnosticsReport(createStartDiagnosticsReport(result)),
@@ -260,7 +260,7 @@ export const runStartDiagnosticsCliCommandEffect = (
     const payload = startDiagnosticsCliErrorPayload(cause);
     const report = yield* diagnosticsReportFromErrorEffect(cause);
     if (command.options.json) {
-      yield* writeStartDiagnosticsCliLineEffect(
+      yield* writeStartDiagnosticsCliLine(
         "stderr",
         stderr,
         JSON.stringify(
@@ -270,7 +270,7 @@ export const runStartDiagnosticsCliCommandEffect = (
         ),
       );
     } else {
-      yield* writeStartDiagnosticsCliLineEffect(
+      yield* writeStartDiagnosticsCliLine(
         "stderr",
         stderr,
         report === undefined

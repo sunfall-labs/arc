@@ -11,13 +11,13 @@ import { createServer, type InlineConfig, type ViteDevServer } from "vite";
 import type { FileRouteManifest } from "./file-routes.js";
 import type { StartNodeRequestOptions } from "./node-web-exchange.js";
 import {
-  resolveStartHandlerEffect,
+  resolveStartHandler,
   type StartSsrHandlerModule,
   type StartSsrRequestHandler,
   type StartViteDevServer,
 } from "./start-vite-dev-ssr.js";
-import { responseWithScopeLifetimeEffect } from "./response-lifetime.js";
-import { suspendResponseStreamSuccessFinalizerEffect } from "./streaming.js";
+import { responseWithScopeLifetime } from "./response-lifetime.js";
+import { suspendResponseStreamSuccessFinalizer } from "./streaming.js";
 import { defaultServerEntry } from "./start-manifest-wall.js";
 import {
   extractStartStaticHtmlLinks,
@@ -112,7 +112,7 @@ export interface StartPrerenderRunOptions {
   readonly nodeRequest?: StartNodeRequestOptions;
 }
 
-/** Summary returned by `runStartPrerenderEffect(...)`. */
+/** Summary returned by `runStartPrerender(...)`. */
 export interface StartPrerenderResult {
   readonly pages: readonly StartPrerenderSuccessEvent[];
   readonly failures: readonly StartPrerenderFailureEvent[];
@@ -543,7 +543,7 @@ const renderPageAttempt = (
         page.path,
       ),
     });
-    const handler = yield* resolveStartHandlerEffect(
+    const handler = yield* resolveStartHandler(
       module as StartSsrHandlerModule<unknown, unknown>,
       runOptions.handlerExport === undefined ? {} : { handlerExport: runOptions.handlerExport },
     ).pipe(
@@ -562,7 +562,7 @@ const renderPageAttempt = (
           cause,
         }),
     });
-    const response = yield* responseWithScopeLifetimeEffect(
+    const response = yield* responseWithScopeLifetime(
       toEffect(result as EffectInput<Response, unknown, Scope.Scope>),
     ).pipe(
       Effect.mapError((cause) =>
@@ -701,7 +701,7 @@ const callError = (
   );
 
 /** Runs static prerendering as an Effect for Vite and test host adapters. */
-export const runStartPrerenderEffect = (
+export const runStartPrerender = (
   runOptions: StartPrerenderRunOptions,
 ): Effect.Effect<StartPrerenderResult, StartPrerenderError> =>
   Effect.gen(function* () {
@@ -781,7 +781,7 @@ export const runStartPrerenderEffect = (
             continue;
           }
 
-          const rawHtml = yield* suspendResponseStreamSuccessFinalizerEffect(
+          const rawHtml = yield* suspendResponseStreamSuccessFinalizer(
             renderOutcome.response,
             Effect.tryPromise({
               try: () => renderOutcome.response.text(),

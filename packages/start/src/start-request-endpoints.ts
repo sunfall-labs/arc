@@ -16,14 +16,14 @@ import {
 } from "@sunfall/arc-core";
 import { makeActionInstance } from "@sunfall/arc-core/internal";
 import { Cause, Effect, Exit, type Scope } from "effect";
-import { ensureRequestSubmitterOwnerEffect } from "./start-action-submitter.js";
+import { ensureRequestSubmitterOwner } from "./start-action-submitter.js";
 import {
   makeStartActionWorkflows,
   runActionSubmissionWorkflow,
   type StartActionWorkflows,
 } from "./start-action-workflow.js";
 import type { StartServerApp } from "./start-server-app.js";
-import { validateStartActionRequestEffect, validateStartRpcRequestEffect } from "./rpc.js";
+import { validateStartActionRequest, validateStartRpcRequest } from "./rpc.js";
 import { makeRequestRuntime, type RequestRuntimeRemainingRequirements } from "./request-runtime.js";
 import {
   withStartActionObservability,
@@ -37,32 +37,32 @@ import {
   recordStartRequestTraceServerFunction,
 } from "./request-trace-recorder.js";
 import {
-  actionExitResponseEffect,
+  actionExitResponse,
   actionFunctionNotFoundResponse,
   actionProtocolFailureResponse,
-  actionResponseMetaEffect,
+  actionResponseMeta,
   actionResponseMode,
   actionRuntimeFailureResponse,
   actionTransportRequestFailureResponse,
 } from "./start-action-response-codec.js";
 import {
-  actionFailureKindEffect,
+  actionFailureKind,
   decodeWithSchema,
   exitToRpcResponse,
   functionNotFoundResponse,
   makeActionMap,
   protocolFailureResponse,
-  readJsonEffect,
-  rpcFailureKindEffect,
+  readRequestJson,
+  rpcFailureKind,
   rpcRuntimeFailureResponse,
   rpcTransportRequestFailureResponse,
 } from "./start-transport-protocol.js";
 import type { StartActionSource } from "./start-transport-protocol.js";
 import {
-  readStartActionRequestEffect,
+  readStartActionRequest,
   type StartActionDefinition,
 } from "./start-action-request-codec.js";
-import { runStartTransportEndpointEffect } from "./start-transport-endpoint-runner.js";
+import { runStartTransportEndpoint } from "./start-transport-endpoint-runner.js";
 
 const actionResponseTraceFailureKind = (
   failureKind: StartRequestTraceFailureKind | undefined,
@@ -102,7 +102,7 @@ export const createServerRpcResponseEffectWithRuntime = <
       ServerServices
     >
 > => {
-  return runStartTransportEndpointEffect({
+  return runStartTransportEndpoint({
     request,
     runtime,
     responseContext,
@@ -110,12 +110,12 @@ export const createServerRpcResponseEffectWithRuntime = <
     ...(traceFacts === undefined ? {} : { traceFacts }),
     adapter: {
       kind: "rpc",
-      validateRequest: validateStartRpcRequestEffect,
+      validateRequest: validateStartRpcRequest,
       transportFailureResponse: rpcTransportRequestFailureResponse,
       runtimeFailureResponse: rpcRuntimeFailureResponse,
       run: () =>
         Effect.gen(function* () {
-          const payload = yield* readJsonEffect(request).pipe(
+          const payload = yield* readRequestJson(request).pipe(
             Effect.catch((error) =>
               Effect.sync(() => {
                 recordStartRequestTraceFailure(traceFacts, "protocol");
@@ -157,9 +157,7 @@ export const createServerRpcResponseEffectWithRuntime = <
           const exit = yield* Effect.exit(
             withStartRpcObservability(decoded.name, fn.invoke(decoded.input)),
           );
-          const failureKind = Exit.isSuccess(exit)
-            ? undefined
-            : yield* rpcFailureKindEffect(fn, exit);
+          const failureKind = Exit.isSuccess(exit) ? undefined : yield* rpcFailureKind(fn, exit);
           recordStartRequestTraceServerFunction(traceFacts, {
             name: decoded.name,
             status: Exit.isSuccess(exit) ? "success" : "failure",
@@ -185,7 +183,7 @@ export const createServerRpcResponseEffectWithRuntime = <
  * This is the low-level RPC endpoint handler. Most applications use
  * `createRequestHandler`, which routes RPC, actions, and SSR together.
  */
-export const createServerRpcResponseEffect = <
+export const createServerRpcResponse = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   ServerServices,
   ServerError,
@@ -244,7 +242,7 @@ export const createServerActionResponseEffectWithRuntime = <
       ServerServices
     >
 > => {
-  return runStartTransportEndpointEffect({
+  return runStartTransportEndpoint({
     request,
     runtime,
     responseContext,
@@ -252,12 +250,12 @@ export const createServerActionResponseEffectWithRuntime = <
     ...(traceFacts === undefined ? {} : { traceFacts }),
     adapter: {
       kind: "action",
-      validateRequest: validateStartActionRequestEffect,
+      validateRequest: validateStartActionRequest,
       transportFailureResponse: actionTransportRequestFailureResponse,
       runtimeFailureResponse: actionRuntimeFailureResponse,
       run: () =>
         Effect.gen(function* () {
-          const decoded = yield* readStartActionRequestEffect(request).pipe(
+          const decoded = yield* readStartActionRequest(request).pipe(
             Effect.catch((error) =>
               Effect.sync(() => {
                 recordStartRequestTraceFailure(traceFacts, "protocol");
@@ -329,9 +327,9 @@ export const createServerActionResponseEffectWithRuntime = <
             const exit = yield* Effect.exit(
               withStartActionObservability(action.name, instance.submit(input)),
             );
-            const failureKind = yield* actionFailureKindEffect(action, exit);
+            const failureKind = yield* actionFailureKind(action, exit);
             const metaExit = yield* Effect.exit(
-              actionResponseMetaEffect(instance.invalidationPlan.get()),
+              actionResponseMeta(instance.invalidationPlan.get()),
             );
             if (Exit.isFailure(metaExit)) {
               const metaInterrupted = metaExit.cause.reasons.some(Cause.isInterruptReason);
@@ -343,19 +341,14 @@ export const createServerActionResponseEffectWithRuntime = <
                 failureKind: metaFailureKind,
               });
               if (failureKind === "interruption") {
-                return yield* actionExitResponseEffect(
-                  action,
-                  exit,
-                  {},
-                  actionResponseMode(request),
-                );
+                return yield* actionExitResponse(action, exit, {}, actionResponseMode(request));
               }
               if (metaInterrupted) {
                 return yield* Effect.failCause(metaExit.cause);
               }
               return actionRuntimeFailureResponse(Cause.squash(metaExit.cause));
             }
-            const response = yield* actionExitResponseEffect(
+            const response = yield* actionExitResponse(
               action,
               exit,
               metaExit.value,
@@ -378,7 +371,7 @@ export const createServerActionResponseEffectWithRuntime = <
           // submitter and id: the same browser replaying the id gets the
           // recorded response without running the Action again; a request
           // from any other browser starts its own execution.
-          const owner = yield* ensureRequestSubmitterOwnerEffect(request, responseContext);
+          const owner = yield* ensureRequestSubmitterOwner(request, responseContext);
           return yield* runActionSubmissionWorkflow(
             workflows,
             runtime as unknown as AnySunfallArcRuntime<unknown>,
@@ -406,7 +399,7 @@ export const createServerActionResponseEffectWithRuntime = <
  * returned Effect runs the action inside a fresh request runtime and includes
  * hydration or invalidation metadata when needed.
  */
-export const createServerActionResponseEffect = <
+export const createServerActionResponse = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   ServerServices,
   ServerError,

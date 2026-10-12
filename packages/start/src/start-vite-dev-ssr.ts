@@ -4,23 +4,23 @@ import { toEffect } from "@sunfall/arc-core/internal";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   nodeRequestLifecycle,
-  nodeRequestToWebRequestEffect,
-  writeNodeExchangeResponseEffect,
+  tryNodeRequestToWebRequest,
+  writeNodeExchangeResponse,
   type StartNodeRequestOptions,
 } from "./node-web-exchange.js";
 import { acceptsMediaType, startHtmlMediaType } from "./rpc.js";
 import type { StartRequestHandlerError } from "./start-request-handler.js";
 import { defaultServerEntry } from "./start-manifest-wall.js";
-import { responseWithScopeLifetimeEffect } from "./response-lifetime.js";
-import { suspendResponseStreamSuccessFinalizerEffect } from "./streaming.js";
+import { responseWithScopeLifetime } from "./response-lifetime.js";
+import { suspendResponseStreamSuccessFinalizer } from "./streaming.js";
 import {
-  resolveStartTransportEndpoints,
+  resolveStartTransportEndpointsSync,
   type StartTransportEndpointSource,
 } from "./start-transport-endpoints.js";
 import {
   interruptStartHostFiberOnSignal,
   mergeStartAbortSignals,
-  runStartAbortFinalizerOnSignalEffect,
+  runStartAbortFinalizerOnSignal,
 } from "./start-abort-lifecycle.js";
 
 /**
@@ -174,7 +174,7 @@ const installRequestAbortReaderCancel = (
   reader: ReadableStreamDefaultReader<Uint8Array>,
   signal: AbortSignal,
 ): Effect.Effect<void, never, Scope.Scope> =>
-  runStartAbortFinalizerOnSignalEffect(signal, (reason) => {
+  runStartAbortFinalizerOnSignal(signal, (reason) => {
     void Effect.runFork(cancelResponseReaderEffect(reader, reason ?? "request-aborted"));
   });
 
@@ -255,7 +255,7 @@ export const startDevServerFromVite = (server: StartViteDevServer): StartDevServ
  * Non-SSR asset requests call `next`; SSR, RPC, and action requests are
  * converted to web requests, handled, and written back to Node.
  */
-export const handleSsrDevMiddlewareEffect = <R = never>(
+export const handleSsrDevMiddleware = <R = never>(
   server: StartDevServer<R>,
   request: IncomingMessage,
   response: ServerResponse,
@@ -292,12 +292,12 @@ export const handleSsrDevMiddlewareEffect = <R = never>(
             return;
           }
 
-          const webRequest = yield* nodeRequestToWebRequestEffect(request, {
+          const webRequest = yield* tryNodeRequestToWebRequest(request, {
             ...options.nodeRequest,
             signal,
           });
           const webResponse = yield* handleSsrDevRequest(server, webRequest, options);
-          yield* writeNodeExchangeResponseEffect(request, response, webResponse);
+          yield* writeNodeExchangeResponse(request, response, webResponse);
         }),
       ({ dispose }) => Effect.sync(dispose),
     ),
@@ -368,7 +368,7 @@ export const shouldHandleSsrRequest = (
 ): boolean => {
   const url = request.url ?? "/";
   const pathname = new URL(url, "http://sunfall-arc.local").pathname;
-  const resolved = resolveStartTransportEndpoints(endpoints);
+  const resolved = resolveStartTransportEndpointsSync(endpoints);
   if (pathname === resolved.rpcPath || pathname === resolved.actionPath) {
     return true;
   }
@@ -397,7 +397,10 @@ export const shouldHandleSsrRequest = (
 };
 
 /** Resolves the SSR request handler export from a loaded server module. */
-export const resolveStartHandler = <HandlerError = StartRequestHandlerError, Requirements = never>(
+export const resolveStartHandlerSync = <
+  HandlerError = StartRequestHandlerError,
+  Requirements = never,
+>(
   module: StartSsrHandlerModule<HandlerError, Requirements>,
   options: { readonly handlerExport?: string } = {},
 ): StartSsrRequestHandler<HandlerError, Requirements> => {
@@ -413,16 +416,13 @@ export const resolveStartHandler = <HandlerError = StartRequestHandlerError, Req
   return candidate as StartSsrRequestHandler<HandlerError, Requirements>;
 };
 
-/** Effect wrapper for `resolveStartHandler` with a typed not-found error. */
-export const resolveStartHandlerEffect = <
-  HandlerError = StartRequestHandlerError,
-  Requirements = never,
->(
+/** Effect wrapper for `resolveStartHandlerSync` with a typed not-found error. */
+export const resolveStartHandler = <HandlerError = StartRequestHandlerError, Requirements = never>(
   module: StartSsrHandlerModule<HandlerError, Requirements>,
   options: { readonly handlerExport?: string } = {},
 ): Effect.Effect<StartSsrRequestHandler<HandlerError, Requirements>, StartHandlerNotFound> =>
   Effect.try({
-    try: () => resolveStartHandler(module, options),
+    try: () => resolveStartHandlerSync(module, options),
     catch: (error) =>
       error instanceof StartHandlerNotFound
         ? error
@@ -441,7 +441,7 @@ const handlerResultEffect = <HandlerError = StartRequestHandlerError, Requiremen
       catch: (error) => new StartDevServerError({ operation: "run-handler", error }),
     }).pipe(
       Effect.flatMap((result) =>
-        responseWithScopeLifetimeEffect<HandlerError, Requirements>(
+        responseWithScopeLifetime<HandlerError, Requirements>(
           toEffect(result as EffectInput<Response, HandlerError, Scope.Scope | Requirements>),
         ),
       ),
@@ -489,14 +489,14 @@ export const handleSsrDevRequest = <R = never>(
 ): Effect.Effect<Response, StartHandlerNotFound | StartDevServerError, R> =>
   Effect.gen(function* () {
     const module = yield* server.ssrLoadModule(options.serverEntry ?? defaultServerEntry);
-    const handler = yield* resolveStartHandlerEffect(module, options);
+    const handler = yield* resolveStartHandler(module, options);
     const response = yield* handlerResultEffect(handler, request);
 
     if (!isHtmlResponse(response)) {
       return response;
     }
 
-    const transformedResponse = yield* suspendResponseStreamSuccessFinalizerEffect(
+    const transformedResponse = yield* suspendResponseStreamSuccessFinalizer(
       response,
       Effect.gen(function* () {
         const url = new URL(request.url);

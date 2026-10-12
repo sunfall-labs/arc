@@ -11,9 +11,9 @@ import {
 } from "./request-runtime-response.js";
 import {
   buildStartRequestTrace,
-  emitStartRequestTraceEffect,
-  finalizeStartRequestMetricsEffect,
-  requestRuntimeDisposeTraceEffect,
+  emitStartRequestTrace,
+  finalizeStartRequestMetrics,
+  requestRuntimeDisposeTrace,
   startRequestTraceTeardown,
   withStartRequestObservability,
   type StartRequestTraceFacts,
@@ -38,13 +38,13 @@ const emitRequestRuntimeFailureTraceEffect = <RuntimeServices, RuntimeError>(
   interrupted: boolean,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
-    const teardown = yield* requestRuntimeDisposeTraceEffect(options.runtime);
-    yield* finalizeStartRequestMetricsEffect(options.request, options.traceFacts, {
+    const teardown = yield* requestRuntimeDisposeTrace(options.runtime);
+    yield* finalizeStartRequestMetrics(options.request, options.traceFacts, {
       status: interrupted ? "cancelled" : "failure",
       completedAt: teardown.completedAt,
     });
     if (options.onRequestTrace !== undefined) {
-      yield* emitStartRequestTraceEffect(
+      yield* emitStartRequestTrace(
         options.onRequestTrace,
         buildStartRequestTrace(
           options.request,
@@ -77,7 +77,7 @@ const requestRuntimeFinalizeOptions = <RuntimeServices, RuntimeError>(
 ) => ({
   onFinalize: (state: RequestRuntimeFinalizeState) =>
     Effect.gen(function* () {
-      yield* finalizeStartRequestMetricsEffect(options.request, options.traceFacts, {
+      yield* finalizeStartRequestMetrics(options.request, options.traceFacts, {
         status: state.status,
         completedAt: state.completedAt,
       });
@@ -85,7 +85,7 @@ const requestRuntimeFinalizeOptions = <RuntimeServices, RuntimeError>(
         options.traceFacts.failureKind = state.failureKind;
       }
       if (options.onRequestTrace !== undefined) {
-        yield* emitStartRequestTraceEffect(
+        yield* emitStartRequestTrace(
           options.onRequestTrace,
           buildStartRequestTrace(options.request, options.traceFacts, state.status, {
             response,
@@ -114,7 +114,7 @@ const requestRuntimeFinalizeOptions = <RuntimeServices, RuntimeError>(
  * application, Request Runtime disposal, request trace emission, and streamed
  * response finalization.
  */
-export const runRequestRuntimeLifecycleEffect = <E, R, RuntimeServices, RuntimeError>(
+export const runRequestRuntimeLifecycle = <E, R, RuntimeServices, RuntimeError>(
   options: RequestRuntimeLifecycleOptions<E, R, RuntimeServices, RuntimeError>,
 ): Effect.Effect<Response, E | EffectInputCallbackError, R> =>
   withStartRequestObservability(

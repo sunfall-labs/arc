@@ -8,16 +8,16 @@ import {
   defaultServerEntry,
   fileRouteDiscoveryPlan,
   isFileRouteDiscoveryFile,
-  makeStartBuildAppGraphEffect,
-  makeStartFileRouteManifestEffect,
+  makeStartBuildAppGraph,
+  makeStartFileRouteManifest,
   normalizeStartManifestIterableOptions,
   normalizeStartBuildPolicy,
-  withDiscoveredFileRoutes,
+  withDiscoveredFileRoutesSync,
   type StartManifestOptions,
   type SunfallArcStartOptions,
 } from "./start-manifest-wall.js";
 import {
-  deriveStartDefinitionSourcesEffect,
+  deriveStartDefinitionSources,
   type StartDefinitionSourcesError,
   type StartDerivedDefinitionSources,
 } from "./start-definition-sources.js";
@@ -26,25 +26,25 @@ import {
   appGraphVirtualModuleId,
   fileRouteDefinitionsVirtualModuleId,
   fileRouteManifestVirtualModuleId,
-  loadStartVirtualModuleEffect,
+  loadStartVirtualModule,
   resolveStartVirtualModuleId,
 } from "./start-virtual-modules.js";
 import {
-  runStartViteDiagnosticsGateEffect,
+  runStartViteDiagnosticsGate,
   startDiagnosticsInlineConfig,
 } from "./start-vite-diagnostics-loader.js";
 import {
   shouldWriteFileRouteDefinitionsFile,
-  writeFileRouteDefinitionsFileEffect,
+  writeFileRouteDefinitionsFile,
   type FileRouteDefinitionsFileWriteResult,
 } from "./generated-route-definitions.js";
 import {
-  handleSsrDevMiddlewareEffect,
+  handleSsrDevMiddleware,
   startDevServerFromVite,
   type StartDevMiddlewareNext,
   type StartViteDevServer,
 } from "./start-vite-dev-ssr.js";
-import { forkStartHostEffect, runStartHostPromise } from "./start-host-runtime-runner.js";
+import { forkStartHost, runStartHostPromise } from "./start-host-runtime-runner.js";
 import { isStartManifestServerOnlyModule } from "./manifest-entry-core.js";
 import { sunfallArcStartPluginName } from "./start-vite-plugin-names.js";
 import {
@@ -53,7 +53,7 @@ import {
   resolveStartRouteComponentSplitModuleId,
   transformStartRouteAutoCodeSplitting,
 } from "./route-code-splitting.js";
-import { runStartPrerenderEffect } from "./start-prerender.js";
+import { runStartPrerender } from "./start-prerender.js";
 
 export type {
   SunfallArcStartOptions,
@@ -195,7 +195,10 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
   let derivedSources: StartDerivedDefinitionSources | undefined;
 
   const currentOptions = (): StartManifestOptions =>
-    withDiscoveredFileRoutes({ ...normalizedOptions, ...derivedSources, serverEntry }, viteRoot);
+    withDiscoveredFileRoutesSync(
+      { ...normalizedOptions, ...derivedSources, serverEntry },
+      viteRoot,
+    );
 
   // Server functions and Actions come only from what the server entry's
   // handler serves.
@@ -203,7 +206,7 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
     command: "build" | "serve" | undefined,
     mode: string | undefined,
   ): Effect.Effect<StartDerivedDefinitionSources | undefined, StartDefinitionSourcesError> =>
-    deriveStartDefinitionSourcesEffect({
+    deriveStartDefinitionSources({
       root: viteRoot,
       serverEntry,
       ...(normalizedOptions.handlerExport === undefined
@@ -231,7 +234,7 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
 
   const runCurrentDiagnosticsGate = (): Promise<void> =>
     runStartHostPromise(
-      runStartViteDiagnosticsGateEffect({
+      runStartViteDiagnosticsGate({
         root: viteRoot,
         configFile: false,
         ...(viteMode === undefined ? {} : { mode: viteMode }),
@@ -247,8 +250,8 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
     }
 
     return Effect.runSync(
-      Effect.flatMap(makeStartFileRouteManifestEffect(activeOptions), (manifest) =>
-        writeFileRouteDefinitionsFileEffect(viteRoot, manifest, activeOptions.fileRouteGeneration),
+      Effect.flatMap(makeStartFileRouteManifest(activeOptions), (manifest) =>
+        writeFileRouteDefinitionsFile(viteRoot, manifest, activeOptions.fileRouteGeneration),
       ),
     );
   };
@@ -318,7 +321,7 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
           }
           derivedSources = yield* deriveSourcesEffect(env?.command, env?.mode);
           const activeOptions = currentOptions();
-          const graph = yield* makeStartBuildAppGraphEffect(activeOptions);
+          const graph = yield* makeStartBuildAppGraph(activeOptions);
           const userConfig: UserConfig = {
             appType: "custom",
             define: {
@@ -356,10 +359,10 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
           ? {}
           : { runOptions: normalizedOptions.devSsr.runOptions };
       return runStartHostPromise(
-        runStartPrerenderEffect({
+        runStartPrerender({
           root: viteRoot,
           outDir: viteOutDir,
-          manifest: Effect.runSync(makeStartFileRouteManifestEffect(activeOptions)),
+          manifest: Effect.runSync(makeStartFileRouteManifest(activeOptions)),
           prerender: activeOptions.prerender ?? normalizedOptions.prerender,
           vite: startDiagnosticsInlineConfig(viteUserConfig, viteRoot, viteMode),
           serverEntry,
@@ -383,7 +386,7 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
         return splitModule;
       }
       const activeOptions = currentOptions();
-      return Effect.runSync(loadStartVirtualModuleEffect(id, activeOptions));
+      return Effect.runSync(loadStartVirtualModule(id, activeOptions));
     },
     transform(code, id, options) {
       if (isStartManifestServerOnlyModule(id) && !options?.ssr) {
@@ -407,8 +410,8 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
           const devSsr = activeOptions.devSsr;
 
           try {
-            forkStartHostEffect(
-              handleSsrDevMiddlewareEffect(startServer, request, response, next, {
+            forkStartHost(
+              handleSsrDevMiddleware(startServer, request, response, next, {
                 serverEntry,
                 ...(activeOptions.rpcPath === undefined ? {} : { rpcPath: activeOptions.rpcPath }),
                 ...(activeOptions.actionPath === undefined

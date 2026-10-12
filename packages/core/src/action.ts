@@ -17,10 +17,7 @@ import {
   type ActionOptimisticChange,
   type ActionOptimisticTransaction,
 } from "./action-optimistic.js";
-import {
-  applyActionOptimisticEffect,
-  invalidationsForEffect,
-} from "./action-execution-workflow.js";
+import { applyActionOptimistic, invalidationsFor } from "./action-execution-workflow.js";
 import { makeActionInstance } from "./action-instance.js";
 import { registerActionDefinition } from "./definition-registry.js";
 import type {
@@ -338,7 +335,7 @@ export namespace Action {
     value: A,
     input: I,
   ): Effect.Effect<ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>>> =>
-    Effect.flatMap(invalidationsForEffect(definition, value, input), Resource.planInvalidation);
+    Effect.flatMap(invalidationsFor(definition, value, input), Resource.planInvalidation);
 
   /**
    * Plans what a definition's `optimistic` patch changes for `input`, without
@@ -360,7 +357,7 @@ export namespace Action {
   ): Effect.Effect<ReadonlyArray<ActionOptimisticChange>, never, R> =>
     Effect.suspend(() => {
       const plan = makeActionOptimisticPlanRuntime(definition.name);
-      return applyActionOptimisticEffect(definition, input, plan, "submit").pipe(
+      return applyActionOptimistic(definition, input, plan, "submit").pipe(
         Effect.map(() => plan.changes()),
       );
     });

@@ -182,7 +182,7 @@ const planFileRouteDefinitionsFileWriteEffect = (
  * Succeeds with `undefined` when generation is disabled and reports whether a
  * file write was necessary otherwise; filesystem failures stay typed.
  */
-export const writeFileRouteDefinitionsFileEffect = (
+export const writeFileRouteDefinitionsFile = (
   root: string,
   manifest: FileRouteManifest,
   options: FileRouteGenerationOptions = {},

@@ -2,7 +2,7 @@ import { Data, Effect } from "effect";
 import { createServer, type InlineConfig, type UserConfig } from "vite";
 import type { StartAppGraph, StartAppGraphDiagnostics } from "./app-graph.js";
 import {
-  decodeStartAppGraphDiagnosticsDtoEffect,
+  decodeStartAppGraphDiagnosticsDto,
   describeStartAppGraph,
   deserializeStartAppGraph,
 } from "./app-graph.js";
@@ -17,16 +17,16 @@ import type {
 import {
   defaultServerEntry,
   normalizeStartManifestIterableOptions,
-  withDiscoveredFileRoutes,
+  withDiscoveredFileRoutesSync,
   type StartManifestOptions,
 } from "./start-manifest-wall.js";
 import {
   appGraphRuntimeDiagnosticsVirtualModuleId,
-  loadStartVirtualModuleEffect,
+  loadStartVirtualModule,
   resolveStartVirtualModuleId,
 } from "./start-virtual-modules.js";
 import {
-  resolveStartTransportEndpointsEffect,
+  resolveStartTransportEndpoints,
   type StartTransportEndpointConflictError,
   type StartTransportEndpointPathError,
 } from "./start-transport-endpoints.js";
@@ -100,7 +100,7 @@ export const sunfallArcStartVirtualModules = (
   const serverEntry = normalizedOptions.serverEntry ?? defaultServerEntry;
   let viteRoot = process.cwd();
   const currentOptions = (): StartManifestOptions =>
-    withDiscoveredFileRoutes({ ...normalizedOptions, serverEntry }, viteRoot);
+    withDiscoveredFileRoutesSync({ ...normalizedOptions, serverEntry }, viteRoot);
 
   return {
     name: sunfallArcStartVirtualModulesPluginName,
@@ -111,7 +111,7 @@ export const sunfallArcStartVirtualModules = (
       return resolveStartVirtualModuleId(id);
     },
     load(id) {
-      return Effect.runSync(loadStartVirtualModuleEffect(id, currentOptions()));
+      return Effect.runSync(loadStartVirtualModule(id, currentOptions()));
     },
   };
 };
@@ -223,7 +223,7 @@ const closeStartDiagnosticsViteServerEffect = (
  * lifetime. Temporary diagnostics servers are acquired and released by
  * `loadStartAppGraphDiagnosticsEffect(...)` instead.
  */
-export const loadStartAppGraphDiagnosticsFromServerEffect = (
+export const loadStartAppGraphDiagnosticsFromServer = (
   server: StartDiagnosticsViteServer,
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
   Effect.gen(function* () {
@@ -239,18 +239,18 @@ export const loadStartAppGraphDiagnosticsFromServerEffect = (
     return yield* startAppGraphDiagnosticsFromModuleEffect(module);
   });
 
-export const loadStartAppGraphDiagnosticsWithServerEffect = (
+export const loadStartAppGraphDiagnosticsWithServer = (
   server: StartDiagnosticsViteServer,
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
-  loadStartAppGraphDiagnosticsFromServerEffect(server);
+  loadStartAppGraphDiagnosticsFromServer(server);
 
 /** Loads diagnostics from an explicitly acquired server and releases it afterward. */
-export const loadStartAppGraphDiagnosticsWithOwnedServerEffect = (
+export const loadStartAppGraphDiagnosticsWithOwnedServer = (
   acquireServer: Effect.Effect<StartDiagnosticsViteServer, StartAppGraphDiagnosticsLoadError>,
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
   Effect.acquireUseRelease(
     acquireServer,
-    loadStartAppGraphDiagnosticsFromServerEffect,
+    loadStartAppGraphDiagnosticsFromServer,
     closeStartDiagnosticsViteServerEffect,
   );
 
@@ -385,7 +385,7 @@ const startAppGraphDiagnosticsFromModuleEffect = (
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
   Effect.gen(function* () {
     const graph = yield* decodeStartAppGraphFromModuleEffect(module.graph);
-    const dto = yield* decodeStartAppGraphDiagnosticsDtoEffect({
+    const dto = yield* decodeStartAppGraphDiagnosticsDto({
       diagnostics: module.diagnostics,
       diagnosticsPolicyViolations: module.diagnosticsPolicyViolations,
     }).pipe(Effect.mapError((cause) => diagnosticsRunnerError(cause.message, cause)));
@@ -403,12 +403,12 @@ const loadStartAppGraphDiagnosticsRawEffect = (
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
   Effect.gen(function* () {
     if (options.start !== undefined) {
-      yield* resolveStartTransportEndpointsEffect({
+      yield* resolveStartTransportEndpoints({
         ...(options.start.rpcPath === undefined ? {} : { rpcPath: options.start.rpcPath }),
         ...(options.start.actionPath === undefined ? {} : { actionPath: options.start.actionPath }),
       });
     }
-    return yield* loadStartAppGraphDiagnosticsWithOwnedServerEffect(
+    return yield* loadStartAppGraphDiagnosticsWithOwnedServer(
       startDiagnosticsViteServerEffect(options),
     );
   });
@@ -428,7 +428,7 @@ export const loadStartAppGraphDiagnostics = (
  * Runs the resolved Start diagnostics policy through Vite without requiring
  * application code to import `virtual:sunfall-arc/app-graph`.
  */
-export const runStartViteDiagnosticsGateEffect = (
+export const runStartViteDiagnosticsGate = (
   options: LoadStartAppGraphDiagnosticsOptions = {},
 ): Effect.Effect<void, StartAppGraphDiagnosticsLoadError> =>
   Effect.asVoid(loadStartAppGraphDiagnosticsRawEffect(options));

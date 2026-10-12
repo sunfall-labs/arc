@@ -622,10 +622,10 @@ The root export includes:
   `applyChanges(...)`; server data changes only through Actions, whose
   `optimistic` patches the rows.
 - `@sunfall/arc-db/internal` (Internal) carries adapter plumbing for Solid DB,
-  Start, and devtools: `bindCollectionRuntimeEffect`,
-  `makeCollectionReactivePreloadController`, `collectCollectionsEffect`,
-  `CollectionPreloadCollector`, `dehydrateCollections(Effect)`,
-  `hydrateCollectionsEffect`, `validateCollectionsHydrationEffect`,
+  Start, and devtools: `bindCollectionRuntime`,
+  `makeCollectionReactivePreloadController`, `collectCollections`,
+  `CollectionPreloadCollector`, `dehydrateCollectionsSync(Effect)`,
+  `hydrateCollections`, `validateCollectionsHydration`,
   `isCollection`, the definition registry, store access/events,
   `CollectionTypeId`/`CollectionStoreTypeId`, `defineCollection`, and
   `buildQuery`.

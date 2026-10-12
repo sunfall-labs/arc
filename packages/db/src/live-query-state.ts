@@ -14,7 +14,7 @@ import {
   type QueryEvaluationError,
   type QueryStagePlan,
 } from "./query-plan.js";
-import { preloadQueryExecutionPlanEffect } from "./query-execution-plan.js";
+import { preloadQueryExecutionPlan } from "./query-execution-plan.js";
 
 type LiveQueryResult<T, E> = AsyncResult.AsyncResult<ReadonlyArray<T>, E | QueryEvaluationError>;
 
@@ -199,8 +199,8 @@ export const makeLiveQueryState = <T, E = never, R = never>(
     sources,
     evaluate: () => data.get(),
     preload: (): Effect.Effect<void, E | QueryEvaluationError, R> =>
-      preloadQueryExecutionPlanEffect(builder, false),
+      preloadQueryExecutionPlan(builder, false),
     refresh: (): Effect.Effect<void, E | QueryEvaluationError, R> =>
-      preloadQueryExecutionPlanEffect(builder, true),
+      preloadQueryExecutionPlan(builder, true),
   };
 };

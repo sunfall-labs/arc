@@ -8,7 +8,7 @@ import {
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
-import { currentCollectionStore, subscribeCollectionEventsEffect } from "@sunfall/arc-db/internal";
+import { currentCollectionStore, subscribeCollectionEvents } from "@sunfall/arc-db/internal";
 import { Cause, Deferred, Effect, Exit, Fiber, PubSub, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 
@@ -522,7 +522,7 @@ describe("Action optimistic Collection patches", () => {
         runtime.provide(
           Effect.scoped(
             Effect.gen(function* () {
-              const subscription = yield* subscribeCollectionEventsEffect();
+              const subscription = yield* subscribeCollectionEvents();
               yield* Projects.refresh();
               return yield* PubSub.take(subscription);
             }),

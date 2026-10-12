@@ -25,10 +25,7 @@ import {
 } from "./effect-like.js";
 import { validateResourceInvalidationsArraySync } from "./resource-dependency-graph.js";
 import type { ResourceInvalidation, ResourceInvalidationPlan } from "./resource.js";
-import {
-  planResourceInvalidationEffect,
-  runResourceInvalidationPlanEffect,
-} from "./resource-runtime.js";
+import { planResourceInvalidation, runResourceInvalidationPlan } from "./resource-runtime.js";
 import type { ActionDefinition } from "./action.js";
 import { ActionTransport, type ActionTransportSubmission } from "./action-transport.js";
 import type { ServerClientError } from "./server.js";
@@ -64,7 +61,7 @@ const resultInvalidations = <A>(
 ): ReadonlyArray<ResourceInvalidation<ActionResultInvalidationRequirements<A>>> =>
   ActionResult.is(value) ? ActionResult.invalidations(value as AnyActionResult) : [];
 
-export const invalidationsForEffect = <I, A, E, R>(
+export const invalidationsFor = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
   value: A,
   input: I,
@@ -92,7 +89,7 @@ export const invalidationsForEffect = <I, A, E, R>(
   );
 
 /** Runs a definition's `run` with its retry policy; callback contract breaks are defects. */
-export const runActionEffect = <I, A, E, R>(
+export const runAction = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
   input: I,
 ): Effect.Effect<A, E, R> => {
@@ -118,7 +115,7 @@ export const runActionEffect = <I, A, E, R>(
  * commits as it is made (so it shows while later optimistic work runs), labelled
  * with the Action and `event` (`submit`, or the Action Outbox's `queue` / `restore`).
  */
-export const applyActionOptimisticEffect = <I, A, E, R>(
+export const applyActionOptimistic = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
   input: I,
   transaction: { readonly api: ActionOptimisticTransaction },
@@ -151,7 +148,7 @@ export interface ActionExecutionOptions<I, A, E, R> {
   readonly current: () => boolean;
 }
 
-/** Outcome of `executeActionEffect`: the value and the invalidation plan it ran locally. */
+/** Outcome of `executeAction`: the value and the invalidation plan it ran locally. */
 export interface ActionExecutionOutcome<A, R> {
   readonly value: A;
   readonly plan: ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>> | undefined;
@@ -163,7 +160,7 @@ export interface ActionExecutionOutcome<A, R> {
  * transaction, then applies the response or runs the invalidations. The
  * caller owns rolling the transaction back on failure.
  */
-export const executeActionEffect = <I, A, E, R>(
+export const executeAction = <I, A, E, R>(
   options: ActionExecutionOptions<I, A, E, R>,
 ): Effect.Effect<
   ActionExecutionOutcome<A, R>,
@@ -194,15 +191,15 @@ export const executeActionEffect = <I, A, E, R>(
       return { value, plan: undefined };
     }
 
-    const value = yield* runActionEffect(definition, input);
+    const value = yield* runAction(definition, input);
     yield* options.beforeApply;
 
-    const invalidations = yield* invalidationsForEffect(definition, value, input);
-    const planned = yield* planResourceInvalidationEffect(invalidations);
+    const invalidations = yield* invalidationsFor(definition, value, input);
+    const planned = yield* planResourceInvalidation(invalidations);
     yield* transaction.commit;
 
     if (invalidations.length > 0) {
-      yield* runResourceInvalidationPlanEffect(planned);
+      yield* runResourceInvalidationPlan(planned);
       return { value, plan: planned };
     }
     return { value, plan: undefined };
@@ -294,10 +291,10 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
           const transaction = makeActionOptimisticTransactionRuntime(definition.name);
           rollback = transaction.rollback;
           if (!endpoint) {
-            yield* applyActionOptimisticEffect(definition, input, transaction, "submit");
+            yield* applyActionOptimistic(definition, input, transaction, "submit");
           }
 
-          const outcome = yield* executeActionEffect({
+          const outcome = yield* executeAction({
             definition,
             input,
             transaction,

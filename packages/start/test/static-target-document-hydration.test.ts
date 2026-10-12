@@ -3,10 +3,10 @@ import { Resource, makeRuntime } from "@sunfall/arc-core";
 import { Cause, Effect, Exit } from "effect";
 import { Window } from "happy-dom";
 import { describe, expect, it, vi } from "vitest";
-import { createHydrationScript } from "../src/hydration.js";
+import { createHydrationScriptSync } from "../src/hydration.js";
 import {
   StartStaticNavigationHydrationError,
-  hydrateStartStaticTargetDocumentEffect,
+  hydrateStartStaticTargetDocument,
   type StartStaticTargetDocumentWindow,
 } from "../src/static-target-document-hydration.js";
 
@@ -29,7 +29,7 @@ describe("Start static target document hydration", () => {
               Effect.fail(new Error("static target test has no loader")),
           });
           const ref = ProjectById("1");
-          const html = `<!doctype html><html><body>${createHydrationScript({
+          const html = `<!doctype html><html><body>${createHydrationScriptSync({
             resources: [
               {
                 name: ref.family.options.name,
@@ -51,7 +51,7 @@ describe("Start static target document hydration", () => {
             async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(html),
           );
 
-          const outcome = yield* hydrateStartStaticTargetDocumentEffect({
+          const outcome = yield* hydrateStartStaticTargetDocument({
             runtime,
             href: "/projects/1",
             browserHref: "/app/projects/1",
@@ -84,7 +84,7 @@ describe("Start static target document hydration", () => {
           new Response("missing", { status: 404 }),
       );
       const exit = await Effect.runPromiseExit(
-        hydrateStartStaticTargetDocumentEffect({
+        hydrateStartStaticTargetDocument({
           runtime,
           href: "/projects/1",
           browserHref: "/app/projects/1",

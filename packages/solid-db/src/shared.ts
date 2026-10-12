@@ -5,7 +5,7 @@ import {
 } from "@sunfall/arc-core";
 import { CollectionSnapshotCodecError, QueryEvaluationError } from "@sunfall/arc-db";
 import {
-  bindCollectionRuntimeEffect,
+  bindCollectionRuntime,
   makeCollectionReactivePreloadController,
 } from "@sunfall/arc-db/internal";
 import type { Component } from "@sunfall/arc-solid";
@@ -129,6 +129,6 @@ export const makeSolidDbReactiveBinding = <E, R = never>(
       }
       return runWithRuntime(runtime, read);
     },
-    bindEffect: (effect) => bindCollectionRuntimeEffect(runtime, effect),
+    bindEffect: (effect) => bindCollectionRuntime(runtime, effect),
   };
 };

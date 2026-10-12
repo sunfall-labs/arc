@@ -10,7 +10,7 @@ import {
   isStartManifestServerOnlyModule,
   parseSerializedStartManifestJson,
   stableManifestEntryId,
-  validateManifestEndpointPathEffect,
+  validateManifestEndpointPath,
   validateManifestEntrySet,
   type StartManifestEndpointPathErrorInput,
   type StartManifestModuleKind,
@@ -235,7 +235,7 @@ const serverFunctionManifestInvalidEndpointPath = (
 const normalizeServerFunctionManifestPathEffect = (
   rpcPath: string | undefined,
 ): Effect.Effect<string, ServerFunctionManifestInvalidEndpointPath> =>
-  validateManifestEndpointPathEffect(rpcPath ?? defaultStartTransportEndpoints.rpcPath, {
+  validateManifestEndpointPath(rpcPath ?? defaultStartTransportEndpoints.rpcPath, {
     field: "rpcPath",
     invalidPath: serverFunctionManifestInvalidEndpointPath,
   });

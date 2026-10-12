@@ -1,6 +1,6 @@
 import { type ActionDefinition } from "@sunfall/arc-core";
 import {
-  decodeStartActionFormDataEffect,
+  decodeStartActionFormData,
   startActionForm,
   type StartActionDefinition,
   type StartActionForm,
@@ -33,5 +33,5 @@ export namespace StartAction {
    * Hidden Start transport fields emitted by `StartAction.form(...)` are omitted
    * automatically before the schema decoder runs.
    */
-  export const decodeFormData = decodeStartActionFormDataEffect;
+  export const decodeFormData = decodeStartActionFormData;
 }

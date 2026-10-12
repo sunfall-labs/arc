@@ -2,7 +2,7 @@ import type { SunfallArcRuntime } from "@sunfall/arc-core";
 import { Effect, Scope } from "effect";
 import type { StartRequestHandlerError } from "./start-request-handler-error.js";
 import {
-  invokeStartRequestHandlerEffect,
+  invokeStartRequestHandler,
   type StartRequestHandlerInput,
   type StartRequestHandlerRequirements,
 } from "./start-host-adapter.js";
@@ -10,7 +10,7 @@ import {
   runStartHostPromise,
   type StartHostPromiseRunnerOptions,
 } from "./start-host-runtime-runner.js";
-import { responseWithScopeLifetimeEffect } from "./response-lifetime.js";
+import { responseWithScopeLifetime } from "./response-lifetime.js";
 import { mergeStartAbortSignals } from "./start-abort-lifecycle.js";
 
 type StartFetchRuntimeRequirements<Requirements> = unknown extends Requirements
@@ -104,7 +104,7 @@ export function toFetchHandler<HandlerError, Requirements>(
 export function toFetchHandler(
   handler: StartRequestHandlerInput<any, any>,
 ): StartFetchHandler<any> {
-  return (request) => invokeStartRequestHandlerEffect(handler, request);
+  return (request) => invokeStartRequestHandler(handler, request);
 }
 
 /**
@@ -130,7 +130,7 @@ export function createFetchHandler<
   return (request) => {
     const merged = runOptionsForRequest(options.runOptions, request.signal);
     return runStartHostPromise(
-      responseWithScopeLifetimeEffect(effectHandler(request), {
+      responseWithScopeLifetime(effectHandler(request), {
         abortSignal: merged.abortSignal,
         abortTeardownReason: "request-abort",
         onCleanup: merged.cleanup,

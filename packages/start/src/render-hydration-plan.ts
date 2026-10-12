@@ -2,8 +2,8 @@ import type { ResourceHydrationPayload, RoutePreloadFailureSnapshot } from "@sun
 import type { Collection } from "@sunfall/arc-db";
 import { Effect } from "effect";
 import {
+  createHydrationScriptSync,
   createHydrationScript,
-  createHydrationScriptEffect,
   createStartHydrationPayload,
   type StartHydrationPayload,
   type StartHydrationPayloadSerializeError,
@@ -48,7 +48,7 @@ const emptyResourceHydrationPayload: ResourceHydrationPayload = { resources: [] 
  * Route resource refs move into streamed chunks so a renderer cannot emit the
  * same resource pair in both the root script and the stream.
  */
-export const createStartRenderHydrationPlanEffect = (
+export const createStartRenderHydrationPlan = (
   options: CreateStartRenderHydrationPlanOptions,
 ): Effect.Effect<StartRenderHydrationPlan, StartHydrationPayloadSerializeError> =>
   Effect.gen(function* () {
@@ -64,7 +64,7 @@ export const createStartRenderHydrationPlanEffect = (
       ),
       ...settled,
     };
-    const rootScript = yield* createHydrationScriptEffect(rootPayload);
+    const rootScript = yield* createHydrationScript(rootPayload);
     const legacyPayload: StartHydrationPayload = {
       ...createStartHydrationPayload(options.resources, options.collections, options.routeFailure),
       ...settled,
@@ -83,7 +83,7 @@ export const createStartRenderHydrationPlanEffect = (
       legacy: {
         payload: legacyPayload,
         get script() {
-          legacyScript ??= createHydrationScript(legacyPayload);
+          legacyScript ??= createHydrationScriptSync(legacyPayload);
           return legacyScript;
         },
       },

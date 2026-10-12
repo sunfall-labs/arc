@@ -3,14 +3,14 @@ import { describe, expect, it } from "vitest";
 import {
   describeFileRouteManifest,
   deserializeFileRouteManifest,
-  filePathToFileRouteModule,
+  filePathToFileRouteModuleSync,
   filePathToRouteManifestEntry,
   FileRouteManifestDuplicateModuleRole,
   FileRouteManifestParseError,
   FileRouteManifestRouteModuleMismatch,
   generateFileRouteManifest,
   generateFileRouteManifestArtifact,
-  generateValidatedFileRouteManifestArtifactEffect,
+  generateValidatedFileRouteManifestArtifact,
   serializeFileRouteManifest,
   FileRouteManifestDuplicateRouteId,
 } from "../src/file-routes.js";
@@ -111,23 +111,27 @@ describe("file route manifest generation", () => {
   });
 
   it("classifies route support modules without turning them into routes", () => {
-    expect(filePathToFileRouteModule("src/routes/projects/_layout.tsx", options)).toMatchObject({
-      id: "projects/_layout",
-      kind: "Layout",
-      exportName: "Layout",
-      routeId: "route_projects",
-      routePath: "/projects",
-    });
-    expect(filePathToFileRouteModule("src/routes/projects/error.tsx", options)).toMatchObject({
+    expect(filePathToFileRouteModuleSync("src/routes/projects/_layout.tsx", options)).toMatchObject(
+      {
+        id: "projects/_layout",
+        kind: "Layout",
+        exportName: "Layout",
+        routeId: "route_projects",
+        routePath: "/projects",
+      },
+    );
+    expect(filePathToFileRouteModuleSync("src/routes/projects/error.tsx", options)).toMatchObject({
       kind: "ErrorBoundary",
       exportName: "ErrorBoundary",
       routePath: "/projects",
     });
-    expect(filePathToFileRouteModule("src/routes/projects/metadata.ts", options)).toMatchObject({
-      kind: "Metadata",
-      exportName: "Metadata",
-      routePath: "/projects",
-    });
+    expect(filePathToFileRouteModuleSync("src/routes/projects/metadata.ts", options)).toMatchObject(
+      {
+        kind: "Metadata",
+        exportName: "Metadata",
+        routePath: "/projects",
+      },
+    );
     expect(generateFileRouteManifest(["src/routes/projects/error.tsx"], options)).toEqual([]);
   });
 
@@ -286,7 +290,7 @@ describe("file route manifest generation", () => {
   it("rejects duplicate support modules for the same route scope", () => {
     return Effect.runPromise(
       Effect.exit(
-        generateValidatedFileRouteManifestArtifactEffect(
+        generateValidatedFileRouteManifestArtifact(
           [
             "src/routes/index.tsx",
             "src/routes/projects/layout.tsx",
@@ -307,7 +311,7 @@ describe("file route manifest generation", () => {
 
   it("allows sibling group support modules with the same URL scope", () => {
     return Effect.runPromise(
-      generateValidatedFileRouteManifestArtifactEffect(
+      generateValidatedFileRouteManifestArtifact(
         [
           "src/routes/(admin)/_layout.tsx",
           "src/routes/(admin)/dashboard.tsx",
@@ -333,7 +337,7 @@ describe("file route manifest generation", () => {
   it("rejects duplicate generated route id slug collisions", () => {
     return Effect.runPromise(
       Effect.exit(
-        generateValidatedFileRouteManifestArtifactEffect(
+        generateValidatedFileRouteManifestArtifact(
           ["src/routes/projects/foo-bar.tsx", "src/routes/projects/foo_bar.tsx"],
           options,
         ),

@@ -12,7 +12,7 @@ import { Cause, Data, Effect, Exit, Schema } from "effect";
 import type { StartCollectionHydrationOptions } from "./hydration.js";
 import {
   startJsonMediaType,
-  validateStartRpcResponseEffect,
+  validateStartRpcResponse,
   type StartTransportRequestError,
 } from "./rpc.js";
 import {
@@ -22,8 +22,8 @@ import {
   type StartTransportEndpointSource,
 } from "./start-transport-endpoints.js";
 import {
-  readStartTransportJsonBodyEffect,
-  readStartTransportResponseTextEffect,
+  readStartTransportJsonBody,
+  readStartTransportResponseText,
 } from "./start-transport-body.js";
 import type { StartActionDefinition } from "./start-action-request-codec.js";
 import type { StartRequestTraceFailureKind } from "./request-trace.js";
@@ -31,14 +31,14 @@ import type { ServerRpcClientOptions } from "./start-fetch.js";
 import { encodeWithSchema } from "./start-schema-codec.js";
 
 export {
-  actionExitResponseEffect,
+  actionExitResponse,
   actionFunctionNotFoundResponse,
   actionProtocolFailureResponse,
-  actionResponseMetaEffect,
+  actionResponseMeta,
   actionResponseMode,
   actionRuntimeFailureResponse,
   actionTransportRequestFailureResponse,
-  decodeStartActionOutcomeEffect,
+  decodeStartActionOutcome,
   describeStartActionInvalidationPlan,
   parseStartActionResponse,
 } from "./start-action-response-codec.js";
@@ -52,14 +52,14 @@ export type {
 } from "./start-action-response-codec.js";
 export { decodeWithSchema, encodeWithSchema } from "./start-schema-codec.js";
 
-export { applyStartActionResponseEffect } from "./start-action-response-application.js";
+export { applyStartActionResponse } from "./start-action-response-application.js";
 
 export {
-  encodeStartActionFormInputEffect,
-  encodeStartActionInputEffect,
-  encodeStartActionPartialInputEffect,
-  encodeStartActionRequestEffect,
-  readStartActionRequestEffect,
+  encodeStartActionFormInput,
+  encodeStartActionInput,
+  encodeStartActionPartialInput,
+  encodeStartActionRequest,
+  readStartActionRequest,
   StartActionFormEncodeError,
   startActionForm,
   startActionInputField,
@@ -127,8 +127,8 @@ const startTransportJson = (body: StartTransportJsonBody, status = 200): Respons
 const rpcJson = (body: Server.RpcResponse, status = 200): Response =>
   startTransportJson(body, status);
 
-export const readJsonEffect = (request: Request): Effect.Effect<unknown, ServerRpcProtocolError> =>
-  readStartTransportJsonBodyEffect(request, "Expected a JSON server function request body.");
+export const readRequestJson = (request: Request): Effect.Effect<unknown, ServerRpcProtocolError> =>
+  readStartTransportJsonBody(request, "Expected a JSON server function request body.");
 
 const serverErrorBody = (
   error: ServerRpcProtocolError | ServerFunctionNotFound,
@@ -244,7 +244,7 @@ const firstDefect = <E>(cause: Cause.Cause<E>): unknown | undefined => {
   return reason?.defect;
 };
 
-export const rpcFailureKindEffect = <FnError>(
+export const rpcFailureKind = <FnError>(
   fn: ServerFunction<unknown, unknown, FnError, unknown>,
   exit: Exit.Exit<unknown, FnError>,
 ): Effect.Effect<StartRequestTraceFailureKind> => {
@@ -281,7 +281,7 @@ const actionResultFailureKind = (result: unknown): StartRequestTraceFailureKind 
   return undefined;
 };
 
-export const actionFailureKindEffect = <ActionError>(
+export const actionFailureKind = <ActionError>(
   action: StartActionDefinition,
   exit: Exit.Exit<unknown, ActionError>,
 ): Effect.Effect<StartRequestTraceFailureKind | undefined> => {
@@ -389,8 +389,8 @@ export const parseRpcResponse = (
   response: Response,
 ): Effect.Effect<Server.RpcResponse, ServerTransportError | Schema.SchemaError> =>
   Effect.gen(function* () {
-    yield* validateStartRpcResponseEffect(response);
-    const text = yield* readStartTransportResponseTextEffect(
+    yield* validateStartRpcResponse(response);
+    const text = yield* readStartTransportResponseText(
       response,
       "Could not read the server function response body.",
     );

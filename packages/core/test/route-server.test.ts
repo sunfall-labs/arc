@@ -25,7 +25,7 @@ import {
   routeParamsFromSegments,
   routePathFromSegments,
   routePathSlug,
-  matchRoutesEffect,
+  matchRoutes,
 } from "../src/internal.js";
 
 describe("route", () => {
@@ -479,7 +479,7 @@ describe("route", () => {
     });
 
     return Effect.runPromise(
-      Effect.flip(matchRoutesEffect([ProjectRoute] as const, "/projects/atlas")).pipe(
+      Effect.flip(matchRoutes([ProjectRoute] as const, "/projects/atlas")).pipe(
         Effect.tap((error) =>
           Effect.sync(() => {
             expect(error).toBeInstanceOf(RouteNavigationError);
@@ -498,10 +498,10 @@ describe("route", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const duplicateError = yield* Effect.flip(
-          matchRoutesEffect([DuplicateParamRoute] as const, "/projects/atlas/settings"),
+          matchRoutes([DuplicateParamRoute] as const, "/projects/atlas/settings"),
         );
         const invalidError = yield* Effect.flip(
-          matchRoutesEffect([InvalidParamRoute] as const, "/invalid-projects/atlas"),
+          matchRoutes([InvalidParamRoute] as const, "/invalid-projects/atlas"),
         );
 
         expect(duplicateError).toBeInstanceOf(RouteNavigationError);

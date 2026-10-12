@@ -12,10 +12,10 @@ import type {
 } from "./collection-contract.js";
 import {
   collectionPersistenceConfig,
-  persistCollectionLoadSnapshotEffect,
-  restoreCollectionBeforePreloadEffect,
+  persistCollectionLoadSnapshot,
+  restoreCollectionBeforePreload,
 } from "./collection-persistence.js";
-import { ingestCollectionOutputRowsEffect } from "./collection-row-ingress.js";
+import { ingestCollectionOutputRows } from "./collection-row-ingress.js";
 import {
   applyCollectionBaseRow,
   deleteCollectionBaseRow,
@@ -26,11 +26,8 @@ import {
   type CollectionState,
   type StoredRow,
 } from "./collection-state.js";
-import { collectionStoreEffect, type RuntimeCollectionStore } from "./runtime-collection-store.js";
-import {
-  collectionCallbackEffect,
-  collectionStateEffect,
-} from "./collection-projection-callback-policy.js";
+import { activeCollectionStore, type RuntimeCollectionStore } from "./runtime-collection-store.js";
+import { collectionCallback, collectionState } from "./collection-projection-callback-policy.js";
 import {
   restoreCollectionStateSnapshot,
   snapshotCollectionState,
@@ -223,11 +220,11 @@ const restoreBeforePreloadEffect = <A extends object, K extends CollectionKey, E
 ): Effect.Effect<boolean, CollectionRuntimeError<E>, R> =>
   Effect.suspend(() => {
     const restoreVersion = state.version.get();
-    return restoreCollectionBeforePreloadEffect(
+    return restoreCollectionBeforePreload(
       definition,
       state,
       store,
-      collectionStoreEffect,
+      activeCollectionStore,
       () => isCurrentLoadAttempt(state, attempt) && state.version.get() === restoreVersion,
     );
   });
@@ -264,7 +261,7 @@ const persistLoadSnapshotEffect = <A extends object, K extends CollectionKey, E,
   store: RuntimeCollectionStore,
   snapshot: CollectionSnapshot<A, K>,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
-  Effect.suspend(() => persistCollectionLoadSnapshotEffect(definition, store, snapshot));
+  Effect.suspend(() => persistCollectionLoadSnapshot(definition, store, snapshot));
 
 const restoreLoadStateIfCurrentEffect = <A extends object, K extends CollectionKey, E>(
   state: CollectionState<A, K, E>,
@@ -353,17 +350,17 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
  * hydration payload, so the hydrating client starts never-loaded too, renders
  * the same output, and loads the collection itself.
  */
-export const forgetFailedCollectionLoadsEffect = (
+export const forgetFailedCollectionLoads = (
   collections: Iterable<AnyCollection>,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
-    const store = yield* collectionStoreEffect;
+    const store = yield* activeCollectionStore;
     for (const definition of collections) {
       if (definition.readOnly === true) {
         continue;
       }
       // A throwing state projection breaks the collection's contract: a defect.
-      const state = yield* collectionStateEffect(
+      const state = yield* collectionState(
         definition as CollectionDefinition<any, any, unknown, unknown>,
         store,
       ).pipe(Effect.orDie);
@@ -382,13 +379,13 @@ export const forgetFailedCollectionLoadsEffect = (
  * load persistence. Collection Runtime calls this small Interface so load
  * ordering stays Effect-first and runtime/request-local.
  */
-export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends CollectionKey, E, R>(
+export const runCollectionSyncLoadPolicy = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   options: CollectionSyncLoadPolicyOptions<A>,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
-    const store = yield* collectionStoreEffect;
-    const state = yield* collectionStateEffect(definition, store);
+    const store = yield* activeCollectionStore;
+    const state = yield* collectionState(definition, store);
     const ownership = yield* beginCollectionLoadAttempt(state, options.force);
     if (ownership._tag === "Join") {
       return yield* Deferred.await(
@@ -438,7 +435,7 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         return;
       }
 
-      const load = collectionCallbackEffect(operation);
+      const load = collectionCallback(operation);
       const previousLoadState = state.loadState.get();
       if (source === undefined && isCurrentLoadAttempt(state, attempt)) {
         commitCollectionLoadState(state, AsyncResult.waiting(previousLoadState));
@@ -454,7 +451,7 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         Effect.catch((error: E | EffectInputCallbackError) => failCurrentLoad(error)),
       );
       yield* Effect.gen(function* () {
-        const rows = yield* ingestCollectionOutputRowsEffect(definition, values, {
+        const rows = yield* ingestCollectionOutputRows(definition, values, {
           operation: "load",
           path: `$.collections[${definition.name}].rows`,
           synced: true,
@@ -529,7 +526,7 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
  * running; a stream failure is published the same way, recorded like a load
  * failure, and restarts on the next successful preload or refresh.
  */
-export const followCollectionSyncEffect = <A extends object, K extends CollectionKey, E, R>(
+export const followCollectionSync = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   applyChanges: (
     store: RuntimeCollectionStore,
@@ -541,8 +538,8 @@ export const followCollectionSyncEffect = <A extends object, K extends Collectio
     if (follow === undefined && changes === undefined) {
       return;
     }
-    const store = yield* collectionStoreEffect;
-    const state = yield* collectionStateEffect(definition, store);
+    const store = yield* activeCollectionStore;
+    const state = yield* collectionState(definition, store);
     const publishChangesFailure = (error: unknown): Effect.Effect<void> =>
       store.publish({
         _tag: "CollectionChangeFeedFailure",
@@ -554,7 +551,7 @@ export const followCollectionSyncEffect = <A extends object, K extends Collectio
       yield* Stream.runForEach(follow(), (source) =>
         source === state.syncedSource
           ? Effect.void
-          : runCollectionSyncLoadPolicyEffect(definition, { force: true, source }).pipe(
+          : runCollectionSyncLoadPolicy(definition, { force: true, source }).pipe(
               // The policy already recorded the failure on the load state.
               Effect.catch(() => Effect.void),
             ),

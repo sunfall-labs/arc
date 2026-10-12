@@ -39,11 +39,11 @@ import {
 } from "./query-plan.js";
 import {
   executeQueryPlan,
-  preloadQueryExecutionPlanEffect,
+  preloadQueryExecutionPlan,
   queryExecutionPlanDiagnostics,
 } from "./query-execution-plan.js";
 import { makeQuerySourceAdapter } from "./query-source-adapter.js";
-import { collectionStoreEffect, runWithCollectionStore } from "./runtime-collection-store.js";
+import { activeCollectionStore, runWithCollectionStore } from "./runtime-collection-store.js";
 import type {
   AnyCollection,
   CollectionError,
@@ -680,8 +680,8 @@ export namespace Query {
         try: () => buildOrThrowQueryEvaluationError(factory),
         catch: (cause) => toQueryEvaluationError("evaluate", cause),
       });
-      yield* preloadQueryExecutionPlanEffect<E, R>(builder, false);
-      const store = yield* collectionStoreEffect;
+      yield* preloadQueryExecutionPlan<E, R>(builder, false);
+      const store = yield* activeCollectionStore;
       return yield* Effect.try({
         try: () => runWithCollectionStore(store, () => builder.execute()),
         catch: (cause) => toQueryEvaluationError("evaluate", cause),

@@ -2,9 +2,9 @@ import { Cache, Clock, Duration, Effect, Exit, Fiber, Option, PubSub, Scope, Str
 import {
   planResourceInvalidationTargets,
   removeResourceRefFromTagIndex,
-  recordResourceProvidedTags,
+  recordResourceProvidedTagsSync,
   resourceRefStoreKey,
-  resourceProvidedTagsEffect,
+  resourceProvidedTags,
   resourceRefsForTag,
 } from "./resource-dependency-graph.js";
 import {
@@ -24,12 +24,12 @@ import { settleResult } from "./async-result-settle.js";
 import { parseDuration } from "./resource-duration.js";
 import { lookupResourceHydrationFamily } from "./resource-registry.js";
 import {
-  decodeResourceHydrationInputEffect,
-  decodeResourceHydrationStateEffect,
+  decodeResourceHydrationInput,
+  decodeResourceHydrationState,
   ResourceHydrationApplyError,
-  resourceHydrationSnapshotFromRefEffect,
+  resourceHydrationSnapshotFromRef,
   type ResourceSnapshotCodecError,
-  validateResourceHydrationPayloadEffect,
+  validateResourceHydrationPayload,
 } from "./resource-snapshot-codec.js";
 import {
   clearResourceInFlight,
@@ -71,15 +71,13 @@ import type {
 export const currentResourceStore = (): ResourceStoreState =>
   unsafeMutableResourceStore(currentOrDefaultRuntime().resourceStore);
 
-export const resourceStoreEffect: Effect.Effect<ResourceStoreState> = Effect.gen(function* () {
+export const activeResourceStore: Effect.Effect<ResourceStoreState> = Effect.gen(function* () {
   const store = yield* Effect.serviceOption(ResourceStore);
   return Option.isSome(store) ? unsafeMutableResourceStore(store.value) : currentResourceStore();
 });
 
-export const lookupResourceFamilyEffect = (
-  name: string,
-): Effect.Effect<AnyResourceFamily | undefined> =>
-  Effect.map(resourceStoreEffect, (store) => lookupResourceHydrationFamily(name, store));
+export const lookupResourceFamily = (name: string): Effect.Effect<AnyResourceFamily | undefined> =>
+  Effect.map(activeResourceStore, (store) => lookupResourceHydrationFamily(name, store));
 
 const recordTouched = (ref: AnyResourceRef): Effect.Effect<void> =>
   Effect.gen(function* () {
@@ -216,11 +214,9 @@ const resourceRetentionKey = (ref: AnyResourceRef): string => resourceRefStoreKe
 const isResourceRefRetained = (ref: AnyResourceRef, store: ResourceStoreState): boolean =>
   (store.retainedRefs.get(resourceRetentionKey(ref)) ?? 0) > 0;
 
-export const retainResourceRefEffect = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>,
-): Effect.Effect<void> =>
+export const retainResourceRef = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<void> =>
   Effect.gen(function* () {
-    const store = yield* resourceStoreEffect;
+    const store = yield* activeResourceStore;
     rememberResourceRef(ref, store);
     const key = resourceRetentionKey(ref as AnyResourceRef);
     store.retainedRefs.set(key, (store.retainedRefs.get(key) ?? 0) + 1);
@@ -230,11 +226,9 @@ export const retainResourceRefEffect = <I, A, E, R>(
     }
   });
 
-export const releaseResourceRefEffect = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>,
-): Effect.Effect<void> =>
+export const releaseResourceRef = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<void> =>
   Effect.gen(function* () {
-    const store = yield* resourceStoreEffect;
+    const store = yield* activeResourceStore;
     const key = resourceRetentionKey(ref as AnyResourceRef);
     const current = store.retainedRefs.get(key) ?? 0;
     if (current <= 1) {
@@ -246,7 +240,7 @@ export const releaseResourceRefEffect = <I, A, E, R>(
 
     const entry = peekResourceEntry(ref, store);
     if (entry?.state.get()._tag === "Success") {
-      yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
+      yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStore, () =>
         isResourceRefRetained(ref as AnyResourceRef, store),
       );
     }
@@ -274,7 +268,7 @@ const peekResourceEntry = <I, A, E, R>(
 ): ResourceEntry<A, E> | undefined =>
   store.entries.get(ref.family)?.get(ref.key) as ResourceEntry<A, E> | undefined;
 
-export const getCachedResourceEffect = <I, A, E, R>(
+export const getCachedResource = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   store: ResourceStoreState,
 ): Effect.Effect<A, E, R> => {
@@ -282,7 +276,7 @@ export const getCachedResourceEffect = <I, A, E, R>(
   return Cache.get(resourceCache(ref.family, store), ref.key);
 };
 
-export const refreshCachedResourceEffect = <I, A, E, R>(
+export const refreshCachedResource = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   store: ResourceStoreState,
 ): Effect.Effect<A, E, R> => {
@@ -290,7 +284,7 @@ export const refreshCachedResourceEffect = <I, A, E, R>(
   return Cache.refresh(resourceCache(ref.family, store), ref.key);
 };
 
-export const invalidateCachedResourceEffect = <I, A, E, R>(
+export const invalidateCachedResource = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   store: ResourceStoreState,
 ): Effect.Effect<void> => {
@@ -304,11 +298,11 @@ const resourceEntryOwnsState = <A, E>(entry: ResourceEntry<A, E> | undefined): b
     entry.gcFiber !== undefined ||
     entry.state.get()._tag !== "Initial");
 
-export const subscribeResourceEventsEffect = (): Effect.Effect<
+export const subscribeResourceEvents = (): Effect.Effect<
   PubSub.Subscription<ResourceStoreEvent>,
   never,
   Scope.Scope
-> => Effect.flatMap(resourceStoreEffect, (store) => store.eventBus.subscribe);
+> => Effect.flatMap(activeResourceStore, (store) => store.eventBus.subscribe);
 
 const isSettledResourceEvent = (ref: AnyResourceRef, event: ResourceStoreEvent): boolean =>
   (event._tag === "ResourceSuccess" || event._tag === "ResourceHydrated") &&
@@ -324,10 +318,8 @@ const isSettledResourceEvent = (ref: AnyResourceRef, event: ResourceStoreEvent):
 export const resourceChangesStream = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Stream.Stream<A> =>
   Stream.unwrap(
     Effect.gen(function* () {
-      const store = yield* resourceStoreEffect;
-      yield* Effect.acquireRelease(retainResourceRefEffect(ref), () =>
-        releaseResourceRefEffect(ref),
-      );
+      const store = yield* activeResourceStore;
+      yield* Effect.acquireRelease(retainResourceRef(ref), () => releaseResourceRef(ref));
       const subscription = yield* store.eventBus.subscribe;
       const settled = Stream.fromSubscription(subscription).pipe(
         Stream.filter((event) => isSettledResourceEvent(ref as AnyResourceRef, event)),
@@ -346,11 +338,11 @@ export const resourceResult = <I, A, E, R>(
 ): ReadableSignal<AsyncResult.AsyncResult<A, E>> =>
   resourceEntry(ref, currentResourceStore()).state;
 
-export const resourceStatusEffect = <I, A, E, R>(
+export const resourceStatus = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
 ): Effect.Effect<ResourceStatus<I, A, E, R, E>> =>
   Effect.gen(function* () {
-    const store = yield* resourceStoreEffect;
+    const store = yield* activeResourceStore;
     const now = yield* Clock.currentTimeMillis;
     return inspectResourceStatus(
       ref,
@@ -359,12 +351,12 @@ export const resourceStatusEffect = <I, A, E, R>(
     );
   });
 
-export const runResourceEffect = <I, A, E, R>(
+export const runResource = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   options: { readonly force: boolean },
 ): Effect.Effect<A, E, R> =>
   Effect.gen(function* () {
-    const store = yield* resourceStoreEffect;
+    const store = yield* activeResourceStore;
     yield* recordTouched(ref as AnyResourceRef);
     const entry = resourceEntry(ref, store);
     const currentInFlight = entry.inFlight;
@@ -419,11 +411,8 @@ export const runResourceEffect = <I, A, E, R>(
         const exit = yield* Effect.exit(
           restore(
             Effect.flatMap(
-              options.force
-                ? refreshCachedResourceEffect(ref, store)
-                : getCachedResourceEffect(ref, store),
-              (value) =>
-                Effect.map(resourceProvidedTagsEffect(ref, value), (tags) => ({ value, tags })),
+              options.force ? refreshCachedResource(ref, store) : getCachedResource(ref, store),
+              (value) => Effect.map(resourceProvidedTags(ref, value), (tags) => ({ value, tags })),
             ),
           ),
         );
@@ -436,9 +425,9 @@ export const runResourceEffect = <I, A, E, R>(
         );
 
         if (Exit.isSuccess(exit)) {
-          recordResourceProvidedTags(ref, exit.value.tags, store);
+          recordResourceProvidedTagsSync(ref, exit.value.tags, store);
           commitResourceState(entry, settled, "success");
-          yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
+          yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStore, () =>
             isResourceRefRetained(ref as AnyResourceRef, store),
           );
           yield* publishResourceStoreEvent(store, {
@@ -450,7 +439,7 @@ export const runResourceEffect = <I, A, E, R>(
           return exit.value.value;
         }
 
-        yield* invalidateCachedResourceEffect(ref, store);
+        yield* invalidateCachedResource(ref, store);
         commitResourceState(entry, settled, settled._tag === "Failure" ? "failure" : "interrupt");
         if (settled._tag === "Failure") {
           yield* interruptResourceGc(entry);
@@ -465,7 +454,7 @@ export const runResourceEffect = <I, A, E, R>(
           // Cancelled: the prior settled result is back, so a restored success
           // regains the GC lifetime that showing pending interrupted.
           if (settled._tag === "Success") {
-            yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
+            yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStore, () =>
               isResourceRefRetained(ref as AnyResourceRef, store),
             );
           }
@@ -491,15 +480,14 @@ export const runResourceEffect = <I, A, E, R>(
     return yield* Fiber.join(fiber);
   });
 
-export const refreshResourceEffect = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>,
-): Effect.Effect<A, E, R> => runResourceEffect(ref, { force: true });
+export const refreshResource = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, E, R> =>
+  runResource(ref, { force: true });
 
-export const prefetchResourceEffect = <I, A, E, R>(
+export const prefetchResource = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-): Effect.Effect<A, E, R> => runResourceEffect(ref, { force: false });
+): Effect.Effect<A, E, R> => runResource(ref, { force: false });
 
-export const collectResourceEffect = <A, E, R>(
+export const collectResource = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<ResourceCollected<A>, E, R> =>
   Effect.gen(function* () {
@@ -592,11 +580,11 @@ const resourceReadDecision = <I, A, E, R>(
   }
 };
 
-export const readResourceEffect = <I, A, E, R>(
+export const readResource = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
 ): Effect.Effect<A, ResourcePending<I, A, E, R> | ResourceFailure<I, A, E, R, E>, R> =>
   Effect.gen(function* () {
-    const store = yield* resourceStoreEffect;
+    const store = yield* activeResourceStore;
     yield* recordTouched(ref as AnyResourceRef);
     const entry = peekResourceEntry(ref, store);
     const now = yield* Clock.currentTimeMillis;
@@ -617,7 +605,7 @@ export const readResourceEffect = <I, A, E, R>(
       case "Value":
         if (decision.refresh) {
           yield* store.fiberRegistry.run(
-            refreshResourceEffect(ref).pipe(Effect.catchCause(() => Effect.void)),
+            refreshResource(ref).pipe(Effect.catchCause(() => Effect.void)),
           );
         }
         return decision.value;
@@ -627,27 +615,27 @@ export const readResourceEffect = <I, A, E, R>(
 export const refsForResourceTag = (tag: ResourceTag): ReadonlyArray<AnyResourceRef<any>> =>
   resourceRefsForTag(tag, currentResourceStore());
 
-export const planResourceInvalidationEffect = <R = never>(
+export const planResourceInvalidation = <R = never>(
   target: ResourceInvalidationTarget<R>,
 ): Effect.Effect<ResourceInvalidationPlan<R>> =>
   Effect.map(
-    resourceStoreEffect,
+    activeResourceStore,
     (store) => planResourceInvalidationTargets(target, store) as ResourceInvalidationPlan<R>,
   );
 
-export const invalidateResourceEffect = <R = never>(
+export const invalidateResource = <R = never>(
   target: ResourceInvalidationTarget<R>,
 ): Effect.Effect<void, never, R> =>
   Effect.gen(function* () {
-    const store = yield* resourceStoreEffect;
-    yield* runResourceInvalidationPlanEffect(planResourceInvalidationTargets(target, store));
+    const store = yield* activeResourceStore;
+    yield* runResourceInvalidationPlan(planResourceInvalidationTargets(target, store));
   });
 
-export const runResourceInvalidationPlanEffect = <R = never>(
+export const runResourceInvalidationPlan = <R = never>(
   plan: ResourceInvalidationPlan<R>,
 ): Effect.Effect<void, never, R> =>
   Effect.gen(function* () {
-    const store = yield* resourceStoreEffect;
+    const store = yield* activeResourceStore;
     for (const entry of plan.entries) {
       yield* publishResourceStoreEvent(store, {
         _tag: "ResourceInvalidated",
@@ -655,15 +643,15 @@ export const runResourceInvalidationPlanEffect = <R = never>(
         key: entry.ref.key,
         causes: entry.causes.map(describeResourceStoreInvalidationCause),
       });
-      yield* refreshResourceEffect(entry.ref).pipe(Effect.catchCause(() => Effect.void));
+      yield* refreshResource(entry.ref).pipe(Effect.catchCause(() => Effect.void));
     }
   });
 
-export const dehydrateResourcesEffect = (
+export const dehydrateResources = (
   refs: Iterable<AnyResourceRef<any>>,
 ): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>, ResourceSnapshotCodecError> =>
   Effect.gen(function* () {
-    const store = yield* resourceStoreEffect;
+    const store = yield* activeResourceStore;
     const snapshot: Array<ResourceHydrationSnapshot> = [];
 
     let index = 0;
@@ -675,18 +663,18 @@ export const dehydrateResourcesEffect = (
       }
       const state = entry.state.get();
       if (state._tag === "Success") {
-        snapshot.push(yield* resourceHydrationSnapshotFromRefEffect(ref, state, `$[${pathIndex}]`));
+        snapshot.push(yield* resourceHydrationSnapshotFromRef(ref, state, `$[${pathIndex}]`));
       }
     }
 
     return snapshot;
   });
 
-export const resourceHydrationPayloadEffect = (
+export const resourceHydrationPayload = (
   refs: Iterable<AnyResourceRef<any>>,
 ): Effect.Effect<ResourceHydrationPayload, ResourceSnapshotCodecError> =>
-  Effect.flatMap(dehydrateResourcesEffect(refs), (resources) =>
-    validateResourceHydrationPayloadEffect({ resources }, "snapshot"),
+  Effect.flatMap(dehydrateResources(refs), (resources) =>
+    validateResourceHydrationPayload({ resources }, "snapshot"),
   );
 
 interface ResourceHydrationPlanEntry {
@@ -706,10 +694,10 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
     const entry = resourceEntry(ref, store);
     yield* interruptResourceInFlight(entry);
     yield* interruptResourceGc(entry);
-    recordResourceProvidedTags(ref, tags, store);
+    recordResourceProvidedTagsSync(ref, tags, store);
     commitResourceState(entry, state, "hydrate");
     yield* Cache.set(resourceCache(ref.family, store), ref.key, state.value);
-    yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect, () =>
+    yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStore, () =>
       isResourceRefRetained(ref as AnyResourceRef, store),
     );
     yield* publishResourceStoreEvent(store, {
@@ -720,25 +708,23 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
     });
   });
 
-export const hydrateResourceRefEffect = <I, A, E, R>(
+export const hydrateResourceRef = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   state: AsyncResult.Success<A, E>,
   store: ResourceStoreState,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
-    const tags = yield* resourceProvidedTagsEffect(ref, state.value);
+    const tags = yield* resourceProvidedTags(ref, state.value);
     yield* applyHydratedResourceRefEffect(ref, state, tags, store);
   });
 
-export const deleteResourceEffect = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>,
-): Effect.Effect<void> =>
+export const deleteResource = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<void> =>
   Effect.gen(function* () {
-    const store = yield* resourceStoreEffect;
-    yield* deleteResourceFromStoreEffect(ref, store);
+    const store = yield* activeResourceStore;
+    yield* deleteResourceFromStore(ref, store);
   });
 
-export const deleteResourceFromStoreEffect = <I, A, E, R>(
+export const deleteResourceFromStore = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   store: ResourceStoreState,
 ): Effect.Effect<void> =>
@@ -774,16 +760,13 @@ export const deleteResourceFromStoreEffect = <I, A, E, R>(
     });
   });
 
-export const hydrateResourcesEffect = (
+export const hydrateResources = (
   input: ResourceHydrationPayload,
   options: ResourceHydrationOptions = {},
 ): Effect.Effect<void, ResourceSnapshotCodecError | ResourceHydrationApplyError> =>
   Effect.gen(function* () {
-    const store = yield* resourceStoreEffect;
-    const { resources: snapshots } = yield* validateResourceHydrationPayloadEffect(
-      input,
-      "hydrate",
-    );
+    const store = yield* activeResourceStore;
+    const { resources: snapshots } = yield* validateResourceHydrationPayload(input, "hydrate");
     const now =
       options.timestamp === "now" || options.skipFresh === true
         ? yield* Clock.currentTimeMillis
@@ -811,7 +794,7 @@ export const hydrateResourcesEffect = (
         );
       }
 
-      const input = yield* decodeResourceHydrationInputEffect(
+      const input = yield* decodeResourceHydrationInput(
         family,
         snapshot,
         "hydrate",
@@ -835,7 +818,7 @@ export const hydrateResourcesEffect = (
         );
       }
 
-      const state = yield* decodeResourceHydrationStateEffect(
+      const state = yield* decodeResourceHydrationState(
         family,
         snapshot,
         "hydrate",
@@ -850,7 +833,7 @@ export const hydrateResourcesEffect = (
       }
       const successState =
         timestamp === undefined ? state : AsyncResult.success(state.value, { timestamp });
-      const tags = yield* resourceProvidedTagsEffect(ref, successState.value);
+      const tags = yield* resourceProvidedTags(ref, successState.value);
       plan.push({ ref, state: successState, tags });
     }
 

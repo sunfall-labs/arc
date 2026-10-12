@@ -888,7 +888,7 @@ entry script, in that order. There is no hand-written HTML to drift from what
 hydration needs.
 
 Underneath, an internal Effect-native streaming Module builds the response:
-`createHtmlStreamEffect` returns an Effect `Stream` of bytes, and the Start
+`createHtmlStream` returns an Effect `Stream` of bytes, and the Start
 render step appends `StartRenderHydrationPlan` streamed chunks before the tail.
 Shell, chunk, and tail failures become typed `StartStreamError` values, so
 streaming remains Effect-native until the final web platform seam.
@@ -1001,7 +1001,7 @@ would send before rendering the page. Start uses this same route plan for
 SSR preload. If a touched resource cannot be serialized, planning fails through
 the typed `ResourceSnapshotCodecError` Effect error channel. When
 `@sunfall/arc-start` is present, it separately composes
-`collectCollectionsEffect` (from `@sunfall/arc-db/internal`) around the route plan so DB collection preload can be
+`collectCollections` (from `@sunfall/arc-db/internal`) around the route plan so DB collection preload can be
 observed without making `@sunfall/arc-core` depend on `@sunfall/arc-db`.
 
 Routes can also declare the resource families and DB collections their preload
@@ -1017,7 +1017,7 @@ typed diagnostics validators can enforce those as policy.
 
 File routes are manifest-first in v0. The pure helpers
 `generateFileRouteManifest(files, { routeDirectory })` and
-`generateValidatedFileRouteManifestArtifactEffect` turn known route module paths
+`generateValidatedFileRouteManifestArtifact` turn known route module paths
 into route metadata. The Start Vite plugin is the filesystem boundary: when no
 explicit `fileRoutes` or `fileRouteManifest` is supplied, it discovers route
 modules from the Vite root's `src/routes` directory and feeds that deterministic
@@ -1033,8 +1033,8 @@ routes, dynamic `$id` segments, optional `$id?` segments, route groups like
 layout leaf files named `layout`, `_layout`, `+layout`, or beginning with `_`
 ignored entirely.
 
-Production generators should use `generateValidatedFileRouteManifestEffect` or
-`generateValidatedFileRouteManifestArtifactEffect`. They reject files that
+Production generators should use `generateValidatedFileRouteManifest` or
+`generateValidatedFileRouteManifestArtifact`. They reject files that
 collapse to the same route path after route groups and pathless segments are
 removed, and malformed dynamic segments like `$123`, keeping bad route graphs
 out of builds. Discovered `.d.ts` files are ignored before manifest generation.
@@ -1104,7 +1104,7 @@ The payload includes the resource family name, stable key, and original input
 settled `Success`, `{ _tag: "Success", value, waiting: false, timestamp }`, with
 `value` encoded through the family's `output` schema when one exists. Hydration
 is Success-only: failures can carry server-only causes and are never serialized. Start client hydration applies that payload with
-`hydrateFromDocument(...)` or `hydrateStartPayloadEffect(...)`; those
+`hydrateFromDocument(...)` or `hydrateStartPayload(...)`; those
 helpers call `Resource.hydrate(payload)` so the visible resource signal
 and Effect `Cache` entry update in the same Runtime Spine.
 
@@ -1381,7 +1381,7 @@ tags, and DB collection definitions without reading private stores. A shared
 diagnostics DTO decoder is used by Vite, CLI, and virtual modules instead of
 duplicate loose shape guards at each Adapter seam. Builds can enforce static
 manifest policy with
-`validateStartAppGraphWireSchemasEffect(graph)`, which fails with
+`validateStartAppGraphWireSchemas(graph)`, which fails with
 `StartAppGraphMissingWireSchemas` when required input/output schemas are absent;
 projects can opt into requiring error schemas too. Resolved route-module policy
 lives on `StartBuildPolicy.diagnostics`. During Vite builds, the Start Vite

@@ -35,7 +35,7 @@ export class StartDefinitionSourcesLoadError extends Data.TaggedError(
   readonly cause?: unknown;
 }> {}
 
-/** Failures of `deriveStartDefinitionSourcesEffect`. */
+/** Failures of `deriveStartDefinitionSources`. */
 export type StartDefinitionSourcesError =
   | StartDefinitionNotExported
   | StartDefinitionSourcesLoadError;
@@ -172,7 +172,7 @@ export const startDefinitionSourcesFromModules = (
  * Returns no sources when the entry does not exist or its handler was not
  * built by `createRequestHandler`.
  */
-export const deriveStartDefinitionSourcesEffect = (
+export const deriveStartDefinitionSources = (
   options: DeriveStartDefinitionSourcesOptions,
 ): Effect.Effect<StartDerivedDefinitionSources, StartDefinitionSourcesError> => {
   const entryFile = resolve(options.root, `.${options.serverEntry}`);

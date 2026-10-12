@@ -360,7 +360,7 @@ export const runActionSubmissionWorkflow = <E, R>(
  * submission still running, unknown, or unreadable counts as unsettled, which
  * keeps the client's patch.
  */
-export const settledActionSubmissionsEffect = (
+export const settledActionSubmissions = (
   state: StartActionWorkflows,
   runtime: AnySunfallArcRuntime<unknown>,
   actions: ReadonlyMap<string, { readonly durable?: unknown }>,

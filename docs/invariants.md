@@ -159,9 +159,9 @@ documented as outside the current release bar.
   DB collections touched for a concrete request.
 - Resolved app graph diagnostics must list routes whose preload is present but
   whose preload resources or collections are still `unknown`, and
-  `validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect` can turn those
+  `validateStartAppGraphRoutePreloadResourcesDiagnostics` can turn those
   into a typed failure for CI/devtools policy. The collection equivalent is
-  `validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect`.
+  `validateStartAppGraphRoutePreloadCollectionsDiagnostics`.
 - App graph diagnostics must expose server-function and action ownership by
   stable id, server export, client reference, module kind, endpoint, and
   wire-schema completeness so agents can route edits without guessing across

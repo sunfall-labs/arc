@@ -329,7 +329,7 @@ export const publicHoverDocGroups = [
       "resourceUiRefAccessor",
       "resourceUiSameRef",
       "resourceUiPreloadFailureFor",
-      "resourceUiBindRuntimeEffect",
+      "resourceUiBindRuntime",
       "makeResourceUiBindingController",
       "makeResourceUiSuspensePreloadController",
     ],
@@ -628,7 +628,7 @@ export const publicHoverDocGroups = [
     declarations: [
       "StartAppGraphUnknownRoutePreloadResources",
       "StartAppGraphUnknownRoutePreloadCollections",
-      "validateStartAppGraphDiagnosticsPolicyExceptionEffect",
+      "validateStartAppGraphDiagnosticsPolicyException",
     ],
   },
   {

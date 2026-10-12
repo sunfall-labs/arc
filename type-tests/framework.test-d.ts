@@ -111,12 +111,12 @@ import {
   ReadonlyCollectionMutation,
 } from "@sunfall/arc-db";
 import {
-  collectCollectionsEffect,
-  collectionStoreEffect,
+  collectCollections,
+  activeCollectionStore,
+  dehydrateCollectionsSync,
   dehydrateCollections,
-  dehydrateCollectionsEffect,
-  hydrateCollectionsEffect,
-  validateCollectionsHydrationEffect,
+  hydrateCollections,
+  validateCollectionsHydration,
   type CollectionStoreDiagnosticsSnapshot,
   type CollectionStoreEvent,
 } from "@sunfall/arc-db/internal";
@@ -183,8 +183,8 @@ import {
 } from "../packages/start/src/file-route-modules.js";
 import type { FileRouteManifest } from "../packages/start/src/file-routes.js";
 import {
-  createServerActionResponseEffect,
-  createServerRpcResponseEffect,
+  createServerActionResponse,
+  createServerRpcResponse,
 } from "../packages/start/src/start-request-endpoints.js";
 import {
   createStartAgentGraphImpact,
@@ -213,8 +213,8 @@ import {
 } from "../packages/start/src/agent-graph.js";
 import type { StartAppGraphDiagnostics } from "../packages/start/src/app-graph.js";
 import {
-  hydrateStartHydrationChunksFromDocumentEffect,
-  readStartHydrationChunksEffect,
+  hydrateStartHydrationChunksFromDocument,
+  readStartHydrationChunks,
   streamHydrationConsumedAttribute,
 } from "../packages/start/src/hydration.js";
 import { preloadRequest } from "../packages/start/src/start-request-preload.js";
@@ -225,7 +225,7 @@ import {
   type StartRequestTraceTeardown,
 } from "../packages/start/src/request-trace.js";
 import {
-  startTransportEndpointEnvelopeEffect,
+  startTransportEndpointEnvelope,
   type StartTransportDiagnosticsOptions,
   type StartTransportEndpointEnvelope,
 } from "../packages/start/src/rpc.js";
@@ -249,7 +249,7 @@ import {
   type StartAppGraphDiagnosticsLoadError,
 } from "../packages/start/src/start-vite-diagnostics-loader.js";
 import {
-  writeFileRouteDefinitionsFileEffect,
+  writeFileRouteDefinitionsFile,
   type FileRouteDefinitionsFileWriteFailure,
   type FileRouteDefinitionsFileWriteResult,
 } from "../packages/start/src/generated-route-definitions.js";
@@ -338,13 +338,11 @@ const tsrxOptions: SunfallArcTsrxOptions = {
 };
 const tsrxPlugins: PluginOption[] = sunfallArcTsrx(tsrxOptions);
 void tsrxPlugins;
-const startRootRpcEndpointHelper: typeof createServerRpcResponseEffect =
-  createServerRpcResponseEffect;
-const startRootActionEndpointHelper: typeof createServerActionResponseEffect =
-  createServerActionResponseEffect;
+const startRootRpcEndpointHelper: typeof createServerRpcResponse = createServerRpcResponse;
+const startRootActionEndpointHelper: typeof createServerActionResponse = createServerActionResponse;
 const startTransportEnvelopeOptions: StartTransportDiagnosticsOptions = { requestId: "req-type" };
 const startTransportEnvelopeEffect: Effect.Effect<StartTransportEndpointEnvelope> =
-  startTransportEndpointEnvelopeEffect(
+  startTransportEndpointEnvelope(
     "rpc",
     new Request("https://example.com/__sunfall-arc/rpc"),
     startTransportEnvelopeOptions,
@@ -1053,7 +1051,7 @@ const generatedFileRouteDefinitionsModule: string = createGeneratedFileRouteDefi
 const generatedFileRouteWriteEffect: Effect.Effect<
   FileRouteDefinitionsFileWriteResult | undefined,
   FileRouteDefinitionsFileWriteFailure
-> = writeFileRouteDefinitionsFileEffect(".", emptyFileRouteManifest, {
+> = writeFileRouteDefinitionsFile(".", emptyFileRouteManifest, {
   outputFile: false,
 });
 const generatedFileRouteHeader: string = defaultGeneratedFileRouteDefinitionsHeader;
@@ -1485,7 +1483,7 @@ const resourceDehydrateEffect: Effect.Effect<
   ReadonlyArray<Resource.Snapshot>,
   ResourceSnapshotCodecError
 > = Resource.dehydrate([]);
-const resourceHydrationPayloadEffect: Effect.Effect<
+const resourceHydrationPayload: Effect.Effect<
   Resource.HydrationPayload,
   ResourceSnapshotCodecError
 > = Resource.hydrationPayload([]);
@@ -1499,7 +1497,7 @@ declare const frameworkResourceHydrationPayloadAlias: Resource.HydrationPayload;
 declare const frameworkResourceHydrationOptionsAlias: Resource.HydrationOptions;
 declare const frameworkResourceStatusAlias: Resource.Status<string, Project>;
 void resourceDehydrateEffect;
-void resourceHydrationPayloadEffect;
+void resourceHydrationPayload;
 void directResourceHydrationPayload;
 void frameworkResourceTagAlias;
 void frameworkResourceInvalidationAlias;
@@ -1655,7 +1653,7 @@ const projectPersistWithoutStore: Effect.Effect<void, unknown> = ProjectsCollect
 void projectPersistEffect;
 void projectRestoreEffect;
 void projectPersistWithoutStore;
-Effect.map(collectionStoreEffect, (store) => {
+Effect.map(activeCollectionStore, (store) => {
   const diagnosticsEffect: Effect.Effect<CollectionStoreDiagnosticsSnapshot> =
     store.diagnostics.snapshot;
   const diagnostics: CollectionStoreDiagnosticsSnapshot = Effect.runSync(diagnosticsEffect);
@@ -1805,25 +1803,25 @@ Collection.define<Project>({
   persistence: {},
 });
 
-const collectionPayload = dehydrateCollections([ProjectsCollection]);
+const collectionPayload = dehydrateCollectionsSync([ProjectsCollection]);
 const collectionDehydrateEffect: Effect.Effect<
   Collection.HydrationPayload,
   CollectionSnapshotCodecError | EffectInputCallbackError
-> = dehydrateCollectionsEffect([ProjectsCollection]);
+> = dehydrateCollections([ProjectsCollection]);
 const collectionHydratePayloadEffect: Effect.Effect<
   void,
   CollectionSnapshotCodecError | EffectInputCallbackError
-> = hydrateCollectionsEffect([ProjectsCollection], collectionPayload);
+> = hydrateCollections([ProjectsCollection], collectionPayload);
 const collectionValidateHydrationPayloadEffect: Effect.Effect<
   void,
   CollectionSnapshotCodecError | EffectInputCallbackError
-> = validateCollectionsHydrationEffect([ProjectsCollection], collectionPayload, {
+> = validateCollectionsHydration([ProjectsCollection], collectionPayload, {
   replace: false,
 });
 void collectionDehydrateEffect;
 void collectionHydratePayloadEffect;
 void collectionValidateHydrationPayloadEffect;
-Effect.map(collectCollectionsEffect(ProjectsCollection.preload()), (collected) => {
+Effect.map(collectCollections(ProjectsCollection.preload()), (collected) => {
   collected.value;
   collected.definitions.map((definition) => definition.name);
 });
@@ -2121,9 +2119,9 @@ const streamHydrationDocument = {
     },
   ],
 };
-readStartHydrationChunksEffect(streamHydrationDocument, { includeConsumed: true });
+readStartHydrationChunks(streamHydrationDocument, { includeConsumed: true });
 hydrationRuntime.runSync(
-  hydrateStartHydrationChunksFromDocumentEffect(streamHydrationDocument, {
+  hydrateStartHydrationChunksFromDocument(streamHydrationDocument, {
     collections: [ProjectsCollection],
     markConsumed: false,
   }),
