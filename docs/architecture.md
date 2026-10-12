@@ -480,7 +480,11 @@ submissions' layers stack on top. Success commits the transaction: Signal and
 Resource patches fold into the base value and row layers fold into the synced
 base, where the `invalidates` reload (or, remotely, the response's
 invalidations) replaces them. A typed failure, defect, or interruption rolls
-the transaction back and rebases every other submission's patches. Patch,
+the transaction back and rebases every other submission's patches. So does a
+rejected `ActionResult`: a run (local, remote, or a durable replay) that
+returns `ValidationFailure` or `Failure` means the change did not happen, so
+its patches roll back exactly as on a failure, without folding and without a
+reload; `Success` and `Redirect` results commit. Patch,
 commit, and rollback writes commit under the Action's Timeline cause
 (`submit`, `success`, `failure`), so travel shows them. Snapshots (SSR
 dehydration, persistence) carry only the synced base: a patch belongs to an

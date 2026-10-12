@@ -31,9 +31,12 @@ Entries are newest first.
   entry the caller's runtime has not loaded plans no change.
 - The golden path's rename now patches the sidebar row and the project page
   at once, and the project console's rename and advance Actions patch the
-  `ProjectById` entry. The console's rename reloads the project after every
-  outcome, so a rejected name (a `ValidationFailure` value) replaces the
-  optimistic one.
+  `ProjectById` entry.
+- A run that returns a rejected `ActionResult` (`ValidationFailure` or
+  `Failure`) rolls the submission's optimistic patches back exactly as a
+  failure does (Timeline cause `failure`), instead of folding them in; this
+  holds for local runs, remote responses, and durable replays. `Success` and
+  `Redirect` results commit as before.
 
 ### Every State Change Has A Name (Breaking)
 

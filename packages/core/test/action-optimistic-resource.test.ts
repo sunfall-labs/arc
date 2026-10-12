@@ -2,7 +2,15 @@ import { createEffect, createRoot, flush } from "@solidjs/signals";
 import { Deferred, Effect, Exit, Fiber, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
-import { Action, Resource, Signal, Timeline } from "../src/index.js";
+import {
+  Action,
+  ActionOptimisticRowsTypeId,
+  ActionResult,
+  Resource,
+  Signal,
+  Timeline,
+  type ActionOptimisticRows,
+} from "../src/index.js";
 import { defaultRuntime } from "../src/internal.js";
 
 interface Project {
@@ -250,5 +258,106 @@ describe("Action optimistic Resource patches", () => {
           name: "Atlas",
         });
       }).pipe(Effect.scoped),
+    ));
+});
+
+/** A row store that records how its layer settles. */
+const recordingRows = () => {
+  const settled: Array<"commit" | "rollback"> = [];
+  const rows: ActionOptimisticRows<Project, string> = {
+    [ActionOptimisticRowsTypeId]: {
+      apply: () =>
+        Effect.succeed({
+          commit: Effect.sync(() => void settled.push("commit")),
+          rollback: Effect.sync(() => void settled.push("rollback")),
+        }),
+    },
+  };
+  return { rows, settled };
+};
+
+describe("Action optimistic patches and rejected ActionResults", () => {
+  const defineSave = (
+    suffix: string,
+    result: (name: string) => ActionResult<string, { readonly name: string }, string, string>,
+  ) => {
+    const { ref, ProjectById } = makeFixture();
+    const draft = Signal.make("Atlas", { name: `RejectedResult.${suffix}.draft` });
+    const { rows, settled } = recordingRows();
+    const Save = Action.define({
+      name: `RejectedResult.${suffix}`,
+      optimistic: (name: string, transaction) =>
+        Effect.all([
+          transaction.set(draft, name),
+          transaction.update(rows, "atlas", { name }),
+          transaction.set(ProjectById("atlas"), (project) => ({ ...project, name })),
+        ]),
+      run: (name: string) => Effect.succeed(result(name)),
+    });
+    return { Save, draft, settled, ref };
+  };
+
+  it("rolls back Signal, row, and Resource patches when run returns a ValidationFailure", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const { Save, draft, settled, ref } = defineSave("validation", () =>
+          ActionResult.validation<{ readonly name: string }, string>({
+            fieldErrors: { name: ["Too short."] },
+          }),
+        );
+        yield* Resource.preload(ref);
+        const recording = yield* Timeline.record();
+
+        const result = yield* Action.use(Save, { runtime: defaultRuntime }).submit("At");
+
+        expect(result._tag).toBe("ValidationFailure");
+        expect(Signal.peek(draft)).toBe("Atlas");
+        expect(settled).toEqual(["rollback"]);
+        expect(yield* Resource.read(ref)).toMatchObject({ name: "Atlas" });
+        // Each patch committed on submit; one failure commit undid them all,
+        // with no success commit folding them in.
+        const entryName = `${ref.family.options.name}(${ref.key})`;
+        const patchCommits = Signal.peek(recording.entries).filter((entry) =>
+          entry.changes.some(
+            (change) =>
+              change.name === entryName || change.name === "RejectedResult.validation.draft",
+          ),
+        );
+        expect(patchCommits.map((entry) => Timeline.describe(entry.cause))).toEqual([
+          `Action "${Save.name}" submit`,
+          `Action "${Save.name}" submit`,
+          `Action "${Save.name}" failure`,
+        ]);
+        expect(
+          patchCommits
+            .at(-1)!
+            .changes.map((change) => change.name)
+            .sort(),
+        ).toEqual([entryName, "RejectedResult.validation.draft"].sort());
+      }).pipe(Effect.scoped),
+    ));
+
+  it("rolls back on a Failure result and commits on Success and Redirect results", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const failed = defineSave("failure", () => ActionResult.failure("taken"));
+        yield* Resource.preload(failed.ref);
+        yield* Action.use(failed.Save, { runtime: defaultRuntime }).submit("Atlas 2");
+        expect(Signal.peek(failed.draft)).toBe("Atlas");
+        expect(failed.settled).toEqual(["rollback"]);
+
+        const saved = defineSave("success", (name) => ActionResult.success(name));
+        yield* Resource.preload(saved.ref);
+        yield* Action.use(saved.Save, { runtime: defaultRuntime }).submit("Atlas 2");
+        expect(Signal.peek(saved.draft)).toBe("Atlas 2");
+        expect(saved.settled).toEqual(["commit"]);
+        expect(yield* Resource.read(saved.ref)).toMatchObject({ name: "Atlas 2" });
+
+        const redirected = defineSave("redirect", () => ActionResult.redirect("/projects"));
+        yield* Resource.preload(redirected.ref);
+        yield* Action.use(redirected.Save, { runtime: defaultRuntime }).submit("Atlas 2");
+        expect(Signal.peek(redirected.draft)).toBe("Atlas 2");
+        expect(redirected.settled).toEqual(["commit"]);
+      }),
     ));
 });

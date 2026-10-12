@@ -328,7 +328,7 @@ Release decisions:
   (`transaction.insert/update/delete`) for the life of one submission; the
   transaction commits or rolls back every patch. A Resource patch layers over
   the entry's synced value: readers see it, loads and snapshots do not, and an
-  entry that has not loaded is left alone. `ActionOptimisticRows` and
+  entry that has not loaded is left alone. A run that returns a rejected `ActionResult` (`ValidationFailure`, `Failure`) rolls the patches back as a failure does. `ActionOptimisticRows` and
   `ActionOptimisticRowsTypeId` are the expert seam row stores implement
   (Collections do); application code never implements it.
 - The internal Action Execution Workflow Module owns callback normalization,

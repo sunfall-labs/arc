@@ -139,7 +139,10 @@ export const applyActionOptimisticEffect = <I, A, E, R>(
 export interface ActionExecutionOptions<I, A, E, R> {
   readonly definition: ActionDefinition<I, A, E, R>;
   readonly input: I;
-  /** The submission's optimistic transaction: committed here on success. */
+  /**
+   * The submission's optimistic transaction: settled here on success (a
+   * rejected `ActionResult` rolls it back).
+   */
   readonly transaction: ActionOptimisticTransactionRuntime;
   /** `"endpoint"` always runs locally; see `ActionExecutionSite`. */
   readonly site: ActionExecutionSite;
@@ -158,9 +161,24 @@ export interface ActionExecutionOutcome<A, R> {
 }
 
 /**
+ * Settles a submission's optimistic transaction from the value its run
+ * produced. A rejected `ActionResult` (`ValidationFailure` or `Failure`) means
+ * the change did not happen, so the patches roll back exactly as on a failure;
+ * any other value (including a `Success` or `Redirect` result) commits them.
+ */
+const settleOptimisticEffect = (
+  transaction: ActionOptimisticTransactionRuntime,
+  value: unknown,
+): ActionOptimisticSettle =>
+  ActionResult.is(value) && (value._tag === "ValidationFailure" || value._tag === "Failure")
+    ? transaction.rollback
+    : transaction.commit;
+
+/**
  * Runs one submission remotely (through the `ActionTransport` that serves it)
- * or locally, and applies its outcome: on success it commits the optimistic
- * transaction, then applies the response or runs the invalidations. The
+ * or locally, and applies its outcome: on success it settles the optimistic
+ * transaction (committing it, or rolling it back for a rejected
+ * `ActionResult`), then applies the response or runs the invalidations. The
  * caller owns rolling the transaction back on failure.
  */
 export const executeActionEffect = <I, A, E, R>(
@@ -184,10 +202,11 @@ export const executeActionEffect = <I, A, E, R>(
     if (Option.isSome(remote)) {
       const response = yield* remote.value;
       yield* options.beforeApply;
-      // The server committed: fold the optimistic patches in before the
-      // response's invalidations reload their sources.
+      // The server settled: fold the optimistic patches in (or roll them back
+      // for a rejected result) before the response's invalidations reload
+      // their sources.
       if (Exit.isSuccess(response.exit)) {
-        yield* transaction.commit;
+        yield* settleOptimisticEffect(transaction, response.exit.value);
       }
       yield* response.apply(options.current());
       const value = yield* response.exit;
@@ -199,7 +218,7 @@ export const executeActionEffect = <I, A, E, R>(
 
     const invalidations = yield* invalidationsForEffect(definition, value, input);
     const planned = yield* planResourceInvalidationEffect(invalidations);
-    yield* transaction.commit;
+    yield* settleOptimisticEffect(transaction, value);
 
     if (invalidations.length > 0) {
       yield* runResourceInvalidationPlanEffect(planned);
