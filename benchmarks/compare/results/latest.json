@@ -1,15 +1,15 @@
 {
   "meta": {
-    "startedAt": "2026-10-12T20:41:28.189Z",
+    "startedAt": "2026-10-12T22:27:28.748Z",
     "machine": {
       "cpu": "Apple M5 Pro",
       "cores": 18,
       "memoryGb": 48,
-      "freeMemoryGbAtStart": 1,
+      "freeMemoryGbAtStart": 25,
       "os": "darwin 25.6.0 arm64",
       "node": "v25.9.0"
     },
-    "loadAverageAtStart": [20.98, 18.72, 22.96],
+    "loadAverageAtStart": [6.22, 13, 15.6],
     "settings": {
       "rounds": 7,
       "ssr": {
@@ -45,14 +45,14 @@
         "vite": "8.3.4"
       }
     },
-    "finishedAt": "2026-10-12T20:59:05.530Z",
-    "loadAverageAtEnd": [4.26, 8.87, 14.01]
+    "finishedAt": "2026-10-12T22:44:52.918Z",
+    "loadAverageAtEnd": [6.93, 7.71, 10.16]
   },
   "contract": {
     "arc": {
       "problems": [],
-      "notFoundStatus": 500,
-      "listHtmlBytes": 434389,
+      "notFoundStatus": 404,
+      "listHtmlBytes": 434270,
       "filteredAmber": "51 of 1000 items"
     },
     "solid-start": {
@@ -71,10 +71,10 @@
   "transfer": {
     "arc": {
       "js": {
-        "files": 6,
-        "raw": 426888,
-        "gzip": 141011,
-        "brotli": 123517
+        "files": 4,
+        "raw": 425687,
+        "gzip": 139724,
+        "brotli": 121698
       },
       "css": {
         "raw": 1518,
@@ -82,66 +82,52 @@
         "brotli": 558
       },
       "html": {
-        "raw": 434389,
-        "gzip": 41472,
-        "brotli": 31183
+        "raw": 434270,
+        "gzip": 41437,
+        "brotli": 31154
       },
       "files": [
         {
           "kind": "html",
           "path": "/",
-          "raw": 434389,
-          "gzip": 41472,
-          "brotli": 31183
+          "raw": 434270,
+          "gzip": 41437,
+          "brotli": 31154
         },
         {
           "kind": "css",
-          "path": "/assets/main-ff6NmFga.css",
+          "path": "/assets/vendor-ff6NmFga.css",
           "raw": 1518,
           "gzip": 684,
           "brotli": 558
         },
         {
           "kind": "js",
-          "path": "/assets/main-D-uOY9pb.js",
-          "raw": 38459,
-          "gzip": 13499,
-          "brotli": 12108
+          "path": "/assets/main-DU_gJu6Z.js",
+          "raw": 1436,
+          "gzip": 792,
+          "brotli": 715
         },
         {
           "kind": "js",
-          "path": "/assets/model-awurLUtH.js",
-          "raw": 203,
-          "gzip": 172,
-          "brotli": 146
+          "path": "/assets/app-D-44A3if.js",
+          "raw": 1331,
+          "gzip": 711,
+          "brotli": 634
         },
         {
           "kind": "js",
-          "path": "/assets/views-CVghF4mZ.js",
-          "raw": 625,
-          "gzip": 391,
-          "brotli": 329
+          "path": "/assets/index.component-q-kaOsTp.js",
+          "raw": 1961,
+          "gzip": 1017,
+          "brotli": 879
         },
         {
           "kind": "js",
-          "path": "/assets/_id-Bi8LuHY9.js",
-          "raw": 210,
-          "gzip": 175,
-          "brotli": 169
-        },
-        {
-          "kind": "js",
-          "path": "/assets/index.component-CChOOc74.js",
-          "raw": 2203,
-          "gzip": 1153,
-          "brotli": 997
-        },
-        {
-          "kind": "js",
-          "path": "/assets/items-DXi0VOKx.js",
-          "raw": 385188,
-          "gzip": 125621,
-          "brotli": 109768
+          "path": "/assets/vendor-D5kjxIKT.js",
+          "raw": 420959,
+          "gzip": 137204,
+          "brotli": 119470
         }
       ]
     },
@@ -149,8 +135,8 @@
       "js": {
         "files": 5,
         "raw": 99140,
-        "gzip": 34427,
-        "brotli": 30912
+        "gzip": 34441,
+        "brotli": 30917
       },
       "css": {
         "raw": 18373,
@@ -159,16 +145,16 @@
       },
       "html": {
         "raw": 481859,
-        "gzip": 44191,
-        "brotli": 32016
+        "gzip": 44197,
+        "brotli": 32003
       },
       "files": [
         {
           "kind": "html",
           "path": "/",
           "raw": 481859,
-          "gzip": 44191,
-          "brotli": 32016
+          "gzip": 44197,
+          "brotli": 32003
         },
         {
           "kind": "css",
@@ -179,38 +165,38 @@
         },
         {
           "kind": "js",
-          "path": "/_build/assets/HttpStatusCode-Dlp12aIs.js",
+          "path": "/_build/assets/HttpStatusCode-AoJ7HkJx.js",
           "raw": 1995,
-          "gzip": 983,
-          "brotli": 860
+          "gzip": 986,
+          "brotli": 856
         },
         {
           "kind": "js",
-          "path": "/_build/assets/entry-client-2gszqnl9.js",
+          "path": "/_build/assets/entry-client-Dy_tBheJ.js",
           "raw": 14630,
-          "gzip": 5775,
-          "brotli": 5148
+          "gzip": 5780,
+          "brotli": 5153
         },
         {
           "kind": "js",
-          "path": "/_build/assets/model-BOO52oh9.js",
+          "path": "/_build/assets/model-BqYHo3g7.js",
           "raw": 893,
-          "gzip": 476,
-          "brotli": 416
+          "gzip": 479,
+          "brotli": 417
         },
         {
           "kind": "js",
-          "path": "/_build/assets/items-D-yStfic.js",
+          "path": "/_build/assets/index-BgeO8FH6.js",
+          "raw": 1721,
+          "gzip": 909,
+          "brotli": 785
+        },
+        {
+          "kind": "js",
+          "path": "/_build/assets/items-CrE5rsQ_.js",
           "raw": 79901,
           "gzip": 26287,
-          "brotli": 23699
-        },
-        {
-          "kind": "js",
-          "path": "/_build/assets/index-BktLy7lA.js",
-          "raw": 1721,
-          "gzip": 906,
-          "brotli": 789
+          "brotli": 23706
         }
       ]
     },
@@ -229,7 +215,7 @@
       "html": {
         "raw": 374805,
         "gzip": 39468,
-        "brotli": 28340
+        "brotli": 28389
       },
       "files": [
         {
@@ -237,7 +223,7 @@
           "path": "/",
           "raw": 374805,
           "gzip": 39468,
-          "brotli": 28340
+          "brotli": 28389
         },
         {
           "kind": "css",
@@ -282,389 +268,389 @@
       "ssr": [
         {
           "round": 0,
-          "loadBefore": [19.71, 18.59, 22.82],
-          "loadAfter": [19.64, 18.71, 22.74],
+          "loadBefore": [7.93, 13.05, 15.58],
+          "loadAfter": [9.01, 12.88, 15.44],
           "list": {
-            "requestsPerSecond": 131,
-            "p50": 67,
-            "p99": 184,
-            "cpuMsPerRequest": 9.03053435114504,
-            "requests": 1310,
+            "requestsPerSecond": 322.4,
+            "p50": 27,
+            "p99": 62,
+            "cpuMsPerRequest": 5.130272952853598,
+            "requests": 3224,
             "non2xx": 0,
             "errors": 0,
-            "bytesPerResponse": 434596
+            "bytesPerResponse": 434437
           },
           "detail": {
-            "requestsPerSecond": 726.8,
-            "p50": 12,
-            "p99": 39,
-            "cpuMsPerRequest": 1.3896532746285086,
-            "requests": 7268,
+            "requestsPerSecond": 1759.8,
+            "p50": 4,
+            "p99": 27,
+            "cpuMsPerRequest": 0.6245382735693584,
+            "requests": 17597,
             "non2xx": 0,
             "errors": 0,
-            "bytesPerResponse": 2325
+            "bytesPerResponse": 2168
           }
         },
         {
           "round": 1,
-          "loadBefore": [21.25, 19.72, 22.66],
-          "loadAfter": [20.33, 19.6, 22.53],
+          "loadBefore": [7.66, 11.34, 14.52],
+          "loadAfter": [8.15, 11.17, 14.36],
           "list": {
-            "requestsPerSecond": 132.6,
-            "p50": 62,
-            "p99": 244,
-            "cpuMsPerRequest": 9.019607843137255,
-            "requests": 1326,
+            "requestsPerSecond": 248.3,
+            "p50": 35,
+            "p99": 83,
+            "cpuMsPerRequest": 6.455900120821587,
+            "requests": 2483,
             "non2xx": 0,
             "errors": 0,
-            "bytesPerResponse": 434596
+            "bytesPerResponse": 434437
           },
           "detail": {
-            "requestsPerSecond": 760,
-            "p50": 11,
-            "p99": 35,
-            "cpuMsPerRequest": 1.368421052631579,
-            "requests": 7600,
+            "requestsPerSecond": 2171.1,
+            "p50": 4,
+            "p99": 11,
+            "cpuMsPerRequest": 0.5988851522550329,
+            "requests": 21707,
             "non2xx": 0,
             "errors": 0,
-            "bytesPerResponse": 2325
+            "bytesPerResponse": 2168
           }
         },
         {
           "round": 2,
-          "loadBefore": [16.88, 18.93, 22.19],
-          "loadAfter": [12.66, 17.77, 21.67],
+          "loadBefore": [8.57, 11.03, 14.22],
+          "loadAfter": [9.33, 10.99, 14.09],
           "list": {
-            "requestsPerSecond": 323.8,
-            "p50": 26,
-            "p99": 65,
-            "cpuMsPerRequest": 5.240889437924645,
-            "requests": 3238,
+            "requestsPerSecond": 234.9,
+            "p50": 38,
+            "p99": 90,
+            "cpuMsPerRequest": 6.930608769689229,
+            "requests": 2349,
             "non2xx": 0,
             "errors": 0,
-            "bytesPerResponse": 434596
+            "bytesPerResponse": 434437
           },
           "detail": {
-            "requestsPerSecond": 2765.4,
-            "p50": 2,
-            "p99": 9,
-            "cpuMsPerRequest": 0.5088607594936709,
-            "requests": 27650,
+            "requestsPerSecond": 2131,
+            "p50": 4,
+            "p99": 11,
+            "cpuMsPerRequest": 0.596995818042161,
+            "requests": 23434,
             "non2xx": 0,
             "errors": 0,
-            "bytesPerResponse": 2325
+            "bytesPerResponse": 2168
           }
         },
         {
           "round": 3,
-          "loadBefore": [12.54, 17.26, 21.35],
-          "loadAfter": [10.98, 16.53, 20.97],
+          "loadBefore": [9.08, 10.78, 13.93],
+          "loadAfter": [8.46, 10.5, 13.72],
           "list": {
-            "requestsPerSecond": 271.61,
-            "p50": 33,
-            "p99": 76,
-            "cpuMsPerRequest": 6.01620029455081,
-            "requests": 2716,
+            "requestsPerSecond": 232.3,
+            "p50": 39,
+            "p99": 85,
+            "cpuMsPerRequest": 7.046922083512699,
+            "requests": 2323,
             "non2xx": 0,
             "errors": 0,
-            "bytesPerResponse": 434596
+            "bytesPerResponse": 434437
           },
           "detail": {
-            "requestsPerSecond": 1742.1,
-            "p50": 5,
-            "p99": 14,
-            "cpuMsPerRequest": 0.7450777796911773,
-            "requests": 17421,
+            "requestsPerSecond": 3759.2,
+            "p50": 2,
+            "p99": 6,
+            "cpuMsPerRequest": 0.3761638733705773,
+            "requests": 37590,
             "non2xx": 0,
             "errors": 0,
-            "bytesPerResponse": 2325
+            "bytesPerResponse": 2168
           }
         },
         {
           "round": 4,
-          "loadBefore": [10.03, 14.54, 19.65],
-          "loadAfter": [7.63, 13.61, 19.16],
+          "loadBefore": [7.44, 9.59, 12.99],
+          "loadAfter": [6.52, 9.17, 12.72],
           "list": {
-            "requestsPerSecond": 396.8,
-            "p50": 22,
-            "p99": 49,
-            "cpuMsPerRequest": 4.430443548387097,
-            "requests": 3968,
+            "requestsPerSecond": 309.3,
+            "p50": 29,
+            "p99": 63,
+            "cpuMsPerRequest": 5.408988037504042,
+            "requests": 3093,
             "non2xx": 0,
             "errors": 0,
-            "bytesPerResponse": 434596
+            "bytesPerResponse": 434437
           },
           "detail": {
-            "requestsPerSecond": 2931.8,
+            "requestsPerSecond": 3718.1,
             "p50": 2,
-            "p99": 12,
-            "cpuMsPerRequest": 0.4455513100436681,
-            "requests": 29312,
+            "p99": 7,
+            "cpuMsPerRequest": 0.37122720180771507,
+            "requests": 37174,
             "non2xx": 0,
             "errors": 0,
-            "bytesPerResponse": 2325
+            "bytesPerResponse": 2168
           }
         },
         {
           "round": 5,
-          "loadBefore": [8.34, 13.27, 18.85],
-          "loadAfter": [7.56, 12.67, 18.47],
+          "loadBefore": [6.79, 9.01, 12.56],
+          "loadAfter": [10.72, 9.62, 12.66],
           "list": {
-            "requestsPerSecond": 379.2,
-            "p50": 23,
-            "p99": 53,
-            "cpuMsPerRequest": 4.609704641350211,
-            "requests": 3792,
+            "requestsPerSecond": 317.8,
+            "p50": 26,
+            "p99": 68,
+            "cpuMsPerRequest": 5.113278791692888,
+            "requests": 3178,
             "non2xx": 0,
             "errors": 0,
-            "bytesPerResponse": 434596
+            "bytesPerResponse": 434437
           },
           "detail": {
-            "requestsPerSecond": 2806.6,
+            "requestsPerSecond": 3432.2,
             "p50": 2,
             "p99": 11,
-            "cpuMsPerRequest": 0.4949577735808716,
-            "requests": 28063,
+            "cpuMsPerRequest": 0.3706293706293706,
+            "requests": 34320,
             "non2xx": 0,
             "errors": 0,
-            "bytesPerResponse": 2325
+            "bytesPerResponse": 2168
           }
         },
         {
           "round": 6,
-          "loadBefore": [7.45, 12.22, 18.11],
-          "loadAfter": [6.01, 11.48, 17.67],
+          "loadBefore": [8.37, 9.15, 12.39],
+          "loadAfter": [8.65, 9.12, 12.28],
           "list": {
-            "requestsPerSecond": 390.1,
-            "p50": 23,
-            "p99": 49,
-            "cpuMsPerRequest": 4.511663675980518,
-            "requests": 3901,
+            "requestsPerSecond": 320,
+            "p50": 27,
+            "p99": 62,
+            "cpuMsPerRequest": 5.125,
+            "requests": 3520,
             "non2xx": 0,
             "errors": 0,
-            "bytesPerResponse": 434596
+            "bytesPerResponse": 434437
           },
           "detail": {
-            "requestsPerSecond": 2922.2,
-            "p50": 2,
-            "p99": 8,
-            "cpuMsPerRequest": 0.478455799308669,
-            "requests": 29219,
+            "requestsPerSecond": 2282.2,
+            "p50": 3,
+            "p99": 11,
+            "cpuMsPerRequest": 0.5727432077125328,
+            "requests": 22820,
             "non2xx": 0,
             "errors": 0,
-            "bytesPerResponse": 2325
+            "bytesPerResponse": 2168
           }
         }
       ],
       "browser": [
         {
           "round": 0,
-          "loadBefore": [12.25, 12.38, 17.62],
-          "loadAfter": [16.1, 13.21, 17.79],
+          "loadBefore": [9.32, 9.21, 12.1],
+          "loadAfter": [9.39, 9.24, 12.04],
           "load": {
-            "ttfb": 5.5999999940395355,
-            "domContentLoaded": 204,
-            "load": 204.19999998807907,
-            "fcp": 140,
-            "lcp": 140,
-            "tbt": 73,
+            "ttfb": 5.9000000059604645,
+            "domContentLoaded": 197.2999999821186,
+            "load": 198.19999998807907,
+            "fcp": 136,
+            "lcp": 136,
+            "tbt": 66,
             "longTasks": 2,
-            "observedUntil": 1047
+            "observedUntil": 1047.7999999821186
           },
           "interactive": {
-            "interactive": 330.90000000596046
+            "interactive": 312.2000000178814
           },
           "updates": {
             "filter": [
               {
                 "query": "a",
                 "expected": 708,
-                "ms": 27.69999998807907
+                "ms": 30
               },
               {
                 "query": "am",
                 "expected": 51,
-                "ms": 15.099999994039536
+                "ms": 15.199999988079071
               },
               {
                 "query": "amb",
                 "expected": 51,
-                "ms": 4.700000017881393
+                "ms": 7.9000000059604645
               },
               {
                 "query": "ambe",
                 "expected": 51,
-                "ms": 6.199999988079071
+                "ms": 16.599999994039536
               },
               {
                 "query": "amber",
                 "expected": 51,
-                "ms": 16.900000005960464
+                "ms": 16.599999994039536
               },
               {
                 "query": "",
                 "expected": 1000,
-                "ms": 107.5
+                "ms": 106.90000000596046
               }
             ],
             "toggles": [
               {
                 "id": "500",
-                "toPaint": 25.700000017881393,
-                "toSettled": 52.20000001788139,
+                "toPaint": 22.19999998807907,
+                "toSettled": 47,
                 "stuck": true
               },
               {
                 "id": "501",
-                "toPaint": 11.900000005960464,
-                "toSettled": 24.900000005960464,
+                "toPaint": 12,
+                "toSettled": 24.200000017881393,
                 "stuck": true
               },
               {
                 "id": "502",
-                "toPaint": 10.5,
-                "toSettled": 32.400000005960464,
+                "toPaint": 11.400000005960464,
+                "toSettled": 24,
                 "stuck": true
               },
               {
                 "id": "503",
-                "toPaint": 8.899999976158142,
-                "toSettled": 19.099999994039536,
+                "toPaint": 10,
+                "toSettled": 21.900000005960464,
                 "stuck": true
               },
               {
                 "id": "504",
-                "toPaint": 10.199999988079071,
-                "toSettled": 23.799999982118607,
+                "toPaint": 11.400000005960464,
+                "toSettled": 22.80000001192093,
                 "stuck": true
               }
             ],
             "navigation": {
-              "toDetail": 40.900000005960464,
-              "toList": 128.69999998807907
+              "toDetail": 35.80000001192093,
+              "toList": 127.2000000178814
             },
             "fullPageLoads": 1
           },
           "memory": {
-            "afterLoad": 8351820,
-            "afterToggles": 9885208,
-            "nodesAfterLoad": 5028,
-            "nodesAfterToggles": 5028,
-            "toggleMs": 12468.200000017881
+            "afterLoad": 8326752,
+            "afterToggles": 9825272,
+            "nodesAfterLoad": 5026,
+            "nodesAfterToggles": 5026,
+            "toggleMs": 12512.5
           }
         },
         {
           "round": 1,
-          "loadBefore": [13.23, 12.83, 17.15],
-          "loadAfter": [13.16, 12.82, 17.04],
+          "loadBefore": [6.14, 8.41, 11.47],
+          "loadAfter": [5.5, 8.11, 11.29],
           "load": {
-            "ttfb": 3.800000011920929,
-            "domContentLoaded": 182.19999998807907,
-            "load": 183,
+            "ttfb": 4.300000011920929,
+            "domContentLoaded": 179.5,
+            "load": 179.5,
             "fcp": 124,
             "lcp": 124,
-            "tbt": 61,
+            "tbt": 46,
             "longTasks": 2,
-            "observedUntil": 1047.699999988079
+            "observedUntil": 1047.6000000238419
           },
           "interactive": {
-            "interactive": 309.2999999821186
+            "interactive": 272.90000000596046
           },
           "updates": {
             "filter": [
               {
                 "query": "a",
                 "expected": 708,
-                "ms": 27.19999998807907
+                "ms": 29.5
               },
               {
                 "query": "am",
                 "expected": 51,
-                "ms": 13.799999982118607
+                "ms": 14.799999982118607
               },
               {
                 "query": "amb",
                 "expected": 51,
-                "ms": 5.4000000059604645
+                "ms": 4.5999999940395355
               },
               {
                 "query": "ambe",
                 "expected": 51,
-                "ms": 6.5
+                "ms": 6.100000023841858
               },
               {
                 "query": "amber",
                 "expected": 51,
-                "ms": 16.80000001192093
+                "ms": 17.5
               },
               {
                 "query": "",
                 "expected": 1000,
-                "ms": 105.59999999403954
+                "ms": 94.2999999821186
               }
             ],
             "toggles": [
               {
                 "id": "500",
-                "toPaint": 22.900000005960464,
-                "toSettled": 50.69999998807907,
+                "toPaint": 21.799999982118607,
+                "toSettled": 43.400000005960464,
                 "stuck": true
               },
               {
                 "id": "501",
-                "toPaint": 11.199999988079071,
-                "toSettled": 25.399999976158142,
+                "toPaint": 9.899999976158142,
+                "toSettled": 20.399999976158142,
                 "stuck": true
               },
               {
                 "id": "502",
-                "toPaint": 11.600000023841858,
-                "toSettled": 25.600000023841858,
+                "toPaint": 9.199999988079071,
+                "toSettled": 22.400000005960464,
                 "stuck": true
               },
               {
                 "id": "503",
-                "toPaint": 10.199999988079071,
-                "toSettled": 23.099999994039536,
+                "toPaint": 8.900000005960464,
+                "toSettled": 19.400000005960464,
                 "stuck": true
               },
               {
                 "id": "504",
-                "toPaint": 10.200000017881393,
-                "toSettled": 21.80000001192093,
+                "toPaint": 9.5,
+                "toSettled": 20.69999998807907,
                 "stuck": true
               }
             ],
             "navigation": {
-              "toDetail": 46.29999998211861,
-              "toList": 123.59999999403954
+              "toDetail": 32.79999998211861,
+              "toList": 83
             },
             "fullPageLoads": 1
           },
           "memory": {
-            "afterLoad": 8349964,
-            "afterToggles": 9884104,
-            "nodesAfterLoad": 5028,
-            "nodesAfterToggles": 5028,
-            "toggleMs": 12478.59999999404
+            "afterLoad": 8326176,
+            "afterToggles": 9820836,
+            "nodesAfterLoad": 5026,
+            "nodesAfterToggles": 5026,
+            "toggleMs": 12330.5
           }
         },
         {
           "round": 2,
-          "loadBefore": [12.96, 12.78, 16.93],
-          "loadAfter": [12.45, 12.68, 16.8],
+          "loadBefore": [8.05, 8.45, 11.31],
+          "loadAfter": [10.47, 9, 11.44],
           "load": {
-            "ttfb": 8.099999994039536,
-            "domContentLoaded": 200.7000000178814,
-            "load": 201.09999999403954,
-            "fcp": 140,
-            "lcp": 140,
-            "tbt": 66,
+            "ttfb": 6.0999999940395355,
+            "domContentLoaded": 192.90000000596046,
+            "load": 193.30000001192093,
+            "fcp": 132,
+            "lcp": 132,
+            "tbt": 62,
             "longTasks": 2,
-            "observedUntil": 1056.300000011921
+            "observedUntil": 1049.199999988079
           },
           "interactive": {
-            "interactive": 327.09999999403954
+            "interactive": 304.7999999821186
           },
           "updates": {
             "filter": [
@@ -676,187 +662,187 @@
               {
                 "query": "am",
                 "expected": 51,
-                "ms": 15.5
+                "ms": 16
               },
               {
                 "query": "amb",
                 "expected": 51,
-                "ms": 4.5999999940395355
+                "ms": 16.69999998807907
               },
               {
                 "query": "ambe",
                 "expected": 51,
-                "ms": 18
+                "ms": 16.30000001192093
               },
               {
                 "query": "amber",
                 "expected": 51,
-                "ms": 16.700000017881393
+                "ms": 16.30000001192093
               },
               {
                 "query": "",
                 "expected": 1000,
-                "ms": 104
+                "ms": 104.09999999403954
               }
             ],
             "toggles": [
               {
                 "id": "500",
-                "toPaint": 26.099999994039536,
-                "toSettled": 53.39999997615814,
+                "toPaint": 22.69999998807907,
+                "toSettled": 47,
                 "stuck": true
               },
               {
                 "id": "501",
-                "toPaint": 10.700000017881393,
-                "toSettled": 24.599999994039536,
+                "toPaint": 11.800000011920929,
+                "toSettled": 25,
                 "stuck": true
               },
               {
                 "id": "502",
-                "toPaint": 11.5,
-                "toSettled": 34.400000005960464,
+                "toPaint": 11.099999994039536,
+                "toSettled": 21.5,
                 "stuck": true
               },
               {
                 "id": "503",
-                "toPaint": 9.199999988079071,
-                "toSettled": 31.400000005960464,
+                "toPaint": 9.200000017881393,
+                "toSettled": 21.200000017881393,
                 "stuck": true
               },
               {
                 "id": "504",
-                "toPaint": 9.900000005960464,
-                "toSettled": 22.30000001192093,
+                "toPaint": 10.799999982118607,
+                "toSettled": 33.39999997615814,
                 "stuck": true
               }
             ],
             "navigation": {
-              "toDetail": 36.5,
-              "toList": 124.40000000596046
+              "toDetail": 35.80000001192093,
+              "toList": 119.40000000596046
             },
             "fullPageLoads": 1
           },
           "memory": {
-            "afterLoad": 8346532,
-            "afterToggles": 9866980,
-            "nodesAfterLoad": 5028,
-            "nodesAfterToggles": 5028,
-            "toggleMs": 12478.299999982119
+            "afterLoad": 8326836,
+            "afterToggles": 9825392,
+            "nodesAfterLoad": 5026,
+            "nodesAfterToggles": 5026,
+            "toggleMs": 12563.800000011921
           }
         },
         {
           "round": 3,
-          "loadBefore": [12.68, 12.77, 16.71],
-          "loadAfter": [14.45, 13.16, 16.76],
+          "loadBefore": [9.96, 9.01, 11.38],
+          "loadAfter": [9.72, 9.02, 11.33],
           "load": {
-            "ttfb": 5.200000017881393,
-            "domContentLoaded": 193.5,
-            "load": 193.80000001192093,
+            "ttfb": 5.699999988079071,
+            "domContentLoaded": 197.09999999403954,
+            "load": 197.19999998807907,
             "fcp": 132,
             "lcp": 132,
-            "tbt": 56,
+            "tbt": 70,
             "longTasks": 2,
-            "observedUntil": 1043.2000000178814
+            "observedUntil": 1051.0999999940395
           },
           "interactive": {
-            "interactive": 330.90000000596046
+            "interactive": 314.19999998807907
           },
           "updates": {
             "filter": [
               {
                 "query": "a",
                 "expected": 708,
-                "ms": 31.19999998807907
+                "ms": 32.29999998211861
               },
               {
                 "query": "am",
                 "expected": 51,
-                "ms": 16.799999982118607
+                "ms": 16.399999976158142
               },
               {
                 "query": "amb",
                 "expected": 51,
-                "ms": 5.800000011920929
+                "ms": 12.800000011920929
               },
               {
                 "query": "ambe",
                 "expected": 51,
-                "ms": 6.0999999940395355
+                "ms": 16.30000001192093
               },
               {
                 "query": "amber",
                 "expected": 51,
-                "ms": 13.599999994039536
+                "ms": 16.099999994039536
               },
               {
                 "query": "",
                 "expected": 1000,
-                "ms": 107.5
+                "ms": 107.59999999403954
               }
             ],
             "toggles": [
               {
                 "id": "500",
-                "toPaint": 22,
-                "toSettled": 54,
+                "toPaint": 26.700000017881393,
+                "toSettled": 55.599999994039536,
                 "stuck": true
               },
               {
                 "id": "501",
-                "toPaint": 11.400000005960464,
-                "toSettled": 35.099999994039536,
+                "toPaint": 11.900000005960464,
+                "toSettled": 25.5,
                 "stuck": true
               },
               {
                 "id": "502",
-                "toPaint": 11.200000017881393,
-                "toSettled": 32.900000005960464,
+                "toPaint": 11.399999976158142,
+                "toSettled": 24.299999982118607,
                 "stuck": true
               },
               {
                 "id": "503",
-                "toPaint": 9.699999988079071,
-                "toSettled": 23.19999998807907,
+                "toPaint": 10.300000011920929,
+                "toSettled": 23.600000023841858,
                 "stuck": true
               },
               {
                 "id": "504",
-                "toPaint": 10.699999988079071,
-                "toSettled": 22.19999998807907,
+                "toPaint": 10.700000017881393,
+                "toSettled": 24.30000001192093,
                 "stuck": true
               }
             ],
             "navigation": {
-              "toDetail": 52.5,
-              "toList": 98
+              "toDetail": 43.19999998807907,
+              "toList": 122.80000001192093
             },
             "fullPageLoads": 1
           },
           "memory": {
-            "afterLoad": 8343856,
-            "afterToggles": 9878032,
-            "nodesAfterLoad": 5028,
-            "nodesAfterToggles": 5028,
-            "toggleMs": 12498.700000017881
+            "afterLoad": 8332220,
+            "afterToggles": 9830600,
+            "nodesAfterLoad": 5026,
+            "nodesAfterToggles": 5026,
+            "toggleMs": 12556.5
           }
         },
         {
           "round": 4,
-          "loadBefore": [9.15, 11.77, 15.84],
-          "loadAfter": [7.95, 11.33, 15.59],
+          "loadBefore": [7.93, 8.53, 10.9],
+          "loadAfter": [6.22, 8.1, 10.69],
           "load": {
-            "ttfb": 3.5,
-            "domContentLoaded": 175.40000000596046,
-            "load": 175.5,
-            "fcp": 120,
-            "lcp": 120,
-            "tbt": 52,
+            "ttfb": 4.899999976158142,
+            "domContentLoaded": 182.7999999821186,
+            "load": 182.7999999821186,
+            "fcp": 124,
+            "lcp": 124,
+            "tbt": 54,
             "longTasks": 2,
-            "observedUntil": 1049
+            "observedUntil": 1048.199999988079
           },
           "interactive": {
-            "interactive": 293.7000000178814
+            "interactive": 289.90000000596046
           },
           "updates": {
             "filter": [
@@ -868,870 +854,209 @@
               {
                 "query": "am",
                 "expected": 51,
-                "ms": 19.900000005960464
+                "ms": 21.600000023841858
               },
               {
                 "query": "amb",
                 "expected": 51,
-                "ms": 15
+                "ms": 15.099999994039536
               },
               {
                 "query": "ambe",
-                "expected": 51,
-                "ms": 16.600000023841858
-              },
-              {
-                "query": "amber",
                 "expected": 51,
                 "ms": 16
               },
               {
+                "query": "amber",
+                "expected": 51,
+                "ms": 16.200000017881393
+              },
+              {
                 "query": "",
                 "expected": 1000,
-                "ms": 103.5
+                "ms": 101.09999999403954
               }
             ],
             "toggles": [
               {
                 "id": "500",
-                "toPaint": 18.900000005960464,
-                "toSettled": 43.29999998211861,
+                "toPaint": 20.5,
+                "toSettled": 44,
                 "stuck": true
               },
               {
                 "id": "501",
-                "toPaint": 10.699999988079071,
-                "toSettled": 24.099999994039536,
-                "stuck": true
-              },
-              {
-                "id": "502",
-                "toPaint": 10.199999988079071,
+                "toPaint": 9.599999994039536,
                 "toSettled": 21.099999994039536,
                 "stuck": true
               },
               {
-                "id": "503",
-                "toPaint": 9.099999994039536,
-                "toSettled": 20.599999994039536,
-                "stuck": true
-              },
-              {
-                "id": "504",
-                "toPaint": 9,
-                "toSettled": 20.399999976158142,
-                "stuck": true
-              }
-            ],
-            "navigation": {
-              "toDetail": 44.80000001192093,
-              "toList": 94.5
-            },
-            "fullPageLoads": 1
-          },
-          "memory": {
-            "afterLoad": 8343480,
-            "afterToggles": 9873036,
-            "nodesAfterLoad": 5028,
-            "nodesAfterToggles": 5028,
-            "toggleMs": 12451.799999982119
-          }
-        },
-        {
-          "round": 5,
-          "loadBefore": [7.66, 11.07, 15.4],
-          "loadAfter": [6.63, 10.61, 15.13],
-          "load": {
-            "ttfb": 5.5,
-            "domContentLoaded": 196.59999999403954,
-            "load": 197,
-            "fcp": 136,
-            "lcp": 136,
-            "tbt": 64,
-            "longTasks": 2,
-            "observedUntil": 1044.199999988079
-          },
-          "interactive": {
-            "interactive": 303.69999998807907
-          },
-          "updates": {
-            "filter": [
-              {
-                "query": "a",
-                "expected": 708,
-                "ms": 25.599999994039536
-              },
-              {
-                "query": "am",
-                "expected": 51,
-                "ms": 13.200000017881393
-              },
-              {
-                "query": "amb",
-                "expected": 51,
-                "ms": 13
-              },
-              {
-                "query": "ambe",
-                "expected": 51,
-                "ms": 15.699999988079071
-              },
-              {
-                "query": "amber",
-                "expected": 51,
-                "ms": 16.80000001192093
-              },
-              {
-                "query": "",
-                "expected": 1000,
-                "ms": 94.19999998807907
-              }
-            ],
-            "toggles": [
-              {
-                "id": "500",
-                "toPaint": 24.700000017881393,
-                "toSettled": 47.599999994039536,
-                "stuck": true
-              },
-              {
-                "id": "501",
-                "toPaint": 10.400000005960464,
-                "toSettled": 21.200000017881393,
-                "stuck": true
-              },
-              {
                 "id": "502",
-                "toPaint": 9.5,
-                "toSettled": 19.900000005960464,
-                "stuck": true
-              },
-              {
-                "id": "503",
-                "toPaint": 9.300000011920929,
-                "toSettled": 21.30000001192093,
-                "stuck": true
-              },
-              {
-                "id": "504",
                 "toPaint": 11.199999988079071,
-                "toSettled": 22.5,
-                "stuck": true
-              }
-            ],
-            "navigation": {
-              "toDetail": 31.099999994039536,
-              "toList": 113.80000001192093
-            },
-            "fullPageLoads": 1
-          },
-          "memory": {
-            "afterLoad": 8351048,
-            "afterToggles": 9866680,
-            "nodesAfterLoad": 5028,
-            "nodesAfterToggles": 5028,
-            "toggleMs": 12476.200000017881
-          }
-        },
-        {
-          "round": 6,
-          "loadBefore": [6.22, 10.19, 14.85],
-          "loadAfter": [5.59, 9.79, 14.6],
-          "load": {
-            "ttfb": 3.5999999940395355,
-            "domContentLoaded": 175.2000000178814,
-            "load": 175.2000000178814,
-            "fcp": 120,
-            "lcp": 120,
-            "tbt": 53,
-            "longTasks": 2,
-            "observedUntil": 1046.800000011921
-          },
-          "interactive": {
-            "interactive": 307.2000000178814
-          },
-          "updates": {
-            "filter": [
-              {
-                "query": "a",
-                "expected": 708,
-                "ms": 23.599999994039536
-              },
-              {
-                "query": "am",
-                "expected": 51,
-                "ms": 12.199999988079071
-              },
-              {
-                "query": "amb",
-                "expected": 51,
-                "ms": 6.199999988079071
-              },
-              {
-                "query": "ambe",
-                "expected": 51,
-                "ms": 16.30000001192093
-              },
-              {
-                "query": "amber",
-                "expected": 51,
-                "ms": 17
-              },
-              {
-                "query": "",
-                "expected": 1000,
-                "ms": 95.59999999403954
-              }
-            ],
-            "toggles": [
-              {
-                "id": "500",
-                "toPaint": 25.799999982118607,
-                "toSettled": 52.79999998211861,
-                "stuck": true
-              },
-              {
-                "id": "501",
-                "toPaint": 9.5,
-                "toSettled": 20.200000017881393,
-                "stuck": true
-              },
-              {
-                "id": "502",
-                "toPaint": 10,
-                "toSettled": 21.5,
+                "toSettled": 23.400000005960464,
                 "stuck": true
               },
               {
                 "id": "503",
-                "toPaint": 11.400000005960464,
-                "toSettled": 24.30000001192093,
+                "toPaint": 15.400000005960464,
+                "toSettled": 27.19999998807907,
                 "stuck": true
               },
               {
                 "id": "504",
-                "toPaint": 8.900000005960464,
-                "toSettled": 20,
+                "toPaint": 10.200000017881393,
+                "toSettled": 22.700000017881393,
                 "stuck": true
               }
             ],
             "navigation": {
-              "toDetail": 37,
-              "toList": 110.30000001192093
+              "toDetail": 40.19999998807907,
+              "toList": 94.19999998807907
             },
             "fullPageLoads": 1
           },
           "memory": {
-            "afterLoad": 8349720,
-            "afterToggles": 9864732,
-            "nodesAfterLoad": 5028,
-            "nodesAfterToggles": 5028,
-            "toggleMs": 12387
-          }
-        }
-      ]
-    },
-    "solid-start": {
-      "ssr": [
-        {
-          "round": 0,
-          "loadBefore": [19.64, 18.71, 22.74],
-          "loadAfter": [19.96, 18.86, 22.68],
-          "list": {
-            "requestsPerSecond": 53.5,
-            "p50": 162,
-            "p99": 439,
-            "cpuMsPerRequest": 23.700934579439252,
-            "requests": 535,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 482027
-          },
-          "detail": {
-            "requestsPerSecond": 2927.8,
-            "p50": 2,
-            "p99": 12,
-            "cpuMsPerRequest": 0.38569281224378243,
-            "requests": 29272,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 2481
-          }
-        },
-        {
-          "round": 1,
-          "loadBefore": [22.84, 19.73, 22.86],
-          "loadAfter": [21.41, 19.64, 22.74],
-          "list": {
-            "requestsPerSecond": 51.5,
-            "p50": 169,
-            "p99": 390,
-            "cpuMsPerRequest": 24.524271844660195,
-            "requests": 515,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 482027
-          },
-          "detail": {
-            "requestsPerSecond": 2539.7,
-            "p50": 3,
-            "p99": 12,
-            "cpuMsPerRequest": 0.42687248956446405,
-            "requests": 25394,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 2481
-          }
-        },
-        {
-          "round": 2,
-          "loadBefore": [12.66, 17.77, 21.67],
-          "loadAfter": [12.93, 17.42, 21.43],
-          "list": {
-            "requestsPerSecond": 85,
-            "p50": 105,
-            "p99": 249,
-            "cpuMsPerRequest": 17.8,
-            "requests": 850,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 482027
-          },
-          "detail": {
-            "requestsPerSecond": 4005.6,
-            "p50": 1,
-            "p99": 13,
-            "cpuMsPerRequest": 0.2834382179602437,
-            "requests": 40044,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 2481
-          }
-        },
-        {
-          "round": 3,
-          "loadBefore": [10.98, 16.53, 20.97],
-          "loadAfter": [10.7, 16.01, 20.65],
-          "list": {
-            "requestsPerSecond": 76.7,
-            "p50": 116,
-            "p99": 263,
-            "cpuMsPerRequest": 19.452411994784875,
-            "requests": 767,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 482027
-          },
-          "detail": {
-            "requestsPerSecond": 5132.55,
-            "p50": 1,
-            "p99": 6,
-            "cpuMsPerRequest": 0.2534941807939629,
-            "requests": 56451,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 2481
-          }
-        },
-        {
-          "round": 4,
-          "loadBefore": [10.03, 15.3, 20.23],
-          "loadAfter": [11.76, 15.29, 20.09],
-          "list": {
-            "requestsPerSecond": 73.5,
-            "p50": 115,
-            "p99": 298,
-            "cpuMsPerRequest": 19.972789115646258,
-            "requests": 735,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 482027
-          },
-          "detail": {
-            "requestsPerSecond": 3909.8,
-            "p50": 1,
-            "p99": 13,
-            "cpuMsPerRequest": 0.2831781438657526,
-            "requests": 39092,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 2481
+            "afterLoad": 8326164,
+            "afterToggles": 9824888,
+            "nodesAfterLoad": 5026,
+            "nodesAfterToggles": 5026,
+            "toggleMs": 12153
           }
         },
         {
           "round": 5,
-          "loadBefore": [7.56, 12.67, 18.47],
-          "loadAfter": [7.45, 12.22, 18.11],
-          "list": {
-            "requestsPerSecond": 99.3,
-            "p50": 84,
-            "p99": 259,
-            "cpuMsPerRequest": 15.105740181268882,
-            "requests": 993,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 482027
-          },
-          "detail": {
-            "requestsPerSecond": 5734,
-            "p50": 1,
-            "p99": 4,
-            "cpuMsPerRequest": 0.17456794038370066,
-            "requests": 63070,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 2481
-          }
-        },
-        {
-          "round": 6,
-          "loadBefore": [6.01, 11.48, 17.67],
-          "loadAfter": [11.16, 12.16, 17.73],
-          "list": {
-            "requestsPerSecond": 100.9,
-            "p50": 87,
-            "p99": 187,
-            "cpuMsPerRequest": 15.034687809712587,
-            "requests": 1009,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 482027
-          },
-          "detail": {
-            "requestsPerSecond": 1977.8,
-            "p50": 1,
-            "p99": 76,
-            "cpuMsPerRequest": 0.2856998381877023,
-            "requests": 19776,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 2481
-          }
-        }
-      ],
-      "browser": [
-        {
-          "round": 0,
-          "loadBefore": [16.1, 13.21, 17.79],
-          "loadAfter": [13.75, 12.87, 17.54],
+          "loadBefore": [5.95, 7.91, 10.56],
+          "loadAfter": [6.45, 7.89, 10.49],
           "load": {
-            "ttfb": 22,
-            "domContentLoaded": 153.09999999403954,
-            "load": 189.40000000596046,
-            "fcp": 156,
-            "lcp": 156,
-            "tbt": 6,
-            "longTasks": 1,
-            "observedUntil": 1061.0999999940395
+            "ttfb": 5.5999999940395355,
+            "domContentLoaded": 187.09999999403954,
+            "load": 187.5,
+            "fcp": 124,
+            "lcp": 124,
+            "tbt": 69,
+            "longTasks": 2,
+            "observedUntil": 1050.800000011921
           },
           "interactive": {
-            "interactive": 288.90000000596046
+            "interactive": 312.2999999821186
           },
           "updates": {
             "filter": [
               {
                 "query": "a",
                 "expected": 708,
-                "ms": 21.099999994039536
+                "ms": 30.5
               },
               {
                 "query": "am",
                 "expected": 51,
-                "ms": 12.099999994039536
+                "ms": 14.800000011920929
               },
               {
                 "query": "amb",
                 "expected": 51,
-                "ms": 2.2000000178813934
+                "ms": 7.9000000059604645
               },
               {
                 "query": "ambe",
-                "expected": 51,
-                "ms": 7.4000000059604645
-              },
-              {
-                "query": "amber",
-                "expected": 51,
-                "ms": 16.599999994039536
-              },
-              {
-                "query": "",
-                "expected": 1000,
-                "ms": 100.90000000596046
-              }
-            ],
-            "toggles": [
-              {
-                "id": "500",
-                "toPaint": 16.700000017881393,
-                "toSettled": 178,
-                "stuck": true
-              },
-              {
-                "id": "501",
-                "toPaint": 13.900000005960464,
-                "toSettled": 145,
-                "stuck": true
-              },
-              {
-                "id": "502",
-                "toPaint": 15,
-                "toSettled": 141.90000000596046,
-                "stuck": true
-              },
-              {
-                "id": "503",
-                "toPaint": 16.099999994039536,
-                "toSettled": 75.7000000178814,
-                "stuck": true
-              },
-              {
-                "id": "504",
-                "toPaint": 13.200000017881393,
-                "toSettled": 132.90000000596046,
-                "stuck": true
-              }
-            ],
-            "navigation": {
-              "toDetail": 45.20000001788139,
-              "toList": 115.7999999821186
-            },
-            "fullPageLoads": 1
-          },
-          "memory": {
-            "afterLoad": 6557036,
-            "afterToggles": 7798012,
-            "nodesAfterLoad": 5026,
-            "nodesAfterToggles": 5026,
-            "toggleMs": 13554
-          }
-        },
-        {
-          "round": 1,
-          "loadBefore": [13.19, 12.83, 17.39],
-          "loadAfter": [12.24, 12.66, 17.22],
-          "load": {
-            "ttfb": 20.900000005960464,
-            "domContentLoaded": 150.60000002384186,
-            "load": 182.90000000596046,
-            "fcp": 156,
-            "lcp": 156,
-            "tbt": 2,
-            "longTasks": 1,
-            "observedUntil": 1067.5
-          },
-          "interactive": {
-            "interactive": 262.90000000596046
-          },
-          "updates": {
-            "filter": [
-              {
-                "query": "a",
-                "expected": 708,
-                "ms": 20.900000005960464
-              },
-              {
-                "query": "am",
-                "expected": 51,
-                "ms": 13
-              },
-              {
-                "query": "amb",
-                "expected": 51,
-                "ms": 2.5
-              },
-              {
-                "query": "ambe",
-                "expected": 51,
-                "ms": 13.300000011920929
-              },
-              {
-                "query": "amber",
-                "expected": 51,
-                "ms": 16.19999998807907
-              },
-              {
-                "query": "",
-                "expected": 1000,
-                "ms": 99.90000000596046
-              }
-            ],
-            "toggles": [
-              {
-                "id": "500",
-                "toPaint": 20.099999994039536,
-                "toSettled": 162,
-                "stuck": true
-              },
-              {
-                "id": "501",
-                "toPaint": 13.700000017881393,
-                "toSettled": 138.5,
-                "stuck": true
-              },
-              {
-                "id": "502",
-                "toPaint": 16.30000001192093,
-                "toSettled": 143,
-                "stuck": true
-              },
-              {
-                "id": "503",
-                "toPaint": 14.699999988079071,
-                "toSettled": 72.59999999403954,
-                "stuck": true
-              },
-              {
-                "id": "504",
-                "toPaint": 13.100000023841858,
-                "toSettled": 130.60000002384186,
-                "stuck": true
-              }
-            ],
-            "navigation": {
-              "toDetail": 43.20000001788139,
-              "toList": 112.30000001192093
-            },
-            "fullPageLoads": 1
-          },
-          "memory": {
-            "afterLoad": 6557272,
-            "afterToggles": 7800612,
-            "nodesAfterLoad": 5026,
-            "nodesAfterToggles": 5026,
-            "toggleMs": 13380.700000017881
-          }
-        },
-        {
-          "round": 2,
-          "loadBefore": [13.77, 12.95, 16.87],
-          "loadAfter": [12.68, 12.77, 16.71],
-          "load": {
-            "ttfb": 30.400000005960464,
-            "domContentLoaded": 155.7000000178814,
-            "load": 192.7000000178814,
-            "fcp": 160,
-            "lcp": 160,
-            "tbt": 5,
-            "longTasks": 1,
-            "observedUntil": 1071.7000000178814
-          },
-          "interactive": {
-            "interactive": 266
-          },
-          "updates": {
-            "filter": [
-              {
-                "query": "a",
-                "expected": 708,
-                "ms": 20.700000017881393
-              },
-              {
-                "query": "am",
-                "expected": 51,
-                "ms": 13.699999988079071
-              },
-              {
-                "query": "amb",
-                "expected": 51,
-                "ms": 2.2000000178813934
-              },
-              {
-                "query": "ambe",
-                "expected": 51,
-                "ms": 14.799999982118607
-              },
-              {
-                "query": "amber",
-                "expected": 51,
-                "ms": 16.5
-              },
-              {
-                "query": "",
-                "expected": 1000,
-                "ms": 100.59999999403954
-              }
-            ],
-            "toggles": [
-              {
-                "id": "500",
-                "toPaint": 19.30000001192093,
-                "toSettled": 164.80000001192093,
-                "stuck": true
-              },
-              {
-                "id": "501",
-                "toPaint": 12.700000017881393,
-                "toSettled": 130.59999999403954,
-                "stuck": true
-              },
-              {
-                "id": "502",
-                "toPaint": 15.5,
-                "toSettled": 143.69999998807907,
-                "stuck": true
-              },
-              {
-                "id": "503",
-                "toPaint": 14.299999982118607,
-                "toSettled": 123.2999999821186,
-                "stuck": true
-              },
-              {
-                "id": "504",
-                "toPaint": 13.299999982118607,
-                "toSettled": 76.19999998807907,
-                "stuck": true
-              }
-            ],
-            "navigation": {
-              "toDetail": 41.5,
-              "toList": 113.5
-            },
-            "fullPageLoads": 1
-          },
-          "memory": {
-            "afterLoad": 6556640,
-            "afterToggles": 7800788,
-            "nodesAfterLoad": 5026,
-            "nodesAfterToggles": 5026,
-            "toggleMs": 13374.199999988079
-          }
-        },
-        {
-          "round": 3,
-          "loadBefore": [14.82, 13.26, 16.77],
-          "loadAfter": [12.61, 12.86, 16.55],
-          "load": {
-            "ttfb": 10.300000011920929,
-            "domContentLoaded": 49,
-            "load": 160.59999999403954,
-            "fcp": 144,
-            "lcp": 144,
-            "tbt": 5,
-            "longTasks": 1,
-            "observedUntil": 1055.4000000059605
-          },
-          "interactive": {
-            "interactive": 266.19999998807907
-          },
-          "updates": {
-            "filter": [
-              {
-                "query": "a",
-                "expected": 708,
-                "ms": 19.80000001192093
-              },
-              {
-                "query": "am",
-                "expected": 51,
-                "ms": 11.799999982118607
-              },
-              {
-                "query": "amb",
-                "expected": 51,
-                "ms": 1.800000011920929
-              },
-              {
-                "query": "ambe",
-                "expected": 51,
-                "ms": 13.5
-              },
-              {
-                "query": "amber",
                 "expected": 51,
                 "ms": 15.5
               },
               {
+                "query": "amber",
+                "expected": 51,
+                "ms": 16.30000001192093
+              },
+              {
                 "query": "",
                 "expected": 1000,
-                "ms": 98.59999999403954
+                "ms": 107.80000001192093
               }
             ],
             "toggles": [
               {
                 "id": "500",
-                "toPaint": 21.299999982118607,
-                "toSettled": 168.7999999821186,
+                "toPaint": 23,
+                "toSettled": 48.19999998807907,
                 "stuck": true
               },
               {
                 "id": "501",
-                "toPaint": 11.900000005960464,
-                "toSettled": 70.40000000596046,
+                "toPaint": 10.900000005960464,
+                "toSettled": 24.5,
                 "stuck": true
               },
               {
                 "id": "502",
-                "toPaint": 16.599999994039536,
-                "toSettled": 138.7999999821186,
+                "toPaint": 10.5,
+                "toSettled": 22.5,
                 "stuck": true
               },
               {
                 "id": "503",
-                "toPaint": 13.899999976158142,
-                "toSettled": 131.2999999821186,
+                "toPaint": 9.600000023841858,
+                "toSettled": 21.700000017881393,
                 "stuck": true
               },
               {
                 "id": "504",
-                "toPaint": 13.099999994039536,
-                "toSettled": 75.7000000178814,
+                "toPaint": 11,
+                "toSettled": 22.799999982118607,
                 "stuck": true
               }
             ],
             "navigation": {
-              "toDetail": 39.70000001788139,
-              "toList": 111.80000001192093
+              "toDetail": 36.79999998211861,
+              "toList": 117.2000000178814
             },
             "fullPageLoads": 1
           },
           "memory": {
-            "afterLoad": 6557236,
-            "afterToggles": 7798292,
+            "afterLoad": 8325956,
+            "afterToggles": 9824460,
             "nodesAfterLoad": 5026,
             "nodesAfterToggles": 5026,
-            "toggleMs": 13237
+            "toggleMs": 12408.09999999404
           }
         },
         {
-          "round": 4,
-          "loadBefore": [11.28, 12.52, 16.32],
-          "loadAfter": [9.8, 12.1, 16.08],
+          "round": 6,
+          "loadBefore": [6.96, 7.9, 10.42],
+          "loadAfter": [6.61, 7.76, 10.31],
           "load": {
-            "ttfb": 15.300000011920929,
-            "domContentLoaded": 139,
-            "load": 174.7000000178814,
-            "fcp": 144,
-            "lcp": 144,
-            "tbt": 2,
-            "longTasks": 1,
-            "observedUntil": 1056.800000011921
+            "ttfb": 4,
+            "domContentLoaded": 184.7000000178814,
+            "load": 184.7000000178814,
+            "fcp": 124,
+            "lcp": 124,
+            "tbt": 63,
+            "longTasks": 2,
+            "observedUntil": 1037.2000000178814
           },
           "interactive": {
-            "interactive": 263.5
+            "interactive": 307.5
           },
           "updates": {
             "filter": [
               {
                 "query": "a",
                 "expected": 708,
-                "ms": 21
+                "ms": 30.69999998807907
               },
               {
                 "query": "am",
                 "expected": 51,
-                "ms": 12.100000023841858
+                "ms": 15.400000005960464
               },
               {
                 "query": "amb",
                 "expected": 51,
-                "ms": 2.7999999821186066
+                "ms": 14.599999994039536
               },
               {
                 "query": "ambe",
                 "expected": 51,
-                "ms": 13.099999994039536
+                "ms": 16.400000005960464
               },
               {
                 "query": "amber",
@@ -1741,174 +1066,259 @@
               {
                 "query": "",
                 "expected": 1000,
-                "ms": 105.30000001192093
+                "ms": 103.59999999403954
               }
             ],
             "toggles": [
               {
                 "id": "500",
-                "toPaint": 21,
-                "toSettled": 179.69999998807907,
+                "toPaint": 25.200000017881393,
+                "toSettled": 51.70000001788139,
                 "stuck": true
               },
               {
                 "id": "501",
-                "toPaint": 14.400000005960464,
-                "toSettled": 130.30000001192093,
+                "toPaint": 10.299999982118607,
+                "toSettled": 24.099999994039536,
                 "stuck": true
               },
               {
                 "id": "502",
-                "toPaint": 20.5,
-                "toSettled": 153.90000000596046,
+                "toPaint": 11.400000005960464,
+                "toSettled": 23.900000005960464,
                 "stuck": true
               },
               {
                 "id": "503",
-                "toPaint": 15.400000005960464,
-                "toSettled": 132.7999999821186,
+                "toPaint": 9.799999982118607,
+                "toSettled": 21.900000005960464,
                 "stuck": true
               },
               {
                 "id": "504",
-                "toPaint": 12,
-                "toSettled": 130.19999998807907,
+                "toPaint": 9.700000017881393,
+                "toSettled": 31.100000023841858,
                 "stuck": true
               }
             ],
             "navigation": {
-              "toDetail": 34.400000005960464,
-              "toList": 106.7999999821186
+              "toDetail": 41.69999998807907,
+              "toList": 120.5
             },
             "fullPageLoads": 1
           },
           "memory": {
-            "afterLoad": 6556464,
-            "afterToggles": 7769916,
+            "afterLoad": 8332980,
+            "afterToggles": 9831468,
             "nodesAfterLoad": 5026,
             "nodesAfterToggles": 5026,
-            "toggleMs": 13273.299999982119
+            "toggleMs": 12493.40000000596
+          }
+        }
+      ]
+    },
+    "solid-start": {
+      "ssr": [
+        {
+          "round": 0,
+          "loadBefore": [8.77, 12.76, 15.38],
+          "loadAfter": [12.22, 13.14, 15.44],
+          "list": {
+            "requestsPerSecond": 103.5,
+            "p50": 85,
+            "p99": 186,
+            "cpuMsPerRequest": 14.608695652173912,
+            "requests": 1035,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 482027
+          },
+          "detail": {
+            "requestsPerSecond": 4830.11,
+            "p50": 1,
+            "p99": 9,
+            "cpuMsPerRequest": 0.1919532851551984,
+            "requests": 48293,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 2481
+          }
+        },
+        {
+          "round": 1,
+          "loadBefore": [9.25, 12.34, 15.07],
+          "loadAfter": [7.94, 11.8, 14.79],
+          "list": {
+            "requestsPerSecond": 97,
+            "p50": 91,
+            "p99": 203,
+            "cpuMsPerRequest": 15.783505154639176,
+            "requests": 970,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 482027
+          },
+          "detail": {
+            "requestsPerSecond": 5464.8,
+            "p50": 1,
+            "p99": 4,
+            "cpuMsPerRequest": 0.18281970573164483,
+            "requests": 54644,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 2481
+          }
+        },
+        {
+          "round": 2,
+          "loadBefore": [9.33, 10.99, 14.09],
+          "loadAfter": [9.08, 10.78, 13.93],
+          "list": {
+            "requestsPerSecond": 81.6,
+            "p50": 109,
+            "p99": 233,
+            "cpuMsPerRequest": 18.517156862745097,
+            "requests": 816,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 482027
+          },
+          "detail": {
+            "requestsPerSecond": 5336,
+            "p50": 1,
+            "p99": 6,
+            "cpuMsPerRequest": 0.2518693427784337,
+            "requests": 53361,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 2481
+          }
+        },
+        {
+          "round": 3,
+          "loadBefore": [8.46, 10.5, 13.72],
+          "loadAfter": [7.98, 10.21, 13.52],
+          "list": {
+            "requestsPerSecond": 104.4,
+            "p50": 86,
+            "p99": 180,
+            "cpuMsPerRequest": 14.655172413793103,
+            "requests": 1044,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 482027
+          },
+          "detail": {
+            "requestsPerSecond": 5071.4,
+            "p50": 1,
+            "p99": 5,
+            "cpuMsPerRequest": 0.19957403171097263,
+            "requests": 50708,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 2481
+          }
+        },
+        {
+          "round": 4,
+          "loadBefore": [8.34, 10.09, 13.36],
+          "loadAfter": [7.85, 9.84, 13.18],
+          "list": {
+            "requestsPerSecond": 82.6,
+            "p50": 103,
+            "p99": 308,
+            "cpuMsPerRequest": 18.038740920096853,
+            "requests": 826,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 482027
+          },
+          "detail": {
+            "requestsPerSecond": 5389.2,
+            "p50": 1,
+            "p99": 4,
+            "cpuMsPerRequest": 0.20579720902612827,
+            "requests": 53888,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 2481
           }
         },
         {
           "round": 5,
-          "loadBefore": [6.63, 10.61, 15.13],
-          "loadAfter": [6.22, 10.19, 14.85],
-          "load": {
-            "ttfb": 10.400000005960464,
-            "domContentLoaded": 47.70000001788139,
-            "load": 150.40000000596046,
-            "fcp": 136,
-            "lcp": 136,
-            "tbt": 2,
-            "longTasks": 1,
-            "observedUntil": 1053.800000011921
+          "loadBefore": [10.72, 9.62, 12.66],
+          "loadAfter": [8.37, 9.15, 12.39],
+          "list": {
+            "requestsPerSecond": 97.4,
+            "p50": 91,
+            "p99": 207,
+            "cpuMsPerRequest": 15.564681724845997,
+            "requests": 974,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 482027
           },
-          "interactive": {
-            "interactive": 233.5
-          },
-          "updates": {
-            "filter": [
-              {
-                "query": "a",
-                "expected": 708,
-                "ms": 18.099999994039536
-              },
-              {
-                "query": "am",
-                "expected": 51,
-                "ms": 10
-              },
-              {
-                "query": "amb",
-                "expected": 51,
-                "ms": 2.800000011920929
-              },
-              {
-                "query": "ambe",
-                "expected": 51,
-                "ms": 17.299999982118607
-              },
-              {
-                "query": "amber",
-                "expected": 51,
-                "ms": 15.100000023841858
-              },
-              {
-                "query": "",
-                "expected": 1000,
-                "ms": 94.7999999821186
-              }
-            ],
-            "toggles": [
-              {
-                "id": "500",
-                "toPaint": 20.19999998807907,
-                "toSettled": 157.19999998807907,
-                "stuck": true
-              },
-              {
-                "id": "501",
-                "toPaint": 14.699999988079071,
-                "toSettled": 122.09999999403954,
-                "stuck": true
-              },
-              {
-                "id": "502",
-                "toPaint": 14.5,
-                "toSettled": 136.40000000596046,
-                "stuck": true
-              },
-              {
-                "id": "503",
-                "toPaint": 12.699999988079071,
-                "toSettled": 106.09999999403954,
-                "stuck": true
-              },
-              {
-                "id": "504",
-                "toPaint": 12.799999982118607,
-                "toSettled": 118.5,
-                "stuck": true
-              }
-            ],
-            "navigation": {
-              "toDetail": 36.400000005960464,
-              "toList": 108.7000000178814
-            },
-            "fullPageLoads": 1
-          },
-          "memory": {
-            "afterLoad": 6556924,
-            "afterToggles": 7798604,
-            "nodesAfterLoad": 5026,
-            "nodesAfterToggles": 5026,
-            "toggleMs": 13134.800000011921
+          "detail": {
+            "requestsPerSecond": 5371.2,
+            "p50": 1,
+            "p99": 4,
+            "cpuMsPerRequest": 0.185271390000931,
+            "requests": 53705,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 2481
           }
         },
         {
           "round": 6,
-          "loadBefore": [5.59, 9.79, 14.6],
-          "loadAfter": [5.23, 9.43, 14.36],
+          "loadBefore": [8.65, 9.12, 12.28],
+          "loadAfter": [9.16, 9.19, 12.2],
+          "list": {
+            "requestsPerSecond": 84.9,
+            "p50": 103,
+            "p99": 256,
+            "cpuMsPerRequest": 18.044758539458186,
+            "requests": 849,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 482027
+          },
+          "detail": {
+            "requestsPerSecond": 5077.2,
+            "p50": 1,
+            "p99": 6,
+            "cpuMsPerRequest": 0.25234915194137464,
+            "requests": 50763,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 2481
+          }
+        }
+      ],
+      "browser": [
+        {
+          "round": 0,
+          "loadBefore": [9.39, 9.24, 12.04],
+          "loadAfter": [8.9, 9.14, 11.94],
           "load": {
-            "ttfb": 9.900000005960464,
-            "domContentLoaded": 44.599999994039536,
-            "load": 142.59999999403954,
-            "fcp": 128,
-            "lcp": 128,
+            "ttfb": 12.699999988079071,
+            "domContentLoaded": 54,
+            "load": 168.19999998807907,
+            "fcp": 152,
+            "lcp": 152,
             "tbt": 0,
-            "longTasks": 0,
-            "observedUntil": 1053.699999988079
+            "longTasks": 1,
+            "observedUntil": 1056.8999999761581
           },
           "interactive": {
-            "interactive": 223.69999998807907
+            "interactive": 250.40000000596046
           },
           "updates": {
             "filter": [
               {
                 "query": "a",
                 "expected": 708,
-                "ms": 21.5
+                "ms": 21.200000017881393
               },
               {
                 "query": "am",
@@ -1918,673 +1328,108 @@
               {
                 "query": "amb",
                 "expected": 51,
-                "ms": 12.5
+                "ms": 1.600000023841858
               },
               {
                 "query": "ambe",
                 "expected": 51,
-                "ms": 15
+                "ms": 14.5
               },
               {
                 "query": "amber",
                 "expected": 51,
-                "ms": 17.19999998807907
+                "ms": 16.900000005960464
               },
               {
                 "query": "",
                 "expected": 1000,
-                "ms": 89.5
+                "ms": 99.39999997615814
               }
             ],
             "toggles": [
               {
                 "id": "500",
-                "toPaint": 15.5,
-                "toSettled": 151.5,
+                "toPaint": 20.400000005960464,
+                "toSettled": 161.5,
                 "stuck": true
               },
               {
                 "id": "501",
-                "toPaint": 12.400000005960464,
-                "toSettled": 71.59999999403954,
+                "toPaint": 12.700000017881393,
+                "toSettled": 74.90000000596046,
                 "stuck": true
               },
               {
                 "id": "502",
-                "toPaint": 15.199999988079071,
-                "toSettled": 139,
+                "toPaint": 15.5,
+                "toSettled": 142,
                 "stuck": true
               },
               {
                 "id": "503",
-                "toPaint": 14.799999982118607,
-                "toSettled": 70.69999998807907,
+                "toPaint": 14.900000005960464,
+                "toSettled": 126.7999999821186,
                 "stuck": true
               },
               {
                 "id": "504",
-                "toPaint": 13.099999994039536,
-                "toSettled": 123.09999999403954,
+                "toPaint": 13.400000005960464,
+                "toSettled": 129.7999999821186,
                 "stuck": true
               }
             ],
             "navigation": {
-              "toDetail": 38.599999994039536,
-              "toList": 95
+              "toDetail": 40.79999998211861,
+              "toList": 114.7999999821186
             },
             "fullPageLoads": 1
           },
           "memory": {
-            "afterLoad": 6557292,
-            "afterToggles": 7769940,
+            "afterLoad": 6557024,
+            "afterToggles": 7798596,
             "nodesAfterLoad": 5026,
             "nodesAfterToggles": 5026,
-            "toggleMs": 13307.299999982119
-          }
-        }
-      ]
-    },
-    "tanstack-start": {
-      "ssr": [
-        {
-          "round": 0,
-          "loadBefore": [19.96, 18.86, 22.68],
-          "loadAfter": [22.84, 19.73, 22.86],
-          "list": {
-            "requestsPerSecond": 80.2,
-            "p50": 111,
-            "p99": 299,
-            "cpuMsPerRequest": 11.184538653366584,
-            "requests": 802,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 375573
-          },
-          "detail": {
-            "requestsPerSecond": 1392.4,
-            "p50": 6,
-            "p99": 21,
-            "cpuMsPerRequest": 0.723263664440135,
-            "requests": 13923,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 5269
+            "toggleMs": 12970.799999982119
           }
         },
         {
           "round": 1,
-          "loadBefore": [21.41, 19.64, 22.74],
-          "loadAfter": [21.25, 19.72, 22.66],
-          "list": {
-            "requestsPerSecond": 84.8,
-            "p50": 107,
-            "p99": 284,
-            "cpuMsPerRequest": 10.88443396226415,
-            "requests": 848,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 375573
-          },
-          "detail": {
-            "requestsPerSecond": 1031.1,
-            "p50": 7,
-            "p99": 43,
-            "cpuMsPerRequest": 0.8263020075647367,
-            "requests": 10311,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 5269
-          }
-        },
-        {
-          "round": 2,
-          "loadBefore": [20.33, 19.6, 22.53],
-          "loadAfter": [16.88, 18.93, 22.19],
-          "list": {
-            "requestsPerSecond": 118.9,
-            "p50": 84,
-            "p99": 217,
-            "cpuMsPerRequest": 8.595458368376788,
-            "requests": 1189,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 375573
-          },
-          "detail": {
-            "requestsPerSecond": 7101.2,
-            "p50": 1,
-            "p99": 3,
-            "cpuMsPerRequest": 0.18519040108156828,
-            "requests": 71008,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 5269
-          }
-        },
-        {
-          "round": 3,
-          "loadBefore": [10.7, 16.01, 20.65],
-          "loadAfter": [10.03, 15.3, 20.23],
-          "list": {
-            "requestsPerSecond": 138.5,
-            "p50": 65,
-            "p99": 142,
-            "cpuMsPerRequest": 7.754512635379061,
-            "requests": 1385,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 375573
-          },
-          "detail": {
-            "requestsPerSecond": 2965.2,
-            "p50": 3,
-            "p99": 8,
-            "cpuMsPerRequest": 0.3963034166413707,
-            "requests": 29649,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 5269
-          }
-        },
-        {
-          "round": 4,
-          "loadBefore": [11.76, 15.29, 20.09],
-          "loadAfter": [10.03, 14.54, 19.65],
-          "list": {
-            "requestsPerSecond": 141.31,
-            "p50": 65,
-            "p99": 140,
-            "cpuMsPerRequest": 7.735314932767162,
-            "requests": 1413,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 375573
-          },
-          "detail": {
-            "requestsPerSecond": 5669.46,
-            "p50": 1,
-            "p99": 5,
-            "cpuMsPerRequest": 0.2272399249482817,
-            "requests": 62357,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 5269
-          }
-        },
-        {
-          "round": 5,
-          "loadBefore": [7.63, 13.61, 19.16],
-          "loadAfter": [8.34, 13.27, 18.85],
-          "list": {
-            "requestsPerSecond": 144.5,
-            "p50": 57,
-            "p99": 164,
-            "cpuMsPerRequest": 6.975778546712803,
-            "requests": 1445,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 375573
-          },
-          "detail": {
-            "requestsPerSecond": 7214.73,
-            "p50": 1,
-            "p99": 3,
-            "cpuMsPerRequest": 0.18158906181084997,
-            "requests": 79355,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 5269
-          }
-        },
-        {
-          "round": 6,
-          "loadBefore": [11.95, 12.3, 17.75],
-          "loadAfter": [12.25, 12.38, 17.62],
-          "list": {
-            "requestsPerSecond": 133.81,
-            "p50": 66,
-            "p99": 157,
-            "cpuMsPerRequest": 7.593423019431988,
-            "requests": 1338,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 375573
-          },
-          "detail": {
-            "requestsPerSecond": 3436.1,
-            "p50": 2,
-            "p99": 9,
-            "cpuMsPerRequest": 0.3277829529576153,
-            "requests": 34352,
-            "non2xx": 0,
-            "errors": 0,
-            "bytesPerResponse": 5269
-          }
-        }
-      ],
-      "browser": [
-        {
-          "round": 0,
-          "loadBefore": [13.75, 12.87, 17.54],
-          "loadAfter": [13.99, 12.98, 17.47],
+          "loadBefore": [9.86, 9.31, 11.92],
+          "loadAfter": [7.52, 8.82, 11.68],
           "load": {
-            "ttfb": 12.299999982118607,
-            "domContentLoaded": 143.2999999821186,
-            "load": 194.2999999821186,
-            "fcp": 148,
-            "lcp": 148,
-            "tbt": 0,
-            "longTasks": 0,
-            "observedUntil": 1050.8999999761581
-          },
-          "interactive": {
-            "interactive": 317.19999998807907
-          },
-          "updates": {
-            "filter": [
-              {
-                "query": "a",
-                "expected": 708,
-                "ms": 32.5
-              },
-              {
-                "query": "am",
-                "expected": 51,
-                "ms": 16.799999982118607
-              },
-              {
-                "query": "amb",
-                "expected": 51,
-                "ms": 4.5
-              },
-              {
-                "query": "ambe",
-                "expected": 51,
-                "ms": 17.5
-              },
-              {
-                "query": "amber",
-                "expected": 51,
-                "ms": 17
-              },
-              {
-                "query": "",
-                "expected": 1000,
-                "ms": 96.2999999821186
-              }
-            ],
-            "toggles": [
-              {
-                "id": "500",
-                "toPaint": 27.200000017881393,
-                "toSettled": 53,
-                "stuck": true
-              },
-              {
-                "id": "501",
-                "toPaint": 20.100000023841858,
-                "toSettled": 36.10000002384186,
-                "stuck": true
-              },
-              {
-                "id": "502",
-                "toPaint": 23.099999994039536,
-                "toSettled": 36.900000005960464,
-                "stuck": true
-              },
-              {
-                "id": "503",
-                "toPaint": 19.200000017881393,
-                "toSettled": 36.70000001788139,
-                "stuck": true
-              },
-              {
-                "id": "504",
-                "toPaint": 28,
-                "toSettled": 43.099999994039536,
-                "stuck": true
-              }
-            ],
-            "navigation": {
-              "toDetail": 45,
-              "toList": 113
-            },
-            "fullPageLoads": 1
-          },
-          "memory": {
-            "afterLoad": 5548588,
-            "afterToggles": 7810960,
-            "nodesAfterLoad": 5022,
-            "nodesAfterToggles": 5022,
-            "toggleMs": 11682.300000011921
-          }
-        },
-        {
-          "round": 1,
-          "loadBefore": [12.24, 12.66, 17.22],
-          "loadAfter": [12.82, 12.75, 17.14],
-          "load": {
-            "ttfb": 8.5,
-            "domContentLoaded": 46,
-            "load": 185.40000000596046,
-            "fcp": 152,
-            "lcp": 152,
-            "tbt": 0,
-            "longTasks": 0,
-            "observedUntil": 1046.7999999821186
-          },
-          "interactive": {
-            "interactive": 298.7999999821186
-          },
-          "updates": {
-            "filter": [
-              {
-                "query": "a",
-                "expected": 708,
-                "ms": 34.19999998807907
-              },
-              {
-                "query": "am",
-                "expected": 51,
-                "ms": 17.700000017881393
-              },
-              {
-                "query": "amb",
-                "expected": 51,
-                "ms": 4.5
-              },
-              {
-                "query": "ambe",
-                "expected": 51,
-                "ms": 12.800000011920929
-              },
-              {
-                "query": "amber",
-                "expected": 51,
-                "ms": 17
-              },
-              {
-                "query": "",
-                "expected": 1000,
-                "ms": 94.59999999403954
-              }
-            ],
-            "toggles": [
-              {
-                "id": "500",
-                "toPaint": 22.30000001192093,
-                "toSettled": 40.30000001192093,
-                "stuck": true
-              },
-              {
-                "id": "501",
-                "toPaint": 21.099999994039536,
-                "toSettled": 34.80000001192093,
-                "stuck": true
-              },
-              {
-                "id": "502",
-                "toPaint": 21.19999998807907,
-                "toSettled": 34.19999998807907,
-                "stuck": true
-              },
-              {
-                "id": "503",
-                "toPaint": 17.900000005960464,
-                "toSettled": 30.900000005960464,
-                "stuck": true
-              },
-              {
-                "id": "504",
-                "toPaint": 28.299999982118607,
-                "toSettled": 43.29999998211861,
-                "stuck": true
-              }
-            ],
-            "navigation": {
-              "toDetail": 34.69999998807907,
-              "toList": 97.59999999403954
-            },
-            "fullPageLoads": 1
-          },
-          "memory": {
-            "afterLoad": 5530488,
-            "afterToggles": 7793516,
-            "nodesAfterLoad": 5022,
-            "nodesAfterToggles": 5022,
-            "toggleMs": 11667.799999982119
-          }
-        },
-        {
-          "round": 2,
-          "loadBefore": [13.16, 12.82, 17.04],
-          "loadAfter": [12.96, 12.78, 16.93],
-          "load": {
-            "ttfb": 12.199999988079071,
-            "domContentLoaded": 50.79999998211861,
-            "load": 190.69999998807907,
-            "fcp": 148,
-            "lcp": 148,
-            "tbt": 0,
-            "longTasks": 0,
-            "observedUntil": 1055.9000000059605
-          },
-          "interactive": {
-            "interactive": 284
-          },
-          "updates": {
-            "filter": [
-              {
-                "query": "a",
-                "expected": 708,
-                "ms": 27.5
-              },
-              {
-                "query": "am",
-                "expected": 51,
-                "ms": 15.5
-              },
-              {
-                "query": "amb",
-                "expected": 51,
-                "ms": 2.699999988079071
-              },
-              {
-                "query": "ambe",
-                "expected": 51,
-                "ms": 12.700000017881393
-              },
-              {
-                "query": "amber",
-                "expected": 51,
-                "ms": 17
-              },
-              {
-                "query": "",
-                "expected": 1000,
-                "ms": 91.10000002384186
-              }
-            ],
-            "toggles": [
-              {
-                "id": "500",
-                "toPaint": 25.80000001192093,
-                "toSettled": 48.900000005960464,
-                "stuck": true
-              },
-              {
-                "id": "501",
-                "toPaint": 19.400000005960464,
-                "toSettled": 33.900000005960464,
-                "stuck": true
-              },
-              {
-                "id": "502",
-                "toPaint": 20.5,
-                "toSettled": 33.29999998211861,
-                "stuck": true
-              },
-              {
-                "id": "503",
-                "toPaint": 19.799999982118607,
-                "toSettled": 33.599999994039536,
-                "stuck": true
-              },
-              {
-                "id": "504",
-                "toPaint": 28.099999994039536,
-                "toSettled": 39.80000001192093,
-                "stuck": true
-              }
-            ],
-            "navigation": {
-              "toDetail": 37.70000001788139,
-              "toList": 116.80000001192093
-            },
-            "fullPageLoads": 1
-          },
-          "memory": {
-            "afterLoad": 5527064,
-            "afterToggles": 7788880,
-            "nodesAfterLoad": 5022,
-            "nodesAfterToggles": 5022,
-            "toggleMs": 11522.300000011921
-          }
-        },
-        {
-          "round": 3,
-          "loadBefore": [12.61, 12.86, 16.55],
-          "loadAfter": [11.31, 12.55, 16.35],
-          "load": {
-            "ttfb": 12.099999994039536,
-            "domContentLoaded": 139.89999997615814,
-            "load": 189.89999997615814,
+            "ttfb": 17.400000005960464,
+            "domContentLoaded": 143.19999998807907,
+            "load": 186.90000000596046,
             "fcp": 144,
             "lcp": 144,
-            "tbt": 0,
-            "longTasks": 0,
-            "observedUntil": 1050.0999999940395
+            "tbt": 3,
+            "longTasks": 1,
+            "observedUntil": 1064.800000011921
           },
           "interactive": {
-            "interactive": 288
+            "interactive": 263.89999997615814
           },
           "updates": {
             "filter": [
               {
                 "query": "a",
                 "expected": 708,
-                "ms": 31
+                "ms": 22.19999998807907
               },
               {
                 "query": "am",
                 "expected": 51,
-                "ms": 16.80000001192093
+                "ms": 12.799999982118607
               },
               {
                 "query": "amb",
                 "expected": 51,
-                "ms": 12.400000005960464
+                "ms": 14.100000023841858
               },
               {
                 "query": "ambe",
                 "expected": 51,
-                "ms": 16.299999982118607
-              },
-              {
-                "query": "amber",
-                "expected": 51,
-                "ms": 17.200000017881393
-              },
-              {
-                "query": "",
-                "expected": 1000,
-                "ms": 93.39999997615814
-              }
-            ],
-            "toggles": [
-              {
-                "id": "500",
-                "toPaint": 27.599999994039536,
-                "toSettled": 51.80000001192093,
-                "stuck": true
-              },
-              {
-                "id": "501",
-                "toPaint": 20.899999976158142,
-                "toSettled": 34.39999997615814,
-                "stuck": true
-              },
-              {
-                "id": "502",
-                "toPaint": 19.900000005960464,
-                "toSettled": 33.599999994039536,
-                "stuck": true
-              },
-              {
-                "id": "503",
-                "toPaint": 18.400000005960464,
-                "toSettled": 31.900000005960464,
-                "stuck": true
-              },
-              {
-                "id": "504",
-                "toPaint": 20.599999994039536,
-                "toSettled": 34.5,
-                "stuck": true
-              }
-            ],
-            "navigation": {
-              "toDetail": 37.5,
-              "toList": 108
-            },
-            "fullPageLoads": 1
-          },
-          "memory": {
-            "afterLoad": 5538804,
-            "afterToggles": 7798928,
-            "nodesAfterLoad": 5022,
-            "nodesAfterToggles": 5022,
-            "toggleMs": 11592.09999999404
-          }
-        },
-        {
-          "round": 4,
-          "loadBefore": [9.8, 12.1, 16.08],
-          "loadAfter": [9.59, 11.9, 15.91],
-          "load": {
-            "ttfb": 8.099999994039536,
-            "domContentLoaded": 146.59999999403954,
-            "load": 200.5,
-            "fcp": 152,
-            "lcp": 152,
-            "tbt": 0,
-            "longTasks": 0,
-            "observedUntil": 1048.5
-          },
-          "interactive": {
-            "interactive": 290.09999999403954
-          },
-          "updates": {
-            "filter": [
-              {
-                "query": "a",
-                "expected": 708,
-                "ms": 35.900000005960464
-              },
-              {
-                "query": "am",
-                "expected": 51,
-                "ms": 19.099999994039536
-              },
-              {
-                "query": "amb",
-                "expected": 51,
-                "ms": 4.4000000059604645
-              },
-              {
-                "query": "ambe",
-                "expected": 51,
-                "ms": 14.399999976158142
+                "ms": 16.30000001192093
               },
               {
                 "query": "amber",
@@ -2594,179 +1439,275 @@
               {
                 "query": "",
                 "expected": 1000,
-                "ms": 100.59999999403954
+                "ms": 109.09999999403954
               }
             ],
             "toggles": [
               {
                 "id": "500",
-                "toPaint": 30.400000005960464,
-                "toSettled": 54.599999994039536,
+                "toPaint": 19.099999994039536,
+                "toSettled": 160.7000000178814,
                 "stuck": true
               },
               {
                 "id": "501",
-                "toPaint": 21.5,
-                "toSettled": 36.400000005960464,
+                "toPaint": 15.599999994039536,
+                "toSettled": 130,
                 "stuck": true
               },
               {
                 "id": "502",
-                "toPaint": 28.799999982118607,
-                "toSettled": 41.5,
+                "toPaint": 13.5,
+                "toSettled": 125.2000000178814,
                 "stuck": true
               },
               {
                 "id": "503",
-                "toPaint": 18.19999998807907,
-                "toSettled": 32.099999994039536,
+                "toPaint": 12.599999994039536,
+                "toSettled": 117,
                 "stuck": true
               },
               {
                 "id": "504",
-                "toPaint": 21.600000023841858,
-                "toSettled": 35.10000002384186,
+                "toPaint": 11.800000011920929,
+                "toSettled": 115.5,
+                "stuck": true
+              }
+            ],
+            "navigation": {
+              "toDetail": 37.20000001788139,
+              "toList": 100.2000000178814
+            },
+            "fullPageLoads": 1
+          },
+          "memory": {
+            "afterLoad": 6557096,
+            "afterToggles": 7797872,
+            "nodesAfterLoad": 5026,
+            "nodesAfterToggles": 5026,
+            "toggleMs": 13462.300000011921
+          }
+        },
+        {
+          "round": 2,
+          "loadBefore": [10.47, 9, 11.44],
+          "loadAfter": [10.13, 9.03, 11.4],
+          "load": {
+            "ttfb": 12.900000005960464,
+            "domContentLoaded": 143.80000001192093,
+            "load": 176.5,
+            "fcp": 148,
+            "lcp": 148,
+            "tbt": 5,
+            "longTasks": 1,
+            "observedUntil": 1052.5
+          },
+          "interactive": {
+            "interactive": 248.7000000178814
+          },
+          "updates": {
+            "filter": [
+              {
+                "query": "a",
+                "expected": 708,
+                "ms": 20.30000001192093
+              },
+              {
+                "query": "am",
+                "expected": 51,
+                "ms": 12.899999976158142
+              },
+              {
+                "query": "amb",
+                "expected": 51,
+                "ms": 2.5
+              },
+              {
+                "query": "ambe",
+                "expected": 51,
+                "ms": 9.300000011920929
+              },
+              {
+                "query": "amber",
+                "expected": 51,
+                "ms": 16.599999994039536
+              },
+              {
+                "query": "",
+                "expected": 1000,
+                "ms": 103.19999998807907
+              }
+            ],
+            "toggles": [
+              {
+                "id": "500",
+                "toPaint": 17.900000005960464,
+                "toSettled": 158.10000002384186,
+                "stuck": true
+              },
+              {
+                "id": "501",
+                "toPaint": 12.799999982118607,
+                "toSettled": 131.7999999821186,
+                "stuck": true
+              },
+              {
+                "id": "502",
+                "toPaint": 14.900000005960464,
+                "toSettled": 143.90000000596046,
+                "stuck": true
+              },
+              {
+                "id": "503",
+                "toPaint": 15.099999994039536,
+                "toSettled": 126.69999998807907,
+                "stuck": true
+              },
+              {
+                "id": "504",
+                "toPaint": 13.599999994039536,
+                "toSettled": 132.09999999403954,
+                "stuck": true
+              }
+            ],
+            "navigation": {
+              "toDetail": 42.400000005960464,
+              "toList": 111.30000001192093
+            },
+            "fullPageLoads": 1
+          },
+          "memory": {
+            "afterLoad": 6556752,
+            "afterToggles": 7798932,
+            "nodesAfterLoad": 5026,
+            "nodesAfterToggles": 5026,
+            "toggleMs": 13294.90000000596
+          }
+        },
+        {
+          "round": 3,
+          "loadBefore": [9.72, 9.02, 11.33],
+          "loadAfter": [8.57, 8.8, 11.19],
+          "load": {
+            "ttfb": 12.199999988079071,
+            "domContentLoaded": 141.7999999821186,
+            "load": 175.2999999821186,
+            "fcp": 144,
+            "lcp": 144,
+            "tbt": 0,
+            "longTasks": 1,
+            "observedUntil": 1061.3999999761581
+          },
+          "interactive": {
+            "interactive": 257
+          },
+          "updates": {
+            "filter": [
+              {
+                "query": "a",
+                "expected": 708,
+                "ms": 18.69999998807907
+              },
+              {
+                "query": "am",
+                "expected": 51,
+                "ms": 9.599999994039536
+              },
+              {
+                "query": "amb",
+                "expected": 51,
+                "ms": 1.699999988079071
+              },
+              {
+                "query": "ambe",
+                "expected": 51,
+                "ms": 15.099999994039536
+              },
+              {
+                "query": "amber",
+                "expected": 51,
+                "ms": 16.5
+              },
+              {
+                "query": "",
+                "expected": 1000,
+                "ms": 95.80000001192093
+              }
+            ],
+            "toggles": [
+              {
+                "id": "500",
+                "toPaint": 17.69999998807907,
+                "toSettled": 158.89999997615814,
+                "stuck": true
+              },
+              {
+                "id": "501",
+                "toPaint": 14.099999994039536,
+                "toSettled": 134.69999998807907,
+                "stuck": true
+              },
+              {
+                "id": "502",
+                "toPaint": 16,
+                "toSettled": 137.80000001192093,
+                "stuck": true
+              },
+              {
+                "id": "503",
+                "toPaint": 14.400000005960464,
+                "toSettled": 125.40000000596046,
+                "stuck": true
+              },
+              {
+                "id": "504",
+                "toPaint": 12,
+                "toSettled": 72,
                 "stuck": true
               }
             ],
             "navigation": {
               "toDetail": 39.70000001788139,
-              "toList": 143.60000002384186
+              "toList": 113.40000000596046
             },
             "fullPageLoads": 1
           },
           "memory": {
-            "afterLoad": 5522960,
-            "afterToggles": 7788824,
-            "nodesAfterLoad": 5022,
-            "nodesAfterToggles": 5022,
-            "toggleMs": 11407.799999982119
+            "afterLoad": 6557012,
+            "afterToggles": 7798404,
+            "nodesAfterLoad": 5026,
+            "nodesAfterToggles": 5026,
+            "toggleMs": 13215.399999976158
           }
         },
         {
-          "round": 5,
-          "loadBefore": [7.95, 11.33, 15.59],
-          "loadAfter": [7.66, 11.07, 15.4],
+          "round": 4,
+          "loadBefore": [8.04, 8.65, 11.07],
+          "loadAfter": [7.95, 8.59, 10.99],
           "load": {
-            "ttfb": 9,
-            "domContentLoaded": 47.900000005960464,
-            "load": 179.90000000596046,
-            "fcp": 136,
-            "lcp": 136,
+            "ttfb": 17.099999994039536,
+            "domContentLoaded": 145.2000000178814,
+            "load": 176.2000000178814,
+            "fcp": 148,
+            "lcp": 148,
             "tbt": 0,
-            "longTasks": 0,
-            "observedUntil": 1054.9000000059605
+            "longTasks": 1,
+            "observedUntil": 1066.4000000059605
           },
           "interactive": {
-            "interactive": 286.59999999403954
+            "interactive": 246
           },
           "updates": {
             "filter": [
               {
                 "query": "a",
                 "expected": 708,
-                "ms": 31.400000005960464
+                "ms": 20.5
               },
               {
                 "query": "am",
                 "expected": 51,
-                "ms": 17.80000001192093
-              },
-              {
-                "query": "amb",
-                "expected": 51,
-                "ms": 6.199999988079071
-              },
-              {
-                "query": "ambe",
-                "expected": 51,
-                "ms": 15.700000017881393
-              },
-              {
-                "query": "amber",
-                "expected": 51,
-                "ms": 17.400000005960464
-              },
-              {
-                "query": "",
-                "expected": 1000,
-                "ms": 94.5
-              }
-            ],
-            "toggles": [
-              {
-                "id": "500",
-                "toPaint": 27.400000005960464,
-                "toSettled": 53.5,
-                "stuck": true
-              },
-              {
-                "id": "501",
-                "toPaint": 21.69999998807907,
-                "toSettled": 37.599999994039536,
-                "stuck": true
-              },
-              {
-                "id": "502",
-                "toPaint": 20.599999994039536,
-                "toSettled": 34.69999998807907,
-                "stuck": true
-              },
-              {
-                "id": "503",
-                "toPaint": 28.400000005960464,
-                "toSettled": 41.79999998211861,
-                "stuck": true
-              },
-              {
-                "id": "504",
-                "toPaint": 22.599999994039536,
-                "toSettled": 35.39999997615814,
-                "stuck": true
-              }
-            ],
-            "navigation": {
-              "toDetail": 32,
-              "toList": 107.09999999403954
-            },
-            "fullPageLoads": 1
-          },
-          "memory": {
-            "afterLoad": 5523840,
-            "afterToggles": 7803908,
-            "nodesAfterLoad": 5022,
-            "nodesAfterToggles": 5022,
-            "toggleMs": 12354.800000011921
-          }
-        },
-        {
-          "round": 6,
-          "loadBefore": [4.89, 9.29, 14.28],
-          "loadAfter": [4.26, 8.87, 14.01],
-          "load": {
-            "ttfb": 8.199999988079071,
-            "domContentLoaded": 46.79999998211861,
-            "load": 164.2999999821186,
-            "fcp": 128,
-            "lcp": 128,
-            "tbt": 0,
-            "longTasks": 0,
-            "observedUntil": 1050.9000000059605
-          },
-          "interactive": {
-            "interactive": 288.59999999403954
-          },
-          "updates": {
-            "filter": [
-              {
-                "query": "a",
-                "expected": 708,
-                "ms": 30.399999976158142
-              },
-              {
-                "query": "am",
-                "expected": 51,
-                "ms": 15.699999988079071
+                "ms": 11.599999994039536
               },
               {
                 "query": "amb",
@@ -2776,63 +1717,1108 @@
               {
                 "query": "ambe",
                 "expected": 51,
-                "ms": 12.199999988079071
+                "ms": 16.69999998807907
               },
               {
                 "query": "amber",
                 "expected": 51,
-                "ms": 16.80000001192093
+                "ms": 16.099999994039536
               },
               {
                 "query": "",
                 "expected": 1000,
-                "ms": 93.90000000596046
+                "ms": 97.90000000596046
               }
             ],
             "toggles": [
               {
                 "id": "500",
-                "toPaint": 26.599999994039536,
-                "toSettled": 47.29999998211861,
+                "toPaint": 19.5,
+                "toSettled": 159.30000001192093,
                 "stuck": true
               },
               {
                 "id": "501",
-                "toPaint": 21.200000017881393,
-                "toSettled": 34.599999994039536,
+                "toPaint": 14.800000011920929,
+                "toSettled": 138,
                 "stuck": true
               },
               {
                 "id": "502",
-                "toPaint": 19.599999994039536,
-                "toSettled": 32.900000005960464,
+                "toPaint": 15.5,
+                "toSettled": 136.19999998807907,
+                "stuck": true
+              },
+              {
+                "id": "503",
+                "toPaint": 14.5,
+                "toSettled": 126.39999997615814,
+                "stuck": true
+              },
+              {
+                "id": "504",
+                "toPaint": 13.300000011920929,
+                "toSettled": 73.7000000178814,
+                "stuck": true
+              }
+            ],
+            "navigation": {
+              "toDetail": 41.70000001788139,
+              "toList": 108.19999998807907
+            },
+            "fullPageLoads": 1
+          },
+          "memory": {
+            "afterLoad": 6557152,
+            "afterToggles": 7798392,
+            "nodesAfterLoad": 5026,
+            "nodesAfterToggles": 5026,
+            "toggleMs": 13295.799999982119
+          }
+        },
+        {
+          "round": 5,
+          "loadBefore": [6.45, 7.89, 10.49],
+          "loadAfter": [6.87, 7.9, 10.43],
+          "load": {
+            "ttfb": 11.700000017881393,
+            "domContentLoaded": 137.09999999403954,
+            "load": 169.09999999403954,
+            "fcp": 140,
+            "lcp": 140,
+            "tbt": 1,
+            "longTasks": 1,
+            "observedUntil": 1051
+          },
+          "interactive": {
+            "interactive": 251.59999999403954
+          },
+          "updates": {
+            "filter": [
+              {
+                "query": "a",
+                "expected": 708,
+                "ms": 19.900000005960464
+              },
+              {
+                "query": "am",
+                "expected": 51,
+                "ms": 12
+              },
+              {
+                "query": "amb",
+                "expected": 51,
+                "ms": 12.099999994039536
+              },
+              {
+                "query": "ambe",
+                "expected": 51,
+                "ms": 16.19999998807907
+              },
+              {
+                "query": "amber",
+                "expected": 51,
+                "ms": 16.599999994039536
+              },
+              {
+                "query": "",
+                "expected": 1000,
+                "ms": 99
+              }
+            ],
+            "toggles": [
+              {
+                "id": "500",
+                "toPaint": 18.30000001192093,
+                "toSettled": 162.09999999403954,
+                "stuck": true
+              },
+              {
+                "id": "501",
+                "toPaint": 13.199999988079071,
+                "toSettled": 136.39999997615814,
+                "stuck": true
+              },
+              {
+                "id": "502",
+                "toPaint": 15.799999982118607,
+                "toSettled": 89,
+                "stuck": true
+              },
+              {
+                "id": "503",
+                "toPaint": 15.199999988079071,
+                "toSettled": 129.7999999821186,
+                "stuck": true
+              },
+              {
+                "id": "504",
+                "toPaint": 13.900000005960464,
+                "toSettled": 128.80000001192093,
+                "stuck": true
+              }
+            ],
+            "navigation": {
+              "toDetail": 39.599999994039536,
+              "toList": 111.59999999403954
+            },
+            "fullPageLoads": 1
+          },
+          "memory": {
+            "afterLoad": 6556996,
+            "afterToggles": 7794936,
+            "nodesAfterLoad": 5026,
+            "nodesAfterToggles": 5026,
+            "toggleMs": 12876.800000011921
+          }
+        },
+        {
+          "round": 6,
+          "loadBefore": [6.61, 7.76, 10.31],
+          "loadAfter": [6.97, 7.77, 10.25],
+          "load": {
+            "ttfb": 15.700000017881393,
+            "domContentLoaded": 55,
+            "load": 164.60000002384186,
+            "fcp": 148,
+            "lcp": 148,
+            "tbt": 2,
+            "longTasks": 1,
+            "observedUntil": 1052.300000011921
+          },
+          "interactive": {
+            "interactive": 245.5
+          },
+          "updates": {
+            "filter": [
+              {
+                "query": "a",
+                "expected": 708,
+                "ms": 19.899999976158142
+              },
+              {
+                "query": "am",
+                "expected": 51,
+                "ms": 12.299999982118607
+              },
+              {
+                "query": "amb",
+                "expected": 51,
+                "ms": 1.9000000059604645
+              },
+              {
+                "query": "ambe",
+                "expected": 51,
+                "ms": 10.800000011920929
+              },
+              {
+                "query": "amber",
+                "expected": 51,
+                "ms": 17.299999982118607
+              },
+              {
+                "query": "",
+                "expected": 1000,
+                "ms": 95.90000000596046
+              }
+            ],
+            "toggles": [
+              {
+                "id": "500",
+                "toPaint": 19,
+                "toSettled": 161.7000000178814,
+                "stuck": true
+              },
+              {
+                "id": "501",
+                "toPaint": 13.199999988079071,
+                "toSettled": 129.7999999821186,
+                "stuck": true
+              },
+              {
+                "id": "502",
+                "toPaint": 16,
+                "toSettled": 139.80000001192093,
+                "stuck": true
+              },
+              {
+                "id": "503",
+                "toPaint": 14.899999976158142,
+                "toSettled": 124.7999999821186,
+                "stuck": true
+              },
+              {
+                "id": "504",
+                "toPaint": 12.799999982118607,
+                "toSettled": 129,
+                "stuck": true
+              }
+            ],
+            "navigation": {
+              "toDetail": 44.900000005960464,
+              "toList": 106.90000000596046
+            },
+            "fullPageLoads": 1
+          },
+          "memory": {
+            "afterLoad": 6557420,
+            "afterToggles": 7798592,
+            "nodesAfterLoad": 5026,
+            "nodesAfterToggles": 5026,
+            "toggleMs": 13018.700000017881
+          }
+        }
+      ]
+    },
+    "tanstack-start": {
+      "ssr": [
+        {
+          "round": 0,
+          "loadBefore": [12.22, 13.14, 15.44],
+          "loadAfter": [9.97, 12.54, 15.15],
+          "list": {
+            "requestsPerSecond": 144.31,
+            "p50": 58,
+            "p99": 173,
+            "cpuMsPerRequest": 6.881496881496881,
+            "requests": 1443,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 375573
+          },
+          "detail": {
+            "requestsPerSecond": 6351.28,
+            "p50": 1,
+            "p99": 4,
+            "cpuMsPerRequest": 0.20598339536215288,
+            "requests": 69860,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 5269
+          }
+        },
+        {
+          "round": 1,
+          "loadBefore": [7.94, 11.8, 14.79],
+          "loadAfter": [7.81, 11.43, 14.57],
+          "list": {
+            "requestsPerSecond": 163.9,
+            "p50": 55,
+            "p99": 124,
+            "cpuMsPerRequest": 6.473459426479561,
+            "requests": 1639,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 375573
+          },
+          "detail": {
+            "requestsPerSecond": 3685.64,
+            "p50": 2,
+            "p99": 6,
+            "cpuMsPerRequest": 0.33151624281591474,
+            "requests": 40541,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 5269
+          }
+        },
+        {
+          "round": 2,
+          "loadBefore": [8.15, 11.17, 14.36],
+          "loadAfter": [8.57, 11.03, 14.22],
+          "list": {
+            "requestsPerSecond": 143.7,
+            "p50": 64,
+            "p99": 134,
+            "cpuMsPerRequest": 7.397355601948504,
+            "requests": 1437,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 375573
+          },
+          "detail": {
+            "requestsPerSecond": 3883.7,
+            "p50": 2,
+            "p99": 6,
+            "cpuMsPerRequest": 0.3180284809311668,
+            "requests": 38833,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 5269
+          }
+        },
+        {
+          "round": 3,
+          "loadBefore": [7.98, 10.21, 13.52],
+          "loadAfter": [8.29, 10.11, 13.39],
+          "list": {
+            "requestsPerSecond": 145.31,
+            "p50": 59,
+            "p99": 171,
+            "cpuMsPerRequest": 7.322780454232622,
+            "requests": 1453,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 375573
+          },
+          "detail": {
+            "requestsPerSecond": 4311.9,
+            "p50": 1,
+            "p99": 6,
+            "cpuMsPerRequest": 0.2832026719858978,
+            "requests": 43114,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 5269
+          }
+        },
+        {
+          "round": 4,
+          "loadBefore": [7.85, 9.84, 13.18],
+          "loadAfter": [7.44, 9.59, 12.99],
+          "list": {
+            "requestsPerSecond": 170.1,
+            "p50": 52,
+            "p99": 113,
+            "cpuMsPerRequest": 6.343327454438565,
+            "requests": 1701,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 375573
+          },
+          "detail": {
+            "requestsPerSecond": 5233,
+            "p50": 1,
+            "p99": 5,
+            "cpuMsPerRequest": 0.24328714763497372,
+            "requests": 52325,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 5269
+          }
+        },
+        {
+          "round": 5,
+          "loadBefore": [6.52, 9.17, 12.72],
+          "loadAfter": [6.79, 9.01, 12.56],
+          "list": {
+            "requestsPerSecond": 179.2,
+            "p50": 49,
+            "p99": 108,
+            "cpuMsPerRequest": 5.8984375,
+            "requests": 1792,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 375573
+          },
+          "detail": {
+            "requestsPerSecond": 5287.2,
+            "p50": 1,
+            "p99": 7,
+            "cpuMsPerRequest": 0.23301117772776275,
+            "requests": 52873,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 5269
+          }
+        },
+        {
+          "round": 6,
+          "loadBefore": [9.16, 9.19, 12.2],
+          "loadAfter": [9.09, 9.16, 12.1],
+          "list": {
+            "requestsPerSecond": 137.5,
+            "p50": 67,
+            "p99": 143,
+            "cpuMsPerRequest": 7.883636363636364,
+            "requests": 1375,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 375573
+          },
+          "detail": {
+            "requestsPerSecond": 3736.28,
+            "p50": 2,
+            "p99": 7,
+            "cpuMsPerRequest": 0.32269054803854763,
+            "requests": 41092,
+            "non2xx": 0,
+            "errors": 0,
+            "bytesPerResponse": 5269
+          }
+        }
+      ],
+      "browser": [
+        {
+          "round": 0,
+          "loadBefore": [8.9, 9.14, 11.94],
+          "loadAfter": [9.32, 9.2, 11.89],
+          "load": {
+            "ttfb": 8.100000023841858,
+            "domContentLoaded": 46.400000005960464,
+            "load": 184.60000002384186,
+            "fcp": 140,
+            "lcp": 140,
+            "tbt": 0,
+            "longTasks": 0,
+            "observedUntil": 1053.4000000059605
+          },
+          "interactive": {
+            "interactive": 292.09999999403954
+          },
+          "updates": {
+            "filter": [
+              {
+                "query": "a",
+                "expected": 708,
+                "ms": 33
+              },
+              {
+                "query": "am",
+                "expected": 51,
+                "ms": 15.600000023841858
+              },
+              {
+                "query": "amb",
+                "expected": 51,
+                "ms": 13.800000011920929
+              },
+              {
+                "query": "ambe",
+                "expected": 51,
+                "ms": 17
+              },
+              {
+                "query": "amber",
+                "expected": 51,
+                "ms": 16.5
+              },
+              {
+                "query": "",
+                "expected": 1000,
+                "ms": 97.69999998807907
+              }
+            ],
+            "toggles": [
+              {
+                "id": "500",
+                "toPaint": 28.900000005960464,
+                "toSettled": 51.69999998807907,
+                "stuck": true
+              },
+              {
+                "id": "501",
+                "toPaint": 21.599999994039536,
+                "toSettled": 34.80000001192093,
+                "stuck": true
+              },
+              {
+                "id": "502",
+                "toPaint": 22,
+                "toSettled": 35.79999998211861,
+                "stuck": true
+              },
+              {
+                "id": "503",
+                "toPaint": 19.5,
+                "toSettled": 32.29999998211861,
+                "stuck": true
+              },
+              {
+                "id": "504",
+                "toPaint": 28.80000001192093,
+                "toSettled": 41.70000001788139,
+                "stuck": true
+              }
+            ],
+            "navigation": {
+              "toDetail": 41.39999997615814,
+              "toList": 126.2000000178814
+            },
+            "fullPageLoads": 1
+          },
+          "memory": {
+            "afterLoad": 5523364,
+            "afterToggles": 7773516,
+            "nodesAfterLoad": 5022,
+            "nodesAfterToggles": 5022,
+            "toggleMs": 11051.40000000596
+          }
+        },
+        {
+          "round": 1,
+          "loadBefore": [7.52, 8.82, 11.68],
+          "loadAfter": [6.14, 8.41, 11.47],
+          "load": {
+            "ttfb": 8.099999994039536,
+            "domContentLoaded": 41.5,
+            "load": 165.59999999403954,
+            "fcp": 128,
+            "lcp": 128,
+            "tbt": 0,
+            "longTasks": 0,
+            "observedUntil": 1040.9000000059605
+          },
+          "interactive": {
+            "interactive": 244.5
+          },
+          "updates": {
+            "filter": [
+              {
+                "query": "a",
+                "expected": 708,
+                "ms": 26.900000005960464
+              },
+              {
+                "query": "am",
+                "expected": 51,
+                "ms": 15.900000005960464
+              },
+              {
+                "query": "amb",
+                "expected": 51,
+                "ms": 3.0999999940395355
+              },
+              {
+                "query": "ambe",
+                "expected": 51,
+                "ms": 4.600000023841858
+              },
+              {
+                "query": "amber",
+                "expected": 51,
+                "ms": 15.400000005960464
+              },
+              {
+                "query": "",
+                "expected": 1000,
+                "ms": 89.90000000596046
+              }
+            ],
+            "toggles": [
+              {
+                "id": "500",
+                "toPaint": 23.19999998807907,
+                "toSettled": 40.80000001192093,
+                "stuck": true
+              },
+              {
+                "id": "501",
+                "toPaint": 20,
+                "toSettled": 33.30000001192093,
+                "stuck": true
+              },
+              {
+                "id": "502",
+                "toPaint": 18.80000001192093,
+                "toSettled": 31.599999994039536,
+                "stuck": true
+              },
+              {
+                "id": "503",
+                "toPaint": 14.799999982118607,
+                "toSettled": 27.69999998807907,
+                "stuck": true
+              },
+              {
+                "id": "504",
+                "toPaint": 19.899999976158142,
+                "toSettled": 31.5,
+                "stuck": true
+              }
+            ],
+            "navigation": {
+              "toDetail": 35.79999998211861,
+              "toList": 118.69999998807907
+            },
+            "fullPageLoads": 1
+          },
+          "memory": {
+            "afterLoad": 5524524,
+            "afterToggles": 7769992,
+            "nodesAfterLoad": 5022,
+            "nodesAfterToggles": 5022,
+            "toggleMs": 11292.09999999404
+          }
+        },
+        {
+          "round": 2,
+          "loadBefore": [5.38, 8.04, 11.24],
+          "loadAfter": [6.75, 8.21, 11.24],
+          "load": {
+            "ttfb": 7.200000017881393,
+            "domContentLoaded": 42.5,
+            "load": 169.10000002384186,
+            "fcp": 128,
+            "lcp": 128,
+            "tbt": 0,
+            "longTasks": 0,
+            "observedUntil": 1055.1000000238419
+          },
+          "interactive": {
+            "interactive": 296.40000000596046
+          },
+          "updates": {
+            "filter": [
+              {
+                "query": "a",
+                "expected": 708,
+                "ms": 30.5
+              },
+              {
+                "query": "am",
+                "expected": 51,
+                "ms": 15.399999976158142
+              },
+              {
+                "query": "amb",
+                "expected": 51,
+                "ms": 3.399999976158142
+              },
+              {
+                "query": "ambe",
+                "expected": 51,
+                "ms": 12.200000017881393
+              },
+              {
+                "query": "amber",
+                "expected": 51,
+                "ms": 15.800000011920929
+              },
+              {
+                "query": "",
+                "expected": 1000,
+                "ms": 92.2999999821186
+              }
+            ],
+            "toggles": [
+              {
+                "id": "500",
+                "toPaint": 26.30000001192093,
+                "toSettled": 48.400000005960464,
+                "stuck": true
+              },
+              {
+                "id": "501",
+                "toPaint": 26.799999982118607,
+                "toSettled": 38.29999998211861,
+                "stuck": true
+              },
+              {
+                "id": "502",
+                "toPaint": 21.399999976158142,
+                "toSettled": 34.5,
+                "stuck": true
+              },
+              {
+                "id": "503",
+                "toPaint": 20.299999982118607,
+                "toSettled": 33.79999998211861,
+                "stuck": true
+              },
+              {
+                "id": "504",
+                "toPaint": 18.80000001192093,
+                "toSettled": 32.20000001788139,
+                "stuck": true
+              }
+            ],
+            "navigation": {
+              "toDetail": 39.19999998807907,
+              "toList": 94.19999998807907
+            },
+            "fullPageLoads": 1
+          },
+          "memory": {
+            "afterLoad": 5524236,
+            "afterToggles": 7772996,
+            "nodesAfterLoad": 5022,
+            "nodesAfterToggles": 5022,
+            "toggleMs": 11256.700000017881
+          }
+        },
+        {
+          "round": 3,
+          "loadBefore": [8.37, 8.75, 11.16],
+          "loadAfter": [8.05, 8.66, 11.09],
+          "load": {
+            "ttfb": 6.5999999940395355,
+            "domContentLoaded": 128.80000001192093,
+            "load": 176.19999998807907,
+            "fcp": 128,
+            "lcp": 128,
+            "tbt": 0,
+            "longTasks": 0,
+            "observedUntil": 1041.5999999940395
+          },
+          "interactive": {
+            "interactive": 282.69999998807907
+          },
+          "updates": {
+            "filter": [
+              {
+                "query": "a",
+                "expected": 708,
+                "ms": 31.099999994039536
+              },
+              {
+                "query": "am",
+                "expected": 51,
+                "ms": 17.69999998807907
+              },
+              {
+                "query": "amb",
+                "expected": 51,
+                "ms": 14.200000017881393
+              },
+              {
+                "query": "ambe",
+                "expected": 51,
+                "ms": 15.699999988079071
+              },
+              {
+                "query": "amber",
+                "expected": 51,
+                "ms": 16.30000001192093
+              },
+              {
+                "query": "",
+                "expected": 1000,
+                "ms": 94
+              }
+            ],
+            "toggles": [
+              {
+                "id": "500",
+                "toPaint": 24.80000001192093,
+                "toSettled": 44.70000001788139,
+                "stuck": true
+              },
+              {
+                "id": "501",
+                "toPaint": 21.099999994039536,
+                "toSettled": 34.29999998211861,
+                "stuck": true
+              },
+              {
+                "id": "502",
+                "toPaint": 28.400000005960464,
+                "toSettled": 39.900000005960464,
+                "stuck": true
+              },
+              {
+                "id": "503",
+                "toPaint": 21.599999994039536,
+                "toSettled": 35.19999998807907,
+                "stuck": true
+              },
+              {
+                "id": "504",
+                "toPaint": 19,
+                "toSettled": 31.69999998807907,
+                "stuck": true
+              }
+            ],
+            "navigation": {
+              "toDetail": 39,
+              "toList": 95.5
+            },
+            "fullPageLoads": 1
+          },
+          "memory": {
+            "afterLoad": 5522792,
+            "afterToggles": 7772832,
+            "nodesAfterLoad": 5022,
+            "nodesAfterToggles": 5022,
+            "toggleMs": 11297.899999976158
+          }
+        },
+        {
+          "round": 4,
+          "loadBefore": [7.95, 8.59, 10.99],
+          "loadAfter": [7.92, 8.54, 10.91],
+          "load": {
+            "ttfb": 8.599999994039536,
+            "domContentLoaded": 46.89999997615814,
+            "load": 182.39999997615814,
+            "fcp": 140,
+            "lcp": 140,
+            "tbt": 0,
+            "longTasks": 0,
+            "observedUntil": 1045.7999999821186
+          },
+          "interactive": {
+            "interactive": 290.59999999403954
+          },
+          "updates": {
+            "filter": [
+              {
+                "query": "a",
+                "expected": 708,
+                "ms": 31.599999994039536
+              },
+              {
+                "query": "am",
+                "expected": 51,
+                "ms": 16.400000005960464
+              },
+              {
+                "query": "amb",
+                "expected": 51,
+                "ms": 4
+              },
+              {
+                "query": "ambe",
+                "expected": 51,
+                "ms": 17.30000001192093
+              },
+              {
+                "query": "amber",
+                "expected": 51,
+                "ms": 15.800000011920929
+              },
+              {
+                "query": "",
+                "expected": 1000,
+                "ms": 93.09999999403954
+              }
+            ],
+            "toggles": [
+              {
+                "id": "500",
+                "toPaint": 26.899999976158142,
+                "toSettled": 48.79999998211861,
+                "stuck": true
+              },
+              {
+                "id": "501",
+                "toPaint": 23,
+                "toSettled": 38,
+                "stuck": true
+              },
+              {
+                "id": "502",
+                "toPaint": 20.600000023841858,
+                "toSettled": 33.70000001788139,
+                "stuck": true
+              },
+              {
+                "id": "503",
+                "toPaint": 18.69999998807907,
+                "toSettled": 32.400000005960464,
+                "stuck": true
+              },
+              {
+                "id": "504",
+                "toPaint": 19.5,
+                "toSettled": 34.69999998807907,
+                "stuck": true
+              }
+            ],
+            "navigation": {
+              "toDetail": 44.30000001192093,
+              "toList": 106.09999999403954
+            },
+            "fullPageLoads": 1
+          },
+          "memory": {
+            "afterLoad": 5519260,
+            "afterToggles": 7783696,
+            "nodesAfterLoad": 5022,
+            "nodesAfterToggles": 5022,
+            "toggleMs": 11669.40000000596
+          }
+        },
+        {
+          "round": 5,
+          "loadBefore": [6.22, 8.1, 10.69],
+          "loadAfter": [5.95, 7.91, 10.56],
+          "load": {
+            "ttfb": 6.800000011920929,
+            "domContentLoaded": 42.19999998807907,
+            "load": 176.30000001192093,
+            "fcp": 136,
+            "lcp": 136,
+            "tbt": 0,
+            "longTasks": 0,
+            "observedUntil": 1043.800000011921
+          },
+          "interactive": {
+            "interactive": 275.7000000178814
+          },
+          "updates": {
+            "filter": [
+              {
+                "query": "a",
+                "expected": 708,
+                "ms": 28.900000005960464
+              },
+              {
+                "query": "am",
+                "expected": 51,
+                "ms": 14.700000017881393
+              },
+              {
+                "query": "amb",
+                "expected": 51,
+                "ms": 2.5999999940395355
+              },
+              {
+                "query": "ambe",
+                "expected": 51,
+                "ms": 13.599999994039536
+              },
+              {
+                "query": "amber",
+                "expected": 51,
+                "ms": 17
+              },
+              {
+                "query": "",
+                "expected": 1000,
+                "ms": 87.89999997615814
+              }
+            ],
+            "toggles": [
+              {
+                "id": "500",
+                "toPaint": 26.099999994039536,
+                "toSettled": 45.099999994039536,
+                "stuck": true
+              },
+              {
+                "id": "501",
+                "toPaint": 18.399999976158142,
+                "toSettled": 32.599999994039536,
+                "stuck": true
+              },
+              {
+                "id": "502",
+                "toPaint": 18.69999998807907,
+                "toSettled": 31.399999976158142,
+                "stuck": true
+              },
+              {
+                "id": "503",
+                "toPaint": 17.69999998807907,
+                "toSettled": 30.399999976158142,
+                "stuck": true
+              },
+              {
+                "id": "504",
+                "toPaint": 17.400000005960464,
+                "toSettled": 30.400000005960464,
+                "stuck": true
+              }
+            ],
+            "navigation": {
+              "toDetail": 35.599999994039536,
+              "toList": 96.30000001192093
+            },
+            "fullPageLoads": 1
+          },
+          "memory": {
+            "afterLoad": 5530964,
+            "afterToggles": 7781344,
+            "nodesAfterLoad": 5022,
+            "nodesAfterToggles": 5022,
+            "toggleMs": 11192.40000000596
+          }
+        },
+        {
+          "round": 6,
+          "loadBefore": [7.13, 7.79, 10.25],
+          "loadAfter": [7.01, 7.74, 10.18],
+          "load": {
+            "ttfb": 9,
+            "domContentLoaded": 47,
+            "load": 177.89999997615814,
+            "fcp": 136,
+            "lcp": 136,
+            "tbt": 0,
+            "longTasks": 0,
+            "observedUntil": 1043.5
+          },
+          "interactive": {
+            "interactive": 275.40000000596046
+          },
+          "updates": {
+            "filter": [
+              {
+                "query": "a",
+                "expected": 708,
+                "ms": 31.099999994039536
+              },
+              {
+                "query": "am",
+                "expected": 51,
+                "ms": 15
+              },
+              {
+                "query": "amb",
+                "expected": 51,
+                "ms": 2.600000023841858
+              },
+              {
+                "query": "ambe",
+                "expected": 51,
+                "ms": 5.9000000059604645
+              },
+              {
+                "query": "amber",
+                "expected": 51,
+                "ms": 16.299999982118607
+              },
+              {
+                "query": "",
+                "expected": 1000,
+                "ms": 92.40000000596046
+              }
+            ],
+            "toggles": [
+              {
+                "id": "500",
+                "toPaint": 25.599999994039536,
+                "toSettled": 46.5,
+                "stuck": true
+              },
+              {
+                "id": "501",
+                "toPaint": 20.69999998807907,
+                "toSettled": 35.599999994039536,
+                "stuck": true
+              },
+              {
+                "id": "502",
+                "toPaint": 20.30000001192093,
+                "toSettled": 33.20000001788139,
                 "stuck": true
               },
               {
                 "id": "503",
                 "toPaint": 18.599999994039536,
-                "toSettled": 31.400000005960464,
+                "toSettled": 31.900000005960464,
                 "stuck": true
               },
               {
                 "id": "504",
-                "toPaint": 17.69999998807907,
-                "toSettled": 30.5,
+                "toPaint": 19.799999982118607,
+                "toSettled": 33.5,
                 "stuck": true
               }
             ],
             "navigation": {
-              "toDetail": 31.900000005960464,
-              "toList": 82.59999999403954
+              "toDetail": 39.69999998807907,
+              "toList": 103.39999997615814
             },
             "fullPageLoads": 1
           },
           "memory": {
-            "afterLoad": 5525788,
-            "afterToggles": 7807292,
+            "afterLoad": 5527412,
+            "afterToggles": 7775476,
             "nodesAfterLoad": 5022,
             "nodesAfterToggles": 5022,
-            "toggleMs": 12404.800000011921
+            "toggleMs": 11135.40000000596
           }
         }
       ]
