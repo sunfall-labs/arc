@@ -6,6 +6,40 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### State Is The One Writable Client State (Breaking)
+
+- `Program` is renamed `State`, and it is now the only way to hold writable
+  client state. `State.define({ name, initial, on })` infers the message union
+  from `on` (a handler's second parameter types the message's fields);
+  `State.define<Model, Message>()({ ... })` names it up front for commands
+  that emit the State's own messages. `name` is required. `State.next`,
+  `emit`, `commands`, `subscription`, `step`, and `start` keep Program's
+  semantics; `ProgramFailure`/`ProgramDisposed` are `StateFailure`/
+  `StateDisposed`, and the Type IDs are `State*TypeId` (plus `StateRefTypeId`).
+- Solid: `Component.program` becomes `Component.state`, whose
+  `Component.StateHandle` adds `send`: one DOM-ready sender per PascalCase tag
+  (`onClick={menu.send.Toggle}`, `send.Search({ query })`). Primitive models
+  skip the store projection; object models keep keyed reconciliation.
+  `Component.ProgramHandle`/`ProgramOptions`/`ProgramModelView` are
+  `StateHandle`/`StateOptions`/`StateView`. `Component.callback` is for
+  non-state Effect work; `Component.stream` stays a read-only accessor.
+- `Signal` is read-only in the public API (`Readable`, `StreamOptions`,
+  `derive`, `peek`, `untracked`, `changes`, `values`). `Signal.make`,
+  `batch`, `transaction`, `updateAndGet`, `fromStream`, `Signal.Writable`,
+  and `SignalWriteOutsideTransition` move to `@sunfall/arc-core/internal`
+  (`SignalWrites`, `WritableSignal`) for framework code and fixtures; the
+  unnamed-write check is an internal assertion.
+- Action `optimistic`: `transaction.set` targets a `State.Ref` (a
+  `State.Instance` or `Component.state` handle) or a Resource ref. State
+  messages that arrive while a patch is in flight apply to the base model and
+  the patch re-applies over them; `Action.planOptimistic` reports State
+  targets.
+- Timeline: `Timeline.ProgramCause` is `Timeline.StateCause`
+  (`{ _tag: "State", state, event, message }`), described as
+  `State "Board" Relabel`; a State's model signal is named by its `name`
+  (no `.model` suffix). Devtools' `programs` panel is `states`.
+- See [From Program And Writable Signals](docs/migration-notes.md#from-program-and-writable-signals).
+
 ### Start Drops Its Diagnostics CLI, Agent Graph And App Graph (Breaking)
 
 - The `sunfall-arc-start` binary (`diagnostics`, `graph`, `impact`), the

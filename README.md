@@ -6,7 +6,7 @@ as typed definitions that humans, tests, devtools, and agents can all inspect.
 
 **Start with [The Golden Path](docs/golden-path.md).** It tells you which tool
 to use for each job (Resource for reads, including keyed rows, Action for
-writes, Signal or Program for client state, Component for screens, Route for
+writes, State for client state, Component for screens, Route for
 pages) and builds one feature end to end, from a Resource to SSR,
 hydration, and Timeline debugging. Its snippets are type-checked by
 `pnpm typecheck`.
@@ -18,13 +18,13 @@ while examples, diagnostics, and release gates are hardened.
 
 ## What This Repo Proves
 
-- One typed UI model: `Component.define` setups bind Resources, Actions,
-  Programs, live queries, and the router, and their services and typed failures
+- One typed UI model: `Component.define` setups bind States, Resources,
+  Actions, live queries, and the router, and their services and typed failures
   accumulate into the component type that `Component.launch` checks.
 - Humans and agents can co-develop against explicit app structure: typed
   definitions, generated route artifacts, definition diagnostics, and
   verification gates.
-- Effect-first Resources, Actions, Programs, Forms, Routes, Effect services,
+- Effect-first States, Resources, Actions, Forms, Routes, Effect services,
   and server contracts through the Solid 2 adapter.
 - Request-local runtimes and resource stores for SSR, RPC, Start actions, and
   streamed responses.
@@ -107,8 +107,8 @@ pnpm example:leak-scan
 
 ## Package Map
 
-- `@sunfall/arc-core`: runtime spine, Signals, Programs, Program stories and
-  timelines, Resources, Actions, Forms/FormData decoding, Routes,
+- `@sunfall/arc-core`: runtime spine, States, read-only Signals, the
+  Timeline, Resources, Actions, Forms/FormData decoding, Routes,
   and server contracts.
 - `@sunfall/arc-start`: SSR, hydration, transports, manifests, diagnostics, and
   Start action clients; host adapters live at `@sunfall/arc-start/fetch` and
@@ -118,8 +118,8 @@ pnpm example:leak-scan
 - `@sunfall/arc-devtools`: serializable inspection contracts, Timeline commit
   panels, and a small browser panel renderer for agents, app panels, and
   extension panels.
-- `@sunfall/arc-solid`: Solid runtime provider, router, program/resource/action
-  hooks, live query bindings, streams, and component scopes.
+- `@sunfall/arc-solid`: Solid runtime provider, router, state/resource/action
+  bindings, live query bindings, streams, and component scopes.
 - `@sunfall/arc-tsrx`: TSRX/Solid Vite preset for examples and starters.
 
 ## Release Bar

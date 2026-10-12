@@ -41,7 +41,7 @@ documented as outside the current release bar.
 - Promise-shaped entrypoints are compatibility adapters for UI, browser, and
   host boundaries only.
 - Framework internals keep Effect forms for async work.
-- Framework callbacks, including programs, resources, actions, routes, server
+- Framework callbacks, including states, resources, actions, routes, server
   functions, query callbacks, and forms, reject `Promise` return
   values at type-check time; app code uses `Effect.tryPromise` explicitly at the
   host/library seam instead.
@@ -52,26 +52,33 @@ documented as outside the current release bar.
 - Request Runtime disposal interrupts resource lifetime fibers and any tracked
   request fibers.
 
-## Programs
+## States
 
-- Program definitions are headless model/message loops; UI adapters read the
-  public signals and dispatch messages instead of owning hidden reducer state.
-- Program models and messages are plain values. Promise-shaped values,
+- State is the one writable client state. Public Signals are read-only;
+  writable signals are internal to the framework, so every change is a State
+  message, an Action, or a framework event, and every commit is named.
+- State definitions are named model/message loops (`name` is required); UI
+  adapters read the public signals and send messages instead of owning hidden
+  reducer state.
+- State models and messages are plain values. Promise-shaped values,
   Effect-shaped values, and `undefined`/`void` messages are rejected because
   command Effects reserve `undefined`/`void` as the no-message sentinel.
-- Program definitions are `Program.define({ initial, on })`: messages are a
-  tagged union, the `on` map is keyed by each message `_tag`, and handlers are
-  pure and synchronous, so `Program.step(program, model, message)` tests a
+- State definitions are `State.define({ name, initial, on })`: messages are a
+  tagged union inferred from (or, with `State.define<Model, Message>()`,
+  declared for) the `on` map keyed by each message `_tag`, and handlers are
+  pure and synchronous, so `State.step(definition, model, message)` tests a
   transition with no runtime. There is no `update` callback.
-- `Program.emit(...)` is the one command constructor: an immediate message,
+- `State.emit(...)` is the one command constructor: an immediate message,
   the message an Effect produces, or nothing when the Effect completes with
-  `void`. `Program.commands(...)` only batches.
+  `void`. `State.commands(...)` only batches.
 - Update, command, and subscription failures are reported as typed
-  `Program.Failure` values without replacing the current model.
+  `State.Failure` values without replacing the current model.
+- An Action's optimistic patch on a State is a layer over its model: messages
+  apply to the base and the patch re-applies over it.
 - Subscriptions are tied to committed model generations; stale generations
   cannot emit follow-up messages or timeline facts after a restart.
 - `dispatch(message)` is an Effect that acknowledges only updates that commit. Disposal before
-  commit fails the acknowledgement with `Program.Disposed`; disposal after commit
+  commit fails the acknowledgement with `State.Disposed`; disposal after commit
   preserves the committed model.
 
 ## Resource Store

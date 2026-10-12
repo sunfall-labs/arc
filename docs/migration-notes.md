@@ -5,6 +5,46 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From Program And Writable Signals
+
+State is now the one way to hold writable client state. `Program` is renamed
+`State` (same loop and `step` semantics), and the public `Signal` API is
+read-only, so client state that was a writable Signal becomes a State.
+
+| Before                                                                            | After                                                                                                               |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `Program.define<Model, Message>({ initial, on })`                                 | `State.define<Model, Message>()({ name, initial, on })`, or `State.define({ name, initial, on })` to infer messages |
+| `Program.next` / `emit` / `commands` / `subscription` / `step` / `start`          | `State.next` / `emit` / `commands` / `subscription` / `step` / `start`                                              |
+| `Program.Definition`, `Instance`, `Failure`, `Disposed`, ...                      | `State.Definition`, `State.Instance`, `State.Failure`, `State.Disposed`, ...                                        |
+| `ProgramFailure` / `ProgramDisposed` tags                                         | `StateFailure` / `StateDisposed`                                                                                    |
+| `ProgramStepTypeId`, `ProgramCommandTypeId`, `ProgramSubscriptionTypeId`          | `StateStepTypeId`, `StateCommandTypeId`, `StateSubscriptionTypeId` (plus `StateRefTypeId`)                          |
+| an unnamed Program                                                                | `name` is required                                                                                                  |
+| `Component.program(Definition, options?)`                                         | `Component.state(Definition, options?)`                                                                             |
+| `Component.ProgramHandle` / `ProgramOptions` / `ProgramModelView`                 | `Component.StateHandle` / `StateOptions` / `StateView`                                                              |
+| `Component.callback("send", (m) => program.dispatch(m).pipe(Effect.ignore))`      | `state.send.Tag()` / `state.send.Tag({ ...fields })`, DOM-ready                                                     |
+| `Signal.make(initial, { name })` written in a named `Component.callback`          | a State: `State.define({ name, initial, on: { Set: (_, message: { readonly value: A }) => message.value } })`       |
+| `Signal.batch` / `transaction` / `fromStream` / `updateAndGet`, `Signal.Writable` | no public form; client changes are State messages (internal: `SignalWrites` in `@sunfall/arc-core/internal`)        |
+| `SignalWriteOutsideTransition`                                                    | an internal assertion: application code cannot make an unnamed write                                                |
+| `transaction.set(writableSignal, update)` in an Action's `optimistic`             | `transaction.set(state, update)` on a `State.Ref` (a `State.Instance` or `Component.state` handle)                  |
+| `Timeline.ProgramCause` `{ _tag: "Program", program, event, message }`            | `Timeline.StateCause` `{ _tag: "State", state, event, message }`                                                    |
+| label `Program "Board" message Relabel`                                           | `State "Board" Relabel`                                                                                             |
+| model signal `Board.model`                                                        | `Board` (the State's `name`); failures stay `Board.failures`                                                        |
+| devtools `programs` panel, `program:<name>` nodes                                 | `states` panel, `state:<name>` nodes                                                                                |
+
+Tags stay PascalCase (`send.Toggle`): one spelling in `on`, `send`,
+`dispatch({ _tag })`, `State.step`, and the Timeline, matching Effect's
+`_tag` convention. A message without fields binds straight to an event
+(`onClick={menu.send.Toggle}`); a message with fields takes them
+(`search.send.Search({ query })`). Inferred-form commands may only emit
+nothing; a State whose commands emit its own messages names the union with
+`State.define<Model, Message>()`. A prop-sync message (`ProjectChanged`) is
+usually better replaced by keying the Component on the entity, so each entity
+gets a fresh State. `Component.callback` stays for Effect work that is not a
+State change (submitting Actions, invalidating Resources), and
+`Component.stream` stays as a read-only view of a Stream's latest value.
+Tests that wrote Signals directly dispatch State messages instead, or, in
+framework fixtures, use `SignalWrites` from `@sunfall/arc-core/internal`.
+
 ## From Capability
 
 `Capability` is gone: Arc's wrapper added nothing over Effect's own services.
@@ -36,7 +76,7 @@ Resource reader, and patch them on the Resource ref.
 | `sync: { load, refresh }`                                                      | the Resource's `load` (a forced reload is `Resource.refresh`)                               |
 | `sync: { follow }`                                                             | `Resource.invalidate` / tags; a remote feed is `rows.changes`                               |
 | `sync: { changes }`, `applyChanges([...])` from a remote feed                  | `rows: { changes: (input) => Stream<ReadonlyArray<Resource.RowChange<Row, Key>>> }`         |
-| local-only collection (no `sync`), `applyChanges` for client rows              | a Signal (`Signal.make<ReadonlyArray<Row>>`) written in a named callback                    |
+| local-only collection (no `sync`), `applyChanges` for client rows              | a State whose model is the rows (`State.define`), changed by its messages                   |
 | `SolidDb.collection(Projects)`                                                 | `Component.resource(ProjectList)`                                                           |
 | `projects.rows()`, `projects.get(key)`, `projects.index(name, value)`          | `projects("all")`, `projects.get("all", key)`, `projects.index("all", name, value)`         |
 | `projects.waiting()` / `projects.failure()`                                    | `projects.waiting("all")` / `projects.failure("all")`                                       |
@@ -140,7 +180,8 @@ registry types (`ActionOptimisticRows*`, `AppDefinitionRegistry*`,
 
 ## From Anonymous Signal Writes
 
-Every state change now has a name, so the Timeline reads like a message log.
+Superseded by [From Program And Writable Signals](#from-program-and-writable-signals):
+writable Signals are no longer public. Historically, every state change gained a name, so the Timeline reads like a message log.
 A Signal changes only inside a named transition; a write anywhere else dies
 with `SignalWriteOutsideTransition`, naming the Signal.
 
@@ -329,31 +370,33 @@ at startup to name server functions and Actions: nothing consumed those names.
 ## From Reducers And Effect Queues
 
 Reducer loops often split model transitions, async work queues, and component
-effects across several files. In Sunfall Arc, move that loop into a Program:
+effects across several files. In Sunfall Arc, move that loop into a State:
 
 - The reducer state becomes `initial`.
-- The action union becomes a Program message union tagged with `_tag`
+- The action union becomes a State message union tagged with `_tag`
   (`"increment"` becomes `{ _tag: "Increment" }`).
-- The reducer switch becomes the `on` map of `Program.define({ initial, on })`,
+- The reducer switch becomes the `on` map of `State.define({ name, initial, on })`,
   one pure handler per `_tag`. There is no `update(model, message)` callback,
   and a handler never returns an Effect.
-- A handler returns the next model directly, or `Program.next(model, commands)`
+- A handler returns the next model directly, or `State.next(model, commands)`
   when work should run after the model commits.
-- Follow-up work is a command from `Program.emit(...)`: `Program.emit(message)`,
-  `Program.emit(Effect.tryPromise(...).pipe(Effect.map(...)))`, or an Effect
-  that completes with `void` when the work emits no message.
+- Follow-up work is a command from `State.emit(...)`: `State.emit(message)`,
+  `State.emit(Effect.tryPromise(...).pipe(Effect.map(...)))`, or an Effect
+  that completes with `void` when the work emits no message. Commands that
+  emit the State's own messages need the explicit form,
+  `State.define<Model, Message>()({ ... })`.
 - Long-lived external inputs become `Stream` subscriptions attached to the
-  Program definition.
+  State definition.
 
 The migration is done when models and messages are plain values, Promise work is
 wrapped at the Effect edge before a follow-up message is emitted, and
-`Program.step(program, model, message)` tests each transition as a pure
+`State.step(definition, model, message)` tests each transition as a pure
 function call without mounting a UI.
 
 Earlier alphas accepted an `update` callback (which could return an Effect),
 `Program.update(handlers)`, and the `Program.story(...)` harness. Move every
-`update` into `on`, move Effect work in handlers into `Program.emit(effect)`
-commands, and replace stories with `Program.step(...)` plus running a
+`update` into `on`, move Effect work in handlers into `State.emit(effect)`
+commands, and replace stories with `State.step(...)` plus running a
 command's `effect`.
 
 ## From Solid Hooks To Components
@@ -372,7 +415,7 @@ only model:
 - `useAction(Definition)` and `StartAction.use(Definition)` become
   `yield* Component.action(Definition)`; a Start app lists the Actions the
   server serves in `App.define({ actions })`.
-- `useProgram`, `useStream`, and `useRuntimeEffect` become `Component.program`,
+- `useProgram`, `useStream`, and `useRuntimeEffect` become `Component.state`,
   `Component.stream`, and `Component.callback`.
 - `useCollection` becomes `Component.resource` of a Resource with `rows`, and
   `useLiveQuery` becomes `Component.liveQuery` (see [From Collection](#from-collection)).
@@ -445,7 +488,7 @@ transport:
   metadata.
 - Client-side submits call the Component's action handle: `submit(input)`
   returns the submission Effect, run from a handler through
-  `Component.callback` or composed inside a Program or workflow.
+  `Component.callback` or composed inside a State command or workflow.
 
 The migration is done when the same Action definition owns schema validation,
 no-JS fallback, optimistic behavior when needed, retry/concurrency policy, and

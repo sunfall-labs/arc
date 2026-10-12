@@ -6,13 +6,14 @@ typed application definitions, and TSRX where component templates need it.
 The v0 implementation deliberately uses TSRX's Solid target instead of a custom compiler
 target. The public API is owned by Sunfall Arc:
 
-- `Signal` for fine-grained client state.
-- `Program` for headless model/message loops with Effect-owned work.
+- `State` for writable client state: a named model changed only by its
+  messages, with Effect-owned work in commands.
+- `Signal` for the read side: derived values, peeks, and Streams of changes.
 - `Resource` for typed async/cache state; a list Resource declares `rows`
   (key, indexes, change feed) for keyed lookups and row patches.
 - `Query` (`@sunfall/arc-db`) for live materialized queries over the rows of
   Resources.
-- `Action` for every change to server data: optimistic Signal, Resource entry,
+- `Action` for every change to server data: optimistic State, Resource entry,
   and Resource row patches, the Effect that writes, and invalidation.
 - Effect services (`Context.Service`) for named app services, provided by a
   Layer per host or test.
@@ -33,13 +34,13 @@ The end-state architecture has four layers that intentionally share the same
 domain vocabulary.
 
 1. Definition layer: schemas, branded ids, Effect services, server contracts,
-   programs, resources, actions, forms, and routes are stable typed
+   states, resources, actions, forms, and routes are stable typed
    definitions. Definitions are safe to import broadly when they do not include
    server handlers.
 2. Generated route layer: file-route manifests and generated route
    definitions turn route files into deterministic machine-readable artifacts.
 3. Runtime layer: `SunfallArcRuntime`, request runtimes, `ResourceStore`,
-   UI scopes, route scopes, Program fibers, action fibers,
+   UI scopes, route scopes, State fibers, action fibers,
    server clients, response context, hydration, and event streams execute the
    graph through Effect services and scopes.
 4. Inspection layer: diagnostics, devtools summaries, causal graphs, repair
@@ -59,11 +60,12 @@ Sunfall Arc should stay unusually strict in these places:
 - request work gets a fresh runtime and store;
 - route preload is typed, interruptible, and declares the resources it loads;
 - resources live in the active runtime/store, never global process state;
-- Program handlers are pure: they return plain model data or `Program.next(...)`;
-  async work leaves the handler through Effect commands and Stream
-  subscriptions, so `Program.step` tests a transition with no runtime;
+- State is the one writable client state, and its handlers are pure: they
+  return plain model data or `State.next(...)`; async work leaves the handler
+  through Effect commands and Stream subscriptions, so `State.step` tests a
+  transition with no runtime;
 - actions are the one mutation path: they own mutation policy, optimistic
-  Signal, Resource entry, and Resource row patches, invalidation, and result
+  State, Resource entry, and Resource row patches, invalidation, and result
   shape;
 - a failure that can reach rendering joins a Component's `E`; a failure of work
   a caller starts is returned to that caller; a callback that breaks its
@@ -109,7 +111,7 @@ const ProjectPage = Component.define("ProjectPage", function* (props: { readonly
 
 The reader is the only way to render the value: the first load suspends, and
 later refreshes keep the current (or, after a failed refresh, stale) value, so
-`ProjectView` stays mounted with whatever forms or Programs it owns.
+`ProjectView` stays mounted with whatever forms or States it owns.
 `waiting(input)` and `failure(input)` are value-free status accessors for the
 chrome. A failed first load throws to the boundary `catchTags` installs, which
 matches the family's render failure: its `error` schema's type (here
@@ -188,10 +190,32 @@ export type ProjectId = typeof ProjectId.Type;
 export const makeProjectId = (id: string): ProjectId => Schema.decodeUnknownSync(ProjectId)(id);
 ```
 
-## Program Loop
+## State
 
-The smallest Sunfall Arc unit is a named model/message loop. Messages are a
-tagged union, and `on` holds one pure handler per `_tag`:
+A State is the one way to hold writable client state: a named model that
+changes only through its messages. Messages are tagged, and `on` holds one pure
+handler per `_tag`. The smallest State infers its messages from `on`:
+
+```ts
+const MenuOpen = State.define({
+  name: "Menu.open",
+  initial: false,
+  on: { Toggle: (open) => !open },
+});
+
+const Search = State.define({
+  name: "AppShell.search",
+  initial: "",
+  // The second parameter types the message's fields: { _tag: "Search"; query: string }.
+  on: { Search: (_query, message: { readonly query: string }) => message.query },
+});
+```
+
+Each key of `on` is a message `_tag`, and a handler's second parameter types
+that message's fields. Commands in the inferred form may only emit nothing
+(`State.emit(Effect.log(...))`): a command that emits the State's own
+messages would make the union circular, so such a State names the union up
+front with the explicit form:
 
 ```ts
 type CounterModel = { readonly count: number; readonly loading: boolean };
@@ -200,15 +224,15 @@ type CounterMessage =
   | { readonly _tag: "Load" }
   | { readonly _tag: "Loaded"; readonly amount: number };
 
-export const CounterProgram = Program.define<CounterModel, CounterMessage>({
+export const Counter = State.define<CounterModel, CounterMessage>()({
   name: "Counter",
   initial: { count: 0, loading: false },
   on: {
     Increment: (model) => ({ ...model, count: model.count + 1 }),
     Load: (model) =>
-      Program.next(
+      State.next(
         { ...model, loading: true },
-        Program.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
+        State.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
       ),
     Loaded: (model, message) => ({
       count: model.count + message.amount,
@@ -218,64 +242,78 @@ export const CounterProgram = Program.define<CounterModel, CounterMessage>({
 });
 ```
 
-`on` is exhaustive by message `_tag` and is the one way to write a transition:
-there is no lower-level `update` callback, and messages are always tagged
-(`{ _tag: "Tick" }`, not `"tick"`).
+`name` is required: it names the model signal and every commit the State
+makes. `on` is exhaustive by message `_tag` and is the one way to write a
+transition: there is no lower-level `update` callback, and messages are always
+tagged (`{ _tag: "Tick" }`, not `"tick"`). Tags are PascalCase, Effect's
+`_tag` convention, and are spelled the same in `on`, `send.Tag`,
+`dispatch({ _tag })`, `State.step`, and Timeline labels.
 
 A handler is pure and synchronous: it returns a plain model value or
-`Program.next(model, commandInput)`, and never an Effect.
-Commands are Effects that may emit one follow-up message, and `Program.emit(...)`
-is their one constructor: `Program.emit(message)` emits immediately,
-`Program.emit(effect)` emits the message the Effect produces, and an Effect that
-completes with `void` emits nothing (background work). `Program.commands(...)`
-batches several for `Program.next(model, ...)`.
-`Program.subscription(stream)` connects model-dependent Streams to the same
+`State.next(model, commandInput)`, and never an Effect.
+Commands are Effects that may emit one follow-up message, and `State.emit(...)`
+is their one constructor: `State.emit(message)` emits immediately,
+`State.emit(effect)` emits the message the Effect produces, and an Effect that
+completes with `void` emits nothing (background work). `State.commands(...)`
+batches several for `State.next(model, ...)`.
+`State.subscription(stream)` connects model-dependent Streams to the same
 message loop. Promise-shaped host work belongs inside `Effect.tryPromise(...)`
 before the command or subscription emits a plain message.
 
 Because handlers are pure, a transition is tested as a function call.
-`Program.step(program, model, message)` returns `{ model, commands }` without
+`State.step(definition, model, message)` returns `{ model, commands }` without
 running anything; a command is a description whose `effect` a test runs (with
 test services) to get the message it emits:
 
 ```ts
-const loading = Program.step(CounterProgram, CounterProgram.initial, { _tag: "Load" });
+const loading = State.step(Counter, Counter.initial, { _tag: "Load" });
 expect(loading.model.loading).toBe(true);
 expect(loading.commands).toHaveLength(1);
 expect(Effect.runSync(loading.commands[0]!.effect)).toEqual({ _tag: "Loaded", amount: 2 });
-expect(Program.step(CounterProgram, loading.model, { _tag: "Loaded", amount: 2 }).model).toEqual({
+expect(State.step(Counter, loading.model, { _tag: "Loaded", amount: 2 }).model).toEqual({
   count: 2,
   loading: false,
 });
 ```
 
-The runtime uses the same `Program.step`: it commits the model, then runs the
+The runtime uses the same `State.step`: it commits the model, then runs the
 commands on the Runtime Spine.
 
-Started Programs run on the Runtime Spine and expose a readable model signal,
-a typed `dispatch(message)` Effect that completes once the update commits,
-failures, and disposal. A Program always starts on
-an explicit typed runtime (there is no default runtime):
+A running State exposes a readable model signal, a typed `dispatch(message)`
+Effect that completes once the update commits, failures, and disposal. UI code
+binds a State per Component instance with Solid's `Component.state(Counter)`,
+whose services join the component's `R` and whose handle adds one DOM-ready
+sender per tag (`onClick={menu.send.Toggle}`). Headless code starts one on an
+explicit typed runtime (there is no default runtime):
 
 ```ts
-const project = Program.start(ProjectProgram, { runtime });
+const counter = State.start(Counter, { runtime });
 ```
 
-That keeps service requirements visible to TypeScript. UI code starts Programs
-with Solid's `Component.program(ProjectProgram)`, whose services join the
-component's `R`. A Program keeps no
+That keeps service requirements visible to TypeScript. A State keeps no
 history of its own: each committed message is one entry on the app
-[Timeline](#timeline-and-replay), labelled `Program "Counter" message Load`, so
-devtools and tests inspect Program history the same way as every other state
+[Timeline](#timeline-and-replay), a `Timeline.StateCause`
+(`{ _tag: "State", state, event, message }`) labelled `State "Counter" Load`,
+so devtools and tests inspect State history the same way as every other state
 change.
+
+Every running State (a `State.Instance` or a `Component.state` handle) is a
+`State.Ref`, the target an Action's `optimistic` patch takes:
+`transaction.set(counter, (model) => ...)`. The patch layers over the model
+with the same machinery as a Resource entry patch: a message that arrives while
+the patch is in flight applies to the base model and the patch re-applies over
+it, success folds the patch in, and a failure drops the patch and keeps the
+messages.
 
 The model signal is the Effect-side source of truth: every update commits one
 immutable model. Renderers must not turn that single value into coarse
-re-renders, so the Solid adapter's `Component.program(...)` reconciles each commit into
-a fine-grained read-only projection: unchanged subtrees keep their identity,
-arrays reconcile by key (`"id"` by default), and a reader re-runs only when the
-part of the model it read changes. Foldkit-style centralized state, Solid-style
-granular updates.
+re-renders, so the Solid adapter's `Component.state(...)` reconciles each
+commit of an object model into a fine-grained read-only projection: unchanged
+subtrees keep their identity, arrays reconcile by key (`"id"` by default), and
+a reader re-runs only when the part of the model it read changes. A State
+whose initial model is a primitive (a toggle, a search string) skips the
+projection and reads the signal directly. Foldkit-style centralized state,
+Solid-style granular updates.
 
 ## Runtime Spine
 
@@ -337,7 +375,7 @@ The Runtime Spine is the one place where host boundaries are allowed to run Effe
 
 - Server function host calls run through the current runtime.
 - `Resource.preload` / `refresh` use the current runtime.
-- `Action.use(definition, { runtime })` and `Program.start(definition, { runtime })`
+- `Action.use(definition, { runtime })` and `State.start(definition, { runtime })`
   take an explicit runtime; neither falls back to a default.
 - Start request handlers run SSR preload and render on a request runtime
   derived from the server Layer; `App.launch` runs the browser tree on a
@@ -345,7 +383,7 @@ The Runtime Spine is the one place where host boundaries are allowed to run Effe
 - Solid Components get their runtime from their entry point
   (`App.launch` or `createRequestHandler` in a Start app; `Component.launch`,
   `mount`, or `embed` otherwise), which checks the tree's services against it;
-  every setup-time binding (resources, actions, programs, streams,
+  every setup-time binding (resources, actions, states, streams,
   callbacks, live queries, the router and its route preloads) runs on its
   instance's runtime with the setup's context. There is no runtime context and
   no implicit default runtime.
@@ -459,7 +497,8 @@ optimistic: (input, transaction) =>
 ```
 
 The transaction has one verb per kind of state. `set(target, update)` patches a
-value: a writable Signal, or the entry a Resource ref names (`ProjectById(id)`,
+value: a running State's model (a `State.Ref`: a `State.Instance` or a
+`Component.state` handle), or the entry a Resource ref names (`ProjectById(id)`,
 from any family). `update` is a plain value or a pure updater of the current
 one, typed by the target (the Resource's output type). `insert`, `update`, and
 `delete` patch single rows of a Resource that declares `rows`, by key: they
@@ -474,6 +513,9 @@ reload during the submission replaces the synced value underneath and the
 layer stays on top. Loads (`Resource.preload`, `refresh`, `changes`) and
 snapshots see only the synced value.
 An entry that has not loaded is left alone: the patch is a no-op.
+A State patch is the same kind of layer over the State's model: a message
+that arrives during the submission applies to the base model and the patch
+re-applies over it, so a rollback drops the patch and keeps the message.
 
 Row patches are the same layers: each is an updater of the entry's rows
 array, so a reload replaces the rows underneath and the patch reapplies on
@@ -481,7 +523,7 @@ top, and later submissions' layers stack in order. An update shares the
 array's key positions and moves only the index buckets the row left or
 joined (`resource-rows.ts`), so a patch never rebuilds the lookups; an update
 or delete of a missing key is a no-op, and an update that changes the key is
-a defect. Success commits the transaction: Signal and Resource patches fold
+a defect. Success commits the transaction: State and Resource patches fold
 into the synced value, where the `invalidates` reload (or, remotely, the
 response's invalidations) replaces them. A typed failure, defect, or
 interruption rolls the transaction back and rebases every other submission's
@@ -497,7 +539,7 @@ in-flight submission and never crosses a wire.
 `Action.planOptimistic(definition, input)` tests a patch without writing
 anything or calling a backend: it runs `optimistic` against a recording
 transaction and returns the changes it would make, applying none. A `set`
-reports `{ _tag: "Set", target, value }` with the value the Signal or Resource
+reports `{ _tag: "Set", target, value }` with the value the State or Resource
 entry would read, computed from its current value in the caller's runtime (a
 Resource entry that has not loaded plans no change); a row change reports the
 ref and the change as given (`{ _tag: "Update", target: ProjectsRef, key,
@@ -795,8 +837,10 @@ The cost model:
 - **Setup-time bindings** add their services to `R`: `Component.resource` (a
   suspending reader plus value-free `waiting`/`failure` status),
   `Component.action` (a submission handle, local or transported),
-  `Component.program` (a fine-grained model projection), `Component.stream`,
-  `Component.callback` (Effects from DOM handlers, failures handled),
+  `Component.state` (a State per instance: a read-only model view plus
+  DOM-ready `send.<Tag>` senders), `Component.stream` (a Stream's latest
+  value, read-only), `Component.callback` (other Effect work from DOM
+  handlers, failures handled),
   `Component.router` (routes' preload and route Component services join `R`),
   and `Component.liveQuery` (a live query over rows Resources).
   `Component.instance` is the seam for writing more.
@@ -832,12 +876,19 @@ on the server, the page's in the browser.
 Every Component instance owns an Effect `Scope`, and route components rendered
 through `RouterOutlet` additionally get a route UI scope. Closing a scope runs
 its finalizers and interrupts its fibers: streams from `Component.stream`,
-fibers forked by `Component.callback`, Programs, and in-flight Action
+fibers forked by `Component.callback`, States, and in-flight Action
 submissions all stop with the instance. Plain Solid components stay unscoped.
-Callbacks and streams are named transitions: their Signal writes commit as
-`<Component>.<name>` on the Timeline.
+Callbacks and streams are named transitions: a stream element commits as
+`<Component>.<name>` on the Timeline, while the States, Actions, and Resources
+a callback touches commit under their own causes.
 
 ```tsx
+const PresenceTitle = State.define({
+  name: "Presence.title",
+  initial: "Sunfall Arc",
+  on: { Rename: (_title, message: { readonly title: string }) => message.title },
+});
+
 const Presence = Component.define("Presence", function* () {
   // Stream-backed values stop with the instance.
   const presence = yield* Component.stream("presence", presenceStream, initialPresence);
@@ -845,11 +896,11 @@ const Presence = Component.define("Presence", function* () {
   const ping = yield* Component.callback("ping", () =>
     Effect.sleep("1 second").pipe(Effect.andThen(Effect.log("still mounted"))),
   );
-  const title = Signal.make("Sunfall Arc", { name: "Presence.title" });
+  const title = yield* Component.state(PresenceTitle);
 
-  // Imperative DOM sinks use Solid effects; Arc signals track natively.
+  // Imperative DOM sinks use Solid effects; Arc state tracks natively.
   createEffect(
-    () => title.get(),
+    () => title.model(),
     (value) => {
       document.title = value;
     },
@@ -859,10 +910,9 @@ const Presence = Component.define("Presence", function* () {
 });
 ```
 
-Use Solid effects only for imperative sinks: they read Arc signals but never
-write them (a write there is outside every named transition and dies). Use
-`Signal.derive`, `Resource`, `Action`, `Program`, and named callbacks for
-application state.
+Use Solid effects only for imperative sinks: they read Arc state but never
+change it. Use `State`, `Signal.derive`, `Resource`, `Action`, and named
+callbacks for application state.
 
 Resource families keep a synchronous signal for UI reads, but their backing
 cache is Effect `Cache` stored in the current Resource Store. `preload`
@@ -1329,51 +1379,38 @@ injection.
 
 ## Signal And Stream Semantics
 
-The render model is latest-value reactive:
+Signals are the read side of every Arc state owner. The public `Signal` API is
+read-only: a State's `committed` model, `Resource.result(ref)`, an Action's
+`state`, and `Signal.derive` values are all `Signal.Readable`. The render
+model is latest-value reactive:
 
 ```ts
-const count = Signal.make(0, { name: "Counter.count" });
-const doubled = Signal.derive(() => count.get() * 2);
+const doubled = Signal.derive(() => counter.committed.get().count * 2);
 ```
 
-`count.get()` subscribes the current reactive computation and returns the current value
+`get()` subscribes the current reactive computation and returns the current value
 synchronously. Rendering consumes invalidations and then reads the latest value; it is
 not required to replay every intermediate update.
 
 Use `Signal.peek(signal)` or `Signal.untracked(() => ...)` for reads that should not
 become render dependencies.
 
-### Writes Are Transactions
+### Writes Are Framework Transactions
 
-Signals separate committed state from rendered state:
+Writable signals are internal (`SignalWrites` and `WritableSignal` in
+`@sunfall/arc-core/internal`): State, Resource, Action, the router, and
+devtools write them, and test fixtures use them. Application state changes
+only through State messages, Actions, and framework events. The framework
+write model separates committed state from rendered state:
 
 1. Every write is transactional and named. It joins the caller's open
-   transaction or commits on its own under the caller's named transition
-   (a `Component.callback`), so a write is never half-applied and never
-   anonymous. A write with neither dies with `SignalWriteOutsideTransition`.
+   transaction or commits on its own under the caller's named transition, so
+   a write is never half-applied and never anonymous. An unnamed framework
+   write is an internal assertion (`SignalWriteOutsideTransition`).
 2. Effect and synchronous code read committed state, including their own
    transaction's writes. Solid computations read rendered state, which Solid
    tracks natively and catches up atomically at its next flush.
 3. A transaction that fails or is interrupted commits nothing.
-
-<!-- prettier-ignore -->
-```ts
-yield* Signal.transaction(
-  Effect.gen(function* () {
-    const saved = yield* Signal.updateAndGet(count, (n) => n + 1); // read-after-write just works
-    yield* api.save(saved); // if this fails, the write above never happened
-  }),
-  { name: "Counter.save" },
-);
-
-Signal.batch(
-  () => {
-    plan.set(undefined);
-    state.set(idle); // subscribers run once, after both writes
-  },
-  { name: "Submission.reset" },
-);
-```
 
 Inside a transaction, reads (including `Signal.derive`) see the transaction's own
 writes; other fibers, subscribers, and the UI see none of them until commit.
@@ -1381,27 +1418,20 @@ Nested transactions and batches join the outer one. A transaction covers its
 whole Effect, including fibers it forks, so concurrent branches
 (`Effect.all(..., { concurrency })`) commit atomically with it. A fiber still
 running after the transaction ends sees it closed and commits its own writes,
-under the transaction's name. A transaction without a `name` takes the
-caller's named transition; inside none, its writes die.
+under the transaction's name.
 
 The temporal model is still available through Effect streams:
 
 ```ts
-Signal.values(count); // current value, then updates
-Signal.changes(count); // updates only
+Signal.values(counter.committed); // current value, then updates
+Signal.changes(counter.committed); // updates only
 ```
 
-Streams can also drive signals when the stream cannot fail:
-
-<!-- prettier-ignore -->
-```ts
-const online = yield* Signal.fromStream(presenceStream, false, { name: "presence.online" });
-```
-
-Each element commits under a transition of the signal's name. In Solid
-Components, `Component.stream(name, stream, initial)` is the component-boundary
-binding (committing as `<Component>.<name>`); its stream fiber is interrupted
-when the instance is disposed.
+In Solid Components, `Component.stream(name, stream, initial)` reads a Stream's
+latest value as a read-only accessor (committing each element as
+`<Component>.<name>`); its stream fiber is interrupted when the instance is
+disposed. It is a read of an external source, like a Resource, not client
+state: nothing can write it.
 
 Fallible streams should first be turned into typed data or represented as `Resource`
 state, because a plain `Signal<A>` always has a current `A` and has no error channel.
@@ -1452,24 +1482,23 @@ state pointed at the latest input.
 
 ## Timeline And Replay
 
-Arc owns application state in writable signals, and every committed change set
-passes through one seam in `signal-transaction.ts`: the solo-write path or the
-transaction/batch commit. `Timeline.record(...)` installs a recorder on that
-seam for the life of a Scope, so one recording covers user Signals, Resource
-entries (including `rows.changes` batches), Action state, Program models and
-failures, and router state. Every write happens inside a named
-transition, so every entry reads like a message (Foldkit-style
+Arc owns application state in internal writable signals, and every committed
+change set passes through one seam in `signal-transaction.ts`: the solo-write
+path or the transaction/batch commit. `Timeline.record(...)` installs a
+recorder on that seam for the life of a Scope, so one recording covers State
+models and failures, Resource entries (including `rows.changes` batches),
+Action state, and router state. Every change is a State message, an Action,
+or a framework event, so every entry reads like a message (Foldkit-style
 predictability: no state changes without a name):
 
 <!-- prettier-ignore -->
 ```ts
 const recording = yield* Timeline.record({ limit: 1000 });
 
-// What `Component.callback("rename", ...)` in `ProjectPage` commits as:
-Signal.batch(() => title.set("Apollo"), { name: "ProjectPage.rename" });
+yield* board.dispatch({ _tag: "Relabel", id: 1, label: "Done" });
 
 Signal.peek(recording.entries).map((entry) => Timeline.describe(entry.cause));
-// ['Program "Board" message Relabel', 'Resource "Project.get" success atlas', "ProjectPage.rename"]
+// ['State "Board" Relabel', 'Resource "Project.get" success atlas', 'Action "Project.rename" submit']
 
 yield* recording.travel(entry.sequence); // render the app as it was after `entry`
 yield* recording.resume(); // render the live head again
@@ -1481,36 +1510,35 @@ deterministic.
 
 - **Every commit has a cause; there are no anonymous writes.** A write joins
   the caller's transaction, whose cause names the commit, or commits alone
-  under the fiber's named transition. Application code names transitions with
-  `Component.callback("name", f)` (cause `Transition` named
-  `<Component>.<name>`), `Component.stream(name, ...)`,
-  `Signal.fromStream(..., { name })`, or `Signal.transaction(effect, { name })` /
-  `Signal.batch(f, { name })`. A transaction without a name takes the caller's
-  transition, and a nested transaction names the commit only when the outer
-  one has none. Framework primitives label their own commit points: Action
+  under the fiber's named transition. A State commit is a `Timeline.StateCause`
+  (`{ _tag: "State", state, event: "message" | "failure" | "clearFailures",
+message }`, described as `State "Menu.open" Toggle`). Work started by
+  `Component.callback("name", f)` and `Component.stream(name, ...)` elements
+  run under a `Transition` cause named `<Component>.<name>`. A nested
+  transaction names the commit only when the outer one has none. Framework
+  primitives label their own commit points: Action
   submissions (`submit`, `success`, `failure`, `interrupt`, `reset`, and the
   outbox's `queue`, `restore`, `replay`, `dismiss`; optimistic patches carry
-  the submission's event), Program messages and failures, Resource entry
+  the submission's event), State messages and failures, Resource entry
   loads, settles, hydration, resets, and change-feed batches, and router
   navigation. An explicit cause wins over the ambient transition,
   so an Action submitted from a callback still reads
   `Action "Project.rename" submit`.
-- **A write outside every named transition dies** with
-  `SignalWriteOutsideTransition` (naming the Signal and the fixes). The check
-  is always on: SSR, tests, and production behave the same, and its cost is a
-  context lookup on the solo-write path only. Solid effects and bare DOM
-  handlers therefore call a named callback; tests write through a named
-  `Signal.batch`. `Timeline.Cause` is a closed tagged union,
+- **Named by construction.** Application code cannot write a signal: its
+  state changes are State messages and Actions. An unnamed framework write is
+  an internal assertion (`SignalWriteOutsideTransition`), always on, costing
+  a context lookup on the solo-write path only. `Timeline.Cause` is a closed tagged union,
   `Timeline.Entry.cause` is always present, and `Timeline.describe(cause)`
   renders it.
-- **Names** come from `Signal.make(initial, { name })`, where `name` is
-  required. Framework signals name themselves (`Board.model`,
+- **Names** come from the owner: a State's model signal is its `name`
+  (failures are `<name>.failures`), and framework signals name themselves
+  (`Board`,
   `Project.rename.state`, `Project.get(<key>)`, `Router.state`). A router
   outlet's rendered node is derived
   from recorded router state, so it is bookkeeping, not recorded: travel
   re-renders the travelled route.
 - **Travel renders the past; it does not rewrite state.** Committed state stays
-  at the live head, so Effects, Actions, Programs, and watchers keep computing
+  at the live head, so Effects, Actions, States, and watchers keep computing
   from it and their commits keep being recorded: nothing is lost and nothing
   computes from a stale model. Only rendered reads (Solid computations, through
   each signal's projection) see the travelled view, and `Signal.derive` values
@@ -1519,9 +1547,9 @@ deterministic.
   render their initial value, and a signal first written while travelling stays
   frozen at its travelled value until `resume()`. Travel itself writes nothing,
   so it records nothing.
-- **Program history is a filtered view.** The per-program timeline was removed
-  so there is one timeline concept: a Program's history is
-  `entries.filter((entry) => entry.changes.some((change) => change.signal === program.model))`.
+- **State history is a filtered view.** There is one timeline concept: a
+  State's history is
+  `entries.filter((entry) => entry.changes.some((change) => change.signal === state.model))`.
   Command and subscription lifecycle are not state changes; they belong to
   Effect tracing spans, not to the state timeline.
 - **Cost.** With no recording installed, each commit pays one `undefined`
@@ -1539,7 +1567,7 @@ deterministic.
 A devtools store (`Devtools.makeStore()`) consumes the same entries:
 `store.trackTimeline(recording)`
 records each entry as a JSON-safe `TimelineCommit` runtime event, linked to the
-Program, Action, or Resource fact its cause names.
+State, Action, or Resource fact its cause names.
 
 ## Progressive Action Results
 

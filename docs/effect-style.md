@@ -10,8 +10,8 @@ edge.
 
 - Public async APIs expose Effect v4 values; Promise interop belongs only at explicit compatibility host/runtime boundaries.
 - Framework callbacks should return `Effect` or a pure value, not `Promise`. Use `Effect.tryPromise` at the edge that talks to a Promise-shaped host API.
-- `async` framework callbacks are a type error for programs, resources, actions, route preloads, Start renderers, server implementations, query callbacks, and form validators; an Effect service's `use` callback must return an Effect.
-- Program update/on handlers return plain models, `Program.next(...)`, or Effects that produce those values. `Program.emit(...)` is the one command constructor: a message, an Effect that produces one, or an Effect that completes with `void` for work without a message.
+- `async` framework callbacks are a type error for states, resources, actions, route preloads, Start renderers, server implementations, query callbacks, and form validators; an Effect service's `use` callback must return an Effect.
+- State is the one writable client state. Its `on` handlers are pure and return plain models or `State.next(...)`; Effect work goes in commands. `State.emit(...)` is the one command constructor: a message, an Effect that produces one, or an Effect that completes with `void` for work without a message. Public Signals are read-only.
 - Domain failures use tagged errors so callers can recover with `Effect.catchTag`.
 - Server request data is provided through Effect services, not globals.
 - Signals are latest-value cells. Use `Signal.values` / `Signal.changes` when temporal semantics matter.
@@ -28,7 +28,7 @@ edge.
 - Treat `Resource.define(...)` as a Resource Definition. Runtime/request state belongs to `ResourceStore`, reached through the Runtime Spine.
 - Use `Effect.catch`, not the Effect 3 name `catchAll`.
 - Prefer explicit `Resource` / `Action` state and Effect recovery combinators over component-level `try` syntax for first-class APIs.
-- Solid UI is typed `Component`s: runtime state comes from setup-time bindings (`Component.resource`, `action`, `program`, `stream`, `callback`, `router`, `liveQuery`) whose services join the Component's `R`, and each instance owns an Effect `Scope`. Use Solid `createEffect` only for imperative DOM sinks; there is no generic `useEffect`.
+- Solid UI is typed `Component`s: runtime state comes from setup-time bindings (`Component.resource`, `action`, `state`, `stream`, `callback`, `router`, `liveQuery`) whose services join the Component's `R`, and each instance owns an Effect `Scope`. Use Solid `createEffect` only for imperative DOM sinks; there is no generic `useEffect`.
 - Isomorphic server functions should be split into shared contracts and real server handlers. Shared code defines `Server.contract` values and exports `Server.client(contract)`; `.server.ts` modules call `Server.implement(contract, handler)` and are never imported by the browser graph.
 - Prefer `Schema.TaggedError` for server-function errors because it is a yieldable Effect error and a wire schema at the same time.
 - Mock server contracts with `Server.mock(...)` handlers provided through `Server.mockLayer(...)`; do not import `.server.ts` just to test shared resources and actions.
@@ -424,33 +424,33 @@ const fetchHandler = toFetchHandler(handler); // fetch-shaped Effect adapter
 
 <!-- prettier-ignore -->
 ```ts
-const count = Signal.make(0, { name: "Counter.count" });
+const counter = State.start(Counter, { runtime });
 
-yield* Signal.values(count).pipe(Stream.runForEach((value) => Effect.log(`count: ${value}`)));
-```
-
-<!-- prettier-ignore -->
-```ts
-const presence =
-  yield* Signal.fromStream(presenceStream, { status: "offline" }, { name: "Presence.status" });
-
-presence.get();
+yield* Signal.values(counter.model).pipe(
+  Stream.runForEach((value) => Effect.log(`count: ${value}`)),
+);
 ```
 
 ```tsx
+const TitleText = State.define({
+  name: "Title.text",
+  initial: "Sunfall Arc",
+  on: { Rename: (_title, message: { readonly title: string }) => message.title },
+});
+
 const Title = Component.define("Title", function* () {
-  const title = Signal.make("Sunfall Arc", { name: "Title.title" });
+  const title = yield* Component.state(TitleText);
   // Each call forks in the instance Scope (interrupted when it unmounts) as
   // the named transition `Title.keepAlive`.
   const keepAlive = yield* Component.callback("keepAlive", () => Effect.never);
 
   createEffect(
-    () => title.get(),
+    () => title.model(),
     (value) => {
       document.title = value;
     },
   );
 
-  return () => <button onClick={keepAlive}>{title.get()}</button>;
+  return () => <button onClick={keepAlive}>{title.model()}</button>;
 });
 ```
