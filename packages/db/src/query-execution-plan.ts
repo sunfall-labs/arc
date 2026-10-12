@@ -18,13 +18,13 @@ import {
 import { queryContextOrderIdentity, type QueryContextIdentity } from "./query-context-identity.js";
 export {
   mergeQueryContextIdentities,
-  queryCollectionRowIdentity,
+  queryRowIdentity,
   queryContextIdentityOf,
   queryContextIdentitySymbol,
   queryContextOrderIdentity,
   querySourceContextIdentity,
 } from "./query-context-identity.js";
-import type { QueryCollectionSourceAdapter } from "./query-source-adapter.js";
+import type { QuerySourceAdapter } from "./query-source-adapter.js";
 
 export interface QueryExecutionPlanBuilder<
   TContext extends AnyQueryContext,
@@ -123,7 +123,7 @@ export const queryExecutionPlanDiagnostics = (
 };
 
 export const preloadQueryExecutionPlanSources = <E, R>(
-  sources: ReadonlyArray<QueryCollectionSourceAdapter>,
+  sources: ReadonlyArray<QuerySourceAdapter>,
   force: boolean,
 ): Effect.Effect<void, E, R> =>
   Effect.gen(function* () {
@@ -132,7 +132,7 @@ export const preloadQueryExecutionPlanSources = <E, R>(
     }
   });
 
-/** Validates and preloads the source collections for a query execution plan. */
+/** Validates and preloads the source Resources of a query execution plan. */
 export const preloadQueryExecutionPlan = <E, R>(
   builder: QueryPlanBuilder<any>,
   force: boolean,

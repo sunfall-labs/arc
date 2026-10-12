@@ -128,8 +128,7 @@ export const currentStartStaticHref = (
 };
 
 const routeNeedsStaticHydration = <R extends AnyRoute>(match: Route.Match<R>): boolean =>
-  Route.describePreloadResources(match.route).status !== "none" ||
-  Route.describePreloadCollections(match.route).status !== "none";
+  Route.describePreloadResources(match.route).status !== "none";
 
 const hydratedHrefSet = (
   hrefs: string | readonly string[] | undefined,

@@ -5,9 +5,9 @@ correctness by construction in full-stack apps. It treats application behavior
 as typed definitions that humans, tests, devtools, and agents can all inspect.
 
 **Start with [The Golden Path](docs/golden-path.md).** It tells you which tool
-to use for each job (Resource for reads, Action for writes, Signal or Program
-for client state, Collection for normalized rows, Component for screens, Route
-for pages) and builds one feature end to end, from a Resource to SSR,
+to use for each job (Resource for reads, including keyed rows, Action for
+writes, Signal or Program for client state, Component for screens, Route for
+pages) and builds one feature end to end, from a Resource to SSR,
 hydration, and Timeline debugging. Its snippets are type-checked by
 `pnpm typecheck`.
 
@@ -19,7 +19,7 @@ while examples, diagnostics, and release gates are hardened.
 ## What This Repo Proves
 
 - One typed UI model: `Component.define` setups bind Resources, Actions,
-  Programs, Collections, and the router, and their services and typed failures
+  Programs, live queries, and the router, and their services and typed failures
   accumulate into the component type that `Component.launch` checks.
 - Humans and agents can co-develop against explicit app structure: typed
   definitions, generated route artifacts, app graph diagnostics, and verification
@@ -28,8 +28,9 @@ while examples, diagnostics, and release gates are hardened.
   server contracts through the Solid 2 adapter.
 - Request-local runtimes and resource stores for SSR, RPC, Start actions, and
   streamed responses.
-- Local-first Collections with persistence, sync adapter seams, optimistic
-  rows patched by Actions, and live query materialization.
+- One server-data model: Resources with keyed rows, indexes, change feeds,
+  persistence, optimistic row patches from Actions, and incremental live
+  queries over those rows.
 - Whole-app Timeline recording and replay, JSON-safe devtools summaries,
   causal graphs, request
   traces, panel data models, a browser-embeddable panel renderer, a checked
@@ -54,7 +55,8 @@ Read in this order when you are new to the repo:
 
 Useful deeper references:
 
-- [DB](docs/db.md): Collections, live queries, sync, and persistence
+- [Rows and queries](docs/db.md): Resource rows, live queries, change feeds,
+  and persistence
 - [Devtools](docs/devtools.md)
 - [Migration notes](docs/migration-notes.md)
 - [Invariants](docs/invariants.md)
@@ -111,14 +113,13 @@ pnpm example:leak-scan
 - `@sunfall/arc-start`: SSR, hydration, transports, manifests, diagnostics, and
   Start action clients; host adapters live at `@sunfall/arc-start/fetch` and
   `@sunfall/arc-start/node`.
-- `@sunfall/arc-db`: Collections, live queries, persistence, and sync adapter
-  seams.
+- `@sunfall/arc-db`: the Query engine: incremental live queries over the rows
+  of Resources.
 - `@sunfall/arc-devtools`: serializable inspection contracts, Timeline commit
   panels, and a small browser panel renderer for agents, app panels, and
   extension panels.
 - `@sunfall/arc-solid`: Solid runtime provider, router, program/resource/action
-  hooks, streams, and component scopes.
-- `@sunfall/arc-solid-db`: Solid collection and live query hooks.
+  hooks, live query bindings, streams, and component scopes.
 - `@sunfall/arc-tsrx`: TSRX/Solid Vite preset for examples and starters.
 
 ## Release Bar

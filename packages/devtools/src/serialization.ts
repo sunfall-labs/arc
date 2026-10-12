@@ -1,7 +1,6 @@
 import { isResourceRef, isResourceTag, type Route, type Resource } from "@sunfall/arc-core";
 import { Data } from "effect";
 import type {
-  DevtoolsCollectionStoreEvent,
   DevtoolsInvalidationCause,
   DevtoolsInvalidationPlan,
   DevtoolsInvalidationTarget,
@@ -1172,7 +1171,6 @@ export const copyRequestTrace = (
       ...resource,
       ...(resource.input === undefined ? {} : { input: copyDetachedValue(resource.input, state) }),
     })),
-    collections: trace.collections.map((collection) => ({ ...collection })),
     serverFunctions: trace.serverFunctions.map((serverFunction) => ({ ...serverFunction })),
     actions: trace.actions.map((action) => ({
       ...action,
@@ -1190,22 +1188,6 @@ export const copyRequestTrace = (
   };
 };
 
-const copyCollectionStoreEvent = (
-  event: DevtoolsCollectionStoreEvent,
-  policy?: DevtoolsSerializationPolicy,
-): DevtoolsCollectionStoreEvent => {
-  switch (event._tag) {
-    case "CollectionChangeFeedFailure":
-    case "CollectionLoadFailure":
-      return {
-        ...event,
-        error: copyDetachedValue(event.error, initialDetachedCopyState(policy)),
-      };
-    default:
-      return { ...event };
-  }
-};
-
 /** Deep-copies one Devtools runtime event before storing or crossing a bridge. */
 export const copyDevtoolsRuntimeEvent = (
   event: DevtoolsRuntimeEvent,
@@ -1217,11 +1199,6 @@ export const copyDevtoolsRuntimeEvent = (
       return {
         ...event,
         event: copyDetachedValue(event.event, state),
-      };
-    case "CollectionStoreEvent":
-      return {
-        ...event,
-        event: copyCollectionStoreEvent(event.event, policy),
       };
     case "TimelineCommit":
       return {

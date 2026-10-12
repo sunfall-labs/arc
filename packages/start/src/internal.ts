@@ -4,8 +4,5 @@
  *
  * This subpath is not application API and may change without notice.
  */
-export {
-  describeStartAppGraphRuntimeDiagnostics,
-  startAppGraphCollectionDefinitions,
-} from "./app-graph.js";
+export { describeStartAppGraphRuntimeDiagnostics } from "./app-graph.js";
 export { validateStartAppGraphDiagnosticsPolicyException } from "./start-app-graph-diagnostics-policy.js";

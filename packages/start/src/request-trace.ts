@@ -1,14 +1,12 @@
 import {
   ResourceStoreDisposeError,
   RuntimeDisposeError,
-  runWithRuntime,
   type EffectInput,
   type SunfallArcRuntime,
   type Route,
   type Resource,
 } from "@sunfall/arc-core";
 import { toEffect } from "@sunfall/arc-core/internal";
-import type { Collection } from "@sunfall/arc-db";
 import {
   Cause,
   Clock,
@@ -109,16 +107,6 @@ export interface StartRequestTraceResource {
   readonly state?: string;
 }
 
-/** Collection included in route preload, registration, or dehydration diagnostics. */
-export interface StartRequestTraceCollection {
-  /** Collection definition name. */
-  readonly name: string;
-  /** Current collection load `AsyncResult` tag when it can be observed safely. */
-  readonly state?: string;
-  /** Whether a collection load was in flight when observed. */
-  readonly waiting?: boolean;
-}
-
 /** Server function call summary recorded for RPC request traces. */
 export interface StartRequestTraceServerFunction {
   /** Registered server function name. */
@@ -206,8 +194,6 @@ export interface StartRequestTrace {
   readonly routePlan?: StartRequestTraceRoutePlan;
   /** SSR route-plan resources; RPC/action resource touches are not recorded here. */
   readonly resources: ReadonlyArray<StartRequestTraceResource>;
-  /** Collections touched during route preload, registration, or dehydration. */
-  readonly collections: ReadonlyArray<StartRequestTraceCollection>;
   /** Server function calls observed during the request. */
   readonly serverFunctions: ReadonlyArray<StartRequestTraceServerFunction>;
   /** Start action calls observed during the request. */
@@ -271,26 +257,12 @@ export interface StartRequestTraceFacts {
   readonly startedAt: number;
   /** Route plan recorded by the SSR path. */
   routePlan?: StartRequestTraceRoutePlan;
-  /** Collection facts accumulated during preload/dehydration. */
-  collections: StartRequestTraceCollection[];
   /** Server function facts accumulated by RPC handling. */
   serverFunctions: StartRequestTraceServerFunction[];
   /** Action facts accumulated by action handling. */
   actions: StartRequestTraceAction[];
   /** Failure classification set by the failing path. */
   failureKind?: StartRequestTraceFailureKind;
-}
-
-/** Collection groups used to build request trace preload diagnostics. */
-export interface StartCollectionPreloadTraceInput {
-  /** Collections touched by route resource/preload execution. */
-  readonly routeTouchedCollections: ReadonlyArray<Collection.Any>;
-  /** Collections declared statically by the matched route. */
-  readonly routeDeclaredCollections: ReadonlyArray<Collection.Any>;
-  /** Collections registered with the Start app/runtime. */
-  readonly registeredCollections: ReadonlyArray<Collection.Any>;
-  /** Collections included in the dehydrated payload. */
-  readonly dehydratedCollections: ReadonlyArray<Collection.Any>;
 }
 
 /** Best-effort request diagnostics hook. Failures from the hook are ignored. */
@@ -594,50 +566,6 @@ export const traceRoutePlan = (plan: Route.NavigationPlan): StartRequestTraceRou
   },
 });
 
-const uniqueCollections = (
-  collections: Iterable<Collection.Any>,
-): ReadonlyArray<Collection.Any> => {
-  const names = new Set<string>();
-  const out: Array<Collection.Any> = [];
-  for (const collection of collections) {
-    if (!names.has(collection.name)) {
-      names.add(collection.name);
-      out.push(collection);
-    }
-  }
-  return out;
-};
-
-const collectionTraceState = <RuntimeServices, RuntimeError>(
-  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
-  collection: Collection.Any,
-): Pick<StartRequestTraceCollection, "state" | "waiting"> => {
-  try {
-    const result = runWithRuntime(runtime, () => collection.result().get());
-    return { state: result._tag, waiting: result.waiting };
-  } catch {
-    return {};
-  }
-};
-
-export const traceCollectionPreload = <RuntimeServices, RuntimeError>(
-  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
-  collectionPreload: StartCollectionPreloadTraceInput,
-): ReadonlyArray<StartRequestTraceCollection> =>
-  uniqueCollections([
-    ...collectionPreload.routeTouchedCollections,
-    ...collectionPreload.routeDeclaredCollections,
-    ...collectionPreload.registeredCollections,
-    ...collectionPreload.dehydratedCollections,
-  ])
-    .map((collection) => {
-      return {
-        name: collection.name,
-        ...collectionTraceState(runtime, collection),
-      };
-    })
-    .sort((left, right) => left.name.localeCompare(right.name));
-
 export const startRequestTraceFacts = (
   request: Request,
   endpoints?: StartTransportEndpointSource,
@@ -652,7 +580,6 @@ export const startRequestTraceFacts = (
           : yield* Effect.sync(makeStartRequestId),
       transport: startRequestTraceTransport(request, endpoints),
       startedAt,
-      collections: [],
       serverFunctions: [],
       actions: [],
     };
@@ -687,7 +614,6 @@ export const buildStartRequestTrace = (
     services: ["RequestContext", "ResponseContext"],
     ...(facts.routePlan === undefined ? {} : { routePlan: facts.routePlan }),
     resources: facts.routePlan?.resources ?? [],
-    collections: facts.collections,
     serverFunctions: [...facts.serverFunctions],
     actions: [...facts.actions],
     fibers: [

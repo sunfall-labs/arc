@@ -12,7 +12,6 @@ import type {
  */
 export const startAgentGraphQueryKinds = [
   "action",
-  "collection",
   "endpoint",
   "finding",
   "module",
@@ -37,7 +36,6 @@ export const startAgentGraphQueryKindsText = (): string => startAgentGraphQueryK
 
 const nodeKindByQueryKind = {
   action: "Action",
-  collection: "Collection",
   endpoint: "Endpoint",
   finding: "Finding",
   module: "Module",
@@ -56,7 +54,6 @@ export const startAgentGraphNodeKindForQuery = (
 
 const relationKindByNodeKind = {
   Action: "action",
-  Collection: "collection",
   Endpoint: "endpoint",
   Finding: "finding",
   Module: "module",

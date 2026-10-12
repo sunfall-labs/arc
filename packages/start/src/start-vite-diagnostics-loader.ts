@@ -6,10 +6,7 @@ import {
   describeStartAppGraph,
   deserializeStartAppGraph,
 } from "./app-graph.js";
-import {
-  unknownRoutePreloadCollectionsForDiagnostics,
-  unknownRoutePreloadResourcesForDiagnostics,
-} from "./app-graph.js";
+import { unknownRoutePreloadResourcesForDiagnostics } from "./app-graph.js";
 import type {
   StartAppGraphDiagnosticsPolicyException,
   StartAppGraphDiagnosticsPolicyViolation,
@@ -352,14 +349,6 @@ const validateLoadedStartAppGraphDiagnosticsCoherence = (
     )
   ) {
     return "unknownRoutePreloadResources must match routeModules.";
-  }
-  if (
-    !sameJson(
-      diagnostics.unknownRoutePreloadCollections,
-      unknownRoutePreloadCollectionsForDiagnostics(diagnostics),
-    )
-  ) {
-    return "unknownRoutePreloadCollections must match routeModules.";
   }
 
   return undefined;

@@ -1,13 +1,11 @@
 import {
   devtoolsActionNodeId,
-  devtoolsCollectionNodeId,
   devtoolsMissingSchemaPanelItemId,
   devtoolsProgramPanelItemId,
   devtoolsRequestPanelItemId,
   devtoolsResourceNodeId,
   devtoolsRoutePanelItemId,
   devtoolsRoutePlanPanelItemId,
-  devtoolsUnknownRoutePreloadCollectionsPanelItemId,
   devtoolsUnknownRoutePreloadResourcesPanelItemId,
 } from "./graph-ids.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
@@ -25,7 +23,6 @@ import type {
   DevtoolsSummaryRequestTrace,
 } from "./devtools-contract.js";
 import { devtoolsPanelIds } from "./panel-contract.js";
-import { routeModulePreloadCollections } from "./summary-app-graph.js";
 
 const panelMetric = (
   label: string,
@@ -133,10 +130,7 @@ const diagnosticsSeverity = (summary: DevtoolsSummary): DevtoolsPanelSeverity =>
   if (summary.overview.missingSchemaCount > 0) {
     return "error";
   }
-  return summary.overview.unknownRoutePreloadResourcesCount > 0 ||
-    summary.overview.unknownRoutePreloadCollectionsCount > 0
-    ? "warning"
-    : "ok";
+  return summary.overview.unknownRoutePreloadResourcesCount > 0 ? "warning" : "ok";
 };
 
 export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): DevtoolsPanels => {
@@ -161,67 +155,6 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
   const cancelledRequestCount = summary.requests.traces.filter(
     (trace) => trace.status === "cancelled",
   ).length;
-  const collectionRuntimeEvents = new Map<
-    string,
-    {
-      count: number;
-      latest: string;
-      severity: DevtoolsPanelSeverity;
-    }
-  >();
-  for (const event of summary.runtime.events) {
-    if (event.target?.kind !== "Collection") {
-      continue;
-    }
-    const data = event.data as { readonly collection?: unknown };
-    const name =
-      typeof data.collection === "string"
-        ? data.collection
-        : event.target.id.replace(/^collection:/, "");
-    const severity: DevtoolsPanelSeverity =
-      event.label.includes("Failure") || event.label.includes("RolledBack") ? "error" : "ok";
-    const existing = collectionRuntimeEvents.get(name);
-    collectionRuntimeEvents.set(name, {
-      count: (existing?.count ?? 0) + 1,
-      latest: event.label,
-      severity: existing === undefined ? severity : maxSeverity([existing.severity, severity]),
-    });
-  }
-  const graphCollectionNames = new Set(
-    graphAvailable
-      ? summary.graph.collections.definitions.map((collection) => collection.name)
-      : [],
-  );
-  const collectionItems = [
-    ...(graphAvailable
-      ? summary.graph.collections.definitions.map((collection) => {
-          const runtimeEvents = collectionRuntimeEvents.get(collection.name);
-          return panelItem({
-            id: devtoolsCollectionNodeId(collection.name),
-            label: collection.name,
-            severity: runtimeEvents?.severity ?? "ok",
-            ...(runtimeEvents === undefined
-              ? {}
-              : {
-                  detail: runtimeEvents.latest,
-                  metrics: [panelMetric("events", runtimeEvents.count)],
-                }),
-          });
-        })
-      : []),
-    ...Array.from(collectionRuntimeEvents.entries())
-      .filter(([name]) => !graphCollectionNames.has(name))
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([name, runtimeEvents]) =>
-        panelItem({
-          id: devtoolsCollectionNodeId(name),
-          label: name,
-          detail: runtimeEvents.latest,
-          severity: runtimeEvents.severity,
-          metrics: [panelMetric("events", runtimeEvents.count)],
-        }),
-      ),
-  ];
   const programRuntimeEvents = new Map<
     string,
     {
@@ -311,25 +244,21 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
         panelMetric("server functions", summary.overview.serverFunctionCount),
         panelMetric("actions", summary.overview.actionCount),
         panelMetric("resource families", summary.overview.resourceFamilyCount),
-        panelMetric("collections", summary.overview.collectionDefinitionCount),
       ],
       items: graphAvailable
         ? summary.graph.routes.modules.map((routeModule) => {
-            const preloadCollections = routeModulePreloadCollections(routeModule);
             return panelItem({
               id: devtoolsRoutePanelItemId(routeModule.routeId),
               label: routeModule.routePath,
               detail: routeModule.moduleId,
               severity:
                 routeModule.preload === "present" &&
-                (routeModule.preloadResources.status === "unknown" ||
-                  preloadCollections.status === "unknown")
+                routeModule.preloadResources.status === "unknown"
                   ? "warning"
                   : "ok",
               metrics: [
                 panelMetric("params", routeModule.pathParamCount),
                 panelMetric("preload resources", routeModule.preloadResources.status),
-                panelMetric("preload collections", preloadCollections.status),
               ],
             });
           })
@@ -432,24 +361,6 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
       ],
       items: programItems,
     },
-    collections: {
-      id: "collections",
-      title: "Collections",
-      summary: `${summary.overview.collectionDefinitionCount} graph collections, ${collectionRuntimeEvents.size} runtime collections`,
-      severity: maxSeverity(
-        collectionItems.map((item) => item.severity),
-        collectionItems.length === 0 ? "info" : "ok",
-      ),
-      metrics: [
-        panelMetric("definitions", summary.overview.collectionDefinitionCount),
-        panelMetric("runtime", collectionRuntimeEvents.size),
-        panelMetric(
-          "traced",
-          summary.requests.traces.reduce((count, trace) => count + trace.collectionCount, 0),
-        ),
-      ],
-      items: collectionItems,
-    },
     requests: {
       id: "requests",
       title: "Requests",
@@ -472,7 +383,6 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
           severity: requestTraceSeverity(trace),
           metrics: [
             panelMetric("resources", trace.resourceCount),
-            panelMetric("collections", trace.collectionCount),
             panelMetric(
               "server failures",
               trace.serverFunctions.filter((entry) => entry.failureKind !== null).length,
@@ -526,10 +436,6 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
           "unknown preload resources",
           summary.overview.unknownRoutePreloadResourcesCount,
         ),
-        panelMetric(
-          "unknown preload collections",
-          summary.overview.unknownRoutePreloadCollectionsCount,
-        ),
       ],
       items: graphAvailable
         ? [
@@ -547,15 +453,6 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
                 id: devtoolsUnknownRoutePreloadResourcesPanelItemId(entry.routeId),
                 label: entry.routePath,
                 detail: "unknown preload resources",
-                severity: "warning",
-                data: toDevtoolsSerializableValue(entry),
-              }),
-            ),
-            ...summary.graph.routes.unknownPreloadCollections.map((entry) =>
-              panelItem({
-                id: devtoolsUnknownRoutePreloadCollectionsPanelItemId(entry.routeId),
-                label: entry.routePath,
-                detail: "unknown preload collections",
                 severity: "warning",
                 data: toDevtoolsSerializableValue(entry),
               }),

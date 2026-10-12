@@ -12,7 +12,12 @@ import {
   type ResourceOptimisticTarget,
 } from "./resource-runtime.js";
 import { resourceRefStoreKey } from "./resource-dependency-graph.js";
-import type { AnyResourceRef, ResourceRef } from "./resource.js";
+import type { AnyResourceRef, ResourceRef, ResourceRowsRef } from "./resource.js";
+import {
+  applyResourceRowPatch,
+  type ResourceRowKey,
+  type ResourceRowPatch,
+} from "./resource-rows.js";
 import { Signal, type WritableSignal } from "./signal.js";
 import { batchSignalWrites } from "./signal-transaction.js";
 
@@ -44,49 +49,8 @@ export type ActionOptimisticSetUpdate<A> =
  */
 export type ActionOptimisticSetTarget<A> = WritableSignal<A> | ResourceRef<any, A, any, any>;
 
-/** Expert-public marker for row stores an Action can patch optimistically. */
-export const ActionOptimisticRowsTypeId: unique symbol = Symbol.for(
-  "@sunfall/arc-core/ActionOptimisticRows",
-) as typeof ActionOptimisticRowsTypeId;
-
-/** Partial patch or draft updater for one optimistic row update. */
-export type ActionOptimisticRowUpdate<A extends object> = Partial<A> | ((draft: A) => A | void);
-
-/** One optimistic row change, as a row store receives it. */
-export type ActionOptimisticRowChange<A extends object, K> =
-  | { readonly _tag: "Insert"; readonly values: ReadonlyArray<A> }
-  | { readonly _tag: "Update"; readonly key: K; readonly update: ActionOptimisticRowUpdate<A> }
-  | { readonly _tag: "Delete"; readonly key: K };
-
-/**
- * The optimistic layer one Action submission owns in a row store, bound to the
- * store of the runtime the submission runs on.
- */
-export interface ActionOptimisticRowsLayer {
-  /** Folds the layer into the store's synced base; the next sync replaces it. */
-  readonly commit: Effect.Effect<void>;
-  /** Removes the layer and rebases later layers from other submissions. */
-  readonly rollback: Effect.Effect<void>;
-}
-
-/**
- * A keyed row store that Actions can patch optimistically. Collections
- * implement it; application code passes the store to
- * `transaction.insert/update/delete`.
- */
-export interface ActionOptimisticRows<A extends object, K> {
-  readonly [ActionOptimisticRowsTypeId]: {
-    /**
-     * Applies `change` to the layer `transaction` owns and returns that
-     * layer. Rows that are not in the store make `Update` and `Delete` no-ops.
-     * A change the store cannot accept (a row its schema rejects) is a defect.
-     */
-    readonly apply: (
-      transaction: string,
-      change: ActionOptimisticRowChange<A, K>,
-    ) => Effect.Effect<ActionOptimisticRowsLayer>;
-  };
-}
+/** Partial patch or pure updater for one optimistic row update. */
+export type ActionOptimisticRowUpdate<Row> = Partial<Row> | ((row: Row) => Row);
 
 /**
  * Optimistic patch transaction passed to `Action.define({ optimistic })`.
@@ -108,21 +72,24 @@ export interface ActionOptimisticTransaction {
     // The target fixes `A`; the update is checked against it, never inferred from.
     update: ActionOptimisticSetUpdate<NoInfer<A>>,
   ) => Effect.Effect<void>;
-  /** Inserts (or replaces) rows; they read `$synced: false` until the submission settles. */
-  readonly insert: <A extends object, K>(
-    rows: ActionOptimisticRows<A, K>,
-    values: NoInfer<A> | ReadonlyArray<NoInfer<A>>,
+  /**
+   * Inserts rows into a loaded entry of a Resource with `rows`, replacing a
+   * row with the same key. An entry that has not loaded is left alone.
+   */
+  readonly insert: <Row, Key extends ResourceRowKey>(
+    target: ResourceRowsRef<Row, Key>,
+    values: NoInfer<Row> | ReadonlyArray<NoInfer<Row>>,
   ) => Effect.Effect<void>;
-  /** Patches one row; a row that is not loaded is left alone. */
-  readonly update: <A extends object, K>(
-    rows: ActionOptimisticRows<A, K>,
-    key: NoInfer<K>,
-    update: ActionOptimisticRowUpdate<NoInfer<A>>,
+  /** Patches one row by key; a row that is not loaded is left alone. */
+  readonly update: <Row, Key extends ResourceRowKey>(
+    target: ResourceRowsRef<Row, Key>,
+    key: NoInfer<Key>,
+    update: ActionOptimisticRowUpdate<NoInfer<Row>>,
   ) => Effect.Effect<void>;
-  /** Hides one row until the submission settles. */
-  readonly delete: <A extends object, K>(
-    rows: ActionOptimisticRows<A, K>,
-    key: NoInfer<K>,
+  /** Hides one row by key until the submission settles. */
+  readonly delete: <Row, Key extends ResourceRowKey>(
+    target: ResourceRowsRef<Row, Key>,
+    key: NoInfer<Key>,
   ) => Effect.Effect<void>;
 }
 
@@ -248,13 +215,34 @@ const applySignalPatchPlan = <A>(plan: PlannedSignalPatchFinish<A>): void => {
   }
 };
 
-let nextOptimisticTransaction = 0;
+const insertPatch = (values: unknown): ResourceRowPatch<unknown, ResourceRowKey> => ({
+  _tag: "Insert",
+  values: Array.isArray(values) ? values : [values],
+});
+
+/**
+ * A row patch as an updater of the entry's rows array. A ref whose family
+ * declares no `rows` is a defect: the types only accept refs that do.
+ */
+const rowPatchUpdater =
+  (actionName: string, target: AnyResourceRef, patch: ResourceRowPatch<unknown, ResourceRowKey>) =>
+  (rows: ReadonlyArray<unknown>): ReadonlyArray<unknown> => {
+    const options = target.family.options.rows;
+    if (options === undefined) {
+      throw new EffectInputCallbackError({
+        operation: `Action.optimistic(${actionName}).${patch._tag.toLowerCase()}`,
+        cause: new TypeError(`Resource "${target.family.options.name}" declares no rows.`),
+        guidance: "Patch rows only on a Resource whose definition declares `rows`.",
+      });
+    }
+    return applyResourceRowPatch(target.family.options.name, options, rows, patch);
+  };
 
 /**
  * Creates one optimistic transaction for an Action submission.
  *
- * The transaction owns every Signal patch, Resource entry patch, and row-store
- * layer it touches. Commit folds them into their base values, while rollback
+ * The transaction owns every Signal patch and Resource entry patch (whole
+ * values and rows) it touches. Commit folds them into their base values, while rollback
  * removes them and recomputes any later optimistic patches from other
  * submissions.
  */
@@ -262,22 +250,9 @@ export const makeActionOptimisticTransactionRuntime = (
   actionName: string,
 ): ActionOptimisticTransactionRuntime => {
   const transaction = Symbol("Action.optimistic");
-  const transactionId = `action:${actionName}:${++nextOptimisticTransaction}`;
   const touched = new Set<AnyWritableSignal>();
   // Every Resource entry this transaction patched, in first-touch order.
   const resources = new Map<ResourceLifetimeEntry<any, any>, ResourceOptimisticTarget>();
-  // One layer per row store, in first-touch order.
-  const rowLayers = new Map<ActionOptimisticRows<any, any>, ActionOptimisticRowsLayer>();
-
-  const applyRows = <A extends object, K>(
-    rows: ActionOptimisticRows<A, K>,
-    change: ActionOptimisticRowChange<A, K>,
-  ): Effect.Effect<void> =>
-    Effect.map(rows[ActionOptimisticRowsTypeId].apply(transactionId, change), (layer) => {
-      if (!rowLayers.has(rows)) {
-        rowLayers.set(rows, layer);
-      }
-    });
 
   const setSignal = <A>(signal: WritableSignal<A>, apply: (current: A) => A): Effect.Effect<void> =>
     Effect.gen(function* () {
@@ -312,13 +287,12 @@ export const makeActionOptimisticTransactionRuntime = (
       const apply = optimisticUpdater(actionName, update);
       return isResourceRef(target) ? setResource(target, apply) : setSignal(target, apply);
     },
-    insert: (rows, values) =>
-      applyRows(rows, {
-        _tag: "Insert",
-        values: Array.isArray(values) ? values : [values as never],
-      }),
-    update: (rows, key, update) => applyRows(rows, { _tag: "Update", key, update }),
-    delete: (rows, key) => applyRows(rows, { _tag: "Delete", key }),
+    insert: (target, values) =>
+      setResource(target, rowPatchUpdater(actionName, target, insertPatch(values))),
+    update: (target, key, update) =>
+      setResource(target, rowPatchUpdater(actionName, target, { _tag: "Update", key, update })),
+    delete: (target, key) =>
+      setResource(target, rowPatchUpdater(actionName, target, { _tag: "Delete", key })),
   };
 
   const finish = (
@@ -326,17 +300,9 @@ export const makeActionOptimisticTransactionRuntime = (
       base: A,
       patch: SignalPatch<A>,
     ) => Effect.Effect<SignalPatchDecision<A>, EffectInputCallbackError>,
-    settleRows: (layer: ActionOptimisticRowsLayer) => Effect.Effect<void>,
     event: "success" | "failure",
   ): ActionOptimisticSettle =>
     Effect.gen(function* () {
-      // Row layers settle first: they cannot fail, so a failing updater never
-      // strands a row layer.
-      const layers = Array.from(rowLayers.values());
-      rowLayers.clear();
-      for (const layer of layers) {
-        yield* settleRows(layer);
-      }
       const plans: Array<PlannedSignalPatchFinish<any>> = [];
       for (const signal of touched) {
         const plan = yield* planSignalPatches(actionName, signal, transaction, onPatch);
@@ -378,14 +344,9 @@ export const makeActionOptimisticTransactionRuntime = (
           _tag: "Commit",
           base: nextBase,
         })),
-      (layer) => layer.commit,
       "success",
     ),
-    rollback: finish(
-      () => Effect.succeed({ _tag: "Rollback" }),
-      (layer) => layer.rollback,
-      "failure",
-    ),
+    rollback: finish(() => Effect.succeed({ _tag: "Rollback" }), "failure"),
   };
 };
 
@@ -404,19 +365,19 @@ export type ActionOptimisticChange =
     }
   | {
       readonly _tag: "Insert";
-      readonly rows: ActionOptimisticRows<any, any>;
-      readonly values: ReadonlyArray<object>;
+      readonly target: ResourceRowsRef;
+      readonly values: ReadonlyArray<unknown>;
     }
   | {
       readonly _tag: "Update";
-      readonly rows: ActionOptimisticRows<any, any>;
-      readonly key: unknown;
+      readonly target: ResourceRowsRef;
+      readonly key: ResourceRowKey;
       readonly update: ActionOptimisticRowUpdate<any>;
     }
   | {
       readonly _tag: "Delete";
-      readonly rows: ActionOptimisticRows<any, any>;
-      readonly key: unknown;
+      readonly target: ResourceRowsRef;
+      readonly key: ResourceRowKey;
     };
 
 /** A transaction that records changes instead of applying them. */
@@ -430,7 +391,7 @@ export interface ActionOptimisticPlanRuntime {
  * and writes nothing. A `set` is computed from the target's current value (and
  * the plan's earlier patches to it); a Resource entry that has not loaded is
  * left alone, so it plans no change. Row changes are recorded as given,
- * without touching the row store.
+ * without touching the entry.
  */
 export const makeActionOptimisticPlanRuntime = (
   actionName: string,
@@ -464,21 +425,21 @@ export const makeActionOptimisticPlanRuntime = (
         planned.set(isResourceRef(target) ? resourceRefStoreKey(target) : target, next);
         changes.push({ _tag: "Set", target, value: next });
       }).pipe(Effect.orDie),
-    insert: (rows, values) =>
+    insert: (target, values) =>
       Effect.sync(() => {
         changes.push({
           _tag: "Insert",
-          rows,
-          values: Array.isArray(values) ? values : [values as never],
+          target,
+          values: Array.isArray(values) ? values : [values],
         });
       }),
-    update: (rows, key, update) =>
+    update: (target, key, update) =>
       Effect.sync(() => {
-        changes.push({ _tag: "Update", rows, key, update });
+        changes.push({ _tag: "Update", target, key, update });
       }),
-    delete: (rows, key) =>
+    delete: (target, key) =>
       Effect.sync(() => {
-        changes.push({ _tag: "Delete", rows, key });
+        changes.push({ _tag: "Delete", target, key });
       }),
   };
 

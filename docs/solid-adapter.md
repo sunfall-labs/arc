@@ -1,11 +1,11 @@
 # Solid Adapter
 
-Sunfall Arc keeps Resources, Actions, Programs, Routes, Collections, and runtime
+Sunfall Arc keeps Resources, Actions, Programs, Routes, and runtime
 ownership in renderer-independent core packages. The Solid 2 adapter bridges
 that core model into Solid's fine-grained reactivity and ownership rules through
 one app model: **typed Components**.
 
-Use `@sunfall/arc-solid` with `@sunfall/arc-solid-db` for Solid apps. This page
+Use `@sunfall/arc-solid` for Solid apps. This page
 is the reference; [The Golden Path](golden-path.md) is the walkthrough.
 
 ## One App Model
@@ -58,7 +58,7 @@ Effect.runFork(Component.launch(App, root, { runtime }));
 Plain Solid function components remain the right tool for presentational
 leaves (rows, badges, layout): they take props and render, with no Effect cost.
 Anything that reads or writes runtime state (Resources, Actions, Programs,
-Streams, Collections, the router) is a setup-time binding in a `Component`.
+Streams, live queries, the router) is a setup-time binding in a `Component`.
 
 ## Setup And Render
 
@@ -89,7 +89,7 @@ Streams, Collections, the router) is a setup-time binding in a `Component`.
   finalizers.
 
 Per-runtime sharing is by construction, so there is no second "per-runtime
-setup" concept: Resources and Collections live in the runtime's stores (two
+setup" concept: Resources live in the runtime's Resource Store (two
 instances reading `ProjectById("atlas")` share one load), and
 `Component.provide(layer)` builds its Layer once per runtime.
 
@@ -102,24 +102,23 @@ the parent setup's context (including `Component.provide` services), and adds
 
 Each binding is an Effect yielded in setup. Its services join the component's
 `R`. **The failure rule: a failure that can reach rendering joins `E`; a
-failure of work you start is returned to you.** Resource readers, collection
-rows, and live query rows throw a failed first load to `<Errored>`, so their
+failure of work you start is returned to you.** Resource readers (row
+lookups included) and live query rows throw a failed first load to `<Errored>`, so their
 declared load errors join `E` and `catchTags` handles them; `submit`,
 `dispatch`, `preload`, and `refresh` return their failures as Effects, and
 `Component.callback` (`E = never`) makes the handler decide. A callback that
 breaks its contract (throws, returns a Promise, produces a row its schema
 rejects) is a defect, never part of `E`.
 
-| Binding                                 | Returns                                                                                              | Joins                                                                |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `Component.resource(family)`            | `ResourceReader`: `reader(input)`, `waiting`, `failure`                                              | load error to `E`, services                                          |
-| `Component.action(definition)`          | `ActionHandle`: `waiting`, `failure`, `result`, `input`, `submit` (Effect), `reset` (Effect)         | action services                                                      |
-| `Component.program(definition, opts?)`  | `ProgramHandle`: fine-grained `model`, `committed`, `failures`, `dispatch` (Effect), `clearFailures` | program services                                                     |
-| `Component.stream(name, stream, init)`  | `Accessor<A>` of the latest element, committed as `<Component>.<name>`                               | stream services                                                      |
-| `Component.callback(name, f)`           | `(...args) => void` that runs `f(...args)` as the transition `<Component>.<name>` (failures handled) | callback services                                                    |
-| `Component.router(routes, options?)`    | the instance's `BrowserRouter<Routes>`                                                               | route preload and route Component services, route Component failures |
-| `SolidDb.collection(definition, opts?)` | `SolidDb.CollectionHandle`: `rows`, `get`, `index`, `waiting`, `failure`                             | load error to `E`, collection services                               |
-| `SolidDb.liveQuery(query, opts?)`       | `SolidDb.LiveQueryHandle`: `rows`, `waiting`, `failure`, `preload` (Effect), `refresh` (Effect)      | source load errors to `E`, source services                           |
+| Binding                                | Returns                                                                                              | Joins                                                                |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `Component.resource(family)`           | `ResourceReader`: `reader(input)`, `waiting`, `failure`; with `rows`, also `get`, `index`            | load error to `E`, services                                          |
+| `Component.action(definition)`         | `ActionHandle`: `waiting`, `failure`, `result`, `input`, `submit` (Effect), `reset` (Effect)         | action services                                                      |
+| `Component.program(definition, opts?)` | `ProgramHandle`: fine-grained `model`, `committed`, `failures`, `dispatch` (Effect), `clearFailures` | program services                                                     |
+| `Component.stream(name, stream, init)` | `Accessor<A>` of the latest element, committed as `<Component>.<name>`                               | stream services                                                      |
+| `Component.callback(name, f)`          | `(...args) => void` that runs `f(...args)` as the transition `<Component>.<name>` (failures handled) | callback services                                                    |
+| `Component.router(routes, options?)`   | the instance's `BrowserRouter<Routes>`                                                               | route preload and route Component services, route Component failures |
+| `Component.liveQuery(query, opts?)`    | `LiveQueryHandle`: `rows`, `waiting`, `failure`, `preload` (Effect), `refresh` (Effect)              | source load errors to `E`, source services                           |
 
 Handles share one vocabulary. Status is `waiting()` (work in flight) and
 `failure()` (the settled `Cause` of the latest load or submission, if it
@@ -133,7 +132,7 @@ stay synchronous.
 
 Every binding runs with the setup's context: Effects it starts see the
 runtime's services and `Component.provide` Layers. `Component.instance` is the
-expert seam for writing more bindings (it is how `@sunfall/arc-solid-db` is
+expert seam for writing more bindings (it is how `Component.liveQuery` is
 built): it returns the instance's runtime (bound to the setup context), owner,
 and Scope, with `run(f)` (Solid primitives under the instance owner) and
 `fork(effect)` (fibers in the instance Scope), and `fail(cause)` (throws a
@@ -195,7 +194,7 @@ Unmounting interrupts in-flight submissions.
 
 Actions are the one way to change server data, including rows the screen must
 show before the server answers. `optimistic` patches Signals, Resource entries,
-and Collection rows through its transaction before `run`; success folds the
+and Resource rows through its transaction before `run`; success folds the
 patches in (a patched value stays until the `invalidates` reload replaces it),
 and a failure or interruption rolls them back. A patched Resource entry reads
 through `Component.resource` like any other value: the reader returns the
@@ -210,7 +209,7 @@ const RenameProject = Action.define({
   output: Project,
   optimistic: (input, transaction) =>
     Effect.all([
-      transaction.update(Projects, input.id, { name: input.name }),
+      transaction.update(ProjectsRef, input.id, { name: input.name }),
       transaction.set(ProjectById(input.id), (project) => ({ ...project, name: input.name })),
     ]),
   run: (input) => ProjectApi.use((api) => api.rename(input)),
@@ -221,8 +220,8 @@ const RenameProject = Action.define({
 Whether a submission runs locally or on the server is the runtime's decision,
 not the UI's: Core's `ActionTransport` service is looked up on every submission.
 In a Start app, `App.launch(app)` provides it for the app's `actions` (the
-Actions the server serves); those submit over the network and their responses (hydrated Resources and
-Collections, Resource invalidations) apply to the submitting runtime. Every
+Actions the server serves); those submit over the network and their responses (hydrated Resources,
+Resource invalidations) apply to the submitting runtime. Every
 other Action runs its `run` locally. The handle, its result type, and its error
 type (the Action's own errors plus `Server.ClientError`) are the same either
 way. The no-JS form path is unchanged: `StartAction.form(definition, ...)`
@@ -331,20 +330,17 @@ an unnamed write cannot hide behind a build flag. The fixes:
 - **Tests and other plain synchronous code** write through
   `Signal.batch(() => signal.set(value), { name: "test" })`.
 
-### Collections and live queries
+### Rows and live queries
 
-`@sunfall/arc-solid-db` adds `SolidDb.collection(definition)` and
-`SolidDb.liveQuery(query)` as setup-time bindings. Collection handles are
-reactive reads (`rows`, `get`, `index`) plus `waiting` and `failure`; rows stay
-readable while loading and after a failed refresh, and a collection that never
-loaded throws its failed load to `<Errored>`. Actions change the rows. Bindings
-preload on mount in the browser only: a server render reads what the route
-preload loaded, and Start renders a collection whose first load failed as not
-yet loaded (a failure has no hydrated form), so the hydrating client renders
-the same markup and then loads it: a hydrating binding starts its first
-preload once the hydration pass settles. A live query's
-factory runs tracked: a signal or prop it reads (`props.projectId`) rebuilds the
-query. Both read the instance runtime's Collection Store.
+A Resource with `rows` gives its reader `get(input, key)` and
+`index(input, name, value)`; both suspend and follow reloads like
+`reader(input)`, and Actions patch the rows with
+`transaction.insert/update/delete(ref, key, ...)`. `Component.liveQuery(query)`
+binds a live query over the rows of Resources (`Query` from `@sunfall/arc-db`):
+its factory runs tracked, so a signal or prop it reads (`props.projectId`)
+rebuilds the query, and its sources preload on mount in the browser only (a
+hydrating binding waits for the hydration pass to settle). A source that never
+loaded throws its failed load to `<Errored>`. See [Rows and Queries](db.md).
 
 ## Boundaries And Provision
 
@@ -489,7 +485,7 @@ hydration reuses the server markup.
 
 ## Async State Is `AsyncResult`
 
-Resource, collection, and live-query load state and Action submission state
+Resource and live-query load state and Action submission state
 are Effect's `AsyncResult` (`import { AsyncResult } from "effect/reactivity"`);
 handles project it to `waiting()` and `failure()`, and an Action handle's
 `result()` exposes it whole:

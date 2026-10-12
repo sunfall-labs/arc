@@ -644,9 +644,9 @@ function BlogPostView() {
         <h1>Correctness by construction for agent-operated TypeScript apps.</h1>
         <p>
           Sunfall Arc is an agent-native, Effect-first framework for full-stack TypeScript. It turns
-          routes, resources, actions, forms, collections, capabilities, and server contracts into
-          typed definitions that can be checked at type time, verified at build time, and explained
-          at runtime.
+          routes, resources, actions, forms, capabilities, and server contracts into typed
+          definitions that can be checked at type time, verified at build time, and explained at
+          runtime.
         </p>
       </header>
 
@@ -662,7 +662,7 @@ function BlogPostView() {
         <p>
           Humans can eventually learn those conventions. Agents have to infer them every time. Arc
           exists to reduce that guessing. If a route loads data, an action mutates it, a server
-          boundary protects it, a form submits it, or a collection persists it, Arc wants that
+          boundary protects it, a form submits it, or a Resource persists it, Arc wants that
           behavior represented as a typed definition the framework can inspect.
         </p>
         <p>
@@ -701,8 +701,8 @@ function BlogPostView() {
         <p>
           Arc is agent-native because the app is made of named typed definitions. In Arc, a
           definition is a named typed declaration the framework can run and inspect: a Route,
-          Resource, Action, Form, Collection, Capability, Signal, or server contract. The app graph
-          is the map Arc builds from those definitions.
+          Resource, Action, Form, Capability, Signal, or server contract. The app graph is the map
+          Arc builds from those definitions.
         </p>
         <p>
           The practical promise is simple: an agent can read what the app owns, change the stable
@@ -711,7 +711,7 @@ function BlogPostView() {
         </p>
         <ul>
           <li>Read: generated route trees, Start app graphs, diagnostics reports, and devtools.</li>
-          <li>Change: stable Resources, Actions, Forms, Collections, Routes, and Capabilities.</li>
+          <li>Change: stable Resources, Actions, Forms, Routes, and Capabilities.</li>
           <li>
             Verify: TypeScript gates, schema checks, build policy, graph impact, and{" "}
             <code class="inlineCode">pnpm verify</code>.
@@ -736,8 +736,7 @@ function BlogPostView() {
             and server/client boundary drift.
           </li>
           <li>
-            Runtime scopes isolate requests, resources, collections, action submissions, and
-            streamed responses.
+            Runtime scopes isolate requests, resources, action submissions, and streamed responses.
           </li>
           <li>
             Devtools and graph output explain route plans, invalidation, request traces, and
@@ -826,8 +825,8 @@ function BlogPostView() {
         <h2 id={blogHeadingId(5)}>What conventional stacks would do</h2>
         <p>
           Next, Remix, and TanStack Start make full-stack apps productive. Arc asks for a stricter
-          contract: can every route, server boundary, resource, action, collection, and runtime
-          effect be typed, generated, inspected, and verified?
+          contract: can every route, server boundary, resource, action, and runtime effect be typed,
+          generated, inspected, and verified?
         </p>
         <p>
           TanStack Query is excellent at server reads and mutations. A common issue detail page
@@ -850,15 +849,14 @@ function BlogPostView() {
         <p>
           Zustand and Jotai are productive ways to share domain state, but stores and atoms are
           opaque to the framework unless you build conventions around them. Which route needs this
-          value before render? Which server function is browser-safe? Which Resources or Collections
-          should refresh after a mutation? Which mock should tests provide?
+          value before render? Which server function is browser-safe? Which Resources should refresh
+          after a mutation? Which mock should tests provide?
         </p>
         <BlogCode code={blogStoreExample} />
         <p>
           For durable app behavior - issues, sessions, local-first rows, pending writes, resource
           lifetimes, form submissions, permissioned server calls - Arc wants a typed Signal,
-          Resource, Action, Form, Collection, Route, or Capability instead of an opaque global
-          store.
+          Resource, Action, Form, Route, or Capability instead of an opaque global store.
         </p>
         <p>
           In practice, Arc replaces much of the glue where teams combine TanStack Query,
@@ -887,7 +885,7 @@ function BlogPostView() {
           Sunfall Arc is not pretending to be a finished ecosystem. Platform-specific packages for
           every host can wait until real deployments demand them. The first public alpha is about
           the core foundation: typed definitions, Effect runtimes, Start SSR and hydration, the
-          Solid adapter, local-first collections, app graph diagnostics, devtools contracts,
+          Solid adapter, Resource rows and live queries, app graph diagnostics, devtools contracts,
           starters, package gates, and docs that are themselves built with the framework.
         </p>
         <p>

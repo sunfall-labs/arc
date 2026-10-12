@@ -147,6 +147,14 @@ export const ProjectList = Resource.define({
   name: "Projects.list",
   input: Schema.Literal("all"),
   output: Schema.Array(ProjectSummarySchema),
+  // The sidebar's rows: looked up by id, status, or owner, and patched by key.
+  rows: {
+    key: (project) => project.id,
+    indexes: {
+      status: (project) => project.status,
+      owner: (project) => project.owner,
+    },
+  },
   load: () => ProjectApi.use((api) => api.list()),
   provides: () => [ProjectsTag],
   policy: {
@@ -177,6 +185,14 @@ export const ProjectWorkItemList = Resource.define({
   name: "Project.workItems.list",
   input: Schema.Literal("all"),
   output: Schema.Array(ProjectWorkItemSchema),
+  rows: {
+    key: (workItem) => workItem.id,
+    indexes: {
+      byProject: (workItem) => workItem.projectId,
+      status: (workItem) => workItem.status,
+      owner: (workItem) => workItem.owner,
+    },
+  },
   load: () => ProjectApi.use((api) => api.listWorkItems()),
   provides: () => [WorkItemsTag],
   policy: {
@@ -202,10 +218,16 @@ export const SubmitProjectName = Action.define({
     concurrency: "latest",
     retry: Schedule.recurs(1),
   },
-  // The project page shows the new name at once; a failure or a rejected
-  // result (`ValidationFailure`, `Failure`) rolls it back.
+  // Durable, like the advance: the submission is pending in the Action Outbox
+  // until it settles, which is what the sidebar's "Saving" badge reads.
+  durable: { maxAge: "1 day" },
+  // The sidebar row and the project page show the new name at once; a failure
+  // or a rejected result (`ValidationFailure`, `Failure`) rolls both back.
   optimistic: ({ id, name }, transaction) =>
-    transaction.set(ProjectById(id), (project) => ({ ...project, name })),
+    Effect.all([
+      transaction.update(ProjectsRef, id, { name }),
+      transaction.set(ProjectById(id), (project) => ({ ...project, name })),
+    ]),
   run: (input) => ProjectApi.use((api) => api.submitName(input)),
   invalidates: (result, input) =>
     result._tag === "ValidationFailure" || result._tag === "Failure"

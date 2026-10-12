@@ -3,11 +3,7 @@ import { Layer } from "effect";
 import { KeyValueStore } from "effect/persistence";
 import ProjectConsole from "./App.js";
 import { ProjectApiLive } from "./domain.js";
-import {
-  ProjectSummaries,
-  ProjectWorkItems,
-  projectConsoleActions,
-} from "./project-collections.js";
+import { projectConsoleActions } from "./project-actions.js";
 import { routes } from "./routeTree.gen.js";
 
 // The one app definition: `server.tsx` and `main.tsx` both derive their wiring
@@ -18,7 +14,6 @@ import { routes } from "./routeTree.gen.js";
 export const app = App.define({
   root: ProjectConsole,
   routes,
-  collections: [ProjectSummaries, ProjectWorkItems],
   actions: projectConsoleActions,
   client: Layer.mergeAll(
     ProjectApiLive,

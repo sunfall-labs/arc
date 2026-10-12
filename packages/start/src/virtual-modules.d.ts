@@ -155,7 +155,7 @@ declare module "virtual:sunfall-arc/app-graph/runtime-diagnostics" {
 
   /** Generated static app graph. */
   export const graph: StartAppGraph;
-  /** Runtime-aware diagnostics for routes, resources, collections, actions, and server functions. */
+  /** Runtime-aware diagnostics for routes, resources, actions, and server functions. */
   export const diagnostics: StartAppGraphDiagnostics;
   /** Policy violations after the virtual module's Effect guard succeeds. */
   export const diagnosticsPolicyViolations: readonly StartAppGraphDiagnosticsPolicyViolation[];

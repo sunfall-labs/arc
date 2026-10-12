@@ -73,8 +73,6 @@ const dependencyReasonForEdge = (edge: StartAgentGraphEdge): string => {
       return "transport endpoint";
     case "ImplementedBy":
       return "source module";
-    case "PreloadsCollection":
-      return "preloaded collection";
     case "PreloadsResourceFamily":
       return "preloaded resource";
     case "ReportsOn":
@@ -92,8 +90,6 @@ const incomingReasonForEdge = (edge: StartAgentGraphEdge): string => {
       return "uses this endpoint";
     case "ImplementedBy":
       return "implemented here";
-    case "PreloadsCollection":
-      return "preloads this collection";
     case "PreloadsResourceFamily":
       return "preloads this resource";
     case "ReportsOn":
@@ -127,12 +123,7 @@ const routesWithDeclaredPreloads = (graph: StartAgentGraph): readonly StartAgent
     if (candidate.kind !== "Route") {
       return false;
     }
-    const preloadResources = factRecord(candidate, "preloadResources");
-    const preloadCollections = factRecord(candidate, "preloadCollections");
-    return (
-      recordStringArray(preloadResources, "families").length > 0 ||
-      recordStringArray(preloadCollections, "collections").length > 0
-    );
+    return recordStringArray(factRecord(candidate, "preloadResources"), "families").length > 0;
   });
 
 const mayAffectForNode = (
@@ -181,8 +172,7 @@ const contractsForNode = (node: StartAgentGraphNode): readonly string[] => {
         line.replace(/^([A-Z])/, (letter) => letter.toLowerCase()),
       );
     case "ResourceFamily":
-    case "ResourceTag":
-    case "Collection": {
+    case "ResourceTag": {
       const source = factString(node, "source");
       return [`name: ${node.label}`, ...(source === undefined ? [] : [`source: ${source}`])];
     }
@@ -217,12 +207,8 @@ const warningLinesForNode = (node: StartAgentGraphNode): readonly string[] => {
 
   if (node.kind === "Route" && factString(node, "preload") === "present") {
     const preloadResources = factRecord(node, "preloadResources");
-    const preloadCollections = factRecord(node, "preloadCollections");
     if (recordString(preloadResources, "status") === "unknown") {
       warnings.push("preloadResources unknown");
-    }
-    if (recordString(preloadCollections, "status") === "unknown") {
-      warnings.push("preloadCollections unknown");
     }
   }
 

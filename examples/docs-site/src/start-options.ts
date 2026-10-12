@@ -40,9 +40,6 @@ export const docsSiteStartOptions = {
       routePreloadResources: {
         requireDeclaredForPreload: true,
       },
-      routePreloadCollections: {
-        requireDeclaredForPreload: true,
-      },
     },
   },
 } as const;

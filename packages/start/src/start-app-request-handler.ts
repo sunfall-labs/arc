@@ -166,7 +166,6 @@ export const createRequestHandler = <
     },
   });
   const handler = createStartRequestHandler(serverApp as never, {
-    collections: app.collections,
     actions: app.actions,
     ...(serverOptions.endpoints === undefined ? {} : { endpoints: serverOptions.endpoints }),
     ...(serverOptions.onRequestTrace === undefined

@@ -2,19 +2,10 @@ import type {
   DevtoolsStartAppGraphActionBehaviorPresence,
   DevtoolsStartAppGraphActionConcurrency,
   DevtoolsStartAppGraphActionDiagnostics,
-  DevtoolsStartAppGraphCollectionDiagnostics,
   DevtoolsStartAppGraphDiagnostics,
-  DevtoolsStartAppGraphRouteModuleDiagnostics,
-  DevtoolsStartAppGraphRoutePreloadCollections,
-  DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry,
   DevtoolsSummary,
 } from "./devtools-contract.js";
-import {
-  normalizeAppGraphCollectionDefinitions,
-  normalizeAppGraphUnknownRoutePreloadCollections,
-  normalizeDevtoolsAppGraphDiagnostics,
-  normalizeRouteModulePreloadCollections,
-} from "./app-graph-normalizer.js";
+import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js";
 import type { NormalizeDevtoolsAppGraphDiagnosticsOptions } from "./app-graph-normalizer.js";
 
 const valueCounts = <Value extends string>(
@@ -56,36 +47,6 @@ const actionBehaviorSummary = (
   concurrency: valueCounts(actions.map((action) => action.behavior.concurrency)),
 });
 
-export const appGraphCollectionDefinitions = (
-  appGraph: DevtoolsStartAppGraphDiagnostics,
-): readonly DevtoolsStartAppGraphCollectionDiagnostics[] =>
-  normalizeAppGraphCollectionDefinitions(appGraph);
-
-export const appGraphUnknownRoutePreloadCollections = (
-  appGraph: DevtoolsStartAppGraphDiagnostics,
-): readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[] =>
-  (
-    appGraph as {
-      readonly unknownRoutePreloadCollections?: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[];
-    }
-  ).unknownRoutePreloadCollections?.map((entry) => ({
-    kind: "route" as const,
-    routeId: entry.routeId,
-    routePath: entry.routePath,
-    moduleId: entry.moduleId,
-    filePath: entry.filePath,
-    preload: entry.preload,
-    preloadCollections: {
-      status: entry.preloadCollections.status,
-      collections: [...entry.preloadCollections.collections],
-    },
-  })) ?? normalizeAppGraphUnknownRoutePreloadCollections(appGraph);
-
-export const routeModulePreloadCollections = (
-  routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics,
-): DevtoolsStartAppGraphRoutePreloadCollections =>
-  normalizeRouteModulePreloadCollections(routeModule);
-
 export const graphSummary = (
   appGraph: DevtoolsStartAppGraphDiagnostics | undefined,
   options: NormalizeDevtoolsAppGraphDiagnosticsOptions = {},
@@ -97,7 +58,6 @@ export const graphSummary = (
   }
 
   const detached = normalizeDevtoolsAppGraphDiagnostics(appGraph, options);
-  const collections = appGraphCollectionDefinitions(detached);
 
   return {
     _tag: "Available",
@@ -106,9 +66,6 @@ export const graphSummary = (
       paths: [...detached.routePaths],
       modules: detached.routeModules.map((routeModule) => ({ ...routeModule })),
       unknownPreloadResources: detached.unknownRoutePreloadResources.map((entry) => ({ ...entry })),
-      unknownPreloadCollections: appGraphUnknownRoutePreloadCollections(detached).map((entry) => ({
-        ...entry,
-      })),
     },
     serverFunctions: {
       count: detached.serverFunctionCount,
@@ -129,16 +86,6 @@ export const graphSummary = (
         policy: { ...family.policy },
       })),
       tags: detached.resourceTags.map((tag) => ({ ...tag })),
-    },
-    collections: {
-      definitionCount: collections.length,
-      definitions: collections.map((collection) => ({
-        ...collection,
-        indexes: [...(collection.indexes ?? [])],
-        policy: { ...collection.policy },
-        ...(collection.sync === undefined ? {} : { sync: { ...collection.sync } }),
-        persistence: { ...collection.persistence },
-      })),
     },
     endpoints: {
       rpc: detached.rpcPath,

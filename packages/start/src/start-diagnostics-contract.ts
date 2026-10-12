@@ -12,7 +12,6 @@ export type StartDiagnosticsReportStatus = "pass" | "needs-attention";
 /** Finding families emitted from app graph diagnostics and build policy checks. */
 export type StartDiagnosticsReportFindingKind =
   | "route-preload-resources"
-  | "route-preload-collections"
   | "wire-schema"
   | "policy-violation";
 
@@ -45,10 +44,8 @@ export interface StartDiagnosticsReportSummary {
   readonly actions: number;
   readonly resourceFamilies: number;
   readonly resourceTags: number;
-  readonly collections: number;
   readonly missingSchemas: number;
   readonly unknownRoutePreloadResources: number;
-  readonly unknownRoutePreloadCollections: number;
   readonly policyViolations: number;
   readonly findingCount: number;
 }
@@ -175,20 +172,6 @@ export const createStartDiagnosticsReport = (
         ],
       }),
     ),
-    ...diagnostics.unknownRoutePreloadCollections.map(
-      (entry): StartDiagnosticsReportFinding => ({
-        kind: "route-preload-collections",
-        owner: entry.filePath,
-        subject: `${entry.routePath} (${entry.routeId})`,
-        issue:
-          "Route preload is present, but the route does not declare which DB collections it preloads.",
-        edit: "Add `preloadCollections: [...]` to this route definition; use an empty array when the preload intentionally touches no collections.",
-        details: [
-          `module: ${entry.moduleId}`,
-          `current preloadCollections status: ${entry.preloadCollections.status}`,
-        ],
-      }),
-    ),
     ...diagnostics.missingSchemas.map((entry): StartDiagnosticsReportFinding => {
       const fields = missingWireFields(entry);
       const subject = `${entry.kind}: ${entry.name}`;
@@ -216,10 +199,8 @@ export const createStartDiagnosticsReport = (
     actions: diagnostics.actionCount,
     resourceFamilies: diagnostics.resourceFamilies.length,
     resourceTags: diagnostics.resourceTags.length,
-    collections: diagnostics.collectionDefinitions.length,
     missingSchemas: diagnostics.missingSchemas.length,
     unknownRoutePreloadResources: diagnostics.unknownRoutePreloadResources.length,
-    unknownRoutePreloadCollections: diagnostics.unknownRoutePreloadCollections.length,
     policyViolations: input.diagnosticsPolicyViolations?.length ?? 0,
     findingCount: findings.length,
   };

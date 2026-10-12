@@ -1,18 +1,7 @@
 import { Resource, Route } from "@sunfall/arc-core";
-import { Effect } from "effect";
-import { ProjectList } from "../domain.js";
-import { ProjectSummaries, ProjectWorkItems } from "../project-collections.js";
+import { ProjectList, ProjectWorkItemList, ProjectsRef, WorkItemsRef } from "../domain.js";
 
 export const route = Route.define("/", {
-  preloadResources: [ProjectList],
-  preloadCollections: [ProjectSummaries, ProjectWorkItems],
-  preload: () =>
-    Effect.all(
-      [
-        Resource.preload(ProjectList("all")),
-        ProjectSummaries.preload(),
-        ProjectWorkItems.preload(),
-      ],
-      { discard: true },
-    ),
+  preloadResources: [ProjectList, ProjectWorkItemList],
+  preload: () => Resource.preload([ProjectsRef, WorkItemsRef]),
 });

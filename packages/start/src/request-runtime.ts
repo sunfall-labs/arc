@@ -11,7 +11,8 @@ import {
 } from "@sunfall/arc-core";
 import { withResourceStore, type AppDefinitionRegistry } from "@sunfall/arc-core/internal";
 import type { StartServerApp } from "./start-server-app.js";
-import { Effect, type Scope } from "effect";
+import { Effect, Option, type Scope } from "effect";
+import { KeyValueStore } from "effect/persistence";
 export {
   completeRequestRuntimeWithResponse,
   type RequestRuntimeFinalizeState,
@@ -33,7 +34,31 @@ export type RequestRuntimeProvidedRequirements<RuntimeServices> =
   | ResourceStoreState
   | RequestContext
   | ResponseContext
-  | Server.Client;
+  | Server.Client
+  | KeyValueStore.KeyValueStore;
+
+/**
+ * The server's default `KeyValueStore`: it stores nothing, so Resources with
+ * `policy.persist` skip persistence during SSR (one request's values never
+ * reach another's). A `KeyValueStore` in the server Layer replaces it.
+ */
+const serverKeyValueStore: KeyValueStore.KeyValueStore = KeyValueStore.makeStringOnly({
+  get: () => Effect.succeed(undefined),
+  set: () => Effect.void,
+  remove: () => Effect.void,
+  clear: Effect.void,
+  size: Effect.succeed(0),
+});
+
+/** Provides the server's default `KeyValueStore` unless the runtime already has one. */
+const provideServerKeyValueStore = <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<A, E, Exclude<R, KeyValueStore.KeyValueStore>> =>
+  Effect.flatMap(Effect.serviceOption(KeyValueStore.KeyValueStore), (store) =>
+    Option.isSome(store)
+      ? effect
+      : Effect.provideService(effect, KeyValueStore.KeyValueStore, serverKeyValueStore),
+  ) as Effect.Effect<A, E, Exclude<R, KeyValueStore.KeyValueStore>>;
 
 export type RequestRuntimeRemainingRequirements<RIn, RuntimeServices> = Exclude<
   RIn,
@@ -63,7 +88,9 @@ export const provideRequestRuntime = <A, E, R, RuntimeServices, RuntimeError>(
 > =>
   runtime.provide(
     provideRequest(request)(
-      provideResponse(responseContext)(provideLocalServerClient(effect, registry)),
+      provideResponse(responseContext)(
+        provideServerKeyValueStore(provideLocalServerClient(effect, registry)),
+      ),
     ),
   ) as Effect.Effect<
     A,

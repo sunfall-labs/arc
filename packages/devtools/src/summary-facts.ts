@@ -1,7 +1,6 @@
 import type { Resource } from "@sunfall/arc-core";
 import {
   devtoolsActionNodeId as actionNodeId,
-  devtoolsCollectionNodeId as collectionNodeId,
   devtoolsInvalidationNodeId as invalidationNodeId,
   devtoolsProgramNodeId as programNodeId,
   devtoolsRequestTraceNodeId as requestTraceNodeId,
@@ -17,7 +16,6 @@ import {
 import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
 import type {
-  DevtoolsCollectionStoreEvent,
   DevtoolsInvalidationPlan,
   DevtoolsInvalidationTarget,
   DevtoolsRequestTrace,
@@ -165,7 +163,6 @@ export const summarizeRequestTrace = (
   responseStatus: trace.response?.status ?? null,
   serviceCount: trace.services.length,
   resourceCount: trace.resources.length,
-  collectionCount: trace.collections.length,
   serverFunctionCount: trace.serverFunctions.length,
   actionCount: trace.actions.length,
   fiberCount: trace.fibers.length,
@@ -193,13 +190,6 @@ const resourceEventTarget = (
   label: event.name,
 });
 
-const collectionEventTarget = (
-  event: DevtoolsCollectionStoreEvent,
-): { readonly id: string; readonly label: string } => ({
-  id: collectionNodeId(event.collection),
-  label: event.collection,
-});
-
 interface RuntimeEventFactIndexes {
   readonly invalidations: ReadonlyMap<string, number>;
   readonly invalidationCount: number;
@@ -225,8 +215,6 @@ const timelineCommitTarget = (
       return { kind: "Action", id: actionNodeId(commit.cause.action) };
     case "Resource":
       return { kind: "Resource", id: resourceNodeId(commit.cause.key) };
-    case "Collection":
-      return { kind: "Collection", id: collectionNodeId(commit.cause.collection) };
     default:
       return null;
   }
@@ -252,22 +240,6 @@ export const summarizeRuntimeEvent = (
         label: event.event._tag,
         target: {
           kind: "Resource",
-          id: target.id,
-        },
-        data: toDevtoolsSerializableValue(event.event),
-      };
-    }
-    case "CollectionStoreEvent": {
-      const target = collectionEventTarget(event.event);
-      return {
-        index,
-        id: runtimeEventSummaryId(sequence, "CollectionStoreEvent"),
-        _tag: event._tag,
-        sequence,
-        at,
-        label: event.event._tag,
-        target: {
-          kind: "Collection",
           id: target.id,
         },
         data: toDevtoolsSerializableValue(event.event),
@@ -509,6 +481,8 @@ export const resourceIndex = (
         return "Invalidated";
       case "ResourceGcScheduled":
       case "ResourceGcInterrupted":
+      case "ResourceRowsChanged":
+      case "ResourceRowsChangesFailure":
         return event._tag;
     }
   };

@@ -1,10 +1,10 @@
 # Project Console Example
 
 This example is the copyable golden path for Sunfall Arc. It exercises branded
-routes, file-route generation, Resources, Collections, Start server functions,
+routes, file-route generation, Resources with keyed rows, Start server functions,
 Start actions, no-JS form fallback, SSR, hydration, capability-based mocking,
-indexed live queries, Actions that patch collection rows optimistically, and the production
-server-only leak scan.
+indexed live queries over Resource rows, Actions that patch rows optimistically,
+and the production server-only leak scan.
 
 ## Run In This Repository
 

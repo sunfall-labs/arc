@@ -7,7 +7,6 @@ import {
   type Resource,
   type Server,
 } from "@sunfall/arc-core";
-import type { Collection } from "@sunfall/arc-db";
 import { Component } from "@sunfall/arc-solid";
 import { Data, Effect, Layer, Option } from "effect";
 import { KeyValueStore } from "effect/persistence";
@@ -49,8 +48,6 @@ export interface AppDefinition<
   readonly root: Component<App.RootProps, never, RootServices>;
   /** Route definitions the server matches and preloads per request. */
   readonly routes: Routes;
-  /** Collections whose snapshots hydrate from the server and from Action responses. */
-  readonly collections: ReadonlyArray<Collection.Any>;
   /** Actions the server serves; the browser submits them over the action transport. */
   readonly actions: ReadonlyArray<Actions>;
   /** Browser services; `App.launch` builds the browser runtime from it. */
@@ -60,8 +57,12 @@ export interface AppDefinition<
 /** Any app definition, for APIs that accept every app. */
 export type AnyAppDefinition = AppDefinition<readonly AnyRoute[], any, any, any, any>;
 
-/** Services `App.launch` adds to the client Layer. */
-export type AppLaunchServices = ActionTransport | Server.Client;
+/**
+ * Services `App.launch` adds to the client Layer. `KeyValueStore` is the
+ * client Layer's own when it provides one, else Web Storage
+ * (`localStorage`), or memory where there is none.
+ */
+export type AppLaunchServices = ActionTransport | Server.Client | KeyValueStore.KeyValueStore;
 
 /** Raised by `App.launch` when the document has no app root element. */
 export class StartRootMissing extends Data.TaggedError("StartRootMissing")<{
@@ -92,19 +93,19 @@ type ClientServicesCheck<RootServices, ClientServices> = [
     };
 
 /**
- * The Action Outbox over the client Layer's `KeyValueStore`, or over an
- * in-memory one when the client Layer provides none.
+ * The browser's one `KeyValueStore`, shared by persisted Resources and the
+ * Action Outbox: the client Layer's when it provides one, else Web Storage
+ * (`localStorage`), or memory where there is no Web Storage.
  */
-const outboxLayer = (options: Action.OutboxOptions = {}) =>
-  Layer.unwrap(
-    Effect.map(Effect.serviceOption(KeyValueStore.KeyValueStore), (store) =>
-      Option.isSome(store)
-        ? Action.outboxLayer(options).pipe(
-            Layer.provide(Layer.succeed(KeyValueStore.KeyValueStore)(store.value)),
-          )
-        : Action.outboxLayer(options).pipe(Layer.provide(KeyValueStore.layerMemory)),
-    ),
-  );
+const clientKeyValueStore = Layer.unwrap(
+  Effect.map(Effect.serviceOption(KeyValueStore.KeyValueStore), (store) =>
+    Option.isSome(store)
+      ? Layer.succeed(KeyValueStore.KeyValueStore)(store.value)
+      : typeof globalThis.localStorage === "undefined"
+        ? KeyValueStore.layerMemory
+        : KeyValueStore.layerStorage(() => globalThis.localStorage),
+  ),
+);
 
 /** Start apps: one definition, served by `createRequestHandler` and launched by `App.launch`. */
 export namespace App {
@@ -148,9 +149,9 @@ export namespace App {
     /**
      * Options for the Action Outbox that holds durable Action submissions
      * (`retry`; see `Action.outboxLayer`). The outbox persists to the
-     * client Layer's `KeyValueStore` (`effect/persistence`), e.g.
-     * `KeyValueStore.layerStorage(() => localStorage)`; without one, pending
-     * submissions last only as long as the page.
+     * browser's one `KeyValueStore` (`effect/persistence`), shared with
+     * persisted Resources: the client Layer's when it provides one, else
+     * `localStorage`.
      */
     readonly outbox?: Action.OutboxOptions;
   }
@@ -162,7 +163,7 @@ export namespace App {
    * `createRequestHandler(app, { server })` preloads `routes`, renders `root`
    * into the document, and serves `actions`; `App.launch(app)` builds the
    * browser runtime from `client` plus the action and RPC transports, restores
-   * the server's Resource and `collections` snapshot, and hydrates `root`.
+   * the server's Resource snapshot, and hydrates `root`.
    *
    * Keep it in a module both entries import: server-only code (`*.server.ts`
    * Layers and server-function implementations) goes to `createRequestHandler`.
@@ -172,7 +173,6 @@ export namespace App {
    * export const app = App.define({
    *   root: Root,
    *   routes,
-   *   collections: [Projects],
    *   actions: [RenameProject],
    *   client: ProjectApiLive,
    * });
@@ -188,14 +188,12 @@ export namespace App {
     config: {
       readonly root: Component<RootProps, never, RootServices>;
       readonly routes: Routes;
-      readonly collections?: ReadonlyArray<Collection.Any>;
       readonly actions?: ReadonlyArray<Actions>;
       readonly client?: Layer.Layer<ClientServices, ClientError>;
     } & ClientServicesCheck<RootServices, ClientServices>,
   ): AppDefinition<Routes, RootServices, Actions, ClientServices, ClientError> => ({
     root: config.root,
     routes: config.routes,
-    collections: config.collections ?? [],
     actions: config.actions ?? [],
     client: (config.client ?? Layer.empty) as Layer.Layer<ClientServices, ClientError>,
   });
@@ -246,16 +244,19 @@ export namespace App {
         const runtime = yield* Effect.acquireRelease(
           Effect.sync(() =>
             makeRuntime(
-              outboxLayer(options.outbox).pipe(
+              Action.outboxLayer(options.outbox).pipe(
                 Layer.provideMerge(
-                  Layer.mergeAll(
-                    app.client,
-                    makeActionTransportLayer({
-                      ...transport,
-                      actions: app.actions,
-                      collections: app.collections,
-                    }),
-                    browserRpc ? makeRpcClientLayer(transport) : Layer.empty,
+                  clientKeyValueStore.pipe(
+                    Layer.provideMerge(
+                      Layer.mergeAll(
+                        app.client,
+                        makeActionTransportLayer({
+                          ...transport,
+                          actions: app.actions,
+                        }),
+                        browserRpc ? makeRpcClientLayer(transport) : Layer.empty,
+                      ),
+                    ),
                   ),
                 ),
               ) as Layer.Layer<ClientServices | AppLaunchServices, ClientError>,
@@ -264,10 +265,7 @@ export namespace App {
           (owned) => owned.dispose.pipe(Effect.ignore({ log: true })),
         );
         const hydration = yield* runtime.provide(
-          hydrateFromDocument(globalThis.document, {
-            ...options.hydration,
-            collections: app.collections,
-          }),
+          hydrateFromDocument(globalThis.document, options.hydration),
         );
         const href = options.href ?? `${location.pathname}${location.search}`;
         // A code-split route component must be loaded before hydrating, so the

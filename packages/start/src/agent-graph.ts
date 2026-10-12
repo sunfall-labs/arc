@@ -1,6 +1,5 @@
 import type {
   StartAppGraphActionDiagnostics,
-  StartAppGraphCollectionDiagnostics,
   StartAppGraphRouteDiagnostics,
   StartAppGraphResourceFamilyDiagnostics,
   StartAppGraphResourceTagDiagnostics,
@@ -69,8 +68,7 @@ const actionNeedsAttention = (action: StartAppGraphActionDiagnostics): boolean =
   action.behavior.concurrency === "unknown";
 
 const routeNeedsAttention = (route: StartAppGraphRouteDiagnostics): boolean =>
-  route.preload === "present" &&
-  (route.preloadResources.status === "unknown" || route.preloadCollections.status === "unknown");
+  route.preload === "present" && route.preloadResources.status === "unknown";
 
 type StartAgentGraphFactRecord = Readonly<Record<string, unknown>>;
 
@@ -123,7 +121,6 @@ const routeFacts = (route: StartAppGraphRouteDiagnostics): StartAgentGraphFactRe
     searchSchema: route.searchSchema,
     preload: route.preload,
     preloadResources: route.preloadResources,
-    preloadCollections: route.preloadCollections,
   });
 
 const serverFunctionFacts = (
@@ -165,21 +162,6 @@ const resourceTagFacts = (tag: StartAppGraphResourceTagDiagnostics): StartAgentG
     keyed: tag.keyed,
   });
 
-const collectionFacts = (
-  collection: StartAppGraphCollectionDiagnostics,
-): StartAgentGraphFactRecord =>
-  startAgentGraphFacts({
-    name: collection.name,
-    readOnly: collection.readOnly,
-    outputSchema: collection.outputSchema,
-    initialData: collection.initialData,
-    indexes: collection.indexes,
-    load: collection.load,
-    policy: collection.policy,
-    ...(collection.sync === undefined ? {} : { sync: collection.sync }),
-    persistence: collection.persistence,
-  });
-
 const findingFacts = (
   finding: ReturnType<typeof createStartDiagnosticsReport>["findings"][number],
 ): StartAgentGraphFactRecord =>
@@ -214,7 +196,7 @@ const ownerModule = (owner: string): string => owner.split("#", 1)[0] ?? owner;
  * Projects Start app graph diagnostics into an agent-readable graph.
  *
  * The graph connects routes, endpoints, server functions, actions, resources,
- * collections, modules, and diagnostics findings so CLI and repair agents can
+ * modules, and diagnostics findings so CLI and repair agents can
  * query ownership and impact without parsing raw manifests.
  */
 export const createStartAgentGraph = (input: StartAgentGraphInput): StartAgentGraph => {
@@ -267,30 +249,6 @@ export const createStartAgentGraph = (input: StartAgentGraphInput): StartAgentGr
           from: routeNodeId,
           to: familyId,
           label: "preloads resource family",
-        });
-      }
-    }
-
-    if (route.preloadCollections.status === "declared") {
-      for (const collection of route.preloadCollections.collections) {
-        const collectionId = nodeId("collection", collection);
-        if (!nodes.has(collectionId)) {
-          addNode(nodes, {
-            id: collectionId,
-            kind: "Collection",
-            label: collection,
-            status: "known",
-            facts: startAgentGraphFacts({
-              name: collection,
-              source: "route preload declaration",
-            }),
-          });
-        }
-        addEdge(edges, {
-          kind: "PreloadsCollection",
-          from: routeNodeId,
-          to: collectionId,
-          label: "preloads collection",
         });
       }
     }
@@ -388,16 +346,6 @@ export const createStartAgentGraph = (input: StartAgentGraphInput): StartAgentGr
     });
   }
 
-  for (const collection of diagnostics.collectionDefinitions) {
-    addNode(nodes, {
-      id: nodeId("collection", collection.name),
-      kind: "Collection",
-      label: collection.name,
-      status: "known",
-      facts: collectionFacts(collection),
-    });
-  }
-
   report.findings.forEach((finding, index) => {
     const findingNodeId = nodeId("finding", `${index + 1}`);
     addNode(nodes, {
@@ -438,16 +386,13 @@ export const createStartAgentGraph = (input: StartAgentGraphInput): StartAgentGr
       actions: diagnostics.actionCount,
       resourceFamilies: diagnostics.resourceFamilies.length,
       resourceTags: diagnostics.resourceTags.length,
-      collections: diagnostics.collectionDefinitions.length,
       findings: findings.length,
     },
     selfReview: {
       status: report.status,
       policyClean: (input.diagnosticsPolicyViolations?.length ?? 0) === 0,
       wireComplete: diagnostics.missingSchemas.length === 0,
-      routePreloadsDeclared:
-        diagnostics.unknownRoutePreloadResources.length === 0 &&
-        diagnostics.unknownRoutePreloadCollections.length === 0,
+      routePreloadsDeclared: diagnostics.unknownRoutePreloadResources.length === 0,
       findingCount: findings.length,
     },
     nodes: nodeList,

@@ -15,16 +15,16 @@ That is the core difference.
 
 ## The Short Version
 
-| What teams reach for    | What it does well                      | Sunfall Arc's bet                                                                                                             |
-| ----------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| React / Solid           | Component model and reactive UI        | Keep fine-grained UI ergonomics, but attach async work to Effect scopes and runtime ownership.                                |
-| Foldkit                 | Model/message/update program loop      | Match the loop with `Program.define`, `Program.step`, and `Program.emit`, then run commands through the Arc runtime graph.    |
-| Next / Remix            | Full-stack routes, forms, server work  | Keep progressive enhancement, but make server contracts, schemas, request runtimes, and manifests explicit.                   |
-| TanStack Start / Router | Typed routes and full-stack wiring     | Add Schema-branded params, request-local Effect runtimes, app graph diagnostics, and stricter build gates.                    |
-| TanStack Query          | Async reads, retries, invalidation     | Replace cache keys with typed resources, semantic tags, Effect `Schedule`, hydration, and public lifecycle events.            |
-| TanStack DB             | Normalized local data and live queries | Keep collections and live queries, but make row state runtime-local and integrate persistence, sync, SSR, and devtools facts. |
-| Relay                   | Data graph discipline                  | Aim for graph-level discipline without requiring a GraphQL-only architecture.                                                 |
-| Jotai / state libraries | Small local reactive state             | Keep local signals, but connect streams, scopes, resources, actions, and tests through one runtime spine.                     |
+| What teams reach for    | What it does well                      | Sunfall Arc's bet                                                                                                          |
+| ----------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| React / Solid           | Component model and reactive UI        | Keep fine-grained UI ergonomics, but attach async work to Effect scopes and runtime ownership.                             |
+| Foldkit                 | Model/message/update program loop      | Match the loop with `Program.define`, `Program.step`, and `Program.emit`, then run commands through the Arc runtime graph. |
+| Next / Remix            | Full-stack routes, forms, server work  | Keep progressive enhancement, but make server contracts, schemas, request runtimes, and manifests explicit.                |
+| TanStack Start / Router | Typed routes and full-stack wiring     | Add Schema-branded params, request-local Effect runtimes, app graph diagnostics, and stricter build gates.                 |
+| TanStack Query          | Async reads, retries, invalidation     | Replace cache keys with typed resources, semantic tags, Effect `Schedule`, hydration, and public lifecycle events.         |
+| TanStack DB             | Normalized local data and live queries | Keep keyed rows and live queries, but put the rows on Resources so caching, persistence, sync, and SSR stay one copy.      |
+| Relay                   | Data graph discipline                  | Aim for graph-level discipline without requiring a GraphQL-only architecture.                                              |
+| Jotai / state libraries | Small local reactive state             | Keep local signals, but connect streams, scopes, resources, actions, and tests through one runtime spine.                  |
 
 ## Compared With TanStack Query
 
@@ -136,12 +136,8 @@ export const route = Route.define("/projects/:id", {
   search: Schema.Struct({
     tab: Schema.optional(Schema.Literals(["overview", "activity"])),
   }),
-  preloadResources: [ProjectById],
-  preloadCollections: [ProjectSummaries],
-  preload: ({ params }) =>
-    Effect.all([Resource.preload(ProjectById(params.id)), ProjectSummaries.preload()], {
-      discard: true,
-    }),
+  preloadResources: [ProjectById, ProjectSummaries],
+  preload: ({ params }) => Resource.preload([ProjectById(params.id), ProjectSummaries("all")]),
 });
 ```
 
@@ -149,7 +145,7 @@ The generated route file exposes the `routeById` map of route definitions
 (addressed with `Route.href(...)` like any definition), params-by-id,
 search-by-id, and href options. The Start app graph can
 then tell diagnostics and agents which route owns params, search, preload
-resources, collections, server functions, actions, schemas, and modules.
+resources, server functions, actions, schemas, and modules.
 
 That makes "what does this route touch?" a generated fact instead of an import
 hunt.
@@ -165,29 +161,30 @@ diagnostics.
 ## Compared With TanStack DB
 
 TanStack DB points at an important future: normalized local data with live
-queries, sync adapters, and optimistic local writes. Sunfall Arc's DB layer
-heads in the same direction, but plugs row state into the active Sunfall Arc
-runtime/resource store:
+queries, sync adapters, and optimistic local writes. Sunfall Arc keeps rows on
+the Resource that loads them, so there is no second store to keep in sync:
 
 ```ts
-export const ProjectSummaries = Collection.define({
-  name: "Projects.collection",
-  output: ProjectSummarySchema,
-  getKey: (project) => project.id,
-  indexes: {
-    status: (project) => project.status,
-    owner: (project) => project.owner,
+export const ProjectSummaries = Resource.define({
+  name: "Projects.summaries",
+  input: Schema.Literal("all"),
+  output: Schema.Array(ProjectSummary),
+  rows: {
+    key: (project) => project.id,
+    indexes: {
+      status: (project) => project.status,
+      owner: (project) => project.owner,
+    },
   },
-  sync: {
-    load: () => ProjectApi.use((api) => api.list()),
-  },
+  load: () => ProjectApi.use((api) => api.list()),
 });
 ```
 
-Collections can expose secondary indexes, optimistic rows patched by Actions,
-rollback on failure, persistence snapshots, sync adapters, live query diagnostics,
-and SSR hydration payloads. Because the state is runtime/request-local, tests
-and SSR requests do not accidentally share rows.
+The reader adds `get` and `index` lookups, Actions patch rows by key and roll
+back on failure, `rows.changes` applies a remote feed, `policy.persist` stores
+the value, and `Query.live` joins the rows of several Resources. The rows hydrate
+and cache as the Resource does, and because the store is runtime/request-local,
+tests and SSR requests do not accidentally share rows.
 
 ## Compared With Relay
 
@@ -199,7 +196,7 @@ The graph includes more than fetched fields:
 
 - routes and preload ownership;
 - resources and semantic tags;
-- collections and indexes;
+- keyed rows and indexes;
 - actions and invalidation behavior;
 - server functions and module boundaries;
 - schemas and missing schema diagnostics;
@@ -350,11 +347,11 @@ Sunfall Arc already has a few unusually useful proof points:
 - `pnpm verify` is the release gate for builds, runtime tests, type tests,
   example tests, example build, and leak scan.
 - Framework callbacks reject accidental `Promise` returns in type tests.
-- Resources and collections are scoped to the active runtime/request store.
+- Resources (and their rows) are scoped to the active runtime/request store.
 - Start server functions and actions produce deterministic manifests.
 - The app graph can drive diagnostics and agent-readable repair reports.
 - The example app proves SSR, streamed hydration, branded route params,
-  progressive form posts, validation, redirects, collections, optimistic
+  progressive form posts, validation, redirects, indexed rows, optimistic
   mutation, mocking through capabilities, and server-only leak scanning.
 
 ## Where The Incumbents Still Deserve Respect

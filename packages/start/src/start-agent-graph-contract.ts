@@ -10,7 +10,6 @@ export type { StartAgentGraphQueryKind } from "./start-agent-graph-vocabulary.js
 /** Semantic node families shown in Start diagnostics graphs and impact briefs. */
 export type StartAgentGraphNodeKind =
   | "Action"
-  | "Collection"
   | "Endpoint"
   | "Finding"
   | "Module"
@@ -43,7 +42,6 @@ export type StartAgentGraphEdgeKind =
   | "ClientImports"
   | "ExposesEndpoint"
   | "ImplementedBy"
-  | "PreloadsCollection"
   | "PreloadsResourceFamily"
   | "ReportsOn"
   | "ServerImports";
@@ -80,12 +78,11 @@ export interface StartAgentGraphSummary {
   readonly actions: number;
   readonly resourceFamilies: number;
   readonly resourceTags: number;
-  readonly collections: number;
   readonly findings: number;
 }
 
 /**
- * Agent-readable projection of Start routes, endpoints, resources, collections,
+ * Agent-readable projection of Start routes, endpoints, resources,
  * diagnostics findings, and repair relations.
  */
 export interface StartAgentGraph {
@@ -134,7 +131,6 @@ export interface StartAgentGraphQueryResult {
 /** Relation families used in impact dependency and may-affect lists. */
 export type StartAgentGraphImpactRelationKind =
   | "action"
-  | "collection"
   | "endpoint"
   | "finding"
   | "module"

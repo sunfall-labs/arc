@@ -1,11 +1,10 @@
 import { Component, RouterLink, RouterOutlet, RouterProvider, useRouter } from "@sunfall/arc-solid";
 import { Action, Resource, Route, Signal } from "@sunfall/arc-core";
-import type { Collection } from "@sunfall/arc-db";
-import { SolidDb } from "@sunfall/arc-solid-db";
 import { Cause, Effect } from "effect";
-import { For, Show, createEffect, onSettled } from "solid-js";
+import { For, Loading, Show, createEffect, onSettled } from "solid-js";
 import {
   ProjectById,
+  ProjectList,
   ProjectsRef,
   makeProjectId,
   makePresenceStream,
@@ -13,7 +12,6 @@ import {
   type ProjectId,
   type ProjectSummary,
 } from "./domain.js";
-import { ProjectSummaries } from "./project-collections.js";
 import { PresencePill } from "./ui.tsrx";
 import { routeById } from "./routeTree.gen.js";
 import { ProjectPage } from "./project-page.js";
@@ -22,8 +20,6 @@ import { FailureView, InlineFailure, ProjectSkeleton, statusLabel } from "./proj
 const HomeRoute = routeById.route_root;
 const ProjectsRoute = routeById.route_projects;
 const ProjectRoute = routeById.route_projects_$id;
-
-type ProjectSummaryRow = Collection.Row<ProjectSummary, ProjectId>;
 
 const initialPresence: PresenceEvent = {
   activeUsers: 4,
@@ -76,8 +72,16 @@ function ProjectIndexRouteView() {
 const ProjectRows = Component.define(
   "ProjectRows",
   function* (props: { readonly selectedId: ProjectId | undefined; readonly search: string }) {
-    const projects = yield* SolidDb.collection(ProjectSummaries);
-    const filteredProjects = (currentProjects: ReadonlyArray<ProjectSummaryRow>) => {
+    const projects = yield* Component.resource(ProjectList);
+    // A row is saving while a durable submission for its project (a rename or
+    // an advance) is pending in the Action Outbox: the Actions' own status,
+    // not a flag on the row. The server render has no outbox, so none are.
+    const outbox = yield* Action.outbox;
+    const saving = (id: ProjectId) =>
+      outbox.pending
+        .get()
+        .some((entry) => (entry.input as { readonly id?: unknown } | undefined)?.id === id);
+    const filteredProjects = (currentProjects: ReadonlyArray<ProjectSummary>) => {
       const query = props.search.trim().toLowerCase();
       if (query.length === 0) {
         return currentProjects;
@@ -89,31 +93,34 @@ const ProjectRows = Component.define(
         ),
       );
     };
-    const rows = () => filteredProjects(projects.rows());
-    // Rows are their own signal: `waiting` and `failure` only decide the chrome
-    // around them, so a refresh never remounts the list. A first load that
-    // fails throws to the boundary below instead.
-    const hasRows = () => projects.rows().length > 0 || !projects.waiting();
+    // The reader suspends the `<Loading>` on the first load only; after that
+    // `waiting` and `failure` decide the chrome, so a refresh never remounts
+    // the list. A first load that fails throws to the boundary below.
+    const rows = () => filteredProjects(projects("all"));
 
     return () => (
       <div class="projectList">
-        <Show when={hasRows()} fallback={<ProjectListSkeleton />}>
-          {/* Keyed by id: a refetch hands back new row objects, the same rows stay mounted. */}
+        <Loading fallback={<ProjectListSkeleton />}>
+          {/* Keyed by id: unchanged rows keep their identity across reloads. */}
           <For each={rows()} keyed={(project) => project.id}>
             {(project) => (
-              <ProjectRow project={project()} selected={project().id === props.selectedId} />
+              <ProjectRow
+                project={project()}
+                selected={project().id === props.selectedId}
+                saving={saving(project().id)}
+              />
             )}
           </For>
 
           <Show when={rows().length === 0}>
             <p class="emptyState">No projects match that filter.</p>
           </Show>
-        </Show>
 
-        <Show when={hasRows() && projects.waiting()}>
-          <p class="inlineStatus">Refreshing projects</p>
-        </Show>
-        <Show when={projects.failure()}>
+          <Show when={projects.waiting("all")}>
+            <p class="inlineStatus">Refreshing projects</p>
+          </Show>
+        </Loading>
+        <Show when={projects.failure("all")}>
           {(cause) => <InlineFailure error={Cause.squash(cause())} />}
         </Show>
       </div>
@@ -123,8 +130,6 @@ const ProjectRows = Component.define(
 
 const AppShell = Component.define("AppShell", function* () {
   const presence = yield* Component.stream("presence", makePresenceStream(), initialPresence);
-  // ProjectSummaries follows ProjectsRef, so refreshing the Resource refreshes
-  // the sidebar rows too.
   const refresh = yield* Component.callback("refresh", (id: ProjectId | undefined) =>
     Resource.invalidate(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef).pipe(Effect.ignore),
   );
@@ -219,12 +224,16 @@ const AppShell = Component.define("AppShell", function* () {
   };
 });
 
-function ProjectRow(props: { readonly project: ProjectSummaryRow; readonly selected: boolean }) {
+function ProjectRow(props: {
+  readonly project: ProjectSummary;
+  readonly selected: boolean;
+  readonly saving: boolean;
+}) {
   return (
     <RouterLink
       route={ProjectUiRoute}
       options={{ params: { id: props.project.id } }}
-      class={["projectRow", { selected: props.selected, syncing: !props.project.$synced }]}
+      class={["projectRow", { selected: props.selected, saving: props.saving }]}
     >
       <span class={`healthDot ${props.project.health}`} />
       <span class="projectRowMain">
@@ -235,7 +244,7 @@ function ProjectRow(props: { readonly project: ProjectSummaryRow; readonly selec
       </span>
       <span class="projectRowMeta">
         <span class="projectProgress">{props.project.progress}%</span>
-        <Show when={!props.project.$synced}>
+        <Show when={props.saving}>
           <span class="syncBadge">Saving</span>
         </Show>
       </span>

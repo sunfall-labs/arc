@@ -79,7 +79,6 @@
       "typeTest": "type-tests/core.test-d.ts",
       "sourceSurface": [
         "action-instance",
-        "action-optimistic",
         "action-submission",
         "app",
         "browser-router-history-adapter",
@@ -93,6 +92,7 @@
         "resource",
         "resource-failure-snapshot",
         "resource-registry",
+        "resource-rows",
         "resource-runtime",
         "resource-snapshot-codec",
         "resource-store",
@@ -115,37 +115,9 @@
       "source": "packages/db/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/db.test-d.ts",
-      "sourceSurface": [
-        "collection-errors",
-        "collection-index-materialization",
-        "collection-snapshot-codec",
-        "query-builder",
-        "query-plan"
-      ],
-      "requiredTypeTestImports": [
-        "Collection",
-        "CollectionRowKeyChanged",
-        "CollectionRowNotFound",
-        "CollectionSnapshotCodecError",
-        "Query",
-        "QueryEvaluationError",
-        "ReadonlyCollectionMutation",
-        "UnknownCollectionIndex",
-        "UnsupportedLiveQuery"
-      ],
+      "sourceSurface": ["query-builder", "query-plan"],
+      "requiredTypeTestImports": ["Query", "QueryEvaluationError", "UnsupportedLiveQuery"],
       "typeTestReferences": [
-        "Collection.Any",
-        "Collection.Definition",
-        "Collection.Error",
-        "Collection.Requirements",
-        "Collection.Options",
-        "Collection.Sync",
-        "Collection.SyncAdapter",
-        "Collection.Change",
-        "Collection.WriteOptions",
-        "Collection.LiveQueryOptions",
-        "Collection.liveQuery",
-        "Collection.define",
         "Query.Factory",
         "Query.Live",
         "Query.live",
@@ -156,8 +128,7 @@
         "Query.GroupKey",
         "Query.JoinKey",
         "Query.SortDirection",
-        "Query.SortValue",
-        "Collection.PersistenceConfig"
+        "Query.SortValue"
       ]
     },
     {
@@ -168,15 +139,7 @@
       "source": "packages/db/src/internal.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/db-internal.test-d.ts",
-      "sourceSurface": [
-        "collection-contract",
-        "collection-ids",
-        "collection-preload",
-        "collection-reactive-binding",
-        "collection-registry",
-        "collection-runtime",
-        "query-builder"
-      ]
+      "sourceSurface": ["query-builder", "query-source-adapter"]
     },
     {
       "package": "@sunfall/arc-devtools",
@@ -196,7 +159,6 @@
         "DevtoolsRuntimeEvent",
         "DevtoolsSnapshot",
         "DevtoolsStartAppGraphSchemaCoverage",
-        "DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry",
         "DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry",
         "DevtoolsStore",
         "DevtoolsStoreOptions",
@@ -230,22 +192,6 @@
       ]
     },
     {
-      "package": "@sunfall/arc-solid-db",
-      "export": ".",
-      "import": "@sunfall/arc-solid-db",
-      "source": "packages/solid-db/src/index.ts",
-      "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/solid-db.test-d.ts",
-      "sourceSurface": ["solid-db"],
-      "requiredTypeTestImports": ["SolidDb"],
-      "typeTestReferences": [
-        "SolidDb.CollectionBindingOptions",
-        "SolidDb.CollectionHandle",
-        "SolidDb.LiveQueryBindingOptions",
-        "SolidDb.LiveQueryHandle"
-      ]
-    },
-    {
       "package": "@sunfall/arc-start",
       "export": ".",
       "import": "@sunfall/arc-start",
@@ -259,7 +205,6 @@
         "start-action-request-codec",
         "start-app",
         "start-app-request-handler",
-        "start-collection-resolution",
         "start-document",
         "start-fetch",
         "start-request-handler",

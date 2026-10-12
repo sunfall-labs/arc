@@ -207,9 +207,6 @@ importers:
       '@sunfall/arc-solid':
         specifier: workspace:*
         version: link:../../packages/solid
-      '@sunfall/arc-solid-db':
-        specifier: workspace:*
-        version: link:../../packages/solid-db
       '@sunfall/arc-start':
         specifier: workspace:*
         version: link:../../packages/start
@@ -277,27 +274,9 @@ importers:
       '@sunfall/arc-core':
         specifier: workspace:*
         version: link:../core
-      effect:
-        specifier: 4.0.3
-        version: 4.0.3
-      solid-js:
-        specifier: 2.0.0-rc.14
-        version: 2.0.0-rc.14
-
-  packages/solid-db:
-    dependencies:
-      '@solidjs/web':
-        specifier: 2.0.0-rc.14
-        version: 2.0.0-rc.14(solid-js@2.0.0-rc.14)
-      '@sunfall/arc-core':
-        specifier: workspace:*
-        version: link:../core
       '@sunfall/arc-db':
         specifier: workspace:*
         version: link:../db
-      '@sunfall/arc-solid':
-        specifier: workspace:*
-        version: link:../solid
       effect:
         specifier: 4.0.3
         version: 4.0.3
@@ -313,9 +292,6 @@ importers:
       '@sunfall/arc-core':
         specifier: workspace:*
         version: link:../core
-      '@sunfall/arc-db':
-        specifier: workspace:*
-        version: link:../db
       '@sunfall/arc-solid':
         specifier: workspace:*
         version: link:../solid

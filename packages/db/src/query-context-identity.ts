@@ -1,6 +1,6 @@
+import type { Resource } from "@sunfall/arc-core";
 import { stableStringify } from "@sunfall/arc-core/internal";
-import type { CollectionKey } from "./collection-contract.js";
-import type { AnyCollectionRow, AnyQueryContext } from "./query-plan.js";
+import type { AnyQueryContext, AnyQueryRow } from "./query-plan.js";
 
 declare const QueryContextIdentityBrand: unique symbol;
 
@@ -21,10 +21,10 @@ const makeQueryContextIdentity = (value: unknown): QueryContextIdentity =>
 
 export const querySourceContextIdentity = (
   alias: string,
-  key: CollectionKey,
+  key: Resource.RowKey,
 ): QueryContextIdentity => makeQueryContextIdentity([alias, typeof key, key]);
 
-export const queryCollectionRowIdentity = (key: CollectionKey): QueryContextIdentity =>
+export const queryRowIdentity = (key: Resource.RowKey): QueryContextIdentity =>
   makeQueryContextIdentity([typeof key, key]);
 
 export const mergeQueryContextIdentities = (
@@ -32,10 +32,18 @@ export const mergeQueryContextIdentities = (
   right: QueryContextIdentity | string,
 ): QueryContextIdentity => makeQueryContextIdentity([left, right]);
 
-const rowKey = (value: unknown): CollectionKey | undefined =>
-  typeof value === "object" && value !== null && "$key" in value
-    ? (value as { readonly $key: CollectionKey }).$key
-    : undefined;
+/** Keys of source row objects, recorded as sources are read. */
+const rowKeys = new WeakMap<object, Resource.RowKey>();
+
+/** Records the key `rows.key` gave a source row, for stable order tie-breaks. */
+export const recordQueryRowKey = (row: unknown, key: Resource.RowKey): void => {
+  if (typeof row === "object" && row !== null) {
+    rowKeys.set(row, key);
+  }
+};
+
+const rowKey = (value: unknown): Resource.RowKey | undefined =>
+  typeof value === "object" && value !== null ? rowKeys.get(value) : undefined;
 
 export const queryContextOrderIdentity = (
   aliases: ReadonlyArray<string>,
@@ -65,10 +73,11 @@ export const queryContextIdentityOf = (context: unknown): QueryContextIdentity |
 
 export const querySourceContext = (
   alias: string,
-  row: AnyCollectionRow,
+  row: AnyQueryRow,
+  key: Resource.RowKey,
 ): AnyQueryContext & QueryContextIdentityRecord => ({
   [alias]: row,
-  [queryContextIdentitySymbol]: querySourceContextIdentity(alias, row.$key),
+  [queryContextIdentitySymbol]: querySourceContextIdentity(alias, key),
 });
 
 export const mergeQueryContextRecords = (

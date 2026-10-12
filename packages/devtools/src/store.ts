@@ -3,7 +3,6 @@ import { Timeline, type Action, type Resource } from "@sunfall/arc-core";
 import { Effect, Option } from "effect";
 import { DevtoolsActionInvalidationPlanConflict } from "./devtools-contract.js";
 import type {
-  DevtoolsCollectionStoreEvent,
   DevtoolsInvalidationPlan,
   DevtoolsRecordActionStateOptions,
   DevtoolsRequestTrace,
@@ -460,13 +459,6 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
         event,
       });
     });
-  const recordCollectionEventEffect = (event: DevtoolsCollectionStoreEvent) =>
-    Effect.sync(() => {
-      recordRuntimeEvent({
-        _tag: "CollectionStoreEvent",
-        event,
-      });
-    });
   const recordTimelineEntryEffect = (entry: Timeline.Entry) =>
     Effect.sync(() => {
       recordTimelineEntry(entry);
@@ -516,7 +508,6 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
     recordRoutePlan: recordRoutePlanEffect,
     recordSerializedRoutePlan: recordSerializedRoutePlanEffect,
     recordResourceEvent: recordResourceEventEffect,
-    recordCollectionEvent: recordCollectionEventEffect,
     recordTimelineEntry: recordTimelineEntryEffect,
     trackTimeline: trackTimelineEffect,
     recordRuntimeEvent: recordRuntimeEventEffect,

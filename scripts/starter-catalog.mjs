@@ -98,7 +98,7 @@ export const starterCatalog = [
         "src/domain.ts",
         "src/sunfall-arc-start-virtual.d.ts",
         "src/main.tsx",
-        "src/project-collections.ts",
+        "src/project-actions.ts",
         "src/project-error.ts",
         "src/project-page.tsx",
         "src/project-views.tsx",

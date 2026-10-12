@@ -127,40 +127,6 @@ export type DevtoolsRecordActionStateOptions = {
     }
 );
 
-/** Collection event DTO mirrored from the DB Collection Store for Devtools panels. */
-export type DevtoolsCollectionStoreEvent =
-  | {
-      readonly _tag: "CollectionLoaded";
-      readonly collection: string;
-      readonly count: number;
-      readonly updatedAt: number;
-    }
-  | { readonly _tag: "CollectionLoadFailure"; readonly collection: string; readonly error: unknown }
-  | {
-      readonly _tag: "CollectionHydrated";
-      readonly collection: string;
-      readonly count: number;
-      readonly updatedAt: number;
-    }
-  | {
-      readonly _tag: "CollectionPersisted";
-      readonly collection: string;
-      readonly key: string;
-      readonly count: number;
-    }
-  | {
-      readonly _tag: "CollectionRestored";
-      readonly collection: string;
-      readonly key: string;
-      readonly count: number;
-    }
-  | {
-      readonly _tag: "CollectionChangeFeedFailure";
-      readonly collection: string;
-      readonly error: unknown;
-    }
-  | { readonly _tag: "CollectionWritten"; readonly collection: string; readonly mutations: number };
-
 /** One signal change inside a detached Timeline commit. */
 export interface DevtoolsTimelineChange {
   /** The signal's `Signal.make` name. */
@@ -249,16 +215,6 @@ export interface DevtoolsRequestTraceResource {
   readonly state?: string;
 }
 
-/** Collection fact touched, loaded, or serialized during one request. */
-export interface DevtoolsRequestTraceCollection {
-  readonly name: string;
-  /** Collection load `AsyncResult` tag. */
-  readonly state?: string;
-  /** Whether a collection load was in flight. */
-  readonly waiting?: boolean;
-  readonly eventCount?: number;
-}
-
 /** Server function call observed during one request. */
 export interface DevtoolsRequestTraceServerFunction {
   readonly name: string;
@@ -327,7 +283,6 @@ export interface DevtoolsRequestTrace {
   readonly services: ReadonlyArray<string>;
   readonly routePlan?: DevtoolsRoutePlan;
   readonly resources: ReadonlyArray<DevtoolsRequestTraceResource>;
-  readonly collections: ReadonlyArray<DevtoolsRequestTraceCollection>;
   readonly serverFunctions: ReadonlyArray<DevtoolsRequestTraceServerFunction>;
   readonly actions: ReadonlyArray<DevtoolsRequestTraceAction>;
   readonly fibers: ReadonlyArray<DevtoolsRequestTraceFiber>;
@@ -349,12 +304,6 @@ export type DevtoolsRuntimeEvent =
       readonly sequence?: number;
       readonly at?: number;
       readonly event: Resource.StoreEvent;
-    }
-  | {
-      readonly _tag: "CollectionStoreEvent";
-      readonly sequence?: number;
-      readonly at?: number;
-      readonly event: DevtoolsCollectionStoreEvent;
     }
   | {
       readonly _tag: "TimelineCommit";
@@ -450,8 +399,8 @@ export interface DevtoolsStoreOptions {
  * Store returned by `makeDevtoolsStore`.
  *
  * Every method returns an Effect: snapshot reads/writes, app graph
- * diagnostics, invalidation plans, action state, route plans, resource and
- * collection events, Timeline commits, request traces, summaries,
+ * diagnostics, invalidation plans, action state, route plans, resource
+ * events, Timeline commits, request traces, summaries,
  * panels, and causal graphs.
  * Values are copied or projected before storage so panel consumers do not
  * mutate live framework state. Fact-recording methods return the retained
@@ -491,8 +440,6 @@ export interface DevtoolsStore {
   readonly recordSerializedRoutePlan: (plan: DevtoolsRoutePlan) => Effect.Effect<number>;
   /** Record a Core Resource Store event as a runtime event. */
   readonly recordResourceEvent: (event: Resource.StoreEvent) => Effect.Effect<void>;
-  /** Record a DB Collection Store event as a runtime event. */
-  readonly recordCollectionEvent: (event: DevtoolsCollectionStoreEvent) => Effect.Effect<void>;
   /** Record one Core `Timeline` entry as a runtime event. */
   readonly recordTimelineEntry: (entry: Timeline.Entry) => Effect.Effect<void>;
   /** Records a running `Timeline` recording's retained and future entries until the scope closes. */
@@ -538,19 +485,11 @@ export type DevtoolsStartAppGraphActionBehaviorPresence = "present" | "absent" |
 export type DevtoolsStartAppGraphActionConcurrency = "latest" | "parallel" | "exhaust" | "unknown";
 /** Route preload-resource diagnostic status. */
 export type DevtoolsStartAppGraphRoutePreloadResourceStatus = "declared" | "none" | "unknown";
-/** Route preload-collection diagnostic status. */
-export type DevtoolsStartAppGraphRoutePreloadCollectionStatus = "declared" | "none" | "unknown";
 
 /** Resource preload declarations projected from Start route diagnostics. */
 export interface DevtoolsStartAppGraphRoutePreloadResources {
   readonly status: DevtoolsStartAppGraphRoutePreloadResourceStatus;
   readonly families: readonly string[];
-}
-
-/** Collection preload declarations projected from Start route diagnostics. */
-export interface DevtoolsStartAppGraphRoutePreloadCollections {
-  readonly status: DevtoolsStartAppGraphRoutePreloadCollectionStatus;
-  readonly collections: readonly string[];
 }
 
 /** Route module diagnostics projected from the Start app graph. */
@@ -569,7 +508,6 @@ export interface DevtoolsStartAppGraphRouteModuleDiagnostics {
   readonly searchSchema: DevtoolsStartAppGraphFeaturePresence;
   readonly preload: DevtoolsStartAppGraphFeaturePresence;
   readonly preloadResources: DevtoolsStartAppGraphRoutePreloadResources;
-  readonly preloadCollections: DevtoolsStartAppGraphRoutePreloadCollections;
 }
 
 /** Wire schema completeness diagnostics for one action/server-function contract. */
@@ -659,40 +597,6 @@ export interface DevtoolsStartAppGraphResourceTagDiagnostics {
   readonly keyed: boolean;
 }
 
-/** Collection definition diagnostics projected for Devtools panels. */
-export interface DevtoolsStartAppGraphCollectionDiagnostics {
-  readonly name: string;
-  /**
-   * True for derived/live-query collections that reject direct writes.
-   *
-   * Optional only for legacy Start app-graph DTO input; devtools normalization
-   * fills missing values as `false`.
-   */
-  readonly readOnly?: boolean;
-  readonly outputSchema: boolean;
-  readonly initialData: boolean;
-  readonly indexes?: readonly {
-    readonly name: string;
-    readonly unique: boolean;
-  }[];
-  readonly load: boolean;
-  readonly policy: {
-    readonly retry: boolean;
-  };
-  readonly sync?: {
-    readonly adapter: string;
-  };
-  readonly persistence: {
-    readonly enabled: boolean;
-    readonly key?: string;
-    readonly hydrate: boolean;
-    readonly restoreOnPreload: boolean;
-    readonly loadAfterRestore: boolean;
-    readonly persistOnLoad: boolean;
-    readonly persistOnWrite: boolean;
-  };
-}
-
 /** Route whose resource preload policy remains unknown after app graph analysis. */
 export interface DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry {
   readonly kind: "route";
@@ -704,22 +608,11 @@ export interface DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry {
   readonly preloadResources: DevtoolsStartAppGraphRoutePreloadResources;
 }
 
-/** Route whose collection preload policy remains unknown after app graph analysis. */
-export interface DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry {
-  readonly kind: "route";
-  readonly routeId: string;
-  readonly routePath: string;
-  readonly moduleId: string;
-  readonly filePath: string;
-  readonly preload: DevtoolsStartAppGraphFeaturePresence;
-  readonly preloadCollections: DevtoolsStartAppGraphRoutePreloadCollections;
-}
-
 /**
  * Runtime-aware Start app graph diagnostics projected for devtools.
  *
  * This summarizes generated route modules, server functions, actions,
- * resources, collections, endpoint paths, module boundaries, schema coverage,
+ * resources, endpoint paths, module boundaries, schema coverage,
  * and policy unknowns. It is a diagnostic data contract, not the executable app
  * graph itself.
  */
@@ -734,7 +627,6 @@ export interface DevtoolsStartAppGraphDiagnostics {
   readonly actionModules: readonly DevtoolsStartAppGraphActionDiagnostics[];
   readonly resourceFamilies: readonly DevtoolsStartAppGraphResourceFamilyDiagnostics[];
   readonly resourceTags: readonly DevtoolsStartAppGraphResourceTagDiagnostics[];
-  readonly collectionDefinitions: readonly DevtoolsStartAppGraphCollectionDiagnostics[];
   readonly serverOnlyModules: readonly string[];
   readonly browserClientModules: readonly string[];
   readonly rpcPath: string;
@@ -745,7 +637,6 @@ export interface DevtoolsStartAppGraphDiagnostics {
   };
   readonly missingSchemas: readonly DevtoolsStartAppGraphMissingSchema[];
   readonly unknownRoutePreloadResources: readonly DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry[];
-  readonly unknownRoutePreloadCollections: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[];
 }
 
 /** Stable resource reference used by summaries, routes, and invalidation plans. */
@@ -870,8 +761,6 @@ export interface DevtoolsSummaryRequestTrace {
   readonly serviceCount: number;
   /** Resource refs touched by request preload/render work. */
   readonly resourceCount: number;
-  /** Collection definitions touched by request preload/render work. */
-  readonly collectionCount: number;
   /** Server functions invoked during this request. */
   readonly serverFunctionCount: number;
   /** Actions invoked during this request. */
@@ -929,10 +818,6 @@ export interface DevtoolsSummaryRuntimeEvent {
         readonly id: string;
       }
     | {
-        readonly kind: "Collection";
-        readonly id: string;
-      }
-    | {
         readonly kind: "Program";
         readonly id: string;
       }
@@ -972,7 +857,6 @@ export type DevtoolsCausalNodeKind =
   | "RoutePlan"
   | "Resource"
   | "ResourceFamily"
-  | "Collection"
   | "Program"
   | "Action"
   | "InvalidationPlan"
@@ -988,8 +872,8 @@ export type DevtoolsCausalNodeKind =
  * Stable relationship categories in the Devtools causal graph.
  *
  * `Records` links request traces to observed facts. `Matches` links route
- * plans to matched routes. `Preloads` and `Hydrates` explain route/resource or
- * route/collection loading. `Observes` links runtime events to the facts they
+ * plans to matched routes. `Preloads` and `Hydrates` explain route/resource
+ * loading. `Observes` links runtime events to the facts they
  * report. `Covers` and `MissingSchema` describe schema diagnostics, while
  * `UsesEndpoint` and `UsesModule` describe app graph structure.
  */
@@ -1052,7 +936,6 @@ export interface DevtoolsSummary {
     readonly actionCount: number;
     readonly resourceFamilyCount: number;
     readonly resourceTagCount: number;
-    readonly collectionDefinitionCount: number;
     readonly runtimeResourceCount: number;
     readonly runtimeActionCount: number;
     readonly invalidationPlanCount: number;
@@ -1061,7 +944,6 @@ export interface DevtoolsSummary {
     readonly runtimeEventCount: number;
     readonly missingSchemaCount: number;
     readonly unknownRoutePreloadResourcesCount: number;
-    readonly unknownRoutePreloadCollectionsCount: number;
     readonly notFoundRoutePlanCount: number;
     readonly causalNodeCount: number;
     readonly causalEdgeCount: number;
@@ -1074,7 +956,6 @@ export interface DevtoolsSummary {
           readonly paths: readonly string[];
           readonly modules: readonly DevtoolsStartAppGraphRouteModuleDiagnostics[];
           readonly unknownPreloadResources: readonly DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry[];
-          readonly unknownPreloadCollections: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[];
         };
         readonly serverFunctions: {
           readonly count: number;
@@ -1109,10 +990,6 @@ export interface DevtoolsSummary {
           readonly tagCount: number;
           readonly families: readonly DevtoolsStartAppGraphResourceFamilyDiagnostics[];
           readonly tags: readonly DevtoolsStartAppGraphResourceTagDiagnostics[];
-        };
-        readonly collections: {
-          readonly definitionCount: number;
-          readonly definitions: readonly DevtoolsStartAppGraphCollectionDiagnostics[];
         };
         readonly endpoints: {
           readonly rpc: string;
@@ -1183,7 +1060,6 @@ export type DevtoolsPanelId =
   | "resources"
   | "actions"
   | "programs"
-  | "collections"
   | "requests"
   | "diagnostics"
   | "causal-graph";

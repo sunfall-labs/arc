@@ -14,9 +14,6 @@ export const projectConsoleStartOptions = {
       routePreloadResources: {
         requireDeclaredForPreload: true,
       },
-      routePreloadCollections: {
-        requireDeclaredForPreload: true,
-      },
     },
   },
 } as const;

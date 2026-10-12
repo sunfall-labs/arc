@@ -101,7 +101,16 @@ const resourceFamilyDiagnostics = (family: AnyResourceFamily): ResourceFamilyDia
       ...(policy?.staleFor === undefined ? {} : { staleFor: policy.staleFor }),
       ...(policy?.gcFor === undefined ? {} : { gcFor: policy.gcFor }),
       retry: policy?.retry !== undefined,
+      ...(policy?.persist === undefined ? {} : { persist: policy.persist }),
     },
+    ...(family.options.rows === undefined
+      ? {}
+      : {
+          rows: {
+            indexes: Object.keys(family.options.rows.indexes ?? {}).sort(),
+            changes: family.options.rows.changes !== undefined,
+          },
+        }),
   };
 };
 

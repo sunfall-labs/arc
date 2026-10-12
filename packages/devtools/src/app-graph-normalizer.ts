@@ -1,12 +1,9 @@
 import type {
   DevtoolsStartAppGraphActionDiagnostics,
-  DevtoolsStartAppGraphCollectionDiagnostics,
   DevtoolsStartAppGraphDiagnostics,
   DevtoolsStartAppGraphMissingSchema,
   DevtoolsStartAppGraphRouteModuleDiagnostics,
-  DevtoolsStartAppGraphRoutePreloadCollections,
   DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry,
-  DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry,
 } from "./devtools-contract.js";
 
 const copyStringArray = (values: readonly string[]): readonly string[] => [...values];
@@ -21,32 +18,6 @@ const missingWireSchemas = (
   ...(wire.outputSchema ? ([] as const) : (["output"] as const)),
   ...(wire.errorSchema ? ([] as const) : (["error"] as const)),
 ];
-
-const defaultRoutePreloadCollections = (): DevtoolsStartAppGraphRoutePreloadCollections => ({
-  status: "unknown",
-  collections: [],
-});
-
-const hasRouteModulePreloadCollections = (
-  routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics,
-): boolean => Object.prototype.hasOwnProperty.call(routeModule, "preloadCollections");
-
-const routeModuleIdentity = (
-  routeModule: Pick<DevtoolsStartAppGraphRouteModuleDiagnostics, "routeId" | "moduleId">,
-): string => `${routeModule.routeId}\u0000${routeModule.moduleId}`;
-
-/** Normalizes route-module collection preload diagnostics for legacy app graph DTOs. */
-export const normalizeRouteModulePreloadCollections = (
-  routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics,
-): DevtoolsStartAppGraphRoutePreloadCollections => {
-  const preloadCollections =
-    (routeModule as { readonly preloadCollections?: DevtoolsStartAppGraphRoutePreloadCollections })
-      .preloadCollections ?? defaultRoutePreloadCollections();
-  return {
-    status: preloadCollections.status,
-    collections: [...preloadCollections.collections],
-  };
-};
 
 const copyAppGraphSchemaCoverage = (
   modules: readonly {
@@ -95,7 +66,6 @@ const normalizeAppGraphRouteModule = (
       status: routeModule.preloadResources.status,
       families: [...routeModule.preloadResources.families],
     },
-    preloadCollections: normalizeRouteModulePreloadCollections(routeModule),
   };
 };
 
@@ -134,67 +104,6 @@ const copyAppGraphResourceFamily = (
     retry: family.policy.retry,
   },
 });
-
-const normalizeAppGraphCollection = (
-  collection: DevtoolsStartAppGraphCollectionDiagnostics,
-): DevtoolsStartAppGraphCollectionDiagnostics => ({
-  name: collection.name,
-  readOnly: collection.readOnly === true,
-  outputSchema: collection.outputSchema,
-  initialData: collection.initialData,
-  ...(collection.indexes === undefined
-    ? {}
-    : {
-        indexes: collection.indexes.map((index) => ({
-          name: index.name,
-          unique: index.unique,
-        })),
-      }),
-  load: collection.load,
-  policy: { ...collection.policy },
-  ...(collection.sync === undefined ? {} : { sync: { ...collection.sync } }),
-  persistence: { ...collection.persistence },
-});
-
-/** Returns detached collection-definition diagnostics with legacy defaults filled in. */
-export const normalizeAppGraphCollectionDefinitions = (
-  appGraph: DevtoolsStartAppGraphDiagnostics,
-): readonly DevtoolsStartAppGraphCollectionDiagnostics[] =>
-  (
-    (
-      appGraph as {
-        readonly collectionDefinitions?: readonly DevtoolsStartAppGraphCollectionDiagnostics[];
-      }
-    ).collectionDefinitions ?? []
-  ).map(normalizeAppGraphCollection);
-
-/** Derives unknown route collection-preload diagnostics from normalized route modules. */
-export const normalizeAppGraphUnknownRoutePreloadCollections = (
-  appGraph: DevtoolsStartAppGraphDiagnostics,
-  routeModulesWithPreloadCollections: ReadonlySet<string> = new Set(
-    appGraph.routeModules.filter(hasRouteModulePreloadCollections).map(routeModuleIdentity),
-  ),
-): readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[] => {
-  return appGraph.routeModules
-    .filter(
-      (routeModule) =>
-        routeModulesWithPreloadCollections.has(routeModuleIdentity(routeModule)) &&
-        routeModule.preload === "present" &&
-        routeModule.preloadCollections.status === "unknown",
-    )
-    .map((routeModule) => ({
-      kind: "route" as const,
-      routeId: routeModule.routeId,
-      routePath: routeModule.routePath,
-      moduleId: routeModule.moduleId,
-      filePath: routeModule.filePath,
-      preload: routeModule.preload,
-      preloadCollections: {
-        status: routeModule.preloadCollections.status,
-        collections: [...routeModule.preloadCollections.collections],
-      },
-    }));
-};
 
 const normalizeAppGraphUnknownRoutePreloadResources = (
   appGraph: DevtoolsStartAppGraphDiagnostics,
@@ -270,18 +179,9 @@ export const normalizeDevtoolsAppGraphDiagnostics = (
   appGraph: DevtoolsStartAppGraphDiagnostics,
   options: NormalizeDevtoolsAppGraphDiagnosticsOptions = {},
 ): DevtoolsStartAppGraphDiagnostics => {
-  const routeModulesWithPreloadCollections = new Set(
-    appGraph.routeModules.filter(hasRouteModulePreloadCollections).map(routeModuleIdentity),
-  );
   const routeModules = appGraph.routeModules.map(normalizeAppGraphRouteModule);
   const serverFunctionModules = appGraph.serverFunctionModules.map(copyAppGraphServerFunction);
   const actionModules = appGraph.actionModules.map(copyAppGraphAction);
-  const suppliedUnknownRoutePreloadCollections =
-    (
-      appGraph as {
-        readonly unknownRoutePreloadCollections?: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[];
-      }
-    ).unknownRoutePreloadCollections ?? [];
   const suppliedUnknownRoutePreloadResources =
     (
       appGraph as {
@@ -302,7 +202,6 @@ export const normalizeDevtoolsAppGraphDiagnostics = (
       name: tag.name,
       keyed: tag.keyed,
     })),
-    collectionDefinitions: normalizeAppGraphCollectionDefinitions(appGraph),
     serverOnlyModules: copyStringArray(appGraph.serverOnlyModules),
     browserClientModules: copyStringArray(appGraph.browserClientModules),
     rpcPath: appGraph.rpcPath,
@@ -313,7 +212,6 @@ export const normalizeDevtoolsAppGraphDiagnostics = (
     },
     missingSchemas: missingSchemasForModules(serverFunctionModules, actionModules),
     unknownRoutePreloadResources: suppliedUnknownRoutePreloadResources,
-    unknownRoutePreloadCollections: suppliedUnknownRoutePreloadCollections,
   };
 
   return {
@@ -332,22 +230,5 @@ export const normalizeDevtoolsAppGraphDiagnostics = (
           },
         }))
       : normalizeAppGraphUnknownRoutePreloadResources(normalizedAppGraph),
-    unknownRoutePreloadCollections: options.preserveDerivedPreloadFacts
-      ? suppliedUnknownRoutePreloadCollections.map((entry) => ({
-          kind: "route" as const,
-          routeId: entry.routeId,
-          routePath: entry.routePath,
-          moduleId: entry.moduleId,
-          filePath: entry.filePath,
-          preload: entry.preload,
-          preloadCollections: {
-            status: entry.preloadCollections.status,
-            collections: [...entry.preloadCollections.collections],
-          },
-        }))
-      : normalizeAppGraphUnknownRoutePreloadCollections(
-          normalizedAppGraph,
-          routeModulesWithPreloadCollections,
-        ),
   };
 };

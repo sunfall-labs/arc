@@ -1,8 +1,6 @@
 import { Cause, Effect, Exit, Fiber, PubSub, Schema, Scope } from "effect";
 import { describe, expect, it } from "vitest";
 import { Action, makeRuntime, Program, Resource, Route, Signal, Timeline } from "@sunfall/arc-core";
-import { Collection } from "@sunfall/arc-db";
-import { activeCollectionStore } from "@sunfall/arc-db/internal";
 import {
   bootDevtoolsPanels,
   DevtoolsActionInvalidationPlanConflict,
@@ -201,7 +199,6 @@ describe("devtools invalidation plans", () => {
           },
           services: [],
           resources: [],
-          collections: [],
           serverFunctions: [],
           actions: [],
           fibers: [],
@@ -484,7 +481,6 @@ describe("devtools invalidation plans", () => {
         },
         services: [],
         resources: [],
-        collections: [],
         serverFunctions: [],
         actions: [
           {
@@ -847,7 +843,6 @@ describe("devtools invalidation plans", () => {
         routePlanCount: 1,
         missingSchemaCount: 2,
         unknownRoutePreloadResourcesCount: 0,
-        unknownRoutePreloadCollectionsCount: 0,
         notFoundRoutePlanCount: 0,
       },
       graph: {
@@ -985,7 +980,6 @@ describe("devtools invalidation plans", () => {
       },
       services: [],
       resources: [],
-      collections: [],
       serverFunctions: [],
       actions: [],
       fibers: [],
@@ -1600,85 +1594,6 @@ describe("devtools invalidation plans", () => {
     expectNoDevtoolsLifecycleListeners(listeners);
   });
 
-  it("renders legacy app graph route modules without preload collection diagnostics", () => {
-    const legacyRouteModule = { ...appGraphDiagnostics.routeModules[0]! };
-    delete (legacyRouteModule as { preloadCollections?: unknown }).preloadCollections;
-    const panels = describeDevtoolsPanels({
-      appGraph: {
-        ...appGraphDiagnostics,
-        routeModules: [
-          legacyRouteModule as DevtoolsStartAppGraphDiagnostics["routeModules"][number],
-        ],
-      },
-    });
-
-    expect(panels.panels.find((panel) => panel.id === "app-graph")?.items[0]).toMatchObject({
-      severity: "warning",
-      metrics: expect.arrayContaining([
-        {
-          label: "preload collections",
-          value: "unknown",
-        },
-      ]),
-    });
-  });
-
-  it("normalizes legacy app graph collection diagnostics across store, panels, and causal graph", () => {
-    const legacyRouteModule = { ...appGraphDiagnostics.routeModules[0]! };
-    delete (legacyRouteModule as { preloadCollections?: unknown }).preloadCollections;
-    const legacyAppGraph = {
-      ...appGraphDiagnostics,
-      routeModules: [legacyRouteModule as DevtoolsStartAppGraphDiagnostics["routeModules"][number]],
-    } as DevtoolsStartAppGraphDiagnostics;
-    delete (legacyAppGraph as { collectionDefinitions?: unknown }).collectionDefinitions;
-    delete (legacyAppGraph as { unknownRoutePreloadCollections?: unknown })
-      .unknownRoutePreloadCollections;
-    const store = makeDevtoolsStore();
-
-    Effect.runSync(store.setAppGraphDiagnostics(legacyAppGraph));
-
-    const snapshotAppGraph = Effect.runSync(store.getSnapshot()).appGraph;
-    expect(snapshotAppGraph?.collectionDefinitions).toEqual([]);
-    expect(snapshotAppGraph?.unknownRoutePreloadCollections).toEqual([]);
-    expect(snapshotAppGraph?.routeModules[0]?.preloadCollections).toEqual({
-      status: "unknown",
-      collections: [],
-    });
-    const summary = Effect.runSync(store.getSummary());
-    expect(summary.overview.collectionDefinitionCount).toBe(0);
-    expect(summary.overview.unknownRoutePreloadCollectionsCount).toBe(0);
-    expect(summary.graph._tag).toBe("Available");
-    if (summary.graph._tag !== "Available") {
-      expect.fail("Expected normalized app graph summary.");
-    }
-    expect(summary.graph.routes.modules[0]?.preloadCollections).toEqual({
-      status: "unknown",
-      collections: [],
-    });
-    const appGraphPanelItem = Effect.runSync(store.getPanels()).panels.find(
-      (panel) => panel.id === "app-graph",
-    )?.items[0];
-    expect(appGraphPanelItem).toMatchObject({
-      severity: "warning",
-      metrics: expect.arrayContaining([
-        {
-          label: "preload collections",
-          value: "unknown",
-        },
-      ]),
-    });
-    const routeNode = Effect.runSync(store.getCausalGraph()).nodes.find(
-      (node) =>
-        node.kind === "Route" && node.label === appGraphDiagnostics.routeModules[0]!.routePath,
-    );
-    expect(routeNode?.data).toMatchObject({
-      preloadCollections: {
-        status: "unknown",
-        collections: [],
-      },
-    });
-  });
-
   it("repairs stale app graph counts, schema coverage, and unknown preload facts at public seams", () => {
     const staleAppGraph: DevtoolsStartAppGraphDiagnostics = {
       ...appGraphDiagnostics,
@@ -1693,10 +1608,6 @@ describe("devtools invalidation plans", () => {
           preloadResources: {
             status: "unknown",
             families: [],
-          },
-          preloadCollections: {
-            status: "unknown",
-            collections: [],
           },
         },
       ],
@@ -1765,20 +1676,6 @@ describe("devtools invalidation plans", () => {
           },
         },
       ],
-      unknownRoutePreloadCollections: [
-        {
-          kind: "route",
-          routeId: "route_stale",
-          routePath: "/stale",
-          moduleId: "src/routes/stale.tsx",
-          filePath: "src/routes/stale.tsx",
-          preload: "unknown",
-          preloadCollections: {
-            status: "unknown",
-            collections: ["Stale.collection"],
-          },
-        },
-      ],
     };
     const store = makeDevtoolsStore();
 
@@ -1835,16 +1732,6 @@ describe("devtools invalidation plans", () => {
           },
         },
       ],
-      unknownRoutePreloadCollections: [
-        {
-          routeId: "route_users_$id",
-          routePath: "/users/:id",
-          preloadCollections: {
-            status: "unknown",
-            collections: [],
-          },
-        },
-      ],
     });
     expect(snapshotAppGraph?.missingSchemas).toEqual([
       {
@@ -1872,7 +1759,6 @@ describe("devtools invalidation plans", () => {
         actionCount: 1,
         missingSchemaCount: 2,
         unknownRoutePreloadResourcesCount: 1,
-        unknownRoutePreloadCollectionsCount: 1,
       });
       expect(summary.graph._tag).toBe("Available");
       if (summary.graph._tag !== "Available") {
@@ -1889,19 +1775,9 @@ describe("devtools invalidation plans", () => {
               status: "unknown",
               families: [],
             },
-            preloadCollections: {
-              status: "unknown",
-              collections: [],
-            },
           },
         ],
         unknownPreloadResources: [
-          {
-            routeId: "route_users_$id",
-            routePath: "/users/:id",
-          },
-        ],
-        unknownPreloadCollections: [
           {
             routeId: "route_users_$id",
             routePath: "/users/:id",
@@ -1938,10 +1814,6 @@ describe("devtools invalidation plans", () => {
               label: "preload resources",
               value: "unknown",
             },
-            {
-              label: "preload collections",
-              value: "unknown",
-            },
           ]),
         }),
       ],
@@ -1952,11 +1824,6 @@ describe("devtools invalidation plans", () => {
           id: "unknown-preload-resources:route_users_$id",
           label: "/users/:id",
           detail: "unknown preload resources",
-        }),
-        expect.objectContaining({
-          id: "unknown-preload-collections:route_users_$id",
-          label: "/users/:id",
-          detail: "unknown preload collections",
         }),
       ]),
     );
@@ -2001,26 +1868,18 @@ describe("devtools invalidation plans", () => {
             status: "unknown",
             families: [],
           },
-          preloadCollections: {
-            status: "unknown",
-            collections: [],
-          },
         }),
       }),
     );
   });
 
   it("uses Start preload semantics when deriving unknown route preload facts", () => {
-    const presentUnknownCollections: DevtoolsStartAppGraphDiagnostics["routeModules"][number] = {
+    const presentUnknown: DevtoolsStartAppGraphDiagnostics["routeModules"][number] = {
       ...appGraphDiagnostics.routeModules[0]!,
       preload: "present",
       preloadResources: {
         status: "unknown",
         families: [],
-      },
-      preloadCollections: {
-        status: "unknown",
-        collections: [],
       },
     };
     const staticUnknownFacts: DevtoolsStartAppGraphDiagnostics["routeModules"][number] = {
@@ -2034,16 +1893,11 @@ describe("devtools invalidation plans", () => {
         status: "unknown",
         families: ["Static.family"],
       },
-      preloadCollections: {
-        status: "unknown",
-        collections: ["Static.collection"],
-      },
     };
     const staleAppGraph: DevtoolsStartAppGraphDiagnostics = {
       ...appGraphDiagnostics,
-      routeModules: [presentUnknownCollections, staticUnknownFacts],
+      routeModules: [presentUnknown, staticUnknownFacts],
       unknownRoutePreloadResources: [],
-      unknownRoutePreloadCollections: [],
     };
     const store = makeDevtoolsStore();
 
@@ -2053,22 +1907,15 @@ describe("devtools invalidation plans", () => {
     expect(snapshotAppGraph?.unknownRoutePreloadResources.map((entry) => entry.routePath)).toEqual([
       "/users/:id",
     ]);
-    expect(
-      snapshotAppGraph?.unknownRoutePreloadCollections.map((entry) => entry.routePath),
-    ).toEqual(["/users/:id"]);
     const summary = Effect.runSync(store.getSummary());
     expect(summary.overview).toMatchObject({
       unknownRoutePreloadResourcesCount: 1,
-      unknownRoutePreloadCollectionsCount: 1,
     });
     expect(summary.graph._tag).toBe("Available");
     if (summary.graph._tag !== "Available") {
       expect.fail("Expected normalized app graph summary.");
     }
     expect(summary.graph.routes.unknownPreloadResources.map((entry) => entry.routePath)).toEqual([
-      "/users/:id",
-    ]);
-    expect(summary.graph.routes.unknownPreloadCollections.map((entry) => entry.routePath)).toEqual([
       "/users/:id",
     ]);
     const appGraphItems =
@@ -2082,7 +1929,7 @@ describe("devtools invalidation plans", () => {
     expect(diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: "unknown-preload-collections:route_users_$id",
+          id: "unknown-preload-resources:route_users_$id",
           label: "/users/:id",
         }),
       ]),
@@ -2095,9 +1942,7 @@ describe("devtools invalidation plans", () => {
       ]),
     );
 
-    const { preloadCollections: _legacyCollectionsField, ...legacyRoute } =
-      presentUnknownCollections;
-    void _legacyCollectionsField;
+    const legacyRoute = presentUnknown;
     const preservedStore = makeDevtoolsStore();
     Effect.runSync(
       preservedStore.setSnapshot({
@@ -2109,25 +1954,21 @@ describe("devtools invalidation plans", () => {
           ...appGraphDiagnostics,
           routeModules: [legacyRoute as never],
           unknownRoutePreloadResources: [],
-          unknownRoutePreloadCollections: [],
         },
       }),
     );
     expect(Effect.runSync(preservedStore.getSnapshot()).appGraph).toMatchObject({
       unknownRoutePreloadResources: [],
-      unknownRoutePreloadCollections: [],
     });
     const preservedSummary = Effect.runSync(preservedStore.getSummary());
     expect(preservedSummary.overview).toMatchObject({
       unknownRoutePreloadResourcesCount: 0,
-      unknownRoutePreloadCollectionsCount: 0,
     });
     expect(preservedSummary.graph._tag).toBe("Available");
     if (preservedSummary.graph._tag !== "Available") {
       expect.fail("Expected preserved app graph summary.");
     }
     expect(preservedSummary.graph.routes.unknownPreloadResources).toEqual([]);
-    expect(preservedSummary.graph.routes.unknownPreloadCollections).toEqual([]);
     expect(
       Effect.runSync(preservedStore.getPanels()).panels.find((panel) => panel.id === "diagnostics")
         ?.items,
@@ -2702,7 +2543,6 @@ describe("devtools invalidation plans", () => {
             services: [],
             routePlan: requestRoutePlan,
             resources: [],
-            collections: [],
             serverFunctions: [],
             actions: [],
             fibers: [],
@@ -2774,7 +2614,6 @@ describe("devtools invalidation plans", () => {
             services: [],
             routePlan: embeddedPlan,
             resources: [],
-            collections: [],
             serverFunctions: [],
             actions: [],
             fibers: [],
@@ -2872,7 +2711,6 @@ describe("devtools invalidation plans", () => {
           state: "Success",
         },
       ],
-      collections: [],
       serverFunctions: [],
       actions: [],
       fibers: [],
@@ -3465,62 +3303,6 @@ describe("devtools invalidation plans", () => {
     expect(isDevtoolsPanels(Effect.runSync(store.getPanels()))).toBe(true);
   });
 
-  it("summarizes collection events and observes their collection target", () => {
-    const store = makeDevtoolsStore();
-
-    Effect.runSync(
-      store.recordCollectionEvent({
-        _tag: "CollectionHydrated",
-        collection: "Projects.collection-devtools",
-        count: 2,
-        updatedAt: 1,
-      }),
-    );
-
-    const summary = Effect.runSync(store.getSummary());
-
-    expect(Effect.runSync(store.getSnapshot()).events).toEqual([
-      {
-        _tag: "CollectionStoreEvent",
-        sequence: 0,
-        event: {
-          _tag: "CollectionHydrated",
-          collection: "Projects.collection-devtools",
-          count: 2,
-          updatedAt: 1,
-        },
-      },
-    ]);
-    expect(summary.runtime.events).toEqual([
-      expect.objectContaining({
-        _tag: "CollectionStoreEvent",
-        sequence: 0,
-        label: "CollectionHydrated",
-        target: {
-          kind: "Collection",
-          id: "collection:Projects.collection-devtools",
-        },
-      }),
-    ]);
-    expect(summary.causalGraph.nodes).toContainEqual(
-      expect.objectContaining({
-        id: "collection:Projects.collection-devtools",
-        kind: "Collection",
-        label: "Projects.collection-devtools",
-      }),
-    );
-    expect(summary.causalGraph.edges).toContainEqual(
-      expect.objectContaining({
-        kind: "Observes",
-        source: "runtime-event:0:CollectionStoreEvent",
-        target: "collection:Projects.collection-devtools",
-        data: {
-          targetKind: "Collection",
-        },
-      }),
-    );
-  });
-
   it("projects resource failure causes and interruptions into resource state facts", () => {
     const store = makeDevtoolsStore();
 
@@ -3555,7 +3337,7 @@ describe("devtools invalidation plans", () => {
     ]);
   });
 
-  it("projects resource and collection runtime events into their panels", () => {
+  it("projects resource runtime events into their panel", () => {
     const store = makeDevtoolsStore();
 
     Effect.runSync(
@@ -3566,14 +3348,6 @@ describe("devtools invalidation plans", () => {
         timestamp: 1,
       }),
     );
-    Effect.runSync(
-      store.recordCollectionEvent({
-        _tag: "CollectionLoadFailure",
-        collection: "Project.runtime-collection",
-        error: new Error("offline"),
-      }),
-    );
-
     const summary = Effect.runSync(store.getSummary());
     expect(summary.resources).toEqual([
       expect.objectContaining({
@@ -3594,54 +3368,6 @@ describe("devtools invalidation plans", () => {
           detail: "Success",
         }),
       ],
-    });
-    expect(panels.panels.find((panel) => panel.id === "collections")).toMatchObject({
-      severity: "error",
-      items: [
-        expect.objectContaining({
-          id: "collection:Project.runtime-collection",
-          label: "Project.runtime-collection",
-          detail: "CollectionLoadFailure",
-          severity: "error",
-          metrics: [{ label: "events", value: 1 }],
-        }),
-      ],
-    });
-  });
-
-  it("records change-feed collection failures with detached errors", () => {
-    const store = makeDevtoolsStore();
-    const error = { message: "feed failed" };
-
-    Effect.runSync(
-      store.recordCollectionEvent({
-        _tag: "CollectionChangeFeedFailure",
-        collection: "Projects.collection-feed",
-        error,
-      }),
-    );
-    error.message = "mutated";
-
-    const snapshot = Effect.runSync(store.getSnapshot());
-    const event = snapshot.events?.[0];
-
-    expect(event).toMatchObject({
-      _tag: "CollectionStoreEvent",
-      event: {
-        _tag: "CollectionChangeFeedFailure",
-        collection: "Projects.collection-feed",
-        error: {
-          message: "feed failed",
-        },
-      },
-    });
-    expect(Effect.runSync(store.getSummary()).runtime.events[0]).toMatchObject({
-      _tag: "CollectionStoreEvent",
-      label: "CollectionChangeFeedFailure",
-      target: {
-        kind: "Collection",
-        id: "collection:Projects.collection-feed",
-      },
     });
   });
 
@@ -3680,7 +3406,6 @@ describe("devtools invalidation plans", () => {
       },
       services: [],
       resources: [],
-      collections: [],
       serverFunctions: [],
       actions: [],
       fibers: [],
@@ -3833,13 +3558,6 @@ describe("devtools invalidation plans", () => {
           state: "Success",
         },
       ],
-      collections: [
-        {
-          name: "Project.collection",
-          state: "Ready",
-          eventCount: 2,
-        },
-      ],
       serverFunctions: [
         {
           name: "Project.load",
@@ -3920,7 +3638,6 @@ describe("devtools invalidation plans", () => {
         responseStatus: 200,
         serviceCount: 2,
         resourceCount: 1,
-        collectionCount: 1,
         serverFunctionCount: 1,
         actionCount: 1,
         fiberCount: 1,
@@ -4069,7 +3786,6 @@ describe("devtools invalidation plans", () => {
         expect.objectContaining({ id: "endpoint:rpc", kind: "Endpoint" }),
         expect.objectContaining({ id: "route:/projects/:id", kind: "Route" }),
         expect.objectContaining({ id: "resource:Project.byId:atlas", kind: "Resource" }),
-        expect.objectContaining({ id: "collection:Project.collection", kind: "Collection" }),
         expect.objectContaining({ id: "server-function:Project.load", kind: "ServerFunction" }),
         expect.objectContaining({ id: "action:Project.rename", kind: "Action" }),
       ]),
@@ -4100,11 +3816,6 @@ describe("devtools invalidation plans", () => {
           kind: "Records",
           source: "request-trace:req-project-atlas",
           target: "resource:Project.byId:atlas",
-        }),
-        expect.objectContaining({
-          kind: "Records",
-          source: "request-trace:req-project-atlas",
-          target: "collection:Project.collection",
         }),
         expect.objectContaining({
           kind: "Records",
@@ -4147,7 +3858,6 @@ describe("devtools invalidation plans", () => {
       },
       services: [],
       resources: [],
-      collections: [],
       serverFunctions: [],
       actions: [],
       fibers: [],
@@ -4206,7 +3916,6 @@ describe("devtools invalidation plans", () => {
           state: "Success",
         },
       ],
-      collections: [],
       serverFunctions: [],
       actions: [],
       fibers: [],
@@ -4277,7 +3986,6 @@ describe("devtools invalidation plans", () => {
       },
       services: ["ProjectApi"],
       resources: [],
-      collections: [],
       serverFunctions: [
         {
           name: "Project.load",
@@ -4407,7 +4115,6 @@ describe("devtools invalidation plans", () => {
       response: { status: 200 },
       services: [],
       resources: [],
-      collections: [],
       serverFunctions: [],
       actions: [],
       fibers: [],
@@ -4460,7 +4167,6 @@ describe("devtools invalidation plans", () => {
       response: { status: 200 },
       services: [],
       resources: [],
-      collections: [],
       serverFunctions: [],
       actions: [],
       fibers: [],
@@ -4514,7 +4220,6 @@ describe("devtools invalidation plans", () => {
       response: { status: 200 },
       services: [],
       resources: [],
-      collections: [],
       serverFunctions: [],
       actions: [],
       fibers: [],
@@ -4550,7 +4255,6 @@ describe("devtools invalidation plans", () => {
       response: { status: 200 },
       services: [],
       resources: [],
-      collections: [],
       serverFunctions: [],
       actions: [],
       fibers: [],
@@ -4637,7 +4341,6 @@ describe("devtools invalidation plans", () => {
           state: "Success",
         },
       ],
-      collections: [],
       serverFunctions: [],
       actions: [],
       fibers: [],
@@ -4741,7 +4444,6 @@ describe("devtools invalidation plans", () => {
       response: { status: 200 },
       services: [],
       resources: [],
-      collections: [],
       serverFunctions: [],
       actions: [],
       fibers: [],
@@ -4763,7 +4465,6 @@ describe("devtools invalidation plans", () => {
       response: { status: 200 },
       services: [],
       resources: [],
-      collections: [],
       serverFunctions: [],
       actions: [],
       fibers: [],
@@ -4834,7 +4535,6 @@ describe("devtools invalidation plans", () => {
       },
       services: [],
       resources: [],
-      collections: [],
       serverFunctions: [],
       actions: [
         {
@@ -5480,7 +5180,7 @@ describe("devtools invalidation plans", () => {
     );
   });
 
-  it("explains the golden path across route, server, action, resource, collection, and invalidation facts", async () => {
+  it("explains the golden path across route, server, action, resource, and invalidation facts", async () => {
     const runtime = makeRuntime();
     const store = makeDevtoolsStore();
     const ProjectId = Schema.Struct({ id: Schema.String });
@@ -5497,13 +5197,6 @@ describe("devtools invalidation plans", () => {
         Effect.succeed({ id, name: id === "atlas" ? "Atlas" : id }),
       provides: (project) => [ProjectTag({ id: project.id })],
     });
-    const ProjectRows = Collection.define<{ readonly id: string; readonly name: string }>({
-      name: "Golden.Project.collection",
-      getKey: (project) => project.id,
-      sync: {
-        load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
-      },
-    });
     const RenameProject = Action.define<
       { readonly id: string; readonly name: string },
       { readonly id: string; readonly name: string }
@@ -5517,11 +5210,8 @@ describe("devtools invalidation plans", () => {
     const ProjectRoute = Route.define("/projects/:id", {
       params: ProjectId,
       search: Schema.Struct({ tab: Schema.optional(Schema.String) }),
-      preloadCollections: [ProjectRows],
-      preload: ({ params }) =>
-        Effect.all([Resource.preload(ProjectById({ id: params.id })), ProjectRows.preload()], {
-          discard: true,
-        }),
+      preloadResources: [ProjectById],
+      preload: ({ params }) => Resource.preload(ProjectById({ id: params.id })),
     });
     const ref = ProjectById({ id: "atlas" });
     const resourceDiagnostics = Resource.diagnostics();
@@ -5545,8 +5235,6 @@ describe("devtools invalidation plans", () => {
             Effect.scoped(
               Effect.gen(function* () {
                 const resourceSubscription = yield* Resource.subscribeEvents();
-                const collectionStore = yield* activeCollectionStore;
-                const collectionSubscription = yield* collectionStore.subscribeEvents();
                 const routePlan = yield* Route.planNavigation(
                   [ProjectRoute] as const,
                   "/projects/atlas?tab=activity",
@@ -5555,7 +5243,6 @@ describe("devtools invalidation plans", () => {
                 yield* store.recordRoutePlan(routePlan);
                 yield* store.recordResourceEvent(yield* PubSub.take(resourceSubscription));
                 yield* store.recordResourceEvent(yield* PubSub.take(resourceSubscription));
-                yield* store.recordCollectionEvent(yield* PubSub.take(collectionSubscription));
 
                 yield* action.submit({ id: "atlas", name: "Atlas Prime" });
                 const invalidationPlan = action.invalidationPlan.get();
@@ -5611,15 +5298,13 @@ describe("devtools invalidation plans", () => {
       actionCount: 1,
       resourceFamilyCount: 1,
       resourceTagCount: 2,
-      collectionDefinitionCount: 1,
       runtimeResourceCount: 1,
       runtimeActionCount: 1,
       invalidationPlanCount: 1,
       routePlanCount: 1,
-      runtimeEventCount: 7,
+      runtimeEventCount: 6,
       missingSchemaCount: 0,
       unknownRoutePreloadResourcesCount: 0,
-      unknownRoutePreloadCollectionsCount: 0,
     });
     expect(summary.graph).toMatchObject({
       _tag: "Available",
@@ -5676,15 +5361,6 @@ describe("devtools invalidation plans", () => {
             keyed: false,
           },
         ]),
-      },
-      collections: {
-        definitionCount: 1,
-        definitions: [
-          expect.objectContaining({
-            name: "Golden.Project.collection",
-            load: true,
-          }),
-        ],
       },
       endpoints: {
         rpc: "/__sunfall-arc/rpc",
@@ -5759,14 +5435,6 @@ describe("devtools invalidation plans", () => {
           },
         }),
         expect.objectContaining({
-          _tag: "CollectionStoreEvent",
-          label: "CollectionLoaded",
-          target: {
-            kind: "Collection",
-            id: "collection:Golden.Project.collection",
-          },
-        }),
-        expect.objectContaining({
           _tag: "ResourceStoreEvent",
           label: "ResourceInvalidated",
           target: {
@@ -5805,7 +5473,6 @@ describe("devtools invalidation plans", () => {
         expect.objectContaining({ id: "resource-tag:Golden.Project", kind: "ResourceTag" }),
         expect.objectContaining({ id: "resource-tag:Golden.Projects", kind: "ResourceTag" }),
         expect.objectContaining({ id: `resource:${ref.key}`, kind: "Resource" }),
-        expect.objectContaining({ id: "collection:Golden.Project.collection", kind: "Collection" }),
         expect.objectContaining({ id: "invalidation:0", kind: "InvalidationPlan" }),
       ]),
     );
@@ -5825,11 +5492,6 @@ describe("devtools invalidation plans", () => {
           kind: "Hydrates",
           source: "route-plan:0:/projects/atlas?tab=activity",
           target: `resource:${ref.key}`,
-        }),
-        expect.objectContaining({
-          kind: "Preloads",
-          source: "route:/projects/:id",
-          target: "collection:Golden.Project.collection",
         }),
         expect.objectContaining({
           kind: "UsesEndpoint",
@@ -5868,12 +5530,7 @@ describe("devtools invalidation plans", () => {
         }),
         expect.objectContaining({
           kind: "Observes",
-          source: "runtime-event:2:CollectionStoreEvent",
-          target: "collection:Golden.Project.collection",
-        }),
-        expect.objectContaining({
-          kind: "Observes",
-          source: "runtime-event:6:ActionState",
+          source: "runtime-event:5:ActionState",
           target: "action:Golden.Project.rename",
         }),
       ]),
@@ -5910,10 +5567,6 @@ const goldenPathAppGraphDiagnostics = (
       preloadResources: {
         status: "declared",
         families: ["Golden.Project.byId"],
-      },
-      preloadCollections: {
-        status: "declared",
-        collections: ["Golden.Project.collection"],
       },
     },
   ],
@@ -5976,26 +5629,6 @@ const goldenPathAppGraphDiagnostics = (
   ],
   resourceFamilies: resources.resourceFamilies,
   resourceTags: resources.resourceTags,
-  collectionDefinitions: [
-    {
-      name: "Golden.Project.collection",
-      readOnly: false,
-      outputSchema: false,
-      initialData: false,
-      load: true,
-      policy: {
-        retry: false,
-      },
-      persistence: {
-        enabled: false,
-        hydrate: false,
-        restoreOnPreload: false,
-        loadAfterRestore: false,
-        persistOnLoad: false,
-        persistOnWrite: false,
-      },
-    },
-  ],
   serverOnlyModules: ["/src/project/project.server.ts"],
   browserClientModules: ["/src/project/project.actions.ts", "/src/project/project.contract.ts"],
   rpcPath: "/__sunfall-arc/rpc",
@@ -6016,7 +5649,6 @@ const goldenPathAppGraphDiagnostics = (
   },
   missingSchemas: [],
   unknownRoutePreloadResources: [],
-  unknownRoutePreloadCollections: [],
 });
 
 const appGraphDiagnostics: DevtoolsStartAppGraphDiagnostics = {
@@ -6045,10 +5677,6 @@ const appGraphDiagnostics: DevtoolsStartAppGraphDiagnostics = {
       preloadResources: {
         status: "declared",
         families: ["User.summary-devtools"],
-      },
-      preloadCollections: {
-        status: "declared",
-        collections: [],
       },
     },
   ],
@@ -6129,7 +5757,6 @@ const appGraphDiagnostics: DevtoolsStartAppGraphDiagnostics = {
       keyed: true,
     },
   ],
-  collectionDefinitions: [],
   serverOnlyModules: ["/src/user/user.server.ts"],
   browserClientModules: ["/src/user/user.actions.ts"],
   rpcPath: "/__sunfall-arc/rpc",
@@ -6158,7 +5785,6 @@ const appGraphDiagnostics: DevtoolsStartAppGraphDiagnostics = {
     },
   ],
   unknownRoutePreloadResources: [],
-  unknownRoutePreloadCollections: [],
 };
 
 const appGraphDiagnosticsWithRoutes = (routeCount: number): DevtoolsStartAppGraphDiagnostics => ({

@@ -58,7 +58,8 @@ export interface TimelineResourceCause {
   readonly _tag: "Resource";
   readonly resource: string;
   readonly key: string;
-  readonly event: "load" | "success" | "failure" | "interrupt" | "hydrate" | "reset";
+  /** `change` applies a `rows.changes` batch to the synced rows. */
+  readonly event: "load" | "success" | "failure" | "interrupt" | "hydrate" | "reset" | "change";
 }
 
 /** Commit made by the browser router kernel while navigating. */
@@ -68,21 +69,13 @@ export interface TimelineRouterCause {
   readonly status: "Pending" | "Ready" | "NotFound" | "Failure";
 }
 
-/** Commit made by a DB collection's synced or mutated rows. */
-export interface TimelineCollectionCause {
-  readonly _tag: "Collection";
-  readonly collection: string;
-  readonly event: "sync" | "change";
-}
-
 /** Why a committed change set happened. */
 export type TimelineCause =
   | TimelineTransitionCause
   | TimelineActionCause
   | TimelineProgramCause
   | TimelineResourceCause
-  | TimelineRouterCause
-  | TimelineCollectionCause;
+  | TimelineRouterCause;
 
 /** One signal's committed change inside a timeline entry. */
 export interface TimelineChange {
@@ -271,7 +264,7 @@ const makeRecording = (clock: Clock.Clock, limit: number) => {
  * Arc owns application state in writable signals, and every committed change
  * passes through one commit seam. A recording observes that seam, so its
  * entries cover Signals, Resource entries, Action state, Program models,
- * router state, and collection versions alike.
+ * and router state alike.
  */
 export namespace Timeline {
   /** Commit named by a Signal transaction or a named callback. */
@@ -284,8 +277,6 @@ export namespace Timeline {
   export type ResourceCause = TimelineResourceCause;
   /** Commit made by router navigation. */
   export type RouterCause = TimelineRouterCause;
-  /** Commit made by a Collection write or sync. */
-  export type CollectionCause = TimelineCollectionCause;
   /** Why a Timeline commit happened. */
   export type Cause = TimelineCause;
   /** One recorded state change inside a commit. */
@@ -347,8 +338,6 @@ export namespace Timeline {
         return `Resource "${cause.resource}" ${cause.event} ${cause.key}`;
       case "Router":
         return `Router navigate ${cause.href} (${cause.status})`;
-      case "Collection":
-        return `Collection "${cause.collection}" ${cause.event}`;
     }
   };
 }

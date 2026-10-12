@@ -33,11 +33,10 @@ it against `type-tests/public-api.manifest.json` and the package manifests
 | `@sunfall/arc-start`    | `./internal`            | `packages/start/src/internal.ts`           | Internal       | Imported by Vite-generated diagnostics modules; not application API. |
 | `@sunfall/arc-start`    | `./virtual`             | `packages/start/src/virtual-modules.d.ts`  | Expert public  | Keep as type-only virtual module declarations.                       |
 | `@sunfall/arc-start`    | `sunfall-arc-start` bin | `packages/start/src/cli.ts`                | Expert public  | Keep for app graph diagnostics automation.                           |
-| `@sunfall/arc-db`       | `.`                     | `packages/db/src/index.ts`                 | Public         | Keep as the collection/live-query surface.                           |
-| `@sunfall/arc-db`       | `./internal`            | `packages/db/src/internal.ts`              | Internal       | Adapter plumbing for Solid DB/Start/devtools; not application API.   |
+| `@sunfall/arc-db`       | `.`                     | `packages/db/src/index.ts`                 | Public         | Keep as the Query engine over Resource rows.                         |
+| `@sunfall/arc-db`       | `./internal`            | `packages/db/src/internal.ts`              | Internal       | Adapter plumbing for `Component.liveQuery`; not application API.     |
 | `@sunfall/arc-devtools` | `.`                     | `packages/devtools/src/index.ts`           | Public         | Keep as the JSON-safe inspection contract.                           |
 | `@sunfall/arc-solid`    | `.`                     | `packages/solid/src/index.ts`              | Public         | Keep as the Solid adapter surface.                                   |
-| `@sunfall/arc-solid-db` | `.`                     | `packages/solid-db/src/index.ts`           | Public         | Keep as the Solid collection adapter surface.                        |
 | `@sunfall/arc-tsrx`     | `.`                     | `packages/tsrx/src/index.ts`               | Public         | Keep as the Vite/TSRX preset.                                        |
 
 ## Type-Test Coverage
@@ -75,9 +74,8 @@ The curated hover declarations currently cover the Core Action, ActionResult,
 Capability, Form, Program, and Resource Interfaces,
 browser-router/router Adapter, Solid runtime and hook Adapter seams,
 Start request/hydration/action seams, fetch, and Node Adapter seams,
-Devtools DTO/panel contract seams, and the DB Collection contract,
-Collection/Query namespace aliases, Query plan, flush/background-sync,
-reactive binding, server collection, and SQLite persistence seams. The broad
+Devtools DTO/panel contract seams, the Resource rows contract, and the DB
+Query namespace and plan seams. The broad
 `type-tests/framework.test-d.ts` file remains as cross-package integration
 coverage.
 
@@ -103,7 +101,8 @@ exactly one public name: types a namespace owns are reachable only as
 namespace members (`Action.Definition`, `Resource.Ref`, `Route.Match`,
 `Server.Client`), never also as flat `ActionDefinition` / `ResourceRef`
 exports. Cross-package plumbing types (the `app` registry requirement types,
-the `ActionOptimisticRows` row-store seam, Resource Store module/event/fiber
+the Resource rows plumbing (`resourceRowsGet`, `resourceRowsIndex`, ...),
+Resource Store module/event/fiber
 seams, `AnySchema`, `RouteWithComponent`, and the `ResourceFamily` class) are
 exported only from `@sunfall/arc-core/internal`. Mixed modules' adapter
 plumbing, plus `definition-registry`,
@@ -330,13 +329,19 @@ Release decisions:
   a defect, not part of the error type.
 - Actions are the one mutation path. `optimistic(input, transaction)` patches
   Signals and Resource entries (`transaction.set(signal | ref, update)`, the
-  update a value or a pure updater typed by the target) and Collection rows
-  (`transaction.insert/update/delete`) for the life of one submission; the
+  update a value or a pure updater typed by the target) and the rows of a
+  Resource with `rows` (`transaction.insert/update/delete(ref, key, ...)`, the
+  key typed by `rows.key`) for the life of one submission; the
   transaction commits or rolls back every patch. A Resource patch layers over
   the entry's synced value: readers see it, loads and snapshots do not, and an
-  entry that has not loaded is left alone. A run that returns a rejected `ActionResult` (`ValidationFailure`, `Failure`) rolls the patches back as a failure does. `ActionOptimisticRows` and
-  `ActionOptimisticRowsTypeId` are the expert seam row stores implement
-  (Collections do); application code never implements it.
+  entry that has not loaded is left alone. A run that returns a rejected `ActionResult` (`ValidationFailure`, `Failure`) rolls the patches back as a failure does. Row patches are entry patch
+  layers too: an update shares the value's key positions and moves only the
+  index buckets the row changed.
+- `Resource.define({ ..., rows })` (array `output` only) adds keyed rows:
+  `Resource.RowsOptions` (`key`, `indexes`, `changes`), `Resource.RowsRef`,
+  `Resource.RowChange`, `Resource.Rows<F>`. `policy.persist`
+  (`Resource.PersistOptions`) stores settled values in the runtime's
+  `KeyValueStore`.
 - The internal Action Execution Workflow Module owns callback normalization,
   retry wrapping, optimistic transaction commit/rollback, stale-submission
   interruption, invalidation planning/execution, and visible submission state
@@ -454,7 +459,7 @@ commands)`, never an Effect. `Program.emit(...)`
   dedupe. The Solid adapter still owns host reactivity and host Suspense throwing.
 - Async state is Effect's `AsyncResult` (`effect/reactivity`) everywhere:
   `Resource.result(ref)`, `Resource.Status.result`, `Action.State.result`,
-  `Collection.state(...)`, and `LiveQuery.state`. Arc publishes no parallel
+  and `Query.Live.state`. Arc publishes no parallel
   state union, match helper, or value/error extractor; the removed
   `ResourceState`, `Resource.State`, `Resource.value`, `Resource.error`,
   `ResourceUi{Success,Pending,Failure}Meta`, `ResourceUiMatch`,
@@ -477,18 +482,18 @@ includes:
 
 - Local source modules: `hydration`, `request-trace`, `start-action-client`,
   `start-action-request-codec`, `start-app`, `start-app-request-handler`,
-  `start-collection-resolution`, `start-document`, `start-fetch`,
+  `start-document`, `start-fetch`,
   `start-request-handler`, `start-transport-endpoints`,
   `start-transport-protocol`, `static-client-navigation`, and `streaming`.
-- the app: `App.define({ root, routes, collections?, actions?, client? })`
+- the app: `App.define({ root, routes, actions?, client? })`
   returns the one `App.Definition` both entries derive from (`App.Any`
   accepts any). The root is a Solid `Component<App.RootProps, never, R>`; the
   client Layer must provide `R` (minus `App.LaunchServices`) or `App.define`
   does not compile. `App.launch(app, options?)` (`App.LaunchOptions`: `href`,
   `hydration`, `transport`) is the browser entry: it builds the runtime from
   the client Layer plus the action transport and (outside static builds) the
-  RPC `Server.Client`, restores the server's hydration payload with the app's
-  Collections, and hydrates the root; it fails with the client Layer's error,
+  RPC `Server.Client`, restores the server's hydration payload, and hydrates
+  the root; it fails with the client Layer's error,
   `StartRootMissing`, or a hydration error (`App.LaunchError`).
 - request handling: `createRequestHandler(app, options?)` returns the
   Effect-returning `StartRequestHandler` (one name; there are no
@@ -516,7 +521,8 @@ includes:
   transport; `App.LaunchOptions.transport` sets their `endpoints`, `fetch`
   (`StartFetch`, `StartFetchInit`, `StartFetchInput`), and `headers`.
 - durable submissions: `App.launch` provides the Action Outbox over the
-  client Layer's `KeyValueStore` (in-memory when it has none;
+  browser's one `KeyValueStore` (the client Layer's, else `localStorage`,
+  shared with persisted Resources;
   `App.LaunchOptions.outbox` sets `retry`) and restores it after
   hydrating. The action endpoint runs a submission that carries an id as an
   `effect/workflow` Workflow keyed by that id, on the server Layer's
@@ -530,7 +536,7 @@ includes:
   Start has no route constructor of its own. The generated route tree checks
   the declared `path` against the path derived from the file, as a type error
   and again when the tree loads. Static preload hints use core
-  `preloadResources` / `preloadCollections`, and runtime work lives in
+  `preloadResources`, and runtime work lives in
   `preload`.
 - actions: the app's `actions` are the Actions the server serves; `App.launch`
   routes their submissions from the single UI binding (Solid's
@@ -608,253 +614,41 @@ Release decisions:
   need exact literal route ids, paths, params, search, or href options import
   the written generated route definitions artifact.
 - `virtual:sunfall-arc/app-graph` is a static DTO module; tooling that needs
-  runtime route-module/resource/collection diagnostics imports
+  runtime route-module/resource diagnostics imports
   `virtual:sunfall-arc/app-graph/runtime-diagnostics` explicitly.
 
 ### `@sunfall/arc-db`
 
 The root export includes:
 
-- Local source modules: `collection-errors`, `collection-index-materialization`,
-  `collection-snapshot-codec`, `query-builder`, and `query-plan`.
-- Namespace-backed source modules: `collection-contract`, `collection-runtime`,
-  and `live-query-collection` back the Collection namespace
-  types and functions; the root re-exports no flat aliases from them.
-- One path per concern: the root exports only the `Collection` and `Query`
-  namespaces plus tagged error classes
-  (`CollectionRowNotFound`, `CollectionRowKeyChanged`,
-  `ReadonlyCollectionMutation`,
-  `UnknownCollectionIndex`, `CollectionSnapshotCodecError`,
-  `QueryEvaluationError`, `UnsupportedLiveQuery`).
-- `Collection.define({ ..., sync })` is the single way to back a collection;
-  `sync` is an inline `Collection.SyncAdapter` (reads only) or a
-  `Resource.Ref`. Remote rows arrive through `sync.changes` or the definition's
-  `applyChanges(...)`; server data changes only through Actions, whose
-  `optimistic` patches the rows.
-- `@sunfall/arc-db/internal` (Internal) carries adapter plumbing for Solid DB,
-  Start, and devtools: `bindCollectionRuntime`,
-  `makeCollectionReactivePreloadController`, `collectCollections`,
-  `CollectionPreloadCollector`, `dehydrateCollectionsSync(Effect)`,
-  `hydrateCollections`, `validateCollectionsHydration`,
-  `isCollection`, the definition registry, store access/events,
-  `CollectionTypeId`/`CollectionStoreTypeId`, `defineCollection`, and
-  `buildQuery`.
+- Local source modules: `query-builder` and `query-plan`.
+- Namespace-backed source modules: `query-builder`; the root re-exports no
+  flat aliases from it.
+- One path per concern: the root exports only the `Query` namespace plus the
+  tagged error classes `QueryEvaluationError` and `UnsupportedLiveQuery`.
+  `@sunfall/arc-db` is the Query engine: it holds no rows. Rows belong to
+  Resources (`Resource.define({ ..., rows })` in `@sunfall/arc-core`).
+- Query sources are refs of Resources that declare `rows`
+  (`query.from({ project: ProjectsRef })`); a Resource without `rows` does
+  not compile as a source. `joinIndexed` index names are checked against the
+  joined Resource's `rows.indexes`. A query's `E` and `R` are its sources'
+  declared load errors and services.
+- `Query.live`, `Query.once`, and `Query.diagnostics`, plus the aggregates
+  `Query.count/sum/avg/min/max`. Diagnostics report each source's
+  `resource` name and join strategy `"scan"` or `"index"`.
+- `@sunfall/arc-db/internal` (adapter plumbing, not public API):
+  `buildQuery`, `currentQueryStore`, and `runWithQueryStore`, which
+  `Component.liveQuery` uses.
 
 Release decisions:
 
-- Collection persistence has no storage adapter API: `persistence: { key?,
-version?, ... }`, `persist(options?)`, and `restore(options?)` use the
-  runtime's `effect/persistence` `KeyValueStore` at
-  `arc/collections/v<version>/<key>` and fail with `KeyValueStoreError`.
-  SQLite/Postgres hosts provide `KeyValueStore.layerSql` over their own
-  `SqlClient`.
-- Snapshot types are expert public for tests, persistence, and SSR. A
-  snapshot carries the synced rows only; optimistic Action patches never cross
-  it.
-- The Runtime Collection Store Module owns runtime/request-local store creation,
-  Resource Store module-registry lookup, initial data materialization,
-  diagnostics snapshots, event subscriptions, and synchronous store override
-  locality. It is reachable only through `@sunfall/arc-db/internal`.
-- Collection Runtime intentionally owns the public Collection facade, direct
-  writes, change-feed batch application, row metadata, hydration/persistence
-  facades, event publication, and live-query-visible versioning together while
-  delegating store lookup/lifecycle to the Runtime Collection Store Module,
-  load/refresh ordering to the Collection Sync Load Policy Module, and the
-  optimistic layer model (synced base plus per-submission patches) to the
-  Collection State Module. Sync adapters emit batches and loader Effects; they
-  do not own store mutation or in-flight load policy.
-- The internal Collection Sync Load Policy Module owns `preload(...)` and
-  `refresh(...)` orchestration: in-flight `Deferred` ownership/joining,
-  stale generation checks, restore-before-load, load/refresh selection, retry
-  scheduling, row replacement, load lifecycle events, and load persistence. It
-  is not exported; public access remains the same Collection load/refresh
-  Effects.
-- Collection Runtime implements the `ActionOptimisticRows` seam: an Action's
-  `transaction.insert/update/delete` ingests rows through the output schema,
-  layers them over the synced base as patches owned by that submission, and
-  hands Core a commit (fold into the base) and rollback (drop and rebase). A
-  rejected row is a defect. Patches skip persistence and store events.
-- The internal Collection Change Feed Runtime Module owns scoped feed
-  subscription lifecycle, dispatcher consumer fibers, adapter
-  subscribe/unsubscribe normalization, default write-option application,
-  direct `emit(...)` completion, host-callback `emitChanges(...)` queueing, and
-  asynchronous failure publication. It receives store-local row-application and
-  event-publication Effects from Collection Runtime, so subscription lifecycle
-  is separated from mutable row mutation policy without adding a public API.
-- The internal Collection Write Commit Module owns direct-write atomicity:
-  snapshot state, apply row changes, persist, restore on persistence failure,
-  and publish `CollectionWritten` only after persistence succeeds. The public
-  write APIs and `Collection.applyChanges(...)` keep the same facade.
-- The internal Live Query Collection Materialization Module owns per-store
-  derived projection state for `Collection.liveQuery(...)`: keyed rows, lookup
-  maps, secondary-index buckets, state/version signals, `Ready.updatedAt`, and
-  snapshots. It is not exported; public access remains the read-only
-  `Collection.liveQuery(...)` facade and regular Collection read interfaces.
-- The internal Collection Query Source Adapter owns how Query Builder, Query
-  Plan, Live Query State, and Live Query Runtime read from Collection
-  Definitions and Live Query Collections: rows, row counts, indexes, version
-  and state signals, and preload/refresh Effects. It is not exported; public
-  query access remains `Query.*`, `Collection.liveQuery(...)`, and regular
-  Collection read interfaces.
-- The internal Query Execution Plan Module owns query validation entrypoints,
-  compiled Query Stage Plan consumption, source adapter selection, source
-  preload/refresh, snapshot execution, diagnostics, and projection stages shared
-  by `Query.build(...).execute()`, `Query.once(...)`,
-  `Query.diagnostics(...)`, and live-query state. The internal Query Stage Plan
-  compiles source roles, unique source adapters, base-source ordering, identity
-  alias ordering, join sources, grouping, filters, ordering, and window facts
-  once so snapshot execution, projection, preload/refresh, Live Query State,
-  and Live Query Runtime share stage policy. The internal Query Stage Plan is
-  exported only for sibling DB modules and is not re-exported from
-  `@sunfall/arc-db`; public Query APIs stay unchanged.
-- The internal Query Context Identity Module owns source alias/key identity,
-  collection row delta identity, merged context identity, ordered tie-break
-  identity, and IVM context metadata shared by Query Execution Plan and Live
-  Query Runtime. It is not exported; public Query and Collection APIs stay
-  unchanged.
-- The internal Collection Value Detachment Module owns deep collection value
-  cloning, frozen value/transaction copies, mutation and transaction cloning,
-  update-draft detachment, value-change diffing, and public row DTO detachment
-  before values cross store, snapshot, live-query, mutation, or adapter seams.
-  It is not exported; public Collection row and mutation APIs stay unchanged.
-- The expert-public Collection Index Materialization Module owns secondary
-  index normalization, lookup-key encoding, duplicate-value dedupe,
-  runtime/request-local bucket caches, index row reads, indexed join keys, and
-  the `UnknownCollectionIndex` error. Keep the error public for tests and
-  adapter diagnostics while normal apps continue to use `Collection.index(...)`,
-  `Collection.firstByIndex(...)`, and `Query` joins.
-- Direct DB root symbols such as `CollectionTypeId`, `CollectionStoreTypeId`,
-  `UnknownCollectionIndex`, `CollectionRowKeyChanged`,
-  `CollectionRowNotFound`, `ReadonlyCollectionMutation`,
-  `CollectionSnapshotCodecError`, `CollectionPreloadCollector`,
-  `makeCollectionDefinitionRegistry`, `defaultCollectionDefinitionRegistry`,
-  `makeLiveQueryCollection`, and `isCollection(...)` are expert-public
-  contract vocabulary for adapters, diagnostics, and focused tests. Public
-  hover policy and type tests own these names so root import compatibility and
-  LSP intent cannot drift from the Collection namespace aliases. Prefer
-  `Collection.UnknownIndex`, `Collection.RowKeyChanged`,
-  `Collection.RowNotFound`, `Collection.ReadonlyMutation`,
-  `Collection.SnapshotCodecError`, and `Collection.StorageError` in new
-  namespace-first adapter code.
-- Collection `preload`, `refresh`, `result`, and `applyChanges` fail only with
-  the collection's declared `E` (and the row-update errors): snapshot codec
-  failures and synchronous callback failures in the load and write paths are
-  defects, the same rule as Resource loads. There is no public
-  `Collection.RuntimeError`.
-- `CollectionOptions.refresh` is public as the forced-refresh companion to
-  `load`. The Collection Runtime owns the first preload versus forced refresh
-  selection so shared Collection Definitions remain runtime/request-local.
-- Collection and Live Query Collection persistence share the same snapshot
-  storage callback policy: synchronous storage throws become
-  `EffectInputCallbackError`, while codec failures remain
-  `CollectionSnapshotCodecError`.
-- Collection hydration helpers share one validation wall: `dehydrate(...)`
-  validates the produced payload through the snapshot codec, and
-  `validateHydrationPayloadEffect(...)` runs the same definition-owned and
-  target-store preflight as `hydratePayloadEffect(...)` without applying rows.
-- Collection hydration validation and application share one Collection
-  Hydration Plan internally, so validation-only callers and mutating hydration
-  callers cannot drift on definition lookup, read-only collection preflight, or
-  target-store preflight.
-- Live Query Collections materialize through one internal keyed projection for
-  rows, lookups, indexes, state, version, and snapshots. Duplicate source rows
-  with the same output key follow the public collection last-write semantics,
-  and hidden duplicate changes do not bump `version()`/`Ready.updatedAt`.
-- Live Query Collections are read-only at the Collection Contract seam.
-  `Collection.applyChanges(...)` fails with `ReadonlyCollectionMutation`
-  before mutating rows, writing persistence, or publishing write events. Their
-  persistence path still shares the normal snapshot helper and emits
-  `CollectionPersisted` for devtools and sync observers. Collection definition
-  diagnostics expose this as `readOnly`, so Start diagnostics, devtools, and
-  LSP hovers can distinguish concrete writable collections from derived
-  read-only projections without touching private collection values.
-- Change-feed host callbacks run through scoped dispatchers owned by the
-  Collection Change Feed Runtime. After the subscription scope releases, late
-  `emitChanges(...)` calls are deterministically dropped instead of enqueueing
-  into an unconsumed runtime queue.
-- SQLite persistence helpers wrap `prepare`/`run`/`all`, statement database,
-  driver, storage, and clock callbacks before execution. Their public storage
-  error channel therefore includes `EffectInputCallbackError` even for
-  synchronous in-memory adapters.
-- SQLite statement, prepared-statement, and memory helpers stay colocated as a
-  dependency-free helper family. Splitting the file would not create a new
-  package seam because public access remains through the DB root and
-  `Collection.sqlite*` helpers.
-- `Collection.resourceSyncAdapter(...)` returns a sync adapter whose load and
-  refresh errors are the Resource's declared error `E`.
-  Its `follow` stream is `Resource.changes(ref)`, so a loaded collection
-  reconciles its synced rows on every later success of the Resource.
-- `Resource.changes(ref)` streams a ref's settled success values (the cached
-  value, then each later load, refresh, invalidation reload, or hydration). It
-  never starts a load and retains the ref against garbage collection while it
-  runs.
-- The internal Collection Projection Callback Policy Module owns Effect-visible
-  state/projection callback normalization for `getKey`, functional
-  `CollectionUpdate` bodies, and row-key preservation. Effect APIs report
-  projection throws as `EffectInputCallbackError` and key changes as
-  `CollectionRowKeyChanged`; synchronous read helpers stay synchronous and
-  should only use pure, total projection callbacks.
-- Public `Query.Factory<TResult>` annotations default error and requirement
-  channels to `never`, not `any`. Serviceful query factories must spell their
-  `E`/`R` parameters so `Query.once(...)`, `Query.live(...)`, and live
-  query collections cannot hide collection failures or service requirements.
-  `Query.build(...).execute()`, `Query.diagnostics(...)`,
-  `Query.once(...)`, and `Query.live(...)` normalize synchronous factory
-  failures, Promise-shaped, Effect-shaped, or non-builder factory results, and
-  plan-validation throws as `QueryEvaluationError` values. Invalid
-  `orderBy(...)` comparables such as `NaN` or invalid Dates fail with operation
-  `"order"`. Public hover policy owns the Query DSL value surface, including
-  source, aggregate, build, diagnostics, once, and live helpers, so this
-  factory-result guidance stays visible in LSP hovers. The concrete
-  `QueryBuilder` constructor is not a package-root export; public callers use
-  `query.from(...)` inside factory callbacks and the branded `Query.Builder` fluent
-  Interface so the Query Module owns builder construction and execution-plan
-  storage. Prefer `Query.EvaluationError` and
-  `Query.UnsupportedLiveQuery` in namespace-first adapter code while the root
-  error exports remain compatibility pins. Structural fake builders are
-  rejected at the type seam and runtime factory seam. Public `LiveQuery`
-  handles expose data/state/source metadata and lifecycle Effects, not the
-  internal builder.
-- Top-level Query type mirrors such as `QueryRoot`, `QueryFactory`,
-  `LiveQuery`, query plan diagnostics, sort/join scalar
-  types, aggregate types, and predicate helpers remain expert-public
-  compatibility exports. New application code should prefer the `Query.*`
-  namespace, including `Query.eq(...)`, `Query.and(...)`, `Query.includes(...)`,
-  `Query.JoinKey`, `Query.SortDirection`, and `Query.SortValue`, but the direct
-  mirrors are intentionally documented and pinned so Query public Interface
-  drift is visible to the type-test manifest and public API audit.
-- `QueryGroupKey` and `Query.GroupKey` are the public grouped-query key
-  contracts for `Query.groupBy(...)`. They reject Promise-shaped values inside
-  nested records, arrays, Maps, and Sets at the type seam, and runtime evaluation reports
-  nested Promise-shaped keys with the failing group-key path before stable
-  stringification.
-- Bare `AnyCollection` erases error and requirement channels to `unknown` so
-  adapter helpers cannot accidentally treat heterogeneous collections as
-  service-free or string-error-only. `CollectionError<C>` and
-  `CollectionRequirements<C>` still preserve concrete collection channels.
-- `Collection.ChangeFeedUnsubscribe<E, R>` and
-  `Collection.ChangeFeedSubscription<E, R>` preserve serviceful cleanup
-  Effects for adapter authors. Scoped release publishes unsubscribe failures as
-  `CollectionChangeFeedFailure` events and swallows them after publication so
-  awaiting `Collection.subscribeChanges(...)` observes subscription setup
-  failures, not cleanup failure rethrows. `CollectionPersistenceConfig.hydrate`
-  explicitly accepts `false` for definitions that enable persistence but
-  disable config-driven restore hydration before preload.
-- The collection reactive binding helpers exported from the DB root are
-  expert-public Adapter helpers for Solid DB and future framework
-  adapters. They own collection source subscription, runtime-bound Effects,
-  preload controller generation checks, live-query state error extraction, and
-  live-query input/dependency selection; app code should prefer the framework
-  adapter hooks. They are pinned in the focused DB type test and required by
-  the public hover-doc audit so adapter-facing LSP vocabulary cannot drift.
-- DB public hover docs are now curated for Collection contract types,
-  `Collection.*` namespace aliases and runtime facade operations, the root
-  `CollectionLiveQueryOptions` type plus its namespace alias, Query plan
-  diagnostics, `Query.*` namespace aliases, flush/background-sync result types,
-  collection reactive binding helpers, server collection adapters, and SQLite
-  persistence helpers. These are the expert-public seams most likely to show up
-  in adapter, tooling, and recipe code, so missing JSDoc on those declarations fails
-  `pnpm audit:public-api`.
+- Filters, joins, ordering, windows, and grouping run through
+  `@tanstack/db-ivm`, which stays out of `@sunfall/arc-core`.
+- The internal Query Source Adapter owns how the engine reads a rows Resource:
+  the entry's visible value (optimistic patches included) in the query's
+  Resource Store, keyed by `rows.key`, with `rows.indexes` buckets for indexed
+  joins. Unchanged row objects keep their identity across reloads, so the
+  live runtime skips them instead of hashing every row.
 
 ### `@sunfall/arc-devtools`
 
@@ -883,7 +677,7 @@ The root export includes:
   `DevtoolsSerializationPolicy` used to bound arbitrary runtime values and
   redact secret-shaped keys;
 - invalidation plans, route plans, app graph diagnostics summaries, runtime
-  event models, Program event models, collection event models, and request
+  event models, Program event models, and request
   trace models.
 
 Release decisions:
@@ -909,7 +703,7 @@ Release decisions:
   `recordTimelineEntry(...)`, `recordTimelineEntry(...)`, and
   `trackTimeline(recording)` copy Core `Timeline.Entry` values into
   `TimelineCommit` runtime events (`DevtoolsTimelineCommit`), linked to the
-  Program, Action, Resource, or Collection their cause names. Store
+  Program, Action, or Resource their cause names. Store
   `serializationPolicy` options apply before those commits enter snapshots.
 - The browser panel renderer is public as an embedded UI surface, while
   the bridge helpers are public as the supported app-side handshake for checked
@@ -993,13 +787,20 @@ Release decisions:
 - Setup runs once per instance under the instance's Solid owner (every
   generator step, even after an asynchronous one), with an instance Scope that
   closes when Solid disposes the instance. Per-runtime sharing is by
-  construction: Resources and Collections live in the runtime's stores, and
+  construction: Resources live in the runtime's Resource Store, and
   `Component.provide` builds its Layer once per runtime.
 - `Component.resource(family)` returns a `ResourceReader`: `reader(input)` is
   the only way to render the value (it suspends the nearest `<Loading>` until
   the first value and keeps the current or stale value across refreshes, so
   content stays mounted), and `waiting(input)` / `failure(input)` are the
-  value-free status accessors.
+  value-free status accessors. For a family with `rows` it is a
+  `Component.Reader` that adds `get(input, key)` and `index(input, name,
+value)` (`Component.ResourceRowsReader`), typed by `rows`.
+- `Component.liveQuery(query, options?)` binds a `Query` over rows Resources
+  (`@sunfall/arc-db`) and returns a `Component.LiveQueryHandle` (`rows`,
+  `waiting`, `failure`, `preload`, `refresh`); the sources' declared errors
+  join `E` and their services join `R`. It replaces the deleted
+  `@sunfall/arc-solid-db` package.
 - `Component.action(definition)` returns an `ActionHandle` (`waiting`,
   `failure`, `result`, `input`, `submit`, `reset`); `waiting()` / `failure()`
   use the Resource reader's status names, and `result()` keeps the full
@@ -1017,7 +818,7 @@ Release decisions:
   `Component.callback`.
 - Handle vocabulary is uniform: members that run work (`submit`, `dispatch`,
   `reset`, `preload`, `refresh`) return Effects; `result()` is the
-  `AsyncResult` status accessor (actions, collections, live queries);
+  `AsyncResult` status accessor (actions, live queries);
   row-valued accessors are `rows()`; a Resource renders through its reader
   (`reader(input)`, with `waiting` / `failure`); pure synchronous state writes
   (`clearFailures()`, `Form.setField`) stay synchronous and carry their own
@@ -1071,38 +872,6 @@ initial)` commits each element as `<Component>.<name>`.
   Resource ref identity, automatic preload, and Suspense preload-token dedupe.
   Solid remains responsible for Accessor-shaped reactivity, owner cleanup, and
   the async-memo suspension seam.
-
-### `@sunfall/arc-solid-db`
-
-The root export includes:
-
-- Local source modules: `solid-db`, re-exported as the SolidDb namespace that
-  groups the collection and live-query bindings and their types; the package
-  root exports nothing else.
-- `SolidDb.collection(definition, options?)` and
-  `SolidDb.liveQuery(query, options?)`: setup-time Component bindings (built on
-  `Component.instance`) returning `SolidDb.CollectionHandle` / `SolidDb.LiveQueryHandle`, each
-  with `waiting()` / `failure()` status beside rows (the vocabulary every
-  binding uses), plus `SolidDb.CollectionBindingOptions` and `SolidDb.LiveQueryBindingOptions`.
-  The collection's or query's declared load errors join the component's `E`
-  (a never-loaded collection whose load failed throws to `<Errored>`) and its
-  services join `R`. `Collection` and `Query` are imported from
-  `@sunfall/arc-db` only.
-- Collection handles are reactive reads (`rows`, `get`, `index`, `waiting`,
-  `failure`); Actions change the rows. A live query's factory runs tracked, so
-  signal/prop reads rebuild the query (no `deps` option).
-
-Release decisions:
-
-- The focused Solid DB type test and public API manifest pin `SolidDb` as a
-  direct import and `SolidDb.CollectionHandle`, `SolidDb.LiveQueryHandle`,
-  `SolidDb.CollectionBindingOptions`, and `SolidDb.LiveQueryBindingOptions` as
-  type-test references so this Adapter Interface cannot drift silently.
-- Both bindings share one internal Solid DB Reactive Binding Module for the
-  instance runtime, source subscriptions, cleanup with the instance owner,
-  automatic preload through the DB-owned Collection Reactive Preload
-  Controller, and runtime-bound returned Effects (`preload`,
-  `refresh`), which no longer expose the query's service requirement.
 
 ### `@sunfall/arc-tsrx`
 

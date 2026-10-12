@@ -10,7 +10,6 @@ import {
   StartAction,
   StartActionDuplicateName,
   StartActionFormEncodeError,
-  StartCollectionDuplicateName,
   StartHydrationChunkParseError,
   StartHydrationPayloadParseError,
   StartHydrationPayloadSerializeError,
@@ -24,7 +23,6 @@ import {
   StartTransportEndpointPathError,
   type CreateRequestHandlerOptions,
   type HydrateFromDocumentOptions,
-  type StartCollectionHydrationOptions,
   type StartDocument,
   type StartDocumentContext,
   type StartDocumentTagAttributes,
@@ -43,7 +41,7 @@ import {
 } from "@sunfall/arc-start";
 import { Component } from "@sunfall/arc-solid";
 import { Context, Effect, Layer, Schedule, Schema } from "effect";
-import type { Action } from "@sunfall/arc-core";
+import { Resource, type Action } from "@sunfall/arc-core";
 
 const startExports: Array<unknown> = [
   App.define,
@@ -58,7 +56,6 @@ const startExports: Array<unknown> = [
   StartAction,
   StartActionDuplicateName,
   StartActionFormEncodeError,
-  StartCollectionDuplicateName,
   StartHydrationChunkParseError,
   StartHydrationPayloadParseError,
   StartHydrationPayloadSerializeError,
@@ -82,7 +79,6 @@ type StartTypes =
   | HydrateFromDocumentOptions
   | StartAction.FormOptions<{ readonly id: string }>
   | StartAction.InvalidationPlan
-  | StartCollectionHydrationOptions
   | StartDocument
   | StartDocumentContext
   | StartDocumentTagAttributes
@@ -118,6 +114,20 @@ const greetingHandler: StartRequestHandler = createRequestHandler(greetingApp, {
 });
 // @ts-expect-error the server Layer must provide the root's services
 createRequestHandler(greetingApp);
+// A persisted Resource needs a KeyValueStore; Start provides one on both
+// sides (Web Storage in the browser, a no-op store during SSR).
+const PersistedCount = Resource.define({
+  name: "type-tests/start/persisted-count",
+  input: Schema.String,
+  policy: { persist: { key: "count" } },
+  load: () => Effect.succeed(1),
+});
+const PersistedRoot = Component.define("PersistedRoot", function* (props: App.RootProps) {
+  const count = yield* Component.resource(PersistedCount);
+  return () => `${count(props.href)}`;
+});
+const persistedApp = App.define({ root: PersistedRoot, routes: [] });
+createRequestHandler(persistedApp);
 const NeedyRoot = Component.define("Needy", function* (props: { readonly id: string }) {
   yield* Effect.void;
   return () => props.id;

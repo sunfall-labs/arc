@@ -1,4 +1,4 @@
-import { Action, ActionResult, makeRuntime, Resource, runWithRuntime } from "@sunfall/arc-core";
+import { Action, ActionResult, makeRuntime, Resource } from "@sunfall/arc-core";
 import { Query } from "@sunfall/arc-db";
 import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
@@ -14,13 +14,9 @@ import {
   ProjectsRef,
   SubmitProjectName,
   SubmitProjectNameInput,
+  WorkItemsRef,
 } from "./domain.js";
-import {
-  MoveWorkItem,
-  ProjectSummaries,
-  ProjectWorkItems,
-  projectWorkQueueQuery,
-} from "./project-collections.js";
+import { MoveWorkItem, projectWorkQueueQuery } from "./project-actions.js";
 import { defaultRuntime } from "@sunfall/arc-core/internal";
 
 const mockProject = (overrides: Partial<Project> = {}): Project => ({
@@ -144,7 +140,6 @@ describe("project console contract mocks", () => {
                 id: makeWorkItemId("mocked-task"),
                 projectName: "Mocked Project",
                 status: "queued",
-                synced: true,
               }),
             ]);
           }),
@@ -233,7 +228,7 @@ describe("project console contract mocks", () => {
     );
   });
 
-  it("reconciles the sidebar collection from the rename action's invalidations", () => {
+  it("patches the sidebar row at once and reloads it from the rename's invalidations", () => {
     const id = makeProjectId("mocked");
     let name = "Mocked Resource";
     let lists = 0;
@@ -260,18 +255,12 @@ describe("project console contract mocks", () => {
     const runtime = makeRuntime(ProjectApiStateful);
     const ref = ProjectById(id);
     const action = Action.use(SubmitProjectName, { runtime });
-    const rowName = () => runWithRuntime(runtime, () => ProjectSummaries.get(id)?.name);
+    const rowName = () =>
+      runtime.runSync(Resource.read(ProjectsRef)).find((project) => project.id === id)?.name;
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* runtime.provide(
-          Effect.all([
-            Resource.preload(ProjectsRef),
-            Resource.preload(ref),
-            ProjectSummaries.preload(),
-          ]),
-        );
-        // The collection loads through the ProjectList Resource: one list fetch.
+        yield* runtime.provide(Effect.all([Resource.preload(ProjectsRef), Resource.preload(ref)]));
         expect(lists).toBe(1);
         expect(rowName()).toBe("Mocked Resource");
 
@@ -323,9 +312,9 @@ describe("project console contract mocks", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* runtime.provide(
-          Effect.all([ProjectSummaries.preload(), ProjectWorkItems.preload()]),
-        );
+        yield* runtime.provide(Resource.preload([ProjectsRef, WorkItemsRef]));
+        const workItem = () =>
+          runtime.runSync(Resource.read(WorkItemsRef)).find((item) => item.id === workItemId);
 
         const move = Action.use(MoveWorkItem, { runtime });
         const running = runtime.runFork(move.submit({ id: workItemId, status: "running" }));
@@ -333,26 +322,17 @@ describe("project console contract mocks", () => {
         yield* Effect.sleep("10 millis");
 
         expect(started).toBe(true);
-        expect(runWithRuntime(runtime, () => ProjectWorkItems.get(workItemId))).toMatchObject({
-          status: "running",
-          $synced: false,
-        });
+        expect(workItem()).toMatchObject({ status: "running" });
         expect(yield* runtime.provide(Query.once(projectWorkQueueQuery(id)))).toEqual([
-          expect.objectContaining({
-            id: workItemId,
-            status: "running",
-            synced: false,
-          }),
+          expect.objectContaining({ id: workItemId, status: "running" }),
         ]);
 
         yield* Deferred.succeed(release, undefined);
         yield* Fiber.join(running);
 
-        // The `WorkItems` invalidation reloaded the list the collection follows.
-        expect(runWithRuntime(runtime, () => ProjectWorkItems.get(workItemId))).toMatchObject({
-          status: "running",
-          $synced: true,
-        });
+        // The `WorkItems` invalidation reloaded the server's row underneath.
+        expect(workItem()).toMatchObject({ status: "running" });
+        expect(status).toBe("running");
       }).pipe(
         Effect.ensuring(
           Effect.gen(function* () {

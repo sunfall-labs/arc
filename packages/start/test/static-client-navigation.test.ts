@@ -463,7 +463,7 @@ describe("Start static client navigation", () => {
       ),
     ));
 
-  it("hydrates collection-declared routes and skips routes without preload work", () =>
+  it("hydrates preload-declared routes and skips routes without preload work", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
@@ -471,8 +471,8 @@ describe("Start static client navigation", () => {
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const window = new Window({ url: "https://docs.test/app/" });
           const PlainRoute = Route.define("/plain");
-          const CollectionRoute = Route.define("/collections", {
-            preloadCollections: ["Start.Static.Collection.projects"],
+          const DeclaredRoute = Route.define("/declared", {
+            preloadResources: ["Start.Static.Resource.projects"],
           });
           const fetch = vi.fn(
             async (_input: RequestInfo | URL, _init?: RequestInit) =>
@@ -480,7 +480,7 @@ describe("Start static client navigation", () => {
           );
           const history = makeStartStaticHistoryAdapter({
             runtime,
-            routes: [PlainRoute, CollectionRoute] as const,
+            routes: [PlainRoute, DeclaredRoute] as const,
             basePath: "/app/",
             getWindow: () => asHistoryWindow(window),
             fetch,
@@ -490,7 +490,7 @@ describe("Start static client navigation", () => {
           yield* history.prepareHref!("/plain");
           expect(fetch).toHaveBeenCalledTimes(0);
 
-          yield* history.prepareHref!("/collections");
+          yield* history.prepareHref!("/declared");
           expect(fetch).toHaveBeenCalledTimes(1);
         }),
       ),

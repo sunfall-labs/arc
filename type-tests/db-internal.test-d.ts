@@ -1,32 +1,20 @@
-import type { Effect } from "effect";
-import { Collection } from "@sunfall/arc-db";
-import {
-  buildQuery,
-  collectCollections,
-  defaultCollectionDefinitionRegistry,
-  forgetFailedCollectionLoads,
-  isCollection,
-  type CollectionDefinitionDiagnostics,
-} from "@sunfall/arc-db/internal";
+import { Effect, Schema } from "effect";
+import { Resource } from "@sunfall/arc-core";
+import type { MutableResourceStore } from "@sunfall/arc-core/internal";
+import { buildQuery, currentQueryStore, runWithQueryStore } from "@sunfall/arc-db/internal";
 
-interface Project {
-  readonly id: string;
-}
-
-// Adapter plumbing shared by Solid DB, Start, and devtools; not application API.
-declare const projects: Collection.Definition<Project, string>;
-const isProjects: boolean = isCollection(projects);
-const collected: Effect.Effect<{ readonly definitions: ReadonlyArray<Collection.Any> }, never> =
-  collectCollections(projects.preload());
-const diagnostics: ReadonlyArray<CollectionDefinitionDiagnostics> =
-  defaultCollectionDefinitionRegistry.diagnostics().collections;
-const rows: ReadonlyArray<Project> = buildQuery((query) =>
-  query.from({ project: projects }).select(({ project }) => project),
-).execute();
-// Start's server render forgets failed first loads; it cannot fail.
-const forgotten: Effect.Effect<void> = forgetFailedCollectionLoads([projects]);
-void forgotten;
-void isProjects;
-void collected;
-void diagnostics;
+// Adapter plumbing shared by the Solid binding and tests; not application API.
+const Projects = Resource.define({
+  name: "type-tests/db-internal/projects",
+  input: Schema.Literal("all"),
+  output: Schema.Array(Schema.Struct({ id: Schema.String })),
+  rows: { key: (project) => project.id },
+  load: () => Effect.succeed([{ id: "atlas" }]),
+});
+const store: MutableResourceStore = currentQueryStore();
+const rows: ReadonlyArray<{ readonly id: string }> = runWithQueryStore(store, () =>
+  buildQuery((query) =>
+    query.from({ project: Projects("all") }).select(({ project }) => project),
+  ).execute(),
+);
 void rows;

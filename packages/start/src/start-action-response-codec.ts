@@ -230,9 +230,7 @@ export const actionResponseMeta = (
         const hydration = createStartHydrationPayload(resources);
         return {
           invalidation: describeStartActionInvalidationPlan(plan),
-          ...(hydration.resources.length === 0 && (hydration.collections?.length ?? 0) === 0
-            ? {}
-            : { hydration }),
+          ...(hydration.resources.length === 0 ? {} : { hydration }),
         };
       });
 
@@ -533,9 +531,7 @@ const isStartActionInvalidationPlan = (value: unknown): value is StartActionInva
 };
 
 const isStartHydrationPayload = (value: unknown): value is StartHydrationPayload =>
-  isRecord(value) &&
-  Array.isArray(value.resources) &&
-  (value.collections === undefined || Array.isArray(value.collections));
+  isRecord(value) && Array.isArray(value.resources);
 
 const isStartActionResponseMeta = (value: Record<string, unknown>): boolean =>
   (value.invalidation === undefined || isStartActionInvalidationPlan(value.invalidation)) &&

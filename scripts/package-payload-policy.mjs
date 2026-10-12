@@ -12,7 +12,6 @@ export const workspaceDistPackagePayloadPolicies = new Map([
   ["@sunfall/arc-db", distPackagePolicy],
   ["@sunfall/arc-devtools", distPackagePolicy],
   ["@sunfall/arc-solid", distPackagePolicy],
-  ["@sunfall/arc-solid-db", distPackagePolicy],
   [
     "@sunfall/arc-start",
     {

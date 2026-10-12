@@ -6,12 +6,15 @@
  * import from `@sunfall/arc-core/internal`.
  */
 export {
-  ActionOptimisticRowsTypeId,
-  type ActionOptimisticRowChange,
-  type ActionOptimisticRows,
-  type ActionOptimisticRowsLayer,
-  type ActionOptimisticRowUpdate,
-} from "./action-optimistic.js";
+  applyResourceRowChanges,
+  applyResourceRowPatch,
+  reconcileResourceRows,
+  resourceRowIndexBucket,
+  resourceRowKey,
+  resourceRowsGet,
+  resourceRowsIndex,
+  type ResourceRowPatch,
+} from "./resource-rows.js";
 export type {
   ActionDefinitionRequirements,
   AppDefinitionRegistry,
@@ -60,13 +63,20 @@ export {
 } from "./resource-failure-snapshot.js";
 export * from "./resource-registry.js";
 export type {
+  MutableResourceStore,
   ResourceStoreEventBus,
   ResourceStoreFiberRegistry,
   ResourceStoreInvalidationCause,
   ResourceStoreModule,
   ResourceStoreModuleRegistry,
 } from "./resource-store.js";
-export { lookupResourceFamily, refsForResourceTag } from "./resource-runtime.js";
+export {
+  activeResourceStore,
+  currentResourceStore,
+  lookupResourceFamily,
+  refsForResourceTag,
+  resourceEntry,
+} from "./resource-runtime.js";
 export {
   cloneResourceSnapshotValue,
   decodeResourceHydrationInput,

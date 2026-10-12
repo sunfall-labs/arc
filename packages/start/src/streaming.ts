@@ -41,7 +41,7 @@ export type HtmlStreamChunk =
       readonly bytes: Uint8Array;
     }
   | {
-      /** Resource and collection hydration payload streamed to the browser. */
+      /** Resource hydration payload streamed to the browser. */
       readonly _tag: "Hydration";
       readonly payload: StartHydrationPayload;
       /** Optional explicit sequence number; omitted chunks auto-increment. */

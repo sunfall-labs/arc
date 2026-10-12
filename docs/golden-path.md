@@ -1,7 +1,6 @@
 # The Golden Path
 
-Arc gives you Signals, Programs, Resources, Actions, Collections, Components,
-and Routes. This page picks the right one for each job, then builds one small
+Arc gives you Signals, Programs, Resources, Actions, Components, and Routes. This page picks the right one for each job, then builds one small
 feature end to end with them: a project list, a project page, and a rename.
 
 Every snippet here is compiled. The code lives in
@@ -11,28 +10,26 @@ type-checks it and fails if a snippet on this page no longer matches its file
 
 ## Pick The Tool
 
-| I need to...                                                         | Use                                                                          | Not when                                                                           |
-| -------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| read server data                                                     | **Resource**: `Resource.define`, read with `Component.resource`              | the data never leaves the client (Signal), or you edit rows locally (Collection)   |
-| change server data                                                   | **Action**: `Action.define` with `invalidates` tags                          | the change is local UI state: use a Signal                                         |
-| hold client-only UI state                                            | **Signal**: `Signal.make` in setup, written in a named `Component.callback`  | it has many messages, transitions, or async follow-ups: use a Program              |
-| run a state machine with many messages                               | **Program**: `Program.define`, bound with `Component.program`                | one or two independent values: use Signals                                         |
-| keep normalized rows with indexes, live queries, or optimistic edits | **Collection**: `Collection.define({ sync: ref })`, backed by a Resource     | you only render a list you fetched: a Resource is enough                           |
-| build a screen or feature that reads or writes state                 | **Component**: `Component.define`                                            | it only renders props: write a plain Solid function                                |
-| map a URL to a screen and its data                                   | **Route**: `Route.define`                                                    | the state is not addressable (a modal, a tab): use a Signal                        |
-| call a backend or service                                            | **Capability**: `Capability.define` plus a Layer per host                    | it is pure computation: write a function                                           |
-| wire and start the app                                               | `App.define`, then `createRequestHandler` (server) and `App.launch` (client) | never skip it: this is where missing services and unhandled failures become errors |
-| answer "how did the UI get into this state?"                         | **Timeline**: `Timeline.record`, then `travel`                               | production telemetry: use [devtools](devtools.md) summaries                        |
+| I need to...                                         | Use                                                                           | Not when                                                                           |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| read server data, including keyed lists with indexes | **Resource**: `Resource.define` (add `rows` for a list), `Component.resource` | the data never leaves the client: use a Signal                                     |
+| change server data                                   | **Action**: `Action.define` with `invalidates` tags                           | the change is local UI state: use a Signal                                         |
+| hold client-only state, including local-only rows    | **Signal**: `Signal.make` in setup, written in a named `Component.callback`   | it has many messages, transitions, or async follow-ups: use a Program              |
+| run a state machine with many messages               | **Program**: `Program.define`, bound with `Component.program`                 | one or two independent values: use Signals                                         |
+| build a screen or feature that reads or writes state | **Component**: `Component.define`                                             | it only renders props: write a plain Solid function                                |
+| map a URL to a screen and its data                   | **Route**: `Route.define`                                                     | the state is not addressable (a modal, a tab): use a Signal                        |
+| call a backend or service                            | **Capability**: `Capability.define` plus a Layer per host                     | it is pure computation: write a function                                           |
+| wire and start the app                               | `App.define`, then `createRequestHandler` (server) and `App.launch` (client)  | never skip it: this is where missing services and unhandled failures become errors |
+| answer "how did the UI get into this state?"         | **Timeline**: `Timeline.record`, then `travel`                                | production telemetry: use [devtools](devtools.md) summaries                        |
 
 Two defaults settle most arguments:
 
 - **Mutations are Actions.** Every change to server data is an Action. When
   the screen must change before the server answers, the Action's `optimistic`
-  patches Signals, Resource entries, and Collection rows, and a failure rolls
+  patches Signals, Resource entries, and Resource rows, and a failure rolls
   them back.
 - **A failure that can reach rendering joins `E`; a failure of work you start
-  is yours.** Resource readers and Collection rows add their load errors to
-  the Component's `E`, so `catchTags` must handle them before `launch`
+  is yours.** Resource readers add their load errors to the Component's `E`, so `catchTags` must handle them before `launch`
   compiles. `submit`, `dispatch`, and `preload` return their failures, and
   `Component.callback` makes the handler deal with them.
 - **State that matters has a typed owner.** If rendering, caching, testing, or
@@ -40,7 +37,7 @@ Two defaults settle most arguments:
   ad hoc component locals.
 - **Every state change has a name.** A Signal changes only inside a named
   transition: a `Component.callback("name", ...)`, an Action, a Program
-  message, or a framework event (Resource load, Collection sync, navigation).
+  message, or a framework event (Resource load, navigation).
   A write anywhere else dies with `SignalWriteOutsideTransition`, so the
   Timeline reads like a message log: `ProjectSidebar.filter`,
   `Action "Project.rename" submit`.
@@ -52,13 +49,13 @@ Two defaults settle most arguments:
                         ▲               ▲
                    load │               │ run
                      Resource ◄──tags── Action
-                    ▲   ▲    ▲             ▲
-          sync: ref │   │    │ preload     │
-           Collection   │    Route         │
-                ▲       │      ▲           │
-  SolidDb.collection    │      │ Component.router
-                │       │      │           │ Component.action
-                └─── Component ────────────┘
+                     ▲      ▲    patches ▲
+                     │      │ preload    │
+  Component.resource │      Route        │
+                     │      ▲            │
+                     │      │ Component.router
+                     │      │            │ Component.action
+                     └─── Component ─────┘
           (Component.resource / callback / program, Signals in setup)
                          │
     App.define ── createRequestHandler (server) · App.launch (browser)
@@ -80,7 +77,7 @@ Actions refresh it by meaning instead of by cache key.
 
 `src/projects.ts`:
 
-<!-- snippet: type-tests/golden-path/projects.ts -->
+<!-- snippet: type-tests/golden-path/projects.step-1.ts -->
 
 ```ts
 import { Capability, Resource } from "@sunfall/arc-core";
@@ -213,7 +210,7 @@ failure of that preload.
 
 `src/routes.ts`:
 
-<!-- snippet: type-tests/golden-path/routes.step-3.ts -->
+<!-- snippet: type-tests/golden-path/routes.ts -->
 
 ```ts
 import { Resource, Route } from "@sunfall/arc-core";
@@ -436,136 +433,93 @@ The page yields the form like any child Component:
   or this project's `ProjectTag`. The page keeps its content mounted while
   `waiting` is true, so the form keeps focus.
 
-### 5. Upgrade the list to a Collection
+### 5. Add `rows` and an instant rename
 
-The sidebar wants per-status filtering and an instant rename. That is a
-Collection's job: keyed rows, indexes, and optimistic edits. Back it with the
-Resource you already have, and both stay in sync.
+The sidebar wants a per-status filter, and the rename should show at once.
+Both need the list's rows: give `ProjectList` a `rows` option, a key and the
+indexes to look rows up by. The Resource stays the one copy of the data: the
+same load, cache, tags, and hydration.
 
-`src/collection.ts`:
+`src/projects.ts`:
 
-<!-- snippet: type-tests/golden-path/collection.ts -->
-
-```ts
-import { Collection } from "@sunfall/arc-db";
-import { Project, ProjectsRef } from "./projects.js";
-
-// Backed by the Resource: it loads through ProjectsRef and follows it, so the
-// rename Action's `ProjectsTag` invalidation reconciles these rows with no
-// second fetch.
-export const Projects = Collection.define({
-  name: "Projects.rows",
-  output: Project,
-  getKey: (project) => project.id,
-  indexes: { status: (project) => project.status },
-  sync: ProjectsRef,
-});
-```
-
-`src/project-list.tsx` now binds the collection and keeps the filter in a
-Signal, written only through the named `filter` callback:
-
-<!-- snippet: type-tests/golden-path/project-list.tsx -->
-
-```tsx
-import { Signal } from "@sunfall/arc-core";
-import { Component, RouterLink } from "@sunfall/arc-solid";
-import { SolidDb } from "@sunfall/arc-solid-db";
-import { Effect } from "effect";
-import { For, Show } from "solid-js";
-import { Projects } from "./collection.js";
-import { ProjectRoute } from "./routes.js";
-
-type Status = "active" | "archived";
-
-export const ProjectSidebar = Component.define("ProjectSidebar", function* () {
-  // E += the collection's load error, exactly like a Resource reader (here never).
-  const projects = yield* SolidDb.collection(Projects);
-  // Client-only UI state: a Signal per instance, named for the Timeline.
-  const status = Signal.make<Status>("active", { name: "ProjectSidebar.status" });
-  // Writes happen in a named transition; the Timeline shows `ProjectSidebar.filter`.
-  const filter = yield* Component.callback("filter", (next: Status) =>
-    Effect.sync(() => status.set(next)),
-  );
-
-  return () => (
-    <nav class={{ refreshing: projects.waiting() }}>
-      <select
-        value={status.get()}
-        onChange={(event) => filter(event.currentTarget.value as Status)}
-      >
-        <option value="active">Active</option>
-        <option value="archived">Archived</option>
-      </select>
-      <For each={projects.index("status", status.get())} keyed={(project) => project.id}>
-        {(project) => (
-          <RouterLink route={ProjectRoute} options={{ params: { id: project().id } }}>
-            {project().name}
-          </RouterLink>
-        )}
-      </For>
-      <Show when={projects.failure()}>
-        <p role="alert">Could not refresh projects.</p>
-      </Show>
-    </nav>
-  );
-});
-```
-
-The routes preload the collection so SSR renders its rows:
-
-`src/routes.ts`:
-
-<!-- snippet: type-tests/golden-path/routes.step-3.ts -> type-tests/golden-path/routes.ts -->
+<!-- snippet: type-tests/golden-path/projects.step-1.ts -> type-tests/golden-path/projects.ts -->
 
 ```diff
-@@ -1,9 +1,11 @@
- import { Resource, Route } from "@sunfall/arc-core";
--import { Schema } from "effect";
--import { ProjectById, ProjectId, ProjectList, ProjectNotFound, ProjectsRef } from "./projects.js";
-+import { Effect, Schema } from "effect";
-+import { Projects } from "./collection.js";
-+import { ProjectById, ProjectId, ProjectList, ProjectNotFound } from "./projects.js";
-
- export const ProjectsRoute = Route.define("/", {
-   preloadResources: [ProjectList],
--  preload: () => Resource.preload(ProjectsRef),
-+  preloadCollections: [Projects],
-+  preload: () => Projects.preload(),
- });
-
-@@ -14,5 +16,7 @@
-   error: ProjectNotFound,
-   preloadResources: [ProjectList, ProjectById],
--  preload: ({ params }) => Resource.preload([ProjectsRef, ProjectById(params.id)]),
-+  preloadCollections: [Projects],
-+  preload: ({ params }) =>
-+    Effect.all([Projects.preload(), Resource.preload(ProjectById(params.id))]),
- });
-
+@@ -37,4 +37,7 @@
+   input: Schema.Literal("all"),
+   output: Schema.Array(Project),
++  // The list's rows: keyed by id, indexed by status. Readers look rows up by
++  // key or index, and an Action patches one row by key.
++  rows: { key: (project) => project.id, indexes: { status: (project) => project.status } },
+   load: () => ProjectApi.use((api) => api.list()),
+   provides: () => [ProjectsTag],
 ```
 
-- The rename Action did not change. Its `ProjectsTag` invalidation reloads
-  `ProjectList`, and the collection follows the Resource with no second fetch.
-- `Projects.preload()` fails only with the collection's declared error (here
-  none, because `ProjectsRef` cannot fail), so it joins the route's preload
-  as is. Like a Resource load, a row the output schema rejects or a sync
-  callback that throws is a defect, not a typed failure.
-- Collection rows stay readable while a load is in flight and after a failed
-  refresh, so there is no `<Loading>`: `waiting()` and `failure()` drive the
-  chrome. If the collection never loaded and its load failed, the rows throw
-  that failure to `<Errored>`, so the load error joins the Component's `E`
-  exactly like a reader's. `ProjectsRef` cannot fail, so the sidebar's `E`
-  stays `never`.
+- `rows` is allowed only when `output` is an array, and its callbacks are
+  typed by the element (`project` is a `Project` here, no annotation).
+- Rows are derived from the loaded value, never stored twice. A reload
+  replaces them, and a row that did not change keeps its identity, so a keyed
+  `<For>` keeps it mounted.
 
-Make the rename instant on the Action. `optimistic` patches the sidebar row and
-the project page before `run` starts. `transaction.update` patches the
-collection row, which reads `$synced: false`; `transaction.set` patches the
-`ProjectById` entry, so the page's reader shows the new name with no
-`<Loading>` flash. Success keeps the new name until the `ProjectsTag` and
-`ProjectTag` reloads replace it, and a failure or an interrupted submission
-rolls both back. A reload while the rename is in flight replaces the value
-underneath and keeps the patch on top. The form did not change.
+The reader of a Resource with `rows` adds `get(input, key)` and
+`index(input, name, value)`. `src/project-list.tsx` reads the status index
+and keeps the filter in a Signal, written only through the named `filter`
+callback:
+
+<!-- snippet: type-tests/golden-path/project-list.step-3.tsx -> type-tests/golden-path/project-list.tsx -->
+
+```diff
+@@ -1,14 +1,31 @@
++import { Signal } from "@sunfall/arc-core";
+ import { Component, RouterLink } from "@sunfall/arc-solid";
++import { Effect } from "effect";
+ import { For, Loading } from "solid-js";
+ import { ProjectList } from "./projects.js";
+ import { ProjectRoute } from "./routes.js";
+
++type Status = "active" | "archived";
++
+ export const ProjectSidebar = Component.define("ProjectSidebar", function* () {
+   const projects = yield* Component.resource(ProjectList);
++  // Client-only UI state: a Signal per instance, named for the Timeline.
++  const status = Signal.make<Status>("active", { name: "ProjectSidebar.status" });
++  // Writes happen in a named transition; the Timeline shows `ProjectSidebar.filter`.
++  const filter = yield* Component.callback("filter", (next: Status) =>
++    Effect.sync(() => status.set(next)),
++  );
+
+   return () => (
+     <Loading fallback={<p>Loading projects</p>}>
+       <nav class={{ refreshing: projects.waiting("all") }}>
+-        <For each={projects("all")} keyed={(project) => project.id}>
++        <select
++          value={status.get()}
++          onChange={(event) => filter(event.currentTarget.value as Status)}
++        >
++          <option value="active">Active</option>
++          <option value="archived">Archived</option>
++        </select>
++        <For each={projects.index("all", "status", status.get())} keyed={(project) => project.id}>
+           {(project) => (
+             <RouterLink route={ProjectRoute} options={{ params: { id: project().id } }}>
+```
+
+- `projects.index("all", "status", status.get())` suspends like
+  `projects("all")` on the first load, then follows the rows: a reload, a
+  patch, and the filter Signal all re-run it. Index names and values are
+  checked against `rows.indexes`.
+- The routes did not change: `preloadResources: [ProjectList]` already
+  preloads (and server renders) the rows.
+
+Make the rename instant on the Action. `optimistic` patches the sidebar row
+and the project page before `run` starts. `transaction.update(ProjectsRef, id,
+patch)` patches one row of the list by key (the key is typed by `rows.key`),
+and `transaction.set` patches the `ProjectById` entry, so both readers show
+the new name with no `<Loading>` flash. Success keeps the new name until the
+`ProjectsTag` and `ProjectTag` reloads replace it, and a failure or an
+interrupted submission rolls both back. A reload while the rename is in
+flight replaces the value underneath and keeps the patch on top. The form did
+not change.
 
 `src/rename.tsx`:
 
@@ -576,26 +530,25 @@ underneath and keeps the patch on top. The form did not change.
  import { Cause, Effect, Schema } from "effect";
  import { Show } from "solid-js";
 -import { Project, ProjectApi, ProjectId, ProjectTag, ProjectsTag } from "./projects.js";
-+import { Projects } from "./collection.js";
 +import {
 +  Project,
 +  ProjectApi,
 +  ProjectById,
 +  ProjectId,
 +  ProjectTag,
++  ProjectsRef,
 +  ProjectsTag,
 +} from "./projects.js";
 
  export const RenameProject = Action.define({
-@@ -9,4 +17,12 @@
+@@ -9,4 +17,11 @@
    input: Schema.Struct({ id: ProjectId, name: Schema.String }),
    output: Project,
-+  // The sidebar row (`$synced: false`) and the project page show the new name
-+  // at once; success keeps it until the reload lands, and a failure rolls
-+  // both back.
++  // The sidebar row and the project page show the new name at once; success
++  // keeps it until the reloads land, and a failure rolls both back.
 +  optimistic: (input, transaction) =>
 +    Effect.all([
-+      transaction.update(Projects, input.id, { name: input.name }),
++      transaction.update(ProjectsRef, input.id, { name: input.name }),
 +      transaction.set(ProjectById(input.id), (project) => ({ ...project, name: input.name })),
 +    ]),
    run: (input) => ProjectApi.use((api) => api.rename(input)),
@@ -605,8 +558,8 @@ underneath and keeps the patch on top. The form did not change.
 ### 6. Server rendering and hydration with Start
 
 `App.define` is the one definition both entries derive from: the root
-Component, the routes, the Collections that hydrate, the Actions the server
-serves, and the browser's Layer. Start passes the root the href it renders.
+Component, the routes, the Actions the server serves, and the browser's
+Layer. Start passes the root the href it renders.
 
 `src/app-definition.ts`:
 
@@ -615,7 +568,6 @@ serves, and the browser's Layer. Start passes the root the href it renders.
 ```ts
 import { App } from "@sunfall/arc-start";
 import { App as Root } from "./app.js";
-import { Projects } from "./collection.js";
 import { ProjectApiMemory } from "./projects.memory.js";
 import { servedActions } from "./rename.js";
 import { routes } from "./routes.js";
@@ -623,7 +575,6 @@ import { routes } from "./routes.js";
 export const app = App.define({
   root: Root,
   routes,
-  collections: [Projects],
   actions: servedActions,
   client: ProjectApiMemory, // stand-in: a real client Layer calls server functions
 });
@@ -652,7 +603,7 @@ export const handleRequest = createRequestHandler(app, {
 ```
 
 The browser entry is one line. `App.launch` builds the runtime from the client
-Layer, restores the server's Resource and Collection snapshot, and hydrates the
+Layer, restores the server's Resource snapshot, and hydrates the
 server markup with the same tree, so preloaded reads render synchronously:
 
 `src/main.tsx`:
@@ -684,11 +635,11 @@ Effect.runFork(App.launch(app));
 ### 7. Debug with the Timeline
 
 `Timeline.record` records every committed change, whatever owns it: Signals,
-Resource entries, Action state, Program models, the router, and Collections.
-Every entry has a name, because every write happens inside a named
-transition: a Component's callbacks commit as `<Component>.<name>`
-(`ProjectSidebar.filter`), and Actions, Programs, Resources, Collections, and
-the router label their own commits. A write outside all of them fails at the
+Resource entries, Action state, Program models, and the router. Every entry
+has a name, because every write happens inside a named transition: a
+Component's callbacks commit as `<Component>.<name>`
+(`ProjectSidebar.filter`), and Actions, Programs, Resources, and the router
+label their own commits. A write outside all of them fails at the
 write with `SignalWriteOutsideTransition`, naming the Signal. `travel`
 re-renders the UI as it was after any entry while Effects keep running against
 the live state.
@@ -742,7 +693,7 @@ export const launchTimelinePanel = (container: HTMLElement) =>
 Mount it beside the app in development with
 `Effect.runFork(launchTimelinePanel(panelElement))`. Rename a project and the
 panel reads like a message log: `RenameForm.save`'s Action submit and success,
-the Resource reloads its tags triggered, and the collection sync that followed;
+and the Resource reloads its tags triggered;
 changing the sidebar filter shows `ProjectSidebar.filter` changing
 `ProjectSidebar.status`. In tests, record inside the test's Scope and assert on
 the DOM after `travel`
@@ -833,7 +784,7 @@ An Action's `optimistic` patch is tested with `Action.planOptimistic(definition,
 input)`. It runs the patch against a recording transaction and returns what it
 would change, applying nothing: a `set` reports the value its Signal or
 Resource entry would read (so load the entry first), and a row patch reports
-the collection and the change.
+its Resource ref and the change.
 
 <!-- snippet: type-tests/golden-path/rename.test.ts -->
 
@@ -841,8 +792,7 @@ the collection and the change.
 import { Action, Resource } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { expect, test } from "vitest";
-import { Projects } from "./collection.js";
-import { ProjectById, ProjectId } from "./projects.js";
+import { ProjectById, ProjectId, ProjectsRef } from "./projects.js";
 import { ProjectApiMemory } from "./projects.memory.js";
 import { RenameProject } from "./rename.js";
 
@@ -850,7 +800,7 @@ test("renaming patches the sidebar row and the project page at once", () => {
   const id = ProjectId.make("atlas");
   const { atlas, changes } = Effect.runSync(
     Effect.gen(function* () {
-      // A Resource patch reports the value the entry would read, so load it.
+      // A patch reports the value the entry would read, so load it.
       const atlas = yield* Resource.preload(ProjectById(id));
       // Plans the patch without applying it: nothing is written.
       const changes = yield* Action.planOptimistic(RenameProject, { id, name: "Atlas 2" });
@@ -858,7 +808,7 @@ test("renaming patches the sidebar row and the project page at once", () => {
     }).pipe(Effect.provide(ProjectApiMemory)),
   );
   expect(changes).toEqual([
-    { _tag: "Update", rows: Projects, key: id, update: { name: "Atlas 2" } },
+    { _tag: "Update", target: ProjectsRef, key: id, update: { name: "Atlas 2" } },
     { _tag: "Set", target: ProjectById(id), value: { ...atlas, name: "Atlas 2" } },
   ]);
 });
@@ -873,8 +823,8 @@ To test what the screen shows, render the Component (see
   data reaches JSX; `waiting(input)` and `failure(input)` are for chrome.
 - **Plain Solid functions for presentational leaves.** A Component earns its
   cost when it binds state, services, or failures.
-- **Handle every typed failure.** Resource readers and Collection rows add
-  their load errors to the Component; `catchTags` or `catchAll` removes them;
+- **Handle every typed failure.** Resource readers add their load errors to
+  the Component; `catchTags` or `catchAll` removes them;
   `launch` refuses what is left. Work you start (`submit`, `dispatch`,
   `preload`) returns its failures, and callbacks must handle them.
 - **Declare `error` where failures render.** A Resource read or route preload
@@ -883,23 +833,23 @@ To test what the screen shows, render the Component (see
   `RoutePreloadUntypedFailure` (the `tag` only), on the server and the client
   alike.
 - **One status vocabulary.** Every binding reports `waiting()` and
-  `failure()`: readers, collections, live queries, and Actions.
+  `failure()`: readers, live queries, and Actions.
 - **Run work through named `Component.callback`s.** `submit`, `dispatch`,
   `preload`, and `refresh` return Effects, and Signal writes need a name; DOM
   handlers get both via `Component.callback("name", f)`, whose commits read
   `<Component>.<name>` on the Timeline.
 - **Change server data with Actions.** `optimistic` patches Signals, Resource
-  entries, and Collection rows for the life of the submission; there is no other write
-  path. Add `durable: { maxAge }` when a change must survive going offline
+  entries, and Resource rows for the life of the submission; there is no
+  other write path. Add `durable: { maxAge }` when a change must survive going offline
   or reloading; `Action.outbox` counts what is waiting to sync.
 - **Invalidate by meaning.** Resources `provide` tags, Actions `invalidate`
   them. Call `Resource.invalidate(ref)` yourself only for an explicit refresh
   button.
-- **Preload in the route.** Declare `preloadResources` and
-  `preloadCollections` with the preload, and SSR, hydration, and navigation
-  render without a fallback flash.
+- **Preload in the route.** Declare `preloadResources` with the preload, and
+  SSR, hydration, and navigation render without a fallback flash.
 - **Key lists by identity.** `<For each={rows} keyed={(row) => row.id}>` keeps
-  rows mounted when a refresh returns new objects.
+  rows mounted when a refresh returns new objects; with `rows`, unchanged
+  rows also keep their object identity.
 - **Write Signals only in named transitions.** `Signal.make(value, { name })`
   requires a name for the Signal; writing it outside a callback, Action, or
   Program dies with `SignalWriteOutsideTransition`. Solid effects and bare
@@ -913,7 +863,8 @@ To test what the screen shows, render the Component (see
 - [Solid adapter](solid-adapter.md): every binding, boundary, and entry point.
 - [Architecture](architecture.md): the runtime, Resources, Actions, Programs,
   and Routes in depth.
-- [DB](db.md): Collections, sync adapters, live queries, and persistence.
+- [Rows and queries](db.md): `rows`, change feeds, live queries, and
+  persistence.
 - [Starters](starter.md): the checked apps to copy.
 - [Deployment](deployment.md): fetch and Node hosts.
 - [Migration notes](migration-notes.md): coming from TanStack Query, Remix,

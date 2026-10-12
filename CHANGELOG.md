@@ -6,6 +6,55 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Resource Is The One Server-Data Model (Breaking)
+
+- `Resource.define` takes `rows` when its `output` is an array:
+  `rows: { key: (project) => project.id, indexes: { status: (project) => project.status } }`,
+  with callbacks typed by the output's element (a non-array output does not
+  compile). Rows are derived from the value: a reload is diffed by key, so
+  unchanged rows keep their object identity, and lookups are cached per
+  value.
+- The reader of a rows Resource adds `get(input, key)` and
+  `index(input, name, value)`, typed by `rows`; they suspend and follow
+  reloads exactly like `reader(input)`.
+- An Action's `optimistic` patches rows with
+  `transaction.insert/update/delete(ref, key, ...)` on a ref of a Resource
+  with `rows` (the key typed by `rows.key`), layered over the synced value
+  like `transaction.set`. An update shares the value's key positions and
+  moves only the index buckets the row changed. Row updates take a partial
+  or a pure updater (no draft mutation). `Action.planOptimistic` reports row
+  changes with `target: ref`.
+- `rows.changes(input)` streams remote `Upsert`/`Update`/`Delete` batches
+  into the synced rows (Timeline cause `Resource ... change`;
+  `ResourceRowsChanged` / `ResourceRowsChangesFailure` store events).
+- `policy.persist: { key, version }` persists any Resource's settled values
+  in the runtime's `KeyValueStore` (`arc/resources/v<version>/<key>/...`); a
+  never-loaded entry shows the persisted value at once and reloads in the
+  background. Durable Actions re-apply their row patches on top. A persisted
+  family requires `KeyValueStore.KeyValueStore` in its `R`, so a runtime
+  without a store does not compile; storage failures are logged, not load
+  failures.
+- Start provides that store on both sides: `App.launch` uses the client
+  Layer's `KeyValueStore`, else `localStorage` (memory without Web Storage),
+  one store shared with the Action Outbox (which previously fell back to
+  memory), and request runtimes get a store that keeps nothing unless the
+  server Layer provides one. `App.LaunchServices` includes `KeyValueStore`.
+- Live queries read rows Resources: `query.from({ project: ProjectsRef })`,
+  `joinIndexed` names checked against `rows.indexes`. Query diagnostics
+  report `resource` instead of `collection`, and join strategies are
+  `"scan"` / `"index"`. `Component.liveQuery` (in `@sunfall/arc-solid`)
+  binds one in a Component.
+- Removed: `Collection` (`define`, `liveQuery`, sync adapters, local-only
+  collections, `applyChanges`, snapshots, persistence, row metadata),
+  `@sunfall/arc-solid-db` (the package), `Route` `preloadCollections` and its
+  diagnostics, `App.define({ collections })`, Start's collection hydration
+  channel and streamed collection chunks, Timeline's `Collection` cause, and
+  the devtools collection facts. `@sunfall/arc-db` is the Query engine only.
+  See [From Collection](docs/migration-notes.md#from-collection).
+- The golden path's step 5 adds `rows` to `ProjectList` instead of a
+  Collection, and the project console's rename patches the sidebar row and
+  the project page.
+
 ### Optimistic Patches Reach Resources (Breaking)
 
 - An Action's `optimistic` transaction patches any Resource entry with

@@ -1,7 +1,5 @@
 import { Component, RouterLink, useRouter } from "@sunfall/arc-solid";
 import { Program, Route } from "@sunfall/arc-core";
-import type { Collection } from "@sunfall/arc-db";
-import { SolidDb } from "@sunfall/arc-solid-db";
 import { StartAction } from "@sunfall/arc-start";
 import { Cause, Effect, Schema } from "effect";
 import { For, Loading, Show, createEffect, untrack } from "solid-js";
@@ -15,7 +13,6 @@ import {
   type ProjectHealth,
   type ProjectId,
   type ProjectNameSubmissionResult,
-  type ProjectWorkItem,
   type ProjectTab,
   type WorkItemId,
   type WorkItemStatus,
@@ -23,17 +20,14 @@ import {
 import {
   AdvanceProject,
   MoveWorkItem,
-  ProjectWorkItems,
   projectWorkQueueQuery,
   type ProjectWorkQueueItem,
-} from "./project-collections.js";
+} from "./project-actions.js";
 import { HealthBadge, Metric } from "./ui.tsrx";
 import { routeById } from "./routeTree.gen.js";
 import { FailureView, InlineFailure, ProjectSkeleton, statusLabel } from "./project-views.js";
 
 const ProjectRoute = routeById.route_projects_$id;
-
-type ProjectWorkItemRow = Collection.Row<ProjectWorkItem, WorkItemId>;
 
 const ProjectNameFormInput = Schema.Struct({
   name: Schema.String,
@@ -136,12 +130,12 @@ function ProjectTabs(props: { readonly project: Project; readonly selected: Proj
 const WorkQueueSummary = Component.define(
   "WorkQueueSummary",
   function* (props: { readonly projectId: ProjectId }) {
-    const queue = yield* SolidDb.liveQuery((query) =>
+    const queue = yield* Component.liveQuery((query) =>
       projectWorkQueueQuery(props.projectId)(query),
     );
     const items = () => queue.rows();
     const blocked = () => items().filter((item) => item.status === "blocked").length;
-    const unsynced = () => items().filter((item) => !item.synced).length;
+    const running = () => items().filter((item) => item.status === "running").length;
 
     return () => (
       <section class="workQueueSummary" aria-label="Live work queue summary">
@@ -152,7 +146,7 @@ const WorkQueueSummary = Component.define(
         <div class="queueStats">
           <span>{items().length} open</span>
           <span>{blocked()} blocked</span>
-          <span>{unsynced()} syncing</span>
+          <span>{running()} running</span>
         </div>
       </section>
     );
@@ -162,11 +156,11 @@ const WorkQueueSummary = Component.define(
 const ProjectWorkQueue = Component.define(
   "ProjectWorkQueue",
   function* (props: { readonly project: Project }) {
-    const collection = yield* SolidDb.collection(ProjectWorkItems, { preload: false });
-    const queue = yield* SolidDb.liveQuery((query) =>
+    const queue = yield* Component.liveQuery((query) =>
       projectWorkQueueQuery(props.project.id)(query),
     );
-    // The row moves at once (`$synced: false`) and settles with the Action.
+    // The row moves at once: the Action patches the work item row by key, and
+    // the live query follows it; a failure moves it back.
     const move = yield* Component.action(MoveWorkItem);
     const moveItem = yield* Component.callback(
       "moveItem",
@@ -177,7 +171,7 @@ const ProjectWorkQueue = Component.define(
       <section class="taskPanel">
         <div class="panelHeader">
           <div>
-            <p class="eyebrow">Collection + Query.live</p>
+            <p class="eyebrow">Resource rows + Query.live</p>
             <h3>{props.project.name} work queue</h3>
           </div>
           <Show when={queue.waiting()}>
@@ -191,7 +185,6 @@ const ProjectWorkQueue = Component.define(
             {(item) => (
               <WorkQueueRow
                 item={item()}
-                source={collection.get(item().id)}
                 onMove={() => moveItem(item().id, nextWorkItemStatus(item().status))}
               />
             )}
@@ -205,13 +198,9 @@ const ProjectWorkQueue = Component.define(
   },
 ).pipe(Component.catchAll((error) => <InlineFailure error={error} />));
 
-function WorkQueueRow(props: {
-  readonly item: ProjectWorkQueueItem;
-  readonly source: ProjectWorkItemRow | undefined;
-  readonly onMove: () => void;
-}) {
+function WorkQueueRow(props: { readonly item: ProjectWorkQueueItem; readonly onMove: () => void }) {
   return (
-    <article class={["taskRow", { syncing: props.source?.$synced === false }]}>
+    <article class="taskRow">
       <div>
         <p class="taskMeta">
           {props.item.owner} · {props.item.projectName}
@@ -275,9 +264,8 @@ const ProjectActions = Component.define(
   function* (props: { readonly project: Project }) {
     // The router only follows redirect hrefs here, so it needs no route typing.
     const router = useRouter();
-    // The rename's invalidations refresh the ProjectById header and the
-    // ProjectList Resource the sidebar collection follows, so both show the new
-    // name before the redirect lands.
+    // The rename patches the sidebar row and the ProjectById header at once,
+    // and its invalidations reload both before the redirect lands.
     const rename = yield* Component.action(SubmitProjectName);
     const advance = yield* Component.action(AdvanceProject);
     const actions = yield* Component.program(

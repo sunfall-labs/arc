@@ -1,4 +1,16 @@
-import { Cache, Clock, Duration, Effect, Exit, Fiber, Option, PubSub, Scope, Stream } from "effect";
+import {
+  Cache,
+  Cause,
+  Clock,
+  Duration,
+  Effect,
+  Exit,
+  Fiber,
+  Option,
+  PubSub,
+  Scope,
+  Stream,
+} from "effect";
 import {
   planResourceInvalidationTargets,
   removeResourceRefFromTagIndex,
@@ -23,6 +35,8 @@ import { AsyncResult } from "effect/reactivity";
 import { settleResult } from "./async-result-settle.js";
 import { parseDuration } from "./resource-duration.js";
 import { lookupResourceHydrationFamily } from "./resource-registry.js";
+import { applyResourceRowChanges, reconcileResourceRows } from "./resource-rows.js";
+import { persistResourceState, restoreResourceState } from "./resource-persistence.js";
 import {
   decodeResourceHydrationInput,
   decodeResourceHydrationState,
@@ -167,6 +181,89 @@ const resourceLoadEffect = <I, A, E, R>(
             )
           : Effect.die(defect),
     );
+  });
+
+/**
+ * A loaded value of a family with `rows`, reconciled by key against the
+ * entry's previous synced value: unchanged rows keep their identity.
+ */
+const reconcileLoadedValue = <A, E>(
+  family: AnyResourceFamily,
+  previous: AsyncResult.AsyncResult<A, E>,
+  value: A,
+): A => {
+  const rows = family.options.rows;
+  if (rows === undefined || !Array.isArray(value)) {
+    return value;
+  }
+  const before = AsyncResult.value(previous);
+  return reconcileResourceRows(
+    family.options.name,
+    rows,
+    Option.isSome(before) ? (before.value as ReadonlyArray<unknown>) : undefined,
+    value,
+  ) as A;
+};
+
+/**
+ * Starts the entry's `rows.changes` feed once it has a value. Each batch
+ * applies to the synced rows (optimistic patches stay on top) and commits as
+ * a `change`; a failure stops the feed and is published.
+ */
+const startResourceRowChanges = <I, A, E, R>(
+  ref: ResourceRef<I, A, E, R>,
+  entry: ResourceEntry<A, E>,
+  store: ResourceStoreState,
+): Effect.Effect<void, never, R> =>
+  Effect.gen(function* () {
+    const changes = ref.family.options.rows?.changes;
+    if (changes === undefined || entry.changesFiber !== undefined) {
+      return;
+    }
+    const name = ref.family.options.name;
+    const rows = ref.family.options.rows!;
+    const feed = Stream.runForEach(
+      Stream.suspend(() => changes(ref.input) as Stream.Stream<ReadonlyArray<any>, unknown, R>),
+      (batch) =>
+        Effect.gen(function* () {
+          const current = syncedResourceState(entry);
+          if (current._tag !== "Success") {
+            return;
+          }
+          const next = applyResourceRowChanges(
+            name,
+            rows,
+            current.value as ReadonlyArray<unknown>,
+            batch,
+          ) as A;
+          if (next === current.value) {
+            return;
+          }
+          const now = yield* Clock.currentTimeMillis;
+          const changed = AsyncResult.success(next, { timestamp: now, waiting: current.waiting });
+          commitResourceState(entry, changed, "change");
+          yield* Cache.set(resourceCache(ref.family, store), ref.key, next);
+          yield* persistResourceState(ref as AnyResourceRef, changed);
+          yield* publishResourceStoreEvent(store, {
+            _tag: "ResourceRowsChanged",
+            name,
+            key: ref.key,
+            changes: batch.length,
+          });
+        }),
+    ).pipe(
+      Effect.catchCause((cause) =>
+        Cause.hasInterruptsOnly(cause)
+          ? Effect.void
+          : publishResourceStoreEvent(store, {
+              _tag: "ResourceRowsChangesFailure",
+              name,
+              key: ref.key,
+              cause,
+            }),
+      ),
+    );
+    entry.changesFiber = yield* store.fiberRegistry.run(feed);
   });
 
 const resourceCache = <I, A, E, R>(
@@ -374,6 +471,27 @@ export const runResource = <I, A, E, R>(
       yield* interruptResourceInFlight(entry);
     }
 
+    // A never-loaded entry of a persisted family shows its persisted value at
+    // once and reloads it in the background.
+    if (
+      !options.force &&
+      !entry.persistRestored &&
+      ref.family.options.policy?.persist !== undefined &&
+      syncedResourceState(entry)._tag === "Initial"
+    ) {
+      entry.persistRestored = true;
+      const restored = yield* restoreResourceState(ref as AnyResourceRef);
+      if (Option.isSome(restored) && syncedResourceState(entry)._tag === "Initial") {
+        const state = restored.value as AsyncResult.Success<A, E>;
+        const tags = yield* resourceProvidedTags(ref, state.value);
+        yield* applyHydratedResourceRefEffect(ref, state, tags, store, { persist: false });
+        yield* store.fiberRegistry.run(
+          refreshResource(ref).pipe(Effect.catchCause(() => Effect.void)),
+        );
+        return state.value;
+      }
+    }
+
     // Loads see the synced value: optimistic patches are for readers only.
     const current = syncedResourceState(entry);
     const now = yield* Clock.currentTimeMillis;
@@ -385,6 +503,9 @@ export const runResource = <I, A, E, R>(
       (retained ||
         !isResourceStateCollected(ref as ResourceRef<unknown, A, E, unknown>, current, now))
     ) {
+      if (ref.family.options.rows?.changes !== undefined) {
+        yield* startResourceRowChanges(ref, entry, store);
+      }
       return current.value;
     }
 
@@ -426,15 +547,17 @@ export const runResource = <I, A, E, R>(
         );
         const now = yield* Clock.currentTimeMillis;
         const previous = syncedResourceState(entry);
-        const settled = settleResult(
-          Exit.map(exit, (loaded) => loaded.value),
-          previous,
-          now,
+        const loaded = Exit.map(exit, (loaded) =>
+          reconcileLoadedValue(ref.family as AnyResourceFamily, previous, loaded.value),
         );
+        const settled = settleResult(loaded, previous, now);
 
         if (Exit.isSuccess(exit)) {
           recordResourceProvidedTagsSync(ref, exit.value.tags, store);
           commitResourceState(entry, settled, "success");
+          if (settled._tag === "Success" && ref.family.options.policy?.persist !== undefined) {
+            yield* persistResourceState(ref as AnyResourceRef, settled);
+          }
           yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStore, () =>
             isResourceRefRetained(ref as AnyResourceRef, store),
           );
@@ -444,7 +567,10 @@ export const runResource = <I, A, E, R>(
             key: ref.key,
             timestamp: now,
           });
-          return exit.value.value;
+          if (ref.family.options.rows?.changes !== undefined) {
+            yield* startResourceRowChanges(ref, entry, store);
+          }
+          return (loaded as Exit.Success<A, E>).value;
         }
 
         yield* invalidateCachedResource(ref, store);
@@ -694,9 +820,10 @@ interface ResourceHydrationPlanEntry {
 
 const applyHydratedResourceRefEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  state: AsyncResult.Success<A, E>,
+  hydrated: AsyncResult.Success<A, E>,
   tags: readonly ResourceTag[],
   store: ResourceStoreState,
+  options: { readonly persist: boolean } = { persist: true },
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     rememberResourceRef(ref, store);
@@ -704,7 +831,19 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
     yield* interruptResourceInFlight(entry);
     yield* interruptResourceGc(entry);
     recordResourceProvidedTagsSync(ref, tags, store);
+    const value = reconcileLoadedValue(
+      ref.family as AnyResourceFamily,
+      syncedResourceState(entry),
+      hydrated.value,
+    );
+    const state =
+      value === hydrated.value
+        ? hydrated
+        : AsyncResult.success(value, { timestamp: hydrated.timestamp });
     commitResourceState(entry, state, "hydrate");
+    if (options.persist && ref.family.options.policy?.persist !== undefined) {
+      yield* persistResourceState(ref as AnyResourceRef, state);
+    }
     yield* Cache.set(resourceCache(ref.family, store), ref.key, state.value);
     yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStore, () =>
       isResourceRefRetained(ref as AnyResourceRef, store),
@@ -754,6 +893,11 @@ export const deleteResourceFromStore = <I, A, E, R>(
       // before the GC fiber is interrupted and the entry is reset.
       yield* interruptResourceInFlight(entry);
       yield* interruptResourceGc(entry);
+      const changes = entry.changesFiber;
+      entry.changesFiber = undefined;
+      if (changes !== undefined) {
+        yield* Fiber.interrupt(changes);
+      }
       resetResourceEntry(entry);
     }
 

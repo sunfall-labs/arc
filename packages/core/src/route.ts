@@ -47,13 +47,6 @@ export type RoutePreloadResourceInput =
       readonly family: AnyResourceFamily;
     };
 
-/** Static collection hint accepted by route preload diagnostics. */
-export type RoutePreloadCollectionInput =
-  | string
-  | {
-      readonly name: string;
-    };
-
 /** Static preload resource declaration status for route diagnostics. */
 export type RoutePreloadResourceStatus = "declared" | "none" | "unknown";
 
@@ -61,15 +54,6 @@ export type RoutePreloadResourceStatus = "declared" | "none" | "unknown";
 export interface RoutePreloadResourceDiagnostics {
   readonly status: RoutePreloadResourceStatus;
   readonly families: readonly string[];
-}
-
-/** Static preload collection declaration status for route diagnostics. */
-export type RoutePreloadCollectionStatus = "declared" | "none" | "unknown";
-
-/** Collections statically declared by a route preload hint. */
-export interface RoutePreloadCollectionDiagnostics {
-  readonly status: RoutePreloadCollectionStatus;
-  readonly collections: readonly string[];
 }
 
 /**
@@ -337,8 +321,6 @@ export interface RouteOptions<Path extends string, Params, Search, PreloadRequir
   ) => RoutePreloadResult<PreloadRequirements, unknown>;
   /** Static resource preload hints used by Start diagnostics and devtools. */
   readonly preloadResources?: readonly RoutePreloadResourceInput[];
-  /** Static collection preload hints used by Start diagnostics and devtools. */
-  readonly preloadCollections?: readonly RoutePreloadCollectionInput[];
   /** Framework-owned component value attached by `Route.withComponent(...)`. */
   readonly component?: unknown;
   /** Maps the route's component props to the attached component's props. */
@@ -460,8 +442,6 @@ export type RouteDefineOptions<
   ) => Out;
   /** Static resource preload hints used by Start diagnostics and devtools. */
   readonly preloadResources?: readonly RoutePreloadResourceInput[];
-  /** Static collection preload hints used by Start diagnostics and devtools. */
-  readonly preloadCollections?: readonly RoutePreloadCollectionInput[];
 } & RoutePreloadCheck<ErrorSchema, Out>;
 
 /**
@@ -749,26 +729,6 @@ const uniqueSortedResourceFamilies = (
     ),
   ).sort();
 
-const collectionName = (value: RoutePreloadCollectionInput): string | undefined => {
-  if (typeof value === "string") {
-    return value;
-  }
-
-  return isObjectLike(value) && typeof value.name === "string" ? value.name : undefined;
-};
-
-const uniqueSortedCollectionNames = (
-  collections: readonly RoutePreloadCollectionInput[],
-): readonly string[] =>
-  Array.from(
-    new Set(
-      collections.flatMap((collection) => {
-        const name = collectionName(collection);
-        return name === undefined ? [] : [name];
-      }),
-    ),
-  ).sort();
-
 const routePreloadError = <E>(match: RouteMatch, cause: E): RoutePreloadError<E> =>
   new RoutePreloadError({
     path: match.route.path,
@@ -912,12 +872,6 @@ export namespace Route {
   /** Resource preload diagnostics consumed by Start manifests and devtools. */
   export type PreloadResourceDiagnostics = RoutePreloadResourceDiagnostics;
 
-  /** Static collection preload hint accepted by Route and Start file-route APIs. */
-  export type PreloadCollectionInput = RoutePreloadCollectionInput;
-
-  /** Collection preload diagnostics consumed by Start manifests and devtools. */
-  export type PreloadCollectionDiagnostics = RoutePreloadCollectionDiagnostics;
-
   /** Error union for running route preload and resource hydration planning. */
   export type PreloadPlanError<R = Definition> = RoutePreloadPlanError<PreloadFailure<R>>;
 
@@ -962,9 +916,6 @@ export namespace Route {
 
   /** Whether a route preload declares its Resource families statically. */
   export type PreloadResourceStatus = RoutePreloadResourceStatus;
-
-  /** Whether a route preload declares its collections statically. */
-  export type PreloadCollectionStatus = RoutePreloadCollectionStatus;
 
   /** Renderer component value taking props `P`. */
   export type View<P> = RouteView<P>;
@@ -1225,11 +1176,6 @@ export namespace Route {
     definition: R,
   ): readonly string[] => uniqueSortedResourceFamilies(definition.options.preloadResources ?? []);
 
-  /** Returns sorted collection names statically declared by a route. */
-  export const preloadCollectionNames = <R extends Definition<string, unknown, unknown, any>>(
-    definition: R,
-  ): readonly string[] => uniqueSortedCollectionNames(definition.options.preloadCollections ?? []);
-
   /**
    * Describes route resource preload metadata for manifests and devtools.
    *
@@ -1255,34 +1201,6 @@ export namespace Route {
       : {
           status: "unknown",
           families: [],
-        };
-  };
-
-  /**
-   * Describes route collection preload metadata for manifests and devtools.
-   *
-   * `declared` means the route provided static collection hints, `none` means
-   * the route has no preload work, and `unknown` means custom preload work
-   * exists but no static collection hints were declared.
-   */
-  export const describePreloadCollections = <R extends Definition<string, unknown, unknown, any>>(
-    definition: R,
-  ): RoutePreloadCollectionDiagnostics => {
-    if (definition.options.preloadCollections !== undefined) {
-      return {
-        status: "declared",
-        collections: preloadCollectionNames(definition),
-      };
-    }
-
-    return definition.options.preload === undefined
-      ? {
-          status: "none",
-          collections: [],
-        }
-      : {
-          status: "unknown",
-          collections: [],
         };
   };
 

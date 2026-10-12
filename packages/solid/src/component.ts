@@ -18,6 +18,8 @@ import {
   eraseRuntime,
   makeActionInstance,
   resourceRenderCause,
+  resourceRowsGet,
+  resourceRowsIndex,
   startProgramOnRuntime,
   withSignalTransition,
   type ResourceStoreModule,
@@ -41,6 +43,13 @@ import {
 } from "solid-js";
 import { hydrate as hydrateSolid, render as renderSolid, type JSX } from "@solidjs/web";
 import { setupRenderFailure, typedRenderFailure } from "./render-failure.js";
+import {
+  bindLiveQuery,
+  type LiveQueryHandle as LiveQueryBindingHandle,
+  type LiveQueryInput as LiveQueryBindingInput,
+  type LiveQueryOptions as LiveQueryBindingOptions,
+  type LiveQueryRenderError,
+} from "./live-query.js";
 import { createResourceSuspense, type ResourceSuspense } from "./resource-binding.js";
 import { createBrowserRouter, type BrowserRouter, type RouterOptions } from "./router.js";
 
@@ -60,7 +69,7 @@ const RouteViewKey: typeof RouteViewTypeId = "~@sunfall/arc-core/RouteView";
  * props, under its Solid owner. It binds resources, actions, programs, and
  * streams (each adding its services and failures to the component type) and
  * returns the render function. Anything shared per runtime is shared by
- * construction: Resources and Collections live in the runtime's stores, and
+ * construction: Resources live in the runtime's Resource Store, and
  * `Component.provide` builds its Layer once per runtime. The instance's Scope
  * closes when Solid disposes the instance.
  *
@@ -369,7 +378,7 @@ const readerHost = createRoot(() => getOwner());
 
 const makeResourceReader = <I, A, E, R>(
   runtime: AnySunfallArcRuntime<unknown>,
-  family: (input: I) => Resource.Ref<I, A, E, R>,
+  family: ((input: I) => Resource.Ref<I, A, E, R>) & { readonly family: Resource.AnyFamily },
 ) => {
   const entries = new Map<string, ResourceReaderEntry<A, E>>();
   const release = (key: string, entry: ResourceReaderEntry<A, E>) => (): void => {
@@ -413,6 +422,7 @@ const makeResourceReader = <I, A, E, R>(
     return entry.binding;
   };
   const result = (input: I) => claim(input).result();
+  const { name, rows } = family.family.options;
   const reader = Object.assign((input: I): A => claim(input).read(), {
     waiting: (input: I): boolean => result(input).waiting,
     failure: (input: I): Cause.Cause<unknown> | undefined => {
@@ -421,6 +431,12 @@ const makeResourceReader = <I, A, E, R>(
         ? resourceRenderCause(family(input).family, current.cause)
         : undefined;
     },
+    // Present on every reader; the types offer them only when the family
+    // declares `rows`. Each reads the rows of the current value.
+    get: (input: I, key: Resource.RowKey): unknown =>
+      resourceRowsGet(name, rows!, claim(input).read() as ReadonlyArray<unknown>, key),
+    index: (input: I, index: string, value: unknown): ReadonlyArray<unknown> =>
+      resourceRowsIndex(name, rows!, claim(input).read() as ReadonlyArray<unknown>, index, value),
   }) satisfies Component.ResourceReader<I, A, unknown>;
   const dispose = (): void => {
     const current = Array.from(entries.values());
@@ -584,10 +600,17 @@ export namespace Component {
     readonly hydrate?: boolean;
   }
 
+  /** Instance-bound live query handle from `Component.liveQuery`. */
+  export type LiveQueryHandle<T, E = never> = LiveQueryBindingHandle<T, E>;
+  /** A query factory, or a prebuilt `Query.Live`, for `Component.liveQuery`. */
+  export type LiveQueryInput<T, E, R> = LiveQueryBindingInput<T, E, R>;
+  /** Options for `Component.liveQuery`. */
+  export type LiveQueryOptions = LiveQueryBindingOptions;
+
   /**
-   * The instance a setup runs for, for writing setup-time bindings (like
-   * `@sunfall/arc-solid-db`'s): its runtime (whose effects see the setup's
-   * context, including `Component.provide` services), Solid owner, and Scope.
+   * The instance a setup runs for, for writing setup-time bindings: its
+   * runtime (whose effects see the setup's context, including
+   * `Component.provide` services), Solid owner, and Scope.
    */
   export interface Instance {
     /** The component's name, which prefixes its named transitions (`<name>.<callback>`). */
@@ -609,7 +632,7 @@ export namespace Component {
      * Throws a render-time read failure to the nearest `<Errored>`, the way a
      * Resource reader does: the typed failure in `cause` reaches `catchTags`
      * and `catchAll`; a defect rethrows past them. Bindings whose failures
-     * join `E` (like `SolidDb.collection`) throw through it.
+     * join `E` (like `Component.liveQuery`) throw through it.
      */
     fail(cause: Cause.Cause<unknown>): never;
   }
@@ -633,6 +656,30 @@ export namespace Component {
      */
     readonly failure: (input: I) => Cause.Cause<E> | undefined;
   }
+
+  /**
+   * Row lookups a reader adds when its family declares `rows`. Both read the
+   * current value of `input` exactly like `reader(input)`: they suspend the
+   * nearest `<Loading>` until the first value, then follow reloads, change
+   * feeds, and optimistic patches.
+   */
+  export interface ResourceRowsReader<I, Row, Key, Indexes> {
+    /** The row with `key`, or `undefined` when the value has none. */
+    readonly get: (input: I, key: Key) => Row | undefined;
+    /** The rows in one bucket of a declared index, in value order. */
+    readonly index: <const Name extends keyof Indexes & string>(
+      input: I,
+      index: Name,
+      value: Resource.RowIndexLookup<Indexes[Name]>,
+    ) => ReadonlyArray<Row>;
+  }
+
+  /** The reader `Component.resource` returns: row lookups join when the family has `rows`. */
+  export type Reader<I, A, E, Rows> = [Rows] extends [never]
+    ? ResourceReader<I, A, E>
+    : Rows extends Resource.RowsSpec<infer Row, infer Key, infer Indexes>
+      ? ResourceReader<I, A, E> & ResourceRowsReader<I, Row, Key, Indexes>
+      : ResourceReader<I, A, E>;
 
   /**
    * Failures an Action submission reports: its own and transport failures. A
@@ -792,15 +839,43 @@ export namespace Component {
    * its contract (throws synchronously) is a defect, never matched by
    * `catchTags`. Preloaded or hydrated values read synchronously.
    */
-  export const resource = <I, A, E, R, RenderError>(
-    family: Resource.RefFactory<I, A, E, R, RenderError>,
-  ): Effect.Effect<ResourceReader<I, A, RenderError>, RenderError, R> =>
+  export const resource = <I, A, E, R, RenderError, Rows = never>(
+    family: Resource.RefFactory<I, A, E, R, RenderError, Rows>,
+  ): Effect.Effect<Reader<I, A, RenderError, Rows>, RenderError, R> =>
     Effect.gen(function* () {
       const { runtime } = yield* instance;
       const { reader, dispose } = makeResourceReader(runtime, family);
       yield* Effect.addFinalizer(() => Effect.sync(dispose));
       return reader;
-    }) as Effect.Effect<ResourceReader<I, A, RenderError>, never, R>;
+    }) as unknown as Effect.Effect<Reader<I, A, RenderError, Rows>, never, R>;
+
+  /**
+   * Binds a live query over the rows of Resources (`Query` from
+   * `@sunfall/arc-db`) and returns its handle. Pass a query factory or a
+   * prebuilt `Query.Live`; the sources' declared load errors join the
+   * component's `E` and their services join `R`. The factory runs tracked: a
+   * signal or prop it reads rebuilds the query. Sources preload on mount
+   * unless `preload` is false.
+   *
+   * @example
+   * ```tsx
+   * const open = yield* Component.liveQuery((query) =>
+   *   query
+   *     .from({ project: ProjectsRef })
+   *     .where(({ project }) => project.status === "active")
+   *     .select(({ project }) => project),
+   * );
+   * ```
+   */
+  export const liveQuery = <T, E = never, R = never>(
+    input: LiveQueryBindingInput<T, E, R>,
+    options: LiveQueryBindingOptions = {},
+  ): Effect.Effect<LiveQueryBindingHandle<T, E>, LiveQueryRenderError<E>, R> =>
+    Effect.map(instance, (current) => bindLiveQuery(current, input, options)) as Effect.Effect<
+      LiveQueryBindingHandle<T, E>,
+      LiveQueryRenderError<E>,
+      R
+    >;
 
   /**
    * Binds an Action to this instance and returns its handle.

@@ -1,4 +1,5 @@
 import {
+  Action,
   makeRuntime,
   Resource,
   ResourceFailure,
@@ -191,6 +192,50 @@ describe("Component", () => {
           yield* waitForText(container, "ATLAS");
           expect(setups).toBe(1);
           expect(bindings.created - createdBefore).toBe(1);
+        }),
+      ),
+    ));
+
+  it("reads rows by key and index, following optimistic row patches", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const Row = Schema.Struct({ id: Schema.String, status: Schema.String });
+          const Rows = Resource.define({
+            name: `Component.rows.${++familyId}`,
+            input: Schema.Literal("all"),
+            output: Schema.Array(Row),
+            rows: { key: (row) => row.id, indexes: { status: (row) => row.status } },
+            load: () =>
+              Effect.succeed([
+                { id: "a", status: "open" },
+                { id: "b", status: "done" },
+              ]),
+          });
+          const Close = Action.define({
+            name: `Component.rows.close.${familyId}`,
+            optimistic: (id: string, transaction) =>
+              transaction.update(Rows("all"), id, { status: "done" }),
+            run: () => Effect.never,
+          });
+          const List = Component.define("RowsList", function* () {
+            const rows = yield* Component.resource(Rows);
+            return () => [
+              (() =>
+                rows
+                  .index("all", "status", "open")
+                  .map((row) => row.id)
+                  .join()) as never,
+              (() => `|${rows.get("all", "b")?.status}`) as never,
+            ];
+          });
+          const runtime = makeRuntime();
+          const container = document.createElement("div");
+          yield* Component.mount(List, container, { runtime });
+          yield* waitForText(container, "a|done");
+
+          runtime.runFork(Action.use(Close, { runtime }).submit("a"));
+          yield* waitForText(container, "|done");
         }),
       ),
     ));

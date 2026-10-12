@@ -1,8 +1,6 @@
-import type { SunfallArcRuntime, Route } from "@sunfall/arc-core";
+import type { Route } from "@sunfall/arc-core";
 import {
-  traceCollectionPreload,
   traceRoutePlan,
-  type StartCollectionPreloadTraceInput,
   type StartRequestTraceAction,
   type StartRequestTraceFacts,
   type StartRequestTraceFailureKind,
@@ -44,12 +42,9 @@ export const recordStartRequestTraceAction = (
   facts.actions.push(entry);
 };
 
-export const recordStartRequestTracePreload = <RuntimeServices, RuntimeError>(
+export const recordStartRequestTracePreload = (
   facts: StartRequestTraceFacts,
-  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
   routePlan: Route.NavigationPlan,
-  collectionPreload: StartCollectionPreloadTraceInput,
 ): void => {
   facts.routePlan = traceRoutePlan(routePlan);
-  facts.collections = [...traceCollectionPreload(runtime, collectionPreload)];
 };
