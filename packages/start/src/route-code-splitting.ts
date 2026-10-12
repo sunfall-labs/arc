@@ -1,3 +1,4 @@
+import { existsSync, statSync } from "node:fs";
 import { relative, resolve, sep } from "node:path";
 
 export const startRouteComponentSplitVirtualModuleId = "virtual:sunfall-arc/route-component";
@@ -43,10 +44,9 @@ export interface StartRouteAutoCodeSplittingOptions {
 }
 
 const identifierPattern = /^[A-Za-z_$][A-Za-z0-9_$]*$/;
-const importDeclarationPattern = /import\s+(?!type\b)([\s\S]*?)\s+from\s+(["'])([^"']+)\2\s*;?/g;
+const importDeclarationPattern = /import\s+(?!type\b)([^"';]*?)\s+from\s+(["'])([^"']+)\2\s*;?/g;
 const boundImportDeclarationPattern =
-  /import(?:\s+type)?\s+[\s\S]*?\s+from\s+(["'])([^"']+)\1\s*;?/g;
-const componentPropertyPattern = /(^|[,{]\s*)component\s*:\s*([A-Za-z_$][A-Za-z0-9_$]*)/gm;
+  /import(?:\s+type)?\s+[^"';]*?\s+from\s+(["'])([^"']+)\1\s*;?/g;
 const generatedSplitModules = new Map<string, string>();
 
 const normalizePath = (path: string): string => path.replace(/\\/g, "/");
@@ -78,7 +78,25 @@ const resolveComponentSource = (root: string, routeModuleId: string, source: str
     : routeFile.includes("/")
       ? routeFile.slice(0, routeFile.lastIndexOf("/"))
       : ".";
-  return rootAbsoluteSpecifier(root, resolve(routeDirectory, source));
+  return rootAbsoluteSpecifier(root, sourceFile(resolve(routeDirectory, source)));
+};
+
+const isFile = (path: string): boolean => existsSync(path) && statSync(path).isFile();
+
+/**
+ * The file a relative import names. The split chunk re-exports it from a
+ * virtual module, where TypeScript's `.js`-for-`.ts` specifiers do not
+ * resolve, so the chunk names the source file itself.
+ */
+const sourceFile = (path: string): string => {
+  const typescriptPath = path.replace(/\.([cm]?)js(x?)$/, ".$1ts$2");
+  const candidates = [
+    path,
+    typescriptPath,
+    ...(typescriptPath.endsWith(".ts") ? [`${typescriptPath}x`] : []),
+    ...[".ts", ".tsx", ".js", ".jsx"].map((extension) => `${path}${extension}`),
+  ];
+  return candidates.find(isFile) ?? path;
 };
 
 const splitTopLevelCommas = (value: string): readonly string[] => {
@@ -234,9 +252,6 @@ const uniqueGeneratedIdentifier = (code: string, base: string): string => {
   }
   return identifier;
 };
-
-const uniqueRouteNamespaceIdentifier = (code: string): string =>
-  uniqueGeneratedIdentifier(code, "__SunfallArcRoute");
 
 const uniqueEffectNamespaceIdentifier = (code: string): string =>
   uniqueGeneratedIdentifier(code, "__SunfallArcEffect");
@@ -587,20 +602,6 @@ const boundImportDeclarationSources = (
     );
   });
 
-const removeLocalDeclarationSources = (
-  code: string,
-  declarations: readonly LocalComponentDeclaration[],
-): string => {
-  let next = code;
-  for (const declaration of declarations) {
-    const index = next.indexOf(declaration.source);
-    if (index !== -1) {
-      next = `${next.slice(0, index)}${next.slice(index + declaration.source.length)}`;
-    }
-  }
-  return next;
-};
-
 const componentBindings = (
   declarations: readonly ImportDeclaration[],
 ): ReadonlyMap<string, ImportedComponentSplitCandidate> => {
@@ -710,90 +711,270 @@ const splitCandidateModuleId = (
     ? splitModuleId(candidate, root, routeModuleId)
     : splitLocalModuleId(candidate, root, routeModuleId);
 
+interface SourceRange {
+  readonly start: number;
+  readonly end: number;
+}
+
+interface SourceEdit extends SourceRange {
+  readonly text: string;
+}
+
+const routeNamespaceLocals = (declarations: readonly ImportDeclaration[]): readonly string[] =>
+  declarations.flatMap((declaration) =>
+    declaration.source === "@sunfall/arc-core"
+      ? declaration.named.flatMap((specifier) =>
+          specifier.imported === "Route" && specifier.isType !== true ? [specifier.local] : [],
+        )
+      : [],
+  );
+
+/** True when `position` is code: outside string literals, template literals, and comments. */
+const isCodePosition = (code: string, position: number): boolean => {
+  let quote: Quote | undefined;
+  let lineComment = false;
+  let blockComment = false;
+  for (let index = 0; index < position; index++) {
+    const char = code[index];
+    const next = code[index + 1];
+    if (lineComment) {
+      if (char === "\n") {
+        lineComment = false;
+      }
+      continue;
+    }
+    if (blockComment) {
+      if (char === "*" && next === "/") {
+        blockComment = false;
+        index++;
+      }
+      continue;
+    }
+    if (quote !== undefined) {
+      if (char === "\\") {
+        index++;
+        continue;
+      }
+      if (char === quote) {
+        quote = undefined;
+      }
+      continue;
+    }
+    if (char === "/" && next === "/") {
+      lineComment = true;
+      index++;
+      continue;
+    }
+    if (char === "/" && next === "*") {
+      blockComment = true;
+      index++;
+      continue;
+    }
+    if (char === '"' || char === "'" || char === "`") {
+      quote = char;
+    }
+  }
+  return quote === undefined && !lineComment && !blockComment;
+};
+
+/** Source ranges of the top-level arguments of the call whose `(` is at `open`. */
+const callArgumentRanges = (code: string, open: number, close: number): readonly SourceRange[] => {
+  const ranges: SourceRange[] = [];
+  let depth = 0;
+  let quote: Quote | undefined;
+  let start = open + 1;
+  for (let index = open + 1; index < close; index++) {
+    const char = code[index];
+    if (quote !== undefined) {
+      if (char === "\\") {
+        index++;
+      } else if (char === quote) {
+        quote = undefined;
+      }
+      continue;
+    }
+    if (char === '"' || char === "'" || char === "`") {
+      quote = char;
+    } else if (char === "(" || char === "[" || char === "{") {
+      depth++;
+    } else if (char === ")" || char === "]" || char === "}") {
+      depth--;
+    } else if (char === "," && depth === 0) {
+      ranges.push({ start, end: index });
+      start = index + 1;
+    }
+  }
+  if (code.slice(start, close).trim().length > 0) {
+    ranges.push({ start, end: close });
+  }
+  return ranges;
+};
+
+/** The component argument range of every `Route.withComponent(route, component, ...)` call. */
+const withComponentArguments = (
+  code: string,
+  routeLocals: readonly string[],
+): readonly { readonly call: SourceRange; readonly component: SourceRange }[] =>
+  routeLocals.flatMap((routeLocal) => {
+    const pattern = new RegExp(
+      `(^|[^A-Za-z0-9_$.])${escapeRegExp(routeLocal)}\\s*\\.\\s*withComponent\\s*\\(`,
+      "g",
+    );
+    return Array.from(code.matchAll(pattern)).flatMap((match) => {
+      const start = (match.index ?? 0) + (match[1]?.length ?? 0);
+      const open = (match.index ?? 0) + match[0].length - 1;
+      if (!isCodePosition(code, start)) {
+        return [];
+      }
+      const close = findMatchingDelimiter(code, open, "(", ")");
+      const component = close === -1 ? undefined : callArgumentRanges(code, open, close)[1];
+      return component === undefined ? [] : [{ call: { start, end: close + 1 }, component }];
+    });
+  });
+
+const overlaps = (left: SourceRange, right: SourceRange): boolean =>
+  left.start < right.end && right.start < left.end;
+
+const applySourceEdits = (code: string, edits: readonly SourceEdit[]): string =>
+  [...edits]
+    .sort((left, right) => right.start - left.start)
+    .reduce(
+      (next, edit) => `${next.slice(0, edit.start)}${edit.text}${next.slice(edit.end)}`,
+      code,
+    );
+
+const importLocals = (declarations: readonly ImportDeclaration[]): readonly string[] =>
+  declarations.flatMap((declaration) => [
+    ...(declaration.defaultLocal === undefined ? [] : [declaration.defaultLocal]),
+    ...(declaration.namespaceLocal === undefined ? [] : [declaration.namespaceLocal]),
+    ...declaration.named.map((specifier) => specifier.local),
+  ]);
+
+/**
+ * Drops import bindings the edit left unused (the imports only a split
+ * component used), keeping imports that were already unused before it.
+ */
+const pruneImportsUnusedAfterEdit = (before: string, after: string): string => {
+  const beforeImports = parseImportDeclarations(before);
+  const beforeCode = codeWithoutImportDeclarations(before, beforeImports);
+  const afterImports = parseImportDeclarations(after);
+  const afterCode = codeWithoutImportDeclarations(after, afterImports);
+  const removed = new Set(
+    importLocals(afterImports).filter(
+      (local) =>
+        identifierUseCount(afterCode, local) === 0 && identifierUseCount(beforeCode, local) > 0,
+    ),
+  );
+  return removed.size === 0 ? after : removeImportDeclarations(after, afterImports, removed);
+};
+
+/**
+ * Splits the components attached with `Route.withComponent(route, Component, ...)`
+ * into lazily loaded chunks.
+ *
+ * Only the runtime value changes: the call keeps its source types, so the
+ * router still checks the split Component's services and failures. A
+ * component is split when it is an imported binding used only in that call,
+ * or a module-local declaration used only there that depends on no other
+ * module-local binding; anything else stays eager.
+ */
 export const transformStartRouteAutoCodeSplitting = (
   code: string,
   id: string,
   options: StartRouteAutoCodeSplittingOptions,
 ): string | null => {
+  if (!code.includes("withComponent")) {
+    return null;
+  }
   const imports = parseImportDeclarations(code);
+  const routeLocals = routeNamespaceLocals(imports);
+  if (routeLocals.length === 0) {
+    return null;
+  }
   const bindings = componentBindings(imports);
   const codeWithoutImports = codeWithoutImportDeclarations(code, imports);
-  const splitCandidates = new Map<string, ComponentSplitCandidate>();
+  const calls = withComponentArguments(code, routeLocals);
+  const effectNamespace = uniqueEffectNamespaceIdentifier(code);
+  const edits: SourceEdit[] = [];
+  const removedImportLocals = new Set<string>();
 
-  for (const match of codeWithoutImports.matchAll(componentPropertyPattern)) {
-    const local = match[2];
-    if (local === undefined) {
+  for (const { call, component } of calls) {
+    const local = code.slice(component.start, component.end).trim();
+    if (!identifierPattern.test(local)) {
       continue;
     }
-
+    const routeLocal = code.slice(call.start, call.end).match(/^[A-Za-z_$][A-Za-z0-9_$]*/)?.[0];
+    let candidate: ComponentSplitCandidate | undefined;
     const importedCandidate = bindings.get(local);
     if (importedCandidate !== undefined) {
-      if (identifierUseCount(codeWithoutImports, local) === 1) {
-        splitCandidates.set(local, importedCandidate);
+      candidate =
+        identifierUseCount(codeWithoutImports, local) === 1 ? importedCandidate : undefined;
+    } else {
+      const declaration = findLocalComponentDeclaration(code, local);
+      const declarationStart = declaration === undefined ? -1 : code.indexOf(declaration.source);
+      const declarationRange =
+        declaration === undefined
+          ? undefined
+          : { start: declarationStart, end: declarationStart + declaration.source.length };
+      candidate =
+        declaration === undefined ||
+        declarationRange === undefined ||
+        declaration.exported ||
+        identifierUseCount(codeWithoutImports, local) !== 2 ||
+        hasLocalDeclarationDependency(declaration, local, codeWithoutImports) ||
+        calls.some(({ call: other }) => overlaps(other, declarationRange))
+          ? undefined
+          : { kind: "local", local, declaration };
+      if (candidate !== undefined && declarationRange !== undefined) {
+        edits.push({ ...declarationRange, text: "" });
       }
+    }
+    if (candidate === undefined || routeLocal === undefined) {
       continue;
     }
-
-    const declaration = findLocalComponentDeclaration(code, local);
-    if (
-      declaration === undefined ||
-      declaration.exported ||
-      identifierUseCount(codeWithoutImports, local) !== 2 ||
-      hasLocalDeclarationDependency(declaration, local, codeWithoutImports)
-    ) {
-      continue;
+    const moduleId = splitCandidateModuleId(candidate, options.root, id);
+    if (candidate.kind === "local") {
+      generatedSplitModules.set(
+        moduleId,
+        createLocalSplitModule(code, candidate.declaration, options.root, id),
+      );
+    } else {
+      removedImportLocals.add(candidate.local);
     }
-    splitCandidates.set(local, {
-      kind: "local",
-      local,
-      declaration,
+    const leading = code.slice(component.start, component.end).match(/^\s*/)?.[0] ?? "";
+    edits.push({
+      start: component.start + leading.length,
+      end: component.start + leading.length + local.length,
+      text: `${routeLocal}.lazyComponent(${effectNamespace}.tryPromise({ try: () => import(${JSON.stringify(
+        moduleId,
+      )}), catch: (error) => error }), ${JSON.stringify(candidate.local)})`,
     });
   }
 
-  if (splitCandidates.size === 0) {
+  if (!edits.some((edit) => edit.text.length > 0)) {
     return null;
   }
 
-  const routeNamespace = uniqueRouteNamespaceIdentifier(code);
-  const effectNamespace = uniqueEffectNamespaceIdentifier(code);
-  const removedImportLocals = new Set(
-    Array.from(splitCandidates.values()).flatMap((candidate) =>
-      candidate.kind === "import" ? [candidate.local] : [],
-    ),
+  const edited = applySourceEdits(code, edits);
+  const withoutSplitImports = removeImportDeclarations(
+    edited,
+    parseImportDeclarations(edited),
+    removedImportLocals,
   );
-  const localDeclarations = Array.from(splitCandidates.values()).flatMap((candidate) =>
-    candidate.kind === "local" ? [candidate.declaration] : [],
+  return pruneImportsUnusedAfterEdit(
+    code,
+    `import { Effect as ${effectNamespace} } from "effect";\n${withoutSplitImports}`,
   );
+};
 
-  for (const candidate of splitCandidates.values()) {
-    if (candidate.kind === "local") {
-      generatedSplitModules.set(
-        splitLocalModuleId(candidate, options.root, id),
-        createLocalSplitModule(code, candidate.declaration, options.root, id),
-      );
-    }
-  }
-
-  const withoutComponentImports = removeImportDeclarations(code, imports, removedImportLocals);
-  const withoutLocalDeclarations = removeLocalDeclarationSources(
-    withoutComponentImports,
-    localDeclarations,
-  );
-  const transformed = withoutLocalDeclarations.replace(
-    componentPropertyPattern,
-    (full: string, prefix: string, local: string) => {
-      const candidate = splitCandidates.get(local);
-      if (candidate === undefined) {
-        return full;
-      }
-      return `${prefix}component: ${routeNamespace}.lazyComponent(${effectNamespace}.tryPromise({ try: () => import(${JSON.stringify(
-        splitCandidateModuleId(candidate, options.root, id),
-      )}), catch: (error) => error }), ${JSON.stringify(candidate.local)})`;
-    },
-  );
-
-  return pruneUnusedImportBindings(
-    `import { Route as ${routeNamespace} } from "@sunfall/arc-core";\nimport { Effect as ${effectNamespace} } from "effect";\n${transformed}`,
+/** True for an app source module the browser build may split route components out of. */
+export const isStartRouteCodeSplitModule = (id: string, root: string): boolean => {
+  const file = normalizePath(stripQuery(id));
+  return (
+    !id.startsWith("\0") &&
+    !file.includes("/node_modules/") &&
+    /\.[cm]?[jt]sx?$/.test(file) &&
+    file.startsWith(`${normalizePath(resolve(root))}/`)
   );
 };
 

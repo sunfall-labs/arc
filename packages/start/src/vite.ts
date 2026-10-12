@@ -48,6 +48,7 @@ import { forkStartHostEffect, runStartHostPromise } from "./start-host-runtime-r
 import { isStartManifestServerOnlyModule } from "./manifest-entry-core.js";
 import { sunfallArcStartPluginName } from "./start-vite-plugin-names.js";
 import {
+  isStartRouteCodeSplitModule,
   loadStartRouteComponentSplitModule,
   resolveStartRouteComponentSplitModuleId,
   transformStartRouteAutoCodeSplitting,
@@ -199,33 +200,30 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
   const currentOptions = (): StartManifestOptions =>
     withDiscoveredFileRoutes({ ...normalizedOptions, ...derivedSources, serverEntry }, viteRoot);
 
-  // Server functions and Actions come from what the server entry's handler
-  // serves; prebuilt manifests (generated build steps) replace the derivation.
+  // Server functions and Actions come only from what the server entry's
+  // handler serves.
   const deriveSourcesEffect = (
     command: "build" | "serve" | undefined,
     mode: string | undefined,
   ): Effect.Effect<StartDerivedDefinitionSources | undefined, StartDefinitionSourcesError> =>
-    normalizedOptions.serverFunctionManifest !== undefined &&
-    normalizedOptions.actionManifest !== undefined
-      ? Effect.succeed(undefined)
-      : deriveStartDefinitionSourcesEffect({
-          root: viteRoot,
-          serverEntry,
-          ...(normalizedOptions.handlerExport === undefined
-            ? {}
-            : { handlerExport: normalizedOptions.handlerExport }),
-          vite: startDiagnosticsInlineConfig(viteUserConfig, viteRoot, mode),
-        }).pipe(
-          Effect.catchTag("StartDefinitionSourcesLoadError", (error) =>
-            // A dev server still starts on a broken server module; its SSR
-            // middleware reports the error per request. Builds fail.
-            command === "build"
-              ? Effect.fail(error)
-              : Effect.logWarning(
-                  `[sunfall-arc-start] ${error.message} The app graph lists no server functions or Actions until the server entry loads.`,
-                ).pipe(Effect.as(undefined)),
-          ),
-        );
+    deriveStartDefinitionSourcesEffect({
+      root: viteRoot,
+      serverEntry,
+      ...(normalizedOptions.handlerExport === undefined
+        ? {}
+        : { handlerExport: normalizedOptions.handlerExport }),
+      vite: startDiagnosticsInlineConfig(viteUserConfig, viteRoot, mode),
+    }).pipe(
+      Effect.catchTag("StartDefinitionSourcesLoadError", (error) =>
+        // A dev server still starts on a broken server module; its SSR
+        // middleware reports the error per request. Builds fail.
+        command === "build"
+          ? Effect.fail(error)
+          : Effect.logWarning(
+              `[sunfall-arc-start] ${error.message} The app graph lists no server functions or Actions until the server entry loads.`,
+            ).pipe(Effect.as(undefined)),
+      ),
+    );
 
   const shouldRunDiagnosticsGate = (): boolean => {
     const policy = normalizeStartBuildPolicy(normalizedOptions.buildPolicy);
@@ -395,7 +393,11 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
         throw new StartServerOnlyModuleError({ id });
       }
       const activeOptions = currentOptions();
-      if (!options?.ssr && activeOptions.autoCodeSplitting !== false && isFileRouteUpdate(id)) {
+      if (
+        !options?.ssr &&
+        activeOptions.autoCodeSplitting !== false &&
+        isStartRouteCodeSplitModule(id, viteRoot)
+      ) {
         return transformStartRouteAutoCodeSplitting(code, id, { root: viteRoot });
       }
       return null;

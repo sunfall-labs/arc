@@ -1,5 +1,4 @@
 import {
-  ActionTransport,
   Server,
   ServerRpcProtocolError,
   applyResponseContext,
@@ -16,7 +15,7 @@ import {
   type ResponseContext,
 } from "@sunfall/arc-core";
 import { makeActionInstance } from "@sunfall/arc-core/internal";
-import { Cause, Effect, Exit, Option, type Scope } from "effect";
+import { Cause, Effect, Exit, type Scope } from "effect";
 import type { StartServerApp } from "./start-server-app.js";
 import { validateStartActionRequestEffect, validateStartRpcRequestEffect } from "./rpc.js";
 import { makeRequestRuntime, type RequestRuntimeRemainingRequirements } from "./request-runtime.js";
@@ -312,19 +311,15 @@ export const createServerActionResponseEffectWithRuntime = <
 
           // The request runtime is already running this endpoint, so it adds
           // no startup failures to the submission.
+          // The endpoint runs the Action locally and skips `optimistic`: only
+          // the submitting client applies it.
           const instance = makeActionInstance(
             action as unknown as ActionDefinition<any, any, never, any>,
             runtime as unknown as AnySunfallArcRuntime<never>,
+            "endpoint",
           );
-          // The action endpoint is where served Actions run: never route this
-          // submission through an ActionTransport the calling fiber may carry.
           const exit = yield* Effect.exit(
-            withStartActionObservability(
-              action.name,
-              Effect.provideService(instance.submit(input), ActionTransport, {
-                submit: () => Option.none(),
-              }),
-            ),
+            withStartActionObservability(action.name, instance.submit(input)),
           );
           const failureKind = yield* actionFailureKindEffect(action, exit);
           const metaExit = yield* Effect.exit(

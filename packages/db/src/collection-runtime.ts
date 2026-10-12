@@ -1,3 +1,4 @@
+import { collectionContractDefects } from "./collection-contract-defects.js";
 import {
   ActionOptimisticRowsTypeId,
   EffectInputCallbackError,
@@ -78,6 +79,7 @@ import type {
   CollectionWriteOptions,
 } from "./collection-contract.js";
 
+export { forgetFailedCollectionLoadsEffect } from "./collection-sync-load-policy.js";
 export {
   collectionStoreEffect,
   currentCollectionStore,
@@ -462,13 +464,13 @@ export const defineCollection = <
         yield* recordCollectionPreload(definition);
         yield* runCollectionSyncLoadPolicyEffect(definition, { force: false });
         yield* followSync;
-      }),
+      }).pipe(collectionContractDefects),
     refresh: () =>
       Effect.gen(function* () {
         yield* recordCollectionPreload(definition);
         yield* runCollectionSyncLoadPolicyEffect(definition, { force: true });
         yield* followSync;
-      }),
+      }).pipe(collectionContractDefects),
     snapshot: () => snapshotCollectionEffect(definition),
     hydrate: (snapshot: CollectionSnapshot<A, K>, hydrateOptions?: CollectionHydrateOptions) =>
       hydrateCollectionEffect(definition, snapshot, hydrateOptions),
@@ -483,7 +485,10 @@ export const defineCollection = <
     applyChanges: (
       changes: ReadonlyArray<CollectionChange<A, K>>,
       writeOptions?: CollectionWriteOptions,
-    ) => applyCollectionChangesEffect(definition, changes, writeOptions),
+    ) =>
+      applyCollectionChangesEffect(definition, changes, writeOptions).pipe(
+        collectionContractDefects,
+      ),
   } satisfies CollectionDefinition<A, K, E, R>;
 
   registry.register(definition as AnyCollection);

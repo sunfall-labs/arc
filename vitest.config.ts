@@ -29,7 +29,10 @@ const sharedAlias = {
 // Solid adapter tests exercise client reactivity, so they run Solid's browser build.
 const solidClientTestIncludes = ["packages/solid/**/*.test.ts", "packages/solid-db/**/*.test.ts"];
 // Solid adapter `*.server.test.ts` files render with Solid's server build (solid-core).
-const solidServerTestIncludes = ["packages/solid/**/*.server.test.ts"];
+const solidServerTestIncludes = [
+  "packages/solid/**/*.server.test.ts",
+  "packages/solid-db/**/*.server.test.ts",
+];
 
 export default defineConfig({
   test: {
@@ -92,7 +95,7 @@ export default defineConfig({
           exclude: [
             ...configDefaults.exclude,
             "packages/solid/**/!(*.server).test.ts",
-            "packages/solid-db/**/*.test.ts",
+            "packages/solid-db/**/!(*.server).test.ts",
           ],
           benchmark: {
             include: ["benchmarks/**/*.bench.ts"],

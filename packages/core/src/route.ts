@@ -468,28 +468,7 @@ export type RouteDefineOptions<
   readonly preloadResources?: readonly RoutePreloadResourceInput[];
   /** Static collection preload hints used by Start diagnostics and devtools. */
   readonly preloadCollections?: readonly RoutePreloadCollectionInput[];
-  /**
-   * The route's component as a plain render function taking this route's
-   * `Route.Props`, or a lazy component. Start file routes declare it here so
-   * the Vite plugin can code-split it. A typed `Component` (whose services and
-   * failures the router must check) or a component taking mapped props is
-   * attached with `Route.withComponent(route, component, props?)`.
-   */
-  readonly component?:
-    | ((props: DefinedRouteProps<Path, ParamsSchema, SearchSchema>) => unknown)
-    | RouteLazyComponent<unknown, unknown>;
 } & RoutePreloadCheck<ErrorSchema, Out>;
-
-/** Component props of the route `Route.define(path, options)` creates. */
-type DefinedRouteProps<Path extends string, ParamsSchema, SearchSchema> = RouteComponentProps<
-  RouteDefinition<
-    Path,
-    ParamsFromSchema<Path, ParamsSchema>,
-    SearchFromSchema<SearchSchema>,
-    any,
-    any
-  >
->;
 
 /**
  * Typed route constructor for one path: `Route.define(path, options)` and

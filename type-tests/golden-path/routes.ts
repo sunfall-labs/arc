@@ -17,7 +17,7 @@ export const ProjectRoute = Route.define("/projects/:id", {
   preloadResources: [ProjectList, ProjectById],
   preloadCollections: [Projects],
   preload: ({ params }) =>
-    Effect.all([Projects.preload().pipe(Effect.orDie), Resource.preload(ProjectById(params.id))]),
+    Effect.all([Projects.preload(), Resource.preload(ProjectById(params.id))]),
 });
 
 export const routes = [ProjectsRoute, ProjectRoute] as const;

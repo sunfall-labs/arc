@@ -426,7 +426,6 @@ export const publicHoverDocGroups = [
         "Row",
         "Key",
         "Origin",
-        "RuntimeError",
         "Policy",
         "Sync",
         "SyncAdapter",

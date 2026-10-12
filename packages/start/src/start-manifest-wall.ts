@@ -69,14 +69,9 @@ export interface StartViteDevSsrOptions<
  *
  * Server functions and Actions are not listed here: the plugin derives them
  * from the server entry's `createRequestHandler(app, { serverFunctions })`,
- * naming each by the module export it came from. Prebuilt manifests from
- * generated build steps replace that derivation.
+ * naming each by the module export it came from.
  */
 export interface SunfallArcStartOptions {
-  /** Prebuilt server-function manifest definitions (generated build steps only). */
-  readonly serverFunctionManifest?: Iterable<ServerFunctionManifestDefinition>;
-  /** Prebuilt action manifest definitions (generated build steps only). */
-  readonly actionManifest?: Iterable<ActionManifestDefinition>;
   /** File paths to route modules when not using route directory discovery. */
   readonly fileRoutes?: Iterable<string>;
   /** Prebuilt or iterable file-route manifest entries. */
@@ -86,9 +81,12 @@ export interface SunfallArcStartOptions {
   /** Controls generated route definition file output. */
   readonly fileRouteGeneration?: FileRouteGenerationOptions;
   /**
-   * Automatically lazy-load imported file-route components in browser builds.
+   * Lazy-load the components attached with `Route.withComponent(...)` in the
+   * browser: a component used only in that call moves to its own chunk, and
+   * the route loads it before rendering. Types are unchanged, so the router
+   * still checks the component's services and failures.
    *
-   * Enabled by default. Set to `false` to keep browser route modules fully eager.
+   * Enabled by default. Set to `false` to keep route components eager.
    */
   readonly autoCodeSplitting?: boolean;
   /** Server entry module loaded by Vite dev SSR. */
@@ -346,7 +344,6 @@ export const discoverFileRoutesEffect = (
 const serverFunctionDefinitionsFromOptions = (
   options: StartManifestOptions,
 ): Iterable<ServerFunctionManifestDefinition> =>
-  options.serverFunctionManifest ??
   Array.from(options.serverFunctionSources ?? [], (source) =>
     serverFunctionManifestDefinition(source.fn, source),
   );
@@ -354,7 +351,6 @@ const serverFunctionDefinitionsFromOptions = (
 const actionDefinitionsFromOptions = (
   options: StartManifestOptions,
 ): Iterable<ActionManifestDefinition> =>
-  options.actionManifest ??
   Array.from(options.actionSources ?? [], (source) =>
     actionManifestDefinition(source.action, source),
   );
@@ -409,18 +405,14 @@ const normalizeFileRouteManifestOption = (
 export const normalizeStartManifestIterableOptions = (
   options: StartManifestOptions = {},
 ): StartManifestOptions => {
-  const serverFunctionManifest = materializeIterableOption(options.serverFunctionManifest);
   const serverFunctionSources = materializeIterableOption(options.serverFunctionSources);
-  const actionManifest = materializeIterableOption(options.actionManifest);
   const actionSources = materializeIterableOption(options.actionSources);
   const fileRoutes = materializeIterableOption(options.fileRoutes);
   const fileRouteManifest = normalizeFileRouteManifestOption(options.fileRouteManifest);
 
   return {
     ...options,
-    ...(serverFunctionManifest === undefined ? {} : { serverFunctionManifest }),
     ...(serverFunctionSources === undefined ? {} : { serverFunctionSources }),
-    ...(actionManifest === undefined ? {} : { actionManifest }),
     ...(actionSources === undefined ? {} : { actionSources }),
     ...(fileRoutes === undefined ? {} : { fileRoutes }),
     ...(fileRouteManifest === undefined ? {} : { fileRouteManifest }),

@@ -14,7 +14,7 @@ import {
   subscribeCollectionEventsEffect,
   validateCollectionsHydrationEffect,
 } from "@sunfall/arc-db/internal";
-import { Deferred, Effect, Exit, Fiber, Option, PubSub } from "effect";
+import { Cause, Deferred, Effect, Exit, Fiber, Option, PubSub } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -48,7 +48,7 @@ interface FunctionProjectCard {
   readonly render: () => string;
 }
 
-/** Flattens an `AsyncResult` into matchable facts: tag, waiting, value/timestamp, typed error, and previous success value. */
+/** Flattens an `AsyncResult` into matchable facts: tag, waiting, value/timestamp, typed error, defect, and previous success value. */
 const asyncResultFacts = (result: AsyncResult.AsyncResult<unknown, unknown>) => {
   switch (result._tag) {
     case "Initial":
@@ -65,6 +65,7 @@ const asyncResultFacts = (result: AsyncResult.AsyncResult<unknown, unknown>) => 
         _tag: result._tag,
         waiting: result.waiting,
         error: Option.getOrUndefined(AsyncResult.error(result)),
+        defect: result.cause.reasons.find(Cause.isDieReason)?.defect,
         previous: Option.getOrUndefined(AsyncResult.value(result)),
         cause: result.cause,
       };
@@ -349,7 +350,7 @@ describe("Collection.liveQuery", () => {
           name: "Projects.live-query-collection-store-local",
           getKey: (project) => project.id,
         });
-        const ProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
+        const ProjectCards = Collection.liveQuery<ProjectCard, string, never>({
           name: "ProjectCards.live-query-collection-store-local",
           getKey: (card) => card.id,
           indexes: {
@@ -510,7 +511,7 @@ describe("Collection.liveQuery", () => {
         readonly nested: { readonly value: string };
       },
       string,
-      Collection.RuntimeError
+      never
     >({
       name: "ProjectCards.live-query-collection.nested-promise-projection",
       getKey: (card) => card.id,
@@ -544,7 +545,7 @@ describe("Collection.liveQuery", () => {
         readonly nested: { readonly value: string };
       },
       string,
-      Collection.RuntimeError
+      never
     >({
       name: "ProjectCards.live-query-collection.nested-effect-projection",
       getKey: (card) => card.id,
@@ -576,7 +577,7 @@ describe("Collection.liveQuery", () => {
         { id: "lumen", name: "Lumen", status: "blocked", progress: 34 },
       ],
     });
-    const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
+    const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
       name: "ProjectCards.live-query-collection",
       getKey: (project) => project.id,
       query: (query) =>
@@ -631,7 +632,7 @@ describe("Collection.liveQuery", () => {
       getKey: (project) => project.id,
       initialData: [{ id: "atlas", meta: { labels: ["remote"] } }],
     });
-    const ProjectCards = Collection.liveQuery<NestedProjectCard, string, Collection.RuntimeError>({
+    const ProjectCards = Collection.liveQuery<NestedProjectCard, string, never>({
       name: "ProjectCards.live-query-collection.detached",
       getKey: (project) => project.id,
       query: (query) =>
@@ -660,7 +661,7 @@ describe("Collection.liveQuery", () => {
         { id: "lumen", name: "Lumen", status: "active", progress: 34 },
       ],
     });
-    const ProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
+    const ProjectCards = Collection.liveQuery<ProjectCard, string, never>({
       name: "ProjectCards.live-query-collection.duplicate-key",
       getKey: (project) => project.id,
       indexes: {
@@ -698,7 +699,7 @@ describe("Collection.liveQuery", () => {
             { id: "lumen", name: "Lumen", status: "active", progress: 34 },
           ],
         });
-        const ProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
+        const ProjectCards = Collection.liveQuery<ProjectCard, string, never>({
           name: "ProjectCards.live-query-collection.hidden-duplicate",
           getKey: (project) => project.id,
           indexes: {
@@ -753,11 +754,7 @@ describe("Collection.liveQuery", () => {
           getKey: (project) => project.id,
           initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
         });
-        const ActiveProjectCards = Collection.liveQuery<
-          ProjectCard,
-          string,
-          Collection.RuntimeError
-        >({
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
           name: "ProjectCards.live-query-collection.stable-signals",
           getKey: (project) => project.id,
           query: (query) =>
@@ -793,11 +790,7 @@ describe("Collection.liveQuery", () => {
           getKey: (project) => project.id,
           initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
         });
-        const ActiveProjectCards = Collection.liveQuery<
-          ProjectCard,
-          string,
-          Collection.RuntimeError
-        >({
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
           name: "ProjectCards.live-query-collection.stable-ready",
           getKey: (project) => project.id,
           query: (query) =>
@@ -847,7 +840,7 @@ describe("Collection.liveQuery", () => {
           getKey: (project) => project.id,
           initialData: [{ id: "atlas", name: "FB", status: "active", progress: 72 }],
         });
-        const ProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
+        const ProjectCards = Collection.liveQuery<ProjectCard, string, never>({
           name: "ProjectCards.live-query-collection.monotonic-version",
           getKey: (project) => project.id,
           query: (query) =>
@@ -882,11 +875,7 @@ describe("Collection.liveQuery", () => {
             { id: "lumen", name: "Lumen", status: "blocked", progress: 34 },
           ],
         });
-        const ActiveProjectCards = Collection.liveQuery<
-          ProjectCard,
-          string,
-          Collection.RuntimeError
-        >({
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
           name: "ProjectCards.live-query-collection.dehydrate",
           getKey: (project) => project.id,
           query: (query) =>
@@ -925,11 +914,7 @@ describe("Collection.liveQuery", () => {
           name: "Projects.live-query-collection.runtime-local-snapshot",
           getKey: (project) => project.id,
         });
-        const ActiveProjectCards = Collection.liveQuery<
-          ProjectCard,
-          string,
-          Collection.RuntimeError
-        >({
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
           name: "ProjectCards.live-query-collection.runtime-local-snapshot",
           getKey: (project) => project.id,
           query: (query) =>
@@ -1040,11 +1025,7 @@ describe("Collection.liveQuery", () => {
             persistOnWrite: true,
           },
         });
-        const ActiveProjectCards = Collection.liveQuery<
-          ProjectCard,
-          string,
-          Collection.RuntimeError<"persist-failed">
-        >({
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, "persist-failed">({
           name: "ProjectCards.live-query-snapshot-source-durable-write",
           getKey: (project) => project.id,
           query: (query) =>
@@ -1059,12 +1040,7 @@ describe("Collection.liveQuery", () => {
         });
         let write:
           | Fiber.Fiber<
-              Exit.Exit<
-                void,
-                | CollectionRowKeyChanged
-                | CollectionRowNotFound
-                | Collection.RuntimeError<"persist-failed">
-              >,
+              Exit.Exit<void, CollectionRowKeyChanged | CollectionRowNotFound | "persist-failed">,
               never
             >
           | undefined;
@@ -1137,11 +1113,7 @@ describe("Collection.liveQuery", () => {
             persistOnWrite: true,
           },
         });
-        const ActiveProjectCards = Collection.liveQuery<
-          ProjectCard,
-          string,
-          Collection.RuntimeError<"persist-failed">
-        >({
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, "persist-failed">({
           name: "ProjectCards.live-query-nested-snapshot-source-durable-write",
           getKey: (project) => project.id,
           query: (query) =>
@@ -1157,9 +1129,7 @@ describe("Collection.liveQuery", () => {
         const ProjectSummaries = Collection.liveQuery<
           ProjectCard,
           string,
-          Collection.RuntimeError<
-            "persist-failed" | QueryEvaluationError | ReadonlyCollectionMutation
-          >
+          "persist-failed" | QueryEvaluationError | ReadonlyCollectionMutation
         >({
           name: "ProjectSummaries.live-query-nested-snapshot-source-durable-write",
           getKey: (project) => project.id,
@@ -1172,12 +1142,7 @@ describe("Collection.liveQuery", () => {
         });
         let write:
           | Fiber.Fiber<
-              Exit.Exit<
-                void,
-                | CollectionRowKeyChanged
-                | CollectionRowNotFound
-                | Collection.RuntimeError<"persist-failed">
-              >,
+              Exit.Exit<void, CollectionRowKeyChanged | CollectionRowNotFound | "persist-failed">,
               never
             >
           | undefined;
@@ -1237,7 +1202,7 @@ describe("Collection.liveQuery", () => {
     const ProjectTasks = Collection.liveQuery<
       { readonly id: string; readonly taskId: string },
       string,
-      Collection.RuntimeError
+      never
     >({
       name: "ProjectTasks.live-query-durable-source-plan",
       getKey: (row) => row.taskId,
@@ -1350,11 +1315,7 @@ describe("Collection.liveQuery", () => {
               { id: "lumen", name: "Lumen", status: "blocked", progress: 34 },
             ],
           });
-          const ActiveProjectCards = Collection.liveQuery<
-            ProjectCard,
-            string,
-            Collection.RuntimeError
-          >({
+          const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
             name: "ProjectCards.live-query-collection.persist-event",
             getKey: (project) => project.id,
             query: (query) =>
@@ -1397,11 +1358,7 @@ describe("Collection.liveQuery", () => {
           getKey: (project) => project.id,
           initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
         });
-        const ActiveProjectCards = Collection.liveQuery<
-          ProjectCard,
-          string,
-          Collection.RuntimeError
-        >({
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
           name: "ProjectCards.live-query-collection.persist",
           getKey: (project) => project.id,
           query: (query) =>
@@ -1434,11 +1391,7 @@ describe("Collection.liveQuery", () => {
           getKey: (project) => project.id,
           initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
         });
-        const ActiveProjectCards = Collection.liveQuery<
-          ProjectCard,
-          string,
-          Collection.RuntimeError
-        >({
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
           name: "ProjectCards.live-query-collection.snapshot-key",
           getKey: () => {
             throw thrown;
@@ -1474,11 +1427,7 @@ describe("Collection.liveQuery", () => {
           getKey: (project) => project.id,
           initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
         });
-        const ActiveProjectCards = Collection.liveQuery<
-          ProjectCard,
-          number,
-          Collection.RuntimeError
-        >({
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard, number, never>({
           name: "ProjectCards.live-query-collection.nan-key",
           getKey: () => Number.NaN,
           query: (query) =>
@@ -1493,7 +1442,8 @@ describe("Collection.liveQuery", () => {
         expect(ActiveProjectCards.get(Number.NaN)).toBeUndefined();
         expect(asyncResultFacts(ActiveProjectCards.result().get())).toMatchObject({
           _tag: "Failure",
-          error: {
+          error: undefined,
+          defect: {
             _tag: "CollectionSnapshotCodecError",
             operation: "load",
           },
@@ -1514,7 +1464,7 @@ describe("Collection.liveQuery", () => {
       }),
     ));
 
-  it("normalizes unsupported live query collection projection fingerprints as EffectInput callback errors", () =>
+  it("reports unsupported live query collection projection fingerprints as EffectInput callback defects", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const Projects = Collection.define<Project>({
@@ -1522,11 +1472,7 @@ describe("Collection.liveQuery", () => {
           getKey: (project) => project.id,
           initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
         });
-        const ProjectCards = Collection.liveQuery<
-          FunctionProjectCard,
-          string,
-          Collection.RuntimeError
-        >({
+        const ProjectCards = Collection.liveQuery<FunctionProjectCard, string, never>({
           name: "ProjectCards.live-query-collection.unsupported-projection",
           getKey: (project) => project.id,
           query: (query) =>
@@ -1541,7 +1487,8 @@ describe("Collection.liveQuery", () => {
         expect(asyncResultFacts(state)).toMatchObject({
           _tag: "Failure",
           waiting: false,
-          error: {
+          error: undefined,
+          defect: {
             _tag: "EffectInputCallbackError",
             operation:
               "Collection.materialize(ProjectCards.live-query-collection.unsupported-projection).load",
@@ -1575,7 +1522,7 @@ describe("Collection.liveQuery", () => {
           getKey: (project) => project.id,
           initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
         });
-        const ProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
+        const ProjectCards = Collection.liveQuery<ProjectCard, string, never>({
           name: "ProjectCards.live-query-collection.key-failure-last-good",
           getKey: (project) => {
             if (project.name === "Broken") {
@@ -1614,7 +1561,8 @@ describe("Collection.liveQuery", () => {
         expect(asyncResultFacts(state.get())).toMatchObject({
           _tag: "Failure",
           waiting: false,
-          error: {
+          error: undefined,
+          defect: {
             operation:
               "Collection.getKey(ProjectCards.live-query-collection.key-failure-last-good)",
           },
@@ -1656,7 +1604,7 @@ describe("Collection.liveQuery", () => {
           getKey: (project) => project.id,
           initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
         });
-        const ProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
+        const ProjectCards = Collection.liveQuery<ProjectCard, string, never>({
           name: "ProjectCards.live-query-collection.failed-snapshot",
           getKey: (project) => project.id,
           query: (query) =>
@@ -1706,11 +1654,7 @@ describe("Collection.liveQuery", () => {
           name: "Projects.live-query-collection.readonly-hydrate-source",
           getKey: (project) => project.id,
         });
-        const ActiveProjectCards = Collection.liveQuery<
-          ProjectCard,
-          string,
-          Collection.RuntimeError
-        >({
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
           name: "ProjectCards.live-query-collection.readonly-hydrate",
           getKey: (project) => project.id,
           query: (query) =>
@@ -1756,7 +1700,7 @@ describe("Collection.liveQuery", () => {
       ],
     });
     let indexEvaluations = 0;
-    const ProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
+    const ProjectCards = Collection.liveQuery<ProjectCard, string, never>({
       name: "ProjectCards.live-query-collection.indexed",
       getKey: (project) => project.id,
       indexes: {
@@ -1812,7 +1756,7 @@ describe("Collection.liveQuery", () => {
       getKey: (project) => project.id,
       initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
     });
-    const ProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
+    const ProjectCards = Collection.liveQuery<ProjectCard, string, never>({
       name: "ProjectCards.live-query-collection.invalid-index",
       getKey: (project) => project.id,
       indexes: {
@@ -1851,7 +1795,7 @@ describe("Collection.liveQuery", () => {
         { id: "lumen", name: "Lumen", status: "blocked", progress: 34 },
       ],
     });
-    const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
+    const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
       name: "ProjectCards.live-query-collection.nested",
       getKey: (project) => project.id,
       query: (query) =>
@@ -1894,7 +1838,7 @@ describe("Collection.liveQuery", () => {
         load,
       },
     });
-    const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError>({
+    const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
       name: "ProjectCards.live-query-collection.preload",
       getKey: (project) => project.id,
       query: (query) =>
@@ -1932,11 +1876,7 @@ describe("Collection.liveQuery", () => {
               ]),
           },
         });
-        const ActiveProjectCards = Collection.liveQuery<
-          ProjectCard,
-          string,
-          Collection.RuntimeError
-        >({
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
           name: "ProjectCards.live-query-collection.collect-derived",
           getKey: (project) => project.id,
           query: (query) =>
@@ -1968,11 +1908,7 @@ describe("Collection.liveQuery", () => {
             getKey: (project) => project.id,
             initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
           });
-          const ActiveProjectCards = Collection.liveQuery<
-            ProjectCard,
-            string,
-            Collection.RuntimeError
-          >({
+          const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
             name: "ProjectCards.live-query-collection.readonly-empty-apply",
             getKey: (project) => project.id,
             query: (query) =>
@@ -2008,11 +1944,7 @@ describe("Collection.liveQuery", () => {
             getKey: (project) => project.id,
             initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
           });
-          const ActiveProjectCards = Collection.liveQuery<
-            ProjectCard,
-            string,
-            Collection.RuntimeError
-          >({
+          const ActiveProjectCards = Collection.liveQuery<ProjectCard, string, never>({
             name: "ProjectCards.live-query-collection.readonly-apply",
             getKey: (project) => project.id,
             query: (query) =>

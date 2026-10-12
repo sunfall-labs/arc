@@ -100,6 +100,8 @@ export const starterCatalog = [
         "src/main.tsx",
         "src/project-collections.ts",
         "src/project-error.ts",
+        "src/project-page.tsx",
+        "src/project-views.tsx",
         "src/routeTree.gen.ts",
         "src/routes/index.ts",
         "src/server.tsx",

@@ -97,7 +97,20 @@ export interface ActionExecutionWorkflowOptions<I, A, E, R, ER> {
   readonly runAtActionBoundary: <Value, Error, Requirements>(
     effect: Effect.Effect<Value, Error, Requirements>,
   ) => Effect.Effect<Value, Error | ER, Requirements>;
+  /** Where submissions run; see `ActionExecutionSite`. Defaults to `"client"`. */
+  readonly site?: ActionExecutionSite;
 }
+
+/**
+ * Where an Action instance runs its submissions.
+ *
+ * - `"client"`: the submitting side. It applies `optimistic`, then runs the
+ *   Action through the `ActionTransport` that serves it, or locally.
+ * - `"endpoint"`: the server endpoint serving a client's submission. It runs
+ *   the Action locally and never applies `optimistic`: the submitting client
+ *   already patched its own state, and the request's store is discarded.
+ */
+export type ActionExecutionSite = "client" | "endpoint";
 
 export interface ActionExecutionWorkflow<I, A, E, R, ER> {
   readonly submit: (
@@ -123,6 +136,7 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
   options: ActionExecutionWorkflowOptions<I, A, E, R, ER>,
 ): ActionExecutionWorkflow<I, A, E, R, ER> => {
   const { definition, submissions, runAtActionBoundary } = options;
+  const endpoint = options.site === "endpoint";
 
   const runEffect = (input: I): Effect.Effect<A, E, R> => {
     const operation = `Action.run(${definition.name})`;
@@ -146,7 +160,7 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
     input: I,
     transaction: ReturnType<typeof makeActionOptimisticTransactionRuntime>,
   ): Effect.Effect<void, never, R> =>
-    definition.optimistic === undefined
+    endpoint || definition.optimistic === undefined
       ? Effect.void
       : invokeEffectInput(
           `Action.optimistic(${definition.name})`,
@@ -176,10 +190,13 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
           yield* applyOptimistic(input, transaction);
 
           // A transport that serves this Action runs it remotely and applies
-          // the response (hydration and invalidations) itself.
-          const remote = Option.flatMap(yield* Effect.serviceOption(ActionTransport), (transport) =>
-            transport.submit(definition, input),
-          );
+          // the response (hydration and invalidations) itself. The endpoint is
+          // where served Actions run, so it never routes through one.
+          const remote = endpoint
+            ? Option.none()
+            : Option.flatMap(yield* Effect.serviceOption(ActionTransport), (transport) =>
+                transport.submit(definition, input),
+              );
           if (Option.isSome(remote)) {
             const response = yield* remote.value;
             yield* submissions.interruptStaleEffect(submission);

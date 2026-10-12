@@ -1,6 +1,7 @@
+import { collectionLoadFailureCause } from "./collection-contract-defects.js";
 import { ResourceStore, type ResourceStore as ResourceStoreState } from "@sunfall/arc-core";
 import { currentOrDefaultRuntime } from "@sunfall/arc-core/internal";
-import { Effect, Exit, Option, PubSub, Scope } from "effect";
+import { Cause, Effect, Exit, Option, PubSub, Scope } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { CollectionStoreTypeId } from "./collection-ids.js";
 import {
@@ -61,7 +62,10 @@ const initializeCollectionState = <A extends object, K extends CollectionKey, E,
   } catch (error) {
     state.rows.clear();
     state.initialDataError = error as CollectionRuntimeError<E>;
-    commitCollectionLoadState(state, AsyncResult.fail(state.initialDataError));
+    commitCollectionLoadState(
+      state,
+      AsyncResult.failure(collectionLoadFailureCause(state.initialDataError) as Cause.Cause<E>),
+    );
   }
 };
 

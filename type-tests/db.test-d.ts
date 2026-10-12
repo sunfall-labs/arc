@@ -143,15 +143,14 @@ Collection.define({
 
 // --- Definition methods are the single read/write path ---
 
-const projectState: AsyncResult.AsyncResult<
-  void,
-  Collection.RuntimeError<never>
-> = dbStaticProjectsCollection.result().get();
+const projectState: AsyncResult.AsyncResult<void, never> = dbStaticProjectsCollection
+  .result()
+  .get();
 const projectRows: ReadonlyArray<Collection.Row<Project, string>> =
   dbStaticProjectsCollection.rows();
 const applyChanges: Effect.Effect<
   void,
-  Collection.RuntimeError<"load"> | CollectionRowNotFound | CollectionRowKeyChanged,
+  "load" | CollectionRowNotFound | CollectionRowKeyChanged,
   DbRuntimeService
 > = dbProjectsCollection.applyChanges(
   [

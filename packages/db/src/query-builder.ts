@@ -47,7 +47,6 @@ import { collectionStoreEffect, runWithCollectionStore } from "./runtime-collect
 import type {
   AnyCollection,
   CollectionError,
-  CollectionRuntimeError,
   CollectionRequirements,
   CollectionRowValue,
 } from "./collection-contract.js";
@@ -88,7 +87,7 @@ export interface QueryBuilderInterface<
   ): QueryBuilderInterface<
     QueryJoinedContext<TContext, Alias, C>,
     QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
-    E | CollectionRuntimeError<CollectionError<C>>,
+    E | CollectionError<C>,
     R | CollectionRequirements<C>
   >;
   /** Inner-joins another collection through one of its declared secondary indexes. */
@@ -100,7 +99,7 @@ export interface QueryBuilderInterface<
   ): QueryBuilderInterface<
     QueryJoinedContext<TContext, Alias, C>,
     QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
-    E | CollectionRuntimeError<CollectionError<C>>,
+    E | CollectionError<C>,
     R | CollectionRequirements<C>
   >;
   /** Groups filtered source rows by a key object and evaluates aggregate selectors. */
@@ -197,7 +196,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
   ): QueryBuilder<
     QueryJoinedContext<TContext, Alias, C>,
     QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
-    E | CollectionRuntimeError<CollectionError<C>>,
+    E | CollectionError<C>,
     R | CollectionRequirements<C>
   > {
     type NextContext = QueryJoinedContext<TContext, Alias, C>;
@@ -205,7 +204,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
     return new QueryBuilder<
       NextContext,
       NextResult,
-      E | CollectionRuntimeError<CollectionError<C>>,
+      E | CollectionError<C>,
       R | CollectionRequirements<C>
     >(
       [...this.sources, [alias, collection] as const],
@@ -238,7 +237,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
   ): QueryBuilder<
     QueryJoinedContext<TContext, Alias, C>,
     QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
-    E | CollectionRuntimeError<CollectionError<C>>,
+    E | CollectionError<C>,
     R | CollectionRequirements<C>
   > {
     type NextContext = QueryJoinedContext<TContext, Alias, C>;
@@ -247,7 +246,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
     return new QueryBuilder<
       NextContext,
       NextResult,
-      E | CollectionRuntimeError<CollectionError<C>>,
+      E | CollectionError<C>,
       R | CollectionRequirements<C>
     >(
       [...this.sources, [alias, collection] as const],

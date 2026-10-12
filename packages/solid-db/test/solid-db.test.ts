@@ -603,7 +603,7 @@ describe("solid-db", () => {
       name: "SolidDb.live-query-collection-runtime.projects",
       getKey: (project) => project.id,
     });
-    const ProjectCards = Collection.liveQuery<Project, string, Collection.RuntimeError>({
+    const ProjectCards = Collection.liveQuery<Project, string>({
       name: "SolidDb.live-query-collection-runtime.cards",
       getKey: (project) => project.id,
       query: (query) => query.from({ project: Projects }).select(({ project }) => project),
@@ -678,7 +678,7 @@ describe("solid-db", () => {
       getKey: (project) => project.id,
       initialData: [{ id: "atlas", name: "Atlas", active: true }],
     });
-    const ProjectCards = Collection.liveQuery<Project, string, Collection.RuntimeError>({
+    const ProjectCards = Collection.liveQuery<Project, string>({
       name: "SolidDb.live-query-collection-ready.cards",
       getKey: (project) => project.id,
       query: (query) =>

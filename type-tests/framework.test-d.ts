@@ -1722,10 +1722,20 @@ const ResourceProjectsCollection = Collection.define({
   getKey: (project) => project.id,
   sync: ProjectRowsResource(undefined),
 });
-const resourceProjectsPreload: Effect.Effect<
-  void,
-  Collection.RuntimeError<ProjectError>
-> = ResourceProjectsCollection.preload();
+// A collection preload fails only with its declared error: a rejected row or a
+// throwing sync callback is a defect.
+const resourceProjectsPreload: Effect.Effect<void, ProjectError> =
+  ResourceProjectsCollection.preload();
+type ResourceProjectsPreloadError =
+  ReturnType<typeof ResourceProjectsCollection.preload> extends Effect.Effect<any, infer E, any>
+    ? E
+    : never;
+const resourceProjectsPreloadFailsOnlyWithProjectError: [ResourceProjectsPreloadError] extends [
+  ProjectError,
+]
+  ? true
+  : false = true;
+void resourceProjectsPreloadFailsOnlyWithProjectError;
 void resourceProjectsPreload;
 // Remote changes stream through sync.changes; the collection owns the subscription.
 declare const projectChangeStream: Stream.Stream<
@@ -1739,11 +1749,8 @@ const ChangeFedProjectsCollection = Collection.define({
   getKey: (project) => project.id,
   sync: { changes: () => projectChangeStream },
 });
-const changeFedProjectsPreload: Effect.Effect<
-  void,
-  Collection.RuntimeError<ProjectError>,
-  ProjectApi
-> = ChangeFedProjectsCollection.preload();
+const changeFedProjectsPreload: Effect.Effect<void, ProjectError, ProjectApi> =
+  ChangeFedProjectsCollection.preload();
 void changeFedProjectsPreload;
 
 Collection.define<Project>({

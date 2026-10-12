@@ -41,7 +41,6 @@ import type {
   CollectionRow,
   CollectionRowSnapshot,
   CollectionRowValue,
-  CollectionRuntimeError,
   CollectionSnapshot,
   CollectionStorageLike,
   CollectionSync,
@@ -191,8 +190,6 @@ export namespace Collection {
   export type Key = CollectionKey;
   /** Origin marker for local or remote collection rows. */
   export type Origin = CollectionOrigin;
-  /** Runtime collection error channel including callback and codec failures. */
-  export type RuntimeError<E = never> = CollectionRuntimeError<E>;
   /** Collection retry policy. */
   export type Policy<E = never> = CollectionPolicy<E>;
   /** Backing source accepted by `sync`: an inline adapter or a `Resource.Ref`. */

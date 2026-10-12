@@ -54,7 +54,8 @@ export interface CollectionState<A extends object, K extends CollectionKey, E> {
   readonly optimisticRows: Map<K, OptimisticRowStack<A, K>>;
   readonly indexCache: Map<string, CollectionIndexCacheEntry<A, K>>;
   readonly version: WritableSignal<number>;
-  readonly loadState: WritableSignal<AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>>;
+  /** The latest load; contract violations are recorded as defects, so it fails only with `E`. */
+  readonly loadState: WritableSignal<AsyncResult.AsyncResult<void, E>>;
   loadGeneration: number;
   activeLoad: CollectionLoadAttempt | undefined;
   initialized: boolean;
@@ -76,10 +77,9 @@ export const makeCollectionState = <A extends object, K extends CollectionKey, E
   optimisticRows: new Map(),
   indexCache: new Map(),
   version: Signal.make(0, { name: `${name}.version` }),
-  loadState: Signal.make<AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>>(
-    AsyncResult.initial(),
-    { name: `${name}.loadState` },
-  ),
+  loadState: Signal.make<AsyncResult.AsyncResult<void, E>>(AsyncResult.initial(), {
+    name: `${name}.loadState`,
+  }),
   loadGeneration: 0,
   activeLoad: undefined,
   initialized: false,
@@ -115,7 +115,7 @@ export const restoreCollectionVersion = (
 /** The one write path for a collection's load state. */
 export const commitCollectionLoadState = <E>(
   state: CollectionState<any, any, E>,
-  loadState: AsyncResult.AsyncResult<void, CollectionRuntimeError<E>>,
+  loadState: AsyncResult.AsyncResult<void, E>,
 ): void => {
   Signal.batch(() => state.loadState.set(loadState), collectionCause(state, "sync"));
 };
