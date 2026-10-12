@@ -73,10 +73,11 @@ export { StartRequestHandlerError } from "./start-request-handler-error.js";
  * Per-request context passed to the internal render step.
  *
  * The runtime and resource store are request-scoped. Start disposes them when
- * the response completes, including streamed responses. `hydrationPlan.root`
- * carries the root payload script for streamed renderers (route Resources go
- * through `hydrationPlan.streamedResourceChunks`); `hydrationPlan.legacy`
- * carries the full payload for buffered renderers.
+ * the response completes (a custom render's streamed `Response` holds them
+ * until its body ends). `hydrationPlan.root` carries the root payload script
+ * for renderers that emit Resource chunks separately (route Resources go
+ * through `hydrationPlan.resourceChunks`); `hydrationPlan.legacy` carries the
+ * full payload for renderers that emit a single script.
  */
 export interface StartRenderContext<
   Routes extends readonly Route.Definition<string, unknown, unknown, any>[] =

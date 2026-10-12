@@ -2,7 +2,7 @@
 {
   "title": "Route preload and hydration",
   "category": "routing",
-  "summary": "Load a route's Resources in its preload so SSR, streamed hydration, and navigation share the same route data.",
+  "summary": "Load a route's Resources in its preload so SSR, hydration, and navigation share the same route data.",
   "order": 2,
   "related": ["served-resource"],
 }
@@ -23,13 +23,17 @@ export const route = Route.define("/projects/:id", {
 
 ## Render with preload data
 
-On the server, Start runs preload through the request runtime, then renders the app's root into its document. The response carries streamed hydration chunks for the touched Resources.
+On the server, Start runs preload through the request runtime, then renders the app's root into its document. The document carries hydration chunks for the Resources the preload touched.
 
 ```ts
-export const app = App.define({ root: Root, routes, client: AppLive });
+export const app = App.define({ root: Root, routes });
 
-// server.tsx: the server Layer must provide everything the root needs.
-export const handleRequest = createRequestHandler(app, { server: AppServerLive });
+// server.tsx: the server Layer must provide everything the root and the
+// served Resources and Actions (`implementations`) need.
+export const handleRequest = createRequestHandler(app, {
+  server: AppServerLive,
+  implementations,
+});
 ```
 
 ## Hydrate before mount

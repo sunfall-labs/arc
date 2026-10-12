@@ -5,6 +5,10 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+The Arc sections lead from 0.1.0-alpha.1 to the current API: every "After"
+is what exists now, and a "Before" names an alpha.1 API or one that existed
+on `main` since. The [changelog](../CHANGELOG.md) summarizes the net change.
+
 ## From The Streamed Document Body
 
 A server-rendered page is one complete body now, so the HTML stream that built
@@ -131,22 +135,22 @@ explicit type arguments. Start serves them with `RpcServer` and calls them
 with `RpcClient` over `HttpClient`; there is no hand-written envelope and no
 schema-less wire path.
 
-| Before                                                                                                                                                             | After                                                                                                                            |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `Server.contract<I, A, E>(name, { input?, output?, error? })`                                                                                                      | `Server.contract(name, { input, output, error? })`: types inferred from the schemas                                              |
-| `Server.contract(name)` with no schemas                                                                                                                            | declare the schemas (`input: Schema.Void` for no input, `Schema.Unknown` only where the value is genuinely untyped)              |
-| output typed as a mutable array or as `ActionResult` without a matching schema                                                                                     | the schema's type (`ReadonlyArray<A>`; rebuild domain values such as `ActionResult` from the decoded wire shape)                 |
-| `fn.input` / `fn.output` / `fn.error`, `fn.invoke(raw)`                                                                                                            | `fn.rpc` (`payloadSchema`, `successSchema`, `errorSchema`); `fn.local(input)` runs the implementation                            |
-| `Server.manifest`, `Server.encodeInput` / `decodeInput` / `encodeOutput` / `decodeOutput` / `encodeError` / `decodeError`                                          | removed: the Rpc's schemas are the wire schemas                                                                                  |
-| `Server.decodeRpcRequest` / `decodeRpcResponse`, `Server.RpcRequest` / `RpcResponse`, `Server.serializeDefect` / `serializeServerError` / `deserializeServerError` | removed: `effect/rpc` owns the protocol (`RpcSerialization.json`)                                                                |
-| `Server.route(method, path, handler)`, `Server.handleRoute`, `Server.Route`, `ServerRouteHandlerError`                                                             | removed: mount HTTP routes with `effect/http` (`HttpRouter`) beside the Start handler                                            |
-| `ServerRpcProtocolError` / `ServerTransportError` from a server-function call                                                                                      | `RpcClientError` (transport); payload decode failures, unknown functions, and handler defects arrive as defects                  |
-| RPC response `{ _tag: "Success" \| "Failure" \| "ServerError" \| "Defect" }` with 400/404/500                                                                      | `effect/rpc` JSON messages, always `200` (`[{ _tag: "Exit", requestId, exit }]`)                                                 |
-| request failure kind `validation` for an RPC payload that fails its input schema                                                                                   | `protocol` (`RpcServer` rejects it before the handler runs)                                                                      |
-| `App.launch(app, { transport: { fetch, headers } })`, `StartFetch` / `StartFetchInit` / `StartFetchInput`                                                          | provide an `HttpClient` in the client Layer (`HttpClient.mapRequest(HttpClientRequest.setHeader(...))`, `FetchHttpClient.Fetch`) |
-| `makeActionTransportLayer({ fetch, headers, endpoint, transportRuntime, actions })`                                                                                | `App.launch`'s internal `actionTransportLayer`, which requires `HttpClient`                                                      |
-| `Server.ClientError` on Action submissions                                                                                                                         | `Action.ClientError`                                                                                                             |
-| `ServerTransportError` / `ServerRpcProtocolError` / `ServerFunctionNotFound` from the action transport                                                             | `ActionTransportError` / `ActionProtocolError` / `ActionNotFound` (body `{ _tag: "ActionNotFound", actionName }`)                |
+| Before                                                                                                                                                             | After                                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `Server.contract<I, A, E>(name, { input?, output?, error? })`                                                                                                      | `Server.contract(name, { input, output, error? })`: types inferred from the schemas                                                  |
+| `Server.contract(name)` with no schemas                                                                                                                            | declare the schemas (`input: Schema.Void` for no input, `Schema.Unknown` only where the value is genuinely untyped)                  |
+| output typed as a mutable array or as `ActionResult` without a matching schema                                                                                     | the schema's type (`ReadonlyArray<A>`; an `ActionResult` output declares `ActionResult.Redirect` / `ActionResult.ValidationFailure`) |
+| `fn.input` / `fn.output` / `fn.error`, `fn.invoke(raw)`                                                                                                            | `fn.rpc` (`payloadSchema`, `successSchema`, `errorSchema`); `fn.local(input)` runs the implementation                                |
+| `Server.manifest`, `Server.encodeInput` / `decodeInput` / `encodeOutput` / `decodeOutput` / `encodeError` / `decodeError`                                          | removed: the Rpc's schemas are the wire schemas                                                                                      |
+| `Server.decodeRpcRequest` / `decodeRpcResponse`, `Server.RpcRequest` / `RpcResponse`, `Server.serializeDefect` / `serializeServerError` / `deserializeServerError` | removed: `effect/rpc` owns the protocol (`RpcSerialization.json`)                                                                    |
+| `Server.route(method, path, handler)`, `Server.handleRoute`, `Server.Route`, `ServerRouteHandlerError`                                                             | removed: mount HTTP routes with `effect/http` (`HttpRouter`) beside the Start handler                                                |
+| `ServerRpcProtocolError` / `ServerTransportError` from a server-function call                                                                                      | `RpcClientError` (transport); payload decode failures, unknown functions, and handler defects arrive as defects                      |
+| RPC response `{ _tag: "Success" \| "Failure" \| "ServerError" \| "Defect" }` with 400/404/500                                                                      | `effect/rpc` JSON messages, always `200` (`[{ _tag: "Exit", requestId, exit }]`)                                                     |
+| request failure kind `validation` for an RPC payload that fails its input schema                                                                                   | `protocol` (`RpcServer` rejects it before the handler runs)                                                                          |
+| `App.launch(app, { transport: { fetch, headers } })`, `StartFetch` / `StartFetchInit` / `StartFetchInput`                                                          | provide an `HttpClient` in the client Layer (`HttpClient.mapRequest(HttpClientRequest.setHeader(...))`, `FetchHttpClient.Fetch`)     |
+| `makeActionTransportLayer({ fetch, headers, endpoint, transportRuntime, actions })`                                                                                | `App.launch`'s internal `actionTransportLayer`, which requires `HttpClient`                                                          |
+| `Server.ClientError` on Action submissions                                                                                                                         | `Action.ClientError`                                                                                                                 |
+| `ServerTransportError` / `ServerRpcProtocolError` / `ServerFunctionNotFound` from the action transport                                                             | `ActionTransportError` / `ActionProtocolError` / `ActionNotFound` (body `{ _tag: "ActionNotFound", actionName }`)                    |
 
 Mocks keep their shape: `Server.mock(contract, handler)` provided through
 `Server.mockLayer(...)` still validates through the contract schemas (now the
@@ -267,7 +271,7 @@ name off the namespace:
 | `resolveSunfallArcDevtoolsBridgePayload`                                     | `Devtools.resolveBridgePayload`                                    |
 | `toDevtoolsSerializableValue`                                                | `Devtools.toSerializable`                                          |
 | `DevtoolsStore`, `DevtoolsSnapshot`, `DevtoolsPanels`, `DevtoolsSummary`     | `Devtools.Store`, `Devtools.Snapshot`, `Devtools.Panels`, ...      |
-| `DevtoolsStartAppGraphDiagnostics`                                           | `Devtools.AppGraphDiagnostics`                                     |
+| `DevtoolsStartAppGraphDiagnostics`                                           | removed with the Start app graph                                   |
 | `DevtoolsBridgePayloadContractResolution`                                    | `Devtools.BridgePayloadResolution`                                 |
 | `DevtoolsPanelItem`, `DevtoolsPanelMetric`, `DevtoolsPanelId`                | `Devtools.Panel["items"][number]`, `["metrics"][number]`, `["id"]` |
 | `DevtoolsCausalNodeKind` / `DevtoolsCausalEdgeKind`                          | `Devtools.CausalGraph["nodes"][number]["kind"]` / `["edges"]...`   |
@@ -282,43 +286,43 @@ package roots. Pick the namespaced name your editor already offers:
 `ActionDefinition` is `Action.Definition`, `ResourceRef` is `Resource.Ref`,
 `RouteMatch` / `RouteContext` are `Route.Match` / `Route.Context`,
 `ReadableSignal` is `Signal.Readable`, `TimelineEntry` is `Timeline.Entry`,
-and so on for every `Action*`, `ActionResult*`, `Form*`, `Program*`,
+and so on for every `Action*`, `ActionResult*`, `Form*`, `Program*` (now `State.*`),
 `Resource*`, `Route*`, `Server*`, `Signal*`, and `Timeline*` type. Error
 classes, Type IDs, guards (`isActionDefinition`, `isResourceRef`, ...),
 services (`ActionTransport`, `ActionOutbox`, `ResourceStore`,
 `RequestContext`), and runtime helpers keep their root names.
 
-| Before                                                                                                | After                                                                                                               |
-| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `ServerClient` (service and type)                                                                     | `Server.Client` (service and type)                                                                                  |
-| `ActionResultSuccess`, `AnyActionResult`, `ActionRedirectStatus`, ...                                 | `ActionResult.Success`, `ActionResult.Any`, `ActionResult.RedirectStatus`                                           |
-| `FormValidationError`, `ProgramDisposed`, `ResourceSnapshotCodecError`, `ResourceHydrationApplyError` | `Form.ValidationError`, `Program.Disposed`, `Resource.SnapshotCodecError`, `Resource.HydrationApplyError` (classes) |
-| `ActionSubmissionConcurrency`                                                                         | `Action.Concurrency`                                                                                                |
-| `ProgramSubscriptionError<Out>` / `ProgramSubscriptionRequirements<Out>`                              | `EffectInputError<Out>` / `EffectInputRequirements<Out>`                                                            |
-| `RouteErrorSchema<E>`                                                                                 | `Resource.ErrorSchema<E>` (routes and Resource families share it)                                                   |
-| `Route.PreloadError<R>` / `Route.NavigationError<R>`                                                  | `Route.PreloadPlanError<R>` / `Route.NavigationPlanError<R>`                                                        |
-| `RouteWithComponent<C>`                                                                               | `Route.WithComponent<R, C>`                                                                                         |
-| `AppDefinition`, `AnyAppDefinition`, `AppLaunchError`, `AppLaunchServices`                            | `App.Definition`, `App.Any`, `App.LaunchError`, `App.LaunchServices`                                                |
-| `StartActionFormOptions`, `StartActionInvalidationPlan`                                               | `StartAction.FormOptions`, `StartAction.InvalidationPlan`                                                           |
-| Solid DB `CollectionHandle`, `LiveQueryHandle`, `*BindingOptions`                                     | `SolidDb.CollectionHandle`, `SolidDb.LiveQueryHandle`, ...                                                          |
-| `Form.validate(form)`                                                                                 | `form.validate()`                                                                                                   |
-| `Form.error(...)` / `Form.fieldError(...)`                                                            | the validator's `errors.fields(...)` / `errors.field(...)` / `errors.form(...)`                                     |
-| `ActionResult.fields` / `fieldError` / `formError`                                                    | `ActionResult.validation({ fieldErrors, formErrors })`                                                              |
-| `ActionResult.validateForm(form)` / `ActionResult.fromValidationEffect(effect)`                       | `ActionResult.fromValidation(form.validate())`                                                                      |
-| `Query.from(sources)`                                                                                 | `query.from(sources)` inside the query factory                                                                      |
-| `route.build(params, search)` / `route.match(url)`                                                    | `Route.href(route, { params, search })` / `Route.match([route], url)`                                               |
-| `Server.fn(name, { input, output, error, handler })`                                                  | `Server.implement(Server.contract(name, { input, output, error }), handler)`                                        |
-| `Server.stub(name, schemas)`                                                                          | `Server.client(Server.contract(name, schemas))`                                                                     |
-| `Server.provideMocks(effect, ...mocks)` / `Server.mockClient(...mocks)`                               | `Effect.provide(effect, Server.mockLayer(...mocks))`                                                                |
-| `Server.get(name)`                                                                                    | `Server.functions().get(name)`                                                                                      |
-| `capability.mock(service)` / `capability.provide(effect, service)`                                    | `Layer.succeed(Service, service)` / `Effect.provide(effect, Layer.succeed(Service, service))`                       |
-| `signal.set((current) => next)`                                                                       | `signal.update((current) => next)`; `set` takes a value                                                             |
-| `StartAction.form(action, { actionPath / endpoints / actionManifest / appGraph })`                    | `StartAction.form(action)` (posts to the page it is on)                                                             |
-| prerender `{ enabled: true, ... }` / `{ enabled: false }`                                             | prerender `{ ... }` / `false`                                                                                       |
-| prerender page `{ path, prerender: { enabled, outputPath } }`                                         | `{ path, outputPath, prerender: false }`                                                                            |
-| `StartPrerenderError` operation `"close-server"` / `"create-directory"`                               | a logged warning / `"write-page"`                                                                                   |
-| cookie `sameSite: "Strict"` / `"Lax"` / `"None"`                                                      | `sameSite: "strict"` / `"lax"` / `"none"`                                                                           |
-| `generateValidatedFileRouteManifestEffect` and other `*Effect` exports                                | `generateFileRouteManifest`                                                                                         |
+| Before                                                                                                | After                                                                                                                          |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `ServerClient` (service and type)                                                                     | `Server.Client` (service and type)                                                                                             |
+| `ActionResultSuccess`, `AnyActionResult`, `ActionRedirectStatus`, ...                                 | `ActionResult.Success`, `ActionResult.Any`, `ActionResult.RedirectStatus`                                                      |
+| `FormValidationError`, `ProgramDisposed`, `ResourceSnapshotCodecError`, `ResourceHydrationApplyError` | `Form.ValidationError`, `State.Disposed`, `Resource.SnapshotCodecError`, `Resource.HydrationApplyError` (classes)              |
+| `ActionSubmissionConcurrency`                                                                         | `Action.Concurrency`                                                                                                           |
+| `ProgramSubscriptionError<Out>` / `ProgramSubscriptionRequirements<Out>`                              | `EffectInputError<Out>` / `EffectInputRequirements<Out>`                                                                       |
+| `RouteErrorSchema<E>`                                                                                 | `Resource.ErrorSchema<E>` (routes and Resource families share it)                                                              |
+| `Route.PreloadError<R>` / `Route.NavigationError<R>`                                                  | `Route.PreloadPlanError<R>` / `Route.NavigationPlanError<R>`                                                                   |
+| `RouteWithComponent<C>`                                                                               | `Route.WithComponent<R, C>`                                                                                                    |
+| `AppDefinition`, `AnyAppDefinition`, `AppLaunchError`, `AppLaunchServices`                            | `App.Definition`, `App.Any`, `App.LaunchError`, `App.LaunchServices`                                                           |
+| `StartActionFormOptions`, `StartActionInvalidationPlan`                                               | `StartAction.FormOptions`, `StartAction.InvalidationPlan`                                                                      |
+| Solid DB `LiveQueryHandle`, `*BindingOptions`                                                         | `LiveQuery.Handle`, `LiveQuery.Options` from `@sunfall/arc-solid/live-query` (see [From Collection](#from-collection))         |
+| `Form.validate(form)`                                                                                 | `form.validate()`                                                                                                              |
+| `Form.error(...)` / `Form.fieldError(...)`                                                            | the validator's `errors.fields(...)` / `errors.field(...)` / `errors.form(...)`                                                |
+| `ActionResult.fields` / `fieldError` / `formError`                                                    | `ActionResult.validation({ fieldErrors, formErrors })`                                                                         |
+| `ActionResult.validateForm(form)` / `ActionResult.fromValidationEffect(effect)`                       | `ActionResult.fromValidation(form.validate())`                                                                                 |
+| `Query.from(sources)`                                                                                 | `query.from(sources)` inside the query factory                                                                                 |
+| `route.build(params, search)` / `route.match(url)`                                                    | `Route.href(route, { params, search })` / `Route.match([route], url)`                                                          |
+| `Server.fn(name, { input, output, error, handler })`                                                  | `Server.implement(Server.contract(name, { input, output, error }), handler)`                                                   |
+| `Server.stub(name, schemas)`                                                                          | `Server.client(Server.contract(name, schemas))`                                                                                |
+| `Server.provideMocks(effect, ...mocks)` / `Server.mockClient(...mocks)`                               | `Effect.provide(effect, Server.mockLayer(...mocks))`                                                                           |
+| `Server.get(name)`                                                                                    | `Server.functions().get(name)`                                                                                                 |
+| `capability.mock(service)` / `capability.provide(effect, service)`                                    | `Layer.succeed(Service, service)` / `Effect.provide(effect, Layer.succeed(Service, service))`                                  |
+| `signal.set((current) => next)`                                                                       | a State message (writable Signals are not public; see [From Program And Writable Signals](#from-program-and-writable-signals)) |
+| `StartAction.form(action, { actionPath / endpoints / actionManifest / appGraph })`                    | `StartAction.form(action)` (posts to the page it is on)                                                                        |
+| prerender `{ enabled: true, ... }` / `{ enabled: false }`                                             | prerender `{ ... }` / `false`                                                                                                  |
+| prerender page `{ path, prerender: { enabled, outputPath } }`                                         | `{ path, outputPath, prerender: false }`                                                                                       |
+| `StartPrerenderError` operation `"close-server"` / `"create-directory"`                               | a logged warning / `"write-page"`                                                                                              |
+| cookie `sameSite: "Strict"` / `"Lax"` / `"None"`                                                      | `sameSite: "strict"` / `"lax"` / `"none"`                                                                                      |
+| `generateValidatedFileRouteManifestEffect` and other `*Effect` exports                                | `generateFileRouteManifest`                                                                                                    |
 
 Adapter packages that implemented the row-store seam or read the app
 registry types (`ActionOptimisticRows*`, `AppDefinitionRegistry*`,
@@ -327,26 +331,14 @@ registry types (`ActionOptimisticRows*`, `AppDefinitionRegistry*`,
 
 ## From Anonymous Signal Writes
 
-Superseded by [From Program And Writable Signals](#from-program-and-writable-signals):
-writable Signals are no longer public. Historically, every state change gained a name, so the Timeline reads like a message log.
-A Signal changes only inside a named transition; a write anywhere else dies
-with `SignalWriteOutsideTransition`, naming the Signal.
-
-| Before                                                    | After                                                                                            |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `Signal.make(initial)` / `Signal.make(initial, { name })` | `Signal.make(initial, { name })`: the name is required                                           |
-| `onInput={(event) => draft.set(event.target.value)}`      | `const edit = yield* Component.callback("edit", (v: string) => Effect.sync(() => draft.set(v)))` |
-| `Component.callback(f)`                                   | `Component.callback("name", f)`: commits as `<Component>.<name>`                                 |
-| `Component.stream(stream, initial)`                       | `Component.stream("name", stream, initial)`                                                      |
-| `Signal.fromStream(stream, initial)`                      | `Signal.fromStream(stream, initial, { name })`                                                   |
-| `Signal.batch(f, { cause: { _tag: "User", label } })`     | `Signal.batch(f, { name })` (likewise `Signal.transaction`)                                      |
-| `TimelineUserCause` (`{ _tag: "User", label }`)           | `Timeline.TransitionCause` (`{ _tag: "Transition", name }`)                                      |
-| `TimelineEntry.cause: TimelineCause \| undefined`         | `Timeline.Entry.cause: Timeline.Cause`                                                           |
-| `Form.make({ schema, initial })`                          | `Form.make({ name, schema, initial })`                                                           |
-
-Solid effects that wrote Signals call a named callback (or become a
-`Signal.derive`); tests that wrote Signals directly wrap the write in
-`Signal.batch(() => signal.set(value), { name: "test" })`.
+Writable Signals are no longer public, so there is no unnamed write to fix:
+client state is a State, changed by its messages. The names that remain are
+required: `Component.callback("name", f)` commits as `<Component>.<name>`,
+`Component.stream("name", stream, initial)`, and
+`Form.make({ name, schema, initial })`. `TimelineUserCause` is
+`Timeline.TransitionCause` (`{ _tag: "Transition", name }`), and
+`Timeline.Entry.cause` is always present. See
+[From Program And Writable Signals](#from-program-and-writable-signals).
 
 ## From FileRoute
 
@@ -384,14 +376,11 @@ failures for the global status.
 
 ## From Effect-Suffixed Names And Path Addressing
 
-(Collection rows in the table below predate the move to Resource rows; see
-[From Collection](#from-collection) for where each now lives.)
-
 This alpha applies three naming rules across every package:
 
 1. Definition constructors are `define`, namespaced: `Resource.define`,
    `Route.define`, `App.define`, `Component.define`,
-   beside `Action.define` and `Program.define`.
+   beside `Action.define` and `State.define`.
 2. Operations that return Effects carry no `Effect` suffix, and each has one
    form: where a synchronous twin existed it is gone. Hosts without an Effect
    context run the Effect (`Effect.runFork(...)` from a cleanup hook starts
@@ -430,7 +419,7 @@ Effect.runFork(App.launch(app));
 | `Resource.prefetchEffect` / `refreshEffect` / `statusEffect` / `readEffect`                                                               | `Resource.preload` / `refresh` / `status` / `read`                                                                                            |
 | `Resource.deleteEffect(ref)`                                                                                                              | `Resource.evict(ref)`                                                                                                                         |
 | `Resource.collectEffect` / `invalidateEffect` / `planInvalidationEffect` / `runInvalidationPlanEffect`                                    | `Resource.collect` / `invalidate` / `planInvalidation` / `runInvalidationPlan`                                                                |
-| `Resource.subscribeEventsEffect` / `dehydrateEffect` / `hydrationPayloadEffect` / `hydrateEffect`                                         | `Resource.subscribeEvents` / `dehydrate` / `hydrationPayload` / `hydrate`                                                                     |
+| `Resource.subscribeEventsEffect` / `dehydrateEffect` / `hydrationPayloadEffect` / `hydrateEffect`                                         | `Resource.subscribeEvents` / `hydrationPayload` (read `.resources`) / `hydrationPayload` / `hydrate`                                          |
 | `Resource.encodeHydrationPayloadEffect` / `decodeHydrationPayloadEffect`                                                                  | `Resource.encodeHydrationPayload` / `decodeHydrationPayload`                                                                                  |
 | `Route.preloadEffect` / `preloadComponentEffect` / `planPreloadEffect` / `planNavigationEffect`                                           | `Route.preload` / `preloadComponent` / `planPreload` / `planNavigation`                                                                       |
 | `Route.preloadFailureSnapshotEffect` / `hydratePreloadFailureEffect` / `lazyComponentPendingEffect`                                       | `Route.preloadFailureSnapshot` / `hydratePreloadFailure` / `lazyComponentPending`                                                             |
@@ -440,18 +429,18 @@ Effect.runFork(App.launch(app));
 | `ActionInstance.submitEffect` / `resetEffect` + sync `reset()`                                                                            | `submit` / `reset` (Effects)                                                                                                                  |
 | `ActionResult.successEffect` / `failureEffect` / `failEffect` / `redirectEffect` / `validationEffect`                                     | return `ActionResult.success(...)` etc. (or `Effect.succeed(...)` of it)                                                                      |
 | `ActionResult.fail`                                                                                                                       | `ActionResult.failure`                                                                                                                        |
-| `ActionResult.validateFormEffect` / `requireSuccessEffect`                                                                                | `ActionResult.validateForm` / `requireSuccess`                                                                                                |
+| `ActionResult.validateFormEffect` / `requireSuccessEffect`                                                                                | `ActionResult.fromValidation(form.validate())` / `ActionResult.requireSuccess`                                                                |
 | `Capability.useEffect(f)` / `Capability.useSync(f)` / `use(f)`                                                                            | Effect service `use(f)` / `useSync(f)` (see [From Capability](#from-capability))                                                              |
-| `form.validateEffect()`, `Form.validateEffect`, `Form.decodeFormDataEffect`                                                               | `form.validate()`, `Form.validate`, `Form.decodeFormData`                                                                                     |
+| `form.validateEffect()`, `Form.validateEffect`, `Form.decodeFormDataEffect`                                                               | `form.validate()` (both), `Form.decodeFormData`                                                                                               |
 | root `decodeFormDataEffect`, `formDataToObject`                                                                                           | `Form.decodeFormData`, `Form.data`                                                                                                            |
-| `Server.handleRouteEffect`, `Signal.fromStreamEffect`                                                                                     | `effect/http` routes (see [From Optional Server-Function Schemas](#from-optional-server-function-schemas)), `Signal.fromStream`               |
+| `Server.handleRouteEffect`, `Signal.fromStreamEffect`                                                                                     | `effect/http` routes (see [From Optional Server-Function Schemas](#from-optional-server-function-schemas)), `Component.stream`                |
 | `makeRequestContextEffect` / `applyResponseContextEffect` / `serializeResponseCookieEffect`                                               | `makeRequestContext` / `applyResponseContext` / `serializeResponseCookie`                                                                     |
 | `runtime.disposeEffect`, `disposeResourceStoreEffect`, `ResourceStoreModule.disposeEffect`                                                | `runtime.dispose`, `disposeResourceStore`, `ResourceStoreModule.dispose`                                                                      |
 | `ResourceStore` `eventBus.publishEffect` / `subscribeEffect` / `shutdownEffect` / `isShutdownEffect` + `isShutdownUnsafe()`               | `publish` / `subscribe` / `shutdown` / `isShutdown`                                                                                           |
 | `ResourceStore` registries `size()` + `sizeEffect`, diagnostics `*CountEffect` / `snapshotEffect` + `snapshotUnsafe()`                    | `size`, `*Count`, `snapshot` (Effects)                                                                                                        |
-| `Program.command(effect)` / `Program.effect(effect)` / `Program.dispatch(message)`                                                        | `Program.emit(effect)` / `Program.emit(effect)` / `Program.emit(message)`                                                                     |
-| Program instance and Solid handle `dispatch(message)` (sync) + `dispatchEffect(message)`                                                  | `dispatch(message)` (Effect)                                                                                                                  |
-| Program instance `disposeEffect`                                                                                                          | `dispose`                                                                                                                                     |
+| `Program.command(effect)` / `Program.effect(effect)` / `Program.dispatch(message)`                                                        | `State.emit(effect)` / `State.emit(effect)` / `State.emit(message)`                                                                           |
+| Program instance and Solid handle `dispatch(message)` (sync) + `dispatchEffect(message)`                                                  | State instance and `Component.state` handle `dispatch(message)` (Effect), or `send.Tag(...)`                                                  |
+| Program instance `disposeEffect`                                                                                                          | State instance `dispose`                                                                                                                      |
 | Solid `ActionHandle` `submit(input)` (sync) + `submitEffect(input)`, sync `reset()`                                                       | `submit(input)`, `reset()` (Effects)                                                                                                          |
 | router `hrefByPath` / `navigateByPath` / `matchByPath` / `preloadByPathEffect`                                                            | `href(route)` / `navigate(route)` / `Route.isMatch(route, router.match())` / `preload(route)`                                                 |
 | router and host controller `preloadEffect`, `disposeEffect` + sync `dispose()`                                                            | `preload`, `dispose` (Effect; host cleanup forks it)                                                                                          |
@@ -459,16 +448,7 @@ Effect.runFork(App.launch(app));
 | `BrowserRouterPath`, `BrowserRouterRouteForPath`                                                                                          | route definitions (`typeof ProjectRoute`)                                                                                                     |
 | generated `routeByPath`, `routeIdByPath`, `hrefById`, `hrefByPath`, `layoutsByPath`, `errorBoundaryByPath`, `metadataByPath`              | `routeById`, `Route.href(routeById.<id>)`, `layoutsById`, `errorBoundaryById`, `metadataById`                                                 |
 | generated `RouteByPath`, `RouteIdByPath`, `FileRoutePath`, `FileRoute*ByPath`, `FileRouteMatch`                                           | the id-keyed types (`RouteById`, `FileRouteParamsById`, ...)                                                                                  |
-| Collection `preloadEffect` / `refetchEffect`                                                                                              | `preload` / `refresh`                                                                                                                         |
-| Collection `insert` / `update` / `delete`, `sync.insert` / `update` / `delete`, `flushPendingMutations`                                   | an Action: `optimistic: (input, tx) => tx.update(Collection, key, patch)`, `run`, `invalidates`                                               |
-| Collection `applyChangesEffect`                                                                                                           | `applyChanges` (remote feeds and local-only collections)                                                                                      |
-| Collection `snapshotEffect` + sync `snapshot()`, `hydrateEffect`, `persistEffect`, `restoreEffect`                                        | `snapshot`, `hydrate`, `persist`, `restore`                                                                                                   |
-| Collection `state()`, `Query.Live` `state` / `data`                                                                                       | `result()`, `result` / `rows`                                                                                                                 |
-| Collection sync adapter `refetch`                                                                                                         | `refresh`                                                                                                                                     |
-| `Collection.flushAllPendingMutationsEffect` / `backgroundSyncPendingMutationsEffect`                                                      | removed: Actions own writes                                                                                                                   |
-| Solid DB handle `result()` / `preloadFailure()`, `onPreloadFailure`, `pendingMutations()`                                                 | `waiting()` / `failure()`; a never-loaded failure throws to `<Errored>` (`catchTags`)                                                         |
 | `Route.define(path, { component })`                                                                                                       | `Route.withComponent(route, Component, props?)`                                                                                               |
-| `Collection.RuntimeError<E>`, `collection.preload().pipe(Effect.orDie)` in a route preload                                                | `E`: collection loads fail only with their declared error; contract breaks are defects                                                        |
 | Vite plugin `serverFunctionManifest` / `actionManifest` options                                                                           | removed                                                                                                                                       |
 | `serializeFileRouteManifest` / `deserializeFileRouteManifest`, `FileRouteManifestParseError`, branded `FileRouteId` / `FileRouteSourceId` | removed: manifests are plain validated data; ids are strings                                                                                  |
 | `describeFileRouteManifest`, generated `fileRouteMetadata` / `FileRouteMetadata`                                                          | `layoutsById` / `errorBoundaryById` / `metadataById`                                                                                          |
@@ -481,14 +461,14 @@ Effect.runFork(App.launch(app));
 | `validateStartAppGraphActionBehaviorEffect`, `StartBuildPolicy.actionBehavior`, `diagnostics.unknownActionBehavior`                       | removed                                                                                                                                       |
 | `Option.getOrUndefined(AsyncResult.error(action.result()))`, `action.result().waiting`                                                    | `action.failure()` (a `Cause`), `action.waiting()`                                                                                            |
 | `optimistic: (input, tx) => ... return Effect.void` (rollback Effect)                                                                     | `optimistic: (input, tx) => tx.set(...)` (the transaction owns rollback)                                                                      |
-| `Query.onceEffect`, `Query.Live` `preloadEffect` / `refetchEffect`                                                                        | `Query.once`, `preload` / `refresh`                                                                                                           |
-| Solid DB `LiveQueryHandle` `data` / `preloadEffect` / `refetchEffect`                                                                     | `rows` / `preload` / `refresh`                                                                                                                |
+| `Query.onceEffect`, `Query.Live` `preloadEffect` / `refetchEffect`, `Query.Live` `data`                                                   | `Query.once`, `preload` / `refresh`, `rows`                                                                                                   |
+| Solid DB `LiveQueryHandle` `data` / `preloadEffect` / `refetchEffect`                                                                     | `LiveQuery.Handle` `rows` / `preload` / `refresh`                                                                                             |
 | `createHtmlResponseEffect`, `createStartStreamedHtmlResponseEffect`, hand-written shells                                                  | Start's document: `createRequestHandler(app, { document })`                                                                                   |
 | `hydrateFromDocument` (sync) + `hydrateFromDocumentEffect`, `HydrateFromDocumentEffectOptions`                                            | `hydrateFromDocument` (Effect), `HydrateFromDocumentOptions`                                                                                  |
 | `StartAction.decodeFormDataEffect`                                                                                                        | `StartAction.decodeFormData`                                                                                                                  |
 | Devtools store `getSnapshotEffect`, `recordActionStateEffect`, ... + their sync twins                                                     | `getSnapshot`, `recordActionState`, ... (Effects)                                                                                             |
-| Devtools `trackActionEffect` / `trackTimelineEffect`                                                                                      | `trackAction` / `trackTimeline`                                                                                                               |
-| `installDevtoolsBridge` (sync) + `installDevtoolsBridgeEffect`, `mountDevtoolsPanelsEffect`                                               | `installDevtoolsBridge` (scoped Effect), `mountDevtoolsPanels`                                                                                |
+| Devtools `trackActionEffect` / `trackTimelineEffect`                                                                                      | store `trackAction` / `trackTimeline`                                                                                                         |
+| `installDevtoolsBridge` (sync) + `installDevtoolsBridgeEffect`, `mountDevtoolsPanelsEffect`                                               | `Devtools.installBridge` (scoped Effect), `Devtools.mountPanels`                                                                              |
 | `DevtoolsPanelBoot.interruptEffect`                                                                                                       | `boot.interrupt()` (the host facade's one stop)                                                                                               |
 | `import { stableStringify, StableStringify* } from "@sunfall/arc-core"`                                                                   | internal plumbing (`@sunfall/arc-core/internal`); app keys come from Resource key codecs                                                      |
 | `RequestContext.cookies` duplicate names kept the last value; malformed `%` escapes failed the request                                    | Effect `Cookies.parseHeader`: the first value wins (RFC 6265 order); undecodable values stay raw                                              |
@@ -589,7 +569,7 @@ only model:
   `useLiveQuery` becomes `LiveQuery.bind` (see [From Collection](#from-collection)).
 - `<RuntimeProvider runtime>` plus `<RouterProvider routes>` become
   `yield* Component.router(routes)` and `<RouterProvider router={router}>`, and
-  a Start app's entries become `createRequestHandler(app, { server })` and
+  a Start app's entries become `createRequestHandler(app, { server, implementations })` and
   `Effect.runFork(App.launch(app))` over one `App.define({ root, ... })`.
 
 The migration is done when every service the tree needs is in its root
@@ -634,9 +614,11 @@ shape but makes route facts explicit:
   `Server.implement(...)`, and browser-safe contract imports.
 - Request handling starts at `createRequestHandler(app, { server,
 implementations })`; Promise handlers are host convenience boundaries.
-- Start renders the app root into its own streamed document; a route sets its
-  head and headers through the handler's `document` function instead of
-  hand-written HTML.
+- Start renders the app root into its own document instead of hand-written
+  HTML. A route sets its head (`title`, `description`, `meta`) with
+  `Route.define(path, { head })`, and the app shapes every page's head with
+  `App.define({ head })`; the handler's `document` function sets the
+  document's `links` and response `headers`.
 - A route's loader becomes its `preload`; Start server renders and hydrates
   what it loads.
 

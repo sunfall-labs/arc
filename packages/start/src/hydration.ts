@@ -29,7 +29,7 @@ export {
   type StartHydrationDocument,
   type StartHydrationScriptElement,
 } from "./hydration-dom.js";
-/** Wire-format version for streamed Start hydration chunks. */
+/** Wire-format version for Start hydration chunks. */
 export const startHydrationChunkVersion = 1;
 
 /** Codec errors that can occur while applying decoded hydration snapshots. */
@@ -40,7 +40,7 @@ export type StartHydrationCodecError =
   | Schema.SchemaError;
 
 /**
- * Error raised when a streamed hydration chunk cannot be parsed or validated.
+ * Error raised when a hydration chunk cannot be parsed or validated.
  *
  * `sequence` is the stream order from the chunk attribute, or the fallback DOM
  * order when no valid sequence attribute exists.
@@ -113,13 +113,13 @@ export interface StartHydrationPayload extends Resource.HydrationPayload {
   readonly postedAction?: StartPostedAction;
 }
 
-/** One ordered hydration payload emitted during streamed HTML rendering. */
+/** One ordered hydration payload emitted after the app root. */
 export interface StartHydrationChunk {
-  /** Discriminant for streamed Start hydration chunks. */
+  /** Discriminant for Start hydration chunks. */
   readonly _tag: "StartHydrationChunk";
   /** Wire-format version checked before a chunk is applied. */
   readonly version: typeof startHydrationChunkVersion;
-  /** Stable ordering key used before applying streamed chunks. */
+  /** Stable ordering key used before applying hydration chunks. */
   readonly sequence: number;
   /** Resource snapshots carried by this chunk. */
   readonly payload: StartHydrationPayload;
@@ -129,7 +129,7 @@ export interface StartHydrationChunk {
 export interface HydrateStartPayloadEffectOptions extends Resource.HydrationOptions {}
 
 /**
- * Options for applying streamed hydration chunks from a document.
+ * Options for applying hydration chunks from a document.
  *
  * Streamed chunk hydration is progressive: each Start hydration payload is
  * validated before that payload mutates Resource state, but a
@@ -253,7 +253,7 @@ const isStartHydrationPayload = (value: unknown): value is StartHydrationPayload
       isRecord(value.postedAction.values) &&
       isRecord(value.postedAction.outcome)));
 
-/** Narrow an unknown value to the current streamed hydration chunk wire format. */
+/** Narrow an unknown value to the current hydration chunk wire format. */
 export const isStartHydrationChunk = (value: unknown): value is StartHydrationChunk =>
   isRecord(value) &&
   value._tag === "StartHydrationChunk" &&
@@ -263,7 +263,7 @@ export const isStartHydrationChunk = (value: unknown): value is StartHydrationCh
   value.sequence >= 0 &&
   isStartHydrationPayload(value.payload);
 
-/** Wrap a root hydration payload in a streamed chunk with an explicit sequence. */
+/** Wrap a root hydration payload in a hydration chunk with an explicit sequence. */
 export const makeStartHydrationChunk = (
   payload: StartHydrationPayload,
   sequence: number,
@@ -374,14 +374,14 @@ export const encodeStartHydrationPayload = (
 ): Effect.Effect<string, StartHydrationPayloadSerializeError> =>
   encodeStartHydrationValueEffect(payload, "root-payload");
 
-/** Encode one streamed hydration chunk as HTML-safe JSON inside Effect. */
+/** Encode one hydration chunk as HTML-safe JSON inside Effect. */
 export const encodeStartHydrationChunk = (
   input: StartHydrationPayload | StartHydrationChunk,
   sequence = 0,
 ): Effect.Effect<string, StartHydrationPayloadSerializeError> =>
   encodeStartHydrationValueEffect(startHydrationChunkFrom(input, sequence), "stream-chunk");
 
-/** Sort streamed hydration chunks by sequence, preserving input order for ties. */
+/** Sort hydration chunks by sequence, preserving input order for ties. */
 export const sortStartHydrationChunks = (
   chunks: Iterable<StartHydrationChunk>,
 ): ReadonlyArray<StartHydrationChunk> =>
@@ -393,7 +393,7 @@ export const sortStartHydrationChunks = (
     )
     .map(({ chunk }) => chunk);
 
-/** Merge several root or streamed payloads into one payload. */
+/** Merge several root or chunk payloads into one payload. */
 export const mergeStartHydrationPayloads = (
   payloads: Iterable<StartHydrationPayload>,
 ): StartHydrationPayload => {
@@ -444,13 +444,13 @@ export const createHydrationScriptSync = (
   id = hydrationScriptId,
 ): string => runStartHydrationTransportSync(createHydrationScript(payload, id));
 
-/** Serialize one streamed hydration chunk as HTML-safe JSON. */
+/** Serialize one hydration chunk as HTML-safe JSON. */
 export const serializeStreamHydrationPayload = (
   input: StartHydrationPayload | StartHydrationChunk,
   sequence = 0,
 ): string => runStartHydrationTransportSync(encodeStartHydrationChunk(input, sequence));
 
-/** Create a streamed hydration script tag inside Effect. */
+/** Create a hydration chunk script tag inside Effect. */
 export const createStreamHydrationScript = (
   input: StartHydrationPayload | StartHydrationChunk,
   sequence = 0,
@@ -464,7 +464,7 @@ export const createStreamHydrationScript = (
   );
 };
 
-/** Create a streamed hydration script tag with chunk marker and sequence attributes. */
+/** Create a hydration chunk script tag with chunk marker and sequence attributes. */
 export const createStreamHydrationScriptSync = (
   input: StartHydrationPayload | StartHydrationChunk,
   sequence = 0,
@@ -508,7 +508,7 @@ const readStartHydrationChunkElementsEffect = (
       ),
   ).pipe(Effect.map(sortStartHydrationChunkElements));
 
-/** Effect-first reader for streamed hydration chunks from a document. */
+/** Effect-first reader for hydration chunks from a document. */
 export const readStartHydrationChunks = (
   document: StartHydrationChunkDocument = globalThis.document,
   options: ReadStartHydrationChunksOptions = {},
@@ -539,7 +539,7 @@ export const hydrateStartPayload = (
   });
 
 /**
- * Applies streamed hydration chunks in sequence inside Effect.
+ * Applies hydration chunks in sequence inside Effect.
  *
  * The atomic unit is one Start hydration payload. A malformed later chunk fails
  * the Effect without rolling back earlier successfully-applied chunks.
@@ -585,10 +585,10 @@ export const hydrateStartHydrationChunksFromDocument = (
   });
 
 /**
- * Read the root payload and streamed chunks from a document, then hydrate them
+ * Read the root payload and hydration chunks from a document, then hydrate them
  * in Effect.
  *
- * Root payload hydration runs before streamed chunks. Streamed chunks then use
+ * Root payload hydration runs before the chunks. The chunks then use
  * the progressive semantics of `hydrateStartHydrationChunksFromDocument`.
  */
 export const hydrateFromDocument = (

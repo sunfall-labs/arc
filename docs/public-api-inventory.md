@@ -511,9 +511,8 @@ output, error? })` requires `input` and `output` schemas (`error` defaults
   state union, match helper, or value/error extractor; the removed
   `ResourceState`, `Resource.State`, `Resource.value`, `Resource.error`,
   `ResourceUi{Success,Pending,Failure}Meta`, `ResourceUiMatch`,
-  `resourceUiMatchState`, `resourceUiStateHasValue`, `CollectionLoadState`,
-  `Collection.State`, `LiveQueryState`, `Query.LiveState`,
-  `collectionStateError`, and `liveQueryStateError` have no aliases.
+  `resourceUiMatchState`, `resourceUiStateHasValue`, `LiveQueryState`,
+  `Query.LiveState`, and `liveQueryStateError` have no aliases.
   `ResourceFailure` carries `result: AsyncResult.Failure` and `ResourcePending`
   carries `reason` plus the current `result`.
 - `definition-registry`, `resource-registry`, `resource-ui-binding`, and the
@@ -559,7 +558,7 @@ includes:
   tags are each route's `head` through
   `App.define({ head: (page, status) => Route.Head })`. Start emits the
   doctype, charset and viewport, the head, Solid's hydration bootstrap, the
-  `<div id="root">` app markup, the streamed and root hydration payloads, and
+  `<div id="root">` app markup, the Resource chunks and root hydration payload, and
   the entry script, in that order, as one complete body.
 - hydration: `hydrateFromDocument(document?, options?)` (`options.id` selects
   the root payload script) is the document hydration primitive `App.launch`

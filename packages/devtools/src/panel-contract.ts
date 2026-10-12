@@ -310,10 +310,6 @@ const normalizeDevtoolsPanelMetric = (value: unknown): DevtoolsPanelMetric | und
   };
 };
 
-/** Runtime guard for one Devtools panel metric. */
-export const isDevtoolsPanelMetric = (value: unknown): value is DevtoolsPanelMetric =>
-  normalizeDevtoolsPanelMetric(value) !== undefined;
-
 const normalizeDevtoolsPanelItem = (value: unknown): DevtoolsPanelItem | undefined => {
   if (!isRecord(value)) {
     return undefined;
@@ -491,10 +487,6 @@ const normalizeDevtoolsPanel = (value: unknown): DevtoolsPanel | undefined => {
     items: panelItems,
   };
 };
-
-/** Runtime guard for one ordered Devtools panel. */
-export const isDevtoolsPanel = (value: unknown): value is DevtoolsPanel =>
-  normalizeDevtoolsPanel(value) !== undefined;
 
 /** Normalizes an unknown value into the complete public Devtools panel model. */
 export const normalizeDevtoolsPanels = (value: unknown): DevtoolsPanels | undefined => {

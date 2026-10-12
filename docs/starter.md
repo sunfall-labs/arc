@@ -38,8 +38,8 @@ The basic starter includes:
 - one app definition, `src/app-definition.ts`:
   `App.define({ root, routes })`, which both entries derive their wiring from;
 - `src/server.tsx`: `createRequestHandler(app, { document })`, which preloads
-  the matched route, renders the root into Start's document, and streams the
-  hydration payload;
+  the matched route, renders the root into Start's document, and sends it with
+  the hydration payload;
 - `src/main.tsx`: `Effect.runFork(App.launch(app))`, which restores that
   payload and hydrates the server markup, so the route-preloaded Resource reads
   synchronously (no loading flash);
@@ -75,9 +75,10 @@ shell.
 
 The docs site example lives at
 [`examples/docs-site`](../examples/docs-site). It dogfoods the framework as a
-cookbook: Markdown recipes are loaded through Start server functions, exposed
-through a `DocsContentApi` Effect service, read through typed Resources, declared by
-file-route preload, SSR-rendered, and hydrated before the UI mounts.
+cookbook: recipes are content data read by served Resources (`Resource.define`
+without `load` in `src/content.ts`) whose loads run on the server
+(`Resource.implement` in `src/content.server.ts`), declared by file-route
+preload, SSR-rendered or prerendered, and hydrated before the UI mounts.
 
 Run it locally:
 

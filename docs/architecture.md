@@ -956,10 +956,10 @@ Callbacks and streams are named transitions: a stream element commits as
 a callback touches commit under their own causes.
 
 ```tsx
-const PresenceTitle = State.define({
-  name: "Presence.title",
-  initial: "Sunfall Arc",
-  on: { Rename: (_title, message: { readonly title: string }) => message.title },
+const PresenceTheme = State.define({
+  name: "Presence.theme",
+  initial: "light",
+  on: { Choose: (_theme, message: { readonly theme: string }) => message.theme },
 });
 
 const Presence = Component.define("Presence", function* () {
@@ -969,13 +969,13 @@ const Presence = Component.define("Presence", function* () {
   const ping = yield* Component.callback("ping", () =>
     Effect.sleep("1 second").pipe(Effect.andThen(Effect.log("still mounted"))),
   );
-  const title = yield* Component.state(PresenceTitle);
+  const theme = yield* Component.state(PresenceTheme);
 
   // Imperative DOM sinks use Solid effects; Arc state tracks natively.
   createEffect(
-    () => title.model(),
+    () => theme.model(),
     (value) => {
-      document.title = value;
+      document.documentElement.dataset.theme = value;
     },
   );
 
@@ -1070,13 +1070,13 @@ navigation, and when a value the head reads changes.
 
 Start writes the doctype, charset and viewport, the head's escaped `meta` tags
 and `<title>`, the document's `link` tags, Solid's hydration bootstrap, `<div id="root">` with the rendered root,
-the streamed Resource chunks, the root hydration payload, and the browser
+the Resource hydration chunks, the root hydration payload, and the browser
 entry script, in that order. There is no hand-written HTML to drift from what
 hydration needs.
 
 The root renders to a string, so the document is complete when the render
 returns: Start builds it as one `completeResponse` body (shell, root markup,
-the `StartRenderHydrationPlan` streamed chunks, then the tail). Fetch hosts
+the `StartRenderHydrationPlan` Resource chunks, then the tail). Fetch hosts
 read that body like any other; Start's own adapters skip the stream: the
 Request Runtime is disposed at once, and the Node adapter writes the bytes in
 one `end` with a `content-length`. When a custom render returns a streamed
@@ -1084,7 +1084,7 @@ one `end` with a `content-length`. When a custom render returns a streamed
 cancelled, and finalizer/request-trace facts record how the stream ended.
 The render step receives a `StartRenderHydrationPlan` that separates the root
 payload script (`hydrationPlan.root.script`, the one name for it) from
-streamed resource chunks, so the document never emits a Resource pair twice.
+its Resource chunks (`hydrationPlan.resourceChunks`), so the document never emits a Resource pair twice.
 
 ## Router Runtime
 
@@ -1271,8 +1271,7 @@ build, Start writes `src/routeTree.gen.ts` by default, following the file-based
 routing convention of keeping generated route types in the project for editors,
 agents, and non-Vite tooling. Route files export a named `route` built with
 core `Route.define(path, options)`, the same constructor as anywhere else;
-static preload hints and preload work stay together, and the component is
-attached where the app builds its router, or in a sibling
+the component is attached where the app builds its router, or in a sibling
 `$id.component.tsx` module that the generated tree attaches as a lazy chunk:
 
 ```ts
@@ -1365,7 +1364,7 @@ reads the signed-in user on an unmatched URL). Every fiber on the request
 runtime, including those the render forks, runs with the request's services
 (`RequestContext`, `ResponseContext`, the in-process server-function client),
 so such a read loads like a preload; whatever the render loaded hydrates with
-the page in one more streamed chunk after the preload's, so the client starts
+the page in one more Resource chunk after the preload's, so the client starts
 from the values the server rendered.
 
 A failure that reaches a Solid `<Errored>` boundary during a server render
@@ -1398,10 +1397,9 @@ restores every Resource from one script into the browser runtime the UI uses,
 before it hydrates the root. Action responses hydrate the same way.
 Lower-level hosts run `yield* Resource.hydrate(payload)` on their runtime.
 
-Streamed SSR chunks are emitted as JSON scripts with
+Resource chunks are emitted after the app root as JSON scripts with
 `data-sunfall-arc-hydration-chunk`; `hydrateFromDocument(...)` applies the
-root payload first and then every
-streamed chunk. Streamed chunk hydration is
+root payload first and then every chunk. Chunk hydration is
 progressive by design: each parsed Start hydration payload validates before that
 payload mutates Resource state, but a later chunk failure does not
 roll back chunks that already applied. Consumed DOM chunks are marked with
@@ -1409,7 +1407,7 @@ roll back chunks that already applied. Consumed DOM chunks are marked with
 making repeated scans skip the same script unless `markConsumed: false` is
 passed.
 Malformed root hydration payload scripts fail with
-`StartHydrationPayloadParseError`; malformed streamed chunk scripts fail with
+`StartHydrationPayloadParseError`; malformed chunk scripts fail with
 `StartHydrationChunkParseError`; malformed Resource snapshots fail with
 `Resource.SnapshotCodecError`.
 
