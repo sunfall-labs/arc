@@ -225,8 +225,8 @@ Release decisions:
 - Type IDs such as `ActionTypeId`, `ResourceTypeId`, and `RuntimeTypeId` are
   expert-public structural markers. They are intended for diagnostics,
   adapter authors, and test utilities that need framework identity checks; app
-  code should prefer guards and namespace helpers such as `Action.is`, `Resource`
-  APIs, `Signal.isSignal`, and `Form` helpers.
+  code should prefer the guards (`isActionDefinition`, `isResourceRef`,
+  `isSignal`, `isForm`) and namespace helpers.
 - Type IDs are backed by `Symbol.for(...)` runtime values while preserving
   `unique symbol` declarations through self-type assertions.
 - Ambient runtime accessors (`getCurrentRuntime`, `currentOrDefaultRuntime`,

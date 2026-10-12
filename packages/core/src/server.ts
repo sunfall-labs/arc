@@ -11,7 +11,6 @@ import type {
   EffectInput,
   EffectInputError,
   EffectInputRequirements,
-  EnsureEffectInput,
   EnsureEffectInputValue,
 } from "./effect-like.js";
 import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
@@ -101,7 +100,7 @@ export interface ServerFunctionMock<I, A, E = never, R = never> {
   readonly handler: (input: I) => EffectInput<A, E, R>;
 }
 
-/** Server-side handler definition for Server.fn. */
+/** Server-side handler definition behind `Server.implement`. */
 export interface ServerFunctionDefinition<I, A, E = never, R = never> {
   readonly input?: unknown;
   readonly output?: unknown;
@@ -177,12 +176,6 @@ export interface ServerClient {
 export const ServerClient = Context.Service<ServerClient>("@sunfall/arc-core/ServerClient");
 
 type FromContract<T> = [T][T extends unknown ? 0 : never];
-type CheckedServerFunctionHandler<I, Definition> = Definition extends {
-  readonly handler: (input: I) => infer Out;
-}
-  ? RejectPromiseEffectInput<Out>
-  : never;
-type RejectPromiseEffectInput<Out> = EnsureEffectInput<Out> extends never ? never : unknown;
 type ServerContractInput<Contract> =
   Contract extends ServerFunctionContract<infer I, infer _A, infer _E> ? I : never;
 type ServerContractOutput<Contract> =
@@ -276,7 +269,7 @@ const defineServerFunction = <I, A, E = never, R = never>(
   definition: ServerFunctionDefinitionInput<I, A, E, R>,
 ): ServerFunction<I, A, E, R> => {
   const local = (input: I): Effect.Effect<A, E | EffectInputCallbackError, R> =>
-    invokeEffectInput(`Server.fn(${name}).handler`, definition.handler, input);
+    invokeEffectInput(`Server.implement(${name}).handler`, definition.handler, input);
   const effect = (
     input: I,
   ): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R> =>
@@ -391,8 +384,6 @@ export namespace Server {
   export const Client = ServerClient;
   /** Schema metadata shared by server function clients, implementations, and mocks. */
   export type ContractDefinition<I, A, E = never> = ServerFunctionContractDefinition<I, A, E>;
-  /** Server-side handler definition for `Server.fn`. */
-  export type FnDefinition<I, A, E = never, R = never> = ServerFunctionDefinition<I, A, E, R>;
   /** HTTP route handler used by server adapters. */
   export type Route<E = never, R = never> = ServerRoute<E, R>;
   /** Options for `Server.localClient`. */
@@ -502,38 +493,9 @@ export namespace Server {
     ...mocks: readonly AnyServerFunctionMock[]
   ): Layer.Layer<ServerClient> => Layer.succeed(ServerClient)(mockClient(...mocks));
 
-  /**
-   * Defines and registers a callable server function with a local handler.
-   *
-   * Prefer Server.contract plus Server.client/implement when the declaration is
-   * shared across client and server bundles. Registered functions are available
-   * through `Server.functions()`, `Server.get(...)`, and the default
-   * `App.define(...)` registry snapshot.
-   */
-  export const fn = <
-    I,
-    A,
-    E = never,
-    R = never,
-    Definition extends Omit<ServerFunctionDefinition<I, A, E, R>, "handler"> & {
-      readonly handler: (input: I) => EffectInput<A, E, R>;
-    } = Omit<ServerFunctionDefinition<I, A, E, R>, "handler"> & {
-      readonly handler: (input: I) => EffectInput<A, E, R>;
-    },
-  >(
-    name: string,
-    definition: Definition & CheckedServerFunctionHandler<I, Definition>,
-  ): ServerFunction<I, A, E, R> => defineServerFunction(name, definition);
-
   /** Registered server functions keyed by function name. */
   export const functions = (): ReadonlyMap<string, AnyServerFunction> =>
     serverFunctionDefinitionRegistry<AnyServerFunction>();
-
-  /** Looks up a registered server function by function name. */
-  export const get = <I = unknown, A = unknown, E = never, R = never>(
-    name: string,
-  ): ServerFunction<I, A, E, R> | undefined =>
-    getServerFunctionDefinition<ServerFunction<I, A, E, R>>(name);
 
   /** Registry diagnostics, including duplicate action/server registrations. */
   export const registryDiagnostics = coreDefinitionRegistryDiagnostics;
@@ -669,7 +631,7 @@ export namespace Server {
       Effect.gen(function* () {
         const target =
           options.registry === undefined
-            ? Server.get<I, A, E, R>(fn.name)
+            ? getServerFunctionDefinition<ServerFunction<I, A, E, R>>(fn.name)
             : (options.registry.serverFunctions.get(fn.name) as
                 | ServerFunction<I, A, E, R>
                 | undefined);

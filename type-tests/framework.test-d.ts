@@ -1243,16 +1243,6 @@ Server.implement(LooseServerContract, () => promisedString);
 // @ts-expect-error broad server mocks must still reject Promise-shaped values
 Server.mock(LooseServerContract, () => promisedString);
 
-Server.fn("Project.promiseServer", {
-  // @ts-expect-error unannotated server functions must return Effect or a pure value, not Promise
-  handler: () => promisedProject,
-});
-
-Server.fn("Project.unionPromiseServer", {
-  // @ts-expect-error unannotated server functions must not return unions containing Promise
-  handler: () => maybePromisedProject,
-});
-
 const ProjectTag = Resource.tag<{ readonly id: string }>("Project", {
   key: ({ id }) => id,
 });
@@ -1651,11 +1641,9 @@ Collection.memoryStorage();
 // @ts-expect-error custom storage adapters are gone: provide a KeyValueStore Layer instead
 Collection.storage(localStorage);
 
-const ListProjectsForCollection = Server.fn<void, readonly Project[], ProjectError>(
-  "Projects.collection.list",
-  {
-    handler: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
-  },
+const ListProjectsForCollection = Server.implement(
+  Server.contract<void, readonly Project[], ProjectError>("Projects.collection.list"),
+  () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
 );
 
 // Server functions plug into sync adapters directly.
@@ -3088,11 +3076,9 @@ const RegistryReadDocumentAction = Action.define<any, string, never, RuntimeDocu
   name: "RuntimeDocument.registryAction",
   run: () => RuntimeDocumentService.use((service) => service.readDocument()),
 });
-const RegistryReadDocumentRpc = Server.fn<void, string, never, RuntimeDocumentService>(
-  "RuntimeDocument.registryRpc",
-  {
-    handler: () => RuntimeDocumentService.use((service) => service.readDocument()),
-  },
+const RegistryReadDocumentRpc = Server.implement(
+  Server.contract<void, string, never>("RuntimeDocument.registryRpc"),
+  () => RuntimeDocumentService.use((service) => service.readDocument()),
 );
 // The app's Actions and the handler's server functions add their services to
 // the handler's requirements unless the server runtime provides them.

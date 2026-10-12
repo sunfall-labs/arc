@@ -1289,19 +1289,10 @@ export const renameProject = Server.implement(RenameProject, (input) =>
 );
 ```
 
-`Server.fn` remains the low-level primitive behind this split,
-but new isomorphic code should prefer the contract/client/implement pattern so
-the browser graph never imports server handlers and handlers cannot drift from
-their public schema.
-
-```ts
-export const getProjectLegacy = Server.fn("Project.get", {
-  input: GetProject.input,
-  output: GetProject.output,
-  error: GetProject.error,
-  handler: ({ id }) => Projects.use((projects) => projects.get(id)),
-});
-```
+The contract/client/implement pattern is the one way to define a server
+function, so the browser graph never imports server handlers and handlers
+cannot drift from their public schema. Server-only code that needs no browser
+client still declares a contract and implements it in the same module.
 
 On the server, Start provides a request-local `Server.Client` during request
 preload and render, so shared clients dispatch to registered local handlers

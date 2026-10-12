@@ -385,17 +385,7 @@ const TestServerLive = Server.mockLayer(
 ```
 
 ```ts
-// Server.fn remains available as a low-level primitive, but contracts avoid
-// repeating names and schemas between shared clients and server handlers.
-export const getProjectLegacy = Server.fn("Project.get", {
-  input: GetProject.input,
-  output: GetProject.output,
-  error: GetProject.error,
-  handler: ({ id }) => Projects.use((projects) => projects.get(id)),
-});
-
 yield * getProject.effect({ id: makeProjectId("atlas") });
-yield * getProjectLegacy.invoke({ id: makeProjectId("atlas") });
 ```
 
 ```ts

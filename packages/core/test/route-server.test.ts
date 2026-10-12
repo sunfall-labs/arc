@@ -529,9 +529,9 @@ describe("route", () => {
 
 describe("Server", () => {
   it("runs Effect-backed server functions", () => {
-    const getNumber = Server.fn<void, number>("Number.get", {
-      handler: (_input) => Effect.succeed(42),
-    });
+    const getNumber = Server.implement(Server.contract<void, number>("Number.get"), (_input) =>
+      Effect.succeed(42),
+    );
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -555,11 +555,13 @@ describe("Server", () => {
   });
 
   it("invokes schema-backed server functions across the wire", () => {
-    const echo = Server.fn<{ readonly value: string }, { readonly value: string }>("Echo", {
-      input: Schema.Struct({ value: Schema.String }),
-      output: Schema.Struct({ value: Schema.String }),
-      handler: ({ value }) => Effect.succeed({ value: value.toUpperCase() }),
-    });
+    const echo = Server.implement(
+      Server.contract<{ readonly value: string }, { readonly value: string }>("Echo", {
+        input: Schema.Struct({ value: Schema.String }),
+        output: Schema.Struct({ value: Schema.String }),
+      }),
+      ({ value }) => Effect.succeed({ value: value.toUpperCase() }),
+    );
 
     return Effect.runPromise(
       Effect.gen(function* () {

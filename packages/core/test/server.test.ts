@@ -29,7 +29,7 @@ describe("Server contracts", () => {
         Effect.tap((value) =>
           Effect.sync(() => {
             expect(value).toEqual({ id: "ada", name: "Ada" });
-            expect(Server.get(GetUser.name)?.hasHandler).toBe(false);
+            expect(Server.functions().get(GetUser.name)?.hasHandler).toBe(false);
           }),
         ),
         Effect.asVoid,
@@ -73,10 +73,8 @@ describe("Server contracts", () => {
     ));
 
   it("captures synchronous local handler throws in the Effect error channel", () => {
-    const Broken = Server.fn<void, string>("Test.Broken.local", {
-      handler: () => {
-        throw new Error("handler failed");
-      },
+    const Broken = Server.implement(Server.contract<void, string>("Test.Broken.local"), () => {
+      throw new Error("handler failed");
     });
 
     return Effect.runPromise(

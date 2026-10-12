@@ -174,12 +174,13 @@ describe("Collection sync adapters", () => {
   it("accepts Server functions directly as sync adapter operations", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
-        const load = Server.fn<void, ReadonlyArray<Project>>("Projects.sync.server.load", {
-          handler: () =>
+        const load = Server.implement(
+          Server.contract<void, ReadonlyArray<Project>>("Projects.sync.server.load"),
+          () =>
             Effect.succeed<ReadonlyArray<Project>>([
               { id: "atlas", name: "Atlas", archived: false },
             ]),
-        });
+        );
         const Projects = Collection.define<
           Project,
           string,

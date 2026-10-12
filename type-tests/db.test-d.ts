@@ -72,9 +72,10 @@ const adapterProjects: Collection.Definition<Project, string, "load", DbRuntimeS
   AdapterProjects;
 
 // Server functions are sync operations directly; their client errors join E.
-const listProjects = Server.fn<void, ReadonlyArray<Project>>("type-tests/list-projects", {
-  handler: () => Effect.succeed([]),
-});
+const listProjects = Server.implement(
+  Server.contract<void, ReadonlyArray<Project>>("type-tests/list-projects"),
+  () => Effect.succeed([]),
+);
 const ServerProjects = Collection.define({
   name: "type-tests/server-projects",
   output: ProjectSchema,

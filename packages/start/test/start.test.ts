@@ -7176,9 +7176,10 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("normalizes one-shot manifest iterables once for diagnostics virtual module reloads", () => {
-    const getProject = Server.fn<string, string>("Start.Project.diagnostics-one-shot", {
-      handler: (id) => Effect.succeed(id),
-    });
+    const getProject = Server.implement(
+      Server.contract<string, string>("Start.Project.diagnostics-one-shot"),
+      (id) => Effect.succeed(id),
+    );
     const RenameProject = Action.define<string, string>({
       name: "Start.Project.diagnostics-one-shot.rename",
       run: (name) => Effect.succeed(name),
@@ -9189,10 +9190,10 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("exposes typed static build policy validation over Start app graph manifests", async () => {
-    const getProject = Server.fn<string, string>("Start.Project.policy", {
-      input: Schema.String,
-      handler: (id) => Effect.succeed(id),
-    });
+    const getProject = Server.implement(
+      Server.contract<string, string>("Start.Project.policy", { input: Schema.String }),
+      (id) => Effect.succeed(id),
+    );
     const RenameProject = Action.define({
       name: "Start.Project.policy.rename",
       input: Schema.String,
