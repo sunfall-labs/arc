@@ -1,7 +1,8 @@
 import { Action, Resource, Server, State } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { DeleteIssue, MoveIssue, UpdateIssue, createIssueInputOf } from "./actions.js";
+import { StartAction } from "@sunfall/arc-start";
+import { CreateIssue, DeleteIssue, MoveIssue, UpdateIssue } from "./actions.js";
 import { parseBlocks, parseInline } from "./markdown.js";
 import { type Issue, type IssueId, type IssueRow, type ProjectKey, type UserId } from "./model.js";
 import { Board, IssueById } from "./resources.js";
@@ -84,20 +85,42 @@ describe("optimistic patches", () => {
 });
 
 describe("CreateIssue", () => {
-  const form = {
-    projectKey: TRK,
-    title: "Ship it",
-    status: "todo",
-    priority: "high",
-  } as const;
+  /** The new-issue form as a browser posts it. */
+  const posted = (entries: ReadonlyArray<readonly [string, string]>) => {
+    const formData = new FormData();
+    for (const [name, value] of [
+      ...StartAction.form(CreateIssue, { input: { projectKey: TRK } }).hiddenFields.map(
+        (field) => [field.name, field.value] as const,
+      ),
+      ["title", "Ship it"] as const,
+      ["description", ""] as const,
+      ["status", "todo"] as const,
+      ["priority", "high"] as const,
+      ...entries,
+    ]) {
+      formData.append(name, value);
+    }
+    return Effect.runSync(StartAction.decodeFormData(CreateIssue, formData));
+  };
 
-  it("turns the posted form into the domain input", () => {
+  it("decodes the posted form as the domain input", () => {
+    // "Unassigned" posts an empty value; unchecked labels post nothing.
+    expect(posted([["assigneeId", ""]])).toEqual({
+      projectKey: TRK,
+      title: "Ship it",
+      description: "",
+      status: "todo",
+      priority: "high",
+      assigneeId: null,
+      labelIds: [],
+    });
     expect(
-      createIssueInputOf({ ...form, assignee: "", labels: "l_trk-bug", description: undefined }),
-    ).toMatchObject({ assigneeId: null, labelIds: ["l_trk-bug"], description: "" });
-    expect(
-      createIssueInputOf({ ...form, assignee: "u_mara0001", labels: ["l_trk-bug", "bogus"] }),
-    ).toMatchObject({ assigneeId: "u_mara0001", labelIds: ["l_trk-bug"] });
+      posted([
+        ["assigneeId", "u_mara0001"],
+        ["labelIds", "l_trk-bug"],
+        ["labelIds", "l_trk-feature"],
+      ]),
+    ).toMatchObject({ assigneeId: "u_mara0001", labelIds: ["l_trk-bug", "l_trk-feature"] });
   });
 });
 

@@ -2384,10 +2384,7 @@ describe("Sunfall Arc Start", () => {
     expect(JSON.parse(formInput?.value ?? "{}")).toEqual(jsonRequest.input);
   });
 
-  it("decodes progressive action FormData without exposing hidden transport fields", async () => {
-    const UserFields = Schema.Struct({
-      name: Schema.String,
-    });
+  it("decodes progressive action FormData into the Action input without hidden transport fields", async () => {
     const Submit = Action.define<
       { readonly id: string; readonly name: string },
       { readonly ok: boolean }
@@ -2409,10 +2406,61 @@ describe("Sunfall Arc Start", () => {
     formData.set("name", "Atlas Forms");
 
     await expect(
-      Effect.runPromise(StartAction.decodeFormData(UserFields, formData)),
+      Effect.runPromise(StartAction.decodeFormData(Submit, formData)),
     ).resolves.toEqual({
+      id: "atlas",
       name: "Atlas Forms",
     });
+  });
+
+  it("reads a posted form as the domain input: checkboxes, repeated names, empty selects, numbers", async () => {
+    const Submit = Action.define({
+      name: "Start.action.codec.form-shapes",
+      input: Schema.Struct({
+        title: Schema.String,
+        urgent: Schema.Boolean,
+        labelIds: Schema.Array(Schema.String),
+        assigneeId: Schema.NullOr(Schema.String),
+        note: Schema.optional(Schema.String),
+        estimate: Schema.Number,
+      }),
+      run: (input) => Effect.succeed(input),
+    });
+    const decode = (entries: ReadonlyArray<readonly [string, string]>) => {
+      const formData = new FormData();
+      for (const [name, value] of entries) {
+        formData.append(name, value);
+      }
+      return Effect.runPromise(StartAction.decodeFormData(Submit, formData));
+    };
+
+    // Nothing checked, nobody assigned, no note.
+    await expect(
+      decode([
+        ["title", "Ship"],
+        ["assigneeId", ""],
+        ["note", ""],
+        ["estimate", "3"],
+      ]),
+    ).resolves.toEqual({ title: "Ship", urgent: false, labelIds: [], assigneeId: null, estimate: 3 });
+    // One box of a group, then several.
+    await expect(
+      decode([
+        ["title", "Ship"],
+        ["urgent", "on"],
+        ["labelIds", "bug"],
+        ["assigneeId", "u_1"],
+        ["estimate", "0.5"],
+      ]),
+    ).resolves.toMatchObject({ urgent: true, labelIds: ["bug"], assigneeId: "u_1", estimate: 0.5 });
+    await expect(
+      decode([
+        ["title", ""],
+        ["labelIds", "bug"],
+        ["labelIds", "ui"],
+        ["estimate", "1"],
+      ]),
+    ).resolves.toMatchObject({ title: "", labelIds: ["bug", "ui"] });
   });
 
   it("decodes a progressive form's defaults with its fields, as the server decodes its post", async () => {
@@ -2431,7 +2479,7 @@ describe("Sunfall Arc Start", () => {
     formData.set("name", "Atlas Forms");
 
     // The visible field wins over the default; the default `id` reaches the schema.
-    await expect(Effect.runPromise(StartAction.decodeFormData(Input, formData))).resolves.toEqual({
+    await expect(Effect.runPromise(StartAction.decodeFormData(Submit, formData))).resolves.toEqual({
       id: "atlas",
       name: "Atlas Forms",
     });

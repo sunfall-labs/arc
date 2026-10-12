@@ -30,6 +30,8 @@ import {
 } from "./start-action-workflow.js";
 import type { StartServerApp } from "./start-server-app.js";
 import {
+  hasContentType,
+  startJsonMediaType,
   validateStartActionRequest,
   validateStartRpcRequest,
   type StartTransportRequestError,
@@ -56,6 +58,7 @@ import {
   makeActionMap,
   serializeDefect,
   readStartActionRequest,
+  startActionFormInput,
   type StartActionDefinition,
   type StartActionSource,
 } from "./start-action-request-codec.js";
@@ -296,8 +299,12 @@ export const createServerActionResponseEffectWithRuntime = <
             return actionFunctionNotFoundResponse(decoded.name);
           }
 
+          // A form post carries strings: read them as the input's encoded shape.
+          const wireInput = hasContentType(request.headers, [startJsonMediaType])
+            ? decoded.input
+            : startActionFormInput(action, decoded.input);
           const produce = Effect.gen(function* () {
-            const input = yield* decodeActionWire(action.input, decoded.input).pipe(
+            const input = yield* decodeActionWire(action.input, wireInput).pipe(
               Effect.catch((error) =>
                 Effect.sync(() => {
                   recordStartRequestFailure(facts, "validation");

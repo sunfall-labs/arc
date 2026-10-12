@@ -437,6 +437,12 @@ commands)`, never an Effect. `State.emit(...)`
   function.
 - `Form.decodeFormData(...)` decodes browser `FormData` through Effect
   Schema and maps schema failures to typed `Form.ValidationError` values.
+  It reads the posted strings as the schema's encoded shape first: a
+  `Schema.Boolean` field is a checkbox (absent is `false`), a `Schema.Array`
+  field takes none, one, or many values, an empty or absent field is `null`
+  for a `Schema.NullOr` field and left out of an optional one, and a
+  `Schema.Number` field reads its number, so a domain schema decodes a form
+  as posted.
   `Form.data(...)` is the explicit intermediate object conversion, preserving
   repeated field names as arrays and allowing framework hidden fields to be
   omitted before decoding.
@@ -596,7 +602,10 @@ includes:
   `StartAction.form`, `StartAction.decodeFormData`, and
   `StartAction.Form`; plus `StartAction.FormOptions`,
   `StartAction.InvalidationPlan`, `StartActionFormEncodeError`, and
-  `StartActionDuplicateName`.
+  `StartActionDuplicateName`. `StartAction.decodeFormData(action, formData)`
+  decodes a form into the Action's input exactly as the server decodes the
+  same form posted without JavaScript (defaults merged, read as the input
+  schema's encoded shape like `Form.decodeFormData`).
 - static sites: `makeStartStaticHistoryAdapter`, `currentStartStaticHref`,
   `normalizeStartStaticBasePath`, `withStartStaticBasePath`,
   `stripStartStaticBasePath`, `StartStaticBasePathError`, and

@@ -3,7 +3,7 @@ import { Component, RouterLink, useRouter } from "@sunfall/arc-solid";
 import { StartAction } from "@sunfall/arc-start";
 import { Cause, Effect } from "effect";
 import { For, Show } from "solid-js";
-import { CreateIssue, CreateIssueForm } from "../../../actions.js";
+import { CreateIssue } from "../../../actions.js";
 import {
   describeError,
   issuePriorities,
@@ -30,7 +30,7 @@ export default Component.define("NewIssuePage", function* (props: Route.Props<ty
   const key = () => props.params.key;
 
   const submit = yield* Component.callback("submit", (form: HTMLFormElement) =>
-    StartAction.decodeFormData(CreateIssueForm, new FormData(form)).pipe(
+    StartAction.decodeFormData(CreateIssue, new FormData(form)).pipe(
       Effect.flatMap((input) => create.submit(input)),
       Effect.flatMap((result) =>
         Effect.sync(() => {
@@ -120,7 +120,7 @@ export default Component.define("NewIssuePage", function* (props: Route.Props<ty
           </label>
           <label class="field">
             <span>Assignee</span>
-            <select name="assignee" value={user("current")?.id ?? ""}>
+            <select name="assigneeId" value={user("current")?.id ?? ""}>
               <option value="">Unassigned</option>
               <For each={team("all")}>
                 {(member) => <option value={member.id}>{member.name}</option>}
@@ -133,7 +133,7 @@ export default Component.define("NewIssuePage", function* (props: Route.Props<ty
           <For each={labels(key())}>
             {(label) => (
               <label class="labelOption" style={{ "--label": label.color }}>
-                <input type="checkbox" name="labels" value={label.id} />
+                <input type="checkbox" name="labelIds" value={label.id} />
                 {label.name}
               </label>
             )}

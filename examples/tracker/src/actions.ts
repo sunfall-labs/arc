@@ -58,21 +58,9 @@ export const SignOut = Action.define({
 });
 
 /**
- * The new-issue form as the browser posts it: strings only, `assignee` empty
- * for nobody, and `labels` absent, one id, or several. The same shape comes
- * from a no-JavaScript form post and from the enhanced form's `FormData`.
+ * A new issue. The form posts it as is: the empty "Unassigned" option decodes
+ * to `null`, and the label checkboxes to an array of none, one, or several.
  */
-export const CreateIssueForm = Schema.Struct({
-  projectKey: ProjectKey,
-  title: Schema.String,
-  description: Schema.optional(Schema.String),
-  status: IssueStatus,
-  priority: IssuePriority,
-  assignee: Schema.optional(Schema.String),
-  labels: Schema.optional(Schema.Union([Schema.String, Schema.Array(Schema.String)])),
-});
-export type CreateIssueForm = typeof CreateIssueForm.Type;
-
 export const CreateIssueInput = Schema.Struct({
   projectKey: ProjectKey,
   title: Schema.String,
@@ -84,29 +72,10 @@ export const CreateIssueInput = Schema.Struct({
 });
 export type CreateIssueInput = typeof CreateIssueInput.Type;
 
-const isUserId = Schema.is(UserId);
-const isLabelId = Schema.is(LabelId);
-
-/** The domain input a form names. */
-export const createIssueInputOf = (form: CreateIssueForm): CreateIssueInput => ({
-  projectKey: form.projectKey,
-  title: form.title,
-  description: form.description ?? "",
-  status: form.status,
-  priority: form.priority,
-  assigneeId: form.assignee !== undefined && isUserId(form.assignee) ? form.assignee : null,
-  labelIds: (form.labels === undefined
-    ? []
-    : typeof form.labels === "string"
-      ? [form.labels]
-      : form.labels
-  ).filter(isLabelId),
-});
-
 /** Creates an issue and goes to it; an invalid title comes back as a field error. */
 export const CreateIssue = Action.define({
   name: "Tracker.createIssue",
-  input: CreateIssueForm,
+  input: CreateIssueInput,
   output: FormOutcome,
   error: TrackerError,
   invalidates: (_result, input) => [IssuesTag({ projectKey: input.projectKey }), ProjectsTag],

@@ -64,13 +64,16 @@ Enhanced clients intercept submit and call the same Action through its Component
 const rename = yield * Component.action(SubmitProjectName);
 
 const submit = (formData: FormData) =>
-  StartAction.decodeFormData(ProjectNameFormInput, formData).pipe(
-    Effect.flatMap(({ name }) => rename.submit({ id: project.id, name })),
+  StartAction.decodeFormData(SubmitProjectName, formData).pipe(
+    Effect.flatMap((input) => rename.submit(input)),
   );
 ```
 
-`StartAction.decodeFormData` decodes the form the way the server decodes the
-same form posted without JavaScript: the visible fields merged over the
-default input `StartAction.form(action, { input })` encoded. So decoding with
-the Action's own input schema gives the full input on both paths, defaults
-such as an `id` included.
+`StartAction.decodeFormData(action, formData)` decodes the form into the
+Action's input the way the server decodes the same form posted without
+JavaScript: the visible fields merged over the default input
+`StartAction.form(action, { input })` encoded, read as the input schema's
+encoded shape (a `Schema.Boolean` field is a checkbox, a `Schema.Array` field
+takes none, one, or many values, an empty field is `null` for a
+`Schema.NullOr` field), then decoded. One domain schema serves both paths;
+the form needs no string-only twin.

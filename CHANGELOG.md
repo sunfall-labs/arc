@@ -6,6 +6,20 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Forms Decode Into Domain Schemas
+
+- Form decoding reads the posted strings as the schema's encoded shape before
+  decoding: a `Schema.Boolean` field is a checkbox (absent is `false`), a
+  `Schema.Array` field takes none, one, or many values, an empty or absent
+  field is `null` for a `Schema.NullOr` field and left out of an optional
+  one, and a `Schema.Number` field reads its number. It applies to
+  `Form.decodeFormData`, `StartAction.decodeFormData`, and no-JavaScript form
+  posts to the action endpoint alike, so an Action's domain input schema
+  decodes its form and the form-shaped twin schema goes away.
+- `StartAction.decodeFormData(action, formData)` takes the Action (its input
+  schema) instead of a schema, so the enhanced submit decodes exactly what
+  the server decodes for the same form, defaults included.
+
 ### Validation Results Are Answers, Not Transport Errors
 
 - The action endpoint answers a JSON submission whose Action returned

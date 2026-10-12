@@ -188,6 +188,24 @@ console (the browser check filtered it).
 - Test: `packages/start/test/start.test.ts` ("reads Start action validation
   bodies as 2xx answers").
 
+### 17. Forms needed a form-shaped Action input
+
+Checkbox groups post nothing, one value, or several; a select posts `""` for
+"none". The tracker declared a string-only `CreateIssueForm` and normalized it
+in the Action (`createIssueInputOf`).
+
+- Fix: form decoding reads posted strings as the schema's encoded shape
+  (`formValuesForSchema` in `packages/core/src/form.ts`): `Schema.Array`
+  fields take none, one, or many values, `Schema.Boolean` fields are
+  checkboxes, empty fields are `null` for `Schema.NullOr` and absent for
+  optional fields, `Schema.Number` fields read numbers. It runs for
+  `Form.decodeFormData`, `StartAction.decodeFormData(action, formData)` (which
+  now takes the Action), and no-JS posts to the action endpoint. `CreateIssue`
+  takes the domain `CreateIssueInput`; the form posts `assigneeId` and
+  `labelIds`, and `CreateIssueForm` and `createIssueInputOf` are gone.
+- Tests: `packages/start/test/start.test.ts` ("reads a posted form as the
+  domain input"); app: `src/actions.test.ts`.
+
 ### 20. No production SSR server
 
 Start's Vite plugin served the handler in dev and prerendered static sites,
@@ -219,17 +237,6 @@ works; validation does not.
   referring page with the result in a short-lived, HttpOnly flash cookie that
   the next document request hydrates into the Action's state, so
   `Component.action(...).result()` shows it on both paths.
-
-### 17. Forms need a form-shaped Action input
-
-Checkbox groups post nothing, one value, or several; a select posts `""` for
-"none". The Action's input schema doubles as the form decoder, so the tracker
-declares a string-only `CreateIssueForm` and normalizes it in `run`
-(`createIssueInputOf` in `src/actions.ts`).
-
-- Proposal: Start form decoding offers field coercions (`Form.many(schema)` for
-  absent/one/many, `Form.optional` for `""`) so a domain schema can decode a
-  posted form.
 
 ### 18. Change feeds also start in SSR request runtimes (fixed)
 

@@ -5,6 +5,7 @@ import {
   actionDefinitionRegistry,
   decodeFormValuesEffect,
   encodeActionWire,
+  formValuesForSchema,
   type CoreDefinitionRegistry,
 } from "@sunfall/arc-core/internal";
 
@@ -118,29 +119,40 @@ const startActionFormDefaults = (formData: FormData): Record<string, unknown> =>
 };
 
 /**
- * Decodes a Start action form's `FormData` the way the server decodes the same
- * form when it posts without JavaScript: the visible fields merged over the
- * encoded default input (`StartAction.form(action, { input })`), with the
- * hidden action-name field left out.
+ * Decodes a Start action form's `FormData` into the Action's input the way the
+ * server decodes the same form when it posts without JavaScript: the visible
+ * fields merged over the encoded default input (`StartAction.form(action, {
+ * input })`), read as the input schema's encoded shape (checkboxes, repeated
+ * names, empty fields; see `Form.decodeFormData`), then decoded by it.
  *
- * So the enhanced submit and the no-JS post decode one form to one value:
- * defaults such as an `id` or `redirectTo` reach the schema either way.
+ * So the enhanced submit and the no-JS post decode one form to one value.
  */
-export const decodeStartActionFormData = <S extends Schema.Top>(
-  schema: S,
+export const decodeStartActionFormData = <I, A, E, R>(
+  definition: Action.Definition<I, A, E, R>,
   formData: FormData,
   options: Form.DataOptions = {},
-): Effect.Effect<
-  Form.SchemaValues<S>,
-  Form.ValidationError<Form.SchemaValues<S>, Schema.SchemaError>,
-  Form.SchemaServices<S>
-> =>
-  Effect.suspend(() =>
-    decodeFormValuesEffect(schema, {
+): Effect.Effect<I, Form.ValidationError<Record<string, unknown>, Schema.SchemaError>> =>
+  Effect.suspend(() => {
+    const values = {
       ...startActionFormDefaults(formData),
       ...Form.data(formData, startActionFormDataDecodeOptions(options)),
-    }),
-  );
+    };
+    return Schema.isSchema(definition.input)
+      ? (decodeFormValuesEffect(definition.input as Schema.Top, values) as unknown as Effect.Effect<
+          I,
+          Form.ValidationError<Record<string, unknown>, Schema.SchemaError>
+        >)
+      : Effect.succeed(values as I);
+  });
+
+/**
+ * Reads a no-JavaScript form post's fields as the Action input schema's
+ * encoded shape, the same reading `decodeStartActionFormData` applies.
+ */
+export const startActionFormInput = (action: StartActionDefinition, input: unknown): unknown =>
+  Schema.isSchema(action.input) && isRecord(input)
+    ? formValuesForSchema(action.input as Schema.Top, input)
+    : input;
 
 /** Error raised by the synchronous progressive form encoding facade. */
 export class StartActionFormEncodeError extends Data.TaggedError("StartActionFormEncodeError")<{

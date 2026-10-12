@@ -123,9 +123,9 @@ describe("tracker server", () => {
           description: "CSV first.",
           status: "todo",
           priority: "high",
-          assignee: "",
+          assigneeId: null,
           // An id from another project is dropped.
-          labels: ["l_trk-feature", "l_web-copy"] as LabelId[],
+          labelIds: ["l_trk-feature", "l_web-copy"] as LabelId[],
         }).pipe(as);
         expect(result).toMatchObject({ _tag: "Redirect", location: "/issues/TRK-31" });
         const created = yield* issueById.local("TRK-31" as IssueId).pipe(as);
@@ -196,8 +196,11 @@ describe("tracker server", () => {
         const result = yield* run(createIssue, {
           projectKey: TRK,
           title: " x ",
+          description: "",
           status: "todo",
           priority: "none",
+          assigneeId: null,
+          labelIds: [],
         }).pipe(asRequest(cookie));
         expect(result).toMatchObject({
           _tag: "ValidationFailure",

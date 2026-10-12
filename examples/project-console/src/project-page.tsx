@@ -2,7 +2,7 @@ import { Component, RouterLink, useRouter } from "@sunfall/arc-solid";
 import { LiveQuery } from "@sunfall/arc-solid/live-query";
 import { ActionResult, Route, State } from "@sunfall/arc-core";
 import { StartAction } from "@sunfall/arc-start";
-import { Cause, Effect, Schema } from "effect";
+import { Cause, Effect } from "effect";
 import { For, Loading, Show, untrack } from "solid-js";
 import {
   ProjectById,
@@ -27,10 +27,6 @@ import {
 import { HealthBadge, Metric } from "./ui.tsrx";
 import { route as ProjectRoute } from "./routes/projects/$id.js";
 import { FailureView, InlineFailure, ProjectSkeleton, statusLabel } from "./project-views.js";
-
-const ProjectNameFormInput = Schema.Struct({
-  name: Schema.String,
-});
 
 const projectHref = (id: ProjectId, tab?: ProjectTab): string =>
   tab === undefined || tab === "overview"
@@ -272,14 +268,8 @@ const ProjectActions = Component.define(
               : State.next(
                   { advancePending: model.advancePending, renamePending: true },
                   State.emit(
-                    StartAction.decodeFormData(ProjectNameFormInput, message.formData).pipe(
-                      Effect.flatMap(({ name }) =>
-                        rename.submit({
-                          id,
-                          name,
-                          redirectTo: makeProjectReturnTo(projectHref(id, "activity")),
-                        }),
-                      ),
+                    StartAction.decodeFormData(SubmitProjectName, message.formData).pipe(
+                      Effect.flatMap((input) => rename.submit(input)),
                       Effect.match({
                         onFailure: (error): ProjectActionsMessage => ({
                           _tag: "RenameFailed",

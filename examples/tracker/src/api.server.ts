@@ -18,7 +18,6 @@ import {
   SignIn,
   SignOut,
   UpdateIssue,
-  createIssueInputOf,
   type AddCommentInput,
   type CreateIssueInput,
   type SignInInput,
@@ -727,8 +726,8 @@ export const signOut = Action.implement(SignOut, () =>
   signOutSession.pipe(Effect.as(ActionResult.redirect("/signin", { replace: true }))),
 );
 
-export const createIssue = Action.implement(CreateIssue, (form) =>
-  authed((user) => createIssueRecord(createIssueInputOf(form), user)).pipe(
+export const createIssue = Action.implement(CreateIssue, (input) =>
+  authed((user) => createIssueRecord(input, user)).pipe(
     Effect.map((issue) => ActionResult.redirect(issueHref(issue.id))),
     Effect.catchTag("InvalidIssue", (error) => Effect.succeed(asValidation(error))),
   ),
