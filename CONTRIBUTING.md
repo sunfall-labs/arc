@@ -16,8 +16,9 @@ starter verifies, starter package generation, and package dry runs.
 ### Docs Stay Checked
 
 - `pnpm docs:snippets` (part of `pnpm typecheck`) requires every TypeScript
-  fence in `docs/golden-path.md` and `docs/db.md` to match a type-checked
-  fixture under `type-tests/golden-path` or `type-tests/docs/db`. Edit the
+  fence in `README.md`, `docs/golden-path.md`, and `docs/db.md` to match a
+  type-checked fixture under `type-tests/readme`, `type-tests/golden-path`, or
+  `type-tests/docs/db`. Edit the
   fixture, then run `node scripts/verify-doc-snippets.mjs --write`.
 - `pnpm audit:public-api` checks `docs/public-api-inventory.md` against
   `type-tests/public-api.manifest.json` and every package's `exports`. A new
