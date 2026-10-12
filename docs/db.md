@@ -193,9 +193,14 @@ const LiveProjectList = Resource.define({
 });
 ```
 
-- The feed starts with the entry's first load in a runtime (or its first read
-  after hydration) and runs on the runtime's Resource Store; disposing the
-  runtime or evicting the entry stops it.
+- The feed starts with the entry's first load in a runtime, or when the entry
+  is hydrated (a server-rendered page follows its feed from the hydrated
+  rows), and runs on the runtime's Resource Store; disposing the runtime or
+  evicting the entry stops it.
+- `changes(input, rows)` receives the synced rows the feed starts from, so a
+  feed that polls can resume from a cursor they hold. `examples/tracker`
+  polls its change log from the newest `seq` among the board's rows:
+  `changes: (key, rows) => poll(key, Math.max(0, ...rows.map((row) => row.seq)))`.
 - Each batch applies to the synced rows and commits as a Timeline `change`
   under the Resource's name; optimistic layers stay on top. The services the
   stream needs join the family's `R`.

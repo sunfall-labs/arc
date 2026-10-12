@@ -422,10 +422,14 @@ output, error? })` requires `input` and `output` schemas (`error` defaults
   `contract.rpc` (tag = name); `Server.Fn` exposes the same `rpc`, `effect`,
   and `local`. `Server.WireSchema` is the schema bound (no decoding or
   encoding services). `Server.client`, `Server.implement`, `Server.mock`,
-  `Server.mockLayer`, `Server.localClient`, `Server.functions`,
+  `Server.mockLayer`, `Server.localClient`, `Server.makeClient` (a branded
+  `Server.Client` from its `call`), `Server.functions`,
   `Server.registryDiagnostics`, and `Server.clearRegistryUnsafe` complete the
   namespace; there is no `Server.route` (HTTP routes belong to
   `effect/http`), no schema-presence manifest, and no envelope codec helpers.
+- `Route.notFound()` and `Route.redirect(href, options?)` end a route preload
+  with a verdict (`RouteNotFound`, `RouteRedirect`, both exported);
+  `Route.PreloadVerdict<R>` types the verdicts a preload can end with.
 - `Server.Client.call(...)` preserves the target server function's requirement
   type in its returned Effect. The browser `RpcClient` satisfies it with
   `never`, while local/mock clients can run functions that depend on test or app

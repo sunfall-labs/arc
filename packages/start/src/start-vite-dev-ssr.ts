@@ -10,6 +10,7 @@ import {
 } from "./node-web-exchange.js";
 import type { StartRequestHandlerError } from "./start-request-handler.js";
 import { defaultServerEntry } from "./start-manifest-wall.js";
+import { describeStartFailure } from "./start-request-handler-error.js";
 import { responseWithScopeLifetime } from "./response-lifetime.js";
 import { suspendResponseStreamSuccessFinalizer } from "./streaming.js";
 import { acceptsMediaType, serverActionPath, serverRpcPath, startHtmlMediaType } from "./rpc.js";
@@ -81,7 +82,12 @@ export class StartHandlerNotFound extends Data.TaggedError("StartHandlerNotFound
 export class StartDevServerError extends Data.TaggedError("StartDevServerError")<{
   readonly operation: "load-module" | "run-handler" | "read-html" | "transform-html";
   readonly error: unknown;
-}> {}
+}> {
+  /** Vite prints this message for a failed dev request, so it names the failure. */
+  override get message(): string {
+    return `Start dev SSR failed to ${this.operation}: ${describeStartFailure(this.error)}`;
+  }
+}
 
 /** Invalid erased handler result reported inside the typed dev-server channel. */
 class StartHandlerInvalidResponse extends Data.TaggedError("StartHandlerInvalidResponse")<{

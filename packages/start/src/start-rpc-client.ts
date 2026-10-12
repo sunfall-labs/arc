@@ -44,11 +44,11 @@ export const rpcClientLayer: Layer.Layer<Server.Client, never, HttpClient.HttpCl
           }
           return client;
         });
-      return Server.Client.of({
-        call: <I, A, E, R>(fn: Server.Fn<I, A, E, R>, input: I) =>
+      return Server.makeClient(
+        <I, A, E, R>(fn: Server.Fn<I, A, E, R>, input: I) =>
           Effect.flatMap(clientFor(fn.rpc as Rpc.Any), (client) =>
             client(fn.name, input),
           ) as Effect.Effect<A, E | Server.ClientError, R>,
-      });
+      );
     }),
   );

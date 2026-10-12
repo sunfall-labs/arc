@@ -48,9 +48,14 @@ export interface ResourceRowsOptions<
    * starts it on the runtime's Resource Store, and each batch applies to the
    * synced rows (optimistic patches stay on top). A failure stops the feed;
    * the rows keep their last value.
+   *
+   * `rows` are the synced rows the feed starts from (the loaded or hydrated
+   * value), so a feed can resume from what they already hold: a cursor such
+   * as the newest version or timestamp among them.
    */
   readonly changes?: (
     input: I,
+    rows: ReadonlyArray<Row>,
   ) => Stream.Stream<ReadonlyArray<ResourceRowChange<Row, Key>>, unknown, ChangesR>;
 }
 

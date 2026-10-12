@@ -33,10 +33,10 @@ export namespace StartAction {
   ): StartActionForm => startActionForm(definition, options);
 
   /**
-   * Decode user-authored fields from a Start action FormData payload.
-   *
-   * Hidden Start transport fields emitted by `StartAction.form(...)` are omitted
-   * automatically before the schema decoder runs.
+   * Decode a Start action form's FormData exactly as the server decodes the
+   * same form posted without JavaScript: the visible fields merged over the
+   * default input `StartAction.form(action, { input })` encoded, without the
+   * hidden transport fields themselves.
    */
   export const decodeFormData = decodeStartActionFormData;
 }

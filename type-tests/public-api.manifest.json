@@ -88,6 +88,7 @@
         "browser-router-state",
         "definition-registry",
         "effect-like",
+        "form",
         "state-start",
         "resource",
         "resource-failure-snapshot",

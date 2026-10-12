@@ -19,7 +19,10 @@ let families = 0;
 
 /** A rows Resource over a mutable server list. */
 const makeFixture = (
-  changes?: (input: "all") => Stream.Stream<ReadonlyArray<Resource.RowChange<Project, string>>>,
+  changes?: (
+    input: "all",
+    rows: ReadonlyArray<Project>,
+  ) => Stream.Stream<ReadonlyArray<Resource.RowChange<Project, string>>>,
 ) => {
   const suffix = `${++families}`;
   const server = { rows: [atlas, orion] as ReadonlyArray<Project>, loads: 0 };
@@ -251,5 +254,50 @@ describe("Resource rows", () => {
         yield* Queue.offer(queue, [{ _tag: "Delete", key: "atlas" }]);
         expect(fixture.server.loads).toBe(1);
       }).pipe(Effect.scoped),
+    ));
+  it("starts a change feed from the rows it loaded", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const started: Array<ReadonlyArray<string>> = [];
+        const fixture = makeFixture((_input, rows) => {
+          started.push(rows.map((row) => row.id));
+          return Stream.never;
+        });
+        const runtime = makeRuntime();
+        yield* runtime.provide(Resource.preload(fixture.ref));
+        yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)));
+        expect(started).toEqual([["atlas", "orion"]]);
+        yield* runtime.dispose;
+      }),
+    ));
+
+  it("starts a hydrated entry's change feed from the hydrated rows, without loading", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const queue = yield* Queue.unbounded<ReadonlyArray<Resource.RowChange<Project, string>>>();
+        const started: Array<ReadonlyArray<string>> = [];
+        const fixture = makeFixture((_input, rows) => {
+          started.push(rows.map((row) => row.id));
+          return Stream.fromQueue(queue);
+        });
+        const server = makeRuntime();
+        yield* server.provide(Resource.preload(fixture.ref));
+        const payload = yield* server.provide(Resource.hydrationPayload([fixture.ref]));
+        yield* server.dispose;
+
+        const browser = makeRuntime();
+        yield* browser.provide(Resource.hydrate(payload));
+        yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)));
+        // The server's load started one feed; the hydrated browser entry its own.
+        expect(started).toEqual([
+          ["atlas", "orion"],
+          ["atlas", "orion"],
+        ]);
+        yield* Queue.offer(queue, [{ _tag: "Delete", key: "orion" }]);
+        yield* Effect.promise(() => new Promise((resolve) => setTimeout(resolve, 10)));
+        expect(browser.runSync(Resource.read(fixture.ref)).map((row) => row.id)).toEqual(["atlas"]);
+        expect(fixture.server.loads).toBe(1);
+        yield* browser.dispose;
+      }),
     ));
 });

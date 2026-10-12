@@ -1,5 +1,11 @@
 import { Cause, Data, Effect, Exit, Fiber } from "effect";
-import { Route, RouteNavigationError } from "./route.js";
+import {
+  Route,
+  RouteNavigationError,
+  type RouteNotFound,
+  type RoutePreloadError,
+  type RouteRedirect,
+} from "./route.js";
 import { matchRoutes } from "./route-match.js";
 import {
   takeHydratedRouteNotFound,
@@ -76,6 +82,12 @@ export interface BrowserRouterKernelOptions<Routes extends readonly AnyBrowserRo
   readonly initialHref: string;
   /** Host preparation run before route preload for a router-owned href. */
   readonly prepareHref?: (href: string) => Effect.Effect<void | HrefNotFound, unknown>;
+  /**
+   * Follows a route preload's `Route.redirect(...)`: the host commits `href`
+   * to its history (replacing the entry when `replace`) and navigates there.
+   * Without it the kernel navigates to `href` without touching history.
+   */
+  readonly redirect?: (href: string, options: BrowserNavigateOptions) => void;
   readonly initialMatchedState?: (
     href: string,
     match: Route.Match<Routes[number]>,
@@ -122,33 +134,68 @@ const prepareHrefFailure = (href: string, cause: unknown): RouteNavigationError 
 /** A host preparation result: the host has no page for the href. */
 type HrefNotFound = { readonly _tag: "NotFound" };
 
+/** A route preload's `Route.redirect(...)`: the navigation goes to `href` instead. */
+type HrefRedirect = { readonly _tag: "Redirect"; readonly href: string; readonly replace: boolean };
+
 const isHrefNotFound = (prepared: void | HrefNotFound): prepared is HrefNotFound =>
   prepared !== undefined && prepared._tag === "NotFound";
 
+/** Consecutive preload redirects a navigation follows before it fails as a loop. */
+const maxRouteRedirects = 20;
+
 /**
  * Prepares the href, then preloads the route. Succeeds with `NotFound`
- * (skipping route preload) when the host preparation reports no page.
- * `onPrepared` runs once the host has the page, before route preload.
+ * (skipping route preload) when the host preparation reports no page or the
+ * preload ended with `Route.notFound()`, and with `Redirect` when it ended
+ * with `Route.redirect(...)`. `onPrepared` runs once the host has the page,
+ * before route preload.
  */
 const provideRouterPreloadEffect = <ER, R extends AnyBrowserRoute>(
   runtime: AnySunfallArcRuntime<ER>,
   match: Route.Match<R>,
   prepareHrefEffect: (href: string) => Effect.Effect<void | HrefNotFound, RouteNavigationError>,
   onPrepared: Effect.Effect<void> = Effect.void,
-): Effect.Effect<void | HrefNotFound, BrowserRouterError<readonly [R]> | ER> =>
+): Effect.Effect<void | HrefNotFound | HrefRedirect, BrowserRouterError<readonly [R]> | ER> =>
   runtime.provide(
     Effect.scoped(
       prepareHrefEffect(match.href).pipe(
-        Effect.flatMap((prepared) =>
-          isHrefNotFound(prepared)
-            ? Effect.succeed(prepared)
-            : onPrepared.pipe(
-                Effect.andThen(
-                  Effect.all([Route.preload(match), Route.preloadComponent(match)], {
-                    discard: true,
+        Effect.flatMap(
+          (
+            prepared,
+          ): Effect.Effect<
+            void | HrefNotFound | HrefRedirect,
+            BrowserRouterError<readonly [R]>,
+            Route.PreloadRequirements<R>
+          > =>
+            isHrefNotFound(prepared)
+              ? Effect.succeed(prepared)
+              : onPrepared.pipe(
+                  Effect.andThen(
+                    Effect.all(
+                      [
+                        // Any route may end its preload with a verdict.
+                        Route.preload(match) as Effect.Effect<
+                          void,
+                          | RoutePreloadError<Route.PreloadFailure<R>>
+                          | RouteNotFound
+                          | RouteRedirect,
+                          Route.PreloadRequirements<R>
+                        >,
+                        Route.preloadComponent(match),
+                      ],
+                      { discard: true },
+                    ),
+                  ),
+                  Effect.catchTags({
+                    RouteNotFound: () => Effect.succeed<HrefNotFound>({ _tag: "NotFound" }),
+                    RouteRedirect: (redirect) =>
+                      Effect.succeed<HrefRedirect>({
+                        _tag: "Redirect",
+                        href: redirect.href,
+                        replace: redirect.replace,
+                      }),
                   }),
                 ),
-              ),
         ),
       ),
     ),
@@ -256,6 +303,9 @@ export const createBrowserRouterKernel = <
 
   let navigation = 0;
   let preloadScope: UiScope | undefined;
+  // Consecutive redirects followed by the current navigation chain.
+  let redirects = 0;
+  let redirecting = false;
 
   const takePreloadScope = (): UiScope | undefined => {
     const current = preloadScope;
@@ -289,7 +339,39 @@ export const createBrowserRouterKernel = <
     });
   };
 
+  const followRedirect = (target: HrefRedirect): void => {
+    if (redirects >= maxRouteRedirects) {
+      redirects = 0;
+      setState(
+        browserRouterFailureState(
+          target.href,
+          Cause.fail(
+            new RouteNavigationError({
+              input: target.href,
+              cause: new Error(`Route preloads redirected more than ${maxRouteRedirects} times.`),
+            }),
+          ) as Cause.Cause<BrowserRouterError<Routes> | ER>,
+        ),
+      );
+      return;
+    }
+    redirects++;
+    redirecting = true;
+    try {
+      if (options.redirect === undefined) {
+        processNavigation(target.href);
+      } else {
+        options.redirect(target.href, { replace: target.replace });
+      }
+    } finally {
+      redirecting = false;
+    }
+  };
+
   const processNavigation = (href: string): void => {
+    if (!redirecting) {
+      redirects = 0;
+    }
     const navigationId = ++navigation;
     const currentState = state.get();
     const matchExit = Effect.runSyncExit(matchRoutes(routes, href));
@@ -345,8 +427,13 @@ export const createBrowserRouterKernel = <
         yield* scope.dispose().pipe(Effect.catchCause(() => Effect.void));
 
         if (Exit.isSuccess(exit)) {
+          const outcome = exit.value;
+          if (outcome !== undefined && outcome._tag === "Redirect") {
+            followRedirect(outcome);
+            return;
+          }
           setState(
-            isHrefNotFound(exit.value)
+            outcome !== undefined && outcome._tag === "NotFound"
               ? { _tag: "NotFound", href }
               : { _tag: "Ready", href, match: nextMatch },
           );

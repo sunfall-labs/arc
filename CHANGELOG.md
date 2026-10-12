@@ -6,6 +6,81 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Route Preload Verdicts: Not Found And Redirect
+
+Found by building `examples/tracker`, a real issue tracker on SQLite.
+
+- `Route.notFound()` ends a route preload with the verdict that the URL names
+  nothing (`/issues/TRK-999`). It is not a failure: `Route.planNavigation`
+  plans `NotFound`, Start answers 404 with `notFound: true` in the payload
+  and starts the server's routers `NotFound` (the outlet's `notFound` view),
+  and client navigation settles `NotFound`. The Resources the preload loaded
+  before its verdict (the signed-in user, the navigation) still hydrate, so
+  the 404 page renders inside the app's shell. Previously a missing record
+  could only be a route failure, answered with 500.
+- `Route.redirect(href, { status?, replace? })` ends a preload by sending the
+  navigation elsewhere (a sign-in page for a request without a session).
+  Start answers `status` (default 302) with `Location: href` and renders
+  nothing; the browser router navigates to `href`, replacing the entry unless
+  `replace: false`, and fails a chain of more than 20 redirects as a loop.
+  `Route.NavigationPlan` gains a `Redirect` variant.
+- Neither verdict is part of a route's typed failure or its `error` schema.
+  `Route.PreloadVerdict<R>` is the verdicts a preload can end with, tracked by
+  `Route.define` like its failure, and `Route.preload` fails with
+  `RoutePreloadError<...> | Route.PreloadVerdict<R>`, so routes that use
+  neither keep their types. `RouteNotFound` and `RouteRedirect` are exported.
+
+### Server Renders Hydrate Everything They Rendered
+
+- Fibers the server render forks (a Resource read no route preloaded,
+  a `Component.callback`) run with the request's services: the request,
+  response context, and in-process server-function client. Such a read used
+  to fail as a `ServerFunctionNotFound` defect during SSR.
+- Resources the render itself loaded hydrate with the page in one more
+  streamed chunk, beside the preload's, so the client does not re-render them
+  over different markup.
+
+### Same-Page Navigation Keeps The Route Instance
+
+- A navigation to the page already on screen (same route and params, new
+  search) keeps its route component instance, its States, and its DOM: the
+  outlet keeps showing the page while the preload runs, then updates the
+  component's `search` (and mapped) props in place. Previously every href
+  change remounted the route component, so a search box lost focus on each
+  URL update and per-page UI State (an open filter drawer) reset. A change of
+  route or params still mounts a fresh instance.
+
+### The Server Layer Must Provide What Served Code Needs (Breaking)
+
+- `createRequestHandler(app, { server, serverFunctions })` checks the server
+  Layer against the services of the served server functions and Actions, as
+  it already did for the root: a missing database client is a compile error
+  at the call, not a requirement left on the handler (where the Vite plugin,
+  which runs the handler untyped, never saw it).
+- `Server.Client` is nominal. Requirement checks compare services
+  structurally, and every function has a `call` method, so a callable service
+  (an Effect `SqlClient`) looked like a `Server.Client` and was silently
+  treated as provided. Build clients with the new `Server.makeClient(call)`.
+
+### Smaller Fixes
+
+- `rows.changes(input, rows)` receives the synced rows its feed starts from,
+  so a feed can resume from a cursor they hold (the newest version). A
+  hydrated entry now starts its feed from the hydrated rows, as documented;
+  it used to start only after a load, so a server-rendered page never
+  followed its feed.
+- A rejected `ActionResult` (`ValidationFailure`, `Failure`) no longer runs
+  the definition's `invalidates`: the change did not happen. Invalidations the
+  result itself carries still run.
+- A failed Vite dev SSR request names its failure: `StartDevServerError` and
+  `StartRequestHandlerError` messages describe the operation and the wrapped
+  failure (through tagged errors without messages). Vite used to print
+  `Internal server error:` followed by a stack and nothing else.
+- `StartAction.decodeFormData` decodes a form like the server decodes its
+  no-JavaScript post: visible fields merged over the default input
+  `StartAction.form(action, { input })` encoded. It used to drop the
+  defaults, so an enhanced form missed fields (an `id`) its no-JS post had.
+
 ### Rejected Path Params Are Not Found (Breaking)
 
 - A URL whose path params fail the route's `params` schema does not match that

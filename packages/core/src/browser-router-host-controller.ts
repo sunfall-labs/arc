@@ -90,6 +90,8 @@ export const createBrowserRouterHostController = <
   const kernelOptions: BrowserRouterKernelOptions<Routes, ER> = {
     runtime,
     initialHref,
+    // A preload's `Route.redirect(...)` is a programmatic navigation: it commits to history.
+    redirect: (href, navigateOptions) => controller.navigateHref(href, navigateOptions),
     ...(history.prepareHref === undefined ? {} : { prepareHref: history.prepareHref }),
     ...(options.initialMatchedState === undefined
       ? {}

@@ -962,6 +962,63 @@ describe("createBrowserRouter", () => {
       ),
     ));
 
+  it("keeps a route instance across a search change and remounts it for new params", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+          let mounts = 0;
+          const ListRoute = Route.withComponent(
+            Route.define("/same-page/:key", {
+              search: Schema.Struct({ q: Schema.optional(Schema.String) }),
+            }),
+            (props: {
+              readonly params: { readonly key: string };
+              readonly search: { readonly q?: string | undefined };
+            }) => {
+              mounts++;
+              return (() =>
+                `${props.params.key}:${props.search.q ?? ""}`) as unknown as JSX.Element;
+            },
+          );
+          const history = makeMemoryBrowserHistoryAdapter({ initialHref: "/same-page/TRK?q=a" });
+          const container = document.createElement("div");
+          const dispose = render(
+            () =>
+              createComponent(RuntimeProvider, {
+                runtime: eraseRuntime(runtime),
+                get children() {
+                  return createComponent(RouterProvider, {
+                    routes: [ListRoute] as const,
+                    history,
+                  });
+                },
+              }),
+            container,
+          );
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(container.textContent).toBe("TRK:a")),
+          );
+
+          // Same page, new search: the instance (its State, its focused input) stays.
+          history.externalNavigate("/same-page/TRK?q=b");
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(container.textContent).toBe("TRK:b")),
+          );
+          expect(mounts).toBe(1);
+
+          // Another page: a fresh instance.
+          history.externalNavigate("/same-page/WEB?q=b");
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(container.textContent).toBe("WEB:b")),
+          );
+          expect(mounts).toBe(2);
+        }),
+      ),
+    ));
+
   it("suspends the nearest Loading boundary while an unloaded lazy route component loads", () =>
     Effect.runPromise(
       Effect.scoped(

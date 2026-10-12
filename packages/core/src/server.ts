@@ -120,13 +120,22 @@ export type ServerClientError =
   | Schema.SchemaError
   | EffectInputCallbackError;
 
+/** Brand of a `ServerClient` (see `Server.makeClient`). */
+export const ServerClientTypeId: unique symbol = Symbol.for(
+  "@sunfall/arc-core/ServerClient",
+) as typeof ServerClientTypeId;
+
 /**
  * Transport used by server function clients.
  *
  * Provide this service to redirect `.effect` calls through a remote or mock client
- * instead of the local implementation.
+ * instead of the local implementation. Build one with `Server.makeClient(call)`.
+ * The brand keeps the type nominal: requirement checks compare services
+ * structurally, and every callable value (an `SqlClient`, any function) has a
+ * `call` method, so an unbranded client would make them look provided.
  */
 export interface ServerClient {
+  readonly [ServerClientTypeId]: typeof ServerClientTypeId;
   readonly call: <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     input: I,
@@ -252,12 +261,17 @@ const makeServerFunction = <I, A, E, R>(
   return callable;
 };
 
+const makeServerClient = (call: ServerClient["call"]): ServerClient => ({
+  [ServerClientTypeId]: ServerClientTypeId,
+  call,
+});
+
 /** ServerClient that answers calls using the supplied mocks; backs `Server.mockLayer`. */
 const mockClient = (...mocks: readonly AnyServerFunctionMock[]): ServerClient => {
   const byName = new Map<string, AnyServerFunctionMock>(mocks.map((mock) => [mock.name, mock]));
 
-  return {
-    call: <I, A, E, R>(
+  return makeServerClient(
+    <I, A, E, R>(
       fn: ServerFunction<I, A, E, R>,
       input: I,
     ): Effect.Effect<A, E | ServerClientError, R> => {
@@ -268,7 +282,7 @@ const mockClient = (...mocks: readonly AnyServerFunctionMock[]): ServerClient =>
             invokeEffectInput(`Server.mock(${fn.name}).handler`, mock.handler, decoded),
           );
     },
-  };
+  );
 };
 
 /** Helpers for contracts, client stubs, server implementations, and mocks. */
@@ -421,20 +435,27 @@ export namespace Server {
    * made while rendering never cross HTTP. Calls pass through the contract's
    * wire schemas, so values match what the HTTP client would decode.
    */
-  export const localClient = (options: LocalServerClientOptions = {}): ServerClient => ({
-    call: <I, A, E, R>(
-      fn: ServerFunction<I, A, E, R>,
-      input: I,
-    ): Effect.Effect<A, E | ServerClientError, R> => {
-      const target =
-        options.registry === undefined
-          ? getServerFunctionDefinition<ServerFunction<I, A, E, R>>(fn.name)
-          : (options.registry.serverFunctions.get(fn.name) as
-              | ServerFunction<I, A, E, R>
-              | undefined);
-      return target?.hasHandler
-        ? callThroughWireSchemas(fn, input, target.local)
-        : Effect.fail(new ServerFunctionNotFound({ functionName: fn.name }));
-    },
-  });
+  export const localClient = (options: LocalServerClientOptions = {}): ServerClient =>
+    makeServerClient(
+      <I, A, E, R>(
+        fn: ServerFunction<I, A, E, R>,
+        input: I,
+      ): Effect.Effect<A, E | ServerClientError, R> => {
+        const target =
+          options.registry === undefined
+            ? getServerFunctionDefinition<ServerFunction<I, A, E, R>>(fn.name)
+            : (options.registry.serverFunctions.get(fn.name) as
+                | ServerFunction<I, A, E, R>
+                | undefined);
+        return target?.hasHandler
+          ? callThroughWireSchemas(fn, input, target.local)
+          : Effect.fail(new ServerFunctionNotFound({ functionName: fn.name }));
+      },
+    );
+
+  /**
+   * Builds a `ServerClient` from its `call`: how a transport (HTTP, a test
+   * double) answers one server-function call.
+   */
+  export const makeClient = makeServerClient;
 }

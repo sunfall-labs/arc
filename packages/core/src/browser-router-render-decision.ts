@@ -1,5 +1,6 @@
 import type { Route } from "./route.js";
 import type { AnyBrowserRoute, BrowserRouterState } from "./browser-router-state.js";
+import { stableStringify } from "./stable-stringify.js";
 
 /** Adapter-neutral renderers for router outlet states. */
 export interface BrowserRouteOutletRenderers<Routes extends readonly AnyBrowserRoute[], ER, Out> {
@@ -108,6 +109,20 @@ export const browserRouteRenderKey = <Routes extends readonly AnyBrowserRoute[],
       return `${state._tag}:${state.href}`;
   }
 };
+
+/**
+ * Identity of the page a `Pending` or `Ready` state shows: its route and
+ * decoded params, not its search. Two states with the same instance key are
+ * the same page, so an adapter keeps one route instance (its scope, States,
+ * and DOM) across them and passes the new search as props; a different route
+ * or different params is another page. Other states have no instance.
+ */
+export const browserRouteInstanceKey = <Routes extends readonly AnyBrowserRoute[], ER>(
+  state: BrowserRouterState<Routes, ER>,
+): string | undefined =>
+  state._tag === "Pending" || state._tag === "Ready"
+    ? `${state.match.route.path}:${stableStringify(state.match.params)}`
+    : undefined;
 
 const routeRendererIdentityIds = new WeakMap<object, number>();
 let routeRendererIdentitySequence = 0;

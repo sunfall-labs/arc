@@ -94,6 +94,34 @@ const packagePayloadPolicies = new Map([
       requiredDirectories: ["scripts", "src", "src/content/cookbook", "src/routes"],
     },
   ],
+  [
+    "@sunfall/arc-example-tracker",
+    {
+      payload: "source-package",
+      requiresGitignore: true,
+      requiredFiles: [
+        "FRICTION.md",
+        "README.md",
+        "index.html",
+        "scripts/effect-main-runner.mjs",
+        "scripts/leak-scan.mjs",
+        "src/App.tsx",
+        "src/actions.ts",
+        "src/api.server.ts",
+        "src/app-definition.ts",
+        "src/contracts.ts",
+        "src/db.server.ts",
+        "src/main.tsx",
+        "src/model.ts",
+        "src/resources.ts",
+        "src/server.tsx",
+        "src/start-options.ts",
+        "tsconfig.json",
+        "vite.config.ts",
+      ],
+      requiredDirectories: ["scripts", "src", "src/routes"],
+    },
+  ],
   ...starterSourcePackagePayloadPolicies,
   [
     "@sunfall/arc-spike-solid2",
@@ -115,6 +143,8 @@ const sourcePackageGeneratedArtifactFiles = new Map(
 
 const forbiddenGeneratedSegments = new Set([".test-dist", "node_modules"]);
 const forbiddenSourcePackageSegments = new Set([
+  // Local runtime data, such as an example's development database.
+  ".data",
   "dist",
   "type-tests",
   ...forbiddenGeneratedSegments,

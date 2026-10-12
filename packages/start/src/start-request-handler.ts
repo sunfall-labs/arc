@@ -16,7 +16,7 @@ import {
 import { Effect, Option, Scope } from "effect";
 import type { StartServerApp } from "./start-server-app.js";
 import {
-  makeRequestRuntime,
+  makeServedRequestRuntime,
   provideRequestRuntime,
   type RequestRuntimeProvidedRequirements,
   type RequestRuntimeRemainingRequirements,
@@ -156,8 +156,10 @@ export const createStartRequestHandler = <
     Scope.Scope | StartRequestRequirements<Routes, ServerServices, Registry, Actions>
   > =>
     Effect.gen(function* () {
-      const requestRuntime = makeRequestRuntime(app);
       const responseContext = makeResponseContext();
+      // Every fiber on the request runtime sees the request's services,
+      // including those the render forks (a Resource read nobody preloaded).
+      const requestRuntime = makeServedRequestRuntime(app, request, responseContext, app.registry);
       const facts = yield* startRequestFacts(request);
       const responseEffect = Effect.gen(function* () {
         if (isServerRpcRequest(request)) {
@@ -190,6 +192,15 @@ export const createStartRequestHandler = <
           "render",
         );
         recordStartRequestRoutePlan(facts, preloaded.routePlan);
+        // The route's preload sent the request elsewhere (`Route.redirect`):
+        // answer with the redirect instead of a page. Cookies and headers the
+        // preload set still apply.
+        if (preloaded.routePlan._tag === "Redirect") {
+          return new Response(null, {
+            status: preloaded.routePlan.status,
+            headers: { location: preloaded.routePlan.location },
+          });
+        }
         // Probed after preload, so a submission reported settled is one the
         // preloaded state already reflects.
         const actionMap = yield* Effect.try(() =>

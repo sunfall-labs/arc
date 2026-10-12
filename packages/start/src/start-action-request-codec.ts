@@ -3,6 +3,7 @@ import { Cause, Data, Effect, Exit, Schema } from "effect";
 import { hasContentType, serverActionPath, startJsonMediaType } from "./rpc.js";
 import {
   actionDefinitionRegistry,
+  decodeFormValuesEffect,
   encodeActionWire,
   type CoreDefinitionRegistry,
 } from "@sunfall/arc-core/internal";
@@ -102,12 +103,28 @@ export const startActionFormDataDecodeOptions = (
   omitFields: startActionOmittedFormFields(options.omitFields),
 });
 
+/** The encoded default input a `StartAction.form(...)` carries, or `{}` when it has none. */
+const startActionFormDefaults = (formData: FormData): Record<string, unknown> => {
+  const encoded = formData.get(startActionInputField);
+  if (typeof encoded !== "string" || encoded.length === 0) {
+    return {};
+  }
+  try {
+    const parsed: unknown = JSON.parse(encoded);
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 /**
- * Decode only user-authored fields from a Start action FormData payload.
+ * Decodes a Start action form's `FormData` the way the server decodes the same
+ * form when it posts without JavaScript: the visible fields merged over the
+ * encoded default input (`StartAction.form(action, { input })`), with the
+ * hidden action-name field left out.
  *
- * This is a convenience wrapper around `Form.decodeFormData(...)` that
- * automatically ignores the hidden action name and encoded-default-input fields
- * emitted by `StartAction.form(...)`.
+ * So the enhanced submit and the no-JS post decode one form to one value:
+ * defaults such as an `id` or `redirectTo` reach the schema either way.
  */
 export const decodeStartActionFormData = <S extends Schema.Top>(
   schema: S,
@@ -117,7 +134,13 @@ export const decodeStartActionFormData = <S extends Schema.Top>(
   Form.SchemaValues<S>,
   Form.ValidationError<Form.SchemaValues<S>, Schema.SchemaError>,
   Form.SchemaServices<S>
-> => Form.decodeFormData(schema, formData, startActionFormDataDecodeOptions(options));
+> =>
+  Effect.suspend(() =>
+    decodeFormValuesEffect(schema, {
+      ...startActionFormDefaults(formData),
+      ...Form.data(formData, startActionFormDataDecodeOptions(options)),
+    }),
+  );
 
 /** Error raised by the synchronous progressive form encoding facade. */
 export class StartActionFormEncodeError extends Data.TaggedError("StartActionFormEncodeError")<{

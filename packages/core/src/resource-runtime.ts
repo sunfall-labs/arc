@@ -202,8 +202,12 @@ const startResourceRowChanges = <I, A, E, R>(
     }
     const name = ref.family.options.name;
     const rows = ref.family.options.rows!;
+    const started = syncedResourceState(entry);
+    const startRows = (started._tag === "Success" ? started.value : []) as ReadonlyArray<unknown>;
     const feed = Stream.runForEach(
-      Stream.suspend(() => changes(ref.input) as Stream.Stream<ReadonlyArray<any>, unknown, R>),
+      Stream.suspend(
+        () => changes(ref.input, startRows) as Stream.Stream<ReadonlyArray<any>, unknown, R>,
+      ),
       (batch) =>
         Effect.gen(function* () {
           const current = syncedResourceState(entry);
@@ -620,6 +624,44 @@ export const collectResource = <A, E, R>(
     };
   });
 
+/**
+ * Every ref the store holds an input for: each Resource something read, loaded,
+ * or hydrated on this runtime. A server render uses it to hydrate what its
+ * render (not only its route preload) loaded.
+ */
+export const storeResourceRefs = (store: ResourceStore): ReadonlyArray<AnyResourceRef> => {
+  const mutable = unsafeMutableResourceStore(store);
+  const refs: Array<AnyResourceRef> = [];
+  for (const family of mutable.families.values()) {
+    const inputs = mutable.inputs.get(family as object) as Map<string, unknown> | undefined;
+    if (inputs === undefined) {
+      continue;
+    }
+    for (const input of inputs.values()) {
+      refs.push((family as { ref(input: unknown): AnyResourceRef }).ref(input));
+    }
+  }
+  return refs;
+};
+
+/**
+ * Like `collectResource`, but reports the refs `effect` touched whatever its
+ * outcome: a route preload that ends with a verdict (`Route.notFound()`) still
+ * hydrates what it loaded before it.
+ */
+export const collectResourceExit = <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<
+  { readonly exit: Exit.Exit<A, E>; readonly refs: ReadonlyArray<AnyResourceRef> },
+  never,
+  R
+> =>
+  Effect.gen(function* () {
+    const collector: ResourceCollector = { refs: new Map() };
+    const exit = yield* Effect.exit(Effect.provideService(effect, ResourceCollector, collector));
+    return { exit, refs: Array.from(collector.refs.values()) };
+  });
+
 const resourcePending = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   reason: "Initial" | "Pending" | "Collected",
@@ -833,6 +875,12 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
       key: ref.key,
       timestamp: state.timestamp,
     });
+    // A hydrated entry follows its change feed from the hydrated rows, as a
+    // loaded one does from its loaded rows. Hydration runs on the runtime
+    // that provides the family's services.
+    if (ref.family.options.rows?.changes !== undefined) {
+      yield* startResourceRowChanges(ref, entry, store) as Effect.Effect<void>;
+    }
   });
 
 export const hydrateResourceRef = <I, A, E, R>(

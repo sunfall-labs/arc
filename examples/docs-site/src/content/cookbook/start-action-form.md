@@ -50,3 +50,9 @@ const submit = (formData: FormData) =>
     Effect.flatMap(({ name }) => rename.submit({ id: project.id, name })),
   );
 ```
+
+`StartAction.decodeFormData` decodes the form the way the server decodes the
+same form posted without JavaScript: the visible fields merged over the
+default input `StartAction.form(action, { input })` encoded. So decoding with
+the Action's own input schema gives the full input on both paths, defaults
+such as an `id` included.

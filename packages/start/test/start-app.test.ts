@@ -4,7 +4,8 @@ import { Effect, Layer, Logger, Schema, Context } from "effect";
 import { describe, expect, it } from "vitest";
 import { App, createRequestHandler } from "../src/index.js";
 import { hydrationScriptId, streamHydrationAttribute } from "../src/hydration.js";
-import { handleSsrDevRequest } from "../src/start-vite-dev-ssr.js";
+import { StartDevServerError, handleSsrDevRequest } from "../src/start-vite-dev-ssr.js";
+import { StartRequestHandlerError } from "../src/start-request-handler-error.js";
 
 interface Greeting {
   readonly text: string;
@@ -134,5 +135,26 @@ describe("Vite dev SSR route preload warnings", () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain('Route "/undeclared" has a preload but no preloadResources');
     expect(warnings.join("\n")).not.toContain("/projects/:id");
+  });
+});
+
+describe("dev SSR failure messages", () => {
+  it("name the failure through tagged errors that carry no message of their own", () => {
+    class RenderBroke extends Schema.TaggedError<RenderBroke>()("RenderBroke", {}) {}
+    const error = new StartDevServerError({
+      operation: "run-handler",
+      error: new StartRequestHandlerError({
+        operation: "handle-request",
+        request: { method: "GET", url: "https://arc.test/issues/1" },
+        cause: { _tag: "StartPreloadError", cause: new Error("cannot render synchronously") },
+      }),
+    });
+    // Vite prints this line for a failed dev request; it used to be empty.
+    expect(error.message).toBe(
+      "Start dev SSR failed to run-handler: GET https://arc.test/issues/1 failed: StartPreloadError: cannot render synchronously",
+    );
+    expect(
+      new StartDevServerError({ operation: "load-module", error: new RenderBroke() }).message,
+    ).toBe("Start dev SSR failed to load-module: RenderBroke");
   });
 });

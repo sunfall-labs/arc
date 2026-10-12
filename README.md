@@ -207,6 +207,9 @@ All packages are MIT-licensed and published under the `alpha` dist-tag.
   hydration.
 - [`examples/project-console`](examples/project-console): the full golden path
   with Resource rows, live queries, Actions, forms, and server functions.
+- [`examples/tracker`](examples/tracker): a team issue tracker on SQLite with
+  sessions, a live board, URL-addressable search, and offline moves, with the
+  [friction log](examples/tracker/FRICTION.md) building it produced.
 - [`examples/docs-site`](examples/docs-site): the
   [website](https://sunfall-labs.github.io/arc/), built with Arc.
 - [`examples/devtools-panel`](examples/devtools-panel) and

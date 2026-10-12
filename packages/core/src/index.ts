@@ -91,9 +91,11 @@ export {
   RouteLazyComponentPending,
   RouteLazyComponentTypeId,
   RouteNavigationError,
+  RouteNotFound,
   RoutePreloadError,
   RoutePreloadFailureCodecError,
   RoutePreloadUntypedFailure,
+  RouteRedirect,
   RouteViewTypeId,
 } from "./route.js";
 export {

@@ -669,9 +669,9 @@ describe("Sunfall Arc Start", () => {
         ),
       ),
     );
-    const ambientClient: Server.Client = {
-      call: () => Effect.die("ambient ServerClient should not handle request-runtime calls"),
-    };
+    const ambientClient: Server.Client = Server.makeClient(() =>
+      Effect.die("ambient ServerClient should not handle request-runtime calls"),
+    );
     const ProjectRoute = Route.define("/local-server-client/:id", {
       params: Schema.Struct({ id: Schema.String }),
       preload: ({ params }) => lookupProject.effect({ id: params.id }),
@@ -2413,6 +2413,28 @@ describe("Sunfall Arc Start", () => {
     await expect(
       Effect.runPromise(StartAction.decodeFormData(UserFields, formData)),
     ).resolves.toEqual({
+      name: "Atlas Forms",
+    });
+  });
+
+  it("decodes a progressive form's defaults with its fields, as the server decodes its post", async () => {
+    const Input = Schema.Struct({ id: Schema.String, name: Schema.String });
+    const Submit = Action.define({
+      name: "Start.action.codec.form-defaults",
+      input: Input,
+      output: Schema.Struct({ ok: Schema.Boolean }),
+      run: () => Effect.succeed({ ok: true }),
+    });
+    const form = StartAction.form(Submit, { input: { id: "atlas", name: "Default" } });
+    const formData = new FormData();
+    for (const field of form.hiddenFields) {
+      formData.set(field.name, field.value);
+    }
+    formData.set("name", "Atlas Forms");
+
+    // The visible field wins over the default; the default `id` reaches the schema.
+    await expect(Effect.runPromise(StartAction.decodeFormData(Input, formData))).resolves.toEqual({
+      id: "atlas",
       name: "Atlas Forms",
     });
   });

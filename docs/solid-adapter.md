@@ -504,6 +504,25 @@ and `hydrating`; each accepts `undefined` as "absent", so optional props pass
 straight through. `<RouterProvider router>` without children renders
 `<RouterOutlet router={router} />`.
 
+### Same-page navigation
+
+A navigation to the page the outlet already shows (the same route and params,
+a new search: a list's `?q=` or `?page=`) keeps the route component's
+instance. The outlet keeps the page on screen while the route preloads, then
+updates its `search` props (and anything a `withComponent` mapper derives
+from them) in place, so the page's States, a focused search box, and its DOM
+survive. Read `props.search` in tracked code. A different route or different
+params mounts a fresh instance; key a child on an entity for a fresh State
+per entity.
+
+### Route preload verdicts
+
+A route preload can end with `Route.notFound()` (the record does not exist:
+the outlet renders `notFound`, the server answers 404) or
+`Route.redirect(href)` (the router navigates to `href`, the server answers a
+redirect). Neither reaches the `failure` view; see
+[Architecture](architecture.md#router-runtime).
+
 ### Route failure views
 
 `RouterOutlet`'s `pending`, `failure`, and `notFound` renderers are typed from

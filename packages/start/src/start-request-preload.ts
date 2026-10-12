@@ -158,6 +158,12 @@ export const preloadRequestEffectWithRuntime = <
           new URL(request.url),
           routePreloadFailure,
         ).pipe(Effect.mapError((cause) => preloadError("route-navigation", cause, { request })));
+        // A not-found plan (no route matched, or the preload's `Route.notFound()`)
+        // starts the request's routers `NotFound`, whatever the href matches,
+        // exactly as the hydrating client's will.
+        if (routePlan._tag === "NotFound") {
+          yield* Route.hydrateNotFound();
+        }
         // A lazy route component loads before render, so the server renders it
         // in the first pass; a failed load surfaces where the router renders it.
         if (routePlan.match !== undefined) {

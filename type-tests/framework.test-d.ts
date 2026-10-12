@@ -2465,20 +2465,15 @@ const RegistryReadDocumentRpc = Server.implement(
   Server.contract("RuntimeDocument.registryRpc", { input: Schema.Void, output: Schema.String }),
   () => RuntimeDocumentService.useSync((service) => service.readDocument()),
 );
-// The app's Actions and the handler's server functions add their services to
-// the handler's requirements unless the server runtime provides them.
+// The app's Actions and the handler's server functions run on the server, so
+// the server runtime must provide their services, like the root's.
 const startRegistryApp = App.define({
   root: StartRoot,
   routes: [] as const,
   actions: [RegistryReadDocumentAction],
 });
-const startRegistryMissingHandlerEffect: Effect.Effect<
-  Response,
-  StartRequestHandlerError,
-  Scope.Scope | RuntimeDocumentService
-> = createRequestHandler(startRegistryApp, { serverFunctions: [RegistryReadDocumentRpc] })(
-  new Request("https://example.com/__sunfall-arc/rpc"),
-);
+// @ts-expect-error the server Layer must provide what served functions and Actions need
+createRequestHandler(startRegistryApp, { serverFunctions: [RegistryReadDocumentRpc] });
 const startRegistryProvidedHandlerEffect: Effect.Effect<
   Response,
   StartRequestHandlerError,
@@ -2506,7 +2501,6 @@ void routePreloadProvidedStartEffect;
 void routePreloadProvidedStartHandlerEffect;
 void routePreloadFetchFacade;
 void routePreloadNodeFacade;
-void startRegistryMissingHandlerEffect;
 void startRegistryProvidedHandlerEffect;
 void startOptionsActionHandlerEffect;
 
