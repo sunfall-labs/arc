@@ -1,12 +1,12 @@
 import { Effect, Fiber } from "effect";
-import { renderDevtoolsPanelsHtml } from "@sunfall/arc-devtools";
+import { Devtools } from "@sunfall/arc-devtools";
 import { Window } from "happy-dom";
 import { describe, expect, it } from "vitest";
 import { sampleDevtoolsPanels } from "./sample.js";
 
 describe("devtools panel example", () => {
   it("renders the request panel from sample public facts", () => {
-    const html = renderDevtoolsPanelsHtml({
+    const html = Devtools.renderPanelsHtml({
       panels: sampleDevtoolsPanels(),
       selectedPanelId: "requests",
       title: "Sunfall Arc Devtools Panel",

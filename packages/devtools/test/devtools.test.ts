@@ -1,31 +1,16 @@
 import { Cause, Effect, Exit, Fiber, PubSub, Schema, Scope } from "effect";
 import { describe, expect, it } from "vitest";
 import { Action, makeRuntime, Program, Resource, Route, Signal, Timeline } from "@sunfall/arc-core";
+import { Devtools, DevtoolsActionInvalidationPlanConflict } from "../src/index.js";
 import {
-  bootDevtoolsPanels,
-  DevtoolsActionInvalidationPlanConflict,
   DevtoolsUnknownInvalidationTarget,
-  devtoolsPanelIds,
-  makeDevtoolsStore,
-  describeDevtoolsCausalGraph,
-  describeDevtoolsSummary,
-  describeDevtoolsPanels,
   describeInvalidationPlan,
   describeRoutePlan,
-  sunfallArcDevtoolsBridgeGlobal,
-  installDevtoolsBridge,
-  isDevtoolsSerializableValue,
-  mountDevtoolsPanels,
-  renderDevtoolsPanelsHtml,
-  toDevtoolsSerializableValue,
-  type DevtoolsBridgeTarget,
-  type DevtoolsInvalidationPlan,
-  type DevtoolsRequestTrace,
-  type DevtoolsRoutePlan,
-  type DevtoolsStartAppGraphDiagnostics,
-} from "../src/index.js";
+} from "../src/serialization.js";
 import { stableFactFingerprint } from "../src/fact-identity.js";
 import {
+  devtoolsPanelIds,
+  isDevtoolsSerializableValue,
   isDevtoolsPanelId,
   isDevtoolsPanelItem,
   isDevtoolsPanels,
@@ -37,9 +22,9 @@ import { defaultRuntime } from "@sunfall/arc-core/internal";
 type DevtoolsLifecycleType = "pagehide" | "beforeunload";
 
 const installBridgeForTest = (
-  ...args: Parameters<typeof installDevtoolsBridge>
-): Effect.Success<ReturnType<typeof installDevtoolsBridge>> =>
-  Effect.runSync(installDevtoolsBridge(...args).pipe(Scope.provide(Scope.makeUnsafe())));
+  ...args: Parameters<typeof Devtools.installBridge>
+): Effect.Success<ReturnType<typeof Devtools.installBridge>> =>
+  Effect.runSync(Devtools.installBridge(...args).pipe(Scope.provide(Scope.makeUnsafe())));
 
 const makeDevtoolsLifecycleWindow = () => {
   const listeners = new Map<DevtoolsLifecycleType, Set<() => void>>([
@@ -79,8 +64,8 @@ describe("devtools invalidation plans", () => {
     ).toThrow(DevtoolsUnknownInvalidationTarget);
 
     const Tag = Resource.tag("Devtools.error-tag");
-    const store = makeDevtoolsStore();
-    const serialized: DevtoolsInvalidationPlan = {
+    const store = Devtools.makeStore();
+    const serialized: Devtools.InvalidationPlan = {
       targets: [
         {
           _tag: "Tag",
@@ -151,7 +136,7 @@ describe("devtools invalidation plans", () => {
   it("keeps a bounded invalidation history", () => {
     const FirstTag = Resource.tag("First.devtools");
     const SecondTag = Resource.tag("Second.devtools");
-    const store = makeDevtoolsStore({ invalidationLimit: 1 });
+    const store = Devtools.makeStore({ invalidationLimit: 1 });
 
     Effect.runSync(store.recordInvalidation(Effect.runSync(Resource.planInvalidation(FirstTag))));
     Effect.runSync(store.recordInvalidation(Effect.runSync(Resource.planInvalidation(SecondTag))));
@@ -175,10 +160,10 @@ describe("devtools invalidation plans", () => {
     const routePlan = await Effect.runPromise(
       Route.planNavigation([RouteUser] as const, "/history/1"),
     );
-    const invalidationStore = makeDevtoolsStore({ invalidationLimit: 0 });
-    const routeStore = makeDevtoolsStore({ routePlanLimit: -1 });
-    const traceStore = makeDevtoolsStore({ requestTraceLimit: Number.NaN });
-    const eventStore = makeDevtoolsStore({ eventLimit: Number.POSITIVE_INFINITY });
+    const invalidationStore = Devtools.makeStore({ invalidationLimit: 0 });
+    const routeStore = Devtools.makeStore({ routePlanLimit: -1 });
+    const traceStore = Devtools.makeStore({ requestTraceLimit: Number.NaN });
+    const eventStore = Devtools.makeStore({ eventLimit: Number.POSITIVE_INFINITY });
 
     for (let index = 0; index < 55; index++) {
       Effect.runSync(
@@ -223,7 +208,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("records serialized action invalidation plans from full-stack transports", async () => {
-    const plan: DevtoolsInvalidationPlan = {
+    const plan: Devtools.InvalidationPlan = {
       targets: [
         {
           _tag: "Tag",
@@ -248,7 +233,7 @@ describe("devtools invalidation plans", () => {
         },
       ],
     };
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     await Effect.runPromise(
       store.recordActionState("Project.rename", "Success", {
@@ -287,7 +272,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("uses bounded structural invalidation identity for matching and deduplication", () => {
-    const invalidationPlan = (tail: string): DevtoolsInvalidationPlan => ({
+    const invalidationPlan = (tail: string): Devtools.InvalidationPlan => ({
       targets: [
         {
           _tag: "Tag",
@@ -312,7 +297,7 @@ describe("devtools invalidation plans", () => {
     });
     const firstPlan = invalidationPlan("first-tail");
     const secondPlan = invalidationPlan("second-tail");
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(
       store.recordActionState("Project.bulk.first", "Success", {
@@ -375,7 +360,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("drops stale action invalidation links after bounded history trimming", () => {
-    const firstPlan: DevtoolsInvalidationPlan = {
+    const firstPlan: Devtools.InvalidationPlan = {
       targets: [
         {
           _tag: "Tag",
@@ -385,7 +370,7 @@ describe("devtools invalidation plans", () => {
       ],
       entries: [],
     };
-    const secondPlan: DevtoolsInvalidationPlan = {
+    const secondPlan: Devtools.InvalidationPlan = {
       targets: [
         {
           _tag: "Tag",
@@ -395,7 +380,7 @@ describe("devtools invalidation plans", () => {
       ],
       entries: [],
     };
-    const store = makeDevtoolsStore({ invalidationLimit: 1 });
+    const store = Devtools.makeStore({ invalidationLimit: 1 });
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -454,19 +439,19 @@ describe("devtools invalidation plans", () => {
   });
 
   it("rebases request trace action invalidation links after bounded history trimming", () => {
-    const firstPlan: DevtoolsInvalidationPlan = {
+    const firstPlan: Devtools.InvalidationPlan = {
       targets: [{ _tag: "Tag", key: "Project.first", name: "Project.first" }],
       entries: [],
     };
-    const secondPlan: DevtoolsInvalidationPlan = {
+    const secondPlan: Devtools.InvalidationPlan = {
       targets: [{ _tag: "Tag", key: "Project.second", name: "Project.second" }],
       entries: [],
     };
-    const thirdPlan: DevtoolsInvalidationPlan = {
+    const thirdPlan: Devtools.InvalidationPlan = {
       targets: [{ _tag: "Tag", key: "Project.third", name: "Project.third" }],
       entries: [],
     };
-    const store = makeDevtoolsStore({ invalidationLimit: 2 });
+    const store = Devtools.makeStore({ invalidationLimit: 2 });
 
     Effect.runSync(store.recordSerializedInvalidation(firstPlan));
     Effect.runSync(store.recordSerializedInvalidation(secondPlan));
@@ -544,7 +529,7 @@ describe("devtools invalidation plans", () => {
       invalidates: () => [ref],
     });
     const action = Action.use(Increment, { runtime: defaultRuntime });
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     await Effect.runPromise(
       Effect.scoped(
@@ -587,7 +572,7 @@ describe("devtools invalidation plans", () => {
     previous.self = previous;
     const model = Signal.make(previous, { name: "Counter.model" });
     const failures = Signal.make<ReadonlyArray<unknown>>([], { name: "Counter.failures" });
-    const store = makeDevtoolsStore({
+    const store = Devtools.makeStore({
       serializationPolicy: {
         redactKeys: ["tenantPrivate"],
       },
@@ -706,7 +691,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("tracks a running Timeline recording with scoped cleanup", async () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const program = Program.start(
       Program.define<{ readonly count: number }, { readonly _tag: "Increment" }>({
         name: "Counter.program-track",
@@ -811,7 +796,7 @@ describe("devtools invalidation plans", () => {
     const invalidationPlan = describeInvalidationPlan(
       Effect.runSync(Resource.planInvalidation(UserTag({ id: "1" }))),
     );
-    const summary = describeDevtoolsSummary({
+    const summary = Devtools.describeSummary({
       appGraph: appGraphDiagnostics,
       snapshot: {
         resources: [
@@ -921,7 +906,7 @@ describe("devtools invalidation plans", () => {
       },
     ]);
     expect(JSON.parse(JSON.stringify(summary))).toEqual(summary);
-    const panels = describeDevtoolsPanels({ summary });
+    const panels = Devtools.describePanels({ summary });
     expect(panels.panels.map((panel) => panel.id)).toEqual(devtoolsPanelIds);
     expect(panels.version).toBe(1);
     expect(panels.panels.find((panel) => panel.id === "app-graph")).toMatchObject({
@@ -952,12 +937,12 @@ describe("devtools invalidation plans", () => {
       ]),
     });
     expect(JSON.parse(JSON.stringify(panels))).toEqual(panels);
-    expect(describeDevtoolsSummary({ appGraph: appGraphDiagnostics })).toMatchObject({
+    expect(Devtools.describeSummary({ appGraph: appGraphDiagnostics })).toMatchObject({
       graph: {
         _tag: "Available",
       },
     });
-    expect(describeDevtoolsPanels({ summary })).toMatchObject({
+    expect(Devtools.describePanels({ summary })).toMatchObject({
       panels: expect.arrayContaining([expect.objectContaining({ id: "app-graph" })]),
     });
   });
@@ -966,8 +951,8 @@ describe("devtools invalidation plans", () => {
     const requestTrace = (
       id: string,
       path: string,
-      status: DevtoolsRequestTrace["status"],
-    ): DevtoolsRequestTrace => ({
+      status: Devtools.RequestTrace["status"],
+    ): Devtools.RequestTrace => ({
       request: {
         id,
         method: "GET",
@@ -990,13 +975,13 @@ describe("devtools invalidation plans", () => {
         durationMillis: status === "success" ? 12 : 34,
       },
     });
-    const panels = describeDevtoolsPanels({
+    const panels = Devtools.describePanels({
       requestTraces: [
         requestTrace("safe", "/projects/<atlas>", "success"),
         requestTrace("failed", "/projects/failure", "failure"),
       ],
     });
-    const html = renderDevtoolsPanelsHtml({
+    const html = Devtools.renderPanelsHtml({
       panels,
       title: "Ops <Devtools>",
       selectedPanelId: "requests",
@@ -1014,8 +999,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("installs the inspected-window devtools bridge with scoped cleanup", async () => {
-    const target: DevtoolsBridgeTarget = {};
-    const panels = describeDevtoolsPanels();
+    const target: Devtools.BridgeTarget = {};
+    const panels = Devtools.describePanels();
     const install = installBridgeForTest(
       {
         panels,
@@ -1025,15 +1010,15 @@ describe("devtools invalidation plans", () => {
       target,
     );
 
-    expect(target[sunfallArcDevtoolsBridgeGlobal]).toMatchObject({
+    expect(target[Devtools.bridgeGlobal]).toMatchObject({
       panels,
       selectedPanelId: "requests",
       title: "Bridge",
     });
     install.uninstall();
-    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBeUndefined();
+    expect(target[Devtools.bridgeGlobal]).toBeUndefined();
 
-    target[sunfallArcDevtoolsBridgeGlobal] = () => ({
+    target[Devtools.bridgeGlobal] = () => ({
       panels,
       title: "Previous",
     });
@@ -1041,17 +1026,17 @@ describe("devtools invalidation plans", () => {
     await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          yield* installDevtoolsBridge(
+          yield* Devtools.installBridge(
             () => ({
               panels,
               selectedPanelId: "resources",
             }),
             target,
           );
-          expect(typeof target[sunfallArcDevtoolsBridgeGlobal]).toBe("function");
+          expect(typeof target[Devtools.bridgeGlobal]).toBe("function");
           expect(
-            typeof target[sunfallArcDevtoolsBridgeGlobal] === "function"
-              ? target[sunfallArcDevtoolsBridgeGlobal]()
+            typeof target[Devtools.bridgeGlobal] === "function"
+              ? target[Devtools.bridgeGlobal]()
               : undefined,
           ).toMatchObject({
             panels,
@@ -1062,8 +1047,8 @@ describe("devtools invalidation plans", () => {
     );
 
     expect(
-      typeof target[sunfallArcDevtoolsBridgeGlobal] === "function"
-        ? target[sunfallArcDevtoolsBridgeGlobal]()
+      typeof target[Devtools.bridgeGlobal] === "function"
+        ? target[Devtools.bridgeGlobal]()
         : undefined,
     ).toMatchObject({
       panels,
@@ -1072,8 +1057,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("keeps inspected-window devtools bridge cleanup stack-safe", () => {
-    const target: DevtoolsBridgeTarget = {};
-    const panels = describeDevtoolsPanels();
+    const target: Devtools.BridgeTarget = {};
+    const panels = Devtools.describePanels();
     const previous = () => ({
       panels,
       title: "Previous",
@@ -1081,34 +1066,34 @@ describe("devtools invalidation plans", () => {
     const firstProvider = { panels, title: "First" };
     const secondProvider = { panels, title: "Second" };
     const thirdProvider = { panels, title: "Third" };
-    target[sunfallArcDevtoolsBridgeGlobal] = previous;
+    target[Devtools.bridgeGlobal] = previous;
 
     const first = installBridgeForTest(firstProvider, target);
     const second = installBridgeForTest(secondProvider, target);
     const third = installBridgeForTest(thirdProvider, target);
 
-    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(thirdProvider);
+    expect(target[Devtools.bridgeGlobal]).toBe(thirdProvider);
     second.uninstall();
-    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(thirdProvider);
+    expect(target[Devtools.bridgeGlobal]).toBe(thirdProvider);
     first.uninstall();
-    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(thirdProvider);
+    expect(target[Devtools.bridgeGlobal]).toBe(thirdProvider);
     third.uninstall();
-    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(previous);
+    expect(target[Devtools.bridgeGlobal]).toBe(previous);
     second.uninstall();
-    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(previous);
+    expect(target[Devtools.bridgeGlobal]).toBe(previous);
 
-    const noBaselineTarget: DevtoolsBridgeTarget = {};
+    const noBaselineTarget: Devtools.BridgeTarget = {};
     const noBaselineFirst = installBridgeForTest(firstProvider, noBaselineTarget);
     const noBaselineSecond = installBridgeForTest(secondProvider, noBaselineTarget);
 
     noBaselineFirst.uninstall();
-    expect(noBaselineTarget[sunfallArcDevtoolsBridgeGlobal]).toBe(secondProvider);
+    expect(noBaselineTarget[Devtools.bridgeGlobal]).toBe(secondProvider);
     noBaselineSecond.uninstall();
-    expect(noBaselineTarget[sunfallArcDevtoolsBridgeGlobal]).toBeUndefined();
+    expect(noBaselineTarget[Devtools.bridgeGlobal]).toBeUndefined();
   });
 
   it("normalizes inspected-window panel payloads through the shared panel contract", () => {
-    const panels = describeDevtoolsPanels();
+    const panels = Devtools.describePanels();
 
     expect(isDevtoolsPanelId("requests")).toBe(true);
     expect(isDevtoolsPanelId("missing")).toBe(false);
@@ -1295,7 +1280,7 @@ describe("devtools invalidation plans", () => {
     expect(normalized?.panels.panels.find((panel) => panel.id === "requests")?.title).toBe(
       "Requests",
     );
-    expect(renderDevtoolsPanelsHtml({ panels: normalized!.panels })).toContain("Requests");
+    expect(Devtools.renderPanelsHtml({ panels: normalized!.panels })).toContain("Requests");
     expect(
       normalizeSunfallArcDevtoolsBridgePayload({
         panels: {
@@ -1480,7 +1465,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("renders malformed public panel payloads as contract diagnostics", () => {
-    const panels = describeDevtoolsPanels();
+    const panels = Devtools.describePanels();
     const duplicatePanels = {
       version: 1 as const,
       panels: panels.panels.map((panel, index) =>
@@ -1492,12 +1477,12 @@ describe("devtools invalidation plans", () => {
       panels: panels.panels.filter((panel) => panel.id !== "requests"),
     };
 
-    const duplicateHtml = renderDevtoolsPanelsHtml({
+    const duplicateHtml = Devtools.renderPanelsHtml({
       panels: duplicatePanels,
       selectedPanelId: "diagnostics",
       includeStyles: false,
     });
-    const missingHtml = renderDevtoolsPanelsHtml({
+    const missingHtml = Devtools.renderPanelsHtml({
       panels: missingPanels,
       selectedPanelId: "diagnostics",
       includeStyles: false,
@@ -1510,7 +1495,7 @@ describe("devtools invalidation plans", () => {
     } as unknown as HTMLElement;
     const mountScope = Effect.runSync(Scope.make());
     Effect.runSync(
-      mountDevtoolsPanels({
+      Devtools.mountPanels({
         root,
         panels: missingPanels,
         selectedPanelId: "diagnostics",
@@ -1538,7 +1523,7 @@ describe("devtools invalidation plans", () => {
       removeEventListener: () => undefined,
       contains: () => true,
     } as unknown as HTMLElement;
-    const boot = bootDevtoolsPanels({
+    const boot = Devtools.bootPanels({
       root,
       includeStyles: false,
       lifecycleWindow,
@@ -1561,7 +1546,7 @@ describe("devtools invalidation plans", () => {
       removeEventListener: () => undefined,
       contains: () => true,
     } as unknown as HTMLElement;
-    const boot = bootDevtoolsPanels({
+    const boot = Devtools.bootPanels({
       root,
       includeStyles: false,
       lifecycleWindow,
@@ -1583,7 +1568,7 @@ describe("devtools invalidation plans", () => {
       removeEventListener: () => undefined,
       contains: () => true,
     } as unknown as HTMLElement;
-    const boot = bootDevtoolsPanels({
+    const boot = Devtools.bootPanels({
       root,
       includeStyles: false,
       lifecycleWindow,
@@ -1595,7 +1580,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("repairs stale app graph counts, schema coverage, and unknown preload facts at public seams", () => {
-    const staleAppGraph: DevtoolsStartAppGraphDiagnostics = {
+    const staleAppGraph: Devtools.AppGraphDiagnostics = {
       ...appGraphDiagnostics,
       routeCount: 99,
       serverFunctionCount: 0,
@@ -1677,7 +1662,7 @@ describe("devtools invalidation plans", () => {
         },
       ],
     };
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(store.setAppGraphDiagnostics(staleAppGraph));
 
@@ -1750,7 +1735,7 @@ describe("devtools invalidation plans", () => {
       },
     ]);
 
-    const directSummary = describeDevtoolsSummary({ appGraph: staleAppGraph });
+    const directSummary = Devtools.describeSummary({ appGraph: staleAppGraph });
     const storeSummary = Effect.runSync(store.getSummary());
     for (const summary of [directSummary, storeSummary]) {
       expect(summary.overview).toMatchObject({
@@ -1798,7 +1783,7 @@ describe("devtools invalidation plans", () => {
       });
     }
 
-    const panels = describeDevtoolsPanels({ appGraph: staleAppGraph });
+    const panels = Devtools.describePanels({ appGraph: staleAppGraph });
     expect(panels.panels.find((panel) => panel.id === "app-graph")).toMatchObject({
       summary: "1 routes, 1 server functions, 1 actions",
       items: [
@@ -1874,7 +1859,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("uses Start preload semantics when deriving unknown route preload facts", () => {
-    const presentUnknown: DevtoolsStartAppGraphDiagnostics["routeModules"][number] = {
+    const presentUnknown: Devtools.AppGraphDiagnostics["routeModules"][number] = {
       ...appGraphDiagnostics.routeModules[0]!,
       preload: "present",
       preloadResources: {
@@ -1882,7 +1867,7 @@ describe("devtools invalidation plans", () => {
         families: [],
       },
     };
-    const staticUnknownFacts: DevtoolsStartAppGraphDiagnostics["routeModules"][number] = {
+    const staticUnknownFacts: Devtools.AppGraphDiagnostics["routeModules"][number] = {
       ...appGraphDiagnostics.routeModules[0]!,
       routeId: "route_static_unknown",
       routePath: "/static",
@@ -1894,12 +1879,12 @@ describe("devtools invalidation plans", () => {
         families: ["Static.family"],
       },
     };
-    const staleAppGraph: DevtoolsStartAppGraphDiagnostics = {
+    const staleAppGraph: Devtools.AppGraphDiagnostics = {
       ...appGraphDiagnostics,
       routeModules: [presentUnknown, staticUnknownFacts],
       unknownRoutePreloadResources: [],
     };
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(store.setAppGraphDiagnostics(staleAppGraph));
 
@@ -1943,7 +1928,7 @@ describe("devtools invalidation plans", () => {
     );
 
     const legacyRoute = presentUnknown;
-    const preservedStore = makeDevtoolsStore();
+    const preservedStore = Devtools.makeStore();
     Effect.runSync(
       preservedStore.setSnapshot({
         resources: [],
@@ -2003,7 +1988,7 @@ describe("devtools invalidation plans", () => {
     const invalidationPlan = describeInvalidationPlan(
       Effect.runSync(Resource.planInvalidation(UserTag({ id: "1" }))),
     );
-    const summary = describeDevtoolsSummary({
+    const summary = Devtools.describeSummary({
       appGraph: appGraphDiagnostics,
       snapshot: {
         resources: [
@@ -2139,7 +2124,7 @@ describe("devtools invalidation plans", () => {
     );
     expect(JSON.parse(JSON.stringify(graph))).toEqual(graph);
     expect(
-      describeDevtoolsCausalGraph({
+      Devtools.describeCausalGraph({
         appGraph: appGraphDiagnostics,
         snapshot: {
           resources: [],
@@ -2150,7 +2135,7 @@ describe("devtools invalidation plans", () => {
         },
       }),
     ).toEqual(
-      describeDevtoolsCausalGraph({
+      Devtools.describeCausalGraph({
         appGraph: appGraphDiagnostics,
         snapshot: {
           resources: [],
@@ -2161,13 +2146,13 @@ describe("devtools invalidation plans", () => {
         },
       }),
     );
-    expect(describeDevtoolsCausalGraph({ appGraph: appGraphDiagnostics })).toMatchObject({
+    expect(Devtools.describeCausalGraph({ appGraph: appGraphDiagnostics })).toMatchObject({
       version: 1,
     });
   });
 
   it("links route hydration edges only to hydrated resources", () => {
-    const routePlan: DevtoolsRoutePlan = {
+    const routePlan: Devtools.RoutePlan = {
       _tag: "Matched",
       href: "/projects/atlas",
       match: {
@@ -2193,7 +2178,7 @@ describe("devtools invalidation plans", () => {
         resourceKeys: ["Project:atlas"],
       },
     };
-    const summary = describeDevtoolsSummary({
+    const summary = Devtools.describeSummary({
       snapshot: {
         resources: [],
         actions: [],
@@ -2211,7 +2196,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("does not infer hydration identity from count-only route-plan facts", () => {
-    const routePlan: DevtoolsRoutePlan = {
+    const routePlan: Devtools.RoutePlan = {
       _tag: "Matched",
       href: "/projects/atlas",
       match: {
@@ -2231,7 +2216,7 @@ describe("devtools invalidation plans", () => {
         resourceCount: 1,
       },
     };
-    const summary = describeDevtoolsSummary({
+    const summary = Devtools.describeSummary({
       snapshot: {
         resources: [],
         actions: [],
@@ -2246,7 +2231,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("keeps Ref invalidation targets under the Resource causal node kind", () => {
-    const invalidationPlan: DevtoolsInvalidationPlan = {
+    const invalidationPlan: Devtools.InvalidationPlan = {
       targets: [
         {
           _tag: "Ref",
@@ -2259,7 +2244,7 @@ describe("devtools invalidation plans", () => {
       ],
       entries: [],
     };
-    const graph = describeDevtoolsCausalGraph({
+    const graph = Devtools.describeCausalGraph({
       snapshot: {
         resources: [],
         actions: [],
@@ -2293,7 +2278,7 @@ describe("devtools invalidation plans", () => {
     const invalidationPlan = describeInvalidationPlan(
       Effect.runSync(Resource.planInvalidation(RuntimeTargetTag)),
     );
-    const summary = describeDevtoolsSummary({
+    const summary = Devtools.describeSummary({
       snapshot: {
         resources: [],
         actions: [],
@@ -2400,7 +2385,7 @@ describe("devtools invalidation plans", () => {
       describeInvalidationPlan(Effect.runSync(Resource.planInvalidation(FirstTag))),
       describeInvalidationPlan(Effect.runSync(Resource.planInvalidation(SecondTag))),
     ];
-    const summary = describeDevtoolsSummary({
+    const summary = Devtools.describeSummary({
       snapshot: {
         resources: [],
         actions: [],
@@ -2451,7 +2436,7 @@ describe("devtools invalidation plans", () => {
       },
     ]);
     expect(
-      describeDevtoolsPanels({ summary }).panels.find((panel) => panel.id === "resources"),
+      Devtools.describePanels({ summary }).panels.find((panel) => panel.id === "resources"),
     ).toMatchObject({
       items: [
         expect.objectContaining({
@@ -2514,7 +2499,7 @@ describe("devtools invalidation plans", () => {
         Route.planNavigation([RequestTargetRoute] as const, "/request-route-targets/1/2"),
       ),
     );
-    const requestRoutePlan: DevtoolsRoutePlan =
+    const requestRoutePlan: Devtools.RoutePlan =
       routePlan._tag === "Matched" && routePlan.match !== undefined
         ? {
             ...routePlan,
@@ -2524,7 +2509,7 @@ describe("devtools invalidation plans", () => {
             },
           }
         : routePlan;
-    const summary = describeDevtoolsSummary({
+    const summary = Devtools.describeSummary({
       snapshot: {
         resources: [],
         actions: [],
@@ -2566,7 +2551,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("keeps request-embedded route-plan identity disjoint from recorded plans with the same href", () => {
-    const recordedPlan: DevtoolsRoutePlan = {
+    const recordedPlan: Devtools.RoutePlan = {
       _tag: "Matched",
       href: "/same-route",
       match: {
@@ -2586,7 +2571,7 @@ describe("devtools invalidation plans", () => {
         resourceCount: 0,
       },
     };
-    const embeddedPlan: DevtoolsRoutePlan = {
+    const embeddedPlan: Devtools.RoutePlan = {
       ...recordedPlan,
       resources: [
         {
@@ -2596,7 +2581,7 @@ describe("devtools invalidation plans", () => {
         },
       ],
     };
-    const summary = describeDevtoolsSummary({
+    const summary = Devtools.describeSummary({
       snapshot: {
         resources: [],
         actions: [],
@@ -2665,8 +2650,8 @@ describe("devtools invalidation plans", () => {
         },
       ],
     };
-    const baseGraph = describeDevtoolsCausalGraph({ snapshot });
-    const graphWithAppFacts = describeDevtoolsCausalGraph({
+    const baseGraph = Devtools.describeCausalGraph({ snapshot });
+    const graphWithAppFacts = Devtools.describeCausalGraph({
       appGraph: appGraphDiagnostics,
       snapshot,
     });
@@ -2694,7 +2679,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("frames causal edge id parts so source and target delimiters cannot collide", () => {
-    const requestTrace = (id: string, resourceKey: string): DevtoolsRequestTrace => ({
+    const requestTrace = (id: string, resourceKey: string): Devtools.RequestTrace => ({
       request: {
         id,
         method: "GET",
@@ -2717,7 +2702,7 @@ describe("devtools invalidation plans", () => {
       streams: [],
       status: "success",
     });
-    const graph = describeDevtoolsCausalGraph({
+    const graph = Devtools.describeCausalGraph({
       snapshot: {
         resources: [],
         actions: [],
@@ -2745,7 +2730,7 @@ describe("devtools invalidation plans", () => {
     };
     circular.self = circular;
 
-    expect(toDevtoolsSerializableValue(circular)).toEqual({
+    expect(Devtools.toSerializable(circular)).toEqual({
       a: {
         _tag: "Undefined",
       },
@@ -2779,22 +2764,22 @@ describe("devtools invalidation plans", () => {
       },
     });
 
-    expect(toDevtoolsSerializableValue(new Map([["a", 1]]))).toEqual({
+    expect(Devtools.toSerializable(new Map([["a", 1]]))).toEqual({
       _tag: "Map",
       size: 1,
       entries: [["a", 1]],
     });
-    expect(toDevtoolsSerializableValue(new Set(["x"]))).toEqual({
+    expect(Devtools.toSerializable(new Set(["x"]))).toEqual({
       _tag: "Set",
       size: 1,
       values: ["x"],
     });
-    expect(toDevtoolsSerializableValue(new Error("boom"))).toMatchObject({
+    expect(Devtools.toSerializable(new Error("boom"))).toMatchObject({
       _tag: "Error",
       name: "Error",
       message: "boom",
     });
-    expect(toDevtoolsSerializableValue(throwingGetter)).toEqual({
+    expect(Devtools.toSerializable(throwingGetter)).toEqual({
       bad: {
         _tag: "Accessor",
       },
@@ -2824,21 +2809,21 @@ describe("devtools invalidation plans", () => {
       },
     });
 
-    expect(() => toDevtoolsSerializableValue(hostileRecord)).not.toThrow();
-    expect(toDevtoolsSerializableValue(hostileRecord)).toMatchObject({
+    expect(() => Devtools.toSerializable(hostileRecord)).not.toThrow();
+    expect(Devtools.toSerializable(hostileRecord)).toMatchObject({
       _tag: "UninspectableObject",
       message: "own keys failed",
     });
-    expect(() => toDevtoolsSerializableValue(hostileMap)).not.toThrow();
-    expect(toDevtoolsSerializableValue(hostileMap)).toMatchObject({
+    expect(() => Devtools.toSerializable(hostileMap)).not.toThrow();
+    expect(Devtools.toSerializable(hostileMap)).toMatchObject({
       _tag: "UninspectableObject",
     });
-    expect(() => toDevtoolsSerializableValue(hostileArray)).not.toThrow();
-    expect(toDevtoolsSerializableValue(hostileArray)).toMatchObject({
+    expect(() => Devtools.toSerializable(hostileArray)).not.toThrow();
+    expect(Devtools.toSerializable(hostileArray)).toMatchObject({
       _tag: "UninspectableObject",
       message: "array item failed",
     });
-    expect(toDevtoolsSerializableValue(["a", "b", "c"], { maxEntries: 2 })).toEqual([
+    expect(Devtools.toSerializable(["a", "b", "c"], { maxEntries: 2 })).toEqual([
       "a",
       "b",
       {
@@ -2856,7 +2841,7 @@ describe("devtools invalidation plans", () => {
         return Reflect.get(target, property, receiver);
       },
     });
-    expect(toDevtoolsSerializableValue(boundedArray, { maxEntries: 1 })).toEqual([
+    expect(Devtools.toSerializable(boundedArray, { maxEntries: 1 })).toEqual([
       "a",
       {
         _tag: "Truncated",
@@ -2864,7 +2849,7 @@ describe("devtools invalidation plans", () => {
       },
     ]);
     expect(accessed).not.toContain("1");
-    expect(toDevtoolsSerializableValue("abcdef", { maxStringLength: 3 })).toEqual({
+    expect(Devtools.toSerializable("abcdef", { maxStringLength: 3 })).toEqual({
       _tag: "TruncatedString",
       length: 6,
       value: "abc",
@@ -2874,44 +2859,40 @@ describe("devtools invalidation plans", () => {
   it("normalizes unsafe serialization policy bounds", () => {
     const longArray = Array.from({ length: 55 }, (_, index) => index);
 
-    expect(toDevtoolsSerializableValue({ nested: { value: 1 } }, { maxDepth: 1.8 })).toEqual({
+    expect(Devtools.toSerializable({ nested: { value: 1 } }, { maxDepth: 1.8 })).toEqual({
       nested: {
         _tag: "MaxDepth",
       },
     });
-    expect(toDevtoolsSerializableValue(["a", "b", "c"], { maxEntries: 1.8 })).toEqual([
+    expect(Devtools.toSerializable(["a", "b", "c"], { maxEntries: 1.8 })).toEqual([
       "a",
       {
         _tag: "Truncated",
         remaining: 2,
       },
     ]);
-    expect(toDevtoolsSerializableValue("abcdef", { maxStringLength: 3.8 })).toEqual({
+    expect(Devtools.toSerializable("abcdef", { maxStringLength: 3.8 })).toEqual({
       _tag: "TruncatedString",
       length: 6,
       value: "abc",
     });
-    expect(toDevtoolsSerializableValue("abcdef", { maxStringLength: -1 })).toBe("abcdef");
-    expect(
-      toDevtoolsSerializableValue(longArray, { maxEntries: Number.POSITIVE_INFINITY }),
-    ).toEqual([
+    expect(Devtools.toSerializable("abcdef", { maxStringLength: -1 })).toBe("abcdef");
+    expect(Devtools.toSerializable(longArray, { maxEntries: Number.POSITIVE_INFINITY })).toEqual([
       ...Array.from({ length: 50 }, (_, index) => index),
       {
         _tag: "Truncated",
         remaining: 5,
       },
     ]);
-    expect(toDevtoolsSerializableValue({ nested: { value: 1 } }, { maxDepth: Number.NaN })).toEqual(
-      {
-        nested: {
-          value: 1,
-        },
+    expect(Devtools.toSerializable({ nested: { value: 1 } }, { maxDepth: Number.NaN })).toEqual({
+      nested: {
+        value: 1,
       },
-    );
+    });
   });
 
   it("detaches stored Error and byte-view payloads before serialization", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const error = new TypeError("before");
     (error as Error & { extra?: { readonly nested: { value: number } } }).extra = {
       nested: { value: 1 },
@@ -2960,7 +2941,7 @@ describe("devtools invalidation plans", () => {
     });
     expect([...payload!.bytes]).toEqual([1, 2, 3]);
     expect([...payload!.buffer]).toEqual([4, 5, 6]);
-    expect(toDevtoolsSerializableValue(payload?.error)).toMatchObject({
+    expect(Devtools.toSerializable(payload?.error)).toMatchObject({
       name: "TypeError",
       message: "before",
       extra: {
@@ -2970,7 +2951,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("guards hostile array proxies while detaching stored payloads", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const hostileArray = new Proxy(["a"], {
       get: (target, property, receiver) => {
         if (property === "0") {
@@ -3000,7 +2981,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("bounds deeply nested custom runtime payloads while detaching", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     let payload: Record<string, unknown> = { value: "leaf" };
     for (let index = 0; index < 20_000; index++) {
       payload = { child: payload };
@@ -3028,7 +3009,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("truncates large arrays and maps while detaching stored payloads", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const accessedArrayIndexes: Array<string> = [];
     const largeArray = new Proxy(
       Array.from({ length: 55 }, (_, index) => index),
@@ -3091,7 +3072,7 @@ describe("devtools invalidation plans", () => {
         remaining: 5,
       },
     ]);
-    expect(toDevtoolsSerializableValue(payload?.largeArray)).toEqual([
+    expect(Devtools.toSerializable(payload?.largeArray)).toEqual([
       ...Array.from({ length: 50 }, (_, index) => index),
       {
         _tag: "Truncated",
@@ -3104,7 +3085,7 @@ describe("devtools invalidation plans", () => {
       Array.from({ length: 50 }, (_, index) => [index, index]),
     );
     expect(pulledMapEntries).toBe(50);
-    expect(toDevtoolsSerializableValue(payload?.largeMap)).toEqual({
+    expect(Devtools.toSerializable(payload?.largeMap)).toEqual({
       _tag: "Map",
       size: 55,
       entries: [
@@ -3118,7 +3099,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("copies ArrayBuffer payloads and serializes inspectable bytes", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const buffer = new ArrayBuffer(3);
     const bytes = new Uint8Array(buffer);
     bytes.set([4, 5, 6]);
@@ -3143,7 +3124,7 @@ describe("devtools invalidation plans", () => {
     expect(copiedBuffer).toBeInstanceOf(ArrayBuffer);
     expect(copiedBuffer).not.toBe(buffer);
     expect([...new Uint8Array(copiedBuffer!)]).toEqual([4, 5, 6]);
-    expect(toDevtoolsSerializableValue(copiedBuffer)).toEqual({
+    expect(Devtools.toSerializable(copiedBuffer)).toEqual({
       _tag: "ArrayBuffer",
       byteLength: 3,
       bytes: [4, 5, 6],
@@ -3161,7 +3142,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("lets the store expose graph-aware summaries", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(store.setAppGraphDiagnostics(appGraphDiagnostics));
 
@@ -3186,7 +3167,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("detaches store summaries from nested app graph diagnostics", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(store.setAppGraphDiagnostics(appGraphDiagnostics));
     const summary = Effect.runSync(store.getSummary());
@@ -3220,9 +3201,9 @@ describe("devtools invalidation plans", () => {
 
   it("preserves huge app graph route module arrays through summaries, panels, store copies, and bridge windows", () => {
     const appGraph = appGraphDiagnosticsWithRoutes(1_001);
-    const summary = describeDevtoolsSummary({ appGraph });
-    const panels = describeDevtoolsPanels({ appGraph });
-    const store = makeDevtoolsStore();
+    const summary = Devtools.describeSummary({ appGraph });
+    const panels = Devtools.describePanels({ appGraph });
+    const store = Devtools.makeStore();
 
     Effect.runSync(store.setAppGraphDiagnostics(appGraph));
 
@@ -3272,7 +3253,7 @@ describe("devtools invalidation plans", () => {
         hidden: 2,
       },
     });
-    const defaultRenderedHtml = renderDevtoolsPanelsHtml({
+    const defaultRenderedHtml = Devtools.renderPanelsHtml({
       panels,
       selectedPanelId: "app-graph",
     });
@@ -3304,7 +3285,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("projects resource failure causes and interruptions into resource state facts", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(
       store.recordResourceEvent({
@@ -3338,7 +3319,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("projects resource runtime events into their panel", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(
       store.recordResourceEvent({
@@ -3372,12 +3353,12 @@ describe("devtools invalidation plans", () => {
   });
 
   it("redacts sensitive request trace URL queries, headers, and cookies before storage and projection", () => {
-    const store = makeDevtoolsStore({
+    const store = Devtools.makeStore({
       serializationPolicy: {
         redactKeys: ["tenantPrivate"],
       },
     });
-    const trace: DevtoolsRequestTrace = {
+    const trace: Devtools.RequestTrace = {
       request: {
         id: "req-sensitive",
         method: "POST",
@@ -3507,8 +3488,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("records structured request traces and links them into the causal graph", async () => {
-    const store = makeDevtoolsStore();
-    const trace: DevtoolsRequestTrace = {
+    const store = Devtools.makeStore();
+    const trace: Devtools.RequestTrace = {
       request: {
         id: "req-project-atlas",
         traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
@@ -3847,8 +3828,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("preserves bounded request runtime cleanup failures in snapshots, summaries, and panels", () => {
-    const store = makeDevtoolsStore();
-    const trace: DevtoolsRequestTrace = {
+    const store = Devtools.makeStore();
+    const trace: Devtools.RequestTrace = {
       request: {
         id: "req-cleanup-failure",
         method: "GET",
@@ -3897,8 +3878,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("projects runtime-only request trace events into request facts and causal records", () => {
-    const store = makeDevtoolsStore();
-    const trace: DevtoolsRequestTrace = {
+    const store = Devtools.makeStore();
+    const trace: Devtools.RequestTrace = {
       request: {
         id: "req-runtime-only",
         method: "GET",
@@ -3975,8 +3956,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("preserves request owner failures in summaries and panels", async () => {
-    const store = makeDevtoolsStore();
-    const trace: DevtoolsRequestTrace = {
+    const store = Devtools.makeStore();
+    const trace: Devtools.RequestTrace = {
       request: {
         id: "req-project-failure",
         method: "POST",
@@ -4104,8 +4085,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("stamps id-less request traces before runtime-event summarization", () => {
-    const store = makeDevtoolsStore();
-    const trace: DevtoolsRequestTrace = {
+    const store = Devtools.makeStore();
+    const trace: Devtools.RequestTrace = {
       request: {
         method: "GET",
         url: "https://example.test/projects/atlas",
@@ -4157,7 +4138,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("normalizes direct id-less request traces before runtime-event graph projection", () => {
-    const trace: DevtoolsRequestTrace = {
+    const trace: Devtools.RequestTrace = {
       request: {
         method: "GET",
         url: "https://example.test/projects/direct",
@@ -4173,7 +4154,7 @@ describe("devtools invalidation plans", () => {
       streams: [],
       status: "success",
     };
-    const graph = describeDevtoolsCausalGraph({
+    const graph = Devtools.describeCausalGraph({
       snapshot: {
         resources: [],
         actions: [],
@@ -4208,8 +4189,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("seeds runtime trace id allocation from caller-supplied trace ids", () => {
-    const store = makeDevtoolsStore();
-    const requestTrace = (path: string, id?: string): DevtoolsRequestTrace => ({
+    const store = Devtools.makeStore();
+    const requestTrace = (path: string, id?: string): Devtools.RequestTrace => ({
       request: {
         ...(id === undefined ? {} : { id }),
         method: "GET",
@@ -4243,8 +4224,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("normalizes imported id-less request traces before allocating new trace ids", () => {
-    const store = makeDevtoolsStore();
-    const requestTrace = (path: string, id?: string): DevtoolsRequestTrace => ({
+    const store = Devtools.makeStore();
+    const requestTrace = (path: string, id?: string): Devtools.RequestTrace => ({
       request: {
         ...(id === undefined ? {} : { id }),
         method: "GET",
@@ -4320,11 +4301,11 @@ describe("devtools invalidation plans", () => {
   });
 
   it("normalizes id-less request traces before applying import trace limits", () => {
-    const store = makeDevtoolsStore({
+    const store = Devtools.makeStore({
       requestTraceLimit: 1,
       eventLimit: 2,
     });
-    const requestTrace = (resourceKey: string): DevtoolsRequestTrace => ({
+    const requestTrace = (resourceKey: string): Devtools.RequestTrace => ({
       request: {
         method: "GET",
         url: "https://example.test/projects/atlas",
@@ -4431,10 +4412,10 @@ describe("devtools invalidation plans", () => {
   });
 
   it("does not detach request traces dropped by import limits", () => {
-    const store = makeDevtoolsStore({
+    const store = Devtools.makeStore({
       requestTraceLimit: 1,
     });
-    const droppedTrace: DevtoolsRequestTrace = {
+    const droppedTrace: Devtools.RequestTrace = {
       request: {
         method: "GET",
         url: "https://example.test/dropped",
@@ -4455,7 +4436,7 @@ describe("devtools invalidation plans", () => {
         throw new Error("dropped trace should not be detached");
       },
     });
-    const retainedTrace: DevtoolsRequestTrace = {
+    const retainedTrace: Devtools.RequestTrace = {
       request: {
         method: "GET",
         url: "https://example.test/retained",
@@ -4489,21 +4470,21 @@ describe("devtools invalidation plans", () => {
   });
 
   it("applies store limits and fact rebasing when importing snapshots", () => {
-    const store = makeDevtoolsStore({
+    const store = Devtools.makeStore({
       invalidationLimit: 1,
       routePlanLimit: 1,
       requestTraceLimit: 1,
       eventLimit: 2,
     });
-    const firstInvalidation: DevtoolsInvalidationPlan = {
+    const firstInvalidation: Devtools.InvalidationPlan = {
       targets: [{ _tag: "Tag", key: "First", name: "First" }],
       entries: [],
     };
-    const secondInvalidation: DevtoolsInvalidationPlan = {
+    const secondInvalidation: Devtools.InvalidationPlan = {
       targets: [{ _tag: "Tag", key: "Second", name: "Second" }],
       entries: [],
     };
-    const firstRoutePlan: DevtoolsRoutePlan = {
+    const firstRoutePlan: Devtools.RoutePlan = {
       _tag: "Matched",
       href: "/first",
       match: {
@@ -4515,7 +4496,7 @@ describe("devtools invalidation plans", () => {
       resources: [],
       hydration: { resourceCount: 0 },
     };
-    const secondRoutePlan: DevtoolsRoutePlan = {
+    const secondRoutePlan: Devtools.RoutePlan = {
       ...firstRoutePlan,
       href: "/second",
       match: {
@@ -4525,7 +4506,7 @@ describe("devtools invalidation plans", () => {
         search: {},
       },
     };
-    const requestTrace = (id: string): DevtoolsRequestTrace => ({
+    const requestTrace = (id: string): Devtools.RequestTrace => ({
       request: {
         id,
         method: "GET",
@@ -4604,8 +4585,8 @@ describe("devtools invalidation plans", () => {
   });
 
   it("returns retained route plan indexes so runtime events can observe duplicate route facts", () => {
-    const store = makeDevtoolsStore();
-    const plan: DevtoolsRoutePlan = {
+    const store = Devtools.makeStore();
+    const plan: Devtools.RoutePlan = {
       _tag: "Matched",
       href: "/duplicate",
       match: {
@@ -4670,7 +4651,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("applies import limits before detaching dropped runtime event payloads", () => {
-    const store = makeDevtoolsStore({ eventLimit: 1 });
+    const store = Devtools.makeStore({ eventLimit: 1 });
     const droppedPayload: Record<string, unknown> = {};
     Object.defineProperty(droppedPayload, "explode", {
       enumerable: true,
@@ -4715,7 +4696,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("seeds runtime event sequence ids from imported snapshots", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(
       store.setSnapshot({
@@ -4768,7 +4749,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("rebases duplicate runtime event sequences imported from snapshots", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(
       store.setSnapshot({
@@ -4817,7 +4798,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("rebases duplicate caller-supplied runtime event sequences", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(
       store.recordRuntimeEvent({
@@ -4855,7 +4836,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("matches route-plan facts with stable serialized fingerprints", () => {
-    const routePlan: DevtoolsRoutePlan = {
+    const routePlan: Devtools.RoutePlan = {
       _tag: "Matched",
       href: "/ordered",
       match: {
@@ -4867,7 +4848,7 @@ describe("devtools invalidation plans", () => {
       resources: [],
       hydration: { resourceCount: 0 },
     };
-    const reorderedRoutePlan: DevtoolsRoutePlan = {
+    const reorderedRoutePlan: Devtools.RoutePlan = {
       ...routePlan,
       match: {
         path: "/ordered",
@@ -4876,7 +4857,7 @@ describe("devtools invalidation plans", () => {
         search: { y: "2", x: "1" },
       },
     };
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
 
     Effect.runSync(
       store.setSnapshot({
@@ -4920,8 +4901,8 @@ describe("devtools invalidation plans", () => {
           return Reflect.get(target, property, receiver);
         },
       },
-    ) as DevtoolsRoutePlan["resources"];
-    const routePlan: DevtoolsRoutePlan = {
+    ) as Devtools.RoutePlan["resources"];
+    const routePlan: Devtools.RoutePlan = {
       _tag: "Matched",
       href: "/bounded",
       match: {
@@ -4944,7 +4925,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("matches invalidation facts through the bounded serialization policy", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const accessedIndexes: Array<string> = [];
     const largeInput = new Proxy(
       Array.from({ length: 55 }, (_, index) => index),
@@ -4958,7 +4939,7 @@ describe("devtools invalidation plans", () => {
         },
       },
     );
-    const plan: DevtoolsInvalidationPlan = {
+    const plan: Devtools.InvalidationPlan = {
       targets: [
         {
           _tag: "Ref",
@@ -4993,9 +4974,9 @@ describe("devtools invalidation plans", () => {
   });
 
   it("detaches caller snapshots at the store seam", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const input = { id: "atlas" };
-    const plan: DevtoolsInvalidationPlan = {
+    const plan: Devtools.InvalidationPlan = {
       targets: [
         {
           _tag: "Ref",
@@ -5080,7 +5061,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("detaches recorded runtime event payloads at the store seam", () => {
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const payload = {
       nested: {
         count: 1,
@@ -5120,7 +5101,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("lets adapters observe snapshots, summaries, events, and causal graphs through Effect", async () => {
-    const store = makeDevtoolsStore({ eventLimit: 1 });
+    const store = Devtools.makeStore({ eventLimit: 1 });
 
     const [snapshot, summary, graph] = await Effect.runPromise(
       Effect.gen(function* () {
@@ -5182,7 +5163,7 @@ describe("devtools invalidation plans", () => {
 
   it("explains the golden path across route, server, action, resource, and invalidation facts", async () => {
     const runtime = makeRuntime();
-    const store = makeDevtoolsStore();
+    const store = Devtools.makeStore();
     const ProjectId = Schema.Struct({ id: Schema.String });
     const Project = Schema.Struct({ id: Schema.String, name: Schema.String });
     const ProjectsTag = Resource.tag("Golden.Projects");
@@ -5540,8 +5521,8 @@ describe("devtools invalidation plans", () => {
 });
 
 const goldenPathAppGraphDiagnostics = (
-  resources: Pick<DevtoolsStartAppGraphDiagnostics, "resourceFamilies" | "resourceTags">,
-): DevtoolsStartAppGraphDiagnostics => ({
+  resources: Pick<Devtools.AppGraphDiagnostics, "resourceFamilies" | "resourceTags">,
+): Devtools.AppGraphDiagnostics => ({
   version: 1,
   routeCount: 1,
   serverFunctionCount: 1,
@@ -5651,7 +5632,7 @@ const goldenPathAppGraphDiagnostics = (
   unknownRoutePreloadResources: [],
 });
 
-const appGraphDiagnostics: DevtoolsStartAppGraphDiagnostics = {
+const appGraphDiagnostics: Devtools.AppGraphDiagnostics = {
   version: 1,
   routeCount: 1,
   serverFunctionCount: 1,
@@ -5787,7 +5768,7 @@ const appGraphDiagnostics: DevtoolsStartAppGraphDiagnostics = {
   unknownRoutePreloadResources: [],
 };
 
-const appGraphDiagnosticsWithRoutes = (routeCount: number): DevtoolsStartAppGraphDiagnostics => ({
+const appGraphDiagnosticsWithRoutes = (routeCount: number): Devtools.AppGraphDiagnostics => ({
   ...appGraphDiagnostics,
   routeCount,
   routePaths: Array.from({ length: routeCount }, (_value, index) => `/users/${index}/:id`),

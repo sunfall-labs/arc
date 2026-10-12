@@ -6,6 +6,35 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Devtools Is One Namespace (Breaking)
+
+- `@sunfall/arc-devtools` exports the `Devtools` namespace plus the error
+  classes `DevtoolsActionInvalidationPlanConflict` and
+  `DevtoolsPanelContractError` (root exports 106 to 3). Functions drop the
+  `Devtools` infix: `makeDevtoolsStore` is `Devtools.makeStore`,
+  `describeDevtoolsSummary` / `describeDevtoolsCausalGraph` /
+  `describeDevtoolsPanels` are `Devtools.describeSummary` /
+  `describeCausalGraph` / `describePanels`, `renderDevtoolsPanelsHtml`,
+  `mountDevtoolsPanels`, and `bootDevtoolsPanels` are
+  `Devtools.renderPanelsHtml` / `mountPanels` / `bootPanels`,
+  `installDevtoolsBridge` is `Devtools.installBridge`,
+  `sunfallArcDevtoolsBridgeGlobal` is `Devtools.bridgeGlobal`,
+  `resolveSunfallArcDevtoolsBridgePayload` is `Devtools.resolveBridgePayload`,
+  and `toDevtoolsSerializableValue` is `Devtools.toSerializable`. Types are
+  members: `DevtoolsStore` is `Devtools.Store`, `DevtoolsPanels` is
+  `Devtools.Panels`, `DevtoolsStartAppGraphDiagnostics` is
+  `Devtools.AppGraphDiagnostics`, `DevtoolsBridgePayloadContractResolution`
+  is `Devtools.BridgePayloadResolution`, and so on.
+- Removed exports nothing used: `describeInvalidationPlan` /
+  `describeRoutePlan` (the Store's `recordInvalidation` / `recordRoutePlan`
+  take live plans), `isDevtoolsSerializableValue`, `devtoolsPanelIds`,
+  `devtoolsPanelSeverities`, `DevtoolsUnknownInvalidationTarget` (a defect,
+  never a typed failure), and the nested DTO names (`DevtoolsPanelItem`,
+  `DevtoolsPanelMetric`, `DevtoolsCausalNode*`, `DevtoolsRequestTrace*`,
+  `DevtoolsStartAppGraph*`, `DevtoolsSummary*` parts). Reach nested shapes
+  through their owner, e.g. `Devtools.Panel["items"][number]`.
+  See [From Flat Devtools Names](docs/migration-notes.md#from-flat-devtools-names).
+
 ### App Services Are Effect Services (Breaking)
 
 - `Capability` is removed (`Capability.define`, `.layer`, `.tag`,

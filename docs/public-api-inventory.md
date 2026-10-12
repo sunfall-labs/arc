@@ -602,8 +602,8 @@ Subpath exports:
 
 Release decisions:
 
-- `StartRequestTrace` is intentionally structural with `DevtoolsRequestTrace`,
-  and `StartAction.InvalidationPlan` with `DevtoolsInvalidationPlan`, so Start
+- `StartRequestTrace` is intentionally structural with `Devtools.RequestTrace`,
+  and `StartAction.InvalidationPlan` with `Devtools.InvalidationPlan`, so Start
   and Devtools never import each other.
 - The root does not re-export Core symbols; import `Action`, `Resource`,
   `Route`, `Server`, and `Signal` from `@sunfall/arc-core`.
@@ -651,61 +651,64 @@ Release decisions:
 
 The root export includes:
 
-- Local source modules: `bridge`, `devtools-contract`, `panel-contract`,
-  `serialization`, and `summary`.
-- `makeDevtoolsStore`, snapshot APIs, `describeDevtoolsSummary`,
-  `describeDevtoolsCausalGraph`, and `describeDevtoolsPanels` (pure
-  projections; there are no trivial `*Effect` wrappers);
-- panel contract vocabulary: `devtoolsPanelIds`, `devtoolsPanelSeverities`,
-  `isDevtoolsSerializableValue(...)`, `DevtoolsPanelContractError`,
-  `DevtoolsPanelContractErrorReason`, and
-  `resolveSunfallArcDevtoolsBridgePayload(...)` with
-  `DevtoolsBridgePayloadContractResolution` for validating untrusted
-  inspected-window payloads;
-- `renderDevtoolsPanelsHtml` for deterministic embeddable HTML;
+- Local source modules: `devtools`, `devtools-contract`, and `panel-contract`.
+- Namespace-backed source modules: `devtools`; the root re-exports no flat
+  aliases from it.
+- One path per concern: the root exports only the `Devtools` namespace plus the
+  tagged error classes `DevtoolsActionInvalidationPlanConflict` and
+  `DevtoolsPanelContractError`.
+- `Devtools.makeStore` and the pure projections `Devtools.describeSummary`,
+  `Devtools.describeCausalGraph`, and `Devtools.describePanels` (there are no
+  trivial `*Effect` wrappers);
+- `Devtools.resolveBridgePayload(...)` with `Devtools.BridgePayloadResolution`
+  for validating untrusted inspected-window payloads;
+- `Devtools.renderPanelsHtml` for deterministic embeddable HTML;
 - panel mounting has one scoped Effect and one host facade:
-  `mountDevtoolsPanels(...)` mounts inside a Scope and unmounts when it
-  closes; `bootDevtoolsPanels(...)` (with `DevtoolsPanelBoot` /
-  `DevtoolsPanelBootOptions`) runs that Effect in its own fiber for non-Effect
+  `Devtools.mountPanels(...)` mounts inside a Scope and unmounts when it
+  closes; `Devtools.bootPanels(...)` (with `Devtools.PanelBoot` /
+  `Devtools.PanelBootOptions`) runs that Effect in its own fiber for non-Effect
   shells and is stopped with its host `boot.interrupt()`;
-- `sunfallArcDevtoolsBridgeGlobal` and the scoped `installDevtoolsBridge`
+- `Devtools.bridgeGlobal` and the scoped `Devtools.installBridge`
   for exposing an inspected-window bridge to browser extension panels;
-- JSON-safe serialization helpers, including the public
-  `DevtoolsSerializationPolicy` used to bound arbitrary runtime values and
-  redact secret-shaped keys;
-- invalidation plans, route plans, app graph diagnostics summaries, runtime
-  event models, Program event models, and request
-  trace models.
+- `Devtools.toSerializable(...)` and `Devtools.SerializationPolicy`, used to
+  bound arbitrary runtime values and redact secret-shaped keys;
+- the DTOs adapters and panels exchange: `Devtools.Snapshot`,
+  `Devtools.RuntimeEvent`, `Devtools.TimelineCommit`, `Devtools.RoutePlan`,
+  `Devtools.InvalidationPlan`, `Devtools.RequestTrace`,
+  `Devtools.AppGraphDiagnostics`, `Devtools.Summary`, `Devtools.CausalGraph`,
+  `Devtools.Panels`, and `Devtools.Panel`. Their nested shapes (panel items,
+  metrics, causal nodes and edges, request-trace parts) are reached through
+  these types rather than exported under their own names.
 
 Release decisions:
 
-- `DevtoolsRequestTrace` is public as a data contract. Start emits a compatible
+- `Devtools.RequestTrace` is public as a data contract. Start emits a compatible
   shape through `onRequestTrace`, with cancellation and failure-path coverage in
   Start request tests.
-- `devtools-contract` owns the public Devtools DTO and Interface vocabulary
-  that renderers, stores, summaries, bridges, and agents share. The root
-  import path re-exports it, while internal Devtools modules import the
+- `devtools-contract` owns the Devtools DTO and Interface vocabulary that
+  renderers, stores, summaries, bridges, and agents share. The `Devtools`
+  namespace names its public types, while internal Devtools modules import the
   contract directly instead of depending on the root facade. Serialization
   policy belongs to this contract too.
-- `DevtoolsInvalidationPlan` is public as an inspection data contract. Start
+- `Devtools.InvalidationPlan` is public as an inspection data contract. Start
   emits a compatible `StartAction.InvalidationPlan`, and type tests pin the
   structural compatibility so devtools can consume full-stack action metadata
   without importing `@sunfall/arc-start`.
-- `DevtoolsSummary`, `DevtoolsCausalGraph`, and the first `DevtoolsPanels`
+- `Devtools.Summary`, `Devtools.CausalGraph`, and the first `Devtools.Panels`
   model should be treated as stable data contracts for agents and UI panels.
-- `DevtoolsStore` is an explicit public Interface, not an inferred factory
+- `Devtools.Store` is an explicit public Interface, not an inferred factory
   return. Route-plan and invalidation record methods return retained fact
   indexes for adapters that emit runtime events against duplicate recorded facts.
 - Timeline observation is a first-class store capability:
-  `recordTimelineEntry(...)`, `recordTimelineEntry(...)`, and
+  `recordTimelineEntry(...)` and
   `trackTimeline(recording)` copy Core `Timeline.Entry` values into
-  `TimelineCommit` runtime events (`DevtoolsTimelineCommit`), linked to the
+  `TimelineCommit` runtime events (`Devtools.TimelineCommit`), linked to the
   Program, Action, or Resource their cause names. Store
   `serializationPolicy` options apply before those commits enter snapshots.
 - The browser panel renderer is public as an embedded UI surface, while
   the bridge helpers are public as the supported app-side handshake for checked
   app or extension shells.
-- `bootDevtoolsPanels(...)` is the expert-public browser panel boot helper for
+- `Devtools.bootPanels(...)` is the expert-public browser panel boot helper for
   small shells that only want to provide a root element, optional initial panel
   input, and an optional Effectful `afterMount` loop such as extension bridge
   polling. It returns the mounted panel handle plus the boot fiber so shells can
@@ -718,7 +721,7 @@ Release decisions:
   valid large app graph panels remain bridgeable.
 - Panel guards (`isDevtoolsPanel*`), normalizers, panel-input resolvers, the
   app-graph DTO normalizers, and `devtoolsPanelStyles` are package-internal.
-  `resolveSunfallArcDevtoolsBridgePayload(...)` is the single public validator
+  `Devtools.resolveBridgePayload(...)` is the single public validator
   and returns a valid detached DTO or typed diagnostics.
 - Raw Devtools snapshots may contain detached `unknown` inspection facts owned
   by Core, Start, DB, or app code. Summaries, causal graphs, panels, and bridge
@@ -743,9 +746,6 @@ Release decisions:
 - Fact Identity stays internal, but Store and Summary share its first-match
   fact index helpers so duplicate invalidation and route-plan facts resolve
   through one Devtools Serialization Policy fingerprint.
-- Devtools Store plain methods intentionally remain sync host facades over the
-  Effect-first store implementation methods. Do not split them unless a new host
-  package needs a distinct seam.
 - The root Devtools module remains the public facade; internal Panels and Store
   modules own their concrete projection/copy dependencies directly instead of
   exposing single-adapter runtime injection Interfaces.
