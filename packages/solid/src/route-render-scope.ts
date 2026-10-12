@@ -8,6 +8,7 @@ import {
   browserRouteRenderIdentity,
   browserRouteRenderDecision,
   makeRuntimeUiScopeFrame,
+  writeUntracedSignals,
   type AnyBrowserRoute,
   type BrowserRouteOutletRenderers,
 } from "@sunfall/arc-core/internal";
@@ -231,6 +232,17 @@ export const makeSolidRouteRenderScopeController = <
   let transitionVersion = 0;
   let disposalFiber: Fiber.Fiber<void, unknown> | undefined;
 
+  /**
+   * Shows a route node or render failure. Outlet state is derived from the
+   * router state the `Timeline` records (travel re-renders the route), so its
+   * writes are bookkeeping, not named transitions.
+   */
+  const show = (node: JSX.Element, renderError: unknown): void =>
+    writeUntracedSignals(() => {
+      options.renderError.set(() => renderError);
+      options.node.set(() => node);
+    });
+
   const disposeStaleRenderedRoute = (rendered: RenderedRouteScope): void => {
     void options.runtime.runFork(
       disposeRenderedRoute(rendered.dispose).pipe(Effect.catchCause(() => Effect.void)),
@@ -293,8 +305,7 @@ export const makeSolidRouteRenderScopeController = <
         }
         if (transition === transitionVersion) {
           const renderError = failure?.error ?? error;
-          options.node.set(() => undefined);
-          options.renderError.set(() => renderError);
+          show(undefined, renderError);
         }
         return;
       }
@@ -305,8 +316,7 @@ export const makeSolidRouteRenderScopeController = <
       }
 
       disposeRoute = next.dispose;
-      options.renderError.set(() => undefined);
-      options.node.set(() => next.node);
+      show(next.node, undefined);
     });
 
   const disposeEffect = (): Effect.Effect<void> =>
@@ -319,15 +329,14 @@ export const makeSolidRouteRenderScopeController = <
     try {
       const initial = render(options.initialInput);
       disposeRoute = initial.dispose;
-      options.node.set(() => initial.node);
+      show(initial.node, undefined);
     } catch (error) {
       const failure = solidRouteRenderFailure(error);
       if (failure === undefined) {
         throw error;
       }
       startRouteDisposal(failure.dispose);
-      options.node.set(() => undefined);
-      options.renderError.set(() => failure.error);
+      show(undefined, failure.error);
     }
   };
 
@@ -348,8 +357,7 @@ export const makeSolidRouteRenderScopeController = <
       renderedState = input.state;
       renderedIdentity = nextIdentity;
       const transition = ++transitionVersion;
-      options.node.set(() => undefined);
-      options.renderError.set(() => undefined);
+      show(undefined, undefined);
       void options.runtime.runFork(
         renderTransition(input, transition, startCurrentRouteDisposal()),
       );

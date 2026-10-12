@@ -15,7 +15,7 @@ type-checks it and fails if a snippet on this page no longer matches its file
 | -------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
 | read server data                                                     | **Resource**: `Resource.define`, read with `Component.resource`              | the data never leaves the client (Signal), or you edit rows locally (Collection)   |
 | change server data                                                   | **Action**: `Action.define` with `invalidates` tags                          | the change is local UI state: use a Signal                                         |
-| hold client-only UI state                                            | **Signal**: `Signal.make` in Component setup                                 | it has many messages, transitions, or async follow-ups: use a Program              |
+| hold client-only UI state                                            | **Signal**: `Signal.make` in setup, written in a named `Component.callback`  | it has many messages, transitions, or async follow-ups: use a Program              |
 | run a state machine with many messages                               | **Program**: `Program.define`, bound with `Component.program`                | one or two independent values: use Signals                                         |
 | keep normalized rows with indexes, live queries, or optimistic edits | **Collection**: `Collection.define({ sync: ref })`, backed by a Resource     | you only render a list you fetched: a Resource is enough                           |
 | build a screen or feature that reads or writes state                 | **Component**: `Component.define`                                            | it only renders props: write a plain Solid function                                |
@@ -37,6 +37,12 @@ Two defaults settle most arguments:
 - **State that matters has a typed owner.** If rendering, caching, testing, or
   debugging depends on it, it belongs in one of the definitions above, not in
   ad hoc component locals.
+- **Every state change has a name.** A Signal changes only inside a named
+  transition: a `Component.callback("name", ...)`, an Action, a Program
+  message, or a framework event (Resource load, Collection sync, navigation).
+  A write anywhere else dies with `SignalWriteOutsideTransition`, so the
+  Timeline reads like a message log: `ProjectSidebar.filter`,
+  `Action "Project.rename" submit`.
 
 ## How The Pieces Fit
 
@@ -366,7 +372,8 @@ export const RenameForm = Component.define(
     const rename = yield* Component.action(RenameProject);
     // `submit` fails with the Action's errors; a DOM handler cannot report them,
     // so the callback must handle them. `failure()` still shows the latest one.
-    const save = yield* Component.callback((name: string) =>
+    // A named transition: its commits read `RenameForm.save` on the Timeline.
+    const save = yield* Component.callback("save", (name: string) =>
       rename.submit({ id: props.project.id, name }).pipe(Effect.ignore),
     );
 
@@ -455,7 +462,7 @@ export const Projects = Collection.define({
 ```
 
 `src/project-list.tsx` now binds the collection and keeps the filter in a
-Signal:
+Signal, written only through the named `filter` callback:
 
 <!-- snippet: type-tests/golden-path/project-list.tsx -->
 
@@ -463,6 +470,7 @@ Signal:
 import { Signal } from "@sunfall/arc-core";
 import { Component, RouterLink } from "@sunfall/arc-solid";
 import { SolidDb } from "@sunfall/arc-solid-db";
+import { Effect } from "effect";
 import { For, Show } from "solid-js";
 import { Projects } from "./collection.js";
 import { ProjectRoute } from "./routes.js";
@@ -473,13 +481,17 @@ export const ProjectSidebar = Component.define("ProjectSidebar", function* () {
   // E += the collection's load error, exactly like a Resource reader (here never).
   const projects = yield* SolidDb.collection(Projects);
   // Client-only UI state: a Signal per instance, named for the Timeline.
-  const status = Signal.make<Status>("active", { name: "sidebar.status" });
+  const status = Signal.make<Status>("active", { name: "ProjectSidebar.status" });
+  // Writes happen in a named transition; the Timeline shows `ProjectSidebar.filter`.
+  const filter = yield* Component.callback("filter", (next: Status) =>
+    Effect.sync(() => status.set(next)),
+  );
 
   return () => (
     <nav class={{ refreshing: projects.waiting() }}>
       <select
         value={status.get()}
-        onChange={(event) => status.set(event.currentTarget.value as Status)}
+        onChange={(event) => filter(event.currentTarget.value as Status)}
       >
         <option value="active">Active</option>
         <option value="archived">Archived</option>
@@ -654,8 +666,13 @@ Effect.runFork(App.launch(app));
 
 `Timeline.record` records every committed change, whatever owns it: Signals,
 Resource entries, Action state, Program models, the router, and Collections.
-`travel` re-renders the UI as it was after any entry while Effects keep
-running against the live state.
+Every entry has a name, because every write happens inside a named
+transition: a Component's callbacks commit as `<Component>.<name>`
+(`ProjectSidebar.filter`), and Actions, Programs, Resources, Collections, and
+the router label their own commits. A write outside all of them fails at the
+write with `SignalWriteOutsideTransition`, naming the Signal. `travel`
+re-renders the UI as it was after any entry while Effects keep running against
+the live state.
 
 `src/timeline-panel.tsx`:
 
@@ -670,10 +687,10 @@ import { For } from "solid-js";
 export const TimelinePanel = Component.define("TimelinePanel", function* () {
   // Records every commit until this instance unmounts. E += TimelineAlreadyRecording.
   const recording = yield* Timeline.record({ limit: 500 });
-  const travel = yield* Component.callback((sequence: number) =>
+  const travel = yield* Component.callback("travel", (sequence: number) =>
     recording.travel(sequence).pipe(Effect.ignore),
   );
-  const resume = yield* Component.callback(() => recording.resume());
+  const resume = yield* Component.callback("resume", () => recording.resume());
 
   return () => (
     <aside>
@@ -705,10 +722,11 @@ export const launchTimelinePanel = (container: HTMLElement) =>
 
 Mount it beside the app in development with
 `Effect.runFork(launchTimelinePanel(panelElement))`. Rename a project and the
-panel lists the Action's submit and success, the Resource reloads that its
-tags triggered, and the collection sync that followed; changing the sidebar filter
-shows `sidebar.status` because the Signal was named. In tests, record inside the
-test's Scope and assert on the DOM after `travel`
+panel reads like a message log: `RenameForm.save`'s Action submit and success,
+the Resource reloads its tags triggered, and the collection sync that followed;
+changing the sidebar filter shows `ProjectSidebar.filter` changing
+`ProjectSidebar.status`. In tests, record inside the test's Scope and assert on
+the DOM after `travel`
 ([example](solid-adapter.md#debugging-and-testing-with-timeline-replay)).
 
 ## Testing
@@ -843,8 +861,10 @@ To test what the screen shows, render the Component (see
   alike.
 - **One status vocabulary.** Every binding reports `waiting()` and
   `failure()`: readers, collections, live queries, and Actions.
-- **Run work through `Component.callback`.** `submit`, `dispatch`, `preload`,
-  and `refresh` return Effects; DOM handlers get them via a callback.
+- **Run work through named `Component.callback`s.** `submit`, `dispatch`,
+  `preload`, and `refresh` return Effects, and Signal writes need a name; DOM
+  handlers get both via `Component.callback("name", f)`, whose commits read
+  `<Component>.<name>` on the Timeline.
 - **Change server data with Actions.** `optimistic` patches Signals and
   Collection rows for the life of the submission; there is no other write
   path. Add `durable: { maxAge }` when a change must survive going offline
@@ -857,8 +877,11 @@ To test what the screen shows, render the Component (see
   render without a fallback flash.
 - **Key lists by identity.** `<For each={rows} keyed={(row) => row.id}>` keeps
   rows mounted when a refresh returns new objects.
-- **Name the Signals you want to see.** `Signal.make(value, { name })` labels
-  Timeline entries; unnamed signals show as `signal#N`.
+- **Write Signals only in named transitions.** `Signal.make(value, { name })`
+  requires a name for the Signal; writing it outside a callback, Action, or
+  Program dies with `SignalWriteOutsideTransition`. Solid effects and bare
+  handlers call a named callback instead, and tests wrap direct writes in
+  `Signal.batch(f, { name })`.
 - **Create per-instance state in setup.** A module-level Signal is shared by
   every request on the server.
 

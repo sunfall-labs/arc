@@ -1,8 +1,11 @@
 import { Signal } from "@sunfall/arc-core";
+import { withSignalTransition } from "@sunfall/arc-core/internal";
+import { Effect } from "effect";
 import { bench, describe } from "vitest";
 
-// Guards the unrecorded commit path: without `Timeline.record`, solo writes,
-// batches, and reads must cost what they did before the recorder seam existed.
+// Guards the unrecorded commit path: without `Timeline.record`, solo writes
+// (inside a named transition, as a `Component.callback` makes them), batches,
+// and reads must cost what they did before the recorder seam existed.
 const microBenchOptions = { throws: true, time: 1_000, warmupTime: 250 };
 
 const assertBench = (condition: unknown, message: string): void => {
@@ -11,21 +14,30 @@ const assertBench = (condition: unknown, message: string): void => {
   }
 };
 
-const counter = Signal.make(0);
+const counter = Signal.make(0, { name: "counter" });
 let notified = 0;
 counter.subscribe(() => {
   notified++;
 });
-const cells = Array.from({ length: 10 }, (_, index) => Signal.make(index));
+const cells = Array.from({ length: 10 }, (_, index) =>
+  Signal.make(index, { name: `cell${index}` }),
+);
 
 describe("Signal commit path (unrecorded)", () => {
   bench(
     "Signal solo write x1000",
     () => {
       const before = notified;
-      for (let index = 0; index < 1_000; index++) {
-        counter.set((value) => value + 1);
-      }
+      Effect.runSync(
+        withSignalTransition(
+          Effect.sync(() => {
+            for (let index = 0; index < 1_000; index++) {
+              counter.set((value) => value + 1);
+            }
+          }),
+          { _tag: "Transition", name: "Bench.increment" },
+        ),
+      );
       assertBench(notified - before === 1_000, "Solo writes skipped a notification.");
     },
     microBenchOptions,
@@ -35,11 +47,14 @@ describe("Signal commit path (unrecorded)", () => {
     "Signal.batch of 10 writes x100",
     () => {
       for (let round = 0; round < 100; round++) {
-        Signal.batch(() => {
-          for (const cell of cells) {
-            cell.set((value) => value + 1);
-          }
-        });
+        Signal.batch(
+          () => {
+            for (const cell of cells) {
+              cell.set((value) => value + 1);
+            }
+          },
+          { name: "Bench.cells" },
+        );
       }
     },
     microBenchOptions,

@@ -90,7 +90,10 @@ yield * store.trackAction(renameAction);
 State history comes from the app `Timeline`, not from private queues or fibers.
 Devtools copies each Timeline entry through the bounded serialization and
 redaction policy before summaries, panels, bridges, or causal graphs inspect it.
-Program message and failure commits land on the Programs panel:
+Every commit carries a cause, because Signals change only inside named
+transitions, so each `TimelineCommit` is labelled like a message log
+(`ProjectPage.rename`, `Action "Project.rename" submit`). Program message and
+failure commits land on the Programs panel:
 
 ```ts
 const recording = yield * Timeline.record();
@@ -244,8 +247,11 @@ Effect-native event streams:
   full-stack package.
 - `store.trackTimeline(recording)` records a running Timeline's retained
   and future entries as `TimelineCommit` runtime events until its Scope closes.
-  Each commit's target is the Program, Action, Resource, or Collection its cause
-  names; unnamed Programs share the `Program` target, so name Programs that
+  Each commit has a `label` (`Timeline.describe(cause)`) and its `cause`, which
+  is always present. Its target is the Program, Action, Resource, or Collection
+  its cause names; a `Transition` cause (a named `Component.callback`, stream,
+  or `Signal.batch`/`Signal.transaction`) has no fact target and is read by its
+  label. Unnamed Programs share the `Program` target, so name Programs that
   should appear separately.
 - `store.recordRequestTrace(trace)` exposes the request-level join across
   request context, response context, services, route plans, resources,

@@ -218,7 +218,7 @@ const emptyRuntimeEventFactIndexes = (): RuntimeEventFactIndexes => ({
 const timelineCommitTarget = (
   commit: DevtoolsTimelineCommit,
 ): DevtoolsSummaryRuntimeEvent["target"] => {
-  switch (commit.cause?._tag) {
+  switch (commit.cause._tag) {
     case "Program":
       return { kind: "Program", id: programNodeId(commit.cause.program ?? "Program") };
     case "Action":

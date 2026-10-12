@@ -117,7 +117,7 @@ describe("UiScope", () => {
 
   it("watches signal dependencies until disposal", () => {
     const scope = new UiScope();
-    const count = Signal.make(0);
+    const count = Signal.make(0, { name: "count" });
     const values: Array<number> = [];
 
     runWithScope(scope, () => {
@@ -130,11 +130,11 @@ describe("UiScope", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         yield* Effect.sleep("10 millis");
-        count.set(1);
+        Signal.batch(() => count.set(1), { name: "increment" });
         yield* Effect.sleep("10 millis");
 
         yield* scope.dispose();
-        count.set(2);
+        Signal.batch(() => count.set(2), { name: "increment" });
         yield* Effect.sleep("10 millis");
 
         expect(values).toEqual([0, 1]);
@@ -144,7 +144,7 @@ describe("UiScope", () => {
 
   it("runs watch callbacks inside the Effect callback seam", async () => {
     const scope = new UiScope();
-    const count = Signal.make(0);
+    const count = Signal.make(0, { name: "count" });
 
     expect(() =>
       runWithScope(scope, () => {
@@ -157,7 +157,7 @@ describe("UiScope", () => {
       }),
     ).not.toThrow();
 
-    expect(() => count.set(1)).not.toThrow();
+    expect(() => Signal.batch(() => count.set(1), { name: "increment" })).not.toThrow();
     await Effect.runPromise(scope.dispose());
   });
 

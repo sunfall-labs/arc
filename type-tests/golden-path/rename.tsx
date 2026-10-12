@@ -26,7 +26,8 @@ export const RenameForm = Component.define(
     const rename = yield* Component.action(RenameProject);
     // `submit` fails with the Action's errors; a DOM handler cannot report them,
     // so the callback must handle them. `failure()` still shows the latest one.
-    const save = yield* Component.callback((name: string) =>
+    // A named transition: its commits read `RenameForm.save` on the Timeline.
+    const save = yield* Component.callback("save", (name: string) =>
       rename.submit({ id: props.project.id, name }).pipe(Effect.ignore),
     );
 

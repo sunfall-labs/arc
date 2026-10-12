@@ -102,8 +102,11 @@ selected by name. Their adapter plumbing, plus `definition-registry`,
 `resource-registry`, `resource-ui-binding`, `resource-failure-snapshot` (the
 SSR wire codec for failed Resource reads), `action-instance` and
 `program-start` (runtime-erased instance constructors for renderer bindings),
-`scope` (the ambient `UiScope`), `signal-watch`, and `stable-stringify` (DB
-query identity), is exported only from
+`scope` (the ambient `UiScope`), `signal-watch`, `signal-transaction`'s
+framework commit seam (`batchSignalWrites` / `signalTransaction` with a
+`TimelineCause`, `withSignalTransition` for an ambient named transition, and
+`writeUntracedSignals` for bookkeeping that is never recorded), and
+`stable-stringify` (DB query identity), is exported only from
 `@sunfall/arc-core/internal` for sibling Sunfall Arc packages. Each symbol has
 exactly one import path; nothing is exported from both entrypoints.
 
@@ -119,11 +122,19 @@ Golden-path public groups:
 - `Signal`, `Form`, `Capability`
 - `Timeline`: `Timeline.record(options?)` is a scoped Effect returning a
   `TimelineRecording` (`entries`, `position`, `travel(sequence)`, `resume()`)
-  over every committed change set; `Timeline.describe(cause)` renders a
-  `TimelineCause`. `Signal.make(initial, { name })` labels a signal, and
-  `Signal.transaction(effect, { cause })` / `Signal.batch(f, { cause })` label
-  a commit. `TimelineEntryUnavailable` and `TimelineAlreadyRecording` are the
-  typed failures.
+  over every committed change set; every `TimelineEntry` has a `cause`, and
+  `Timeline.describe(cause)` renders a `TimelineCause` (application commits
+  are `TimelineTransitionCause`: `{ _tag: "Transition", name }`).
+  `Signal.make(initial, { name })` requires a name. Every write happens in a
+  named transition: `Component.callback(name, f)` / `Component.stream(name,
+...)` (named `<Component>.<name>`), `Signal.fromStream(stream, initial, {
+name })`, `Signal.transaction(effect, { name? })` / `Signal.batch(f, { name?
+})` (unnamed ones take the caller's transition), Actions, Programs, and
+  framework events. A write outside all of them dies with the
+  `SignalWriteOutsideTransition` defect (exported for matching).
+  `TimelineEntryUnavailable` and `TimelineAlreadyRecording` are the typed
+  failures. `Form.make({ name, ... })` names a form's state and its
+  `<name>.setField` / `touchField` / `reset` / `validate` transitions.
 - `makeRuntime`, `runWithRuntime`, `SunfallArcRuntime.provide(...)`,
   `AnySunfallArcRuntime`
 - `ActionTransport` (with `ActionTransportResponse`): the Action counterpart of
@@ -999,7 +1010,14 @@ Release decisions:
   `AsyncResult` status accessor (actions, collections, live queries);
   row-valued accessors are `rows()`; a Resource renders through its reader
   (`reader(input)`, with `waiting` / `failure`); pure synchronous state writes
-  (`clearFailures()`, `Form.setField`) stay synchronous.
+  (`clearFailures()`, `Form.setField`) stay synchronous and carry their own
+  Timeline causes.
+- `Component.callback(name, f)` is the one way component code changes Signals
+  it owns: each call forks `f(...args)` in the instance Scope, started
+  immediately, as the named transition `<Component>.<name>`; Actions and
+  Programs it runs keep their own causes. `Component.stream(name, stream,
+initial)` commits each element as `<Component>.<name>`.
+  `Component.Instance.name` exposes the component name to setup-time bindings.
 - `Component.router(routes, options?)` creates the instance's router with the
   setup's runtime and context. The routes' preload services and route
   Components' services and failures (`RouterServices`, `RouterError`) join the

@@ -214,7 +214,7 @@ Small state tools are pleasant because they make local state feel lightweight.
 Sunfall Arc keeps that part simple:
 
 ```ts
-const search = Signal.make("");
+const search = Signal.make("", { name: "Search.query" });
 const normalized = Signal.derive(() => read(search).trim().toLowerCase());
 ```
 
@@ -260,7 +260,7 @@ The Solid adapter is intentionally small:
 const OpenProject = Component.define("OpenProject", function* (props: { readonly id: ProjectId }) {
   const program = yield* Component.program(ProjectProgram); // R += the Program's services
   // `dispatch` is an Effect; failures already land in `program.failures()`.
-  const load = yield* Component.callback((id: ProjectId) =>
+  const load = yield* Component.callback("load", (id: ProjectId) =>
     program.dispatch({ _tag: "Load", id }).pipe(Effect.ignore),
   );
 
@@ -321,7 +321,7 @@ const RenameForm = Component.define("RenameForm", function* (props: { readonly i
   const project = yield* Component.resource(ProjectById); // E += load error, R += ProjectApi
   const rename = yield* Component.action(RenameProject); // local, or remote via ActionTransport
   // The outcome lands in `rename.result()`, so the handler ignores failures.
-  const save = yield* Component.callback((name: string) =>
+  const save = yield* Component.callback("save", (name: string) =>
     rename.submit({ id: props.id, name }).pipe(Effect.ignore),
   );
 

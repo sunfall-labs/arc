@@ -2340,6 +2340,7 @@ SolidDb.liveQuery(
   },
 );
 const solidProjectStreamBinding: Effect.Effect<() => Project, never, ProjectApi> = Component.stream(
+  "project",
   Stream.suspend(() =>
     Stream.fromEffect(ProjectApi.use((api) => api.get("atlas")).pipe(Effect.orDie)),
   ),
@@ -2643,6 +2644,7 @@ const projectProgramRuntime = makeRuntime(
 // Event handlers run Effects through `Component.callback`: services join R,
 // and failures must be handled.
 const uiCallback: Effect.Effect<(id: string) => void, never, ProjectApi> = Component.callback(
+  "open",
   (id: string) => ProjectApi.use((api) => api.get(id)).pipe(Effect.ignore),
 );
 void uiCallback;
@@ -2708,7 +2710,10 @@ const projectProgramHistory: ReadonlyArray<TimelineEntry> = projectTimeline.entr
   .get()
   .filter((entry) => entry.changes.some((change) => change.signal === projectProgram.model));
 projectProgramHistory.map((entry) => entry.sequence.toFixed());
-const projectTimelineLabel: string = Timeline.describe(projectProgramHistory[0]?.cause);
+const projectTimelineLabel: string = Timeline.describe(projectProgramHistory[0]!.cause);
+// Every entry has a cause: writes outside a named transition never commit.
+const projectTimelineCause: TimelineCause = projectProgramHistory[0]!.cause;
+void projectTimelineCause;
 const projectTimelinePosition: number | undefined = projectTimeline.position.get();
 const projectTimelineTravel: Effect.Effect<void, TimelineEntryUnavailable> =
   projectTimeline.travel(1);
@@ -2724,17 +2729,24 @@ if (projectProgramCause?._tag === "Program") {
   void program;
   void event;
 }
-const renameCause: TimelineCause = { _tag: "User", label: "Rename project" };
+const renameCause: TimelineCause = { _tag: "Transition", name: "ProjectPage.rename" };
 const namedTimelineSignal = Signal.make("Atlas", { name: "Project.title" });
 const labelledTransaction: Effect.Effect<void> = Signal.transaction(
   Effect.sync(() => namedTimelineSignal.set("Apollo")),
-  { cause: renameCause },
+  { name: "ProjectPage.rename" },
 );
-const labelledBatch: number = Signal.batch(() => 1, { cause: renameCause });
+const labelledBatch: number = Signal.batch(() => 1, { name: "ProjectPage.rename" });
 // @ts-expect-error Timeline causes are a closed tagged union
-Signal.batch(() => 1, { cause: { _tag: "Custom", label: "nope" } });
+const customCause: TimelineCause = { _tag: "Custom", label: "nope" };
+// @ts-expect-error framework causes are not part of the public transaction options
+Signal.batch(() => 1, { cause: renameCause });
 // @ts-expect-error signal names are strings
 Signal.make(0, { name: 1 });
+// @ts-expect-error every writable signal is named
+Signal.make(0);
+// @ts-expect-error a stream-backed signal is named too
+Signal.fromStream(Stream.make(1), 0);
+void customCause;
 // @ts-expect-error Program history lives on the app Timeline, not on the Program instance
 projectProgram.clearTimeline();
 Program.define<number, { readonly _tag: "Tick" }>({
@@ -3146,8 +3158,8 @@ const TouchProject = Action.define<{ readonly id: string }, Project>({
   name: "Project.touch",
   optimistic: ({ id }, transaction) =>
     Effect.gen(function* () {
-      const label = Signal.make("idle");
-      const unknownLabel = Signal.make<unknown>("idle");
+      const label = Signal.make("idle", { name: "label" });
+      const unknownLabel = Signal.make<unknown>("idle", { name: "unknownLabel" });
       yield* transaction.signal(label, id);
       // @ts-expect-error optimistic patches must match the target signal value type
       yield* transaction.signal(label, 123);
@@ -3346,7 +3358,7 @@ const InferredTouchProject = Action.define({
   output: ProjectSchema,
   optimistic: ({ id }, transaction) =>
     Effect.gen(function* () {
-      const label = Signal.make("idle");
+      const label = Signal.make("idle", { name: "label" });
       yield* transaction.signal(label, id);
     }),
   run: (input) => ProjectApi.use((api) => api.rename(input)),
@@ -3727,17 +3739,20 @@ ActionResult.fields<ProjectFormValues, string>({
 });
 
 const projectForm = Form.make({
+  name: "projectForm",
   schema: ProjectFormSchema,
   initial: { id: "atlas", name: "Atlas Billing", spend: 1200 },
 });
 
 Form.make({
+  name: "projectForm",
   schema: ProjectFormSchema,
   // @ts-expect-error initial values must satisfy the schema type
   initial: { id: "atlas", name: "Atlas Billing", spend: "1200" },
 });
 
 Form.make({
+  name: "projectForm",
   schema: ProjectFormSchema,
   initial: { id: "atlas", name: "Atlas Billing", spend: 1200 },
   // @ts-expect-error form validation must return Effect or a pure value, not Promise
@@ -3745,6 +3760,7 @@ Form.make({
 });
 
 Form.make<typeof ProjectFormSchema, ProjectFormValues, string>({
+  name: "projectForm",
   schema: ProjectFormSchema,
   initial: { id: "atlas", name: "Atlas Billing", spend: 1200 },
   validate: (_values, validation) =>
@@ -3753,6 +3769,7 @@ Form.make<typeof ProjectFormSchema, ProjectFormValues, string>({
 });
 
 Form.make<typeof ProjectFormSchema, ProjectFormValues, string>({
+  name: "projectForm",
   schema: ProjectFormSchema,
   initial: { id: "atlas", name: "Atlas Billing", spend: 1200 },
   validate: (_values, validation) =>

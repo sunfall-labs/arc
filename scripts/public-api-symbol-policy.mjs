@@ -180,7 +180,7 @@ export const publicHoverDocGroups = [
   {
     file: "packages/core/src/timeline.ts",
     declarations: [
-      "TimelineUserCause",
+      "TimelineTransitionCause",
       "TimelineActionCause",
       "TimelineProgramCause",
       "TimelineResourceCause",

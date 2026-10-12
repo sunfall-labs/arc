@@ -2,7 +2,7 @@
 import { makeRuntime } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
 import * as Start from "@sunfall/arc-start";
-import { Layer } from "effect";
+import { Effect, Layer } from "effect";
 import { App } from "./app.js";
 import { ProjectSidebar } from "./project-list.js";
 import { ProjectPage } from "./project-page.js";
@@ -50,6 +50,15 @@ type _sidebar = Assert<Eq<Parts<typeof ProjectSidebar>["E"], never>>;
 Component.define("UnhandledRename", function* () {
   const rename = yield* Component.action(RenameProject);
   // @ts-expect-error ProjectNotFound (and transport failures) are unhandled
-  yield* Component.callback((name: string) => rename.submit({ id: ProjectId.make("atlas"), name }));
+  yield* Component.callback("save", (name: string) =>
+    rename.submit({ id: ProjectId.make("atlas"), name }),
+  );
+  return () => null;
+});
+
+// Every callback is a named transition, so every commit it makes has a name.
+Component.define("UnnamedCallback", function* () {
+  // @ts-expect-error a callback needs a name
+  yield* Component.callback(() => Effect.void);
   return () => null;
 });

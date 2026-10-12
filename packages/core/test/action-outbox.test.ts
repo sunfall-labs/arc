@@ -202,7 +202,7 @@ describe("Action outbox (durable submissions)", () => {
 
           // Reload: new runtime and state, same storage. The hydrated value is 10.
           const after = defineApp("Outbox.reload");
-          after.total.set(10);
+          Signal.batch(() => after.total.set(10), { name: "hydrate" });
           const second = makeRuntime(
             Layer.mergeAll(
               server.layer,
@@ -265,7 +265,7 @@ describe("Action outbox (durable submissions)", () => {
         // Reload: the server applied the first submission (its response was
         // lost) before rendering, so the hydrated value 13 already includes it.
         const after = defineApp("Outbox.settled");
-        after.total.set(13);
+        Signal.batch(() => after.total.set(13), { name: "hydrate" });
         const second = makeRuntime(
           Layer.mergeAll(
             server.layer,

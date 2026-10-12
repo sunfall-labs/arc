@@ -583,6 +583,7 @@ const actionResultLabel: string = ActionResult.match(actionSuccess, {
 
 const profileSchema = Schema.Struct({ name: Schema.String });
 const profileForm: FormInstance<{ readonly name: string }, "required"> = Form.make({
+  name: "profileForm",
   schema: profileSchema,
   initial: { name: "" },
   validate: (values, errors) =>

@@ -5,14 +5,19 @@ import {
   isSignalCommitRecorderInstalled,
   refreshRenderedSignals,
   setSignalTravelView,
+  writeUntracedSignals,
   type SignalCommitChange,
   type SignalTransactionWritable,
 } from "./signal-transaction.js";
 
-/** Commit labelled by application code through `Signal.transaction` or `Signal.batch`. */
-export interface TimelineUserCause {
-  readonly _tag: "User";
-  readonly label: string;
+/**
+ * Commit made by an application's named transition: a `Component.callback`
+ * (named `<Component>.<name>`), a `Component.stream` or `Signal.fromStream`
+ * element, or a named `Signal.batch` / `Signal.transaction`.
+ */
+export interface TimelineTransitionCause {
+  readonly _tag: "Transition";
+  readonly name: string;
 }
 
 /** Commit made by an Action submission's visible state. */
@@ -72,7 +77,7 @@ export interface TimelineCollectionCause {
 
 /** Why a committed change set happened. */
 export type TimelineCause =
-  | TimelineUserCause
+  | TimelineTransitionCause
   | TimelineActionCause
   | TimelineProgramCause
   | TimelineResourceCause
@@ -82,7 +87,7 @@ export type TimelineCause =
 /** One signal's committed change inside a timeline entry. */
 export interface TimelineChange {
   readonly signal: ReadableSignal<unknown>;
-  /** The signal's `Signal.make` name, or its stable `signal#N` id. */
+  /** The signal's `Signal.make` name. */
   readonly name: string;
   readonly previous: unknown;
   readonly next: unknown;
@@ -94,7 +99,8 @@ export interface TimelineEntry {
   readonly sequence: number;
   /** `Clock` time of the commit, in milliseconds. */
   readonly at: number;
-  readonly cause: TimelineCause | undefined;
+  /** The named transition or framework event that made the commit. */
+  readonly cause: TimelineCause;
   readonly changes: ReadonlyArray<TimelineChange>;
 }
 
@@ -169,7 +175,8 @@ const makeRecording = (clock: Clock.Clock, limit: number) => {
     cause: TimelineCause | undefined,
   ): void => {
     const recorded = changes.filter((change) => !own.has(change.signal));
-    if (recorded.length === 0) {
+    // Only a recording's own bookkeeping commits without a cause.
+    if (recorded.length === 0 || cause === undefined) {
       return;
     }
     if (view !== undefined) {
@@ -198,7 +205,7 @@ const makeRecording = (clock: Clock.Clock, limit: number) => {
       ring[start] = entry;
       start = (start + 1) % limit;
     }
-    version.update((value) => value + 1);
+    writeUntracedSignals(() => version.update((value) => value + 1));
   };
 
   const showView = (next: Map<SignalTransactionWritable, unknown> | undefined): void => {
@@ -230,7 +237,7 @@ const makeRecording = (clock: Clock.Clock, limit: number) => {
         }
       }
       return Effect.sync(() => {
-        position.set(target);
+        writeUntracedSignals(() => position.set(target));
         showView(next);
       });
     });
@@ -240,18 +247,18 @@ const makeRecording = (clock: Clock.Clock, limit: number) => {
       if (view === undefined) {
         return;
       }
-      position.set(undefined);
+      writeUntracedSignals(() => position.set(undefined));
       showView(undefined);
     });
 
   const release = (): void => {
     if (view !== undefined) {
-      position.set(undefined);
+      writeUntracedSignals(() => position.set(undefined));
       showView(undefined);
     }
     ring.length = 0;
     start = 0;
-    version.update((value) => value + 1);
+    writeUntracedSignals(() => version.update((value) => value + 1));
   };
 
   const recording: TimelineRecording = { entries, position, travel, resume };
@@ -297,14 +304,14 @@ export namespace Timeline {
         ),
     ).pipe(Effect.map(({ recording }) => recording));
 
-  /** Human-readable label for a cause, e.g. `Program "Board" message Relabel`. */
-  export const describe = (cause: TimelineCause | undefined): string => {
-    if (cause === undefined) {
-      return "commit";
-    }
+  /**
+   * Human-readable label for a cause: a transition's name (`ProjectPage.rename`)
+   * or a framework event (`Program "Board" message Relabel`).
+   */
+  export const describe = (cause: TimelineCause): string => {
     switch (cause._tag) {
-      case "User":
-        return cause.label;
+      case "Transition":
+        return cause.name;
       case "Action":
         return `Action "${cause.action}" ${cause.event}`;
       case "Program": {

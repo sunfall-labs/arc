@@ -3,6 +3,7 @@ import { rejectPlainSyncCallbackValue } from "./effect-input-sync.js";
 import type { EffectInput, EffectInputCallbackError, PlainValue } from "./effect-like.js";
 import { invokeEffectInput } from "./effect-like.js";
 import { Signal, type ReadableSignal } from "./signal.js";
+import { batchSignalWrites } from "./signal-transaction.js";
 
 /** Runtime marker used by `isForm(...)` to identify Form controllers. */
 export const FormTypeId: unique symbol = Symbol.for("@sunfall/arc-core/Form") as typeof FormTypeId;
@@ -56,6 +57,11 @@ export interface FormOptions<
   E = never,
   R = never,
 > {
+  /**
+   * Names the form's state signal and its `Timeline` transitions
+   * (`<name>.setField`, `<name>.touchField`, `<name>.reset`, `<name>.validate`).
+   */
+  readonly name: string;
   /** Schema used to decode and validate current values. */
   readonly schema: S;
   /** Initial values snapshotted for reset and structural dirty tracking. */
@@ -578,6 +584,7 @@ export namespace Form {
    * @example
    * ```ts
    * const form = Form.make({
+   *   name: "profileForm",
    *   schema: UserSchema,
    *   initial: { name: "" },
    *   validate: (values, errors) =>
@@ -595,7 +602,18 @@ export namespace Form {
   ): FormInstance<Values, E, R | FormSchemaServices<S>> => {
     const internalState = Signal.make<
       FormState<Values, E | Schema.SchemaError | EffectInputCallbackError>
-    >(emptyState<Values, E | Schema.SchemaError | EffectInputCallbackError>(options.initial));
+    >(emptyState<Values, E | Schema.SchemaError | EffectInputCallbackError>(options.initial), {
+      name: options.name,
+    });
+    type InternalState = FormState<Values, E | Schema.SchemaError | EffectInputCallbackError>;
+    const write = (
+      event: "setField" | "touchField" | "reset" | "validate",
+      f: (current: InternalState) => InternalState,
+    ): void =>
+      batchSignalWrites(() => internalState.update(f), {
+        _tag: "Transition",
+        name: `${options.name}.${event}`,
+      });
     const state: ReadableSignal<
       FormState<Values, E | Schema.SchemaError | EffectInputCallbackError>
     > = Signal.derive(() => cloneFormState(internalState.get()));
@@ -604,7 +622,7 @@ export namespace Form {
     const setField = <K extends FormFieldKey<Values>>(field: K, value: Values[K]): void => {
       validationRevision++;
       const nextValue = cloneFormSnapshotValue(value);
-      internalState.update((current) => ({
+      write("setField", (current) => ({
         ...current,
         status: "Idle",
         values: {
@@ -622,7 +640,7 @@ export namespace Form {
     };
 
     const touchField = <K extends FormFieldKey<Values>>(field: K): void => {
-      internalState.update((current) => ({
+      write("touchField", (current) => ({
         ...current,
         touched: setFlag(current.touched, field, true),
       }));
@@ -630,7 +648,7 @@ export namespace Form {
 
     const reset = (values: Values = internalState.get().initial): void => {
       validationRevision++;
-      internalState.set(emptyState<Values, E | Schema.SchemaError>(values));
+      write("reset", () => emptyState<Values, E | Schema.SchemaError>(values));
     };
 
     const validateEffect = (): Effect.Effect<
@@ -641,7 +659,7 @@ export namespace Form {
       Effect.suspend(() => {
         const revision = ++validationRevision;
         const values = cloneFormSnapshotValue(internalState.get().values);
-        internalState.update((current) => ({
+        write("validate", (current) => ({
           ...current,
           status: "Validating",
         }));
@@ -678,7 +696,7 @@ export namespace Form {
           }
 
           if (revision === validationRevision) {
-            internalState.update((current) => ({
+            write("validate", (current) => ({
               ...current,
               status: "Valid",
               values: cloneFormSnapshotValue(decodedSnapshot),
@@ -695,7 +713,7 @@ export namespace Form {
             ) =>
               Effect.sync(() => {
                 if (revision === validationRevision) {
-                  internalState.update((current) => ({
+                  write("validate", (current) => ({
                     ...current,
                     status: "Invalid",
                     fieldErrors: cloneFieldErrors(error.fieldErrors),

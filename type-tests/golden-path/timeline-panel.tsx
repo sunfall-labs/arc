@@ -6,10 +6,10 @@ import { For } from "solid-js";
 export const TimelinePanel = Component.define("TimelinePanel", function* () {
   // Records every commit until this instance unmounts. E += TimelineAlreadyRecording.
   const recording = yield* Timeline.record({ limit: 500 });
-  const travel = yield* Component.callback((sequence: number) =>
+  const travel = yield* Component.callback("travel", (sequence: number) =>
     recording.travel(sequence).pipe(Effect.ignore),
   );
-  const resume = yield* Component.callback(() => recording.resume());
+  const resume = yield* Component.callback("resume", () => recording.resume());
 
   return () => (
     <aside>

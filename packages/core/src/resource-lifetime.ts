@@ -6,6 +6,7 @@ import type { ResourceRef, ResourceStatus } from "./resource.js";
 import type { MutableResourceStore as ResourceStoreState } from "./resource-store.js";
 import { Signal, type WritableSignal } from "./signal.js";
 import type { TimelineResourceCause } from "./timeline.js";
+import { batchSignalWrites } from "./signal-transaction.js";
 
 export interface ResourceInFlight<A, E> {
   readonly token: object;
@@ -208,8 +209,11 @@ export const commitResourceState = <A, E>(
   state: AsyncResult.AsyncResult<A, E>,
   event: TimelineResourceCause["event"],
 ): void => {
-  Signal.batch(() => entry.state.set(state), {
-    cause: { _tag: "Resource", resource: entry.resource, key: entry.key, event },
+  batchSignalWrites(() => entry.state.set(state), {
+    _tag: "Resource",
+    resource: entry.resource,
+    key: entry.key,
+    event,
   });
 };
 

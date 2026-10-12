@@ -629,7 +629,7 @@ describe("Action optimistic Collection patches", () => {
 
   it("patches Signals and rows in one transaction that settles together", () =>
     withRuntime(async (runtime) => {
-      const lastRenamed = Signal.make<string | undefined>(undefined);
+      const lastRenamed = Signal.make<string | undefined>(undefined, { name: "lastRenamed" });
       const Projects = Collection.define<Project>({
         name: "Projects.optimistic-signal-and-rows",
         getKey: (project) => project.id,

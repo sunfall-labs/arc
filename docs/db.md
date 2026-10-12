@@ -139,7 +139,7 @@ read in the factory rebuilds the query.
 const ProjectList = Component.define("ProjectList", function* () {
   const projects = yield* SolidDb.collection(Projects); // E += the load error
   const archive = yield* Component.action(ArchiveProject);
-  const onArchive = yield* Component.callback((id: ProjectId) =>
+  const onArchive = yield* Component.callback("archive", (id: ProjectId) =>
     archive.submit({ id }).pipe(Effect.ignore),
   );
 

@@ -28,11 +28,12 @@ import { Loading, Show } from "solid-js";
 const ProjectPage = Component.define("ProjectPage", function* (props: { readonly id: ProjectId }) {
   const project = yield* Component.resource(ProjectById); // E += load error, R += ProjectApi
   const rename = yield* Component.action(RenameProject); // R += the action's services
-  const refresh = yield* Component.callback(() =>
+  const refresh = yield* Component.callback("refresh", () =>
     Resource.invalidate(ProjectById(props.id)).pipe(Effect.ignore),
   );
   // `submit` fails with the Action's errors; the callback must handle them.
-  const save = yield* Component.callback((name: string) =>
+  // Its own Signal writes would commit as `ProjectPage.rename` on the Timeline.
+  const save = yield* Component.callback("rename", (name: string) =>
     rename.submit({ id: props.id, name }).pipe(Effect.ignore),
   );
 
@@ -114,8 +115,8 @@ rejects) is a defect, never part of `E`.
 | `Component.resource(family)`            | `ResourceReader`: `reader(input)`, `waiting`, `failure`                                              | load error to `E`, services                                          |
 | `Component.action(definition)`          | `ActionHandle`: `waiting`, `failure`, `result`, `input`, `submit` (Effect), `reset` (Effect)         | action services                                                      |
 | `Component.program(definition, opts?)`  | `ProgramHandle`: fine-grained `model`, `committed`, `failures`, `dispatch` (Effect), `clearFailures` | program services                                                     |
-| `Component.stream(stream, initial)`     | `Accessor<A>` of the latest element                                                                  | stream services                                                      |
-| `Component.callback(f)`                 | `(...args) => void` that forks `f(...args)` (failures handled)                                       | callback services                                                    |
+| `Component.stream(name, stream, init)`  | `Accessor<A>` of the latest element, committed as `<Component>.<name>`                               | stream services                                                      |
+| `Component.callback(name, f)`           | `(...args) => void` that runs `f(...args)` as the transition `<Component>.<name>` (failures handled) | callback services                                                    |
 | `Component.router(routes, options?)`    | the instance's `BrowserRouter<Routes>`                                                               | route preload and route Component services, route Component failures |
 | `SolidDb.collection(definition, opts?)` | `CollectionHandle`: `rows`, `get`, `index`, `waiting`, `failure`                                     | load error to `E`, collection services                               |
 | `SolidDb.liveQuery(query, opts?)`       | `LiveQueryHandle`: `rows`, `waiting`, `failure`, `preload` (Effect), `refresh` (Effect)              | source load errors to `E`, source services                           |
@@ -278,23 +279,49 @@ Action's `optimistic` patch with `Action.planOptimistic(definition, input)`:
 no Solid root, DOM, runtime, or timers (see
 [Testing](golden-path.md#testing)).
 
-### Streams and callbacks
+### Streams and callbacks: named transitions
 
-`Component.stream(stream, initial)` runs a `Stream<A, never, R>` for the
-instance and returns its latest element as an accessor.
-`Component.callback(f)` turns an Effect-returning function into a plain DOM
-event handler; each call forks the Effect in the instance Scope with the setup
-context. Callbacks must handle their own failures (`E = never`): an event
+Every state change has a name. `Component.callback(name, f)` turns an
+Effect-returning function into a plain DOM event handler; each call forks the
+Effect in the instance Scope with the setup context, starting it right away so
+synchronous writes land within the event, and runs it as the **named
+transition** `<Component>.<name>`. Signal writes it makes commit under that
+name on the `Timeline`; Actions and Programs it runs keep their own causes
+(`Action "Project.rename" submit`, `Program "Board" message Relabel`), and a
+`Signal.transaction`/`Signal.batch` opened inside it without a name takes the
+callback's. Callbacks must handle their own failures (`E = never`): an event
 handler has nowhere to report a typed failure, so the type makes you decide.
 
+`Component.stream(name, stream, initial)` runs a `Stream<A, never, R>` for the
+instance and returns its latest element as an accessor; each element commits
+as `<Component>.<name>`.
+
 ```tsx
-const presence = yield * Component.stream(presenceStream, initialPresence);
+const presence = yield * Component.stream("presence", presenceStream, initialPresence);
 const move =
   yield *
-  Component.callback((id: WorkItemId, status: WorkItemStatus) =>
+  Component.callback("move", (id: WorkItemId, status: WorkItemStatus) =>
     moveWorkItem.submit({ id, status }).pipe(Effect.ignore),
   );
+// Client-only state: written only inside a named callback.
+const draft = Signal.make("", { name: "ProjectPage.draft" });
+const edit =
+  yield * Component.callback("edit", (value: string) => Effect.sync(() => draft.set(value)));
 ```
+
+A Signal written outside every named transition (a bare `onInput={() =>
+draft.set(...)}`, a Solid `createEffect`, a Promise callback) fails at the
+write with a `SignalWriteOutsideTransition` defect that names the Signal. The
+check is always on, in the browser, during server rendering, and in tests, so
+an unnamed write cannot hide behind a build flag. The fixes:
+
+- **DOM handlers and Solid effects** call a named callback (`edit(value)`).
+  An effect that only mirrors state into another Signal is a `Signal.derive`.
+- **Effect code outside a Component** (a service, a stream consumer) wraps its
+  writes in `Signal.transaction(effect, { name })`, or builds the Signal with
+  `Signal.fromStream(stream, initial, { name })`.
+- **Tests and other plain synchronous code** write through
+  `Signal.batch(() => signal.set(value), { name: "test" })`.
 
 ### Collections and live queries
 
@@ -497,9 +524,12 @@ expect(container.textContent).toBe("2");
 ```
 
 `recording.entries` and `recording.position` are Arc signals, so a debug panel
-renders them like any other state. Run `Timeline.record(...)` in the Scope that
-owns the debugging session (a test, or a devtools mount); closing it uninstalls
-the recorder.
+renders them like any other state. Every entry's `cause` names the transition
+that made it (`Timeline.describe(entry.cause)` reads `ProjectPage.rename`,
+`Program "Counter" message Increment`, ...), so a test can assert the message
+log as well as the DOM. Run `Timeline.record(...)` in the Scope that owns the
+debugging session (a test, or a devtools mount); closing it uninstalls the
+recorder.
 
 ## Package And Test Shape
 

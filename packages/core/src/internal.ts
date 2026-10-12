@@ -92,3 +92,9 @@ export {
 } from "./runtime.js";
 export * from "./scope.js";
 export * from "./signal-watch.js";
+export {
+  batchSignalWrites,
+  signalTransaction,
+  withSignalTransition,
+  writeUntracedSignals,
+} from "./signal-transaction.js";
