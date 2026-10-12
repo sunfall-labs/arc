@@ -503,7 +503,9 @@ export const runResource = <I, A, E, R>(
       (retained ||
         !isResourceStateCollected(ref as ResourceRef<unknown, A, E, unknown>, current, now))
     ) {
-      yield* startResourceRowChanges(ref, entry, store);
+      if (ref.family.options.rows?.changes !== undefined) {
+        yield* startResourceRowChanges(ref, entry, store);
+      }
       return current.value;
     }
 
@@ -553,7 +555,7 @@ export const runResource = <I, A, E, R>(
         if (Exit.isSuccess(exit)) {
           recordResourceProvidedTagsSync(ref, exit.value.tags, store);
           commitResourceState(entry, settled, "success");
-          if (settled._tag === "Success") {
+          if (settled._tag === "Success" && ref.family.options.policy?.persist !== undefined) {
             yield* persistResourceState(ref as AnyResourceRef, settled);
           }
           yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStore, () =>
@@ -565,7 +567,9 @@ export const runResource = <I, A, E, R>(
             key: ref.key,
             timestamp: now,
           });
-          yield* startResourceRowChanges(ref, entry, store);
+          if (ref.family.options.rows?.changes !== undefined) {
+            yield* startResourceRowChanges(ref, entry, store);
+          }
           return (loaded as Exit.Success<A, E>).value;
         }
 
@@ -837,7 +841,7 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
         ? hydrated
         : AsyncResult.success(value, { timestamp: hydrated.timestamp });
     commitResourceState(entry, state, "hydrate");
-    if (options.persist) {
+    if (options.persist && ref.family.options.policy?.persist !== undefined) {
       yield* persistResourceState(ref as AnyResourceRef, state);
     }
     yield* Cache.set(resourceCache(ref.family, store), ref.key, state.value);
