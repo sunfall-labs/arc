@@ -35,6 +35,11 @@ vite build
 PORT=3000 node dist/server/index.js
 ```
 
+Every Start build (prerendered sites too) names the chunks the entry loads:
+`vendor-*.js` holds its dependencies (Arc, Effect, Solid, and the other
+packages it imports), `app-*.js` the app modules that the entry and lazy
+routes share. A package that only lazy routes import stays in their chunks.
+
 `dist/server/index.js` serves the client build's files (hashed `assets/` with
 `immutable` caching, `public/` files with `no-cache`) and sends every other
 request to the server entry's handler (its `default` or `handleRequest`

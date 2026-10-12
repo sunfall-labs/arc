@@ -244,6 +244,17 @@ ran in dev only.
 - The tracker runs with `pnpm build && pnpm start`; `pnpm verify` builds it
   and runs `scripts/production-smoke.mjs` against the production server.
 
+### 23. The shared client chunk was named after a route file
+
+The production build's 430 kB framework chunk was `_key-*.js`, named after
+`routes/projects/$key/index.ts`, which made bundle reports misleading.
+
+- Fix: every Start build groups what the entry loads into named chunks:
+  `vendor-*.js` (Arc, Effect, Solid, and other packages) and `app-*.js` (app
+  modules the entry and lazy routes share)
+  (`packages/start/src/start-chunk-naming.ts`). Test:
+  `packages/start/test/production-server.test.ts` ("chunk naming").
+
 ## Open
 
 ### 18. Change feeds also start in SSR request runtimes (fixed)
@@ -292,13 +303,6 @@ missing list.
 
 - Proposal: derive the static list from the families `preload` touches in the
   route plan at build time, or check them against each other in dev.
-
-### 23. The shared client chunk is named after a route file
-
-The production build's 430 kB framework chunk is `_key-*.js`, named after
-`routes/projects/$key/index.ts`, which makes bundle reports misleading.
-
-- Proposal: the Start Vite preset names the shared framework chunk (`arc`).
 
 ### 24. Framework development: the dev server mixes dist and source
 

@@ -6,6 +6,15 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Build Chunks Have Meaningful Names
+
+- Start builds group the modules the entry loads into named chunks:
+  `vendor-*.js` for its dependencies (Arc, Effect, Solid, and other packages)
+  and `app-*.js` for app modules the entry and lazy routes share. Rolldown
+  named the shared chunk after whichever module it picked, so the tracker's
+  430 kB framework chunk was `_key-*.js` (after `routes/projects/$key`).
+  Packages only lazy routes import stay in their chunks.
+
 ### No-JavaScript Forms Post To Their Page
 
 - `StartAction.form(action, { input })` returns `{ method, hiddenFields }`
