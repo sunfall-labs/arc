@@ -6,6 +6,28 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Static Prerender Writes 404.html
+
+- Start's static prerender renders an unmatched URL through the app's handler
+  and writes the not-found page to `404.html` at the output root, with asset
+  URLs absolute under Vite's `base`, so GitHub Pages and other static hosts
+  serve the app's own styled 404 at any depth. There is no option: the planned
+  page's `source` is `"not-found"` (`filter` can drop it), and an explicit page
+  writing `404.html` replaces it.
+- Start answers unmatched URLs with status 404 (was 200), and the root
+  hydration payload carries `notFound: true`. `hydrateFromDocument` records it
+  with the new `Route.hydrateNotFound()`, so the hydrating router starts
+  `NotFound` whatever URL the document is served at, and the router host does
+  not preload an initial `NotFound` state.
+- `BrowserHistoryAdapter.prepareHref` may succeed with `{ _tag: "NotFound" }`;
+  the router then settles in `NotFound` without route preload.
+  `makeStartStaticHistoryAdapter` does so when a target page answers 404
+  (previously a `StartStaticNavigationHydrationError` with reason
+  `HttpStatus`).
+- The docs site's GitHub Pages build ships `404.html`; `pages:verify` checks it
+  and `pages:smoke` serves missing URLs with it (status 404, as GitHub Pages
+  does) and checks a deep missing URL.
+
 ### Server Functions Run On effect/rpc (Breaking)
 
 - Every server function is an `effect/rpc` `Rpc`. `Server.contract(name, {

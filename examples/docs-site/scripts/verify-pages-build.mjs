@@ -118,10 +118,43 @@ const findRootAbsoluteAttributeFailures = (expectedBasePath, html, file) => {
   return failures;
 };
 
+// GitHub Pages serves `404.html` at any depth, so it may only use absolute URLs.
+const findRelativeAttributeFailures = (html, file) =>
+  [...html.matchAll(/\b(?:href|src)=["']([^"']*)["']/giu)]
+    .map((match) => match[1] ?? "")
+    .filter((value) => !/^(?:\/|#|[a-zA-Z][a-zA-Z\d+.-]*:)/u.test(value))
+    .map((value) => `${relative(distRoot, file)} references relative URL ${value || '""'}`);
+
+const verifyNotFoundPageEffect = (expectedBasePath) =>
+  Effect.gen(function* () {
+    const file = join(distRoot, "404.html");
+    const html = yield* readTextEffect(file);
+    const failures = [
+      ...(html.includes("Page not found") ? [] : ["404.html does not render the not-found page"]),
+      ...(html.includes('id="__SUNFALL_ARC_HYDRATION__"')
+        ? []
+        : ["404.html has no hydration payload"]),
+      ...(html.includes(`src="${expectedBasePath}assets/`)
+        ? []
+        : [`404.html does not load its entry script from ${expectedBasePath}assets/`]),
+      ...findRelativeAttributeFailures(html, file),
+    ];
+    if (failures.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          ["GitHub Pages 404.html is not the app's not-found page:", ...failures].join("\n- "),
+          "Start prerender writes the app's not-found render to 404.html; check the prerender output.",
+        ),
+      );
+    }
+  });
+
 const mainEffect = Effect.gen(function* () {
   const expectedBasePath = yield* expectedBasePathEffect;
   yield* accessEffect(join(distRoot, "index.html"));
   yield* accessEffect(join(distRoot, ".nojekyll"));
+  yield* accessEffect(join(distRoot, "404.html"));
+  yield* verifyNotFoundPageEffect(expectedBasePath);
 
   const htmlFiles = yield* collectHtmlFilesEffect(distRoot);
   const failures = [];

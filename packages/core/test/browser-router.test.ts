@@ -586,6 +586,78 @@ describe("browser router kernel", () => {
       ),
     ));
 
+  it("settles as not found without route preload when href preparation finds no page", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+
+          let preloads = 0;
+          const Project = Route.define("/unpublished-projects/:id", {
+            preload: () =>
+              Effect.sync(() => {
+                preloads++;
+              }),
+          });
+          const history: BrowserHistoryAdapter = {
+            ...makeMemoryBrowserHistoryAdapter({ initialHref: "/" }),
+            prepareHref: () => Effect.succeed({ _tag: "NotFound" } as const),
+          };
+          const router = createBrowserRouterHostController([Project] as const, {
+            history,
+            runtime: eraseRuntime(runtime),
+          });
+          yield* Effect.addFinalizer(() => router.dispose());
+
+          router.navigate(Project, { params: { id: "atlas" } });
+          yield* Effect.promise(() =>
+            vi.waitFor(() =>
+              expect(router.state.get()).toEqual({
+                _tag: "NotFound",
+                href: "/unpublished-projects/atlas",
+              }),
+            ),
+          );
+          yield* router.preload(Project, { params: { id: "curie" } });
+          expect(preloads).toBe(0);
+        }),
+      ),
+    ));
+
+  it("hydrates a not-found document as NotFound at a matching href without preloading", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+
+          let preloads = 0;
+          const Project = Route.define("/static-projects/:id", {
+            preload: () =>
+              Effect.sync(() => {
+                preloads++;
+              }),
+          });
+          yield* runtime.provide(Route.hydrateNotFound());
+          const router = createBrowserRouterHostController([Project] as const, {
+            history: makeMemoryBrowserHistoryAdapter({ initialHref: "/static-projects/missing" }),
+            runtime: eraseRuntime(runtime),
+          });
+          yield* Effect.addFinalizer(() => router.dispose());
+          const stop = router.start();
+
+          expect(router.state.get()).toEqual({
+            _tag: "NotFound",
+            href: "/static-projects/missing",
+          });
+          yield* Effect.yieldNow;
+          expect(preloads).toBe(0);
+          stop();
+        }),
+      ),
+    ));
+
   it("does not re-preload an initial Ready hydration state when host listening starts", () =>
     Effect.runPromise(
       Effect.scoped(

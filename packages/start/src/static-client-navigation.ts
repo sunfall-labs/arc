@@ -7,7 +7,7 @@ import {
 } from "@sunfall/arc-core";
 import { lookupResourceFamily, matchRoutes } from "@sunfall/arc-core/internal";
 import { Data, Effect, Exit, Fiber, PubSub } from "effect";
-import { hydrateFromDocument } from "./hydration.js";
+import { hydrateFromDocument, readHydrationPayload } from "./hydration.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
 
@@ -146,12 +146,14 @@ const routeNeedsStaticHydration = <R extends AnyRoute>(match: Route.Match<R>): b
 
 /**
  * How an href was prepared. `Hydrated` keeps the hydrated refs so a later
- * navigation can reuse the preparation while they stay fresh;
+ * navigation can reuse the preparation while they stay fresh; `NotFound`
+ * (the host answered with its 404 page) settles the router as not found;
  * `EnvironmentUnavailable` (no window) is never cached.
  */
 type Preparation =
   | { readonly _tag: "Hydrated"; readonly refs: ReadonlyArray<Resource.AnyRef> }
   | { readonly _tag: "NoHydrationNeeded" }
+  | { readonly _tag: "NotFound" }
   | { readonly _tag: "EnvironmentUnavailable" };
 
 const hydratedPreparation = (
@@ -165,6 +167,19 @@ const hydratedPreparation = (
       }),
     ),
   ).pipe(Effect.map((refs) => ({ _tag: "Hydrated", refs: refs.flat() })));
+
+const servedNotFoundDocument = (): boolean =>
+  typeof document !== "undefined" &&
+  Effect.runSync(
+    readHydrationPayload(document).pipe(
+      Effect.map((payload) => payload?.notFound === true),
+      Effect.orElseSucceed(() => false),
+    ),
+  );
+
+/** The router-facing result: only a missing page changes what the router renders. */
+const notFoundResult = (prepared: Preparation): void | { readonly _tag: "NotFound" } =>
+  prepared._tag === "NotFound" ? { _tag: "NotFound" } : undefined;
 
 const preparationReusable = (prepared: Preparation): Effect.Effect<boolean> =>
   prepared._tag !== "Hydrated"
@@ -217,6 +232,11 @@ const hydrateTargetDocument = <RuntimeError>(
         }),
       catch: (cause) => fail("FetchFailed", { cause }),
     });
+    if (response.status === 404) {
+      // No page was prerendered for this href: the host answered with its
+      // `404.html`, so the router shows the not-found view instead.
+      return { _tag: "NotFound" } as const;
+    }
     if (!response.ok) {
       return yield* Effect.fail(fail("HttpStatus", { status: response.status }));
     }
@@ -256,13 +276,20 @@ const makeStaticHrefPreparation = <Routes extends readonly AnyRoute[], RuntimeEr
   options: StartStaticHistoryAdapterOptions<Routes, RuntimeError>,
   basePath: string,
   getWindow: () => StartStaticHistoryWindow | undefined,
-): ((href: string) => Effect.Effect<void, StartStaticNavigationHydrationError | RuntimeError>) => {
+): ((
+  href: string,
+) => Effect.Effect<
+  void | { readonly _tag: "NotFound" },
+  StartStaticNavigationHydrationError | RuntimeError
+>) => {
   type PreparationFiber = Fiber.Fiber<
     Preparation,
     StartStaticNavigationHydrationError | RuntimeError
   >;
   const shouldHydrateHref = options.shouldHydrateHref ?? routeNeedsStaticHydration;
-  const hydratedHrefs = options.hydratedHrefs ?? [];
+  // A not-found document (the host's 404.html) hydrated no route data for the
+  // URL it is served at, so returning there prepares that href like any other.
+  const hydratedHrefs = servedNotFoundDocument() ? [] : (options.hydratedHrefs ?? []);
   const initialHydratedHrefs = new Set(
     (typeof hydratedHrefs === "string" ? [hydratedHrefs] : hydratedHrefs).map((href) =>
       stripStartStaticBasePath(href, basePath),
@@ -322,6 +349,7 @@ const makeStaticHrefPreparation = <Routes extends readonly AnyRoute[], RuntimeEr
     if (
       Exit.isSuccess(exit) &&
       (exit.value._tag === "NoHydrationNeeded" ||
+        exit.value._tag === "NotFound" ||
         (exit.value._tag === "Hydrated" && exit.value.refs.length > 0))
     ) {
       prepared.set(href, exit.value);
@@ -355,7 +383,7 @@ const makeStaticHrefPreparation = <Routes extends readonly AnyRoute[], RuntimeEr
           preparationReusable(cached),
         ) as Effect.Effect<boolean, RuntimeError>;
         if (reusable) {
-          return;
+          return notFoundResult(cached);
         }
         prepared.delete(href);
       }
@@ -365,6 +393,7 @@ const makeStaticHrefPreparation = <Routes extends readonly AnyRoute[], RuntimeEr
       if (Exit.isFailure(exit)) {
         return yield* Effect.failCause(exit.cause);
       }
+      return notFoundResult(exit.value);
     });
 };
 

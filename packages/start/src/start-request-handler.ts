@@ -214,6 +214,7 @@ export const createStartRequestHandler = <
         const hydrationPlan = yield* createStartRenderHydrationPlan({
           resources: preloaded.resources,
           ...(preloaded.routeFailure === undefined ? {} : { routeFailure: preloaded.routeFailure }),
+          notFound: preloaded.routePlan._tag === "NotFound",
           settledSubmissions,
         });
         if (preloaded.routeFailure !== undefined) {
@@ -221,6 +222,9 @@ export const createStartRequestHandler = <
           // a more specific status through `ResponseContext`.
           recordStartRequestFailure(facts, "domain");
           yield* responseContext.setStatus(500);
+        } else if (preloaded.routePlan._tag === "NotFound") {
+          // No route matched: the page renders the app's not-found view.
+          yield* responseContext.setStatus(404);
         }
         const context = {
           app,

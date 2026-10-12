@@ -509,7 +509,7 @@ describe("Start static client navigation", () => {
         routes: [ProjectRoute] as const,
         basePath: "/app/",
         getWindow: () => asHistoryWindow(window),
-        fetch: vi.fn(async () => new Response("missing", { status: 404 })),
+        fetch: vi.fn(async () => new Response("unavailable", { status: 503 })),
         parseDocument: parseHtmlDocument,
       });
 
@@ -523,11 +523,44 @@ describe("Start static client navigation", () => {
           href: "/projects/1",
           browserHref: "/app/projects/1",
           reason: "HttpStatus",
-          status: 404,
+          status: 503,
         });
       }
     } finally {
       await Effect.runPromise(runtime.dispose);
     }
   });
+
+  it("settles as not found when the host answers a missing page with its 404 page", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+          const ProjectRoute = Route.define("/projects/:id", {
+            preloadResources: ["Start.Static.Project.not-prerendered"],
+          });
+          const window = new Window({ url: "https://docs.test/app/" });
+          const fetch = vi.fn(
+            async (_input: RequestInfo | URL, _init?: RequestInit) =>
+              new Response("<!doctype html><html><main>Page not found</main></html>", {
+                status: 404,
+              }),
+          );
+          const history = makeStartStaticHistoryAdapter({
+            runtime,
+            routes: [ProjectRoute] as const,
+            basePath: "/app/",
+            getWindow: () => asHistoryWindow(window),
+            fetch,
+            parseDocument: parseHtmlDocument,
+          });
+
+          // The router settles as not found instead of running route preload.
+          expect(yield* history.prepareHref!("/projects/missing")).toEqual({ _tag: "NotFound" });
+          expect(yield* history.prepareHref!("/projects/missing")).toEqual({ _tag: "NotFound" });
+          expect(fetch).toHaveBeenCalledTimes(1);
+        }),
+      ),
+    ));
 });

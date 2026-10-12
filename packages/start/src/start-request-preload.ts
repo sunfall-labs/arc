@@ -163,7 +163,10 @@ export const preloadRequestEffectWithRuntime = <
         if (routePlan.match !== undefined) {
           yield* Effect.ignore(Route.preloadComponent(routePlan.match));
         }
-        const hydration = createStartHydrationPayload(routePlan.resources, routeFailure);
+        const hydration = createStartHydrationPayload(routePlan.resources, {
+          routeFailure,
+          notFound: routePlan._tag === "NotFound",
+        });
         return {
           match: routePlan.match,
           resources: routePlan.resources,

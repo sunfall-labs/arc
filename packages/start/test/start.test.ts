@@ -841,6 +841,48 @@ describe("Sunfall Arc Start", () => {
     }
   });
 
+  it("renders unmatched URLs as 404 and hydrates that not-found state at any URL", async () => {
+    const ProjectRoute = Route.define("/projects/:id", {
+      params: Schema.Struct({ id: Schema.String }),
+    });
+    const routes = [ProjectRoute] as const;
+    const app = makeStartServerApp({ routes });
+    const handler = createStartRequestHandler(app, {
+      render: ({ hydrationPlan }) => `<main>Not found</main>${hydrationPlan.legacy.script}`,
+    });
+
+    const response = await Effect.runPromise(
+      Effect.scoped(handler(new Request("https://example.com/__sunfall-arc/not-found"))),
+    );
+    const html = await response.text();
+
+    expect(response.status).toBe(404);
+    const payload = JSON.parse(
+      html.slice(html.indexOf("{", html.indexOf("</main>")), html.lastIndexOf("}") + 1),
+    ) as StartHydrationPayload;
+    expect(payload.notFound).toBe(true);
+
+    // A static host serves this document (404.html) at every missing URL,
+    // including ones a dynamic route matches; the first router hydrates it
+    // as not found, and later routers match normally.
+    const clientRuntime = makeRuntime();
+    try {
+      await Effect.runPromise(clientRuntime.provide(hydrateStartPayload(payload)));
+      const hydrating = createBrowserRouterKernel(routes, {
+        runtime: eraseRuntime(clientRuntime),
+        initialHref: "/projects/unpublished",
+      });
+      expect(hydrating.state.get()).toEqual({ _tag: "NotFound", href: "/projects/unpublished" });
+      const later = createBrowserRouterKernel(routes, {
+        runtime: eraseRuntime(clientRuntime),
+        initialHref: "/projects/unpublished",
+      });
+      expect(later.state.get()._tag).toBe("Ready");
+    } finally {
+      await Effect.runPromise(Effect.orDie(clientRuntime.dispose));
+    }
+  });
+
   it("keeps failing standalone preloadRequest when route preload fails", async () => {
     const ProjectRoute = Route.define("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
