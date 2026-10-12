@@ -406,10 +406,6 @@ export const publicHoverDocGroups = [
     ],
   },
   {
-    file: "packages/start/src/file-route.ts",
-    declarations: ["FileRoute"],
-  },
-  {
     file: "packages/db/src/collection-index-materialization.ts",
     declarations: ["UnknownCollectionIndex"],
   },

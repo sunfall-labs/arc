@@ -124,7 +124,7 @@ Sunfall Arc is winning when these are also true:
 - App graph artifact: a deterministic Vite virtual module/define that combines
   route, server function, and action manifests for agents and devtools.
 - File-route definition module: validated manifests now import each route file's
-  named `Route`, path-check it against the manifest, and write the default
+  named `route`, path-check it against the manifest, and write the default
   `src/routeTree.gen.ts` project file for routers, editors, and agents,
   including `routeById` and route-id indexed params, search, and href-option
   type maps.

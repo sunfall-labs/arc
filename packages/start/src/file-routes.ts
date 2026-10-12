@@ -274,10 +274,15 @@ const fileRouteModuleKindFromLeaf = (segment: string): FileRouteModuleKind => {
   return "Route";
 };
 
-const exportNameForModuleKind = (kind: FileRouteModuleKind): string => {
+/**
+ * Export name each module role must provide. Route modules export
+ * `route = Route.define(path, options)`; Start checks the declared path against
+ * the path derived from the file location.
+ */
+export const fileRouteModuleExportName = (kind: FileRouteModuleKind): string => {
   switch (kind) {
     case "Route":
-      return "Route";
+      return "route";
     case "Layout":
       return "Layout";
     case "ErrorBoundary":
@@ -427,7 +432,7 @@ const manifestEntryToRouteModule = (entry: FileRouteManifestEntry): FileRouteMan
   routePath: entry.routePath,
   segments: entry.segments,
   params: entry.params,
-  exportName: exportNameForModuleKind("Route"),
+  exportName: fileRouteModuleExportName("Route"),
 });
 
 /** Converts one file path to a route/layout/error/metadata module when it matches route conventions. */
@@ -467,7 +472,7 @@ export const filePathToFileRouteModule = (
     routePath: decodedPath.routePath,
     segments: decodedPath.segments,
     params: decodedPath.params,
-    exportName: exportNameForModuleKind(kind),
+    exportName: fileRouteModuleExportName(kind),
   };
 };
 
@@ -508,7 +513,7 @@ export const filePathToFileRouteModuleEffect = (
       routePath: decodedPath.routePath,
       segments: decodedPath.segments,
       params: decodedPath.params,
-      exportName: exportNameForModuleKind(kind),
+      exportName: fileRouteModuleExportName(kind),
     };
   });
 

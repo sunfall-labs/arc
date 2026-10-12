@@ -131,16 +131,15 @@ Typed routers help catch bad links. Sunfall Arc leans into that, but keeps schem
 and generated route facts close to the app graph:
 
 ```ts
-const RouteBuilder = FileRoute.define("/projects/:id");
-
-export const Route = RouteBuilder.preload({
+export const route = Route.define("/projects/:id", {
   params: Schema.Struct({ id: ProjectId }),
   search: Schema.Struct({
     tab: Schema.optional(Schema.Literals(["overview", "activity"])),
   }),
-  resources: ({ resource }) => [resource(ProjectById, ({ params }) => params.id)],
-  collections: [ProjectSummaries],
-}).route();
+  preloadResources: [ProjectById],
+  preloadCollections: [ProjectSummaries],
+  preload: ({ params }) => Resource.preload(ProjectById(params.id)),
+});
 ```
 
 The generated route file exposes the `routeById` map of route definitions

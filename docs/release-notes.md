@@ -6,6 +6,16 @@ publication under `https://github.com/sunfall-labs/arc`; this remains a
 release-candidate draft until final npm publication is selected. The selected
 first public alpha version is `0.1.0-alpha.1`.
 
+## One Route Constructor (Breaking)
+
+- Start's `FileRoute.define(path)(options)` is removed. A file route module
+  exports `route = Route.define(path, options)` from `@sunfall/arc-core`; the
+  generated route tree imports `route` and fails, as a type error and when the
+  tree loads, if the declared path differs from the path implied by the
+  file location. `Route.Factory<Path>` / `RouteFactory`, the generated
+  `FileRoute` type, and the `routeModuleExportName` generator option are
+  removed with it.
+
 ## Durable Submissions And Tracing Papercuts
 
 - `Action.restoreOutbox` is a function: `Action.restoreOutbox(options?)` takes

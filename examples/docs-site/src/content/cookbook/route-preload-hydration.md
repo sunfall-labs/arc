@@ -15,7 +15,7 @@
 File routes should declare the data they own. Arc can then explain and verify what a page needs before rendering it.
 
 ```ts
-export const Route = FileRoute.define("/projects/:id")({
+export const route = Route.define("/projects/:id", {
   params: ProjectRouteParams,
   preloadResources: [ProjectById],
   preload: ({ params }) => Resource.preload(ProjectById(params.id)),

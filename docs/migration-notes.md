@@ -5,6 +5,29 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From FileRoute
+
+`FileRoute.define(path)(options)` is removed: a Start route module now exports
+`route` built with core `Route.define(path, options)`. The options were already
+identical; only the export name and the call shape change. The generated route
+tree imports `route` from each module and rejects a declared path that differs
+from the path the file location implies (a type error, and an error when the
+tree loads).
+
+```ts
+// before
+import { FileRoute } from "@sunfall/arc-start";
+export const Route = FileRoute.define("/projects/:id")({ params: ProjectRouteParams });
+
+// after
+import { Route } from "@sunfall/arc-core";
+export const route = Route.define("/projects/:id", { params: ProjectRouteParams });
+```
+
+Code that imported a route module's `Route` export imports `route` instead.
+`Route.Factory<Path>` and the generated `FileRoute` type (`RouteTree[number]`)
+are removed with it.
+
 ## From Offline Mutation Queues
 
 Collections no longer keep a pending-mutation queue. A change that must
@@ -54,7 +77,7 @@ before the first restore.
 This alpha applies three naming rules across every package:
 
 1. Definition constructors are `define`, namespaced: `Resource.define`,
-   `Route.define`, `App.define`, `FileRoute.define`, `Component.define`,
+   `Route.define`, `App.define`, `Component.define`,
    beside `Action.define`, `Program.define`, `Collection.define`, and
    `Capability.define`.
 2. Operations that return Effects carry no `Effect` suffix, and each has one
@@ -88,7 +111,7 @@ Effect.runFork(App.launch(app));
 | `Resource.requestFamily({ request, resolver, ... })`                                                                         | `Resource.define({ request, resolver, ... })`                                                                                                 |
 | `route(path, options)`                                                                                                       | `Route.define(path, options)`                                                                                                                 |
 | `defineApp(config)`                                                                                                          | `App.define({ root, routes, ... })` from `@sunfall/arc-start`                                                                                 |
-| `defineFileRoute(path)(options)`                                                                                             | `FileRoute.define(path)(options)`                                                                                                             |
+| `defineFileRoute(path)(options)`, `FileRoute.define(path)(options)`                                                          | `export const route = Route.define(path, options)`                                                                                            |
 | `Component.make(name, setup)`                                                                                                | `Component.define(name, setup)`                                                                                                               |
 | `Resource.prefetchEffect` / `refreshEffect` / `statusEffect` / `readEffect`                                                  | `Resource.preload` / `refresh` / `status` / `read`                                                                                            |
 | `Resource.deleteEffect(ref)`                                                                                                 | `Resource.evict(ref)`                                                                                                                         |
@@ -130,7 +153,7 @@ Effect.runFork(App.launch(app));
 | Collection sync adapter `refetch`                                                                                            | `refresh`                                                                                                                                     |
 | `Collection.flushAllPendingMutationsEffect` / `backgroundSyncPendingMutationsEffect`                                         | removed: Actions own writes                                                                                                                   |
 | Solid DB handle `result()` / `preloadFailure()`, `onPreloadFailure`, `pendingMutations()`                                    | `waiting()` / `failure()`; a never-loaded failure throws to `<Errored>` (`catchTags`)                                                         |
-| `Route.define(path, { component })`, `FileRoute.define(path)({ component })`                                                 | `Route.withComponent(route, Component, props?)` (Start code-splits it)                                                                        |
+| `Route.define(path, { component })`                                                                                          | `Route.withComponent(route, Component, props?)` (Start code-splits it)                                                                        |
 | `Collection.RuntimeError<E>`, `collection.preload().pipe(Effect.orDie)` in a route preload                                   | `E`: collection loads fail only with their declared error; contract breaks are defects                                                        |
 | Vite plugin `serverFunctionManifest` / `actionManifest` options                                                              | removed: the plugin derives both from the server entry's `createRequestHandler`                                                               |
 | `catchTags({ LoadErrorTag })` on a reader of a Resource without `error` (render failure was the raw load error)              | declare `error: LoadErrorSchema` on the Resource, or handle `ResourceUntypedFailure` (its `tag` only)                                         |
@@ -227,9 +250,8 @@ behind Resource families and Actions:
   network through the same handle, and `StartAction.form(...)` renders them
   as progressive no-JS forms.
 - Route loaders call `Resource.preload(...)` in `preload` and declare
-  `preloadResources` / `preloadCollections`; file routes use
-  `FileRoute.define(path)(options)` with exactly the same options as core
-  `Route.define(path, options)`.
+  `preloadResources` / `preloadCollections`; file routes export
+  `route = Route.define(path, options)`, the same constructor as any route.
 
 Keep Promise-returning query functions at the host boundary only. Inside the
 framework slice, prefer Effect loaders so retries, services, scopes, tracing,
@@ -241,7 +263,8 @@ TanStack Start route files often combine route definitions, loaders, server
 functions, and generated route typing. Sunfall Arc keeps the same copyable route
 shape but makes app graph facts explicit:
 
-- File routes use `FileRoute.define(...)` and generated route maps.
+- File routes export `route = Route.define(path, options)`; Start generates
+  the route maps and fails when the declared path differs from the file's.
 - Server functions use `Server.contract(...)`, `Server.implement(...)`, and
   browser-safe contract imports.
 - Request handling starts at `createRequestHandler(app, { server })`; Promise

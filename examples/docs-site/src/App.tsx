@@ -562,7 +562,7 @@ const issue = yield* makeRuntime(IssueApiTest).provide(
   }),
 );`;
 
-const blogRouteExample = `export const Route = FileRoute.define("/issues/:id")({
+const blogRouteExample = `export const route = Route.define("/issues/:id", {
   params: IssueRouteParams,
   preloadResources: [IssueById],
   preload: ({ params }) => Resource.preload(IssueById(params.id)),

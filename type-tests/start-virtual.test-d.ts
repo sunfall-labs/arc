@@ -24,7 +24,6 @@ import {
   metadataById,
   routeById,
   routes as virtualRoutes,
-  type FileRoute,
   type FileRouteErrorBoundary,
   type FileRouteErrorBoundaryById,
   type FileRouteHrefArgs,
@@ -85,7 +84,6 @@ type VirtualManifestEntries =
 type VirtualRouteContracts =
   | RouteTree
   | RouteById
-  | FileRoute
   | FileRouteId
   | FileRouteParamsById
   | FileRouteSearchById
