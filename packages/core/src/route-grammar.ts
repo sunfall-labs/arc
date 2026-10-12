@@ -99,10 +99,27 @@ const compareString = (left: string, right: string): number =>
 /** Returns true when a value is a valid route param identifier. */
 export const isRouteParamName = (value: string): boolean => /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
 
+// Route patterns are a small, fixed set per app, and every href build and
+// match reads them, so each pattern is parsed once. Parsed segments are frozen
+// and shared.
+const parsedRoutePaths = new Map<string, readonly RoutePathSegment[]>();
+
 /** Parses and validates a `/:param` route path into normalized grammar segments. */
 export const parseRoutePathSegments = (path: string): readonly RoutePathSegment[] => {
+  const cached = parsedRoutePaths.get(path);
+  if (cached !== undefined) {
+    return cached;
+  }
+  const segments: readonly RoutePathSegment[] = Object.freeze(
+    parseRoutePathSegmentsUncached(path).map((segment) => Object.freeze(segment)),
+  );
+  parsedRoutePaths.set(path, segments);
+  return segments;
+};
+
+const parseRoutePathSegmentsUncached = (path: string): RoutePathSegment[] => {
   const params = new Set<string>();
-  return splitPath(path).map((part) => {
+  return splitPath(path).map((part): RoutePathSegment => {
     if (!part.startsWith(":")) {
       return {
         _tag: "Static",
@@ -361,23 +378,25 @@ export const matchRoutePath = (
 
 /** Builds a pathname from a route pattern and path params. */
 export const buildRoutePath = (path: string, params: Record<string, unknown>): string => {
-  const parts = parseRoutePathSegments(path).flatMap((part) => {
+  let built = "";
+  for (const part of parseRoutePathSegments(path)) {
     if (part._tag === "Static") {
-      return [part.value];
+      built += `/${part.value}`;
+      continue;
     }
 
     const value = params[part.name];
     if (value === undefined || value === null) {
       if (part.optional) {
-        return [];
+        continue;
       }
       throw new MissingRouteParam({ route: path, param: part.name });
     }
 
-    return [encodeURIComponent(String(value))];
-  });
+    built += `/${encodeURIComponent(String(value))}`;
+  }
 
-  return parts.length === 0 ? "/" : `/${parts.join("/")}`;
+  return built === "" ? "/" : built;
 };
 
 /** Parses strings and URL objects with the same base URL used by route matching. */

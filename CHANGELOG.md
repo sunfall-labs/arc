@@ -6,6 +6,19 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Cheaper RouterLink
+
+- `RouterLink` renders a plain anchor on the server (no memos, effects, or
+  preloader) and, in the browser, holds no preloader, effect, or cleanup until
+  the first hover or focus. A link is one statically created anchor with its
+  attribute bindings, not a `<Dynamic>`. Route patterns are parsed once and
+  cached, so building an href no longer re-parses the pattern.
+- `RouterLink` now also preloads on focus (keyboard navigation), and an
+  `onFocus` handler passed to it runs first, like `onMouseEnter`.
+- Measured on the 1,000-link list of `benchmarks/compare` (5 interleaved
+  rounds): server CPU per render of `/` 18.2 ms to 10.3 ms, JS heap after load
+  12.0 MB to 8.6 MB, first click handled (4x CPU throttle) 528 ms to 455 ms.
+
 ### App States: One State Shared Across Pages
 
 Found by building `examples/tracker`, whose undo toast is shown by the board
@@ -107,6 +120,7 @@ Found by building `examples/tracker`, a real issue tracker on SQLite.
   no-JavaScript post: visible fields merged over the default input
   `StartAction.form(action, { input })` encoded. It used to drop the
   defaults, so an enhanced form missed fields (an `id`) its no-JS post had.
+||||||| parent of 50ba169 (Make RouterLink cheap on the server and before first intent)
 
 ### Rejected Path Params Are Not Found (Breaking)
 

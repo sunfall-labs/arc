@@ -18,7 +18,7 @@ import type { JSX } from "@solidjs/web";
 import type { AnySunfallArcRuntime, BrowserHistoryAdapter } from "@sunfall/arc-core";
 import type { BrowserRouter, RouterOutletProps, RouterProviderProps } from "../src/index.js";
 
-const { Errored, Loading, Show, children, createRoot, createSignal, getOwner, onCleanup } =
+const { Errored, Loading, Show, children, createRoot, createSignal, flush, getOwner, onCleanup } =
   await import("solid-js");
 
 /** Reads rendered output the way DOM insertion would; Solid 2 evaluates children lazily. */
@@ -745,6 +745,77 @@ describe("createBrowserRouter", () => {
           );
           expect(history.entries()).toEqual(["/missing", "/link-projects/atlas"]);
           expect(preloaded).toEqual(["atlas", "atlas"]);
+        }),
+      ),
+    ));
+
+  it("RouterLink preloads on focus and interrupts a stale preload when its href changes", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const events: Array<string> = [];
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+
+          const ProjectRoute = Route.define("/intent-projects/:id", {
+            preload: ({ params }) =>
+              Effect.sync(() => events.push(`start:${params.id}`)).pipe(
+                Effect.andThen(Effect.never),
+                Effect.onInterrupt(() => Effect.sync(() => events.push(`stop:${params.id}`))),
+              ),
+          });
+          const [id, setId] = createSignal("atlas");
+          const LinkView = () =>
+            createComponent(RouterLink, {
+              route: ProjectRoute,
+              get options() {
+                return { params: { id: id() } };
+              },
+              children: "Project",
+            });
+          const container = document.createElement("div");
+          document.body.append(container);
+          yield* Effect.addFinalizer(() => Effect.sync(() => container.remove()));
+          const dispose = render(
+            () =>
+              createComponent(RuntimeProvider, {
+                runtime: eraseRuntime(runtime),
+                get children() {
+                  return createComponent(RouterProvider, {
+                    routes: [ProjectRoute] as const,
+                    initialHref: "/missing",
+                    get children() {
+                      return createComponent(LinkView, {});
+                    },
+                  });
+                },
+              }),
+            container,
+          );
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          const anchor = container.querySelector("a");
+          expect(anchor?.getAttribute("href")).toBe("/intent-projects/atlas");
+          anchor?.dispatchEvent(new FocusEvent("focus"));
+          yield* Effect.promise(() => vi.waitFor(() => expect(events).toEqual(["start:atlas"])));
+
+          setId("curie");
+          flush();
+          expect(anchor?.getAttribute("href")).toBe("/intent-projects/curie");
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(events).toEqual(["start:atlas", "stop:atlas"])),
+          );
+
+          anchor?.dispatchEvent(new MouseEvent("mouseenter", { cancelable: true }));
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(events).toEqual(["start:atlas", "stop:atlas", "start:curie"])),
+          );
+          dispose();
+          yield* Effect.promise(() =>
+            vi.waitFor(() =>
+              expect(events).toEqual(["start:atlas", "stop:atlas", "start:curie", "stop:curie"]),
+            ),
+          );
         }),
       ),
     ));
