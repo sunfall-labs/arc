@@ -94,7 +94,7 @@ describe("Resource policy.persist", () => {
       }),
     ));
 
-  it("never reads another version's values, and does nothing without a KeyValueStore", () =>
+  it("never reads another version's values and ignores unreadable ones", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const store = yield* memoryStore;
@@ -111,12 +111,6 @@ describe("Resource policy.persist", () => {
         expect(yield* runtime.provide(Resource.preload(page.ref))).toEqual([atlas]);
         expect(page.loads.count).toBe(1);
         yield* runtime.dispose;
-
-        const bare: SunfallArcRuntime<any, any> = makeRuntime();
-        const other = definePage(`Persist.bare.${++families}`, server);
-        expect(yield* bare.provide(Resource.preload(other.ref))).toEqual([atlas]);
-        expect(visible(bare, other.ref)).toEqual([atlas]);
-        yield* bare.dispose;
       }),
     ));
 

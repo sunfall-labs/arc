@@ -31,8 +31,9 @@ const persistOptions = (ref: AnyResourceRef): ResourcePersistOptions | undefined
 /**
  * Writes a settled value of a persisted family to the runtime's
  * `KeyValueStore`, encoded like a hydration snapshot (through the family's
- * `output` schema). Without a `KeyValueStore` in context it does nothing; a
- * failed write is logged and never fails the load.
+ * `output` schema). The family's `R` requires the store; paths that carry no
+ * `R` (hydration) look it up and skip when it is absent. A failed write is
+ * logged and never fails the load.
  */
 export const persistResourceState = (
   ref: AnyResourceRef,

@@ -1,6 +1,7 @@
-import { Action, Resource } from "@sunfall/arc-core";
+import { Action, makeRuntime, Resource } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
 import { Context, Effect, Schema, Stream } from "effect";
+import { KeyValueStore } from "effect/persistence";
 
 type Assert<T extends true> = T;
 type Eq<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
@@ -110,3 +111,42 @@ Action.define({
       transaction.delete(TodoCount("me"), id),
     ]),
 });
+
+// `policy.persist` adds the runtime's KeyValueStore to the family's services,
+// so a runtime without one does not compile.
+const PersistedTodos = Resource.define({
+  name: "type-tests/rows/persisted",
+  input: Schema.String,
+  output: Schema.Array(Todo),
+  rows: { key: (todo) => todo.id },
+  policy: { persist: { key: "todos" } },
+  load: () => Effect.succeed([] as ReadonlyArray<Todo>),
+});
+type _persistR = Assert<
+  Eq<
+    ReturnType<typeof PersistedTodos> extends Resource.Ref<any, any, any, infer R> ? R : never,
+    KeyValueStore.KeyValueStore
+  >
+>;
+// Persistence on a load-inferred family is typed the same way.
+const PersistedCount = Resource.define({
+  name: "type-tests/rows/persisted-count",
+  input: Schema.String,
+  policy: { persist: { key: "count", version: 2 } },
+  load: () => Effect.succeed(1),
+});
+type _persistCountR = Assert<
+  Eq<
+    ReturnType<typeof PersistedCount> extends Resource.Ref<any, any, any, infer R> ? R : never,
+    KeyValueStore.KeyValueStore
+  >
+>;
+
+const PersistedList = Component.define("PersistedList", function* () {
+  const todos = yield* Component.resource(PersistedTodos);
+  return () => todos("me").length;
+});
+declare const root: HTMLElement;
+// @ts-expect-error a persisted Resource needs the runtime's KeyValueStore
+Component.launch(PersistedList, root, { runtime: makeRuntime() });
+Component.launch(PersistedList, root, { runtime: makeRuntime(KeyValueStore.layerMemory) });

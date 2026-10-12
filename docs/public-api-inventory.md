@@ -521,7 +521,8 @@ includes:
   transport; `App.LaunchOptions.transport` sets their `endpoints`, `fetch`
   (`StartFetch`, `StartFetchInit`, `StartFetchInput`), and `headers`.
 - durable submissions: `App.launch` provides the Action Outbox over the
-  client Layer's `KeyValueStore` (in-memory when it has none;
+  browser's one `KeyValueStore` (the client Layer's, else `localStorage`,
+  shared with persisted Resources;
   `App.LaunchOptions.outbox` sets `retry`) and restores it after
   hydrating. The action endpoint runs a submission that carries an id as an
   `effect/workflow` Workflow keyed by that id, on the server Layer's

@@ -218,6 +218,9 @@ export const SubmitProjectName = Action.define({
     concurrency: "latest",
     retry: Schedule.recurs(1),
   },
+  // Durable, like the advance: the submission is pending in the Action Outbox
+  // until it settles, which is what the sidebar's "Saving" badge reads.
+  durable: { maxAge: "1 day" },
   // The sidebar row and the project page show the new name at once; a failure
   // or a rejected result (`ValidationFailure`, `Failure`) rolls both back.
   optimistic: ({ id, name }, transaction) =>

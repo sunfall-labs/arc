@@ -509,9 +509,11 @@ below. A persisted family writes each settled value (loads, hydration,
 `rows.changes` batches) at `arc/resources/v<version>/<key>/<ref key>`,
 encoded through `output` like a hydration snapshot; optimistic patches are
 never persisted. A never-loaded entry restores the persisted value at once
-and reloads in the background. The store is read with
-`Effect.serviceOption`, so without a `KeyValueStore` persistence does nothing,
-and storage or decode failures are logged rather than failing loads.
+and reloads in the background. `policy.persist` adds `KeyValueStore` to the
+family's services, so a runtime without one does not compile; Start provides
+one on both sides (the client Layer's or `localStorage` in the browser, a
+store that keeps nothing during SSR). Storage or decode failures are logged
+rather than failing loads.
 
 A `rows.changes(input)` feed starts with an entry's first load (or first read
 after hydration) on the runtime's Resource Store. Each batch of
@@ -547,10 +549,10 @@ Outbox (`ActionOutbox`, provided by `Action.outboxLayer()`; Start's
   `{ id, action, input (schema-encoded), createdAt, attempts }` to its queue,
   and only then sends. The queue lives in the runtime's `effect/persistence`
   `KeyValueStore` under the prefix `arc/actions/v1/` (key `queue`), encoded
-  with `KeyValueStore.toSchemaStore`. The client Layer chooses the store:
-  `KeyValueStore.layerStorage(() => localStorage)` in browsers,
-  `KeyValueStore.layerMemory` in tests, `layerSql`/`layerFileSystem`
-  elsewhere. The optimistic intent is the input itself: `optimistic` is a pure
+  with `KeyValueStore.toSchemaStore`. In a Start app it is the browser's one
+  store, shared with persisted Resources: the client Layer's, else
+  `localStorage`. Elsewhere the runtime's Layer chooses it
+  (`KeyValueStore.layerMemory` in tests, `layerSql`/`layerFileSystem`). The optimistic intent is the input itself: `optimistic` is a pure
   function of it, so restoring re-runs it instead of serializing patches.
 - **`submit` settles or queues.** It succeeds or fails with the outcome when
   the submission settles while the caller waits (online, this is the same

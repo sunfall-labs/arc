@@ -17,6 +17,7 @@ import type {
 } from "./effect-like.js";
 import { EffectInputPromiseRejected } from "./effect-like.js";
 import { isEffectLikeValue, isPromiseLikeValue } from "./effect-input-sync.js";
+import type { KeyValueStore } from "effect/persistence";
 import type { DurationInput } from "./resource-duration.js";
 import type { ResourcePersistOptions } from "./resource-persistence.js";
 import {
@@ -115,9 +116,10 @@ export interface ResourcePolicy<E = never> {
    * Persists settled values in the runtime's `KeyValueStore`
    * (`effect/persistence`), encoded through `output`, so a reload shows the
    * last value before the network answers. A never-loaded entry restores the
-   * persisted value at once and reloads it in the background. Without a
-   * `KeyValueStore` in the runtime it does nothing; storage failures are
-   * logged, never load failures. Optimistic patches are never persisted.
+   * persisted value at once and reloads it in the background. It adds
+   * `KeyValueStore` to the family's services, so a runtime without one does
+   * not compile; storage failures are logged, never load failures.
+   * Optimistic patches are never persisted.
    */
   readonly persist?: ResourcePersistOptions;
 }
@@ -206,6 +208,20 @@ type ResourceRowsOption<I, Output, Key extends ResourceRowKey, Indexes, ChangesR
     ChangesR
   >;
 } & ResourceRowsCheck<Output, Key>;
+
+/**
+ * Captures `policy.persist` so a persisted family requires the runtime's
+ * `KeyValueStore`: a missing store is a compile error where the family's
+ * services must be provided, like any other service.
+ */
+type ResourcePersistOption<Persist> = {
+  readonly policy?: { readonly persist?: Persist };
+};
+
+/** `KeyValueStore` when the family declares `policy.persist`. */
+type ResourcePersistRequirements<Persist> = [Persist] extends [undefined]
+  ? never
+  : KeyValueStore.KeyValueStore;
 
 /** The `error` option every `Resource.define` overload takes, with its coverage check. */
 type ResourceErrorOption<ErrorSchema, LoadError> = {
@@ -809,14 +825,16 @@ export namespace Resource {
     EX = never,
     RX = never,
     ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
+    Persist extends ResourcePersistOptions | undefined = undefined,
   >(
     options: Omit<ResourceRequestFamilyOptions<I, Req, EX, RX>, "error" | "rows"> &
-      ResourceErrorOption<ErrorSchema, EffectRequest.Error<Req> | EX>,
+      ResourceErrorOption<ErrorSchema, EffectRequest.Error<Req> | EX> &
+      ResourcePersistOption<Persist>,
   ): ResourceRefFactory<
     I,
     EffectRequest.Success<Req>,
     ResourceDeclaredError<ErrorSchema, EffectRequest.Error<Req> | EX>,
-    EffectRequest.Services<Req> | RX,
+    EffectRequest.Services<Req> | RX | ResourcePersistRequirements<Persist>,
     ResourceRenderErrorFor<ErrorSchema, EffectRequest.Error<Req> | EX>
   >;
   export function define<
@@ -827,6 +845,7 @@ export namespace Resource {
     Key extends ResourceRowKey = never,
     Indexes = {},
     ChangesR = never,
+    Persist extends ResourcePersistOptions | undefined = undefined,
   >(
     options: ResourceFamilyCommonOptions<
       Schema.Schema.Type<Input>,
@@ -845,12 +864,13 @@ export namespace Resource {
         Indexes,
         ChangesR
       > &
+      ResourcePersistOption<Persist> &
       RejectPromiseEffectInput<Out>,
   ): ResourceRefFactory<
     Schema.Schema.Type<Input>,
     Schema.Schema.Type<Output>,
     ResourceDeclaredError<ErrorSchema, EffectInputError<Out>>,
-    EffectInputRequirements<Out> | ChangesR,
+    EffectInputRequirements<Out> | ChangesR | ResourcePersistRequirements<Persist>,
     ResourceRenderErrorFor<ErrorSchema, EffectInputError<Out>>,
     ResourceRowsSpecFor<ResourceRowElement<Schema.Schema.Type<Output>>, Key, Indexes>
   >;
@@ -858,6 +878,7 @@ export namespace Resource {
     const Input extends Schema.Top,
     Load extends (input: Schema.Schema.Type<Input>) => unknown,
     ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
+    Persist extends ResourcePersistOptions | undefined = undefined,
   >(
     options: ResourceFamilyCommonOptions<
       Schema.Schema.Type<Input>,
@@ -870,12 +891,13 @@ export namespace Resource {
       readonly load: Load &
         ((input: Schema.Schema.Type<Input>) => EnsureEffectInput<ReturnType<Load>>);
     } & ResourceErrorOption<ErrorSchema, EffectInputError<ReturnType<Load>>> &
+      ResourcePersistOption<Persist> &
       RejectPromiseEffectInput<ReturnType<Load>>,
   ): ResourceRefFactory<
     Schema.Schema.Type<Input>,
     EffectInputValue<ReturnType<Load>>,
     ResourceDeclaredError<ErrorSchema, EffectInputError<ReturnType<Load>>>,
-    EffectInputRequirements<ReturnType<Load>>,
+    EffectInputRequirements<ReturnType<Load>> | ResourcePersistRequirements<Persist>,
     ResourceRenderErrorFor<ErrorSchema, EffectInputError<ReturnType<Load>>>
   >;
   export function define<
@@ -886,6 +908,7 @@ export namespace Resource {
     Key extends ResourceRowKey = never,
     Indexes = {},
     ChangesR = never,
+    Persist extends ResourcePersistOptions | undefined = undefined,
   >(
     options: ResourceFamilyCommonOptions<
       I,
@@ -898,12 +921,13 @@ export namespace Resource {
       readonly load: (input: I) => EnsureEffectInput<Out>;
     } & ResourceErrorOption<ErrorSchema, EffectInputError<Out>> &
       ResourceRowsOption<I, Schema.Schema.Type<Output>, Key, Indexes, ChangesR> &
+      ResourcePersistOption<Persist> &
       RejectPromiseEffectInput<Out>,
   ): ResourceRefFactory<
     I,
     Schema.Schema.Type<Output>,
     ResourceDeclaredError<ErrorSchema, EffectInputError<Out>>,
-    EffectInputRequirements<Out> | ChangesR,
+    EffectInputRequirements<Out> | ChangesR | ResourcePersistRequirements<Persist>,
     ResourceRenderErrorFor<ErrorSchema, EffectInputError<Out>>,
     ResourceRowsSpecFor<ResourceRowElement<Schema.Schema.Type<Output>>, Key, Indexes>
   >;
@@ -925,13 +949,17 @@ export namespace Resource {
     I,
     A,
     E,
-    R,
+    | R
+    | ResourcePersistRequirements<
+        Definition extends { readonly policy: { readonly persist: infer P } } ? P : undefined
+      >,
     ResourceRenderErrorFor<Definition extends { readonly error: infer S } ? S : undefined, E>
   >;
   export function define<
     I,
     Load extends (input: I) => unknown,
     ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
+    Persist extends ResourcePersistOptions | undefined = undefined,
   >(
     options: Omit<
       ResourceFamilyOptions<
@@ -945,12 +973,13 @@ export namespace Resource {
       readonly output?: never;
       readonly load: Load & ((input: I) => EnsureEffectInput<ReturnType<Load>>);
     } & ResourceErrorOption<ErrorSchema, EffectInputError<ReturnType<Load>>> &
+      ResourcePersistOption<Persist> &
       RejectPromiseEffectInput<ReturnType<Load>>,
   ): ResourceRefFactory<
     I,
     EffectInputValue<ReturnType<Load>>,
     ResourceDeclaredError<ErrorSchema, EffectInputError<ReturnType<Load>>>,
-    EffectInputRequirements<ReturnType<Load>>,
+    EffectInputRequirements<ReturnType<Load>> | ResourcePersistRequirements<Persist>,
     ResourceRenderErrorFor<ErrorSchema, EffectInputError<ReturnType<Load>>>
   >;
   export function define(options: unknown): any {

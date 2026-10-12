@@ -365,11 +365,18 @@ const OfflineProjectList = Resource.define({
 - A never-loaded entry shows its persisted value at once and reloads in the
   background. Loads, hydration, and change-feed batches persist; optimistic
   patches never do (durable Actions re-apply theirs from the Action Outbox).
-- It works for any Resource, rows or not. Without a `KeyValueStore` in the
-  runtime it does nothing, and storage failures are logged, never load
-  failures.
+- It works for any Resource, rows or not. `policy.persist` adds
+  `KeyValueStore.KeyValueStore` to the family's services, so a runtime that
+  lacks one fails to compile, like any missing service. Storage failures are
+  logged, never load failures.
+- Start provides the store on both sides. `App.launch` uses the client
+  Layer's `KeyValueStore`, else `localStorage`, and the Action Outbox shares
+  it. A request runtime gets a store that keeps nothing, so SSR never
+  persists one request's values for another (a `KeyValueStore` in the server
+  Layer replaces it).
 
-The app's client Layer picks the store, the same one the Action Outbox uses:
+To pick the browser store yourself (it is the one the Action Outbox uses),
+provide it in the client Layer:
 
 <!-- snippet: type-tests/docs/db/persistence.ts#client-layer -->
 

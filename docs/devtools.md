@@ -408,8 +408,6 @@ The devtools product should grow in this order:
 - Program Timeline: messages, before/after model snapshots, command
   starts/completions/failures, emitted follow-up messages, subscription events,
   typed failures, and disposal.
-- Rows Inspector: per-Resource row counts, indexes, change-feed health, live
-  query plans, optimistic row layers, and persistence.
 - Request Trace: request context, response context, server functions, actions,
   resources, streams, fibers, interruption, and teardown.
 - Diagnostics Repair: missing schemas, unknown preload ownership, unsafe

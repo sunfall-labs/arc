@@ -30,7 +30,15 @@ Entries are newest first.
 - `policy.persist: { key, version }` persists any Resource's settled values
   in the runtime's `KeyValueStore` (`arc/resources/v<version>/<key>/...`); a
   never-loaded entry shows the persisted value at once and reloads in the
-  background. Durable Actions re-apply their row patches on top.
+  background. Durable Actions re-apply their row patches on top. A persisted
+  family requires `KeyValueStore.KeyValueStore` in its `R`, so a runtime
+  without a store does not compile; storage failures are logged, not load
+  failures.
+- Start provides that store on both sides: `App.launch` uses the client
+  Layer's `KeyValueStore`, else `localStorage` (memory without Web Storage),
+  one store shared with the Action Outbox (which previously fell back to
+  memory), and request runtimes get a store that keeps nothing unless the
+  server Layer provides one. `App.LaunchServices` includes `KeyValueStore`.
 - Live queries read rows Resources: `query.from({ project: ProjectsRef })`,
   `joinIndexed` names checked against `rows.indexes`. Query diagnostics
   report `resource` instead of `collection`, and join strategies are

@@ -57,8 +57,12 @@ export interface AppDefinition<
 /** Any app definition, for APIs that accept every app. */
 export type AnyAppDefinition = AppDefinition<readonly AnyRoute[], any, any, any, any>;
 
-/** Services `App.launch` adds to the client Layer. */
-export type AppLaunchServices = ActionTransport | Server.Client;
+/**
+ * Services `App.launch` adds to the client Layer. `KeyValueStore` is the
+ * client Layer's own when it provides one, else Web Storage
+ * (`localStorage`), or memory where there is none.
+ */
+export type AppLaunchServices = ActionTransport | Server.Client | KeyValueStore.KeyValueStore;
 
 /** Raised by `App.launch` when the document has no app root element. */
 export class StartRootMissing extends Data.TaggedError("StartRootMissing")<{
@@ -89,19 +93,19 @@ type ClientServicesCheck<RootServices, ClientServices> = [
     };
 
 /**
- * The Action Outbox over the client Layer's `KeyValueStore`, or over an
- * in-memory one when the client Layer provides none.
+ * The browser's one `KeyValueStore`, shared by persisted Resources and the
+ * Action Outbox: the client Layer's when it provides one, else Web Storage
+ * (`localStorage`), or memory where there is no Web Storage.
  */
-const outboxLayer = (options: Action.OutboxOptions = {}) =>
-  Layer.unwrap(
-    Effect.map(Effect.serviceOption(KeyValueStore.KeyValueStore), (store) =>
-      Option.isSome(store)
-        ? Action.outboxLayer(options).pipe(
-            Layer.provide(Layer.succeed(KeyValueStore.KeyValueStore)(store.value)),
-          )
-        : Action.outboxLayer(options).pipe(Layer.provide(KeyValueStore.layerMemory)),
-    ),
-  );
+const clientKeyValueStore = Layer.unwrap(
+  Effect.map(Effect.serviceOption(KeyValueStore.KeyValueStore), (store) =>
+    Option.isSome(store)
+      ? Layer.succeed(KeyValueStore.KeyValueStore)(store.value)
+      : typeof globalThis.localStorage === "undefined"
+        ? KeyValueStore.layerMemory
+        : KeyValueStore.layerStorage(() => globalThis.localStorage),
+  ),
+);
 
 /** Start apps: one definition, served by `createRequestHandler` and launched by `App.launch`. */
 export namespace App {
@@ -145,9 +149,9 @@ export namespace App {
     /**
      * Options for the Action Outbox that holds durable Action submissions
      * (`retry`; see `Action.outboxLayer`). The outbox persists to the
-     * client Layer's `KeyValueStore` (`effect/persistence`), e.g.
-     * `KeyValueStore.layerStorage(() => localStorage)`; without one, pending
-     * submissions last only as long as the page.
+     * browser's one `KeyValueStore` (`effect/persistence`), shared with
+     * persisted Resources: the client Layer's when it provides one, else
+     * `localStorage`.
      */
     readonly outbox?: Action.OutboxOptions;
   }
@@ -240,15 +244,19 @@ export namespace App {
         const runtime = yield* Effect.acquireRelease(
           Effect.sync(() =>
             makeRuntime(
-              outboxLayer(options.outbox).pipe(
+              Action.outboxLayer(options.outbox).pipe(
                 Layer.provideMerge(
-                  Layer.mergeAll(
-                    app.client,
-                    makeActionTransportLayer({
-                      ...transport,
-                      actions: app.actions,
-                    }),
-                    browserRpc ? makeRpcClientLayer(transport) : Layer.empty,
+                  clientKeyValueStore.pipe(
+                    Layer.provideMerge(
+                      Layer.mergeAll(
+                        app.client,
+                        makeActionTransportLayer({
+                          ...transport,
+                          actions: app.actions,
+                        }),
+                        browserRpc ? makeRpcClientLayer(transport) : Layer.empty,
+                      ),
+                    ),
                   ),
                 ),
               ) as Layer.Layer<ClientServices | AppLaunchServices, ClientError>,

@@ -73,6 +73,14 @@ const ProjectRows = Component.define(
   "ProjectRows",
   function* (props: { readonly selectedId: ProjectId | undefined; readonly search: string }) {
     const projects = yield* Component.resource(ProjectList);
+    // A row is saving while a durable submission for its project (a rename or
+    // an advance) is pending in the Action Outbox: the Actions' own status,
+    // not a flag on the row. The server render has no outbox, so none are.
+    const outbox = yield* Action.outbox;
+    const saving = (id: ProjectId) =>
+      outbox.pending
+        .get()
+        .some((entry) => (entry.input as { readonly id?: unknown } | undefined)?.id === id);
     const filteredProjects = (currentProjects: ReadonlyArray<ProjectSummary>) => {
       const query = props.search.trim().toLowerCase();
       if (query.length === 0) {
@@ -96,7 +104,11 @@ const ProjectRows = Component.define(
           {/* Keyed by id: unchanged rows keep their identity across reloads. */}
           <For each={rows()} keyed={(project) => project.id}>
             {(project) => (
-              <ProjectRow project={project()} selected={project().id === props.selectedId} />
+              <ProjectRow
+                project={project()}
+                selected={project().id === props.selectedId}
+                saving={saving(project().id)}
+              />
             )}
           </For>
 
@@ -212,12 +224,16 @@ const AppShell = Component.define("AppShell", function* () {
   };
 });
 
-function ProjectRow(props: { readonly project: ProjectSummary; readonly selected: boolean }) {
+function ProjectRow(props: {
+  readonly project: ProjectSummary;
+  readonly selected: boolean;
+  readonly saving: boolean;
+}) {
   return (
     <RouterLink
       route={ProjectUiRoute}
       options={{ params: { id: props.project.id } }}
-      class={["projectRow", { selected: props.selected }]}
+      class={["projectRow", { selected: props.selected, saving: props.saving }]}
     >
       <span class={`healthDot ${props.project.health}`} />
       <span class="projectRowMain">
@@ -228,6 +244,9 @@ function ProjectRow(props: { readonly project: ProjectSummary; readonly selected
       </span>
       <span class="projectRowMeta">
         <span class="projectProgress">{props.project.progress}%</span>
+        <Show when={props.saving}>
+          <span class="syncBadge">Saving</span>
+        </Show>
       </span>
     </RouterLink>
   );

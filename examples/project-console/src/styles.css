@@ -190,6 +190,11 @@ h3 {
   background: #edf6fb;
 }
 
+.projectRow.saving {
+  border-color: #d7c58e;
+  background: #fffaf0;
+}
+
 .healthDot,
 .buildDot {
   display: inline-block;
@@ -819,4 +824,13 @@ h3 {
     flex: 1;
     justify-content: space-between;
   }
+}
+
+.syncBadge {
+  border-radius: 999px;
+  background: #fff0c7;
+  color: #795100;
+  padding: 3px 7px;
+  font-size: 11px;
+  font-weight: 800;
 }
