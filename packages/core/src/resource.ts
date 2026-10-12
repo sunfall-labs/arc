@@ -36,6 +36,19 @@ import type {
 } from "./resource-store.js";
 import type { ReadableSignal } from "./signal.js";
 import { encodeResourceKey } from "./resource-key-codec.js";
+import type {
+  ResourceRowChange,
+  ResourceRowElement,
+  ResourceRowIndexes,
+  ResourceRowIndexLookup,
+  ResourceRowIndexResult,
+  ResourceRowIndexValue,
+  ResourceRowKey,
+  ResourceRowsBrand,
+  ResourceRowsNeedArrayOutput,
+  ResourceRowsOptions,
+  ResourceRowsSpec,
+} from "./resource-rows.js";
 import type { ResourceCollected } from "./resource-collector.js";
 import {
   decodeResourceHydrationPayload,
@@ -154,6 +167,36 @@ type ResourceErrorSchemaCheck<ErrorSchema, LoadError> =
           >;
         };
 
+/**
+ * Second-stage check of `rows`: a family with `rows` must have an array
+ * `output`, otherwise the option reports `ResourceRowsNeedArrayOutput`.
+ */
+type ResourceRowsCheck<Output, Key> = [Key] extends [never]
+  ? unknown
+  : Output extends ReadonlyArray<unknown>
+    ? unknown
+    : { readonly rows: ResourceRowsNeedArrayOutput<Output> };
+
+/** The rows spec a family records: `never` without `rows`. */
+type ResourceRowsSpecFor<Row, Key extends ResourceRowKey, Indexes> = [Key] extends [never]
+  ? never
+  : ResourceRowsSpec<Row, Key, Indexes>;
+
+/** The `rows` option of the overloads with an `output` schema. */
+type ResourceRowsOption<I, Output, Key extends ResourceRowKey, Indexes, ChangesR> = {
+  /**
+   * Keyed rows for an array output: readers add `get(input, key)` and
+   * `index(input, name, value)`, and Actions patch rows by key.
+   */
+  readonly rows?: ResourceRowsOptions<
+    I,
+    ResourceRowElement<Output>,
+    Key,
+    Indexes & ResourceRowIndexes<ResourceRowElement<Output>>,
+    ChangesR
+  >;
+} & ResourceRowsCheck<Output, Key>;
+
 /** The `error` option every `Resource.define` overload takes, with its coverage check. */
 type ResourceErrorOption<ErrorSchema, LoadError> = {
   /**
@@ -181,6 +224,8 @@ export interface ResourceFamilyOptions<I, A, E = never, R = never> {
   readonly policy?: ResourcePolicy<E>;
   /** Optional stable key override. Defaults to a stable stringify of the input. */
   readonly key?: (input: I) => string;
+  /** Keyed rows of an array output; see `Resource.RowsOptions`. */
+  readonly rows?: ResourceRowsOptions<I, any, any, any, any>;
   /**
    * Loads one value. May return a plain value or an Effect.
    *
@@ -534,17 +579,29 @@ export type ResourceRefFactory<
   E = never,
   R = never,
   RenderError = [E] extends [never] ? never : ResourceUntypedFailure,
-> = ((input: I) => ResourceRef<I, A, E, R>) & {
+  Rows = never,
+> = ((input: I) => ResourceRefWithRows<ResourceRef<I, A, E, R>, Rows>) & {
   readonly family: ResourceFamily<I, A, E, R>;
   /** Phantom: the failure a render of this family's reads reports. */
   readonly "~renderError"?: (_: never) => RenderError;
+  /** Phantom: the family's `rows` (`never` without). Bivariant, so it erases. */
+  readonly "~rows"?: { bivariance(_: Rows): void }["bivariance"];
 };
+
+/** A ref of a family with `rows` carries their spec, so Actions can patch rows by key. */
+export type ResourceRefWithRows<Ref, Rows> = [Rows] extends [never]
+  ? Ref
+  : Ref & ResourceRowsBrand<Rows>;
+
+/** A ref whose family declares `rows` of `Row` keyed by `Key`. */
+export type ResourceRowsRef<Row = any, Key extends ResourceRowKey = any> = AnyResourceRef &
+  ResourceRowsBrand<ResourceRowsSpec<Row, Key, any>>;
 
 type RejectPromiseEffectInput<Out> = EnsureEffectInput<Out> extends never ? never : unknown;
 
 type ResourceFamilyCommonOptions<I, A, E, R> = Omit<
   ResourceFamilyOptions<I, A, E, R>,
-  "input" | "output" | "load" | "error"
+  "input" | "output" | "load" | "error" | "rows"
 >;
 
 const makeResourceFamily = <I, A, E, R>(
@@ -661,7 +718,44 @@ export namespace Resource {
     E = never,
     R = never,
     RenderError = [E] extends [never] ? never : ResourceUntypedFailure,
-  > = ResourceRefFactory<I, A, E, R, RenderError>;
+    Rows = never,
+  > = ResourceRefFactory<I, A, E, R, RenderError, Rows>;
+  /** The `rows` option of `Resource.define` for an array output. */
+  export type RowsOptions<
+    I,
+    Row,
+    Key extends ResourceRowKey = ResourceRowKey,
+    Indexes extends ResourceRowIndexes<Row> = ResourceRowIndexes<Row>,
+    ChangesR = never,
+  > = ResourceRowsOptions<I, Row, Key, Indexes, ChangesR>;
+  /** Type-level record of a family's rows: row, key, and indexes. */
+  export type RowsSpec<Row, Key extends ResourceRowKey, Indexes> = ResourceRowsSpec<
+    Row,
+    Key,
+    Indexes
+  >;
+  /** A ref whose family declares `rows`: what `transaction.insert/update/delete` take. */
+  export type RowsRef<Row = any, Key extends ResourceRowKey = any> = ResourceRowsRef<Row, Key>;
+  /** Stable identity of one row: what `rows.key` returns. */
+  export type RowKey = ResourceRowKey;
+  /** One remote row change streamed by `rows.changes`. */
+  export type RowChange<Row, Key extends ResourceRowKey = ResourceRowKey> = ResourceRowChange<
+    Row,
+    Key
+  >;
+  /** Scalar a rows index maps a row to; Dates must be valid. */
+  export type RowIndexValue = ResourceRowIndexValue;
+  /** What a rows index selector returns: one bucket value or several. */
+  export type RowIndexResult = ResourceRowIndexResult;
+  /** Named rows indexes. */
+  export type RowIndexes<Row> = ResourceRowIndexes<Row>;
+  /** The value an index is looked up by, from its selector. */
+  export type RowIndexLookup<F> = ResourceRowIndexLookup<F>;
+  /** Compile error reported when `rows` is given a non-array `output`. */
+  export type RowsNeedArrayOutput<Output> = ResourceRowsNeedArrayOutput<Output>;
+  /** The rows spec of a ref factory: `never` without `rows`. */
+  export type Rows<F> =
+    F extends ResourceRefFactory<any, any, any, any, any, infer Rows> ? Rows : never;
   /**
    * Failure a render of a family's reads reports: its `error` schema's type,
    * `ResourceUntypedFailure` for a family that can fail without one, `never`
@@ -698,7 +792,7 @@ export namespace Resource {
     RX = never,
     ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
   >(
-    options: Omit<ResourceRequestFamilyOptions<I, Req, EX, RX>, "error"> &
+    options: Omit<ResourceRequestFamilyOptions<I, Req, EX, RX>, "error" | "rows"> &
       ResourceErrorOption<ErrorSchema, EffectRequest.Error<Req> | EX>,
   ): ResourceRefFactory<
     I,
@@ -712,6 +806,9 @@ export namespace Resource {
     const Output extends Schema.Top,
     Out extends EffectInput<Schema.Schema.Type<Output>, any, any>,
     ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
+    Key extends ResourceRowKey = never,
+    Indexes = {},
+    ChangesR = never,
   >(
     options: ResourceFamilyCommonOptions<
       Schema.Schema.Type<Input>,
@@ -723,13 +820,21 @@ export namespace Resource {
       readonly output: Output;
       readonly load: (input: Schema.Schema.Type<Input>) => EnsureEffectInput<Out>;
     } & ResourceErrorOption<ErrorSchema, EffectInputError<Out>> &
+      ResourceRowsOption<
+        Schema.Schema.Type<Input>,
+        Schema.Schema.Type<Output>,
+        Key,
+        Indexes,
+        ChangesR
+      > &
       RejectPromiseEffectInput<Out>,
   ): ResourceRefFactory<
     Schema.Schema.Type<Input>,
     Schema.Schema.Type<Output>,
     ResourceDeclaredError<ErrorSchema, EffectInputError<Out>>,
-    EffectInputRequirements<Out>,
-    ResourceRenderErrorFor<ErrorSchema, EffectInputError<Out>>
+    EffectInputRequirements<Out> | ChangesR,
+    ResourceRenderErrorFor<ErrorSchema, EffectInputError<Out>>,
+    ResourceRowsSpecFor<ResourceRowElement<Schema.Schema.Type<Output>>, Key, Indexes>
   >;
   export function define<
     const Input extends Schema.Top,
@@ -760,6 +865,9 @@ export namespace Resource {
     const Output extends Schema.Top,
     Out extends EffectInput<Schema.Schema.Type<Output>, any, any>,
     ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
+    Key extends ResourceRowKey = never,
+    Indexes = {},
+    ChangesR = never,
   >(
     options: ResourceFamilyCommonOptions<
       I,
@@ -771,23 +879,25 @@ export namespace Resource {
       readonly output: Output;
       readonly load: (input: I) => EnsureEffectInput<Out>;
     } & ResourceErrorOption<ErrorSchema, EffectInputError<Out>> &
+      ResourceRowsOption<I, Schema.Schema.Type<Output>, Key, Indexes, ChangesR> &
       RejectPromiseEffectInput<Out>,
   ): ResourceRefFactory<
     I,
     Schema.Schema.Type<Output>,
     ResourceDeclaredError<ErrorSchema, EffectInputError<Out>>,
-    EffectInputRequirements<Out>,
-    ResourceRenderErrorFor<ErrorSchema, EffectInputError<Out>>
+    EffectInputRequirements<Out> | ChangesR,
+    ResourceRenderErrorFor<ErrorSchema, EffectInputError<Out>>,
+    ResourceRowsSpecFor<ResourceRowElement<Schema.Schema.Type<Output>>, Key, Indexes>
   >;
   export function define<
     I,
     A,
     E = never,
     R = never,
-    Definition extends Omit<ResourceFamilyOptions<I, A, E, R>, "load" | "error"> & {
+    Definition extends Omit<ResourceFamilyOptions<I, A, E, R>, "load" | "error" | "rows"> & {
       readonly error?: ResourceErrorSchema<E>;
       readonly load: (input: I) => EffectInput<A, E, R>;
-    } = Omit<ResourceFamilyOptions<I, A, E, R>, "load" | "error"> & {
+    } = Omit<ResourceFamilyOptions<I, A, E, R>, "load" | "error" | "rows"> & {
       readonly error?: ResourceErrorSchema<E>;
       readonly load: (input: I) => EffectInput<A, E, R>;
     },
@@ -812,7 +922,7 @@ export namespace Resource {
         EffectInputError<ReturnType<Load>>,
         EffectInputRequirements<ReturnType<Load>>
       >,
-      "output" | "load" | "error"
+      "output" | "load" | "error" | "rows"
     > & {
       readonly output?: never;
       readonly load: Load & ((input: I) => EnsureEffectInput<ReturnType<Load>>);

@@ -18,6 +18,7 @@ import type { KeyValueStore } from "effect/persistence";
 import {
   makeActionOptimisticPlanRuntime,
   type ActionOptimisticChange,
+  type ActionOptimisticRowUpdate,
   type ActionOptimisticTransaction,
 } from "./action-optimistic.js";
 import { applyActionOptimistic, invalidationsFor } from "./action-execution-workflow.js";
@@ -73,7 +74,7 @@ export interface ActionPolicy<E = never> {
  *
  * Schema metadata is shared with clients for input/output/error validation.
  * `run` stays Effect-first; Promise-shaped callbacks are rejected by the
- * public types. `optimistic` patches Signals, Resource entries, and Collection rows through its
+ * public types. `optimistic` patches Signals, Resource entries, and Resource rows through its
  * transaction before `run`; the patches fold in on success and roll back on
  * failure or interruption.
  */
@@ -105,7 +106,7 @@ export interface ActionDefinition<I, A, E = never, R = never> {
    */
   readonly run: (input: I) => EffectInput<A, E, R>;
   /**
-   * Patches Signals, Resource entries, and Collection rows before `run`. The transaction owns
+   * Patches Signals, Resource entries, and Resource rows before `run`. The transaction owns
    * every patch: success folds them in, failure or interruption rolls them back.
    */
   readonly optimistic?: (
@@ -142,7 +143,7 @@ export interface ActionOptions<I, A, E = never, R = never> {
    */
   readonly run: (input: I) => EffectInput<A, E, R>;
   /**
-   * Patches Signals, Resource entries, and Collection rows before `run`. The transaction owns
+   * Patches Signals, Resource entries, and Resource rows before `run`. The transaction owns
    * every patch: success folds them in, failure or interruption rolls them back.
    */
   readonly optimistic?: (
@@ -258,6 +259,8 @@ export namespace Action {
   export type Policy<E = never> = ActionPolicy<E>;
   /** Public namespace alias for the optimistic Action transaction object. */
   export type OptimisticTransaction = ActionOptimisticTransaction;
+  /** Partial patch or pure updater for `transaction.update`. */
+  export type OptimisticRowUpdate<Row> = ActionOptimisticRowUpdate<Row>;
   /** Public namespace alias for one change `Action.planOptimistic` reports. */
   export type OptimisticChange = ActionOptimisticChange;
 

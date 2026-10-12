@@ -6,12 +6,15 @@
  * import from `@sunfall/arc-core/internal`.
  */
 export {
-  ActionOptimisticRowsTypeId,
-  type ActionOptimisticRowChange,
-  type ActionOptimisticRows,
-  type ActionOptimisticRowsLayer,
-  type ActionOptimisticRowUpdate,
-} from "./action-optimistic.js";
+  applyResourceRowChanges,
+  applyResourceRowPatch,
+  reconcileResourceRows,
+  resourceRowIndexBucket,
+  resourceRowKey,
+  resourceRowsGet,
+  resourceRowsIndex,
+  type ResourceRowPatch,
+} from "./resource-rows.js";
 export type {
   ActionDefinitionRequirements,
   AppDefinitionRegistry,

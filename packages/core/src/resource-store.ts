@@ -58,6 +58,20 @@ export type ResourceStoreEvent =
       readonly key: string;
     }
   | {
+      /** A `rows.changes` batch was applied to the entry's synced rows. */
+      readonly _tag: "ResourceRowsChanged";
+      readonly name: string;
+      readonly key: string;
+      readonly changes: number;
+    }
+  | {
+      /** The entry's `rows.changes` feed failed and stopped; the rows keep their value. */
+      readonly _tag: "ResourceRowsChangesFailure";
+      readonly name: string;
+      readonly key: string;
+      readonly cause: Cause.Cause<unknown>;
+    }
+  | {
       /** A successful resource snapshot was applied during hydration. */
       readonly _tag: "ResourceHydrated";
       readonly name: string;
