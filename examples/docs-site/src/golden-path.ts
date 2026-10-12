@@ -37,11 +37,19 @@ const tableCells = (line: string): readonly string[] =>
     .split("|")
     .map((cell) => resolveLinks(cell.trim()));
 
+/** A paragraph that is only a file name, such as "`src/projects.ts`:". */
+const fileLabelPattern = /^`([^`\s]+\.[a-z]+)`:$/u;
+/** Lines that start a new block instead of continuing a list item. */
+const blockStartPattern = /^(?:#{1,6}\s|```|\||<!--)/u;
+/** Sections whose `text` fence is a diagram the site draws. */
+const diagramHeadings = new Set(["How The Pieces Fit"]);
+
 /** Converts the guide's Markdown subset (headings, paragraphs, lists, tables, fences) to blocks. */
 export const markdownToDocsBlocks = (markdown: string): readonly DocsBlock[] => {
   const blocks: DocsBlock[] = [];
   const lines = markdown.replace(/\r\n/gu, "\n").split("\n");
   let paragraph: string[] = [];
+  let lastHeading = "";
 
   const flushParagraph = () => {
     if (paragraph.length > 0) {
@@ -63,7 +71,25 @@ export const markdownToDocsBlocks = (markdown: string): readonly DocsBlock[] => 
         code.push(lines[index] ?? "");
         index += 1;
       }
-      blocks.push({ _tag: "Code", language, code: code.join("\n") });
+      const previous = blocks.at(-1);
+      const fileName =
+        previous?._tag === "Paragraph"
+          ? fileLabelPattern.exec(previous.text ?? "")?.[1]
+          : undefined;
+      if (diagramHeadings.has(lastHeading) && language === "text") {
+        // The site draws this diagram; the fence stays the Markdown fallback.
+        blocks.push({ _tag: "Diagram", code: code.join("\n") });
+      } else if (fileName !== undefined) {
+        // "`src/file.ts`:" before a fence names the file: show it on the block.
+        blocks[blocks.length - 1] = {
+          _tag: "Code",
+          language,
+          code: code.join("\n"),
+          title: fileName,
+        };
+      } else {
+        blocks.push({ _tag: "Code", language, code: code.join("\n") });
+      }
       continue;
     }
 
@@ -77,6 +103,7 @@ export const markdownToDocsBlocks = (markdown: string): readonly DocsBlock[] => 
       flushParagraph();
       const level = heading[1]?.length ?? 2;
       // The page header shows the title; the H1 is not repeated.
+      lastHeading = heading[2] ?? "";
       if (level > 1) {
         blocks.push({ _tag: "Heading", level: level === 2 ? 2 : 3, text: heading[2] ?? "" });
       }
@@ -105,7 +132,12 @@ export const markdownToDocsBlocks = (markdown: string): readonly DocsBlock[] => 
         const item = lines[index] ?? "";
         if (item.trim().startsWith("- ")) {
           items.push(item.trim().slice(2));
-        } else if (item.startsWith("  ") && item.trim() !== "" && items.length > 0) {
+        } else if (
+          item.trim() !== "" &&
+          items.length > 0 &&
+          (item.startsWith("  ") || !blockStartPattern.test(item.trim()))
+        ) {
+          // Indented and lazy continuation lines both continue the item.
           items[items.length - 1] = `${items[items.length - 1]} ${item.trim()}`;
         } else {
           break;
