@@ -36,6 +36,9 @@ export const ProjectList = Resource.define({
   name: "Projects.list",
   input: Schema.Literal("all"),
   output: Schema.Array(Project),
+  // The list's rows: keyed by id, indexed by status. Readers look rows up by
+  // key or index, and an Action patches one row by key.
+  rows: { key: (project) => project.id, indexes: { status: (project) => project.status } },
   load: () => ProjectApi.use((api) => api.list()),
   provides: () => [ProjectsTag],
 });

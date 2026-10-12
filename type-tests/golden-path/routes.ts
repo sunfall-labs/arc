@@ -1,12 +1,10 @@
 import { Resource, Route } from "@sunfall/arc-core";
-import { Effect, Schema } from "effect";
-import { Projects } from "./collection.js";
-import { ProjectById, ProjectId, ProjectList, ProjectNotFound } from "./projects.js";
+import { Schema } from "effect";
+import { ProjectById, ProjectId, ProjectList, ProjectNotFound, ProjectsRef } from "./projects.js";
 
 export const ProjectsRoute = Route.define("/", {
   preloadResources: [ProjectList],
-  preloadCollections: [Projects],
-  preload: () => Projects.preload(),
+  preload: () => Resource.preload(ProjectsRef),
 });
 
 export const ProjectRoute = Route.define("/projects/:id", {
@@ -15,9 +13,7 @@ export const ProjectRoute = Route.define("/projects/:id", {
   // failure with it so the hydrating client renders the same failure view.
   error: ProjectNotFound,
   preloadResources: [ProjectList, ProjectById],
-  preloadCollections: [Projects],
-  preload: ({ params }) =>
-    Effect.all([Projects.preload(), Resource.preload(ProjectById(params.id))]),
+  preload: ({ params }) => Resource.preload([ProjectsRef, ProjectById(params.id)]),
 });
 
 export const routes = [ProjectsRoute, ProjectRoute] as const;

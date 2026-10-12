@@ -2,13 +2,13 @@ import { Action } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
 import { Cause, Effect, Schema } from "effect";
 import { Show } from "solid-js";
-import { Projects } from "./collection.js";
 import {
   Project,
   ProjectApi,
   ProjectById,
   ProjectId,
   ProjectTag,
+  ProjectsRef,
   ProjectsTag,
 } from "./projects.js";
 
@@ -16,12 +16,11 @@ export const RenameProject = Action.define({
   name: "Projects.rename",
   input: Schema.Struct({ id: ProjectId, name: Schema.String }),
   output: Project,
-  // The sidebar row (`$synced: false`) and the project page show the new name
-  // at once; success keeps it until the reload lands, and a failure rolls
-  // both back.
+  // The sidebar row and the project page show the new name at once; success
+  // keeps it until the reloads land, and a failure rolls both back.
   optimistic: (input, transaction) =>
     Effect.all([
-      transaction.update(Projects, input.id, { name: input.name }),
+      transaction.update(ProjectsRef, input.id, { name: input.name }),
       transaction.set(ProjectById(input.id), (project) => ({ ...project, name: input.name })),
     ]),
   run: (input) => ProjectApi.use((api) => api.rename(input)),
