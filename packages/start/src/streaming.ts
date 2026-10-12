@@ -1,98 +1,9 @@
-import type { EffectInput } from "@sunfall/arc-core";
-import { toEffect } from "@sunfall/arc-core/internal";
-import { Data, Effect, Exit, Stream } from "effect";
-import {
-  createStreamHydrationScript,
-  StartHydrationPayloadSerializeError,
-  type StartHydrationPayload,
-} from "./hydration.js";
-import type { StartRenderHydrationPlan } from "./render-hydration-plan.js";
+import { Effect, Exit } from "effect";
 import type {
   StartRequestFailureKind,
   StartRequestStatus,
   StartRequestStream,
 } from "./request-trace.js";
-
-export {
-  createStreamHydrationScriptSync,
-  createStreamHydrationScript,
-  serializeStreamHydrationPayload,
-  streamHydrationAttribute,
-  streamHydrationConsumedAttribute,
-  streamHydrationSequenceAttribute,
-  streamHydrationScriptType,
-} from "./hydration.js";
-
-/**
- * Typed chunk accepted by Start's HTML stream helpers.
- *
- * `Html` chunks are UTF-8 encoded strings, `Bytes` chunks are passed through,
- * and `Hydration` chunks are serialized as inline hydration scripts.
- */
-export type HtmlStreamChunk =
-  | {
-      /** Raw HTML text to append to the response stream. */
-      readonly _tag: "Html";
-      readonly html: string;
-    }
-  | {
-      /** Pre-encoded bytes for hosts that already rendered a binary chunk. */
-      readonly _tag: "Bytes";
-      readonly bytes: Uint8Array;
-    }
-  | {
-      /** Resource hydration payload streamed to the browser. */
-      readonly _tag: "Hydration";
-      readonly payload: StartHydrationPayload;
-      /** Optional explicit sequence number; omitted chunks auto-increment. */
-      readonly sequence?: number;
-    };
-
-/**
- * Convenience input accepted by HTML stream helpers.
- *
- * Plain strings become HTML chunks, `Uint8Array` values become byte chunks, and
- * typed chunks preserve hydration metadata.
- */
-export type HtmlStreamInput = string | Uint8Array | HtmlStreamChunk;
-
-/**
- * Parts of a streamed HTML response.
- *
- * `shell` is emitted first, `chunks` stream after the shell, and `tail` is
- * emitted last. Failures are wrapped in `StartStreamError` with reason
- * `Shell`, `Chunk`, or `Tail` so adapters can report which phase failed.
- */
-export interface HtmlStreamOptions<E = never, R = never> {
-  /** First response chunk, usually the opening document shell. */
-  readonly shell: EffectInput<HtmlStreamInput, E, R>;
-  /** Optional middle stream for progressively rendered chunks. */
-  readonly chunks?: Stream.Stream<HtmlStreamInput, E, R>;
-  /** Optional final chunk, usually closing tags or final hydration data. */
-  readonly tail?: EffectInput<HtmlStreamInput, E, R>;
-}
-
-/** Options for creating a `Response` from Start HTML stream parts. */
-export interface HtmlResponseOptions<E = never, R = never> extends HtmlStreamOptions<E, R> {
-  /** HTTP status for the response. */
-  readonly status?: number;
-  /** Headers for the response; `content-type` defaults to HTML when omitted. */
-  readonly headers?: HeadersInit;
-}
-
-/** Options for creating a Start streamed HTML response from a render hydration plan. */
-export interface StartStreamedHtmlResponseOptions<E = never, R = never> extends Omit<
-  HtmlResponseOptions<E, R>,
-  "chunks"
-> {
-  /** Middle stream emitted after the shell and before streamed hydration chunks. */
-  readonly chunks?: Stream.Stream<HtmlStreamInput, E, R>;
-  /** Render hydration plan whose streamed chunks are appended before the tail. */
-  readonly hydrationPlan: Pick<StartRenderHydrationPlan, "streamedResourceChunks">;
-}
-
-/** Stream phase labels preserved across Start stream adapters. */
-export type StartStreamPhase = "Shell" | "Chunk" | "Tail";
 
 /** Stream lifecycle event emitted while adapting a Web `Response` body. */
 export interface StartResponseStreamFinalizeEvent {
@@ -104,8 +15,6 @@ export interface StartResponseStreamFinalizeEvent {
   readonly failureKind?: StartRequestFailureKind;
   /** Stable teardown reason such as `stream-close`, `stream-error`, or a cancel reason. */
   readonly teardownReason: string;
-  /** Failed Start stream phase when the underlying body error is a `StartStreamError`. */
-  readonly failurePhase?: StartStreamPhase;
 }
 
 /** Effect finalizer invoked once when a wrapped response body ends. */
@@ -173,214 +82,34 @@ export const suspendResponseStreamSuccessFinalizer = <A, E, R>(
   return state === undefined ? effect : state.suspendSuccess(effect, failureEvent);
 };
 
-/**
- * Error emitted by HTML stream helpers when a stream phase fails.
- *
- * `reason` identifies whether the failed work came from shell creation,
- * progressive chunks, or the tail chunk.
- */
-export class StartStreamError<E = never> extends Data.TaggedError("StartStreamError")<{
-  readonly reason: StartStreamPhase;
-  readonly cause: E;
-}> {}
-
-type HtmlStreamEncodingError<E> =
-  | StartStreamError<E>
-  | StartStreamError<StartHydrationPayloadSerializeError>;
-
-interface PhasedHtmlStreamInput {
-  readonly reason: StartStreamPhase;
-  readonly input: HtmlStreamInput;
-}
-
 const textEncoder = new TextEncoder();
 const runResponseStreamEffect: StartResponseStreamRunner = (effect) => Effect.runPromise(effect);
 
-const startStreamFailurePhase = (cause: unknown): StartStreamPhase | undefined =>
-  cause instanceof StartStreamError ? cause.reason : undefined;
-
-const startStreamFailureKind = (cause: unknown): StartRequestFailureKind =>
-  cause instanceof StartStreamError ? "domain" : "transport";
-
-/** Creates a typed HTML text chunk. */
-export const htmlChunk = (html: string): HtmlStreamChunk => ({
-  _tag: "Html",
-  html,
-});
+/** The bytes of complete bodies, by body stream (which `new Response(body, init)` keeps). */
+const completeBodies = new WeakMap<ReadableStream<Uint8Array>, Uint8Array>();
 
 /**
- * Creates a typed streamed hydration chunk.
- *
- * Omit `sequence` to let `createHtmlStreamSync(...)` assign monotonically
- * increasing hydration script sequence numbers.
+ * A response whose whole body is known when it is created, like a fully
+ * rendered document. Its body is a one-chunk stream, so Fetch hosts read it
+ * as usual, and Start's own adapters skip the stream: the request runtime is
+ * released at once, and the Node adapter writes the bytes in one `end`.
+ * Re-wrapping it (`new Response(response.body, init)`) keeps it complete.
  */
-export const streamHydrationChunk = (
-  payload: StartHydrationPayload,
-  options: { readonly sequence?: number } = {},
-): HtmlStreamChunk => ({
-  _tag: "Hydration",
-  payload,
-  ...(options.sequence === undefined ? {} : { sequence: options.sequence }),
-});
-
-const isHtmlStreamChunk = (input: HtmlStreamInput): input is HtmlStreamChunk =>
-  typeof input === "object" &&
-  input !== null &&
-  "_tag" in input &&
-  ((input as { readonly _tag?: unknown })._tag === "Html" ||
-    (input as { readonly _tag?: unknown })._tag === "Bytes" ||
-    (input as { readonly _tag?: unknown })._tag === "Hydration");
-
-const encodeInputEffect = (
-  input: HtmlStreamInput,
-  hydrationSequence = 0,
-): Effect.Effect<Uint8Array, StartHydrationPayloadSerializeError> => {
-  if (input instanceof Uint8Array) {
-    return Effect.succeed(input);
-  }
-
-  if (typeof input === "string") {
-    return Effect.succeed(textEncoder.encode(input));
-  }
-
-  if (isHtmlStreamChunk(input)) {
-    switch (input._tag) {
-      case "Html":
-        return Effect.succeed(textEncoder.encode(input.html));
-      case "Bytes":
-        return Effect.succeed(input.bytes);
-      case "Hydration":
-        return createStreamHydrationScript(input.payload, input.sequence ?? hydrationSequence).pipe(
-          Effect.map((script) => textEncoder.encode(script)),
-        );
-    }
-  }
-
-  return Effect.succeed(textEncoder.encode(String(input)));
-};
-
-const encodeInputWithHydrationSequenceEffect = (
-  nextSequence: number,
-  chunk: PhasedHtmlStreamInput,
-): Effect.Effect<
-  readonly [nextSequence: number, chunks: ReadonlyArray<Uint8Array>],
-  StartStreamError<StartHydrationPayloadSerializeError>
-> => {
-  const input = chunk.input;
-  if (isHtmlStreamChunk(input) && input._tag === "Hydration") {
-    const sequence = input.sequence ?? nextSequence;
-    return encodeInputEffect(input, sequence).pipe(
-      Effect.map((encoded) => [Math.max(nextSequence, sequence + 1), [encoded]] as const),
-      Effect.mapError((cause) => new StartStreamError({ reason: chunk.reason, cause })),
-    );
-  }
-
-  return encodeInputEffect(input).pipe(
-    Effect.map((encoded) => [nextSequence, [encoded]] as const),
-    Effect.mapError((cause) => new StartStreamError({ reason: chunk.reason, cause })),
-  );
-};
-
-const streamFromEffectInput = <E, R>(
-  reason: StartStreamError<E>["reason"],
-  input: EffectInput<HtmlStreamInput, E, R>,
-): Stream.Stream<PhasedHtmlStreamInput, StartStreamError<E>, R> =>
-  Stream.unwrap(
-    toEffect(input).pipe(
-      Effect.map((input) => Stream.make({ reason, input })),
-      Effect.mapError((cause) => new StartStreamError({ reason, cause })),
-    ),
-  );
-
-const tailStream = <E, R>(
-  options: HtmlStreamOptions<E, R>,
-): Stream.Stream<PhasedHtmlStreamInput, StartStreamError<E>, R> =>
-  options.tail === undefined ? Stream.empty : streamFromEffectInput("Tail", options.tail);
-
-/**
- * Builds a byte stream in shell -> chunks -> tail order.
- *
- * Hydration chunks without explicit sequence numbers are numbered in emission
- * order, so streamed clients can replay them deterministically.
- */
-export const createHtmlStreamSync = <E = never, R = never>(
-  options: HtmlStreamOptions<E, R>,
-): Stream.Stream<Uint8Array, HtmlStreamEncodingError<E>, R> => {
-  const shell = streamFromEffectInput("Shell", options.shell);
-  const chunks = (options.chunks ?? Stream.empty).pipe(
-    Stream.map((input): PhasedHtmlStreamInput => ({ reason: "Chunk", input })),
-    Stream.mapError((cause) => new StartStreamError({ reason: "Chunk", cause })),
-  );
-
-  return shell.pipe(
-    Stream.concat(chunks),
-    Stream.concat(tailStream(options)),
-    Stream.mapAccumEffect(() => 0, encodeInputWithHydrationSequenceEffect),
-  );
-};
-
-/** Effect wrapper for `createHtmlStreamSync(...)`. */
-export const createHtmlStream = <E = never, R = never>(
-  options: HtmlStreamOptions<E, R>,
-): Effect.Effect<Stream.Stream<Uint8Array, HtmlStreamEncodingError<E>, R>> =>
-  Effect.succeed(createHtmlStreamSync(options));
-
-/** Converts a Start HTML byte stream into a platform `ReadableStream`. */
-export const createReadableHtmlStream = <E = never, R = never>(
-  options: HtmlStreamOptions<E, R>,
-): Effect.Effect<ReadableStream<Uint8Array>, never, R> =>
-  Effect.flatMap(createHtmlStream(options), (stream) => Stream.toReadableStreamEffect(stream));
-
-const htmlHeaders = (input: HeadersInit | undefined): Headers => {
-  const headers = new Headers(input);
-  if (!headers.has("content-type")) {
-    headers.set("content-type", "text/html; charset=utf-8");
-  }
-  return headers;
-};
-
-/**
- * Creates a streaming HTML `Response`.
- *
- * The response body is a `ReadableStream`; the response itself is created
- * without failing, while stream failures are represented in the stream Effect.
- */
-export const createHtmlResponse = <E = never, R = never>(
-  options: HtmlResponseOptions<E, R>,
-): Effect.Effect<Response, never, R> =>
-  Effect.map(createReadableHtmlStream(options), (body) => {
-    const init: ResponseInit = {
-      headers: htmlHeaders(options.headers),
-    };
-    if (options.status !== undefined) {
-      init.status = options.status;
-    }
-
-    return new Response(body, init);
+export const completeResponse = (body: string, init: ResponseInit): Response => {
+  const bytes = textEncoder.encode(body);
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(bytes);
+      controller.close();
+    },
   });
-
-/**
- * Creates a Start streaming HTML `Response` and appends route hydration chunks
- * from the render hydration plan before the tail.
- */
-export const createStartStreamedHtmlResponse = <E = never, R = never>(
-  options: StartStreamedHtmlResponseOptions<E, R>,
-): Effect.Effect<Response, never, R> => {
-  const { hydrationPlan, chunks, ...htmlOptions } = options;
-  const hydrationChunks = hydrationPlan.streamedResourceChunks.map((payload) =>
-    streamHydrationChunk(payload),
-  );
-  const responseChunks =
-    hydrationChunks.length === 0
-      ? chunks
-      : chunks === undefined
-        ? Stream.make(...hydrationChunks)
-        : chunks.pipe(Stream.concat(Stream.make(...hydrationChunks)));
-  return createHtmlResponse({
-    ...htmlOptions,
-    ...(responseChunks === undefined ? {} : { chunks: responseChunks }),
-  });
+  completeBodies.set(stream, bytes);
+  return new Response(stream, init);
 };
+
+/** The bytes of a `completeResponse` body, unless it is a stream still to be read. */
+export const completeResponseBytes = (response: Response): Uint8Array | undefined =>
+  response.body === null || response.bodyUsed ? undefined : completeBodies.get(response.body);
 
 /**
  * Wraps a Web `Response` body so a finalizer runs when the body closes,
@@ -542,18 +271,15 @@ export const responseWithStreamFinalizer = (
                 return;
               }
 
-              const failurePhase = startStreamFailurePhase(cause);
               yield* finalize({
                 stream: {
                   name: "response",
                   state: "errored",
                   chunkCount,
-                  ...(failurePhase === undefined ? {} : { failurePhase }),
                 },
                 status: "failure",
-                failureKind: startStreamFailureKind(cause),
+                failureKind: "transport",
                 teardownReason: "stream-error",
-                ...(failurePhase === undefined ? {} : { failurePhase }),
               });
               yield* Effect.sync(() => {
                 controller.error(cause);

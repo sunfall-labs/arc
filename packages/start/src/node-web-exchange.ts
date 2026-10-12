@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import { Cause, Data, Effect, Exit } from "effect";
+import { completeResponseBytes } from "./streaming.js";
 
 /** Error raised while converting Node requests or writing Node responses. */
 export class StartNodeAdapterError extends Data.TaggedError("StartNodeAdapterError")<{
@@ -281,7 +282,27 @@ const writeStreamBodyEffect = (
       )
     : !response.body
       ? endNodeResponseEffect(target)
-      : pumpBodyEffect(target, response.body);
+      : writeCompleteOrStreamBodyEffect(target, response, response.body);
+
+/** A complete body (`completeResponse`) is written in one `end`; any other is pumped. */
+const writeCompleteOrStreamBodyEffect = (
+  target: ServerResponse,
+  response: Response,
+  body: ReadableStream<Uint8Array>,
+): Effect.Effect<void, StartNodeAdapterError> => {
+  const bytes = completeResponseBytes(response);
+  return bytes === undefined
+    ? pumpBodyEffect(target, body)
+    : Effect.try({
+        try: () => {
+          if (!target.hasHeader("content-length")) {
+            target.setHeader("content-length", bytes.byteLength);
+          }
+          target.end(bytes);
+        },
+        catch: writeResponseError,
+      });
+};
 
 const setNodeResponseHeaders = (target: ServerResponse, headers: Headers): void => {
   const setCookies = headers.getSetCookie();

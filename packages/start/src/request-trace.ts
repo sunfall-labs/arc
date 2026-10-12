@@ -29,7 +29,6 @@ export interface StartRequestStream {
   readonly name: string;
   readonly state: "closed" | "cancelled" | "errored";
   readonly chunkCount?: number;
-  readonly failurePhase?: "Shell" | "Chunk" | "Tail";
 }
 
 /** Request runtime teardown recorded on the request span. */
@@ -221,9 +220,6 @@ export const finishStartRequest = (
     if (stream) {
       span.attribute("sunfall-arc.stream.state", stream.state);
       span.attribute("sunfall-arc.stream.chunks", stream.chunkCount ?? 0);
-      if (stream.failurePhase) {
-        span.attribute("sunfall-arc.stream.failure_phase", stream.failurePhase);
-      }
     }
     span.attribute("sunfall-arc.teardown.reason", options.teardownReason);
     span.attribute("sunfall-arc.teardown.runtime_disposed", teardown.runtimeDisposed);

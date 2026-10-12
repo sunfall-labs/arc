@@ -530,9 +530,9 @@ includes:
 
 - Local source modules: `hydration`, `start-action-client`,
   `start-action-request-codec`, `start-app`, `start-app-request-handler`,
-  `start-document`, `start-request-handler`,
-  `static-client-navigation`, and `streaming`.
-- the app: `App.define({ root, routes, client? })`
+  `start-document`, `start-request-handler`, and
+  `static-client-navigation`.
+- the app: `App.define({ root, routes, client?, head? })`
   returns the one `App.Definition` both entries derive from (`App.Any`
   accepts any). The root is a Solid `Component<App.RootProps, never, R>`; the
   client Layer must provide `R` (minus `App.LaunchServices`) or `App.define`
@@ -553,15 +553,14 @@ includes:
   `app.root` into Start's document; there is no render callback and no
   hand-written HTML shell. Requests are traced as Effect spans
   (`sunfall-arc.start.request`); there is no request-trace callback.
-- documents: `document: (context: StartDocumentContext) => StartDocument` (language, links,
-  browser entry, headers); the head is each route's `head` through
-  `App.define({ head: (page, status) => Route.Head })`
-  sets `lang`, `title`, `meta` and `links` (`StartDocumentTagAttributes`,
-  HTML-escaped), `clientEntry`, and response `headers`. Start emits the
-  doctype, charset and viewport, Solid's hydration bootstrap, the
+- documents: `document: (context: StartDocumentContext) => StartDocument`
+  sets `lang`, `links` (`StartDocumentTagAttributes`, HTML-escaped),
+  `clientEntry`, and response `headers`; the head's `<title>` and `<meta>`
+  tags are each route's `head` through
+  `App.define({ head: (page, status) => Route.Head })`. Start emits the
+  doctype, charset and viewport, the head, Solid's hydration bootstrap, the
   `<div id="root">` app markup, the streamed and root hydration payloads, and
-  the entry script, in that order. `StartStreamError` names an HTML stream
-  failure.
+  the entry script, in that order, as one complete body.
 - hydration: `hydrateFromDocument(document?, options?)` (`options.id` selects
   the root payload script) is the document hydration primitive `App.launch`
   runs; there is no positional id and no synchronous facade.

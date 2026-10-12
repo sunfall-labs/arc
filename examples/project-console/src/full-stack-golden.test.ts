@@ -52,7 +52,7 @@ describe("project console full-stack golden path", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("x-sunfall-arc-render")).toBe("streaming");
+    expect(response.headers.get("x-sunfall-arc-render")).toBe("ssr");
     expect(html).toContain("Meridian Analytics");
     expect(html).toContain("Recent activity");
     expect(html).toContain("Dehydrate report cache into the first SSR payload.");

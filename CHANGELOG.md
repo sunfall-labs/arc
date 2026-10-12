@@ -6,6 +6,23 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### A Rendered Page Is One Complete Body
+
+- The root renders to a string, so the document is complete when the render
+  returns. Start now builds it as one body (`completeResponse`) instead of an
+  Effect `Stream` turned into a Web stream, wrapped again by the request
+  runtime's finalizer, and pumped to Node one `reader.read()` at a time. The
+  request runtime is disposed as soon as the response exists, the Node
+  adapter writes the bytes in one `end` with a `content-length`, and Fetch
+  hosts read the same body as before.
+- The internal HTML stream builder is gone, and with it the public
+  `StartStreamError` and the `sunfall-arc.stream.failure_phase` span
+  attribute. A custom `render` that returns a streamed `Response` still holds
+  the request runtime until its body ends.
+- Server CPU per request for the `benchmarks/compare` detail page
+  (`/items/42`, production server, interleaved A/B on a loaded machine):
+  median 0.66 ms to 0.54 ms over 12 rounds (min 0.53 ms to 0.37 ms); the 1,000-row list page did not regress (median 9.7 ms to 8.6 ms, 6 rounds).
+
 ### Page Heads Come From The Route's Data
 
 Found by `examples/tracker`, whose issue tab could only show the issue's id:

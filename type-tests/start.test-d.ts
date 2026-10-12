@@ -18,7 +18,6 @@ import {
   StartRootMissing,
   StartStaticBasePathError,
   StartStaticNavigationHydrationError,
-  StartStreamError,
   type CreateRequestHandlerOptions,
   type HydrateFromDocumentOptions,
   type StartDocument,
@@ -56,7 +55,6 @@ const startExports: Array<unknown> = [
   StartRootMissing,
   StartStaticBasePathError,
   StartStaticNavigationHydrationError,
-  StartStreamError,
 ];
 type StartTypes =
   | App.Any

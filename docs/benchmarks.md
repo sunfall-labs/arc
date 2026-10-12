@@ -191,7 +191,11 @@ frameworks break theirs up or have less to do. FCP is a wash.
 **Arc still loses server rendering of a small page, by less.** `/items/42`
 costs 0.51 ms of CPU against 0.28 ms (SolidStart) and 0.33 ms (TanStack
 Start): 1.8x, down from 3.8x. What remains is per-request Effect and
-framework overhead (see below), not rendering.
+framework overhead (see below), not rendering. Since this run, a rendered page is one complete body
+written in one `end` (no Web stream, finalizer, or chunk pump); an
+interleaved A/B of the production server on a loaded machine measured
+`/items/42` at a median 0.66 ms before and 0.54 ms after (see the
+CHANGELOG). The table above is from the run, which was not repeated.
 
 **Arc wins the mutation, as before.** The optimistic flip paints in 10.5 ms
 (SolidStart 14.7 ms, TanStack Start 21.2 ms) and the toggle settles, server

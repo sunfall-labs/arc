@@ -1,5 +1,6 @@
 import { Effect, Exit, Scope } from "effect";
 import {
+  completeResponseBytes,
   responseWithStreamFinalizer,
   type StartResponseStreamFinalizeEvent,
   type StartResponseStreamRunner,
@@ -54,7 +55,7 @@ export const responseWithScopeLifetime = <E, R>(
     }
 
     const response = responseExit.value;
-    if (!response.body) {
+    if (!response.body || completeResponseBytes(response) !== undefined) {
       yield* closeScope(Exit.void);
       return response;
     }

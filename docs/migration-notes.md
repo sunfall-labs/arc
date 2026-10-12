@@ -5,6 +5,17 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From The Streamed Document Body
+
+A server-rendered page is one complete body now, so the HTML stream that built
+it is gone.
+
+| Before                                              | After                                                                                    |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `StartStreamError` (a document stream phase failed) | removed: the document is built before the response; a failure is the request's own error |
+| `sunfall-arc.stream.failure_phase` on request spans | removed; `sunfall-arc.stream.state` still records a custom streamed body's end           |
+| reading a page's body in several chunks             | one chunk; the Node adapter sends it with `content-length`                               |
+
 ## From `document({ title, meta })`
 
 The page's head is the matched route's `head`, through the app's `head`. The

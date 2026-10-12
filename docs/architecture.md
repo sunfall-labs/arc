@@ -1074,14 +1074,14 @@ the streamed Resource chunks, the root hydration payload, and the browser
 entry script, in that order. There is no hand-written HTML to drift from what
 hydration needs.
 
-Underneath, an internal Effect-native streaming Module builds the response:
-`createHtmlStream` returns an Effect `Stream` of bytes, and the Start
-render step appends `StartRenderHydrationPlan` streamed chunks before the tail.
-Shell, chunk, and tail failures become typed `StartStreamError` values, so
-streaming remains Effect-native until the final web platform seam.
-When a Start render returns a streamed `Response`, the Request Runtime is held
-open until the body is consumed or cancelled, and finalizer/request-trace facts
-preserve the stream failure phase for diagnostics.
+The root renders to a string, so the document is complete when the render
+returns: Start builds it as one `completeResponse` body (shell, root markup,
+the `StartRenderHydrationPlan` streamed chunks, then the tail). Fetch hosts
+read that body like any other; Start's own adapters skip the stream: the
+Request Runtime is disposed at once, and the Node adapter writes the bytes in
+one `end` with a `content-length`. When a custom render returns a streamed
+`Response`, the Request Runtime is held open until the body is consumed or
+cancelled, and finalizer/request-trace facts record how the stream ended.
 The render step receives a `StartRenderHydrationPlan` that separates the root
 payload script (`hydrationPlan.root.script`, the one name for it) from
 streamed resource chunks, so the document never emits a Resource pair twice.

@@ -9,7 +9,7 @@ export const handleRequest = createRequestHandler(app, {
   implementations,
   document: () => ({
     headers: {
-      "x-sunfall-arc-render": "streaming",
+      "x-sunfall-arc-render": "ssr",
       "x-sunfall-arc-start-graph": projectConsoleStartGraphHeader,
       "x-sunfall-arc-start-routes": projectConsoleStartGraphSummary.routes.join(","),
     },

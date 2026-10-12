@@ -7,7 +7,7 @@ import {
   type StartRequestStream,
   type StartRequestTeardown,
 } from "./request-trace.js";
-import { responseWithStreamFinalizer } from "./streaming.js";
+import { completeResponseBytes, responseWithStreamFinalizer } from "./streaming.js";
 
 export interface RequestRuntimeFinalizeState {
   readonly status: StartRequestStatus;
@@ -19,7 +19,8 @@ export interface RequestRuntimeFinalizeState {
 
 /**
  * Disposes the request runtime once the response is done: immediately for a
- * bodiless response, or when a streamed body closes, errors, or is cancelled.
+ * bodiless or complete (`completeResponse`) response, or when a streamed body
+ * closes, errors, or is cancelled.
  * `onFinalize` runs once after disposal; its failures are ignored.
  */
 export const completeRequestRuntimeWithResponse = <RuntimeServices, RuntimeError>(
@@ -33,7 +34,9 @@ export const completeRequestRuntimeWithResponse = <RuntimeServices, RuntimeError
         Effect.catchCause(() => Effect.void),
       ),
     );
-  if (!response.body) {
+  // Nothing left to produce: a bodiless or complete response releases the
+  // runtime now instead of when a host finishes reading it.
+  if (!response.body || completeResponseBytes(response) !== undefined) {
     return Effect.as(finalize({ status: "success", teardownReason: "response-end" }), response);
   }
   let finalized = false;

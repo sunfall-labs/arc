@@ -77,7 +77,7 @@ const resourcePairs = (payload: StartHydrationPayload): ReadonlySet<string> =>
   new Set(payload.resources.map((resource) => JSON.stringify([resource.name, resource.key])));
 
 describe("project console SSR", () => {
-  it("streams the matched project route with hydration payloads", async () => {
+  it("server-renders the matched project route with hydration payloads", async () => {
     const response = await runRequest(
       handleRequest(new Request("https://example.com/projects/atlas")),
     );
@@ -89,15 +89,16 @@ describe("project console SSR", () => {
     );
 
     expect(response.body).toBeInstanceOf(ReadableStream);
-    expect(chunks.length).toBeGreaterThan(1);
+    // A page rendered to a string is one complete body.
+    expect(chunks).toHaveLength(1);
     expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
-    expect(response.headers.get("x-sunfall-arc-render")).toBe("streaming");
+    expect(response.headers.get("x-sunfall-arc-render")).toBe("ssr");
     expect(response.headers.get("x-sunfall-arc-start-graph")).toBe(
       "routes=3; resources=3; actions=3",
     );
     expect(response.headers.get("x-sunfall-arc-start-routes")).toBe("/,/projects,/projects/:id");
     expect(chunks[0]).toContain("<!doctype html>");
-    expect(chunks[1]).toContain("Atlas Billing");
+    expect(chunks[0]).toContain("Atlas Billing");
     expect(html).toContain("Atlas Billing");
     expect(html).toContain("Kepler Search");
     expect(html).toContain("Next milestone");

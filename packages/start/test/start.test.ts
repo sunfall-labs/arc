@@ -12,7 +12,6 @@ import {
   Option,
   Schema,
   Scope,
-  Stream,
   Tracer,
 } from "effect";
 import { AsyncResult } from "effect/reactivity";
@@ -74,7 +73,6 @@ import {
 import { testHttpClientLayer, type TestFetch } from "./test-http-client.js";
 import { createStartRequestHandler } from "../src/start-request-handler.js";
 import { makeStartServerApp } from "../src/start-server-app.js";
-import { createHtmlResponse } from "../src/streaming.js";
 import { rpcClientLayer } from "../src/start-rpc-client.js";
 import { actionTransportLayer } from "../src/start-action-transport.js";
 import {
@@ -1088,7 +1086,7 @@ describe("Sunfall Arc Start", () => {
     ]);
   });
 
-  it("records Start stream failure phases on the request span", async () => {
+  it("records a failed response body on the request span", async () => {
     const recorder = spanRecorder();
     const Home = Route.define("/", {});
     const app = makeStartServerApp({
@@ -1096,10 +1094,12 @@ describe("Sunfall Arc Start", () => {
     });
     const handler = createStartRequestHandler(app, {
       render: () =>
-        createHtmlResponse({
-          shell: "<html>",
-          chunks: Stream.fail("render chunk failed"),
-        }),
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull: (controller) => controller.error(new Error("render chunk failed")),
+          }),
+          { headers: { "content-type": "text/html" } },
+        ),
     });
 
     const response = await Effect.runPromise(
@@ -1110,9 +1110,8 @@ describe("Sunfall Arc Start", () => {
     expect(recorder.requests()).toEqual([
       expect.objectContaining({
         "sunfall-arc.request.status": "failure",
-        "sunfall-arc.failure.kind": "domain",
+        "sunfall-arc.failure.kind": "transport",
         "sunfall-arc.stream.state": "errored",
-        "sunfall-arc.stream.failure_phase": "Chunk",
         "sunfall-arc.teardown.reason": "stream-error",
         "sunfall-arc.teardown.runtime_disposed": true,
       }),
