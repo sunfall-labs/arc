@@ -239,6 +239,55 @@ importers:
         specifier: ^4.1.6
         version: 4.1.6(@types/node@25.7.0)(happy-dom@20.9.0)(vite@8.0.12(@types/node@25.7.0)(jiti@2.7.0)(yaml@2.9.0))
 
+  examples/tracker:
+    dependencies:
+      '@effect/sql-sqlite-node':
+        specifier: 4.0.3
+        version: 4.0.3(effect@4.0.3)
+      '@solidjs/web':
+        specifier: 2.0.0-rc.14
+        version: 2.0.0-rc.14(solid-js@2.0.0-rc.14)
+      '@sunfall/arc-core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@sunfall/arc-solid':
+        specifier: workspace:*
+        version: link:../../packages/solid
+      '@sunfall/arc-start':
+        specifier: workspace:*
+        version: link:../../packages/start
+      '@sunfall/arc-tsrx':
+        specifier: workspace:*
+        version: link:../../packages/tsrx
+      effect:
+        specifier: 4.0.3
+        version: 4.0.3
+      solid-js:
+        specifier: 2.0.0-rc.14
+        version: 2.0.0-rc.14
+    devDependencies:
+      '@fontsource-variable/inter':
+        specifier: ^5.3.0
+        version: 5.3.0
+      '@tsrx/typescript-plugin':
+        specifier: 0.6.3
+        version: 0.6.3(@tsrx/solid@0.3.5(@solidjs/web@2.0.0-rc.14(solid-js@2.0.0-rc.14))(solid-js@2.0.0-rc.14))(typescript@5.9.3)
+      '@types/node':
+        specifier: ^25.7.0
+        version: 25.7.0
+      happy-dom:
+        specifier: ^20.9.0
+        version: 20.9.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^8.0.12
+        version: 8.0.12(@types/node@25.7.0)(jiti@2.7.0)(yaml@2.9.0)
+      vitest:
+        specifier: ^4.1.6
+        version: 4.1.6(@types/node@25.7.0)(happy-dom@20.9.0)(vite@8.0.12(@types/node@25.7.0)(jiti@2.7.0)(yaml@2.9.0))
+
   packages/core:
     dependencies:
       '@solidjs/signals':
@@ -419,6 +468,11 @@ packages:
   '@babel/types@7.29.0':
     resolution: {integrity: sha512-LwdZHpScM4Qz8Xw2iKSzS+cfglZzJGvofQICy7W7v4caru4EaAmyUuO6BGrbyQ2mYV11W0U8j5mBhd14dd3B0A==}
     engines: {node: '>=6.9.0'}
+
+  '@effect/sql-sqlite-node@4.0.3':
+    resolution: {integrity: sha512-u+b0X/yt8vATwUscXKHdWF75LRMQKBIkx9DsNw8tdgF9xxPOTfx+e30gdwBjd1kY1GmQYkzD7/cP+9mys2b0pg==}
+    peerDependencies:
+      effect: ^4.0.3
 
   '@emnapi/core@1.10.0':
     resolution: {integrity: sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw==}
@@ -1786,6 +1840,10 @@ snapshots:
     dependencies:
       '@babel/helper-string-parser': 7.27.1
       '@babel/helper-validator-identifier': 7.28.5
+
+  '@effect/sql-sqlite-node@4.0.3(effect@4.0.3)':
+    dependencies:
+      effect: 4.0.3
 
   '@emnapi/core@1.10.0':
     dependencies:
