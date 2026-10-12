@@ -3,6 +3,7 @@ import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vitest";
 import {
   Action,
+  ActionResult,
   ActionTransport,
   EffectInputCallbackError,
   EffectInputPromiseRejected,
@@ -441,6 +442,41 @@ describe("Action", () => {
         input: Option.some("Ada"),
       });
     }
+  });
+
+  it("runs the definition's invalidates only for results that changed something", () => {
+    const Items = Resource.tag("Action.rejected.items");
+    const Audit = Resource.tag("Action.rejected.audit");
+    const Save = Action.define({
+      name: "save.rejected-result-invalidates",
+      run: (title: string) =>
+        Effect.succeed(
+          title === ""
+            ? ActionResult.validation<{ readonly title: string }, string>({
+                fieldErrors: { title: ["Required"] },
+              })
+            : title === "conflict"
+              ? ActionResult.failure("conflict", { invalidates: [Audit] })
+              : ActionResult.success(title),
+        ),
+      invalidates: () => [Items],
+    });
+    const targets = (
+      title: string,
+      value: ActionResult<string, { readonly title: string }, string, string>,
+    ) =>
+      Effect.runSync(Action.planInvalidation(Save, value, title)).targets.map(
+        (target) => (target as { readonly name: string }).name,
+      );
+
+    expect(targets("ok", ActionResult.success("ok"))).toEqual(["Action.rejected.items"]);
+    // A rejected result changed nothing: only what the result itself names reloads.
+    expect(targets("", ActionResult.validation({ fieldErrors: { title: ["Required"] } }))).toEqual(
+      [],
+    );
+    expect(targets("conflict", ActionResult.failure("conflict", { invalidates: [Audit] }))).toEqual(
+      ["Action.rejected.audit"],
+    );
   });
 
   it("captures synchronous invalidation callback throws from sync planning", () => {

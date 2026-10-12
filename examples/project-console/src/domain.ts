@@ -230,10 +230,9 @@ export const SubmitProjectName = Action.define({
       transaction.set(ProjectById(id), (project) => ({ ...project, name })),
     ]),
   run: (input) => ProjectApi.use((api) => api.submitName(input)),
-  invalidates: (result, input) =>
-    result._tag === "ValidationFailure" || result._tag === "Failure"
-      ? []
-      : projectResourceInvalidations(input.id),
+  // A rejected result (`ValidationFailure`, `Failure`) changed nothing, so
+  // these reload only after a rename that happened.
+  invalidates: (_result, input) => projectResourceInvalidations(input.id),
 });
 
 export const projectNameActionTarget = (input: {

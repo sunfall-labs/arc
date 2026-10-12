@@ -517,6 +517,21 @@ const formDataToObject = (
   return input;
 };
 
+/**
+ * Decodes form values (already read out of a `FormData`) through an Effect
+ * Schema and maps failures to form errors.
+ */
+export const decodeFormValuesEffect = <
+  S extends Schema.Top,
+  Values extends FormSchemaValues<S> = FormSchemaValues<S>,
+>(
+  schema: S,
+  values: Record<string, unknown>,
+): Effect.Effect<Values, FormValidationError<Values, Schema.SchemaError>, FormSchemaServices<S>> =>
+  Schema.decodeUnknownEffect(schema as Schema.Decoder<Values, FormSchemaServices<S>>)(values, {
+    errors: "all",
+  }).pipe(Effect.mapError((schemaError) => fieldErrorsFromSchemaError<Values>(schemaError)));
+
 /** Decodes FormData through an Effect Schema and maps failures to form errors. */
 const decodeFormDataEffectImpl = <
   S extends Schema.Top,
@@ -526,12 +541,7 @@ const decodeFormDataEffectImpl = <
   formData: FormData,
   options: FormDataDecodeOptions = {},
 ): Effect.Effect<Values, FormValidationError<Values, Schema.SchemaError>, FormSchemaServices<S>> =>
-  Schema.decodeUnknownEffect(schema as Schema.Decoder<Values, FormSchemaServices<S>>)(
-    formDataToObject(formData, options),
-    {
-      errors: "all",
-    },
-  ).pipe(Effect.mapError((schemaError) => fieldErrorsFromSchemaError<Values>(schemaError)));
+  decodeFormValuesEffect<S, Values>(schema, formDataToObject(formData, options));
 
 /** Runtime guard for values created by `Form.make(...)`. */
 export const isForm = (value: unknown): value is FormInstance<object, unknown, unknown> =>

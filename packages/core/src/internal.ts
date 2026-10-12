@@ -77,6 +77,7 @@ export {
   lookupResourceFamily,
   refsForResourceTag,
   resourceEntry,
+  storeResourceRefs,
 } from "./resource-runtime.js";
 export {
   cloneResourceSnapshotValue,
@@ -120,6 +121,7 @@ export { matchRoutes } from "./route-match.js";
 export type { AnySchema, RouteWithComponent } from "./route.js";
 export { ResourceFamily } from "./resource.js";
 export { makeActionInstance } from "./action-instance.js";
+export { decodeFormValuesEffect } from "./form.js";
 export { SignalWrites, type WritableSignal } from "./signal.js";
 export { startStateOnRuntime } from "./state-start.js";
 export {
@@ -129,6 +131,7 @@ export {
   getCurrentRuntime,
   runFork,
   withResourceStore,
+  withRuntimeServices,
 } from "./runtime.js";
 export * from "./scope.js";
 export * from "./signal-watch.js";

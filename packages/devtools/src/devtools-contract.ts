@@ -74,7 +74,7 @@ export interface DevtoolsInvalidationPlan {
  * the domain schemas; Devtools owns detached inspection data.
  */
 export interface DevtoolsRoutePlan {
-  readonly _tag: "Matched" | "NotFound";
+  readonly _tag: "Matched" | "NotFound" | "Redirect";
   readonly href: string;
   readonly match:
     | {
@@ -371,7 +371,7 @@ export interface DevtoolsSummaryInvalidationPlan {
 /** Summarized navigation plan with route params, search, and hydration facts. */
 export interface DevtoolsSummaryRoutePlan {
   readonly index: number;
-  readonly _tag: "Matched" | "NotFound";
+  readonly _tag: "Matched" | "NotFound" | "Redirect";
   readonly href: string;
   readonly path: string | null;
   readonly params: DevtoolsSerializableValue | null;

@@ -9,7 +9,11 @@ import {
   type ResponseContext,
   type Route,
 } from "@sunfall/arc-core";
-import { withResourceStore, type AppDefinitionRegistry } from "@sunfall/arc-core/internal";
+import {
+  withResourceStore,
+  withRuntimeServices,
+  type AppDefinitionRegistry,
+} from "@sunfall/arc-core/internal";
 import type { StartServerApp } from "./start-server-app.js";
 import { Effect, Option, type Scope } from "effect";
 import { KeyValueStore } from "effect/persistence";
@@ -73,6 +77,33 @@ export const provideLocalServerClient = <A, E, R>(
     Server.Client,
     Server.localClient(registry === undefined ? {} : { registry }),
   ) as Effect.Effect<A, E, Exclude<R, Server.Client>>;
+
+/**
+ * A Request Runtime whose every Effect runs with the request's services: the
+ * request, its response context, the server's `KeyValueStore`, and the
+ * in-process server-function client. Work the render forks (a Resource read
+ * the route did not preload, a callback) then runs exactly like the preload
+ * does, instead of failing for want of a server-function client.
+ */
+export const makeServedRequestRuntime = <
+  Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
+  ServerServices,
+  ServerError,
+>(
+  app: StartServerApp<Routes, ServerServices, ServerError>,
+  request: Request,
+  responseContext: ResponseContext,
+  registry?: AppDefinitionRegistry,
+): SunfallArcRuntime<ServerServices, ServerError> =>
+  withRuntimeServices(
+    makeRequestRuntime(app),
+    (effect) =>
+      provideRequest(request)(
+        provideResponse(responseContext)(
+          provideServerKeyValueStore(provideLocalServerClient(effect, registry)),
+        ),
+      ) as never,
+  ) as SunfallArcRuntime<ServerServices, ServerError>;
 
 export const provideRequestRuntime = <A, E, R, RuntimeServices, RuntimeError>(
   runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,

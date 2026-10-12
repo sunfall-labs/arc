@@ -14,6 +14,7 @@ import {
 } from "./resource.js";
 import {
   collectResource,
+  collectResourceExit,
   resourceHydrationPayload,
   activeResourceStore,
 } from "./resource-runtime.js";
@@ -365,7 +366,7 @@ export class RoutePreloadUntypedFailure extends Data.TaggedError("RoutePreloadUn
 type PreloadFailureFor<ErrorSchema, Out> = [Out] extends [never]
   ? never
   : IsUndefined<ErrorSchema> extends true
-    ? [EffectInputError<Out>] extends [never]
+    ? [Exclude<EffectInputError<Out>, RouteControl>] extends [never]
       ? never
       : RoutePreloadUntypedFailure
     : SchemaType<ErrorSchema>;
@@ -394,11 +395,11 @@ type RoutePreloadCheck<ErrorSchema, Out> = [Out] extends [never]
     ? { readonly preload: RoutePreloadReturnsPromise }
     : IsUndefined<ErrorSchema> extends true
       ? unknown
-      : [EffectInputError<Out>] extends [SchemaType<ErrorSchema>]
+      : [Exclude<EffectInputError<Out>, RouteControl>] extends [SchemaType<ErrorSchema>]
         ? unknown
         : {
             readonly error: RoutePreloadFailureNotInErrorSchema<
-              Exclude<EffectInputError<Out>, SchemaType<ErrorSchema>>
+              Exclude<EffectInputError<Out>, SchemaType<ErrorSchema> | RouteControl>
             >;
           };
 
@@ -460,11 +461,18 @@ export interface RouteDefinition<
   Search,
   PreloadRequirements = never,
   PreloadError = unknown,
+  PreloadVerdict = never,
 > {
   readonly path: Path;
   readonly options: RouteOptions<Path, Params, Search, PreloadRequirements>;
   /** Phantom: the route's typed preload failure (see `Route.PreloadFailure`). */
   readonly "~preloadFailure"?: (_: never) => PreloadError;
+  /**
+   * Phantom: the verdicts its preload can end with (see `Route.PreloadVerdict`).
+   * In parameter position, so a route with verdicts still fits a route type
+   * that names none.
+   */
+  readonly "~preloadVerdict"?: (_: PreloadVerdict) => void;
   /** Phantom: the route's typed path params (see `Route.Params`). */
   readonly "~params"?: (_: never) => Params;
   /** Phantom: the route's typed search values (see `Route.Search`). */
@@ -487,6 +495,22 @@ export type RouteSearch<R> =
 export type RoutePreloadRequirements<R> =
   R extends RouteDefinition<infer _Path, infer _Params, infer _Search, infer PreloadRequirements>
     ? PreloadRequirements
+    : never;
+
+/**
+ * The verdicts a route's preload can end with: `RouteNotFound`
+ * (`Route.notFound()`) and `RouteRedirect` (`Route.redirect`), or `never`.
+ */
+export type RoutePreloadVerdict<R> =
+  R extends RouteDefinition<
+    infer _Path,
+    infer _Params,
+    infer _Search,
+    infer _PreloadRequirements,
+    infer _PreloadError,
+    infer PreloadVerdict
+  >
+    ? PreloadVerdict
     : never;
 
 /** Typed preload failure of a route definition (distributes over route unions). */
@@ -551,9 +575,25 @@ export type RouteNavigationPlan<
       readonly resources: ResourceHydrationPayload;
     }
   | {
+      /**
+       * No route matched, or the matched preload ended with `Route.notFound()`;
+       * then `refs` and `resources` are what it loaded before its verdict.
+       */
       readonly _tag: "NotFound";
       readonly href: string;
       readonly match: undefined;
+      readonly refs: ReadonlyArray<AnyResourceRef>;
+      readonly resources: ResourceHydrationPayload;
+    }
+  | {
+      /** The matched route's preload sent the navigation elsewhere (`Route.redirect`). */
+      readonly _tag: "Redirect";
+      readonly href: string;
+      readonly match: RouteMatch<R>;
+      /** Where the navigation goes instead. */
+      readonly location: string;
+      /** HTTP status a server answers the request with. */
+      readonly status: RouteRedirectStatus;
       readonly refs: readonly [];
       readonly resources: ResourceHydrationPayload;
     };
@@ -593,6 +633,60 @@ export class RoutePreloadError<E = unknown> extends Data.TaggedError("RoutePrelo
     return `Route "${this.path}" failed to preload "${this.href}"${summary === undefined ? "" : `: ${summary}`}`;
   }
 }
+
+/**
+ * A route preload's verdict that the URL identifies nothing: the path matched
+ * a route, but the record it names does not exist (`/issues/TRK-999`).
+ *
+ * Fail a preload with it through `Route.notFound()`. It is not a preload
+ * failure: navigation settles in the router's `NotFound` state (the outlet's
+ * `notFound` view), a server render answers 404, and the hydrating client
+ * starts `NotFound` without preloading again.
+ */
+export class RouteNotFound extends Data.TaggedError("RouteNotFound")<{}> {
+  override get message(): string {
+    return "Route preload found nothing at this URL";
+  }
+}
+
+/** HTTP statuses a route redirect may answer with. */
+export type RouteRedirectStatus = 301 | 302 | 303 | 307 | 308;
+
+/**
+ * A route preload's verdict that the page lives elsewhere (a sign-in page for
+ * a request without a session, a renamed record's new URL).
+ *
+ * Fail a preload with it through `Route.redirect(href)`. It is not a preload
+ * failure: a server render answers with `status` and `Location: href`
+ * instead of a page, and the browser router replaces the navigation with one
+ * to `href`.
+ */
+export class RouteRedirect extends Data.TaggedError("RouteRedirect")<{
+  /** Where the navigation goes instead: an app-relative href (path and search). */
+  readonly href: string;
+  /** HTTP status of a server redirect. Defaults to `302`. */
+  readonly status: RouteRedirectStatus;
+  /** Whether the browser router replaces the current history entry. Defaults to `true`. */
+  readonly replace: boolean;
+}> {
+  override get message(): string {
+    return `Route preload redirected to "${this.href}"`;
+  }
+}
+
+/** Options for `Route.redirect`. */
+export interface RouteRedirectOptions {
+  /** HTTP status of a server redirect. Defaults to `302`. */
+  readonly status?: RouteRedirectStatus;
+  /** Whether the browser router replaces the current history entry. Defaults to `true`. */
+  readonly replace?: boolean;
+}
+
+/** The two preload verdicts that are outcomes, not failures. */
+type RouteControl = RouteNotFound | RouteRedirect;
+
+const isRouteControl = (cause: unknown): cause is RouteControl =>
+  cause instanceof RouteNotFound || cause instanceof RouteRedirect;
 
 /**
  * Wire form of a route preload failure.
@@ -862,7 +956,8 @@ export namespace Route {
     Search = unknown,
     PreloadRequirements = never,
     PreloadError = unknown,
-  > = RouteDefinition<Path, Params, Search, PreloadRequirements, PreloadError>;
+    PreloadVerdict = never,
+  > = RouteDefinition<Path, Params, Search, PreloadRequirements, PreloadError, PreloadVerdict>;
 
   export type Match<
     R extends Definition<string, unknown, unknown, any> = Definition<string, unknown, unknown, any>,
@@ -889,6 +984,9 @@ export namespace Route {
   /** Typed preload failure of a route: its `error` schema type, `RoutePreloadUntypedFailure` without one, `never` when it cannot fail. */
   export type PreloadFailure<R> = RoutePreloadFailure<R>;
 
+  /** The verdicts a route's preload can end with (`RouteNotFound`, `RouteRedirect`), or `never`. */
+  export type PreloadVerdict<R> = RoutePreloadVerdict<R>;
+
   export type HrefOptions<R extends Definition<string, unknown, unknown, any>> =
     RouteHrefOptions<R>;
 
@@ -900,8 +998,14 @@ export namespace Route {
   /** Resource preload diagnostics consumed by Start manifests and devtools. */
   export type PreloadResourceDiagnostics = RoutePreloadResourceDiagnostics;
 
-  /** Error union for running route preload and resource hydration planning. */
-  export type PreloadPlanError<R = Definition> = RoutePreloadPlanError<PreloadFailure<R>>;
+  /**
+   * Error union for running route preload and resource hydration planning,
+   * including the preload's verdicts (`Route.notFound()`, `Route.redirect`),
+   * which `Route.planNavigation` turns into plans.
+   */
+  export type PreloadPlanError<R = Definition> =
+    | RoutePreloadPlanError<PreloadFailure<R>>
+    | PreloadVerdict<R>;
 
   /** Error union for matching and preloading a navigation to one of the routes `R`. */
   export type NavigationPlanError<R = Definition> = RouteNavigationPlanError<PreloadFailure<R>>;
@@ -922,6 +1026,12 @@ export namespace Route {
     Search,
     PreloadRequirements = never,
   > = RouteOptions<Path, Params, Search, PreloadRequirements>;
+
+  /** Options for `Route.redirect`. */
+  export type RedirectOptions = RouteRedirectOptions;
+
+  /** HTTP statuses a route redirect may answer with. */
+  export type RedirectStatus = RouteRedirectStatus;
 
   /** Value a route preload returns: nothing or an Effect. */
   export type PreloadResult<Requirements = never, E = unknown> = RoutePreloadResult<
@@ -1017,7 +1127,8 @@ export namespace Route {
     ParamsFromSchema<Path, ParamsSchema>,
     SearchFromSchema<SearchSchema>,
     EffectInputRequirements<Out>,
-    PreloadFailureFor<ErrorSchema, Out>
+    PreloadFailureFor<ErrorSchema, Out>,
+    Extract<EffectInputError<Out>, RouteControl>
   >;
   export function define(
     path: string,
@@ -1056,7 +1167,8 @@ export namespace Route {
     Params<R>,
     Search<R>,
     PreloadRequirements<R>,
-    PreloadFailure<R>
+    PreloadFailure<R>,
+    PreloadVerdict<R>
   > &
     RouteWithComponent<C>;
 
@@ -1139,16 +1251,64 @@ export namespace Route {
   ): match is Match<R> => match?.route.path === definition.path;
 
   /**
+   * Ends a route preload with the verdict that the URL identifies nothing:
+   * the record the params name does not exist. Navigation settles in the
+   * router's `NotFound` state and a server render answers 404.
+   *
+   * @example
+   * ```ts
+   * preload: ({ params }) =>
+   *   Resource.preload(IssueById(params.id)).pipe(
+   *     Effect.catchTag("IssueNotFound", () => Route.notFound()),
+   *   ),
+   * ```
+   */
+  export const notFound = (): Effect.Effect<never, RouteNotFound> =>
+    Effect.fail(new RouteNotFound());
+
+  /**
+   * Ends a route preload by sending the navigation to `href` instead: a
+   * server render answers `status` (default `302`) with `Location: href`, and
+   * the browser router navigates to `href`, replacing the current entry
+   * unless `replace: false`.
+   *
+   * @example
+   * ```ts
+   * preload: () =>
+   *   Resource.preload(CurrentUserRef).pipe(
+   *     Effect.flatMap((user) => (user === null ? Route.redirect("/signin") : Effect.void)),
+   *   ),
+   * ```
+   */
+  export const redirect = (
+    href: string,
+    options: RouteRedirectOptions = {},
+  ): Effect.Effect<never, RouteRedirect> =>
+    Effect.fail(
+      new RouteRedirect({
+        href,
+        status: options.status ?? 302,
+        replace: options.replace ?? true,
+      }),
+    );
+
+  /**
    * Runs a matched route's preload function as an Effect.
    *
    * Typed preload failures become `RoutePreloadError<Route.PreloadFailure<R>>`;
    * without an `error` schema the failure is `RoutePreloadUntypedFailure`
-   * carrying its `_tag`. Synchronous throws and Promise returns break the
-   * preload contract and are defects.
+   * carrying its `_tag`. The verdicts `Route.notFound()` and
+   * `Route.redirect(...)` are not failures of the route and pass through as
+   * `RouteNotFound` and `RouteRedirect`. Synchronous throws and Promise
+   * returns break the preload contract and are defects.
    */
   export const preload = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>,
-  ): Effect.Effect<void, RoutePreloadError<PreloadFailure<R>>, PreloadRequirements<R>> =>
+  ): Effect.Effect<
+    void,
+    RoutePreloadError<PreloadFailure<R>> | PreloadVerdict<R>,
+    PreloadRequirements<R>
+  > =>
     Effect.suspend(() => {
       const input = match.route.options.preload?.(match);
       return input === undefined
@@ -1160,13 +1320,15 @@ export namespace Route {
           >);
     }).pipe(
       Effect.asVoid,
-      Effect.mapError((cause) =>
-        routePreloadError(
-          match,
-          (match.route.options.error === undefined
-            ? untypedPreloadFailure(cause)
-            : cause) as PreloadFailure<R>,
-        ),
+      Effect.mapError((cause): RoutePreloadError<PreloadFailure<R>> | PreloadVerdict<R> =>
+        isRouteControl(cause)
+          ? (cause as PreloadVerdict<R>)
+          : routePreloadError(
+              match,
+              (match.route.options.error === undefined
+                ? untypedPreloadFailure(cause)
+                : cause) as PreloadFailure<R>,
+            ),
       ),
     );
 
@@ -1347,7 +1509,11 @@ export namespace Route {
   export const hydrateNotFound = (): Effect.Effect<void> =>
     Effect.map(activeResourceStore, hydrateRouteNotFound);
 
-  /** Runs matched route preload and captures touched resources for hydration. */
+  /**
+   * Runs matched route preload and captures touched resources for hydration.
+   * A preload that ends with `Route.notFound()` or `Route.redirect(...)`
+   * fails with that verdict; `planNavigation` turns it into its plan.
+   */
   export const planPreload = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>,
   ): Effect.Effect<PreloadPlan<R>, PreloadPlanError<R>, PreloadRequirements<R>> =>
@@ -1365,6 +1531,10 @@ export namespace Route {
 
   /**
    * Matches a URL and produces a navigation plan with collected resource hydration.
+   *
+   * The plan is `Matched` with the resources the preload touched, `NotFound`
+   * when no route matches or the matched preload ended with
+   * `Route.notFound()`, or `Redirect` when it ended with `Route.redirect(...)`.
    *
    * Route preloads run inside Effect so adapters can await data and serialize only
    * resources touched during the preload.
@@ -1409,15 +1579,60 @@ export namespace Route {
             return Effect.succeed(notFound);
           }
 
-          return planPreload(matched).pipe(
-            Effect.map(
-              (plan): NavigationPlan<Routes[number]> => ({
-                _tag: "Matched" as const,
-                href,
-                match: plan.match,
-                refs: plan.refs,
-                resources: plan.resources,
-              }),
+          return collectResourceExit(preload(matched)).pipe(
+            Effect.flatMap(
+              ({
+                exit,
+                refs,
+              }): Effect.Effect<
+                NavigationPlan<Routes[number]>,
+                NavigationPlanError<Routes[number]>
+              > => {
+                if (Exit.isSuccess(exit)) {
+                  return resourceHydrationPayload(refs).pipe(
+                    Effect.map(
+                      (resources): NavigationPlan<Routes[number]> => ({
+                        _tag: "Matched" as const,
+                        href,
+                        match: matched,
+                        refs,
+                        resources,
+                      }),
+                    ),
+                  );
+                }
+                const verdict = exit.cause.reasons.find(Cause.isFailReason)?.error;
+                // Not found: what the preload loaded before its verdict (the
+                // signed-in user, the navigation) still hydrates the 404 page.
+                if (verdict instanceof RouteNotFound) {
+                  return resourceHydrationPayload(refs).pipe(
+                    Effect.map(
+                      (resources): NavigationPlan<Routes[number]> => ({
+                        _tag: "NotFound",
+                        href,
+                        match: undefined,
+                        refs,
+                        resources,
+                      }),
+                    ),
+                  );
+                }
+                // A redirect renders nothing, so it hydrates nothing.
+                if (verdict instanceof RouteRedirect) {
+                  return Effect.succeed<NavigationPlan<Routes[number]>>({
+                    _tag: "Redirect",
+                    href,
+                    match: matched,
+                    location: verdict.href,
+                    status: verdict.status,
+                    refs: [],
+                    resources: { resources: [] },
+                  });
+                }
+                return Effect.failCause(
+                  exit.cause as Cause.Cause<RoutePreloadError<PreloadFailure<Routes[number]>>>,
+                );
+              },
             ),
           );
         },

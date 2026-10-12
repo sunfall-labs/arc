@@ -5,6 +5,22 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From Not-Found Failures And Remounting Search Pages
+
+A preload that finds no record ends with `Route.notFound()`, and one that
+sends the visitor elsewhere with `Route.redirect(href)`; both are verdicts,
+not failures. A navigation that only changes the search keeps the page's
+component instance and updates its props.
+
+| Before                                                                                 | After                                                                              |
+| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| a typed `ProjectNotFound` route failure (a 500) rendered as a 404-looking failure view | `Effect.catchTag("ProjectNotFound", () => Route.notFound())`: a real 404           |
+| redirecting in a host wrapper or after render (`navigate` in an effect)                | `Route.redirect(href)` in the preload: a server redirect and a client navigation   |
+| `switch (plan._tag)` over `"Matched"` and `"NotFound"`                                 | handle `"Redirect"` too                                                            |
+| `invalidates: (result) => (result._tag === "ValidationFailure" ? [] : tags)`           | `invalidates: () => tags`: a rejected `ActionResult` does not run `invalidates`    |
+| `<Show when={props.search.q} keyed>` to reset a page per search                        | nothing: same-page navigations keep the instance; key a child if it must reset     |
+| `changes: (input) => feed(input)`                                                      | `changes: (input, rows) => feed(input, cursorOf(rows))` when a feed needs a cursor |
+
 ## From Route Params Decode Failures
 
 A URL whose path params the route's `params` schema rejects is now not found:

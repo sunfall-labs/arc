@@ -61,6 +61,18 @@ const resultInvalidations = <A>(
 ): ReadonlyArray<ResourceInvalidation<ActionResultInvalidationRequirements<A>>> =>
   ActionResult.is(value) ? ActionResult.invalidations(value as AnyActionResult) : [];
 
+/**
+ * A rejected `ActionResult` (`ValidationFailure` or `Failure`): the run says
+ * the change did not happen.
+ */
+const isRejectedActionResult = (value: unknown): boolean =>
+  ActionResult.is(value) && (value._tag === "ValidationFailure" || value._tag === "Failure");
+
+/**
+ * The invalidations a settled run asks for: the definition's `invalidates`
+ * (what a change touches, so not for a rejected result, which changed
+ * nothing) plus the result's own `invalidates`.
+ */
 export const invalidationsFor = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
   value: A,
@@ -72,7 +84,7 @@ export const invalidationsFor = <I, A, E, R>(
     Effect.try({
       try: () => {
         const operation = `Action.invalidates(${definition.name})`;
-        return definition.invalidates === undefined
+        return definition.invalidates === undefined || isRejectedActionResult(value)
           ? []
           : validateResourceInvalidationsArraySync(
               operation,
@@ -167,9 +179,7 @@ const settleOptimistic = (
   transaction: ActionOptimisticTransactionRuntime,
   value: unknown,
 ): ActionOptimisticSettle =>
-  ActionResult.is(value) && (value._tag === "ValidationFailure" || value._tag === "Failure")
-    ? transaction.rollback
-    : transaction.commit;
+  isRejectedActionResult(value) ? transaction.rollback : transaction.commit;
 
 /**
  * Runs one submission remotely (through the `ActionTransport` that serves it)

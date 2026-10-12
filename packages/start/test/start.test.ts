@@ -2417,6 +2417,28 @@ describe("Sunfall Arc Start", () => {
     });
   });
 
+  it("decodes a progressive form's defaults with its fields, as the server decodes its post", async () => {
+    const Input = Schema.Struct({ id: Schema.String, name: Schema.String });
+    const Submit = Action.define({
+      name: "Start.action.codec.form-defaults",
+      input: Input,
+      output: Schema.Struct({ ok: Schema.Boolean }),
+      run: () => Effect.succeed({ ok: true }),
+    });
+    const form = StartAction.form(Submit, { input: { id: "atlas", name: "Default" } });
+    const formData = new FormData();
+    for (const field of form.hiddenFields) {
+      formData.set(field.name, field.value);
+    }
+    formData.set("name", "Atlas Forms");
+
+    // The visible field wins over the default; the default `id` reaches the schema.
+    await expect(Effect.runPromise(StartAction.decodeFormData(Input, formData))).resolves.toEqual({
+      id: "atlas",
+      name: "Atlas Forms",
+    });
+  });
+
   it("fails progressive form default encoding with typed errors for circular and BigInt inputs", () => {
     const Submit = Action.define<Record<string, unknown>, { readonly ok: boolean }>({
       name: "Start.action.codec.form-failure",

@@ -1,5 +1,5 @@
-import type { Route, RuntimeSource, Server } from "@sunfall/arc-core";
-import type { AppDefinitionRegistry } from "@sunfall/arc-core/internal";
+import { Resource, type Route, type RuntimeSource, type Server } from "@sunfall/arc-core";
+import { storeResourceRefs, type AppDefinitionRegistry } from "@sunfall/arc-core/internal";
 import { Component } from "@sunfall/arc-solid";
 import { createComponent, generateHydrationScript, renderToString } from "@solidjs/web";
 import { Effect, Stream } from "effect";
@@ -20,6 +20,7 @@ import {
 import { makeStartServerApp } from "./start-server-app.js";
 import { attachStartHandlerRoutes } from "./start-route-preload-warnings.js";
 import { createStartStreamedHtmlResponse, htmlChunk } from "./streaming.js";
+import { createStartHydrationPayload, type StartHydrationPayload } from "./hydration.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
 type AnyServerFunction = Server.Fn<any, any, any, any>;
@@ -84,14 +85,54 @@ const renderAppDocumentEffect = <Routes extends readonly AnyRoute[], ServerServi
       solidHydration: generateHydrationScript(),
       rootHydration: context.hydrationPlan.root.script,
     });
-    return createStartStreamedHtmlResponse({
-      shell: htmlChunk(shell.open),
-      chunks: Stream.make(htmlChunk(`${body}${shell.closeRoot}`)),
-      hydrationPlan: context.hydrationPlan,
-      tail: htmlChunk(shell.close),
-      ...(page.headers === undefined ? {} : { headers: page.headers }),
-    });
+    return renderedResourcesChunk(context).pipe(
+      Effect.map((rendered) =>
+        createStartStreamedHtmlResponse({
+          shell: htmlChunk(shell.open),
+          chunks: Stream.make(htmlChunk(`${body}${shell.closeRoot}`)),
+          hydrationPlan:
+            rendered === undefined
+              ? context.hydrationPlan
+              : {
+                  ...context.hydrationPlan,
+                  streamedResourceChunks: [
+                    ...context.hydrationPlan.streamedResourceChunks,
+                    rendered,
+                  ],
+                },
+          tail: htmlChunk(shell.close),
+          ...(page.headers === undefined ? {} : { headers: page.headers }),
+        }),
+      ),
+      Effect.flatten,
+    );
   });
+
+/**
+ * The Resources the render itself loaded (reads the route did not preload
+ * that settled while rendering), as one more hydration chunk, so the
+ * hydrating client starts from the values the server rendered instead of
+ * loading them again over different markup.
+ */
+const renderedResourcesChunk = <Routes extends readonly AnyRoute[], ServerServices, ServerError>(
+  context: StartRenderContext<Routes, ServerServices, ServerError, any>,
+): Effect.Effect<StartHydrationPayload | undefined> => {
+  const preloaded = new Set(
+    context.resources.resources.map((resource) => `${resource.name}\u0000${resource.key}`),
+  );
+  const rendered = storeResourceRefs(context.resourceStore).filter(
+    (ref) => !preloaded.has(`${ref.family.options.name}\u0000${ref.key}`),
+  );
+  return rendered.length === 0
+    ? Effect.succeed(undefined)
+    : context.runtime.provide(Resource.hydrationPayload(rendered)).pipe(
+        Effect.map((payload) =>
+          payload.resources.length === 0 ? undefined : createStartHydrationPayload(payload),
+        ),
+        // A value that does not encode stays unhydrated: the client loads it.
+        Effect.orElseSucceed(() => undefined),
+      );
+};
 
 /**
  * Builds the Start request handler for an app: server-side rendering of the

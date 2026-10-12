@@ -319,6 +319,36 @@ export const withResourceStore = <R, ER>(
     },
   );
 
+/**
+ * A view of `runtime` whose every Effect also runs under `provide`, sharing
+ * its managed services and Resource Store. Hosts use it to give work they do
+ * not start themselves (fibers a render forks: Resource loads, callbacks) the
+ * same per-request services as the work they do start, such as Start's
+ * request, response, and in-process server-function client during SSR.
+ */
+export const withRuntimeServices = <R, ER, Added>(
+  runtime: SunfallArcRuntime<R, ER>,
+  provide: <A, E, RIn>(
+    effect: Effect.Effect<A, E, RIn>,
+  ) => Effect.Effect<A, E, Exclude<RIn, Added>>,
+): SunfallArcRuntime<R | Added, ER> => {
+  const inner = eraseRuntime(runtime);
+  const withServices = <A, E, RIn>(effect: Effect.Effect<A, E, RIn>): Effect.Effect<A, E, any> =>
+    // Work this view runs that forks more work through the ambient runtime
+    // keeps the added services.
+    Effect.provideService(provide(effect), AmbientRuntime, provided as AnySunfallArcRuntime<any>);
+  const provided: SunfallArcRuntime<R | Added, ER> = {
+    [RuntimeTypeId]: RuntimeTypeId,
+    managed: inner.managed,
+    resourceStore: inner.resourceStore,
+    provide: (effect, options) => inner.provide(withServices(effect), options) as never,
+    runFork: (effect, options) => inner.runFork(withServices(effect), options),
+    runSync: (effect) => runWithRuntime(provided, () => inner.runSync(withServices(effect))),
+    dispose: inner.dispose,
+  };
+  return provided;
+};
+
 /** Default runtime used by ambient helpers when an app has not supplied one. */
 export const defaultRuntime: SunfallArcRuntime<never, never> = makeRuntime(Layer.empty);
 

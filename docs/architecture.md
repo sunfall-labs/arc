@@ -542,8 +542,9 @@ interruption rolls the transaction back and rebases every other submission's
 patches. So does a rejected `ActionResult`: a run (local, remote, or a
 durable replay) that returns `ValidationFailure` or `Failure` means the
 change did not happen, so its patches roll back exactly as on a failure,
-without folding and without a reload; `Success` and `Redirect` results
-commit. Patch, commit, and rollback writes commit under the Action's Timeline
+without folding and without a reload: the definition's `invalidates` does not
+run for it (only invalidations the result itself carries do); `Success` and
+`Redirect` results commit. Patch, commit, and rollback writes commit under the Action's Timeline
 cause (`submit`, `success`, `failure`), so travel shows them. Snapshots (SSR
 dehydration, persistence) carry only the synced value: a patch belongs to an
 in-flight submission and never crosses a wire.
@@ -570,8 +571,10 @@ one on both sides (the client Layer's or `localStorage` in the browser, a
 store that keeps nothing during SSR). Storage or decode failures are logged
 rather than failing loads.
 
-A `rows.changes(input)` feed starts with an entry's first load (or first read
-after hydration) on the runtime's Resource Store. Each batch of
+A `rows.changes(input, rows)` feed starts with an entry's first load, or when
+the entry is hydrated, on the runtime's Resource Store. `rows` are the synced
+rows it starts from (the loaded or hydrated value), so a feed resumes from
+what they hold, such as the newest version among them. Each batch of
 `Upsert`/`Update`/`Delete` changes applies to the synced rows under the
 Timeline cause `Resource ... change` and publishes `ResourceRowsChanged`; a
 failed feed publishes `ResourceRowsChangesFailure` and stops. Disposing the
@@ -1026,7 +1029,11 @@ decoding default), so every URL for the page decodes.
 The Solid adapter owns browser history through the router `Component.router`
 creates, provided by `RouterProvider` and rendered by `RouterOutlet`. On navigation it
 matches the route, runs `Route.preload` in an interruptible UI scope, then
-mounts the matched route component in a fresh route UI scope. Navigating away
+mounts the matched route component in a fresh route UI scope. A navigation to
+the page already on screen (the same route and params, a new search) keeps
+that instance: the outlet shows it while the preload runs, then updates its
+`search` props in place, so its States, focus, and DOM survive a search
+change. Navigating away
 runs Solid cleanup inside that route runtime/scope before disposing the route
 scope, so cleanup callbacks, streams, watches, actions, and scoped fibers close
 with the page they belong to.
@@ -1070,6 +1077,34 @@ export const ProjectRoute = Route.define("/projects/:id", {
 
 `Resource.preload` and `Resource.refresh` take one ref or an array (loaded
 concurrently, values in order), the same target shape as `Resource.invalidate`.
+
+A preload can also end with a verdict instead of a failure. `Route.notFound()`
+says the URL names nothing (the record the params identify does not exist),
+and `Route.redirect(href, { status?, replace? })` says the page lives
+elsewhere (a sign-in page for a request without a session):
+
+```ts
+export const IssueRoute = Route.define("/issues/:id", {
+  params: Schema.Struct({ id: IssueId }),
+  preload: ({ params, href }) =>
+    Resource.preload(CurrentUserRef).pipe(
+      Effect.flatMap((user) => (user === null ? Route.redirect(signInHref(href)) : Effect.void)),
+      Effect.andThen(Resource.preload(IssueById(params.id))),
+      Effect.catchTag("IssueNotFound", () => Route.notFound()),
+    ),
+});
+```
+
+`Route.planNavigation` plans them as `NotFound` (with the Resources the
+preload loaded before its verdict, so a 404 page still renders the signed-in
+shell) and `Redirect` (`location`, `status`; nothing hydrates). Start answers
+404 and starts the server's routers `NotFound`, or answers the redirect
+without rendering; the browser router settles `NotFound`, or navigates to the
+redirect's href (replacing the entry unless `replace: false`; more than 20
+consecutive redirects fail as a loop). Verdicts are not failures: they are
+outside `error` and `Route.PreloadFailure<R>`. `Route.PreloadVerdict<R>` is
+the verdicts a preload can end with, inferred like its failure, and
+`Route.preload` fails with `RoutePreloadError<...> | Route.PreloadVerdict<R>`.
 
 `Route.PreloadFailure<R>` is the error schema's type; without `error` it is
 `RoutePreloadUntypedFailure` (only the failure's `tag`, which is all that can
@@ -1238,6 +1273,14 @@ before that the host may still answer that it has no page, and a static host
 has not hydrated the target's route data, so UI rendered for the match (a
 sidebar that switches on `router.match()`) would read data nothing can load.
 Without host preparation, `Pending` is published as the navigation starts.
+
+A server render can read Resources its route did not preload (a shell that
+reads the signed-in user on an unmatched URL). Every fiber on the request
+runtime, including those the render forks, runs with the request's services
+(`RequestContext`, `ResponseContext`, the in-process server-function client),
+so such a read loads like a preload; whatever the render loaded hydrates with
+the page in one more streamed chunk after the preload's, so the client starts
+from the values the server rendered.
 
 A failure that reaches a Solid `<Errored>` boundary during a server render
 follows the same rule. Solid serializes whatever such a boundary catches into

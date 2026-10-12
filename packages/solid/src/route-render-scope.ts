@@ -1,8 +1,10 @@
 import { Route, type AnySunfallArcRuntime, type BrowserRouterState } from "@sunfall/arc-core";
 import {
+  browserRouteInstanceKey,
   browserRouteRenderIdentity,
   browserRouteRenderDecision,
   makeRuntimeUiScopeFrame,
+  SignalWrites,
   writeUntracedSignals,
   type AnyBrowserRoute,
   type BrowserRouteOutletRenderers,
@@ -33,7 +35,40 @@ export interface SolidRouteRenderScopeController<Routes extends readonly AnyRout
 interface RenderedRouteScope {
   readonly node: JSX.Element;
   readonly dispose?: Effect.Effect<void, never, never>;
+  /** Set when the node is a route component: the page it shows and its props. */
+  readonly instance?: RenderedRouteInstance;
 }
+
+/**
+ * A rendered route component: the page (route and params) it shows, and the
+ * props signal later navigations to the same page write their search into.
+ */
+interface RenderedRouteInstance {
+  readonly key: string;
+  readonly component: unknown;
+  readonly props: WritableSignal<Record<string, unknown>>;
+}
+
+/**
+ * Route component props that read the current props signal, so a navigation
+ * to the same page (new search) updates them in place.
+ */
+const reactiveRouteProps = (
+  props: WritableSignal<Record<string, unknown>>,
+): Record<string, unknown> =>
+  new Proxy({} as Record<string, unknown>, {
+    get: (_target, key) => (props.get() as Record<PropertyKey, unknown>)[key],
+    has: (_target, key) => key in props.get(),
+    ownKeys: () => Reflect.ownKeys(props.get()),
+    getOwnPropertyDescriptor: (_target, key) =>
+      key in props.get()
+        ? {
+            enumerable: true,
+            configurable: true,
+            get: () => (props.get() as Record<PropertyKey, unknown>)[key],
+          }
+        : undefined,
+  });
 
 class SolidRouteRenderFailure {
   readonly _tag = "SolidRouteRenderFailure";
@@ -184,15 +219,19 @@ const renderRouteState = <Routes extends readonly AnyRoute[], ER>(
       );
     case "Empty":
       return { node: undefined };
-    case "Ready":
-      return renderInRouteScope(owner, runtime, () =>
-        renderRouteComponent(
-          decision.component,
-          decision.props as unknown as Record<string, unknown>,
-          runtime,
-          renderView,
-        ),
+    case "Ready": {
+      const props = SignalWrites.make<Record<string, unknown>>(
+        decision.props as unknown as Record<string, unknown>,
+        { name: "RouterOutlet.props" },
       );
+      const rendered = renderInRouteScope(owner, runtime, () =>
+        renderRouteComponent(decision.component, reactiveRouteProps(props), runtime, renderView),
+      );
+      const key = browserRouteInstanceKey(state);
+      return key === undefined
+        ? rendered
+        : { ...rendered, instance: { key, component: decision.component, props } };
+    }
   }
 };
 
@@ -225,6 +264,8 @@ export const makeSolidRouteRenderScopeController = <
     defaults: routeRenderDefaults,
   });
   let disposeRoute: Effect.Effect<void, never, never> | undefined;
+  // The route component on screen, kept across navigations to the same page.
+  let renderedInstance: RenderedRouteInstance | undefined;
   let transitionVersion = 0;
   let disposalFiber: Fiber.Fiber<void, unknown> | undefined;
 
@@ -312,12 +353,14 @@ export const makeSolidRouteRenderScopeController = <
       }
 
       disposeRoute = next.dispose;
+      renderedInstance = next.instance;
       show(next.node, undefined);
     });
 
   const disposeEffect = (): Effect.Effect<void> =>
     Effect.suspend(() => {
       transitionVersion++;
+      renderedInstance = undefined;
       return joinRouteDisposal(startCurrentRouteDisposal());
     });
 
@@ -325,6 +368,7 @@ export const makeSolidRouteRenderScopeController = <
     try {
       const initial = render(options.initialInput);
       disposeRoute = initial.dispose;
+      renderedInstance = initial.instance;
       show(initial.node, undefined);
     } catch (error) {
       const failure = solidRouteRenderFailure(error);
@@ -338,6 +382,37 @@ export const makeSolidRouteRenderScopeController = <
 
   renderInitial();
 
+  /**
+   * A navigation to the page already on screen (same route and params, new
+   * search) keeps its route instance: while it preloads the page stays
+   * visible, and once ready its props take the new search. Returns whether it
+   * was handled that way.
+   */
+  const updateSamePage = (input: SolidRouteRenderInput<Routes, ER>): boolean => {
+    const instance = renderedInstance;
+    if (instance === undefined || browserRouteInstanceKey(input.state) !== instance.key) {
+      return false;
+    }
+    if (input.state._tag === "Pending") {
+      renderedState = input.state;
+      return true;
+    }
+    const decision = browserRouteRenderDecision(input.state);
+    if (decision._tag !== "Ready" || decision.component !== instance.component) {
+      return false;
+    }
+    renderedState = input.state;
+    renderedIdentity = browserRouteRenderIdentity({
+      state: input.state,
+      renderers: input.renderers,
+      defaults: routeRenderDefaults,
+    });
+    writeUntracedSignals(() => {
+      instance.props.set(decision.props as unknown as Record<string, unknown>);
+    });
+    return true;
+  };
+
   return {
     update: (input) => {
       const nextIdentity = browserRouteRenderIdentity({
@@ -349,6 +424,10 @@ export const makeSolidRouteRenderScopeController = <
       if (sameState && nextIdentity === renderedIdentity) {
         return;
       }
+      if (updateSamePage(input)) {
+        return;
+      }
+      renderedInstance = undefined;
 
       renderedState = input.state;
       renderedIdentity = nextIdentity;
