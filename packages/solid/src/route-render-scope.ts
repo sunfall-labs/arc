@@ -14,6 +14,7 @@ import {
 import { Effect, Fiber } from "effect";
 import { createComponent, createMemo, createRoot, runWithOwner, type Owner } from "solid-js";
 import type { JSX } from "@solidjs/web";
+import { renderFailure } from "./render-failure.js";
 
 type AnyRoute = AnyBrowserRoute;
 
@@ -51,7 +52,7 @@ const defaultPending = (): JSX.Element => undefined;
 const defaultFailure = <ER>(
   state: Extract<BrowserRouterState<readonly AnyRoute[], ER>, { readonly _tag: "Failure" }>,
 ): JSX.Element => {
-  throw state.cause;
+  throw renderFailure(state.cause);
 };
 
 const defaultNotFound = (): JSX.Element => undefined;

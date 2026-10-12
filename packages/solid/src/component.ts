@@ -1,6 +1,5 @@
 import {
   makeRuntime,
-  ResourceFailure,
   RuntimeTypeId,
   runWithRuntime,
   Signal,
@@ -11,6 +10,7 @@ import {
   type Program,
   type ProgramFailure,
   type ReadableSignal,
+  type Resource,
   type ResourceRef,
   type ResourceStoreModule,
   type Route,
@@ -22,6 +22,7 @@ import {
 import {
   eraseRuntime,
   makeActionInstance,
+  resourceRenderCause,
   startProgramOnRuntime,
 } from "@sunfall/arc-core/internal";
 import { Cause, Context, Effect, Exit, Fiber, Layer, Option, Scope, Stream } from "effect";
@@ -42,6 +43,7 @@ import {
   type Owner,
 } from "solid-js";
 import { hydrate as hydrateSolid, render as renderSolid, type JSX } from "@solidjs/web";
+import { setupRenderFailure, typedRenderFailure } from "./render-failure.js";
 import { createResourceSuspense, type ResourceSuspense } from "./resource-binding.js";
 import { createBrowserRouter, type BrowserRouter, type RouterOptions } from "./router.js";
 
@@ -130,34 +132,12 @@ const failedRender =
     throw error;
   };
 
-/**
- * Typed setup failures (members of a component's `E`), as thrown to `<Errored>`.
- * Defects are thrown too, but never recorded here, so `catchAll` rethrows them.
- */
-const typedFailures = new WeakSet<object>();
-
-const setupFailure = (cause: Cause.Cause<unknown>): unknown => {
-  const error = Cause.squash(cause);
-  if (Cause.hasFails(cause) && typeof error === "object" && error !== null) {
-    typedFailures.add(error);
-  }
-  return error;
-};
-
-/** The typed failure a thrown value carries, if any (`ResourceFailure`s carry their load error). */
-const typedFailureOf = (thrown: unknown): Option.Option<unknown> =>
-  thrown instanceof ResourceFailure
-    ? AsyncResult.error(thrown.result)
-    : typeof thrown === "object" && thrown !== null && typedFailures.has(thrown)
-      ? Option.some(thrown)
-      : Option.none();
-
 const renderFromExit = (exit: Exit.Exit<Component.Render, unknown>): Component.Render =>
   Exit.isSuccess(exit)
     ? exit.value
     : Cause.hasInterruptsOnly(exit.cause)
       ? () => undefined
-      : failedRender(setupFailure(exit.cause));
+      : failedRender(setupRenderFailure(exit.cause));
 
 /** Host token Solid awaits while an instance's setup is still running. */
 const setupRenderToken = (fiber: Fiber.Fiber<Component.Render, unknown>) =>
@@ -436,11 +416,13 @@ const makeResourceReader = <I, A, E, R>(
   const result = (input: I) => claim(input).result();
   const reader = Object.assign((input: I): A => claim(input).read(), {
     waiting: (input: I): boolean => result(input).waiting,
-    failure: (input: I): Cause.Cause<E> | undefined => {
+    failure: (input: I): Cause.Cause<unknown> | undefined => {
       const current = result(input);
-      return current._tag === "Failure" && !current.waiting ? current.cause : undefined;
+      return current._tag === "Failure" && !current.waiting
+        ? resourceRenderCause(family(input).family, current.cause)
+        : undefined;
     },
-  }) satisfies Component.ResourceReader<I, A, E>;
+  }) satisfies Component.ResourceReader<I, A, unknown>;
   const dispose = (): void => {
     const current = Array.from(entries.values());
     entries.clear();
@@ -644,7 +626,10 @@ export namespace Component {
     (input: I): A;
     /** True while a load or refresh of `input` is in flight. */
     readonly waiting: (input: I) => boolean;
-    /** The settled failure of the latest load of `input`, if it failed. */
+    /**
+     * The settled failure of the latest load of `input`, if it failed, with
+     * typed failures as the family renders them (`Resource.RenderError`).
+     */
     readonly failure: (input: I) => Cause.Cause<E> | undefined;
   }
 
@@ -783,7 +768,7 @@ export namespace Component {
       run: (f) => runWithOwner(state.owner, () => runWithRuntime(runtime, f)),
       fork: (effect) => runtime.runSync(Effect.forkIn(effect, state.scope)),
       fail: (cause) => {
-        throw setupFailure(cause);
+        throw setupRenderFailure(cause);
       },
     } satisfies Instance;
   });
@@ -791,26 +776,29 @@ export namespace Component {
   /**
    * Binds a Resource family and returns its render-time reader.
    *
-   * The family's typed load error `E` joins the component's `E` and its
-   * services join `R` (satisfied by the setup's context, including
-   * `Component.provide`). `reader(input)` suspends the nearest `<Loading>`
-   * until the first value; a failed first load throws `ResourceFailure` (its
-   * `result` holds the failure `Cause`) to the nearest `<Errored>`, which
-   * `catchTags` matches by the typed error's `_tag`. Refreshes keep content
-   * mounted: the reader keeps the current (or stale) value while `waiting` and
-   * `failure` drive status chrome. A load callback that breaks its contract
-   * (throws synchronously) is a defect, never matched by `catchTags`.
-   * Preloaded or hydrated values read synchronously.
+   * The family's render failure (`Resource.RenderError`: its `error` schema's
+   * type, or `ResourceUntypedFailure` for a family without one) joins the
+   * component's `E`, and its services join `R` (satisfied by the setup's
+   * context, including `Component.provide`). `reader(input)` suspends the
+   * nearest `<Loading>` until the first value; a failed first load throws to
+   * the nearest `<Errored>`, which `catchTags` matches by the render
+   * failure's `_tag`. During a server render the failure crosses to the page
+   * only as the family's `error` schema encodes it (its `_tag` alone without
+   * one), and the hydrating client decodes the same value. Refreshes keep
+   * content mounted: the reader keeps the current (or stale) value while
+   * `waiting` and `failure` drive status chrome. A load callback that breaks
+   * its contract (throws synchronously) is a defect, never matched by
+   * `catchTags`. Preloaded or hydrated values read synchronously.
    */
-  export const resource = <I, A, E, R>(
-    family: (input: I) => ResourceRef<I, A, E, R>,
-  ): Effect.Effect<ResourceReader<I, A, E>, E, R> =>
+  export const resource = <I, A, E, R, RenderError>(
+    family: Resource.RefFactory<I, A, E, R, RenderError>,
+  ): Effect.Effect<ResourceReader<I, A, RenderError>, RenderError, R> =>
     Effect.gen(function* () {
       const { runtime } = yield* instance;
       const { reader, dispose } = makeResourceReader(runtime, family);
       yield* Effect.addFinalizer(() => Effect.sync(dispose));
       return reader;
-    }) as Effect.Effect<ResourceReader<I, A, E>, never, R>;
+    }) as Effect.Effect<ResourceReader<I, A, RenderError>, never, R>;
 
   /**
    * Binds an Action to this instance and returns its handle.
@@ -974,12 +962,8 @@ export namespace Component {
         createComponent(Errored, {
           fallback: (error, reset) => {
             const thrown = error();
-            // A ResourceFailure matches by its typed error; defects and
-            // interruptions carry no `_tag` and rethrow.
-            const target =
-              thrown instanceof ResourceFailure
-                ? Option.getOrUndefined(AsyncResult.error(thrown.result))
-                : thrown;
+            // Only typed failures match; defects and interruptions rethrow.
+            const target = Option.getOrUndefined(typedRenderFailure(thrown));
             const tag = tagOf(target);
             const handler =
               tag !== undefined && Object.hasOwn(handlers, tag)
@@ -1014,7 +998,7 @@ export namespace Component {
         createComponent(Errored, {
           fallback: (error, reset) => {
             const thrown = error();
-            const typed = typedFailureOf(thrown);
+            const typed = typedRenderFailure(thrown);
             if (Option.isNone(typed)) {
               throw thrown;
             }

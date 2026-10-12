@@ -18,6 +18,7 @@ import {
 import { Cause, Effect, Exit, Fiber, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { createMemo, createRenderEffect, onCleanup, type Accessor } from "solid-js";
+import { renderFailure } from "./render-failure.js";
 import { createRuntimeScope } from "./runtime-scope.js";
 
 /** Internal: binds a Resource ref (or ref accessor) to Solid reactivity under the current owner. */
@@ -64,7 +65,8 @@ type SuspenseOutcomeToken<A> = ReturnType<typeof suspenseOutcomeToken<A>>;
  * Internal: fiber-backed async memo over a Resource ref, under the current owner.
  *
  * Cached values return synchronously; pending reads suspend the nearest Solid
- * `<Loading>`; a failed first load throws `ResourceFailure` to the nearest
+ * `<Loading>`; a failed first load throws `ResourceFailure` (during a server
+ * render, its safe wire form; see `render-failure.ts`) to the nearest
  * `<Errored>`, while a failed refresh keeps returning the stale value.
  */
 export const createResourceSuspense = <I, A, E, R = unknown, ER = unknown>(
@@ -135,7 +137,7 @@ export const createResourceSuspense = <I, A, E, R = unknown, ER = unknown>(
       read: () => {
         const current = outcome();
         if (current._tag === "Failure") {
-          throw current.error;
+          throw renderFailure(current.error);
         }
         return current.value;
       },

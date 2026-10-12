@@ -79,3 +79,38 @@ export class MissingResourceInput extends Data.TaggedError("MissingResourceInput
   /** Stable Resource key that could not be resolved from input. */
   readonly key: string;
 }> {}
+
+/**
+ * Typed render failure of a Resource family that declares no `error` schema.
+ *
+ * Without a schema only the failure's `_tag` can cross a server render, so a
+ * Component reader reports every schema-less load failure as this value, on
+ * the server, on the client, and after hydration alike. Declare an `error`
+ * schema on the family to render the failure with its data.
+ */
+export class ResourceUntypedFailure extends Data.TaggedError("ResourceUntypedFailure")<{
+  /** Name of the Resource family whose load failed. */
+  readonly resource: string;
+  /** `_tag` of the original failure, when it had one. */
+  readonly tag?: string;
+}> {
+  override get message(): string {
+    return this.tag === undefined
+      ? `Resource "${this.resource}" failed to load (declare an \`error\` schema to keep the failure)`
+      : `Resource "${this.resource}" failed to load with "${this.tag}" (declare an \`error\` schema to keep its data)`;
+  }
+}
+
+/**
+ * Defect for a Resource load failure that could not cross a server render
+ * with the family's `error` schema: encoding failed on the server, or decoding
+ * failed on the client. It carries no failure data.
+ */
+export class ResourceFailureCodecError extends Data.TaggedError("ResourceFailureCodecError")<{
+  readonly resource: string;
+  readonly operation: "encode" | "decode";
+}> {
+  override get message(): string {
+    return `Resource "${this.resource}" load failure could not ${this.operation} with the family's error schema`;
+  }
+}

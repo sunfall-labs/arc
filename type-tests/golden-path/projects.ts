@@ -45,6 +45,8 @@ export const ProjectById = Resource.define({
   name: "Projects.byId",
   input: ProjectId,
   output: Project,
+  // The typed failure: a failed read renders it with its fields, also across SSR.
+  error: ProjectNotFound,
   load: (id) => ProjectApi.use((api) => api.get(id)),
   provides: (project) => [ProjectTag({ id: project.id })],
 });

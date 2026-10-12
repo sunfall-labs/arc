@@ -24,6 +24,7 @@ const TaskById = Resource.define({
   name: "RouteInference.task",
   input: TaskId,
   output: Schema.Struct({ id: TaskId, title: Schema.String }),
+  error: TaskNotFound,
   load: (id: TaskId) =>
     id.length === 0 ? Effect.fail(new TaskNotFound({ id })) : Effect.succeed({ id, title: "" }),
 });

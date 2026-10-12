@@ -7,7 +7,7 @@ import { RenameForm } from "./rename.js";
 export const ProjectPage = Component.define(
   "ProjectPage",
   function* (props: { readonly id: ProjectId }) {
-    // E += ProjectNotFound (the load error), R += ProjectApi (the load service).
+    // E += ProjectNotFound (its `error` schema), R += ProjectApi (the load service).
     const project = yield* Component.resource(ProjectById);
     const Rename = yield* RenameForm;
 
