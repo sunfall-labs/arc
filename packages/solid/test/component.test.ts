@@ -227,6 +227,12 @@ describe("Component", () => {
                   .map((row) => row.id)
                   .join()) as never,
               (() => `|${rows.get("all", "b")?.status}`) as never,
+              // Lookups return the rows `rows(input)` renders, not copies.
+              (() =>
+                rows.get("all", "a") === rows("all")[0] &&
+                rows.index("all", "status", "done").every((row) => rows("all").includes(row))
+                  ? ""
+                  : "|mismatch") as never,
             ];
           });
           const runtime = makeRuntime();

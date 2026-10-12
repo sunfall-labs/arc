@@ -854,9 +854,15 @@ To test what the screen shows, render the Component (see
   button.
 - **Preload in the route.** Declare `preloadResources` with the preload, and
   SSR, hydration, and navigation render without a fallback flash.
+- **Refresh never disturbs what didn't change.** A reload, invalidation,
+  hydration refetch, or optimistic patch shares structure with the value it
+  replaces: unchanged objects keep their identity, and a binding re-runs only
+  when the field it reads changes. Bind fields directly
+  (`<input value={props.project.name} />` keeps typed text across a refresh);
+  no memo is needed to guard them.
 - **Key lists by identity.** `<For each={rows} keyed={(row) => row.id}>` keeps
-  rows mounted when a refresh returns new objects; with `rows`, unchanged
-  rows also keep their object identity.
+  rows mounted across reloads, inserts, and reorders; with `rows`, rows match
+  by `rows.key`.
 - **Hold client state in a State.** It is the one writable client state:
   `State.define` names it and its messages, and Signals are its read side.
   Test transitions with `State.step`.

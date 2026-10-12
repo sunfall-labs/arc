@@ -35,7 +35,8 @@ import { AsyncResult } from "effect/reactivity";
 import { settleResult } from "./async-result-settle.js";
 import { parseDuration } from "./resource-duration.js";
 import { lookupResourceHydrationFamily } from "./resource-registry.js";
-import { applyResourceRowChanges, reconcileResourceRows } from "./resource-rows.js";
+import { applyResourceRowChanges } from "./resource-rows.js";
+import { resourceValueSharing } from "./resource-value-sharing.js";
 import { persistResourceState, restoreResourceState } from "./resource-persistence.js";
 import {
   decodeResourceHydrationInput,
@@ -55,6 +56,7 @@ import {
   makeResourceEntry,
   commitResourceState,
   resetResourceEntry,
+  showResourceState,
   scheduleResourceGc,
   setResourcePending,
   shouldShowResourcePending,
@@ -182,28 +184,6 @@ const resourceLoadEffect = <I, A, E, R>(
           : Effect.die(defect),
     );
   });
-
-/**
- * A loaded value of a family with `rows`, reconciled by key against the
- * entry's previous synced value: unchanged rows keep their identity.
- */
-const reconcileLoadedValue = <A, E>(
-  family: AnyResourceFamily,
-  previous: AsyncResult.AsyncResult<A, E>,
-  value: A,
-): A => {
-  const rows = family.options.rows;
-  if (rows === undefined || !Array.isArray(value)) {
-    return value;
-  }
-  const before = AsyncResult.value(previous);
-  return reconcileResourceRows(
-    family.options.name,
-    rows,
-    Option.isSome(before) ? (before.value as ReadonlyArray<unknown>) : undefined,
-    value,
-  ) as A;
-};
 
 /**
  * Starts the entry's `rows.changes` feed once it has a value. Each batch
@@ -358,7 +338,12 @@ export const resourceEntry = <I, A, E, R>(
     return existing;
   }
 
-  const entry = makeResourceEntry<A, E>(ref.family.options.name, ref.key) as ResourceEntry<A, E>;
+  const { name, rows } = ref.family.options;
+  const entry = makeResourceEntry<A, E>(
+    name,
+    ref.key,
+    resourceValueSharing(name, rows),
+  ) as ResourceEntry<A, E>;
   entries.set(ref.key, entry);
   return entry;
 };
@@ -547,16 +532,18 @@ export const runResource = <I, A, E, R>(
         );
         const now = yield* Clock.currentTimeMillis;
         const previous = syncedResourceState(entry);
-        const loaded = Exit.map(exit, (loaded) =>
-          reconcileLoadedValue(ref.family as AnyResourceFamily, previous, loaded.value),
+        const settled = settleResult(
+          Exit.map(exit, (loaded) => loaded.value),
+          previous,
+          now,
         );
-        const settled = settleResult(loaded, previous, now);
 
         if (Exit.isSuccess(exit)) {
           recordResourceProvidedTagsSync(ref, exit.value.tags, store);
-          commitResourceState(entry, settled, "success");
-          if (settled._tag === "Success" && ref.family.options.policy?.persist !== undefined) {
-            yield* persistResourceState(ref as AnyResourceRef, settled);
+          // Committing shares the loaded value with the previous one.
+          const committed = commitResourceState(entry, settled, "success");
+          if (committed._tag === "Success" && ref.family.options.policy?.persist !== undefined) {
+            yield* persistResourceState(ref as AnyResourceRef, committed);
           }
           yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStore, () =>
             isResourceRefRetained(ref as AnyResourceRef, store),
@@ -570,7 +557,7 @@ export const runResource = <I, A, E, R>(
           if (ref.family.options.rows?.changes !== undefined) {
             yield* startResourceRowChanges(ref, entry, store);
           }
-          return (loaded as Exit.Success<A, E>).value;
+          return (committed as AsyncResult.Success<A, E>).value;
         }
 
         yield* invalidateCachedResource(ref, store);
@@ -831,16 +818,8 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
     yield* interruptResourceInFlight(entry);
     yield* interruptResourceGc(entry);
     recordResourceProvidedTagsSync(ref, tags, store);
-    const value = reconcileLoadedValue(
-      ref.family as AnyResourceFamily,
-      syncedResourceState(entry),
-      hydrated.value,
-    );
-    const state =
-      value === hydrated.value
-        ? hydrated
-        : AsyncResult.success(value, { timestamp: hydrated.timestamp });
-    commitResourceState(entry, state, "hydrate");
+    // Committing shares the hydrated value with one already loaded.
+    const state = commitResourceState(entry, hydrated, "hydrate") as AsyncResult.Success<A, E>;
     if (options.persist && ref.family.options.policy?.persist !== undefined) {
       yield* persistResourceState(ref as AnyResourceRef, state);
     }
@@ -1040,8 +1019,7 @@ export const patchResourceEffect = <I, A, E, R>(
       try: () => applyResourceOptimisticPatches(synced, patches),
       catch: (cause) => cause,
     });
-    entry.state.set(visible);
-    entry.optimistic = { synced, patches };
+    showResourceState(entry, { synced, patches }, visible);
     return { ref: ref as AnyResourceRef, store, entry };
   });
 
@@ -1087,8 +1065,7 @@ export const planResourceOptimisticSettle = (
 
 /** Writes a settle plan; run it inside the batch that names the commit. */
 export const applyResourceOptimisticSettle = (plan: ResourceOptimisticSettlePlan): void => {
-  plan.target.entry.optimistic = plan.layers;
-  plan.target.entry.state.set(plan.visible);
+  showResourceState(plan.target.entry, plan.layers, plan.visible);
 };
 
 /**

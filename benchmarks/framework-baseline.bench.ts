@@ -140,6 +140,29 @@ const BenchProjectRowsRef = BenchProjectRows("all");
 const benchRowsName = BenchProjectRows.family.options.name;
 const benchRowsOptions = BenchProjectRows.family.options.rows!;
 
+// Reloads that load fresh copies of the same 1k projects, as a server would.
+const BenchProjectRowsReload = Resource.define({
+  name: "Benchmark.Projects.rows.reload",
+  input: Schema.Literal("all"),
+  output: Schema.Array(BenchProjectSchema),
+  rows: { key: (project) => project.id },
+  load: () => Effect.sync(() => benchProjects.map((project) => ({ ...project }))),
+});
+const BenchPortfolio = Resource.define<
+  "all",
+  {
+    readonly owner: { readonly id: string; readonly name: string };
+    readonly projects: ReadonlyArray<Project>;
+  }
+>({
+  name: "Benchmark.Portfolio",
+  load: (_: "all") =>
+    Effect.sync(() => ({
+      owner: { id: "ada", name: "Ada" },
+      projects: benchProjects.map((project) => ({ ...project })),
+    })),
+});
+
 const BenchProjectCards = Query.live((query) =>
   query
     .from({ project: BenchProjectRowsRef })
@@ -422,6 +445,28 @@ describe("Sunfall Arc release baseline", () => {
         rowsRuntime.provide(Effect.flip(rowsAction.submit("project-0001"))),
       );
       assertBench(failure === "rolled back", "The row patch submission should roll back.");
+    },
+    asyncBenchOptions,
+  );
+
+  bench(
+    "Resource rows refresh with an equal 1k-row reload",
+    async () => {
+      const rows = await Effect.runPromise(
+        rowsRuntime.provide(Resource.refresh(BenchProjectRowsReload("all"))),
+      );
+      assertBench(rows.length === 1_000, "The rows reload returned the wrong rows.");
+    },
+    asyncBenchOptions,
+  );
+
+  bench(
+    "Resource refresh with an equal 1k-item nested value",
+    async () => {
+      const value = await Effect.runPromise(
+        rowsRuntime.provide(Resource.refresh(BenchPortfolio("all"))),
+      );
+      assertBench(value.projects.length === 1_000, "The nested reload returned the wrong value.");
     },
     asyncBenchOptions,
   );

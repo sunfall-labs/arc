@@ -315,6 +315,16 @@ whose initial model is a primitive (a toggle, a search string) skips the
 projection and reads the signal directly. Foldkit-style centralized state,
 Solid-style granular updates.
 
+Resource values take the same path. The Resource Store shares every new value
+of an entry with the one it replaces (deep-equal parts stay the previous
+objects, rows match by `rows.key`), so an equal refresh changes nothing Effect
+code or live queries can see, and the reader projects the value into the same
+kind of read-only view, keyed by `rows.key` or `"id"`. Both halves are needed:
+Solid re-applies a DOM binding whenever its computation re-runs, even to an
+equal value, so identity alone cannot stop a sibling-field change from
+rewriting an `<input>`, and a projection alone would leave Effect consumers
+with a new object per refresh.
+
 ## Runtime Spine
 
 Every app has an `SunfallArcRuntime`, backed by Effect `ManagedRuntime`. A

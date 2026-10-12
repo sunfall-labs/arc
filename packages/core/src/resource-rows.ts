@@ -26,7 +26,8 @@ export type ResourceRowChange<Row, Key extends ResourceRowKey = ResourceRowKey> 
  *
  * Rows are derived from the loaded value, never stored twice: the value stays
  * the one cached, hydrated, and persisted copy. A reload replaces the rows,
- * and a row equal to its previous version keeps its object identity.
+ * and the reload shares structure with the previous rows by key: a row equal
+ * to its previous version keeps its object identity.
  */
 export interface ResourceRowsOptions<
   I,
@@ -194,7 +195,8 @@ const viewOf = (rows: ReadonlyArray<AnyRow>): RowsView => {
   return view;
 };
 
-const positionsOf = (
+/** Key to position in a rows array, cached by array identity. */
+export const resourceRowPositions = (
   name: string,
   options: AnyRowsOptions,
   rows: ReadonlyArray<AnyRow>,
@@ -217,7 +219,7 @@ export const resourceRowsGet = (
   rows: ReadonlyArray<AnyRow>,
   key: ResourceRowKey,
 ): AnyRow | undefined => {
-  const position = positionsOf(name, options, rows).get(key);
+  const position = resourceRowPositions(name, options, rows).get(key);
   return position === undefined ? undefined : rows[position];
 };
 
@@ -358,7 +360,7 @@ export const applyResourceRowPatch = (
 ): ReadonlyArray<AnyRow> => {
   switch (patch._tag) {
     case "Update": {
-      const position = positionsOf(name, options, rows).get(patch.key);
+      const position = resourceRowPositions(name, options, rows).get(patch.key);
       if (position === undefined) {
         return rows;
       }
@@ -373,14 +375,14 @@ export const applyResourceRowPatch = (
       return replaceRow(name, options, rows, position, next);
     }
     case "Delete": {
-      const position = positionsOf(name, options, rows).get(patch.key);
+      const position = resourceRowPositions(name, options, rows).get(patch.key);
       return position === undefined ? rows : rows.filter((_, index) => index !== position);
     }
     case "Insert": {
       let next = rows;
       for (const value of patch.values) {
         const key = resourceRowKey(name, options, value);
-        const position = positionsOf(name, options, next).get(key);
+        const position = resourceRowPositions(name, options, next).get(key);
         next =
           position === undefined
             ? [...next, value]
@@ -412,73 +414,4 @@ export const applyResourceRowChanges = (
     );
   }
   return next;
-};
-
-const isPlainObject = (value: object): boolean => {
-  const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null;
-};
-
-/** Structural equality for row data: plain objects, arrays, Dates, and primitives. */
-const sameRow = (left: unknown, right: unknown): boolean => {
-  if (Object.is(left, right)) {
-    return true;
-  }
-  if (typeof left !== "object" || typeof right !== "object" || left === null || right === null) {
-    return false;
-  }
-  if (left instanceof Date || right instanceof Date) {
-    return left instanceof Date && right instanceof Date && left.getTime() === right.getTime();
-  }
-  if (Array.isArray(left) || Array.isArray(right)) {
-    return (
-      Array.isArray(left) &&
-      Array.isArray(right) &&
-      left.length === right.length &&
-      left.every((item, index) => sameRow(item, right[index]))
-    );
-  }
-  if (!isPlainObject(left) || !isPlainObject(right)) {
-    return false;
-  }
-  const leftKeys = Object.keys(left);
-  const rightKeys = Object.keys(right);
-  return (
-    leftKeys.length === rightKeys.length &&
-    leftKeys.every(
-      (key) =>
-        Object.prototype.hasOwnProperty.call(right, key) &&
-        sameRow((left as Record<string, unknown>)[key], (right as Record<string, unknown>)[key]),
-    )
-  );
-};
-
-/**
- * Diffs a reloaded rows array against the previous one by key: a row equal
- * to its previous version is replaced by that previous object, so unchanged
- * rows keep their identity. When nothing changed at all the previous array
- * itself is returned.
- */
-export const reconcileResourceRows = (
-  name: string,
-  options: AnyRowsOptions,
-  previous: ReadonlyArray<AnyRow> | undefined,
-  next: ReadonlyArray<AnyRow>,
-): ReadonlyArray<AnyRow> => {
-  if (previous === undefined || previous === next || !Array.isArray(previous)) {
-    return next;
-  }
-  const positions = positionsOf(name, options, previous);
-  let unchanged = previous.length === next.length;
-  const reconciled = next.map((row, index) => {
-    const position = positions.get(resourceRowKey(name, options, row));
-    const before = position === undefined ? undefined : previous[position];
-    if (before !== undefined && sameRow(before, row)) {
-      unchanged &&= position === index;
-      return before;
-    }
-    unchanged = false;
-    return row;
-  });
-  return unchanged ? previous : reconciled;
 };

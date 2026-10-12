@@ -7,6 +7,11 @@ import type { MutableResourceStore as ResourceStoreState } from "./resource-stor
 import { SignalWrites, type WritableSignal } from "./signal.js";
 import type { TimelineResourceCause } from "./timeline.js";
 import { batchSignalWrites } from "./signal-transaction.js";
+import {
+  shareResourceResult,
+  shareResourceValue,
+  type ResourceValueSharing,
+} from "./resource-value-sharing.js";
 
 export interface ResourceInFlight<A, E> {
   readonly token: object;
@@ -42,11 +47,14 @@ export interface ResourceLifetimeEntry<A, E> {
   changesFiber: Fiber.Fiber<void, never> | undefined;
   /** True once a persisted value was looked up for this entry (`policy.persist`). */
   persistRestored: boolean;
+  /** The family's structural sharing: how a new value reuses the one it replaces. */
+  readonly share: ResourceValueSharing;
 }
 
 export const makeResourceEntry = <A, E>(
   resource: string,
   key: string,
+  share: ResourceValueSharing = shareResourceValue,
 ): ResourceLifetimeEntry<A, E> => ({
   resource,
   key,
@@ -58,6 +66,7 @@ export const makeResourceEntry = <A, E>(
   gcFiber: undefined,
   changesFiber: undefined,
   persistRestored: false,
+  share,
 });
 
 /**
@@ -252,27 +261,45 @@ export const scheduleResourceGc = <I, A, E, R, RefError = E>(
   });
 
 /**
+ * The one write to an entry's visible state and optimistic layers. The new
+ * visible result shares structure with the one readers hold: a value equal to
+ * the shown one is the shown object, and only changed subtrees are new.
+ */
+export const showResourceState = <A, E>(
+  entry: ResourceLifetimeEntry<A, E>,
+  layers: ResourceOptimisticLayers<A, E> | undefined,
+  visible: AsyncResult.AsyncResult<A, E>,
+): void => {
+  entry.optimistic = layers;
+  entry.state.set(shareResourceResult(entry.share, entry.state.get(), visible));
+};
+
+/**
  * The one write path for an entry's synced state, labelled for `Timeline`
- * entries. Optimistic patches stay on top: the entry shows the new synced
- * result with them applied.
+ * entries. The new result shares structure with the synced result it
+ * replaces, and optimistic patches stay on top: the entry shows the new
+ * synced result with them applied. Returns the synced result as committed.
  */
 export const commitResourceState = <A, E>(
   entry: ResourceLifetimeEntry<A, E>,
   state: AsyncResult.AsyncResult<A, E>,
   event: TimelineResourceCause["event"],
-): void => {
+): AsyncResult.AsyncResult<A, E> => {
   const layers = entry.optimistic;
-  const visible =
-    layers === undefined ? state : applyResourceOptimisticPatches(state, layers.patches);
+  const synced = shareResourceResult(entry.share, syncedResourceState(entry), state);
   batchSignalWrites(
-    () => {
-      if (layers !== undefined) {
-        entry.optimistic = { synced: state, patches: layers.patches };
-      }
-      entry.state.set(visible);
-    },
+    () =>
+      layers === undefined
+        ? // The synced result is the shown one, so it is already shared.
+          entry.state.set(synced)
+        : showResourceState(
+            entry,
+            { synced, patches: layers.patches },
+            applyResourceOptimisticPatches(synced, layers.patches),
+          ),
     { _tag: "Resource", resource: entry.resource, key: entry.key, event },
   );
+  return synced;
 };
 
 /** Marks the current result `waiting`, keeping its tag (stale-while-refreshing). */
