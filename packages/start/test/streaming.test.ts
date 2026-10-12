@@ -1,15 +1,15 @@
 import { Cause, Deferred, Effect, Exit, Fiber, Stream } from "effect";
 import { describe, expect, it } from "vitest";
-import type { ResourceHydrationPayload } from "@sunfall/arc-core";
+import type { Resource } from "@sunfall/arc-core";
 import {
   StartHydrationPayloadSerializeError,
   type StartHydrationPayload,
 } from "../src/hydration.js";
-import { responseWithScopeLifetimeEffect } from "../src/response-lifetime.js";
+import { responseWithScopeLifetime } from "../src/response-lifetime.js";
 import {
   createHtmlResponse,
-  createHtmlStreamEffect,
-  createStreamHydrationScript,
+  createHtmlStream,
+  createStreamHydrationScriptSync,
   htmlChunk,
   responseWithStreamFinalizer,
   StartStreamError,
@@ -50,7 +50,7 @@ const cyclicHydrationPayload = (): StartHydrationPayload => {
 
 describe("Start streaming", () => {
   it("emits shell, HTML chunks, hydration chunks, and tail in order", () => {
-    const payload: ResourceHydrationPayload = {
+    const payload: Resource.HydrationPayload = {
       resources: [
         {
           name: "Streaming.Project.byId",
@@ -68,7 +68,7 @@ describe("Start streaming", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const stream = yield* createHtmlStreamEffect({
+        const stream = yield* createHtmlStream({
           shell: "<html><body>",
           chunks: Stream.make(htmlChunk("<main>Atlas</main>"), streamHydrationChunk(payload)),
           tail: "</body></html>",
@@ -122,7 +122,7 @@ describe("Start streaming", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const stream = yield* createHtmlStreamEffect({
+        const stream = yield* createHtmlStream({
           shell: "<html>",
           chunks: Stream.make(
             streamHydrationChunk(first),
@@ -165,7 +165,7 @@ describe("Start streaming", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const stream = yield* createHtmlStreamEffect({
+        const stream = yield* createHtmlStream({
           shell: "<html>",
           chunks: Stream.make(streamHydrationChunk(payload)),
         });
@@ -173,7 +173,10 @@ describe("Start streaming", () => {
         const chunks = yield* Stream.runCollect(stream);
 
         yield* Effect.sync(() =>
-          expect(decodeChunks(chunks)).toEqual(["<html>", createStreamHydrationScript(payload)]),
+          expect(decodeChunks(chunks)).toEqual([
+            "<html>",
+            createStreamHydrationScriptSync(payload),
+          ]),
         );
       }),
     );
@@ -183,7 +186,7 @@ describe("Start streaming", () => {
     return Effect.runPromise(
       Effect.exit(
         Effect.gen(function* () {
-          const stream = yield* createHtmlStreamEffect({
+          const stream = yield* createHtmlStream({
             shell: "<html>",
             chunks: Stream.concat(Stream.make(htmlChunk("<body>")), Stream.fail("boom")),
           });
@@ -211,7 +214,7 @@ describe("Start streaming", () => {
     return Effect.runPromise(
       Effect.exit(
         Effect.gen(function* () {
-          const stream = yield* createHtmlStreamEffect({
+          const stream = yield* createHtmlStream({
             shell: streamHydrationChunk(cyclicHydrationPayload()),
           });
 
@@ -238,7 +241,7 @@ describe("Start streaming", () => {
     return Effect.runPromise(
       Effect.exit(
         Effect.gen(function* () {
-          const stream = yield* createHtmlStreamEffect({
+          const stream = yield* createHtmlStream({
             shell: "<html>",
             chunks: Stream.make(streamHydrationChunk(cyclicHydrationPayload())),
           });
@@ -266,7 +269,7 @@ describe("Start streaming", () => {
     return Effect.runPromise(
       Effect.exit(
         Effect.gen(function* () {
-          const stream = yield* createHtmlStreamEffect({
+          const stream = yield* createHtmlStream({
             shell: "<html>",
             tail: streamHydrationChunk(cyclicHydrationPayload()),
           });
@@ -305,7 +308,7 @@ describe("Start streaming", () => {
           },
         );
         const blockingChunk = Stream.fromEffect(blockingChunkEffect);
-        const stream = yield* createHtmlStreamEffect({
+        const stream = yield* createHtmlStream({
           shell: "<html>",
           chunks: Stream.concat(Stream.make(htmlChunk("<body>")), blockingChunk),
         });
@@ -350,7 +353,7 @@ describe("Start streaming", () => {
         const reader = response.body!.getReader();
 
         const exit = yield* Effect.exit(
-          responseWithScopeLifetimeEffect(
+          responseWithScopeLifetime(
             Effect.gen(function* () {
               yield* Effect.addFinalizer(() =>
                 Effect.sync(() => {

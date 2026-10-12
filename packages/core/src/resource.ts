@@ -29,15 +29,21 @@ import {
   ResourceTagTypeId,
   ResourceTypeId,
 } from "./resource-identifiers.js";
-import type { ResourceStoreEvent } from "./resource-store.js";
+import type {
+  ResourceStoreDiagnostics,
+  ResourceStoreDiagnosticsSnapshot,
+  ResourceStoreEvent,
+} from "./resource-store.js";
 import type { ReadableSignal } from "./signal.js";
 import { encodeResourceKey } from "./resource-key-codec.js";
 import type { ResourceCollected } from "./resource-collector.js";
 import {
-  decodeResourceHydrationPayloadEffect,
-  encodeResourceHydrationPayloadEffect,
+  decodeResourceHydrationPayload,
+  encodeResourceHydrationPayload,
   ResourceHydrationApplyError,
-  type ResourceSnapshotCodecError,
+  ResourceSnapshotCodecError,
+  type ResourceHydrationApplyReason,
+  type ResourceSnapshotCodecOperation,
 } from "./resource-snapshot-codec.js";
 import {
   registerResourceDefinition,
@@ -45,21 +51,20 @@ import {
   resourceDiagnostics,
 } from "./resource-registry.js";
 import {
-  collectResourceEffect,
-  dehydrateResourcesEffect,
-  deleteResourceEffect,
-  hydrateResourcesEffect,
-  invalidateResourceEffect,
-  planResourceInvalidationEffect,
-  prefetchResourceEffect,
-  readResourceEffect,
-  refreshResourceEffect,
-  resourceHydrationPayloadEffect,
+  collectResource,
+  deleteResource,
+  hydrateResources,
+  invalidateResource,
+  planResourceInvalidation,
+  prefetchResource,
+  readResource,
+  refreshResource,
+  resourceHydrationPayload,
   resourceChangesStream,
   resourceResult,
-  resourceStatusEffect,
-  runResourceInvalidationPlanEffect,
-  subscribeResourceEventsEffect,
+  resourceStatus,
+  runResourceInvalidationPlan,
+  subscribeResourceEvents,
 } from "./resource-runtime.js";
 
 export { isResourceRef, isResourceTag } from "./resource-dependency-graph.js";
@@ -591,8 +596,18 @@ export namespace Resource {
   export type HydrationOptions = ResourceHydrationOptions;
   /** Typed error raised when Resource hydration payloads cannot be decoded. */
   export type SnapshotCodecError = ResourceSnapshotCodecError;
+  /** Typed error raised when Resource hydration payloads cannot be decoded. */
+  export const SnapshotCodecError = ResourceSnapshotCodecError;
+  /** Codec step a `Resource.SnapshotCodecError` failed in. */
+  export type SnapshotCodecOperation = ResourceSnapshotCodecOperation;
   /** Typed error raised when a decoded Resource hydration payload cannot apply. */
   export type HydrationApplyError = ResourceHydrationApplyError;
+  /** Typed error raised when a decoded Resource hydration payload cannot apply. */
+  export const HydrationApplyError = ResourceHydrationApplyError;
+  /** Why a `Resource.HydrationApplyError` could not apply a snapshot. */
+  export type HydrationApplyReason = ResourceHydrationApplyReason;
+  /** Successful Resource state carried by a hydration snapshot. */
+  export type HydrationSuccessState<A = unknown> = ResourceHydrationSuccessState<A>;
   /** Error thrown by synchronous Resource reads when data is pending or failed. */
   export type ReadError<I, A, E = never, R = never> = ResourceReadError<I, A, E, R>;
   /** Diagnostic status for one Resource ref: its `AsyncResult` plus cache freshness facts. */
@@ -620,6 +635,23 @@ export namespace Resource {
   > = ResourceRequestFamilyOptions<I, Req, EX, RX>;
   /** Value returned from `collect(...)` with the Resource refs touched by preload/read work. */
   export type Collected<A> = ResourceCollected<A>;
+  /** Resource family created by `Resource.define(...)`. */
+  export type Family<I, A, E = never, R = never> = ResourceFamily<I, A, E, R>;
+  /** Erased Resource family used by registries and diagnostics. */
+  export type AnyFamily = AnyResourceFamily;
+  /** Options accepted by `Resource.define(...)` for a `load`-backed family. */
+  export type FamilyOptions<I, A, E = never, R = never> = ResourceFamilyOptions<I, A, E, R>;
+  /** Cache lifecycle policy for a Resource family. */
+  export type Policy<E = never> = ResourcePolicy<E>;
+  /** Stable identity of a Resource tag. */
+  export type TagIdentity = ResourceTagIdentity;
+  /** Compile error reported when a family's load can fail outside its `error` schema. */
+  export type LoadFailureNotInErrorSchema<Undeclared> =
+    ResourceLoadFailureNotInErrorSchema<Undeclared>;
+  /** Resource Store diagnostics service. */
+  export type StoreDiagnostics = ResourceStoreDiagnostics;
+  /** One snapshot read from `Resource.StoreDiagnostics`. */
+  export type StoreDiagnosticsSnapshot = ResourceStoreDiagnosticsSnapshot;
   /** Schema for a family's typed load failure (the `error` option). */
   export type ErrorSchema<E = unknown> = ResourceErrorSchema<E>;
   /** Ref factory returned by `Resource.define(...)`. */
@@ -876,9 +908,9 @@ export namespace Resource {
   /** Computes which cached refs would be affected by a ref or tag invalidation. */
   export const planInvalidation = <R = never>(
     target: ResourceInvalidationTarget<R>,
-  ): Effect.Effect<ResourceInvalidationPlan<R>> => planResourceInvalidationEffect(target);
+  ): Effect.Effect<ResourceInvalidationPlan<R>> => planResourceInvalidation(target);
 
-  export const subscribeEvents = subscribeResourceEventsEffect;
+  export const subscribeEvents = subscribeResourceEvents;
 
   /**
    * Streams a ref's settled success values.
@@ -909,7 +941,7 @@ export namespace Resource {
    */
   export const status = <I, A, E, R>(
     ref: ResourceRef<I, A, E, R>,
-  ): Effect.Effect<ResourceStatus<I, A, E, R, E>> => resourceStatusEffect(ref);
+  ): Effect.Effect<ResourceStatus<I, A, E, R, E>> => resourceStatus(ref);
 
   const forTarget = <const Target extends ResourceRefTarget>(
     target: Target,
@@ -939,7 +971,7 @@ export namespace Resource {
     ResourceRefTargetValue<Target>,
     ResourceRefTargetError<Target>,
     ResourceRefTargetRequirements<Target>
-  > => forTarget(target, refreshResourceEffect);
+  > => forTarget(target, refreshResource);
 
   /**
    * Ensures a ref, or every ref of an array concurrently, is loaded as an
@@ -958,7 +990,7 @@ export namespace Resource {
     ResourceRefTargetValue<Target>,
     ResourceRefTargetError<Target>,
     ResourceRefTargetRequirements<Target>
-  > => forTarget(target, prefetchResourceEffect);
+  > => forTarget(target, prefetchResource);
 
   /**
    * Deletes a resource ref from the active Resource Store.
@@ -968,12 +1000,12 @@ export namespace Resource {
    * `ResourceDeleted`.
    */
   export const evict = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<void> =>
-    deleteResourceEffect(ref);
+    deleteResource(ref);
 
   /** Runs an Effect and returns the resource refs it touched through preload/refresh. */
   export const collect = <A, E, R>(
     effect: Effect.Effect<A, E, R>,
-  ): Effect.Effect<Collected<A>, E, R> => collectResourceEffect(effect);
+  ): Effect.Effect<Collected<A>, E, R> => collectResource(effect);
 
   /**
    * Effect-first read for an already-loaded resource value.
@@ -983,43 +1015,36 @@ export namespace Resource {
    */
   export const read = <I, A, E, R>(
     ref: ResourceRef<I, A, E, R>,
-  ): Effect.Effect<A, ResourceReadError<I, A, E, R>, R> => readResourceEffect(ref);
+  ): Effect.Effect<A, ResourceReadError<I, A, E, R>, R> => readResource(ref);
 
   /**
    * Invalidates refs or tags and refreshes affected resources as an Effect.
    */
   export const invalidate = <R = never>(
     target: ResourceInvalidationTarget<R>,
-  ): Effect.Effect<void, never, R> => invalidateResourceEffect(target);
+  ): Effect.Effect<void, never, R> => invalidateResource(target);
 
   /** Runs a previously computed invalidation plan as an Effect. */
   export const runInvalidationPlan = <R = never>(
     plan: ResourceInvalidationPlan<R>,
-  ): Effect.Effect<void, never, R> => runResourceInvalidationPlanEffect(plan);
-
-  /** Serializes successful resource refs from the active ResourceStore for hydration. */
-  export const dehydrate = (
-    refs: Iterable<AnyResourceRef<any>>,
-  ): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>, ResourceSnapshotCodecError> =>
-    dehydrateResourcesEffect(refs);
+  ): Effect.Effect<void, never, R> => runResourceInvalidationPlan(plan);
 
   /** Builds a validated hydration payload from loaded Resource refs using the ResourceStore in context. */
   export const hydrationPayload = (
     refs: Iterable<AnyResourceRef<any>>,
   ): Effect.Effect<ResourceHydrationPayload, ResourceSnapshotCodecError> =>
-    resourceHydrationPayloadEffect(refs);
+    resourceHydrationPayload(refs);
 
   /** Encodes a validated hydration payload as JSON. */
   export const encodeHydrationPayload = (
     payload: ResourceHydrationPayload,
-  ): Effect.Effect<string, ResourceSnapshotCodecError> =>
-    encodeResourceHydrationPayloadEffect(payload);
+  ): Effect.Effect<string, ResourceSnapshotCodecError> => encodeResourceHydrationPayload(payload);
 
   /** Decodes and validates a hydration payload from JSON. */
   export const decodeHydrationPayload = (
     encoded: string,
   ): Effect.Effect<ResourceHydrationPayload, ResourceSnapshotCodecError> =>
-    decodeResourceHydrationPayloadEffect(encoded);
+    decodeResourceHydrationPayload(encoded);
 
   /**
    * Restores successful resource snapshots into the current ResourceStore.
@@ -1032,5 +1057,5 @@ export namespace Resource {
     input: ResourceHydrationPayload,
     options?: ResourceHydrationOptions,
   ): Effect.Effect<void, ResourceSnapshotCodecError | ResourceHydrationApplyError> =>
-    hydrateResourcesEffect(input, options);
+    hydrateResources(input, options);
 }

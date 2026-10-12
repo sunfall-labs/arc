@@ -1,8 +1,5 @@
 import {
   makeRuntime,
-  type AppDefinitionRegistry,
-  type AppDefinitionRegistryFromInput,
-  type AppDefinitionRegistryInput,
   type Route,
   type RuntimeSource,
   type SunfallArcRuntime,
@@ -10,6 +7,9 @@ import {
 import {
   makeCoreDefinitionRegistry,
   snapshotCoreDefinitionRegistry,
+  type AppDefinitionRegistry,
+  type AppDefinitionRegistryFromInput,
+  type AppDefinitionRegistryInput,
 } from "@sunfall/arc-core/internal";
 
 /**

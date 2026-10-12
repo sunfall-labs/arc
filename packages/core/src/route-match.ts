@@ -5,7 +5,7 @@ import { Route, RouteNavigationError } from "./route.js";
  * Internal: runs `Route.match(...)` and reports schema decode throws as typed
  * `RouteNavigationError` failures for router kernels and server preloads.
  */
-export const matchRoutesEffect = <
+export const matchRoutes = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
 >(
   routes: Routes,

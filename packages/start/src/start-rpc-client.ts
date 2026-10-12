@@ -1,12 +1,7 @@
-import {
-  Server,
-  ServerClient,
-  type AnySunfallArcRuntime,
-  type SunfallArcRuntime,
-} from "@sunfall/arc-core";
+import { Server, type AnySunfallArcRuntime, type SunfallArcRuntime } from "@sunfall/arc-core";
 import { Effect, Layer } from "effect";
 import { type ServerRpcClientOptions } from "./start-fetch.js";
-import { executeStartClientTransportEffect } from "./start-client-transport.js";
+import { executeStartClientTransport } from "./start-client-transport.js";
 import { resolveStartRpcEndpoint } from "./start-transport-endpoints.js";
 import { parseRpcResponse } from "./start-transport-protocol.js";
 
@@ -32,7 +27,7 @@ type ServerRpcRuntimeBackedOptions<FetchError, FetchRequirements> = ServerRpcCli
 
 const makeRpcClientFromOptions = <FetchError = never, FetchRequirements = never>(
   options: ServerRpcClientOptions<FetchError, FetchRequirements, never> = {},
-): ServerClient => ({
+): Server.Client => ({
   call: <I, A, E, R>(
     fn: Server.Fn<I, A, E, R>,
     input: I,
@@ -43,7 +38,7 @@ const makeRpcClientFromOptions = <FetchError = never, FetchRequirements = never>
         name: fn.name,
         input: encodedInput,
       };
-      const { body: rpcResponse } = yield* executeStartClientTransportEffect({
+      const { body: rpcResponse } = yield* executeStartClientTransport({
         kind: "rpc",
         ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
         ...(options.headers === undefined ? {} : { headers: options.headers }),
@@ -75,12 +70,12 @@ const makeRpcClientFromOptions = <FetchError = never, FetchRequirements = never>
  */
 export function makeRpcClientLayer<FetchError = never>(
   options?: ServerRpcRuntimeFreeOptions<FetchError>,
-): Layer.Layer<ServerClient>;
+): Layer.Layer<Server.Client>;
 export function makeRpcClientLayer<FetchError = never, FetchRequirements = never>(
   options: ServerRpcRuntimeBackedOptions<FetchError, FetchRequirements>,
-): Layer.Layer<ServerClient>;
+): Layer.Layer<Server.Client>;
 export function makeRpcClientLayer<FetchError = never, FetchRequirements = never>(
   options: ServerRpcClientOptions<FetchError, FetchRequirements, never> = {},
-): Layer.Layer<ServerClient> {
-  return Layer.succeed(ServerClient)(makeRpcClientFromOptions(options));
+): Layer.Layer<Server.Client> {
+  return Layer.succeed(Server.Client)(makeRpcClientFromOptions(options));
 }

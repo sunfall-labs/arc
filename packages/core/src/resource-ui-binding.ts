@@ -6,10 +6,10 @@ import type { EffectInput } from "./effect-like.js";
 import { invokeEffectInput } from "./effect-like.js";
 import type { ResourceRef } from "./resource.js";
 import {
-  prefetchResourceEffect,
-  releaseResourceRefEffect,
-  retainResourceRefEffect,
-  refreshResourceEffect,
+  prefetchResource,
+  releaseResourceRef,
+  retainResourceRef,
+  refreshResource,
   resourceResult,
 } from "./resource-runtime.js";
 import type { ReadableSignal } from "./signal.js";
@@ -132,7 +132,7 @@ export const resourceUiPreloadFailureFor = <I, A, E, R, ER>(
   failure !== undefined && resourceUiSameRef(failure.ref, ref) ? failure.error : undefined;
 
 /** Binds a Resource Effect to the adapter runtime that owns Resource Store state. */
-export const resourceUiBindRuntimeEffect = <A, E, R, ER>(
+export const resourceUiBindRuntime = <A, E, R, ER>(
   runtime: AnySunfallArcRuntime<ER>,
   effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | ER> => Effect.scoped(runtime.provide(effect));
@@ -205,7 +205,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
         if (previous !== undefined) {
           yield* Fiber.join(previous).pipe(Effect.catchCause(() => Effect.void));
         }
-        yield* resourceUiBindRuntimeEffect(options.runtime, effect);
+        yield* resourceUiBindRuntime(options.runtime, effect);
       }).pipe(Effect.catchCause(() => Effect.void)),
     );
   };
@@ -214,7 +214,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     const current = retainedRef;
     retainedRef = undefined;
     if (current !== undefined) {
-      forkRetentionEffect(releaseResourceRefEffect(current));
+      forkRetentionEffect(releaseResourceRef(current));
     }
   };
 
@@ -234,7 +234,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
   };
 
   const releaseCapturedRetainedRefEffect = (ref: ResourceRef<I, A, E, R>): Effect.Effect<void> =>
-    resourceUiBindRuntimeEffect(options.runtime, releaseResourceRefEffect(ref)).pipe(
+    resourceUiBindRuntime(options.runtime, releaseResourceRef(ref)).pipe(
       Effect.catchCause(() => Effect.void),
     );
 
@@ -255,7 +255,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
 
   const retainRef = (ref: ResourceRef<I, A, E, R>): void => {
     retainedRef = ref;
-    forkRetentionEffect(retainResourceRefEffect(ref));
+    forkRetentionEffect(retainResourceRef(ref));
   };
 
   const bindRef = (ref: ResourceRef<I, A, E, R>): void => {
@@ -274,12 +274,12 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     runWithRuntime(options.runtime, () => resourceResult(ref));
 
   const prefetchEffect = (ref: ResourceRef<I, A, E, R>): Effect.Effect<A, E | ER> =>
-    resourceUiBindRuntimeEffect(options.runtime, prefetchResourceEffect(ref)).pipe(
+    resourceUiBindRuntime(options.runtime, prefetchResource(ref)).pipe(
       Effect.tap(() => Effect.sync(() => clearPreloadFailureForRef(ref))),
     );
 
   const refreshEffect = (ref: ResourceRef<I, A, E, R>): Effect.Effect<A, E | ER> =>
-    resourceUiBindRuntimeEffect(options.runtime, refreshResourceEffect(ref)).pipe(
+    resourceUiBindRuntime(options.runtime, refreshResource(ref)).pipe(
       Effect.tap(() => Effect.sync(() => clearPreloadFailureForRef(ref))),
     );
 
@@ -414,8 +414,8 @@ export const makeResourceUiSuspensePreloadController = <
       interrupt();
       const fiber =
         options.fork === undefined
-          ? runtime.runFork(Effect.scoped(runtime.provide(prefetchResourceEffect(ref))))
-          : options.fork(prefetchResourceEffect(ref));
+          ? runtime.runFork(Effect.scoped(runtime.provide(prefetchResource(ref))))
+          : options.fork(prefetchResource(ref));
       const token = options.toHostToken(fiber);
       const removeObserver = fiber.addObserver(() => {
         clearCompleted(fiber);

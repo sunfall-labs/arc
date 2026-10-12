@@ -149,7 +149,7 @@ const requireStoreExplicitCollectionSnapshotDefinitionEffect = (
     : Effect.fail(incompleteStoreExplicitSnapshotError(definition, operation));
 
 /** Runs the synchronous store-explicit snapshot implementation. */
-export const snapshotStoreExplicitCollection = (
+export const snapshotStoreExplicitCollectionSync = (
   definition: AnyCollection,
   store: CollectionPersistenceStore,
   updatedAt: number,
@@ -160,7 +160,7 @@ export const snapshotStoreExplicitCollection = (
   );
 
 /** Runs the Effect-backed store-explicit snapshot implementation. */
-export const snapshotStoreExplicitCollectionEffect = (
+export const snapshotStoreExplicitCollection = (
   definition: AnyCollection,
   store: CollectionPersistenceStore,
   updatedAt: number,
@@ -177,7 +177,7 @@ export const snapshotStoreExplicitCollectionEffect = (
   });
 
 /** Runs hydrate preflight for a store-explicit snapshot definition. */
-export const hydrateStoreExplicitCollectionSnapshotPreflightEffect = (
+export const hydrateStoreExplicitCollectionSnapshotPreflight = (
   definition: AnyCollection,
   snapshot: CollectionSnapshot<any, any>,
   options: CollectionHydrateOptions,
@@ -191,7 +191,7 @@ export const hydrateStoreExplicitCollectionSnapshotPreflightEffect = (
   });
 
 /** Runs hydrate application for a store-explicit snapshot definition. */
-export const hydrateStoreExplicitCollectionSnapshotEffect = (
+export const hydrateStoreExplicitCollectionSnapshot = (
   definition: AnyCollection,
   store: CollectionPersistenceStore,
   snapshot: CollectionSnapshot<any, any>,

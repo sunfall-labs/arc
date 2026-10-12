@@ -2,7 +2,7 @@ import { Cause, Effect, Exit, Fiber, PubSub, Schema, Scope } from "effect";
 import { describe, expect, it } from "vitest";
 import { Action, makeRuntime, Program, Resource, Route, Signal, Timeline } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
-import { collectionStoreEffect } from "@sunfall/arc-db/internal";
+import { activeCollectionStore } from "@sunfall/arc-db/internal";
 import {
   bootDevtoolsPanels,
   DevtoolsActionInvalidationPlanConflict,
@@ -5545,7 +5545,7 @@ describe("devtools invalidation plans", () => {
             Effect.scoped(
               Effect.gen(function* () {
                 const resourceSubscription = yield* Resource.subscribeEvents();
-                const collectionStore = yield* collectionStoreEffect;
+                const collectionStore = yield* activeCollectionStore;
                 const collectionSubscription = yield* collectionStore.subscribeEvents();
                 const routePlan = yield* Route.planNavigation(
                   [ProjectRoute] as const,

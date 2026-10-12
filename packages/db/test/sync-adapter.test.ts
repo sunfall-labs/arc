@@ -1,15 +1,8 @@
-import {
-  Action,
-  EffectInputCallbackError,
-  Resource,
-  Server,
-  makeRuntime,
-  type ServerClientError,
-} from "@sunfall/arc-core";
+import { Action, EffectInputCallbackError, Resource, Server, makeRuntime } from "@sunfall/arc-core";
 import { Collection, CollectionSnapshotCodecError } from "@sunfall/arc-db";
 import {
   defaultCollectionDefinitionRegistry,
-  subscribeCollectionEventsEffect,
+  subscribeCollectionEvents,
 } from "@sunfall/arc-db/internal";
 import { Deferred, Effect, Fiber, PubSub, Queue, Schema, Stream } from "effect";
 import { describe, expect, it, vi } from "vitest";
@@ -181,16 +174,17 @@ describe("Collection sync adapters", () => {
   it("accepts Server functions directly as sync adapter operations", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
-        const load = Server.fn<void, ReadonlyArray<Project>>("Projects.sync.server.load", {
-          handler: () =>
+        const load = Server.implement(
+          Server.contract<void, ReadonlyArray<Project>>("Projects.sync.server.load"),
+          () =>
             Effect.succeed<ReadonlyArray<Project>>([
               { id: "atlas", name: "Atlas", archived: false },
             ]),
-        });
+        );
         const Projects = Collection.define<
           Project,
           string,
-          ServerClientError | EffectInputCallbackError
+          Server.ClientError | EffectInputCallbackError
         >({
           name: "Projects.sync.server",
           getKey: (project) => project.id,
@@ -309,7 +303,7 @@ describe("Collection sync changes", () => {
         .provide(
           Effect.scoped(
             Effect.gen(function* () {
-              const events = yield* subscribeCollectionEventsEffect();
+              const events = yield* subscribeCollectionEvents();
               yield* Projects.preload();
               yield* Queue.offer(remote, [
                 { _tag: "Update", key: "missing", changes: { name: "Ghost" } },
@@ -532,6 +526,73 @@ describe("Collection sync follow", () => {
             // The invalidation reload replaced the committed patch with the server's row.
             yield* eventually(() => fixture.loads.count === 3);
             expect(rows()).toMatchObject([{ name: "Atlas Local", archived: true, $synced: true }]);
+          }),
+        )
+        .pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
+    );
+  });
+
+  it("patches rows and Resource entries in one submission, keeping the followed base synced", () => {
+    const runtime = makeRuntime();
+    const fixture = makeProjects("Projects.follow.optimistic-resources");
+    const ProjectById = Resource.define<string, Project>({
+      name: "Projects.follow.optimistic-resources.byId",
+      load: (id: string) => Effect.succeed<Project>({ id, name: "Atlas", archived: false }),
+    });
+    const rows = () => runtime.runSync(Effect.sync(() => fixture.Projects.rows()));
+    const detail = () => runtime.runSync(Resource.read(ProjectById("atlas")));
+    const list = () => runtime.runSync(Resource.read(fixture.ref));
+
+    return Effect.runPromise(
+      runtime
+        .provide(
+          Effect.gen(function* () {
+            yield* fixture.Projects.preload();
+            yield* Resource.preload(ProjectById("atlas"));
+            const release = yield* Deferred.make<void, string>();
+            const Rename = Action.define({
+              name: "Projects.follow.optimistic-resources.rename",
+              optimistic: (input: { readonly name: string }, transaction) =>
+                Effect.all([
+                  transaction.update(fixture.Projects, "atlas", { name: input.name }),
+                  transaction.set(ProjectById("atlas"), (project) => ({
+                    ...project,
+                    name: input.name,
+                  })),
+                  // The Resource the collection follows: its readers see the
+                  // patch, but the rows sync from its synced value.
+                  transaction.set(fixture.ref, (projects) =>
+                    projects.map((project) => ({ ...project, archived: true })),
+                  ),
+                ]),
+              run: (_input: { readonly name: string }) => Deferred.await(release),
+            });
+            const submission = yield* Effect.forkChild(
+              Action.use(Rename, { runtime }).submit({ name: "Atlas Local" }),
+            );
+            yield* eventually(() => detail().name === "Atlas Local");
+            expect(rows()).toMatchObject([
+              { name: "Atlas Local", archived: false, $synced: false },
+            ]);
+            expect(list()).toMatchObject([{ name: "Atlas", archived: true }]);
+
+            // A followed reload rebases the row layer; the list patch stays a
+            // reader-only layer over the reloaded value.
+            fixture.setRows([{ id: "atlas", name: "Atlas Remote", archived: false }]);
+            yield* Resource.invalidate(fixture.Tag);
+            yield* eventually(() => fixture.loads.count === 2);
+            expect(list()).toMatchObject([{ name: "Atlas Remote", archived: true }]);
+            expect(rows()).toMatchObject([
+              { name: "Atlas Local", archived: false, $synced: false },
+            ]);
+
+            yield* Deferred.fail(release, "nope");
+            yield* Fiber.await(submission);
+            expect(detail().name).toBe("Atlas");
+            expect(list()).toMatchObject([{ name: "Atlas Remote", archived: false }]);
+            expect(rows()).toMatchObject([
+              { name: "Atlas Remote", archived: false, $synced: true },
+            ]);
           }),
         )
         .pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),

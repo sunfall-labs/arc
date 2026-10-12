@@ -935,7 +935,7 @@ describe("createBrowserRouter", () => {
             Route.define("/lazy-solid-projects/:id"),
             LazyProject,
           );
-          const match = ProjectRoute.match("/lazy-solid-projects/atlas");
+          const match = Route.match([ProjectRoute], "/lazy-solid-projects/atlas");
           if (!match) {
             expect.fail("Expected lazy Solid route to match.");
           }

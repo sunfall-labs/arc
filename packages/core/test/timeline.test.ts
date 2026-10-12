@@ -10,8 +10,6 @@ import {
   Timeline,
   TimelineAlreadyRecording,
   TimelineEntryUnavailable,
-  type ReadableSignal,
-  type TimelineEntry,
 } from "../src/index.js";
 import { defaultRuntime, withSignalTransition } from "../src/internal.js";
 
@@ -34,14 +32,15 @@ const render = <A>(read: () => A) => {
   };
 };
 
-const summarize = (entries: ReadonlyArray<TimelineEntry>) =>
+const summarize = (entries: ReadonlyArray<Timeline.Entry>) =>
   entries.map((entry) => ({
     cause: Timeline.describe(entry.cause),
     changes: entry.changes.map((change) => [change.name, change.previous, change.next]),
   }));
 
-const entriesOf = (recording: { readonly entries: ReadableSignal<ReadonlyArray<TimelineEntry>> }) =>
-  summarize(Signal.peek(recording.entries));
+const entriesOf = (recording: {
+  readonly entries: Signal.Readable<ReadonlyArray<Timeline.Entry>>;
+}) => summarize(Signal.peek(recording.entries));
 
 describe("Timeline recording", () => {
   it("records solo writes, batches, and transactions as labelled change sets", () =>

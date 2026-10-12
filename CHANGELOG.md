@@ -6,6 +6,82 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Optimistic Patches Reach Resources (Breaking)
+
+- An Action's `optimistic` transaction patches any Resource entry with
+  `transaction.set(ref, update)`, e.g.
+  `transaction.set(ProjectById(id), (project) => ({ ...project, name }))`.
+  The updater receives the Resource's output type. The patch layers over the
+  entry's synced value for the life of the submission: readers
+  (`Resource.result`, `Resource.read`, the Solid reader with its `waiting`
+  and `failure`) see it with no Suspense flash, a reload in flight replaces
+  the value underneath and keeps the patch on top, success folds it in until
+  the `invalidates` reload, and a failure or interruption rolls it back and
+  rebases other submissions' patches. Loads (`Resource.preload`, `refresh`,
+  `changes`, and so a Collection following the Resource) and SSR snapshots
+  see only the synced value; an entry that has not loaded is left alone.
+  Durable submissions re-apply their Resource patches after hydration.
+- `transaction.set` is the one verb for patching a value, Signal or Resource
+  entry; `transaction.signal(signal, update)` is removed (use
+  `transaction.set(signal, update)`). Row stores keep
+  `transaction.insert/update/delete`.
+- `Action.planOptimistic` reports value patches as
+  `{ _tag: "Set", target, value }` (the Signal or Resource ref, and the value
+  it would read) instead of `{ _tag: "Signal", signal, value }`; a Resource
+  entry the caller's runtime has not loaded plans no change.
+- The golden path's rename now patches the sidebar row and the project page
+  at once, and the project console's rename and advance Actions patch the
+  `ProjectById` entry.
+- A run that returns a rejected `ActionResult` (`ValidationFailure` or
+  `Failure`) rolls the submission's optimistic patches back exactly as a
+  failure does (Timeline cause `failure`), instead of folding them in; this
+  holds for local runs, remote responses, and durable replays. `Success` and
+  `Redirect` results commit as before.
+
+### One Name, One Form (Breaking)
+
+- Every public type has one name. Package roots export namespaces plus the
+  values with no namespace home (error classes, Type IDs, guards, services,
+  runtime helpers); the flat duplicates of namespace members are gone
+  (`ActionDefinition` is only `Action.Definition`, `ResourceRef` only
+  `Resource.Ref`, `RouteMatch` / `RouteContext` only `Route.Match` /
+  `Route.Context`, `ServerClient` only `Server.Client`). Prefixed types that
+  had no namespace home moved in (`ActionResult.*`, `Action.Options`,
+  `Form.Options`, `Resource.Family`, `Route.View`, `Signal.Options`,
+  `Timeline.Entry`, `App.Definition`, `StartAction.FormOptions`,
+  `SolidDb.CollectionHandle`, ...). Cross-package plumbing types moved to
+  `@sunfall/arc-core/internal`. Public root exports: core 295 to 118, start
+  47 to 41, solid-db 5 to 1.
+- Identical types merged: `RouteErrorSchema` into `Resource.ErrorSchema`,
+  `ActionSubmissionConcurrency` into `Action.Concurrency`, and
+  `ProgramSubscriptionError` / `ProgramSubscriptionRequirements` into
+  `EffectInputError` / `EffectInputRequirements`. `Route.PreloadError` /
+  `Route.NavigationError` are renamed `Route.PreloadPlanError` /
+  `Route.NavigationPlanError`, so they no longer read like the
+  `RoutePreloadError` / `RouteNavigationError` classes.
+- One form per call: `form.validate()` (not `Form.validate(form)`), the
+  validator's `errors.field/fields/form` (not `Form.error` /
+  `Form.fieldError`), `ActionResult.validation(...)` (not `fields` /
+  `fieldError` / `formError`), `ActionResult.fromValidation(form.validate())`
+  (not `validateForm` / `fromValidationEffect`), `query.from(...)` in the
+  factory (not `Query.from`), `Route.href` / `Route.match` (not
+  `route.build` / `route.match`), `Server.implement(Server.contract(...))`
+  (not `Server.fn` / `Server.stub`), `Server.mockLayer` (not `mockClient` /
+  `provideMocks`), `Server.functions().get` (not `Server.get`),
+  `capability.layer` (not `mock` / `provide`), and `signal.update(f)` (not
+  `signal.set(f)`; `set` takes a value).
+- One spelling per option: `StartAction.form(action, { action })` is the only
+  way to set the form URL; a prerender page sets `outputPath` and
+  `prerender: false` directly (`StartPrerenderPageOptions` is gone) and the
+  prerender options object has no `enabled` flag (`false` disables); cookie
+  `sameSite` is lowercase only.
+- `Resource.dehydrate(refs)` is removed; `Resource.hydrationPayload(refs)` is
+  the one way to snapshot loaded refs (read `.resources` for the snapshots).
+- No exported name ends in `Effect`
+  (`generateValidatedFileRouteManifestEffect` is
+  `generateValidatedFileRouteManifest`, and so on); where a throwing twin
+  existed it is suffixed `Sync`.
+
 ### Every State Change Has A Name (Breaking)
 
 - Signals change only inside named transitions, so the Timeline reads like a

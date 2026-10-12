@@ -122,7 +122,7 @@ export const queryExecutionPlanDiagnostics = (
   return buildQueryExecutionFromStagePlan(compileQueryStagePlan(builder)).diagnostics;
 };
 
-export const preloadQueryExecutionPlanSourcesEffect = <E, R>(
+export const preloadQueryExecutionPlanSources = <E, R>(
   sources: ReadonlyArray<QueryCollectionSourceAdapter>,
   force: boolean,
 ): Effect.Effect<void, E, R> =>
@@ -133,7 +133,7 @@ export const preloadQueryExecutionPlanSourcesEffect = <E, R>(
   });
 
 /** Validates and preloads the source collections for a query execution plan. */
-export const preloadQueryExecutionPlanEffect = <E, R>(
+export const preloadQueryExecutionPlan = <E, R>(
   builder: QueryPlanBuilder<any>,
   force: boolean,
 ): Effect.Effect<void, E | QueryEvaluationError, R> =>
@@ -142,5 +142,5 @@ export const preloadQueryExecutionPlanEffect = <E, R>(
       try: () => compileQueryStagePlan(builder),
       catch: (cause) => toQueryEvaluationError("evaluate", cause),
     });
-    yield* preloadQueryExecutionPlanSourcesEffect<E, R>(stagePlan.sourceAdapters, force);
+    yield* preloadQueryExecutionPlanSources<E, R>(stagePlan.sourceAdapters, force);
   });

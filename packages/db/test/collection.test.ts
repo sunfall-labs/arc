@@ -10,16 +10,16 @@ import { eraseRuntime } from "@sunfall/arc-core/internal";
 import { Collection, Query, QueryEvaluationError, UnknownCollectionIndex } from "@sunfall/arc-db";
 import {
   buildQuery,
-  collectCollectionsEffect,
+  collectCollections,
   defineCollection,
   makeCollectionDefinitionRegistry,
   defaultCollectionDefinitionRegistry,
+  dehydrateCollectionsSync,
   dehydrateCollections,
-  dehydrateCollectionsEffect,
-  hydrateCollectionsEffect,
+  hydrateCollections,
   makeCollectionReactivePreloadController,
-  subscribeCollectionEventsEffect,
-  validateCollectionsHydrationEffect,
+  subscribeCollectionEvents,
+  validateCollectionsHydration,
 } from "@sunfall/arc-db/internal";
 import { Cause, Deferred, Effect, Exit, Fiber, Option, PubSub, Schedule, Schema } from "effect";
 import { KeyValueStore } from "effect/persistence";
@@ -29,10 +29,10 @@ import {
   markStoreExplicitCollectionSnapshotDefinition,
   type StoreExplicitCollectionSnapshotImplementation,
 } from "../src/collection-definition-snapshot.js";
-import { collectionStoreEffect, runWithCollectionStore } from "../src/collection-runtime.js";
+import { activeCollectionStore, runWithCollectionStore } from "../src/collection-runtime.js";
 import {
   CollectionSnapshotCodecError,
-  hydrateCollectionSnapshotStateEffect,
+  hydrateCollectionSnapshotState,
 } from "../src/collection-snapshot-codec.js";
 import { QueryBuilder } from "../src/query-builder.js";
 import { exitContractDefect, flipContractDefect } from "./contract-defect.js";
@@ -1213,10 +1213,10 @@ describe("Collection", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const collected = yield* runtime.provide(
-          collectCollectionsEffect(
+          collectCollections(
             Effect.gen(function* () {
               yield* Projects.preload();
-              const nested = yield* collectCollectionsEffect(Tasks.preload());
+              const nested = yield* collectCollections(Tasks.preload());
               expect(nested.definitions).toEqual([Tasks]);
             }),
           ),
@@ -1246,7 +1246,7 @@ describe("Collection", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const collected = yield* runtime.provide(
-          collectCollectionsEffect(
+          collectCollections(
             Effect.all([FirstProjects.preload(), SecondProjects.preload()], {
               discard: true,
             }),
@@ -1255,7 +1255,7 @@ describe("Collection", () => {
 
         expect(collected.definitions).toEqual([FirstProjects, SecondProjects]);
         const failure = yield* Effect.flip(
-          runtime.provide(dehydrateCollectionsEffect(collected.definitions)),
+          runtime.provide(dehydrateCollections(collected.definitions)),
         );
         expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
         expect(failure).toMatchObject({
@@ -1290,13 +1290,13 @@ describe("Collection", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const collected = yield* runtime.provide(
-          collectCollectionsEffect(
+          collectCollections(
             Effect.all([Projects.preload(), Projects.refresh()], { discard: true }),
           ),
         );
 
         expect(collected.definitions).toEqual([Projects, Projects]);
-        const payload = yield* runtime.provide(dehydrateCollectionsEffect(collected.definitions));
+        const payload = yield* runtime.provide(dehydrateCollections(collected.definitions));
         expect(payload.collections.map((snapshot) => snapshot.name)).toEqual([
           "Projects.collect-duplicate-identity",
         ]);
@@ -1517,7 +1517,7 @@ describe("Collection", () => {
           Effect.scoped(
             Effect.gen(function* () {
               const beforeVersion = Projects.version().get();
-              const subscription = yield* subscribeCollectionEventsEffect();
+              const subscription = yield* subscribeCollectionEvents();
               const error = yield* Effect.flip(
                 Projects.applyChanges([
                   {
@@ -1565,7 +1565,7 @@ describe("Collection", () => {
           Effect.scoped(
             Effect.gen(function* () {
               const beforeVersion = Projects.version().get();
-              const subscription = yield* subscribeCollectionEventsEffect();
+              const subscription = yield* subscribeCollectionEvents();
               const error = yield* Effect.flip(
                 Projects.applyChanges([
                   {
@@ -1614,7 +1614,7 @@ describe("Collection", () => {
           Effect.scoped(
             Effect.gen(function* () {
               const beforeVersion = Projects.version().get();
-              const subscription = yield* subscribeCollectionEventsEffect();
+              const subscription = yield* subscribeCollectionEvents();
 
               yield* Projects.applyChanges([]);
               yield* Projects.applyChanges([]);
@@ -1726,10 +1726,10 @@ describe("Collection", () => {
     });
 
     const firstCollectionStore = await Effect.runPromise(
-      Effect.provideService(collectionStoreEffect, ResourceStore, firstStore),
+      Effect.provideService(activeCollectionStore, ResourceStore, firstStore),
     );
     const secondCollectionStore = await Effect.runPromise(
-      Effect.provideService(collectionStoreEffect, ResourceStore, secondStore),
+      Effect.provideService(activeCollectionStore, ResourceStore, secondStore),
     );
 
     expect(firstCollectionStore).not.toBe(secondCollectionStore);
@@ -1759,14 +1759,14 @@ describe("Collection", () => {
     );
     const firstDiagnostics = await Effect.runPromise(
       Effect.provideService(
-        collectionStoreEffect.pipe(Effect.flatMap((store) => store.diagnostics.snapshot)),
+        activeCollectionStore.pipe(Effect.flatMap((store) => store.diagnostics.snapshot)),
         ResourceStore,
         firstStore,
       ),
     );
     const secondDiagnostics = await Effect.runPromise(
       Effect.provideService(
-        collectionStoreEffect.pipe(Effect.flatMap((store) => store.diagnostics.snapshot)),
+        activeCollectionStore.pipe(Effect.flatMap((store) => store.diagnostics.snapshot)),
         ResourceStore,
         secondStore,
       ),
@@ -1813,8 +1813,8 @@ describe("Collection", () => {
     };
 
     try {
-      const firstCollectionStore = await runInRuntime(first, collectionStoreEffect);
-      const secondCollectionStore = await runInRuntime(second, collectionStoreEffect);
+      const firstCollectionStore = await runInRuntime(first, activeCollectionStore);
+      const secondCollectionStore = await runInRuntime(second, activeCollectionStore);
 
       await runInRuntime(first, Projects.hydrate(pendingSnapshot));
 
@@ -1828,13 +1828,13 @@ describe("Collection", () => {
       expect((await runInRuntime(second, Projects.snapshot())).rows).toEqual([]);
       expect(
         runWithCollectionStore(firstCollectionStore, () =>
-          dehydrateCollections([Projects]).collections[0]?.rows.map((row) => row.key),
+          dehydrateCollectionsSync([Projects]).collections[0]?.rows.map((row) => row.key),
         ),
       ).toEqual(["atlas"]);
       expect(
         runWithCollectionStore(
           secondCollectionStore,
-          () => dehydrateCollections([Projects]).collections[0]?.rows,
+          () => dehydrateCollectionsSync([Projects]).collections[0]?.rows,
         ),
       ).toEqual([]);
     } finally {
@@ -1855,7 +1855,7 @@ describe("Collection", () => {
         runtime,
         Effect.scoped(
           Effect.gen(function* () {
-            const store = yield* collectionStoreEffect;
+            const store = yield* activeCollectionStore;
             const subscription = yield* store.subscribeEvents();
             yield* Projects.applyChanges([
               {
@@ -2352,7 +2352,7 @@ describe("Collection", () => {
         yield* runtime.provide(
           Effect.scoped(
             Effect.gen(function* () {
-              const subscription = yield* subscribeCollectionEventsEffect();
+              const subscription = yield* subscribeCollectionEvents();
               const failure = yield* Effect.flip(Projects.preload());
               const failureEvent = yield* PubSub.take(subscription);
               const nextEvent = yield* PubSub.take(subscription).pipe(
@@ -2439,7 +2439,7 @@ describe("Collection", () => {
         yield* runtime.provide(
           Effect.scoped(
             Effect.gen(function* () {
-              const subscription = yield* subscribeCollectionEventsEffect();
+              const subscription = yield* subscribeCollectionEvents();
               const failure = yield* Effect.flip(Projects.refresh());
               const failureEvent = yield* PubSub.take(subscription);
               const nextEvent = yield* PubSub.take(subscription).pipe(
@@ -2540,7 +2540,7 @@ describe("Collection", () => {
         yield* runtime.provide(
           Effect.scoped(
             Effect.gen(function* () {
-              const subscription = yield* subscribeCollectionEventsEffect();
+              const subscription = yield* subscribeCollectionEvents();
               const failure = yield* Effect.flip(Projects.preload());
               const events = [
                 yield* PubSub.take(subscription),
@@ -3076,9 +3076,9 @@ describe("Collection", () => {
           path: "$.collections[Projects.snapshot-codec-non-finite-key-dehydrate].changes[0].key",
         });
         expect(
-          runWithRuntime(runtime, () => dehydrateCollections([Projects]).collections[0]?.rows),
+          runWithRuntime(runtime, () => dehydrateCollectionsSync([Projects]).collections[0]?.rows),
         ).toEqual([]);
-        const payload = yield* runtime.provide(dehydrateCollectionsEffect([Projects]));
+        const payload = yield* runtime.provide(dehydrateCollections([Projects]));
         expect(payload.collections[0]?.rows).toEqual([]);
       }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
@@ -3230,7 +3230,7 @@ describe("Collection", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const payload = yield* runtime.provide(dehydrateCollectionsEffect([Projects]));
+        const payload = yield* runtime.provide(dehydrateCollections([Projects]));
 
         expect(payload.collections[0]?.rows).toEqual([]);
         expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
@@ -3264,7 +3264,7 @@ describe("Collection", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const payload = yield* runtime.provide(dehydrateCollectionsEffect([Projects]));
+        const payload = yield* runtime.provide(dehydrateCollections([Projects]));
         const value = payload.collections[0]?.rows[0]?.value;
 
         expect(value).toMatchObject({
@@ -3318,7 +3318,7 @@ describe("Collection", () => {
           ],
         };
         const failure = yield* Effect.flip(
-          runtime.provide(hydrateCollectionsEffect([Projects, Tasks], payload)),
+          runtime.provide(hydrateCollections([Projects, Tasks], payload)),
         );
 
         expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
@@ -3370,7 +3370,7 @@ describe("Collection", () => {
         Deferred.succeed(storeExplicitHydrateStarted, undefined).pipe(
           Effect.flatMap(() => Deferred.await(releaseStoreExplicitHydrate)),
           Effect.flatMap(() => {
-            return hydrateCollectionSnapshotStateEffect(store.state(Tasks), snapshot, options);
+            return hydrateCollectionSnapshotState(store.state(Tasks), snapshot, options);
           }),
           Effect.asVoid,
         ),
@@ -3409,11 +3409,11 @@ describe("Collection", () => {
           ],
         };
 
-        const hydrate = runtime.runFork(hydrateCollectionsEffect([Projects, Tasks], payload));
+        const hydrate = runtime.runFork(hydrateCollections([Projects, Tasks], payload));
         yield* Deferred.await(storeExplicitHydrateStarted);
 
         const dehydrate = runtime.runFork(
-          dehydrateCollectionsEffect([Projects, Tasks]).pipe(Effect.exit),
+          dehydrateCollections([Projects, Tasks]).pipe(Effect.exit),
         );
         const earlyDehydrate = yield* Fiber.await(dehydrate).pipe(
           Effect.timeoutOption("20 millis"),
@@ -3481,10 +3481,10 @@ describe("Collection", () => {
           ],
         };
         const validationFailure = yield* Effect.flip(
-          runtime.provide(validateCollectionsHydrationEffect([Projects, Tasks], payload)),
+          runtime.provide(validateCollectionsHydration([Projects, Tasks], payload)),
         );
         const hydrateFailure = yield* Effect.flip(
-          runtime.provide(hydrateCollectionsEffect([Projects, Tasks], payload)),
+          runtime.provide(hydrateCollections([Projects, Tasks], payload)),
         );
 
         for (const failure of [validationFailure, hydrateFailure]) {
@@ -3630,12 +3630,10 @@ describe("Collection", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const validationFailure = yield* Effect.flip(
-          runtime.provide(
-            validateCollectionsHydrationEffect([Projects, ActiveProjectCards], payload),
-          ),
+          runtime.provide(validateCollectionsHydration([Projects, ActiveProjectCards], payload)),
         );
         const hydrateFailure = yield* Effect.flip(
-          runtime.provide(hydrateCollectionsEffect([Projects, ActiveProjectCards], payload)),
+          runtime.provide(hydrateCollections([Projects, ActiveProjectCards], payload)),
         );
 
         for (const failure of [validationFailure, hydrateFailure]) {
@@ -3686,10 +3684,10 @@ describe("Collection", () => {
       Effect.gen(function* () {
         const hydrateFailure = yield* Effect.flip(runtime.provide(Projects.hydrate(snapshot)));
         const payloadFailure = yield* Effect.flip(
-          runtime.provide(hydrateCollectionsEffect([Projects], payload)),
+          runtime.provide(hydrateCollections([Projects], payload)),
         );
         const validateFailure = yield* Effect.flip(
-          validateCollectionsHydrationEffect([Projects], payload),
+          validateCollectionsHydration([Projects], payload),
         );
         const restoreFailure = yield* Effect.flip(
           runtime.provide(Projects.restore()).pipe(Effect.provide(storage.layer)),
@@ -3719,7 +3717,7 @@ describe("Collection", () => {
       Effect.gen(function* () {
         const exit = yield* Effect.exit(
           runtime.provide(
-            hydrateCollectionsEffect([Projects], {
+            hydrateCollections([Projects], {
               collections: [
                 {
                   name: "Projects.snapshot-codec-payload-invalid",
@@ -3766,7 +3764,7 @@ describe("Collection", () => {
         };
         const exit = yield* Effect.exit(
           runtime.provide(
-            hydrateCollectionsEffect([Projects], {
+            hydrateCollections([Projects], {
               collections: [snapshot, snapshot],
             }),
           ),
@@ -3807,7 +3805,7 @@ describe("Collection", () => {
       Effect.gen(function* () {
         const exit = yield* Effect.exit(
           runtime.provide(
-            hydrateCollectionsEffect([Projects, ShadowProjects], {
+            hydrateCollections([Projects, ShadowProjects], {
               collections: [
                 {
                   name,
@@ -3844,7 +3842,7 @@ describe("Collection", () => {
       Effect.gen(function* () {
         const exit = yield* Effect.exit(
           runtime.provide(
-            hydrateCollectionsEffect([Projects], {
+            hydrateCollections([Projects], {
               collections: [
                 {
                   name: "Projects.payload-missing-definition",
@@ -4415,9 +4413,9 @@ describe("Collection", () => {
         ]),
       );
 
-      const payload = await runInRuntime(first, dehydrateCollectionsEffect([Projects, Tasks]));
+      const payload = await runInRuntime(first, dehydrateCollections([Projects, Tasks]));
 
-      await runInRuntime(second, hydrateCollectionsEffect([Projects, Tasks], payload));
+      await runInRuntime(second, hydrateCollections([Projects, Tasks], payload));
 
       expect(runWithRuntime(second, () => Projects.rows().map((project) => project.id))).toEqual([
         "atlas",
@@ -4546,13 +4544,15 @@ describe("Query", () => {
   it("rejects invalid query factory results at the factory boundary", async () => {
     const promised = Effect.runPromise(
       Effect.succeed(
-        Query.from({
-          project: Collection.define<Project>({
-            name: "Projects.promise-query-factory",
-            getKey: (project) => project.id,
-            initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
+        buildQuery((query) =>
+          query.from({
+            project: Collection.define<Project>({
+              name: "Projects.promise-query-factory",
+              getKey: (project) => project.id,
+              initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
+            }),
           }),
-        }),
+        ),
       ),
     );
     const throwingThenFactoryResult = Object.defineProperty({}, "then", {
@@ -4578,7 +4578,7 @@ describe("Query", () => {
       {
         label: "effect",
         reason: "effect",
-        factory: (() => Effect.succeed(Query.from({}))) as never,
+        factory: (() => Effect.succeed(buildQuery((query) => query.from({})))) as never,
       },
       {
         label: "non-builder",

@@ -6,21 +6,15 @@ import {
   type QueryEvaluationError,
 } from "@sunfall/arc-db";
 import type { EffectInputCallbackError } from "@sunfall/arc-core";
-import {
-  SolidDb,
-  type CollectionBindingOptions,
-  type CollectionHandle,
-  type LiveQueryBindingOptions,
-  type LiveQueryHandle,
-} from "@sunfall/arc-solid-db";
+import { SolidDb } from "@sunfall/arc-solid-db";
 
 interface SolidDbProject {
   readonly id: string;
   readonly name: string;
 }
 
-declare const solidDbProjects: CollectionHandle<SolidDbProject, string, "load">;
-declare const solidDbLiveProjects: LiveQueryHandle<SolidDbProject, "query">;
+declare const solidDbProjects: SolidDb.CollectionHandle<SolidDbProject, string, "load">;
+declare const solidDbLiveProjects: SolidDb.LiveQueryHandle<SolidDbProject, "query">;
 
 // Bindings: a collection's declared load error joins the binding's (and so the
 // Component's) E, like a Resource reader's; its services join R.
@@ -35,7 +29,7 @@ declare const ServicefulProjects: Collection.Definition<
   ProjectFeed
 >;
 const solidDbCollectionBinding: Effect.Effect<
-  CollectionHandle<SolidDbProject, string, "load">,
+  SolidDb.CollectionHandle<SolidDbProject, string, "load">,
   "load",
   ProjectFeed
 > = SolidDb.collection(ServicefulProjects);
@@ -54,14 +48,14 @@ const solidDbLiveQueryBinding: Effect.Effect<unknown> = SolidDb.liveQuery((query
 );
 
 const solidDbExports: Array<unknown> = [SolidDb.collection, SolidDb.liveQuery];
-type Handles = CollectionHandle<any, any> | LiveQueryHandle<any, any>;
-type Options = CollectionBindingOptions | LiveQueryBindingOptions;
-const solidDbCollectionOptions: CollectionBindingOptions = { preload: false };
-const solidDbDepsLiveQueryOptions: LiveQueryBindingOptions = {
+type Handles = SolidDb.CollectionHandle<any, any> | SolidDb.LiveQueryHandle<any, any>;
+type Options = SolidDb.CollectionBindingOptions | SolidDb.LiveQueryBindingOptions;
+const solidDbCollectionOptions: SolidDb.CollectionBindingOptions = { preload: false };
+const solidDbDepsLiveQueryOptions: SolidDb.LiveQueryBindingOptions = {
   // @ts-expect-error the query factory is tracked; signal/prop reads in it rebuild the query.
   deps: () => "status",
 };
-const solidDbObserverOptions: CollectionBindingOptions = {
+const solidDbObserverOptions: SolidDb.CollectionBindingOptions = {
   // @ts-expect-error failures surface through `failure()` and `<Errored>`, not an observer.
   onPreloadFailure: () => Effect.void,
 };

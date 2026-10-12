@@ -23,8 +23,8 @@ import {
 } from "./server-function-manifest.js";
 import type { StartAppGraphDiagnosticsPolicyViolation } from "./start-app-graph-diagnostics-policy.js";
 import {
+  resolveStartTransportEndpointsSync,
   resolveStartTransportEndpoints,
-  resolveStartTransportEndpointsEffect,
   StartTransportEndpointConflictError,
   type StartTransportEndpointPathError,
 } from "./start-transport-endpoints.js";
@@ -36,10 +36,10 @@ export {
   StartAppGraphDiagnosticsPolicyException,
   StartAppGraphUnknownRoutePreloadCollections,
   StartAppGraphUnknownRoutePreloadResources,
-  validateStartAppGraphDiagnosticsPolicyEffect,
-  validateStartAppGraphDiagnosticsPolicyExceptionEffect,
-  validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect,
-  validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect,
+  validateStartAppGraphDiagnosticsPolicy,
+  validateStartAppGraphDiagnosticsPolicyException,
+  validateStartAppGraphRoutePreloadCollectionsDiagnostics,
+  validateStartAppGraphRoutePreloadResourcesDiagnostics,
 } from "./start-app-graph-diagnostics-policy.js";
 export type {
   StartAppGraphDiagnosticsPolicy,
@@ -675,7 +675,7 @@ const isStartAppGraphDiagnosticsPolicyViolation = (
       value.routes.every(isUnknownRoutePreloadCollectionsDiagnostics));
 
 /** Decodes a resolved app graph diagnostics DTO before tooling consumes it. */
-export const decodeStartAppGraphDiagnosticsEffect = (
+export const decodeStartAppGraphDiagnostics = (
   value: unknown,
 ): Effect.Effect<StartAppGraphDiagnostics, StartAppGraphDiagnosticsDtoError> =>
   isStartAppGraphDiagnostics(value)
@@ -684,7 +684,7 @@ export const decodeStartAppGraphDiagnosticsEffect = (
         if (semanticError !== undefined) {
           return yield* Effect.fail(diagnosticsDtoError(semanticError, value));
         }
-        yield* resolveStartTransportEndpointsEffect({
+        yield* resolveStartTransportEndpoints({
           rpcPath: value.rpcPath,
           actionPath: value.actionPath,
         }).pipe(
@@ -697,7 +697,7 @@ export const decodeStartAppGraphDiagnosticsEffect = (
     : Effect.fail(diagnosticsDtoError("Expected a Start app graph diagnostics DTO.", value));
 
 /** Decodes diagnostics policy violations loaded from runtime diagnostics modules. */
-export const decodeStartAppGraphDiagnosticsPolicyViolationsEffect = (
+export const decodeStartAppGraphDiagnosticsPolicyViolations = (
   value: unknown,
 ): Effect.Effect<
   readonly StartAppGraphDiagnosticsPolicyViolation[],
@@ -710,12 +710,12 @@ export const decodeStartAppGraphDiagnosticsPolicyViolationsEffect = (
       );
 
 /** Decodes the complete Vite-loaded diagnostics payload. */
-export const decodeStartAppGraphDiagnosticsDtoEffect = (
+export const decodeStartAppGraphDiagnosticsDto = (
   input: StartAppGraphDiagnosticsDtoInput,
 ): Effect.Effect<StartAppGraphDiagnosticsDto, StartAppGraphDiagnosticsDtoError> =>
   Effect.gen(function* () {
-    const diagnostics = yield* decodeStartAppGraphDiagnosticsEffect(input.diagnostics);
-    const diagnosticsPolicyViolations = yield* decodeStartAppGraphDiagnosticsPolicyViolationsEffect(
+    const diagnostics = yield* decodeStartAppGraphDiagnostics(input.diagnostics);
+    const diagnosticsPolicyViolations = yield* decodeStartAppGraphDiagnosticsPolicyViolations(
       input.diagnosticsPolicyViolations ?? [],
     );
 
@@ -727,7 +727,7 @@ export const decodeStartAppGraphDiagnosticsDtoEffect = (
 
 /** Creates a static Start app graph from route, server-function, and action manifests. */
 export const createStartAppGraph = (options: StartAppGraphOptions): StartAppGraph => {
-  resolveStartTransportEndpoints({
+  resolveStartTransportEndpointsSync({
     serverFunctionManifest: options.serverFunctions,
     actionManifest: options.actions,
   });
@@ -1089,7 +1089,7 @@ const shouldReportMissingSchema = (
   (policy.requireError && !missing.error);
 
 /** Validates server-function and action wire-schema coverage against policy. */
-export const validateStartAppGraphWireSchemasEffect = (
+export const validateStartAppGraphWireSchemas = (
   graph: StartAppGraph,
   policy: StartAppGraphWireSchemaPolicy = {},
 ): Effect.Effect<void, StartAppGraphMissingWireSchemas> => {

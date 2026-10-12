@@ -5,6 +5,56 @@ These notes map common full-stack app patterns onto
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
+## From Duplicate Names And Forms
+
+Every public thing now has one name and one form. Types a namespace owns are
+reachable only as namespace members; the flat aliases are gone from the
+package roots. Pick the namespaced name your editor already offers:
+`ActionDefinition` is `Action.Definition`, `ResourceRef` is `Resource.Ref`,
+`RouteMatch` / `RouteContext` are `Route.Match` / `Route.Context`,
+`ReadableSignal` is `Signal.Readable`, `TimelineEntry` is `Timeline.Entry`,
+and so on for every `Action*`, `ActionResult*`, `Form*`, `Program*`,
+`Resource*`, `Route*`, `Server*`, `Signal*`, and `Timeline*` type. Error
+classes, Type IDs, guards (`isActionDefinition`, `isResourceRef`, ...),
+services (`ActionTransport`, `ActionOutbox`, `ResourceStore`,
+`RequestContext`), and runtime helpers keep their root names.
+
+| Before                                                                                                | After                                                                                                               |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `ServerClient` (service and type)                                                                     | `Server.Client` (service and type)                                                                                  |
+| `ActionResultSuccess`, `AnyActionResult`, `ActionRedirectStatus`, ...                                 | `ActionResult.Success`, `ActionResult.Any`, `ActionResult.RedirectStatus`                                           |
+| `FormValidationError`, `ProgramDisposed`, `ResourceSnapshotCodecError`, `ResourceHydrationApplyError` | `Form.ValidationError`, `Program.Disposed`, `Resource.SnapshotCodecError`, `Resource.HydrationApplyError` (classes) |
+| `ActionSubmissionConcurrency`                                                                         | `Action.Concurrency`                                                                                                |
+| `ProgramSubscriptionError<Out>` / `ProgramSubscriptionRequirements<Out>`                              | `EffectInputError<Out>` / `EffectInputRequirements<Out>`                                                            |
+| `RouteErrorSchema<E>`                                                                                 | `Resource.ErrorSchema<E>` (routes and Resource families share it)                                                   |
+| `Route.PreloadError<R>` / `Route.NavigationError<R>`                                                  | `Route.PreloadPlanError<R>` / `Route.NavigationPlanError<R>`                                                        |
+| `RouteWithComponent<C>`                                                                               | `Route.WithComponent<R, C>`                                                                                         |
+| `AppDefinition`, `AnyAppDefinition`, `AppLaunchError`, `AppLaunchServices`                            | `App.Definition`, `App.Any`, `App.LaunchError`, `App.LaunchServices`                                                |
+| `StartActionFormOptions`, `StartActionInvalidationPlan`                                               | `StartAction.FormOptions`, `StartAction.InvalidationPlan`                                                           |
+| Solid DB `CollectionHandle`, `LiveQueryHandle`, `*BindingOptions`                                     | `SolidDb.CollectionHandle`, `SolidDb.LiveQueryHandle`, ...                                                          |
+| `Form.validate(form)`                                                                                 | `form.validate()`                                                                                                   |
+| `Form.error(...)` / `Form.fieldError(...)`                                                            | the validator's `errors.fields(...)` / `errors.field(...)` / `errors.form(...)`                                     |
+| `ActionResult.fields` / `fieldError` / `formError`                                                    | `ActionResult.validation({ fieldErrors, formErrors })`                                                              |
+| `ActionResult.validateForm(form)` / `ActionResult.fromValidationEffect(effect)`                       | `ActionResult.fromValidation(form.validate())`                                                                      |
+| `Query.from(sources)`                                                                                 | `query.from(sources)` inside the query factory                                                                      |
+| `route.build(params, search)` / `route.match(url)`                                                    | `Route.href(route, { params, search })` / `Route.match([route], url)`                                               |
+| `Server.fn(name, { input, output, error, handler })`                                                  | `Server.implement(Server.contract(name, { input, output, error }), handler)`                                        |
+| `Server.stub(name, schemas)`                                                                          | `Server.client(Server.contract(name, schemas))`                                                                     |
+| `Server.provideMocks(effect, ...mocks)` / `Server.mockClient(...mocks)`                               | `Effect.provide(effect, Server.mockLayer(...mocks))`                                                                |
+| `Server.get(name)`                                                                                    | `Server.functions().get(name)`                                                                                      |
+| `capability.mock(service)` / `capability.provide(effect, service)`                                    | `capability.layer(service)` / `Effect.provide(effect, capability.layer(service))`                                   |
+| `signal.set((current) => next)`                                                                       | `signal.update((current) => next)`; `set` takes a value                                                             |
+| `StartAction.form(action, { actionPath / endpoints / actionManifest / appGraph })`                    | `StartAction.form(action, { action: url })`                                                                         |
+| prerender `{ enabled: true, ... }` / `{ enabled: false }`                                             | prerender `{ ... }` / `false`                                                                                       |
+| prerender page `{ path, prerender: { enabled, outputPath } }`                                         | `{ path, outputPath, prerender: false }`                                                                            |
+| cookie `sameSite: "Strict"` / `"Lax"` / `"None"`                                                      | `sameSite: "strict"` / `"lax"` / `"none"`                                                                           |
+| `generateValidatedFileRouteManifestEffect` and other `*Effect` exports                                | `generateValidatedFileRouteManifest` (a throwing twin, where one existed, is `*Sync`)                               |
+
+Adapter packages that implemented the row-store seam or read the app
+registry types (`ActionOptimisticRows*`, `AppDefinitionRegistry*`,
+`ResourceStoreModule*`, `ResourceFamily`, `AnySchema`) import them from
+`@sunfall/arc-core/internal`; they are not application API.
+
 ## From Anonymous Signal Writes
 
 Every state change now has a name, so the Timeline reads like a message log.
@@ -19,8 +69,8 @@ with `SignalWriteOutsideTransition`, naming the Signal.
 | `Component.stream(stream, initial)`                       | `Component.stream("name", stream, initial)`                                                      |
 | `Signal.fromStream(stream, initial)`                      | `Signal.fromStream(stream, initial, { name })`                                                   |
 | `Signal.batch(f, { cause: { _tag: "User", label } })`     | `Signal.batch(f, { name })` (likewise `Signal.transaction`)                                      |
-| `TimelineUserCause` (`{ _tag: "User", label }`)           | `TimelineTransitionCause` (`{ _tag: "Transition", name }`)                                       |
-| `TimelineEntry.cause: TimelineCause \| undefined`         | `TimelineEntry.cause: TimelineCause`                                                             |
+| `TimelineUserCause` (`{ _tag: "User", label }`)           | `Timeline.TransitionCause` (`{ _tag: "Transition", name }`)                                      |
+| `TimelineEntry.cause: TimelineCause \| undefined`         | `Timeline.Entry.cause: Timeline.Cause`                                                           |
 | `Form.make({ schema, initial })`                          | `Form.make({ name, schema, initial })`                                                           |
 
 Solid effects that wrote Signals call a named callback (or become a
@@ -186,7 +236,7 @@ Effect.runFork(App.launch(app));
 | app graph route diagnostics `component` presence                                                                             | removed: components attach with `Route.withComponent` in app modules                                                                          |
 | `validateStartAppGraphActionBehaviorEffect`, `StartBuildPolicy.actionBehavior`, `diagnostics.unknownActionBehavior`          | removed: manifests are derived from `Action.define` values, so behavior is always known                                                       |
 | `Option.getOrUndefined(AsyncResult.error(action.result()))`, `action.result().waiting`                                       | `action.failure()` (a `Cause`), `action.waiting()`                                                                                            |
-| `optimistic: (input, tx) => ... return Effect.void` (rollback Effect)                                                        | `optimistic: (input, tx) => tx.signal(...)` (the transaction owns rollback)                                                                   |
+| `optimistic: (input, tx) => ... return Effect.void` (rollback Effect)                                                        | `optimistic: (input, tx) => tx.set(...)` (the transaction owns rollback)                                                                      |
 | `Query.onceEffect`, `Query.Live` `preloadEffect` / `refetchEffect`                                                           | `Query.once`, `preload` / `refresh`                                                                                                           |
 | Solid DB `LiveQueryHandle` `data` / `preloadEffect` / `refetchEffect`                                                        | `rows` / `preload` / `refresh`                                                                                                                |
 | `createHtmlResponseEffect`, `createStartStreamedHtmlResponseEffect`, hand-written shells                                     | Start's document: `createRequestHandler(app, { document })`                                                                                   |

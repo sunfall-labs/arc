@@ -24,11 +24,9 @@ import {
   Program,
   Resource,
   ResourceFailure,
-  ResourceHydrationApplyError,
   ResourcePending,
   ResourceStoreDisposeError,
   ResourceUntypedFailure,
-  ResourceSnapshotCodecError,
   ResponseContext,
   Route,
   RoutePreloadError,
@@ -40,9 +38,6 @@ import {
   makeMemoryBrowserHistoryAdapter,
   makeResourceStore,
   makeRuntime,
-  type ActionSubmissionConcurrency,
-  type ActionState,
-  type ActionResultInvalidationRequirements,
   type AnySunfallArcRuntime,
   RouterRouteNotRegistered,
   type BrowserHistoryAdapter,
@@ -55,16 +50,10 @@ import {
   type EffectInput,
   type MemoryBrowserHistoryAdapter,
   type ParamsForPath,
-  type RoutePreloadResult,
-  type ResourceHydrationPayload,
-  type ResourceSnapshotCodecOperation,
   type ResourceStore,
   Timeline,
   TimelineAlreadyRecording,
   TimelineEntryUnavailable,
-  type TimelineCause,
-  type TimelineEntry,
-  type TimelineRecording,
 } from "@sunfall/arc-core";
 import {
   browserRouterLinkClickDecision,
@@ -111,16 +100,16 @@ import {
   ReadonlyCollectionMutation,
 } from "@sunfall/arc-db";
 import {
-  collectCollectionsEffect,
-  collectionStoreEffect,
+  collectCollections,
+  activeCollectionStore,
+  dehydrateCollectionsSync,
   dehydrateCollections,
-  dehydrateCollectionsEffect,
-  hydrateCollectionsEffect,
-  validateCollectionsHydrationEffect,
+  hydrateCollections,
+  validateCollectionsHydration,
   type CollectionStoreDiagnosticsSnapshot,
   type CollectionStoreEvent,
 } from "@sunfall/arc-db/internal";
-import { SolidDb, type CollectionHandle, type LiveQueryHandle } from "@sunfall/arc-solid-db";
+import { SolidDb } from "@sunfall/arc-solid-db";
 import {
   Component,
   RouterContextMissing,
@@ -160,8 +149,6 @@ import {
   createRequestHandler,
   hydrateFromDocument,
   StartAction,
-  type AppLaunchError,
-  type StartActionInvalidationPlan,
   type StartFetch,
   type StartHydrationError,
   type StartRequestHandler,
@@ -183,8 +170,8 @@ import {
 } from "../packages/start/src/file-route-modules.js";
 import type { FileRouteManifest } from "../packages/start/src/file-routes.js";
 import {
-  createServerActionResponseEffect,
-  createServerRpcResponseEffect,
+  createServerActionResponse,
+  createServerRpcResponse,
 } from "../packages/start/src/start-request-endpoints.js";
 import {
   createStartAgentGraphImpact,
@@ -213,8 +200,8 @@ import {
 } from "../packages/start/src/agent-graph.js";
 import type { StartAppGraphDiagnostics } from "../packages/start/src/app-graph.js";
 import {
-  hydrateStartHydrationChunksFromDocumentEffect,
-  readStartHydrationChunksEffect,
+  hydrateStartHydrationChunksFromDocument,
+  readStartHydrationChunks,
   streamHydrationConsumedAttribute,
 } from "../packages/start/src/hydration.js";
 import { preloadRequest } from "../packages/start/src/start-request-preload.js";
@@ -225,7 +212,7 @@ import {
   type StartRequestTraceTeardown,
 } from "../packages/start/src/request-trace.js";
 import {
-  startTransportEndpointEnvelopeEffect,
+  startTransportEndpointEnvelope,
   type StartTransportDiagnosticsOptions,
   type StartTransportEndpointEnvelope,
 } from "../packages/start/src/rpc.js";
@@ -249,7 +236,7 @@ import {
   type StartAppGraphDiagnosticsLoadError,
 } from "../packages/start/src/start-vite-diagnostics-loader.js";
 import {
-  writeFileRouteDefinitionsFileEffect,
+  writeFileRouteDefinitionsFile,
   type FileRouteDefinitionsFileWriteFailure,
   type FileRouteDefinitionsFileWriteResult,
 } from "../packages/start/src/generated-route-definitions.js";
@@ -338,13 +325,11 @@ const tsrxOptions: SunfallArcTsrxOptions = {
 };
 const tsrxPlugins: PluginOption[] = sunfallArcTsrx(tsrxOptions);
 void tsrxPlugins;
-const startRootRpcEndpointHelper: typeof createServerRpcResponseEffect =
-  createServerRpcResponseEffect;
-const startRootActionEndpointHelper: typeof createServerActionResponseEffect =
-  createServerActionResponseEffect;
+const startRootRpcEndpointHelper: typeof createServerRpcResponse = createServerRpcResponse;
+const startRootActionEndpointHelper: typeof createServerActionResponse = createServerActionResponse;
 const startTransportEnvelopeOptions: StartTransportDiagnosticsOptions = { requestId: "req-type" };
 const startTransportEnvelopeEffect: Effect.Effect<StartTransportEndpointEnvelope> =
-  startTransportEndpointEnvelopeEffect(
+  startTransportEndpointEnvelope(
     "rpc",
     new Request("https://example.com/__sunfall-arc/rpc"),
     startTransportEnvelopeOptions,
@@ -466,12 +451,12 @@ ActionResult.fromEffect<unknown>(Effect.succeed(promisedProject));
 ActionResult.fromEffect<Project, typeof promisedProject>(Effect.fail(promisedProject));
 // @ts-expect-error ActionResult.fromEffect rejects Effect failures that are Effect-shaped
 ActionResult.fromEffect<Project, typeof effectNumberValue>(Effect.fail(effectNumberValue));
-// @ts-expect-error ActionResult.fromValidationEffect rejects Promise-shaped direct values
-ActionResult.fromValidationEffect(promisedProject);
-// @ts-expect-error ActionResult.fromValidationEffect rejects Effect successes that are Promise-shaped
-ActionResult.fromValidationEffect(Effect.succeed(promisedProject));
-// @ts-expect-error ActionResult.fromValidationEffect successes must be plain data, not Effect-shaped
-ActionResult.fromValidationEffect<Effect.Effect<number>, string>(Effect.succeed(effectNumberValue));
+// @ts-expect-error ActionResult.fromValidation rejects Promise-shaped direct values
+ActionResult.fromValidation(promisedProject);
+// @ts-expect-error ActionResult.fromValidation rejects Effect successes that are Promise-shaped
+ActionResult.fromValidation(Effect.succeed(promisedProject));
+// @ts-expect-error ActionResult.fromValidation successes must be plain data, not Effect-shaped
+ActionResult.fromValidation<Effect.Effect<number>, string>(Effect.succeed(effectNumberValue));
 // @ts-expect-error ActionResult.success rejects Promise-shaped payloads
 ActionResult.success(promisedProject);
 // @ts-expect-error ActionResult.success rejects Effect-shaped payloads
@@ -484,17 +469,14 @@ ActionResult.success<any>(promisedProject);
 ActionResult.failure(promisedProject);
 // @ts-expect-error ActionResult.failure rejects Effect-shaped errors
 ActionResult.failure(effectNumberValue);
-// @ts-expect-error ActionResult field validation errors cannot be Promise-shaped
-ActionResult.fieldError<{ readonly name: string }, "name", Project>("name", promisedProject);
-ActionResult.fieldError<{ readonly name: string }, "name", Effect.Effect<number>>(
-  "name",
-  // @ts-expect-error ActionResult field validation errors cannot be Effect-shaped
-  effectNumberValue,
-);
-// @ts-expect-error ActionResult form validation errors cannot be Promise-shaped
-ActionResult.formError<{ readonly name: string }, Project>(promisedProject);
-// @ts-expect-error ActionResult field error maps cannot contain Promise-shaped errors
-ActionResult.fields<{ readonly name: string }, Project>({ name: [promisedProject] });
+// @ts-expect-error ActionResult field validation errors cannot be Effect-shaped
+ActionResult.validation<{ readonly name: string }, Effect.Effect<number>>({
+  fieldErrors: { name: [effectNumberValue] },
+});
+ActionResult.validation<{ readonly name: string }, Project>({
+  // @ts-expect-error ActionResult field error maps cannot contain Promise-shaped errors
+  fieldErrors: { name: [promisedProject] },
+});
 // @ts-expect-error ActionResult validation inputs cannot contain Promise-shaped form errors
 ActionResult.validation<{ readonly name: string }, Project>({ formErrors: [promisedProject] });
 
@@ -507,8 +489,8 @@ type ProjectError = {
 toEffect<typeof maybePromisedProject>(maybePromisedProject);
 // @ts-expect-error ActionResult.fromEffect rejects Promise-shaped union success values
 ActionResult.fromEffect<typeof maybePromisedProject>(maybePromisedProject);
-// @ts-expect-error ActionResult.fromValidationEffect rejects Promise-shaped union success values
-ActionResult.fromValidationEffect<typeof maybePromisedProject, ProjectError>(maybePromisedProject);
+// @ts-expect-error ActionResult.fromValidation rejects Promise-shaped union success values
+ActionResult.fromValidation<typeof maybePromisedProject, ProjectError>(maybePromisedProject);
 // @ts-expect-error invokeEffectInput rejects callbacks whose success type includes Promise-shaped union members
 invokeEffectInput<[], typeof maybePromisedProject>("test.callback", () => maybePromisedProject);
 
@@ -537,12 +519,12 @@ const coreServerRegistration = coreDefinitionRegistryAdapter.registerServerFunct
 const coreDefinitionDiagnostics = coreDefinitionRegistryAdapter.diagnostics();
 const coreDefinitionDuplicatePolicy: "keep-first" | "replace" =
   coreDefinitionDiagnostics.duplicates[0]?.policy ?? "replace";
-const actionSubmissionConcurrency: ActionSubmissionConcurrency = "exhaust";
-const actionSubmissionIdleState: ActionState<{ readonly id: string }, Project, ProjectError> = {
+const actionSubmissionConcurrency: Action.Concurrency = "exhaust";
+const actionSubmissionIdleState: Action.State<{ readonly id: string }, Project, ProjectError> = {
   result: AsyncResult.initial(),
   input: Option.none(),
 };
-const actionSubmissionSuccessState: ActionState<{ readonly id: string }, Project, ProjectError> = {
+const actionSubmissionSuccessState: Action.State<{ readonly id: string }, Project, ProjectError> = {
   result: AsyncResult.success({ id: "atlas", name: "Atlas" }, { timestamp: 1 }),
   input: Option.some({ id: "atlas" }),
 };
@@ -554,7 +536,7 @@ const actionSubmissionController = makeActionSubmissionController<
   actionName: "Project.rename",
   concurrency: actionSubmissionConcurrency,
 });
-const actionSubmissionState: ActionState<{ readonly id: string }, Project, ProjectError> =
+const actionSubmissionState: Action.State<{ readonly id: string }, Project, ProjectError> =
   actionSubmissionController.state.get();
 void coreDefinitionRegistryAction;
 void coreDefinitionRegistryServer;
@@ -748,7 +730,7 @@ const staticRouteFailure: [Route.PreloadFailure<typeof staticRoute>] extends [ne
 const typedProjectPreload: Effect.Effect<
   void,
   RoutePreloadError<TypedProjectNotFound | TypedProjectForbidden>
-> = Route.preload(TypedProjectRoute.match("/typed-projects/atlas")!);
+> = Route.preload(Route.match([TypedProjectRoute], "/typed-projects/atlas")!);
 Route.define("/typed-projects/:id", {
   // @ts-expect-error preload may fail only with the route error schema's type
   error: TypedProjectNotFound,
@@ -1053,7 +1035,7 @@ const generatedFileRouteDefinitionsModule: string = createGeneratedFileRouteDefi
 const generatedFileRouteWriteEffect: Effect.Effect<
   FileRouteDefinitionsFileWriteResult | undefined,
   FileRouteDefinitionsFileWriteFailure
-> = writeFileRouteDefinitionsFileEffect(".", emptyFileRouteManifest, {
+> = writeFileRouteDefinitionsFile(".", emptyFileRouteManifest, {
   outputFile: false,
 });
 const generatedFileRouteHeader: string = defaultGeneratedFileRouteDefinitionsHeader;
@@ -1261,16 +1243,6 @@ Server.implement(LooseServerContract, () => promisedString);
 // @ts-expect-error broad server mocks must still reject Promise-shaped values
 Server.mock(LooseServerContract, () => promisedString);
 
-Server.fn("Project.promiseServer", {
-  // @ts-expect-error unannotated server functions must return Effect or a pure value, not Promise
-  handler: () => promisedProject,
-});
-
-Server.fn("Project.unionPromiseServer", {
-  // @ts-expect-error unannotated server functions must not return unions containing Promise
-  handler: () => maybePromisedProject,
-});
-
 const ProjectTag = Resource.tag<{ readonly id: string }>("Project", {
   key: ({ id }) => id,
 });
@@ -1326,7 +1298,7 @@ const publicResourceStoreRuntime = makeRuntime();
 publicResourceStoreRuntime.resourceStore.entries;
 // @ts-expect-error ResourceStore internals are intentionally not public.
 publicResourceStoreRuntime.resourceStore.fibers;
-const resourceSnapshotOperation: ResourceSnapshotCodecOperation = "hydrate";
+const resourceSnapshotOperation: Resource.SnapshotCodecOperation = "hydrate";
 const clonedResourceSnapshotValue: Project = cloneResourceSnapshotValue({
   id: "atlas",
   name: "Atlas",
@@ -1342,7 +1314,7 @@ const resourceSnapshot: Resource.Snapshot<string, Project> = {
     timestamp: 1,
   },
 };
-const directResourceHydrationPayload: ResourceHydrationPayload = { resources: [resourceSnapshot] };
+const directResourceHydrationPayload: Resource.HydrationPayload = { resources: [resourceSnapshot] };
 void resourceFamilyRegistration;
 void resourceTagRegistration;
 void resourceDefinitionDiagnostics;
@@ -1475,19 +1447,15 @@ Resource.preload(BrandedProjectById("atlas"));
 
 const resourceHydrateEffect: Effect.Effect<
   void,
-  ResourceSnapshotCodecError | ResourceHydrationApplyError | EffectInputCallbackError
+  Resource.SnapshotCodecError | Resource.HydrationApplyError | EffectInputCallbackError
 > = Resource.hydrate({ resources: [] });
 // @ts-expect-error Resource hydration accepts payload objects, not raw snapshot arrays
 Resource.hydrate([resourceSnapshot]);
-const resourceDecodeEffect: Effect.Effect<Resource.HydrationPayload, ResourceSnapshotCodecError> =
+const resourceDecodeEffect: Effect.Effect<Resource.HydrationPayload, Resource.SnapshotCodecError> =
   Resource.decodeHydrationPayload('{"resources":[]}');
-const resourceDehydrateEffect: Effect.Effect<
-  ReadonlyArray<Resource.Snapshot>,
-  ResourceSnapshotCodecError
-> = Resource.dehydrate([]);
-const resourceHydrationPayloadEffect: Effect.Effect<
+const resourceHydrationPayload: Effect.Effect<
   Resource.HydrationPayload,
-  ResourceSnapshotCodecError
+  Resource.SnapshotCodecError
 > = Resource.hydrationPayload([]);
 declare const frameworkResourceTagAlias: Resource.Tag;
 declare const frameworkResourceInvalidationAlias: Resource.Invalidation;
@@ -1498,8 +1466,7 @@ declare const frameworkResourceInvalidationPlanAlias: Resource.InvalidationPlan;
 declare const frameworkResourceHydrationPayloadAlias: Resource.HydrationPayload;
 declare const frameworkResourceHydrationOptionsAlias: Resource.HydrationOptions;
 declare const frameworkResourceStatusAlias: Resource.Status<string, Project>;
-void resourceDehydrateEffect;
-void resourceHydrationPayloadEffect;
+void resourceHydrationPayload;
 void directResourceHydrationPayload;
 void frameworkResourceTagAlias;
 void frameworkResourceInvalidationAlias;
@@ -1655,7 +1622,7 @@ const projectPersistWithoutStore: Effect.Effect<void, unknown> = ProjectsCollect
 void projectPersistEffect;
 void projectRestoreEffect;
 void projectPersistWithoutStore;
-Effect.map(collectionStoreEffect, (store) => {
+Effect.map(activeCollectionStore, (store) => {
   const diagnosticsEffect: Effect.Effect<CollectionStoreDiagnosticsSnapshot> =
     store.diagnostics.snapshot;
   const diagnostics: CollectionStoreDiagnosticsSnapshot = Effect.runSync(diagnosticsEffect);
@@ -1669,11 +1636,9 @@ Collection.memoryStorage();
 // @ts-expect-error custom storage adapters are gone: provide a KeyValueStore Layer instead
 Collection.storage(localStorage);
 
-const ListProjectsForCollection = Server.fn<void, readonly Project[], ProjectError>(
-  "Projects.collection.list",
-  {
-    handler: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
-  },
+const ListProjectsForCollection = Server.implement(
+  Server.contract<void, readonly Project[], ProjectError>("Projects.collection.list"),
+  () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
 );
 
 // Server functions plug into sync adapters directly.
@@ -1805,25 +1770,25 @@ Collection.define<Project>({
   persistence: {},
 });
 
-const collectionPayload = dehydrateCollections([ProjectsCollection]);
+const collectionPayload = dehydrateCollectionsSync([ProjectsCollection]);
 const collectionDehydrateEffect: Effect.Effect<
   Collection.HydrationPayload,
   CollectionSnapshotCodecError | EffectInputCallbackError
-> = dehydrateCollectionsEffect([ProjectsCollection]);
+> = dehydrateCollections([ProjectsCollection]);
 const collectionHydratePayloadEffect: Effect.Effect<
   void,
   CollectionSnapshotCodecError | EffectInputCallbackError
-> = hydrateCollectionsEffect([ProjectsCollection], collectionPayload);
+> = hydrateCollections([ProjectsCollection], collectionPayload);
 const collectionValidateHydrationPayloadEffect: Effect.Effect<
   void,
   CollectionSnapshotCodecError | EffectInputCallbackError
-> = validateCollectionsHydrationEffect([ProjectsCollection], collectionPayload, {
+> = validateCollectionsHydration([ProjectsCollection], collectionPayload, {
   replace: false,
 });
 void collectionDehydrateEffect;
 void collectionHydratePayloadEffect;
 void collectionValidateHydrationPayloadEffect;
-Effect.map(collectCollectionsEffect(ProjectsCollection.preload()), (collected) => {
+Effect.map(collectCollections(ProjectsCollection.preload()), (collected) => {
   collected.value;
   collected.definitions.map((definition) => definition.name);
 });
@@ -1838,7 +1803,7 @@ const StartApp = App.define({
   collections: [ProjectsCollection],
 });
 const StartServerApp = makeStartServerApp({ routes: [ProjectRoute] as const });
-const startLaunchEffect: Effect.Effect<never, AppLaunchError> = App.launch(StartApp);
+const startLaunchEffect: Effect.Effect<never, App.LaunchError> = App.launch(StartApp);
 void startLaunchEffect;
 const requestTraceHandler = (trace: StartRequestTrace) => {
   const devtoolsTrace: DevtoolsRequestTrace = trace;
@@ -2121,9 +2086,9 @@ const streamHydrationDocument = {
     },
   ],
 };
-readStartHydrationChunksEffect(streamHydrationDocument, { includeConsumed: true });
+readStartHydrationChunks(streamHydrationDocument, { includeConsumed: true });
 hydrationRuntime.runSync(
-  hydrateStartHydrationChunksFromDocumentEffect(streamHydrationDocument, {
+  hydrateStartHydrationChunksFromDocument(streamHydrationDocument, {
     collections: [ProjectsCollection],
     markConsumed: false,
   }),
@@ -2169,7 +2134,7 @@ const renameProjectRowPlan: Effect.Effect<
 Action.planOptimistic(RenameProjectRow, { id: "atlas" });
 const renameProjectRowChange = (change: Action.OptimisticChange): unknown => {
   switch (change._tag) {
-    case "Signal":
+    case "Set":
       return change.value;
     case "Insert":
       return change.values;
@@ -2282,14 +2247,17 @@ const ProjectNameCards = Collection.liveQuery<
 // A collection's load error joins the binding's (and so the Component's) E,
 // and its services join R, exactly like a Resource reader.
 const solidProjectsBinding: Effect.Effect<
-  CollectionHandle<Project, string, ProjectError | Server.ClientError>,
+  SolidDb.CollectionHandle<Project, string, ProjectError | Server.ClientError>,
   ProjectError | Server.ClientError,
   ProjectApi
 > = SolidDb.collection(ProjectsCollection);
 void solidProjectsBinding;
 const solidProjects = bound(SolidDb.collection(ProjectsCollection, { preload: false }));
-const solidProjectsHandle: CollectionHandle<Project, string, ProjectError | Server.ClientError> =
-  solidProjects;
+const solidProjectsHandle: SolidDb.CollectionHandle<
+  Project,
+  string,
+  ProjectError | Server.ClientError
+> = solidProjects;
 // A Resource family's render failure joins E and its services join R. This
 // family declares no `error` schema, so a render reports only the failure's
 // `_tag`, as `ResourceUntypedFailure`.
@@ -2318,7 +2286,7 @@ const solidProjectNamesBinding = SolidDb.liveQuery(
 );
 // The live query's sources' load errors join E (codec failures are defects); services join R.
 const solidProjectNamesServices: Effect.Effect<
-  LiveQueryHandle<
+  SolidDb.LiveQueryHandle<
     string,
     ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError
   >,
@@ -2327,7 +2295,7 @@ const solidProjectNamesServices: Effect.Effect<
 > = solidProjectNamesBinding;
 void solidProjectNamesServices;
 const solidProjectNames = bound(solidProjectNamesBinding);
-const solidProjectNamesHandle: LiveQueryHandle<
+const solidProjectNamesHandle: SolidDb.LiveQueryHandle<
   string,
   ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError
 > = solidProjectNames;
@@ -2393,7 +2361,7 @@ const topLevelProjectNameCardsPreload: Effect.Effect<
 const solidTopLevelProjectNameCards = bound(
   SolidDb.collection(TopLevelProjectNameCards, { preload: false }),
 );
-const solidTopLevelProjectNameCardsHandle: CollectionHandle<
+const solidTopLevelProjectNameCardsHandle: SolidDb.CollectionHandle<
   { readonly id: string; readonly name: string },
   string,
   | ProjectError
@@ -2619,10 +2587,10 @@ ProjectApi.layer({
   rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
 });
 
-ProjectApi.mock({
-  get: (id) => Effect.succeed({ id, name: "Mock Project" }),
-  rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
-});
+// @ts-expect-error Capability.mock was removed; test doubles use layer(...)
+ProjectApi.mock;
+// @ts-expect-error Capability.provide was removed; provide layer(...) instead
+ProjectApi.provide;
 
 // @ts-expect-error capability implementation must include all service methods
 ProjectApi.layer({
@@ -2700,19 +2668,19 @@ const missingProgramRuntimeRequirement =
 const projectProgram = Program.start(ProjectProgram, { runtime: projectProgramRuntime });
 projectProgram.model.get().selected?.name.toUpperCase();
 const projectTimelineRecord: Effect.Effect<
-  TimelineRecording,
+  Timeline.Recording,
   TimelineAlreadyRecording,
   Scope.Scope
 > = Timeline.record({ limit: 50 });
-declare const projectTimeline: TimelineRecording;
+declare const projectTimeline: Timeline.Recording;
 // A Program's history is the app Timeline filtered to its model signal.
-const projectProgramHistory: ReadonlyArray<TimelineEntry> = projectTimeline.entries
+const projectProgramHistory: ReadonlyArray<Timeline.Entry> = projectTimeline.entries
   .get()
   .filter((entry) => entry.changes.some((change) => change.signal === projectProgram.model));
 projectProgramHistory.map((entry) => entry.sequence.toFixed());
 const projectTimelineLabel: string = Timeline.describe(projectProgramHistory[0]!.cause);
 // Every entry has a cause: writes outside a named transition never commit.
-const projectTimelineCause: TimelineCause = projectProgramHistory[0]!.cause;
+const projectTimelineCause: Timeline.Cause = projectProgramHistory[0]!.cause;
 void projectTimelineCause;
 const projectTimelinePosition: number | undefined = projectTimeline.position.get();
 const projectTimelineTravel: Effect.Effect<void, TimelineEntryUnavailable> =
@@ -2722,14 +2690,14 @@ const projectTimelineResume: Effect.Effect<void> = projectTimeline.resume();
 projectTimeline.travel("1");
 // @ts-expect-error Timeline entries are read-only
 projectTimeline.entries.set([]);
-const projectProgramCause: TimelineCause | undefined = projectProgramHistory[0]?.cause;
+const projectProgramCause: Timeline.Cause | undefined = projectProgramHistory[0]?.cause;
 if (projectProgramCause?._tag === "Program") {
   const program: string | undefined = projectProgramCause.program;
   const event: "message" | "failure" | "clearFailures" = projectProgramCause.event;
   void program;
   void event;
 }
-const renameCause: TimelineCause = { _tag: "Transition", name: "ProjectPage.rename" };
+const renameCause: Timeline.Cause = { _tag: "Transition", name: "ProjectPage.rename" };
 const namedTimelineSignal = Signal.make("Atlas", { name: "Project.title" });
 const labelledTransaction: Effect.Effect<void> = Signal.transaction(
   Effect.sync(() => namedTimelineSignal.set("Apollo")),
@@ -2737,7 +2705,7 @@ const labelledTransaction: Effect.Effect<void> = Signal.transaction(
 );
 const labelledBatch: number = Signal.batch(() => 1, { name: "ProjectPage.rename" });
 // @ts-expect-error Timeline causes are a closed tagged union
-const customCause: TimelineCause = { _tag: "Custom", label: "nope" };
+const customCause: Timeline.Cause = { _tag: "Custom", label: "nope" };
 // @ts-expect-error framework causes are not part of the public transaction options
 Signal.batch(() => 1, { cause: renameCause });
 // @ts-expect-error signal names are strings
@@ -2934,7 +2902,7 @@ Route.define("/promise-preload", {
   preload: () => promisedVoid,
 });
 // @ts-expect-error annotated route preload results still reject Promise-shaped values
-const annotatedPromiseRoutePreloadResult: RoutePreloadResult = promisedVoid;
+const annotatedPromiseRoutePreloadResult: Route.PreloadResult = promisedVoid;
 
 interface RoutePreloadApi {
   readonly warm: (id: string) => Effect.Effect<void>;
@@ -2963,7 +2931,7 @@ const fileRoutePreloadHelperRequirements: Route.PreloadRequirements<
 declare const fileRoutePreloadHelperMatch: Route.Match<typeof FileRoutePreloadHelperRoute>;
 const fileRoutePreloadHelperEffect: Effect.Effect<
   void,
-  Route.PreloadError,
+  Route.PreloadPlanError,
   ProjectApi | RoutePreloadApi
 > = Route.preload(fileRoutePreloadHelperMatch);
 const BrandedFileRoutePreloadHelperRoute = Route.define("/file-preload-branded/:id", {
@@ -3004,16 +2972,16 @@ void badBrandedFileRouteHref;
 declare const servicePreloadMatch: Route.Match<typeof ServicePreloadRoute>;
 const serviceRoutePreloadRequirements: Route.PreloadRequirements<typeof ServicePreloadRoute> =
   {} as RoutePreloadApi;
-const serviceRoutePreload: Effect.Effect<void, Route.PreloadError, RoutePreloadApi> =
+const serviceRoutePreload: Effect.Effect<void, Route.PreloadPlanError, RoutePreloadApi> =
   Route.preload(servicePreloadMatch);
 const serviceRoutePreloadPlan: Effect.Effect<
   Route.PreloadPlan<typeof ServicePreloadRoute>,
-  Route.PreloadError,
+  Route.PreloadPlanError,
   RoutePreloadApi
 > = Route.planPreload(servicePreloadMatch);
 const serviceRouteNavigationPlan: Effect.Effect<
   Route.NavigationPlan<typeof ServicePreloadRoute>,
-  Route.NavigationError,
+  Route.NavigationPlanError,
   RoutePreloadApi
 > = Route.planNavigation([ServicePreloadRoute] as const, "/service-projects/atlas");
 const routePreloadStartApp = App.define({
@@ -3103,11 +3071,9 @@ const RegistryReadDocumentAction = Action.define<any, string, never, RuntimeDocu
   name: "RuntimeDocument.registryAction",
   run: () => RuntimeDocumentService.use((service) => service.readDocument()),
 });
-const RegistryReadDocumentRpc = Server.fn<void, string, never, RuntimeDocumentService>(
-  "RuntimeDocument.registryRpc",
-  {
-    handler: () => RuntimeDocumentService.use((service) => service.readDocument()),
-  },
+const RegistryReadDocumentRpc = Server.implement(
+  Server.contract<void, string, never>("RuntimeDocument.registryRpc"),
+  () => RuntimeDocumentService.use((service) => service.readDocument()),
 );
 // The app's Actions and the handler's server functions add their services to
 // the handler's requirements unless the server runtime provides them.
@@ -3160,17 +3126,61 @@ const TouchProject = Action.define<{ readonly id: string }, Project>({
     Effect.gen(function* () {
       const label = Signal.make("idle", { name: "label" });
       const unknownLabel = Signal.make<unknown>("idle", { name: "unknownLabel" });
-      yield* transaction.signal(label, id);
+      yield* transaction.set(label, id);
       // @ts-expect-error optimistic patches must match the target signal value type
-      yield* transaction.signal(label, 123);
+      yield* transaction.set(label, 123);
       // @ts-expect-error optimistic signal values cannot hide Promise-shaped values behind unknown
-      yield* transaction.signal(unknownLabel, promisedProject);
+      yield* transaction.set(unknownLabel, promisedProject);
       // @ts-expect-error optimistic signal updaters cannot hide Promise-shaped returns behind unknown
-      yield* transaction.signal<unknown>(unknownLabel, () => promisedProject);
+      yield* transaction.set<unknown>(unknownLabel, () => promisedProject);
     }),
   run: ({ id }) => Effect.succeed({ id, name: "Touched" }),
   invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
 });
+
+// `transaction.set` patches a Resource entry: the updater receives the
+// Resource's output type, and any family's ref works.
+const RenameProjectEverywhere = Action.define<{ readonly id: string; readonly name: string }, void>(
+  {
+    name: "Project.renameEverywhere",
+    optimistic: ({ id, name }, transaction) =>
+      Effect.gen(function* () {
+        yield* transaction.set(ProjectById(id), (project) => {
+          const current: Project = project;
+          return { ...current, name };
+        });
+        yield* transaction.set(ProjectRowsResource(undefined), (projects) =>
+          projects.map((project) => (project.id === id ? { ...project, name } : project)),
+        );
+        // A plain value replaces the entry's value.
+        yield* transaction.set(ProjectById(id), { id, name });
+        // The ref's load requirements are not needed to patch its entry.
+        const serviceless: Effect.Effect<void> = transaction.set(
+          ServicefulProjectResource(id),
+          (project) => project,
+        );
+        yield* serviceless;
+        // @ts-expect-error the updater must return the Resource's output type
+        yield* transaction.set(ProjectById(id), (project) => project.name);
+        // @ts-expect-error a plain value must be the Resource's output type
+        yield* transaction.set(ProjectById(id), { id });
+        // @ts-expect-error Resource patches cannot be Promise-shaped
+        yield* transaction.set(ProjectById(id), () => promisedProject);
+        // @ts-expect-error only writable Signals and Resource refs can be set
+        yield* transaction.set(ProjectById, (project: Project) => project);
+        const derivedLabel = Signal.derive(() => "label");
+        // @ts-expect-error only writable Signals and Resource refs can be set
+        yield* transaction.set(derivedLabel, "next");
+        // @ts-expect-error only writable Signals and Resource refs can be set
+        yield* transaction.set({ id, name }, { id, name });
+      }),
+    run: () => Effect.void,
+  },
+);
+const renameProjectEverywhereChange = (change: Action.OptimisticChange): unknown =>
+  change._tag === "Set" ? [change.target, change.value] : undefined;
+void RenameProjectEverywhere;
+void renameProjectEverywhereChange;
 
 Effect.runSync(
   Action.planInvalidation(TouchProject, { id: "atlas", name: "Atlas" }, { id: "atlas" }),
@@ -3232,18 +3242,20 @@ const resultWithServicefulInvalidation = ActionResult.withInvalidation(
   ActionResult.success({ id: "atlas", name: "Atlas" }),
   [ServicefulProjectResource("atlas")],
 );
-const resultWithServicefulInvalidationRequirement: ActionResultInvalidationRequirements<
+const resultWithServicefulInvalidationRequirement: ActionResult.InvalidationRequirements<
   typeof resultWithServicefulInvalidation
 > = {} as ProjectApi;
-const fieldErrorWithServicefulInvalidation = ActionResult.fieldError<
+const fieldErrorWithServicefulInvalidation = ActionResult.validation<
   { readonly id: string },
-  "id",
   string,
   ProjectApi
->("id", "Required", {
-  invalidates: [ServicefulProjectResource("atlas")],
-});
-const fieldErrorWithServicefulInvalidationRequirement: ActionResultInvalidationRequirements<
+>(
+  { fieldErrors: { id: ["Required"] } },
+  {
+    invalidates: [ServicefulProjectResource("atlas")],
+  },
+);
+const fieldErrorWithServicefulInvalidationRequirement: ActionResult.InvalidationRequirements<
   typeof fieldErrorWithServicefulInvalidation
 > = {} as ProjectApi;
 Effect.map(
@@ -3256,7 +3268,7 @@ Effect.map(
     ),
   ),
   (result) => {
-    const requirement: ActionResultInvalidationRequirements<typeof result> = {} as ProjectApi;
+    const requirement: ActionResult.InvalidationRequirements<typeof result> = {} as ProjectApi;
     return requirement;
   },
 );
@@ -3359,7 +3371,7 @@ const InferredTouchProject = Action.define({
   optimistic: ({ id }, transaction) =>
     Effect.gen(function* () {
       const label = Signal.make("idle", { name: "label" });
-      yield* transaction.signal(label, id);
+      yield* transaction.set(label, id);
     }),
   run: (input) => ProjectApi.use((api) => api.rename(input)),
   invalidates: (project, input) => [ProjectTag({ id: project.id }), ProjectTag({ id: input.id })],
@@ -3445,8 +3457,13 @@ touchHandle.submit({ slug: "atlas" });
 StartAction.use(TouchProject);
 
 StartAction.form(TouchProject, {
-  actionManifest: { actionPath: "/custom/action" },
+  action: "/custom/action",
   input: { id: "atlas" },
+});
+
+StartAction.form(TouchProject, {
+  // @ts-expect-error the form action URL is set only through `action`
+  actionPath: "/custom/action",
 });
 
 StartAction.form(TouchProject, {
@@ -3457,11 +3474,6 @@ StartAction.form(TouchProject, {
 StartAction.form(TouchProject, {
   // @ts-expect-error progressive action form defaults must match action input value types
   input: { id: 123 },
-});
-
-StartAction.form(TouchProject, {
-  actionPath: "/custom/action",
-  input: { id: "atlas" },
 });
 
 const touchStartActionForm: StartAction.Form<typeof TouchProject> = StartAction.form(TouchProject);
@@ -3576,7 +3588,7 @@ const serializedInvalidationPlan: DevtoolsInvalidationPlan = {
     },
   ],
 };
-const startInvalidationPlan: StartActionInvalidationPlan = serializedInvalidationPlan;
+const startInvalidationPlan: StartAction.InvalidationPlan = serializedInvalidationPlan;
 const devtoolsInvalidationPlanFromStart: DevtoolsInvalidationPlan = startInvalidationPlan;
 Effect.runSync(
   devtoolsStore.recordActionState("Project.touch", "Success", {
@@ -3727,15 +3739,14 @@ const ProjectFormSchema = Schema.Struct({
 });
 type ProjectFormValues = typeof ProjectFormSchema.Type;
 
-ActionResult.fieldError<ProjectFormValues, "name", string>("name", "Required");
-ActionResult.fields<ProjectFormValues, string>({
-  spend: ["Must be positive"],
+ActionResult.validation<ProjectFormValues, string>({
+  fieldErrors: { name: ["Required"], spend: ["Must be positive"] },
 });
-// @ts-expect-error validation field errors must target known form fields
-ActionResult.fieldError<ProjectFormValues, "missing", string>("missing", "Required");
-ActionResult.fields<ProjectFormValues, string>({
-  // @ts-expect-error validation field maps reject unknown form fields
-  missing: ["Required"],
+ActionResult.validation<ProjectFormValues, string>({
+  fieldErrors: {
+    // @ts-expect-error validation field maps reject unknown form fields
+    missing: ["Required"],
+  },
 });
 
 const projectForm = Form.make({
@@ -3777,17 +3788,17 @@ Form.make<typeof ProjectFormSchema, ProjectFormValues, string>({
     Effect.fail(validation.form(effectNumberValue)),
 });
 
-// @ts-expect-error Form.fieldError errors must be plain data, not Promise-shaped
-Form.fieldError<ProjectFormValues, "name", string>("name", promisedString);
-// @ts-expect-error Form.fieldError errors must be plain data, not Effect-shaped
-Form.fieldError<ProjectFormValues, "name", Effect.Effect<number>>("name", effectNumberValue);
-Form.error<ProjectFormValues, string>({
-  // @ts-expect-error Form.error field errors must be plain data, not Promise-shaped
-  name: [promisedString],
-});
-Form.error<ProjectFormValues, Effect.Effect<number>>({
-  // @ts-expect-error Form.error field errors must be plain data, not Effect-shaped
-  name: [effectNumberValue],
+Form.make<typeof ProjectFormSchema, ProjectFormValues, string>({
+  name: "projectForm",
+  schema: ProjectFormSchema,
+  initial: { id: "atlas", name: "Atlas Billing", spend: 1200 },
+  validate: (_values, validation) =>
+    Effect.fail(
+      validation.fields({
+        // @ts-expect-error form validation field maps must hold plain data, not Promise-shaped
+        name: [promisedString],
+      }),
+    ),
 });
 
 projectForm.setField("name", "Atlas Revenue");

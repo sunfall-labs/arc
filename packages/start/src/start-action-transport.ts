@@ -1,22 +1,16 @@
-import {
-  ActionTransport,
-  type ActionDefinition,
-  type ActionTransportResponse,
-  type ActionTransportSubmission,
-  type Server,
-} from "@sunfall/arc-core";
+import { ActionTransport, type Server, type Action } from "@sunfall/arc-core";
 import { Effect, Exit, Layer, Option } from "effect";
-import { executeStartClientTransportEffect } from "./start-client-transport.js";
+import { executeStartClientTransport } from "./start-client-transport.js";
 import {
-  applyStartActionInvalidationEffect,
-  applyStartActionResponseEffect,
+  applyStartActionInvalidation,
+  applyStartActionResponse,
 } from "./start-action-response-application.js";
 import {
-  decodeStartActionOutcomeEffect,
+  decodeStartActionOutcome,
   parseStartActionResponse,
 } from "./start-action-response-codec.js";
 import {
-  encodeStartActionRequestEffect,
+  encodeStartActionRequest,
   type StartActionDefinition,
 } from "./start-action-request-codec.js";
 import { resolveStartActionEndpoint } from "./start-transport-endpoints.js";
@@ -40,14 +34,14 @@ export interface ActionTransportLayerOptions<
 }
 
 const submitRemoteEffect = <I, A, E, R, FetchError, FetchRequirements>(
-  definition: ActionDefinition<I, A, E, R>,
+  definition: Action.Definition<I, A, E, R>,
   input: I,
-  submission: ActionTransportSubmission | undefined,
+  submission: Action.TransportSubmission | undefined,
   options: ActionTransportLayerOptions<FetchError, FetchRequirements>,
-): Effect.Effect<ActionTransportResponse<A, E>, Server.ClientError> => {
+): Effect.Effect<Action.TransportResponse<A, E>, Server.ClientError> => {
   const exchange = Effect.gen(function* () {
-    const request = yield* encodeStartActionRequestEffect(definition, input, submission?.id);
-    const { body } = yield* executeStartClientTransportEffect({
+    const request = yield* encodeStartActionRequest(definition, input, submission?.id);
+    const { body } = yield* executeStartClientTransport({
       kind: "action",
       ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
       ...(options.headers === undefined ? {} : { headers: options.headers }),
@@ -56,7 +50,7 @@ const submitRemoteEffect = <I, A, E, R, FetchError, FetchRequirements>(
       init: { redirect: "manual" },
       parseResponse: parseStartActionResponse,
     });
-    const outcome = yield* decodeStartActionOutcomeEffect(definition, body);
+    const outcome = yield* decodeStartActionOutcome(definition, body);
     return { body, outcome };
   });
   const transported = (
@@ -75,9 +69,7 @@ const submitRemoteEffect = <I, A, E, R, FetchError, FetchRequirements>(
     exit: outcome._tag === "Value" ? Exit.succeed(outcome.value) : Exit.fail(outcome.error),
     // Runs inside the Action workflow, which the submitting runtime provides.
     apply: (current) =>
-      current
-        ? applyStartActionResponseEffect(body, collections)
-        : applyStartActionInvalidationEffect(body),
+      current ? applyStartActionResponse(body, collections) : applyStartActionInvalidation(body),
   }));
 };
 

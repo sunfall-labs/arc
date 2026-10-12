@@ -28,7 +28,8 @@ Two defaults settle most arguments:
 
 - **Mutations are Actions.** Every change to server data is an Action. When
   the screen must change before the server answers, the Action's `optimistic`
-  patches Signals and Collection rows, and a failure rolls them back.
+  patches Signals, Resource entries, and Collection rows, and a failure rolls
+  them back.
 - **A failure that can reach rendering joins `E`; a failure of work you start
   is yours.** Resource readers and Collection rows add their load errors to
   the Component's `E`, so `catchTags` must handle them before `launch`
@@ -319,7 +320,7 @@ export const App = Component.define("App", function* (props: { readonly href: st
   Resources' declared errors: a load callback that throws is a defect.
 - `preload` is inferred from its own body, then checked against `error`: fail
   with anything the schema does not declare and the type error names it
-  (`RoutePreloadFailureNotInErrorSchema<...>`).
+  (`Route.PreloadFailureNotInErrorSchema<...>`).
 - `error: ProjectNotFound` makes the preload's failure typed end to end: the
   `RouterOutlet` failure view, typed from its `router`, narrows
   `error.cause._tag` to read `id`, and during SSR the server and the hydrating
@@ -557,28 +558,46 @@ The routes preload the collection so SSR renders its rows:
   exactly like a reader's. `ProjectsRef` cannot fail, so the sidebar's `E`
   stays `never`.
 
-Make the rename instant with one line on the Action. `optimistic` patches the
-sidebar row before `run` starts: the row reads `$synced: false`, success keeps
-the new name until the `ProjectsTag` reload replaces it, and a failure or an
-interrupted submission rolls it back. The form did not change.
+Make the rename instant on the Action. `optimistic` patches the sidebar row and
+the project page before `run` starts. `transaction.update` patches the
+collection row, which reads `$synced: false`; `transaction.set` patches the
+`ProjectById` entry, so the page's reader shows the new name with no
+`<Loading>` flash. Success keeps the new name until the `ProjectsTag` and
+`ProjectTag` reloads replace it, and a failure or an interrupted submission
+rolls both back. A reload while the rename is in flight replaces the value
+underneath and keeps the patch on top. The form did not change.
 
 `src/rename.tsx`:
 
 <!-- snippet: type-tests/golden-path/rename.step-4.tsx -> type-tests/golden-path/rename.tsx -->
 
 ```diff
-@@ -3,4 +3,5 @@
+@@ -3,5 +3,13 @@
  import { Cause, Effect, Schema } from "effect";
  import { Show } from "solid-js";
+-import { Project, ProjectApi, ProjectId, ProjectTag, ProjectsTag } from "./projects.js";
 +import { Projects } from "./collection.js";
- import { Project, ProjectApi, ProjectId, ProjectTag, ProjectsTag } from "./projects.js";
++import {
++  Project,
++  ProjectApi,
++  ProjectById,
++  ProjectId,
++  ProjectTag,
++  ProjectsTag,
++} from "./projects.js";
 
-@@ -9,4 +10,7 @@
+ export const RenameProject = Action.define({
+@@ -9,4 +17,12 @@
    input: Schema.Struct({ id: ProjectId, name: Schema.String }),
    output: Project,
-+  // The sidebar row shows the new name at once (`$synced: false`); success
-+  // keeps it until the reload lands, and a failure rolls it back.
-+  optimistic: (input, transaction) => transaction.update(Projects, input.id, { name: input.name }),
++  // The sidebar row (`$synced: false`) and the project page show the new name
++  // at once; success keeps it until the reload lands, and a failure rolls
++  // both back.
++  optimistic: (input, transaction) =>
++    Effect.all([
++      transaction.update(Projects, input.id, { name: input.name }),
++      transaction.set(ProjectById(input.id), (project) => ({ ...project, name: input.name })),
++    ]),
    run: (input) => ProjectApi.use((api) => api.rename(input)),
    // After a success, every Resource that provides these tags reloads.
 ```
@@ -812,31 +831,35 @@ test("Loaded shows the projects", () => {
 
 An Action's `optimistic` patch is tested with `Action.planOptimistic(definition,
 input)`. It runs the patch against a recording transaction and returns what it
-would change, applying nothing: a Signal patch reports the value the signal
-would read, and a row patch reports the collection and the change.
+would change, applying nothing: a `set` reports the value its Signal or
+Resource entry would read (so load the entry first), and a row patch reports
+the collection and the change.
 
 <!-- snippet: type-tests/golden-path/rename.test.ts -->
 
 ```ts
-import { Action } from "@sunfall/arc-core";
+import { Action, Resource } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { expect, test } from "vitest";
 import { Projects } from "./collection.js";
-import { ProjectId } from "./projects.js";
+import { ProjectById, ProjectId } from "./projects.js";
 import { ProjectApiMemory } from "./projects.memory.js";
 import { RenameProject } from "./rename.js";
 
-test("renaming patches the sidebar row at once", () => {
+test("renaming patches the sidebar row and the project page at once", () => {
   const id = ProjectId.make("atlas");
-  // Plans the patch without applying it: no runtime, store, or backend.
-  // `ProjectApiMemory` satisfies the Action's types; the plan never calls it.
-  const changes = Effect.runSync(
-    Action.planOptimistic(RenameProject, { id, name: "Atlas 2" }).pipe(
-      Effect.provide(ProjectApiMemory),
-    ),
+  const { atlas, changes } = Effect.runSync(
+    Effect.gen(function* () {
+      // A Resource patch reports the value the entry would read, so load it.
+      const atlas = yield* Resource.preload(ProjectById(id));
+      // Plans the patch without applying it: nothing is written.
+      const changes = yield* Action.planOptimistic(RenameProject, { id, name: "Atlas 2" });
+      return { atlas, changes };
+    }).pipe(Effect.provide(ProjectApiMemory)),
   );
   expect(changes).toEqual([
     { _tag: "Update", rows: Projects, key: id, update: { name: "Atlas 2" } },
+    { _tag: "Set", target: ProjectById(id), value: { ...atlas, name: "Atlas 2" } },
   ]);
 });
 ```
@@ -865,8 +888,8 @@ To test what the screen shows, render the Component (see
   `preload`, and `refresh` return Effects, and Signal writes need a name; DOM
   handlers get both via `Component.callback("name", f)`, whose commits read
   `<Component>.<name>` on the Timeline.
-- **Change server data with Actions.** `optimistic` patches Signals and
-  Collection rows for the life of the submission; there is no other write
+- **Change server data with Actions.** `optimistic` patches Signals, Resource
+  entries, and Collection rows for the life of the submission; there is no other write
   path. Add `durable: { maxAge }` when a change must survive going offline
   or reloading; `Action.outbox` counts what is waiting to sync.
 - **Invalidate by meaning.** Resources `provide` tags, Actions `invalidate`

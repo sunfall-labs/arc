@@ -31,15 +31,15 @@ describe("Capability", () => {
 
   it("supports pure and Effect-returning accessors", () =>
     Effect.runPromise(
-      Numbers.provide(
+      Effect.provide(
         Effect.all([
           Numbers.use((numbers) => numbers.get("kepler")),
           Numbers.use((numbers) => numbers.save),
         ]),
-        {
+        Numbers.layer({
           get: (id) => Effect.succeed(id.length),
           save: (value) => Effect.succeed(value + 1),
-        },
+        }),
       ).pipe(
         Effect.flatMap(([length, save]) =>
           Effect.map(save(length), (saved) => ({ length, saved })),
@@ -52,14 +52,14 @@ describe("Capability", () => {
   it("reports a throwing callback as a defect", () =>
     Effect.runPromise(
       Effect.exit(
-        Numbers.provide(
+        Effect.provide(
           Numbers.use((): void => {
             throw new Error("capability failed");
           }),
-          {
+          Numbers.layer({
             get: (id) => Effect.succeed(id.length),
             save: (value) => Effect.succeed(value + 1),
-          },
+          }),
         ),
       ).pipe(
         Effect.tap((exit) =>
@@ -78,12 +78,12 @@ describe("Capability", () => {
   it("rejects Promise-shaped return values as EffectInput defects", () =>
     Effect.runPromise(
       Effect.exit(
-        Numbers.provide(
+        Effect.provide(
           Numbers.use((numbers) => Effect.runPromise(numbers.get("kepler")) as unknown as number),
-          {
+          Numbers.layer({
             get: (id) => Effect.succeed(id.length),
             save: (value) => Effect.succeed(value + 1),
-          },
+          }),
         ),
       ).pipe(
         Effect.tap((exit) =>
@@ -99,8 +99,8 @@ describe("Capability", () => {
       ),
     ));
 
-  it("exposes mock layers for tests", () => {
-    const TestNumbers = Numbers.mock({
+  it("exposes layers for test doubles", () => {
+    const TestNumbers = Numbers.layer({
       get: (id) => Effect.succeed(id.length * 2),
       save: (value) => Effect.succeed(value),
     });

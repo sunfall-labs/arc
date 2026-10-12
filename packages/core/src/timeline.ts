@@ -274,6 +274,29 @@ const makeRecording = (clock: Clock.Clock, limit: number) => {
  * router state, and collection versions alike.
  */
 export namespace Timeline {
+  /** Commit named by a Signal transaction or a named callback. */
+  export type TransitionCause = TimelineTransitionCause;
+  /** Commit made by an Action submission. */
+  export type ActionCause = TimelineActionCause;
+  /** Commit made by a Program update. */
+  export type ProgramCause = TimelineProgramCause;
+  /** Commit made by a Resource load or invalidation. */
+  export type ResourceCause = TimelineResourceCause;
+  /** Commit made by router navigation. */
+  export type RouterCause = TimelineRouterCause;
+  /** Commit made by a Collection write or sync. */
+  export type CollectionCause = TimelineCollectionCause;
+  /** Why a Timeline commit happened. */
+  export type Cause = TimelineCause;
+  /** One recorded state change inside a commit. */
+  export type Change = TimelineChange;
+  /** One recorded commit. */
+  export type Entry = TimelineEntry;
+  /** Options for `Timeline.record`. */
+  export type RecordOptions = TimelineRecordOptions;
+  /** Live recording handle returned by `Timeline.record`. */
+  export type Recording = TimelineRecording;
+
   /**
    * Records every committed change set until the scope closes.
    *

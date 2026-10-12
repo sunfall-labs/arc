@@ -46,9 +46,10 @@ export const Projects = Collection.define({
   sync: { load: () => ProjectApi.use((api) => api.list()) },
 });
 
-export const listProjects = Server.fn<void, ReadonlyArray<Project>>("docs/db/list-projects", {
-  handler: () => Effect.succeed([]),
-});
+export const listProjects = Server.implement(
+  Server.contract<void, ReadonlyArray<Project>>("docs/db/list-projects"),
+  () => Effect.succeed([]),
+);
 
 /** A host change feed: calls back with batches until unsubscribed. */
 export declare const feed: {

@@ -72,7 +72,7 @@ export const normalizeStartEndpointPath = (value: unknown): string | undefined =
 };
 
 /** Validates an endpoint path through an Effect-native error constructor seam. */
-export const validateStartEndpointPathEffect = <Error>(
+export const validateStartEndpointPath = <Error>(
   value: unknown,
   options: {
     readonly field: string;
@@ -209,7 +209,7 @@ const validateStartTransportEndpointConflict = (
 };
 
 /** Resolves Start transport endpoint paths from explicit options, manifests, or defaults. */
-export const resolveStartTransportEndpoints = (
+export const resolveStartTransportEndpointsSync = (
   source: StartTransportEndpointSource = {},
 ): StartTransportEndpoints =>
   validateStartTransportEndpointConflict({
@@ -228,7 +228,7 @@ export const resolveStartTransportEndpoints = (
   });
 
 /** Effect-native endpoint resolver for CLI, diagnostics, and handler seams. */
-export const resolveStartTransportEndpointsEffect = (
+export const resolveStartTransportEndpoints = (
   source: StartTransportEndpointSource = {},
 ): Effect.Effect<
   StartTransportEndpoints,
@@ -236,7 +236,7 @@ export const resolveStartTransportEndpointsEffect = (
 > =>
   Effect.suspend(() => {
     try {
-      return Effect.succeed(resolveStartTransportEndpoints(source));
+      return Effect.succeed(resolveStartTransportEndpointsSync(source));
     } catch (error) {
       if (
         error instanceof StartTransportEndpointPathError ||
@@ -252,23 +252,24 @@ export const resolveStartTransportEndpointsEffect = (
 export const resolveStartRpcEndpoint = (source: StartRpcEndpointSource = {}): string | URL =>
   source.endpoint ??
   endpointPath(source.manifest?.rpcPath, "rpcPath") ??
-  resolveStartTransportEndpoints(source).rpcPath;
+  resolveStartTransportEndpointsSync(source).rpcPath;
 
 /** Resolves the action endpoint used by Start action clients and progressive forms. */
 export const resolveStartActionEndpoint = (source: StartActionEndpointSource = {}): string | URL =>
   source.endpoint ??
   adapterTarget(source.action) ??
   endpointPath(source.manifest?.actionPath, "actionPath") ??
-  resolveStartTransportEndpoints(source).actionPath;
+  resolveStartTransportEndpointsSync(source).actionPath;
 
 /** True when a request targets the configured Start server-function RPC endpoint. */
 export const isStartRpcEndpointRequest = (
   request: Request,
   source: StartTransportEndpointSource = {},
-): boolean => new URL(request.url).pathname === resolveStartTransportEndpoints(source).rpcPath;
+): boolean => new URL(request.url).pathname === resolveStartTransportEndpointsSync(source).rpcPath;
 
 /** True when a request targets the configured Start action endpoint. */
 export const isStartActionEndpointRequest = (
   request: Request,
   source: StartTransportEndpointSource = {},
-): boolean => new URL(request.url).pathname === resolveStartTransportEndpoints(source).actionPath;
+): boolean =>
+  new URL(request.url).pathname === resolveStartTransportEndpointsSync(source).actionPath;

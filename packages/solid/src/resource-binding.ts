@@ -6,7 +6,6 @@ import {
   ResourceFailure,
   ResourcePending,
   type AnySunfallArcRuntime,
-  type ResourceRef,
 } from "@sunfall/arc-core";
 import {
   makeResourceUiBindingController,
@@ -28,7 +27,7 @@ const createResourceResult = <I, A, E, R = unknown, ER = never>(
 ): Accessor<AsyncResult.AsyncResult<A, E>> => {
   const getRef = resourceUiRefAccessor(ref);
   const controller = makeResourceUiBindingController<I, A, E, R, ER>({ runtime });
-  const currentRef = createMemo<ResourceRef<I, A, E, R>>(() => getRef(), {
+  const currentRef = createMemo<Resource.Ref<I, A, E, R>>(() => getRef(), {
     equals: (previous, next) => resourceUiSameRef(previous, next),
   });
 
@@ -86,7 +85,7 @@ export const createResourceSuspense = <I, A, E, R = unknown, ER = unknown>(
     >(runtime);
     scope.addFinalizer(() => preloadController.dispose());
 
-    const readOutcome = (ref: ResourceRef<I, A, E, R>): SuspenseOutcome<A> | undefined => {
+    const readOutcome = (ref: Resource.Ref<I, A, E, R>): SuspenseOutcome<A> | undefined => {
       const exit = runtime.runSync(Effect.exit(Resource.read(ref)));
       if (Exit.isSuccess(exit)) {
         return { _tag: "Value", value: exit.value };
@@ -107,7 +106,7 @@ export const createResourceSuspense = <I, A, E, R = unknown, ER = unknown>(
     // callers as `ResourceFailure` rather than Solid's internal error wrapper.
     const settleOutcome = (
       fiber: Fiber.Fiber<A, unknown>,
-      ref: ResourceRef<I, A, E, R>,
+      ref: Resource.Ref<I, A, E, R>,
     ): Effect.Effect<SuspenseOutcome<A>> =>
       Fiber.join(fiber).pipe(
         Effect.map((value): SuspenseOutcome<A> => ({ _tag: "Value", value })),

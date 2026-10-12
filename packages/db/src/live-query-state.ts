@@ -1,4 +1,4 @@
-import { Signal, SignalTypeId, type ReadableSignal } from "@sunfall/arc-core";
+import { Signal, SignalTypeId } from "@sunfall/arc-core";
 import { Cause, Effect, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { makeLiveQueryRuntime, type LiveQueryRuntime } from "./live-query-runtime.js";
@@ -14,7 +14,7 @@ import {
   type QueryEvaluationError,
   type QueryStagePlan,
 } from "./query-plan.js";
-import { preloadQueryExecutionPlanEffect } from "./query-execution-plan.js";
+import { preloadQueryExecutionPlan } from "./query-execution-plan.js";
 
 type LiveQueryResult<T, E> = AsyncResult.AsyncResult<ReadonlyArray<T>, E | QueryEvaluationError>;
 
@@ -52,12 +52,12 @@ export const makeLiveQueryState = <T, E = never, R = never>(
       | undefined;
     signals:
       | {
-          readonly evaluation: ReadableSignal<{
+          readonly evaluation: Signal.Readable<{
             readonly data: ReadonlyArray<T>;
             readonly error: QueryEvaluationError | undefined;
           }>;
-          readonly data: ReadableSignal<ReadonlyArray<T>>;
-          readonly state: ReadableSignal<LiveQueryResult<T, E>>;
+          readonly data: Signal.Readable<ReadonlyArray<T>>;
+          readonly state: Signal.Readable<LiveQueryResult<T, E>>;
         }
       | undefined;
   }
@@ -182,8 +182,8 @@ export const makeLiveQueryState = <T, E = never, R = never>(
   };
 
   const currentStoreSignal = <A>(
-    select: (signals: NonNullable<StoreEvaluationState["signals"]>) => ReadableSignal<A>,
-  ): ReadableSignal<A> => ({
+    select: (signals: NonNullable<StoreEvaluationState["signals"]>) => Signal.Readable<A>,
+  ): Signal.Readable<A> => ({
     [SignalTypeId]: SignalTypeId,
     get: () => select(storeSignals(currentRuntimeCollectionStore())).get(),
     subscribe: (listener) =>
@@ -199,8 +199,8 @@ export const makeLiveQueryState = <T, E = never, R = never>(
     sources,
     evaluate: () => data.get(),
     preload: (): Effect.Effect<void, E | QueryEvaluationError, R> =>
-      preloadQueryExecutionPlanEffect(builder, false),
+      preloadQueryExecutionPlan(builder, false),
     refresh: (): Effect.Effect<void, E | QueryEvaluationError, R> =>
-      preloadQueryExecutionPlanEffect(builder, true),
+      preloadQueryExecutionPlan(builder, true),
   };
 };

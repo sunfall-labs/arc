@@ -11,8 +11,8 @@ target. The public API is owned by Sunfall Arc:
 - `Resource` for typed async/cache state.
 - `Collection` / `Query` for normalized client data, secondary indexes, and
   live materialized queries.
-- `Action` for every change to server data: optimistic Signal and Collection
-  patches, the Effect that writes, and invalidation.
+- `Action` for every change to server data: optimistic Signal, Resource, and
+  Collection patches, the Effect that writes, and invalidation.
 - `Capability` for named app services and test layers.
 - `Route` (`Route.define`) for typed routes.
 - `RouterProvider` / `RouterOutlet` for browser history, route preload, and route-owned scopes.
@@ -64,7 +64,7 @@ Sunfall Arc should stay unusually strict in these places:
   async work leaves the handler through Effect commands and Stream
   subscriptions, so `Program.step` tests a transition with no runtime;
 - actions are the one mutation path: they own mutation policy, optimistic
-  Signal and Collection patches, invalidation, and result shape;
+  Signal, Resource, and Collection patches, invalidation, and result shape;
 - a failure that can reach rendering joins a Component's `E`; a failure of work
   a caller starts is returned to that caller; a callback that breaks its
   contract is a defect;
@@ -121,12 +121,12 @@ without one. See [Solid Adapter](solid-adapter.md#resources-the-reader-is-the-on
 `AsyncResult` (`import { AsyncResult } from "effect/reactivity"`) is Arc's one
 async-state vocabulary. Arc signals own it and Solid renders it:
 
-- `Resource.result(ref)` is `ReadableSignal<AsyncResult<A, E>>` (a load or
+- `Resource.result(ref)` is `Signal.Readable<AsyncResult<A, E>>` (a load or
   `provides` callback that breaks its contract is a defect in the `Cause`, not
   part of `E`);
   `Resource.status(ref)` adds cache-policy facts (`isStale`, `isGcExpired`,
   `staleAt`, `gcAt`, `ageMillis`, `staleInMillis`, `gcInMillis`) beside `result`.
-- Action instances expose `state: ReadableSignal<{ result: AsyncResult<A, E>; input: Option<I> }>`
+- Action instances expose `state: Signal.Readable<{ result: AsyncResult<A, E>; input: Option<I> }>`
   (idle is `Initial`; a `run`, `optimistic`, or `invalidates` callback that
   breaks its contract is a defect, not part of `E`); the latest invalidation
   plan stays its own signal.
@@ -314,7 +314,7 @@ yield *
       yield* response.setCookie("session", token, {
         httpOnly: true,
         path: "/",
-        sameSite: "Lax",
+        sameSite: "lax",
       });
     }),
   );
@@ -373,7 +373,7 @@ export const ProjectApiLive = ProjectApi.layer({
 ```
 
 Resources, actions, and route preload depend on `ProjectApi.use(...)`. Server
-functions are one live implementation; tests can swap `ProjectApi.mock(...)`
+functions are one live implementation; tests can swap `ProjectApi.layer(...)`
 without importing server modules or replacing app code.
 
 ## Progressive Actions
@@ -410,12 +410,12 @@ resource refs from the request-local Resource Store and includes them in the
 response metadata.
 
 The client side of that transport is Core's `ActionTransport` service, the
-Action counterpart of `ServerClient`. Every Action instance looks it up when it
+Action counterpart of `Server.Client`. Every Action instance looks it up when it
 submits: Actions the transport serves run remotely, and the response (decoded
 outcome, hydrated Resources and Collections, invalidations) applies to the
 submitting runtime; every other Action runs its `run` locally. Start's
 `App.launch(app)` provides it for the app's `actions`, next to the RPC
-`ServerClient`. UI code never chooses: Solid's
+`Server.Client`. UI code never chooses: Solid's
 `Component.action(definition)` submits the same way either way, with the same
 result type and error type (the Action's own errors plus `Server.ClientError`).
 A superseded `parallel` submission applies only its invalidations, so hydrated
@@ -452,31 +452,55 @@ for the life of one submission:
 optimistic: (input, transaction) =>
   Effect.all([
     transaction.update(Projects, input.id, { name: input.name }),
-    transaction.signal(lastRenamed, input.id),
+    transaction.set(ProjectById(input.id), (project) => ({ ...project, name: input.name })),
+    transaction.set(lastRenamed, input.id),
   ]),
 ```
 
-`transaction.signal`, `insert`, `update`, and `delete` apply before `run` (or
-the remote submission). Collection patches are layers over the collection's
-synced rows in the submitting runtime's store: rows read `$synced: false`, a
-`follow`/refresh snapshot replaces the base underneath without dropping the
-layer, and later submissions' layers stack on top. Success commits the
-transaction: Signal patches fold into the base value and row layers fold into
-the synced base, where the `invalidates` reload (or, remotely, the response's
+The transaction has one verb per kind of state. `set(target, update)` patches a
+value: a writable Signal, or the entry a Resource ref names (`ProjectById(id)`,
+from any family). `update` is a plain value or a pure updater of the current
+one, typed by the target (the Resource's output type). `insert`, `update`, and
+`delete` patch rows. Every patch applies before `run` (or the remote
+submission).
+
+A Resource patch is a layer over the entry's synced value in the submitting
+runtime's store, like a row layer. Readers (`Resource.result`,
+`Resource.read`, the Solid reader with its `waiting` and `failure`) see the
+patched value with the entry's own status, so there is no Suspense flash; a
+reload during the submission replaces the synced value underneath and the
+layer stays on top. Loads (`Resource.preload`, `refresh`, `changes`, and so a
+Collection following the Resource) and snapshots see only the synced value.
+An entry that has not loaded is left alone: the patch is a no-op.
+
+Collection patches are layers over the collection's synced rows in the
+submitting runtime's store: rows read `$synced: false`, a `follow`/refresh
+snapshot replaces the base underneath without dropping the layer, and later
+submissions' layers stack on top. Success commits the transaction: Signal and
+Resource patches fold into the base value and row layers fold into the synced
+base, where the `invalidates` reload (or, remotely, the response's
 invalidations) replaces them. A typed failure, defect, or interruption rolls
-the transaction back and rebases every other submission's patches. Snapshots
-(SSR dehydration, persistence) carry only the synced base: a patch belongs to
-an in-flight submission and never crosses a wire. Collections implement the
+the transaction back and rebases every other submission's patches. So does a
+rejected `ActionResult`: a run (local, remote, or a durable replay) that
+returns `ValidationFailure` or `Failure` means the change did not happen, so
+its patches roll back exactly as on a failure, without folding and without a
+reload; `Success` and `Redirect` results commit. Patch,
+commit, and rollback writes commit under the Action's Timeline cause
+(`submit`, `success`, `failure`), so travel shows them. Snapshots (SSR
+dehydration, persistence) carry only the synced base: a patch belongs to an
+in-flight submission and never crosses a wire. Collections implement the
 `ActionOptimisticRows` seam from Core, so Core owns the transaction and DB owns
 the row layering; `Collection.applyChanges` remains the direct write for
 remote feeds and local-only collections, never for server data.
 
-`Action.planOptimistic(definition, input)` tests a patch without a runtime,
-store, or backend: it runs `optimistic` against a recording transaction and
-returns the changes it would make, applying none. A Signal change reports the
-value the signal would read (computed from its current value); a row change
-reports the store and the change as given (`{ _tag: "Update", rows: Projects,
-key, update: { name } }`). It is the optimistic counterpart of
+`Action.planOptimistic(definition, input)` tests a patch without writing
+anything or calling a backend: it runs `optimistic` against a recording
+transaction and returns the changes it would make, applying none. A `set`
+reports `{ _tag: "Set", target, value }` with the value the Signal or Resource
+entry would read, computed from its current value in the caller's runtime (a
+Resource entry that has not loaded plans no change); a row change reports the
+store and the change as given (`{ _tag: "Update", rows: Projects, key,
+update: { name } }`). It is the optimistic counterpart of
 `Action.planInvalidation`.
 
 Collection persistence uses the same `KeyValueStore` as the Action Outbox
@@ -545,9 +569,11 @@ Outbox (`ActionOutbox`, provided by `Action.outboxLayer()`; Start's
   a final failure in the outbox's `failures` instead.
 - **Reloads.** `App.launch` hydrates the root first (so the first client
   render matches the server's), then runs `Action.restoreOutbox`: pending
-  submissions are decoded, re-patched in order on top of the hydrated rows and
-  Signals, and replayed. Submissions the server already settled before
-  rendering the page are not re-patched (see below). An entry older than its Action's `durable.maxAge`
+  submissions are decoded, re-patched in order on top of the hydrated rows,
+  Resource entries, and Signals, and replayed. Restoring after hydration is
+  what lets a Resource patch apply: before it, the entry has not loaded.
+  Submissions the server already settled before rendering the page are not
+  re-patched (see below). An entry older than its Action's `durable.maxAge`
   fails with `ActionSubmissionExpired`; one whose Action is no longer defined
   and durable, or whose input no longer decodes, fails with
   `ActionSubmissionUnrestorable`. A durable Action must be defined in a module
@@ -888,7 +914,7 @@ entry script, in that order. There is no hand-written HTML to drift from what
 hydration needs.
 
 Underneath, an internal Effect-native streaming Module builds the response:
-`createHtmlStreamEffect` returns an Effect `Stream` of bytes, and the Start
+`createHtmlStream` returns an Effect `Stream` of bytes, and the Start
 render step appends `StartRenderHydrationPlan` streamed chunks before the tail.
 Shell, chunk, and tail failures become typed `StartStreamError` values, so
 streaming remains Effect-native until the final web platform seam.
@@ -945,7 +971,7 @@ A route's preload failure is typed. `preload` is inferred from its own body
 returns), so inline pipelines keep their types. Like an Effect RPC `error`
 schema, a route can declare `error`; the inferred failure must then be covered
 by that schema's type (otherwise the type error on `error` names the
-undeclared failures as `RoutePreloadFailureNotInErrorSchema<...>`), and the
+undeclared failures as `Route.PreloadFailureNotInErrorSchema<...>`), and the
 failure flows into router state as `RoutePreloadError<E>`:
 
 ```ts
@@ -968,7 +994,7 @@ concurrently, values in order), the same target shape as `Resource.invalidate`.
 cross the wire, so server, client, and hydrated renders agree), and it is
 `never` for a preload that cannot fail or a route without preload. The router's
 `Failure` state carries `Cause<BrowserRouterError<Routes> | ER>`, where
-`BrowserRouterError` is `Route.NavigationError<Routes[number]>` (navigation,
+`BrowserRouterError` is `Route.NavigationPlanError<Routes[number]>` (navigation,
 `RoutePreloadError<Route.PreloadFailure<...>>`, resource snapshot codec
 failures) plus `RouteLazyComponentFailed` for lazy component loads. Synchronous
 throws and Promise returns from `preload` break its contract and are defects.
@@ -999,9 +1025,9 @@ This runs route preload through `Resource.collect`, so the framework can
 explain which resources a navigation touched and which hydration entries it
 would send before rendering the page. Start uses this same route plan for
 SSR preload. If a touched resource cannot be serialized, planning fails through
-the typed `ResourceSnapshotCodecError` Effect error channel. When
+the typed `Resource.SnapshotCodecError` Effect error channel. When
 `@sunfall/arc-start` is present, it separately composes
-`collectCollectionsEffect` (from `@sunfall/arc-db/internal`) around the route plan so DB collection preload can be
+`collectCollections` (from `@sunfall/arc-db/internal`) around the route plan so DB collection preload can be
 observed without making `@sunfall/arc-core` depend on `@sunfall/arc-db`.
 
 Routes can also declare the resource families and DB collections their preload
@@ -1017,7 +1043,7 @@ typed diagnostics validators can enforce those as policy.
 
 File routes are manifest-first in v0. The pure helpers
 `generateFileRouteManifest(files, { routeDirectory })` and
-`generateValidatedFileRouteManifestArtifactEffect` turn known route module paths
+`generateValidatedFileRouteManifestArtifact` turn known route module paths
 into route metadata. The Start Vite plugin is the filesystem boundary: when no
 explicit `fileRoutes` or `fileRouteManifest` is supplied, it discovers route
 modules from the Vite root's `src/routes` directory and feeds that deterministic
@@ -1033,8 +1059,8 @@ routes, dynamic `$id` segments, optional `$id?` segments, route groups like
 layout leaf files named `layout`, `_layout`, `+layout`, or beginning with `_`
 ignored entirely.
 
-Production generators should use `generateValidatedFileRouteManifestEffect` or
-`generateValidatedFileRouteManifestArtifactEffect`. They reject files that
+Production generators should use `generateValidatedFileRouteManifest` or
+`generateValidatedFileRouteManifestArtifact`. They reject files that
 collapse to the same route path after route groups and pathless segments are
 removed, and malformed dynamic segments like `$123`, keeping bad route graphs
 out of builds. Discovered `.d.ts` files are ignored before manifest generation.
@@ -1104,14 +1130,14 @@ The payload includes the resource family name, stable key, and original input
 settled `Success`, `{ _tag: "Success", value, waiting: false, timestamp }`, with
 `value` encoded through the family's `output` schema when one exists. Hydration
 is Success-only: failures can carry server-only causes and are never serialized. Start client hydration applies that payload with
-`hydrateFromDocument(...)` or `hydrateStartPayloadEffect(...)`; those
+`hydrateFromDocument(...)` or `hydrateStartPayload(...)`; those
 helpers call `Resource.hydrate(payload)` so the visible resource signal
 and Effect `Cache` entry update in the same Runtime Spine.
 
 A failed route preload is a render outcome in Start: the request renders with
 status 500 and every router on the request runtime starts in the `Failure`
 state, so the outlet's failure view renders. The failure crosses to the client
-as a `RoutePreloadFailureSnapshot` in the hydration payload, and the hydrating
+as a `Route.PreloadFailureSnapshot` in the hydration payload, and the hydrating
 router starts in the same `Failure` state without re-running the preload. With
 an `error` schema, `Route.preloadFailureSnapshot(...)` encodes the
 failure as JSON with that schema and `Route.preloadFailureCauseFromSnapshot(...)`
@@ -1289,25 +1315,16 @@ export const renameProject = Server.implement(RenameProject, (input) =>
 );
 ```
 
-`Server.fn` and `Server.stub` remain the low-level primitives behind this split,
-but new isomorphic code should prefer the contract/client/implement pattern so
-the browser graph never imports server handlers and handlers cannot drift from
-their public schema.
+The contract/client/implement pattern is the one way to define a server
+function, so the browser graph never imports server handlers and handlers
+cannot drift from their public schema. Server-only code that needs no browser
+client still declares a contract and implements it in the same module.
 
-```ts
-export const getProjectLegacy = Server.fn("Project.get", {
-  input: GetProject.input,
-  output: GetProject.output,
-  error: GetProject.error,
-  handler: ({ id }) => Projects.use((projects) => projects.get(id)),
-});
-```
-
-On the server, Start provides a request-local `ServerClient` during request
+On the server, Start provides a request-local `Server.Client` during request
 preload and render, so shared clients dispatch to registered local handlers
 through the Effect runtime even when the app runtime also provides a remote
 client service. In the browser, `App.launch` provides a fetch-backed
-`ServerClient` (compiled out of static-client builds) that posts to the
+`Server.Client` (compiled out of static-client builds) that posts to the
 configured Start RPC endpoint, defaulting to
 `POST /__sunfall-arc/rpc`. Start action clients and progressive forms use the same
 shared endpoint policy, defaulting to `POST /__sunfall-arc/action`, so custom
@@ -1381,7 +1398,7 @@ tags, and DB collection definitions without reading private stores. A shared
 diagnostics DTO decoder is used by Vite, CLI, and virtual modules instead of
 duplicate loose shape guards at each Adapter seam. Builds can enforce static
 manifest policy with
-`validateStartAppGraphWireSchemasEffect(graph)`, which fails with
+`validateStartAppGraphWireSchemas(graph)`, which fails with
 `StartAppGraphMissingWireSchemas` when required input/output schemas are absent;
 projects can opt into requiring error schemas too. Resolved route-module policy
 lives on `StartBuildPolicy.diagnostics`. During Vite builds, the Start Vite
@@ -1432,17 +1449,20 @@ Tests should mock contracts, not modules:
 ```ts
 const value =
   yield *
-  Server.provideMocks(
+  Effect.provide(
     getProject.effect({ id: makeProjectId("atlas") }),
-    Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Mock Project" })),
+    Server.mockLayer(
+      Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Mock Project" })),
+    ),
   );
 ```
 
 `Server.mock(...)` does not register a global handler and does not import
 `.server.ts`. It still validates through the contract schemas, so test doubles
-catch bad inputs and outputs early. `Server.mockLayer(...)` exposes the same
-transport as an Effect `Layer` for apps or integration tests that build a
-runtime with dependency injection.
+catch bad inputs and outputs early. `Server.mockLayer(...)` is the one way to
+install mocks: provide it to a single Effect, or merge it into the runtime
+Layer for apps and integration tests that build a runtime with dependency
+injection.
 
 ## Signal And Stream Semantics
 
@@ -1614,8 +1634,8 @@ deterministic.
   is always on: SSR, tests, and production behave the same, and its cost is a
   context lookup on the solo-write path only. Solid effects and bare DOM
   handlers therefore call a named callback; tests write through a named
-  `Signal.batch`. `TimelineCause` is a closed tagged union,
-  `TimelineEntry.cause` is always present, and `Timeline.describe(cause)`
+  `Signal.batch`. `Timeline.Cause` is a closed tagged union,
+  `Timeline.Entry.cause` is always present, and `Timeline.describe(cause)`
   renders it.
 - **Names** come from `Signal.make(initial, { name })`, where `name` is
   required. Framework signals name themselves (`Board.model`,
@@ -1666,16 +1686,13 @@ const result = ActionResult.redirect("/projects/atlas", {
   replace: true,
 });
 
-const validation = ActionResult.fieldError(
-  "name",
-  new ProjectNameTooShort({
-    minimum: 3,
-  }),
-);
+const validation = ActionResult.validation({
+  fieldErrors: { name: [new ProjectNameTooShort({ minimum: 3 })] },
+});
 ```
 
 `ActionResult` can represent success, validation failure, redirect, and domain
-failure. `ActionResult.validateForm(form)` turns a form validation failure
+failure. `ActionResult.fromValidation(form.validate())` turns a form validation failure
 into a success-channel `ValidationFailure`, and `ActionResult.withInvalidation`
 lets the result carry Resource invalidation targets into existing action
 workflows while preserving any services required by those invalidated Resource

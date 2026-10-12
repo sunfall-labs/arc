@@ -3,13 +3,10 @@ import {
   ResourceTagIdentityTypeId,
   ResourceTagTypeId,
   ServerTransportError,
-  type ResourceHydrationSnapshot,
-  type ResourceInvalidation,
-  type ResourceInvalidationPlanEntry,
 } from "@sunfall/arc-core";
-import { lookupResourceFamilyEffect } from "@sunfall/arc-core/internal";
+import { lookupResourceFamily } from "@sunfall/arc-core/internal";
 import { Effect } from "effect";
-import { hydrateStartPayloadEffect } from "./hydration.js";
+import { hydrateStartPayload } from "./hydration.js";
 import type {
   StartActionInvalidationCause,
   StartActionInvalidationPlan,
@@ -61,7 +58,7 @@ const malformedStartActionTagTransportError = (
 const startActionInvalidationTargetEffect = (
   body: StartActionResponseBody,
   target: StartActionInvalidationTarget,
-): Effect.Effect<ResourceInvalidation<any>, ServerTransportError> => {
+): Effect.Effect<Resource.Invalidation<any>, ServerTransportError> => {
   if (target._tag === "Tag") {
     const identity = resourceTagIdentityFromStartTarget(target);
     if (identity === undefined) {
@@ -75,7 +72,7 @@ const startActionInvalidationTargetEffect = (
     });
   }
 
-  return Effect.flatMap(lookupResourceFamilyEffect(target.family), (family) => {
+  return Effect.flatMap(lookupResourceFamily(target.family), (family) => {
     if (!family) {
       return Effect.fail(
         startActionInvalidationTransportError(
@@ -109,7 +106,7 @@ const startActionInvalidationCauseEffect = (
       : Effect.void;
   }
 
-  return Effect.flatMap(lookupResourceFamilyEffect(cause.family), (family) =>
+  return Effect.flatMap(lookupResourceFamily(cause.family), (family) =>
     family
       ? Effect.void
       : Effect.fail(
@@ -125,7 +122,7 @@ const startActionInvalidationCauseEffect = (
 const validateStartActionInvalidationPlanEffect = (
   body: StartActionResponseBody,
   plan: StartActionInvalidationPlan | undefined,
-): Effect.Effect<ReadonlyArray<ResourceInvalidation<any>>, ServerTransportError> =>
+): Effect.Effect<ReadonlyArray<Resource.Invalidation<any>>, ServerTransportError> =>
   plan === undefined
     ? Effect.succeed([])
     : Effect.gen(function* () {
@@ -167,11 +164,11 @@ const startActionHydrationTransportError = (
 const startActionResourceIdentity = (name: string, key: string): string =>
   JSON.stringify([name, key]);
 
-const startActionHydrationResourceIdentity = (resource: ResourceHydrationSnapshot): string =>
+const startActionHydrationResourceIdentity = (resource: Resource.Snapshot): string =>
   startActionResourceIdentity(resource.name, resource.key);
 
 const startActionInvalidationEntryIdentity = (
-  entry: ResourceInvalidationPlanEntry<unknown>,
+  entry: Resource.InvalidationPlanEntry<unknown>,
 ): string => startActionResourceIdentity(entry.ref.family.options.name, entry.ref.key);
 
 const startActionResponseInvalidationEffect = (
@@ -201,7 +198,7 @@ const startActionResponseInvalidationEffect = (
  * visible state and hydrated values stay latest-only, while accepted server
  * mutations still refresh invalidated resources.
  */
-export const applyStartActionInvalidationEffect = (
+export const applyStartActionInvalidation = (
   body: StartActionResponseBody,
 ): Effect.Effect<void, ServerTransportError> =>
   startActionResponseInvalidationEffect(body) as Effect.Effect<void, ServerTransportError>;
@@ -214,13 +211,13 @@ export const applyStartActionInvalidationEffect = (
  * resources and collections, filters hydrated refs out of follow-up refresh
  * work, and maps malformed metadata to `ServerTransportError`.
  */
-export const applyStartActionResponseEffect = (
+export const applyStartActionResponse = (
   body: StartActionResponseBody,
   options: StartCollectionHydrationOptions = {},
 ): Effect.Effect<void, ServerTransportError> =>
   Effect.gen(function* () {
     if ("hydration" in body && body.hydration !== undefined) {
-      yield* hydrateStartPayloadEffect(body.hydration, options).pipe(
+      yield* hydrateStartPayload(body.hydration, options).pipe(
         Effect.mapError((error) => startActionHydrationTransportError(body, error)),
       );
     }

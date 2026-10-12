@@ -4,10 +4,10 @@ import { KeyValueStore } from "effect/persistence";
 import { type CollectionState } from "./collection-state.js";
 import {
   hasStoreExplicitCollectionSnapshotMarker,
-  hydrateStoreExplicitCollectionSnapshotEffect,
-  hydrateStoreExplicitCollectionSnapshotPreflightEffect,
+  hydrateStoreExplicitCollectionSnapshot,
+  hydrateStoreExplicitCollectionSnapshotPreflight,
+  snapshotStoreExplicitCollectionSync,
   snapshotStoreExplicitCollection,
-  snapshotStoreExplicitCollectionEffect,
   withCollectionDurableSnapshotPermits,
   type CollectionPersistenceStore,
 } from "./collection-definition-snapshot.js";
@@ -18,10 +18,10 @@ import {
   collectionRowValueSchema,
   collectionSnapshotCodecErrorFromSchema,
   collectionSnapshotSchema,
-  hydrateCollectionSnapshotStateEffect,
+  hydrateCollectionSnapshotState,
+  validateCollectionHydrationPayloadSync,
+  validateCollectionSnapshotDefinition,
   validateCollectionHydrationPayload,
-  validateCollectionSnapshotDefinitionEffect,
-  validateCollectionHydrationPayloadEffect,
   type CollectionSnapshotCodecOperation,
 } from "./collection-snapshot-codec.js";
 import { withCollectionDurableCommitPermit } from "./collection-write-commit.js";
@@ -126,9 +126,9 @@ const snapshotCollectionForEffectUnsafe = (
   CollectionSnapshotCodecError | EffectInputCallbackError
 > =>
   hasStoreExplicitCollectionSnapshotMarker(definition)
-    ? snapshotStoreExplicitCollectionEffect(definition, store, updatedAt)
+    ? snapshotStoreExplicitCollection(definition, store, updatedAt)
     : Effect.try({
-        try: () => snapshotCollection(definition, store, updatedAt),
+        try: () => snapshotCollectionSync(definition, store, updatedAt),
         catch: (cause) => snapshotCallbackError(definition, cause),
       });
 
@@ -146,29 +146,29 @@ const snapshotCollectionForEffect = (
     snapshotCollectionForEffectUnsafe(definition, store, updatedAt),
   );
 
-export function snapshotCollection<A extends object, K extends CollectionKey, E, R>(
+export function snapshotCollectionSync<A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   store: CollectionPersistenceStore,
   updatedAt?: number,
 ): CollectionSnapshot<A, K>;
-export function snapshotCollection(
+export function snapshotCollectionSync(
   definition: AnyCollection,
   store: CollectionPersistenceStore,
   updatedAt?: number,
 ): CollectionSnapshot<any, any>;
-export function snapshotCollection(
+export function snapshotCollectionSync(
   definition: AnyCollection,
   store: CollectionPersistenceStore,
   updatedAt = Date.now(),
 ): CollectionSnapshot<any, any> {
   if (hasStoreExplicitCollectionSnapshotMarker(definition)) {
-    return snapshotStoreExplicitCollection(definition, store, updatedAt);
+    return snapshotStoreExplicitCollectionSync(definition, store, updatedAt);
   }
   const state = store.state(definition);
   return collectionSnapshotFromState(definition, state, updatedAt);
 }
 
-export const snapshotCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
+export const snapshotCollection = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   storeEffect: Effect.Effect<CollectionPersistenceStore>,
 ): Effect.Effect<
@@ -191,11 +191,8 @@ const hydrateCollectionEffectUnsafe = (
   Effect.gen(function* () {
     if (hasStoreExplicitCollectionSnapshotMarker(definition)) {
       const dbStore = store ?? (yield* storeEffect);
-      const validatedSnapshot = yield* validateCollectionSnapshotDefinitionEffect(
-        definition,
-        snapshot,
-      );
-      yield* hydrateStoreExplicitCollectionSnapshotEffect(
+      const validatedSnapshot = yield* validateCollectionSnapshotDefinition(definition, snapshot);
+      yield* hydrateStoreExplicitCollectionSnapshot(
         definition,
         dbStore,
         validatedSnapshot,
@@ -206,11 +203,8 @@ const hydrateCollectionEffectUnsafe = (
 
     const dbStore = store ?? (yield* storeEffect);
     const state = dbStore.state(definition);
-    const validatedSnapshot = yield* validateCollectionSnapshotDefinitionEffect(
-      definition,
-      snapshot,
-    );
-    const hydrated = yield* hydrateCollectionSnapshotStateEffect(state, validatedSnapshot, options);
+    const validatedSnapshot = yield* validateCollectionSnapshotDefinition(definition, snapshot);
+    const hydrated = yield* hydrateCollectionSnapshotState(state, validatedSnapshot, options);
     yield* dbStore.publish({
       _tag: "CollectionHydrated",
       collection: definition.name,
@@ -219,21 +213,21 @@ const hydrateCollectionEffectUnsafe = (
     });
   });
 
-export function hydrateCollectionEffect<A extends object, K extends CollectionKey, E, R>(
+export function hydrateCollection<A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   snapshot: CollectionSnapshot<A, K>,
   options: CollectionHydrateOptions | undefined,
   storeEffect: Effect.Effect<CollectionPersistenceStore>,
   store?: CollectionPersistenceStore,
 ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError>;
-export function hydrateCollectionEffect(
+export function hydrateCollection(
   definition: AnyCollection,
   snapshot: CollectionSnapshot<any, any>,
   options: CollectionHydrateOptions | undefined,
   storeEffect: Effect.Effect<CollectionPersistenceStore>,
   store?: CollectionPersistenceStore,
 ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError>;
-export function hydrateCollectionEffect(
+export function hydrateCollection(
   definition: AnyCollection,
   snapshot: CollectionSnapshot<any, any>,
   options: CollectionHydrateOptions = {},
@@ -337,7 +331,7 @@ const persistCollectionEffectUnsafe = <A extends object, K extends CollectionKey
   Effect.gen(function* () {
     const dbStore = store ?? (yield* storeEffect);
     const updatedAt = yield* Clock.currentTimeMillis;
-    yield* persistCollectionSnapshotEffect(
+    yield* persistCollectionSnapshot(
       definition,
       snapshotCollectionForEffectUnsafe(definition, dbStore, updatedAt),
       options,
@@ -345,7 +339,7 @@ const persistCollectionEffectUnsafe = <A extends object, K extends CollectionKey
     );
   });
 
-export const persistCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
+export const persistCollection = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   options: CollectionPersistOptions = {},
   storeEffect: Effect.Effect<CollectionPersistenceStore>,
@@ -360,7 +354,7 @@ export const persistCollectionEffect = <A extends object, K extends CollectionKe
     );
   });
 
-export const persistCollectionSnapshotEffect = <A extends object, K extends CollectionKey, E, R>(
+export const persistCollectionSnapshot = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   snapshotEffect: Effect.Effect<
     CollectionSnapshot<A, K>,
@@ -416,7 +410,7 @@ const restoreCollectionSnapshotEffectUnsafe = <A extends object, K extends Colle
     return true;
   });
 
-export const restoreCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
+export const restoreCollection = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   options: CollectionPersistOptions & CollectionHydrateOptions = {},
   storeEffect: Effect.Effect<CollectionPersistenceStore>,
@@ -446,7 +440,7 @@ const collectionPersistenceRestoreOptions = (
   ...(config.hydrate === false ? {} : (config.hydrate ?? {})),
 });
 
-export const persistCollectionForReasonEffect = <A extends object, K extends CollectionKey, E, R>(
+export const persistCollectionForReason = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   store: CollectionPersistenceStore,
   storeEffect: Effect.Effect<CollectionPersistenceStore>,
@@ -470,12 +464,7 @@ export const persistCollectionForReasonEffect = <A extends object, K extends Col
 };
 
 /** Persists an already-staged load snapshot under the definition's configured key. */
-export const persistCollectionLoadSnapshotEffect = <
-  A extends object,
-  K extends CollectionKey,
-  E,
-  R,
->(
+export const persistCollectionLoadSnapshot = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   store: CollectionPersistenceStore,
   snapshot: CollectionSnapshot<A, K>,
@@ -485,16 +474,11 @@ export const persistCollectionLoadSnapshotEffect = <
     return Effect.void;
   }
   return withinCollectionChannels(
-    Effect.asVoid(persistCollectionSnapshotEffect(definition, Effect.succeed(snapshot), {}, store)),
+    Effect.asVoid(persistCollectionSnapshot(definition, Effect.succeed(snapshot), {}, store)),
   );
 };
 
-export const restoreCollectionBeforePreloadEffect = <
-  A extends object,
-  K extends CollectionKey,
-  E,
-  R,
->(
+export const restoreCollectionBeforePreload = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   state: CollectionState<A, K, E>,
   store: CollectionPersistenceStore,
@@ -554,18 +538,18 @@ export const restoreCollectionBeforePreloadEffect = <
     return restored;
   });
 
-export const dehydrateCollections = (
+export const dehydrateCollectionsSync = (
   collections: Iterable<AnyCollection>,
   store: CollectionPersistenceStore,
 ): CollectionHydrationPayload => {
   const definitions = uniqueCollectionDefinitionsUnsafe(collections, "snapshot");
   const payload = {
-    collections: definitions.map((collection) => snapshotCollection(collection, store)),
+    collections: definitions.map((collection) => snapshotCollectionSync(collection, store)),
   };
-  return validateCollectionHydrationPayload(payload, "snapshot");
+  return validateCollectionHydrationPayloadSync(payload, "snapshot");
 };
 
-export const dehydrateCollectionsEffect = (
+export const dehydrateCollections = (
   collections: Iterable<AnyCollection>,
   storeEffect: Effect.Effect<CollectionPersistenceStore>,
 ): Effect.Effect<
@@ -585,7 +569,7 @@ export const dehydrateCollectionsEffect = (
         for (const collection of definitions) {
           const snapshot = yield* snapshotCollectionForEffectUnsafe(collection, store, updatedAt);
           snapshots.push(
-            yield* validateCollectionSnapshotDefinitionEffect(
+            yield* validateCollectionSnapshotDefinition(
               collection,
               snapshot,
               "snapshot",
@@ -597,12 +581,12 @@ export const dehydrateCollectionsEffect = (
         const payload = {
           collections: snapshots,
         };
-        return yield* validateCollectionHydrationPayloadEffect(payload, "snapshot");
+        return yield* validateCollectionHydrationPayload(payload, "snapshot");
       }),
     );
   });
 
-export const hydrateCollectionsEffect = (
+export const hydrateCollections = (
   collections: Iterable<AnyCollection>,
   payload: CollectionHydrationPayload,
   options: CollectionHydrateOptions = {},
@@ -622,7 +606,7 @@ export const hydrateCollectionsEffect = (
     );
   });
 
-export const validateCollectionsHydrationEffect = (
+export const validateCollectionsHydration = (
   collections: Iterable<AnyCollection>,
   payload: CollectionHydrationPayload,
   options: CollectionHydrateOptions = {},
@@ -641,7 +625,7 @@ const planCollectionsHydrationEffect = (
 > =>
   Effect.gen(function* () {
     const definitions = yield* collectionDefinitionMapEffect(collections);
-    const hydrationPayload = yield* validateCollectionHydrationPayloadEffect(payload);
+    const hydrationPayload = yield* validateCollectionHydrationPayload(payload);
     const entries: Array<CollectionHydrationPlanEntry> = [];
     for (const [index, snapshot] of hydrationPayload.collections.entries()) {
       const collection = definitions.get(snapshot.name);
@@ -654,12 +638,9 @@ const planCollectionsHydrationEffect = (
           }),
         );
       }
-      const validatedSnapshot = yield* validateCollectionSnapshotDefinitionEffect(
-        collection,
-        snapshot,
-      );
+      const validatedSnapshot = yield* validateCollectionSnapshotDefinition(collection, snapshot);
       if (hasStoreExplicitCollectionSnapshotMarker(collection)) {
-        yield* hydrateStoreExplicitCollectionSnapshotPreflightEffect(
+        yield* hydrateStoreExplicitCollectionSnapshotPreflight(
           collection,
           validatedSnapshot,
           options,

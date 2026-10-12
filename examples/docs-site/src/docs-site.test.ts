@@ -257,7 +257,6 @@ describe("docs site", () => {
         const prerender = docsSiteStartOptions.prerender;
 
         expect(prerender).toMatchObject({
-          enabled: true,
           autoSubfolderIndex: true,
           autoStaticPathsDiscovery: true,
           crawlLinks: expectedDocsSiteCrawlLinks(),

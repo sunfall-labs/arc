@@ -1054,7 +1054,7 @@ const sectionForPackage = (packageName) => {
 const exportedModuleNames = (source) => {
   const modules = [];
   for (const match of source.matchAll(
-    /export\s+(?:type\s+)?(?:\*\s+|\{[\s\S]*?\}\s+)from\s+"\.\/([^"]+)\.js";/g,
+    /export\s+(?:type\s+)?(?:\*\s+(?:as\s+\w+\s+)?|\{[\s\S]*?\}\s+)from\s+"\.\/([^"]+)\.js";/g,
   )) {
     modules.push(match[1]);
   }

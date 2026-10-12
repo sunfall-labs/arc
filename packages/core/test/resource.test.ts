@@ -24,7 +24,6 @@ import {
   ResourceKeyError,
   ResourceFailure,
   ResourcePending,
-  ResourceSnapshotCodecError,
   runWithRuntime,
 } from "../src/index.js";
 import { validateResourceHydrationSnapshots, refsForResourceTag } from "../src/internal.js";
@@ -1800,7 +1799,7 @@ describe("Resource", () => {
     });
 
     expect(() => Effect.runSync(Resource.hydrate(legacySnapshots))).toThrow(
-      ResourceSnapshotCodecError,
+      Resource.SnapshotCodecError,
     );
     try {
       Effect.runSync(Resource.hydrate(legacySnapshots));
@@ -1853,7 +1852,7 @@ describe("Resource", () => {
       await Effect.runPromise(runtime.provide(Resource.preload(ref)));
 
       expect(() => runtime.runSync(Resource.hydrationPayload([ref, ref]))).toThrow(
-        ResourceSnapshotCodecError,
+        Resource.SnapshotCodecError,
       );
       try {
         runtime.runSync(Resource.hydrationPayload([ref, ref]));
@@ -1869,7 +1868,7 @@ describe("Resource", () => {
       const failure = await Effect.runPromise(
         runtime.provide(Resource.hydrationPayload([ref, ref]).pipe(Effect.flip)),
       );
-      expect(failure).toBeInstanceOf(ResourceSnapshotCodecError);
+      expect(failure).toBeInstanceOf(Resource.SnapshotCodecError);
       expect(failure).toMatchObject({
         operation: "snapshot",
         path: "$.resources[1].key",
@@ -1905,7 +1904,7 @@ describe("Resource", () => {
 
     expect(validateResourceHydrationSnapshots([first, second])).toHaveLength(2);
     expect(() => validateResourceHydrationSnapshots([first, first])).toThrow(
-      ResourceSnapshotCodecError,
+      Resource.SnapshotCodecError,
     );
   });
 
@@ -2175,7 +2174,9 @@ describe("Resource", () => {
     const ref = User({ id: "1" });
 
     await Effect.runPromise(Resource.preload(ref));
-    const dehydrated = Effect.runSync(Resource.dehydrate([ref]));
+    const dehydrated = Effect.runSync(
+      Resource.hydrationPayload([ref]).pipe(Effect.map((payload) => payload.resources)),
+    );
     (dehydrated[0]!.state.value as { profile: { name: string } }).profile.name = "Mutated";
 
     expect(Effect.runSync(Resource.read(ref))).toEqual({
@@ -2227,8 +2228,14 @@ describe("Resource", () => {
     try {
       await Effect.runPromise(runtime.provide(Resource.preload(ref)));
 
-      const syncSnapshot = runtime.runSync(Resource.dehydrate([ref]));
-      const effectSnapshot = await Effect.runPromise(runtime.provide(Resource.dehydrate([ref])));
+      const syncSnapshot = runtime.runSync(
+        Resource.hydrationPayload([ref]).pipe(Effect.map((payload) => payload.resources)),
+      );
+      const effectSnapshot = await Effect.runPromise(
+        runtime.provide(
+          Resource.hydrationPayload([ref]).pipe(Effect.map((payload) => payload.resources)),
+        ),
+      );
       const syncPayload = runtime.runSync(Resource.hydrationPayload([ref]));
 
       expect(syncSnapshot[0]).toMatchObject({
@@ -2267,7 +2274,11 @@ describe("Resource", () => {
       });
       const ref = User("atlas");
 
-      const snapshot = await Effect.runPromise(runtime.provide(Resource.dehydrate([ref])));
+      const snapshot = await Effect.runPromise(
+        runtime.provide(
+          Resource.hydrationPayload([ref]).pipe(Effect.map((payload) => payload.resources)),
+        ),
+      );
 
       expect(snapshot).toEqual([]);
       const store = unsafeMutableResourceStore(runtime.resourceStore);
@@ -2289,7 +2300,7 @@ describe("Resource", () => {
             Object.defineProperty({ id }, "boom", {
               enumerable: true,
               get() {
-                throw new ResourceSnapshotCodecError({
+                throw new Resource.SnapshotCodecError({
                   operation: "snapshot",
                   path: "$.boom",
                   reason: "boom",
@@ -2302,10 +2313,10 @@ describe("Resource", () => {
       await Effect.runPromise(runtime.provide(Resource.preload(ref)));
 
       const failure = await Effect.runPromise(
-        runtime.provide(Resource.dehydrate([ref]).pipe(Effect.flip)),
+        runtime.provide(Resource.hydrationPayload([ref]).pipe(Effect.flip)),
       );
 
-      expect(failure).toBeInstanceOf(ResourceSnapshotCodecError);
+      expect(failure).toBeInstanceOf(Resource.SnapshotCodecError);
       expect(failure).toMatchObject({
         operation: "snapshot",
       });
@@ -2336,7 +2347,7 @@ describe("Resource", () => {
 
     expect(decoded).toEqual(payload);
     await expect(Effect.runPromise(Resource.decodeHydrationPayload("{"))).rejects.toBeInstanceOf(
-      ResourceSnapshotCodecError,
+      Resource.SnapshotCodecError,
     );
   });
 
@@ -2348,7 +2359,9 @@ describe("Resource", () => {
     const ref = Project("atlas");
 
     const collected = await Effect.runPromise(Resource.collect(Resource.preload(ref)));
-    const snapshot = Effect.runSync(Resource.dehydrate(collected.refs));
+    const snapshot = Effect.runSync(
+      Resource.hydrationPayload(collected.refs).pipe(Effect.map((payload) => payload.resources)),
+    );
 
     expect(collected.value).toEqual({ id: "atlas" });
     expect(collected.refs.map((touched) => touched.key)).toEqual([ref.key]);

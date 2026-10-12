@@ -22,14 +22,14 @@ describe("Core definition registry", () => {
       name: registryName("global-action"),
       run: () => Effect.succeed("pong"),
     });
-    const ping = Server.fn(registryName("global-server"), {
-      handler: () => Effect.succeed("pong"),
-    });
+    const ping = Server.implement(Server.contract(registryName("global-server")), () =>
+      Effect.succeed("pong"),
+    );
 
     expect(actionDefinitionRegistry().get(Ping.name)).toBe(Ping);
     expect(getActionDefinition(Ping.name)).toBe(Ping);
     expect(Server.functions().get(ping.name)).toBe(ping);
-    expect(Server.get(ping.name)).toBe(ping);
+    expect(Server.functions().get(ping.name)).toBe(ping);
   });
 
   it("captures app registry snapshots without later global definitions", () => {
@@ -37,9 +37,10 @@ describe("Core definition registry", () => {
       name: registryName("snapshot-before-action"),
       run: () => Effect.succeed("before"),
     });
-    const beforeServer = Server.fn(registryName("snapshot-before-server"), {
-      handler: () => Effect.succeed("before"),
-    });
+    const beforeServer = Server.implement(
+      Server.contract(registryName("snapshot-before-server")),
+      () => Effect.succeed("before"),
+    );
 
     const app = { registry: snapshotCoreDefinitionRegistry() };
 
@@ -47,9 +48,10 @@ describe("Core definition registry", () => {
       name: registryName("snapshot-after-action"),
       run: () => Effect.succeed("after"),
     });
-    const afterServer = Server.fn(registryName("snapshot-after-server"), {
-      handler: () => Effect.succeed("after"),
-    });
+    const afterServer = Server.implement(
+      Server.contract(registryName("snapshot-after-server")),
+      () => Effect.succeed("after"),
+    );
 
     expect(app.registry.actions.get(BeforeAction.name)).toBe(BeforeAction);
     expect(app.registry.serverFunctions.get(beforeServer.name)).toBe(beforeServer);
@@ -68,12 +70,14 @@ describe("Core definition registry", () => {
       name: registryName("explicit-local-action"),
       run: () => Effect.succeed("local"),
     });
-    const globalServer = Server.fn(registryName("explicit-global-server"), {
-      handler: () => Effect.succeed("global"),
-    });
-    const localServer = Server.fn(registryName("explicit-local-server"), {
-      handler: () => Effect.succeed("local"),
-    });
+    const globalServer = Server.implement(
+      Server.contract(registryName("explicit-global-server")),
+      () => Effect.succeed("global"),
+    );
+    const localServer = Server.implement(
+      Server.contract(registryName("explicit-local-server")),
+      () => Effect.succeed("local"),
+    );
 
     const app = {
       registry: makeCoreDefinitionRegistry({
@@ -95,9 +99,9 @@ describe("Core definition registry", () => {
       name: registryName("map-local-action"),
       run: () => Effect.succeed("local"),
     });
-    const localServer = Server.fn(registryName("map-local-server"), {
-      handler: () => Effect.succeed("local"),
-    });
+    const localServer = Server.implement(Server.contract(registryName("map-local-server")), () =>
+      Effect.succeed("local"),
+    );
 
     const app = {
       registry: makeCoreDefinitionRegistry({
@@ -123,17 +127,17 @@ describe("Core definition registry", () => {
       run: () => Effect.succeed("second"),
     });
     const serverName = registryName("duplicate-server");
-    const firstServer = Server.fn(serverName, {
-      handler: () => Effect.succeed("first"),
-    });
-    const secondServer = Server.fn(serverName, {
-      handler: () => Effect.succeed("second"),
-    });
+    const firstServer = Server.implement(Server.contract(serverName), () =>
+      Effect.succeed("first"),
+    );
+    const secondServer = Server.implement(Server.contract(serverName), () =>
+      Effect.succeed("second"),
+    );
 
     expect(getActionDefinition(actionName)).not.toBe(FirstAction);
     expect(getActionDefinition(actionName)).toBe(SecondAction);
-    expect(Server.get(serverName)).not.toBe(firstServer);
-    expect(Server.get(serverName)).toBe(secondServer);
+    expect(Server.functions().get(serverName)).not.toBe(firstServer);
+    expect(Server.functions().get(serverName)).toBe(secondServer);
     expect(coreDefinitionRegistryDiagnostics().duplicates).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -171,12 +175,8 @@ describe("Core definition registry", () => {
     );
 
     const serverName = registryName("reset-duplicate-server");
-    Server.fn(serverName, {
-      handler: () => Effect.succeed("first"),
-    });
-    Server.fn(serverName, {
-      handler: () => Effect.succeed("second"),
-    });
+    Server.implement(Server.contract(serverName), () => Effect.succeed("first"));
+    Server.implement(Server.contract(serverName), () => Effect.succeed("second"));
     expect(Server.registryDiagnostics().duplicates).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: "serverFunction", name: serverName }),

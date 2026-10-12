@@ -5,7 +5,7 @@ import {
   Signal,
   type ActionTransport,
   type Resource,
-  type ServerClient,
+  type Server,
 } from "@sunfall/arc-core";
 import type { Collection } from "@sunfall/arc-db";
 import { Component } from "@sunfall/arc-solid";
@@ -61,7 +61,7 @@ export interface AppDefinition<
 export type AnyAppDefinition = AppDefinition<readonly AnyRoute[], any, any, any, any>;
 
 /** Services `App.launch` adds to the client Layer. */
-export type AppLaunchServices = ActionTransport | ServerClient;
+export type AppLaunchServices = ActionTransport | Server.Client;
 
 /** Raised by `App.launch` when the document has no app root element. */
 export class StartRootMissing extends Data.TaggedError("StartRootMissing")<{
@@ -108,6 +108,21 @@ const outboxLayer = (options: Action.OutboxOptions = {}) =>
 
 /** Start apps: one definition, served by `createRequestHandler` and launched by `App.launch`. */
 export namespace App {
+  /** A Start app definition built by `App.define`. */
+  export type Definition<
+    Routes extends readonly AnyRoute[] = readonly AnyRoute[],
+    RootServices = never,
+    Actions extends StartActionDefinition = StartActionDefinition,
+    ClientServices = never,
+    ClientError = never,
+  > = AppDefinition<Routes, RootServices, Actions, ClientServices, ClientError>;
+  /** Any app definition, for APIs that accept every app. */
+  export type Any = AnyAppDefinition;
+  /** Services `App.launch` adds to the app's client Layer. */
+  export type LaunchServices = AppLaunchServices;
+  /** Failures `App.launch` can end with besides the client Layer's own. */
+  export type LaunchError = AppLaunchError;
+
   /** Props Start passes the root Component: the app-relative href being rendered. */
   export interface RootProps {
     /** Path plus search of the rendered URL, e.g. `/projects/atlas?tab=activity`. */

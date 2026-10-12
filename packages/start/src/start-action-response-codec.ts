@@ -7,11 +7,7 @@ import {
   ServerFunctionNotFound,
   ServerRpcProtocolError,
   ServerTransportError,
-  type ActionDefinition,
-  type ActionRedirectStatus,
-  type ResourceInvalidationCause,
-  type ResourceInvalidationPlan,
-  type ResourceSnapshotCodecError,
+  type Action,
 } from "@sunfall/arc-core";
 import { Cause, Effect, Exit, Schema } from "effect";
 import { createStartHydrationPayload, type StartHydrationPayload } from "./hydration.js";
@@ -20,10 +16,10 @@ import {
   negotiateAcceptedMediaType,
   startHtmlMediaType,
   startJsonMediaType,
-  validateStartActionResponseEffect,
+  validateStartActionResponse,
   type StartTransportRequestError,
 } from "./rpc.js";
-import { readStartTransportResponseTextEffect } from "./start-transport-body.js";
+import { readStartTransportResponseText } from "./start-transport-body.js";
 import { type StartActionDefinition } from "./start-action-request-codec.js";
 import { decodeWithSchema, encodeWithSchema } from "./start-schema-codec.js";
 
@@ -169,7 +165,7 @@ const firstDefect = <E>(cause: Cause.Cause<E>): unknown | undefined => {
 };
 
 const describeStartActionInvalidationTarget = (
-  target: ResourceInvalidationPlan<any>["targets"][number],
+  target: Resource.InvalidationPlan<any>["targets"][number],
 ): StartActionInvalidationTarget | undefined => {
   if (isResourceRef(target)) {
     return {
@@ -192,7 +188,7 @@ const describeStartActionInvalidationTarget = (
 };
 
 const describeStartActionInvalidationCause = (
-  cause: ResourceInvalidationCause,
+  cause: Resource.InvalidationCause,
 ): StartActionInvalidationCause =>
   cause._tag === "Ref"
     ? {
@@ -208,7 +204,7 @@ const describeStartActionInvalidationCause = (
 
 /** Converts a runtime invalidation plan into the serializable action payload. */
 export const describeStartActionInvalidationPlan = (
-  plan: ResourceInvalidationPlan<any>,
+  plan: Resource.InvalidationPlan<any>,
 ): StartActionInvalidationPlan => ({
   targets: plan.targets.flatMap((target) => {
     const described = describeStartActionInvalidationTarget(target);
@@ -224,9 +220,9 @@ export const describeStartActionInvalidationPlan = (
   })),
 });
 
-export const actionResponseMetaEffect = (
-  plan: ResourceInvalidationPlan<any> | undefined,
-): Effect.Effect<StartActionResponseMeta, ResourceSnapshotCodecError> =>
+export const actionResponseMeta = (
+  plan: Resource.InvalidationPlan<any> | undefined,
+): Effect.Effect<StartActionResponseMeta, Resource.SnapshotCodecError> =>
   plan === undefined
     ? Effect.succeed({})
     : Effect.gen(function* () {
@@ -389,7 +385,7 @@ const actionResultResponseEffect = (
   });
 };
 
-export const actionExitResponseEffect = <ActionError>(
+export const actionExitResponse = <ActionError>(
   action: StartActionDefinition,
   exit: Exit.Exit<unknown, ActionError>,
   meta: StartActionResponseMeta = {},
@@ -549,8 +545,8 @@ export const parseStartActionResponse = (
   response: Response,
 ): Effect.Effect<StartActionResponseBody, ServerTransportError> =>
   Effect.gen(function* () {
-    yield* validateStartActionResponseEffect(response);
-    const text = yield* readStartTransportResponseTextEffect(
+    yield* validateStartActionResponse(response);
+    const text = yield* readStartTransportResponseText(
       response,
       "Could not read the action response body.",
     );
@@ -601,8 +597,8 @@ export type StartActionOutcome<A, E> =
  * `Failure` the typed error, and `ValidationFailure` / `Redirect` become the
  * `ActionResult` values the server action returned.
  */
-export const decodeStartActionOutcomeEffect = <I, A, E, R>(
-  definition: ActionDefinition<I, A, E, R>,
+export const decodeStartActionOutcome = <I, A, E, R>(
+  definition: Action.Definition<I, A, E, R>,
   body: Extract<
     StartActionResponseBody,
     { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }
@@ -638,7 +634,7 @@ export const decodeStartActionOutcomeEffect = <I, A, E, R>(
         return {
           _tag: "Value",
           value: ActionResult.redirect(body.location, {
-            status: body.status as ActionRedirectStatus,
+            status: body.status as ActionResult.RedirectStatus,
             ...(body.headers === undefined ? {} : { headers: body.headers }),
             ...(body.replace === undefined ? {} : { replace: body.replace }),
           }) as A,

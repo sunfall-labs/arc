@@ -13,10 +13,10 @@ import {
 import { eraseRuntime } from "@sunfall/arc-core/internal";
 import { Collection } from "@sunfall/arc-db";
 import type { StartHydrationPayload } from "@sunfall/arc-start";
-import { createServerRpcResponseEffect } from "../packages/start/src/start-request-endpoints.js";
+import { createServerRpcResponse } from "../packages/start/src/start-request-endpoints.js";
 import {
   createStartHydrationPayload,
-  hydrateStartPayloadEffect,
+  hydrateStartPayload,
 } from "../packages/start/src/hydration.js";
 import { preloadRequest } from "../packages/start/src/start-request-preload.js";
 import { makeStartServerApp } from "../packages/start/src/start-server-app.js";
@@ -335,9 +335,7 @@ describe("Sunfall Arc release baseline", () => {
   bench(
     "Start hydration payload apply for 50 resource snapshots",
     async () => {
-      await Effect.runPromise(
-        hydrationRuntime.provide(hydrateStartPayloadEffect(hydrationPayload)),
-      );
+      await Effect.runPromise(hydrationRuntime.provide(hydrateStartPayload(hydrationPayload)));
     },
     asyncBenchOptions,
   );
@@ -399,7 +397,7 @@ describe("Sunfall Arc release baseline", () => {
     async () => {
       const response = await Effect.runPromise(
         Effect.scoped(
-          createServerRpcResponseEffect(
+          createServerRpcResponse(
             benchRpcApp,
             new Request(`https://example.test${serverRpcPath}`, {
               method: "POST",

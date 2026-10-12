@@ -214,7 +214,7 @@ describe("Action", () => {
       name: "rename.optimistic-signal-sync-throw",
       optimistic: (_next, transaction) =>
         Effect.gen(function* () {
-          yield* transaction.signal(title, () => {
+          yield* transaction.set(title, () => {
             throw cause;
           });
         }),
@@ -229,7 +229,7 @@ describe("Action", () => {
       const failure = exit.cause.reasons.find((reason) => reason._tag === "Die");
       expect(failure?.defect).toBeInstanceOf(EffectInputCallbackError);
       expect(failure?.defect).toMatchObject({
-        operation: "Action.optimistic(rename.optimistic-signal-sync-throw).signal",
+        operation: "Action.optimistic(rename.optimistic-signal-sync-throw).set",
         cause,
       });
       expect(title.get()).toBe("Draft");
@@ -246,7 +246,7 @@ describe("Action", () => {
       name: "rename.optimistic-signal-promise-value",
       optimistic: (_next, transaction) =>
         Effect.gen(function* () {
-          yield* transaction.signal(title, Promise.resolve("Ada") as never);
+          yield* transaction.set(title, Promise.resolve("Ada") as never);
         }),
       run: (name) => Effect.succeed(name),
     });
@@ -259,7 +259,7 @@ describe("Action", () => {
       const failure = exit.cause.reasons.find((reason) => reason._tag === "Die");
       expect(failure?.defect).toBeInstanceOf(EffectInputCallbackError);
       expect(failure?.defect).toMatchObject({
-        operation: "Action.optimistic(rename.optimistic-signal-promise-value).signal",
+        operation: "Action.optimistic(rename.optimistic-signal-promise-value).set",
         cause: expect.any(EffectInputPromiseRejected),
       });
       expect(title.get()).toBe("Draft");
@@ -276,7 +276,7 @@ describe("Action", () => {
       name: "rename.optimistic-signal-promise-updater",
       optimistic: (_next, transaction) =>
         Effect.gen(function* () {
-          yield* transaction.signal(title, () => Promise.resolve("Ada") as never);
+          yield* transaction.set(title, () => Promise.resolve("Ada") as never);
         }),
       run: (name) => Effect.succeed(name),
     });
@@ -289,7 +289,7 @@ describe("Action", () => {
       const failure = exit.cause.reasons.find((reason) => reason._tag === "Die");
       expect(failure?.defect).toBeInstanceOf(EffectInputCallbackError);
       expect(failure?.defect).toMatchObject({
-        operation: "Action.optimistic(rename.optimistic-signal-promise-updater).signal",
+        operation: "Action.optimistic(rename.optimistic-signal-promise-updater).set",
         cause: expect.any(EffectInputPromiseRejected),
       });
       expect(title.get()).toBe("Draft");
@@ -308,9 +308,9 @@ describe("Action", () => {
         const first = makeActionOptimisticTransactionRuntime("rename.optimistic-rebase");
         const second = makeActionOptimisticTransactionRuntime("rename.optimistic-rebase");
 
-        yield* first.api.signal(title, "First");
+        yield* first.api.set(title, "First");
         let throwOnRebase = false;
-        yield* second.api.signal(title, (current) => {
+        yield* second.api.set(title, (current) => {
           if (throwOnRebase) {
             throw cause;
           }
@@ -328,7 +328,7 @@ describe("Action", () => {
         yield* Effect.sync(() => {
           expect(failure).toBeInstanceOf(EffectInputCallbackError);
           expect(failure).toMatchObject({
-            operation: "Action.optimistic(rename.optimistic-rebase).signal",
+            operation: "Action.optimistic(rename.optimistic-rebase).set",
             cause,
           });
           expect(title.get()).toBe("First:Second");
@@ -345,12 +345,12 @@ describe("Action", () => {
         const first = makeActionOptimisticTransactionRuntime("rename.optimistic-atomic");
         const second = makeActionOptimisticTransactionRuntime("rename.optimistic-atomic");
 
-        yield* first.api.signal(left, "left:first");
-        yield* first.api.signal(right, "right:first");
+        yield* first.api.set(left, "left:first");
+        yield* first.api.set(right, "right:first");
 
-        yield* second.api.signal(left, (current) => `${current}:second`);
+        yield* second.api.set(left, (current) => `${current}:second`);
         let throwOnRightRebase = false;
-        yield* second.api.signal(right, (current) => {
+        yield* second.api.set(right, (current) => {
           if (throwOnRightRebase) {
             throw cause;
           }
@@ -372,7 +372,7 @@ describe("Action", () => {
         yield* Effect.sync(() => {
           expect(failure).toBeInstanceOf(EffectInputCallbackError);
           expect(failure).toMatchObject({
-            operation: "Action.optimistic(rename.optimistic-atomic).signal",
+            operation: "Action.optimistic(rename.optimistic-atomic).set",
             cause,
           });
           expect(left.get()).toBe("left:base:second");
@@ -886,7 +886,7 @@ describe("Action", () => {
       name: "rename.optimistic.success",
       optimistic: (next, transaction) =>
         Effect.gen(function* () {
-          yield* transaction.signal(title, next);
+          yield* transaction.set(title, next);
         }),
       run: (next) => Effect.succeed(next),
     });
@@ -907,7 +907,7 @@ describe("Action", () => {
       name: "clear.optimistic.undefined",
       optimistic: (_, transaction) =>
         Effect.gen(function* () {
-          yield* transaction.signal(selected, undefined);
+          yield* transaction.set(selected, undefined);
         }),
       run: () => Effect.void,
     });
@@ -933,7 +933,7 @@ describe("Action", () => {
       name: "publish.optimistic-commit-before-invalidation",
       optimistic: (_input, transaction) =>
         Effect.gen(function* () {
-          yield* transaction.signal(title, () => {
+          yield* transaction.set(title, () => {
             if (shouldFailCommit) {
               throw new Error("commit failed");
             }
@@ -953,7 +953,7 @@ describe("Action", () => {
       Effect.runPromise(Action.use(Publish, { runtime: defaultRuntime }).submit(undefined)),
     ).rejects.toMatchObject({
       _tag: "EffectInputCallbackError",
-      operation: "Action.optimistic(publish.optimistic-commit-before-invalidation).signal",
+      operation: "Action.optimistic(publish.optimistic-commit-before-invalidation).set",
     });
 
     expect(load).toHaveBeenCalledTimes(1);
@@ -965,7 +965,7 @@ describe("Action", () => {
     const title = Signal.make("Draft", { name: "title" });
     const Rename = Action.define<string, string, string>({
       name: "rename.optimistic.failure",
-      optimistic: (next, transaction) => transaction.signal(title, next),
+      optimistic: (next, transaction) => transaction.set(title, next),
       run: () => Effect.fail("boom"),
     });
     const action = Action.use(Rename, { runtime: defaultRuntime });
@@ -987,7 +987,7 @@ describe("Action", () => {
       name: "rename.optimistic.latest",
       optimistic: (next, transaction) =>
         Effect.gen(function* () {
-          yield* transaction.signal(title, next);
+          yield* transaction.set(title, next);
           if (next === "Published") {
             yield* Deferred.succeed(secondOptimisticApplied, undefined);
           }
@@ -1017,7 +1017,7 @@ describe("Action", () => {
       name: "rename.optimistic.interrupted-optimistic",
       optimistic: (next, transaction) =>
         Effect.gen(function* () {
-          yield* transaction.signal(title, next);
+          yield* transaction.set(title, next);
           if (next === "Stale") {
             yield* Deferred.succeed(firstOptimisticApplied, undefined);
             yield* Deferred.await(holdFirstOptimistic);
@@ -1455,9 +1455,9 @@ describe("Action.planOptimistic", () => {
       name: "rename.plan-optimistic-signals",
       optimistic: (name: string, transaction) =>
         Effect.gen(function* () {
-          yield* transaction.signal(title, name);
-          yield* transaction.signal(count, (value) => value + 1);
-          yield* transaction.signal(count, (value) => value * 10);
+          yield* transaction.set(title, name);
+          yield* transaction.set(count, (value) => value + 1);
+          yield* transaction.set(count, (value) => value * 10);
         }),
       run: (name: string) => Effect.succeed(name),
     });
@@ -1465,9 +1465,9 @@ describe("Action.planOptimistic", () => {
     const changes = Effect.runSync(Action.planOptimistic(Rename, "Apollo"));
 
     expect(changes).toEqual([
-      { _tag: "Signal", signal: title, value: "Apollo" },
-      { _tag: "Signal", signal: count, value: 2 },
-      { _tag: "Signal", signal: count, value: 20 },
+      { _tag: "Set", target: title, value: "Apollo" },
+      { _tag: "Set", target: count, value: 2 },
+      { _tag: "Set", target: count, value: 20 },
     ]);
     expect(Signal.peek(title)).toBe("Atlas");
     expect(Signal.peek(count)).toBe(1);
@@ -1488,7 +1488,7 @@ describe("Action.planOptimistic", () => {
     const Rename = Action.define({
       name: "rename.plan-optimistic-throw",
       optimistic: (_name: string, transaction) =>
-        transaction.signal(title, () => {
+        transaction.set(title, () => {
           throw cause;
         }),
       run: (name: string) => Effect.succeed(name),

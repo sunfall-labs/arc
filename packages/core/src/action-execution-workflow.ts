@@ -25,10 +25,7 @@ import {
 } from "./effect-like.js";
 import { validateResourceInvalidationsArraySync } from "./resource-dependency-graph.js";
 import type { ResourceInvalidation, ResourceInvalidationPlan } from "./resource.js";
-import {
-  planResourceInvalidationEffect,
-  runResourceInvalidationPlanEffect,
-} from "./resource-runtime.js";
+import { planResourceInvalidation, runResourceInvalidationPlan } from "./resource-runtime.js";
 import type { ActionDefinition } from "./action.js";
 import { ActionTransport, type ActionTransportSubmission } from "./action-transport.js";
 import type { ServerClientError } from "./server.js";
@@ -64,7 +61,7 @@ const resultInvalidations = <A>(
 ): ReadonlyArray<ResourceInvalidation<ActionResultInvalidationRequirements<A>>> =>
   ActionResult.is(value) ? ActionResult.invalidations(value as AnyActionResult) : [];
 
-export const invalidationsForEffect = <I, A, E, R>(
+export const invalidationsFor = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
   value: A,
   input: I,
@@ -92,7 +89,7 @@ export const invalidationsForEffect = <I, A, E, R>(
   );
 
 /** Runs a definition's `run` with its retry policy; callback contract breaks are defects. */
-export const runActionEffect = <I, A, E, R>(
+export const runAction = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
   input: I,
 ): Effect.Effect<A, E, R> => {
@@ -118,7 +115,7 @@ export const runActionEffect = <I, A, E, R>(
  * commits as it is made (so it shows while later optimistic work runs), labelled
  * with the Action and `event` (`submit`, or the Action Outbox's `queue` / `restore`).
  */
-export const applyActionOptimisticEffect = <I, A, E, R>(
+export const applyActionOptimistic = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
   input: I,
   transaction: { readonly api: ActionOptimisticTransaction },
@@ -139,7 +136,10 @@ export const applyActionOptimisticEffect = <I, A, E, R>(
 export interface ActionExecutionOptions<I, A, E, R> {
   readonly definition: ActionDefinition<I, A, E, R>;
   readonly input: I;
-  /** The submission's optimistic transaction: committed here on success. */
+  /**
+   * The submission's optimistic transaction: settled here on success (a
+   * rejected `ActionResult` rolls it back).
+   */
   readonly transaction: ActionOptimisticTransactionRuntime;
   /** `"endpoint"` always runs locally; see `ActionExecutionSite`. */
   readonly site: ActionExecutionSite;
@@ -151,19 +151,34 @@ export interface ActionExecutionOptions<I, A, E, R> {
   readonly current: () => boolean;
 }
 
-/** Outcome of `executeActionEffect`: the value and the invalidation plan it ran locally. */
+/** Outcome of `executeAction`: the value and the invalidation plan it ran locally. */
 export interface ActionExecutionOutcome<A, R> {
   readonly value: A;
   readonly plan: ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>> | undefined;
 }
 
 /**
+ * Settles a submission's optimistic transaction from the value its run
+ * produced. A rejected `ActionResult` (`ValidationFailure` or `Failure`) means
+ * the change did not happen, so the patches roll back exactly as on a failure;
+ * any other value (including a `Success` or `Redirect` result) commits them.
+ */
+const settleOptimistic = (
+  transaction: ActionOptimisticTransactionRuntime,
+  value: unknown,
+): ActionOptimisticSettle =>
+  ActionResult.is(value) && (value._tag === "ValidationFailure" || value._tag === "Failure")
+    ? transaction.rollback
+    : transaction.commit;
+
+/**
  * Runs one submission remotely (through the `ActionTransport` that serves it)
- * or locally, and applies its outcome: on success it commits the optimistic
- * transaction, then applies the response or runs the invalidations. The
+ * or locally, and applies its outcome: on success it settles the optimistic
+ * transaction (committing it, or rolling it back for a rejected
+ * `ActionResult`), then applies the response or runs the invalidations. The
  * caller owns rolling the transaction back on failure.
  */
-export const executeActionEffect = <I, A, E, R>(
+export const executeAction = <I, A, E, R>(
   options: ActionExecutionOptions<I, A, E, R>,
 ): Effect.Effect<
   ActionExecutionOutcome<A, R>,
@@ -184,25 +199,26 @@ export const executeActionEffect = <I, A, E, R>(
     if (Option.isSome(remote)) {
       const response = yield* remote.value;
       yield* options.beforeApply;
-      // The server committed: fold the optimistic patches in before the
-      // response's invalidations reload their sources.
+      // The server settled: fold the optimistic patches in (or roll them back
+      // for a rejected result) before the response's invalidations reload
+      // their sources.
       if (Exit.isSuccess(response.exit)) {
-        yield* transaction.commit;
+        yield* settleOptimistic(transaction, response.exit.value);
       }
       yield* response.apply(options.current());
       const value = yield* response.exit;
       return { value, plan: undefined };
     }
 
-    const value = yield* runActionEffect(definition, input);
+    const value = yield* runAction(definition, input);
     yield* options.beforeApply;
 
-    const invalidations = yield* invalidationsForEffect(definition, value, input);
-    const planned = yield* planResourceInvalidationEffect(invalidations);
-    yield* transaction.commit;
+    const invalidations = yield* invalidationsFor(definition, value, input);
+    const planned = yield* planResourceInvalidation(invalidations);
+    yield* settleOptimistic(transaction, value);
 
     if (invalidations.length > 0) {
-      yield* runResourceInvalidationPlanEffect(planned);
+      yield* runResourceInvalidationPlan(planned);
       return { value, plan: planned };
     }
     return { value, plan: undefined };
@@ -294,10 +310,10 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
           const transaction = makeActionOptimisticTransactionRuntime(definition.name);
           rollback = transaction.rollback;
           if (!endpoint) {
-            yield* applyActionOptimisticEffect(definition, input, transaction, "submit");
+            yield* applyActionOptimistic(definition, input, transaction, "submit");
           }
 
-          const outcome = yield* executeActionEffect({
+          const outcome = yield* executeAction({
             definition,
             input,
             transaction,

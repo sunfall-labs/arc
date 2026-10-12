@@ -1,14 +1,11 @@
-import {
-  type AppDefinitionRegistry,
-  type SunfallArcRuntime,
-  type ResponseContext,
-} from "@sunfall/arc-core";
+import type { SunfallArcRuntime, ResponseContext } from "@sunfall/arc-core";
+import type { AppDefinitionRegistry } from "@sunfall/arc-core/internal";
 import { Effect, type Scope } from "effect";
 import {
   startRequestIdHeader,
   startTransportKindHeader,
   startTransportProtocolHeader,
-  startTransportEndpointEnvelopeEffect,
+  startTransportEndpointEnvelope,
   type StartTransportDiagnostics,
   type StartTransportRequestError,
   withStartTransportDiagnostics,
@@ -41,11 +38,7 @@ const setResponseContextTransportDiagnosticsEffect = (
     { discard: true },
   ).pipe(Effect.orDie);
 
-export const runStartTransportEndpointEffect = <
-  RuntimeServices,
-  RuntimeError,
-  Requirements,
->(options: {
+export const runStartTransportEndpoint = <RuntimeServices, RuntimeError, Requirements>(options: {
   readonly request: Request;
   readonly runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>;
   readonly responseContext: ResponseContext;
@@ -58,13 +51,9 @@ export const runStartTransportEndpointEffect = <
   Scope.Scope | RequestRuntimeRemainingRequirements<Requirements, RuntimeServices>
 > =>
   Effect.gen(function* () {
-    const envelope = yield* startTransportEndpointEnvelopeEffect(
-      options.adapter.kind,
-      options.request,
-      {
-        requestId: options.traceFacts?.requestId,
-      },
-    );
+    const envelope = yield* startTransportEndpointEnvelope(options.adapter.kind, options.request, {
+      requestId: options.traceFacts?.requestId,
+    });
     const diagnostics = envelope.diagnostics;
     const validation = yield* options.adapter.validateRequest(options.request).pipe(
       Effect.as(undefined),

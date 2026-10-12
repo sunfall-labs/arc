@@ -173,14 +173,14 @@ export const storeFor = (resourceStore: ResourceStoreState): RuntimeCollectionSt
 export const defaultRuntimeCollectionStore = (): RuntimeCollectionStore =>
   storeFor(currentOrDefaultRuntime().resourceStore);
 
-const resourceStoreEffect: Effect.Effect<ResourceStoreState> = Effect.gen(function* () {
+const activeResourceStore: Effect.Effect<ResourceStoreState> = Effect.gen(function* () {
   const store = yield* Effect.serviceOption(ResourceStore);
   return Option.isSome(store) ? store.value : currentOrDefaultRuntime().resourceStore;
 });
 
 /** Access the active Runtime Collection Store from inside Effect. */
-export const collectionStoreEffect: Effect.Effect<RuntimeCollectionStore> = Effect.map(
-  resourceStoreEffect,
+export const activeCollectionStore: Effect.Effect<RuntimeCollectionStore> = Effect.map(
+  activeResourceStore,
   storeFor,
 );
 
@@ -201,8 +201,8 @@ export const runWithCollectionStore = <A>(store: RuntimeCollectionStore, evaluat
 };
 
 /** Subscribe to active Runtime Collection Store events inside a Scope. */
-export const subscribeCollectionEventsEffect = (): Effect.Effect<
+export const subscribeCollectionEvents = (): Effect.Effect<
   PubSub.Subscription<CollectionStoreEvent>,
   never,
   Scope.Scope
-> => Effect.flatMap(collectionStoreEffect, (store) => store.subscribeEvents());
+> => Effect.flatMap(activeCollectionStore, (store) => store.subscribeEvents());

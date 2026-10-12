@@ -4,7 +4,7 @@ import {
   type BrowserHistoryWindow,
   type BrowserNavigateOptions,
 } from "@sunfall/arc-core";
-import { matchRoutesEffect } from "@sunfall/arc-core/internal";
+import { matchRoutes } from "@sunfall/arc-core/internal";
 import { Data, Effect } from "effect";
 import {
   makeStartStaticHrefPreparationCache,
@@ -12,7 +12,7 @@ import {
   type StartStaticNavigationHydrationRuntime,
 } from "./static-href-preparation-cache.js";
 import {
-  hydrateStartStaticTargetDocumentEffect,
+  hydrateStartStaticTargetDocument,
   type StartStaticNavigationHydrationError,
 } from "./static-target-document-hydration.js";
 
@@ -141,7 +141,7 @@ const hydratedHrefSet = (
     ),
   );
 
-export const makeStartStaticHrefPreparationEffect = <
+export const makeStartStaticHrefPreparation = <
   const Routes extends readonly AnyRoute[],
   RuntimeError = unknown,
 >(
@@ -155,7 +155,7 @@ export const makeStartStaticHrefPreparationEffect = <
     href: string,
   ): Effect.Effect<StartStaticHrefPreparationOutcome, StartStaticNavigationHydrationError> =>
     Effect.gen(function* () {
-      const match = yield* matchRoutesEffect(options.routes, href).pipe(
+      const match = yield* matchRoutes(options.routes, href).pipe(
         Effect.catch(() => Effect.succeed(undefined)),
       );
       if (!match || !shouldHydrateHref(match)) {
@@ -168,7 +168,7 @@ export const makeStartStaticHrefPreparationEffect = <
       }
 
       const browserHref = withStartStaticBasePath(href, basePath);
-      return yield* hydrateStartStaticTargetDocumentEffect({
+      return yield* hydrateStartStaticTargetDocument({
         runtime: options.runtime,
         href,
         browserHref,
@@ -193,7 +193,7 @@ export const makeStartStaticHistoryAdapter = <
 ): BrowserHistoryAdapter => {
   const basePath = normalizeStartStaticBasePath(options.basePath);
   const getWindow = options.getWindow ?? defaultStaticWindow;
-  const prepareHrefEffect = makeStartStaticHrefPreparationEffect({
+  const prepareHrefEffect = makeStartStaticHrefPreparation({
     ...options,
     basePath,
     getWindow,

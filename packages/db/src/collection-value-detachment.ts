@@ -1,8 +1,5 @@
-import {
-  isEffectLike,
-  isPromiseLikeValue,
-  type ActionOptimisticRowUpdate,
-} from "@sunfall/arc-core";
+import { isEffectLike, isPromiseLikeValue } from "@sunfall/arc-core";
+import type { ActionOptimisticRowUpdate } from "@sunfall/arc-core/internal";
 import { Data } from "effect";
 import type { CollectionKey, CollectionOrigin, CollectionRow } from "./collection-contract.js";
 
@@ -269,7 +266,7 @@ export const collectionValueChanges = <A extends object>(previous: A, value: A):
   return changes;
 };
 
-export const applyCollectionUpdate = <A extends object>(
+export const applyCollectionUpdateSync = <A extends object>(
   previous: A,
   update: ActionOptimisticRowUpdate<A>,
 ): {

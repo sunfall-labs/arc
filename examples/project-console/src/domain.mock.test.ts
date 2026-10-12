@@ -61,7 +61,7 @@ const mockWorkItems = (): ProjectWorkItem[] => [
 ];
 
 describe("project console contract mocks", () => {
-  const ProjectApiTest = ProjectApi.mock({
+  const ProjectApiTest = ProjectApi.layer({
     list: () => Effect.succeed([]),
     listWorkItems: () => Effect.succeed([]),
     get: (id) => Effect.succeed(mockProject({ id, name: "Mocked Resource" })),
@@ -123,7 +123,7 @@ describe("project console contract mocks", () => {
 
   it("materializes an indexed live-query work queue without server handlers", () => {
     const id = makeProjectId("mocked");
-    const ProjectApiWorkQueue = ProjectApi.mock({
+    const ProjectApiWorkQueue = ProjectApi.layer({
       list: () => Effect.succeed([mockProject({ id, name: "Mocked Project" })]),
       listWorkItems: () => Effect.succeed(mockWorkItems()),
       get: (projectId) => Effect.succeed(mockProject({ id: projectId })),
@@ -155,7 +155,7 @@ describe("project console contract mocks", () => {
   });
 
   it("keeps progressive validation in the success channel", () => {
-    const ProjectApiValidation = ProjectApi.mock({
+    const ProjectApiValidation = ProjectApi.layer({
       list: () => Effect.succeed([]),
       listWorkItems: () => Effect.succeed([]),
       get: (id) => Effect.succeed(mockProject({ id })),
@@ -194,7 +194,7 @@ describe("project console contract mocks", () => {
 
   it("invalidates project resources after progressive success", () => {
     let name = "Mocked Resource";
-    const ProjectApiStateful = ProjectApi.mock({
+    const ProjectApiStateful = ProjectApi.layer({
       list: () => Effect.succeed([mockProject({ name })]),
       listWorkItems: () => Effect.succeed(mockWorkItems()),
       get: (id) => Effect.succeed(mockProject({ id, name })),
@@ -237,7 +237,7 @@ describe("project console contract mocks", () => {
     const id = makeProjectId("mocked");
     let name = "Mocked Resource";
     let lists = 0;
-    const ProjectApiStateful = ProjectApi.mock({
+    const ProjectApiStateful = ProjectApi.layer({
       list: () =>
         Effect.sync(() => {
           lists++;
@@ -304,7 +304,7 @@ describe("project console contract mocks", () => {
     let status: ProjectWorkItem["status"] = "queued";
     let started = false;
     let submission: Fiber.Fiber<unknown, unknown> | undefined;
-    const ProjectApiWorkItemOptimistic = ProjectApi.mock({
+    const ProjectApiWorkItemOptimistic = ProjectApi.layer({
       list: () => Effect.succeed([mockProject({ id, name: "Mocked Project" })]),
       listWorkItems: () => Effect.succeed([mockWorkItem({ id: workItemId, status })]),
       get: (projectId) => Effect.succeed(mockProject({ id: projectId })),

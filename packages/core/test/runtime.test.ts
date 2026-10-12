@@ -10,7 +10,6 @@ import {
   RuntimeDisposeError,
   ResourcePending,
   Server,
-  ServerClient,
 } from "../src/index.js";
 
 describe("Sunfall Arc runtime", () => {
@@ -42,9 +41,9 @@ describe("Sunfall Arc runtime", () => {
 
   it("uses the current runtime for server function Effect boundaries", () => {
     const runtime = makeRuntime(NumbersLive);
-    const getNumber = Server.fn<string, number, never, Numbers>("Number.get", {
-      handler: (id) => Numbers.use((numbers) => numbers.get(id)),
-    });
+    const getNumber = Server.implement(Server.contract<string, number, never>("Number.get"), (id) =>
+      Numbers.use((numbers) => numbers.get(id)),
+    );
 
     return Effect.runPromise(
       runtime.provide(
@@ -58,11 +57,11 @@ describe("Sunfall Arc runtime", () => {
   });
 
   it("routes server function effects through ServerClient when one is provided", () => {
-    const getNumber = Server.fn<string, string>("Number.remote", {
-      handler: (id) => Effect.succeed(`local:${id}`),
-    });
+    const getNumber = Server.implement(Server.contract<string, string>("Number.remote"), (id) =>
+      Effect.succeed(`local:${id}`),
+    );
     const runtime = makeRuntime(
-      Layer.succeed(ServerClient)({
+      Layer.succeed(Server.Client)({
         // The fake transport answers every function with a string; the test only calls string functions.
         call: <I, A, E, R>(_fn: unknown, input: I) =>
           Effect.succeed(`remote:${String(input)}`) as unknown as Effect.Effect<A, E, R>,
@@ -88,7 +87,7 @@ describe("Sunfall Arc runtime", () => {
     const GetNumber = Server.contract<string, number, never>("Number.local-stub");
     const getNumber = Server.client(GetNumber);
     Server.implement(GetNumber, (id) => Effect.succeed(id.length));
-    const runtime = makeRuntime(Layer.succeed(ServerClient)(Server.localClient()));
+    const runtime = makeRuntime(Layer.succeed(Server.Client)(Server.localClient()));
 
     return Effect.runPromise(
       runtime.provide(

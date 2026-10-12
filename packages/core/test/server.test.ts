@@ -1,11 +1,6 @@
 import { Effect, Exit, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import {
-  EffectInputCallbackError,
-  Server,
-  ServerClient,
-  ServerFunctionNotFound,
-} from "../src/index.js";
+import { EffectInputCallbackError, Server, ServerFunctionNotFound } from "../src/index.js";
 import { makeCoreDefinitionRegistry } from "../src/internal.js";
 
 describe("Server contracts", () => {
@@ -27,14 +22,14 @@ describe("Server contracts", () => {
 
   it("provides typed mocks without registering a server handler", () =>
     Effect.runPromise(
-      Server.provideMocks(
+      Effect.provide(
         getUser.effect({ id: "ada" }),
-        Server.mock(GetUser, ({ id }) => Effect.succeed({ id, name: "Ada" })),
+        Server.mockLayer(Server.mock(GetUser, ({ id }) => Effect.succeed({ id, name: "Ada" }))),
       ).pipe(
         Effect.tap((value) =>
           Effect.sync(() => {
             expect(value).toEqual({ id: "ada", name: "Ada" });
-            expect(Server.get(GetUser.name)?.hasHandler).toBe(false);
+            expect(Server.functions().get(GetUser.name)?.hasHandler).toBe(false);
           }),
         ),
         Effect.asVoid,
@@ -55,11 +50,13 @@ describe("Server contracts", () => {
   it("captures synchronous mock throws in the Effect error channel", () =>
     Effect.runPromise(
       Effect.exit(
-        Server.provideMocks(
+        Effect.provide(
           getUser.effect({ id: "broken" }),
-          Server.mock(GetUser, () => {
-            throw new Error("mock failed");
-          }),
+          Server.mockLayer(
+            Server.mock(GetUser, () => {
+              throw new Error("mock failed");
+            }),
+          ),
         ),
       ).pipe(
         Effect.tap((exit) =>
@@ -76,10 +73,8 @@ describe("Server contracts", () => {
     ));
 
   it("captures synchronous local handler throws in the Effect error channel", () => {
-    const Broken = Server.fn<void, string>("Test.Broken.local", {
-      handler: () => {
-        throw new Error("handler failed");
-      },
+    const Broken = Server.implement(Server.contract<void, string>("Test.Broken.local"), () => {
+      throw new Error("handler failed");
     });
 
     return Effect.runPromise(
@@ -100,9 +95,7 @@ describe("Server contracts", () => {
 
   it("fails fast when a server function has no mock", () =>
     Effect.runPromise(
-      Effect.exit(
-        Effect.provideService(getUser.effect({ id: "missing" }), ServerClient, Server.mockClient()),
-      ).pipe(
+      Effect.exit(Effect.provide(getUser.effect({ id: "missing" }), Server.mockLayer())).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
             expect(Exit.isFailure(exit)).toBe(true);
@@ -119,11 +112,13 @@ describe("Server contracts", () => {
   it("validates mock output against the contract schema", () =>
     Effect.runPromise(
       Effect.exit(
-        Server.provideMocks(
+        Effect.provide(
           getUser.effect({ id: "broken" }),
-          Server.mock(GetUser, ({ id }) =>
-            // @ts-expect-error invalid mock output is rejected by the contract schema at runtime
-            Effect.succeed({ id, name: 42 }),
+          Server.mockLayer(
+            Server.mock(GetUser, ({ id }) =>
+              // @ts-expect-error invalid mock output is rejected by the contract schema at runtime
+              Effect.succeed({ id, name: 42 }),
+            ),
           ),
         ),
       ).pipe(
@@ -144,13 +139,15 @@ describe("Server contracts", () => {
 
     return Effect.runPromise(
       Effect.exit(
-        Server.provideMocks(
+        Effect.provide(
           failingUser.effect(undefined),
-          Server.mock(FailingUser, () =>
-            Effect.as(
-              // Deliberately invalid failure payload: the schema check must reject it at runtime.
-              Effect.fail({ code: 500 } as unknown as { readonly code: string }),
-              "unreachable",
+          Server.mockLayer(
+            Server.mock(FailingUser, () =>
+              Effect.as(
+                // Deliberately invalid failure payload: the schema check must reject it at runtime.
+                Effect.fail({ code: 500 } as unknown as { readonly code: string }),
+                "unreachable",
+              ),
             ),
           ),
         ),
@@ -188,7 +185,7 @@ describe("Server contracts", () => {
 
     return Effect.runPromise(
       Effect.exit(
-        Effect.provideService(failingUser.effect(undefined), ServerClient, Server.localClient()),
+        Effect.provideService(failingUser.effect(undefined), Server.Client, Server.localClient()),
       ).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
@@ -221,7 +218,7 @@ describe("Server contracts", () => {
     return Effect.runPromise(
       Effect.provideService(
         echo.effect("atlas"),
-        ServerClient,
+        Server.Client,
         Server.localClient({ registry }),
       ).pipe(
         Effect.tap((value) => Effect.sync(() => expect(value).toBe("snapshot:atlas"))),

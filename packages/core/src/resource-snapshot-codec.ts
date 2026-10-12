@@ -237,7 +237,7 @@ export const validateResourceHydrationSnapshots = (
 };
 
 /** Validates a Resource hydration payload object from unknown input. */
-export const validateResourceHydrationPayload = (
+export const validateResourceHydrationPayloadSync = (
   value: unknown,
   operation: ResourceSnapshotCodecOperation = "hydrate",
 ): ResourceHydrationPayload => {
@@ -282,12 +282,12 @@ const encodeResourceHydrationValueEffect = (
 };
 
 /** Effect wrapper for validating a Resource hydration payload object. */
-export const validateResourceHydrationPayloadEffect = (
+export const validateResourceHydrationPayload = (
   value: unknown,
   operation: ResourceSnapshotCodecOperation = "hydrate",
 ): Effect.Effect<ResourceHydrationPayload, ResourceSnapshotCodecError> =>
   Effect.try({
-    try: () => validateResourceHydrationPayload(value, operation),
+    try: () => validateResourceHydrationPayloadSync(value, operation),
     catch: catchSnapshotCodecError(operation, "$"),
   });
 
@@ -299,7 +299,7 @@ const successStateJson = (value: unknown, timestamp: number): ResourceHydrationS
 });
 
 /** Creates and validates a hydration snapshot from a resource ref success state. */
-export const resourceHydrationSnapshotFromRefEffect = <I, A, E, R>(
+export const resourceHydrationSnapshotFromRef = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   state: AsyncResult.Success<A, unknown>,
   path = "$",
@@ -347,7 +347,7 @@ const decodeResourceHydrationValueEffect = <A>(
     : Effect.succeed(cloneResourceSnapshotValue(value) as A);
 
 /** Decodes a snapshot input through the resource family's input schema. */
-export const decodeResourceHydrationInputEffect = <I>(
+export const decodeResourceHydrationInput = <I>(
   family: AnyResourceFamily,
   snapshot: ResourceHydrationSnapshot,
   operation: ResourceSnapshotCodecOperation = "hydrate",
@@ -356,7 +356,7 @@ export const decodeResourceHydrationInputEffect = <I>(
   decodeResourceHydrationValueEffect<I>(family.options.input, snapshot.input, operation, path);
 
 /** Decodes a snapshot success state into a settled `AsyncResult.Success` through the family's output schema. */
-export const decodeResourceHydrationStateEffect = <A, E>(
+export const decodeResourceHydrationState = <A, E>(
   family: AnyResourceFamily,
   snapshot: ResourceHydrationSnapshot,
   operation: ResourceSnapshotCodecOperation = "hydrate",
@@ -373,12 +373,12 @@ export const decodeResourceHydrationStateEffect = <A, E>(
   );
 
 /** Encodes a validated Resource hydration payload to JSON. */
-export const encodeResourceHydrationPayloadEffect = (
+export const encodeResourceHydrationPayload = (
   value: ResourceHydrationPayload,
 ): Effect.Effect<string, ResourceSnapshotCodecError> =>
   Effect.try({
     try: () => {
-      const payload = validateResourceHydrationPayload(value, "encode");
+      const payload = validateResourceHydrationPayloadSync(value, "encode");
       const encoded = JSON.stringify(payload);
       assertCodec(
         typeof encoded === "string",
@@ -392,10 +392,10 @@ export const encodeResourceHydrationPayloadEffect = (
   });
 
 /** Decodes a JSON Resource hydration payload and validates its shape. */
-export const decodeResourceHydrationPayloadEffect = (
+export const decodeResourceHydrationPayload = (
   encoded: string,
 ): Effect.Effect<ResourceHydrationPayload, ResourceSnapshotCodecError> =>
   Effect.try({
-    try: () => validateResourceHydrationPayload(JSON.parse(encoded), "decode"),
+    try: () => validateResourceHydrationPayloadSync(JSON.parse(encoded), "decode"),
     catch: catchSnapshotCodecError("decode", "$"),
   });

@@ -53,7 +53,7 @@ const ownerKeyOf = (token: string): Effect.Effect<string> =>
  * share it. The response is marked `Cache-Control: private` so no shared cache
  * hands the token to another browser.
  */
-export const ensureRequestSubmitterOwnerEffect = (
+export const ensureRequestSubmitterOwner = (
   request: Request,
   responseContext: ResponseContext,
 ): Effect.Effect<string> =>

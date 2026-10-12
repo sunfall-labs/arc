@@ -4,7 +4,7 @@ import { isAbsolute, relative as relativePath, resolve as resolvePath } from "no
 import {
   createStartAppGraph,
   serializeStartAppGraph,
-  validateStartAppGraphWireSchemasEffect,
+  validateStartAppGraphWireSchemas,
   type StartAppGraph,
   type StartAppGraphMissingWireSchemas as StartAppGraphMissingWireSchemasError,
   type StartAppGraphWireSchemaPolicy,
@@ -21,9 +21,9 @@ import {
 import {
   createFileRouteManifest,
   defaultFileRouteExtensions,
-  generateValidatedFileRouteManifestArtifactEffect,
+  generateValidatedFileRouteManifestArtifact,
   serializeFileRouteManifest,
-  validateFileRouteManifestEffect,
+  validateFileRouteManifest,
   type FileRouteManifest,
   type FileRouteManifestEntry,
   type FileRouteManifestError,
@@ -45,7 +45,7 @@ import {
 import type { StartNodeRequestOptions } from "./node-web-exchange.js";
 import type { StartPrerenderConfig } from "./start-prerender.js";
 import {
-  resolveStartTransportEndpointsEffect,
+  resolveStartTransportEndpoints,
   type StartTransportEndpointConflictError,
   type StartTransportEndpointPathError,
 } from "./start-transport-endpoints.js";
@@ -324,7 +324,7 @@ const discoverFileRoutesSync = (options: FileRouteDiscoveryOptions = {}): readon
 };
 
 /** Recursively discovers route module files under the configured route directory. */
-export const discoverFileRoutesEffect = (
+export const discoverFileRoutes = (
   options: FileRouteDiscoveryOptions = {},
 ): Effect.Effect<readonly string[], FileRouteDiscoveryError> => {
   const plan = fileRouteDiscoveryPlan(options);
@@ -350,7 +350,7 @@ const actionDefinitionsFromOptions = (
   );
 
 /** Builds the server-function manifest from plugin options. */
-export const makeStartServerFunctionManifestEffect = (
+export const makeStartServerFunctionManifest = (
   options: StartManifestOptions = {},
 ): Effect.Effect<ServerFunctionManifest, ServerFunctionManifestError> =>
   makeServerFunctionManifest(
@@ -359,7 +359,7 @@ export const makeStartServerFunctionManifestEffect = (
   );
 
 /** Builds the Start action manifest from plugin options. */
-export const makeStartActionManifestEffect = (
+export const makeStartActionManifest = (
   options: StartManifestOptions = {},
 ): Effect.Effect<ActionManifest, ActionManifestError> =>
   makeActionManifest(
@@ -430,12 +430,12 @@ const withDefaultFileRouteDirectory = (options: StartManifestOptions): StartMani
   };
 };
 
-export const withDiscoveredFileRoutes = (
+export const withDiscoveredFileRoutesSync = (
   options: StartManifestOptions,
   root: string,
-): StartManifestOptions => Effect.runSync(withDiscoveredFileRoutesEffect(options, root));
+): StartManifestOptions => Effect.runSync(withDiscoveredFileRoutes(options, root));
 
-export const withDiscoveredFileRoutesEffect = (
+export const withDiscoveredFileRoutes = (
   options: StartManifestOptions,
   root: string,
 ): Effect.Effect<StartManifestOptions, FileRouteDiscoveryError> => {
@@ -447,7 +447,7 @@ export const withDiscoveredFileRoutesEffect = (
   const fileRouteOptions = next.fileRouteOptions;
   const routeDirectory = fileRouteOptions?.routeDirectory ?? defaultFileRouteDirectory;
   return Effect.map(
-    discoverFileRoutesEffect({
+    discoverFileRoutes({
       root,
       routeDirectory,
       ...(fileRouteOptions?.extensions === undefined
@@ -465,7 +465,7 @@ export const withDiscoveredFileRoutesEffect = (
 };
 
 /** Builds or validates the Start file-route manifest from plugin options. */
-export const makeStartFileRouteManifestEffect = (
+export const makeStartFileRouteManifest = (
   options: StartManifestOptions = {},
 ): Effect.Effect<FileRouteManifest, FileRouteManifestError> => {
   const manifest = options.fileRouteManifest;
@@ -483,33 +483,30 @@ export const makeStartFileRouteManifestEffect = (
         ? manifest.modules
         : undefined;
 
-    return Effect.map(validateFileRouteManifestEffect(entries, modules), (entries) =>
+    return Effect.map(validateFileRouteManifest(entries, modules), (entries) =>
       createFileRouteManifest(entries, fileRouteOptions, modules ?? []),
     );
   }
 
   if (options.fileRoutes) {
-    return generateValidatedFileRouteManifestArtifactEffect(
-      options.fileRoutes,
-      options.fileRouteOptions,
-    );
+    return generateValidatedFileRouteManifestArtifact(options.fileRoutes, options.fileRouteOptions);
   }
 
   return Effect.succeed(createFileRouteManifest([], options.fileRouteOptions));
 };
 
 /** Combines route, server-function, and action manifests into a Start app graph. */
-export const makeStartAppGraphEffect = (
+export const makeStartAppGraph = (
   options: StartManifestOptions = {},
 ): Effect.Effect<StartAppGraph, StartAppGraphError> =>
   Effect.gen(function* () {
-    const serverFunctions = yield* makeStartServerFunctionManifestEffect(options);
-    const actions = yield* makeStartActionManifestEffect(options);
-    yield* resolveStartTransportEndpointsEffect({
+    const serverFunctions = yield* makeStartServerFunctionManifest(options);
+    const actions = yield* makeStartActionManifest(options);
+    yield* resolveStartTransportEndpoints({
       serverFunctionManifest: serverFunctions,
       actionManifest: actions,
     });
-    const routes = yield* makeStartFileRouteManifestEffect(options);
+    const routes = yield* makeStartFileRouteManifest(options);
 
     return createStartAppGraph({
       routes,
@@ -529,14 +526,14 @@ export const normalizeStartBuildPolicy = (
 };
 
 /** Applies static build policies to a Start app graph. */
-export const validateStartBuildPolicyEffect = (
+export const validateStartBuildPolicy = (
   graph: StartAppGraph,
   policy: StartBuildPolicy = defaultStartBuildPolicy,
 ): Effect.Effect<void, StartBuildPolicyError> =>
   Effect.gen(function* () {
     const wireSchemas = policy.wireSchemas;
     if (wireSchemas !== false) {
-      yield* validateStartAppGraphWireSchemasEffect(
+      yield* validateStartAppGraphWireSchemas(
         graph,
         wireSchemas ?? defaultStartBuildWireSchemaPolicy,
       );
@@ -544,14 +541,14 @@ export const validateStartBuildPolicyEffect = (
   });
 
 /** Builds the app graph and applies any enabled build policy. */
-export const makeStartBuildAppGraphEffect = (
+export const makeStartBuildAppGraph = (
   options: StartManifestOptions = {},
 ): Effect.Effect<StartAppGraph, StartAppGraphError | StartBuildPolicyError> =>
   Effect.gen(function* () {
-    const graph = yield* makeStartAppGraphEffect(options);
+    const graph = yield* makeStartAppGraph(options);
     const policy = normalizeStartBuildPolicy(options.buildPolicy);
     if (policy !== undefined) {
-      yield* validateStartBuildPolicyEffect(graph, policy);
+      yield* validateStartBuildPolicy(graph, policy);
     }
 
     return graph;
@@ -568,7 +565,7 @@ export const createStartManifestWallDefineValues = (
 });
 
 /** Builds the production define values from plugin options. */
-export const makeStartManifestWallDefineValuesEffect = (
+export const makeStartManifestWallDefineValues = (
   options: StartManifestOptions = {},
 ): Effect.Effect<StartManifestWallDefineValues, StartAppGraphError | StartBuildPolicyError> =>
-  Effect.map(makeStartBuildAppGraphEffect(options), createStartManifestWallDefineValues);
+  Effect.map(makeStartBuildAppGraph(options), createStartManifestWallDefineValues);

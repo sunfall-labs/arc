@@ -3,7 +3,7 @@ import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {
   makeStartStaticHrefPreparationCache,
-  startStaticHydratedHrefPreparationOutcomeEffect,
+  startStaticHydratedHrefPreparationOutcome,
 } from "../src/static-href-preparation-cache.js";
 
 describe("Start static href preparation cache", () => {
@@ -44,7 +44,7 @@ describe("Start static href preparation cache", () => {
                 yield* Deferred.succeed(prepareStarted, undefined);
                 yield* Deferred.await(releasePrepare);
                 yield* Resource.hydrate(payload);
-                return yield* startStaticHydratedHrefPreparationOutcomeEffect(payload);
+                return yield* startStaticHydratedHrefPreparationOutcome(payload);
               }),
             ),
           );
@@ -110,7 +110,7 @@ describe("Start static href preparation cache", () => {
                 Effect.gen(function* () {
                   const currentPayload = payload();
                   yield* Resource.hydrate(currentPayload);
-                  return yield* startStaticHydratedHrefPreparationOutcomeEffect(currentPayload);
+                  return yield* startStaticHydratedHrefPreparationOutcome(currentPayload);
                 }),
               ),
             );

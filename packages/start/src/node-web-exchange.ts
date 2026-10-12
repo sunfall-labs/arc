@@ -161,7 +161,7 @@ export const nodeRequestLifecycle = (
 };
 
 /** Effect wrapper for `nodeRequestToWebRequest` with adapter errors. */
-export const nodeRequestToWebRequestEffect = (
+export const tryNodeRequestToWebRequest = (
   request: IncomingMessage,
   options: StartNodeRequestOptions = {},
 ): Effect.Effect<Request, StartNodeAdapterError> =>
@@ -245,7 +245,7 @@ export const writeNodeResponse = (
   });
 
 /** Writes a Web response back to the Node exchange that produced it. */
-export const writeNodeExchangeResponseEffect = (
+export const writeNodeExchangeResponse = (
   request: IncomingMessage,
   target: ServerResponse,
   response: Response,

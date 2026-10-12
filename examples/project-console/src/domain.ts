@@ -202,6 +202,10 @@ export const SubmitProjectName = Action.define({
     concurrency: "latest",
     retry: Schedule.recurs(1),
   },
+  // The project page shows the new name at once; a failure or a rejected
+  // result (`ValidationFailure`, `Failure`) rolls it back.
+  optimistic: ({ id, name }, transaction) =>
+    transaction.set(ProjectById(id), (project) => ({ ...project, name })),
   run: (input) => ProjectApi.use((api) => api.submitName(input)),
   invalidates: (result, input) =>
     result._tag === "ValidationFailure" || result._tag === "Failure"

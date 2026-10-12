@@ -32,7 +32,7 @@ describe("Signal commit path (unrecorded)", () => {
         withSignalTransition(
           Effect.sync(() => {
             for (let index = 0; index < 1_000; index++) {
-              counter.set((value) => value + 1);
+              counter.update((value) => value + 1);
             }
           }),
           { _tag: "Transition", name: "Bench.increment" },
@@ -50,7 +50,7 @@ describe("Signal commit path (unrecorded)", () => {
         Signal.batch(
           () => {
             for (const cell of cells) {
-              cell.set((value) => value + 1);
+              cell.update((value) => value + 1);
             }
           },
           { name: "Bench.cells" },

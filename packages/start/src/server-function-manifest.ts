@@ -1,4 +1,4 @@
-import type { ServerFunction } from "@sunfall/arc-core";
+import type { Server } from "@sunfall/arc-core";
 import { Data, Effect, Schema } from "effect";
 import {
   assembleCallableManifestEntry,
@@ -10,7 +10,7 @@ import {
   isStartManifestServerOnlyModule,
   parseSerializedStartManifestJson,
   stableManifestEntryId,
-  validateManifestEndpointPathEffect,
+  validateManifestEndpointPath,
   validateManifestEntrySet,
   type StartManifestEndpointPathErrorInput,
   type StartManifestModuleKind,
@@ -59,7 +59,7 @@ export interface ServerFunctionManifestDefinition {
 
 /** Registered server function plus module metadata discovered by build tools. */
 export interface ServerFunctionManifestSource {
-  readonly fn: ServerFunction<any, any, any, any>;
+  readonly fn: Server.Fn<any, any, any, any>;
   readonly module: string;
   readonly exportName?: string;
   readonly clientModule?: string;
@@ -235,14 +235,14 @@ const serverFunctionManifestInvalidEndpointPath = (
 const normalizeServerFunctionManifestPathEffect = (
   rpcPath: string | undefined,
 ): Effect.Effect<string, ServerFunctionManifestInvalidEndpointPath> =>
-  validateManifestEndpointPathEffect(rpcPath ?? defaultStartTransportEndpoints.rpcPath, {
+  validateManifestEndpointPath(rpcPath ?? defaultStartTransportEndpoints.rpcPath, {
     field: "rpcPath",
     invalidPath: serverFunctionManifestInvalidEndpointPath,
   });
 
 /** Convert a registered ServerFunction plus module metadata into a raw manifest definition. */
 export const serverFunctionManifestDefinition = (
-  fn: ServerFunction<any, any, any, any>,
+  fn: Server.Fn<any, any, any, any>,
   source: Omit<ServerFunctionManifestSource, "fn">,
 ): ServerFunctionManifestDefinition => {
   const base =

@@ -3,17 +3,16 @@ import {
   makeResponseContext,
   runWithRuntime,
   type AnySunfallArcRuntime,
-  type RoutePreloadFailureSnapshot,
   type SunfallArcRuntime,
-  type ResourceHydrationPayload,
   type ResponseContext,
+  type Resource,
 } from "@sunfall/arc-core";
-import { eraseRuntime, matchRoutesEffect } from "@sunfall/arc-core/internal";
+import { eraseRuntime, matchRoutes } from "@sunfall/arc-core/internal";
 import type { Collection } from "@sunfall/arc-db";
 import {
-  collectCollectionsEffect,
-  dehydrateCollectionsEffect,
-  forgetFailedCollectionLoadsEffect,
+  collectCollections,
+  dehydrateCollections,
+  forgetFailedCollectionLoads,
   isCollection,
 } from "@sunfall/arc-db/internal";
 import { Data, Effect } from "effect";
@@ -28,8 +27,8 @@ import {
 import {
   makeStartCollectionResolution,
   startCollectionArray,
-  uniqueStartCollectionsEffect,
-  validateStartCollectionResolutionOptionsEffect,
+  uniqueStartCollections,
+  validateStartCollectionResolutionOptions,
   type StartCollectionDuplicateName,
 } from "./start-collection-resolution.js";
 import {
@@ -48,7 +47,7 @@ export interface StartPreloadResult<
     readonly Route.Definition<string, unknown, unknown, any>[],
 > {
   readonly match: Route.Match<Routes[number]> | undefined;
-  readonly resources: ResourceHydrationPayload;
+  readonly resources: Resource.HydrationPayload;
   readonly collections: Collection.HydrationPayload;
   readonly collectionPreload: StartCollectionPreload;
   readonly hydration: StartHydrationPayload;
@@ -58,7 +57,7 @@ export interface StartPreloadResult<
    * routers on the request runtime start in this `Failure` state (the outlet's
    * failure view), and the hydration payload hands it to the client.
    */
-  readonly routeFailure?: RoutePreloadFailureSnapshot;
+  readonly routeFailure?: Route.PreloadFailureSnapshot;
 }
 
 /**
@@ -153,7 +152,7 @@ const routeDeclaredCollectionsEffect = (
   const declaredCollections = routePlan.match.route.options.preloadCollections ?? [];
 
   return Effect.gen(function* () {
-    yield* validateStartCollectionResolutionOptionsEffect(options).pipe(
+    yield* validateStartCollectionResolutionOptions(options).pipe(
       Effect.mapError(duplicateRouteCollection),
     );
     const resolved: Array<Collection.Any> = [];
@@ -176,7 +175,7 @@ const routeDeclaredCollectionsEffect = (
       resolved.push(collection);
     }
 
-    return yield* uniqueStartCollectionsEffect(resolved, "route-preload").pipe(
+    return yield* uniqueStartCollections(resolved, "route-preload").pipe(
       Effect.mapError(duplicateRouteCollection),
     );
   });
@@ -211,7 +210,7 @@ const preloadRouteDeclaredCollectionsEffect = (
  * the payload carries only writable collections whose state this request
  * knows: loaded, or holding rows it wrote. A collection the request never
  * loaded, or failed to load, stays out of the payload: the server renders it
- * as not-yet-loaded (`forgetFailedCollectionLoadsEffect`), and so does the
+ * as not-yet-loaded (`forgetFailedCollectionLoads`), and so does the
  * client, which loads it itself.
  */
 const startCollectionCanHydrate = (
@@ -231,11 +230,11 @@ const startCollectionPreloadEffect = (
   options: StartCollectionHydrationOptions = {},
 ): Effect.Effect<StartCollectionPreload, StartPreloadError> =>
   Effect.gen(function* () {
-    const registeredCollections = yield* uniqueStartCollectionsEffect(
+    const registeredCollections = yield* uniqueStartCollections(
       startCollectionArray(options.collections),
       "collections",
     ).pipe(Effect.mapError(duplicateRouteCollection));
-    const dehydratedCollections = yield* uniqueStartCollectionsEffect(
+    const dehydratedCollections = yield* uniqueStartCollections(
       [...registeredCollections, ...routeDeclaredCollections, ...routeTouchedCollections].filter(
         (collection) => startCollectionCanHydrate(runtime, collection),
       ),
@@ -243,13 +242,13 @@ const startCollectionPreloadEffect = (
     ).pipe(Effect.mapError(duplicateRouteCollection));
     const hydration =
       dehydratedCollections.length > 0
-        ? yield* dehydrateCollectionsEffect(dehydratedCollections).pipe(
+        ? yield* dehydrateCollections(dehydratedCollections).pipe(
             Effect.mapError((cause) => preloadError("collection-hydration", cause)),
           )
         : emptyCollectionHydrationPayload;
     // A failure has no hydrated form, so the server must not render it: the
     // client starts from the never-loaded state it would otherwise not match.
-    yield* forgetFailedCollectionLoadsEffect([
+    yield* forgetFailedCollectionLoads([
       ...registeredCollections,
       ...routeDeclaredCollections,
       ...routeTouchedCollections,
@@ -268,7 +267,7 @@ interface StartRoutePlanOutcome<
   Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
 > {
   readonly routePlan: Route.NavigationPlan<Routes[number]>;
-  readonly routeFailure?: RoutePreloadFailureSnapshot;
+  readonly routeFailure?: Route.PreloadFailureSnapshot;
 }
 
 /**
@@ -291,7 +290,7 @@ const startRoutePlanEffect = <
   routePreloadFailure: StartRoutePreloadFailurePolicy,
 ): Effect.Effect<
   StartRoutePlanOutcome<Routes>,
-  Route.NavigationError<Routes[number]>,
+  Route.NavigationPlanError<Routes[number]>,
   Route.PreloadRequirements<Routes[number]>
 > => {
   const planned = Route.planNavigation(routes, url).pipe(
@@ -302,7 +301,7 @@ const startRoutePlanEffect = <
     : planned.pipe(
         Effect.catchTag("RoutePreloadError", (error) =>
           Effect.gen(function* () {
-            const match = yield* matchRoutesEffect(routes, url);
+            const match = yield* matchRoutes(routes, url);
             if (match === undefined) {
               return yield* Effect.fail(error);
             }
@@ -346,7 +345,7 @@ export const preloadRequestEffectWithRuntime = <
       runtime,
       request,
       Effect.gen(function* () {
-        const collectedRoutePlan = yield* collectCollectionsEffect(
+        const collectedRoutePlan = yield* collectCollections(
           startRoutePlanEffect(app.routes, new URL(request.url), routePreloadFailure),
         ).pipe(Effect.mapError((cause) => preloadError("route-navigation", cause, { request })));
         const { routePlan, routeFailure } = collectedRoutePlan.value;

@@ -3,7 +3,7 @@ import {
   normalizeStartEndpointPath,
   startEndpointPathGuidance,
   startEndpointPathInvalidReason,
-  validateStartEndpointPathEffect,
+  validateStartEndpointPath,
   type StartEndpointPathErrorInput,
   type StartEndpointPathInvalidReason,
 } from "./start-transport-endpoints.js";
@@ -206,13 +206,13 @@ export const normalizeManifestEndpointPath = (value: unknown): string | undefine
   return normalizeStartEndpointPath(value);
 };
 
-export const validateManifestEndpointPathEffect = <Error>(
+export const validateManifestEndpointPath = <Error>(
   value: unknown,
   options: {
     readonly field: string;
     readonly invalidPath: (input: StartManifestEndpointPathErrorInput) => Error;
   },
-): Effect.Effect<string, Error> => validateStartEndpointPathEffect(value, options);
+): Effect.Effect<string, Error> => validateStartEndpointPath(value, options);
 
 export const normalizeManifestModuleId = (id: string): string =>
   (id.trim().split(/[?#]/, 1)[0] ?? id.trim()).replace(/\\/g, "/").replace(/\/+/g, "/");
@@ -595,7 +595,7 @@ export const decodeSerializedCallableManifest = <Definition, Error>(
       );
     }
 
-    const path = yield* validateManifestEndpointPathEffect(value[options.pathField], {
+    const path = yield* validateManifestEndpointPath(value[options.pathField], {
       field: options.pathField,
       invalidPath: (input) =>
         options.parseError(

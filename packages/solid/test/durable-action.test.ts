@@ -4,7 +4,6 @@ import {
   makeRuntime,
   ServerTransportError,
   Signal,
-  type ActionTransportResponse,
 } from "@sunfall/arc-core";
 import { Cause, Effect, Exit, Layer, Option, Schedule, Schema } from "effect";
 import { KeyValueStore } from "effect/persistence";
@@ -28,7 +27,7 @@ describe("durable Actions in Components", () => {
                   ? Effect.succeed({
                       exit: Exit.succeed(input),
                       apply: () => Effect.void,
-                    } as ActionTransportResponse<any, any>)
+                    } as Action.TransportResponse<any, any>)
                   : Effect.fail(
                       new ServerTransportError({ reason: "Network", message: "offline" }),
                     ),
@@ -39,7 +38,7 @@ describe("durable Actions in Components", () => {
             name: "SolidDurable.advance",
             input: Schema.Struct({ id: Schema.String }),
             durable: { maxAge: "1 hour" },
-            optimistic: (_input, transaction) => transaction.signal(progress, (value) => value + 8),
+            optimistic: (_input, transaction) => transaction.set(progress, (value) => value + 8),
             run: ({ id }) => Effect.succeed(id),
           });
           const runtime = makeRuntime(

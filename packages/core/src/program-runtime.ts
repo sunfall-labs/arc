@@ -14,9 +14,9 @@ import {
 import {
   makeProgramFailure,
   normalizeProgramSubscriptions,
-  programStepEffect,
+  programStep,
   validateProgramModelSync,
-  validateProgramMessageEffect,
+  validateProgramMessage,
 } from "./program-primitives.js";
 import { makeProgramRuntimeScheduler } from "./program-runtime-scheduler.js";
 import type { AnySunfallArcRuntime } from "./runtime.js";
@@ -163,7 +163,7 @@ export const makeProgramRuntimeInstance = <
             onSuccess: (message) =>
               message === undefined
                 ? Effect.void
-                : validateProgramMessageEffect<Message>("Program.emit", message as Message).pipe(
+                : validateProgramMessage<Message>("Program.emit", message as Message).pipe(
                     Effect.matchEffect({
                       onFailure: (error) =>
                         Effect.sync(() =>
@@ -187,7 +187,7 @@ export const makeProgramRuntimeInstance = <
   const processMessage = (
     queued: QueuedMessage<Message, DispatchFailure>,
   ): Effect.Effect<void, never, R | Scope.Scope> =>
-    programStepEffect(definition, Signal.peek(model), queued.message).pipe(
+    programStep(definition, Signal.peek(model), queued.message).pipe(
       Effect.matchEffect({
         onFailure: (error) => failQueuedMessage(queued, error),
         onSuccess: (step) =>
@@ -283,10 +283,7 @@ export const makeProgramRuntimeInstance = <
         subscriptions.map((entry) =>
           entry.stream.pipe(
             Stream.runForEach((message) =>
-              validateProgramMessageEffect<Message>(
-                "Program.subscription",
-                message as Message,
-              ).pipe(
+              validateProgramMessage<Message>("Program.subscription", message as Message).pipe(
                 Effect.matchEffect({
                   onFailure: (error) => {
                     const failure = makeProgramFailure<Message, RuntimeFailure>(
@@ -385,7 +382,7 @@ export const makeProgramRuntimeInstance = <
       return Effect.fail(disposedFailure(message));
     }
 
-    return validateProgramMessageEffect<Message>("Program.emit", message as Message).pipe(
+    return validateProgramMessage<Message>("Program.emit", message as Message).pipe(
       Effect.matchEffect({
         onFailure: (error) =>
           Effect.gen(function* () {

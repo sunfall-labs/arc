@@ -35,7 +35,7 @@ const defineAdvance = (name: string) => {
     input: AdvanceInput,
     output: AdvanceOutput,
     durable: { maxAge: "1 hour" },
-    optimistic: (_input, transaction) => transaction.signal(progress, (value) => value + 8),
+    optimistic: (_input, transaction) => transaction.set(progress, (value) => value + 8),
     run: ({ id }) => Effect.sync(() => ({ id, progress: ++runs.count * 8 })),
   });
   return { Advance, runs, progress };

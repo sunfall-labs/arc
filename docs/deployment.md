@@ -112,7 +112,6 @@ export default defineConfig({
     sunfallArcStart({
       serverEntry: "/src/server.tsx",
       prerender: {
-        enabled: true,
         autoStaticPathsDiscovery: true,
         autoSubfolderIndex: true,
         crawlLinks: true,

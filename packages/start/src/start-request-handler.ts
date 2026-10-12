@@ -2,15 +2,17 @@ import {
   Route,
   makeResponseContext,
   runWithRuntime,
-  type AppDefinitionRegistry,
-  type AppDefinitionRegistryRequirements,
-  type ActionDefinitionRequirements,
   type AnySunfallArcRuntime,
   type EffectInput,
   type SunfallArcRuntime,
   type ResourceStore as ResourceStoreState,
 } from "@sunfall/arc-core";
-import { invokeEffectInput } from "@sunfall/arc-core/internal";
+import {
+  invokeEffectInput,
+  type AppDefinitionRegistry,
+  type AppDefinitionRegistryRequirements,
+  type ActionDefinitionRequirements,
+} from "@sunfall/arc-core/internal";
 import { Effect, Option, Scope } from "effect";
 import { type StartCollectionHydrationOptions } from "./hydration.js";
 import type { StartServerApp } from "./start-server-app.js";
@@ -20,14 +22,14 @@ import {
   type RequestRuntimeProvidedRequirements,
   type RequestRuntimeRemainingRequirements,
 } from "./request-runtime.js";
-import { startRequestTraceFactsEffect, type StartRequestTraceHandler } from "./request-trace.js";
-import { runRequestRuntimeLifecycleEffect } from "./request-runtime-lifecycle.js";
+import { startRequestTraceFacts, type StartRequestTraceHandler } from "./request-trace.js";
+import { runRequestRuntimeLifecycle } from "./request-runtime-lifecycle.js";
 import {
   recordStartRequestTraceFailure,
   recordStartRequestTracePreload,
 } from "./request-trace-recorder.js";
 import {
-  createStartRenderHydrationPlanEffect,
+  createStartRenderHydrationPlan,
   type StartRenderHydrationPlan,
 } from "./render-hydration-plan.js";
 import {
@@ -42,13 +44,10 @@ import type {
   StartTransportEndpointOverrides,
   StartTransportEndpointManifestSource,
 } from "./start-transport-endpoints.js";
-import { resolveStartTransportEndpointsEffect } from "./start-transport-endpoints.js";
-import {
-  makeStartActionWorkflows,
-  settledActionSubmissionsEffect,
-} from "./start-action-workflow.js";
+import { resolveStartTransportEndpoints } from "./start-transport-endpoints.js";
+import { makeStartActionWorkflows, settledActionSubmissions } from "./start-action-workflow.js";
 import { readStartActionOutboxCookie } from "./start-action-outbox-cookie.js";
-import { ensureRequestSubmitterOwnerEffect } from "./start-action-submitter.js";
+import { ensureRequestSubmitterOwner } from "./start-action-submitter.js";
 import {
   createServerActionResponseEffectWithRuntime,
   createServerRpcResponseEffectWithRuntime,
@@ -66,10 +65,7 @@ import {
   StartRequestHandlerError,
 } from "./start-request-handler-error.js";
 
-export {
-  createServerActionResponseEffect,
-  createServerRpcResponseEffect,
-} from "./start-request-endpoints.js";
+export { createServerActionResponse, createServerRpcResponse } from "./start-request-endpoints.js";
 export { StartPreloadError, preloadRequest } from "./start-request-preload.js";
 export type { StartCollectionPreload, StartPreloadResult } from "./start-request-preload.js";
 export { StartRequestHandlerError } from "./start-request-handler-error.js";
@@ -187,14 +183,14 @@ export const createStartRequestHandler = <
     Scope.Scope | StartRequestRequirements<Routes, ServerServices, Registry, Actions>
   > =>
     Effect.gen(function* () {
-      const endpoints = yield* resolveStartTransportEndpointsEffect(options);
+      const endpoints = yield* resolveStartTransportEndpoints(options);
       const requestOptions = {
         ...options,
         endpoints,
       };
       const requestRuntime = makeRequestRuntime(app);
       const responseContext = makeResponseContext();
-      const traceFacts = yield* startRequestTraceFactsEffect(request, requestOptions);
+      const traceFacts = yield* startRequestTraceFacts(request, requestOptions);
       const responseEffect = Effect.gen(function* () {
         if (isServerRpcRequest(request, requestOptions)) {
           return yield* createServerRpcResponseEffectWithRuntime(
@@ -244,16 +240,16 @@ export const createStartRequestHandler = <
           (action) => action.durable !== undefined,
         );
         const owner = hasDurableActions
-          ? Option.some(yield* ensureRequestSubmitterOwnerEffect(request, responseContext))
+          ? Option.some(yield* ensureRequestSubmitterOwner(request, responseContext))
           : Option.none<string>();
-        const settledSubmissions = yield* settledActionSubmissionsEffect(
+        const settledSubmissions = yield* settledActionSubmissions(
           workflows,
           requestRuntime as unknown as AnySunfallArcRuntime<unknown>,
           actionMap,
           owner,
           readStartActionOutboxCookie(request),
         );
-        const hydrationPlan = yield* createStartRenderHydrationPlanEffect({
+        const hydrationPlan = yield* createStartRenderHydrationPlan({
           resources: preloaded.resources,
           collections: preloaded.collections,
           ...(preloaded.routeFailure === undefined ? {} : { routeFailure: preloaded.routeFailure }),
@@ -318,7 +314,7 @@ export const createStartRequestHandler = <
         );
       });
 
-      return yield* runRequestRuntimeLifecycleEffect({
+      return yield* runRequestRuntimeLifecycle({
         request,
         runtime: requestRuntime,
         responseContext,
