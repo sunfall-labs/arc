@@ -667,7 +667,8 @@ Default Resource keys are encoded through a Resource key codec rather than raw
 object stringification. JSON-compatible values plus Date, URL, Map, and Set have
 tagged stable encodings; unsupported or circular inputs fail with
 `ResourceKeyError` and guidance to provide an explicit `key`.
-The more general `stableStringify(...)` identity helper now follows the same
+The more general internal `stableStringify(...)` identity helper (in
+`@sunfall/arc-core/internal`, used by DB query identity) follows the same
 structured policy for Date, URL, Map, Set, binary values, undefined, sparse
 array holes, marker-shaped plain objects, and typed unsupported-value failures.
 

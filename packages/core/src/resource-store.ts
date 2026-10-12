@@ -1,4 +1,4 @@
-import { Cause, Context, Data, Effect, Exit, Fiber, PubSub, Scope } from "effect";
+import { Cause, Context, Data, Effect, Exit, Fiber, FiberSet, PubSub, Scope } from "effect";
 
 /** Runtime marker for the Resource Store service. */
 export const ResourceStoreTypeId: unique symbol = Symbol.for(
@@ -7,13 +7,6 @@ export const ResourceStoreTypeId: unique symbol = Symbol.for(
 const ResourceStoreImplementationTypeId: unique symbol = Symbol(
   "@sunfall/arc-core/ResourceStoreImplementation",
 ) as typeof ResourceStoreImplementationTypeId;
-
-/** Erased fiber tracked by a Resource Store for interruption on disposal. */
-export type ResourceStoreFiber = Fiber.Fiber<unknown, never>;
-
-/** Erases a typed fiber so the Resource Store can track all resource work. */
-export const resourceStoreFiber = <A, E>(fiber: Fiber.Fiber<A, E>): ResourceStoreFiber =>
-  fiber as ResourceStoreFiber;
 
 /** Serializable reason a Resource Store invalidated a resource ref. */
 export type ResourceStoreInvalidationCause =
@@ -121,9 +114,12 @@ export interface ResourceStoreModuleRegistry {
 
 /** Named fiber seam for background work owned by a Resource Store. */
 export interface ResourceStoreFiberRegistry {
-  track(fiber: ResourceStoreFiber): void;
-  untrack(fiber: ResourceStoreFiber): void;
-  drain(): ReadonlyArray<ResourceStoreFiber>;
+  /**
+   * Forks `effect` (detached from the caller) into the store's `FiberSet`. The
+   * fiber leaves the set when it completes and is interrupted when the store is
+   * disposed; after disposal it starts already interrupted.
+   */
+  run<A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<Fiber.Fiber<A, E>, never, R>;
   readonly size: Effect.Effect<number>;
 }
 
@@ -190,8 +186,8 @@ export interface MutableResourceStore extends ResourceStore {
   readonly retainedRefs: Map<string, number>;
   /** @internal Use `eventBus` or `Resource.subscribeEvents`. */
   readonly events: PubSub.PubSub<ResourceStoreEvent>;
-  /** @internal Use `fiberRegistry` for tracked background work. */
-  readonly fibers: Set<ResourceStoreFiber>;
+  /** @internal Scope owning store background work; closed by `disposeResourceStore`. */
+  readonly scope: Scope.Closeable;
 }
 
 /** Error raised when Resource Store disposal observes a module finalizer failure. */
@@ -216,13 +212,8 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
   const retainedRefs = new Map<string, number>();
   const modules = new Map<symbol, ResourceStoreModule>();
   const events = Effect.runSync(PubSub.sliding<ResourceStoreEvent>(1024));
-  const fibers = new Set<ResourceStoreFiber>();
-  const snapshot = (): ResourceStoreDiagnosticsSnapshot => ({
-    fiberCount: fibers.size,
-    familyCount: families.size,
-    moduleCount: modules.size,
-    tagCount: tagIndex.size,
-  });
+  const scope = Effect.runSync(Scope.make());
+  const fibers = Effect.runSync(Scope.provide(FiberSet.make(), scope));
 
   const eventBus: ResourceStoreEventBus = {
     publish: (event) => PubSub.publish(events, event).pipe(Effect.asVoid),
@@ -242,18 +233,8 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
     size: Effect.sync(() => modules.size),
   };
   const fiberRegistry: ResourceStoreFiberRegistry = {
-    track: (fiber) => {
-      fibers.add(fiber);
-    },
-    untrack: (fiber) => {
-      fibers.delete(fiber);
-    },
-    drain: () => {
-      const current = Array.from(fibers);
-      fibers.clear();
-      return current;
-    },
-    size: Effect.sync(() => fibers.size),
+    run: (effect) => FiberSet.run(fibers, effect),
+    size: FiberSet.size(fibers),
   };
   const diagnostics: ResourceStoreDiagnostics = {
     eventBusShutdown: eventBus.isShutdown,
@@ -261,7 +242,12 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
     fiberCount: fiberRegistry.size,
     familyCount: Effect.sync(() => families.size),
     tagCount: Effect.sync(() => tagIndex.size),
-    snapshot: Effect.sync(snapshot),
+    snapshot: Effect.map(fiberRegistry.size, (fiberCount) => ({
+      fiberCount,
+      familyCount: families.size,
+      moduleCount: modules.size,
+      tagCount: tagIndex.size,
+    })),
   };
 
   return {
@@ -280,7 +266,7 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
     refTags,
     retainedRefs,
     events,
-    fibers,
+    scope,
   };
 };
 
@@ -312,15 +298,12 @@ const resourceStoreDisposeError = (cause: Cause.Cause<unknown>): ResourceStoreDi
       "A Resource Store module finalizer failed during runtime disposal. Inspect `cause` to find the failing finalizer and keep module cleanup Effects typed.",
   });
 
-/** Interrupts tracked fibers, runs module finalizers, and shuts down store events. */
+/** Closes the store's Scope (interrupting its fibers), runs module finalizers, and shuts down store events. */
 export const disposeResourceStore = (
   store: ResourceStore,
 ): Effect.Effect<void, ResourceStoreDisposeError> =>
   Effect.gen(function* () {
-    const fibers = store.fiberRegistry.drain();
-    if (fibers.length > 0) {
-      yield* Effect.forEach(fibers, Fiber.interrupt, { discard: true });
-    }
+    yield* Scope.close(unsafeMutableResourceStore(store).scope, Exit.void);
     const modules = store.moduleRegistry.values();
     store.moduleRegistry.clear();
     const exits = yield* Effect.forEach(modules, (module) =>

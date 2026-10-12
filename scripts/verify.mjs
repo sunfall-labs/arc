@@ -2,9 +2,9 @@
 
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Console, Data, Effect, FileSystem, Layer, Option, Path, Stdio, Terminal } from "effect";
-import { CliError, Command, Flag } from "effect/cli";
-import { ChildProcessSpawner } from "effect/process";
+import { Data, Effect, Option } from "effect";
+import { Command, Flag } from "effect/cli";
+import { runScriptCliEffect } from "./effect-cli-runner.mjs";
 import { runScriptCommandEffect } from "./effect-command-runner.mjs";
 import { runScriptMainEffect } from "./effect-main-runner.mjs";
 import { workspaceVerifyPackageTargetsEffect } from "./workspace-verification-plan.mjs";
@@ -16,58 +16,6 @@ const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 class VerifyCommandError extends Data.TaggedError("VerifyCommandError") {}
 
 const verifyCliVersion = "0.1.0-alpha.1";
-
-const noopConsole = {
-  assert: () => undefined,
-  clear: () => undefined,
-  count: () => undefined,
-  countReset: () => undefined,
-  debug: () => undefined,
-  dir: () => undefined,
-  dirxml: () => undefined,
-  error: () => undefined,
-  group: () => undefined,
-  groupCollapsed: () => undefined,
-  groupEnd: () => undefined,
-  info: () => undefined,
-  log: () => undefined,
-  table: () => undefined,
-  time: () => undefined,
-  timeEnd: () => undefined,
-  timeLog: () => undefined,
-  trace: () => undefined,
-  warn: () => undefined,
-};
-
-const formatConsoleArgs = (args) =>
-  args.map((arg) => (typeof arg === "string" ? arg : String(arg))).join(" ");
-
-const verifyCliConsole = {
-  ...noopConsole,
-  error: (...args) => {
-    process.stderr.write(`${formatConsoleArgs(args)}\n`);
-  },
-  log: (...args) => {
-    process.stdout.write(`${formatConsoleArgs(args)}\n`);
-  },
-};
-
-const verifyCliEnvironmentLayer = Layer.mergeAll(
-  FileSystem.layerNoop({}),
-  Path.layer,
-  Stdio.layerTest({}),
-  Layer.succeed(Terminal.Terminal)(
-    Terminal.make({
-      columns: Effect.succeed(80),
-      readInput: Effect.die("verify CLI does not read interactive input"),
-      readLine: Effect.fail(new Terminal.QuitError()),
-      display: () => Effect.void,
-    }),
-  ),
-  Layer.succeed(ChildProcessSpawner.ChildProcessSpawner)(
-    ChildProcessSpawner.make(() => Effect.die("verify CLI parser does not spawn child processes")),
-  ),
-);
 
 const parsePositiveConcurrencyEffect = (raw, source) => {
   if (raw === undefined || raw.trim() === "") {
@@ -257,12 +205,6 @@ const makeVerifyCommand = (env = process.env) =>
     ]),
   );
 
-const runVerifyCliCommandEffect = (args = process.argv.slice(2), env = process.env) =>
-  Command.runWith(makeVerifyCommand(env), { version: verifyCliVersion })(args).pipe(
-    Effect.provideService(Console.Console, verifyCliConsole),
-    Effect.provide(verifyCliEnvironmentLayer),
-  );
-
 const verifyMainFailureMessage = (cause) =>
   cause instanceof VerifyCommandError
     ? cause.message
@@ -271,23 +213,10 @@ const verifyMainFailureMessage = (cause) =>
       : String(cause);
 
 const runVerifyCliMainEffect = (args = process.argv.slice(2), env = process.env) =>
-  Effect.gen(function* () {
-    const result = yield* runVerifyCliCommandEffect(args, env).pipe(
-      Effect.map(() => ({ _tag: "Success" })),
-      Effect.catch((cause) => Effect.succeed({ _tag: "Failure", cause })),
-    );
-
-    if (result._tag === "Success") {
-      return;
-    }
-
-    if (CliError.isCliError(result.cause) && result.cause._tag === "ShowHelp") {
-      process.exitCode = result.cause.errors.length === 0 ? 0 : 1;
-      return;
-    }
-
-    process.stderr.write(`${verifyMainFailureMessage(result.cause)}\n`);
-    process.exitCode = 1;
+  runScriptCliEffect(makeVerifyCommand(env), {
+    version: verifyCliVersion,
+    args,
+    formatFailure: verifyMainFailureMessage,
   });
 
 runScriptMainEffect(runVerifyCliMainEffect());

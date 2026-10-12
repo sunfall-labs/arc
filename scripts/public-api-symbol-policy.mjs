@@ -151,16 +151,6 @@ export const publicHoverDocGroups = [
     declarations: ["isPromiseLikeValue"],
   },
   {
-    file: "packages/core/src/stable-stringify.ts",
-    declarations: [
-      "StableStringifyCircularData",
-      "StableStringifyEncodeFailure",
-      "StableStringifyInvalidDate",
-      "StableStringifyUnsupportedValue",
-      "stableStringify",
-    ],
-  },
-  {
     file: "packages/core/src/timeline.ts",
     declarations: [
       "TimelineUserCause",

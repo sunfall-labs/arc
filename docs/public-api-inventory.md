@@ -94,7 +94,7 @@ The root export re-exports these local modules:
   `program`, `request-context`
 - `resource`, `resource-snapshot-codec`, `resource-store`, `route`,
   `route-grammar`
-- `runtime`, `server`, `signal`, `stable-stringify`, `timeline`
+- `runtime`, `server`, `signal`, `timeline`
 
 Mixed modules (`action-submission`, the `browser-router-*` modules,
 `effect-like`, `resource-snapshot-codec`, `route-grammar`, `runtime`) are
@@ -102,7 +102,8 @@ selected by name. Their adapter plumbing, plus `definition-registry`,
 `resource-registry`, `resource-ui-binding`, `resource-failure-snapshot` (the
 SSR wire codec for failed Resource reads), `action-instance` and
 `program-start` (runtime-erased instance constructors for renderer bindings),
-`scope` (the ambient `UiScope`), and `signal-watch`, is exported only from
+`scope` (the ambient `UiScope`), `signal-watch`, and `stable-stringify` (DB
+query identity), is exported only from
 `@sunfall/arc-core/internal` for sibling Sunfall Arc packages. Each symbol has
 exactly one import path; nothing is exported from both entrypoints.
 
@@ -167,9 +168,9 @@ Golden-path public groups:
 - Browser router helper types such as `BrowserNavigateArgs` and
   `BrowserRouterError` are Core-owned route helper vocabulary. Adapters do not re-export them; Core is their only import
   path.
-- `stableStringify(...)` and the `StableStringify*` errors are expert-public
-  Stable Identity Codec vocabulary for cache keys, route/resource identity, and
-  diagnostics. The codec supports JSON-compatible data plus Date, URL, Map,
+- `stableStringify(...)` and the `StableStringify*` errors are internal
+  Stable Identity Codec plumbing in `@sunfall/arc-core/internal` (DB query
+  identity, join keys, and index keys); apps never call it. The codec supports JSON-compatible data plus Date, URL, Map,
   Set, ArrayBuffer, DataView, typed arrays, bigint, undefined, sparse array
   holes, and tagged non-finite numbers; cycles, invalid Dates, functions,
   symbols, and hostile host object reads fail with typed errors.
@@ -220,6 +221,8 @@ Release decisions:
   queue, and fiber collections are intentionally internal implementation state;
   the Core root barrel intentionally does not export `MutableResourceStore`,
   `makeMutableResourceStore(...)`, or `unsafeMutableResourceStore(...)`.
+  `fiberRegistry.run(effect)` forks store-owned background work into the
+  store's Effect `FiberSet`; disposal closes the store Scope, interrupting it.
 - `Route.preload(...)`, `Route.planPreload(...)`, and
   `Route.planNavigation(...)` preserve the service requirements and the
   typed preload failure (`Route.PreloadFailure<R>`) declared by routes. A

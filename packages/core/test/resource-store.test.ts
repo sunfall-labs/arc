@@ -1,4 +1,4 @@
-import { Cause, Deferred, Effect, Exit } from "effect";
+import { Cause, Deferred, Effect, Exit, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   disposeResourceStore,
@@ -31,6 +31,59 @@ describe("Resource Store disposal", () => {
         const shutdown = yield* store.diagnostics.eventBusShutdown;
         expect(shutdown).toBe(true);
         yield* disposeResourceStore(store);
+      }),
+    );
+  });
+
+  it("interrupts GC timers and in-flight loads when disposed, and refuses later work", () => {
+    const runtime = makeRuntime();
+    const loadStarted = Deferred.makeUnsafe<void>();
+    let loadInterrupted = false;
+    const Cached = Resource.define({
+      name: "ResourceStore.dispose.gc",
+      load: () => Effect.succeed(1),
+      policy: { gcFor: "10 minutes" },
+    });
+    const Hanging = Resource.define({
+      name: "ResourceStore.dispose.in-flight",
+      load: () =>
+        Deferred.succeed(loadStarted, undefined).pipe(
+          Effect.andThen(Effect.never),
+          Effect.onInterrupt(() =>
+            Effect.sync(() => {
+              loadInterrupted = true;
+            }),
+          ),
+        ),
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* runtime.provide(Resource.preload(Cached(undefined)));
+        const hanging = yield* Effect.forkDetach(
+          runtime.provide(Resource.preload(Hanging(undefined))),
+        );
+        yield* Deferred.await(loadStarted);
+        // The load signals from inside its fiber's first synchronous run; yield so
+        // the store finishes registering that fiber.
+        yield* Effect.yieldNow;
+        expect(yield* runtime.resourceStore.diagnostics.fiberCount).toBe(2);
+
+        yield* runtime.dispose;
+
+        expect(loadInterrupted).toBe(true);
+        expect(yield* runtime.resourceStore.diagnostics.fiberCount).toBe(0);
+        expect(Exit.hasInterrupts(yield* Fiber.await(hanging))).toBe(true);
+
+        let ranAfterDispose = false;
+        const late = yield* runtime.resourceStore.fiberRegistry.run(
+          Effect.sync(() => {
+            ranAfterDispose = true;
+          }),
+        );
+        expect(Exit.hasInterrupts(yield* Fiber.await(late))).toBe(true);
+        expect(ranAfterDispose).toBe(false);
+        expect(yield* runtime.resourceStore.diagnostics.fiberCount).toBe(0);
       }),
     );
   });

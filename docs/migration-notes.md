@@ -105,6 +105,10 @@ Effect.runFork(App.launch(app));
 | Devtools `trackActionEffect` / `trackTimelineEffect`                                                                         | `trackAction` / `trackTimeline`                                                                                                               |
 | `installDevtoolsBridge` (sync) + `installDevtoolsBridgeEffect`, `mountDevtoolsPanelsEffect`                                  | `installDevtoolsBridge` (scoped Effect), `mountDevtoolsPanels`                                                                                |
 | `DevtoolsPanelBoot.interruptEffect`                                                                                          | `boot.interrupt()` (the host facade's one stop)                                                                                               |
+| `import { stableStringify, StableStringify* } from "@sunfall/arc-core"`                                                      | internal plumbing (`@sunfall/arc-core/internal`); app keys come from Resource key codecs                                                      |
+| `RequestContext.cookies` duplicate names kept the last value; malformed `%` escapes failed the request                       | Effect `Cookies.parseHeader`: the first value wins (RFC 6265 order); undecodable values stay raw                                              |
+| `setCookie` encoded invalid cookie names with `encodeURIComponent`                                                           | names must be RFC 6265 tokens, else `ResponseCookieSerializationError` (`attribute: "Name"`); new `partitioned` / `priority` options          |
+| `ResourceStore.fiberRegistry` `track` / `untrack` / `drain`, `ResourceStoreFiber`                                            | `fiberRegistry.run(effect)` (an Effect `FiberSet` in the store's Scope; disposal interrupts it)                                               |
 
 The migration is done when no `*Effect`-suffixed Arc name remains in app code,
 event handlers reach Effects only through `Component.callback`, and routes are

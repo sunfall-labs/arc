@@ -1,9 +1,5 @@
-import {
-  EffectInputCallbackError,
-  Signal,
-  stableStringify,
-  type ReadableSignal,
-} from "@sunfall/arc-core";
+import { EffectInputCallbackError, Signal, type ReadableSignal } from "@sunfall/arc-core";
+import { stableStringify } from "@sunfall/arc-core/internal";
 import { Cause, Effect, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import type { ReadonlyCollectionMutation } from "./collection-errors.js";

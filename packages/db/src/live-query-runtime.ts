@@ -1,4 +1,4 @@
-import { stableStringify } from "@sunfall/arc-core";
+import { stableStringify } from "@sunfall/arc-core/internal";
 import {
   D2,
   MultiSet,

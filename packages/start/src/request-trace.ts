@@ -9,7 +9,19 @@ import {
 } from "@sunfall/arc-core";
 import { toEffect } from "@sunfall/arc-core/internal";
 import type { Collection } from "@sunfall/arc-db";
-import { Cause, Clock, Duration, Effect, Exit, Metric, Redacted } from "effect";
+import {
+  Cause,
+  Clock,
+  Duration,
+  Effect,
+  Exit,
+  Metric,
+  Option,
+  Redacted,
+  type Tracer,
+} from "effect";
+import * as Headers from "effect/http/Headers";
+import * as HttpTraceContext from "effect/http/HttpTraceContext";
 import { makeStartRequestId, startRequestIdHeader, startTraceparentHeader } from "./rpc.js";
 import {
   resolveStartTransportEndpoints,
@@ -487,6 +499,14 @@ export const finalizeStartRequestMetricsEffect = (
   });
 };
 
+const incomingTraceParent = (request: Request): Tracer.ExternalSpan | undefined => {
+  const headers: Record<string, string> = {};
+  request.headers.forEach((value, name) => {
+    headers[name] = value;
+  });
+  return Option.getOrUndefined(HttpTraceContext.fromHeaders(Headers.fromInput(headers)));
+};
+
 export const withStartRequestObservability = <A, E, R>(
   request: Request,
   facts: StartRequestTraceFacts,
@@ -505,6 +525,8 @@ export const withStartRequestObservability = <A, E, R>(
     Effect.withSpan("sunfall-arc.start.request", {
       kind: "server",
       attributes: requestSpanAttributes(request, facts),
+      // An incoming W3C traceparent (or B3) parents the request span on the caller's trace.
+      parent: incomingTraceParent(request),
     }),
   );
 };

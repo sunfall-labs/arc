@@ -236,6 +236,7 @@ export const classifyStartManifestModule = (id: string): StartManifestModuleKind
   return "shared";
 };
 
+// FNV-1a, not Effect `Hash`: manifest ids must stay stable across releases, and Effect's hash has no stability guarantee.
 const hashName = (name: string): string => {
   let hash = 0x811c9dc5;
   for (let index = 0; index < name.length; index++) {

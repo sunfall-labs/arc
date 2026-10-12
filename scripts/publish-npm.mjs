@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
+import { Command, Flag } from "effect/cli";
 import {
   runScriptCommandEffect,
   scriptCommandErrorMessage,
@@ -12,6 +13,7 @@ import {
 } from "./effect-command-runner.mjs";
 import { collectWorkspacePackageManifests } from "./workspace-package-discovery.mjs";
 import { workspaceDistPackagePayloadPolicies } from "./package-payload-policy.mjs";
+import { runScriptCliEffect } from "./effect-cli-runner.mjs";
 import { runScriptMainEffect } from "./effect-main-runner.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -25,107 +27,67 @@ const normalizeError = (cause, message, repair) =>
   cause instanceof NpmPublishError ? cause : fail(message, repair, cause);
 
 const defaultDistTag = "alpha";
+const publishCliVersion = "0.1.0-alpha.1";
 const packageScope = "@sunfall/";
 const publishWorkflowName = "publish-npm.yml";
 const expectedRepositoryUrlFragment = "github.com/sunfall-labs/arc";
 
-const usage = `USAGE
-  pnpm publish:npm -- [--tag <dist-tag>] [--dry-run] [--package <name>] [--no-skip-existing] [--no-provenance]
-
-Publishes Sunfall Arc framework packages to npm.
-
-Options:
-  --tag <dist-tag>       npm dist-tag to attach to published versions. Defaults to ${defaultDistTag}.
-  --dry-run              Pack and run npm publish --dry-run without mutating the registry.
-  --package <name>       Limit publish targets. Can be passed more than once.
-  --no-skip-existing     Fail instead of skipping versions already present on npm.
-  --no-provenance        Omit npm provenance for real publishes. Intended only for emergency local bootstrap.
-  --help                 Show this help text.
-`;
-
-const parseArgs = (argv) => {
-  const options = {
-    dryRun: false,
-    distTag: defaultDistTag,
-    packageNames: new Set(),
-    provenance: true,
-    skipExisting: true,
-  };
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index];
-    switch (arg) {
-      case "--": {
-        break;
-      }
-      case "--dry-run": {
-        options.dryRun = true;
-        break;
-      }
-      case "--help":
-      case "-h": {
-        options.help = true;
-        break;
-      }
-      case "--no-provenance": {
-        options.provenance = false;
-        break;
-      }
-      case "--no-skip-existing": {
-        options.skipExisting = false;
-        break;
-      }
-      case "--package": {
-        const value = argv[index + 1];
-        if (value === undefined || value.startsWith("--")) {
-          throw fail(
-            "Missing value for --package.",
-            "Pass a full package name, for example @sunfall/arc-core.",
-          );
-        }
-        options.packageNames.add(value);
-        index += 1;
-        break;
-      }
-      case "--tag": {
-        const value = argv[index + 1];
-        if (value === undefined || value.startsWith("--")) {
-          throw fail(
-            "Missing value for --tag.",
-            "Pass an npm dist-tag such as alpha, next, or latest.",
-          );
-        }
-        options.distTag = value;
-        index += 1;
-        break;
-      }
-      default: {
-        throw fail(
-          `Unknown option ${arg}.`,
-          "Run pnpm publish:npm -- --help for supported options.",
-        );
-      }
-    }
-  }
-
-  return options;
-};
-
 const distTagPattern = /^[a-z][a-z0-9._-]*$/;
 
-const validateOptions = (options) => {
-  if (!distTagPattern.test(options.distTag)) {
-    throw fail(
-      `Invalid npm dist-tag "${options.distTag}".`,
-      "Use a lowercase tag beginning with a letter, such as alpha, beta, next, or latest.",
-    );
-  }
+const publishCommandFlags = {
+  distTag: Flag.String("tag").pipe(
+    Flag.withMetavar("dist-tag"),
+    Flag.filter(
+      (value) => distTagPattern.test(value),
+      () => "a lowercase dist-tag beginning with a letter, such as alpha, beta, next, or latest",
+    ),
+    Flag.withDescription(
+      `npm dist-tag to attach to published versions. Defaults to ${defaultDistTag}.`,
+    ),
+    Flag.withDefault(defaultDistTag),
+  ),
+  dryRun: Flag.Boolean("dry-run").pipe(
+    Flag.withDescription("Pack and run npm publish --dry-run without mutating the registry."),
+    Flag.withDefault(false),
+  ),
+  packageNames: Flag.String("package").pipe(
+    Flag.withMetavar("name"),
+    Flag.withDescription("Limit publish targets to this full package name. Repeatable."),
+    Flag.atLeast(0),
+  ),
+  skipExisting: Flag.Boolean("skip-existing").pipe(
+    Flag.withDescription(
+      "Skip versions already present on npm (default). --no-skip-existing fails instead.",
+    ),
+    Flag.withDefault(true),
+  ),
+  provenance: Flag.Boolean("provenance").pipe(
+    Flag.withDescription(
+      "Attach npm provenance to real publishes (default). --no-provenance is intended only for emergency local bootstrap.",
+    ),
+    Flag.withDefault(true),
+  ),
+};
+
+const validateOptionsEffect = (options) => {
   if (options.dryRun && !options.skipExisting) {
-    throw fail(
-      "--no-skip-existing is only meaningful for real publishes.",
-      "Use --dry-run by itself when checking the publish flow.",
+    return Effect.fail(
+      fail(
+        "--no-skip-existing is only meaningful for real publishes.",
+        "Use --dry-run by itself when checking the publish flow.",
+      ),
     );
   }
+  const nodeVersion = process.versions.node;
+  if (!options.dryRun && options.provenance && !versionAtLeast(nodeVersion, "22.14.0")) {
+    return Effect.fail(
+      fail(
+        `Node ${nodeVersion} does not support npm trusted publishing provenance.`,
+        "Use Node 22.14.0 or newer before running a real publish.",
+      ),
+    );
+  }
+  return Effect.void;
 };
 
 const commandEffect = (description, command, args, options = {}) =>
@@ -197,34 +159,6 @@ const validateNpmCliEffect = (options) =>
     }
     return npmVersion;
   });
-
-const validateNodeRuntime = (options) => {
-  const nodeVersion = process.versions.node;
-  if (!options.dryRun && options.provenance && !versionAtLeast(nodeVersion, "22.14.0")) {
-    throw fail(
-      `Node ${nodeVersion} does not support npm trusted publishing provenance.`,
-      "Use Node 22.14.0 or newer before running a real publish.",
-    );
-  }
-  return nodeVersion;
-};
-
-const parseOptionsEffect = Effect.try({
-  try: () => {
-    const options = parseArgs(process.argv.slice(2));
-    if (!options.help) {
-      validateOptions(options);
-      validateNodeRuntime(options);
-    }
-    return options;
-  },
-  catch: (cause) =>
-    normalizeError(
-      cause,
-      "Failed to parse npm publish options.",
-      "Run pnpm publish:npm -- --help for supported options.",
-    ),
-});
 
 const targetDependencyNames = (target, packageNames) => {
   const dependencies = {
@@ -587,69 +521,81 @@ const publishTargetEffect = (target, options, packDirectory) =>
     return { label: target.packageJson.name, status: options.dryRun ? "dry-run" : "published" };
   });
 
-const mainEffect = Effect.gen(function* () {
-  const options = yield* parseOptionsEffect;
-  if (options.help) {
-    console.log(usage);
-    return;
-  }
+const publishEffect = (options) =>
+  Effect.gen(function* () {
+    yield* validateOptionsEffect(options);
+    const nodeVersion = process.versions.node;
+    const npmVersion = yield* validateNpmCliEffect(options);
+    const targets = yield* packageTargetsEffect(options);
+    yield* validatePublishPlanEffect(options, targets);
+    const packDirectory = yield* Effect.tryPromise({
+      try: () => mkdtemp(join(tmpdir(), "sunfall-arc-npm-publish-")),
+      catch: (cause) =>
+        fail(
+          "Failed to create temporary package staging directory.",
+          "Check local filesystem permissions before publishing.",
+          cause,
+        ),
+    });
 
-  const nodeVersion = process.versions.node;
-  const npmVersion = yield* validateNpmCliEffect(options);
-  const targets = yield* packageTargetsEffect(options);
-  yield* validatePublishPlanEffect(options, targets);
-  const packDirectory = yield* Effect.tryPromise({
-    try: () => mkdtemp(join(tmpdir(), "sunfall-arc-npm-publish-")),
-    catch: (cause) =>
-      fail(
-        "Failed to create temporary package staging directory.",
-        "Check local filesystem permissions before publishing.",
-        cause,
+    console.log(
+      [
+        `npm publish mode: ${options.dryRun ? "dry-run" : "real"}`,
+        `dist-tag: ${options.distTag}`,
+        `Node: ${nodeVersion}`,
+        `npm: ${npmVersion}`,
+        `workflow: ${publishWorkflowName}`,
+        `packages: ${targets.map((target) => target.packageJson.name).join(", ")}`,
+      ].join("\n"),
+    );
+
+    const results = yield* Effect.forEach(
+      targets,
+      (target) => publishTargetEffect(target, options, packDirectory),
+      { concurrency: 1 },
+    ).pipe(
+      Effect.ensuring(
+        Effect.tryPromise({
+          try: () => rm(packDirectory, { recursive: true, force: true }),
+          catch: () => undefined,
+        }).pipe(Effect.catchCause(() => Effect.void)),
       ),
+    );
+
+    const published = results.filter((result) => result.status === "published").length;
+    const dryRun = results.filter((result) => result.status === "dry-run").length;
+    const skipped = results.filter((result) => result.status === "skipped").length;
+    console.log(
+      `npm publish complete: ${published} published, ${dryRun} dry-run, ${skipped} skipped.`,
+    );
   });
 
-  console.log(
-    [
-      `npm publish mode: ${options.dryRun ? "dry-run" : "real"}`,
-      `dist-tag: ${options.distTag}`,
-      `Node: ${nodeVersion}`,
-      `npm: ${npmVersion}`,
-      `workflow: ${publishWorkflowName}`,
-      `packages: ${targets.map((target) => target.packageJson.name).join(", ")}`,
-    ].join("\n"),
-  );
+const publishCommand = Command.make("publish-npm", publishCommandFlags, (flags) =>
+  publishEffect({ ...flags, packageNames: new Set(flags.packageNames) }),
+).pipe(
+  Command.withDescription("Publishes Sunfall Arc framework packages to npm."),
+  Command.withExamples([
+    {
+      command: "pnpm publish:npm -- --tag alpha --dry-run",
+      description: "Pack every package and run npm publish --dry-run.",
+    },
+    {
+      command: "pnpm publish:npm -- --tag next --package @sunfall/arc-core",
+      description: "Publish one package under the next dist-tag.",
+    },
+  ]),
+);
 
-  const results = yield* Effect.forEach(
-    targets,
-    (target) => publishTargetEffect(target, options, packDirectory),
-    { concurrency: 1 },
-  ).pipe(
-    Effect.ensuring(
-      Effect.tryPromise({
-        try: () => rm(packDirectory, { recursive: true, force: true }),
-        catch: () => undefined,
-      }).pipe(Effect.catchCause(() => Effect.void)),
-    ),
-  );
-
-  const published = results.filter((result) => result.status === "published").length;
-  const dryRun = results.filter((result) => result.status === "dry-run").length;
-  const skipped = results.filter((result) => result.status === "skipped").length;
-  console.log(
-    `npm publish complete: ${published} published, ${dryRun} dry-run, ${skipped} skipped.`,
-  );
-});
+const publishFailureMessage = (error) =>
+  error?.repair !== undefined && error.repair !== ""
+    ? `${error.message}\n${error.repair}`
+    : (error?.message ?? String(error));
 
 runScriptMainEffect(
-  mainEffect.pipe(
-    Effect.catch((error) =>
-      Effect.sync(() => {
-        console.error(error.message);
-        if (error.repair !== undefined && error.repair !== "") {
-          console.error(error.repair);
-        }
-        process.exitCode = 1;
-      }),
-    ),
-  ),
+  runScriptCliEffect(publishCommand, {
+    version: publishCliVersion,
+    // `pnpm publish:npm -- --flag` forwards the separator; it is not an argument.
+    args: process.argv.slice(2).filter((arg) => arg !== "--"),
+    formatFailure: publishFailureMessage,
+  }),
 );

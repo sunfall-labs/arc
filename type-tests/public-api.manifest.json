@@ -30,7 +30,6 @@
         "runtime",
         "server",
         "signal",
-        "stable-stringify",
         "timeline"
       ],
       "requiredTypeTestImports": [
@@ -59,14 +58,9 @@
         "RoutePreloadFailureSnapshot",
         "RouteView",
         "RouteWithComponent",
-        "StableStringifyCircularData",
-        "StableStringifyEncodeFailure",
-        "StableStringifyInvalidDate",
-        "StableStringifyUnsupportedValue",
         "UnsupportedDuration",
         "isActionDefinition",
-        "isPromiseLikeValue",
-        "stableStringify"
+        "isPromiseLikeValue"
       ]
     },
     {
@@ -97,9 +91,10 @@
         "route-match",
         "runtime",
         "scope",
-        "signal-watch"
+        "signal-watch",
+        "stable-stringify"
       ],
-      "requiredTypeTestImports": ["makeActionInstance", "startProgramOnRuntime"]
+      "requiredTypeTestImports": ["makeActionInstance", "startProgramOnRuntime", "stableStringify"]
     },
     {
       "package": "@sunfall/arc-db",
