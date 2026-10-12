@@ -845,7 +845,7 @@ failure's `_tag` can cross a server render without a schema (see
 [SSR Hydration](#ssr-hydration)). A load callback that throws synchronously
 (`EffectInputCallbackError`) is a programming defect, re-caused as `Die` so no
 handler can (or must) match it.
-`Component.liveQuery` contributes its sources' declared load errors the same way
+`LiveQuery.bind` contributes its sources' declared load errors the same way
 (rows throw when no source has loaded and the latest load failed), while
 `Component.action` contributes nothing: `submit` returns its failures to the
 caller, and `Component.callback` requires them handled.
@@ -867,7 +867,7 @@ The cost model:
   value, read-only), `Component.callback` (other Effect work from DOM
   handlers, failures handled),
   `Component.router` (routes' preload and route Component services join `R`),
-  and `Component.liveQuery` (a live query over rows Resources).
+  and `LiveQuery.bind` (a live query over rows Resources).
   `Component.instance` is the seam for writing more.
 - **Per-runtime sharing is by construction**: Resources live in the runtime's
   Resource Store, and `Component.provide` builds its Layer once per
@@ -1134,8 +1134,9 @@ membership policy: unregistered links are allowed to behave as normal anchors,
 while programmatic navigation reports `RouterRouteNotRegistered`.
 
 Links use the same typed route definitions. `RouterLink` builds the href from a
-route plus `Route.HrefOptions`, preloads that route on hover in the router
-runtime, lets modified clicks and external targets behave like normal anchors,
+route plus `Route.HrefOptions`, preloads that route on hover or focus in the router
+runtime (the preloader is created on the first such intent, and the server
+renders a plain anchor), lets modified clicks and external targets behave like normal anchors,
 and intercepts only plain left clicks for client navigation. Route grammar
 rejects invalid or duplicate parameter names at definition/match planning time
 instead of allowing later segments to overwrite earlier params.

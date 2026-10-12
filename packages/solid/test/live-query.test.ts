@@ -3,7 +3,7 @@ import { QueryEvaluationError } from "@sunfall/arc-db";
 import { Cause, Data, Deferred, Effect, Fiber, Schema } from "effect";
 import { createRoot, createSignal, flush } from "solid-js";
 import { describe, expect, it } from "vitest";
-import { Component } from "../src/index.js";
+import { LiveQuery } from "../src/live-query.js";
 import { bindInInstance } from "./instance-harness.js";
 
 const Project = Schema.Struct({ id: Schema.String, name: Schema.String, active: Schema.Boolean });
@@ -36,15 +36,15 @@ const lumen: Project = { id: "lumen", name: "Lumen", active: false };
 /** Binds a live query in a fresh instance under a Solid root; returns it with the root's dispose. */
 const bind = <T, E, R>(
   runtime: object,
-  input: Component.LiveQueryInput<T, E, R>,
-  options?: Component.LiveQueryOptions,
+  input: LiveQuery.Input<T, E, R>,
+  options?: LiveQuery.Options,
 ) =>
   createRoot((dispose) => ({
-    handle: bindInInstance(runtime, Component.liveQuery(input, options)),
+    handle: bindInInstance(runtime, LiveQuery.bind(input, options)),
     dispose,
   }));
 
-describe("Component.liveQuery", () => {
+describe("LiveQuery.bind", () => {
   it("preloads its sources on mount and follows reloads and optimistic row patches", () =>
     Effect.runPromise(
       Effect.gen(function* () {

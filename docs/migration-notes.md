@@ -154,9 +154,9 @@ Resource reader, and patch them on the Resource ref.
 | `transaction.update(Projects, key, patch)` (and `insert`, `delete`)            | `transaction.update(ProjectsRef, key, patch)`; the key is typed by `rows.key`               |
 | draft updater `(draft) => { draft.name = n }`                                  | pure updater `(row) => ({ ...row, name: n })`                                               |
 | row metadata `$key`, `$synced`, `$origin`, `$collection`                       | removed: rows are the output's elements; `waiting` and `Action.outbox` report pending work  |
-| `Collection.liveQuery({ query, getKey })`                                      | `Query.live(query)`, or `Component.liveQuery(query)` in a Component                         |
+| `Collection.liveQuery({ query, getKey })`                                      | `Query.live(query)`, or `LiveQuery.bind(query)` in a Component                              |
 | `query.from({ project: Projects })`                                            | `query.from({ project: ProjectsRef })`                                                      |
-| `SolidDb.liveQuery(query)` from `@sunfall/arc-solid-db`                        | `Component.liveQuery(query)` from `@sunfall/arc-solid`; the package is deleted              |
+| `SolidDb.liveQuery(query)` from `@sunfall/arc-solid-db`                        | `LiveQuery.bind(query)` from `@sunfall/arc-solid/live-query`; the package is deleted        |
 | `persistence: { key, version }`, `persist()`, `restore()`                      | `policy: { persist: { key, version } }` on the Resource (restore is automatic)              |
 | `snapshot()` / `hydrate()` / `Collection.HydrationPayload`                     | Resource hydration: rows hydrate as their Resource                                          |
 | `preloadCollections: [Projects]`, `Projects.preload()` in a route              | `preloadResources: [ProjectList]`, `Resource.preload(ProjectsRef)`                          |
@@ -509,7 +509,7 @@ only model:
 - `useProgram`, `useStream`, and `useRuntimeEffect` become `Component.state`,
   `Component.stream`, and `Component.callback`.
 - `useCollection` becomes `Component.resource` of a Resource with `rows`, and
-  `useLiveQuery` becomes `Component.liveQuery` (see [From Collection](#from-collection)).
+  `useLiveQuery` becomes `LiveQuery.bind` (see [From Collection](#from-collection)).
 - `<RuntimeProvider runtime>` plus `<RouterProvider routes>` become
   `yield* Component.router(routes)` and `<RouterProvider router={router}>`, and
   a Start app's entries become `createRequestHandler(app, { server })` and

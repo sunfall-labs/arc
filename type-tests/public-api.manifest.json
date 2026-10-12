@@ -195,6 +195,15 @@
       ]
     },
     {
+      "package": "@sunfall/arc-solid",
+      "export": "./live-query",
+      "import": "@sunfall/arc-solid/live-query",
+      "source": "packages/solid/src/live-query.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/db.test-d.ts",
+      "requiredTypeTestImports": ["LiveQuery"]
+    },
+    {
       "package": "@sunfall/arc-start",
       "export": ".",
       "import": "@sunfall/arc-start",

@@ -101,6 +101,7 @@ import {
   type RouterLinkProps,
   type RouterOutletProps,
 } from "@sunfall/arc-solid";
+import { LiveQuery } from "@sunfall/arc-solid/live-query";
 import { Devtools } from "@sunfall/arc-devtools";
 import {
   App,
@@ -1746,12 +1747,12 @@ const solidProjectResourceFailure: Cause.Cause<ResourceUntypedFailure> | undefin
 void solidProjectResourceValue;
 void solidProjectResourceFailure;
 // A live query's sources' load errors join E; services join R.
-const solidProjectNamesBinding = Component.liveQuery(
+const solidProjectNamesBinding = LiveQuery.bind(
   (query) => query.from({ project: ProjectsRowsRef }).select(({ project }) => project.name),
   { preload: false },
 );
 const solidProjectNamesServices: Effect.Effect<
-  Component.LiveQueryHandle<string, ProjectError | Server.ClientError>,
+  LiveQuery.Handle<string, ProjectError | Server.ClientError>,
   ProjectError | Server.ClientError,
   ProjectApi
 > = solidProjectNamesBinding;
@@ -1760,7 +1761,7 @@ const solidProjectNames = bound(solidProjectNamesBinding);
 // Live queries and Resource readers share one status vocabulary.
 const solidProjectNamesWaiting: boolean = solidProjectNames.waiting();
 void solidProjectNamesWaiting;
-Component.liveQuery(
+LiveQuery.bind(
   (query) => query.from({ project: ProjectsRowsRef }).select(({ project }) => project.name),
   {
     preload: false,
@@ -1968,7 +1969,7 @@ const frameworkGroupKeyAlias: Query.GroupKey<{
 void frameworkGroupKeyAlias;
 
 const projectNamesHandle = bound(
-  Component.liveQuery((query) =>
+  LiveQuery.bind((query) =>
     query.from({ project: ProjectsRowsRef }).select(({ project }) => project.name),
   ),
 );

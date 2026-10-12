@@ -6,6 +6,19 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### Live Queries Move To `@sunfall/arc-solid/live-query` (Breaking)
+
+- `Component.liveQuery(query, options?)` is now
+  `LiveQuery.bind(query, options?)` from the new
+  `@sunfall/arc-solid/live-query` entry, and `Component.LiveQueryHandle`,
+  `LiveQueryInput`, and `LiveQueryOptions` are `LiveQuery.Handle`,
+  `LiveQuery.Input`, and `LiveQuery.Options`. Behavior is unchanged.
+- The `Component` namespace cannot be tree-shaken, so the binding used to pull
+  `@sunfall/arc-db`, `@tanstack/db-ivm`, and `fractional-indexing` into every
+  app's browser bundle. Apps that do not import the new entry no longer ship
+  them: the `benchmarks/compare` app's JS drops from 153.3 KB to 140.5 KB gzip
+  (133.8 KB to 123.0 KB brotli).
+
 ### Cheaper RouterLink
 
 - `RouterLink` renders a plain anchor on the server (no memos, effects, or

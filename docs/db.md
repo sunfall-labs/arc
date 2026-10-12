@@ -318,7 +318,9 @@ const archivedCount = Query.once((query) =>
 - A query reads the sources' visible rows, so optimistic row patches show in
   live queries at once and roll back with their submission.
 
-In a Component, `Component.liveQuery(factory)` binds a live query to the
+In a Component, `LiveQuery.bind(factory)` (from `@sunfall/arc-solid/live-query`,
+a separate entry so apps without live queries never ship `@sunfall/arc-db`)
+binds a live query to the
 instance. The factory runs tracked, so a signal or prop it reads rebuilds the
 query, and the sources preload on mount (in the browser only; a hydrating
 client waits for hydration to settle):
@@ -330,7 +332,7 @@ const ProjectTaskTitles = Component.define(
   "ProjectTaskTitles",
   function* (props: { readonly projectId: ProjectId }) {
     // The factory runs tracked: reading `props.projectId` rebuilds the query.
-    const titles = yield* Component.liveQuery((query) =>
+    const titles = yield* LiveQuery.bind((query) =>
       query
         .from({ project: ProjectsRef })
         .where(({ project }) => project.id === props.projectId)

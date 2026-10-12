@@ -20,21 +20,22 @@ it against `type-tests/public-api.manifest.json` and the package manifests
 
 ## Package Export Map
 
-| Package                 | Export       | Source                                    | Classification | Release decision                                                 |
-| ----------------------- | ------------ | ----------------------------------------- | -------------- | ---------------------------------------------------------------- |
-| `@sunfall/arc-core`     | `.`          | `packages/core/src/index.ts`              | Public         | Keep as the core application/runtime surface.                    |
-| `@sunfall/arc-core`     | `./internal` | `packages/core/src/internal.ts`           | Internal       | Adapter plumbing for Solid/Start/DB; not application API.        |
-| `@sunfall/arc-start`    | `.`          | `packages/start/src/index.ts`             | Public         | Keep as the full-stack runtime surface.                          |
-| `@sunfall/arc-start`    | `./vite`     | `packages/start/src/vite.ts`              | Public         | Keep as the build-plugin surface.                                |
-| `@sunfall/arc-start`    | `./fetch`    | `packages/start/src/fetch.ts`             | Public         | Fetch-host adapter (Workers, edge runtimes, Bun, Deno).          |
-| `@sunfall/arc-start`    | `./node`     | `packages/start/src/node.ts`              | Public         | Node HTTP adapter (`IncomingMessage`/`ServerResponse`).          |
-| `@sunfall/arc-start`    | `./testing`  | `packages/start/src/testing.ts`           | Expert public  | Test-only wire markers and static-output helpers for app tests.  |
-| `@sunfall/arc-start`    | `./virtual`  | `packages/start/src/virtual-modules.d.ts` | Expert public  | Keep as type-only virtual module declarations.                   |
-| `@sunfall/arc-db`       | `.`          | `packages/db/src/index.ts`                | Public         | Keep as the Query engine over Resource rows.                     |
-| `@sunfall/arc-db`       | `./internal` | `packages/db/src/internal.ts`             | Internal       | Adapter plumbing for `Component.liveQuery`; not application API. |
-| `@sunfall/arc-devtools` | `.`          | `packages/devtools/src/index.ts`          | Public         | Keep as the JSON-safe inspection contract.                       |
-| `@sunfall/arc-solid`    | `.`          | `packages/solid/src/index.ts`             | Public         | Keep as the Solid adapter surface.                               |
-| `@sunfall/arc-tsrx`     | `.`          | `packages/tsrx/src/index.ts`              | Public         | Keep as the Vite/TSRX preset.                                    |
+| Package                 | Export         | Source                                    | Classification | Release decision                                                                      |
+| ----------------------- | -------------- | ----------------------------------------- | -------------- | ------------------------------------------------------------------------------------- |
+| `@sunfall/arc-core`     | `.`            | `packages/core/src/index.ts`              | Public         | Keep as the core application/runtime surface.                                         |
+| `@sunfall/arc-core`     | `./internal`   | `packages/core/src/internal.ts`           | Internal       | Adapter plumbing for Solid/Start/DB; not application API.                             |
+| `@sunfall/arc-start`    | `.`            | `packages/start/src/index.ts`             | Public         | Keep as the full-stack runtime surface.                                               |
+| `@sunfall/arc-start`    | `./vite`       | `packages/start/src/vite.ts`              | Public         | Keep as the build-plugin surface.                                                     |
+| `@sunfall/arc-start`    | `./fetch`      | `packages/start/src/fetch.ts`             | Public         | Fetch-host adapter (Workers, edge runtimes, Bun, Deno).                               |
+| `@sunfall/arc-start`    | `./node`       | `packages/start/src/node.ts`              | Public         | Node HTTP adapter (`IncomingMessage`/`ServerResponse`).                               |
+| `@sunfall/arc-start`    | `./testing`    | `packages/start/src/testing.ts`           | Expert public  | Test-only wire markers and static-output helpers for app tests.                       |
+| `@sunfall/arc-start`    | `./virtual`    | `packages/start/src/virtual-modules.d.ts` | Expert public  | Keep as type-only virtual module declarations.                                        |
+| `@sunfall/arc-db`       | `.`            | `packages/db/src/index.ts`                | Public         | Keep as the Query engine over Resource rows.                                          |
+| `@sunfall/arc-db`       | `./internal`   | `packages/db/src/internal.ts`             | Internal       | Adapter plumbing for `LiveQuery.bind`; not application API.                           |
+| `@sunfall/arc-devtools` | `.`            | `packages/devtools/src/index.ts`          | Public         | Keep as the JSON-safe inspection contract.                                            |
+| `@sunfall/arc-solid`    | `.`            | `packages/solid/src/index.ts`             | Public         | Keep as the Solid adapter surface.                                                    |
+| `@sunfall/arc-solid`    | `./live-query` | `packages/solid/src/live-query.ts`        | Public         | `LiveQuery.bind`; separate so apps without live queries never load `@sunfall/arc-db`. |
+| `@sunfall/arc-tsrx`     | `.`            | `packages/tsrx/src/index.ts`              | Public         | Keep as the Vite/TSRX preset.                                                         |
 
 ## Type-Test Coverage
 
@@ -644,7 +645,7 @@ The root export includes:
   `resource` name and join strategy `"scan"` or `"index"`.
 - `@sunfall/arc-db/internal` (adapter plumbing, not public API):
   `buildQuery`, `currentQueryStore`, and `runWithQueryStore`, which
-  `Component.liveQuery` uses.
+  `LiveQuery.bind` uses.
 
 Release decisions:
 
@@ -802,8 +803,8 @@ Release decisions:
   value-free status accessors. For a family with `rows` it is a
   `Component.Reader` that adds `get(input, key)` and `index(input, name,
 value)` (`Component.ResourceRowsReader`), typed by `rows`.
-- `Component.liveQuery(query, options?)` binds a `Query` over rows Resources
-  (`@sunfall/arc-db`) and returns a `Component.LiveQueryHandle` (`rows`,
+- `LiveQuery.bind(query, options?)` binds a `Query` over rows Resources
+  (`@sunfall/arc-db`) and returns a `LiveQuery.Handle` (`rows`,
   `waiting`, `failure`, `preload`, `refresh`); the sources' declared errors
   join `E` and their services join `R`. It replaces the deleted
   `@sunfall/arc-solid-db` package.
@@ -868,7 +869,8 @@ value)` (`Component.ResourceRowsReader`), typed by `rows`.
   module this way. Router
   membership compares routes by path, like `Route.isMatch`.
 - `RouterLink` is the typed anchor path: it builds `Route.href(...)`, preloads on
-  hover through the router runtime, preserves modified-click/browser-handled
+  hover or focus through the router runtime (creating its preloader on the
+  first intent), preserves modified-click/browser-handled
   behavior, and navigates only plain left clicks. The Solid adapter delegates
   hover/click intent to the Core Browser Router Link Decision policy while
   keeping DOM event wiring local.

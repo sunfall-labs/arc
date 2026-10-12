@@ -13,6 +13,8 @@ const sharedAlias = {
   "@sunfall/arc-core": new URL("./packages/core/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-db/internal": new URL("./packages/db/src/internal.ts", import.meta.url).pathname,
   "@sunfall/arc-db": new URL("./packages/db/src/index.ts", import.meta.url).pathname,
+  "@sunfall/arc-solid/live-query": new URL("./packages/solid/src/live-query.ts", import.meta.url)
+    .pathname,
   "@sunfall/arc-solid": new URL("./packages/solid/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-tsrx": new URL("./packages/tsrx/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-start/fetch": new URL("./packages/start/src/fetch.ts", import.meta.url).pathname,

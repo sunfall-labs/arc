@@ -2,7 +2,7 @@ import { Context, Effect, Schema } from "effect";
 import type { AsyncResult } from "effect/reactivity";
 import { Resource } from "@sunfall/arc-core";
 import { Query, QueryEvaluationError, UnsupportedLiveQuery } from "@sunfall/arc-db";
-import { Component } from "@sunfall/arc-solid";
+import { LiveQuery } from "@sunfall/arc-solid/live-query";
 // @ts-expect-error QueryBuilder construction is internal; use query.from(...) and Query.Builder.
 import { QueryBuilder } from "@sunfall/arc-db";
 // @ts-expect-error Collections were folded into Resources: declare `rows` on Resource.define.
@@ -100,21 +100,21 @@ Query.live((query) =>
   query.from({ count: ProjectCount("all") }),
 );
 
-// --- Component.liveQuery: source errors join E, services join R ---
+// --- LiveQuery.bind: source errors join E, services join R ---
 
 const liveQueryBinding: Effect.Effect<
-  Component.LiveQueryHandle<string, "load">,
+  LiveQuery.Handle<string, "load">,
   "load",
   ProjectFeed
-> = Component.liveQuery((query) =>
+> = LiveQuery.bind((query) =>
   query.from({ project: ProjectsRef }).select(({ project }) => project.name),
 );
-declare const liveQueryHandle: Component.LiveQueryHandle<string, "load">;
+declare const liveQueryHandle: LiveQuery.Handle<string, "load">;
 const liveQueryRows: ReadonlyArray<string> = liveQueryHandle.rows();
 const liveQueryWaiting: boolean = liveQueryHandle.waiting();
 const liveQueryRefresh: Effect.Effect<void, "load" | QueryEvaluationError> =
   liveQueryHandle.refresh();
-const liveQueryOptions: Component.LiveQueryOptions = {
+const liveQueryOptions: LiveQuery.Options = {
   preload: false,
   // @ts-expect-error the query factory is tracked; signal/prop reads in it rebuild the query.
   deps: () => "status",

@@ -19,6 +19,10 @@ export default defineConfig({
       { find: "@sunfall/arc-core", replacement: fromRoot("packages/core/src/index.ts") },
       { find: "@sunfall/arc-db/internal", replacement: fromRoot("packages/db/src/internal.ts") },
       { find: "@sunfall/arc-db", replacement: fromRoot("packages/db/src/index.ts") },
+      {
+        find: "@sunfall/arc-solid/live-query",
+        replacement: fromRoot("packages/solid/src/live-query.ts"),
+      },
       { find: "@sunfall/arc-solid", replacement: fromRoot("packages/solid/src/index.ts") },
       { find: "@sunfall/arc-start/vite", replacement: fromRoot("packages/start/src/vite.ts") },
       {

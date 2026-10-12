@@ -1,9 +1,6 @@
-// Internal Solid binding behind `Component.liveQuery(...)`.
-import {
-  EffectInputCallbackError,
-  runWithRuntime,
-  type AnySunfallArcRuntime,
-} from "@sunfall/arc-core";
+// `@sunfall/arc-solid/live-query`: the Component binding for live queries.
+// A separate entry so apps without live queries never load `@sunfall/arc-db`.
+import { EffectInputCallbackError, runWithRuntime } from "@sunfall/arc-core";
 import { Query, QueryEvaluationError } from "@sunfall/arc-db";
 import { buildQuery } from "@sunfall/arc-db/internal";
 import { isServer } from "@solidjs/web";
@@ -18,70 +15,98 @@ import {
   untrack,
   type Accessor,
 } from "solid-js";
-
-/**
- * Failures a live query read can throw to `<Errored>`: its sources' declared
- * errors. Contract violations (a throwing callback, an invalid query plan)
- * are defects instead.
- */
-export type LiveQueryRenderError<E> = Exclude<E, EffectInputCallbackError | QueryEvaluationError>;
+import { Component } from "./component.js";
 
 const isContractViolation = (error: unknown): boolean =>
   error instanceof EffectInputCallbackError || error instanceof QueryEvaluationError;
 
 /** Re-causes contract violations as defects, leaving only declared failures typed. */
-const renderFailureCause = <E>(cause: Cause.Cause<E>): Cause.Cause<LiveQueryRenderError<E>> =>
+const renderFailureCause = <E>(cause: Cause.Cause<E>): Cause.Cause<LiveQuery.RenderError<E>> =>
   Cause.fromReasons(
     cause.reasons.map((reason) =>
       Cause.isFailReason(reason) && isContractViolation(reason.error)
         ? Cause.makeDieReason(reason.error)
         : reason,
     ),
-  ) as Cause.Cause<LiveQueryRenderError<E>>;
+  ) as Cause.Cause<LiveQuery.RenderError<E>>;
 
 const settledFailure = <A, E>(
   result: AsyncResult.AsyncResult<A, E>,
-): Cause.Cause<LiveQueryRenderError<E>> | undefined =>
+): Cause.Cause<LiveQuery.RenderError<E>> | undefined =>
   result._tag === "Failure" && !result.waiting ? renderFailureCause(result.cause) : undefined;
 
-/** What the binding needs from the Component instance it runs in. */
-export interface LiveQueryInstance {
-  readonly runtime: AnySunfallArcRuntime<never>;
-  run<A>(f: () => A): A;
-  fail(cause: Cause.Cause<unknown>): never;
-}
-
-/** Options for `Component.liveQuery`. */
-export interface LiveQueryOptions {
-  /** Preload the query's sources when the instance mounts. Defaults to true. */
-  readonly preload?: boolean;
-}
-
 /**
- * Instance-bound live query over the rows of one or more Resources, from
- * `Component.liveQuery`.
- *
- * Rows are recomputed when a source's rows change, and the query is rebuilt
- * when a signal or prop read by the query factory changes. Status chrome reads
- * `waiting()` and `failure()`, like every other binding. If no source load
- * ever succeeded and the latest failed, `rows()` throws that failure to the
- * nearest `<Errored>`, which is why it joins the Component's `E`.
+ * Live queries in a Component: `LiveQuery.bind` is the setup-time binding,
+ * like `Component.resource`, for a `Query` from `@sunfall/arc-db`.
  */
-export interface LiveQueryHandle<T, E = never> {
-  /** Current rows (always the last good rows). */
-  readonly rows: Accessor<ReadonlyArray<T>>;
-  /** True while any source is loading. */
-  readonly waiting: Accessor<boolean>;
-  /** The settled source-load failure, if the latest load failed. */
-  readonly failure: Accessor<Cause.Cause<LiveQueryRenderError<E>> | undefined>;
-  /** Ensures every source has loaded. */
-  preload(): Effect.Effect<void, E | QueryEvaluationError>;
-  /** Reloads every source. */
-  refresh(): Effect.Effect<void, E | QueryEvaluationError>;
-}
+export namespace LiveQuery {
+  /**
+   * Failures a live query read can throw to `<Errored>`: its sources' declared
+   * errors. Contract violations (a throwing callback, an invalid query plan)
+   * are defects instead.
+   */
+  export type RenderError<E> = Exclude<E, EffectInputCallbackError | QueryEvaluationError>;
 
-/** A query factory, or a prebuilt `Query.Live`. */
-export type LiveQueryInput<T, E, R> = Query.Factory<T, E, R> | Query.Live<T, E, R>;
+  /** Options for `LiveQuery.bind`. */
+  export interface Options {
+    /** Preload the query's sources when the instance mounts. Defaults to true. */
+    readonly preload?: boolean;
+  }
+
+  /**
+   * Instance-bound live query over the rows of one or more Resources, from
+   * `LiveQuery.bind`.
+   *
+   * Rows are recomputed when a source's rows change, and the query is rebuilt
+   * when a signal or prop read by the query factory changes. Status chrome reads
+   * `waiting()` and `failure()`, like every other binding. If no source load
+   * ever succeeded and the latest failed, `rows()` throws that failure to the
+   * nearest `<Errored>`, which is why it joins the Component's `E`.
+   */
+  export interface Handle<T, E = never> {
+    /** Current rows (always the last good rows). */
+    readonly rows: Accessor<ReadonlyArray<T>>;
+    /** True while any source is loading. */
+    readonly waiting: Accessor<boolean>;
+    /** The settled source-load failure, if the latest load failed. */
+    readonly failure: Accessor<Cause.Cause<RenderError<E>> | undefined>;
+    /** Ensures every source has loaded. */
+    preload(): Effect.Effect<void, E | QueryEvaluationError>;
+    /** Reloads every source. */
+    refresh(): Effect.Effect<void, E | QueryEvaluationError>;
+  }
+
+  /** A query factory, or a prebuilt `Query.Live`. */
+  export type Input<T, E, R> = Query.Factory<T, E, R> | Query.Live<T, E, R>;
+
+  /**
+   * Binds a live query over the rows of Resources (`Query` from
+   * `@sunfall/arc-db`) to the current Component instance and returns its
+   * handle. Pass a query factory or a prebuilt `Query.Live`; the sources'
+   * declared load errors join the component's `E` and their services join
+   * `R`. The factory runs tracked: a signal or prop it reads rebuilds the
+   * query. Sources preload on mount unless `preload` is false.
+   *
+   * @example
+   * ```tsx
+   * import { LiveQuery } from "@sunfall/arc-solid/live-query";
+   *
+   * const open = yield* LiveQuery.bind((query) =>
+   *   query
+   *     .from({ project: ProjectsRef })
+   *     .where(({ project }) => project.status === "active")
+   *     .select(({ project }) => project),
+   * );
+   * ```
+   */
+  export const bind = <T, E = never, R = never>(
+    input: Input<T, E, R>,
+    options: Options = {},
+  ): Effect.Effect<Handle<T, E>, RenderError<E>, R> =>
+    Effect.map(Component.instance, (current) =>
+      bindLiveQuery(current, input, options),
+    ) as Effect.Effect<Handle<T, E>, RenderError<E>, R>;
+}
 
 /**
  * Binds a live query under the instance's owner: the factory runs tracked (its
@@ -89,11 +114,11 @@ export type LiveQueryInput<T, E, R> = Query.Factory<T, E, R> | Query.Live<T, E, 
  * hydration settles on a hydrating client, never on the server), and
  * preloading restarts when the source set changes.
  */
-export const bindLiveQuery = <T, E, R>(
-  instance: LiveQueryInstance,
-  input: LiveQueryInput<T, E, R>,
-  options: LiveQueryOptions,
-): LiveQueryHandle<T, E> =>
+const bindLiveQuery = <T, E, R>(
+  instance: Component.Instance,
+  input: LiveQuery.Input<T, E, R>,
+  options: LiveQuery.Options,
+): LiveQuery.Handle<T, E> =>
   instance.run(() => {
     const { runtime } = instance;
     // The factory runs tracked so its signal/prop reads rebuild the query;

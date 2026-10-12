@@ -1,4 +1,5 @@
 import { Component } from "@sunfall/arc-solid";
+import { LiveQuery } from "@sunfall/arc-solid/live-query";
 import { Cause, Effect } from "effect";
 import { For, Loading, Show } from "solid-js";
 import { type Project, type ProjectId, type ProjectsUnavailable } from "./model.js";
@@ -44,7 +45,7 @@ const ProjectTaskTitles = Component.define(
   "ProjectTaskTitles",
   function* (props: { readonly projectId: ProjectId }) {
     // The factory runs tracked: reading `props.projectId` rebuilds the query.
-    const titles = yield* Component.liveQuery((query) =>
+    const titles = yield* LiveQuery.bind((query) =>
       query
         .from({ project: ProjectsRef })
         .where(({ project }) => project.id === props.projectId)

@@ -18,6 +18,7 @@
       "@sunfall/arc-db": ["./packages/db/src/index.ts"],
       "@sunfall/arc-db/internal": ["./packages/db/src/internal.ts"],
       "@sunfall/arc-solid": ["./packages/solid/src/index.ts"],
+      "@sunfall/arc-solid/live-query": ["./packages/solid/src/live-query.ts"],
       "@sunfall/arc-tsrx": ["./packages/tsrx/src/index.ts"],
       "@sunfall/arc-start": ["./packages/start/src/index.ts"],
       "@sunfall/arc-start/fetch": ["./packages/start/src/fetch.ts"],

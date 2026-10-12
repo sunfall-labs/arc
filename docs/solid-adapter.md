@@ -118,7 +118,7 @@ rejects) is a defect, never part of `E`.
 | `Component.stream(name, stream, init)` | read-only `Accessor<A>` of the latest element, committed as `<Component>.<name>`                                   | stream services                                                      |
 | `Component.callback(name, f)`          | `(...args) => void` that runs non-state Effect work `f(...args)` as the transition `<Component>.<name>`            | callback services                                                    |
 | `Component.router(routes, options?)`   | the instance's `BrowserRouter<Routes>`                                                                             | route preload and route Component services, route Component failures |
-| `Component.liveQuery(query, opts?)`    | `Component.LiveQueryHandle`: `rows`, `waiting`, `failure`, `preload` (Effect), `refresh` (Effect)                  | source load errors to `E`, source services                           |
+| `LiveQuery.bind(query, opts?)`         | `LiveQuery.Handle`: `rows`, `waiting`, `failure`, `preload` (Effect), `refresh` (Effect)                           | source load errors to `E`, source services                           |
 
 Handles share one vocabulary. Status is `waiting()` (work in flight) and
 `failure()` (the settled `Cause` of the latest load or submission, if it
@@ -133,7 +133,8 @@ stay synchronous.
 
 Every binding runs with the setup's context: Effects it starts see the
 runtime's services and `Component.provide` Layers. `Component.instance` is the
-expert seam for writing more bindings (it is how `Component.liveQuery` is
+expert seam for writing more bindings (it is how `LiveQuery.bind`, from the
+separate `@sunfall/arc-solid/live-query` entry, is
 built): it returns the instance's runtime (bound to the setup context), owner,
 and Scope, with `run(f)` (Solid primitives under the instance owner),
 `fork(effect)` (fibers in the instance Scope), and `fail(cause)` (throws a
@@ -399,7 +400,7 @@ A Solid `createEffect` that only mirrors state into other state is a
 A Resource with `rows` gives its reader `get(input, key)` and
 `index(input, name, value)`; both suspend and follow reloads like
 `reader(input)`, and Actions patch the rows with
-`transaction.insert/update/delete(ref, key, ...)`. `Component.liveQuery(query)`
+`transaction.insert/update/delete(ref, key, ...)`. `LiveQuery.bind(query)`
 binds a live query over the rows of Resources (`Query` from `@sunfall/arc-db`):
 its factory runs tracked, so a signal or prop it reads (`props.projectId`)
 rebuilds the query, and its sources preload on mount in the browser only (a

@@ -28,7 +28,7 @@ edge.
 - Treat `Resource.define(...)` as a Resource Definition. Runtime/request state belongs to `ResourceStore`, reached through the Runtime Spine.
 - Use `Effect.catch`, not the Effect 3 name `catchAll`.
 - Prefer explicit `Resource` / `Action` state and Effect recovery combinators over component-level `try` syntax for first-class APIs.
-- Solid UI is typed `Component`s: runtime state comes from setup-time bindings (`Component.resource`, `action`, `state`, `stream`, `callback`, `router`, `liveQuery`) whose services join the Component's `R`, and each instance owns an Effect `Scope`. Use Solid `createEffect` only for imperative DOM sinks; there is no generic `useEffect`.
+- Solid UI is typed `Component`s: runtime state comes from setup-time bindings (`Component.resource`, `action`, `state`, `stream`, `callback`, `router`, and `LiveQuery.bind` from `@sunfall/arc-solid/live-query`) whose services join the Component's `R`, and each instance owns an Effect `Scope`. Use Solid `createEffect` only for imperative DOM sinks; there is no generic `useEffect`.
 - Isomorphic server functions should be split into shared contracts and real server handlers. Shared code defines `Server.contract` values (each an `effect/rpc` `Rpc`, with required `input` and `output` schemas) and exports `Server.client(contract)`; `.server.ts` modules call `Server.implement(contract, handler)` and are never imported by the browser graph.
 - Prefer `Schema.TaggedError` for server-function errors because it is a yieldable Effect error and a wire schema at the same time.
 - Mock server contracts with `Server.mock(...)` handlers provided through `Server.mockLayer(...)`; do not import `.server.ts` just to test shared resources and actions.
