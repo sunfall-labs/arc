@@ -1,38 +1,22 @@
 import { Data, Effect } from "effect";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { existsSync } from "node:fs";
 import { resolve as resolvePath } from "node:path";
-import type { UserConfig } from "vite";
+import type { InlineConfig, UserConfig } from "vite";
 import {
-  createStartManifestWallDefineValues,
   defaultServerEntry,
   fileRouteDiscoveryPlan,
   isFileRouteDiscoveryFile,
-  makeStartBuildAppGraph,
   makeStartFileRouteManifest,
   normalizeStartManifestIterableOptions,
-  normalizeStartBuildPolicy,
   withDiscoveredFileRoutesSync,
-  type StartManifestOptions,
   type SunfallArcStartOptions,
 } from "./start-manifest-wall.js";
 import {
-  deriveStartDefinitionSources,
-  type StartDefinitionSourcesError,
-  type StartDerivedDefinitionSources,
-} from "./start-definition-sources.js";
-import {
-  appGraphRuntimeDiagnosticsVirtualModuleId,
-  appGraphVirtualModuleId,
   fileRouteDefinitionsVirtualModuleId,
   fileRouteManifestVirtualModuleId,
   loadStartVirtualModule,
   resolveStartVirtualModuleId,
 } from "./start-virtual-modules.js";
-import {
-  runStartViteDiagnosticsGate,
-  startDiagnosticsInlineConfig,
-} from "./start-vite-diagnostics-loader.js";
 import {
   shouldWriteFileRouteDefinitionsFile,
   writeFileRouteDefinitionsFile,
@@ -45,7 +29,6 @@ import {
   type StartViteDevServer,
 } from "./start-vite-dev-ssr.js";
 import { forkStartHost, runStartHostPromise } from "./start-host-runtime-runner.js";
-import { isStartManifestServerOnlyModule } from "./manifest-entry-core.js";
 import { sunfallArcStartPluginName } from "./start-vite-plugin-names.js";
 import {
   isStartRouteCodeSplitModule,
@@ -60,7 +43,6 @@ export type {
   FileRouteDiscoveryOptions,
   FileRouteGenerationOptions,
   StartBuildPolicy,
-  StartBuildPolicyError,
   StartStaticClientPolicy,
   StartViteDevSsrOptions,
 } from "./start-manifest-wall.js";
@@ -80,10 +62,7 @@ export {
   FileRouteDefinitionsOutputPathError,
   FileRouteDefinitionsFileWriteError,
 } from "./generated-route-definitions.js";
-export { StartAppGraphMissingWireSchemas } from "./app-graph.js";
-export { StartAppGraphUnknownRoutePreloadResources } from "./start-app-graph-diagnostics-policy.js";
 export { StartDevServerError, StartHandlerNotFound } from "./start-vite-dev-ssr.js";
-export { StartAppGraphDiagnosticsRunnerError } from "./start-vite-diagnostics-loader.js";
 
 /** Vite resolved config fields used by the Start plugin. */
 export interface SunfallArcStartResolvedConfig {
@@ -102,9 +81,9 @@ export interface SunfallArcStartPlugin {
   readonly config: (
     config?: UserConfig,
     env?: { readonly command?: "build" | "serve"; readonly mode?: string },
-  ) => Promise<UserConfig>;
+  ) => UserConfig;
   readonly configResolved: (config: SunfallArcStartResolvedConfig) => void;
-  readonly buildStart: () => void | Promise<void>;
+  readonly buildStart: () => void;
   readonly closeBundle: () => void | Promise<void>;
   readonly resolveId: (id: string) => string | null;
   readonly load: (id: string) => string | null;
@@ -152,11 +131,49 @@ export class StartServerOnlyModuleError extends Data.TaggedError("StartServerOnl
   readonly id: string;
 }> {}
 
+const serverOnlyModulePattern = /\.server\.(?:[cm]?[jt]sx?|tsrx)$/;
+
+const isServerOnlyModule = (id: string): boolean =>
+  serverOnlyModulePattern.test((id.split(/[?#]/, 1)[0] ?? id).replace(/\\/g, "/"));
+
+// The temporary Vite server that prerenders the build runs the app's plugins
+// without Start's own.
+const isStartPlugin = (value: unknown): boolean =>
+  typeof value === "object" &&
+  value !== null &&
+  ((value as { readonly name?: unknown }).name === sunfallArcStartPluginName ||
+    (value as { readonly name?: unknown }).name === "sunfall-arc-tsrx-deps");
+
+const withoutStartPlugins = (pluginOption: unknown): unknown => {
+  if (Array.isArray(pluginOption)) {
+    return pluginOption
+      .map(withoutStartPlugins)
+      .filter((plugin) => plugin !== undefined && !isStartPlugin(plugin));
+  }
+  return isStartPlugin(pluginOption) ? undefined : pluginOption;
+};
+
+const prerenderInlineConfig = (
+  config: UserConfig,
+  root: string,
+  mode: string | undefined,
+): InlineConfig => {
+  const plugins = withoutStartPlugins(config.plugins) as InlineConfig["plugins"] | undefined;
+  return {
+    ...config,
+    root,
+    configFile: false,
+    ...(mode === undefined ? {} : { mode }),
+    logLevel: config.logLevel ?? "silent",
+    ...(plugins === undefined ? {} : { plugins }),
+  };
+};
+
 const isStaticClientBuild = (
   command: "build" | "serve" | undefined,
   options: SunfallArcStartOptions,
 ): boolean => {
-  const policy = normalizeStartBuildPolicy(options.buildPolicy)?.staticClient;
+  const policy = options.buildPolicy?.staticClient;
   return (
     command === "build" &&
     policy !== undefined &&
@@ -169,7 +186,7 @@ const isStaticClientBuild = (
 /**
  * Creates the Sunfall Arc Start Vite plugin.
  *
- * The plugin wires manifests into virtual modules, discovers file routes,
+ * The plugin serves the file-route virtual modules, discovers file routes,
  * enforces build policies, blocks server-only imports from browser builds, and
  * installs the dev SSR middleware.
  *
@@ -188,56 +205,9 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
   let viteCommand: "build" | "serve" | undefined;
   let viteMode: string | undefined;
   let viteOutDir = "dist";
-  let derivedSources: StartDerivedDefinitionSources | undefined;
 
-  const currentOptions = (): StartManifestOptions =>
-    withDiscoveredFileRoutesSync(
-      { ...normalizedOptions, ...derivedSources, serverEntry },
-      viteRoot,
-    );
-
-  // Server functions and Actions come only from what the server entry's
-  // handler serves.
-  const deriveSourcesEffect = (
-    command: "build" | "serve" | undefined,
-    mode: string | undefined,
-  ): Effect.Effect<StartDerivedDefinitionSources | undefined, StartDefinitionSourcesError> =>
-    deriveStartDefinitionSources({
-      root: viteRoot,
-      serverEntry,
-      ...(normalizedOptions.handlerExport === undefined
-        ? {}
-        : { handlerExport: normalizedOptions.handlerExport }),
-      vite: startDiagnosticsInlineConfig(viteUserConfig, viteRoot, mode),
-    }).pipe(
-      Effect.catchTag("StartDefinitionSourcesLoadError", (error) =>
-        // A dev server still starts on a broken server module; its SSR
-        // middleware reports the error per request. Builds fail.
-        command === "build"
-          ? Effect.fail(error)
-          : Effect.logWarning(
-              `[sunfall-arc-start] ${error.message} The app graph lists no server functions or Actions until the server entry loads.`,
-            ).pipe(Effect.as(undefined)),
-      ),
-    );
-
-  const shouldRunDiagnosticsGate = (): boolean => {
-    const policy = normalizeStartBuildPolicy(normalizedOptions.buildPolicy);
-    return (
-      viteCommand === "build" && policy?.diagnostics !== undefined && policy.diagnostics !== false
-    );
-  };
-
-  const runCurrentDiagnosticsGate = (): Promise<void> =>
-    runStartHostPromise(
-      runStartViteDiagnosticsGate({
-        root: viteRoot,
-        configFile: false,
-        ...(viteMode === undefined ? {} : { mode: viteMode }),
-        start: currentOptions(),
-        vite: startDiagnosticsInlineConfig(viteUserConfig, viteRoot, viteMode),
-      }),
-    );
+  const currentOptions = (): SunfallArcStartOptions =>
+    withDiscoveredFileRoutesSync({ ...normalizedOptions, serverEntry }, viteRoot);
 
   const writeCurrentFileRouteDefinitions = (): FileRouteDefinitionsFileWriteResult | undefined => {
     const activeOptions = currentOptions();
@@ -254,8 +224,6 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
   const fileRouteVirtualModuleIds = [
     fileRouteManifestVirtualModuleId,
     fileRouteDefinitionsVirtualModuleId,
-    appGraphVirtualModuleId,
-    appGraphRuntimeDiagnosticsVirtualModuleId,
   ] as const;
   const invalidateFileRouteVirtualModules = (server: {
     readonly moduleGraph: {
@@ -309,28 +277,15 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
     config(config: UserConfig = {}, env) {
       viteUserConfig = config;
       viteRoot = resolvePath(config.root ?? process.cwd());
-      return runStartHostPromise(
-        Effect.gen(function* () {
-          if (existsSync(resolvePath(viteRoot, `.${serverEntry}`))) {
-            // Deriving loads the server entry, which imports the generated routes.
-            writeCurrentFileRouteDefinitions();
-          }
-          derivedSources = yield* deriveSourcesEffect(env?.command, env?.mode);
-          const activeOptions = currentOptions();
-          const graph = yield* makeStartBuildAppGraph(activeOptions);
-          const userConfig: UserConfig = {
-            appType: "custom",
-            define: {
-              ...createStartManifestWallDefineValues(graph),
-              // Static-client builds compile the RPC client out of `App.launch`.
-              __SUNFALL_ARC_BROWSER_RPC__: JSON.stringify(
-                !isStaticClientBuild(env?.command, activeOptions),
-              ),
-            },
-          };
-          return userConfig;
-        }),
-      );
+      return {
+        appType: "custom",
+        define: {
+          // Static-client builds compile the RPC client out of `App.launch`.
+          __SUNFALL_ARC_BROWSER_RPC__: JSON.stringify(
+            !isStaticClientBuild(env?.command, normalizedOptions),
+          ),
+        },
+      };
     },
     configResolved(config) {
       viteRoot = config.root;
@@ -341,9 +296,6 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
     },
     buildStart() {
       refreshFileRouteArtifacts();
-      if (shouldRunDiagnosticsGate()) {
-        return runCurrentDiagnosticsGate();
-      }
     },
     closeBundle() {
       if (viteCommand !== "build" || normalizedOptions.prerender === undefined) {
@@ -360,7 +312,7 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
           outDir: viteOutDir,
           manifest: Effect.runSync(makeStartFileRouteManifest(activeOptions)),
           prerender: activeOptions.prerender ?? normalizedOptions.prerender,
-          vite: startDiagnosticsInlineConfig(viteUserConfig, viteRoot, viteMode),
+          vite: prerenderInlineConfig(viteUserConfig, viteRoot, viteMode),
           serverEntry,
           ...(normalizedOptions.handlerExport === undefined
             ? {}
@@ -385,7 +337,7 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
       return Effect.runSync(loadStartVirtualModule(id, activeOptions));
     },
     transform(code, id, options) {
-      if (isStartManifestServerOnlyModule(id) && !options?.ssr) {
+      if (isServerOnlyModule(id) && !options?.ssr) {
         throw new StartServerOnlyModuleError({ id });
       }
       const activeOptions = currentOptions();
@@ -409,10 +361,6 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
             forkStartHost(
               handleSsrDevMiddleware(startServer, request, response, next, {
                 serverEntry,
-                ...(activeOptions.rpcPath === undefined ? {} : { rpcPath: activeOptions.rpcPath }),
-                ...(activeOptions.actionPath === undefined
-                  ? {}
-                  : { actionPath: activeOptions.actionPath }),
                 ...(normalizedOptions.handlerExport === undefined
                   ? {}
                   : { handlerExport: normalizedOptions.handlerExport }),

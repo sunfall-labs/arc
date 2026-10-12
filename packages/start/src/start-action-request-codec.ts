@@ -1,14 +1,11 @@
 import { Form, Server, ServerRpcProtocolError, type Action } from "@sunfall/arc-core";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
-import { hasContentType, startJsonMediaType } from "./rpc.js";
-import { resolveStartActionEndpoint } from "./start-transport-endpoints.js";
+import { hasContentType, serverActionPath, startJsonMediaType } from "./rpc.js";
 import {
   readStartTransportFormDataBody,
   readStartTransportJsonBody,
 } from "./start-transport-body.js";
-import { encodeWithSchema } from "./start-schema-codec.js";
-
-export { encodeWithSchema } from "./start-schema-codec.js";
+import { encodeServerWire } from "@sunfall/arc-core/internal";
 
 /** JSON payload accepted by the Start action transport. */
 export interface StartActionRequest {
@@ -46,11 +43,6 @@ export interface StartActionForm {
 
 /** Options used to build a progressive HTML form for a typed Start action. */
 export interface StartActionFormOptions<I> {
-  /**
-   * Form action URL. Defaults to the Start action endpoint; pass the app's
-   * configured `actionPath` (or any absolute URL) when it differs.
-   */
-  readonly action?: string;
   /** Partial input serialized into the hidden input field. */
   readonly input?: Partial<I>;
 }
@@ -135,7 +127,7 @@ const encodePartialWithSchema = (
 ): Effect.Effect<unknown, Schema.SchemaError> => {
   const fields = structSchemaFields(schema);
   if (!Schema.isSchema(schema) || fields === undefined || !isRecord(input)) {
-    return encodeWithSchema(schema, input);
+    return encodeServerWire(schema, input);
   }
 
   const presentFields: Record<string, Schema.Schema<unknown>> = {};
@@ -156,7 +148,7 @@ const encodePartialWithSchema = (
 export const encodeStartActionInput = (
   action: StartActionDefinition,
   input: unknown,
-): Effect.Effect<unknown, Schema.SchemaError> => encodeWithSchema(action.input, input);
+): Effect.Effect<unknown, Schema.SchemaError> => encodeServerWire(action.input, input);
 
 /** Encodes a partial Start action input through the present fields of a struct input schema. */
 export const encodeStartActionPartialInput = (
@@ -236,9 +228,7 @@ export const startActionForm = <I, A, E, R>(
   options: StartActionFormOptions<I> = {},
 ): StartActionForm => ({
   method: "post",
-  action: String(
-    resolveStartActionEndpoint(options.action === undefined ? {} : { action: options.action }),
-  ),
+  action: serverActionPath,
   hiddenFields: [
     {
       name: startActionNameField,

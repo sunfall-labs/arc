@@ -86,7 +86,7 @@ services (`ActionTransport`, `ActionOutbox`, `ResourceStore`,
 | `Server.get(name)`                                                                                    | `Server.functions().get(name)`                                                                                      |
 | `capability.mock(service)` / `capability.provide(effect, service)`                                    | `capability.layer(service)` / `Effect.provide(effect, capability.layer(service))`                                   |
 | `signal.set((current) => next)`                                                                       | `signal.update((current) => next)`; `set` takes a value                                                             |
-| `StartAction.form(action, { actionPath / endpoints / actionManifest / appGraph })`                    | `StartAction.form(action, { action: url })`                                                                         |
+| `StartAction.form(action, { actionPath / endpoints / actionManifest / appGraph })`                    | `StartAction.form(action)` (posts to `/__sunfall-arc/action`)                                                       |
 | prerender `{ enabled: true, ... }` / `{ enabled: false }`                                             | prerender `{ ... }` / `false`                                                                                       |
 | prerender page `{ path, prerender: { enabled, outputPath } }`                                         | `{ path, outputPath, prerender: false }`                                                                            |
 | cookie `sameSite: "Strict"` / `"Lax"` / `"None"`                                                      | `sameSite: "strict"` / `"lax"` / `"none"`                                                                           |
@@ -239,12 +239,12 @@ Effect.runFork(App.launch(app));
 | Solid DB handle `result()` / `preloadFailure()`, `onPreloadFailure`, `pendingMutations()`                                    | `waiting()` / `failure()`; a never-loaded failure throws to `<Errored>` (`catchTags`)                                                         |
 | `Route.define(path, { component })`                                                                                          | `Route.withComponent(route, Component, props?)` (Start code-splits it)                                                                        |
 | `Collection.RuntimeError<E>`, `collection.preload().pipe(Effect.orDie)` in a route preload                                   | `E`: collection loads fail only with their declared error; contract breaks are defects                                                        |
-| Vite plugin `serverFunctionManifest` / `actionManifest` options                                                              | removed: the plugin derives both from the server entry's `createRequestHandler`                                                               |
+| Vite plugin `serverFunctionManifest` / `actionManifest` options                                                              | removed                                                                                                                                       |
 | `catchTags({ LoadErrorTag })` on a reader of a Resource without `error` (render failure was the raw load error)              | declare `error: LoadErrorSchema` on the Resource, or handle `ResourceUntypedFailure` (its `tag` only)                                         |
 | Resource `error: unknown` (diagnostics only)                                                                                 | `error` is a `Schema.Codec<E>` (`Resource.ErrorSchema<E>`): `load` must fail within it and it defines the declared error                      |
 | raw typed failure serialized by `<Errored>` during SSR                                                                       | the Solid adapter throws only a safe wire value: schema-encoded Resource failure, `_tag` without a schema, nothing for setup failures/defects |
 | app graph route diagnostics `component` presence                                                                             | removed: components attach with `Route.withComponent` in app modules                                                                          |
-| `validateStartAppGraphActionBehaviorEffect`, `StartBuildPolicy.actionBehavior`, `diagnostics.unknownActionBehavior`          | removed: manifests are derived from `Action.define` values, so behavior is always known                                                       |
+| `validateStartAppGraphActionBehaviorEffect`, `StartBuildPolicy.actionBehavior`, `diagnostics.unknownActionBehavior`          | removed                                                                                                                                       |
 | `Option.getOrUndefined(AsyncResult.error(action.result()))`, `action.result().waiting`                                       | `action.failure()` (a `Cause`), `action.waiting()`                                                                                            |
 | `optimistic: (input, tx) => ... return Effect.void` (rollback Effect)                                                        | `optimistic: (input, tx) => tx.set(...)` (the transaction owns rollback)                                                                      |
 | `Query.onceEffect`, `Query.Live` `preloadEffect` / `refetchEffect`                                                           | `Query.once`, `preload` / `refresh`                                                                                                           |
@@ -264,6 +264,26 @@ Effect.runFork(App.launch(app));
 The migration is done when no `*Effect`-suffixed Arc name remains in app code,
 event handlers reach Effects only through `Component.callback`, and routes are
 addressed by their definitions.
+
+## From The Start Diagnostics CLI And App Graph
+
+Start no longer builds an app graph, so the tooling that read it is gone:
+
+| Before                                                                                                                            | Now                                                                                              |
+| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `sunfall-arc-start diagnostics` / `graph` / `impact` (the package `bin`)                                                          | removed; read `routeTree.gen.ts`, `Resource.diagnostics()`, and `Route.describePreloadResources` |
+| `@sunfall/arc-start/diagnostics-report`, `createStartAgentGraph(...)`                                                             | removed                                                                                          |
+| `virtual:sunfall-arc/app-graph`, `virtual:sunfall-arc/app-graph/runtime-diagnostics`                                              | removed                                                                                          |
+| `virtual:sunfall-arc/server-functions`, `virtual:sunfall-arc/actions`, `__SUNFALL_ARC_*__` manifest defines                       | removed (`virtual:sunfall-arc/file-routes` and `virtual:sunfall-arc/routes` remain)              |
+| `buildPolicy: true`, `buildPolicy.wireSchemas`                                                                                    | removed; `buildPolicy` is `{ staticClient }`                                                     |
+| `buildPolicy.diagnostics.routePreloadResources.requireDeclaredForPreload`                                                         | Vite dev logs a warning for each route whose `preload` declares no `preloadResources`            |
+| `@sunfall/arc-start/internal`                                                                                                     | removed                                                                                          |
+| Vite plugin `rpcPath` / `actionPath`, `createRequestHandler(app, { endpoints })`, `App.launch(app, { transport: { endpoints } })` | removed: the endpoints are fixed at `/__sunfall-arc/rpc` and `/__sunfall-arc/action`             |
+| `StartTransportEndpointPathError`, `StartTransportEndpointConflictError`, `StartTransportEndpointOverrides`                       | removed                                                                                          |
+| `StartAction.form(action, { action: url })`                                                                                       | `StartAction.form(action)`                                                                       |
+
+The plugin also no longer loads the server entry through a second Vite server
+at startup to name server functions and Actions: nothing consumed those names.
 
 ## From Reducers And Effect Queues
 
@@ -352,7 +372,7 @@ and interruption stay visible.
 
 TanStack Start route files often combine route definitions, loaders, server
 functions, and generated route typing. Sunfall Arc keeps the same copyable route
-shape but makes app graph facts explicit:
+shape but makes route facts explicit:
 
 - File routes export `route = Route.define(path, options)`; Start generates
   the route maps and fails when the declared path differs from the file's.
@@ -363,8 +383,8 @@ shape but makes app graph facts explicit:
 - Start renders the app root into its own streamed document; a route sets its
   head and headers through the handler's `document` function instead of
   hand-written HTML.
-- Build diagnostics should run with declared route preload ownership and schema
-  metadata before a route leaves the starter stage.
+- Routes with a `preload` declare `preloadResources`; Vite dev warns for every
+  route that does not.
 
 When moving a route, migrate the route path, schemas, Resource preloads, and
 server contracts together. A route that compiles but hides preload ownership is

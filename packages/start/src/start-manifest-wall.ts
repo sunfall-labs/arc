@@ -2,27 +2,9 @@ import { Data, Effect } from "effect";
 import { existsSync, readdirSync } from "node:fs";
 import { isAbsolute, relative as relativePath, resolve as resolvePath } from "node:path";
 import {
-  createStartAppGraph,
-  serializeStartAppGraph,
-  validateStartAppGraphWireSchemas,
-  type StartAppGraph,
-  type StartAppGraphMissingWireSchemas as StartAppGraphMissingWireSchemasError,
-  type StartAppGraphWireSchemaPolicy,
-} from "./app-graph.js";
-import {
-  actionManifestDefinition,
-  makeActionManifest,
-  serializeActionManifest,
-  type ActionManifest,
-  type ActionManifestDefinition,
-  type ActionManifestError,
-  type ActionManifestSource,
-} from "./action-manifest.js";
-import {
   createFileRouteManifest,
   defaultFileRouteExtensions,
   generateValidatedFileRouteManifestArtifact,
-  serializeFileRouteManifest,
   validateFileRouteManifest,
   type FileRouteManifest,
   type FileRouteManifestEntry,
@@ -31,24 +13,9 @@ import {
   type FileRouteManifestOptions,
 } from "./file-routes.js";
 import type { GeneratedFileRouteDefinitionsModuleOptions } from "./file-route-modules.js";
-import type { StartAppGraphDiagnosticsPolicy } from "./start-app-graph-diagnostics-policy.js";
 import type { StartHostForkRunnerOptions } from "./start-host-runtime-runner.js";
-import {
-  makeServerFunctionManifest,
-  serializeServerFunctionManifest,
-  serverFunctionManifestDefinition,
-  type ServerFunctionManifest,
-  type ServerFunctionManifestDefinition,
-  type ServerFunctionManifestError,
-  type ServerFunctionManifestSource,
-} from "./server-function-manifest.js";
 import type { StartNodeRequestOptions } from "./node-web-exchange.js";
 import type { StartPrerenderConfig } from "./start-prerender.js";
-import {
-  resolveStartTransportEndpoints,
-  type StartTransportEndpointConflictError,
-  type StartTransportEndpointPathError,
-} from "./start-transport-endpoints.js";
 
 /** Options for generated file-route definition modules written by the plugin. */
 export interface FileRouteGenerationOptions extends GeneratedFileRouteDefinitionsModuleOptions {
@@ -61,13 +28,7 @@ export interface StartViteDevSsrOptions<
   RuntimeError = never,
 > extends StartHostForkRunnerOptions<RuntimeError> {}
 
-/**
- * Vite plugin options for Start manifests, route discovery, and build policy.
- *
- * Server functions and Actions are not listed here: the plugin derives them
- * from the server entry's `createRequestHandler(app, { serverFunctions })`,
- * naming each by the module export it came from.
- */
+/** Vite plugin options for route discovery, dev SSR, prerendering, and build policy. */
 export interface SunfallArcStartOptions {
   /** File paths to route modules when not using route directory discovery. */
   readonly fileRoutes?: Iterable<string>;
@@ -105,32 +66,16 @@ export interface SunfallArcStartOptions {
    * object form to set explicit pages, retry behavior, and output-path style.
    */
   readonly prerender?: StartPrerenderConfig;
-  /** RPC endpoint path used by generated server-function client references. */
-  readonly rpcPath?: string;
-  /** Action endpoint path used by generated POST client references. */
-  readonly actionPath?: string;
   /** Node request origin and forwarded-header policy for the Vite dev SSR middleware. */
   readonly nodeRequest?: StartNodeRequestOptions;
-  /** Build policy to enforce, or true for the default policy. */
-  readonly buildPolicy?: StartBuildPolicy | boolean;
+  /** Build policy to enforce. */
+  readonly buildPolicy?: StartBuildPolicy;
 }
 
-/**
- * Plugin options plus the server-function and Action sources the plugin
- * derived from the server entry. Internal to Start.
- */
-export interface StartManifestOptions extends SunfallArcStartOptions {
-  readonly serverFunctionSources?: Iterable<ServerFunctionManifestSource>;
-  readonly actionSources?: Iterable<ActionManifestSource>;
-}
-
-/** Build-time policies that can fail the build when app graph contracts drift. */
+/** Build-time policies enforced by the Vite plugin. */
 export interface StartBuildPolicy {
-  readonly wireSchemas?: StartAppGraphWireSchemaPolicy | false;
-  /** Browser-client policy for fully static deployments. Enforced by the Vite plugin. */
+  /** Browser-client policy for fully static deployments. */
   readonly staticClient?: StartStaticClientPolicy | false;
-  /** Resolved runtime diagnostics policy, enforced by the Vite diagnostics gate. */
-  readonly diagnostics?: StartAppGraphDiagnosticsPolicy | false;
 }
 
 /** Build-time browser-client policy for static Start deployments. */
@@ -140,9 +85,6 @@ export interface StartStaticClientPolicy {
   /** Compile the server-function RPC client out of `App.launch` in the browser build. Defaults to true. */
   readonly forbidBrowserRpc?: boolean;
 }
-
-/** Failure channel for static Start build policy validation. */
-export type StartBuildPolicyError = StartAppGraphMissingWireSchemasError;
 
 /** Options for discovering file-route modules from a route directory. */
 export interface FileRouteDiscoveryOptions {
@@ -167,37 +109,12 @@ export class FileRouteDiscoveryError extends Data.TaggedError("FileRouteDiscover
   readonly cause: unknown;
 }> {}
 
-export type StartAppGraphError =
-  | ServerFunctionManifestError
-  | ActionManifestError
-  | FileRouteManifestError
-  | StartTransportEndpointPathError
-  | StartTransportEndpointConflictError;
-
-/** Compile-time define values generated from the Start Manifest Wall. */
-export interface StartManifestWallDefineValues {
-  readonly __SUNFALL_ARC_SERVER_FUNCTIONS__: string;
-  readonly __SUNFALL_ARC_ACTIONS__: string;
-  readonly __SUNFALL_ARC_FILE_ROUTES__: string;
-  readonly __SUNFALL_ARC_APP_GRAPH__: string;
-}
-
 /** Default server entry module used by the Start Manifest Wall. */
 export const defaultServerEntry = "/src/server.tsx";
 /** Default directory scanned for file routes. */
 export const defaultFileRouteDirectory = "src/routes";
 /** Default generated route tree output path. */
 export const defaultFileRouteGeneratedFile = "src/routeTree.gen.ts";
-/** Default wire-schema policy applied while building the Start app graph. */
-export const defaultStartBuildWireSchemaPolicy: Required<StartAppGraphWireSchemaPolicy> = {
-  requireInput: true,
-  requireOutput: true,
-  requireError: false,
-};
-/** Default Start build policy used by the Vite plugin and manifest helpers. */
-export const defaultStartBuildPolicy: StartBuildPolicy = {
-  wireSchemas: defaultStartBuildWireSchemaPolicy,
-};
 
 const normalizeDiscoveredFileRoutePath = (path: string): string =>
   path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
@@ -222,7 +139,7 @@ export const absoluteFileRouteGeneratedFile = (
 
 export const isGeneratedFileRouteDefinitionsOutputFile = (
   root: string,
-  options: StartManifestOptions,
+  options: SunfallArcStartOptions,
   filePath: string,
 ): boolean => {
   const generated = absoluteFileRouteGeneratedFile(root, options.fileRouteGeneration);
@@ -335,38 +252,6 @@ export const discoverFileRoutes = (
   });
 };
 
-const serverFunctionDefinitionsFromOptions = (
-  options: StartManifestOptions,
-): Iterable<ServerFunctionManifestDefinition> =>
-  Array.from(options.serverFunctionSources ?? [], (source) =>
-    serverFunctionManifestDefinition(source.fn, source),
-  );
-
-const actionDefinitionsFromOptions = (
-  options: StartManifestOptions,
-): Iterable<ActionManifestDefinition> =>
-  Array.from(options.actionSources ?? [], (source) =>
-    actionManifestDefinition(source.action, source),
-  );
-
-/** Builds the server-function manifest from plugin options. */
-export const makeStartServerFunctionManifest = (
-  options: StartManifestOptions = {},
-): Effect.Effect<ServerFunctionManifest, ServerFunctionManifestError> =>
-  makeServerFunctionManifest(
-    serverFunctionDefinitionsFromOptions(options),
-    options.rpcPath === undefined ? {} : { rpcPath: options.rpcPath },
-  );
-
-/** Builds the Start action manifest from plugin options. */
-export const makeStartActionManifest = (
-  options: StartManifestOptions = {},
-): Effect.Effect<ActionManifest, ActionManifestError> =>
-  makeActionManifest(
-    actionDefinitionsFromOptions(options),
-    options.actionPath === undefined ? {} : { actionPath: options.actionPath },
-  );
-
 const isFileRouteManifest = (value: unknown): value is FileRouteManifest =>
   typeof value === "object" &&
   value !== null &&
@@ -377,8 +262,8 @@ const materializeIterableOption = <A>(value: Iterable<A> | undefined): readonly 
   value === undefined ? undefined : Array.from(value);
 
 const normalizeFileRouteManifestOption = (
-  manifest: StartManifestOptions["fileRouteManifest"],
-): StartManifestOptions["fileRouteManifest"] => {
+  manifest: SunfallArcStartOptions["fileRouteManifest"],
+): SunfallArcStartOptions["fileRouteManifest"] => {
   if (manifest === undefined) {
     return undefined;
   }
@@ -397,23 +282,19 @@ const normalizeFileRouteManifestOption = (
 
 /** Materializes caller-supplied manifest Iterables once at the Vite/plugin seam. */
 export const normalizeStartManifestIterableOptions = (
-  options: StartManifestOptions = {},
-): StartManifestOptions => {
-  const serverFunctionSources = materializeIterableOption(options.serverFunctionSources);
-  const actionSources = materializeIterableOption(options.actionSources);
+  options: SunfallArcStartOptions = {},
+): SunfallArcStartOptions => {
   const fileRoutes = materializeIterableOption(options.fileRoutes);
   const fileRouteManifest = normalizeFileRouteManifestOption(options.fileRouteManifest);
 
   return {
     ...options,
-    ...(serverFunctionSources === undefined ? {} : { serverFunctionSources }),
-    ...(actionSources === undefined ? {} : { actionSources }),
     ...(fileRoutes === undefined ? {} : { fileRoutes }),
     ...(fileRouteManifest === undefined ? {} : { fileRouteManifest }),
   };
 };
 
-const withDefaultFileRouteDirectory = (options: StartManifestOptions): StartManifestOptions => {
+const withDefaultFileRouteDirectory = (options: SunfallArcStartOptions): SunfallArcStartOptions => {
   if (
     options.fileRouteOptions?.routeDirectory !== undefined ||
     (options.fileRouteManifest !== undefined && isFileRouteManifest(options.fileRouteManifest))
@@ -431,14 +312,14 @@ const withDefaultFileRouteDirectory = (options: StartManifestOptions): StartMani
 };
 
 export const withDiscoveredFileRoutesSync = (
-  options: StartManifestOptions,
+  options: SunfallArcStartOptions,
   root: string,
-): StartManifestOptions => Effect.runSync(withDiscoveredFileRoutes(options, root));
+): SunfallArcStartOptions => Effect.runSync(withDiscoveredFileRoutes(options, root));
 
 export const withDiscoveredFileRoutes = (
-  options: StartManifestOptions,
+  options: SunfallArcStartOptions,
   root: string,
-): Effect.Effect<StartManifestOptions, FileRouteDiscoveryError> => {
+): Effect.Effect<SunfallArcStartOptions, FileRouteDiscoveryError> => {
   const next = withDefaultFileRouteDirectory(options);
   if (next.fileRouteManifest !== undefined || next.fileRoutes !== undefined) {
     return Effect.succeed(next);
@@ -466,7 +347,7 @@ export const withDiscoveredFileRoutes = (
 
 /** Builds or validates the Start file-route manifest from plugin options. */
 export const makeStartFileRouteManifest = (
-  options: StartManifestOptions = {},
+  options: SunfallArcStartOptions = {},
 ): Effect.Effect<FileRouteManifest, FileRouteManifestError> => {
   const manifest = options.fileRouteManifest;
   if (manifest) {
@@ -494,78 +375,3 @@ export const makeStartFileRouteManifest = (
 
   return Effect.succeed(createFileRouteManifest([], options.fileRouteOptions));
 };
-
-/** Combines route, server-function, and action manifests into a Start app graph. */
-export const makeStartAppGraph = (
-  options: StartManifestOptions = {},
-): Effect.Effect<StartAppGraph, StartAppGraphError> =>
-  Effect.gen(function* () {
-    const serverFunctions = yield* makeStartServerFunctionManifest(options);
-    const actions = yield* makeStartActionManifest(options);
-    yield* resolveStartTransportEndpoints({
-      serverFunctionManifest: serverFunctions,
-      actionManifest: actions,
-    });
-    const routes = yield* makeStartFileRouteManifest(options);
-
-    return createStartAppGraph({
-      routes,
-      serverFunctions,
-      actions,
-    });
-  });
-
-export const normalizeStartBuildPolicy = (
-  policy: StartManifestOptions["buildPolicy"],
-): StartBuildPolicy | undefined => {
-  if (policy === undefined || policy === false) {
-    return undefined;
-  }
-
-  return policy === true ? defaultStartBuildPolicy : policy;
-};
-
-/** Applies static build policies to a Start app graph. */
-export const validateStartBuildPolicy = (
-  graph: StartAppGraph,
-  policy: StartBuildPolicy = defaultStartBuildPolicy,
-): Effect.Effect<void, StartBuildPolicyError> =>
-  Effect.gen(function* () {
-    const wireSchemas = policy.wireSchemas;
-    if (wireSchemas !== false) {
-      yield* validateStartAppGraphWireSchemas(
-        graph,
-        wireSchemas ?? defaultStartBuildWireSchemaPolicy,
-      );
-    }
-  });
-
-/** Builds the app graph and applies any enabled build policy. */
-export const makeStartBuildAppGraph = (
-  options: StartManifestOptions = {},
-): Effect.Effect<StartAppGraph, StartAppGraphError | StartBuildPolicyError> =>
-  Effect.gen(function* () {
-    const graph = yield* makeStartAppGraph(options);
-    const policy = normalizeStartBuildPolicy(options.buildPolicy);
-    if (policy !== undefined) {
-      yield* validateStartBuildPolicy(graph, policy);
-    }
-
-    return graph;
-  });
-
-/** Creates the production define values for a policy-checked Start app graph. */
-export const createStartManifestWallDefineValues = (
-  graph: StartAppGraph,
-): StartManifestWallDefineValues => ({
-  __SUNFALL_ARC_SERVER_FUNCTIONS__: serializeServerFunctionManifest(graph.serverFunctions),
-  __SUNFALL_ARC_ACTIONS__: serializeActionManifest(graph.actions),
-  __SUNFALL_ARC_FILE_ROUTES__: serializeFileRouteManifest(graph.routes),
-  __SUNFALL_ARC_APP_GRAPH__: serializeStartAppGraph(graph),
-});
-
-/** Builds the production define values from plugin options. */
-export const makeStartManifestWallDefineValues = (
-  options: StartManifestOptions = {},
-): Effect.Effect<StartManifestWallDefineValues, StartAppGraphError | StartBuildPolicyError> =>
-  Effect.map(makeStartBuildAppGraph(options), createStartManifestWallDefineValues);

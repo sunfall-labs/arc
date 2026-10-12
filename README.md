@@ -22,8 +22,8 @@ while examples, diagnostics, and release gates are hardened.
   Programs, live queries, and the router, and their services and typed failures
   accumulate into the component type that `Component.launch` checks.
 - Humans and agents can co-develop against explicit app structure: typed
-  definitions, generated route artifacts, app graph diagnostics, and verification
-  gates.
+  definitions, generated route artifacts, definition diagnostics, and
+  verification gates.
 - Effect-first Resources, Actions, Programs, Forms, Routes, Capabilities, and
   server contracts through the Solid 2 adapter.
 - Request-local runtimes and resource stores for SSR, RPC, Start actions, and

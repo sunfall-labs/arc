@@ -102,6 +102,7 @@
         "route-match",
         "runtime",
         "scope",
+        "server-wire-codec",
         "signal-transaction",
         "signal-watch",
         "stable-stringify"
@@ -158,8 +159,6 @@
       "requiredTypeTestImports": [
         "DevtoolsRuntimeEvent",
         "DevtoolsSnapshot",
-        "DevtoolsStartAppGraphSchemaCoverage",
-        "DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry",
         "DevtoolsStore",
         "DevtoolsStoreOptions",
         "DevtoolsUnknownInvalidationTarget",
@@ -208,7 +207,6 @@
         "start-document",
         "start-fetch",
         "start-request-handler",
-        "start-transport-endpoints",
         "start-transport-protocol",
         "static-client-navigation",
         "streaming"
@@ -225,8 +223,6 @@
         "StartRequestHandler",
         "StartRequestHandlerError",
         "StartRootMissing",
-        "StartTransportEndpointConflictError",
-        "StartTransportEndpointPathError",
         "createRequestHandler",
         "hydrateFromDocument",
         "makeStartStaticHistoryAdapter"
@@ -288,37 +284,12 @@
     },
     {
       "package": "@sunfall/arc-start",
-      "export": "./internal",
-      "import": "@sunfall/arc-start/internal",
-      "visibility": "internal",
-      "source": "packages/start/src/internal.ts",
-      "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/start-internal.test-d.ts",
-      "sourceSurface": ["app-graph", "start-app-graph-diagnostics-policy"]
-    },
-    {
-      "package": "@sunfall/arc-start",
-      "export": "./diagnostics-report",
-      "import": "@sunfall/arc-start/diagnostics-report",
-      "source": "packages/start/src/diagnostics-report.ts",
-      "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/start-diagnostics-report.test-d.ts",
-      "sourceSurface": ["start-diagnostics-contract"]
-    },
-    {
-      "package": "@sunfall/arc-start",
       "export": "./virtual",
       "import": "@sunfall/arc-start/virtual",
       "source": "packages/start/src/virtual-modules.d.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-virtual.test-d.ts",
       "typeTestReferences": [
-        "virtual:sunfall-arc/server-functions",
-        "serverFunctionManifest",
-        "ServerFunctionManifestEntry",
-        "virtual:sunfall-arc/actions",
-        "actionManifest",
-        "ActionManifestEntry",
         "virtual:sunfall-arc/file-routes",
         "fileRouteManifest",
         "FileRouteManifestEntry",
@@ -349,12 +320,7 @@
         "FileRouteErrorBoundary",
         "FileRouteMetadataModules",
         "FileRouteModules",
-        "FileRouteMetadata",
-        "virtual:sunfall-arc/app-graph",
-        "appGraph",
-        "StartAppGraphDiagnostics",
-        "virtual:sunfall-arc/app-graph/runtime-diagnostics",
-        "runtimeDiagnostics"
+        "FileRouteMetadata"
       ]
     },
     {
@@ -365,20 +331,16 @@
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-vite.test-d.ts",
       "sourceSurface": [
-        "app-graph",
         "file-routes",
         "generated-route-definitions",
-        "start-app-graph-diagnostics-policy",
         "start-manifest-wall",
         "start-prerender",
-        "start-vite-dev-ssr",
-        "start-vite-diagnostics-loader"
+        "start-vite-dev-ssr"
       ],
       "requiredTypeTestImports": [
         "FileRouteDefinitionsFileWriteError",
         "FileRouteDefinitionsOutputPathError",
         "StartBuildPolicy",
-        "StartBuildPolicyError",
         "StartDevServerError",
         "StartHandlerNotFound",
         "StartPrerenderConfig",
@@ -400,14 +362,5 @@
       "typeTest": "type-tests/tsrx.test-d.ts"
     }
   ],
-  "bins": [
-    {
-      "package": "@sunfall/arc-start",
-      "bin": "sunfall-arc-start",
-      "source": "packages/start/src/cli.ts",
-      "docs": "docs/public-api-inventory.md",
-      "typeTest": null,
-      "reason": "CLI behavior is verified by package and starter runtime tests rather than import-shaped type tests."
-    }
-  ]
+  "bins": []
 }

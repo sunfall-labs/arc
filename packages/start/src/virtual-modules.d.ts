@@ -1,31 +1,3 @@
-declare module "virtual:sunfall-arc/server-functions" {
-  /** Generated server-function manifest discovered by the Start Vite plugin. */
-  export type ServerFunctionManifest =
-    import("./server-function-manifest.js").ServerFunctionManifest;
-  /** One server-function manifest entry, including server and client module facts. */
-  export type ServerFunctionManifestEntry =
-    import("./server-function-manifest.js").ServerFunctionManifestEntry;
-
-  /** Complete generated server-function manifest. */
-  export const manifest: ServerFunctionManifest;
-  /** Server-function manifest entries. */
-  export const entries: ServerFunctionManifest["entries"];
-  export default manifest;
-}
-
-declare module "virtual:sunfall-arc/actions" {
-  /** Generated action manifest discovered by the Start Vite plugin. */
-  export type ActionManifest = import("./action-manifest.js").ActionManifest;
-  /** One action manifest entry, including server/client modules and behavior facts. */
-  export type ActionManifestEntry = import("./action-manifest.js").ActionManifestEntry;
-
-  /** Complete generated action manifest. */
-  export const manifest: ActionManifest;
-  /** Action manifest entries. */
-  export const entries: ActionManifest["entries"];
-  export default manifest;
-}
-
 declare module "virtual:sunfall-arc/file-routes" {
   /** Generated file-route manifest discovered by the Start Vite plugin. */
   export type FileRouteManifest = import("./file-routes.js").FileRouteManifest;
@@ -118,52 +90,4 @@ declare module "virtual:sunfall-arc/routes" {
   export type FileRouteModules = typeof fileRouteModules;
   /** Generated route metadata projection. */
   export type FileRouteMetadata = typeof fileRouteMetadata;
-}
-
-declare module "virtual:sunfall-arc/app-graph" {
-  /** Static app graph generated from file routes, server functions, and actions. */
-  export type StartAppGraph = import("./app-graph.js").StartAppGraph;
-  /** Static diagnostics projected from generated manifests only. */
-  export type StartAppGraphDiagnostics = import("./app-graph.js").StartAppGraphDiagnostics;
-  /** Diagnostics policy violation raised before the virtual module is usable. */
-  export type StartAppGraphDiagnosticsPolicyViolation =
-    import("./app-graph.js").StartAppGraphDiagnosticsPolicyViolation;
-
-  /** Generated static app graph. */
-  export const graph: StartAppGraph;
-  /** Static manifest diagnostics that do not import route implementation modules. */
-  export const diagnostics: StartAppGraphDiagnostics;
-  /** Policy violations after the virtual module's Effect guard succeeds. */
-  export const diagnosticsPolicyViolations: readonly StartAppGraphDiagnosticsPolicyViolation[];
-  /** Generated route graph entries. */
-  export const routes: StartAppGraph["routes"];
-  /** Generated server-function graph entries. */
-  export const serverFunctions: StartAppGraph["serverFunctions"];
-  /** Generated action graph entries. */
-  export const actions: StartAppGraph["actions"];
-  export default graph;
-}
-
-declare module "virtual:sunfall-arc/app-graph/runtime-diagnostics" {
-  /** Static app graph generated from file routes, server functions, and actions. */
-  export type StartAppGraph = import("./app-graph.js").StartAppGraph;
-  /** Runtime diagnostics layered onto the generated app graph. */
-  export type StartAppGraphDiagnostics = import("./app-graph.js").StartAppGraphDiagnostics;
-  /** Diagnostics policy violation raised before the virtual module is usable. */
-  export type StartAppGraphDiagnosticsPolicyViolation =
-    import("./app-graph.js").StartAppGraphDiagnosticsPolicyViolation;
-
-  /** Generated static app graph. */
-  export const graph: StartAppGraph;
-  /** Runtime-aware diagnostics for routes, resources, actions, and server functions. */
-  export const diagnostics: StartAppGraphDiagnostics;
-  /** Policy violations after the virtual module's Effect guard succeeds. */
-  export const diagnosticsPolicyViolations: readonly StartAppGraphDiagnosticsPolicyViolation[];
-  /** Generated route graph entries. */
-  export const routes: StartAppGraph["routes"];
-  /** Generated server-function graph entries. */
-  export const serverFunctions: StartAppGraph["serverFunctions"];
-  /** Generated action graph entries. */
-  export const actions: StartAppGraph["actions"];
-  export default graph;
 }

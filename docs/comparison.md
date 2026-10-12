@@ -20,7 +20,7 @@ That is the core difference.
 | React / Solid           | Component model and reactive UI        | Keep fine-grained UI ergonomics, but attach async work to Effect scopes and runtime ownership.                             |
 | Foldkit                 | Model/message/update program loop      | Match the loop with `Program.define`, `Program.step`, and `Program.emit`, then run commands through the Arc runtime graph. |
 | Next / Remix            | Full-stack routes, forms, server work  | Keep progressive enhancement, but make server contracts, schemas, request runtimes, and manifests explicit.                |
-| TanStack Start / Router | Typed routes and full-stack wiring     | Add Schema-branded params, request-local Effect runtimes, app graph diagnostics, and stricter build gates.                 |
+| TanStack Start / Router | Typed routes and full-stack wiring     | Add Schema-branded params, request-local Effect runtimes, declared preload resources, and stricter build gates.            |
 | TanStack Query          | Async reads, retries, invalidation     | Replace cache keys with typed resources, semantic tags, Effect `Schedule`, hydration, and public lifecycle events.         |
 | TanStack DB             | Normalized local data and live queries | Keep keyed rows and live queries, but put the rows on Resources so caching, persistence, sync, and SSR stay one copy.      |
 | Relay                   | Data graph discipline                  | Aim for graph-level discipline without requiring a GraphQL-only architecture.                                              |
@@ -128,7 +128,7 @@ are one inspectable definition instead of adjacent conventions.
 ## Compared With TanStack Start And Typed Routers
 
 Typed routers help catch bad links. Sunfall Arc leans into that, but keeps schemas
-and generated route facts close to the app graph:
+and generated route facts close to the definitions:
 
 ```ts
 export const route = Route.define("/projects/:id", {
@@ -143,11 +143,11 @@ export const route = Route.define("/projects/:id", {
 
 The generated route file exposes the `routeById` map of route definitions
 (addressed with `Route.href(...)` like any definition), params-by-id,
-search-by-id, and href options. The Start app graph can
-then tell diagnostics and agents which route owns params, search, preload
-resources, server functions, actions, schemas, and modules.
+search-by-id, and href options, and `preloadResources` declares which
+Resource families the route's preload touches (`Route.describePreloadResources`
+reports it; Vite dev warns when a preload declares none).
 
-That makes "what does this route touch?" a generated fact instead of an import
+That makes "what does this route touch?" a declared fact instead of an import
 hunt.
 
 TanStack Start deserves particular respect here. `createServerFn` gives typed
@@ -155,8 +155,7 @@ server functions with validators, serializable boundaries, FormData handling,
 redirects, request context helpers, and generated function ids. Sunfall Arc
 should not claim "typed RPC" as the differentiator. The differentiator is the
 combination of Schema-branded route facts, request-local Effect services,
-server/action manifests, preload ownership, and CI-enforceable app graph
-diagnostics.
+declared preload ownership, and one Effect runtime from preload to response.
 
 ## Compared With TanStack DB
 
@@ -199,11 +198,11 @@ The graph includes more than fetched fields:
 - keyed rows and indexes;
 - actions and invalidation behavior;
 - server functions and module boundaries;
-- schemas and missing schema diagnostics;
+- schemas at every wire boundary;
 - hydration and runtime facts.
 
-Relay asks GraphQL to be the center. Sunfall Arc asks the TypeScript, Effect, and
-Start app graph to be the center.
+Relay asks GraphQL to be the center. Sunfall Arc asks the TypeScript and Effect
+definitions to be the center.
 
 ## Compared With Jotai And Small State Libraries
 
@@ -348,8 +347,8 @@ Sunfall Arc already has a few unusually useful proof points:
   example tests, example build, and leak scan.
 - Framework callbacks reject accidental `Promise` returns in type tests.
 - Resources (and their rows) are scoped to the active runtime/request store.
-- Start server functions and actions produce deterministic manifests.
-- The app graph can drive diagnostics and agent-readable repair reports.
+- Start file routes produce a deterministic, validated route manifest and a
+  typed `routeTree.gen.ts`.
 - The example app proves SSR, streamed hydration, branded route params,
   progressive form posts, validation, redirects, indexed rows, optimistic
   mutation, mocking through capabilities, and server-only leak scanning.

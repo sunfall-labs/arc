@@ -17,10 +17,6 @@ export default defineConfig({
       { find: "@sunfall/arc-solid", replacement: fromRoot("packages/solid/src/index.ts") },
       { find: "@sunfall/arc-start/vite", replacement: fromRoot("packages/start/src/vite.ts") },
       {
-        find: "@sunfall/arc-start/internal",
-        replacement: fromRoot("packages/start/src/internal.ts"),
-      },
-      {
         find: "@sunfall/arc-start/testing",
         replacement: fromRoot("packages/start/src/testing.ts"),
       },

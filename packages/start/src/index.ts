@@ -71,15 +71,6 @@ export type {
 } from "./start-fetch.js";
 
 export {
-  /** Error raised when a configured transport endpoint path is invalid. */
-  StartTransportEndpointPathError,
-  /** Error raised when RPC and action transport endpoints collide. */
-  StartTransportEndpointConflictError,
-  /** Transport endpoint path overrides for request handlers and clients. */
-  type StartTransportEndpointOverrides,
-} from "./start-transport-endpoints.js";
-
-export {
   /** Progressive (no-JS) HTML form helpers for Start actions. */
   StartAction,
 } from "./start-action-client.js";

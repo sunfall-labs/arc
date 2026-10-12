@@ -22,8 +22,6 @@
       "@sunfall/arc-start": ["./packages/start/src/index.ts"],
       "@sunfall/arc-start/fetch": ["./packages/start/src/fetch.ts"],
       "@sunfall/arc-start/node": ["./packages/start/src/node.ts"],
-      "@sunfall/arc-start/diagnostics-report": ["./packages/start/src/diagnostics-report.ts"],
-      "@sunfall/arc-start/internal": ["./packages/start/src/internal.ts"],
       "@sunfall/arc-start/testing": ["./packages/start/src/testing.ts"],
       "@sunfall/arc-start/virtual": ["./packages/start/src/virtual-modules.d.ts"],
       "@sunfall/arc-start/vite": ["./packages/start/src/vite.ts"],

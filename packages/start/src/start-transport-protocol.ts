@@ -6,19 +6,19 @@ import {
   ServerTransportError,
   type Action,
 } from "@sunfall/arc-core";
-import { type CoreDefinitionRegistry, actionDefinitionRegistry } from "@sunfall/arc-core/internal";
+import {
+  type CoreDefinitionRegistry,
+  actionDefinitionRegistry,
+  encodeServerWire,
+} from "@sunfall/arc-core/internal";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
 import {
+  serverActionPath,
+  serverRpcPath,
   startJsonMediaType,
   validateStartRpcResponse,
   type StartTransportRequestError,
 } from "./rpc.js";
-import {
-  isStartActionEndpointRequest,
-  isStartRpcEndpointRequest,
-  type StartActionEndpointSource,
-  type StartTransportEndpointSource,
-} from "./start-transport-endpoints.js";
 import {
   readStartTransportJsonBody,
   readStartTransportResponseText,
@@ -26,7 +26,6 @@ import {
 import type { StartActionDefinition } from "./start-action-request-codec.js";
 import type { StartRequestTraceFailureKind } from "./request-trace.js";
 import type { ServerRpcClientOptions } from "./start-fetch.js";
-import { encodeWithSchema } from "./start-schema-codec.js";
 
 export {
   actionExitResponse,
@@ -48,7 +47,6 @@ export type {
   StartActionResponseMeta,
   StartActionOutcome,
 } from "./start-action-response-codec.js";
-export { decodeWithSchema, encodeWithSchema } from "./start-schema-codec.js";
 
 export { applyStartActionResponse } from "./start-action-response-application.js";
 
@@ -76,26 +74,22 @@ export type {
  * fetch options and the action endpoint. Responses always apply to the
  * submitting runtime.
  */
-export interface StartActionClientOptions<FetchError = never, FetchRequirements = never>
-  extends
-    ServerRpcClientOptions<FetchError, FetchRequirements, never>,
-    Pick<StartActionEndpointSource, "actionPath" | "actionManifest" | "appGraph" | "endpoints"> {}
+export interface StartActionClientOptions<
+  FetchError = never,
+  FetchRequirements = never,
+> extends ServerRpcClientOptions<FetchError, FetchRequirements, never> {}
 
 /** Extracts the input value type from a core `ActionDefinition`. */
 export type ActionDefinitionInputValue<D> =
   D extends Action.Definition<infer I, infer _A, infer _E, infer _R> ? I : never;
 
 /** True when a request targets the Start server-function RPC endpoint. */
-export const isServerRpcRequest = (
-  request: Request,
-  endpoints?: StartTransportEndpointSource,
-): boolean => isStartRpcEndpointRequest(request, endpoints);
+export const isServerRpcRequest = (request: Request): boolean =>
+  new URL(request.url).pathname === serverRpcPath;
 
 /** True when a request targets the Start action endpoint. */
-export const isServerActionRequest = (
-  request: Request,
-  endpoints?: StartTransportEndpointSource,
-): boolean => isStartActionEndpointRequest(request, endpoints);
+export const isServerActionRequest = (request: Request): boolean =>
+  new URL(request.url).pathname === serverActionPath;
 
 type StartTransportJsonBody = Server.RpcResponse;
 
@@ -292,7 +286,7 @@ export const actionFailureKind = <ActionError>(
       return Effect.succeed("validation");
     }
 
-    return Effect.map(Effect.exit(encodeWithSchema(action.error, failure)), (encoded) =>
+    return Effect.map(Effect.exit(encodeServerWire(action.error, failure)), (encoded) =>
       Exit.isSuccess(encoded) ? "domain" : "defect",
     );
   }

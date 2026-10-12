@@ -17,7 +17,6 @@ import type { StartActionDefinition } from "./start-action-request-codec.js";
 import { startRootElementId } from "./start-document.js";
 import type { StartFetch } from "./start-fetch.js";
 import { makeRpcClientLayer } from "./start-rpc-client.js";
-import type { StartTransportEndpointOverrides } from "./start-transport-endpoints.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
 
@@ -142,7 +141,6 @@ export namespace App {
     readonly hydration?: Resource.HydrationOptions;
     /** Transport settings for server-function RPC and Action submissions. */
     readonly transport?: {
-      readonly endpoints?: StartTransportEndpointOverrides;
       readonly fetch?: StartFetch;
       readonly headers?: HeadersInit | (() => HeadersInit);
     };
@@ -231,9 +229,6 @@ export namespace App {
           });
         }
         const transport = {
-          ...(options.transport?.endpoints === undefined
-            ? {}
-            : { endpoints: options.transport.endpoints }),
           ...(options.transport?.fetch === undefined ? {} : { fetch: options.transport.fetch }),
           ...(options.transport?.headers === undefined
             ? {}

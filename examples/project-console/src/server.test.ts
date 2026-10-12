@@ -9,7 +9,7 @@ import {
 } from "@sunfall/arc-start/testing";
 import { Effect, type Scope } from "effect";
 import { Window } from "happy-dom";
-import { build, createServer } from "vite";
+import { build } from "vite";
 import { describe, expect, it } from "vitest";
 import { makeProjectId, makeProjectReturnTo, SubmitProjectName } from "./domain.js";
 import { app } from "./app-definition.js";
@@ -140,46 +140,6 @@ describe("project console SSR", () => {
       actions: ["Project.name.submit", "Project.advance"],
     });
     expect("fileRoutes" in projectConsoleStartOptions).toBe(false);
-  });
-
-  it("derives the app graph's server functions and Actions from the server entry", async () => {
-    const server = await createServer({
-      root: projectRoot,
-      configFile: join(projectRoot, "vite.config.ts"),
-      logLevel: "silent",
-      server: { middlewareMode: true, hmr: false, watch: null },
-    });
-    try {
-      const { graph } = (await server.ssrLoadModule("virtual:sunfall-arc/app-graph")) as {
-        readonly graph: {
-          readonly serverFunctions: { readonly entries: ReadonlyArray<Record<string, unknown>> };
-          readonly actions: { readonly entries: ReadonlyArray<Record<string, unknown>> };
-        };
-      };
-      const getProjectEntry = graph.serverFunctions.entries.find(
-        (entry) => entry.name === "Project.get",
-      );
-
-      expect(graph.serverFunctions.entries.map((entry) => entry.name).sort()).toEqual(
-        serverFunctions.map((fn) => fn.name).sort(),
-      );
-      expect(getProjectEntry).toMatchObject({
-        server: { module: "/src/domain.server.ts", exportName: "getProject" },
-        client: { _tag: "Import", module: "/src/domain.contract.ts", exportName: "getProject" },
-      });
-      expect(graph.actions.entries).toMatchObject([
-        {
-          name: "Project.advance",
-          server: { module: "/src/project-actions.ts", exportName: "AdvanceProject" },
-        },
-        {
-          name: "Project.name.submit",
-          server: { module: "/src/domain.ts", exportName: "SubmitProjectName" },
-        },
-      ]);
-    } finally {
-      await server.close();
-    }
   });
 
   it("renders route search state on the server", async () => {

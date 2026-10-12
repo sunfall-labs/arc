@@ -1,7 +1,7 @@
 {
   "name": "@sunfall/arc-start",
   "version": "0.1.0-alpha.1",
-  "description": "Sunfall Arc full-stack Start layer for SSR, hydration, transports, diagnostics, and app graphs.",
+  "description": "Sunfall Arc full-stack Start layer for SSR, hydration, transports, and file routes.",
   "keywords": [
     "effect",
     "framework",
@@ -20,9 +20,6 @@
     "url": "git+https://github.com/sunfall-labs/arc.git",
     "directory": "packages/start"
   },
-  "bin": {
-    "sunfall-arc-start": "./dist/cli.js"
-  },
   "files": [
     "dist"
   ],
@@ -39,10 +36,6 @@
       "types": "./dist/vite.d.ts",
       "default": "./dist/vite.js"
     },
-    "./diagnostics-report": {
-      "types": "./dist/diagnostics-report.d.ts",
-      "default": "./dist/diagnostics-report.js"
-    },
     "./fetch": {
       "types": "./dist/fetch.d.ts",
       "default": "./dist/fetch.js"
@@ -58,17 +51,13 @@
     "./testing": {
       "types": "./dist/testing.d.ts",
       "default": "./dist/testing.js"
-    },
-    "./internal": {
-      "types": "./dist/internal.d.ts",
-      "default": "./dist/internal.js"
     }
   },
   "publishConfig": {
     "access": "public"
   },
   "scripts": {
-    "build": "rm -rf dist .tsbuildinfo && tsgo -p tsconfig.json && cp src/virtual-modules.d.ts dist/virtual.d.ts && rm -f dist/virtual.d.ts.map && chmod +x dist/cli.js",
+    "build": "rm -rf dist .tsbuildinfo && tsgo -p tsconfig.json && cp src/virtual-modules.d.ts dist/virtual.d.ts && rm -f dist/virtual.d.ts.map",
     "typecheck": "tsgo -p tsconfig.json --pretty false --noEmit"
   },
   "dependencies": {

@@ -66,7 +66,7 @@ export interface FileRouteManifestModule {
   readonly exportName: string;
 }
 
-/** Route entry used by generated route definitions and app graph diagnostics. */
+/** Route entry used by generated route definitions. */
 export interface FileRouteManifestEntry {
   /** Source-file identity for the route module. */
   readonly id: FileRouteSourceId;

@@ -6,11 +6,4 @@ export const starterStartOptions = {
   fileRouteGeneration: {
     outputFile: "src/routeTree.gen.ts",
   },
-  buildPolicy: {
-    diagnostics: {
-      routePreloadResources: {
-        requireDeclaredForPreload: true,
-      },
-    },
-  },
 } as const;
