@@ -1,10 +1,7 @@
 # Sunfall Arc Invariants
 
-This document names the behavior that must stay true as Sunfall Arc grows toward
-the winning spec. These are product guarantees, not implementation preferences.
-The strategic destination is
-[Best Full-Stack Framework Plan](./best-framework-plan.md); this document is the
-non-negotiable contract that keeps the implementation worthy of that plan.
+This document names the behavior that must stay true as Sunfall Arc grows.
+These are product guarantees, not implementation preferences.
 
 ## Product Contract
 
@@ -93,16 +90,16 @@ documented as outside the current release bar.
 
 ## DB Collections
 
-- Collection definitions are stable declarations; row state, pending mutation
-  queues, load state, and collection event streams belong to the active
+- Collection definitions are stable declarations; row state, optimistic Action
+  patches, load state, and collection event streams belong to the active
   Resource Store's collection store.
 - DB collection registry diagnostics (`@sunfall/arc-db/internal`) expose collection names, schema presence, load
-  presence, mutation handlers, retry policy, and persistence policy without
-  reading live rows or pending mutation queues.
+  presence, indexes, sync, retry policy, and persistence policy without
+  reading live rows or optimistic patches.
 - Collection diagnostics and adapters can subscribe to events through the internal
   collection store without reading private row maps.
 - Separate runtimes and request Resource Stores never share collection rows,
-  pending mutation queues, or collection event subscriptions.
+  optimistic patches, or collection event subscriptions.
 
 ## Invalidation Graph
 

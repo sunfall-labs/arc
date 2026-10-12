@@ -2,9 +2,7 @@
 
 Sunfall Arc APIs should be Effect-first and browser-friendly second.
 
-The broader product strategy is in
-[Best Full-Stack Framework Plan](./best-framework-plan.md). This file is the
-daily engineering bar for that strategy: code should look like idiomatic Effect
+This file is the daily engineering bar: code should look like idiomatic Effect
 code, preserve typed services and failures, and keep Promise interop at the
 edge.
 
@@ -430,7 +428,7 @@ const UsersLive = Layer.succeed(Users)({
 const app = App.define({ root: Root, routes, client: BrowserLive });
 
 const handler = createRequestHandler(app, { server: UsersLive }); // native Effect handler
-const fetchEffect = toFetchHandler(handler); // fetch-shaped Effect adapter
+const fetchHandler = toFetchHandler(handler); // fetch-shaped Effect adapter
 ```
 
 ```ts

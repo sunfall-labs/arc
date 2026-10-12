@@ -4,9 +4,7 @@ The devtools package is a typed, JSON-safe observability substrate for
 framework facts. UI panels, browser extensions, tests, and agents should consume
 these values instead of reaching into live refs, fibers, stores, or modules.
 
-The strategic role of devtools is described in
-[Best Full-Stack Framework Plan](./best-framework-plan.md). Devtools are not a
-decorative addon; they are the runtime half of the framework's correctness
+Devtools are not a decorative addon; they are the runtime half of the framework's correctness
 story.
 
 ## Model

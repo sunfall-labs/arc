@@ -3,7 +3,6 @@ import { basename, dirname, join, relative } from "node:path";
 import { Effect } from "effect";
 import ts from "typescript";
 import {
-  currentDocsEvidencePolicy,
   currentDocsTextPolicies,
   namespaceBackedSurfaceModules,
   publicHoverDocGroups,
@@ -170,125 +169,24 @@ const currentDocsTextPolicyFailures = (policy, source) => {
 };
 
 const assertCurrentDocsTextPolicySelfTest = () => {
-  const latestFocusedReview = currentDocsEvidencePolicy.latestFocusedReview;
-  const latestFullGateReview = currentDocsEvidencePolicy.latestFullGateReview;
-  const staleFocusedReview = latestFocusedReview - 1;
-  const staleFullGateReview = latestFullGateReview - 1;
-  const staleRootTestFiles = currentDocsEvidencePolicy.rootTestFiles - 5;
-  const staleRootTestCount = currentDocsEvidencePolicy.rootTestCount - 62;
-  const staleEffectFirstFiles = currentDocsEvidencePolicy.effectFirstFiles - 4;
-  const staleCleanCounter = "11/30";
-  const currentDocsSelfTestPolicy = {
+  const selfTestPolicy = {
     file: "self-test.md",
-    required: [
-      {
-        name: "self-test current focused review",
-        pattern: new RegExp(`Review ?${latestFocusedReview}`),
-      },
-      {
-        name: "self-test current full gate review",
-        pattern: new RegExp(`Review ?${latestFullGateReview}`),
-      },
-      {
-        name: "self-test current root test count",
-        pattern: new RegExp(
-          `${currentDocsEvidencePolicy.rootTestFiles} root test files / ${currentDocsEvidencePolicy.rootTestCount} tests`,
-        ),
-      },
-      {
-        name: "self-test current clean counter",
-        pattern: new RegExp(
-          `${currentDocsEvidencePolicy.activeCleanCounter}\\s+after\\s+Clean Sweep 12 after Review${latestFocusedReview}`,
-        ),
-      },
-      {
-        name: "self-test current effect-first file count",
-        pattern: new RegExp(
-          `Effect-first audit over ${currentDocsEvidencePolicy.effectFirstFiles}`,
-        ),
-      },
-    ],
-    banned: [
-      {
-        name: "self-test stale focused review",
-        pattern: new RegExp(`Latest focused evidence: Review ${staleFocusedReview}`),
-      },
-      {
-        name: "self-test stale full gate review",
-        pattern: new RegExp(`latest full gate is Review${staleFullGateReview}`),
-      },
-      {
-        name: "self-test stale root test count",
-        pattern: new RegExp(`${staleRootTestFiles} root test files / ${staleRootTestCount} tests`),
-      },
-      {
-        name: "self-test stale clean counter",
-        pattern: new RegExp(`${staleCleanCounter} after\\s+Review${staleFocusedReview}`),
-      },
-      {
-        name: "self-test stale effect-first file count",
-        pattern: new RegExp(`Effect-first audit over ${staleEffectFirstFiles}`),
-      },
-    ],
+    required: [{ name: "self-test current text", pattern: /current wording/ }],
+    banned: [{ name: "self-test stale text", pattern: /stale wording/ }],
   };
-  const staleFailures = currentDocsTextPolicyFailures(
-    currentDocsSelfTestPolicy,
-    `Latest focused evidence: Review ${staleFocusedReview}; latest full gate is Review${staleFullGateReview}; ${staleRootTestFiles} root test files / ${staleRootTestCount} tests; Effect-first audit over ${staleEffectFirstFiles}; active counter ${staleCleanCounter} after Review${staleFocusedReview}.`,
-  );
-  for (const expected of [
-    "self-test stale focused review",
-    "self-test stale full gate review",
-    "self-test stale root test count",
-    "self-test stale clean counter",
-    "self-test stale effect-first file count",
-  ]) {
+  const staleFailures = currentDocsTextPolicyFailures(selfTestPolicy, "Only stale wording here.");
+  for (const expected of ["self-test current text", "self-test stale text"]) {
     if (!staleFailures.some((failure) => failure.includes(expected))) {
       failSelfTest(
         `current docs text policy self-test did not catch ${expected}: ${staleFailures.join(" ")}`,
       );
     }
   }
-
-  const currentFailures = currentDocsTextPolicyFailures(
-    currentDocsSelfTestPolicy,
-    `Latest focused evidence: Review ${latestFocusedReview}; latest full gate is Review${latestFullGateReview}; ${currentDocsEvidencePolicy.rootTestFiles} root test files / ${currentDocsEvidencePolicy.rootTestCount} tests; Effect-first audit over ${currentDocsEvidencePolicy.effectFirstFiles}; active counter ${currentDocsEvidencePolicy.activeCleanCounter} after Clean Sweep 12 after Review${latestFocusedReview}.`,
-  );
+  const currentFailures = currentDocsTextPolicyFailures(selfTestPolicy, "Only current wording.");
   if (currentFailures.length > 0) {
     failSelfTest(
-      `current docs text policy self-test rejected current evidence: ${currentFailures.join(" ")}`,
+      `current docs text policy self-test rejected current text: ${currentFailures.join(" ")}`,
     );
-  }
-
-  const ultimatePolicy = currentDocsTextPolicies.find(
-    (policy) => policy.file === "docs/ultimate-goal-checklist.md",
-  );
-  if (!ultimatePolicy) {
-    failSelfTest("current docs text policy self-test could not find ultimate checklist policy");
-  }
-  const currentUltimateFailures = currentDocsTextPolicyFailures(
-    ultimatePolicy,
-    `Latest focused evidence: Review ${latestFocusedReview}; Latest focused verification recorded.\n  - Evidence: Review ${latestFocusedReview} records generated route artifact formatting. Review${latestFullGateReview} records the\n    latest full gate, leaving the active counter at ${currentDocsEvidencePolicy.activeCleanCounter}.`,
-  );
-  if (currentUltimateFailures.length > 0) {
-    failSelfTest(
-      `ultimate checklist production policy rejected current evidence: ${currentUltimateFailures.join(" ")}`,
-    );
-  }
-  const staleUltimateFailures = currentDocsTextPolicyFailures(
-    ultimatePolicy,
-    `Latest focused evidence: Review ${staleFocusedReview}; Latest focused verification recorded.\n  - Evidence: Review ${staleFocusedReview} records generated route artifact formatting. Review${staleFullGateReview} records the\n    latest full gate, leaving the active counter at ${staleCleanCounter}.`,
-  );
-  for (const expected of [
-    "Ultimate goal checklist must name current latest focused evidence",
-    "Ultimate goal checklist must pin latest focused verification subsection",
-    "Ultimate goal checklist must keep Review492 as latest full evidence",
-    "Ultimate goal checklist must keep active clean counter at current evidence value",
-  ]) {
-    if (!staleUltimateFailures.some((failure) => failure.includes(expected))) {
-      failSelfTest(
-        `ultimate checklist production policy did not catch ${expected}: ${staleUltimateFailures.join(" ")}`,
-      );
-    }
   }
 };
 

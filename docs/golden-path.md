@@ -756,3 +756,9 @@ test's Scope and assert on the DOM after `travel`
 - [Deployment](deployment.md): fetch and Node hosts.
 - [Migration notes](migration-notes.md): coming from TanStack Query, Remix,
   reducers, or earlier Arc alphas.
+- [Devtools](devtools.md): runtime facts, causal graphs, and panels.
+- [Effect style guide](effect-style.md) and [Invariants](invariants.md): the
+  rules framework and app code follow.
+- [Public API inventory](public-api-inventory.md): every exported import path.
+- [Comparison](comparison.md): how Arc relates to TanStack, Next, Remix, and
+  Foldkit.

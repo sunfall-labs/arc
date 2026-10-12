@@ -26,7 +26,7 @@ import { toFetchHandler } from "@sunfall/arc-start/fetch";
 import { app } from "./app-definition.js";
 import { AppServerLive } from "./app.server.js";
 
-const fetchEffect = toFetchHandler(createRequestHandler(app, { server: AppServerLive }));
+const fetchHandler = toFetchHandler(createRequestHandler(app, { server: AppServerLive }));
 ```
 
 Use `createFetchHandler` when the host itself expects

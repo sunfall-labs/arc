@@ -112,7 +112,7 @@ export const SubmitProjectName = Action.define({
 export const projectNameActionTarget = (input: {
   readonly id: ProjectId;
   readonly redirectTo?: ProjectReturnTo;
-}) => startActionForm(SubmitProjectName, { input });
+}) => StartAction.form(SubmitProjectName, { input });
 ```
 
 With JavaScript, a component can submit through the Start action client. Without
@@ -131,16 +131,18 @@ Typed routers help catch bad links. Sunfall Arc leans into that, but keeps schem
 and generated route facts close to the app graph:
 
 ```ts
-const RouteBuilder = FileRoute.define("/projects/:id");
-
-export const Route = RouteBuilder.preload({
+export const Route = FileRoute.define("/projects/:id")({
   params: Schema.Struct({ id: ProjectId }),
   search: Schema.Struct({
     tab: Schema.optional(Schema.Literals(["overview", "activity"])),
   }),
-  resources: ({ resource }) => [resource(ProjectById, ({ params }) => params.id)],
-  collections: [ProjectSummaries],
-}).route();
+  preloadResources: [ProjectById],
+  preloadCollections: [ProjectSummaries],
+  preload: ({ params }) =>
+    Effect.all([Resource.preload(ProjectById(params.id)), ProjectSummaries.preload()], {
+      discard: true,
+    }),
+});
 ```
 
 The generated route file exposes the `routeById` map of route definitions
@@ -194,8 +196,8 @@ export const ProjectSummaries = Collection.define({
 });
 ```
 
-Collections can expose secondary indexes, pending optimistic mutation queues,
-rollback rows, persistence snapshots, sync adapters, live query diagnostics,
+Collections can expose secondary indexes, optimistic rows patched by Actions,
+rollback on failure, persistence snapshots, sync adapters, live query diagnostics,
 and SSR hydration payloads. Because the state is runtime/request-local, tests
 and SSR requests do not accidentally share rows.
 
@@ -268,14 +270,14 @@ If a team prefers the explicit `update` slot, the same exhaustive handlers can
 sit behind it:
 
 ```ts
-const loadProjectMessageEffect = (id: ProjectId) =>
+const loadProjectMessage = (id: ProjectId) =>
   ProjectApi.use((api) =>
     Effect.map(api.get(id), (project) => ({ _tag: "Loaded", project }) as const),
   );
 
 const update = Program.update<ProjectModel, ProjectMessage>({
   Load: (model, message) =>
-    Program.next({ ...model, loading: true }, Program.emit(loadProjectMessageEffect(message.id))),
+    Program.next({ ...model, loading: true }, Program.emit(loadProjectMessage(message.id))),
   Loaded: (_model, message) => ({ selected: message.project, loading: false }),
 });
 ```

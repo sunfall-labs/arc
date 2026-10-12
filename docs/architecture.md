@@ -20,9 +20,8 @@ target. The public API is owned by Sunfall Arc:
 
 Future versions can add a custom TSRX host profile once the runtime semantics are stable.
 
-The full product direction is described in
-[Best Full-Stack Framework Plan](./best-framework-plan.md). This architecture
-document explains the concrete shape behind that plan: the runtime spine,
+This architecture document explains the concrete shape of the framework: the
+runtime spine,
 dependency injection, routing, resources, collections, actions, server
 contracts, SSR, hydration, diagnostics, and devtools all converge on one typed
 app graph.

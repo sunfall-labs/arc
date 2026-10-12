@@ -1,11 +1,11 @@
 # Public API Inventory
 
-Last updated: 2026-05-17.
-
-This is the first release-candidate inventory required by the framework
-perfection charter. It tracks only import paths exported by package manifests;
-source files that are not reachable through `package.json#exports` are internal
-unless this document explicitly promotes them.
+This is the reference list of every import path the framework packages export,
+with its classification. It tracks only import paths exported by package
+manifests; source files that are not reachable through `package.json#exports`
+are internal unless this document explicitly promotes them. `pnpm verify` checks
+it against `type-tests/public-api.manifest.json` and the package manifests
+(`scripts/audit-public-api-inventory.mjs`), so it cannot drift.
 
 ## Classification Rules
 

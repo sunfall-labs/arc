@@ -5,9 +5,7 @@ intended to cover the TanStack DB shape while keeping Sunfall Arc's runtime spin
 runtime/request-local state, Effect-first loading, Action-owned writes, typed
 signals, and scoped host adapters.
 
-The broader framework plan is in
-[Best Full-Stack Framework Plan](./best-framework-plan.md). The DB package wins
-when it gives applications normalized data, live queries, optimistic mutation,
+The DB package wins when it gives applications normalized data, live queries, optimistic mutation,
 persistence, and sync without leaving the Effect runtime model.
 
 ## Winning Data Layer
