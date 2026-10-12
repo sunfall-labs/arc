@@ -1,4 +1,4 @@
-import { Context, Deferred, Effect, Exit, Fiber, Layer, Option, Schedule } from "effect";
+import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Option, Schedule } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -101,7 +101,7 @@ describe("Action", () => {
       }),
     ));
 
-  it("captures synchronous run throws in the Effect error channel", async () => {
+  it("captures synchronous run throws as defects", async () => {
     const Rename = Action.define<string, string>({
       name: "rename.sync-throw",
       run: () => {
@@ -114,8 +114,8 @@ describe("Action", () => {
 
     expect(exit._tag).toBe("Failure");
     if (exit._tag === "Failure") {
-      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
-      expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Die");
+      expect(failure?.defect).toBeInstanceOf(EffectInputCallbackError);
       expect(action.state.get()).toMatchObject({
         result: { _tag: "Failure", waiting: false },
         input: Option.some("Ada"),
@@ -123,7 +123,7 @@ describe("Action", () => {
     }
   });
 
-  it("captures erased Promise-shaped run returns as failures instead of leaving pending state", async () => {
+  it("captures erased Promise-shaped run returns as defects instead of leaving pending state", async () => {
     const Rename = Action.define<string, string>({
       name: "rename.promise-erased",
       run: () => Promise.resolve("Ada") as never,
@@ -134,8 +134,8 @@ describe("Action", () => {
 
     expect(exit._tag).toBe("Failure");
     if (exit._tag === "Failure") {
-      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
-      expect(failure?.error).toMatchObject({
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Die");
+      expect(failure?.defect).toMatchObject({
         _tag: "EffectInputCallbackError",
         operation: "Action.run(rename.promise-erased)",
         cause: expect.any(EffectInputPromiseRejected),
@@ -147,7 +147,7 @@ describe("Action", () => {
     }
   });
 
-  it("captures synchronous optimistic callback throws in the Effect error channel", async () => {
+  it("captures synchronous optimistic callback throws as defects", async () => {
     const cause = new Error("optimistic failed");
     const Rename = Action.define<string, string>({
       name: "rename.optimistic-sync-throw",
@@ -162,9 +162,9 @@ describe("Action", () => {
 
     expect(exit._tag).toBe("Failure");
     if (exit._tag === "Failure") {
-      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
-      expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
-      expect((failure!.error as EffectInputCallbackError).cause).toBe(cause);
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Die");
+      expect(failure?.defect).toBeInstanceOf(EffectInputCallbackError);
+      expect((failure!.defect as EffectInputCallbackError).cause).toBe(cause);
       expect(action.state.get()).toMatchObject({
         result: { _tag: "Failure", waiting: false },
         input: Option.some("Ada"),
@@ -172,7 +172,7 @@ describe("Action", () => {
     }
   });
 
-  it("captures erased Promise-shaped optimistic callback returns in the Effect error channel", async () => {
+  it("captures erased Promise-shaped optimistic callback returns as defects", async () => {
     const Rename = Action.define<string, string>({
       name: "rename.optimistic-promise-erased",
       optimistic: () => Promise.resolve(Effect.void) as never,
@@ -184,8 +184,8 @@ describe("Action", () => {
 
     expect(exit._tag).toBe("Failure");
     if (exit._tag === "Failure") {
-      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
-      expect(failure?.error).toMatchObject({
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Die");
+      expect(failure?.defect).toMatchObject({
         _tag: "EffectInputCallbackError",
         operation: "Action.optimistic(rename.optimistic-promise-erased)",
         cause: expect.any(EffectInputPromiseRejected),
@@ -197,7 +197,7 @@ describe("Action", () => {
     }
   });
 
-  it("captures optimistic signal updater throws in the Effect error channel", async () => {
+  it("captures optimistic signal updater throws as defects", async () => {
     const cause = new Error("optimistic signal failed");
     const title = Signal.make("Draft");
     const Rename = Action.define<string, string>({
@@ -207,7 +207,6 @@ describe("Action", () => {
           yield* transaction.signal(title, () => {
             throw cause;
           });
-          return Effect.void;
         }),
       run: (name) => Effect.succeed(name),
     });
@@ -217,9 +216,9 @@ describe("Action", () => {
 
     expect(exit._tag).toBe("Failure");
     if (exit._tag === "Failure") {
-      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
-      expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
-      expect(failure?.error).toMatchObject({
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Die");
+      expect(failure?.defect).toBeInstanceOf(EffectInputCallbackError);
+      expect(failure?.defect).toMatchObject({
         operation: "Action.optimistic(rename.optimistic-signal-sync-throw).signal",
         cause,
       });
@@ -231,14 +230,13 @@ describe("Action", () => {
     }
   });
 
-  it("captures erased Promise-shaped optimistic signal values in the Effect error channel", async () => {
+  it("captures erased Promise-shaped optimistic signal values as defects", async () => {
     const title = Signal.make<unknown>("Draft");
     const Rename = Action.define<string, string>({
       name: "rename.optimistic-signal-promise-value",
       optimistic: (_next, transaction) =>
         Effect.gen(function* () {
           yield* transaction.signal(title, Promise.resolve("Ada") as never);
-          return Effect.void;
         }),
       run: (name) => Effect.succeed(name),
     });
@@ -248,9 +246,9 @@ describe("Action", () => {
 
     expect(exit._tag).toBe("Failure");
     if (exit._tag === "Failure") {
-      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
-      expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
-      expect(failure?.error).toMatchObject({
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Die");
+      expect(failure?.defect).toBeInstanceOf(EffectInputCallbackError);
+      expect(failure?.defect).toMatchObject({
         operation: "Action.optimistic(rename.optimistic-signal-promise-value).signal",
         cause: expect.any(EffectInputPromiseRejected),
       });
@@ -262,14 +260,13 @@ describe("Action", () => {
     }
   });
 
-  it("captures erased Promise-shaped optimistic signal updater returns in the Effect error channel", async () => {
+  it("captures erased Promise-shaped optimistic signal updater returns as defects", async () => {
     const title = Signal.make<unknown>("Draft");
     const Rename = Action.define<string, string>({
       name: "rename.optimistic-signal-promise-updater",
       optimistic: (_next, transaction) =>
         Effect.gen(function* () {
           yield* transaction.signal(title, () => Promise.resolve("Ada") as never);
-          return Effect.void;
         }),
       run: (name) => Effect.succeed(name),
     });
@@ -279,9 +276,9 @@ describe("Action", () => {
 
     expect(exit._tag).toBe("Failure");
     if (exit._tag === "Failure") {
-      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
-      expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
-      expect(failure?.error).toMatchObject({
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Die");
+      expect(failure?.defect).toBeInstanceOf(EffectInputCallbackError);
+      expect(failure?.defect).toMatchObject({
         operation: "Action.optimistic(rename.optimistic-signal-promise-updater).signal",
         cause: expect.any(EffectInputPromiseRejected),
       });
@@ -298,8 +295,8 @@ describe("Action", () => {
       Effect.gen(function* () {
         const cause = new Error("optimistic rebase failed");
         const title = Signal.make("Draft");
-        const first = makeActionOptimisticTransactionRuntime<never>("rename.optimistic-rebase");
-        const second = makeActionOptimisticTransactionRuntime<never>("rename.optimistic-rebase");
+        const first = makeActionOptimisticTransactionRuntime("rename.optimistic-rebase");
+        const second = makeActionOptimisticTransactionRuntime("rename.optimistic-rebase");
 
         yield* first.api.signal(title, "First");
         let throwOnRebase = false;
@@ -315,7 +312,8 @@ describe("Action", () => {
         });
 
         throwOnRebase = true;
-        const failure = yield* Effect.flip(first.commit);
+        const commitExit = yield* Effect.exit(first.commit);
+        const failure = Exit.isFailure(commitExit) ? Cause.squash(commitExit.cause) : undefined;
 
         yield* Effect.sync(() => {
           expect(failure).toBeInstanceOf(EffectInputCallbackError);
@@ -334,8 +332,8 @@ describe("Action", () => {
         const cause = new Error("optimistic multi-signal rebase failed");
         const left = Signal.make("left:base");
         const right = Signal.make("right:base");
-        const first = makeActionOptimisticTransactionRuntime<never>("rename.optimistic-atomic");
-        const second = makeActionOptimisticTransactionRuntime<never>("rename.optimistic-atomic");
+        const first = makeActionOptimisticTransactionRuntime("rename.optimistic-atomic");
+        const second = makeActionOptimisticTransactionRuntime("rename.optimistic-atomic");
 
         yield* first.api.signal(left, "left:first");
         yield* first.api.signal(right, "right:first");
@@ -355,7 +353,8 @@ describe("Action", () => {
         });
 
         throwOnRightRebase = true;
-        const failure = yield* Effect.flip(first.commit);
+        const commitExit = yield* Effect.exit(first.commit);
+        const failure = Exit.isFailure(commitExit) ? Cause.squash(commitExit.cause) : undefined;
 
         throwOnRightRebase = false;
         yield* first.rollback;
@@ -372,7 +371,7 @@ describe("Action", () => {
       }),
     ));
 
-  it("captures synchronous invalidation callback throws in the Effect error channel", async () => {
+  it("captures synchronous invalidation callback throws as defects", async () => {
     const cause = new Error("invalidates failed");
     const Rename = Action.define<string, string>({
       name: "rename.invalidates-sync-throw",
@@ -387,9 +386,9 @@ describe("Action", () => {
 
     expect(exit._tag).toBe("Failure");
     if (exit._tag === "Failure") {
-      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
-      expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
-      expect((failure!.error as EffectInputCallbackError).cause).toBe(cause);
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Die");
+      expect(failure?.defect).toBeInstanceOf(EffectInputCallbackError);
+      expect((failure!.defect as EffectInputCallbackError).cause).toBe(cause);
       expect(action.state.get()).toMatchObject({
         result: { _tag: "Failure", waiting: false },
         input: Option.some("Ada"),
@@ -397,7 +396,7 @@ describe("Action", () => {
     }
   });
 
-  it("captures erased Promise-shaped invalidation callback returns in the Effect error channel", async () => {
+  it("captures erased Promise-shaped invalidation callback returns as defects", async () => {
     const Rename = Action.define<string, string>({
       name: "rename.invalidates-promise-erased",
       run: (name) => Effect.succeed(name),
@@ -409,8 +408,8 @@ describe("Action", () => {
 
     expect(exit._tag).toBe("Failure");
     if (exit._tag === "Failure") {
-      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
-      expect(failure?.error).toMatchObject({
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Die");
+      expect(failure?.defect).toMatchObject({
         _tag: "EffectInputCallbackError",
         operation: "Action.invalidates(rename.invalidates-promise-erased)",
         cause: expect.any(EffectInputPromiseRejected),
@@ -469,7 +468,7 @@ describe("Action", () => {
     }
   });
 
-  it("captures erased Promise-shaped invalidation entries in the Effect error channel", async () => {
+  it("captures erased Promise-shaped invalidation entries as defects", async () => {
     const Project = Resource.define({
       name: "Project.invalidates-entry-promise",
       load: (id: string) => Effect.succeed({ id }),
@@ -486,8 +485,8 @@ describe("Action", () => {
 
     expect(exit._tag).toBe("Failure");
     if (exit._tag === "Failure") {
-      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
-      expect(failure?.error).toMatchObject({
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Die");
+      expect(failure?.defect).toMatchObject({
         _tag: "EffectInputCallbackError",
         operation: "Action.invalidates(rename.invalidates-entry-promise)[0]",
         cause: expect.any(EffectInputPromiseRejected),
@@ -878,7 +877,6 @@ describe("Action", () => {
       optimistic: (next, transaction) =>
         Effect.gen(function* () {
           yield* transaction.signal(title, next);
-          return Effect.void;
         }),
       run: (next) => Effect.succeed(next),
     });
@@ -900,7 +898,6 @@ describe("Action", () => {
       optimistic: (_, transaction) =>
         Effect.gen(function* () {
           yield* transaction.signal(selected, undefined);
-          return Effect.void;
         }),
       run: () => Effect.void,
     });
@@ -932,7 +929,6 @@ describe("Action", () => {
             }
             return "Published";
           });
-          return Effect.void;
         }),
       run: () =>
         Effect.sync(() => {
@@ -955,16 +951,11 @@ describe("Action", () => {
     expect(title.get()).toBe("Draft");
   });
 
-  it("rolls back optimistic finalizers on failure", async () => {
+  it("rolls back optimistic patches on failure", async () => {
     const title = Signal.make("Draft");
     const Rename = Action.define<string, string, string>({
       name: "rename.optimistic.failure",
-      optimistic: (next) =>
-        Effect.sync(() => {
-          const previous = Signal.peek(title);
-          title.set(next);
-          return Effect.sync(() => title.set(previous));
-        }),
+      optimistic: (next, transaction) => transaction.signal(title, next),
       run: () => Effect.fail("boom"),
     });
     const action = Action.use(Rename, { runtime: defaultRuntime });
@@ -990,7 +981,6 @@ describe("Action", () => {
           if (next === "Published") {
             yield* Deferred.succeed(secondOptimisticApplied, undefined);
           }
-          return Effect.void;
         }),
       run: (next) => (next === "Stale" ? Effect.never : Effect.succeed(next)),
     });
@@ -1022,7 +1012,6 @@ describe("Action", () => {
             yield* Deferred.succeed(firstOptimisticApplied, undefined);
             yield* Deferred.await(holdFirstOptimistic);
           }
-          return Effect.void;
         }),
       run: (next) => Effect.succeed(next),
     });

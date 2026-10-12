@@ -1,78 +1,8 @@
-import type { ActionManifestSource, ServerFunctionManifestSource } from "@sunfall/arc-start";
-import { projectConsoleActions, SubmitProjectName } from "./domain.js";
-import {
-  advanceProject,
-  getProject,
-  listProjectWorkItems,
-  listProjects,
-  submitProjectName,
-  updateWorkItemStatus,
-} from "./domain.server.js";
-
-export const projectConsoleServerFunctionSources = [
-  {
-    fn: advanceProject,
-    module: "/src/domain.server.ts",
-    exportName: "advanceProject",
-    clientModule: "/src/domain.contract.ts",
-    clientExportName: "advanceProject",
-  },
-  {
-    fn: getProject,
-    module: "/src/domain.server.ts",
-    exportName: "getProject",
-    clientModule: "/src/domain.contract.ts",
-    clientExportName: "getProject",
-  },
-  {
-    fn: listProjects,
-    module: "/src/domain.server.ts",
-    exportName: "listProjects",
-    clientModule: "/src/domain.contract.ts",
-    clientExportName: "listProjects",
-  },
-  {
-    fn: listProjectWorkItems,
-    module: "/src/domain.server.ts",
-    exportName: "listProjectWorkItems",
-    clientModule: "/src/domain.contract.ts",
-    clientExportName: "listProjectWorkItems",
-  },
-  {
-    fn: submitProjectName,
-    module: "/src/domain.server.ts",
-    exportName: "submitProjectName",
-    clientModule: "/src/domain.contract.ts",
-    clientExportName: "submitProjectName",
-  },
-  {
-    fn: updateWorkItemStatus,
-    module: "/src/domain.server.ts",
-    exportName: "updateWorkItemStatus",
-    clientModule: "/src/domain.contract.ts",
-    clientExportName: "updateWorkItemStatus",
-  },
-] as const satisfies readonly ServerFunctionManifestSource[];
-
-export const projectConsoleActionSources = [
-  {
-    action: SubmitProjectName,
-    module: "/src/domain.ts",
-    exportName: "SubmitProjectName",
-    clientModule: "/src/domain.ts",
-    clientExportName: "SubmitProjectName",
-  },
-] as const satisfies readonly ActionManifestSource[];
-
-export const projectConsoleServerRegistry = {
-  actions: projectConsoleActions,
-  serverFunctions: projectConsoleServerFunctionSources.map((source) => source.fn),
-} as const;
-
+// Server functions and Actions are not listed here: the Start plugin derives
+// them from `createRequestHandler(app, { serverFunctions })` in the server
+// entry, naming each by the module export it came from.
 export const projectConsoleStartOptions = {
   serverEntry: "/src/server.tsx",
-  serverFunctionSources: projectConsoleServerFunctionSources,
-  actionSources: projectConsoleActionSources,
   fileRouteOptions: {
     routeDirectory: "src/routes",
   },

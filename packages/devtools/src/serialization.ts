@@ -1204,7 +1204,6 @@ const copyCollectionStoreEvent = (
   switch (event._tag) {
     case "CollectionChangeFeedFailure":
     case "CollectionLoadFailure":
-    case "CollectionMutateRolledBack":
       return {
         ...event,
         error: copyDetachedValue(event.error, initialDetachedCopyState(policy)),

@@ -9,8 +9,6 @@ import {
 import { eraseRuntime, toEffect } from "@sunfall/arc-core/internal";
 import {
   Collection,
-  CollectionRowKeyChanged,
-  CollectionRowNotFound,
   CollectionStorageError,
   Query,
   QueryEvaluationError,
@@ -28,7 +26,6 @@ import {
   makeCollectionReactivePreloadController,
   subscribeCollectionEventsEffect,
   validateCollectionsHydrationEffect,
-  type CollectionStoreEvent,
 } from "@sunfall/arc-db/internal";
 import { Cause, Deferred, Effect, Exit, Fiber, Option, PubSub, Schedule, Schema } from "effect";
 import { AsyncResult } from "effect/reactivity";
@@ -38,7 +35,6 @@ import {
   type StoreExplicitCollectionSnapshotImplementation,
 } from "../src/collection-definition-snapshot.js";
 import { collectionStoreEffect, runWithCollectionStore } from "../src/collection-runtime.js";
-import { advanceCollectionTransactionIdentity } from "../src/collection-mutation-queue.js";
 import {
   CollectionSnapshotCodecError,
   hydrateCollectionSnapshotStateEffect,
@@ -91,14 +87,6 @@ interface OwnedProject {
   };
 }
 
-const OwnedProjectSchema = Schema.Struct({
-  id: Schema.String,
-  name: Schema.String,
-  meta: Schema.Struct({
-    labels: Schema.Array(Schema.String),
-  }),
-});
-
 const runInRuntime = <A, E, Services, RuntimeError>(
   runtime: SunfallArcRuntime<Services, RuntimeError>,
   effect: Effect.Effect<A, E>,
@@ -145,8 +133,6 @@ describe("Collection", () => {
         let releases = 0;
         const controller = makeCollectionReactivePreloadController({
           runtime: eraseRuntime(runtime),
-          onSuccess: () => Effect.void,
-          onFailure: () => Effect.void,
         });
 
         controller.start(
@@ -170,7 +156,6 @@ describe("Collection", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         let preloadFiber: Fiber.Fiber<void, unknown> | undefined;
-        const observedFailures: Array<unknown> = [];
         const runtime: typeof baseRuntime = {
           ...baseRuntime,
           runFork: (effect, options) => {
@@ -181,11 +166,6 @@ describe("Collection", () => {
         };
         const controller = makeCollectionReactivePreloadController({
           runtime: eraseRuntime(runtime),
-          onSuccess: () => Effect.void,
-          onFailure: (error) =>
-            Effect.sync(() => {
-              observedFailures.push(error);
-            }),
         });
 
         controller.start(Effect.die("reactive preload defect"), true);
@@ -195,7 +175,6 @@ describe("Collection", () => {
         }
         const exit = yield* Effect.exit(Fiber.join(preloadFiber));
         expect(exit._tag).toBe("Success");
-        expect(observedFailures).toEqual([]);
       }).pipe(Effect.ensuring(Effect.orDie(baseRuntime.dispose))),
     );
   });
@@ -824,73 +803,6 @@ describe("Collection", () => {
     }
   });
 
-  it("reports CollectionLoaded count from stored rows after optimistic rebases", async () => {
-    const runtime = makeRuntime();
-    const insertStarted = Effect.runSync(Deferred.make<void>());
-    const releaseInsert = Effect.runSync(Deferred.make<void, string>());
-    const Projects = Collection.define<Project, string, string>({
-      name: "Projects.loaded-count-optimistic-rebase",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        refresh: () =>
-          Effect.succeed<ReadonlyArray<Project>>([
-            { id: "atlas", name: "Atlas Remote", status: "active", progress: 88 },
-          ]),
-        insert: () =>
-          Effect.gen(function* () {
-            yield* Deferred.succeed(insertStarted, undefined);
-            yield* Deferred.await(releaseInsert);
-          }),
-      },
-    });
-    let insert: Fiber.Fiber<unknown, unknown> | undefined;
-
-    try {
-      insert = runtime.runFork(
-        Projects.insert({
-          id: "nova",
-          name: "Nova",
-          status: "blocked",
-          progress: 12,
-        }),
-      );
-      await Effect.runPromise(Deferred.await(insertStarted));
-
-      await Effect.runPromise(
-        runtime.provide(
-          Effect.scoped(
-            Effect.gen(function* () {
-              const subscription = yield* subscribeCollectionEventsEffect();
-              yield* Projects.refresh();
-              const event = yield* PubSub.take(subscription);
-
-              expect(event).toMatchObject({
-                _tag: "CollectionLoaded",
-                collection: "Projects.loaded-count-optimistic-rebase",
-                count: 2,
-              });
-            }),
-          ),
-        ),
-      );
-
-      expect(
-        runWithRuntime(runtime, () =>
-          Projects.rows()
-            .map((project) => project.id)
-            .sort(),
-        ),
-      ).toEqual(["atlas", "nova"]);
-    } finally {
-      Effect.runSync(Deferred.fail(releaseInsert, "cleanup").pipe(Effect.ignore));
-      if (insert !== undefined) {
-        await Effect.runPromise(Fiber.await(insert));
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
   it("uses Effect schedules for collection load retry policy", async () => {
     let attempts = 0;
     const Projects = Collection.define<Project, string, string>({
@@ -1081,37 +993,6 @@ describe("Collection", () => {
     expect(Projects.get("lumen")?.meta.labels).toEqual(["written"]);
   });
 
-  it("runs functional updates against detached drafts before validation", async () => {
-    const Projects = Collection.define<OwnedProject>({
-      name: "Projects.row-ownership.update-draft",
-      getKey: (project) => project.id,
-      output: OwnedProjectSchema,
-      initialData: [{ id: "atlas", name: "Atlas", meta: { labels: ["initial"] } }],
-    });
-
-    await expect(
-      Effect.runPromise(
-        Projects.update("atlas", (draft) => {
-          draft.meta.labels.push("callback-mutated");
-          throw new Error("update failed");
-        }),
-      ),
-    ).rejects.toMatchObject({
-      _tag: "EffectInputCallbackError",
-    });
-    expect(Projects.get("atlas")?.meta.labels).toEqual(["initial"]);
-
-    await expect(
-      Effect.runPromise(
-        Projects.update("atlas", (draft) => {
-          draft.meta.labels.push("schema-mutated");
-          return { ...draft, name: 1 as unknown as string };
-        }),
-      ),
-    ).rejects.toBeInstanceOf(CollectionSnapshotCodecError);
-    expect(Projects.get("atlas")?.meta.labels).toEqual(["initial"]);
-  });
-
   it("reports synchronous load callback throws through the Effect error channel", () => {
     const Projects = Collection.define<Project, string, Error>({
       name: "Projects.load-sync-throw",
@@ -1243,44 +1124,9 @@ describe("Collection", () => {
     );
   });
 
-  it("rejects non-finite getKey results before optimistic mutation state is queued", () => {
-    const onInsert = vi.fn(() => Effect.void);
-    const Projects = Collection.define<Project, number>({
-      name: "Projects.mutation-key-nan",
-      getKey: () => Number.NaN,
-      sync: {
-        insert: onInsert,
-      },
-    });
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const failure = yield* Effect.flip(
-          Projects.insert({
-            id: "atlas",
-            name: "Atlas",
-            status: "active",
-            progress: 72,
-          }),
-        );
-        yield* Effect.sync(() => {
-          expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
-          expect(failure).toMatchObject({
-            _tag: "CollectionSnapshotCodecError",
-            operation: "mutation",
-          });
-          expect(onInsert).not.toHaveBeenCalled();
-          expect(Projects.pendingMutations()).toEqual([]);
-          expect(Projects.rows()).toEqual([]);
-        });
-      }),
-    );
-  });
-
   it("describes collection definitions for app graph diagnostics", () => {
     const Projects = Collection.define<Project, string, string>({
       name: "Projects.collection-diagnostics",
-      input: { _tag: "ProjectCollectionInput" },
       output: { _tag: "ProjectCollectionOutput" },
       getKey: (project) => project.id,
       indexes: {
@@ -1303,14 +1149,10 @@ describe("Collection", () => {
         restoreOnPreload: true,
         loadAfterRestore: true,
         persistOnLoad: true,
-        persistOnMutation: true,
         persistOnWrite: true,
       },
       sync: {
         load: () => Effect.succeed([]),
-        insert: () => Effect.void,
-        update: () => Effect.void,
-        delete: () => Effect.void,
       },
     });
     const ProjectCards = Collection.liveQuery<ProjectCard, string, Collection.RuntimeError<string>>(
@@ -1334,7 +1176,6 @@ describe("Collection", () => {
         {
           name: "Projects.collection-diagnostics",
           readOnly: false,
-          inputSchema: true,
           outputSchema: true,
           initialData: true,
           indexes: [
@@ -1342,11 +1183,6 @@ describe("Collection", () => {
             { name: "status", unique: false },
           ],
           load: true,
-          handlers: {
-            insert: true,
-            update: true,
-            delete: true,
-          },
           policy: {
             retry: true,
           },
@@ -1357,7 +1193,6 @@ describe("Collection", () => {
             restoreOnPreload: true,
             loadAfterRestore: true,
             persistOnLoad: true,
-            persistOnMutation: true,
             persistOnWrite: true,
           },
         },
@@ -1723,60 +1558,6 @@ describe("Collection", () => {
     }
   });
 
-  it("rolls back optimistic mutations when the initial mutation persist fails", async () => {
-    const runtime = makeRuntime();
-    const onInsert = vi.fn(() => Effect.void);
-    const storage: Collection.PersistenceStorage<"disk-full"> = {
-      getItem: () => null,
-      setItem: () => Effect.fail("disk-full"),
-    };
-    const Projects = Collection.define<Project, string, "disk-full">({
-      name: "Projects.mutation-atomic-persist",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      persistence: {
-        storage,
-        persistOnMutation: true,
-      },
-      sync: {
-        insert: onInsert,
-      },
-    });
-
-    try {
-      await Effect.runPromise(
-        runtime.provide(
-          Effect.scoped(
-            Effect.gen(function* () {
-              const beforeVersion = Projects.version().get();
-              const subscription = yield* subscribeCollectionEventsEffect();
-              const error = yield* Effect.flip(
-                Projects.insert({
-                  id: "orion",
-                  name: "Orion",
-                  status: "blocked",
-                  progress: 12,
-                }),
-              );
-              const event = yield* PubSub.take(subscription).pipe(
-                Effect.timeoutOption("20 millis"),
-              );
-
-              expect(error).toBe("disk-full");
-              expect(onInsert).not.toHaveBeenCalled();
-              expect(Option.isNone(event)).toBe(true);
-              expect(Projects.version().get()).toBe(beforeVersion);
-              expect(Projects.pendingMutations()).toEqual([]);
-              expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
-            }),
-          ),
-        ),
-      );
-    } finally {
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
   it("does not publish or retain direct writes when persistence fails", async () => {
     const runtime = makeRuntime();
     const storage: Collection.PersistenceStorage<"disk-full"> = {
@@ -1841,7 +1622,6 @@ describe("Collection", () => {
       getKey: (project) => project.id,
       persistence: {
         storage,
-        persistOnMutation: true,
         persistOnWrite: true,
       },
     });
@@ -1857,20 +1637,14 @@ describe("Collection", () => {
               yield* Projects.applyChanges([]);
               yield* Projects.applyChanges([]);
               yield* Projects.applyChanges([{ _tag: "Delete", key: "missing" }]);
-              const transaction = yield* Projects.insert([]);
 
               const event = yield* PubSub.take(subscription).pipe(
                 Effect.timeoutOption("20 millis"),
               );
 
-              expect(transaction).toMatchObject({
-                collection: "Projects.no-op-writes",
-                mutations: [],
-              });
               expect(Option.isNone(event)).toBe(true);
               expect(setItem).not.toHaveBeenCalled();
               expect(Projects.version().get()).toBe(beforeVersion);
-              expect(Projects.pendingMutations()).toEqual([]);
               expect(Projects.rows()).toEqual([]);
             }),
           ),
@@ -2039,10 +1813,6 @@ describe("Collection", () => {
       status: "active",
       progress: 72,
     };
-    const updatedProject: Project = {
-      ...initialProject,
-      progress: 80,
-    };
     const Projects = Collection.define<Project>({
       name: "Projects.collection-store-sync-override",
       getKey: (project) => project.id,
@@ -2057,36 +1827,6 @@ describe("Collection", () => {
           origin: "remote",
         },
       ],
-      pendingMutations: [
-        {
-          transaction: {
-            id: "ctx_1",
-            collection: Projects.name,
-            mutations: [
-              {
-                _tag: "Update",
-                key: "atlas",
-                previous: initialProject,
-                value: updatedProject,
-                changes: { progress: 80 },
-              },
-            ],
-          },
-          rollbackRows: [
-            {
-              key: "atlas",
-              row: {
-                key: "atlas",
-                value: initialProject,
-                synced: true,
-                origin: "remote",
-              },
-            },
-          ],
-          createdAt: 1,
-          attempts: 1,
-        },
-      ],
       updatedAt: 1,
     };
 
@@ -2097,11 +1837,9 @@ describe("Collection", () => {
       await runInRuntime(first, Projects.hydrate(pendingSnapshot));
 
       expect(
-        runWithCollectionStore(firstCollectionStore, () => Projects.pendingMutations()),
-      ).toHaveLength(1);
-      expect(
-        runWithCollectionStore(secondCollectionStore, () => Projects.pendingMutations()),
-      ).toEqual([]);
+        runWithCollectionStore(firstCollectionStore, () => Projects.rows().map((row) => row.id)),
+      ).toEqual(["atlas"]);
+      expect(runWithCollectionStore(secondCollectionStore, () => Projects.rows())).toEqual([]);
       expect((await runInRuntime(first, Projects.snapshot())).rows.map((row) => row.key)).toEqual([
         "atlas",
       ]);
@@ -2323,7 +2061,6 @@ describe("Collection", () => {
           origin: "remote",
         },
       ],
-      pendingMutations: [],
       updatedAt: 1,
     };
 
@@ -2352,61 +2089,25 @@ describe("Collection", () => {
     }
   });
 
-  it("detaches snapshot rows and pending rollback rows from mutable collection state", () => {
+  it("detaches snapshot rows from mutable collection state", () => {
     const runtime = makeRuntime();
-    const release = Effect.runSync(Deferred.make<void>());
     const Projects = Collection.define<SnapshotProject, string, never>({
       name: "Projects.snapshot-codec-detach",
       getKey: (project) => project.id,
       initialData: [{ id: "atlas", meta: { labels: ["remote"] } }],
-      sync: {
-        update: () => Deferred.await(release),
-      },
     });
-    let update: Fiber.Fiber<unknown, unknown> | undefined;
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        update = runtime.runFork(
-          Projects.update("atlas", (draft) => {
-            draft.meta.labels.push("local");
-          }),
-        );
-        yield* Effect.sleep("10 millis");
-
         const snapshot = yield* runtime.provide(Projects.snapshot());
         const row = snapshot.rows[0];
-        const pending = snapshot.pendingMutations[0];
-        const rollback = pending?.rollbackRows[0]?.row;
 
-        yield* Effect.sync(() => {
-          expect(row?.value.meta.labels).toEqual(["remote", "local"]);
-          expect(rollback?.value.meta.labels).toEqual(["remote"]);
-
-          row?.value.meta.labels.push("snapshot-only");
-          rollback?.value.meta.labels.push("rollback-only");
-
-          expect(runWithRuntime(runtime, () => Projects.get("atlas")?.meta.labels)).toEqual([
-            "remote",
-            "local",
-          ]);
-        });
-
-        yield* Deferred.succeed(release, undefined);
-        if (update !== undefined) {
-          yield* Fiber.join(update);
-        }
-      }).pipe(
-        Effect.ensuring(
-          Effect.gen(function* () {
-            yield* Deferred.succeed(release, undefined).pipe(Effect.ignore);
-            if (update !== undefined) {
-              yield* Fiber.await(update);
-            }
-            yield* Effect.orDie(runtime.dispose);
-          }),
-        ),
-      ),
+        expect(row?.value.meta.labels).toEqual(["remote"]);
+        row?.value.meta.labels.push("snapshot-only");
+        expect(runWithRuntime(runtime, () => Projects.get("atlas")?.meta.labels)).toEqual([
+          "remote",
+        ]);
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
@@ -2535,7 +2236,6 @@ describe("Collection", () => {
               origin: "remote",
             },
           ],
-          pendingMutations: [],
           updatedAt: 1,
         }),
       ],
@@ -2595,7 +2295,6 @@ describe("Collection", () => {
               origin: "remote",
             },
           ],
-          pendingMutations: [],
           updatedAt: 1,
         }),
       ],
@@ -2849,7 +2548,6 @@ describe("Collection", () => {
               origin: "remote",
             },
           ],
-          pendingMutations: [],
           updatedAt: 1,
         }),
       ],
@@ -2965,7 +2663,6 @@ describe("Collection", () => {
               origin: "remote",
             },
           ],
-          pendingMutations: [],
           updatedAt: 1,
         }),
       ],
@@ -3055,7 +2752,6 @@ describe("Collection", () => {
           origin: "remote",
         },
       ],
-      pendingMutations: [],
       updatedAt: 1,
     });
     const persisted = new Map<string, string>([[key, oldSnapshot]]);
@@ -3241,7 +2937,6 @@ describe("Collection", () => {
                   origin: "remote",
                 },
               ],
-              pendingMutations: [],
               updatedAt: 1,
             }),
           ),
@@ -3264,7 +2959,6 @@ describe("Collection", () => {
         JSON.stringify({
           name: "Projects.snapshot-codec-invalid",
           rows: "not-rows",
-          pendingMutations: [],
           updatedAt: 1,
         }),
       ],
@@ -3312,7 +3006,6 @@ describe("Collection", () => {
               name: "Projects.snapshot-codec-direct-invalid",
               // @ts-expect-error runtime validation rejects malformed payload rows.
               rows: "not-rows",
-              pendingMutations: [],
               updatedAt: 1,
             }),
           ),
@@ -3363,7 +3056,6 @@ describe("Collection", () => {
                   origin: "remote",
                 },
               ],
-              pendingMutations: [],
               updatedAt: 1,
             }),
           ),
@@ -3546,7 +3238,6 @@ describe("Collection", () => {
                   origin: "remote",
                 },
               ],
-              pendingMutations: [],
               updatedAt: 1,
             }),
           ),
@@ -3654,226 +3345,6 @@ describe("Collection", () => {
     );
   });
 
-  it("rejects pending mutation snapshots with malformed rollback coverage", () => {
-    const runtime = makeRuntime();
-    const Projects = Collection.define<Project>({
-      name: "Projects.snapshot-codec-rollback-coverage",
-      getKey: (project) => project.id,
-    });
-    const previous: Project = { id: "atlas", name: "Atlas", status: "active", progress: 72 };
-    const next: Project = { ...previous, progress: 90 };
-    const snapshot = (
-      rollbackRows: ReadonlyArray<unknown>,
-    ): Collection.Snapshot<Project, string> => ({
-      name: "Projects.snapshot-codec-rollback-coverage",
-      rows: [],
-      pendingMutations: [
-        {
-          transaction: {
-            id: "tx:1",
-            collection: "Projects.snapshot-codec-rollback-coverage",
-            mutations: [
-              {
-                _tag: "Update" as const,
-                key: "atlas",
-                previous,
-                value: next,
-                changes: { progress: 90 },
-              },
-            ],
-          },
-          // Deliberately malformed rollback coverage is the input under test.
-          rollbackRows: rollbackRows as ReadonlyArray<Collection.RollbackRow<Project, string>>,
-          createdAt: 1,
-          attempts: 0,
-        },
-      ],
-      updatedAt: 1,
-    });
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const missing = yield* Effect.exit(runtime.provide(Projects.hydrate(snapshot([]))));
-        const mismatched = yield* Effect.exit(
-          runtime.provide(
-            Projects.hydrate(
-              snapshot([
-                {
-                  key: "atlas",
-                  row: {
-                    key: "lumen",
-                    value: previous,
-                    synced: true,
-                    origin: "remote",
-                  },
-                },
-              ]),
-            ),
-          ),
-        );
-
-        yield* Effect.sync(() => {
-          expect(Exit.isFailure(missing)).toBe(true);
-          const missingFailure = Exit.isFailure(missing)
-            ? missing.cause.reasons.find(Cause.isFailReason)?.error
-            : undefined;
-          expect(missingFailure).toBeInstanceOf(CollectionSnapshotCodecError);
-          expect(missingFailure).toMatchObject({
-            _tag: "CollectionSnapshotCodecError",
-            path: "$.pendingMutations[0].rollbackRows",
-          });
-
-          expect(Exit.isFailure(mismatched)).toBe(true);
-          const mismatchedFailure = Exit.isFailure(mismatched)
-            ? mismatched.cause.reasons.find(Cause.isFailReason)?.error
-            : undefined;
-          expect(mismatchedFailure).toBeInstanceOf(CollectionSnapshotCodecError);
-          expect(mismatchedFailure).toMatchObject({
-            _tag: "CollectionSnapshotCodecError",
-            path: "$.pendingMutations[0].rollbackRows[0].row.key",
-          });
-          expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
-        });
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
-    );
-  });
-
-  it("rejects pending mutation snapshots with invalid attempt counts", () => {
-    const runtime = makeRuntime();
-    const Projects = Collection.define<Project>({
-      name: "Projects.snapshot-codec-invalid-attempts",
-      getKey: (project) => project.id,
-    });
-    const previous: Project = { id: "atlas", name: "Atlas", status: "active", progress: 72 };
-    const next: Project = { ...previous, progress: 90 };
-    const snapshot = (attempts: number) => ({
-      name: "Projects.snapshot-codec-invalid-attempts",
-      rows: [],
-      pendingMutations: [
-        {
-          transaction: {
-            id: `tx:${attempts}`,
-            collection: "Projects.snapshot-codec-invalid-attempts",
-            mutations: [
-              {
-                _tag: "Update" as const,
-                key: "atlas",
-                previous,
-                value: next,
-                changes: { progress: 90 },
-              },
-            ],
-          },
-          rollbackRows: [
-            {
-              key: "atlas",
-              row: {
-                key: "atlas",
-                value: previous,
-                synced: true,
-                origin: "remote" as const,
-              },
-            },
-          ],
-          createdAt: 1,
-          attempts,
-        },
-      ],
-      updatedAt: 1,
-    });
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        for (const attempts of [-1, 1.5]) {
-          const failure = yield* Effect.flip(runtime.provide(Projects.hydrate(snapshot(attempts))));
-          expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
-          expect(failure).toMatchObject({
-            _tag: "CollectionSnapshotCodecError",
-            operation: "hydrate",
-            path: "$.pendingMutations[0].attempts",
-          });
-        }
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
-    );
-  });
-
-  it("rejects duplicate pending transaction ids during snapshot validation", () => {
-    const runtime = makeRuntime();
-    const Projects = Collection.define<Project>({
-      name: "Projects.snapshot-codec-duplicate-pending-id",
-      getKey: (project) => project.id,
-      initialData: [{ id: "existing", name: "Existing", status: "active", progress: 1 }],
-    });
-    const previous: Project = { id: "atlas", name: "Atlas", status: "active", progress: 72 };
-    const next: Project = { ...previous, progress: 90 };
-    const pending = {
-      transaction: {
-        id: "tx:duplicate",
-        collection: "Projects.snapshot-codec-duplicate-pending-id",
-        mutations: [
-          {
-            _tag: "Update" as const,
-            key: "atlas",
-            previous,
-            value: next,
-            changes: { progress: 90 },
-          },
-        ],
-      },
-      rollbackRows: [
-        {
-          key: "atlas",
-          row: {
-            key: "atlas",
-            value: previous,
-            synced: true,
-            origin: "remote" as const,
-          },
-        },
-      ],
-      createdAt: 1,
-      attempts: 0,
-    };
-    const payload = {
-      collections: [
-        {
-          name: "Projects.snapshot-codec-duplicate-pending-id",
-          rows: [
-            {
-              key: "atlas",
-              value: previous,
-              synced: true,
-              origin: "remote" as const,
-            },
-          ],
-          pendingMutations: [pending, pending],
-          updatedAt: 1,
-        },
-      ],
-    };
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const validationFailure = yield* Effect.flip(
-          validateCollectionsHydrationEffect([Projects], payload),
-        );
-        const hydrateFailure = yield* Effect.flip(
-          runtime.provide(hydrateCollectionsEffect([Projects], payload)),
-        );
-
-        expect(validationFailure).toBeInstanceOf(CollectionSnapshotCodecError);
-        expect(validationFailure).toMatchObject({
-          _tag: "CollectionSnapshotCodecError",
-          path: "$.collections[0].pendingMutations[1].transaction.id",
-        });
-        expect(hydrateFailure).toBeInstanceOf(CollectionSnapshotCodecError);
-        expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual(
-          ["existing"],
-        );
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
-    );
-  });
-
   it("preflights multi-collection hydration before mutating any collection", () => {
     const runtime = makeRuntime();
     const Projects = Collection.define<Project>({
@@ -3889,35 +3360,7 @@ describe("Collection", () => {
       ],
     });
     const task: Task = { id: "task-1", projectId: "atlas", title: "Plan", done: false };
-    const nextTask: Task = { ...task, done: true };
-    const pending = {
-      transaction: {
-        id: "tx:duplicate",
-        collection: "Tasks.snapshot-codec-preflight-tasks",
-        mutations: [
-          {
-            _tag: "Update" as const,
-            key: "task-1",
-            previous: task,
-            value: nextTask,
-            changes: { done: true },
-          },
-        ],
-      },
-      rollbackRows: [
-        {
-          key: "task-1",
-          row: {
-            key: "task-1",
-            value: task,
-            synced: true,
-            origin: "remote" as const,
-          },
-        },
-      ],
-      createdAt: 1,
-      attempts: 0,
-    };
+    const taskRow = { key: "task-1", value: task, synced: true, origin: "remote" as const };
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -3933,20 +3376,12 @@ describe("Collection", () => {
                   origin: "remote" as const,
                 },
               ],
-              pendingMutations: [],
               updatedAt: 1,
             },
             {
               name: "Tasks.snapshot-codec-preflight-tasks",
-              rows: [
-                {
-                  key: "task-1",
-                  value: task,
-                  synced: true,
-                  origin: "remote" as const,
-                },
-              ],
-              pendingMutations: [pending, pending],
+              // A duplicate row key fails the second snapshot after the first validated.
+              rows: [taskRow, taskRow],
               updatedAt: 1,
             },
           ],
@@ -3993,7 +3428,6 @@ describe("Collection", () => {
         synced: row.synced,
         origin: row.origin,
       })),
-      pendingMutations: [],
       updatedAt,
     });
     Object.assign(Tasks, {
@@ -4005,10 +3439,7 @@ describe("Collection", () => {
         Deferred.succeed(storeExplicitHydrateStarted, undefined).pipe(
           Effect.flatMap(() => Deferred.await(releaseStoreExplicitHydrate)),
           Effect.flatMap(() => {
-            const state = store.state(Tasks);
-            return hydrateCollectionSnapshotStateEffect(state, snapshot, options, (id) =>
-              advanceCollectionTransactionIdentity(state, id),
-            );
+            return hydrateCollectionSnapshotStateEffect(store.state(Tasks), snapshot, options);
           }),
           Effect.asVoid,
         ),
@@ -4030,7 +3461,6 @@ describe("Collection", () => {
                   origin: "remote" as const,
                 },
               ],
-              pendingMutations: [],
               updatedAt: 1,
             },
             {
@@ -4043,7 +3473,6 @@ describe("Collection", () => {
                   origin: "remote" as const,
                 },
               ],
-              pendingMutations: [],
               updatedAt: 1,
             },
           ],
@@ -4104,7 +3533,6 @@ describe("Collection", () => {
                   origin: "remote" as const,
                 },
               ],
-              pendingMutations: [],
               updatedAt: 1,
             },
             {
@@ -4117,7 +3545,6 @@ describe("Collection", () => {
                   origin: "remote" as const,
                 },
               ],
-              pendingMutations: [],
               updatedAt: 1,
             },
           ],
@@ -4172,14 +3599,12 @@ describe("Collection", () => {
       snapshotWithStore: (_store, updatedAt) => ({
         name: Projects.name,
         rows: [],
-        pendingMutations: [],
         updatedAt,
       }),
       snapshotWithStoreEffect: (_store, updatedAt) =>
         Effect.succeed({
           name: Projects.name,
           rows: [],
-          pendingMutations: [],
           updatedAt,
         }),
       hydratePreflightEffect: () => Effect.void,
@@ -4209,7 +3634,6 @@ describe("Collection", () => {
                   origin: "remote",
                 },
               ],
-              pendingMutations: [],
               updatedAt: 1,
             },
             { replace: false },
@@ -4228,84 +3652,6 @@ describe("Collection", () => {
         );
       }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
-  });
-
-  it("preflights merge hydration pending id collisions before mutating earlier collections", async () => {
-    const runtime = makeRuntime();
-    const started = Effect.runSync(Deferred.make<void>());
-    const release = Effect.runSync(Deferred.make<void, string>());
-    const Projects = Collection.define<Project>({
-      name: "Projects.snapshot-codec-preflight-merge-projects",
-      getKey: (project) => project.id,
-      initialData: [{ id: "existing-project", name: "Existing", status: "active", progress: 1 }],
-    });
-    const Tasks = Collection.define<Task, string, string>({
-      name: "Tasks.snapshot-codec-preflight-merge-tasks",
-      getKey: (task) => task.id,
-      initialData: [
-        { id: "task-1", projectId: "existing-project", title: "Existing", done: false },
-      ],
-      sync: {
-        update: () =>
-          Effect.gen(function* () {
-            yield* Deferred.succeed(started, undefined);
-            yield* Deferred.await(release);
-          }),
-      },
-    });
-    let update: Fiber.Fiber<unknown, unknown> | undefined;
-
-    try {
-      update = runtime.runFork(Tasks.update("task-1", { done: true }));
-      await Effect.runPromise(Deferred.await(started));
-      const tasksSnapshot = runWithRuntime(runtime, () => Effect.runSync(Tasks.snapshot()));
-      const payload = {
-        collections: [
-          {
-            name: "Projects.snapshot-codec-preflight-merge-projects",
-            rows: [
-              {
-                key: "atlas",
-                value: { id: "atlas", name: "Atlas", status: "active", progress: 72 },
-                synced: true,
-                origin: "remote" as const,
-              },
-            ],
-            pendingMutations: [],
-            updatedAt: 1,
-          },
-          tasksSnapshot,
-        ],
-      };
-
-      const validationFailure = await runInRuntime(
-        runtime,
-        Effect.flip(
-          validateCollectionsHydrationEffect([Projects, Tasks], payload, { replace: false }),
-        ),
-      );
-      const hydrateFailure = await runInRuntime(
-        runtime,
-        Effect.flip(hydrateCollectionsEffect([Projects, Tasks], payload, { replace: false })),
-      );
-
-      for (const failure of [validationFailure, hydrateFailure]) {
-        expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
-        expect(failure).toMatchObject({
-          path: "$.pendingMutations[0].transaction.id",
-        });
-      }
-      expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual([
-        "existing-project",
-      ]);
-      expect(runWithRuntime(runtime, () => Tasks.pendingMutations())).toHaveLength(1);
-    } finally {
-      Effect.runSync(Deferred.fail(release, "cleanup").pipe(Effect.ignore));
-      if (update !== undefined) {
-        await Effect.runPromise(Fiber.await(update));
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
   });
 
   it("preflights read-only live query collection hydration before mutating earlier collections", () => {
@@ -4340,13 +3686,11 @@ describe("Collection", () => {
               origin: "remote" as const,
             },
           ],
-          pendingMutations: [],
           updatedAt: 1,
         },
         {
           name: "ProjectCards.snapshot-codec-preflight-live",
           rows: [],
-          pendingMutations: [],
           updatedAt: 1,
         },
       ],
@@ -4397,7 +3741,6 @@ describe("Collection", () => {
           origin: "remote" as const,
         },
       ],
-      pendingMutations: [],
       updatedAt: 1,
     };
     const payload = { collections: [snapshot] };
@@ -4446,7 +3789,6 @@ describe("Collection", () => {
                   name: "Projects.snapshot-codec-payload-invalid",
                   // @ts-expect-error runtime validation rejects malformed payload rows.
                   rows: "not-rows",
-                  pendingMutations: [],
                   updatedAt: 1,
                 },
               ],
@@ -4484,7 +3826,6 @@ describe("Collection", () => {
         const snapshot = {
           name: "Projects.snapshot-codec-duplicate-payload",
           rows: [],
-          pendingMutations: [],
           updatedAt: 1,
         };
         const exit = yield* Effect.exit(
@@ -4535,7 +3876,6 @@ describe("Collection", () => {
                 {
                   name,
                   rows: [],
-                  pendingMutations: [],
                   updatedAt: 1,
                 },
               ],
@@ -4555,362 +3895,6 @@ describe("Collection", () => {
         });
       }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
-  });
-
-  it("validates collection input schema before local mutation", () => {
-    const runtime = makeRuntime();
-    const Projects = Collection.define<Project>({
-      name: "Projects.input-schema-validation",
-      getKey: (project) => project.id,
-      input: ProjectSchema,
-    });
-    const invalid = {
-      id: "atlas",
-      name: 123,
-      status: "active",
-      progress: 72,
-    } as never;
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const insertExit = yield* Effect.exit(runtime.provide(Projects.insert(invalid)));
-
-        expect(Exit.isFailure(insertExit)).toBe(true);
-        const insertFailure = Exit.isFailure(insertExit)
-          ? insertExit.cause.reasons.find(Cause.isFailReason)?.error
-          : undefined;
-        expect(insertFailure).toBeInstanceOf(CollectionSnapshotCodecError);
-        expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
-    );
-  });
-
-  it("uses decoded update values for optimistic replay and update handlers", async () => {
-    const release = Effect.runSync(Deferred.make<void>());
-    const updates: Array<{
-      readonly value: Project;
-      readonly changes: Partial<Project>;
-    }> = [];
-    let update: Fiber.Fiber<unknown, unknown> | undefined;
-    const Projects = Collection.define<Project>({
-      name: "Projects.update-decoded-values",
-      getKey: (project) => project.id,
-      input: Schema.Struct({
-        id: Schema.String,
-        name: Schema.String,
-        status: Schema.Literals(["active", "blocked"]),
-        progress: Schema.NumberFromString,
-      }),
-      output: ProjectSchema,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        update: ({ updates: entries }) => {
-          updates.push(...entries);
-          return Deferred.await(release);
-        },
-      },
-    });
-
-    try {
-      update = Effect.runFork(Projects.update("atlas", { progress: "80" } as never));
-      await Effect.runPromise(Effect.sleep("10 millis"));
-
-      expect(Projects.get("atlas")).toMatchObject({
-        progress: 80,
-        $synced: false,
-        $origin: "local",
-      });
-      expect(updates).toMatchObject([
-        {
-          value: { id: "atlas", name: "Atlas", status: "active", progress: 80 },
-          changes: { progress: 80 },
-        },
-      ]);
-    } finally {
-      Effect.runSync(Deferred.succeed(release, undefined));
-      if (update !== undefined) {
-        await Effect.runPromise(Fiber.await(update));
-      }
-    }
-  });
-
-  it("detaches and freezes mutation handler DTOs from pending, rollback, and restored flush facts", async () => {
-    const first = makeRuntime();
-    const second = makeRuntime();
-    const entered = Effect.runSync(Deferred.make<void>());
-    const release = Effect.runSync(Deferred.make<void>());
-    const storage = Collection.memoryStorage();
-    const key = "projects.mutation-handler-dto-ownership";
-    let blockHandler = true;
-    const seen: Array<{
-      readonly valueProgress: number | undefined;
-      readonly changesProgress: number | undefined;
-      readonly transactionChangesProgress: number | undefined;
-      readonly frozen: boolean;
-      readonly mutationCount: number;
-    }> = [];
-    const corrupt = (
-      updates: ReadonlyArray<{
-        readonly key: string;
-        readonly value: Project;
-        readonly previous: Project;
-        readonly changes: Partial<Project>;
-      }>,
-      context: Collection.MutationContext<Project, string>,
-    ): void => {
-      const update = updates[0];
-      const mutation = context.transaction.mutations[0];
-      seen.push({
-        valueProgress: update?.value.progress,
-        changesProgress: update?.changes.progress,
-        transactionChangesProgress:
-          mutation?._tag === "Update" ? mutation.changes.progress : undefined,
-        frozen:
-          Object.isFrozen(updates) &&
-          Object.isFrozen(update) &&
-          Object.isFrozen(update?.value) &&
-          Object.isFrozen(update?.previous) &&
-          Object.isFrozen(update?.changes) &&
-          Object.isFrozen(context) &&
-          Object.isFrozen(context.transaction) &&
-          Object.isFrozen(context.transaction.mutations) &&
-          Object.isFrozen(mutation),
-        mutationCount: context.transaction.mutations.length,
-      });
-
-      try {
-        (updates as Array<unknown>).push({ key: "evil" });
-      } catch {
-        // Frozen public DTOs may throw; clone-only DTOs still must not affect store facts.
-      }
-      try {
-        (update!.value as { progress: number }).progress = 999;
-      } catch {
-        // See comment above.
-      }
-      try {
-        (update!.previous as { progress: number }).progress = 999;
-      } catch {
-        // See comment above.
-      }
-      try {
-        (update!.changes as { progress: number }).progress = 999;
-      } catch {
-        // See comment above.
-      }
-      try {
-        (context.transaction.mutations as Array<unknown>).push({ _tag: "Delete", key: "evil" });
-      } catch {
-        // See comment above.
-      }
-      try {
-        (
-          (mutation as Extract<Collection.Mutation<Project, string>, { _tag: "Update" }>)
-            .changes as { progress: number }
-        ).progress = 999;
-      } catch {
-        // See comment above.
-      }
-    };
-
-    const Projects = Collection.define<Project>({
-      name: "Projects.mutation-handler-dto-ownership",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      persistence: {
-        storage,
-        key,
-        persistOnMutation: true,
-      },
-      sync: {
-        update: (payload) =>
-          Effect.gen(function* () {
-            yield* Effect.sync(() => corrupt(payload.updates, payload));
-            yield* Deferred.succeed(entered, undefined).pipe(Effect.ignore);
-            if (blockHandler) {
-              yield* Deferred.await(release);
-            }
-          }),
-      },
-    });
-    let update: Fiber.Fiber<unknown, unknown> | undefined;
-    let firstDisposed = false;
-    let secondDisposed = false;
-
-    try {
-      update = first.runFork(Projects.update("atlas", { progress: 80 }));
-      await runInRuntime(first, Deferred.await(entered));
-
-      const pending = runWithRuntime(first, () => Projects.pendingMutations()[0]);
-      const persisted = JSON.parse(storage.values.get(key) ?? "{}") as Collection.Snapshot<
-        Project,
-        string
-      >;
-      expect(seen[0]).toEqual({
-        valueProgress: 80,
-        changesProgress: 80,
-        transactionChangesProgress: 80,
-        frozen: true,
-        mutationCount: 1,
-      });
-      expect(pending?.transaction.mutations[0]).toMatchObject({
-        _tag: "Update",
-        key: "atlas",
-        value: { progress: 80 },
-        previous: { progress: 72 },
-        changes: { progress: 80 },
-      });
-      expect(pending?.rollbackRows[0]?.row?.value.progress).toBe(72);
-      expect(persisted.pendingMutations[0]?.transaction.mutations[0]).toMatchObject({
-        _tag: "Update",
-        key: "atlas",
-        value: { progress: 80 },
-        previous: { progress: 72 },
-        changes: { progress: 80 },
-      });
-      expect(persisted.pendingMutations[0]?.rollbackRows[0]?.row?.value.progress).toBe(72);
-
-      await Effect.runPromise(first.dispose);
-      firstDisposed = true;
-      blockHandler = false;
-
-      await runInRuntime(second, Projects.restore(storage, { key }));
-      await runInRuntime(second, Projects.flushPendingMutations());
-
-      expect(seen[1]).toEqual({
-        valueProgress: 80,
-        changesProgress: 80,
-        transactionChangesProgress: 80,
-        frozen: true,
-        mutationCount: 1,
-      });
-      expect(runWithRuntime(second, () => Projects.get("atlas"))).toMatchObject({
-        progress: 80,
-        $synced: true,
-      });
-      expect(runWithRuntime(second, () => Projects.pendingMutations())).toEqual([]);
-    } finally {
-      Effect.runSync(Deferred.succeed(release, undefined).pipe(Effect.ignore));
-      if (update !== undefined) {
-        await Effect.runPromise(Fiber.await(update).pipe(Effect.ignore));
-      }
-      if (!firstDisposed) {
-        await Effect.runPromise(first.dispose);
-      }
-      if (!secondDisposed) {
-        await Effect.runPromise(second.dispose);
-        secondDisposed = true;
-      }
-    }
-  });
-
-  it("canonicalizes hydrated pending update changes after schema decoding", async () => {
-    const runtime = makeRuntime();
-    const handled: Array<{
-      readonly value: Project;
-      readonly changes: Partial<Project>;
-    }> = [];
-    const WireProjectSchema = Schema.Struct({
-      id: Schema.String,
-      name: Schema.String,
-      status: Schema.Literals(["active", "blocked"]),
-      progress: Schema.Union([Schema.Number, Schema.NumberFromString]),
-    });
-    const Projects = Collection.define<Project>({
-      name: "Projects.hydrated-update-decoded-changes",
-      getKey: (project) => project.id,
-      output: WireProjectSchema,
-      sync: {
-        update: ({ updates: entries }) =>
-          Effect.sync(() => {
-            handled.push(...entries);
-          }),
-      },
-    });
-    const previous = {
-      id: "atlas",
-      name: "Atlas",
-      status: "active",
-      progress: "72",
-    } as never as Project;
-    const value = {
-      id: "atlas",
-      name: "Atlas",
-      status: "active",
-      progress: "80",
-    } as never as Project;
-
-    try {
-      await runInRuntime(
-        runtime,
-        Projects.hydrate({
-          name: "Projects.hydrated-update-decoded-changes",
-          rows: [
-            {
-              key: "atlas",
-              value,
-              synced: false,
-              origin: "local",
-            },
-          ],
-          pendingMutations: [
-            {
-              transaction: {
-                id: "ctx_1",
-                collection: "Projects.hydrated-update-decoded-changes",
-                mutations: [
-                  {
-                    _tag: "Update",
-                    key: "atlas",
-                    previous,
-                    value,
-                    changes: { progress: "80" } as never,
-                  },
-                ],
-              },
-              rollbackRows: [
-                {
-                  key: "atlas",
-                  row: {
-                    key: "atlas",
-                    value: previous,
-                    synced: true,
-                    origin: "remote",
-                  },
-                },
-              ],
-              createdAt: 1,
-              attempts: 0,
-            },
-          ],
-          updatedAt: 1,
-        }),
-      );
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        progress: 80,
-        $synced: false,
-      });
-      expect(
-        runWithRuntime(runtime, () => Projects.pendingMutations()[0]?.transaction.mutations[0]),
-      ).toMatchObject({
-        _tag: "Update",
-        previous: { progress: 72 },
-        value: { progress: 80 },
-        changes: { progress: 80 },
-      });
-
-      await runInRuntime(runtime, Projects.flushPendingMutations());
-
-      expect(handled).toMatchObject([
-        {
-          value: { progress: 80 },
-          changes: { progress: 80 },
-        },
-      ]);
-    } finally {
-      await Effect.runPromise(runtime.dispose);
-    }
   });
 
   it("fails hydration payloads when a snapshot has no matching collection definition", () => {
@@ -4936,13 +3920,11 @@ describe("Collection", () => {
                       origin: "remote",
                     },
                   ],
-                  pendingMutations: [],
                   updatedAt: 1,
                 },
                 {
                   name: "Tasks.payload-missing-definition",
                   rows: [],
-                  pendingMutations: [],
                   updatedAt: 1,
                 },
               ],
@@ -5031,7 +4013,6 @@ describe("Collection", () => {
               origin: "remote",
             },
           ],
-          pendingMutations: [],
           updatedAt: 1,
         }),
       ],
@@ -5044,7 +4025,6 @@ describe("Collection", () => {
           restoreFailure,
           preloadFailure,
           refetchFailure,
-          insertFailure,
           applyChangesFailure,
         ] = yield* Effect.all([
           Effect.flip(
@@ -5059,7 +4039,6 @@ describe("Collection", () => {
                     origin: "remote",
                   },
                 ],
-                pendingMutations: [],
                 updatedAt: 1,
               }),
             ),
@@ -5071,7 +4050,6 @@ describe("Collection", () => {
           ),
           Effect.flip(runtime.provide(LoadingProjects.preload())),
           Effect.flip(runtime.provide(RefetchProjects.refresh())),
-          Effect.flip(runtime.provide(Projects.insert(invalidProject))),
           Effect.flip(
             runtime.provide(Projects.applyChanges([{ _tag: "Upsert", value: invalidProject }])),
           ),
@@ -5089,11 +4067,6 @@ describe("Collection", () => {
               },
             },
           ]),
-        );
-        const updateFailure = yield* Effect.flip(
-          runtime.provide(
-            Projects.update("atlas", { progress: "bad" } as unknown as Partial<Project>),
-          ),
         );
         const applyUpdateFailure = yield* Effect.flip(
           runtime.provide(
@@ -5113,9 +4086,7 @@ describe("Collection", () => {
             restoreFailure,
             preloadFailure,
             refetchFailure,
-            insertFailure,
             applyChangesFailure,
-            updateFailure,
             applyUpdateFailure,
           ]) {
             expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
@@ -5228,285 +4199,6 @@ describe("Collection", () => {
         });
       }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
-  });
-
-  it("does not roll back a committed mutation when post-commit persistence fails", () => {
-    const runtime = makeRuntime();
-    let writes = 0;
-    let updates = 0;
-    const storage: Collection.PersistenceStorage<"persist-failed"> = {
-      getItem: () => null,
-      setItem: () => {
-        writes += 1;
-        return writes === 2 ? Effect.fail("persist-failed" as const) : Effect.void;
-      },
-    };
-    const Projects = Collection.define<Project, string, "persist-failed">({
-      name: "Projects.persist-post-commit-failure",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      persistence: {
-        storage,
-      },
-      sync: {
-        update: () =>
-          Effect.sync(() => {
-            updates += 1;
-          }),
-      },
-    });
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const exit = yield* Effect.exit(
-          runtime.provide(Projects.update("atlas", { progress: 90 })),
-        );
-        const pending = runWithRuntime(runtime, () => Projects.pendingMutations());
-
-        yield* Effect.sync(() => {
-          expect(Exit.isFailure(exit)).toBe(true);
-          const failure = Exit.isFailure(exit)
-            ? exit.cause.reasons.find(Cause.isFailReason)?.error
-            : undefined;
-          expect(failure).toBe("persist-failed");
-          expect(updates).toBe(1);
-          expect(writes).toBe(2);
-          expect(pending).toEqual([]);
-          expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-            progress: 90,
-            $synced: true,
-            $origin: "local",
-          });
-        });
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
-    );
-  });
-
-  it("does not publish mutation success or dequeue events before post-commit persistence succeeds", () => {
-    const runtime = makeRuntime();
-    let writes = 0;
-    const storage: Collection.PersistenceStorage<"persist-failed"> = {
-      getItem: () => null,
-      setItem: () => {
-        writes += 1;
-        return writes === 2 ? Effect.fail("persist-failed" as const) : Effect.void;
-      },
-    };
-    const Projects = Collection.define<Project, string, "persist-failed">({
-      name: "Projects.persist-post-commit-events",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      persistence: {
-        storage,
-      },
-      sync: {
-        update: () => Effect.void,
-      },
-    });
-
-    return Effect.runPromise(
-      runtime.provide(
-        Effect.scoped(
-          Effect.gen(function* () {
-            const subscription = yield* subscribeCollectionEventsEffect();
-            const failure = yield* Effect.flip(Projects.update("atlas", { progress: 90 }));
-            const events: Array<CollectionStoreEvent> = [];
-            for (let index = 0; index < 5; index++) {
-              const event = yield* PubSub.take(subscription).pipe(
-                Effect.timeoutOption("20 millis"),
-              );
-              if (Option.isNone(event)) {
-                break;
-              }
-              events.push(event.value);
-            }
-
-            expect(failure).toBe("persist-failed");
-            expect(events.map((event) => event._tag)).toEqual([
-              "CollectionPersisted",
-              "CollectionMutationQueued",
-              "CollectionMutateStarted",
-            ]);
-            expect(events.some((event) => event._tag === "CollectionMutationDequeued")).toBe(false);
-            expect(events.some((event) => event._tag === "CollectionMutateCommitted")).toBe(false);
-          }),
-        ).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
-      ),
-    );
-  });
-
-  it("completes mutation joiners when post-commit persistence fails", async () => {
-    const runtime = makeRuntime();
-    const entered = Effect.runSync(Deferred.make<void>());
-    const release = Effect.runSync(Deferred.make<void>());
-    let writes = 0;
-    const storage: Collection.PersistenceStorage<"persist-failed"> = {
-      getItem: () => null,
-      setItem: () => {
-        writes += 1;
-        return writes === 2 ? Effect.fail("persist-failed" as const) : Effect.void;
-      },
-    };
-    const Projects = Collection.define<Project, string, "persist-failed">({
-      name: "Projects.persist-post-commit-joiner-failure",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      persistence: {
-        storage,
-      },
-      sync: {
-        update: () =>
-          Effect.gen(function* () {
-            yield* Deferred.succeed(entered, undefined).pipe(Effect.ignore);
-            yield* Deferred.await(release);
-          }),
-      },
-    });
-    let update: Fiber.Fiber<unknown, unknown> | undefined;
-    let flush: Fiber.Fiber<unknown, unknown> | undefined;
-
-    try {
-      update = runtime.runFork(Projects.update("atlas", { progress: 90 }));
-      await Effect.runPromise(Deferred.await(entered));
-      flush = runtime.runFork(Projects.flushPendingMutations());
-      await Effect.runPromise(Effect.sleep("10 millis"));
-
-      Effect.runSync(Deferred.succeed(release, undefined));
-
-      const owner = await Effect.runPromise(
-        Fiber.await(update).pipe(Effect.timeoutOption("1 second")),
-      );
-      const joiner = await Effect.runPromise(
-        Fiber.await(flush).pipe(Effect.timeoutOption("1 second")),
-      );
-
-      if (Option.isNone(owner) || Option.isNone(joiner)) {
-        expect.fail("Expected mutation owner and joiner to terminate.");
-      }
-      const ownerFailure = Exit.isFailure(owner.value)
-        ? owner.value.cause.reasons.find(Cause.isFailReason)?.error
-        : undefined;
-      const joinerFailure = Exit.isFailure(joiner.value)
-        ? joiner.value.cause.reasons.find(Cause.isFailReason)?.error
-        : undefined;
-
-      expect(ownerFailure).toBe("persist-failed");
-      expect(joinerFailure).toBe("persist-failed");
-      expect(writes).toBe(2);
-      expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        progress: 90,
-        $synced: true,
-      });
-    } finally {
-      Effect.runSync(Deferred.succeed(release, undefined).pipe(Effect.ignore));
-      if (update !== undefined) {
-        await Effect.runPromise(Fiber.await(update).pipe(Effect.timeoutOption("100 millis")));
-      }
-      if (flush !== undefined) {
-        await Effect.runPromise(Fiber.await(flush).pipe(Effect.timeoutOption("100 millis")));
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
-  it("preserves active mutation joiners when rollback restores pending state", async () => {
-    const runtime = makeRuntime();
-    const entered = Effect.runSync(Deferred.make<void>());
-    const release = Effect.runSync(Deferred.make<void>());
-    let writes = 0;
-    let handlerCalls = 0;
-    const storage: Collection.PersistenceStorage<"persist-failed"> = {
-      getItem: () => null,
-      setItem: () => {
-        writes += 1;
-        return writes === 2 ? Effect.fail("persist-failed" as const) : Effect.void;
-      },
-    };
-    const Projects = Collection.define<Project, string, "persist-failed">({
-      name: "Projects.rollback-preserves-active-attempt",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      persistence: {
-        storage,
-        persistOnMutation: true,
-        persistOnWrite: true,
-      },
-      sync: {
-        update: () =>
-          Effect.gen(function* () {
-            handlerCalls += 1;
-            yield* Deferred.succeed(entered, undefined).pipe(Effect.ignore);
-            yield* Deferred.await(release);
-          }),
-      },
-    });
-    let update: Fiber.Fiber<unknown, unknown> | undefined;
-    let flush: Fiber.Fiber<unknown, unknown> | undefined;
-
-    try {
-      await Effect.runPromise(
-        runtime.provide(
-          Effect.scoped(
-            Effect.gen(function* () {
-              const subscription = yield* subscribeCollectionEventsEffect();
-              update = runtime.runFork(Projects.update("atlas", { progress: 90 }));
-              yield* Deferred.await(entered);
-
-              const writeFailure = yield* Effect.flip(
-                runtime.provide(
-                  Projects.applyChanges([
-                    { _tag: "Update", key: "atlas", changes: { name: "Direct Write" } },
-                  ]),
-                ),
-              );
-              flush = runtime.runFork(Projects.flushPendingMutations());
-              yield* Effect.sleep("20 millis");
-
-              expect(writeFailure).toBe("persist-failed");
-              expect(handlerCalls).toBe(1);
-
-              yield* Deferred.succeed(release, undefined);
-              const owner = yield* Fiber.await(update).pipe(Effect.timeoutOption("1 second"));
-              const joiner = yield* Fiber.await(flush).pipe(Effect.timeoutOption("1 second"));
-              if (Option.isNone(owner) || Option.isNone(joiner)) {
-                expect.fail("Expected mutation owner and flush joiner to terminate.");
-              }
-
-              const events: Array<CollectionStoreEvent> = [];
-              for (let index = 0; index < 8; index++) {
-                const event = yield* PubSub.take(subscription).pipe(
-                  Effect.timeoutOption("20 millis"),
-                );
-                if (Option.isNone(event)) {
-                  break;
-                }
-                events.push(event.value);
-              }
-              const started = events.filter((event) => event._tag === "CollectionMutateStarted");
-
-              expect(handlerCalls).toBe(1);
-              expect(started).toHaveLength(1);
-              expect(writes).toBe(3);
-              expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
-              expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-                progress: 90,
-                $synced: true,
-              });
-            }),
-          ),
-        ),
-      );
-    } finally {
-      Effect.runSync(Deferred.succeed(release, undefined).pipe(Effect.ignore));
-      if (update !== undefined) {
-        await Effect.runPromise(Fiber.await(update).pipe(Effect.timeoutOption("100 millis")));
-      }
-      if (flush !== undefined) {
-        await Effect.runPromise(Fiber.await(flush).pipe(Effect.timeoutOption("100 millis")));
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
   });
 
   it("serializes public persist snapshots behind failing durable writes", async () => {
@@ -5641,54 +4333,6 @@ describe("Collection", () => {
     }
   });
 
-  it("restores optimistic mutation state when initial mutation persistence is interrupted", async () => {
-    const runtime = makeRuntime();
-    const key = "projects-mutation-enqueue-interrupt-cache";
-    const persistStarted = Effect.runSync(Deferred.make<void>());
-    const storage: Collection.PersistenceStorage = {
-      getItem: () => null,
-      setItem: () =>
-        Effect.gen(function* () {
-          yield* Deferred.succeed(persistStarted, undefined).pipe(Effect.ignore);
-          return yield* Effect.never;
-        }),
-    };
-    const Projects = Collection.define<Project>({
-      name: "Projects.mutation-enqueue-interrupt-rollback",
-      getKey: (project) => project.id,
-      persistence: {
-        storage,
-        key,
-        persistOnMutation: true,
-      },
-    });
-    let mutation: Fiber.Fiber<Collection.Transaction<Project, string>, unknown> | undefined;
-
-    try {
-      mutation = runtime.runFork(
-        Projects.insert({
-          id: "atlas",
-          name: "Atlas",
-          status: "active",
-          progress: 72,
-        }),
-      );
-      await Effect.runPromise(Deferred.await(persistStarted));
-
-      await Effect.runPromise(Fiber.interrupt(mutation));
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toBeUndefined();
-      expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
-    } finally {
-      if (mutation !== undefined) {
-        await Effect.runPromise(
-          Fiber.await(mutation).pipe(Effect.timeoutOption("100 millis"), Effect.ignore),
-        );
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
   it("serializes public hydrate behind failing durable writes", async () => {
     const runtime = makeRuntime();
     const writeStarted = Effect.runSync(Deferred.make<void>());
@@ -5724,7 +4368,6 @@ describe("Collection", () => {
           origin: "remote",
         },
       ],
-      pendingMutations: [],
       updatedAt: 123,
     };
     let write: Fiber.Fiber<unknown, unknown> | undefined;
@@ -5764,137 +4407,6 @@ describe("Collection", () => {
       }
       if (hydrate !== undefined) {
         await Effect.runPromise(Fiber.await(hydrate).pipe(Effect.timeoutOption("100 millis")));
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
-  it("clears interrupted active mutation attempts so pending flush can retry", async () => {
-    const runtime = makeRuntime();
-    const entered = Effect.runSync(Deferred.make<void>());
-    const interrupted = Effect.runSync(Deferred.make<void>());
-    let attempts = 0;
-    const Projects = Collection.define<Project>({
-      name: "Projects.interrupted-mutation-flush-retry",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        update: () => {
-          const attempt = ++attempts;
-          return Effect.gen(function* () {
-            if (attempt === 1) {
-              yield* Deferred.succeed(entered, undefined).pipe(Effect.ignore);
-              yield* Effect.never.pipe(
-                Effect.onInterrupt(() =>
-                  Deferred.succeed(interrupted, undefined).pipe(Effect.asVoid),
-                ),
-              );
-            }
-          });
-        },
-      },
-    });
-    let update: Fiber.Fiber<unknown, unknown> | undefined;
-
-    try {
-      update = runtime.runFork(Projects.update("atlas", { progress: 90 }));
-      await Effect.runPromise(Deferred.await(entered));
-      await Effect.runPromise(Fiber.interrupt(update));
-      await Effect.runPromise(Deferred.await(interrupted));
-
-      const flush = await Effect.runPromise(
-        runtime.provide(Projects.flushPendingMutations().pipe(Effect.timeoutOption("1 second"))),
-      );
-
-      if (Option.isNone(flush)) {
-        expect.fail("Expected flush to retry after interrupted mutation owner.");
-      }
-      expect(attempts).toBe(2);
-      expect(flush.value).toHaveLength(1);
-      expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        progress: 90,
-        $synced: true,
-      });
-    } finally {
-      if (update !== undefined) {
-        await Effect.runPromise(Fiber.await(update).pipe(Effect.timeoutOption("100 millis")));
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
-  it("completes mutation joiners when rollback persistence fails", async () => {
-    const runtime = makeRuntime();
-    const entered = Effect.runSync(Deferred.make<void>());
-    const release = Effect.runSync(Deferred.make<void>());
-    let writes = 0;
-    const storage: Collection.PersistenceStorage<"persist-failed"> = {
-      getItem: () => null,
-      setItem: () => {
-        writes += 1;
-        return writes === 2 ? Effect.fail("persist-failed" as const) : Effect.void;
-      },
-    };
-    const Projects = Collection.define<Project, string, "remote-failed" | "persist-failed">({
-      name: "Projects.persist-rollback-joiner-failure",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      persistence: {
-        storage,
-      },
-      sync: {
-        update: () =>
-          Effect.gen(function* () {
-            yield* Deferred.succeed(entered, undefined).pipe(Effect.ignore);
-            yield* Deferred.await(release);
-            return yield* Effect.fail("remote-failed" as const);
-          }),
-      },
-    });
-    let update: Fiber.Fiber<unknown, unknown> | undefined;
-    let flush: Fiber.Fiber<unknown, unknown> | undefined;
-
-    try {
-      update = runtime.runFork(Projects.update("atlas", { progress: 90 }));
-      await Effect.runPromise(Deferred.await(entered));
-      flush = runtime.runFork(Projects.flushPendingMutations());
-      await Effect.runPromise(Effect.sleep("10 millis"));
-
-      Effect.runSync(Deferred.succeed(release, undefined));
-
-      const owner = await Effect.runPromise(
-        Fiber.await(update).pipe(Effect.timeoutOption("1 second")),
-      );
-      const joiner = await Effect.runPromise(
-        Fiber.await(flush).pipe(Effect.timeoutOption("1 second")),
-      );
-
-      if (Option.isNone(owner) || Option.isNone(joiner)) {
-        expect.fail("Expected mutation owner and joiner to terminate.");
-      }
-      const ownerFailure = Exit.isFailure(owner.value)
-        ? owner.value.cause.reasons.find(Cause.isFailReason)?.error
-        : undefined;
-      const joinerFailure = Exit.isFailure(joiner.value)
-        ? joiner.value.cause.reasons.find(Cause.isFailReason)?.error
-        : undefined;
-
-      expect(ownerFailure).toBe("persist-failed");
-      expect(joinerFailure).toBe("persist-failed");
-      expect(writes).toBe(2);
-      expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        progress: 72,
-        $synced: true,
-      });
-    } finally {
-      Effect.runSync(Deferred.succeed(release, undefined).pipe(Effect.ignore));
-      if (update !== undefined) {
-        await Effect.runPromise(Fiber.await(update).pipe(Effect.timeoutOption("100 millis")));
-      }
-      if (flush !== undefined) {
-        await Effect.runPromise(Fiber.await(flush).pipe(Effect.timeoutOption("100 millis")));
       }
       await Effect.runPromise(runtime.dispose);
     }
@@ -5995,432 +4507,6 @@ describe("Collection", () => {
       }),
     ));
 
-  it("persists and restores pending mutation queue entries", async () => {
-    const second = makeRuntime();
-    const release = Effect.runSync(Deferred.make<void>());
-    const storage = Collection.memoryStorage();
-    const Projects = Collection.define<Project, string, never>({
-      name: "Projects.pending-persist",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        update: () => Deferred.await(release),
-      },
-    });
-
-    try {
-      const update = Effect.runFork(Projects.update("atlas", { progress: 80 }));
-      await Effect.runPromise(Effect.sleep("10 millis"));
-
-      expect(Projects.pendingMutations()).toMatchObject([
-        {
-          transaction: {
-            collection: "Projects.pending-persist",
-            mutations: [{ _tag: "Update", key: "atlas", changes: { progress: 80 } }],
-          },
-          attempts: 1,
-          rollbackRows: [
-            {
-              key: "atlas",
-              row: {
-                value: { id: "atlas", name: "Atlas", status: "active", progress: 72 },
-                synced: true,
-                origin: "remote",
-              },
-            },
-          ],
-        },
-      ]);
-
-      await Effect.runPromise(Projects.persist(storage, { key: "pending-projects-cache" }));
-      await runInRuntime(second, Projects.restore(storage, { key: "pending-projects-cache" }));
-
-      expect(runWithRuntime(second, () => Projects.get("atlas"))).toMatchObject({
-        progress: 80,
-        $synced: false,
-        $origin: "local",
-      });
-      expect(runWithRuntime(second, () => Projects.pendingMutations())).toMatchObject([
-        {
-          transaction: {
-            collection: "Projects.pending-persist",
-            mutations: [{ _tag: "Update", key: "atlas", changes: { progress: 80 } }],
-          },
-          attempts: 1,
-        },
-      ]);
-
-      Effect.runSync(Deferred.succeed(release, undefined));
-      await Effect.runPromise(Fiber.join(update));
-
-      expect(Projects.pendingMutations()).toEqual([]);
-      expect(Projects.get("atlas")).toMatchObject({
-        progress: 80,
-        $synced: true,
-      });
-    } finally {
-      Effect.runSync(Deferred.succeed(release, undefined));
-      await Effect.runPromise(second.dispose);
-    }
-  });
-
-  it("advances transaction ids from hydrated pending mutations", async () => {
-    const runtime = makeRuntime();
-    const release = Effect.runSync(Deferred.make<void>());
-    const Projects = Collection.define<Project, string, never>({
-      name: "Projects.pending-id-advance",
-      getKey: (project) => project.id,
-      initialData: [
-        { id: "atlas", name: "Atlas", status: "active", progress: 72 },
-        { id: "phoenix", name: "Phoenix", status: "active", progress: 64 },
-      ],
-      sync: {
-        update: () => Deferred.await(release),
-      },
-    });
-    const atlas = { id: "atlas", name: "Atlas", status: "active" as const, progress: 72 };
-    const atlasUpdated = { ...atlas, progress: 80 };
-    let update: Fiber.Fiber<unknown, unknown> | undefined;
-
-    try {
-      await runInRuntime(
-        runtime,
-        Projects.hydrate({
-          name: "Projects.pending-id-advance",
-          rows: [
-            {
-              key: "atlas",
-              value: atlasUpdated,
-              synced: false,
-              origin: "local",
-            },
-            {
-              key: "phoenix",
-              value: { id: "phoenix", name: "Phoenix", status: "active", progress: 64 },
-              synced: true,
-              origin: "remote",
-            },
-          ],
-          pendingMutations: [
-            {
-              transaction: {
-                id: "ctx_1",
-                collection: "Projects.pending-id-advance",
-                mutations: [
-                  {
-                    _tag: "Update",
-                    key: "atlas",
-                    previous: atlas,
-                    value: atlasUpdated,
-                    changes: { progress: 80 },
-                  },
-                ],
-              },
-              rollbackRows: [
-                {
-                  key: "atlas",
-                  row: {
-                    key: "atlas",
-                    value: atlas,
-                    synced: true,
-                    origin: "remote",
-                  },
-                },
-              ],
-              createdAt: 1,
-              attempts: 1,
-            },
-          ],
-          updatedAt: 1,
-        }),
-      );
-
-      update = runtime.runFork(Projects.update("phoenix", { progress: 90 }));
-      await Effect.runPromise(Effect.sleep("10 millis"));
-
-      expect(
-        runWithRuntime(runtime, () =>
-          Projects.pendingMutations().map((pending) => pending.transaction.id),
-        ),
-      ).toEqual(["ctx_1", "ctx_2"]);
-    } finally {
-      Effect.runSync(Deferred.succeed(release, undefined));
-      if (update !== undefined) {
-        await Effect.runPromise(Fiber.await(update));
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
-  it("bumps the collection version when restored pending mutation attempts start", async () => {
-    const runtime = makeRuntime();
-    const release = Effect.runSync(Deferred.make<void>());
-    const Projects = Collection.define<Project, string, never>({
-      name: "Projects.pending-attempt-version",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        update: () => Deferred.await(release),
-      },
-    });
-    const previous = { id: "atlas", name: "Atlas", status: "active" as const, progress: 72 };
-    const updated = { ...previous, progress: 80 };
-    let flush: Fiber.Fiber<unknown, unknown> | undefined;
-
-    try {
-      await runInRuntime(
-        runtime,
-        Projects.hydrate({
-          name: "Projects.pending-attempt-version",
-          rows: [
-            {
-              key: "atlas",
-              value: updated,
-              synced: false,
-              origin: "local",
-            },
-          ],
-          pendingMutations: [
-            {
-              transaction: {
-                id: "ctx_1",
-                collection: "Projects.pending-attempt-version",
-                mutations: [
-                  {
-                    _tag: "Update",
-                    key: "atlas",
-                    previous,
-                    value: updated,
-                    changes: { progress: 80 },
-                  },
-                ],
-              },
-              rollbackRows: [
-                {
-                  key: "atlas",
-                  row: {
-                    key: "atlas",
-                    value: previous,
-                    synced: true,
-                    origin: "remote",
-                  },
-                },
-              ],
-              createdAt: 1,
-              attempts: 0,
-            },
-          ],
-          updatedAt: 1,
-        }),
-      );
-
-      const beforeVersion = runWithRuntime(runtime, () => Projects.version().get());
-      flush = runtime.runFork(Projects.flushPendingMutations());
-      await Effect.runPromise(Effect.sleep("10 millis"));
-
-      expect(runWithRuntime(runtime, () => Projects.pendingMutations()[0]?.attempts)).toBe(1);
-      expect(runWithRuntime(runtime, () => Projects.version().get())).toBeGreaterThan(
-        beforeVersion,
-      );
-    } finally {
-      Effect.runSync(Deferred.succeed(release, undefined));
-      if (flush !== undefined) {
-        await Effect.runPromise(Fiber.await(flush));
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
-  it("joins an in-flight mutation attempt when flushing pending mutations", async () => {
-    const runtime = makeRuntime();
-    const entered = Effect.runSync(Deferred.make<void>());
-    const release = Effect.runSync(Deferred.make<void>());
-    let calls = 0;
-    const onUpdate = vi.fn(() => {
-      calls++;
-      if (calls > 1) {
-        return Effect.fail("stale rollback");
-      }
-      return Effect.gen(function* () {
-        yield* Deferred.succeed(entered, undefined).pipe(Effect.ignore);
-        yield* Deferred.await(release);
-      });
-    });
-    const Projects = Collection.define<Project, string, string>({
-      name: "Projects.pending-flush-joins-active",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        update: onUpdate,
-      },
-    });
-    let update: Fiber.Fiber<unknown, unknown> | undefined;
-    let flush: Fiber.Fiber<unknown, unknown> | undefined;
-
-    try {
-      update = runtime.runFork(Projects.update("atlas", { progress: 80 }));
-      await Effect.runPromise(Deferred.await(entered));
-      flush = runtime.runFork(Projects.flushPendingMutations());
-      await Effect.runPromise(Effect.sleep("10 millis"));
-
-      expect(onUpdate).toHaveBeenCalledTimes(1);
-      expect(runWithRuntime(runtime, () => Projects.pendingMutations()[0]?.attempts)).toBe(1);
-
-      Effect.runSync(Deferred.succeed(release, undefined));
-      await Effect.runPromise(Fiber.join(update));
-      const flushed = await Effect.runPromise(Fiber.join(flush));
-
-      expect(flushed).toMatchObject([
-        {
-          collection: "Projects.pending-flush-joins-active",
-          mutations: [{ _tag: "Update", key: "atlas", changes: { progress: 80 } }],
-        },
-      ]);
-      expect(onUpdate).toHaveBeenCalledTimes(1);
-      expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        progress: 80,
-        $synced: true,
-      });
-    } finally {
-      Effect.runSync(Deferred.succeed(release, undefined).pipe(Effect.ignore));
-      if (update !== undefined) {
-        await Effect.runPromise(Fiber.await(update));
-      }
-      if (flush !== undefined) {
-        await Effect.runPromise(Fiber.await(flush));
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
-  it("flushes restored pending update mutations through the handler", async () => {
-    const first = makeRuntime();
-    const second = makeRuntime();
-    const release = Effect.runSync(Deferred.make<void>());
-    const storage = Collection.memoryStorage();
-    const persisted: Array<Project> = [];
-    const handledTransactions: Array<string> = [];
-    let update: Fiber.Fiber<unknown, unknown> | undefined;
-    const Projects = Collection.define<Project, string, never>({
-      name: "Projects.pending-flush-success",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        update: ({ updates, transaction }) => {
-          handledTransactions.push(transaction.id);
-          if (handledTransactions.length === 1) {
-            return Deferred.await(release);
-          }
-
-          return Effect.sync(() => {
-            persisted.push(...updates.map((entry) => entry.value));
-          });
-        },
-      },
-    });
-
-    try {
-      update = first.runFork(Projects.update("atlas", { progress: 80 }));
-      await Effect.runPromise(Effect.sleep("10 millis"));
-      await Effect.runPromise(
-        Effect.scoped(
-          first.provide(Projects.persist(storage, { key: "pending-flush-success-cache" })),
-        ),
-      );
-      await Effect.runPromise(
-        Effect.scoped(
-          second.provide(Projects.restore(storage, { key: "pending-flush-success-cache" })),
-        ),
-      );
-
-      const flushed = await Effect.runPromise(
-        Effect.scoped(second.provide(Projects.flushPendingMutations())),
-      );
-
-      expect(flushed).toMatchObject([
-        {
-          collection: "Projects.pending-flush-success",
-          mutations: [{ _tag: "Update", key: "atlas", changes: { progress: 80 } }],
-        },
-      ]);
-      expect(handledTransactions).toHaveLength(2);
-      expect(handledTransactions[1]).toBe(handledTransactions[0]);
-      expect(persisted).toEqual([{ id: "atlas", name: "Atlas", status: "active", progress: 80 }]);
-      expect(runWithRuntime(second, () => Projects.pendingMutations())).toEqual([]);
-      expect(runWithRuntime(second, () => Projects.get("atlas"))).toMatchObject({
-        progress: 80,
-        $synced: true,
-        $origin: "local",
-      });
-    } finally {
-      Effect.runSync(Deferred.succeed(release, undefined));
-      if (update !== undefined) {
-        await Effect.runPromise(Fiber.await(update));
-      }
-      await Effect.runPromise(first.dispose);
-      await Effect.runPromise(second.dispose);
-    }
-  });
-
-  it("rolls restored pending update mutations back when flush fails", async () => {
-    const first = makeRuntime();
-    const second = makeRuntime();
-    const release = Effect.runSync(Deferred.make<void>());
-    const storage = Collection.memoryStorage();
-    const handledTransactions: Array<string> = [];
-    let update: Fiber.Fiber<unknown, unknown> | undefined;
-    const Projects = Collection.define<Project, string, string>({
-      name: "Projects.pending-flush-failure",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        update: ({ transaction }) => {
-          handledTransactions.push(transaction.id);
-          return handledTransactions.length === 1
-            ? Deferred.await(release)
-            : Effect.fail("offline");
-        },
-      },
-    });
-
-    try {
-      update = first.runFork(Projects.update("atlas", { progress: 80 }));
-      await Effect.runPromise(Effect.sleep("10 millis"));
-      await Effect.runPromise(
-        Effect.scoped(
-          first.provide(Projects.persist(storage, { key: "pending-flush-failure-cache" })),
-        ),
-      );
-      await Effect.runPromise(
-        Effect.scoped(
-          second.provide(Projects.restore(storage, { key: "pending-flush-failure-cache" })),
-        ),
-      );
-
-      const flushFailure = await Effect.runPromise(
-        Effect.flip(Effect.scoped(second.provide(Projects.flushPendingMutations()))),
-      );
-      expect(flushFailure).toBe("offline");
-
-      expect(handledTransactions).toHaveLength(2);
-      expect(handledTransactions[1]).toBe(handledTransactions[0]);
-      expect(runWithRuntime(second, () => Projects.pendingMutations())).toEqual([]);
-      expect(runWithRuntime(second, () => Projects.get("atlas"))).toMatchObject({
-        progress: 72,
-        $synced: true,
-        $origin: "remote",
-      });
-    } finally {
-      Effect.runSync(Deferred.succeed(release, undefined));
-      if (update !== undefined) {
-        await Effect.runPromise(Fiber.await(update));
-      }
-      await Effect.runPromise(first.dispose);
-      await Effect.runPromise(second.dispose);
-    }
-  });
-
   it("dehydrates and hydrates multiple collections as a payload", async () => {
     const first = makeRuntime();
     const second = makeRuntime();
@@ -6479,329 +4565,6 @@ describe("Collection", () => {
     }
   });
 
-  it("commits optimistic row updates after mutation handlers succeed", async () => {
-    const persisted: Array<Project> = [];
-    const Projects = Collection.define<Project, string, string>({
-      name: "Projects.optimistic-success",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        update: ({ updates }) =>
-          Effect.sync(() => {
-            persisted.push(...updates.map((update) => update.value));
-          }),
-      },
-    });
-
-    const transaction = await Effect.runPromise(Projects.update("atlas", { progress: 80 }));
-
-    expect(transaction.mutations).toMatchObject([
-      {
-        _tag: "Update",
-        key: "atlas",
-        changes: { progress: 80 },
-      },
-    ]);
-    expect(Projects.get("atlas")).toMatchObject({
-      progress: 80,
-      $synced: true,
-      $origin: "local",
-    });
-    expect(persisted).toEqual([{ id: "atlas", name: "Atlas", status: "active", progress: 80 }]);
-  });
-
-  it("uses Effect schedules for collection mutation retry policy", async () => {
-    let attempts = 0;
-    const persisted: Array<Project> = [];
-    const Projects = Collection.define<Project, string, string>({
-      name: "Projects.mutation-retry",
-      getKey: (project) => project.id,
-      policy: {
-        retry: Schedule.recurs(2),
-      },
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        update: ({ updates }) =>
-          Effect.gen(function* () {
-            attempts++;
-            if (attempts < 3) {
-              return yield* Effect.fail("temporary");
-            }
-            persisted.push(...updates.map((update) => update.value));
-          }),
-      },
-    });
-
-    await Effect.runPromise(Projects.update("atlas", { progress: 80 }));
-
-    expect(attempts).toBe(3);
-    expect(persisted).toEqual([{ id: "atlas", name: "Atlas", status: "active", progress: 80 }]);
-    expect(Projects.pendingMutations()).toEqual([]);
-    expect(Projects.get("atlas")).toMatchObject({
-      progress: 80,
-      $synced: true,
-    });
-  });
-
-  it("rolls optimistic row updates back when mutation handlers fail", async () => {
-    const Projects = Collection.define<Project, string, string>({
-      name: "Projects.optimistic-failure",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        update: () => Effect.fail("nope"),
-      },
-    });
-
-    await expect(Effect.runPromise(Projects.update("atlas", { progress: 80 }))).rejects.toBe(
-      "nope",
-    );
-
-    expect(Projects.pendingMutations()).toEqual([]);
-    expect(Projects.get("atlas")).toMatchObject({
-      progress: 72,
-      $synced: true,
-      $origin: "remote",
-    });
-  });
-
-  it("rebases later optimistic updates when an earlier same-row mutation fails", async () => {
-    const runtime = makeRuntime();
-    const firstStarted = Effect.runSync(Deferred.make<void>());
-    const secondStarted = Effect.runSync(Deferred.make<void>());
-    const firstRelease = Effect.runSync(Deferred.make<void, string>());
-    const secondRelease = Effect.runSync(Deferred.make<void, string>());
-    const Projects = Collection.define<Project, string, string>({
-      name: "Projects.optimistic-overlap-earlier-fails",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        update: ({ updates }) =>
-          Effect.gen(function* () {
-            const progress = updates[0]?.value.progress;
-            if (progress === 80) {
-              yield* Deferred.succeed(firstStarted, undefined);
-              yield* Deferred.await(firstRelease);
-            } else if (progress === 90) {
-              yield* Deferred.succeed(secondStarted, undefined);
-              yield* Deferred.await(secondRelease);
-            }
-          }),
-      },
-    });
-    let first: Fiber.Fiber<unknown, unknown> | undefined;
-    let second: Fiber.Fiber<unknown, unknown> | undefined;
-
-    try {
-      first = runtime.runFork(Projects.update("atlas", { progress: 80 }));
-      await Effect.runPromise(Deferred.await(firstStarted));
-      second = runtime.runFork(Projects.update("atlas", { progress: 90 }));
-      await Effect.runPromise(Deferred.await(secondStarted));
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        progress: 90,
-        $synced: false,
-      });
-      expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toHaveLength(2);
-
-      Effect.runSync(Deferred.fail(firstRelease, "first failed"));
-      await expect(Effect.runPromise(Fiber.join(first))).rejects.toBe("first failed");
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        progress: 90,
-        $synced: false,
-      });
-      expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toHaveLength(1);
-
-      Effect.runSync(Deferred.fail(secondRelease, "second failed"));
-      await expect(Effect.runPromise(Fiber.join(second))).rejects.toBe("second failed");
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        progress: 72,
-        $synced: true,
-        $origin: "remote",
-      });
-      expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
-    } finally {
-      Effect.runSync(Deferred.fail(firstRelease, "cleanup").pipe(Effect.ignore));
-      Effect.runSync(Deferred.fail(secondRelease, "cleanup").pipe(Effect.ignore));
-      if (first) {
-        await Effect.runPromise(Fiber.await(first));
-      }
-      if (second) {
-        await Effect.runPromise(Fiber.await(second));
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
-  it("keeps later optimistic rows unsynced and restores committed earlier rows when the later mutation fails", async () => {
-    const runtime = makeRuntime();
-    const firstStarted = Effect.runSync(Deferred.make<void>());
-    const secondStarted = Effect.runSync(Deferred.make<void>());
-    const firstRelease = Effect.runSync(Deferred.make<void>());
-    const secondRelease = Effect.runSync(Deferred.make<void, string>());
-    const Projects = Collection.define<Project, string, string>({
-      name: "Projects.optimistic-overlap-later-fails",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        update: ({ updates }) =>
-          Effect.gen(function* () {
-            const progress = updates[0]?.value.progress;
-            if (progress === 80) {
-              yield* Deferred.succeed(firstStarted, undefined);
-              yield* Deferred.await(firstRelease);
-            } else if (progress === 90) {
-              yield* Deferred.succeed(secondStarted, undefined);
-              yield* Deferred.await(secondRelease);
-            }
-          }),
-      },
-    });
-    let first: Fiber.Fiber<unknown, unknown> | undefined;
-    let second: Fiber.Fiber<unknown, unknown> | undefined;
-
-    try {
-      first = runtime.runFork(Projects.update("atlas", { progress: 80 }));
-      await Effect.runPromise(Deferred.await(firstStarted));
-      second = runtime.runFork(Projects.update("atlas", { progress: 90 }));
-      await Effect.runPromise(Deferred.await(secondStarted));
-
-      Effect.runSync(Deferred.succeed(firstRelease, undefined));
-      await Effect.runPromise(Fiber.join(first));
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        progress: 90,
-        $synced: false,
-      });
-      expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toHaveLength(1);
-
-      Effect.runSync(Deferred.fail(secondRelease, "second failed"));
-      await expect(Effect.runPromise(Fiber.join(second))).rejects.toBe("second failed");
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        progress: 80,
-        $synced: true,
-        $origin: "local",
-      });
-      expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
-    } finally {
-      Effect.runSync(Deferred.succeed(firstRelease, undefined).pipe(Effect.ignore));
-      Effect.runSync(Deferred.fail(secondRelease, "cleanup").pipe(Effect.ignore));
-      if (first) {
-        await Effect.runPromise(Fiber.await(first));
-      }
-      if (second) {
-        await Effect.runPromise(Fiber.await(second));
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
-  it("rebases optimistic updates over refreshed remote base rows", async () => {
-    const runtime = makeRuntime();
-    const started = Effect.runSync(Deferred.make<void>());
-    const release = Effect.runSync(Deferred.make<void, string>());
-    const Projects = Collection.define<Project, string, string>({
-      name: "Projects.optimistic-refresh-base",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        refresh: () =>
-          Effect.succeed([{ id: "atlas", name: "Atlas Remote", status: "active", progress: 88 }]),
-        update: () =>
-          Effect.gen(function* () {
-            yield* Deferred.succeed(started, undefined);
-            yield* Deferred.await(release);
-          }),
-      },
-    });
-    let update: Fiber.Fiber<unknown, unknown> | undefined;
-
-    try {
-      update = runtime.runFork(Projects.update("atlas", { progress: 90 }));
-      await Effect.runPromise(Deferred.await(started));
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        progress: 90,
-        $synced: false,
-      });
-
-      await Effect.runPromise(runtime.provide(Projects.refresh()));
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        name: "Atlas Remote",
-        progress: 90,
-        $synced: false,
-      });
-
-      Effect.runSync(Deferred.fail(release, "update failed"));
-      await expect(Effect.runPromise(Fiber.join(update))).rejects.toBe("update failed");
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        name: "Atlas Remote",
-        progress: 88,
-        $synced: true,
-        $origin: "remote",
-      });
-    } finally {
-      Effect.runSync(Deferred.fail(release, "cleanup").pipe(Effect.ignore));
-      if (update) {
-        await Effect.runPromise(Fiber.await(update));
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
-  it("keeps pending optimistic deletes hidden across refreshed remote rows", async () => {
-    const runtime = makeRuntime();
-    const started = Effect.runSync(Deferred.make<void>());
-    const release = Effect.runSync(Deferred.make<void, string>());
-    const Projects = Collection.define<Project, string, string>({
-      name: "Projects.optimistic-delete-refresh-base",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        refresh: () =>
-          Effect.succeed([{ id: "atlas", name: "Atlas Remote", status: "active", progress: 88 }]),
-        delete: () =>
-          Effect.gen(function* () {
-            yield* Deferred.succeed(started, undefined);
-            yield* Deferred.await(release);
-          }),
-      },
-    });
-    let deletion: Fiber.Fiber<unknown, unknown> | undefined;
-
-    try {
-      deletion = runtime.runFork(Projects.delete("atlas"));
-      await Effect.runPromise(Deferred.await(started));
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toBeUndefined();
-
-      await Effect.runPromise(runtime.provide(Projects.refresh()));
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toBeUndefined();
-
-      Effect.runSync(Deferred.fail(release, "delete failed"));
-      await expect(Effect.runPromise(Fiber.join(deletion))).rejects.toBe("delete failed");
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        name: "Atlas Remote",
-        progress: 88,
-        $synced: true,
-        $origin: "remote",
-      });
-    } finally {
-      Effect.runSync(Deferred.fail(release, "cleanup").pipe(Effect.ignore));
-      if (deletion) {
-        await Effect.runPromise(Fiber.await(deletion));
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
   it("preserves unsynced direct-write rows across refreshes that omit them", async () => {
     const runtime = makeRuntime();
     const Projects = Collection.define<Project>({
@@ -6851,254 +4614,6 @@ describe("Collection", () => {
     } finally {
       await Effect.runPromise(runtime.dispose);
     }
-  });
-
-  it("rejects merge hydration that collides with existing pending transaction ids", async () => {
-    const runtime = makeRuntime();
-    const started = Effect.runSync(Deferred.make<void>());
-    const release = Effect.runSync(Deferred.make<void, string>());
-    const Projects = Collection.define<Project, string, string>({
-      name: "Projects.hydrate-duplicate-pending",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        update: () =>
-          Effect.gen(function* () {
-            yield* Deferred.succeed(started, undefined);
-            yield* Deferred.await(release);
-          }),
-      },
-    });
-    let update: Fiber.Fiber<unknown, unknown> | undefined;
-
-    try {
-      update = runtime.runFork(Projects.update("atlas", { progress: 80 }));
-      await Effect.runPromise(Deferred.await(started));
-      const snapshot = runWithRuntime(runtime, () => Effect.runSync(Projects.snapshot()));
-
-      const exit = await Effect.runPromiseExit(
-        runtime.provide(Projects.hydrate(snapshot, { replace: false })),
-      );
-
-      expect(Exit.isFailure(exit)).toBe(true);
-      if (Exit.isFailure(exit)) {
-        expect(exit.cause.reasons.find(Cause.isFailReason)?.error).toBeInstanceOf(
-          CollectionSnapshotCodecError,
-        );
-      }
-      expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toHaveLength(1);
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        progress: 80,
-        $synced: false,
-      });
-    } finally {
-      Effect.runSync(Deferred.fail(release, "cleanup").pipe(Effect.ignore));
-      if (update) {
-        await Effect.runPromise(Fiber.await(update));
-      }
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
-  it("rebases restored pending mutations over refreshed remote base rows", async () => {
-    const runtime = makeRuntime();
-    const persisted: Array<Project> = [];
-    const Projects = Collection.define<Project, string, never>({
-      name: "Projects.hydrated-pending-rebase",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        refresh: () =>
-          Effect.succeed([{ id: "atlas", name: "Atlas Remote", status: "active", progress: 88 }]),
-        update: ({ updates }) =>
-          Effect.sync(() => {
-            persisted.push(...updates.map((entry) => entry.value));
-          }),
-      },
-    });
-    const base = { id: "atlas", name: "Atlas", status: "active" as const, progress: 72 };
-    const pending = { ...base, progress: 80 };
-
-    try {
-      await runInRuntime(
-        runtime,
-        Projects.hydrate({
-          name: "Projects.hydrated-pending-rebase",
-          rows: [
-            {
-              key: "atlas",
-              value: pending,
-              synced: false,
-              origin: "local",
-            },
-          ],
-          pendingMutations: [
-            {
-              transaction: {
-                id: "ctx_1",
-                collection: "Projects.hydrated-pending-rebase",
-                mutations: [
-                  {
-                    _tag: "Update",
-                    key: "atlas",
-                    previous: base,
-                    value: pending,
-                    changes: { progress: 80 },
-                  },
-                ],
-              },
-              rollbackRows: [
-                {
-                  key: "atlas",
-                  row: {
-                    key: "atlas",
-                    value: base,
-                    synced: true,
-                    origin: "remote",
-                  },
-                },
-              ],
-              createdAt: 1,
-              attempts: 1,
-            },
-          ],
-          updatedAt: 1,
-        }),
-      );
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        name: "Atlas",
-        progress: 80,
-        $synced: false,
-        $origin: "local",
-      });
-
-      await runInRuntime(runtime, Projects.refresh());
-
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        name: "Atlas Remote",
-        progress: 80,
-        $synced: false,
-        $origin: "local",
-      });
-
-      await runInRuntime(runtime, Projects.flushPendingMutations());
-
-      expect(persisted).toEqual([{ id: "atlas", name: "Atlas", status: "active", progress: 80 }]);
-      expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
-      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
-        name: "Atlas Remote",
-        progress: 80,
-        $synced: true,
-      });
-    } finally {
-      await Effect.runPromise(runtime.dispose);
-    }
-  });
-
-  it("reports synchronous mutation callback throws through the Effect error channel", () => {
-    const Projects = Collection.define<Project, string, Error>({
-      name: "Projects.mutation-sync-throw",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-      sync: {
-        update: () => {
-          throw new Error("offline");
-        },
-      },
-    });
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const failure = yield* Effect.flip(Projects.update("atlas", { progress: 80 }));
-        yield* Effect.sync(() => {
-          expect(failure).toBeInstanceOf(EffectInputCallbackError);
-          expect((failure as EffectInputCallbackError).cause).toBeInstanceOf(Error);
-          expect(((failure as EffectInputCallbackError).cause as Error).message).toBe("offline");
-          expect(Projects.pendingMutations()).toEqual([]);
-          expect(Projects.get("atlas")).toMatchObject({
-            progress: 72,
-            $synced: true,
-          });
-        });
-      }),
-    );
-  });
-
-  it("reports synchronous update projection throws through the Effect error channel", () => {
-    const thrown = new Error("update projection failed");
-    const Projects = Collection.define<Project>({
-      name: "Projects.update-projection-sync-throw",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-    });
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const failure = yield* Effect.flip(
-          Projects.update("atlas", () => {
-            throw thrown;
-          }),
-        );
-        yield* Effect.sync(() => {
-          expect(failure).toBeInstanceOf(EffectInputCallbackError);
-          expect((failure as EffectInputCallbackError).operation).toBe(
-            "Collection.update(Projects.update-projection-sync-throw)",
-          );
-          expect((failure as EffectInputCallbackError).cause).toBe(thrown);
-          expect(Projects.pendingMutations()).toEqual([]);
-          expect(Projects.get("atlas")).toMatchObject({
-            progress: 72,
-            $synced: true,
-          });
-        });
-      }),
-    );
-  });
-
-  it("fails typed updates when the row is missing", async () => {
-    const Projects = Collection.define<Project>({
-      name: "Projects.missing-row",
-      getKey: (project) => project.id,
-    });
-
-    await expect(
-      Effect.runPromise(Projects.update("missing", { progress: 80 })),
-    ).rejects.toBeInstanceOf(CollectionRowNotFound);
-  });
-
-  it("rejects updates that would move a row to a different key", async () => {
-    const Projects = Collection.define<Project>({
-      name: "Projects.key-changing-update",
-      getKey: (project) => project.id,
-      initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
-    });
-
-    await expect(
-      Effect.runPromise(
-        Projects.applyChanges([{ _tag: "Update", key: "atlas", changes: { id: "lumen" } }]),
-      ),
-    ).rejects.toMatchObject({
-      _tag: "CollectionRowKeyChanged",
-      collection: "Projects.key-changing-update",
-      key: "atlas",
-      nextKey: "lumen",
-    });
-    expect(Projects.get("atlas")).toMatchObject({
-      id: "atlas",
-      $synced: true,
-    });
-    expect(Projects.get("lumen")).toBeUndefined();
-
-    await expect(
-      Effect.runPromise(Projects.update("atlas", { id: "lumen" })),
-    ).rejects.toBeInstanceOf(CollectionRowKeyChanged);
-    expect(Projects.pendingMutations()).toEqual([]);
-    expect(Projects.get("atlas")).toMatchObject({
-      id: "atlas",
-      $synced: true,
-    });
-    expect(Projects.get("lumen")).toBeUndefined();
   });
 });
 

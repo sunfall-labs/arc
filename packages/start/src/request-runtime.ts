@@ -4,7 +4,6 @@ import {
   provideResponse,
   Server,
   ServerClient,
-  type AppDefinition,
   type SunfallArcRuntime,
   type RequestContext,
   type ResourceStore as ResourceStoreState,
@@ -13,6 +12,7 @@ import {
   type AppDefinitionRegistry,
 } from "@sunfall/arc-core";
 import { withResourceStore } from "@sunfall/arc-core/internal";
+import type { StartServerApp } from "./start-server-app.js";
 import { Effect, type Scope } from "effect";
 export {
   completeRequestRuntimeWithResponse,
@@ -22,11 +22,10 @@ export {
 
 export const makeRequestRuntime = <
   Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
-  Client,
   ServerServices,
   ServerError,
 >(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError>,
+  app: StartServerApp<Routes, ServerServices, ServerError>,
 ): SunfallArcRuntime<ServerServices, ServerError> =>
   withResourceStore(app.runtime, makeResourceStore());
 

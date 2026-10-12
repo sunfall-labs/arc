@@ -1,7 +1,7 @@
 import { Effect, Schema } from "effect";
 import type { ActionResultInvalidationRequirements } from "./action-result.js";
 import { ActionInterrupted, type ActionState } from "./action-submission.js";
-import { type ActionOptimisticTransaction, type ActionRollback } from "./action-optimistic.js";
+import type { ActionOptimisticTransaction } from "./action-optimistic.js";
 import { invalidationsForEffect } from "./action-execution-workflow.js";
 import { makeActionInstance } from "./action-instance.js";
 import { registerActionDefinition } from "./definition-registry.js";
@@ -12,7 +12,6 @@ import type {
   EffectInputValue,
   EnsureEffectInput,
 } from "./effect-like.js";
-import { EffectInputCallbackError } from "./effect-like.js";
 import {
   Resource,
   type ResourceInvalidation,
@@ -56,8 +55,9 @@ export interface ActionPolicy<E = never> {
  *
  * Schema metadata is shared with clients for input/output/error validation.
  * `run` stays Effect-first; Promise-shaped callbacks are rejected by the
- * public types. Optimistic work runs before `run` and returns a rollback Effect
- * that is used if the submission is interrupted or fails.
+ * public types. `optimistic` patches Signals and Collection rows through its
+ * transaction before `run`; the patches fold in on success and roll back on
+ * failure or interruption.
  */
 export interface ActionDefinition<I, A, E = never, R = never> {
   readonly [ActionTypeId]: typeof ActionTypeId;
@@ -79,11 +79,14 @@ export interface ActionDefinition<I, A, E = never, R = never> {
    * Interface as data.
    */
   readonly run: (input: I) => EffectInput<A, E, R>;
-  /** Applies an optimistic patch and returns the rollback Effect. */
+  /**
+   * Patches Signals and Collection rows before `run`. The transaction owns
+   * every patch: success folds them in, failure or interruption rolls them back.
+   */
   readonly optimistic?: (
     input: I,
     transaction: ActionOptimisticTransaction,
-  ) => Effect.Effect<ActionRollback<R>, EffectInputCallbackError, R>;
+  ) => Effect.Effect<void, never, R>;
   /** Computes resource invalidations after a successful action value. */
   readonly invalidates?: (value: A, input: I) => ReadonlyArray<ResourceInvalidation<R>>;
 }
@@ -113,11 +116,14 @@ export interface ActionOptions<I, A, E = never, R = never> {
    * Interface as data.
    */
   readonly run: (input: I) => EffectInput<A, E, R>;
-  /** Applies an optimistic patch and returns the rollback Effect. */
+  /**
+   * Patches Signals and Collection rows before `run`. The transaction owns
+   * every patch: success folds them in, failure or interruption rolls them back.
+   */
   readonly optimistic?: (
     input: I,
     transaction: ActionOptimisticTransaction,
-  ) => Effect.Effect<ActionRollback<R>, EffectInputCallbackError, R>;
+  ) => Effect.Effect<void, never, R>;
   /** Computes resource invalidations after a successful action value. */
   readonly invalidates?: (value: A, input: I) => ReadonlyArray<ResourceInvalidation<R>>;
 }
@@ -139,18 +145,15 @@ export interface ActionInstance<
   readonly definition: ActionDefinition<I, A, DefinitionError, DefinitionRequirements>;
   /**
    * Submission state. Failures include `ServerClientError`: a runtime that
-   * provides an `ActionTransport` serving this Action submits it remotely.
+   * provides an `ActionTransport` serving this Action submits it remotely. A
+   * callback that breaks its contract (throws synchronously) is a defect.
    */
-  readonly state: ReadableSignal<
-    ActionState<I, A, E | EffectInputCallbackError | ServerClientError>
-  >;
+  readonly state: ReadableSignal<ActionState<I, A, E | ServerClientError>>;
   readonly invalidationPlan: ReadableSignal<
     ResourceInvalidationPlan<InvalidationRequirements> | undefined
   >;
   /** Runs the action workflow as an Effect, preserving typed errors and requirements. */
-  submit(
-    input: I,
-  ): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError | ActionInterrupted, R>;
+  submit(input: I): Effect.Effect<A, E | ServerClientError | ActionInterrupted, R>;
   /** Resets visible action state as an Effect. */
   reset(): Effect.Effect<void>;
 }
@@ -161,7 +164,14 @@ export interface ActionUseOptions<R = never, ER = never> {
   readonly runtime: SunfallArcRuntime<R, ER>;
 }
 
-export type { ActionOptimisticTransaction, ActionRollback } from "./action-optimistic.js";
+export {
+  ActionOptimisticRowsTypeId,
+  type ActionOptimisticRowChange,
+  type ActionOptimisticRows,
+  type ActionOptimisticRowsLayer,
+  type ActionOptimisticRowUpdate,
+  type ActionOptimisticTransaction,
+} from "./action-optimistic.js";
 
 type AnyActionDefinition = ActionDefinition<any, any, any, any>;
 type ActionRuntimeProvidedRequirements<R> = R | ResourceStoreState;
@@ -230,20 +240,16 @@ export namespace Action {
   export type Concurrency = ActionConcurrency;
   /** Public namespace alias for Action retry and concurrency policy. */
   export type Policy<E = never> = ActionPolicy<E>;
-  /** Public namespace alias for an optimistic Action rollback Effect. */
-  export type Rollback<R = never> = ActionRollback<R>;
   /** Public namespace alias for the optimistic Action transaction object. */
   export type OptimisticTransaction = ActionOptimisticTransaction;
 
-  /** Effect-first invalidation planning that reports action callback throws in the error channel. */
+  /** Plans the invalidations a successful value triggers; a throwing `invalidates` is a defect. */
   export const planInvalidation = <I, A, E, R>(
     definition: ActionDefinition<I, A, E, R>,
     value: A,
     input: I,
-  ): Effect.Effect<
-    ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>>,
-    EffectInputCallbackError
-  > => Effect.flatMap(invalidationsForEffect(definition, value, input), Resource.planInvalidation);
+  ): Effect.Effect<ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>>> =>
+    Effect.flatMap(invalidationsForEffect(definition, value, input), Resource.planInvalidation);
 
   /**
    * Defines and registers a reusable action without binding it to UI state.
@@ -348,7 +354,7 @@ export namespace Action {
       readonly optimistic?: (
         input: I,
         transaction: ActionOptimisticTransaction,
-      ) => Effect.Effect<ActionRollback<R>, EffectInputCallbackError, R>;
+      ) => Effect.Effect<void, never, R>;
       readonly invalidates?: (
         value: A,
         input: I,
@@ -358,7 +364,7 @@ export namespace Action {
       readonly optimistic?: (
         input: I,
         transaction: ActionOptimisticTransaction,
-      ) => Effect.Effect<ActionRollback<R>, EffectInputCallbackError, R>;
+      ) => Effect.Effect<void, never, R>;
       readonly invalidates?: (
         value: A,
         input: I,
@@ -401,7 +407,7 @@ export namespace Action {
       readonly optimistic?: (
         input: any,
         transaction: ActionOptimisticTransaction,
-      ) => Effect.Effect<ActionRollback<any>, EffectInputCallbackError, any>;
+      ) => Effect.Effect<void, never, any>;
     };
     const { run, optimistic, ...rest } = options;
 

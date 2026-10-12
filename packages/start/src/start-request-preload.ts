@@ -3,7 +3,6 @@ import {
   makeResponseContext,
   runWithRuntime,
   type AnySunfallArcRuntime,
-  type AppDefinition,
   type RoutePreloadFailureSnapshot,
   type SunfallArcRuntime,
   type ResourceHydrationPayload,
@@ -17,6 +16,7 @@ import {
   isCollection,
 } from "@sunfall/arc-db/internal";
 import { Data, Effect } from "effect";
+import type { StartServerApp } from "./start-server-app.js";
 import { AsyncResult } from "effect/reactivity";
 import {
   createStartHydrationPayload,
@@ -208,7 +208,7 @@ const preloadRouteDeclaredCollectionsEffect = (
 /**
  * The client restores a hydrated collection snapshot as a completed load, so
  * the payload carries only writable collections whose state this request
- * knows: loaded, or holding rows/mutations it wrote. A collection the request
+ * knows: loaded, or holding rows it wrote. A collection the request
  * never loaded (or failed to load) stays out of the payload: the server
  * rendered it as not-yet-loaded, and so does the client, which loads it itself.
  */
@@ -219,10 +219,7 @@ const startCollectionCanHydrate = (
   collection.readOnly !== true &&
   runWithRuntime(
     runtime,
-    () =>
-      AsyncResult.isSuccess(collection.result().get()) ||
-      collection.rows().length > 0 ||
-      collection.pendingMutations().length > 0,
+    () => AsyncResult.isSuccess(collection.result().get()) || collection.rows().length > 0,
   );
 
 const startCollectionPreloadEffect = (
@@ -321,11 +318,10 @@ const startRoutePlanEffect = <
 
 export const preloadRequestEffectWithRuntime = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
-  Client,
   ServerServices,
   ServerError,
 >(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError>,
+  app: StartServerApp<Routes, ServerServices, ServerError>,
   request: Request,
   runtime: SunfallArcRuntime<ServerServices, ServerError>,
   options: PreloadRequestOptions = {},
@@ -385,11 +381,10 @@ export const preloadRequestEffectWithRuntime = <
  */
 export const preloadRequest = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
-  Client,
   ServerServices,
   ServerError,
 >(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError>,
+  app: StartServerApp<Routes, ServerServices, ServerError>,
   request: Request,
   options: PreloadRequestOptions = {},
 ): Effect.Effect<

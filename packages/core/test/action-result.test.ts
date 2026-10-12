@@ -228,7 +228,7 @@ describe("ActionResult", () => {
     }
   });
 
-  it("reports erased Promise-shaped ActionResult payloads from action runs as typed failures", () =>
+  it("reports erased Promise-shaped ActionResult payloads from action runs as defects", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const SubmitProject = Action.define<string, ActionResultValue<unknown>>({
@@ -241,9 +241,9 @@ describe("ActionResult", () => {
 
         expect(Exit.isFailure(exit)).toBe(true);
         if (Exit.isFailure(exit)) {
-          const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
-          expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
-          expect(failure?.error).toMatchObject({
+          const failure = exit.cause.reasons.find((reason) => reason._tag === "Die");
+          expect(failure?.defect).toBeInstanceOf(EffectInputCallbackError);
+          expect(failure?.defect).toMatchObject({
             operation: "ActionResult.success",
             cause: expect.any(EffectInputPromiseRejected),
           });

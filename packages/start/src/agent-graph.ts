@@ -172,12 +172,10 @@ const collectionFacts = (
   startAgentGraphFacts({
     name: collection.name,
     readOnly: collection.readOnly,
-    inputSchema: collection.inputSchema,
     outputSchema: collection.outputSchema,
     initialData: collection.initialData,
     indexes: collection.indexes,
     load: collection.load,
-    handlers: collection.handlers,
     policy: collection.policy,
     ...(collection.sync === undefined ? {} : { sync: collection.sync }),
     persistence: collection.persistence,

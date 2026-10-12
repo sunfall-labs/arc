@@ -418,14 +418,6 @@ const isCollectionIndexDiagnostics = (
 ): value is StartAppGraphCollectionDiagnostics["indexes"][number] =>
   isRecord(value) && typeof value.name === "string" && typeof value.unique === "boolean";
 
-const isCollectionHandlersDiagnostics = (
-  value: unknown,
-): value is StartAppGraphCollectionDiagnostics["handlers"] =>
-  isRecord(value) &&
-  typeof value.insert === "boolean" &&
-  typeof value.update === "boolean" &&
-  typeof value.delete === "boolean";
-
 const isCollectionPolicyDiagnostics = (
   value: unknown,
 ): value is StartAppGraphCollectionDiagnostics["policy"] =>
@@ -441,7 +433,6 @@ const isCollectionPersistenceDiagnostics = (
   typeof value.restoreOnPreload === "boolean" &&
   typeof value.loadAfterRestore === "boolean" &&
   typeof value.persistOnLoad === "boolean" &&
-  typeof value.persistOnMutation === "boolean" &&
   typeof value.persistOnWrite === "boolean";
 
 const isCollectionSyncDiagnostics = (
@@ -455,13 +446,11 @@ const isCollectionDefinitionDiagnostics = (
   isRecord(value) &&
   typeof value.name === "string" &&
   typeof value.readOnly === "boolean" &&
-  typeof value.inputSchema === "boolean" &&
   typeof value.outputSchema === "boolean" &&
   typeof value.initialData === "boolean" &&
   Array.isArray(value.indexes) &&
   value.indexes.every(isCollectionIndexDiagnostics) &&
   typeof value.load === "boolean" &&
-  isCollectionHandlersDiagnostics(value.handlers) &&
   isCollectionPolicyDiagnostics(value.policy) &&
   (value.sync === undefined || isCollectionSyncDiagnostics(value.sync)) &&
   isCollectionPersistenceDiagnostics(value.persistence);

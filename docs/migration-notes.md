@@ -31,71 +31,72 @@ const save =
 return () => <RenameForm onRename={save} />;
 ```
 
-The client entry runs hydration on its runtime before launching:
+A Start client entry is one Effect: it restores the server's payload and
+hydrates the root from the app definition:
 
 ```ts
-Effect.runFork(
-  runtime
-    .provide(hydrateFromDocument(document))
-    .pipe(Effect.andThen(Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() }))),
-);
+Effect.runFork(App.launch(app));
 ```
 
-| Old                                                                                                                          | New                                                                                           |
-| ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `Resource.family(options)`                                                                                                   | `Resource.define(options)`                                                                    |
-| `Resource.requestFamily({ request, resolver, ... })`                                                                         | `Resource.define({ request, resolver, ... })`                                                 |
-| `route(path, options)`                                                                                                       | `Route.define(path, options)`                                                                 |
-| `defineApp(config)`                                                                                                          | `App.define(config)`                                                                          |
-| `defineFileRoute(path)(options)`                                                                                             | `FileRoute.define(path)(options)`                                                             |
-| `Component.make(name, setup)`                                                                                                | `Component.define(name, setup)`                                                               |
-| `Resource.prefetchEffect` / `refreshEffect` / `statusEffect` / `readEffect`                                                  | `Resource.preload` / `refresh` / `status` / `read`                                            |
-| `Resource.deleteEffect(ref)`                                                                                                 | `Resource.evict(ref)`                                                                         |
-| `Resource.collectEffect` / `invalidateEffect` / `planInvalidationEffect` / `runInvalidationPlanEffect`                       | `Resource.collect` / `invalidate` / `planInvalidation` / `runInvalidationPlan`                |
-| `Resource.subscribeEventsEffect` / `dehydrateEffect` / `hydrationPayloadEffect` / `hydrateEffect`                            | `Resource.subscribeEvents` / `dehydrate` / `hydrationPayload` / `hydrate`                     |
-| `Resource.encodeHydrationPayloadEffect` / `decodeHydrationPayloadEffect`                                                     | `Resource.encodeHydrationPayload` / `decodeHydrationPayload`                                  |
-| `Route.preloadEffect` / `preloadComponentEffect` / `planPreloadEffect` / `planNavigationEffect`                              | `Route.preload` / `preloadComponent` / `planPreload` / `planNavigation`                       |
-| `Route.preloadFailureSnapshotEffect` / `hydratePreloadFailureEffect` / `lazyComponentPendingEffect`                          | `Route.preloadFailureSnapshot` / `hydratePreloadFailure` / `lazyComponentPending`             |
-| lazy route component `preloadEffect()`, `RouteLazyComponentPending.preloadEffect`                                            | `preload()`, `.preload`                                                                       |
-| `isRoutePathMatch(path, match)` (generated)                                                                                  | `Route.isMatch(route, match)`                                                                 |
-| `Action.planInvalidationEffect`                                                                                              | `Action.planInvalidation`                                                                     |
-| `ActionInstance.submitEffect` / `resetEffect` + sync `reset()`                                                               | `submit` / `reset` (Effects)                                                                  |
-| `ActionResult.successEffect` / `failureEffect` / `failEffect` / `redirectEffect` / `validationEffect`                        | return `ActionResult.success(...)` etc. (or `Effect.succeed(...)` of it)                      |
-| `ActionResult.fail`                                                                                                          | `ActionResult.failure`                                                                        |
-| `ActionResult.validateFormEffect` / `requireSuccessEffect`                                                                   | `ActionResult.validateForm` / `requireSuccess`                                                |
-| `Capability.useEffect(f)` / `Capability.useSync(f)` / `use(f)`                                                               | `Capability.use(f)` (Effect or plain-value callback)                                          |
-| `form.validateEffect()`, `Form.validateEffect`, `Form.decodeFormDataEffect`                                                  | `form.validate()`, `Form.validate`, `Form.decodeFormData`                                     |
-| root `decodeFormDataEffect`, `formDataToObject`                                                                              | `Form.decodeFormData`, `Form.data`                                                            |
-| `Server.handleRouteEffect`, `Signal.fromStreamEffect`                                                                        | `Server.handleRoute`, `Signal.fromStream`                                                     |
-| `makeRequestContextEffect` / `applyResponseContextEffect` / `serializeResponseCookieEffect`                                  | `makeRequestContext` / `applyResponseContext` / `serializeResponseCookie`                     |
-| `runtime.disposeEffect`, `disposeResourceStoreEffect`, `ResourceStoreModule.disposeEffect`                                   | `runtime.dispose`, `disposeResourceStore`, `ResourceStoreModule.dispose`                      |
-| `ResourceStore` `eventBus.publishEffect` / `subscribeEffect` / `shutdownEffect` / `isShutdownEffect` + `isShutdownUnsafe()`  | `publish` / `subscribe` / `shutdown` / `isShutdown`                                           |
-| `ResourceStore` registries `size()` + `sizeEffect`, diagnostics `*CountEffect` / `snapshotEffect` + `snapshotUnsafe()`       | `size`, `*Count`, `snapshot` (Effects)                                                        |
-| `Program.command(effect)` / `Program.effect(effect)` / `Program.dispatch(message)`                                           | `Program.emit(effect)` / `Program.emit(effect)` / `Program.emit(message)`                     |
-| Program instance and Solid handle `dispatch(message)` (sync) + `dispatchEffect(message)`                                     | `dispatch(message)` (Effect)                                                                  |
-| Program instance `disposeEffect`                                                                                             | `dispose`                                                                                     |
-| Solid `ActionHandle` `submit(input)` (sync) + `submitEffect(input)`, sync `reset()`                                          | `submit(input)`, `reset()` (Effects)                                                          |
-| router `hrefByPath` / `navigateByPath` / `matchByPath` / `preloadByPathEffect`                                               | `href(route)` / `navigate(route)` / `Route.isMatch(route, router.match())` / `preload(route)` |
-| router and host controller `preloadEffect`, `disposeEffect` + sync `dispose()`                                               | `preload`, `dispose` (Effect; host cleanup forks it)                                          |
-| `BrowserHistoryAdapter.prepareHrefEffect`                                                                                    | `prepareHref`                                                                                 |
-| `BrowserRouterPath`, `BrowserRouterRouteForPath`                                                                             | route definitions (`typeof ProjectRoute`)                                                     |
-| generated `routeByPath`, `routeIdByPath`, `hrefById`, `hrefByPath`, `layoutsByPath`, `errorBoundaryByPath`, `metadataByPath` | `routeById`, `Route.href(routeById.<id>)`, `layoutsById`, `errorBoundaryById`, `metadataById` |
-| generated `RouteByPath`, `RouteIdByPath`, `FileRoutePath`, `FileRoute*ByPath`, `FileRouteMatch`                              | the id-keyed types (`RouteById`, `FileRouteParamsById`, ...)                                  |
-| Collection `preloadEffect` / `refetchEffect` / `flushPendingMutationsEffect`                                                 | `preload` / `refresh` / `flushPendingMutations`                                               |
-| Collection `insertEffect` / `updateEffect` / `deleteEffect` / `applyChangesEffect`                                           | `insert` / `update` / `delete` / `applyChanges`                                               |
-| Collection `snapshotEffect` + sync `snapshot()`, `hydrateEffect`, `persistEffect`, `restoreEffect`                           | `snapshot`, `hydrate`, `persist`, `restore`                                                   |
-| Collection `state()`, `Query.Live` `state` / `data`                                                                          | `result()`, `result` / `rows`                                                                 |
-| Collection sync adapter `refetch`                                                                                            | `refresh`                                                                                     |
-| `Collection.flushAllPendingMutationsEffect` / `backgroundSyncPendingMutationsEffect`                                         | `Collection.flushAllPendingMutations` / `backgroundSyncPendingMutations`                      |
-| `Query.onceEffect`, `Query.Live` `preloadEffect` / `refetchEffect`                                                           | `Query.once`, `preload` / `refresh`                                                           |
-| Solid DB `LiveQueryHandle` `data` / `preloadEffect` / `refetchEffect`                                                        | `rows` / `preload` / `refresh`                                                                |
-| `createHtmlResponseEffect`, `createStartStreamedHtmlResponseEffect`                                                          | `createHtmlResponse`, `createStartStreamedHtmlResponse`                                       |
-| `hydrateFromDocument` (sync) + `hydrateFromDocumentEffect`, `HydrateFromDocumentEffectOptions`                               | `hydrateFromDocument` (Effect), `HydrateFromDocumentOptions`                                  |
-| `StartAction.decodeFormDataEffect`                                                                                           | `StartAction.decodeFormData`                                                                  |
-| Devtools store `getSnapshotEffect`, `recordActionStateEffect`, ... + their sync twins                                        | `getSnapshot`, `recordActionState`, ... (Effects)                                             |
-| Devtools `trackActionEffect` / `trackTimelineEffect`                                                                         | `trackAction` / `trackTimeline`                                                               |
-| `installDevtoolsBridge` (sync) + `installDevtoolsBridgeEffect`, `mountDevtoolsPanelsEffect`                                  | `installDevtoolsBridge` (scoped Effect), `mountDevtoolsPanels`                                |
-| `DevtoolsPanelBoot.interruptEffect`                                                                                          | `boot.interrupt()` (the host facade's one stop)                                               |
+| Old                                                                                                                          | New                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `Resource.family(options)`                                                                                                   | `Resource.define(options)`                                                                      |
+| `Resource.requestFamily({ request, resolver, ... })`                                                                         | `Resource.define({ request, resolver, ... })`                                                   |
+| `route(path, options)`                                                                                                       | `Route.define(path, options)`                                                                   |
+| `defineApp(config)`                                                                                                          | `App.define({ root, routes, ... })` from `@sunfall/arc-start`                                   |
+| `defineFileRoute(path)(options)`                                                                                             | `FileRoute.define(path)(options)`                                                               |
+| `Component.make(name, setup)`                                                                                                | `Component.define(name, setup)`                                                                 |
+| `Resource.prefetchEffect` / `refreshEffect` / `statusEffect` / `readEffect`                                                  | `Resource.preload` / `refresh` / `status` / `read`                                              |
+| `Resource.deleteEffect(ref)`                                                                                                 | `Resource.evict(ref)`                                                                           |
+| `Resource.collectEffect` / `invalidateEffect` / `planInvalidationEffect` / `runInvalidationPlanEffect`                       | `Resource.collect` / `invalidate` / `planInvalidation` / `runInvalidationPlan`                  |
+| `Resource.subscribeEventsEffect` / `dehydrateEffect` / `hydrationPayloadEffect` / `hydrateEffect`                            | `Resource.subscribeEvents` / `dehydrate` / `hydrationPayload` / `hydrate`                       |
+| `Resource.encodeHydrationPayloadEffect` / `decodeHydrationPayloadEffect`                                                     | `Resource.encodeHydrationPayload` / `decodeHydrationPayload`                                    |
+| `Route.preloadEffect` / `preloadComponentEffect` / `planPreloadEffect` / `planNavigationEffect`                              | `Route.preload` / `preloadComponent` / `planPreload` / `planNavigation`                         |
+| `Route.preloadFailureSnapshotEffect` / `hydratePreloadFailureEffect` / `lazyComponentPendingEffect`                          | `Route.preloadFailureSnapshot` / `hydratePreloadFailure` / `lazyComponentPending`               |
+| lazy route component `preloadEffect()`, `RouteLazyComponentPending.preloadEffect`                                            | `preload()`, `.preload`                                                                         |
+| `isRoutePathMatch(path, match)` (generated)                                                                                  | `Route.isMatch(route, match)`                                                                   |
+| `Action.planInvalidationEffect`                                                                                              | `Action.planInvalidation`                                                                       |
+| `ActionInstance.submitEffect` / `resetEffect` + sync `reset()`                                                               | `submit` / `reset` (Effects)                                                                    |
+| `ActionResult.successEffect` / `failureEffect` / `failEffect` / `redirectEffect` / `validationEffect`                        | return `ActionResult.success(...)` etc. (or `Effect.succeed(...)` of it)                        |
+| `ActionResult.fail`                                                                                                          | `ActionResult.failure`                                                                          |
+| `ActionResult.validateFormEffect` / `requireSuccessEffect`                                                                   | `ActionResult.validateForm` / `requireSuccess`                                                  |
+| `Capability.useEffect(f)` / `Capability.useSync(f)` / `use(f)`                                                               | `Capability.use(f)` (Effect or plain-value callback)                                            |
+| `form.validateEffect()`, `Form.validateEffect`, `Form.decodeFormDataEffect`                                                  | `form.validate()`, `Form.validate`, `Form.decodeFormData`                                       |
+| root `decodeFormDataEffect`, `formDataToObject`                                                                              | `Form.decodeFormData`, `Form.data`                                                              |
+| `Server.handleRouteEffect`, `Signal.fromStreamEffect`                                                                        | `Server.handleRoute`, `Signal.fromStream`                                                       |
+| `makeRequestContextEffect` / `applyResponseContextEffect` / `serializeResponseCookieEffect`                                  | `makeRequestContext` / `applyResponseContext` / `serializeResponseCookie`                       |
+| `runtime.disposeEffect`, `disposeResourceStoreEffect`, `ResourceStoreModule.disposeEffect`                                   | `runtime.dispose`, `disposeResourceStore`, `ResourceStoreModule.dispose`                        |
+| `ResourceStore` `eventBus.publishEffect` / `subscribeEffect` / `shutdownEffect` / `isShutdownEffect` + `isShutdownUnsafe()`  | `publish` / `subscribe` / `shutdown` / `isShutdown`                                             |
+| `ResourceStore` registries `size()` + `sizeEffect`, diagnostics `*CountEffect` / `snapshotEffect` + `snapshotUnsafe()`       | `size`, `*Count`, `snapshot` (Effects)                                                          |
+| `Program.command(effect)` / `Program.effect(effect)` / `Program.dispatch(message)`                                           | `Program.emit(effect)` / `Program.emit(effect)` / `Program.emit(message)`                       |
+| Program instance and Solid handle `dispatch(message)` (sync) + `dispatchEffect(message)`                                     | `dispatch(message)` (Effect)                                                                    |
+| Program instance `disposeEffect`                                                                                             | `dispose`                                                                                       |
+| Solid `ActionHandle` `submit(input)` (sync) + `submitEffect(input)`, sync `reset()`                                          | `submit(input)`, `reset()` (Effects)                                                            |
+| router `hrefByPath` / `navigateByPath` / `matchByPath` / `preloadByPathEffect`                                               | `href(route)` / `navigate(route)` / `Route.isMatch(route, router.match())` / `preload(route)`   |
+| router and host controller `preloadEffect`, `disposeEffect` + sync `dispose()`                                               | `preload`, `dispose` (Effect; host cleanup forks it)                                            |
+| `BrowserHistoryAdapter.prepareHrefEffect`                                                                                    | `prepareHref`                                                                                   |
+| `BrowserRouterPath`, `BrowserRouterRouteForPath`                                                                             | route definitions (`typeof ProjectRoute`)                                                       |
+| generated `routeByPath`, `routeIdByPath`, `hrefById`, `hrefByPath`, `layoutsByPath`, `errorBoundaryByPath`, `metadataByPath` | `routeById`, `Route.href(routeById.<id>)`, `layoutsById`, `errorBoundaryById`, `metadataById`   |
+| generated `RouteByPath`, `RouteIdByPath`, `FileRoutePath`, `FileRoute*ByPath`, `FileRouteMatch`                              | the id-keyed types (`RouteById`, `FileRouteParamsById`, ...)                                    |
+| Collection `preloadEffect` / `refetchEffect`                                                                                 | `preload` / `refresh`                                                                           |
+| Collection `insert` / `update` / `delete`, `sync.insert` / `update` / `delete`, `flushPendingMutations`                      | an Action: `optimistic: (input, tx) => tx.update(Collection, key, patch)`, `run`, `invalidates` |
+| Collection `applyChangesEffect`                                                                                              | `applyChanges` (remote feeds and local-only collections)                                        |
+| Collection `snapshotEffect` + sync `snapshot()`, `hydrateEffect`, `persistEffect`, `restoreEffect`                           | `snapshot`, `hydrate`, `persist`, `restore`                                                     |
+| Collection `state()`, `Query.Live` `state` / `data`                                                                          | `result()`, `result` / `rows`                                                                   |
+| Collection sync adapter `refetch`                                                                                            | `refresh`                                                                                       |
+| `Collection.flushAllPendingMutationsEffect` / `backgroundSyncPendingMutationsEffect`                                         | removed: Actions own writes                                                                     |
+| Solid DB handle `result()` / `preloadFailure()`, `onPreloadFailure`, `pendingMutations()`                                    | `waiting()` / `failure()`; a never-loaded failure throws to `<Errored>` (`catchTags`)           |
+| `Option.getOrUndefined(AsyncResult.error(action.result()))`, `action.result().waiting`                                       | `action.failure()` (a `Cause`), `action.waiting()`                                              |
+| `optimistic: (input, tx) => ... return Effect.void` (rollback Effect)                                                        | `optimistic: (input, tx) => tx.signal(...)` (the transaction owns rollback)                     |
+| `Query.onceEffect`, `Query.Live` `preloadEffect` / `refetchEffect`                                                           | `Query.once`, `preload` / `refresh`                                                             |
+| Solid DB `LiveQueryHandle` `data` / `preloadEffect` / `refetchEffect`                                                        | `rows` / `preload` / `refresh`                                                                  |
+| `createHtmlResponseEffect`, `createStartStreamedHtmlResponseEffect`, hand-written shells                                     | Start's document: `createRequestHandler(app, { document })`                                     |
+| `hydrateFromDocument` (sync) + `hydrateFromDocumentEffect`, `HydrateFromDocumentEffectOptions`                               | `hydrateFromDocument` (Effect), `HydrateFromDocumentOptions`                                    |
+| `StartAction.decodeFormDataEffect`                                                                                           | `StartAction.decodeFormData`                                                                    |
+| Devtools store `getSnapshotEffect`, `recordActionStateEffect`, ... + their sync twins                                        | `getSnapshot`, `recordActionState`, ... (Effects)                                               |
+| Devtools `trackActionEffect` / `trackTimelineEffect`                                                                         | `trackAction` / `trackTimeline`                                                                 |
+| `installDevtoolsBridge` (sync) + `installDevtoolsBridgeEffect`, `mountDevtoolsPanelsEffect`                                  | `installDevtoolsBridge` (scoped Effect), `mountDevtoolsPanels`                                  |
+| `DevtoolsPanelBoot.interruptEffect`                                                                                          | `boot.interrupt()` (the host facade's one stop)                                                 |
 
 The migration is done when no `*Effect`-suffixed Arc name remains in app code,
 event handlers reach Effects only through `Component.callback`, and routes are
@@ -138,17 +139,16 @@ only model:
   and render `reader(input)` under `<Loading>`; status UI reads
   `reader.waiting(input)` / `reader.failure(input)` instead of `result()`.
 - `useAction(Definition)` and `StartAction.use(Definition)` become
-  `yield* Component.action(Definition)`; a Start client runtime adds
-  `makeActionTransportLayer({ actions })` for the Actions the server serves.
+  `yield* Component.action(Definition)`; a Start app lists the Actions the
+  server serves in `App.define({ actions })`.
 - `useProgram`, `useStream`, and `useRuntimeEffect` become `Component.program`,
   `Component.stream`, and `Component.callback`.
 - `useCollection` / `useLiveQuery` become `SolidDb.collection` /
   `SolidDb.liveQuery`.
 - `<RuntimeProvider runtime>` plus `<RouterProvider routes>` become
   `yield* Component.router(routes)` and `<RouterProvider router={router}>`, and
-  the client entry becomes `Effect.runFork(Component.launch(App, root,
-{ runtime, hydrate: root.hasChildNodes() }))`; the server renders
-  `Component.embed(App, runtime)`.
+  a Start app's entries become `createRequestHandler(app, { server })` and
+  `Effect.runFork(App.launch(app))` over one `App.define({ root, ... })`.
 
 The migration is done when every service the tree needs is in its root
 component's `R`, and `Component.launch` type-checks against the runtime.
@@ -166,9 +166,9 @@ behind Resource families and Actions:
   Action invalidation plan.
 - Mutation callbacks become `Action.define(...)` definitions with retry,
   concurrency, optimistic work, and invalidation metadata attached to the
-  definition. UI binds them with Solid's `Component.action(...)`; a Start client
-  runtime provides `makeActionTransportLayer(...)` so served Actions submit over
-  the network through the same handle, and `StartAction.form(...)` renders them
+  definition. UI binds them with Solid's `Component.action(...)`; a Start app
+  lists served Actions in `App.define({ actions })` so they submit over the
+  network through the same handle, and `StartAction.form(...)` renders them
   as progressive no-JS forms.
 - Route loaders call `Resource.preload(...)` in `preload` and declare
   `preloadResources` / `preloadCollections`; file routes use
@@ -188,12 +188,11 @@ shape but makes app graph facts explicit:
 - File routes use `FileRoute.define(...)` and generated route maps.
 - Server functions use `Server.contract(...)`, `Server.implement(...)`, and
   browser-safe contract imports.
-- Request handling starts at `createRequestHandler(app)`; Promise
+- Request handling starts at `createRequestHandler(app, { server })`; Promise
   handlers are host convenience boundaries.
-- SSR routes should emit streamed Start hydration through
-  `createStartStreamedHtmlResponse(...)`; lower-level
-  `createHtmlResponse(...)` and `streamHydrationChunk(...)` remain
-  available for custom stream adapters.
+- Start renders the app root into its own streamed document; a route sets its
+  head and headers through the handler's `document` function instead of
+  hand-written HTML.
 - Build diagnostics should run with declared route preload ownership and schema
   metadata before a route leaves the starter stage.
 
@@ -228,8 +227,9 @@ and route preloads disagree about the service graph. Sunfall Arc uses
 Capabilities and Layers instead:
 
 - Define a `Capability` for each service interface the app owns.
-- Provide production behavior through a Layer passed to `App.define({ server })`
-  or `makeRuntime(...)`.
+- Provide production behavior through the server Layer passed to
+  `createRequestHandler(app, { server })`, the client Layer in
+  `App.define({ client })`, or `makeRuntime(...)`.
 - Provide test behavior through `Server.mock(...)`, Capability test Layers, or
   a runtime created for the test.
 - Keep server-only implementations in `.server.ts` modules and prove they stay

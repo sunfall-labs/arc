@@ -3,7 +3,6 @@ import type { ActionInstance, ActionDefinition } from "./action.js";
 import type { ActionResultInvalidationRequirements } from "./action-result.js";
 import { makeActionSubmissionController, type ActionInterrupted } from "./action-submission.js";
 import { makeActionExecutionWorkflow } from "./action-execution-workflow.js";
-import type { EffectInputCallbackError } from "./effect-like.js";
 import type { ResourceInvalidationPlan } from "./resource.js";
 import type { AnySunfallArcRuntime } from "./runtime.js";
 import type { ServerClientError } from "./server.js";
@@ -20,7 +19,7 @@ export const makeActionInstance = <I, A, E, R, ER>(
   const submissions = makeActionSubmissionController<
     I,
     A,
-    E | ER | EffectInputCallbackError | ServerClientError,
+    E | ER | ServerClientError,
     ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>>
   >(
     definition.policy?.concurrency === undefined
@@ -40,10 +39,7 @@ export const makeActionInstance = <I, A, E, R, ER>(
     invalidationPlan: submissions.invalidationPlan,
     submit: workflow.submit as (
       input: I,
-    ) => Effect.Effect<
-      A,
-      E | ER | EffectInputCallbackError | ServerClientError | ActionInterrupted
-    >,
+    ) => Effect.Effect<A, E | ER | ServerClientError | ActionInterrupted>,
     reset: workflow.reset,
   };
 };

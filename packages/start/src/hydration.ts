@@ -171,7 +171,10 @@ export interface HydrateStartHydrationChunksFromDocumentEffectOptions
 }
 
 /** Effect-first options for reading and applying the document hydration script. */
-export interface HydrateFromDocumentOptions extends HydrateStartHydrationChunksFromDocumentEffectOptions {}
+export interface HydrateFromDocumentOptions extends HydrateStartHydrationChunksFromDocumentEffectOptions {
+  /** DOM id of the root hydration payload script. Defaults to Start's id. */
+  readonly id?: string;
+}
 
 /** Options for preloading request-time collections into the Start hydration payload. */
 export interface PreloadRequestOptions extends StartCollectionHydrationOptions {}
@@ -702,11 +705,10 @@ export const hydrateStartHydrationChunksFromDocumentEffect = (
  */
 export const hydrateFromDocument = (
   document: StartHydrationDocument = globalThis.document,
-  id = hydrationScriptId,
   options: HydrateFromDocumentOptions = {},
 ): Effect.Effect<StartHydrationPayload | undefined, StartHydrationError> =>
   Effect.gen(function* () {
-    const payload = yield* readHydrationPayloadEffect(document, id);
+    const payload = yield* readHydrationPayloadEffect(document, options.id ?? hydrationScriptId);
     if (payload) {
       yield* hydrateStartPayloadEffect(payload, options);
     }

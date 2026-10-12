@@ -152,7 +152,7 @@ export const docsPages = [
     blocks: [
       {
         _tag: "Paragraph",
-        text: "Arc deployment centers on createRequestHandler(app). The Start request handler runs route preload, rendering, server functions, actions, response context, request tracing, and runtime cleanup through the app runtime.",
+        text: "Arc deployment centers on createRequestHandler(app). The Start request handler runs route preload, rendering, server functions, actions, response context, request tracing, and runtime cleanup on a request runtime built from the server Layer.",
       },
       {
         _tag: "Heading",
@@ -164,11 +164,10 @@ export const docsPages = [
         code: `import { createRequestHandler } from "@sunfall/arc-start";
 import { createFetchHandler } from "@sunfall/arc-start/fetch";
 import { app } from "./app-definition.js";
+import { AppServerLive } from "./app.server.js";
 
 export default {
-  fetch: createFetchHandler(createRequestHandler(app), {
-    runtime: app.runtime,
-  }),
+  fetch: createFetchHandler(createRequestHandler(app, { server: AppServerLive })),
 };`,
       },
       {
@@ -182,11 +181,10 @@ export default {
 import { createRequestHandler } from "@sunfall/arc-start";
 import { createNodeServerHandler } from "@sunfall/arc-start/node";
 import { app } from "./app-definition.js";
+import { AppServerLive } from "./app.server.js";
 
 createServer(
-  createNodeServerHandler(createRequestHandler(app), {
-    runtime: app.runtime,
-  }),
+  createNodeServerHandler(createRequestHandler(app, { server: AppServerLive })),
 ).listen(3000);`,
       },
       {

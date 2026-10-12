@@ -14,7 +14,7 @@ import type {
   EffectInputValue,
   EnsureEffectInput,
 } from "./effect-like.js";
-import { EffectInputCallbackError, EffectInputPromiseRejected } from "./effect-like.js";
+import { EffectInputPromiseRejected } from "./effect-like.js";
 import { isEffectLikeValue, isPromiseLikeValue } from "./effect-input-sync.js";
 import type { DurationInput } from "./resource-duration.js";
 import { ResourceKeyError, type ResourceFailure, type ResourcePending } from "./resource-errors.js";
@@ -208,6 +208,27 @@ export type ResourceInvalidation<R = any> = AnyResourceRef<R> | ResourceTag;
 export type ResourceInvalidationTarget<R = any> =
   | ResourceInvalidation<R>
   | ReadonlyArray<ResourceInvalidation<R>>;
+/**
+ * One Resource ref or an array of refs: the target shape of `Resource.preload`
+ * and `Resource.refresh`, matching `Resource.invalidate`'s ref-or-array target.
+ */
+type ResourceRefTarget = AnyResourceRef | ReadonlyArray<AnyResourceRef>;
+type ResourceRefValue<Ref> = Ref extends ResourceRef<any, infer A, any, any> ? A : never;
+type ResourceRefError<Ref> = Ref extends ResourceRef<any, any, infer E, any> ? E : never;
+type ResourceRefRequirements<Ref> = Ref extends ResourceRef<any, any, any, infer R> ? R : never;
+/** Loaded value(s) of a `ResourceRefTarget`: one value, or a tuple of values in order. */
+type ResourceRefTargetValue<Target> =
+  Target extends ReadonlyArray<unknown>
+    ? { -readonly [K in keyof Target]: ResourceRefValue<Target[K]> }
+    : ResourceRefValue<Target>;
+/** Union of the declared load errors of a `ResourceRefTarget`. */
+type ResourceRefTargetError<Target> =
+  Target extends ReadonlyArray<infer Ref> ? ResourceRefError<Ref> : ResourceRefError<Target>;
+/** Union of the load services of a `ResourceRefTarget`. */
+type ResourceRefTargetRequirements<Target> =
+  Target extends ReadonlyArray<infer Ref>
+    ? ResourceRefRequirements<Ref>
+    : ResourceRefRequirements<Target>;
 export type ResourceInvalidationCause =
   | { readonly _tag: "Ref"; readonly ref: AnyResourceRef<any> }
   | { readonly _tag: "Tag"; readonly tag: ResourceTag };
@@ -263,13 +284,10 @@ export interface ResourceHydrationPayload {
   readonly resources: ReadonlyArray<ResourceHydrationSnapshot>;
 }
 
-/** Resource load failures plus synchronous Resource callback failures. */
-export type ResourceLoadError<E> = E | EffectInputCallbackError;
-
 /** Effect-first read failures for a Resource ref whose value is unavailable. */
 export type ResourceReadError<I, A, E = never, R = never> =
   | ResourcePending<I, A, E, R>
-  | ResourceFailure<I, A, ResourceLoadError<E>, R, E>;
+  | ResourceFailure<I, A, E, R, E>;
 
 export interface ResourceHydrationOptions {
   /**
@@ -483,8 +501,6 @@ export namespace Resource {
   export type SnapshotCodecError = ResourceSnapshotCodecError;
   /** Typed error raised when a decoded Resource hydration payload cannot apply. */
   export type HydrationApplyError = ResourceHydrationApplyError;
-  /** Public Resource load error channel after callback normalization. */
-  export type LoadError<E> = ResourceLoadError<E>;
   /** Error thrown by synchronous Resource reads when data is pending or failed. */
   export type ReadError<I, A, E = never, R = never> = ResourceReadError<I, A, E, R>;
   /** Diagnostic status for one Resource ref: its `AsyncResult` plus cache freshness facts. */
@@ -749,7 +765,7 @@ export namespace Resource {
    */
   export const result = <I, A, E, R>(
     ref: ResourceRef<I, A, E, R>,
-  ): ReadableSignal<AsyncResult.AsyncResult<A, ResourceLoadError<E>>> => resourceResult(ref);
+  ): ReadableSignal<AsyncResult.AsyncResult<A, E>> => resourceResult(ref);
 
   /**
    * Effect-first status inspection that reads the ResourceStore and Clock from
@@ -757,24 +773,56 @@ export namespace Resource {
    */
   export const status = <I, A, E, R>(
     ref: ResourceRef<I, A, E, R>,
-  ): Effect.Effect<ResourceStatus<I, A, ResourceLoadError<E>, R, E>> => resourceStatusEffect(ref);
+  ): Effect.Effect<ResourceStatus<I, A, E, R, E>> => resourceStatusEffect(ref);
+
+  const forTarget = <const Target extends ResourceRefTarget>(
+    target: Target,
+    run: (ref: AnyResourceRef) => Effect.Effect<unknown, unknown, unknown>,
+  ): Effect.Effect<
+    ResourceRefTargetValue<Target>,
+    ResourceRefTargetError<Target>,
+    ResourceRefTargetRequirements<Target>
+  > =>
+    (Array.isArray(target)
+      ? Effect.all(target.map(run), { concurrency: "unbounded" })
+      : run(target as AnyResourceRef)) as Effect.Effect<
+      ResourceRefTargetValue<Target>,
+      ResourceRefTargetError<Target>,
+      ResourceRefTargetRequirements<Target>
+    >;
 
   /**
-   * Forces a resource ref to reload as an Effect and updates cache state.
+   * Forces a ref, or every ref of an array concurrently, to reload as an
+   * Effect, updating cache state. An array yields the values in order.
    *
    * Prefer this inside route preloads, actions, and other Effect workflows.
    */
-  export const refresh = <I, A, E, R>(
-    ref: ResourceRef<I, A, E, R>,
-  ): Effect.Effect<A, ResourceLoadError<E>, R> => refreshResourceEffect(ref);
+  export const refresh = <const Target extends ResourceRefTarget>(
+    target: Target,
+  ): Effect.Effect<
+    ResourceRefTargetValue<Target>,
+    ResourceRefTargetError<Target>,
+    ResourceRefTargetRequirements<Target>
+  > => forTarget(target, refreshResourceEffect);
+
   /**
-   * Ensures a resource ref is loaded as an Effect, reusing fresh cached data.
+   * Ensures a ref, or every ref of an array concurrently, is loaded as an
+   * Effect, reusing fresh cached data. An array yields the values in order.
    *
-   * This records the ref for route preload collection and shares in-flight work.
+   * This records the refs for route preload collection and shares in-flight work.
+   *
+   * @example
+   * ```ts
+   * preload: ({ params }) => Resource.preload([ProjectsRef, ProjectById(params.id)])
+   * ```
    */
-  export const preload = <I, A, E, R>(
-    ref: ResourceRef<I, A, E, R>,
-  ): Effect.Effect<A, ResourceLoadError<E>, R> => prefetchResourceEffect(ref);
+  export const preload = <const Target extends ResourceRefTarget>(
+    target: Target,
+  ): Effect.Effect<
+    ResourceRefTargetValue<Target>,
+    ResourceRefTargetError<Target>,
+    ResourceRefTargetRequirements<Target>
+  > => forTarget(target, prefetchResourceEffect);
 
   /**
    * Deletes a resource ref from the active Resource Store.
@@ -847,8 +895,6 @@ export namespace Resource {
   export const hydrate = (
     input: ResourceHydrationPayload,
     options?: ResourceHydrationOptions,
-  ): Effect.Effect<
-    void,
-    ResourceSnapshotCodecError | ResourceHydrationApplyError | EffectInputCallbackError
-  > => hydrateResourcesEffect(input, options);
+  ): Effect.Effect<void, ResourceSnapshotCodecError | ResourceHydrationApplyError> =>
+    hydrateResourcesEffect(input, options);
 }

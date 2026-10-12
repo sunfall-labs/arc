@@ -1,6 +1,5 @@
 import { readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import type { AnySunfallArcRuntime, SunfallArcRuntime } from "@sunfall/arc-core";
 import { StartAction, type StartHydrationPayload } from "@sunfall/arc-start";
 import {
   hydrationScriptId,
@@ -8,31 +7,24 @@ import {
   streamHydrationAttribute,
   type StartHydrationChunk,
 } from "@sunfall/arc-start/testing";
-import { Effect } from "effect";
+import { Effect, type Scope } from "effect";
 import { Window } from "happy-dom";
-import { build } from "vite";
+import { build, createServer } from "vite";
 import { describe, expect, it } from "vitest";
 import { makeProjectId, makeProjectReturnTo, SubmitProjectName } from "./domain.js";
 import { app } from "./app-definition.js";
-import { handleRequest, serverApp } from "./server.js";
-import { projectConsoleStartGraph, projectConsoleStartGraphSummary } from "./start-graph.js";
-import {
-  projectConsoleActionSources,
-  projectConsoleServerFunctionSources,
-  projectConsoleServerRegistry,
-  projectConsoleStartOptions,
-} from "./start-options.js";
+import { handleRequest } from "./server.js";
+import { serverFunctions } from "./domain.server.js";
+import { projectConsoleStartGraphSummary } from "./start-graph.js";
+import { projectConsoleStartOptions } from "./start-options.js";
 
 const textDecoder = new TextDecoder();
 const projectRoot = new URL("..", import.meta.url).pathname;
 const testDist = join(projectRoot, ".test-dist/client");
 const htmlJsonScriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script>/g;
 
-const runInRuntime = <A, E, R, RuntimeServices, RuntimeError>(
-  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError> | AnySunfallArcRuntime<RuntimeError>,
-  effect: Effect.Effect<A, E, R>,
-): Promise<A> =>
-  Effect.runPromise((runtime as unknown as AnySunfallArcRuntime<RuntimeError>).provide(effect));
+const runRequest = <A, E>(effect: Effect.Effect<A, E, Scope.Scope>): Promise<A> =>
+  Effect.runPromise(Effect.scoped(effect));
 
 const readTextChunks = async (response: Response): Promise<ReadonlyArray<string>> => {
   const reader = response.body?.getReader();
@@ -86,8 +78,7 @@ const resourcePairs = (payload: StartHydrationPayload): ReadonlySet<string> =>
 
 describe("project console SSR", () => {
   it("streams the matched project route with hydration payloads", async () => {
-    const response = await runInRuntime(
-      serverApp.runtime,
+    const response = await runRequest(
       handleRequest(new Request("https://example.com/projects/atlas")),
     );
     const chunks = await readTextChunks(response);
@@ -132,13 +123,12 @@ describe("project console SSR", () => {
   });
 
   it("exposes the generated Start route graph used by the Vite preset", () => {
-    expect(serverApp.routes).toBe(app.routes);
-    expect(serverApp.client).toBe(app.client);
-    expect(serverApp.fullStack).toBe(app.fullStack);
-    expect(app.registry.actions.size).toBe(0);
-    expect(app.registry.serverFunctions.size).toBe(0);
-    expect(Array.from(serverApp.registry.actions.keys()).sort()).toEqual(["Project.name.submit"]);
-    expect(Array.from(serverApp.registry.serverFunctions.keys()).sort()).toEqual([
+    expect(app.actions.map((action) => action.name)).toEqual(["Project.name.submit"]);
+    expect(app.collections.map((collection) => collection.name)).toEqual([
+      "Projects.collection",
+      "Project.workItems",
+    ]);
+    expect(serverFunctions.map((fn) => fn.name).sort()).toEqual([
       "Project.advance",
       "Project.get",
       "Project.list",
@@ -148,37 +138,50 @@ describe("project console SSR", () => {
     ]);
     expect(projectConsoleStartGraphSummary).toEqual({
       routes: ["/", "/projects", "/projects/:id"],
-      serverFunctions: [
-        "Project.advance",
-        "Project.get",
-        "Project.list",
-        "Project.workItems.list",
-        "Project.name.submit",
-        "Project.workItem.status",
-      ],
+      serverFunctions: serverFunctions.map((fn) => fn.name),
       actions: ["Project.name.submit"],
     });
     expect("fileRoutes" in projectConsoleStartOptions).toBe(false);
   });
 
-  it("derives registry, Start options, and fallback graph facts from the same sources", () => {
-    expect(projectConsoleStartOptions.serverFunctionSources).toBe(
-      projectConsoleServerFunctionSources,
-    );
-    expect(projectConsoleStartOptions.actionSources).toBe(projectConsoleActionSources);
-    expect(projectConsoleStartGraph.serverFunctions).toBe(projectConsoleServerFunctionSources);
-    expect(projectConsoleStartGraph.actions).toBe(projectConsoleActionSources);
-    expect(projectConsoleServerRegistry.serverFunctions.map((fn) => fn.name)).toEqual(
-      projectConsoleStartGraphSummary.serverFunctions,
-    );
-    expect(projectConsoleServerRegistry.actions.map((action) => action.name)).toEqual(
-      projectConsoleStartGraphSummary.actions,
-    );
+  it("derives the app graph's server functions and Actions from the server entry", async () => {
+    const server = await createServer({
+      root: projectRoot,
+      configFile: join(projectRoot, "vite.config.ts"),
+      logLevel: "silent",
+      server: { middlewareMode: true, hmr: false, watch: null },
+    });
+    try {
+      const { graph } = (await server.ssrLoadModule("virtual:sunfall-arc/app-graph")) as {
+        readonly graph: {
+          readonly serverFunctions: { readonly entries: ReadonlyArray<Record<string, unknown>> };
+          readonly actions: { readonly entries: ReadonlyArray<Record<string, unknown>> };
+        };
+      };
+      const getProjectEntry = graph.serverFunctions.entries.find(
+        (entry) => entry.name === "Project.get",
+      );
+
+      expect(graph.serverFunctions.entries.map((entry) => entry.name).sort()).toEqual(
+        serverFunctions.map((fn) => fn.name).sort(),
+      );
+      expect(getProjectEntry).toMatchObject({
+        server: { module: "/src/domain.server.ts", exportName: "getProject" },
+        client: { _tag: "Import", module: "/src/domain.contract.ts", exportName: "getProject" },
+      });
+      expect(graph.actions.entries).toMatchObject([
+        {
+          name: "Project.name.submit",
+          server: { module: "/src/domain.ts", exportName: "SubmitProjectName" },
+        },
+      ]);
+    } finally {
+      await server.close();
+    }
   });
 
   it("renders route search state on the server", async () => {
-    const response = await runInRuntime(
-      serverApp.runtime,
+    const response = await runRequest(
       handleRequest(new Request("https://example.com/projects/kepler?tab=activity")),
     );
     const html = await response.text();
@@ -199,8 +202,7 @@ describe("project console SSR", () => {
     const body = new URLSearchParams(form.hiddenFields.map((field) => [field.name, field.value]));
     body.set("name", "Lumen Care");
 
-    const response = await runInRuntime(
-      serverApp.runtime,
+    const response = await runRequest(
       handleRequest(
         new Request(`https://example.com${serverActionPath}`, {
           method: "POST",
@@ -209,10 +211,7 @@ describe("project console SSR", () => {
         }),
       ),
     );
-    const page = await runInRuntime(
-      serverApp.runtime,
-      handleRequest(new Request("https://example.com/projects/lumen")),
-    );
+    const page = await runRequest(handleRequest(new Request("https://example.com/projects/lumen")));
     const html = await page.text();
 
     expect(response.status).toBe(303);
@@ -229,8 +228,7 @@ describe("project console SSR", () => {
     const body = new URLSearchParams(form.hiddenFields.map((field) => [field.name, field.value]));
     body.set("name", "At");
 
-    const response = await runInRuntime(
-      serverApp.runtime,
+    const response = await runRequest(
       handleRequest(
         new Request(`https://example.com${serverActionPath}`, {
           method: "POST",
@@ -259,8 +257,7 @@ describe("project console SSR", () => {
     body.set("name", "Atlas Growth");
     body.set("redirectTo", "https://example.com/phishing");
 
-    const response = await runInRuntime(
-      serverApp.runtime,
+    const response = await runRequest(
       handleRequest(
         new Request(`https://example.com${serverActionPath}`, {
           method: "POST",

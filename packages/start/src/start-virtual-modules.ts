@@ -14,7 +14,7 @@ import {
   makeStartFileRouteManifestEffect,
   makeStartServerFunctionManifestEffect,
   normalizeStartBuildPolicy,
-  type SunfallArcStartOptions,
+  type StartManifestOptions,
   type StartAppGraphError,
   type StartBuildPolicy,
   type StartBuildPolicyError,
@@ -211,7 +211,7 @@ const createStartAppGraphRuntimeDiagnosticsVirtualModuleEffect = (
 
 export const loadStartVirtualModuleEffect = (
   id: string,
-  options: SunfallArcStartOptions = {},
+  options: StartManifestOptions = {},
 ): Effect.Effect<string | null, StartVirtualModuleLoadError> => {
   switch (id) {
     case resolvedServerFunctionManifestVirtualModuleId:

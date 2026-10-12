@@ -142,7 +142,6 @@ const normalizeAppGraphCollection = (
 ): DevtoolsStartAppGraphCollectionDiagnostics => ({
   name: collection.name,
   readOnly: collection.readOnly === true,
-  inputSchema: collection.inputSchema,
   outputSchema: collection.outputSchema,
   initialData: collection.initialData,
   ...(collection.indexes === undefined
@@ -154,7 +153,6 @@ const normalizeAppGraphCollection = (
         })),
       }),
   load: collection.load,
-  handlers: { ...collection.handlers },
   policy: { ...collection.policy },
   ...(collection.sync === undefined ? {} : { sync: { ...collection.sync } }),
   persistence: { ...collection.persistence },

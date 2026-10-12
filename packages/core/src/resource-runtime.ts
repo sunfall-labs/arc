@@ -13,11 +13,7 @@ import {
 } from "./resource-events.js";
 import { ResourceCollector, type ResourceCollected } from "./resource-collector.js";
 import { MissingResourceInput, ResourceFailure, ResourcePending } from "./resource-errors.js";
-import {
-  catchEffectInputPromiseDefect,
-  EffectInputCallbackError,
-  toEffect,
-} from "./effect-like.js";
+import { EffectInputCallbackError, EffectInputPromiseRejected, toEffect } from "./effect-like.js";
 import { AsyncResult } from "effect/reactivity";
 import { settleResult } from "./async-result-settle.js";
 import { parseDuration } from "./resource-duration.js";
@@ -64,7 +60,6 @@ import type {
   ResourceInvalidationPlan,
   ResourceInvalidationTarget,
   ResourceFamily,
-  ResourceLoadError,
   ResourceTag,
   ResourceRef,
   ResourceStatus,
@@ -116,57 +111,70 @@ const resourceInputs = <I, A, E, R>(
 const resourceEntries = <I, A, E, R>(
   family: ResourceFamily<I, A, E, R>,
   store: ResourceStoreState,
-): Map<string, ResourceEntry<A, ResourceLoadError<E>>> => {
+): Map<string, ResourceEntry<A, E>> => {
   registerResourceFamilyInStore(family as AnyResourceFamily, store);
   const existing = store.entries.get(family);
   if (existing) {
-    return existing as Map<string, ResourceEntry<A, ResourceLoadError<E>>>;
+    return existing as Map<string, ResourceEntry<A, E>>;
   }
 
-  const entries = new Map<string, ResourceEntry<A, ResourceLoadError<E>>>();
+  const entries = new Map<string, ResourceEntry<A, E>>();
   store.entries.set(family, entries as Map<string, unknown>);
   return entries;
 };
 
+const loadCallbackDefect = (operation: string, cause: unknown, guidance: string) =>
+  Effect.die(new EffectInputCallbackError({ operation, cause, guidance }));
+
+/**
+ * Runs a Resource's `load` callback. Breaking the callback contract (a
+ * synchronous throw or a Promise-shaped return) is a defect, so the load fails
+ * only with the Resource's declared error `E`.
+ */
 const resourceLoadEffect = <I, A, E, R>(
   family: ResourceFamily<I, A, E, R>,
   input: I,
-): Effect.Effect<A, ResourceLoadError<E>, R> =>
-  Effect.flatMap(
-    Effect.try({
-      try: () => family.options.load(input),
-      catch: (cause) =>
-        new EffectInputCallbackError({
-          operation: `Resource.load(${family.options.name})`,
-          cause,
-          guidance:
-            "EffectInput callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel.",
-        }),
-    }),
-    (output) => {
-      const operation = `Resource.load(${family.options.name})`;
-      const effect = toEffect<A, E, R>(output);
-      const retry = family.options.policy?.retry;
-      return catchEffectInputPromiseDefect(
+): Effect.Effect<A, E, R> =>
+  Effect.suspend(() => {
+    const operation = `Resource.load(${family.options.name})`;
+    let output: ReturnType<typeof family.options.load>;
+    try {
+      output = family.options.load(input);
+    } catch (cause) {
+      return loadCallbackDefect(
         operation,
-        retry === undefined ? effect : Effect.retry(effect, retry),
+        cause,
+        "Resource load callbacks must return values or Effects. A synchronous throw is a defect; fail the returned Effect for a typed failure.",
       );
-    },
-  );
+    }
+    const effect = toEffect<A, E, R>(output);
+    const retry = family.options.policy?.retry;
+    return Effect.catchDefect(
+      retry === undefined ? effect : Effect.retry(effect, retry),
+      (defect) =>
+        defect instanceof EffectInputPromiseRejected
+          ? loadCallbackDefect(
+              operation,
+              defect,
+              "Resource load callbacks must return values or Effects. Wrap host Promise work in Effect.tryPromise(...) at the host adapter seam.",
+            )
+          : Effect.die(defect),
+    );
+  });
 
 const resourceCache = <I, A, E, R>(
   family: ResourceFamily<I, A, E, R>,
   store: ResourceStoreState,
-): Cache.Cache<string, A, ResourceLoadError<E>, R> => {
+): Cache.Cache<string, A, E, R> => {
   registerResourceFamilyInStore(family as AnyResourceFamily, store);
   const existing = store.caches.get(family);
   if (existing) {
-    return existing as Cache.Cache<string, A, ResourceLoadError<E>, R>;
+    return existing as Cache.Cache<string, A, E, R>;
   }
 
   const inputs = resourceInputs(family, store);
   const cache = Effect.runSync(
-    Cache.makeWith<string, A, ResourceLoadError<E>, R, "lookup">(
+    Cache.makeWith<string, A, E, R, "lookup">(
       (key) => {
         if (!inputs.has(key)) {
           return Effect.die(new MissingResourceInput({ key }));
@@ -178,7 +186,7 @@ const resourceCache = <I, A, E, R>(
       {
         capacity: Number.POSITIVE_INFINITY,
         requireServicesAt: "lookup",
-        timeToLive: (exit: Exit.Exit<A, ResourceLoadError<E>>) =>
+        timeToLive: (exit: Exit.Exit<A, E>) =>
           Exit.isFailure(exit)
             ? 0
             : family.options.policy?.gcFor === undefined
@@ -242,7 +250,7 @@ export const releaseResourceRefEffect = <I, A, E, R>(
 export const resourceEntry = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   store: ResourceStoreState = currentResourceStore(),
-): ResourceEntry<A, ResourceLoadError<E>> => {
+): ResourceEntry<A, E> => {
   rememberResourceRef(ref, store);
   const entries = resourceEntries(ref.family, store);
   const existing = entries.get(ref.key);
@@ -250,10 +258,7 @@ export const resourceEntry = <I, A, E, R>(
     return existing;
   }
 
-  const entry = makeResourceEntry<A, ResourceLoadError<E>>(
-    ref.family.options.name,
-    ref.key,
-  ) as ResourceEntry<A, ResourceLoadError<E>>;
+  const entry = makeResourceEntry<A, E>(ref.family.options.name, ref.key) as ResourceEntry<A, E>;
   entries.set(ref.key, entry);
   return entry;
 };
@@ -261,13 +266,13 @@ export const resourceEntry = <I, A, E, R>(
 const peekResourceEntry = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   store: ResourceStoreState,
-): ResourceEntry<A, ResourceLoadError<E>> | undefined =>
-  store.entries.get(ref.family)?.get(ref.key) as ResourceEntry<A, ResourceLoadError<E>> | undefined;
+): ResourceEntry<A, E> | undefined =>
+  store.entries.get(ref.family)?.get(ref.key) as ResourceEntry<A, E> | undefined;
 
 export const getCachedResourceEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   store: ResourceStoreState,
-): Effect.Effect<A, ResourceLoadError<E>, R> => {
+): Effect.Effect<A, E, R> => {
   rememberResourceRef(ref, store);
   return Cache.get(resourceCache(ref.family, store), ref.key);
 };
@@ -275,7 +280,7 @@ export const getCachedResourceEffect = <I, A, E, R>(
 export const refreshCachedResourceEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   store: ResourceStoreState,
-): Effect.Effect<A, ResourceLoadError<E>, R> => {
+): Effect.Effect<A, E, R> => {
   rememberResourceRef(ref, store);
   return Cache.refresh(resourceCache(ref.family, store), ref.key);
 };
@@ -324,10 +329,7 @@ export const resourceChangesStream = <I, A, E, R>(ref: ResourceRef<I, A, E, R>):
       );
       return Stream.concat(Stream.succeed(undefined), settled).pipe(
         Stream.map(() => peekResourceEntry(ref, store)?.state.get()),
-        Stream.filter(
-          (result): result is AsyncResult.Success<A, ResourceLoadError<E>> =>
-            result?._tag === "Success",
-        ),
+        Stream.filter((result): result is AsyncResult.Success<A, E> => result?._tag === "Success"),
         Stream.map((result) => result.value),
         Stream.changesWith((left, right) => left === right),
       );
@@ -336,12 +338,12 @@ export const resourceChangesStream = <I, A, E, R>(ref: ResourceRef<I, A, E, R>):
 
 export const resourceResult = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-): ReadableSignal<AsyncResult.AsyncResult<A, ResourceLoadError<E>>> =>
+): ReadableSignal<AsyncResult.AsyncResult<A, E>> =>
   resourceEntry(ref, currentResourceStore()).state;
 
 export const resourceStatusEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-): Effect.Effect<ResourceStatus<I, A, ResourceLoadError<E>, R, E>> =>
+): Effect.Effect<ResourceStatus<I, A, E, R, E>> =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
     const now = yield* Clock.currentTimeMillis;
@@ -355,7 +357,7 @@ export const resourceStatusEffect = <I, A, E, R>(
 export const runResourceEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   options: { readonly force: boolean },
-): Effect.Effect<A, ResourceLoadError<E>, R> =>
+): Effect.Effect<A, E, R> =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
     yield* recordTouched(ref as AnyResourceRef);
@@ -487,11 +489,11 @@ export const runResourceEffect = <I, A, E, R>(
 
 export const refreshResourceEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-): Effect.Effect<A, ResourceLoadError<E>, R> => runResourceEffect(ref, { force: true });
+): Effect.Effect<A, E, R> => runResourceEffect(ref, { force: true });
 
 export const prefetchResourceEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-): Effect.Effect<A, ResourceLoadError<E>, R> => runResourceEffect(ref, { force: false });
+): Effect.Effect<A, E, R> => runResourceEffect(ref, { force: false });
 
 export const collectResourceEffect = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
@@ -508,7 +510,7 @@ export const collectResourceEffect = <A, E, R>(
 const resourcePending = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   reason: "Initial" | "Pending" | "Collected",
-  result: AsyncResult.AsyncResult<A, ResourceLoadError<E>>,
+  result: AsyncResult.AsyncResult<A, E>,
 ): ResourcePending<I, A, E, R> =>
   new ResourcePending({
     ref,
@@ -527,11 +529,11 @@ type ResourceReadDecision<I, A, E, R> =
   | {
       readonly _tag: "Pending";
       readonly pending: ResourcePending<I, A, E, R>;
-      readonly resetEntry?: ResourceEntry<A, ResourceLoadError<E>>;
+      readonly resetEntry?: ResourceEntry<A, E>;
     }
   | {
       readonly _tag: "Failure";
-      readonly failure: ResourceFailure<I, A, ResourceLoadError<E>, R, E>;
+      readonly failure: ResourceFailure<I, A, E, R, E>;
     };
 
 /**
@@ -545,7 +547,7 @@ type ResourceReadDecision<I, A, E, R> =
  */
 const resourceReadDecision = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  entry: ResourceEntry<A, ResourceLoadError<E>> | undefined,
+  entry: ResourceEntry<A, E> | undefined,
   now: number,
   retained = false,
 ): ResourceReadDecision<I, A, E, R> => {
@@ -588,11 +590,7 @@ const resourceReadDecision = <I, A, E, R>(
 
 export const readResourceEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-): Effect.Effect<
-  A,
-  ResourcePending<I, A, E, R> | ResourceFailure<I, A, ResourceLoadError<E>, R, E>,
-  R
-> =>
+): Effect.Effect<A, ResourcePending<I, A, E, R> | ResourceFailure<I, A, E, R, E>, R> =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
     yield* recordTouched(ref as AnyResourceRef);
@@ -696,7 +694,7 @@ interface ResourceHydrationPlanEntry {
 
 const applyHydratedResourceRefEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  state: AsyncResult.Success<A, ResourceLoadError<E>>,
+  state: AsyncResult.Success<A, E>,
   tags: readonly ResourceTag[],
   store: ResourceStoreState,
 ): Effect.Effect<void> =>
@@ -721,9 +719,9 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
 
 export const hydrateResourceRefEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  state: AsyncResult.Success<A, ResourceLoadError<E>>,
+  state: AsyncResult.Success<A, E>,
   store: ResourceStoreState,
-): Effect.Effect<void, EffectInputCallbackError> =>
+): Effect.Effect<void> =>
   Effect.gen(function* () {
     const tags = yield* resourceProvidedTagsEffect(ref, state.value);
     yield* applyHydratedResourceRefEffect(ref, state, tags, store);
@@ -742,13 +740,9 @@ export const deleteResourceFromStoreEffect = <I, A, E, R>(
   store: ResourceStoreState,
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
-    const entries = store.entries.get(ref.family) as
-      | Map<string, ResourceEntry<A, ResourceLoadError<E>>>
-      | undefined;
+    const entries = store.entries.get(ref.family) as Map<string, ResourceEntry<A, E>> | undefined;
     const inputs = store.inputs.get(ref.family) as Map<string, I> | undefined;
-    const cache = store.caches.get(ref.family) as
-      | Cache.Cache<string, A, ResourceLoadError<E>, R>
-      | undefined;
+    const cache = store.caches.get(ref.family) as Cache.Cache<string, A, E, R> | undefined;
     const hadInput = inputs?.has(ref.key) === true;
     const entry = entries?.get(ref.key);
     const hadEntry = resourceEntryOwnsState(entry);
@@ -780,10 +774,7 @@ export const deleteResourceFromStoreEffect = <I, A, E, R>(
 export const hydrateResourcesEffect = (
   input: ResourceHydrationPayload,
   options: ResourceHydrationOptions = {},
-): Effect.Effect<
-  void,
-  ResourceSnapshotCodecError | ResourceHydrationApplyError | EffectInputCallbackError
-> =>
+): Effect.Effect<void, ResourceSnapshotCodecError | ResourceHydrationApplyError> =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
     const { resources: snapshots } = yield* validateResourceHydrationPayloadEffect(

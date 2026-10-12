@@ -6,19 +6,16 @@ import type {
 } from "./collection-contract.js";
 import {
   cloneOptimisticRowStack,
-  clonePendingMutationEntry,
   cloneStoredRow,
   restoreCollectionVersion,
   restoreOptimisticState,
   type CollectionState,
   type OptimisticRowStack,
-  type PendingMutationEntry,
   type StoredRow,
 } from "./collection-state.js";
 
 export interface CollectionStateSnapshot<A extends object, K extends CollectionKey> {
   readonly rows: ReadonlyMap<K, StoredRow<A, K>>;
-  readonly pendingMutations: ReadonlyMap<string, PendingMutationEntry<A, K>>;
   readonly optimisticRows: ReadonlyMap<K, OptimisticRowStack<A, K>>;
   readonly version: number;
 }
@@ -27,12 +24,6 @@ export const snapshotCollectionState = <A extends object, K extends CollectionKe
   state: CollectionState<A, K, any>,
 ): CollectionStateSnapshot<A, K> => ({
   rows: new Map(Array.from(state.rows, ([key, row]) => [key, cloneStoredRow(row)])),
-  pendingMutations: new Map(
-    Array.from(state.pendingMutations, ([id, entry]) => [
-      id,
-      clonePendingMutationEntry(entry, { preserveActiveAttempt: true }),
-    ]),
-  ),
   optimisticRows: new Map(
     Array.from(state.optimisticRows, ([key, stack]) => [key, cloneOptimisticRowStack(stack)]),
   ),
@@ -43,7 +34,7 @@ export const restoreCollectionStateSnapshot = <A extends object, K extends Colle
   state: CollectionState<A, K, any>,
   snapshot: CollectionStateSnapshot<A, K>,
 ): void => {
-  restoreOptimisticState(state, snapshot.rows, snapshot.pendingMutations, snapshot.optimisticRows);
+  restoreOptimisticState(state, snapshot.rows, snapshot.optimisticRows);
   restoreCollectionVersion(state, snapshot.version);
 };
 

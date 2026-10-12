@@ -23,7 +23,7 @@ import {
   RecipeIndexRef,
 } from "./content.js";
 import { routeById, routes, type FileRouteHrefOptionsById } from "./routeTree.gen.js";
-import { handleRequest, serverApp } from "./server.js";
+import { handleRequest } from "./server.js";
 import {
   normalizeDocsSiteBasePath,
   stripDocsSiteBasePath,
@@ -63,9 +63,7 @@ describe("docs site", () => {
   it("renders the home page with public-facing Arc copy", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const response = yield* Effect.scoped(
-          serverApp.runtime.provide(handleRequest(new Request("https://docs.test/"))),
-        );
+        const response = yield* Effect.scoped(handleRequest(new Request("https://docs.test/")));
         const html = yield* Effect.tryPromise(() => response.text());
         const pairs = resourcePairs(streamHydrationChunksFrom(html));
 
@@ -84,7 +82,7 @@ describe("docs site", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const response = yield* Effect.scoped(
-          serverApp.runtime.provide(handleRequest(new Request("https://docs.test/cookbook"))),
+          handleRequest(new Request("https://docs.test/cookbook")),
         );
         const html = yield* Effect.tryPromise(() => response.text());
         const pairs = resourcePairs(streamHydrationChunksFrom(html));
@@ -113,9 +111,7 @@ describe("docs site", () => {
         const slug = makeRecipeSlug("semantic-invalidation");
         const ref = RecipeBySlug(slug);
         const response = yield* Effect.scoped(
-          serverApp.runtime.provide(
-            handleRequest(new Request("https://docs.test/cookbook/semantic-invalidation")),
-          ),
+          handleRequest(new Request("https://docs.test/cookbook/semantic-invalidation")),
         );
         const html = yield* Effect.tryPromise(() => response.text());
         const pairs = resourcePairs(streamHydrationChunksFrom(html));
@@ -138,9 +134,7 @@ describe("docs site", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const response = yield* Effect.scoped(
-          serverApp.runtime.provide(
-            handleRequest(new Request("https://docs.test/blog/introducing-sunfall-arc")),
-          ),
+          handleRequest(new Request("https://docs.test/blog/introducing-sunfall-arc")),
         );
         const html = yield* Effect.tryPromise(() => response.text());
         const visibleText = visibleTextFromHtml(html);
@@ -178,18 +172,16 @@ describe("docs site", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const overviewResponse = yield* Effect.scoped(
-          serverApp.runtime.provide(handleRequest(new Request("https://docs.test/docs"))),
+          handleRequest(new Request("https://docs.test/docs")),
         );
         const overviewHtml = yield* Effect.tryPromise(() => overviewResponse.text());
         const gettingStartedResponse = yield* Effect.scoped(
-          serverApp.runtime.provide(
-            handleRequest(new Request("https://docs.test/docs/getting-started")),
-          ),
+          handleRequest(new Request("https://docs.test/docs/getting-started")),
         );
         const gettingStartedHtml = yield* Effect.tryPromise(() => gettingStartedResponse.text());
         const gettingStartedText = visibleTextFromHtml(gettingStartedHtml);
         const referenceResponse = yield* Effect.scoped(
-          serverApp.runtime.provide(handleRequest(new Request("https://docs.test/docs/reference"))),
+          handleRequest(new Request("https://docs.test/docs/reference")),
         );
         const referenceHtml = yield* Effect.tryPromise(() => referenceResponse.text());
 
@@ -255,9 +247,7 @@ describe("docs site", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const response = yield* Effect.scoped(
-          serverApp.runtime.provide(
-            handleRequest(new Request("https://docs.test/cookbook/resource-from-server-function")),
-          ),
+          handleRequest(new Request("https://docs.test/cookbook/resource-from-server-function")),
         );
         const html = yield* Effect.tryPromise(() => response.text());
         const links = extractStartStaticHtmlLinks(html, {
@@ -327,11 +317,7 @@ describe("docs site", () => {
         Effect.gen(function* () {
           const slug = makeRecipeSlug("resource-from-server-function");
           const response = yield* Effect.scoped(
-            serverApp.runtime.provide(
-              handleRequest(
-                new Request("https://docs.test/cookbook/resource-from-server-function"),
-              ),
-            ),
+            handleRequest(new Request("https://docs.test/cookbook/resource-from-server-function")),
           );
           const html = yield* Effect.tryPromise(() => response.text());
           const window = new Window({ url: "https://docs.test/cookbook" });
@@ -371,15 +357,11 @@ describe("docs site", () => {
     const currentHref = "/cookbook";
     const targetHref = "/cookbook/route-preload-hydration";
     const currentResponse = await Effect.runPromise(
-      Effect.scoped(
-        serverApp.runtime.provide(handleRequest(new Request(`https://docs.test${currentHref}`))),
-      ),
+      Effect.scoped(handleRequest(new Request(`https://docs.test${currentHref}`))),
     );
     const currentHtml = await currentResponse.text();
     const recipeResponse = await Effect.runPromise(
-      Effect.scoped(
-        serverApp.runtime.provide(handleRequest(new Request(`https://docs.test${targetHref}`))),
-      ),
+      Effect.scoped(handleRequest(new Request(`https://docs.test${targetHref}`))),
     );
     const recipeHtml = await recipeResponse.text();
     const hydrationNow = Date.now() + 120_000;
@@ -413,7 +395,7 @@ describe("docs site", () => {
             );
 
             yield* runtime.provide(
-              hydrateFromDocument(window.document as unknown as StartHydrationDocument, undefined, {
+              hydrateFromDocument(window.document as unknown as StartHydrationDocument, {
                 timestamp: "now",
               }),
             );
@@ -457,13 +439,11 @@ describe("docs site", () => {
           const targetHref = "/cookbook/resource-from-server-function";
           const currentHref = "/cookbook/semantic-invalidation";
           const currentResponse = yield* Effect.scoped(
-            serverApp.runtime.provide(
-              handleRequest(new Request(`https://docs.test${currentHref}`)),
-            ),
+            handleRequest(new Request(`https://docs.test${currentHref}`)),
           );
           const currentHtml = yield* Effect.tryPromise(() => currentResponse.text());
           const recipeResponse = yield* Effect.scoped(
-            serverApp.runtime.provide(handleRequest(new Request(`https://docs.test${targetHref}`))),
+            handleRequest(new Request(`https://docs.test${targetHref}`)),
           );
           const recipeHtml = yield* Effect.tryPromise(() => recipeResponse.text());
           const window = new Window({ url: `https://docs.test${currentHref}` });
@@ -524,13 +504,11 @@ describe("docs site", () => {
           const targetHref = "/cookbook/resource-from-server-function";
           const currentHref = "/cookbook";
           const currentResponse = yield* Effect.scoped(
-            serverApp.runtime.provide(
-              handleRequest(new Request(`https://docs.test${currentHref}`)),
-            ),
+            handleRequest(new Request(`https://docs.test${currentHref}`)),
           );
           const currentHtml = yield* Effect.tryPromise(() => currentResponse.text());
           const recipeResponse = yield* Effect.scoped(
-            serverApp.runtime.provide(handleRequest(new Request(`https://docs.test${targetHref}`))),
+            handleRequest(new Request(`https://docs.test${targetHref}`)),
           );
           const recipeHtml = yield* Effect.tryPromise(() => recipeResponse.text());
           const window = new Window({ url: `https://docs.test${currentHref}` });
@@ -555,7 +533,7 @@ describe("docs site", () => {
           );
 
           yield* runtime.provide(
-            hydrateFromDocument(window.document as unknown as StartHydrationDocument, undefined, {
+            hydrateFromDocument(window.document as unknown as StartHydrationDocument, {
               timestamp: "now",
             }),
           );
@@ -601,14 +579,12 @@ describe("docs site", () => {
     expect(historySource).toContain("basePath: docsSiteBasePath");
     expect(historySource).not.toContain("hydrateFromDocument");
     expect(historySource).not.toContain('"Docs.recipe"');
-    expect(mainSource).toContain("import.meta.env.DEV");
-    expect(mainSource).toContain("makeRpcClientLayer()");
-    expect(mainSource).toContain("DocsContentApiStaticClient");
-    expect(mainSource).toContain('await import("./content-live.js")');
+    const appSource = readFileSync(new URL("./app-definition.ts", import.meta.url), "utf8");
+    expect(appSource).toContain("import.meta.env.DEV");
+    expect(appSource).toContain("DocsContentApiStaticClient");
     expect(mainSource).toContain('timestamp: "now"');
-    expect(mainSource).toContain("hydratedHref: currentDocsSiteHref()");
-    expect(mainSource).toContain("Component.launch(DocsSite, root");
-    expect(mainSource).toContain("hydrate: root.hasChildNodes()");
+    expect(mainSource).toContain("href: currentDocsSiteHref()");
+    expect(mainSource).toContain("App.launch(app");
     expect(mainSource).not.toContain("root.textContent =");
   });
 });

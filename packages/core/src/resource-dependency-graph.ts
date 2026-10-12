@@ -182,37 +182,46 @@ export const recordResourceProvidedTags = <I, A, E, R>(
   store.refTags.set(storeKey, keys);
 };
 
+/**
+ * Runs a Resource's `provides` callback. A callback that throws or returns
+ * invalid metadata breaks the Resource contract: it is a defect
+ * (`EffectInputCallbackError` as `Die`), never a typed load failure.
+ */
 export const resourceProvidedTagsEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   value: A,
-): Effect.Effect<readonly ResourceTag[], EffectInputCallbackError> =>
-  Effect.try({
-    try: () => {
-      const operation = `Resource.provides(${ref.family.options.name})`;
-      return ref.family.options.provides === undefined
-        ? []
-        : validateResourceProvidedTagsSync(
-            operation,
-            ref.family.options.provides(value, ref.input),
-            "Resource provides callbacks must return Resource.tag(...) metadata synchronously. Move host Promise work into the resource load Effect.",
-          );
-    },
-    catch: (cause) =>
-      cause instanceof EffectInputCallbackError
-        ? cause
-        : new EffectInputCallbackError({
-            operation: `Resource.provides(${ref.family.options.name})`,
-            cause,
-            guidance:
-              "Resource provides callbacks must be pure and total. Synchronous callback throws are reported in the Effect error channel.",
-          }),
+): Effect.Effect<readonly ResourceTag[]> =>
+  Effect.suspend(() => {
+    const operation = `Resource.provides(${ref.family.options.name})`;
+    try {
+      return Effect.succeed(
+        ref.family.options.provides === undefined
+          ? []
+          : validateResourceProvidedTagsSync(
+              operation,
+              ref.family.options.provides(value, ref.input),
+              "Resource provides callbacks must return Resource.tag(...) metadata synchronously. Move host Promise work into the resource load Effect.",
+            ),
+      );
+    } catch (cause) {
+      return Effect.die(
+        cause instanceof EffectInputCallbackError
+          ? cause
+          : new EffectInputCallbackError({
+              operation,
+              cause,
+              guidance:
+                "Resource provides callbacks must be pure and total. A synchronous throw is a defect.",
+            }),
+      );
+    }
   });
 
 export const recordResourceProvidedTagsEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   value: A,
   store: ResourceStoreState,
-): Effect.Effect<void, EffectInputCallbackError> =>
+): Effect.Effect<void> =>
   Effect.gen(function* () {
     const tags = yield* resourceProvidedTagsEffect(ref, value);
     recordResourceProvidedTags(ref, tags, store);

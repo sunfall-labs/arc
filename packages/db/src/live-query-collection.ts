@@ -1,3 +1,4 @@
+import { ActionOptimisticRowsTypeId, EffectInputCallbackError } from "@sunfall/arc-core";
 import { Clock, Effect } from "effect";
 import { CollectionTypeId } from "./collection-ids.js";
 import { ReadonlyCollectionMutation } from "./collection-errors.js";
@@ -92,6 +93,17 @@ export const makeLiveQueryCollectionDefinition = <
   });
   definition = {
     [CollectionTypeId]: CollectionTypeId,
+    [ActionOptimisticRowsTypeId]: {
+      apply: () =>
+        Effect.die(
+          new EffectInputCallbackError({
+            operation: `Action.optimistic(${options.name})`,
+            cause: readonlyCollectionMutation(options.name, "optimistic"),
+            guidance:
+              "Live query collections are derived and read-only; patch their source collections instead.",
+          }),
+        ),
+    },
     options: {
       name: options.name,
       getKey: options.getKey,
@@ -111,8 +123,6 @@ export const makeLiveQueryCollectionDefinition = <
     firstByIndex: (index, value) => materialization.firstByIndex(index, value),
     preload: () => live.preload(),
     refresh: () => live.refresh(),
-    pendingMutations: () => [],
-    flushPendingMutations: () => Effect.succeed([]),
     snapshot: () =>
       Effect.gen(function* () {
         const store = yield* collectionStoreEffect;
@@ -152,9 +162,6 @@ export const makeLiveQueryCollectionDefinition = <
         );
       }),
     restore: <_PE = never, _PR = never>() => Effect.fail(readonlySnapshotCodecFailure("restore")),
-    insert: () => readonlyFail("insert"),
-    update: () => readonlyFail("update"),
-    delete: () => readonlyFail("delete"),
     applyChanges: () => readonlyFail("applyChanges"),
   };
   markStoreExplicitCollectionSnapshotDefinition(definition);

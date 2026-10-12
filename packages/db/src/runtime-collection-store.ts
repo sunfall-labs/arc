@@ -7,6 +7,7 @@ import {
   bumpCollectionState,
   commitCollectionLoadState,
   makeCollectionState,
+  pendingOptimisticTransactionCount,
   type CollectionState,
 } from "./collection-state.js";
 import { ingestCollectionOutputRowsSync } from "./collection-row-ingress.js";
@@ -70,7 +71,7 @@ const initializeCollectionState = <A extends object, K extends CollectionKey, E,
  *
  * The store is keyed through the active Resource Store's module registry, so
  * SSR requests, client runtimes, and tests get isolated collection rows,
- * pending mutation queues, and event streams.
+ * optimistic Action patches, and event streams.
  */
 export class RuntimeCollectionStore implements CollectionStore {
   readonly [CollectionStoreTypeId]: typeof CollectionStoreTypeId = CollectionStoreTypeId;
@@ -108,7 +109,6 @@ export class RuntimeCollectionStore implements CollectionStore {
   diagnosticsSnapshot(): CollectionStoreDiagnosticsSnapshot {
     let rowCount = 0;
     let pendingMutationCount = 0;
-    let activeMutationCount = 0;
     let optimisticRowCount = 0;
     let loadingCount = 0;
     let failureCount = 0;
@@ -119,13 +119,8 @@ export class RuntimeCollectionStore implements CollectionStore {
         continue;
       }
       rowCount += state.rows.size;
-      pendingMutationCount += state.pendingMutations.size;
+      pendingMutationCount += pendingOptimisticTransactionCount(state);
       optimisticRowCount += state.optimisticRows.size;
-      for (const pending of state.pendingMutations.values()) {
-        if (pending.activeAttempt !== undefined) {
-          activeMutationCount += 1;
-        }
-      }
       const loadState = state.loadState.get();
       if (loadState.waiting) {
         loadingCount += 1;
@@ -139,7 +134,6 @@ export class RuntimeCollectionStore implements CollectionStore {
       collectionCount: this.#definitions.size,
       rowCount,
       pendingMutationCount,
-      activeMutationCount,
       optimisticRowCount,
       loadingCount,
       failureCount,

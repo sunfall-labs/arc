@@ -35,19 +35,35 @@ The basic starter includes:
 
 - one file route generated into `src/routeTree.gen.ts`;
 - one route-owned Resource preload declared in route metadata;
-- Start SSR through `createRequestHandler`;
-- one typed `Component` tree, rendered on the server with
-  `Component.embed(App, runtime)` and hydrated in the browser with
-  `Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() })`
-  after `runtime.provide(hydrateFromDocument(document))` restores the server
-  payload in the same client Effect, so the route-preloaded Resource reads
+- one app definition, `src/app-definition.ts`:
+  `App.define({ root, routes })`, which both entries derive their wiring from;
+- `src/server.tsx`: `createRequestHandler(app, { document })`, which preloads
+  the matched route, renders the root into Start's document, and streams the
+  hydration payload;
+- `src/main.tsx`: `Effect.runFork(App.launch(app))`, which restores that
+  payload and hydrates the server markup, so the route-preloaded Resource reads
   synchronously (no loading flash);
 - a production leak scan for `starter.server` sentinels.
 
+The whole wiring:
+
+```ts
+// src/app-definition.ts
+export const app = App.define({ root: Root, routes });
+
+// src/server.tsx
+export const handleRequest = createRequestHandler(app, {
+  document: () => ({ title: "Sunfall Arc Starter" }),
+});
+
+// src/main.tsx
+Effect.runFork(App.launch(app));
+```
+
 Use the project console when you need the larger example with forms,
-actions (one `Component.action` binding, with the server-served rename routed
-through Start's `makeActionTransportLayer`), local-first collections, mocks, and
-diagnostics. Use the basic starter
+actions (one `Component.action` binding; the app's `actions` list makes
+`App.launch` route the server-served rename over the network), local-first
+collections, mocks, and diagnostics. Use the basic starter
 when you need the smallest copyable app shell.
 
 The docs site example lives at

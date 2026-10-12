@@ -1,6 +1,6 @@
 import { Data } from "effect";
 import type { AsyncResult } from "effect/reactivity";
-import type { ResourceLoadError, ResourceRef } from "./resource.js";
+import type { ResourceRef } from "./resource.js";
 
 /**
  * Error thrown by synchronous Resource reads when the latest load failed.
@@ -44,7 +44,7 @@ export class ResourcePending<
    */
   readonly reason: "Initial" | "Pending" | "Collected";
   /** The ref's `AsyncResult` when the read was attempted (stale data via `AsyncResult.value`). */
-  readonly result: AsyncResult.AsyncResult<A, ResourceLoadError<E>>;
+  readonly result: AsyncResult.AsyncResult<A, E>;
   /** Human-readable repair hint suitable for diagnostics and tests. */
   readonly guidance: string;
 }> {}

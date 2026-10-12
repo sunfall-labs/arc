@@ -1,21 +1,13 @@
-import {
-  RequestContext,
-  Resource,
-  ResponseContext,
-  Server,
-  type AnySunfallArcRuntime,
-  type SunfallArcRuntime,
-  Route,
-  App,
-} from "@sunfall/arc-core";
+import { RequestContext, Resource, ResponseContext, Server, Route } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
-import { createRequestHandler, StartAction } from "@sunfall/arc-start";
+import { Component } from "@sunfall/arc-solid";
+import { App, createRequestHandler, StartAction } from "@sunfall/arc-start";
 import {
   serverActionPath,
   streamHydrationAttribute,
   type StartHydrationChunk,
 } from "@sunfall/arc-start/testing";
-import { Effect, Schema } from "effect";
+import { Effect, Schema, type Scope } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   makeProjectId,
@@ -25,7 +17,7 @@ import {
   ProjectsRef,
   SubmitProjectName,
 } from "./domain.js";
-import { handleRequest, serverApp } from "./server.js";
+import { handleRequest } from "./server.js";
 
 const htmlJsonScriptPattern = /<script\b[^>]*>([\s\S]*?)<\/script>/g;
 
@@ -34,18 +26,14 @@ const streamHydrationChunksFrom = (html: string): ReadonlyArray<StartHydrationCh
     .filter((match) => match[0].includes(streamHydrationAttribute))
     .map((match) => JSON.parse(match[1] ?? "") as StartHydrationChunk);
 
-const runInRuntime = <A, E, R, RuntimeServices, RuntimeError>(
-  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError> | AnySunfallArcRuntime<RuntimeError>,
-  effect: Effect.Effect<A, E, R>,
-): Promise<A> =>
-  Effect.runPromise((runtime as unknown as AnySunfallArcRuntime<RuntimeError>).provide(effect));
+const runRequest = <A, E>(effect: Effect.Effect<A, E, Scope.Scope>): Promise<A> =>
+  Effect.runPromise(Effect.scoped(effect));
 
 const postActionForm = async (
   form: StartAction.Form<typeof SubmitProjectName>,
   body: URLSearchParams,
 ): Promise<Response> =>
-  runInRuntime(
-    serverApp.runtime,
+  runRequest(
     handleRequest(
       new Request(`https://example.com${serverActionPath}`, {
         method: form.method.toUpperCase(),
@@ -58,8 +46,7 @@ const postActionForm = async (
 describe("project console full-stack golden path", () => {
   it("renders route data, serializes route preload resources, and observes updated data after a Start form action", async () => {
     const projectId = makeProjectId("meridian");
-    const response = await runInRuntime(
-      serverApp.runtime,
+    const response = await runRequest(
       handleRequest(new Request("https://example.com/projects/meridian?tab=activity")),
     );
     const html = await response.text();
@@ -111,8 +98,7 @@ describe("project console full-stack golden path", () => {
     body.set("name", "Meridian Golden Path");
 
     const actionResponse = await postActionForm(form, body);
-    const followUp = await runInRuntime(
-      serverApp.runtime,
+    const followUp = await runRequest(
       handleRequest(new Request("https://example.com/projects/meridian?tab=activity")),
     );
     const followUpHtml = await followUp.text();
@@ -152,7 +138,7 @@ describe("project console full-stack golden path", () => {
       }),
     });
     const boundaryProject = Server.client(BoundaryProject);
-    Server.implement(BoundaryProject, ({ id }) =>
+    const boundaryProjectServer = Server.implement(BoundaryProject, ({ id }) =>
       Effect.gen(function* () {
         const request = yield* RequestContext;
         const response = yield* ResponseContext;
@@ -173,12 +159,6 @@ describe("project console full-stack golden path", () => {
         };
       }),
     );
-
-    interface BoundaryProject {
-      readonly id: string;
-      readonly name: string;
-      readonly requestPath: string;
-    }
 
     const BoundaryResource = Resource.define({
       name: "ProjectConsoleGolden.boundary.resource",
@@ -210,29 +190,22 @@ describe("project console full-stack golden path", () => {
           Effect.all([Resource.preload(BoundaryResource(params.id)), BoundaryCollection.preload()]),
         ),
     });
+    // The root renders no data: the route preload alone loads the Resource
+    // (through the server function) and touches the Collection.
+    const BoundaryRoot = Component.define("BoundaryRoot", function* () {
+      yield* Effect.void;
+      return () => "boundary";
+    });
     const boundaryApp = App.define({
+      root: BoundaryRoot,
       routes: [BoundaryRoute] as const,
-      client: {},
+      collections: [BoundaryCollection],
     });
     const handler = createRequestHandler(boundaryApp, {
-      render: ({ collections, legacyHydrationScript, match, runtime }) => {
-        const id = match?.params.id ?? "missing";
-        const project = runtime.runSync(Resource.read(BoundaryResource(id)));
-        const collection = collections.collections[0];
-        return [
-          "<html><body>",
-          `<main>${project.name}:${project.requestPath}</main>`,
-          `<aside>${collection?.name}:${collection?.rows[0]?.value.name}</aside>`,
-          legacyHydrationScript,
-          "</body></html>",
-        ].join("");
-      },
+      serverFunctions: [boundaryProjectServer],
     });
 
-    const response = await runInRuntime(
-      boundaryApp.runtime,
-      handler(new Request("https://example.com/golden/atlas")),
-    );
+    const response = await runRequest(handler(new Request("https://example.com/golden/atlas")));
     const html = await response.text();
 
     expect(response.status).toBe(207);
@@ -241,10 +214,9 @@ describe("project console full-stack golden path", () => {
     expect(response.headers.getSetCookie()).toEqual([
       "golden-project=atlas; Path=/; HttpOnly; SameSite=Lax",
     ]);
-    expect(html).toContain("<main>Boundary atlas:/golden/atlas</main>");
-    expect(html).toContain(
-      "<aside>ProjectConsoleGolden.boundary.collection:Collected Atlas</aside>",
-    );
+    expect(html).toContain("boundary");
+    expect(html).toContain('"name":"Boundary atlas","requestPath":"/golden/atlas"');
+    expect(html).toContain("Collected Atlas");
     expect(html).toContain("ProjectConsoleGolden.boundary.resource");
     expect(html).toContain("ProjectConsoleGolden.boundary.collection");
   });

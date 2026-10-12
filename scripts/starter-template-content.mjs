@@ -50,8 +50,10 @@ pnpm verify
 The starter includes:
 
 - Start SSR with an Effect-returning request handler;
-- browser hydration that runs \`hydrateFromDocument(...)\` on the client runtime
-  before \`Component.launch\` hydrates the server markup;
+- one app definition (\`App.define\` in \`src/app-definition.ts\`) that the
+  server handler and the browser entry both derive their wiring from;
+- browser hydration in one line: \`App.launch(app)\` restores the server's
+  payload and hydrates the server markup;
 - a route-owned Resource preload declared in file route metadata;
 - a production leak scan for server-only module sentinels.
 `;
@@ -72,8 +74,10 @@ pnpm verify
 \`\`\`
 
 Keep \`src/domain.contract.ts\` browser-safe. Put server implementations and
-seed data in \`src/domain.server.ts\`. Keep \`src/start-options.ts\` explicit;
-it is the app graph source for server functions, actions, file routes,
-diagnostics, and generated route output. Keep \`src/routeTree.gen.ts\`
+seed data in \`src/domain.server.ts\`. \`src/app-definition.ts\` is the one
+app definition; the Start Vite plugin derives the app graph's server functions
+and Actions from \`createRequestHandler(app, { serverFunctions })\` in
+\`src/server.tsx\`, so \`src/start-options.ts\` holds only file-route,
+diagnostics, and build-policy options. Keep \`src/routeTree.gen.ts\`
 generated, not hand-edited.
 `;

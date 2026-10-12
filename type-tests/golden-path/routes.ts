@@ -9,14 +9,6 @@ export const ProjectsRoute = Route.define("/", {
   preload: () => Projects.preload(),
 });
 
-const preloadProject = (id: ProjectId) =>
-  Effect.all([Projects.preload().pipe(Effect.orDie), Resource.preload(ProjectById(id))], {
-    discard: true,
-  }).pipe(
-    // A load callback that throws is a bug, not a typed failure.
-    Effect.catchTag("EffectInputCallbackError", Effect.die),
-  );
-
 export const ProjectRoute = Route.define("/projects/:id", {
   params: Schema.Struct({ id: ProjectId }),
   // The preload may fail only with this schema's type; Start encodes the
@@ -24,7 +16,8 @@ export const ProjectRoute = Route.define("/projects/:id", {
   error: ProjectNotFound,
   preloadResources: [ProjectList, ProjectById],
   preloadCollections: [Projects],
-  preload: ({ params }) => preloadProject(params.id),
+  preload: ({ params }) =>
+    Effect.all([Projects.preload().pipe(Effect.orDie), Resource.preload(ProjectById(params.id))]),
 });
 
 export const routes = [ProjectsRoute, ProjectRoute] as const;

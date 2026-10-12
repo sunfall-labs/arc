@@ -215,7 +215,6 @@ describe("SQLite persistence storage", () => {
                 origin: "remote",
               },
             ],
-            pendingMutations: [],
           });
         });
 

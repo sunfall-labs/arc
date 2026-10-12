@@ -6,9 +6,11 @@ import {
   ServerClient,
   ServerTransportError,
   Route,
-  App,
 } from "@sunfall/arc-core";
-import { makeRpcClientLayer, type ServerRpcClientOptions, type StartFetch } from "../src/index.js";
+import type { StartFetch } from "../src/index.js";
+import { makeRpcClientLayer } from "../src/start-rpc-client.js";
+import type { ServerRpcClientOptions } from "../src/start-fetch.js";
+import { makeStartServerApp } from "../src/start-server-app.js";
 import {
   createServerActionResponseEffect,
   createServerRpcResponseEffect,
@@ -40,9 +42,8 @@ const makeRpcClient = (options: ServerRpcClientOptions<any, any, never> = {}): S
 
 const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
-const app = App.define({
+const app = makeStartServerApp({
   routes: [Route.define("/", {})] as const,
-  client: {},
 });
 
 interface RpcFailureBody {

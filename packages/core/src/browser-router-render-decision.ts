@@ -84,7 +84,8 @@ export type BrowserRouteRenderDecision<Routes extends readonly AnyBrowserRoute[]
       readonly _tag: "Ready";
       readonly state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Ready" }>;
       readonly component: unknown;
-      readonly props: BrowserRouteReadyRenderProps<Routes[number]>;
+      /** Props for `component`: the route props, mapped by `Route.withComponent`'s `props` when given. */
+      readonly props: unknown;
     }
   | {
       readonly _tag: "Empty";
@@ -142,19 +143,21 @@ export const browserRouteRenderDecision = <Routes extends readonly AnyBrowserRou
     case "NotFound":
       return { _tag: "NotFound", state };
     case "Ready": {
-      const component = state.match.route.options.component;
-      return component
-        ? {
-            _tag: "Ready",
-            state,
-            component,
-            props: {
-              params: state.match.params,
-              search: state.match.search,
-              match: state.match,
-            },
-          }
-        : { _tag: "Empty", state };
+      const { component, componentProps } = state.match.route.options;
+      if (!component) {
+        return { _tag: "Empty", state };
+      }
+      const props: BrowserRouteReadyRenderProps<Routes[number]> = {
+        params: state.match.params,
+        search: state.match.search,
+        match: state.match,
+      };
+      return {
+        _tag: "Ready",
+        state,
+        component,
+        props: componentProps === undefined ? props : componentProps(props),
+      };
     }
   }
 };

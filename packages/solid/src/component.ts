@@ -1,5 +1,4 @@
 import {
-  EffectInputCallbackError,
   makeRuntime,
   ResourceFailure,
   RuntimeTypeId,
@@ -12,7 +11,6 @@ import {
   type Program,
   type ProgramFailure,
   type ReadableSignal,
-  type Resource,
   type ResourceRef,
   type ResourceStoreModule,
   type Route,
@@ -372,44 +370,6 @@ const buildOncePerRuntime = <ROut, E, RIn>(
 // Resource reads
 // ---------------------------------------------------------------------------
 
-const isCallbackFailure = <E>(reason: Cause.Reason<E>): reason is Cause.Fail<E> =>
-  Cause.isFailReason(reason) && reason.error instanceof EffectInputCallbackError;
-
-/**
- * A load callback that throws synchronously is a programming defect, not a
- * typed load failure: re-cause it as `Die`, so no `catchTags` handler can match
- * it and it reaches an outer `<Errored>` as a defect.
- */
-const callbackErrorsAsDefects = <I, A, E, R, RefError>(
-  failure: ResourceFailure<I, A, E, R, RefError>,
-): ResourceFailure<I, A, E, R, RefError> => {
-  const { cause, previousSuccess } = failure.result;
-  return cause.reasons.some(isCallbackFailure)
-    ? new ResourceFailure({
-        ref: failure.ref,
-        result: AsyncResult.failure(
-          Cause.fromReasons(
-            cause.reasons.map((reason) =>
-              isCallbackFailure(reason) ? Cause.makeDieReason(reason.error) : reason,
-            ),
-          ),
-          { previousSuccess },
-        ),
-      })
-    : failure;
-};
-
-/** A reader whose `ResourceFailure`s carry only the family's typed error. */
-const readTyped =
-  <A>(read: Accessor<A>): Accessor<A> =>
-  () => {
-    try {
-      return read();
-    } catch (error) {
-      throw error instanceof ResourceFailure ? callbackErrorsAsDefects(error) : error;
-    }
-  };
-
 interface ResourceReaderEntry<A, E> {
   readonly binding: ResourceSuspense<A, E>;
   readonly dispose: () => void;
@@ -474,9 +434,9 @@ const makeResourceReader = <I, A, E, R>(
     return entry.binding;
   };
   const result = (input: I) => claim(input).result();
-  const reader = Object.assign((input: I): A => readTyped(claim(input).read)(), {
+  const reader = Object.assign((input: I): A => claim(input).read(), {
     waiting: (input: I): boolean => result(input).waiting,
-    failure: (input: I): Cause.Cause<Resource.LoadError<E>> | undefined => {
+    failure: (input: I): Cause.Cause<E> | undefined => {
       const current = result(input);
       return current._tag === "Failure" && !current.waiting ? current.cause : undefined;
     },
@@ -637,7 +597,8 @@ export namespace Component {
      * Hydrate server-rendered markup in the container (Solid's `hydrate`)
      * instead of rendering fresh. The server renders the same tree with
      * `Component.embed(component, runtime)`; restore the server's Resource
-     * snapshot into `runtime` first so reads stay synchronous.
+     * snapshot into `runtime` first so reads stay synchronous. Start apps get
+     * both halves from `createRequestHandler` and `App.launch`.
      */
     readonly hydrate?: boolean;
   }
@@ -661,6 +622,13 @@ export namespace Component {
     run<A>(f: () => A): A;
     /** Forks `effect` in the instance's Scope, with the setup's context. */
     fork<A, E>(effect: Effect.Effect<A, E, any>): Fiber.Fiber<A, E>;
+    /**
+     * Throws a render-time read failure to the nearest `<Errored>`, the way a
+     * Resource reader does: the typed failure in `cause` reaches `catchTags`
+     * and `catchAll`; a defect rethrows past them. Bindings whose failures
+     * join `E` (like `SolidDb.collection`) throw through it.
+     */
+    fail(cause: Cause.Cause<unknown>): never;
   }
 
   /**
@@ -677,14 +645,27 @@ export namespace Component {
     /** True while a load or refresh of `input` is in flight. */
     readonly waiting: (input: I) => boolean;
     /** The settled failure of the latest load of `input`, if it failed. */
-    readonly failure: (input: I) => Cause.Cause<Resource.LoadError<E>> | undefined;
+    readonly failure: (input: I) => Cause.Cause<E> | undefined;
   }
 
-  /** Failures an Action submission reports: its own, callback defects, and transport failures. */
-  export type ActionError<E> = E | EffectInputCallbackError | ServerClientError;
+  /**
+   * Failures an Action submission reports: its own and transport failures. A
+   * callback that breaks its contract is a defect, not part of the type.
+   */
+  export type ActionError<E> = E | ServerClientError;
 
-  /** Instance-bound Action handle from `Component.action`. */
+  /**
+   * Instance-bound Action handle from `Component.action`.
+   *
+   * Submission failures belong to the caller: `submit` returns them, and
+   * `Component.callback` makes the handler deal with them. Status chrome reads
+   * `waiting()` and `failure()`, the same names a Resource reader uses.
+   */
   export interface ActionHandle<I, A, E> {
+    /** True while a submission is in flight. */
+    readonly waiting: Accessor<boolean>;
+    /** The settled failure of the latest submission, if it failed. */
+    readonly failure: Accessor<Cause.Cause<ActionError<E>> | undefined>;
     /**
      * Submission `AsyncResult`: `Initial` while idle, `waiting` while a
      * submission is in flight, then `Success` or `Failure` (full `Cause`,
@@ -801,6 +782,9 @@ export namespace Component {
       scope: state.scope,
       run: (f) => runWithOwner(state.owner, () => runWithRuntime(runtime, f)),
       fork: (effect) => runtime.runSync(Effect.forkIn(effect, state.scope)),
+      fail: (cause) => {
+        throw setupFailure(cause);
+      },
     } satisfies Instance;
   });
 
@@ -814,9 +798,9 @@ export namespace Component {
    * `result` holds the failure `Cause`) to the nearest `<Errored>`, which
    * `catchTags` matches by the typed error's `_tag`. Refreshes keep content
    * mounted: the reader keeps the current (or stale) value while `waiting` and
-   * `failure` drive status chrome. A load callback that throws synchronously
-   * (`EffectInputCallbackError`) is a defect: it is re-caused as `Die`, never
-   * matched by `catchTags`. Preloaded or hydrated values read synchronously.
+   * `failure` drive status chrome. A load callback that breaks its contract
+   * (throws synchronously) is a defect, never matched by `catchTags`.
+   * Preloaded or hydrated values read synchronously.
    */
   export const resource = <I, A, E, R>(
     family: (input: I) => ResourceRef<I, A, E, R>,
@@ -844,8 +828,14 @@ export namespace Component {
       const current = yield* instance;
       const instanceAction = makeActionInstance(definition, current.runtime);
       yield* Effect.addFinalizer(() => instanceAction.reset());
+      const result = () => instanceAction.state.get().result;
       const handle: ActionHandle<I, A, E> = {
-        result: () => instanceAction.state.get().result,
+        waiting: () => result().waiting,
+        failure: () => {
+          const current = result();
+          return current._tag === "Failure" && !current.waiting ? current.cause : undefined;
+        },
+        result,
         input: () => instanceAction.state.get().input,
         submit: instanceAction.submit,
         reset: instanceAction.reset,
@@ -1138,10 +1128,11 @@ export namespace Component {
 
   /**
    * Renders a fully provided, fully handled component in `runtime` as a plain
-   * Solid component: the server render path. Under a Start request runtime,
+   * Solid component: the server render path. Under a request runtime,
    * `renderToString(() => <Root {...props} />)` runs each instance's setup in
    * that runtime, and `launch(component, root, { runtime, hydrate: true })`
-   * hydrates the markup on the client (it renders the same tree).
+   * hydrates the markup on the client (it renders the same tree). Start's
+   * `createRequestHandler` renders an app's root this way.
    */
   export const embed = <P, RuntimeServices = never, ER = never>(
     component: Component<P, never, NoInfer<RuntimeServices>>,

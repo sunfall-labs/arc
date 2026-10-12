@@ -196,26 +196,6 @@ const storedRowsFromDecodedValuesSync = <A extends object, K extends CollectionK
   return rows;
 };
 
-const decodeCollectionInputValuesEffect = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  values: ReadonlyArray<A>,
-  operation: CollectionSnapshotCodecOperation,
-  path: string,
-): Effect.Effect<ReadonlyArray<A>, CollectionSnapshotCodecError> =>
-  decodeCollectionOutputValuesEffect(definition.options.input, values, operation, path);
-
-const decodeCollectionMutationValuesEffect = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  values: ReadonlyArray<A>,
-  operation: CollectionSnapshotCodecOperation,
-  path: string,
-): Effect.Effect<ReadonlyArray<A>, CollectionSnapshotCodecError> =>
-  Effect.flatMap(
-    decodeCollectionInputValuesEffect(definition, values, operation, `${path}.input`),
-    (decodedInput) =>
-      decodeCollectionOutputValuesEffect(definition.options.output, decodedInput, operation, path),
-  );
-
 export const ingestCollectionOutputRowsEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   values: ReadonlyArray<A>,
@@ -231,19 +211,6 @@ export const ingestCollectionOutputRowsEffect = <A extends object, K extends Col
       options.operation,
       options.path,
     ),
-    (decoded) => storedRowsFromDecodedValuesEffect(definition, decoded, options),
-  );
-
-export const ingestCollectionMutationRowsEffect = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  values: ReadonlyArray<A>,
-  options: CollectionRowIngressOptions,
-): Effect.Effect<
-  ReadonlyArray<StoredRow<A, K>>,
-  CollectionSnapshotCodecError | EffectInputCallbackError
-> =>
-  Effect.flatMap(
-    decodeCollectionMutationValuesEffect(definition, values, options.operation, options.path),
     (decoded) => storedRowsFromDecodedValuesEffect(definition, decoded, options),
   );
 

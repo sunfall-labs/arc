@@ -31,7 +31,7 @@ const ProjectPage = Component.define("ProjectPage", function* (props: { readonly
   const refresh = yield* Component.callback(() =>
     Resource.invalidate(ProjectById(props.id)).pipe(Effect.ignore),
   );
-  // `submit` returns an Effect; its outcome lands in `rename.result()`.
+  // `submit` fails with the Action's errors; the callback must handle them.
   const save = yield* Component.callback((name: string) =>
     rename.submit({ id: props.id, name }).pipe(Effect.ignore),
   );
@@ -41,7 +41,7 @@ const ProjectPage = Component.define("ProjectPage", function* (props: { readonly
       <ProjectView
         project={project(props.id)}
         refreshing={project.waiting(props.id)}
-        saving={rename.result().waiting}
+        saving={rename.waiting()}
         onRename={save}
         onRefresh={refresh}
       />
@@ -100,33 +100,43 @@ the parent setup's context (including `Component.provide` services), and adds
 ## Bindings
 
 Each binding is an Effect yielded in setup. Its services join the component's
-`R`; typed failures that render join `E`.
+`R`. **The failure rule: a failure that can reach rendering joins `E`; a
+failure of work you start is returned to you.** Resource readers, collection
+rows, and live query rows throw a failed first load to `<Errored>`, so their
+declared load errors join `E` and `catchTags` handles them; `submit`,
+`dispatch`, `preload`, and `refresh` return their failures as Effects, and
+`Component.callback` (`E = never`) makes the handler decide. A callback that
+breaks its contract (throws, returns a Promise, produces a row its schema
+rejects) is a defect, never part of `E`.
 
 | Binding                                 | Returns                                                                                              | Joins                                                                |
 | --------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
 | `Component.resource(family)`            | `ResourceReader`: `reader(input)`, `waiting`, `failure`                                              | load error to `E`, services                                          |
-| `Component.action(definition)`          | `ActionHandle`: `result`, `input`, `submit` (Effect), `reset` (Effect)                               | action services                                                      |
+| `Component.action(definition)`          | `ActionHandle`: `waiting`, `failure`, `result`, `input`, `submit` (Effect), `reset` (Effect)         | action services                                                      |
 | `Component.program(definition, opts?)`  | `ProgramHandle`: fine-grained `model`, `committed`, `failures`, `dispatch` (Effect), `clearFailures` | program services                                                     |
 | `Component.stream(stream, initial)`     | `Accessor<A>` of the latest element                                                                  | stream services                                                      |
 | `Component.callback(f)`                 | `(...args) => void` that forks `f(...args)` (failures handled)                                       | callback services                                                    |
 | `Component.router(routes, options?)`    | the instance's `BrowserRouter<Routes>`                                                               | route preload and route Component services, route Component failures |
-| `SolidDb.collection(definition, opts?)` | `CollectionHandle`: `rows`, `result`, `get`, `index`, `pendingMutations`, `preloadFailure`           | collection services                                                  |
-| `SolidDb.liveQuery(query, opts?)`       | `LiveQueryHandle`: `rows`, `result`, `preload` (Effect), `refresh` (Effect)                          | source services                                                      |
+| `SolidDb.collection(definition, opts?)` | `CollectionHandle`: `rows`, `get`, `index`, `waiting`, `failure`                                     | load error to `E`, collection services                               |
+| `SolidDb.liveQuery(query, opts?)`       | `LiveQueryHandle`: `rows`, `waiting`, `failure`, `preload` (Effect), `refresh` (Effect)              | source load errors to `E`, source services                           |
 
-Handles share one vocabulary. Members that run work (`submit`, `dispatch`,
+Handles share one vocabulary. Status is `waiting()` (work in flight) and
+`failure()` (the settled `Cause` of the latest load or submission, if it
+failed) on every handle; a Resource reader takes the input:
+`waiting(input)` / `failure(input)`. Content renders through the reader
+(`reader(input)`) or `rows()`. Members that run work (`submit`, `dispatch`,
 `reset`, `preload`, `refresh`) return Effects; event handlers run them through
-`Component.callback`. `result()` is the `AsyncResult` status of actions,
-collections, and live queries; row-valued accessors are `rows()`; a Resource
-renders through its reader (`reader(input)`, with `waiting(input)` /
-`failure(input)` for status). Pure synchronous state writes such as
-`clearFailures()` stay synchronous.
+`Component.callback`. An Action's `result()` keeps the full `AsyncResult`,
+latest value included. Pure synchronous state writes such as `clearFailures()`
+stay synchronous.
 
 Every binding runs with the setup's context: Effects it starts see the
 runtime's services and `Component.provide` Layers. `Component.instance` is the
 expert seam for writing more bindings (it is how `@sunfall/arc-solid-db` is
 built): it returns the instance's runtime (bound to the setup context), owner,
 and Scope, with `run(f)` (Solid primitives under the instance owner) and
-`fork(effect)` (fibers in the instance Scope).
+`fork(effect)` (fibers in the instance Scope), and `fail(cause)` (throws a
+render-time read failure to `<Errored>` the way a reader does).
 
 ### Resources: the reader is the only way to render content
 
@@ -168,20 +178,37 @@ refresh that hands back new row objects keeps the same rows mounted.
 ### Actions: one binding, local or remote
 
 `Component.action(definition)` binds an Action to the instance. `submit(input)`
-returns the submission Effect (it composes into Programs and workflows, and its
-outcome also lands in `result()`); an event handler runs it through
-`Component.callback`, which requires its failures to be handled (usually
-`Effect.ignore`, since `result()` carries them). `reset()` is an Effect too.
-`result()` is an `AsyncResult`: `Initial` while idle, `waiting` while a
-submission is in flight, then `Success` or `Failure` (full `Cause`, latest
-success kept as `previousSuccess`). Unmounting interrupts in-flight
-submissions.
+returns the submission Effect, failing with the Action's errors (it composes
+into Programs and workflows); an event handler runs it through
+`Component.callback`, which requires those failures to be handled (usually
+`Effect.ignore`, since `failure()` still shows them). `waiting()` is true while
+a submission is in flight and `failure()` holds the latest settled failure's
+`Cause`. `result()` is the full `AsyncResult`: `Initial` while idle, `waiting`
+while a submission is in flight, then `Success` or `Failure` (full `Cause`,
+latest success kept as `previousSuccess`). `reset()` is an Effect too.
+Unmounting interrupts in-flight submissions.
+
+Actions are the one way to change server data, including rows the screen must
+show before the server answers. `optimistic` patches Signals and Collection
+rows through its transaction before `run`; success folds the patches in (a
+collection row keeps its new value until the `invalidates` reload replaces
+it), and a failure or interruption rolls them back:
+
+```ts
+const RenameProject = Action.define({
+  name: "Projects.rename",
+  input: RenameInput,
+  output: Project,
+  optimistic: (input, transaction) => transaction.update(Projects, input.id, { name: input.name }),
+  run: (input) => ProjectApi.use((api) => api.rename(input)),
+  invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
+});
+```
 
 Whether a submission runs locally or on the server is the runtime's decision,
 not the UI's: Core's `ActionTransport` service is looked up on every submission.
-In a Start app the client runtime provides it with
-`makeActionTransportLayer({ actions })`, listing the Actions the server serves;
-those submit over the network and their responses (hydrated Resources and
+In a Start app, `App.launch(app)` provides it for the app's `actions` (the
+Actions the server serves); those submit over the network and their responses (hydrated Resources and
 Collections, Resource invalidations) apply to the submitting runtime. Every
 other Action runs its `run` locally. The handle, its result type, and its error
 type (the Action's own errors plus `Server.ClientError`) are the same either
@@ -255,7 +282,7 @@ const presence = yield * Component.stream(presenceStream, initialPresence);
 const move =
   yield *
   Component.callback((id: WorkItemId, status: WorkItemStatus) =>
-    WorkItems.update(id, { status }).pipe(Effect.ignore),
+    moveWorkItem.submit({ id, status }).pipe(Effect.ignore),
   );
 ```
 
@@ -263,8 +290,9 @@ const move =
 
 `@sunfall/arc-solid-db` adds `SolidDb.collection(definition)` and
 `SolidDb.liveQuery(query)` as setup-time bindings. Collection handles are
-reactive reads (`rows`, `get`, `index`, `pendingMutations`, `result`); writes
-run the definition's Effects through `Component.callback`. A live query's
+reactive reads (`rows`, `get`, `index`) plus `waiting` and `failure`; rows stay
+readable while loading and after a failed refresh, and a collection that never
+loaded throws its failed load to `<Errored>`. Actions change the rows. A live query's
 factory runs tracked: a signal or prop it reads (`props.projectId`) rebuilds the
 query. Both read the instance runtime's Collection Store.
 
@@ -301,23 +329,24 @@ query. Both read the instance runtime's Collection Store.
   what it acquired immediately. Use it inside larger scoped programs and tests.
 - `Component.embed(component, runtime)`: the same fully provided component as a
   plain Solid component on an explicit runtime, checked against that runtime's
-  services. It is the server render path.
+  services. Start's `createRequestHandler` uses it to render the app root.
 
 There is no runtime context and no default runtime: every tree gets its runtime
 from one of these entry points, and every binding reads it from its instance.
 
 ### Server rendering and hydration
 
-```tsx
-// server render (Start request runtime)
-renderToString(() => createComponent(Component.embed(App, runtime), { initialHref: href }));
+A Start app wires both sides from one definition; Start calls `embed` and
+`launch` for it:
 
-// client entry: restore the Resource snapshot, then hydrate the same tree
-Effect.runFork(
-  runtime
-    .provide(hydrateFromDocument(document))
-    .pipe(Effect.andThen(Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() }))),
-);
+```tsx
+export const app = App.define({ root: Root, routes, client: AppLive });
+
+// server: renders `Root` with `Component.embed` under each request runtime
+export const handleRequest = createRequestHandler(app, { server: AppServerLive });
+
+// browser: restores the Resource snapshot, then hydrates the same tree
+Effect.runFork(App.launch(app));
 ```
 
 `launch` and `embed` render the same tree, so server markup is reused. Each
@@ -330,48 +359,57 @@ under `renderToString`.
 ## Routing
 
 `Component.router(routes, options?)` creates the instance's browser router with
-the setup's runtime and context; render it with `<RouterProvider router>`.
-`RouterOutlet`, `RouterLink`, and `useRouter()` work anywhere below it. The
-routes' preload services and route Components' services and failures join the
-component that creates the router, so `launch` checks them:
+the setup's runtime and context; render it with `<RouterProvider router>` and
+place its outlet with `<RouterOutlet router={router}>`. `RouterLink` and
+`useRouter()` work anywhere below the provider (and inside the outlet's route
+views). The routes' preload services and route Components' services and
+failures join the component that creates the router, so `launch` checks them:
 
 ```tsx
 const routes = [
   Route.withComponent(HomeRoute, HomeView), // a plain Solid component
-  Route.withComponent(ProjectRoute, ProjectPage), // a typed Component
+  // A feature Component: the mapper turns route props into its props.
+  Route.withComponent(ProjectRoute, ProjectPage, ({ params }) => ({ id: params.id })),
 ] as const;
 
 const App = Component.define("App", function* (props: { readonly initialHref?: string }) {
-  const router = yield* Component.router(
-    routes,
-    props.initialHref === undefined ? {} : { initialHref: props.initialHref },
-  );
-  const Shell = yield* AppShell;
+  const router = yield* Component.router(routes, { initialHref: props.initialHref });
+  const Nav = yield* AppNav;
   return () => (
     <RouterProvider router={router}>
-      <Shell />
+      <Nav />
+      <RouterOutlet router={router} notFound={() => <NotFound />} />
     </RouterProvider>
   );
 });
 ```
 
 Route components may be plain Solid functions or typed `Component`s; a
-`Component` route view renders with the router's setup context. Router options
-are `initialHref` (SSR), `history` (a custom history Adapter, e.g. static
-sites), and `hydrating`.
+`Component` route view renders with the router's setup context. Without a
+mapper the component takes `Route.Props<typeof route>` (`params`, `search`,
+`match`); with one, `Route.withComponent(route, component, (route) => props)`
+checks the mapped props against the component's props. Router options are
+`initialHref` (SSR), `history` (a custom history Adapter, e.g. static sites),
+and `hydrating`; each accepts `undefined` as "absent", so optional props pass
+straight through. `<RouterProvider router>` without children renders
+`<RouterOutlet router={router} />`.
 
 ### Route failure views
 
-`RouterOutlet`'s `failure` renderer receives the router's `Failure` state,
-including `Cause<BrowserRouterError<Routes> | ER>`. A route that declares an
-`error` schema reports its preload failure as `RoutePreloadError<E>` with the
-schema's type, so the view reads the failure's fields directly:
+`RouterOutlet`'s `pending`, `failure`, and `notFound` renderers are typed from
+its `router`, so no type arguments are needed. `failure` receives the router's
+`Failure` state, including `Cause<BrowserRouterError<Routes> | ER>`. A route's
+preload failure arrives as `RoutePreloadError<E>`: `E` is the route's `error`
+schema type, or `RoutePreloadUntypedFailure` (carrying only the failure's
+`tag`) for a route that can fail without one. Every case has a `_tag`, so the
+view narrows with a `switch` or a comparison instead of `instanceof`:
 
 ```tsx
 <RouterOutlet
-  failure={(state) =>
-    state.error?._tag === "RoutePreloadError" && state.error.cause instanceof ProjectNotFound ? (
-      <p>Project "{state.error.cause.id}" was not found.</p>
+  router={router}
+  failure={({ error }) =>
+    error?._tag === "RoutePreloadError" && error.cause._tag === "ProjectNotFound" ? (
+      <p>Project "{error.cause.id}" was not found.</p>
     ) : (
       <p>Something went wrong.</p>
     )
@@ -381,12 +419,15 @@ schema's type, so the view reads the failure's fields directly:
 
 When Start renders a route preload failure, the server and the hydrating client
 render this view from the same failure, decoded from the wire with the route's
-`error` schema (tag-only without one), so hydration reuses the server markup.
+`error` schema (tag-only `RoutePreloadUntypedFailure` without one), so
+hydration reuses the server markup.
 
 ## Async State Is `AsyncResult`
 
-Action, collection, and live-query handles expose one `result()` accessor
-holding Effect's `AsyncResult` (`import { AsyncResult } from "effect/reactivity"`):
+Resource, collection, and live-query load state and Action submission state
+are Effect's `AsyncResult` (`import { AsyncResult } from "effect/reactivity"`);
+handles project it to `waiting()` and `failure()`, and an Action handle's
+`result()` exposes it whole:
 `AsyncResult.value(result)` (current or stale value), `AsyncResult.error(result)`
 (typed error), `result.waiting` (load or submission in flight), and
 `result._tag`. Loads mark the current result `waiting` instead of switching to a

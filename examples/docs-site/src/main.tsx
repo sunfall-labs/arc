@@ -1,51 +1,13 @@
-import { makeRuntime } from "@sunfall/arc-core";
-import { Component } from "@sunfall/arc-solid";
-import { hydrateFromDocument } from "@sunfall/arc-start";
-import { Data, Effect, Layer } from "effect";
-import DocsSite from "./App.js";
-import { DocsContentApiStaticClient } from "./content.js";
+import { App } from "@sunfall/arc-start";
+import { Effect } from "effect";
+import { app } from "./app-definition.js";
 import { currentDocsSiteHref } from "./site-base.js";
 
-class DocsSiteRootMissing extends Data.TaggedError("DocsSiteRootMissing")<{
-  readonly id: string;
-  readonly guidance: string;
-}> {}
-
-const root = document.getElementById("root");
-
-if (!root) {
-  throw new DocsSiteRootMissing({
-    id: "root",
-    guidance: 'Add a root element with id="root" to the document shell.',
-  });
-}
-
-const runtimeLayer = import.meta.env.DEV
-  ? Layer.mergeAll(
-      (await import("@sunfall/arc-start")).makeRpcClientLayer(),
-      (await import("./content-live.js")).DocsContentApiLive,
-    )
-  : DocsContentApiStaticClient;
-const runtime = makeRuntime(runtimeLayer);
-
-// Restore the server's hydration payload into the runtime, then hydrate the
-// server-rendered markup with the same tree.
 Effect.runFork(
-  runtime
-    .provide(
-      hydrateFromDocument(
-        document,
-        undefined,
-        import.meta.env.DEV ? {} : { timestamp: "now" as const },
-      ),
-    )
-    .pipe(
-      Effect.andThen(
-        Component.launch(DocsSite, root, {
-          runtime,
-          props: { hydratedHref: currentDocsSiteHref() },
-          hydrate: root.hasChildNodes(),
-        }),
-      ),
-    ),
+  App.launch(app, {
+    // The site may be served under a base path; the app renders base-free hrefs.
+    href: currentDocsSiteHref(),
+    // Prerendered snapshots are as fresh as the page that carries them.
+    hydration: import.meta.env.DEV ? {} : { timestamp: "now" },
+  }),
 );

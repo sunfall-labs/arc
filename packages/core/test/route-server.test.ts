@@ -11,10 +11,10 @@ import {
   RouteNavigationError,
   RoutePreloadError,
   RoutePreloadFailureCodecError,
+  RoutePreloadUntypedFailure,
   type RoutePreloadFailureEncoding,
   Server,
   ServerRouteHandlerError,
-  App,
 } from "../src/index.js";
 import {
   buildRoutePath,
@@ -111,16 +111,6 @@ describe("route", () => {
     expect(() => matchRoutePath("/projects/:id/:id", "/projects/atlas/settings")).toThrow(
       DuplicateRouteParam,
     );
-  });
-
-  it("defines client-only apps", () => {
-    const Home = Route.define("/", {});
-    const app = App.define({
-      routes: [Home],
-      client: {},
-    });
-
-    expect(app.fullStack).toBe(false);
   });
 
   it("matches route params and search", () => {
@@ -299,7 +289,8 @@ describe("route", () => {
       const decoded = Route.preloadFailureCauseFromSnapshot(ProjectRoute, snapshot).reasons.find(
         Cause.isFailReason,
       )?.error;
-      expect(decoded?.cause).toEqual({ _tag: "ProjectMissing" });
+      expect(error.cause).toEqual(new RoutePreloadUntypedFailure({ tag: "ProjectMissing" }));
+      expect(decoded?.cause).toEqual(new RoutePreloadUntypedFailure({ tag: "ProjectMissing" }));
     }).pipe(Effect.runPromise));
 
   it("turns failures that cannot cross the wire with the error schema into codec defects", () =>
@@ -341,8 +332,8 @@ describe("route", () => {
       id: Schema.String,
     }) {}
     Route.define("/projects/:id", {
-      error: ProjectNotFound,
       // @ts-expect-error preload may fail only with the route error schema's type
+      error: ProjectNotFound,
       preload: () => Effect.fail("missing"),
     });
   });

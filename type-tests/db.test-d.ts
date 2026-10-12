@@ -76,7 +76,6 @@ const AdapterProjects = Collection.define({
   getKey: (project) => project.id,
   sync: {
     load: () => loadProjects,
-    update: ({ updates }) => Effect.succeed(updates.length).pipe(Effect.asVoid),
     changes: () => Stream.empty as Stream.Stream<ReadonlyArray<Collection.Change<Project, string>>>,
   },
 });
@@ -87,16 +86,17 @@ const adapterProjects: Collection.Definition<Project, string, "load", DbRuntimeS
 const listProjects = Server.fn<void, ReadonlyArray<Project>>("type-tests/list-projects", {
   handler: () => Effect.succeed([]),
 });
-const createProjects = Server.fn<Collection.SyncInsertPayload<Project, string>, void>(
-  "type-tests/create-projects",
-  { handler: () => Effect.void },
-);
 const ServerProjects = Collection.define({
   name: "type-tests/server-projects",
   output: ProjectSchema,
   getKey: (project) => project.id,
-  sync: { load: listProjects, insert: createProjects },
+  sync: { load: listProjects },
 });
+const writableSyncAdapter: Collection.SyncAdapter<Project, string> = {
+  load: () => Effect.succeed([]),
+  // @ts-expect-error writes are Actions: a sync adapter only reads.
+  update: () => Effect.void,
+};
 const serverProjects: Collection.Definition<
   Project,
   string,
@@ -114,11 +114,7 @@ const ResourceProjects = Collection.define({
   getKey: (project) => project.id,
   sync: ProjectRows(undefined),
 });
-const resourceProjects: Collection.Definition<
-  Project,
-  string,
-  Resource.LoadError<"resource-load">
-> = ResourceProjects;
+const resourceProjects: Collection.Definition<Project, string, "resource-load"> = ResourceProjects;
 
 // Persistence storage channels are inferred without a helper.
 const sqliteStorage = SQLitePersistence.storage(
@@ -169,7 +165,7 @@ const applyChanges: Effect.Effect<
 dbProjectsCollection.writeInsert;
 // @ts-expect-error direct write Effects were folded into applyChanges.
 dbProjectsCollection.writeInsertEffect;
-// @ts-expect-error pending mutations are read reactively with pendingMutations().
+// @ts-expect-error optimistic patches belong to Action submissions, not the collection.
 dbProjectsCollection.pendingMutationsEffect;
 // @ts-expect-error free functions that forwarded to definition methods were removed.
 Collection.rows;
@@ -212,12 +208,6 @@ const collectionStorage: Collection.PersistenceStorage<CollectionStorageError> =
     removeItem: () => undefined,
   },
 );
-const collectionFlushEffect: Effect.Effect<
-  ReadonlyArray<Collection.FlushAllPendingMutationsResult>,
-  unknown
-> = Collection.flushAllPendingMutations([dbStaticProjectsCollection]);
-const collectionBackgroundSyncEffect: Effect.Effect<Collection.BackgroundSyncResult, unknown> =
-  Collection.backgroundSyncPendingMutations([dbStaticProjectsCollection]);
 const liveQueryCollection = Collection.liveQuery<Project, string, unknown>({
   name: "type-tests/live-query-projects",
   getKey: (project) => project.id,
@@ -226,37 +216,6 @@ const liveQueryCollection = Collection.liveQuery<Project, string, unknown>({
 });
 const liveQueryCollectionWrite: Effect.Effect<void, unknown> = liveQueryCollection.applyChanges([]);
 
-declare const collectionFlushError: Collection.FlushAllPendingMutationsError<
-  readonly [typeof dbProjectsCollection],
-  "skip-error"
->;
-declare const collectionFlushRequirements: Collection.FlushAllPendingMutationsRequirements<
-  readonly [typeof dbProjectsCollection],
-  DbSkipService
->;
-declare const collectionBackgroundSyncError: Collection.BackgroundSyncError<
-  readonly [typeof dbProjectsCollection],
-  "adapter-error",
-  "skip-error"
->;
-declare const collectionBackgroundSyncRequirements: Collection.BackgroundSyncRequirements<
-  readonly [typeof dbProjectsCollection],
-  DbAdapterService,
-  DbSkipService
->;
-const collectionFlushErrorPin:
-  | Collection.RuntimeError<"load">
-  | "skip-error"
-  | EffectInputCallbackError = collectionFlushError;
-const collectionFlushRequirementsPin: DbRuntimeService | DbSkipService =
-  collectionFlushRequirements;
-const collectionBackgroundSyncErrorPin:
-  | Collection.RuntimeError<"load">
-  | "adapter-error"
-  | "skip-error"
-  | EffectInputCallbackError = collectionBackgroundSyncError;
-const collectionBackgroundSyncRequirementsPin: DbRuntimeService | DbAdapterService | DbSkipService =
-  collectionBackgroundSyncRequirements;
 const concreteCollectionErrorPin: "load" = null as never as Collection.Error<
   typeof dbProjectsCollection
 >;
@@ -410,6 +369,7 @@ const dbExports: Array<unknown> = [
   inferredProjects,
   adapterProjects,
   serverProjects,
+  writableSyncAdapter,
   resourceProjects,
   persistedProjectsError,
   projectState,
@@ -421,13 +381,7 @@ const dbExports: Array<unknown> = [
   writeOptions,
   collectionMemoryStorage,
   collectionStorage,
-  collectionFlushEffect,
-  collectionBackgroundSyncEffect,
   liveQueryCollectionWrite,
-  collectionFlushErrorPin,
-  collectionFlushRequirementsPin,
-  collectionBackgroundSyncErrorPin,
-  collectionBackgroundSyncRequirementsPin,
   concreteCollectionErrorPin,
   concreteCollectionRequirementsPin,
   servicefulErasedPersistencePin,

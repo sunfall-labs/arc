@@ -3,7 +3,8 @@ import { EffectInputCallbackError, type RejectPromiseLikeValue } from "./effect-
 import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
 import { Signal, type WritableSignal } from "./signal.js";
 
-export type ActionRollback<R = never> = Effect.Effect<void, EffectInputCallbackError, R>;
+/** Settles one optimistic transaction: commit or rollback. */
+export type ActionOptimisticSettle = Effect.Effect<void>;
 
 type Primitive = null | undefined | string | number | boolean | bigint | symbol;
 
@@ -23,32 +24,88 @@ type ActionOptimisticSignalUpdate<A> =
   | ActionOptimisticSignalValue<A>
   | ((current: A) => ActionOptimisticSignalValue<A>);
 
+/** Expert-public marker for row stores an Action can patch optimistically. */
+export const ActionOptimisticRowsTypeId: unique symbol = Symbol.for(
+  "@sunfall/arc-core/ActionOptimisticRows",
+) as typeof ActionOptimisticRowsTypeId;
+
+/** Partial patch or draft updater for one optimistic row update. */
+export type ActionOptimisticRowUpdate<A extends object> = Partial<A> | ((draft: A) => A | void);
+
+/** One optimistic row change, as a row store receives it. */
+export type ActionOptimisticRowChange<A extends object, K> =
+  | { readonly _tag: "Insert"; readonly values: ReadonlyArray<A> }
+  | { readonly _tag: "Update"; readonly key: K; readonly update: ActionOptimisticRowUpdate<A> }
+  | { readonly _tag: "Delete"; readonly key: K };
+
+/**
+ * The optimistic layer one Action submission owns in a row store, bound to the
+ * store of the runtime the submission runs on.
+ */
+export interface ActionOptimisticRowsLayer {
+  /** Folds the layer into the store's synced base; the next sync replaces it. */
+  readonly commit: Effect.Effect<void>;
+  /** Removes the layer and rebases later layers from other submissions. */
+  readonly rollback: Effect.Effect<void>;
+}
+
+/**
+ * A keyed row store that Actions can patch optimistically. Collections
+ * implement it; application code passes the store to
+ * `transaction.insert/update/delete`.
+ */
+export interface ActionOptimisticRows<A extends object, K> {
+  readonly [ActionOptimisticRowsTypeId]: {
+    /**
+     * Applies `change` to the layer `transaction` owns and returns that
+     * layer. Rows that are not in the store make `Update` and `Delete` no-ops.
+     * A change the store cannot accept (a row its schema rejects) is a defect.
+     */
+    readonly apply: (
+      transaction: string,
+      change: ActionOptimisticRowChange<A, K>,
+    ) => Effect.Effect<ActionOptimisticRowsLayer>;
+  };
+}
+
 /**
  * Optimistic patch transaction passed to `Action.define({ optimistic })`.
  *
- * Signal patches must be plain synchronous values or pure synchronous updater
- * functions. Promise-shaped patch values are rejected as
- * `EffectInputCallbackError`; move host Promise work into the action `run`
- * Effect with `Effect.tryPromise(...)` before patching local signal state.
+ * Every patch lives exactly as long as the submission: a success folds the
+ * patches into their base values, and a failure or interruption removes them,
+ * rebasing patches from other in-flight submissions. Patches must be plain
+ * synchronous values or pure synchronous updaters: a throwing updater, a
+ * Promise-shaped value, or a row the collection rejects is a defect.
  */
 export interface ActionOptimisticTransaction {
-  /**
-   * Patches a writable signal for the lifetime of the optimistic submission.
-   *
-   * The update may be a plain value or a synchronous updater. It must not
-   * return a Promise-shaped value.
-   */
+  /** Patches a writable signal. */
   readonly signal: <A>(
     signal: WritableSignal<A>,
     // The signal fixes `A`; the update is checked against it, never inferred from.
     update: ActionOptimisticSignalUpdate<NoInfer<A>>,
-  ) => Effect.Effect<void, EffectInputCallbackError>;
+  ) => Effect.Effect<void>;
+  /** Inserts (or replaces) rows; they read `$synced: false` until the submission settles. */
+  readonly insert: <A extends object, K>(
+    rows: ActionOptimisticRows<A, K>,
+    values: NoInfer<A> | ReadonlyArray<NoInfer<A>>,
+  ) => Effect.Effect<void>;
+  /** Patches one row; a row that is not loaded is left alone. */
+  readonly update: <A extends object, K>(
+    rows: ActionOptimisticRows<A, K>,
+    key: NoInfer<K>,
+    update: ActionOptimisticRowUpdate<NoInfer<A>>,
+  ) => Effect.Effect<void>;
+  /** Hides one row until the submission settles. */
+  readonly delete: <A extends object, K>(
+    rows: ActionOptimisticRows<A, K>,
+    key: NoInfer<K>,
+  ) => Effect.Effect<void>;
 }
 
-export interface ActionOptimisticTransactionRuntime<R> {
+export interface ActionOptimisticTransactionRuntime {
   readonly api: ActionOptimisticTransaction;
-  readonly commit: ActionRollback<R>;
-  readonly rollback: ActionRollback<R>;
+  readonly commit: ActionOptimisticSettle;
+  readonly rollback: ActionOptimisticSettle;
 }
 
 interface SignalPatch<A> {
@@ -83,7 +140,7 @@ const optimisticSignalPatchError = (actionName: string, cause: unknown): EffectI
         operation: `Action.optimistic(${actionName}).signal`,
         cause,
         guidance:
-          "Optimistic signal update functions must be pure and total. Synchronous throws are reported in the Effect error channel.",
+          "Optimistic signal update functions must be pure and total. A synchronous throw is a defect.",
       });
 
 const optimisticSignalPromiseGuidance =
@@ -161,24 +218,39 @@ const applySignalPatchPlan = <A>(plan: PlannedSignalPatchFinish<A>): void => {
   }
 };
 
+let nextOptimisticTransaction = 0;
+
 /**
- * Creates one optimistic signal transaction for an Action submission.
+ * Creates one optimistic transaction for an Action submission.
  *
- * The transaction owns every signal patch it touches. Commit folds those
- * patches into the signal base value, while rollback removes them and
+ * The transaction owns every signal patch and row-store layer it touches.
+ * Commit folds them into their base values, while rollback removes them and
  * recomputes any later optimistic patches from other submissions.
  */
-export const makeActionOptimisticTransactionRuntime = <R>(
+export const makeActionOptimisticTransactionRuntime = (
   actionName: string,
-): ActionOptimisticTransactionRuntime<R> => {
+): ActionOptimisticTransactionRuntime => {
   const transaction = Symbol("Action.optimistic");
+  const transactionId = `action:${actionName}:${++nextOptimisticTransaction}`;
   const touched = new Set<AnyWritableSignal>();
+  // One layer per row store, in first-touch order.
+  const rowLayers = new Map<ActionOptimisticRows<any, any>, ActionOptimisticRowsLayer>();
+
+  const applyRows = <A extends object, K>(
+    rows: ActionOptimisticRows<A, K>,
+    change: ActionOptimisticRowChange<A, K>,
+  ): Effect.Effect<void> =>
+    Effect.map(rows[ActionOptimisticRowsTypeId].apply(transactionId, change), (layer) => {
+      if (!rowLayers.has(rows)) {
+        rowLayers.set(rows, layer);
+      }
+    });
 
   const api: ActionOptimisticTransaction = {
     signal: <A>(
       signal: WritableSignal<A>,
       update: ActionOptimisticSignalUpdate<A>,
-    ): Effect.Effect<void, EffectInputCallbackError> =>
+    ): Effect.Effect<void> =>
       Effect.gen(function* () {
         const existing = signalPatchStates.get(signal) as SignalPatchState<A> | undefined;
         const state = existing ?? {
@@ -195,7 +267,14 @@ export const makeActionOptimisticTransactionRuntime = <R>(
         signal.set(value);
         signalPatchStates.set(signal, nextState);
         touched.add(signal);
+      }).pipe(Effect.orDie),
+    insert: (rows, values) =>
+      applyRows(rows, {
+        _tag: "Insert",
+        values: Array.isArray(values) ? values : [values as never],
       }),
+    update: (rows, key, update) => applyRows(rows, { _tag: "Update", key, update }),
+    delete: (rows, key) => applyRows(rows, { _tag: "Delete", key }),
   };
 
   const finish = (
@@ -203,8 +282,16 @@ export const makeActionOptimisticTransactionRuntime = <R>(
       base: A,
       patch: SignalPatch<A>,
     ) => Effect.Effect<SignalPatchDecision<A>, EffectInputCallbackError>,
-  ): ActionRollback<R> =>
+    settleRows: (layer: ActionOptimisticRowsLayer) => Effect.Effect<void>,
+  ): ActionOptimisticSettle =>
     Effect.gen(function* () {
+      // Row layers settle first: they cannot fail, so a failing signal
+      // updater never strands a row layer.
+      const layers = Array.from(rowLayers.values());
+      rowLayers.clear();
+      for (const layer of layers) {
+        yield* settleRows(layer);
+      }
       const plans: Array<PlannedSignalPatchFinish<any>> = [];
       for (const signal of touched) {
         const plan = yield* planSignalPatches(actionName, signal, transaction, onPatch);
@@ -216,16 +303,21 @@ export const makeActionOptimisticTransactionRuntime = <R>(
         applySignalPatchPlan(plan);
       }
       touched.clear();
-    }) as ActionRollback<R>;
+    }).pipe(Effect.orDie);
 
   return {
     api,
-    commit: finish((base, patch) =>
-      Effect.map(applySignalPatchEffect(actionName, patch, base), (nextBase) => ({
-        _tag: "Commit",
-        base: nextBase,
-      })),
+    commit: finish(
+      (base, patch) =>
+        Effect.map(applySignalPatchEffect(actionName, patch, base), (nextBase) => ({
+          _tag: "Commit",
+          base: nextBase,
+        })),
+      (layer) => layer.commit,
     ),
-    rollback: finish(() => Effect.succeed({ _tag: "Rollback" })),
+    rollback: finish(
+      () => Effect.succeed({ _tag: "Rollback" }),
+      (layer) => layer.rollback,
+    ),
   };
 };

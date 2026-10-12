@@ -9,7 +9,6 @@ import {
   Server,
   type BrowserRouterHostController,
   type SunfallArcRuntime,
-  App,
 } from "@sunfall/arc-core";
 import { eraseRuntime } from "@sunfall/arc-core/internal";
 import { Collection } from "@sunfall/arc-db";
@@ -20,10 +19,11 @@ import {
   hydrateStartPayloadEffect,
 } from "../packages/start/src/hydration.js";
 import { preloadRequest } from "../packages/start/src/start-request-preload.js";
+import { makeStartServerApp } from "../packages/start/src/start-server-app.js";
 import { serverRpcPath, startJsonMediaType } from "../packages/start/src/rpc.js";
 import { Effect, Schema } from "effect";
 import { afterAll, beforeAll, bench, describe } from "vitest";
-import { handleRequest, serverApp } from "../examples/project-console/src/server.js";
+import { handleRequest } from "../examples/project-console/src/server.js";
 
 const microBenchOptions = { throws: true, time: 1_000, warmupTime: 250 };
 const asyncBenchOptions = { throws: true, time: 1_000, warmupTime: 250 };
@@ -60,9 +60,8 @@ const BenchProjectRoute = Route.define("/bench/projects/:id", {
   preloadResources: [BenchProject],
 });
 
-const benchStartApp = App.define({
+const benchStartApp = makeStartServerApp({
   routes: [BenchProjectRoute] as const,
-  client: {},
 });
 
 const routerProjectRoute = Route.define("/bench/router/projects/:id", {
@@ -98,9 +97,9 @@ const Echo = Server.contract<{ readonly value: string }, { readonly value: strin
 );
 const echo = Server.implement(Echo, ({ value }) => Effect.succeed({ value: value.toUpperCase() }));
 
-const benchRpcApp = App.define({
+const benchRpcApp = makeStartServerApp({
   routes: [Route.define("/", {})] as const,
-  client: {},
+  registry: { serverFunctions: [echo] },
 });
 
 interface Project {
@@ -432,10 +431,8 @@ describe("Sunfall Arc release baseline", () => {
     "project console streaming SSR",
     async () => {
       const response = await Effect.runPromise(
-        serverApp.runtime.provide(
-          Effect.scoped(
-            handleRequest(new Request("https://example.test/projects/atlas?tab=activity")),
-          ),
+        Effect.scoped(
+          handleRequest(new Request("https://example.test/projects/atlas?tab=activity")),
         ),
       );
       const html = await response.text();

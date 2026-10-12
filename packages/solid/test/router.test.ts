@@ -53,7 +53,7 @@ const RuntimeProvider = (props: {
 const RouterProvider = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
 >(
-  props: RouterOutletProps<Routes, never> & {
+  props: Omit<RouterOutletProps<Routes, never>, "router"> & {
     readonly routes: Routes;
     readonly initialHref?: string;
     readonly hydrating?: boolean;
@@ -74,17 +74,22 @@ const RouterProvider = <
     return () =>
       createComponent(BoundRouterProvider<Routes, never>, {
         router,
-        get pending() {
-          return props.pending;
-        },
-        get failure() {
-          return props.failure;
-        },
-        get notFound() {
-          return props.notFound;
-        },
         get children() {
-          return props.children;
+          return (
+            props.children ??
+            createComponent(RouterOutlet<Routes, never>, {
+              router,
+              get pending() {
+                return props.pending;
+              },
+              get failure() {
+                return props.failure;
+              },
+              get notFound() {
+                return props.notFound;
+              },
+            } as RouterOutletProps<Routes, never>)
+          );
         },
       } as RouterProviderProps<Routes, never>);
   }) as unknown as Parameters<typeof Component.embed<{}>>[0];
@@ -237,7 +242,8 @@ describe("createBrowserRouter", () => {
             expect(failure.error).toMatchObject({
               path: "/projects/:id",
               href: "/projects/atlas",
-              cause: "missing-project",
+              // Without an `error` schema only the failure `_tag` is kept.
+              cause: { _tag: "RoutePreloadUntypedFailure" },
             });
             expect(failure.cause.reasons.find(Cause.isFailReason)?.error).toBe(failure.error);
           });
@@ -848,25 +854,24 @@ describe("createBrowserRouter", () => {
 
           const history = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
           const initialWindowPathname = window.location.pathname;
-          const HomeRoute = Route.define("/", {
-            component: () => {
-              const element = document.createElement("h1");
-              element.textContent = "Home";
-              return element;
-            },
+          const HomeRoute = Route.withComponent(Route.define("/"), () => {
+            const element = document.createElement("h1");
+            element.textContent = "Home";
+            return element;
           });
-          const ProjectRoute = Route.define("/provider-history/:id", {
-            component: ({ params }: { readonly params: { readonly id: string } }) => {
+          const ProjectRoute = Route.withComponent(
+            Route.define("/provider-history/:id"),
+            ({ params }: { readonly params: { readonly id: string } }) => {
               const element = document.createElement("h1");
               element.textContent = `Project ${params.id}`;
               return element;
             },
-          });
+          );
           const container = document.createElement("div");
           let router: BrowserRouter<readonly [typeof HomeRoute, typeof ProjectRoute]> | undefined;
           const CaptureRouter = () => {
             router = useRouter<readonly [typeof HomeRoute, typeof ProjectRoute]>();
-            return createComponent(RouterOutlet, {});
+            return createComponent(RouterOutlet, { router: useRouter() });
           };
 
           const dispose = render(
@@ -926,9 +931,10 @@ describe("createBrowserRouter", () => {
               };
             }),
           );
-          const ProjectRoute = Route.define("/lazy-solid-projects/:id", {
-            component: LazyProject,
-          });
+          const ProjectRoute = Route.withComponent(
+            Route.define("/lazy-solid-projects/:id"),
+            LazyProject,
+          );
           const match = ProjectRoute.match("/lazy-solid-projects/atlas");
           if (!match) {
             expect.fail("Expected lazy Solid route to match.");
@@ -982,9 +988,10 @@ describe("createBrowserRouter", () => {
               };
             }),
           );
-          const ProjectRoute = Route.define("/ready-lazy-solid-projects/:id", {
-            component: LazyProject,
-          });
+          const ProjectRoute = Route.withComponent(
+            Route.define("/ready-lazy-solid-projects/:id"),
+            LazyProject,
+          );
           const container = document.createElement("div");
           const dispose = render(
             () =>
@@ -1315,17 +1322,20 @@ describe("createBrowserRouter", () => {
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           let renders = 0;
-          const ProjectRoute = Route.define("/projects/:id", {
-            preload: () => Deferred.await(release),
-            component: () => {
+          const ProjectRoute = Route.withComponent(
+            Route.define("/projects/:id", {
+              preload: () => Deferred.await(release),
+            }),
+            () => {
               renders++;
               return "project";
             },
-          });
+          );
           let router: BrowserRouter<readonly [typeof ProjectRoute]> | undefined;
           const CaptureRouter = () => {
             router = useRouter<readonly [typeof ProjectRoute]>();
             return createComponent(RouterOutlet, {
+              router: router!,
               pending: () => "pending",
             });
           };
@@ -1376,7 +1386,7 @@ describe("createBrowserRouter", () => {
   it("mounts the outlet without strict untracked-read warnings", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const runtime = makeRuntime();
-    const HomeRoute = Route.define("/", { component: () => "home" });
+    const HomeRoute = Route.withComponent(Route.define("/"), () => "home");
     const container = document.createElement("div");
     const dispose = render(
       () =>
@@ -1387,7 +1397,10 @@ describe("createBrowserRouter", () => {
               routes: [HomeRoute] as const,
               initialHref: "/",
               get children() {
-                return createComponent(RouterOutlet, { pending: () => "pending" });
+                return createComponent(RouterOutlet, {
+                  router: useRouter(),
+                  pending: () => "pending",
+                });
               },
             });
           },
@@ -1406,6 +1419,42 @@ describe("createBrowserRouter", () => {
     }
   });
 
+  it("renders a route component with props mapped from the route props", async () => {
+    const runtime = makeRuntime();
+    const ProjectView = (props: { readonly id: string; readonly tab: string }) =>
+      `project ${props.id} ${props.tab}`;
+    const ProjectRoute = Route.withComponent(
+      Route.define("/mapped-projects/:id"),
+      ProjectView,
+      ({ params, match }) => ({ id: params.id, tab: match.pathname }),
+    );
+    const container = document.createElement("div");
+    const dispose = render(
+      () =>
+        createComponent(RuntimeProvider, {
+          runtime: eraseRuntime(runtime),
+          get children() {
+            return createComponent(RouterProvider, {
+              routes: [ProjectRoute] as const,
+              initialHref: "/mapped-projects/atlas",
+              get children() {
+                return createComponent(RouterOutlet, { router: useRouter() });
+              },
+            });
+          },
+        }),
+      container,
+    );
+    try {
+      await vi.waitFor(() => {
+        expect(container.textContent).toBe("project atlas /mapped-projects/atlas");
+      });
+    } finally {
+      dispose();
+      await Effect.runPromise(Effect.orDie(runtime.dispose));
+    }
+  });
+
   it("rerenders pending outlet renderers without navigation", () =>
     Effect.runPromise(
       Effect.scoped(
@@ -1413,9 +1462,10 @@ describe("createBrowserRouter", () => {
           const runtime = makeRuntime();
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = Route.define("/renderer-pending/:id", {
-            component: () => "project",
-          });
+          const ProjectRoute = Route.withComponent(
+            Route.define("/renderer-pending/:id"),
+            () => "project",
+          );
           const routes = [ProjectRoute] as const;
           const match = Route.match(routes, "/renderer-pending/atlas");
           expect(match).toBeDefined();
@@ -1464,9 +1514,10 @@ describe("createBrowserRouter", () => {
           const runtime = makeRuntime();
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = Route.define("/renderer-cleanup/:id", {
-            component: () => "project",
-          });
+          const ProjectRoute = Route.withComponent(
+            Route.define("/renderer-cleanup/:id"),
+            () => "project",
+          );
           const routes = [ProjectRoute] as const;
           const match = Route.match(routes, "/renderer-cleanup/atlas");
           expect(match).toBeDefined();
@@ -1553,9 +1604,10 @@ describe("createBrowserRouter", () => {
           const runtime = makeRuntime();
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = Route.define("/renderer-failed-cleanup/:id", {
-            component: () => "project",
-          });
+          const ProjectRoute = Route.withComponent(
+            Route.define("/renderer-failed-cleanup/:id"),
+            () => "project",
+          );
           const routes = [ProjectRoute] as const;
           const match = Route.match(routes, "/renderer-failed-cleanup/atlas");
           expect(match).toBeDefined();
@@ -1643,9 +1695,10 @@ describe("createBrowserRouter", () => {
           const runtime = makeRuntime();
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = Route.define("/renderer-initial-failed-cleanup/:id", {
-            component: () => "project",
-          });
+          const ProjectRoute = Route.withComponent(
+            Route.define("/renderer-initial-failed-cleanup/:id"),
+            () => "project",
+          );
           const routes = [ProjectRoute] as const;
           const match = Route.match(routes, "/renderer-initial-failed-cleanup/atlas");
           expect(match).toBeDefined();
@@ -1733,9 +1786,10 @@ describe("createBrowserRouter", () => {
           const runtime = makeRuntime();
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = Route.define("/renderer-dispose-effect/:id", {
-            component: () => "project",
-          });
+          const ProjectRoute = Route.withComponent(
+            Route.define("/renderer-dispose-effect/:id"),
+            () => "project",
+          );
           const routes = [ProjectRoute] as const;
           const match = Route.match(routes, "/renderer-dispose-effect/atlas");
           expect(match).toBeDefined();
@@ -1950,10 +2004,12 @@ describe("createBrowserRouter", () => {
           const ref = ProjectById("atlas");
           yield* runtime.provide(Resource.preload(ref));
 
-          const ProjectRoute = Route.define("/pending-runtime/:id", {
-            preload: () => Deferred.await(release),
-            component: () => "project",
-          });
+          const ProjectRoute = Route.withComponent(
+            Route.define("/pending-runtime/:id", {
+              preload: () => Deferred.await(release),
+            }),
+            () => "project",
+          );
           const container = document.createElement("div");
           const dispose = render(
             () =>
@@ -1986,30 +2042,26 @@ describe("createBrowserRouter", () => {
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const events: Array<string> = [];
-          const OldRoute = Route.define("/old", {
-            component: () => {
-              events.push("old:setup");
-              onDispose(() => Effect.sync(() => events.push("old:cleanup")));
-              const element = document.createElement("span");
-              element.textContent = "old";
-              return element;
-            },
+          const OldRoute = Route.withComponent(Route.define("/old"), () => {
+            events.push("old:setup");
+            onDispose(() => Effect.sync(() => events.push("old:cleanup")));
+            const element = document.createElement("span");
+            element.textContent = "old";
+            return element;
           });
-          const NewRoute = Route.define("/new", {
-            component: () => {
-              events.push("new:setup");
-              onDispose(() => Effect.sync(() => events.push("new:cleanup")));
-              const element = document.createElement("span");
-              element.textContent = "new";
-              return element;
-            },
+          const NewRoute = Route.withComponent(Route.define("/new"), () => {
+            events.push("new:setup");
+            onDispose(() => Effect.sync(() => events.push("new:cleanup")));
+            const element = document.createElement("span");
+            element.textContent = "new";
+            return element;
           });
           const routes = [OldRoute, NewRoute] as const;
 
           let router: BrowserRouter<typeof routes> | undefined;
           const CaptureRouter = () => {
             router = useRouter<typeof routes>();
-            return createComponent(RouterOutlet, {});
+            return createComponent(RouterOutlet, { router: useRouter() });
           };
           const container = document.createElement("div");
           const dispose = render(
@@ -2057,13 +2109,9 @@ describe("createBrowserRouter", () => {
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const renderError = new Error("route render failed");
-          const GoodRoute = Route.define("/render-good", {
-            component: () => "good",
-          });
-          const ThrowingRoute = Route.define("/render-throw", {
-            component: () => {
-              throw renderError;
-            },
+          const GoodRoute = Route.withComponent(Route.define("/render-good"), () => "good");
+          const ThrowingRoute = Route.withComponent(Route.define("/render-throw"), () => {
+            throw renderError;
           });
           const routes = [GoodRoute, ThrowingRoute] as const;
 
@@ -2077,7 +2125,7 @@ describe("createBrowserRouter", () => {
                 return "caught";
               },
               get children() {
-                return createComponent(RouterOutlet, {});
+                return createComponent(RouterOutlet, { router: useRouter() });
               },
             });
           };
@@ -2124,13 +2172,13 @@ describe("createBrowserRouter", () => {
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const preloadFailure = "missing-project" as const;
-          const GoodRoute = Route.define("/preload-good", {
-            component: () => "good",
-          });
-          const FailingRoute = Route.define("/preload-fail", {
-            preload: () => Effect.fail(preloadFailure).pipe(Effect.asVoid),
-            component: () => "never",
-          });
+          const GoodRoute = Route.withComponent(Route.define("/preload-good"), () => "good");
+          const FailingRoute = Route.withComponent(
+            Route.define("/preload-fail", {
+              preload: () => Effect.fail(preloadFailure).pipe(Effect.asVoid),
+            }),
+            () => "never",
+          );
           const routes = [GoodRoute, FailingRoute] as const;
 
           let router: BrowserRouter<typeof routes, RoutePreloadError> | undefined;
@@ -2143,7 +2191,7 @@ describe("createBrowserRouter", () => {
                 return "failed";
               },
               get children() {
-                return createComponent(RouterOutlet, {});
+                return createComponent(RouterOutlet, { router: useRouter() });
               },
             });
           };
@@ -2194,10 +2242,12 @@ describe("createBrowserRouter", () => {
           const runtime = makeRuntime();
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const FailingRoute = Route.define("/renderer-failure", {
-            preload: () => Effect.fail("offline" as const).pipe(Effect.asVoid),
-            component: () => "never",
-          });
+          const FailingRoute = Route.withComponent(
+            Route.define("/renderer-failure", {
+              preload: () => Effect.fail("offline" as const).pipe(Effect.asVoid),
+            }),
+            () => "never",
+          );
           const routes = [FailingRoute] as const;
           type FailureState = Extract<
             BrowserRouterState<typeof routes, "offline">,
@@ -2255,21 +2305,17 @@ describe("createBrowserRouter", () => {
           const ref = ProjectById("atlas");
           yield* runtime.provide(Resource.preload(ref));
 
-          const OldRoute = Route.define("/scope-old", {
-            component: () => {
-              onDispose(() => Resource.evict(ref));
-              return "old";
-            },
+          const OldRoute = Route.withComponent(Route.define("/scope-old"), () => {
+            onDispose(() => Resource.evict(ref));
+            return "old";
           });
-          const NewRoute = Route.define("/scope-new", {
-            component: () => "new",
-          });
+          const NewRoute = Route.withComponent(Route.define("/scope-new"), () => "new");
           const routes = [OldRoute, NewRoute] as const;
 
           let router: BrowserRouter<typeof routes> | undefined;
           const CaptureRouter = () => {
             router = useRouter<typeof routes>();
-            return createComponent(RouterOutlet, {});
+            return createComponent(RouterOutlet, { router: useRouter() });
           };
           const container = document.createElement("div");
           const dispose = render(
@@ -2322,23 +2368,22 @@ describe("createBrowserRouter", () => {
           yield* routerRuntime.provide(Resource.preload(ref));
 
           const cleanupStatuses: Array<string> = [];
-          const OldRoute = Route.define("/solid-cleanup-runtime-old", {
-            component: () => {
-              onCleanup(() => {
-                cleanupStatuses.push(Effect.runSync(Resource.status(ref)).result._tag);
-              });
-              return "old";
-            },
+          const OldRoute = Route.withComponent(Route.define("/solid-cleanup-runtime-old"), () => {
+            onCleanup(() => {
+              cleanupStatuses.push(Effect.runSync(Resource.status(ref)).result._tag);
+            });
+            return "old";
           });
-          const NewRoute = Route.define("/solid-cleanup-runtime-new", {
-            component: () => "new",
-          });
+          const NewRoute = Route.withComponent(
+            Route.define("/solid-cleanup-runtime-new"),
+            () => "new",
+          );
           const routes = [OldRoute, NewRoute] as const;
 
           let router: BrowserRouter<typeof routes> | undefined;
           const CaptureRouter = () => {
             router = useRouter<typeof routes>();
-            return createComponent(RouterOutlet, {});
+            return createComponent(RouterOutlet, { router: useRouter() });
           };
           const container = document.createElement("div");
           const dispose = render(
@@ -2391,31 +2436,27 @@ describe("createBrowserRouter", () => {
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const events: Array<string> = [];
-          const OldRoute = Route.define("/solid-old", {
-            component: () => {
-              events.push("old:setup");
-              onCleanup(() => {
-                events.push("old:solid-cleanup");
-              });
-              const element = document.createElement("span");
-              element.textContent = "old";
-              return element;
-            },
+          const OldRoute = Route.withComponent(Route.define("/solid-old"), () => {
+            events.push("old:setup");
+            onCleanup(() => {
+              events.push("old:solid-cleanup");
+            });
+            const element = document.createElement("span");
+            element.textContent = "old";
+            return element;
           });
-          const NewRoute = Route.define("/solid-new", {
-            component: () => {
-              events.push(`new:setup:${events.includes("old:solid-cleanup")}`);
-              const element = document.createElement("span");
-              element.textContent = "new";
-              return element;
-            },
+          const NewRoute = Route.withComponent(Route.define("/solid-new"), () => {
+            events.push(`new:setup:${events.includes("old:solid-cleanup")}`);
+            const element = document.createElement("span");
+            element.textContent = "new";
+            return element;
           });
           const routes = [OldRoute, NewRoute] as const;
 
           let router: BrowserRouter<typeof routes> | undefined;
           const CaptureRouter = () => {
             router = useRouter<typeof routes>();
-            return createComponent(RouterOutlet, {});
+            return createComponent(RouterOutlet, { router: useRouter() });
           };
           const container = document.createElement("div");
           const dispose = render(
@@ -2458,35 +2499,31 @@ describe("createBrowserRouter", () => {
 
           const events: Array<string> = [];
           const release = yield* Deferred.make<void>();
-          const OldRoute = Route.define("/async-old", {
-            component: () => {
-              events.push("old:setup");
-              onDispose(() =>
-                Effect.gen(function* () {
-                  events.push("old:scope-start");
-                  yield* Deferred.await(release);
-                  events.push("old:scope-done");
-                }),
-              );
-              const element = document.createElement("span");
-              element.textContent = "old";
-              return element;
-            },
+          const OldRoute = Route.withComponent(Route.define("/async-old"), () => {
+            events.push("old:setup");
+            onDispose(() =>
+              Effect.gen(function* () {
+                events.push("old:scope-start");
+                yield* Deferred.await(release);
+                events.push("old:scope-done");
+              }),
+            );
+            const element = document.createElement("span");
+            element.textContent = "old";
+            return element;
           });
-          const NewRoute = Route.define("/async-new", {
-            component: () => {
-              events.push(`new:setup:${events.includes("old:scope-start")}`);
-              const element = document.createElement("span");
-              element.textContent = "new";
-              return element;
-            },
+          const NewRoute = Route.withComponent(Route.define("/async-new"), () => {
+            events.push(`new:setup:${events.includes("old:scope-start")}`);
+            const element = document.createElement("span");
+            element.textContent = "new";
+            return element;
           });
           const routes = [OldRoute, NewRoute] as const;
 
           let router: BrowserRouter<typeof routes> | undefined;
           const CaptureRouter = () => {
             router = useRouter<typeof routes>();
-            return createComponent(RouterOutlet, {});
+            return createComponent(RouterOutlet, { router: useRouter() });
           };
           const container = document.createElement("div");
           const dispose = render(
@@ -2539,21 +2576,19 @@ describe("createBrowserRouter", () => {
           yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const events: Array<string> = [];
-          const RouteWithCleanup = Route.define("/cleanup", {
-            component: () => {
-              events.push("setup");
-              onCleanup(() => {
-                events.push("solid-cleanup");
-              });
-              onDispose(() =>
-                Effect.sync(() => {
-                  events.push(`scope-cleanup:${events.includes("solid-cleanup")}`);
-                }),
-              );
-              const element = document.createElement("span");
-              element.textContent = "cleanup";
-              return element;
-            },
+          const RouteWithCleanup = Route.withComponent(Route.define("/cleanup"), () => {
+            events.push("setup");
+            onCleanup(() => {
+              events.push("solid-cleanup");
+            });
+            onDispose(() =>
+              Effect.sync(() => {
+                events.push(`scope-cleanup:${events.includes("solid-cleanup")}`);
+              }),
+            );
+            const element = document.createElement("span");
+            element.textContent = "cleanup";
+            return element;
           });
 
           const dispose = createRoot((rootDispose) => {
@@ -2600,16 +2635,18 @@ describe("createBrowserRouter", () => {
           });
           const ref = ProjectById("atlas");
           let renderedStatus: string | undefined;
-          const ProjectRoute = Route.define("/runtime-projects/:id", {
-            preload: () => Resource.preload(ref),
-            component: () => {
+          const ProjectRoute = Route.withComponent(
+            Route.define("/runtime-projects/:id", {
+              preload: () => Resource.preload(ref),
+            }),
+            () => {
               const status = Effect.runSync(Resource.status(ref)).result;
               renderedStatus = status._tag;
               const element = document.createElement("span");
               element.textContent = status._tag;
               return element;
             },
-          });
+          );
           const container = document.createElement("div");
           const dispose = render(
             () =>
@@ -2623,7 +2660,7 @@ describe("createBrowserRouter", () => {
                       return createComponent(RuntimeProvider, {
                         runtime: innerRuntime,
                         get children() {
-                          return createComponent(RouterOutlet, {});
+                          return createComponent(RouterOutlet, { router: useRouter() });
                         },
                       });
                     },

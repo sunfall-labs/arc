@@ -1,4 +1,9 @@
-import type { EffectInputCallbackError } from "@sunfall/arc-core";
+import {
+  ActionOptimisticRowsTypeId,
+  EffectInputCallbackError,
+  type ActionOptimisticRowChange,
+  type ActionOptimisticRowsLayer,
+} from "@sunfall/arc-core";
 import { Effect, Option } from "effect";
 import {
   CollectionRowKeyChanged,
@@ -9,27 +14,26 @@ import { CollectionTypeId } from "./collection-ids.js";
 import { CollectionPreloadCollector } from "./collection-preload.js";
 import {
   applyCollectionBaseRow,
+  applyOptimisticRowMutation,
   augmentCollectionRow,
+  commitOptimisticTransaction,
   deleteCollectionBaseRow,
   rebaseCollectionBaseRows,
+  rebaseOptimisticRows,
+  rollbackOptimisticTransaction,
   type CollectionState,
+  type OptimisticRowMutation,
   type StoredRow,
 } from "./collection-state.js";
 import { rowsByCollectionIndex } from "./collection-index-materialization.js";
 import type { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
 import { ingestCollectionOutputRowsEffect } from "./collection-row-ingress.js";
-import { pendingMutationSnapshots } from "./collection-mutation-queue.js";
+import { collectionValueChanges } from "./collection-value-detachment.js";
 import {
   applyCollectionUpdateEffect,
   collectionStateEffect,
   ensureCollectionRowKey,
 } from "./collection-projection-callback-policy.js";
-import {
-  deleteCollectionMutationEffect,
-  flushCollectionPendingMutationsEffect,
-  insertCollectionMutationEffect,
-  updateCollectionMutationEffect,
-} from "./collection-mutation-workflow.js";
 import {
   collectionPersistenceKey,
   dehydrateCollections as dehydrateCollectionsWithStore,
@@ -65,14 +69,12 @@ import type {
   CollectionIndexValue,
   CollectionKey,
   CollectionOptions,
-  CollectionPendingMutation,
   CollectionPersistenceStorage,
   CollectionPersistOptions,
   CollectionRow,
   CollectionRuntimeError,
   CollectionSnapshot,
   CollectionStoreEvent,
-  CollectionUpdate,
   CollectionWriteOptions,
 } from "./collection-contract.js";
 
@@ -114,15 +116,6 @@ const rowsByIndex = <A extends object, K extends CollectionKey, E, R>(
   return rowsByCollectionIndex(definition, state, index, value);
 };
 
-const collectionPendingMutations = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  store: RuntimeCollectionStore = currentCollectionStore() as RuntimeCollectionStore,
-): ReadonlyArray<CollectionPendingMutation<A, K>> => {
-  const state = collectionState(definition, store);
-  state.version.get();
-  return pendingMutationSnapshots(state);
-};
-
 const snapshotCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
 ): Effect.Effect<
@@ -162,7 +155,7 @@ const restoreCollectionEffect = <A extends object, K extends CollectionKey, E, R
 const persistForReasonEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   store: RuntimeCollectionStore,
-  reason: "load" | "mutation" | "write",
+  reason: "load" | "write",
 ): Effect.Effect<void, E | CollectionSnapshotCodecError | EffectInputCallbackError, R> =>
   persistCollectionForReasonEffect(definition, store, collectionStoreEffect, reason);
 
@@ -327,6 +320,103 @@ const applyCollectionChangesEffect = <A extends object, K extends CollectionKey,
     applyCollectionChangesWithStoreEffect(definition, dbStore, changes, options),
   );
 
+const optimisticRowsError = (
+  definition: AnyCollection,
+  change: ActionOptimisticRowChange<any, any>,
+  cause: unknown,
+): EffectInputCallbackError =>
+  cause instanceof EffectInputCallbackError
+    ? cause
+    : new EffectInputCallbackError({
+        operation: `Action.optimistic: ${change._tag.toLowerCase()}(${definition.name})`,
+        cause,
+        guidance:
+          "Optimistic rows must decode with the collection's output schema and keep their key. Patch read-only live-query collections through their source collections.",
+      });
+
+/** Plans the row mutations one optimistic change makes against the visible rows. */
+const optimisticRowMutationsEffect = <A extends object, K extends CollectionKey, E, R>(
+  definition: CollectionDefinition<A, K, E, R>,
+  state: CollectionState<A, K, E>,
+  change: ActionOptimisticRowChange<A, K>,
+): Effect.Effect<ReadonlyArray<OptimisticRowMutation<A, K>>, unknown> =>
+  Effect.gen(function* () {
+    const ingest = (values: ReadonlyArray<A>) =>
+      ingestCollectionOutputRowsEffect(definition, values, {
+        operation: "mutation",
+        path: `$.collections[${definition.name}].optimistic`,
+        synced: false,
+        origin: "local",
+      });
+    switch (change._tag) {
+      case "Insert":
+        return (yield* ingest(change.values)).map(
+          (row): OptimisticRowMutation<A, K> => ({
+            _tag: "Insert",
+            key: row.key,
+            value: row.value,
+          }),
+        );
+      case "Update": {
+        const row = state.rows.get(change.key);
+        if (!row) {
+          return [];
+        }
+        const updated = yield* applyCollectionUpdateEffect(definition, row.value, change.update);
+        const [next] = yield* ingest([updated.value]);
+        yield* ensureCollectionRowKey(definition, change.key, next!.key);
+        return [
+          {
+            _tag: "Update",
+            key: change.key,
+            changes: collectionValueChanges(row.value, next!.value),
+          },
+        ];
+      }
+      case "Delete":
+        return state.rows.has(change.key) ? [{ _tag: "Delete", key: change.key }] : [];
+    }
+  });
+
+/**
+ * Applies one optimistic Action change as a layer over the synced rows of the
+ * current runtime's store, and returns that layer's commit and rollback.
+ * Patches only change what renders: they skip persistence and store events.
+ */
+const applyOptimisticRowsEffect = <A extends object, K extends CollectionKey, E, R>(
+  definition: CollectionDefinition<A, K, E, R>,
+  transactionId: string,
+  change: ActionOptimisticRowChange<A, K>,
+): Effect.Effect<ActionOptimisticRowsLayer> =>
+  Effect.gen(function* () {
+    if (definition.readOnly === true) {
+      return yield* Effect.fail(
+        new ReadonlyCollectionMutation({ collection: definition.name, operation: "optimistic" }),
+      );
+    }
+    const store = yield* collectionStoreEffect;
+    const state = yield* collectionStateEffect(definition, store);
+    const mutations = yield* optimisticRowMutationsEffect(definition, state, change);
+    if (mutations.length > 0) {
+      for (const mutation of mutations) {
+        applyOptimisticRowMutation(state, transactionId, mutation);
+      }
+      rebaseOptimisticRows(
+        state,
+        mutations.map((mutation) => mutation.key),
+      );
+    }
+    return {
+      commit: Effect.sync(() => commitOptimisticTransaction(state, transactionId)),
+      rollback: Effect.sync(() => rollbackOptimisticTransaction(state, transactionId)),
+    };
+  }).pipe(
+    // A change the collection rejects breaks the optimistic patch contract: a defect.
+    Effect.catch((cause) =>
+      Effect.die(optimisticRowsError(definition as AnyCollection, change, cause)),
+    ),
+  );
+
 export const defineCollection = <
   A extends object,
   K extends CollectionKey = string,
@@ -344,6 +434,10 @@ export const defineCollection = <
   );
   definition = {
     [CollectionTypeId]: CollectionTypeId,
+    [ActionOptimisticRowsTypeId]: {
+      apply: (transactionId: string, change: ActionOptimisticRowChange<A, K>) =>
+        applyOptimisticRowsEffect(definition, transactionId, change),
+    },
     options,
     name: options.name,
     getKey: options.getKey,
@@ -375,8 +469,6 @@ export const defineCollection = <
         yield* runCollectionSyncLoadPolicyEffect(definition, { force: true });
         yield* followSync;
       }),
-    pendingMutations: () => collectionPendingMutations(definition),
-    flushPendingMutations: () => flushCollectionPendingMutationsEffect(definition),
     snapshot: () => snapshotCollectionEffect(definition),
     hydrate: (snapshot: CollectionSnapshot<A, K>, hydrateOptions?: CollectionHydrateOptions) =>
       hydrateCollectionEffect(definition, snapshot, hydrateOptions),
@@ -388,10 +480,6 @@ export const defineCollection = <
       storage: CollectionPersistenceStorage<PE, PR>,
       restoreOptions?: CollectionPersistOptions & CollectionHydrateOptions,
     ) => restoreCollectionEffect(definition, storage, restoreOptions),
-    insert: (input: A | ReadonlyArray<A>) => insertCollectionMutationEffect(definition, input),
-    update: (key: K, update: CollectionUpdate<A>) =>
-      updateCollectionMutationEffect(definition, key, update),
-    delete: (key: K) => deleteCollectionMutationEffect(definition, key),
     applyChanges: (
       changes: ReadonlyArray<CollectionChange<A, K>>,
       writeOptions?: CollectionWriteOptions,

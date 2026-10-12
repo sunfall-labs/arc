@@ -1,13 +1,10 @@
-import { isEffectLike, isPromiseLikeValue } from "@sunfall/arc-core";
+import {
+  isEffectLike,
+  isPromiseLikeValue,
+  type ActionOptimisticRowUpdate,
+} from "@sunfall/arc-core";
 import { Data } from "effect";
-import type {
-  CollectionKey,
-  CollectionMutation,
-  CollectionOrigin,
-  CollectionRow,
-  CollectionTransaction,
-  CollectionUpdate,
-} from "./collection-contract.js";
+import type { CollectionKey, CollectionOrigin, CollectionRow } from "./collection-contract.js";
 
 export interface CollectionExecutableValuePath {
   readonly path: string;
@@ -248,53 +245,6 @@ export const freezeCollectionValue = <A>(value: A, seen = new WeakSet<object>())
 export const cloneFrozenCollectionValue = <A>(value: A): A =>
   freezeCollectionValue(cloneCollectionValue(value));
 
-export const cloneCollectionMutation = <A extends object, K extends CollectionKey>(
-  mutation: CollectionMutation<A, K>,
-): CollectionMutation<A, K> => {
-  switch (mutation._tag) {
-    case "Insert":
-      return mutation.previous === undefined
-        ? {
-            _tag: "Insert",
-            key: mutation.key,
-            value: cloneCollectionValue(mutation.value),
-          }
-        : {
-            _tag: "Insert",
-            key: mutation.key,
-            value: cloneCollectionValue(mutation.value),
-            previous: cloneCollectionValue(mutation.previous),
-          };
-    case "Update":
-      return {
-        _tag: "Update",
-        key: mutation.key,
-        previous: cloneCollectionValue(mutation.previous),
-        value: cloneCollectionValue(mutation.value),
-        changes: cloneCollectionValue(mutation.changes),
-      };
-    case "Delete":
-      return {
-        _tag: "Delete",
-        key: mutation.key,
-        previous: cloneCollectionValue(mutation.previous),
-      };
-  }
-};
-
-export const cloneCollectionTransaction = <A extends object, K extends CollectionKey>(
-  transaction: CollectionTransaction<A, K>,
-): CollectionTransaction<A, K> => ({
-  id: transaction.id,
-  collection: transaction.collection,
-  mutations: transaction.mutations.map(cloneCollectionMutation),
-});
-
-export const cloneFrozenCollectionTransaction = <A extends object, K extends CollectionKey>(
-  transaction: CollectionTransaction<A, K>,
-): CollectionTransaction<A, K> =>
-  cloneFrozenCollectionValue(cloneCollectionTransaction(transaction));
-
 export const detachCollectionRow = <A extends object, K extends CollectionKey>(options: {
   readonly collection: string;
   readonly key: K;
@@ -321,7 +271,7 @@ export const collectionValueChanges = <A extends object>(previous: A, value: A):
 
 export const applyCollectionUpdate = <A extends object>(
   previous: A,
-  update: CollectionUpdate<A>,
+  update: ActionOptimisticRowUpdate<A>,
 ): {
   readonly value: A;
   readonly changes: Partial<A>;

@@ -11,23 +11,29 @@ type-checks it and fails if a snippet on this page no longer matches its file
 
 ## Pick The Tool
 
-| I need to...                                                          | Use                                                                      | Not when                                                                               |
-| --------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
-| read server data                                                      | **Resource**: `Resource.define`, read with `Component.resource`          | the data never leaves the client (Signal), or you edit rows locally (Collection)       |
-| change server data                                                    | **Action**: `Action.define` with `invalidates` tags                      | the change is local UI state (Signal), or it is an optimistic row edit (Collection)    |
-| hold client-only UI state                                             | **Signal**: `Signal.make` in Component setup                             | it has many messages, transitions, or async follow-ups: use a Program                  |
-| run a state machine with many messages                                | **Program**: `Program.define`, bound with `Component.program`            | one or two independent values: use Signals                                             |
-| keep normalized rows with optimistic writes, indexes, or live queries | **Collection**: `Collection.define({ sync: ref })`, backed by a Resource | you only render a list you fetched: a Resource is enough                               |
-| build a screen or feature that reads or writes state                  | **Component**: `Component.define`                                        | it only renders props: write a plain Solid function                                    |
-| map a URL to a screen and its data                                    | **Route**: `Route.define`, or `FileRoute.define` in Start                | the state is not addressable (a modal, a tab): use a Signal                            |
-| call a backend or service                                             | **Capability**: `Capability.define` plus a Layer per host                | it is pure computation: write a function                                               |
-| wire and start the app                                                | `App.define` (server), `Component.launch` (client)                       | never skip it: `launch` is where missing services and unhandled failures become errors |
-| answer "how did the UI get into this state?"                          | **Timeline**: `Timeline.record`, then `travel`                           | production telemetry: use [devtools](devtools.md) summaries                            |
+| I need to...                                                         | Use                                                                          | Not when                                                                           |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| read server data                                                     | **Resource**: `Resource.define`, read with `Component.resource`              | the data never leaves the client (Signal), or you edit rows locally (Collection)   |
+| change server data                                                   | **Action**: `Action.define` with `invalidates` tags                          | the change is local UI state: use a Signal                                         |
+| hold client-only UI state                                            | **Signal**: `Signal.make` in Component setup                                 | it has many messages, transitions, or async follow-ups: use a Program              |
+| run a state machine with many messages                               | **Program**: `Program.define`, bound with `Component.program`                | one or two independent values: use Signals                                         |
+| keep normalized rows with indexes, live queries, or optimistic edits | **Collection**: `Collection.define({ sync: ref })`, backed by a Resource     | you only render a list you fetched: a Resource is enough                           |
+| build a screen or feature that reads or writes state                 | **Component**: `Component.define`                                            | it only renders props: write a plain Solid function                                |
+| map a URL to a screen and its data                                   | **Route**: `Route.define`, or `FileRoute.define` in Start                    | the state is not addressable (a modal, a tab): use a Signal                        |
+| call a backend or service                                            | **Capability**: `Capability.define` plus a Layer per host                    | it is pure computation: write a function                                           |
+| wire and start the app                                               | `App.define`, then `createRequestHandler` (server) and `App.launch` (client) | never skip it: this is where missing services and unhandled failures become errors |
+| answer "how did the UI get into this state?"                         | **Timeline**: `Timeline.record`, then `travel`                               | production telemetry: use [devtools](devtools.md) summaries                        |
 
 Two defaults settle most arguments:
 
-- **Mutations are Actions.** Reach for a Collection write only when the rows
-  themselves must change before the server answers.
+- **Mutations are Actions.** Every change to server data is an Action. When
+  the screen must change before the server answers, the Action's `optimistic`
+  patches Signals and Collection rows, and a failure rolls them back.
+- **A failure that can reach rendering joins `E`; a failure of work you start
+  is yours.** Resource readers and Collection rows add their load errors to
+  the Component's `E`, so `catchTags` must handle them before `launch`
+  compiles. `submit`, `dispatch`, and `preload` return their failures, and
+  `Component.callback` makes the handler deal with them.
 - **State that matters has a typed owner.** If rendering, caching, testing, or
   debugging depends on it, it belongs in one of the definitions above, not in
   ad hoc component locals.
@@ -48,7 +54,7 @@ Two defaults settle most arguments:
                 └─── Component ────────────┘
           (Component.resource / callback / program, Signals in setup)
                          │
-    App.define (server) · Component.embed (SSR) · Component.launch (client)
+    App.define ── createRequestHandler (server) · App.launch (browser)
 
   Timeline.record observes every commit underneath all of it.
 ```
@@ -181,7 +187,7 @@ function ProjectHeader(props: { readonly project: Project }) {
   `failure` drive the status chrome around it.
 - The load's `ProjectNotFound` joined the Component's error type, so
   `Component.catchTags` must handle it before the app can launch. Remove the
-  boundary and `Component.launch` stops compiling.
+  boundary and `App.define` stops compiling.
 - `ProjectHeader` is a plain Solid function. Presentational leaves need no
   Component.
 
@@ -196,7 +202,7 @@ failure of that preload.
 
 ```ts
 import { Resource, Route } from "@sunfall/arc-core";
-import { Effect, Schema } from "effect";
+import { Schema } from "effect";
 import { ProjectById, ProjectId, ProjectList, ProjectNotFound, ProjectsRef } from "./projects.js";
 
 export const ProjectsRoute = Route.define("/", {
@@ -204,21 +210,13 @@ export const ProjectsRoute = Route.define("/", {
   preload: () => Resource.preload(ProjectsRef),
 });
 
-const preloadProject = (id: ProjectId) =>
-  Effect.all([Resource.preload(ProjectsRef), Resource.preload(ProjectById(id))], {
-    discard: true,
-  }).pipe(
-    // A load callback that throws is a bug, not a typed failure.
-    Effect.catchTag("EffectInputCallbackError", Effect.die),
-  );
-
 export const ProjectRoute = Route.define("/projects/:id", {
   params: Schema.Struct({ id: ProjectId }),
   // The preload may fail only with this schema's type; Start encodes the
   // failure with it so the hydrating client renders the same failure view.
   error: ProjectNotFound,
   preloadResources: [ProjectList, ProjectById],
-  preload: ({ params }) => preloadProject(params.id),
+  preload: ({ params }) => Resource.preload([ProjectsRef, ProjectById(params.id)]),
 });
 
 export const routes = [ProjectsRoute, ProjectRoute] as const;
@@ -257,7 +255,7 @@ export const ProjectSidebar = Component.define("ProjectSidebar", function* () {
 ```
 
 The app root yields its router and children. Every route view's services and
-failures join `App`, so `Component.launch(App, ...)` checks all of them.
+failures join `App`, so `App.define` checks all of them.
 
 `src/app.tsx`:
 
@@ -268,39 +266,29 @@ import { Route } from "@sunfall/arc-core";
 import { Component, RouterOutlet, RouterProvider } from "@sunfall/arc-solid";
 import { ProjectSidebar } from "./project-list.js";
 import { ProjectPage } from "./project-page.js";
-import { ProjectNotFound } from "./projects.js";
 import { ProjectRoute, ProjectsRoute } from "./routes.js";
-
-// A route view adapts route params to a feature Component.
-const ProjectRouteView = Component.define(
-  "ProjectRouteView",
-  function* (props: Route.Props<typeof ProjectRoute>) {
-    const Page = yield* ProjectPage;
-    return () => <Page id={props.params.id} />;
-  },
-);
 
 const routes = [
   Route.withComponent(ProjectsRoute, () => <p>Pick a project.</p>),
-  Route.withComponent(ProjectRoute, ProjectRouteView),
+  // The third argument maps the route's params to the page's props.
+  Route.withComponent(ProjectRoute, ProjectPage, ({ params }) => ({ id: params.id })),
 ] as const;
 
-export const App = Component.define("App", function* (props: { readonly initialHref?: string }) {
-  const router = yield* Component.router(
-    routes,
-    props.initialHref === undefined ? {} : { initialHref: props.initialHref },
-  );
+// Start passes the root the href it renders: the request's on the server, the
+// page's in the browser.
+export const App = Component.define("App", function* (props: { readonly href: string }) {
+  const router = yield* Component.router(routes, { initialHref: props.href });
   const Sidebar = yield* ProjectSidebar;
 
   return () => (
     <RouterProvider router={router}>
       <Sidebar />
       <main>
-        <RouterOutlet<typeof routes>
-          failure={(state) =>
-            state.error?._tag === "RoutePreloadError" &&
-            state.error.cause instanceof ProjectNotFound ? (
-              <p>No project "{state.error.cause.id}".</p>
+        <RouterOutlet
+          router={router}
+          failure={({ error }) =>
+            error?._tag === "RoutePreloadError" && error.cause._tag === "ProjectNotFound" ? (
+              <p>No project "{error.cause.id}".</p>
             ) : (
               <p>Something went wrong.</p>
             )
@@ -312,10 +300,21 @@ export const App = Component.define("App", function* (props: { readonly initialH
 });
 ```
 
+- `Resource.preload` (like `refresh` and `invalidate`) takes one ref or an
+  array; an array loads concurrently. A preload fails only with the
+  Resources' declared errors: a load callback that throws is a defect.
+- `preload` is inferred from its own body, then checked against `error`: fail
+  with anything the schema does not declare and the type error names it
+  (`RoutePreloadFailureNotInErrorSchema<...>`).
 - `error: ProjectNotFound` makes the preload's failure typed end to end: the
-  `RouterOutlet` failure view reads `state.error.cause.id`, and during SSR the
-  server and the hydrating client render that view from the same encoded
-  failure.
+  `RouterOutlet` failure view, typed from its `router`, narrows
+  `error.cause._tag` to read `id`, and during SSR the server and the hydrating
+  client render that view from the same encoded failure. A route without an
+  `error` schema fails with `RoutePreloadUntypedFailure`, which carries only
+  the failure's `tag`.
+- `Route.withComponent(route, Component, (route) => props)` binds a feature
+  Component to a route directly; without the mapper the Component takes
+  `Route.Props<typeof route>`.
 - Preloaded Resources read synchronously in the page, so navigation and
   hydration show no loading flash.
 - In a Start app, each route moves to `src/routes/<path>.ts` as
@@ -329,13 +328,12 @@ concurrency and retry policy, and the tags it invalidates.
 
 `src/rename.tsx`:
 
-<!-- snippet: type-tests/golden-path/rename.tsx -->
+<!-- snippet: type-tests/golden-path/rename.step-4.tsx -->
 
 ```tsx
 import { Action } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
-import { Effect, Option, Schema } from "effect";
-import { AsyncResult } from "effect/reactivity";
+import { Cause, Effect, Schema } from "effect";
 import { Show } from "solid-js";
 import { Project, ProjectApi, ProjectId, ProjectTag, ProjectsTag } from "./projects.js";
 
@@ -355,12 +353,11 @@ export const RenameForm = Component.define(
   "RenameForm",
   function* (props: { readonly project: Project }) {
     const rename = yield* Component.action(RenameProject);
-    // A DOM handler cannot report a typed failure, so the callback must handle
-    // it. The outcome (including the failure) lands in `rename.result()`.
+    // `submit` fails with the Action's errors; a DOM handler cannot report them,
+    // so the callback must handle them. `failure()` still shows the latest one.
     const save = yield* Component.callback((name: string) =>
       rename.submit({ id: props.project.id, name }).pipe(Effect.ignore),
     );
-    const error = () => Option.getOrUndefined(AsyncResult.error(rename.result()));
 
     return () => (
       <form
@@ -370,10 +367,12 @@ export const RenameForm = Component.define(
         }}
       >
         <input name="name" value={props.project.name} />
-        <button type="submit" disabled={rename.result().waiting}>
+        <button type="submit" disabled={rename.waiting()}>
           Rename
         </button>
-        <Show when={error()}>{(failure) => <p role="alert">{failure()._tag}</p>}</Show>
+        <Show when={rename.failure()}>
+          {(cause) => <p role="alert">Rename failed: {Cause.pretty(cause())}</p>}
+        </Show>
       </form>
     );
   },
@@ -407,18 +406,21 @@ The page yields the form like any child Component:
          <Show when={project.failure(props.id)}>
 ```
 
-- `rename.submit(...)` returns an Effect. Handle-members that run work return
-  Effects, and `Component.callback` is the one bridge from an Effect to a DOM
-  handler. It requires the failure to be handled (`E = never`), which is why
-  `Effect.ignore` is there: the failure still lands in `rename.result()`.
+- `rename.submit(...)` returns an Effect that fails with the Action's errors.
+  Handle-members that run work return Effects, and `Component.callback` is the
+  one bridge from an Effect to a DOM handler. It requires the failure to be
+  handled (`E = never`), which is why `Effect.ignore` is there.
+- `rename.waiting()` and `rename.failure()` drive the chrome, with the same
+  names and meaning as the Resource reader's `waiting` and `failure`.
+  `rename.result()` holds the full `AsyncResult`, including the latest value.
 - On success, `invalidates` reloads every Resource that provided `ProjectsTag`
   or this project's `ProjectTag`. The page keeps its content mounted while
   `waiting` is true, so the form keeps focus.
 
 ### 5. Upgrade the list to a Collection
 
-The sidebar wants per-status filtering and, later, optimistic edits. That is
-a Collection's job: keyed rows, indexes, and pending writes. Back it with the
+The sidebar wants per-status filtering and an instant rename. That is a
+Collection's job: keyed rows, indexes, and optimistic edits. Back it with the
 Resource you already have, and both stay in sync.
 
 `src/collection.ts`:
@@ -450,7 +452,6 @@ Signal:
 import { Signal } from "@sunfall/arc-core";
 import { Component, RouterLink } from "@sunfall/arc-solid";
 import { SolidDb } from "@sunfall/arc-solid-db";
-import { AsyncResult } from "effect/reactivity";
 import { For, Show } from "solid-js";
 import { Projects } from "./collection.js";
 import { ProjectRoute } from "./routes.js";
@@ -458,12 +459,13 @@ import { ProjectRoute } from "./routes.js";
 type Status = "active" | "archived";
 
 export const ProjectSidebar = Component.define("ProjectSidebar", function* () {
+  // E += the collection's load error, exactly like a Resource reader (here never).
   const projects = yield* SolidDb.collection(Projects);
   // Client-only UI state: a Signal per instance, named for the Timeline.
   const status = Signal.make<Status>("active", { name: "sidebar.status" });
 
   return () => (
-    <nav class={{ refreshing: projects.result().waiting }}>
+    <nav class={{ refreshing: projects.waiting() }}>
       <select
         value={status.get()}
         onChange={(event) => status.set(event.currentTarget.value as Status)}
@@ -478,8 +480,8 @@ export const ProjectSidebar = Component.define("ProjectSidebar", function* () {
           </RouterLink>
         )}
       </For>
-      <Show when={AsyncResult.isFailure(projects.result())}>
-        <p role="alert">Could not load projects.</p>
+      <Show when={projects.failure()}>
+        <p role="alert">Could not refresh projects.</p>
       </Show>
     </nav>
   );
@@ -493,10 +495,11 @@ The routes preload the collection so SSR renders its rows:
 <!-- snippet: type-tests/golden-path/routes.step-3.ts -> type-tests/golden-path/routes.ts -->
 
 ```diff
-@@ -1,13 +1,15 @@
+@@ -1,9 +1,11 @@
  import { Resource, Route } from "@sunfall/arc-core";
- import { Effect, Schema } from "effect";
+-import { Schema } from "effect";
 -import { ProjectById, ProjectId, ProjectList, ProjectNotFound, ProjectsRef } from "./projects.js";
++import { Effect, Schema } from "effect";
 +import { Projects } from "./collection.js";
 +import { ProjectById, ProjectId, ProjectList, ProjectNotFound } from "./projects.js";
 
@@ -507,182 +510,131 @@ The routes preload the collection so SSR renders its rows:
 +  preload: () => Projects.preload(),
  });
 
- const preloadProject = (id: ProjectId) =>
--  Effect.all([Resource.preload(ProjectsRef), Resource.preload(ProjectById(id))], {
-+  Effect.all([Projects.preload().pipe(Effect.orDie), Resource.preload(ProjectById(id))], {
-     discard: true,
-   }).pipe(
-@@ -22,4 +24,5 @@
+@@ -14,5 +16,7 @@
    error: ProjectNotFound,
    preloadResources: [ProjectList, ProjectById],
+-  preload: ({ params }) => Resource.preload([ProjectsRef, ProjectById(params.id)]),
 +  preloadCollections: [Projects],
-   preload: ({ params }) => preloadProject(params.id),
++  preload: ({ params }) =>
++    Effect.all([Projects.preload().pipe(Effect.orDie), Resource.preload(ProjectById(params.id))]),
  });
+
 ```
 
 - The rename Action did not change. Its `ProjectsTag` invalidation reloads
   `ProjectList`, and the collection follows the Resource with no second fetch.
-- Collection rows are readable in every load state, so there is no
-  `<Loading>`: `result()` drives the chrome. Collection failures stay in
-  `result()`; they do not join the Component's error type.
+- `Projects.preload()` can also fail with Collection runtime errors (snapshot
+  codec, callback contract) that `error: ProjectNotFound` does not declare, so
+  the route makes them defects with `Effect.orDie`.
+- Collection rows stay readable while a load is in flight and after a failed
+  refresh, so there is no `<Loading>`: `waiting()` and `failure()` drive the
+  chrome. If the collection never loaded and its load failed, the rows throw
+  that failure to `<Errored>`, so the load error joins the Component's `E`
+  exactly like a reader's. `ProjectsRef` cannot fail, so the sidebar's `E`
+  stays `never`.
 
-When the rows must change before the server answers, spell the same backing
-inline and add `update`. Writes apply immediately, rows report
-`$synced: false` until `update` commits, and a failure rolls them back:
+Make the rename instant with one line on the Action. `optimistic` patches the
+sidebar row before `run` starts: the row reads `$synced: false`, success keeps
+the new name until the `ProjectsTag` reload replaces it, and a failure or an
+interrupted submission rolls it back. The form did not change.
 
-`src/collection.ts` (optimistic variant):
+`src/rename.tsx`:
 
-<!-- snippet: type-tests/golden-path/collection.optimistic.tsx -->
+<!-- snippet: type-tests/golden-path/rename.step-4.tsx -> type-tests/golden-path/rename.tsx -->
 
-```tsx
-import { Resource } from "@sunfall/arc-core";
-import { Collection } from "@sunfall/arc-db";
-import { Component } from "@sunfall/arc-solid";
-import { Effect } from "effect";
-import { Project, ProjectApi, ProjectTag, ProjectsRef, type ProjectId } from "./projects.js";
+```diff
+@@ -3,4 +3,5 @@
+ import { Cause, Effect, Schema } from "effect";
+ import { Show } from "solid-js";
++import { Projects } from "./collection.js";
+ import { Project, ProjectApi, ProjectId, ProjectTag, ProjectsTag } from "./projects.js";
 
-// The same Resource-backed collection, spelled inline so it can commit writes.
-export const Projects = Collection.define({
-  name: "Projects.rows",
-  output: Project,
-  getKey: (project) => project.id,
-  indexes: { status: (project) => project.status },
-  sync: {
-    load: () => Resource.preload(ProjectsRef),
-    refresh: () => Resource.refresh(ProjectsRef),
-    follow: () => Resource.changes(ProjectsRef),
-    // Runs after the optimistic write; a failure rolls the row back.
-    update: ({ updates }) =>
-      Effect.forEach(updates, ({ key, value }) =>
-        ProjectApi.use((api) => api.rename({ id: key, name: value.name })).pipe(
-          Effect.andThen(Resource.invalidate(ProjectTag({ id: key }))),
-        ),
-      ),
-  },
-});
-
-export const QuickRename = Component.define(
-  "QuickRename",
-  function* (props: { readonly id: ProjectId }) {
-    // The row changes now (`$synced: false`) and settles when `update` commits.
-    const rename = yield* Component.callback((name: string) =>
-      Projects.update(props.id, { name }).pipe(Effect.ignore),
-    );
-    return () => <input onChange={(event) => rename(event.currentTarget.value)} />;
-  },
-);
+@@ -9,4 +10,7 @@
+   input: Schema.Struct({ id: ProjectId, name: Schema.String }),
+   output: Project,
++  // The sidebar row shows the new name at once (`$synced: false`); success
++  // keeps it until the reload lands, and a failure rolls it back.
++  optimistic: (input, transaction) => transaction.update(Projects, input.id, { name: input.name }),
+   run: (input) => ProjectApi.use((api) => api.rename(input)),
+   // After a success, every Resource that provides these tags reloads.
 ```
 
 ### 6. Server rendering and hydration with Start
 
-`App.define` is the server's view of the app: routes, the server Layer, and
-the Actions the server serves.
+`App.define` is the one definition both entries derive from: the root
+Component, the routes, the Collections that hydrate, the Actions the server
+serves, and the browser's Layer. Start passes the root the href it renders.
 
 `src/app-definition.ts`:
 
 <!-- snippet: type-tests/golden-path/app-definition.ts -->
 
 ```ts
-import { App } from "@sunfall/arc-core";
+import { App } from "@sunfall/arc-start";
+import { App as Root } from "./app.js";
+import { Projects } from "./collection.js";
 import { ProjectApiMemory } from "./projects.memory.js";
 import { servedActions } from "./rename.js";
 import { routes } from "./routes.js";
 
 export const app = App.define({
+  root: Root,
   routes,
-  client: { name: "BrowserLive" },
-  server: ProjectApiMemory,
-  registry: { actions: servedActions, serverFunctions: [] },
+  collections: [Projects],
+  actions: servedActions,
+  client: ProjectApiMemory, // stand-in: a real client Layer calls server functions
 });
 ```
 
-The request handler runs the matched route's preload on a request runtime,
-then renders the same `App` with `Component.embed`:
+The server adds what only it has: its Layer (and, in a real app, its
+server-function implementations). Each request runs the matched route's
+preload on a request runtime, renders the root into Start's document, and
+streams the hydration payload:
 
 `src/server.tsx`:
 
 <!-- snippet: type-tests/golden-path/server.tsx -->
 
 ```tsx
-import { Component } from "@sunfall/arc-solid";
-import {
-  createRequestHandler,
-  createStartStreamedHtmlResponse,
-  htmlChunk,
-} from "@sunfall/arc-start";
-import { createComponent, generateHydrationScript, renderToString } from "@solidjs/web";
-import { Effect, Stream } from "effect";
-import { App } from "./app.js";
+import { createRequestHandler } from "@sunfall/arc-start";
 import { app } from "./app-definition.js";
-import { Projects } from "./collection.js";
+import { ProjectApiMemory } from "./projects.memory.js";
 
 export const handleRequest = createRequestHandler(app, {
-  collections: [Projects],
-  // Start has already run the matched route's preload on this request's runtime.
-  render: ({ request, hydrationPlan, runtime }) =>
-    Effect.gen(function* () {
-      const url = new URL(request.url);
-      const body = renderToString(() =>
-        createComponent(Component.embed(App, runtime), { initialHref: url.pathname + url.search }),
-      );
-
-      return yield* createStartStreamedHtmlResponse({
-        shell: htmlChunk(
-          `<!doctype html><html><head>${generateHydrationScript()}</head><body><div id="root">`,
-        ),
-        chunks: Stream.make(htmlChunk(`${body}</div>`)),
-        hydrationPlan,
-        tail: htmlChunk(
-          `${hydrationPlan.root.script}<script type="module" src="/src/main.tsx"></script></body></html>`,
-        ),
-      });
-    }),
+  server: ProjectApiMemory,
+  document: ({ match }) => ({
+    title: match === undefined ? "Projects" : `Projects · ${match.href}`,
+  }),
 });
 ```
 
-The client restores the server's snapshot, then hydrates with
-`Component.launch`:
+The browser entry is one line. `App.launch` builds the runtime from the client
+Layer, restores the server's Resource and Collection snapshot, and hydrates the
+server markup with the same tree, so preloaded reads render synchronously:
 
 `src/main.tsx`:
 
 <!-- snippet: type-tests/golden-path/main.tsx -->
 
 ```tsx
-import { makeRuntime } from "@sunfall/arc-core";
-import { Component } from "@sunfall/arc-solid";
-import { hydrateFromDocument, makeActionTransportLayer } from "@sunfall/arc-start";
-import { Effect, Layer } from "effect";
-import { App } from "./app.js";
-import { Projects } from "./collection.js";
-import { ProjectApiMemory } from "./projects.memory.js";
-import { servedActions } from "./rename.js";
+import { App } from "@sunfall/arc-start";
+import { Effect } from "effect";
+import { app } from "./app-definition.js";
 
-const root = document.getElementById("root")!;
-const collections = [Projects];
-
-const runtime = makeRuntime(
-  Layer.mergeAll(
-    ProjectApiMemory, // stand-in: a real client Layer calls server functions
-    makeActionTransportLayer({ actions: servedActions, collections }),
-  ),
-);
-
-// Restore the server's Resource and Collection snapshot, then hydrate the
-// server markup with the same tree: preloaded reads render synchronously.
-Effect.runFork(
-  runtime
-    .provide(hydrateFromDocument(document, undefined, { collections }))
-    .pipe(Effect.andThen(Component.launch(App, root, { runtime, hydrate: true }))),
-);
+Effect.runFork(App.launch(app));
 ```
 
-- `makeActionTransportLayer` routes the served Actions over the network. The
-  `RenameForm` code is unchanged: whether an Action runs locally or remotely
-  is the runtime's decision.
-- `launch` only accepts a fully handled, fully provided tree: if the runtime
-  lacked `ProjectApi`, this line would not compile.
-- A real Start app also registers routes, server functions, and action
-  sources with the Vite plugin. Copy that wiring from
+- `App.launch` routes the app's Actions over the network. The `RenameForm`
+  code is unchanged: whether an Action runs locally or remotely is the
+  runtime's decision.
+- The root must be fully handled, and each side's Layer must provide what it
+  needs: drop `ProjectApi` from the client Layer and `App.define` stops
+  compiling; drop it from `server` and `createRequestHandler` does.
+- `document` sets the head and response headers. Start writes the rest of the
+  page (Solid's hydration bootstrap, the root element, the payload scripts, the
+  entry script), so there is no HTML to keep in sync.
+- A real Start app also adds the Vite plugin, which generates file routes and
+  serves the handler in dev. Copy that wiring from
   [`examples/basic-starter`](../examples/basic-starter) or
   [`examples/project-console`](../examples/project-console).
 
@@ -753,13 +705,17 @@ test's Scope and assert on the DOM after `travel`
   data reaches JSX; `waiting(input)` and `failure(input)` are for chrome.
 - **Plain Solid functions for presentational leaves.** A Component earns its
   cost when it binds state, services, or failures.
-- **Handle every typed failure.** Resource readers add their load errors to
-  the Component; `catchTags` or `catchAll` removes them; `launch` refuses what
-  is left. Callbacks must handle their own. Action and Collection failures
-  arrive in `result()` instead, so render them.
+- **Handle every typed failure.** Resource readers and Collection rows add
+  their load errors to the Component; `catchTags` or `catchAll` removes them;
+  `launch` refuses what is left. Work you start (`submit`, `dispatch`,
+  `preload`) returns its failures, and callbacks must handle them.
+- **One status vocabulary.** Every binding reports `waiting()` and
+  `failure()`: readers, collections, live queries, and Actions.
 - **Run work through `Component.callback`.** `submit`, `dispatch`, `preload`,
-  `refresh`, and Collection writes return Effects; DOM handlers get them via a
-  callback.
+  and `refresh` return Effects; DOM handlers get them via a callback.
+- **Change server data with Actions.** `optimistic` patches Signals and
+  Collection rows for the life of the submission; there is no other write
+  path.
 - **Invalidate by meaning.** Resources `provide` tags, Actions `invalidate`
   them. Call `Resource.invalidate(ref)` yourself only for an explicit refresh
   button.

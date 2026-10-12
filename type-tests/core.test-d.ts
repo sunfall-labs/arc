@@ -76,7 +76,6 @@ import {
   type ActionTransportResponse,
   type RouteView,
   type RouteWithComponent,
-  App,
 } from "@sunfall/arc-core";
 import {
   UiScope,
@@ -374,7 +373,6 @@ const coreExports: Array<unknown> = [
   compareRoutePathSpecificity,
   createBrowserRouterKernel,
   createBrowserRouterHostController,
-  App.define,
   disposeResourceStore,
   forkScoped,
   hrefForRouteInput,
@@ -485,10 +483,9 @@ const typeTestResourceHydrationPayload: ResourceHydrationPayload = {
 };
 const typeTestResourceNamespacePayload: Resource.HydrationPayload =
   typeTestResourceHydrationPayload;
-const collectedResourceEffect: Effect.Effect<
-  Resource.Collected<string>,
-  Resource.LoadError<string>
-> = Resource.collect(Resource.preload(typeTestResourceRef));
+const collectedResourceEffect: Effect.Effect<Resource.Collected<string>, string> = Resource.collect(
+  Resource.preload(typeTestResourceRef),
+);
 Effect.map(collectedResourceEffect, (collected) => {
   const value: string = collected.value;
   collected.refs.map((ref) => ref.key);
@@ -578,12 +575,6 @@ const actionResultLabel: string = ActionResult.match(actionSuccess, {
   validation: () => "validation",
   redirect: () => "redirect",
   failure: () => "failure",
-});
-
-const appDefinition = App.define({
-  routes: coreRoutes,
-  client: () => null,
-  server: runtime,
 });
 
 const profileSchema = Schema.Struct({ name: Schema.String });
@@ -824,7 +815,6 @@ void actionFailure;
 void actionRedirect;
 void actionBoundary;
 void actionResultLabel;
-void appDefinition;
 void profileValidationEffect;
 void profileFormData;
 void counterStep;

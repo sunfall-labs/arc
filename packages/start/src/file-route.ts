@@ -1,9 +1,4 @@
-import {
-  type CheckedRouteOptions,
-  type RouteDefinitionFromOptions,
-  type RouteOptionsInput,
-  Route,
-} from "@sunfall/arc-core";
+import { Route } from "@sunfall/arc-core";
 
 /**
  * File-backed route definitions.
@@ -14,9 +9,7 @@ import {
  */
 export namespace FileRoute {
   /** Route factory returned by `FileRoute.define(path)`. */
-  export type Factory<Path extends string> = <const Options extends RouteOptionsInput>(
-    options: CheckedRouteOptions<Options>,
-  ) => RouteDefinitionFromOptions<Path, Options>;
+  export type Factory<Path extends string> = Route.Factory<Path>;
 
   /**
    * Defines a file-backed route with the same typed options as
@@ -39,6 +32,6 @@ export namespace FileRoute {
    */
   export const define =
     <const Path extends string>(path: Path): Factory<Path> =>
-    <const Options extends RouteOptionsInput>(options: CheckedRouteOptions<Options>) =>
-      Route.define<Path, Options>(path, options);
+    (options) =>
+      Route.define(path, options);
 }

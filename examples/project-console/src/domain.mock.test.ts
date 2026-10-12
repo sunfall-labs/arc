@@ -16,6 +16,7 @@ import {
   SubmitProjectNameInput,
 } from "./domain.js";
 import {
+  MoveWorkItem,
   ProjectSummaries,
   ProjectWorkItems,
   projectWorkQueueQuery,
@@ -296,7 +297,7 @@ describe("project console contract mocks", () => {
     );
   });
 
-  it("shows optimistic work-item collection updates in the live query", () => {
+  it("shows a work-item Action's optimistic row in the live query until it settles", () => {
     const id = makeProjectId("mocked");
     const workItemId = makeWorkItemId("mocked-task");
     const release = Effect.runSync(Deferred.make<void>());
@@ -326,7 +327,8 @@ describe("project console contract mocks", () => {
           Effect.all([ProjectSummaries.preload(), ProjectWorkItems.preload()]),
         );
 
-        const running = runtime.runFork(ProjectWorkItems.update(workItemId, { status: "running" }));
+        const move = Action.use(MoveWorkItem, { runtime });
+        const running = runtime.runFork(move.submit({ id: workItemId, status: "running" }));
         submission = running;
         yield* Effect.sleep("10 millis");
 
@@ -346,6 +348,7 @@ describe("project console contract mocks", () => {
         yield* Deferred.succeed(release, undefined);
         yield* Fiber.join(running);
 
+        // The `WorkItems` invalidation reloaded the list the collection follows.
         expect(runWithRuntime(runtime, () => ProjectWorkItems.get(workItemId))).toMatchObject({
           status: "running",
           $synced: true,

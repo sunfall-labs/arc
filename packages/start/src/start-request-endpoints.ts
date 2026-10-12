@@ -6,7 +6,6 @@ import {
   type EffectInputCallbackError,
   makeResponseContext,
   type ActionDefinition,
-  type AppDefinition,
   type AppDefinitionRegistry,
   type AppDefinitionRegistryActionRequirements,
   type AppDefinitionRegistryServerFunctionRequirements,
@@ -18,6 +17,7 @@ import {
 } from "@sunfall/arc-core";
 import { makeActionInstance } from "@sunfall/arc-core/internal";
 import { Cause, Effect, Exit, Option, type Scope } from "effect";
+import type { StartServerApp } from "./start-server-app.js";
 import { validateStartActionRequestEffect, validateStartRpcRequestEffect } from "./rpc.js";
 import { makeRequestRuntime, type RequestRuntimeRemainingRequirements } from "./request-runtime.js";
 import {
@@ -79,12 +79,11 @@ const actionTraceInvalidationIndexesEntry = (
 
 export const createServerRpcResponseEffectWithRuntime = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
-  Client,
   ServerServices,
   ServerError,
   Registry extends AppDefinitionRegistry,
 >(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
+  app: StartServerApp<Routes, ServerServices, ServerError, Registry>,
   request: Request,
   runtime: SunfallArcRuntime<ServerServices, ServerError>,
   responseContext: ResponseContext = makeResponseContext(),
@@ -183,12 +182,11 @@ export const createServerRpcResponseEffectWithRuntime = <
  */
 export const createServerRpcResponseEffect = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
-  Client,
   ServerServices,
   ServerError,
   Registry extends AppDefinitionRegistry,
 >(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
+  app: StartServerApp<Routes, ServerServices, ServerError, Registry>,
   request: Request,
 ): Effect.Effect<
   Response,
@@ -220,13 +218,12 @@ export const createServerRpcResponseEffect = <
 
 export const createServerActionResponseEffectWithRuntime = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
-  Client,
   ServerServices,
   ServerError,
   Registry extends AppDefinitionRegistry,
   Actions extends StartActionDefinition = never,
 >(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
+  app: StartServerApp<Routes, ServerServices, ServerError, Registry>,
   request: Request,
   runtime: SunfallArcRuntime<ServerServices, ServerError>,
   actions?: StartActionSource<Actions>,
@@ -386,13 +383,12 @@ export const createServerActionResponseEffectWithRuntime = <
  */
 export const createServerActionResponseEffect = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
-  Client,
   ServerServices,
   ServerError,
   Registry extends AppDefinitionRegistry,
   Actions extends StartActionDefinition = never,
 >(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
+  app: StartServerApp<Routes, ServerServices, ServerError, Registry>,
   request: Request,
   actions?: Iterable<Actions>,
 ): Effect.Effect<

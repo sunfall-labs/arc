@@ -6006,15 +6006,9 @@ const goldenPathAppGraphDiagnostics = (
     {
       name: "Golden.Project.collection",
       readOnly: false,
-      inputSchema: false,
       outputSchema: false,
       initialData: false,
       load: true,
-      handlers: {
-        insert: false,
-        update: false,
-        delete: false,
-      },
       policy: {
         retry: false,
       },
@@ -6024,7 +6018,6 @@ const goldenPathAppGraphDiagnostics = (
         restoreOnPreload: false,
         loadAfterRestore: false,
         persistOnLoad: false,
-        persistOnMutation: false,
         persistOnWrite: false,
       },
     },

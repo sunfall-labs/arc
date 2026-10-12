@@ -200,7 +200,7 @@ describe("browser router kernel", () => {
 
   it("shares route render decisions across framework adapters", () => {
     const component = () => undefined;
-    const Project = Route.define("/render-projects/:id", { component });
+    const Project = Route.withComponent(Route.define("/render-projects/:id"), component);
     const Empty = Route.define("/empty-render-route");
     const projectMatch = Project.match("/render-projects/atlas");
     const emptyMatch = Empty.match("/empty-render-route");
@@ -246,6 +246,21 @@ describe("browser router kernel", () => {
         search: {},
       },
     });
+
+    // `Route.withComponent(route, component, props)` maps the route props.
+    const MappedProject = Route.withComponent(
+      Route.define("/mapped-render-projects/:id"),
+      (props: { readonly projectId: string }) => props.projectId,
+      ({ params }) => ({ projectId: params.id }),
+    );
+    const mappedMatch = MappedProject.match("/mapped-render-projects/atlas")!;
+    expect(
+      browserRouteRenderDecision({
+        _tag: "Ready",
+        href: "/mapped-render-projects/atlas",
+        match: mappedMatch,
+      }),
+    ).toMatchObject({ _tag: "Ready", props: { projectId: "atlas" } });
 
     const emptyDecision = browserRouteRenderDecision({
       _tag: "Ready",
@@ -295,9 +310,7 @@ describe("browser router kernel", () => {
             return { default: component };
           }),
         );
-        const Project = Route.define("/lazy-components/:id", {
-          component: lazyComponent,
-        });
+        const Project = Route.withComponent(Route.define("/lazy-components/:id"), lazyComponent);
         const router = createBrowserRouterKernel([Project] as const, {
           runtime: eraseRuntime(makeRuntime()),
           initialHref: "/lazy-components/atlas",
@@ -1388,7 +1401,8 @@ describe("browser router kernel", () => {
                 expect(state.error).toMatchObject({
                   path: "/failure-projects/:id",
                   href: "/failure-projects/atlas",
-                  cause: "missing-project",
+                  // Without an `error` schema only the failure `_tag` is kept.
+                  cause: { _tag: "RoutePreloadUntypedFailure" },
                 });
                 expect(state.cause.reasons.find(Cause.isFailReason)?.error).toBe(state.error);
               }

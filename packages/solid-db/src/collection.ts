@@ -1,81 +1,66 @@
 import type { Collection } from "@sunfall/arc-db";
-import type { EffectInput } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
-import { Effect } from "effect";
-import type { AsyncResult } from "effect/reactivity";
+import { Effect, type Cause } from "effect";
 import type { Accessor } from "solid-js";
-import { makeSolidDbReactiveBinding } from "./shared.js";
+import { makeSolidDbReactiveBinding, settledFailure, type RenderError } from "./shared.js";
 
 /** Options for `SolidDb.collection`. */
-export interface CollectionBindingOptions<E = never> {
+export interface CollectionBindingOptions {
   /** Start loading when the instance mounts. Defaults to true. */
   readonly preload?: boolean;
-  /**
-   * Observe failures from the automatic mount-time preload.
-   *
-   * The error is `CollectionRuntimeError<E>`, so output-schema and hydration
-   * codec failures are reported beside the collection's own `E` channel. If
-   * this observer fails, the binding ignores that failure after updating
-   * `preloadFailure`. Promise-shaped observers are rejected at the EffectInput
-   * seam; adapt host Promise work explicitly with `Effect.tryPromise(...)`.
-   */
-  readonly onPreloadFailure?: (error: Collection.RuntimeError<E>) => EffectInput<void, unknown>;
 }
 
 /**
  * Instance-bound reactive reads of a collection, from `SolidDb.collection`.
  *
- * Accessors read the instance runtime's Collection Store. Writes and loads go
- * through the definition's Effect-returning methods, run with
- * `Component.callback`:
- * `yield* Component.callback((id) => Todos.update(id, patch).pipe(Effect.ignore))`.
+ * Rows render from `rows()`, `get()`, and `index()`; status chrome reads
+ * `waiting()` and `failure()`, the same names a Resource reader uses. Rows
+ * stay readable while a load is in flight and after a failed refresh; if the
+ * collection has never loaded and its load failed, the reads throw that
+ * failure to the nearest `<Errored>` (which is why it joins the Component's
+ * `E`). Actions change the rows (`transaction.update(Projects, id, patch)` in
+ * an Action's `optimistic`).
  */
 export interface CollectionHandle<A extends object, K extends Collection.Key, E = never> {
-  /** Current rows, including optimistic local writes. */
+  /** Current rows, including rows Actions are optimistically patching. */
   readonly rows: Accessor<ReadonlyArray<Collection.Row<A, K>>>;
-  /**
-   * Current load `AsyncResult` with normalized runtime failures: `Success` once
-   * rows are loaded, `waiting` while preloading or refreshing, `Failure` with
-   * the load `Cause`. Rows stay readable through `rows()` in every state.
-   */
-  readonly result: Accessor<AsyncResult.AsyncResult<void, Collection.RuntimeError<E>>>;
-  /** Failure captured from the automatic mount-time preload, if enabled. */
-  readonly preloadFailure: Accessor<Collection.RuntimeError<E> | undefined>;
-  /** Queued optimistic mutations in the instance runtime. */
-  readonly pendingMutations: Accessor<ReadonlyArray<Collection.PendingMutation<A, K>>>;
   /** Read one row by key from the instance runtime's store. */
   get(key: K): Collection.Row<A, K> | undefined;
   /** Read rows from a named secondary index bucket. */
   index(index: string, value: Collection.IndexValue): ReadonlyArray<Collection.Row<A, K>>;
+  /** True while a preload or refresh is in flight. */
+  readonly waiting: Accessor<boolean>;
+  /** The settled failure of the latest load, if it failed. */
+  readonly failure: Accessor<Cause.Cause<RenderError<E>> | undefined>;
 }
 
 /**
  * Binds a collection in a Component setup: reactive rows, keyed and indexed
- * lookups, load state, and pending mutations, read from the instance runtime.
- * It preloads on mount unless `preload` is false. The collection's services
- * join the component's `R`.
+ * lookups, and load status, read from the instance runtime. It preloads on
+ * mount unless `preload` is false. The collection's declared load error joins
+ * the Component's `E` (a never-loaded collection whose load failed throws it
+ * to `<Errored>`, where `catchTags` handles it) and its services join `R`.
  */
 export const collection = <A extends object, K extends Collection.Key, E = never, R = never>(
   definition: Collection.Definition<A, K, E, R>,
-  options: CollectionBindingOptions<E> = {},
-): Effect.Effect<CollectionHandle<A, K, E>, never, R> =>
+  options: CollectionBindingOptions = {},
+): Effect.Effect<CollectionHandle<A, K, E>, RenderError<E>, R> =>
   Effect.map(Component.instance, (instance) => {
     const preloadEffect = definition.preload();
     const binding = instance.run(() =>
-      makeSolidDbReactiveBinding<Collection.RuntimeError<E>, R, never>({
-        runtime: instance.runtime,
+      makeSolidDbReactiveBinding({
+        instance,
         preload: options.preload,
         load: () => preloadEffect,
-        onPreloadFailure: options.onPreloadFailure,
+        result: () => definition.result().get(),
       }),
     );
     const handle: CollectionHandle<A, K, E> = {
       rows: () => binding.read(() => definition.rows()),
-      result: () => binding.read(() => definition.result().get()),
-      preloadFailure: binding.preloadFailure,
-      pendingMutations: () => binding.read(() => definition.pendingMutations()),
       get: (key) => binding.read(() => definition.get(key)),
       index: (index, value) => binding.read(() => definition.index(index, value)),
+      waiting: () => binding.result().waiting,
+      failure: () => settledFailure(binding.result()),
     };
     return handle;
-  }) as Effect.Effect<CollectionHandle<A, K, E>, never, R>;
+  }) as Effect.Effect<CollectionHandle<A, K, E>, RenderError<E>, R>;

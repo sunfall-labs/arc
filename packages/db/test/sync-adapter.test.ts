@@ -1,4 +1,5 @@
 import {
+  Action,
   EffectInputCallbackError,
   Resource,
   Server,
@@ -20,12 +21,9 @@ interface Project {
 }
 
 describe("Collection sync adapters", () => {
-  it("adapts generic sync loads, refreshes, and mutation handlers", () => {
+  it("adapts generic sync loads and refreshes", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
-        const inserts: Array<Collection.SyncInsertPayload<Project, string>> = [];
-        const updates: Array<Collection.SyncUpdatePayload<Project, string>> = [];
-        const deletes: Array<Collection.SyncDeletePayload<Project, string>> = [];
         const load = vi.fn(() =>
           Effect.succeed<ReadonlyArray<Project>>([{ id: "atlas", name: "Atlas", archived: false }]),
         );
@@ -41,18 +39,6 @@ describe("Collection sync adapters", () => {
             name: "generic-test",
             load,
             refresh: refetch,
-            insert: (payload) =>
-              Effect.sync(() => {
-                inserts.push(payload);
-              }),
-            update: (payload) =>
-              Effect.sync(() => {
-                updates.push(payload);
-              }),
-            delete: (payload) =>
-              Effect.sync(() => {
-                deletes.push(payload);
-              }),
           },
         });
 
@@ -76,42 +62,6 @@ describe("Collection sync adapters", () => {
         expect(Projects.rows().map((project) => project.name)).toEqual(["Atlas Prime"]);
         expect(load).toHaveBeenCalledTimes(1);
         expect(refetch).toHaveBeenCalledTimes(1);
-
-        yield* Projects.insert({ id: "lumen", name: "Lumen", archived: false });
-        yield* Projects.update("atlas", { archived: true });
-        yield* Projects.delete("lumen");
-
-        expect(inserts).toMatchObject([
-          {
-            values: [{ id: "lumen", name: "Lumen", archived: false }],
-            transaction: {
-              collection: "Projects.sync.generic",
-              mutations: [{ _tag: "Insert", key: "lumen" }],
-            },
-          },
-        ]);
-        expect(updates).toMatchObject([
-          {
-            updates: [
-              {
-                key: "atlas",
-                previous: { id: "atlas", name: "Atlas Prime", archived: false },
-                value: { id: "atlas", name: "Atlas Prime", archived: true },
-                changes: { archived: true },
-              },
-            ],
-          },
-        ]);
-        expect(deletes).toMatchObject([
-          {
-            deletes: [
-              {
-                key: "lumen",
-                previous: { id: "lumen", name: "Lumen", archived: false },
-              },
-            ],
-          },
-        ]);
       }),
     );
   });
@@ -120,7 +70,6 @@ describe("Collection sync adapters", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const loadFailure = new Error("load exploded");
-        const insertFailure = new Error("insert exploded");
         const LoadProjects = Collection.define<Project, string, Error>({
           name: "Projects.sync.throw.load",
           getKey: (project) => project.id,
@@ -131,28 +80,10 @@ describe("Collection sync adapters", () => {
             },
           },
         });
-        const InsertProjects = Collection.define<Project, string, Error>({
-          name: "Projects.sync.throw.insert",
-          getKey: (project) => project.id,
-          sync: {
-            name: "throwing-insert",
-            insert: () => {
-              throw insertFailure;
-            },
-          },
-        });
-
         const loadError = yield* Effect.flip(LoadProjects.preload());
-        const insertError = yield* Effect.flip(
-          InsertProjects.insert({ id: "atlas", name: "Atlas", archived: false }),
-        );
 
         expect(loadError).toBeInstanceOf(EffectInputCallbackError);
         expect((loadError as EffectInputCallbackError).cause).toBe(loadFailure);
-        expect(insertError).toBeInstanceOf(EffectInputCallbackError);
-        expect((insertError as EffectInputCallbackError).cause).toBe(insertFailure);
-        expect(InsertProjects.pendingMutations()).toEqual([]);
-        expect(InsertProjects.rows()).toEqual([]);
       }),
     ));
 
@@ -255,16 +186,6 @@ describe("Collection sync adapters", () => {
               { id: "atlas", name: "Atlas", archived: false },
             ]),
         });
-        const inserted: Array<ReadonlyArray<Project>> = [];
-        const insert = Server.fn<Collection.SyncInsertPayload<Project, string>, void>(
-          "Projects.sync.server.insert",
-          {
-            handler: (payload) =>
-              Effect.sync(() => {
-                inserted.push(payload.values);
-              }),
-          },
-        );
         const Projects = Collection.define<
           Project,
           string,
@@ -272,16 +193,12 @@ describe("Collection sync adapters", () => {
         >({
           name: "Projects.sync.server",
           getKey: (project) => project.id,
-          sync: { load, insert },
+          sync: { load },
         });
 
         yield* Projects.preload();
 
         expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
-
-        yield* Projects.insert({ id: "lumen", name: "Lumen", archived: false });
-
-        expect(inserted).toMatchObject([[{ id: "lumen", name: "Lumen", archived: false }]]);
       }),
     );
   });
@@ -507,9 +424,7 @@ describe("Collection sync follow", () => {
     archived: Schema.Boolean,
   });
 
-  // `optimistic` backs the collection with an inline adapter over the Resource
-  // so it can also commit updates; otherwise the collection is `sync: ref`.
-  const makeProjects = (name: string, optimistic = false) => {
+  const makeProjects = (name: string) => {
     let rows: ReadonlyArray<Project> = [{ id: "atlas", name: "Atlas", archived: false }];
     const loads = { count: 0 };
     const Tag = Resource.tag(`${name}.tag`);
@@ -525,33 +440,16 @@ describe("Collection sync follow", () => {
       provides: () => [Tag],
     });
     const ref = Family("all");
-    const updates: Array<Collection.SyncUpdatePayload<Project, string>> = [];
-    const gate = { deferred: undefined as Deferred.Deferred<void> | undefined };
-    const Projects = Collection.define<Project, string, Resource.LoadError<never>>({
+    const Projects = Collection.define<Project, string, never>({
       name: `${name}.collection`,
       getKey: (project) => project.id,
-      sync: optimistic
-        ? {
-            load: () => Resource.preload(ref),
-            refresh: () => Resource.refresh(ref),
-            follow: () => Resource.changes(ref),
-            update: (payload: Collection.SyncUpdatePayload<Project, string>) =>
-              Effect.gen(function* () {
-                updates.push(payload);
-                if (gate.deferred !== undefined) {
-                  yield* Deferred.await(gate.deferred);
-                }
-              }),
-          }
-        : ref,
+      sync: ref,
     });
     return {
       Tag,
       ref,
       Projects,
       loads,
-      updates,
-      gate,
       setRows: (next: ReadonlyArray<Project>) => {
         rows = next;
       },
@@ -590,9 +488,9 @@ describe("Collection sync follow", () => {
     );
   });
 
-  it("keeps pending optimistic updates on top of followed snapshots", () => {
+  it("keeps an Action's optimistic patch on top of followed snapshots until it settles", () => {
     const runtime = makeRuntime();
-    const fixture = makeProjects("Projects.follow.optimistic", true);
+    const fixture = makeProjects("Projects.follow.optimistic");
     const rows = () => runtime.runSync(Effect.sync(() => fixture.Projects.rows()));
 
     return Effect.runPromise(
@@ -600,11 +498,27 @@ describe("Collection sync follow", () => {
         .provide(
           Effect.gen(function* () {
             yield* fixture.Projects.preload();
-            fixture.gate.deferred = yield* Deferred.make<void>();
-            const mutation = yield* Effect.forkChild(
-              fixture.Projects.update("atlas", { name: "Atlas Local" }),
-            );
-            yield* eventually(() => fixture.updates.length === 1);
+            const started = yield* Deferred.make<void>();
+            const release = yield* Deferred.make<void>();
+            const Rename = Action.define({
+              name: "Projects.follow.optimistic.rename",
+              optimistic: (input: { readonly name: string }, transaction) =>
+                transaction.update(fixture.Projects, "atlas", { name: input.name }),
+              run: (input: { readonly name: string }) =>
+                Effect.gen(function* () {
+                  yield* Deferred.succeed(started, undefined);
+                  yield* Deferred.await(release);
+                  fixture.setRows([{ id: "atlas", name: input.name, archived: true }]);
+                }),
+              // The Action writes nothing to the collection: it reloads the Resource.
+              invalidates: () => [fixture.Tag],
+            });
+            const rename = Action.use(Rename, { runtime });
+            const submission = yield* Effect.forkChild(rename.submit({ name: "Atlas Local" }));
+            yield* Deferred.await(started);
+            expect(rows()).toMatchObject([
+              { name: "Atlas Local", archived: false, $synced: false },
+            ]);
 
             fixture.setRows([{ id: "atlas", name: "Atlas Remote", archived: true }]);
             yield* Resource.invalidate(fixture.Tag);
@@ -612,8 +526,10 @@ describe("Collection sync follow", () => {
             // The followed snapshot rebases the pending patch instead of clobbering it.
             expect(rows()).toMatchObject([{ name: "Atlas Local", archived: true, $synced: false }]);
 
-            yield* Deferred.succeed(fixture.gate.deferred, undefined);
-            yield* Fiber.join(mutation);
+            yield* Deferred.succeed(release, undefined);
+            yield* Fiber.join(submission);
+            // The invalidation reload replaced the committed patch with the server's row.
+            yield* eventually(() => fixture.loads.count === 3);
             expect(rows()).toMatchObject([{ name: "Atlas Local", archived: true, $synced: true }]);
           }),
         )

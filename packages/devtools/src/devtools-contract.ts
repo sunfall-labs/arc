@@ -163,37 +163,6 @@ export type DevtoolsCollectionStoreEvent =
       readonly count: number;
     }
   | {
-      readonly _tag: "CollectionMutationQueued";
-      readonly collection: string;
-      readonly transaction: string;
-      readonly mutations: number;
-      readonly pending: number;
-    }
-  | {
-      readonly _tag: "CollectionMutateStarted";
-      readonly collection: string;
-      readonly transaction: string;
-      readonly mutations: number;
-    }
-  | {
-      readonly _tag: "CollectionMutationDequeued";
-      readonly collection: string;
-      readonly transaction: string;
-      readonly pending: number;
-    }
-  | {
-      readonly _tag: "CollectionMutateCommitted";
-      readonly collection: string;
-      readonly transaction: string;
-      readonly mutations: number;
-    }
-  | {
-      readonly _tag: "CollectionMutateRolledBack";
-      readonly collection: string;
-      readonly transaction: string;
-      readonly error: unknown;
-    }
-  | {
       readonly _tag: "CollectionChangeFeedFailure";
       readonly collection: string;
       readonly error: unknown;
@@ -706,7 +675,6 @@ export interface DevtoolsStartAppGraphCollectionDiagnostics {
    * fills missing values as `false`.
    */
   readonly readOnly?: boolean;
-  readonly inputSchema: boolean;
   readonly outputSchema: boolean;
   readonly initialData: boolean;
   readonly indexes?: readonly {
@@ -714,11 +682,6 @@ export interface DevtoolsStartAppGraphCollectionDiagnostics {
     readonly unique: boolean;
   }[];
   readonly load: boolean;
-  readonly handlers: {
-    readonly insert: boolean;
-    readonly update: boolean;
-    readonly delete: boolean;
-  };
   readonly policy: {
     readonly retry: boolean;
   };
@@ -732,7 +695,6 @@ export interface DevtoolsStartAppGraphCollectionDiagnostics {
     readonly restoreOnPreload: boolean;
     readonly loadAfterRestore: boolean;
     readonly persistOnLoad: boolean;
-    readonly persistOnMutation: boolean;
     readonly persistOnWrite: boolean;
   };
 }

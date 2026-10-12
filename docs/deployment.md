@@ -1,8 +1,11 @@
 # Deployment
 
 Sunfall Arc deployment centers on the Start request boundary:
-`createRequestHandler(app)`, which returns an Effect-returning handler. Each
-host shape has exactly one import path:
+`createRequestHandler(app, { server })`, which returns an Effect-returning
+handler. `app` is the `App.define(...)` definition the browser entry also
+launches; `server` is the server Layer, which must provide every service the
+app's root needs, so a correctly typed handler has no requirements left for
+the host. Each host shape has exactly one import path:
 
 - `@sunfall/arc-start/fetch` for Fetch-style hosts (Workers, edge runtimes,
   Bun, Deno, tests);
@@ -21,8 +24,9 @@ Use `toFetchHandler` when the host integration can run Effects itself:
 import { createRequestHandler } from "@sunfall/arc-start";
 import { toFetchHandler } from "@sunfall/arc-start/fetch";
 import { app } from "./app-definition.js";
+import { AppServerLive } from "./app.server.js";
 
-const fetchEffect = toFetchHandler(createRequestHandler(app));
+const fetchEffect = toFetchHandler(createRequestHandler(app, { server: AppServerLive }));
 ```
 
 Use `createFetchHandler` when the host itself expects
@@ -32,10 +36,9 @@ Use `createFetchHandler` when the host itself expects
 import { createRequestHandler } from "@sunfall/arc-start";
 import { createFetchHandler } from "@sunfall/arc-start/fetch";
 import { app } from "./app-definition.js";
+import { AppServerLive } from "./app.server.js";
 
-const fetch = createFetchHandler(createRequestHandler(app), {
-  runtime: app.runtime,
-});
+const fetch = createFetchHandler(createRequestHandler(app, { server: AppServerLive }));
 
 export default {
   fetch,
@@ -51,10 +54,9 @@ import { createServer } from "node:http";
 import { createRequestHandler } from "@sunfall/arc-start";
 import { createNodeServerHandler } from "@sunfall/arc-start/node";
 import { app } from "./app-definition.js";
+import { AppServerLive } from "./app.server.js";
 
-const handler = createNodeServerHandler(createRequestHandler(app), {
-  runtime: app.runtime,
-});
+const handler = createNodeServerHandler(createRequestHandler(app, { server: AppServerLive }));
 
 createServer(handler).listen(3000);
 ```
@@ -87,10 +89,9 @@ as shown above. Bun's HTTP server uses the same boundary:
 import { createRequestHandler } from "@sunfall/arc-start";
 import { createFetchHandler } from "@sunfall/arc-start/fetch";
 import { app } from "./app-definition.js";
+import { AppServerLive } from "./app.server.js";
 
-const fetch = createFetchHandler(createRequestHandler(app), {
-  runtime: app.runtime,
-});
+const fetch = createFetchHandler(createRequestHandler(app, { server: AppServerLive }));
 
 Bun.serve({
   fetch,
@@ -127,6 +128,11 @@ link to them from a discovered page when `crawlLinks` is enabled. The build
 writes ordinary HTML files into Vite's output directory, using
 `/page/index.html` paths by default.
 
+For a fully static deployment, set `buildPolicy.staticClient: { target: "static" }`:
+the browser build then compiles the server-function RPC client out of
+`App.launch`, so the app's client Layer must serve data from the prerendered
+pages (the docs site's `DocsContentApiStaticClient` is the example).
+
 ## Current Limits
 
 - There are no host-specific packages for Cloudflare, Vercel, Netlify, Bun, or
@@ -138,5 +144,9 @@ writes ordinary HTML files into Vite's output directory, using
   `0.1.0-alpha.1`, with package keywords and repository/homepage/bugs metadata
   pointing at `https://github.com/sunfall-labs/arc`.
 
-Keep deployment integrations as small wrappers over `createRequestHandler(app)`
+The `runtime` option of `createFetchHandler` / `createNodeServerHandler` exists
+only for handlers that still have requirements (for example a route preload
+service the server Layer does not provide); the types require it exactly then.
+
+Keep deployment integrations as small wrappers over `createRequestHandler(app, ...)`
 and the tested adapters above.

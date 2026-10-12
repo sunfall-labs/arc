@@ -1,10 +1,16 @@
+import { Action } from "@sunfall/arc-core";
 import { Collection, Query } from "@sunfall/arc-db";
-import { Effect, Schedule } from "effect";
 import {
+  AdvanceProjectInput,
   ProjectApi,
+  ProjectSchema,
   ProjectSummarySchema,
   ProjectWorkItemSchema,
   ProjectsRef,
+  UpdateWorkItemStatusInput,
+  WorkItemsRef,
+  WorkItemsTag,
+  projectResourceInvalidations,
   type ProjectId,
   type ProjectSummary,
   type ProjectWorkItem,
@@ -16,6 +22,7 @@ import {
 // Resource-backed: the collection loads through the `ProjectList` Resource and
 // follows it afterward, so any invalidation of the `Projects` tag (renames,
 // advances, refreshes) reconciles these rows without a second list fetch.
+// Actions change the rows: their `optimistic` patches them until they settle.
 export const ProjectSummaries = Collection.define({
   name: "Projects.collection",
   output: ProjectSummarySchema,
@@ -36,26 +43,38 @@ export const ProjectWorkItems = Collection.define({
     status: (workItem) => workItem.status,
     owner: (workItem) => workItem.owner,
   },
+  sync: WorkItemsRef,
+});
+
+/**
+ * Advances a project. The sidebar row shows the progress bump at once
+ * (`$synced: false`); success keeps it until the `Projects` reload lands, and
+ * a failure rolls it back.
+ */
+export const AdvanceProject = Action.define({
+  name: "Project.advance",
+  input: AdvanceProjectInput,
+  output: ProjectSchema,
   policy: {
-    retry: Schedule.exponential("50 millis").pipe(Schedule.upTo({ times: 2 })),
+    concurrency: "exhaust",
   },
-  sync: {
-    load: () => ProjectApi.use((api) => api.listWorkItems()),
-    update: ({ updates }) =>
-      Effect.forEach(
-        updates,
-        (update) =>
-          typeof update.changes.status === "string"
-            ? ProjectApi.use((api) =>
-                api.updateWorkItemStatus({
-                  id: update.key as WorkItemId,
-                  status: update.changes.status as WorkItemStatus,
-                }),
-              ).pipe(Effect.asVoid)
-            : Effect.void,
-        { discard: true },
-      ),
-  },
+  optimistic: ({ id }, transaction) =>
+    transaction.update(ProjectSummaries, id, (project) => ({
+      ...project,
+      progress: Math.min(100, project.progress + 8),
+    })),
+  run: (input) => ProjectApi.use((api) => api.advance(input)),
+  invalidates: (project) => projectResourceInvalidations(project.id),
+});
+
+/** Moves a work item to `status`, optimistically, then reloads the work items. */
+export const MoveWorkItem = Action.define({
+  name: "Project.workItem.move",
+  input: UpdateWorkItemStatusInput,
+  output: ProjectWorkItemSchema,
+  optimistic: ({ id, status }, transaction) => transaction.update(ProjectWorkItems, id, { status }),
+  run: (input) => ProjectApi.use((api) => api.updateWorkItemStatus(input)),
+  invalidates: () => [WorkItemsTag],
 });
 
 const priorityWeight = (priority: WorkItemPriority): number => {
