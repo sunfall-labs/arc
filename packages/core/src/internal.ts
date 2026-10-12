@@ -122,6 +122,11 @@ export { matchRoutes } from "./route-match.js";
 export type { AnySchema, RouteWithComponent } from "./route.js";
 export { ResourceFamily } from "./resource.js";
 export { makeActionInstance } from "./action-instance.js";
+export {
+  PostedActions,
+  type PostedActionSubmission,
+  type PostedFormValues,
+} from "./action-posted.js";
 export { decodeFormValuesEffect, formValuesForSchema } from "./form.js";
 export { SignalWrites, type WritableSignal } from "./signal.js";
 export { appStateOnRuntime, startStateOnRuntime } from "./state-start.js";

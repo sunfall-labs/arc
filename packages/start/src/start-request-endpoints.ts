@@ -30,8 +30,6 @@ import {
 } from "./start-action-workflow.js";
 import type { StartServerApp } from "./start-server-app.js";
 import {
-  hasContentType,
-  startJsonMediaType,
   validateStartActionRequest,
   validateStartRpcRequest,
   type StartTransportRequestError,
@@ -50,7 +48,6 @@ import {
   actionFunctionNotFoundResponse,
   actionProtocolFailureResponse,
   actionResponseMeta,
-  actionResponseMode,
   actionRuntimeFailureResponse,
   actionTransportRequestFailureResponse,
 } from "./start-action-response-codec.js";
@@ -58,7 +55,6 @@ import {
   makeActionMap,
   serializeDefect,
   readStartActionRequest,
-  startActionFormInput,
   type StartActionDefinition,
   type StartActionSource,
 } from "./start-action-request-codec.js";
@@ -299,12 +295,8 @@ export const createServerActionResponseEffectWithRuntime = <
             return actionFunctionNotFoundResponse(decoded.name);
           }
 
-          // A form post carries strings: read them as the input's encoded shape.
-          const wireInput = hasContentType(request.headers, [startJsonMediaType])
-            ? decoded.input
-            : startActionFormInput(action, decoded.input);
           const produce = Effect.gen(function* () {
-            const input = yield* decodeActionWire(action.input, wireInput).pipe(
+            const input = yield* decodeActionWire(action.input, decoded.input).pipe(
               Effect.catch((error) =>
                 Effect.sync(() => {
                   recordStartRequestFailure(facts, "validation");
@@ -343,19 +335,14 @@ export const createServerActionResponseEffectWithRuntime = <
                 failureKind === "interruption" || metaInterrupted ? "interruption" : "defect";
               recordStartRequestFailure(facts, metaFailureKind);
               if (failureKind === "interruption") {
-                return yield* actionExitResponse(action, exit, {}, actionResponseMode(request));
+                return yield* actionExitResponse(action, exit, {});
               }
               if (metaInterrupted) {
                 return yield* Effect.failCause(metaExit.cause);
               }
               return actionRuntimeFailureResponse(Cause.squash(metaExit.cause));
             }
-            const response = yield* actionExitResponse(
-              action,
-              exit,
-              metaExit.value,
-              actionResponseMode(request),
-            );
+            const response = yield* actionExitResponse(action, exit, metaExit.value);
             const responseFailureKind =
               failureKind === "interruption" || response.status < 500 ? failureKind : "defect";
             if (responseFailureKind !== undefined) {

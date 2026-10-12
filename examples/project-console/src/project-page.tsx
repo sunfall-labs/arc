@@ -356,7 +356,6 @@ const ProjectActions = Component.define(
         <form
           class="renameForm"
           method={renameForm().method}
-          action={renameForm().action}
           onSubmit={(event) => {
             event.preventDefault();
             actions.send.SubmitRename({ formData: new FormData(event.currentTarget) });

@@ -32,6 +32,18 @@ served Actions; an Action with `run` runs where it is submitted.
 call that is neither a Resource load nor an Action, such as a change-feed
 poll; its `Server.implement` value goes in `implementations` too.
 
+## From No-JavaScript Posts To The Action Endpoint
+
+A form without JavaScript posts to the page it is on. Start runs the Action
+there: a redirect or success answers 303, and a validation failure or failure
+renders the page again with the outcome and the posted fields.
+
+| Before                                                                            | After                                                                                                                                                |
+| --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<form method={form.method} action={form.action}>`                                | `<form method={form.method}>`: `StartAction.form` has no `action`                                                                                    |
+| a no-JS form post to `POST /__sunfall-arc/action` (the endpoint took form bodies) | a form-encoded or multipart `POST` to the page; the action endpoint takes JSON only                                                                  |
+| a no-JS validation failure answered by a 422 JSON page                            | the page rendered again (422): `result()` holds the `ValidationFailure`, and the handle's `formValues()` the posted fields to render as input values |
+
 ## From Shared State Through Contexts
 
 A State the shell and the pages share is an app State: one instance per
@@ -264,7 +276,7 @@ services (`ActionTransport`, `ActionOutbox`, `ResourceStore`,
 | `Server.get(name)`                                                                                    | `Server.functions().get(name)`                                                                                      |
 | `capability.mock(service)` / `capability.provide(effect, service)`                                    | `Layer.succeed(Service, service)` / `Effect.provide(effect, Layer.succeed(Service, service))`                       |
 | `signal.set((current) => next)`                                                                       | `signal.update((current) => next)`; `set` takes a value                                                             |
-| `StartAction.form(action, { actionPath / endpoints / actionManifest / appGraph })`                    | `StartAction.form(action)` (posts to `/__sunfall-arc/action`)                                                       |
+| `StartAction.form(action, { actionPath / endpoints / actionManifest / appGraph })`                    | `StartAction.form(action)` (posts to the page it is on)                                                             |
 | prerender `{ enabled: true, ... }` / `{ enabled: false }`                                             | prerender `{ ... }` / `false`                                                                                       |
 | prerender page `{ path, prerender: { enabled, outputPath } }`                                         | `{ path, outputPath, prerender: false }`                                                                            |
 | `StartPrerenderError` operation `"close-server"` / `"create-directory"`                               | a logged warning / `"write-page"`                                                                                   |

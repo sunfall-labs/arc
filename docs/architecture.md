@@ -471,19 +471,44 @@ export const handleRequest = createRequestHandler(app, {
 
 `Action.implement` checks `run` against the definition: it may succeed only
 with `output` and fail only with `error`, and its services join the server
-Layer's requirements. `POST /__sunfall-arc/action` accepts either JSON
-(`{ name, input }`) or ordinary form bodies. Start decodes the input with the
-Action Definition schema, runs the action through the Request Runtime, and
-maps `ActionResult` values to HTTP:
+Layer's requirements. `POST /__sunfall-arc/action` takes JSON
+(`{ name, input }`, content type and accept `application/json`) and always
+answers JSON. Start decodes the input with the Action Definition schema, runs
+the action through the Request Runtime, and maps `ActionResult` values to
+typed envelopes:
 
-- `ActionResult.redirect(...)` becomes an HTTP redirect for form posts and a
-  typed redirect envelope for JSON action clients.
-- `ActionResult.validation(...)` becomes a typed `ValidationFailure` JSON payload
-  with status 200 for JSON clients (an answer, not a transport error, so the
-  browser logs nothing) and 422 for a form post.
+- `ActionResult.redirect(...)` becomes a typed `Redirect` envelope.
+- `ActionResult.validation(...)` becomes a typed `ValidationFailure` payload
+  with status 200 (an answer, not a transport error, so the browser logs
+  nothing).
 - `ActionResult.success(...)` and non-ActionResult values become typed success JSON.
 - Effect failures become typed failure JSON when the action has an error schema;
   protocol and defects stay separate.
+
+A form-encoded or multipart `POST` to a page is a no-JavaScript submission
+of a served Action. Start's request handler reads the hidden action-name
+field, merges the visible fields over the hidden encoded defaults, and decodes
+them as the input schema's encoded shape (checkboxes, repeated names, empty
+fields). A decode failure is the form's validation failure: field errors from
+the schema, and the Action does not run. Otherwise the Action runs through the
+action endpoint, and the outcome maps to the page response:
+
+- `ActionResult.redirect(...)` answers with that redirect (303 by default).
+- A plain success answers 303 back to the same page (Post/Redirect/Get).
+- `ActionResult.validation(...)` (or a decode failure) renders the page again
+  with status 422, `text/html`.
+- A failure (a typed error or `ActionResult.failure(...)`) renders the page
+  again with status 400.
+- An unknown Action answers 404 text; defects answer plain-text 5xx.
+
+The re-render starts the submitted Action's bindings from the posted
+submission's settled state: Solid's `Component.action(definition)` has its
+`result()` (the `ValidationFailure`, so field errors render as with
+JavaScript) and `formValues()`, the posted fields, so inputs render what was
+typed. The root hydration payload carries the submission as `postedAction`
+(`{ action, values, input?, outcome }`), and `App.launch` seeds the browser's
+bindings from it until hydration finishes, so the hydrating client renders the
+same markup. Core holds it as the internal `PostedActions` service.
 
 When a JSON action produces an invalidation plan, Start dehydrates the refreshed
 resource refs from the request-local Resource Store and includes them in the
@@ -516,15 +541,16 @@ retries, and trace propagation are configured once, on the `HttpClient`. The
 action wire protocol (no-JS forms, redirects, durable submission ids) stays
 Start's own.
 
-The small `StartAction.form(action, { input })` helper generates the form method,
-action URL, and hidden metadata fields. Visible form controls are merged over
-the hidden JSON input before schema decode, so a form can carry stable values
-such as `id` and `redirectTo` while the user edits fields like `name`.
+The small `StartAction.form(action, { input })` helper generates the form method
+and hidden metadata fields, with no `action`: a `<form method="post">` posts
+to the page it is on. Visible form controls are merged over the hidden encoded
+input before schema decode, so a form can carry stable values such as `id` and
+`redirectTo` while the user edits fields like `name`.
 
 This is the progressive enhancement seam: with JavaScript, the Solid handler
 intercepts the submit and calls the Component's action handle (which the
 transport routes to the server); without JavaScript, the same form posts to
-Start and runs the same Action Definition, Effect services, schemas,
+its page, and Start runs the same Action Definition, Effect services, schemas,
 retries, and invalidation policy.
 
 ### Optimistic Patches
@@ -1544,9 +1570,9 @@ cannot encode, handler defects, payloads that fail the input schema, and
 functions the server does not serve arrive as defects, as `effect/rpc`
 reports them; a server-function call's transport failures are
 `RpcClientError` in `Server.ClientError`.
-Start action clients and progressive forms post to `POST /__sunfall-arc/action`.
-Both paths are fixed: the request handler, the Vite dev middleware, and the
-clients share them. The resource/action/router code above does not change.
+Start action clients post to `POST /__sunfall-arc/action`; no-JavaScript
+forms post to their page. Both endpoint paths are fixed: the request handler,
+the Vite dev middleware, and the clients share them. The resource/action/router code above does not change.
 
 Arc has no separate server-route API: arbitrary HTTP routes belong to
 `effect/http` (`HttpRouter`) in the host, next to the Start handler.

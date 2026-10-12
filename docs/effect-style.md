@@ -252,7 +252,7 @@ const form = StartAction.form(SubmitProjectName, {
 ```
 
 ```tsx
-<form method={form.method} action={form.action}>
+<form method={form.method}>
   <For each={form.hiddenFields}>
     {(field) => <input type="hidden" name={field.name} value={field.value} />}
   </For>
@@ -260,9 +260,12 @@ const form = StartAction.form(SubmitProjectName, {
 </form>
 ```
 
-The server receives a Start Action Request, decodes it with the action input
-schema, and maps `ActionResult.redirect` / `ActionResult.validation` to HTTP
-without throwing untyped control flow.
+Without JavaScript the form posts to the page it is on. Start decodes the
+fields with the action input schema and runs the Action: `ActionResult.redirect`
+answers with the redirect, a success with a 303 back to the page, and
+`ActionResult.validation` (or a decode failure) renders the page again (422)
+with the Action's `result()` and the posted fields in its handle's
+`formValues()`, without throwing untyped control flow.
 
 With JavaScript, the same Action submits through its Component binding. A
 served Action (defined without `run`) runs on the server: `App.launch`
@@ -281,7 +284,7 @@ yield* rename.submit(input);
 
 Start action responses include a serializable invalidation plan and a hydration
 payload for refreshed resource refs when the action invalidates direct refs.
-Plain form posts still receive normal HTTP redirects for no-JS flows.
+No-JS form posts to a page receive normal HTTP redirects instead.
 
 Forms stay schema-backed and UI-runtime agnostic. `setField` is typed from the
 schema, validation is an `Effect`, and domain validation errors can be tagged

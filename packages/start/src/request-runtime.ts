@@ -10,6 +10,7 @@ import {
 } from "@sunfall/arc-core";
 import {
   makeRequestResourceStore,
+  PostedActions,
   withResourceStore,
   withRuntimeServices,
   type AppDefinitionRegistry,
@@ -82,8 +83,9 @@ export const provideLocalServerClient = <A, E, R>(
 
 /**
  * A Request Runtime whose every Effect runs with the request's services: the
- * request, its response context, the server's `KeyValueStore`, and the
- * in-process server-function client. Work the render forks (a Resource read
+ * request, its response context, the server's `KeyValueStore`, the
+ * in-process server-function client, and the form post the page answers
+ * (`PostedActions`). Work the render forks (a Resource read
  * the route did not preload, a callback) then runs exactly like the preload
  * does, instead of failing for want of a server-function client.
  */
@@ -96,13 +98,19 @@ export const makeServedRequestRuntime = <
   request: Request,
   responseContext: ResponseContext,
   registry?: AppDefinitionRegistry,
+  postedActions: PostedActions = { current: undefined },
 ): SunfallArcRuntime<ServerServices, ServerError> =>
   withRuntimeServices(
     makeRequestRuntime(app),
     (effect) =>
       provideRequest(request)(
         provideResponse(responseContext)(
-          provideServerKeyValueStore(provideLocalServerClient(effect, registry)),
+          provideServerKeyValueStore(
+            provideLocalServerClient(
+              Effect.provideService(effect, PostedActions, postedActions),
+              registry,
+            ),
+          ),
         ),
       ) as never,
   ) as SunfallArcRuntime<ServerServices, ServerError>;

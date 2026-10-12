@@ -110,15 +110,15 @@ declared load errors join `E` and `catchTags` handles them; `submit`,
 breaks its contract (throws, returns a Promise, produces a row its schema
 rejects) is a defect, never part of `E`.
 
-| Binding                                | Returns                                                                                                            | Joins                                                                |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| `Component.resource(family)`           | `Component.ResourceReader`: `reader(input)`, `waiting`, `failure`; with `rows`, also `get`, `index`                | load error to `E`, services                                          |
-| `Component.action(definition)`         | `Component.ActionHandle`: `waiting`, `failure`, `result`, `input`, `submit` (Effect), `reset` (Effect)             | action services                                                      |
-| `Component.state(definition, opts?)`   | `Component.StateHandle`: `model` view, `send.<Tag>`, `committed`, `failures`, `dispatch` (Effect), `clearFailures` | state services                                                       |
-| `Component.stream(name, stream, init)` | read-only `Accessor<A>` of the latest element, committed as `<Component>.<name>`                                   | stream services                                                      |
-| `Component.callback(name, f)`          | `(...args) => void` that runs non-state Effect work `f(...args)` as the transition `<Component>.<name>`            | callback services                                                    |
-| `Component.router(routes, options?)`   | the instance's `BrowserRouter<Routes>`                                                                             | route preload and route Component services, route Component failures |
-| `LiveQuery.bind(query, opts?)`         | `LiveQuery.Handle`: `rows`, `waiting`, `failure`, `preload` (Effect), `refresh` (Effect)                           | source load errors to `E`, source services                           |
+| Binding                                | Returns                                                                                                              | Joins                                                                |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `Component.resource(family)`           | `Component.ResourceReader`: `reader(input)`, `waiting`, `failure`; with `rows`, also `get`, `index`                  | load error to `E`, services                                          |
+| `Component.action(definition)`         | `Component.ActionHandle`: `waiting`, `failure`, `result`, `input`, `formValues`, `submit` (Effect), `reset` (Effect) | action services                                                      |
+| `Component.state(definition, opts?)`   | `Component.StateHandle`: `model` view, `send.<Tag>`, `committed`, `failures`, `dispatch` (Effect), `clearFailures`   | state services                                                       |
+| `Component.stream(name, stream, init)` | read-only `Accessor<A>` of the latest element, committed as `<Component>.<name>`                                     | stream services                                                      |
+| `Component.callback(name, f)`          | `(...args) => void` that runs non-state Effect work `f(...args)` as the transition `<Component>.<name>`              | callback services                                                    |
+| `Component.router(routes, options?)`   | the instance's `BrowserRouter<Routes>`                                                                               | route preload and route Component services, route Component failures |
+| `LiveQuery.bind(query, opts?)`         | `LiveQuery.Handle`: `rows`, `waiting`, `failure`, `preload` (Effect), `refresh` (Effect)                             | source load errors to `E`, source services                           |
 
 Handles share one vocabulary. Status is `waiting()` (work in flight) and
 `failure()` (the settled `Cause` of the latest load or submission, if it
@@ -218,7 +218,10 @@ a submission is in flight and `failure()` holds the latest settled failure's
 `Cause`. `result()` is the full `AsyncResult`: `Initial` while idle, `waiting`
 while a submission is in flight, then `Success` or `Failure` (full `Cause`,
 latest success kept as `previousSuccess`). `reset()` is an Effect too.
-Unmounting interrupts in-flight submissions.
+Unmounting interrupts in-flight submissions. `formValues()` is the fields of a
+no-JavaScript form post the server rendered the page again for (a validation
+failure or failure, which `result()` then holds); render them as the inputs'
+values so the form keeps what was typed. It is `undefined` otherwise.
 
 Actions are the one way to change server data, including rows the screen must
 show before the server answers. `optimistic` patches States (`transaction.set(state, update)` on a
@@ -252,8 +255,10 @@ submits every served Action over the network, and their responses (hydrated
 Resources, Resource invalidations) apply to the submitting runtime. An Action
 with `run` runs it locally. The handle, its result type, and its error
 type (the Action's own errors plus `Action.ClientError`) are the same either
-way. The no-JS form path is unchanged: `StartAction.form(definition, ...)`
-renders the same Action as a progressive `<form method="post">`.
+way. Without JavaScript, `StartAction.form(definition, ...)` renders the same
+Action as a `<form method="post">` with no `action`: it posts to its page, and
+a validation failure or failure renders that page again with the handle
+starting from the posted submission (`result()` and `formValues()`).
 
 ### States: client state
 

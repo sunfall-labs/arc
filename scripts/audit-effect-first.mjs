@@ -1006,7 +1006,7 @@ const banned = [
     name: "async function syntax",
     seams: [
       seam(
-        "docs/comparison.md:86:snippet-3.ts",
+        "docs/comparison.md:95:snippet-3.ts",
         "React Router comparison action",
         /export async function action/,
       ),
@@ -1018,12 +1018,12 @@ const banned = [
     name: "await keyword",
     seams: [
       seam(
-        "docs/comparison.md:86:snippet-3.ts",
+        "docs/comparison.md:95:snippet-3.ts",
         "React Router comparison formData await",
         /await request\.formData\(\)/,
       ),
       seam(
-        "docs/comparison.md:86:snippet-3.ts",
+        "docs/comparison.md:95:snippet-3.ts",
         "React Router comparison mutation await",
         /await renameProject\(name\)/,
       ),

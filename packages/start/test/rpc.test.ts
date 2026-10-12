@@ -251,7 +251,7 @@ describe("Start action transport", () => {
             _tag: "ActionProtocolError",
             payload: { contentType: "text/plain" },
           });
-          expect(body.error.message).toContain("application/x-www-form-urlencoded");
+          expect(body.error.message).toContain("application/json");
         }),
       ),
     ));
@@ -289,7 +289,7 @@ describe("Start action transport", () => {
               method: "POST",
               headers: {
                 accept: startJsonMediaType,
-                "content-type": "application/x-www-form-urlencoded",
+                "content-type": startJsonMediaType,
               },
               body: erroringBodyStream(),
               duplex: "half",
@@ -310,7 +310,7 @@ describe("Start action transport", () => {
 
           expect(requestFailure.error).toMatchObject({
             _tag: "ActionProtocolError",
-            message: "Expected an action form body.",
+            message: "Expected a JSON action request body.",
           });
           const responseFailure = Exit.isFailure(responseExit)
             ? firstFailure(responseExit.cause)

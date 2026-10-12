@@ -7,12 +7,14 @@ import {
   type Resource,
   type Server,
 } from "@sunfall/arc-core";
+import { PostedActions } from "@sunfall/arc-core/internal";
 import { Component } from "@sunfall/arc-solid";
 import { Data, Effect, Layer, Option } from "effect";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as HttpClient from "effect/http/HttpClient";
 import { KeyValueStore } from "effect/persistence";
 import { hydrateFromDocument, type StartHydrationError } from "./hydration.js";
+import { postedActionSubmission } from "./start-action-form-post.js";
 import { startActionOutboxCookie } from "./start-action-outbox-cookie.js";
 import { actionTransportLayer } from "./start-action-transport.js";
 import { startRootElementId } from "./start-document.js";
@@ -235,6 +237,9 @@ export namespace App {
         }
         const browserRpc =
           typeof __SUNFALL_ARC_BROWSER_RPC__ === "undefined" || __SUNFALL_ARC_BROWSER_RPC__;
+        // The no-JavaScript form post the server rendered this page for, while
+        // the page hydrates: its Action's bindings start from its outcome.
+        const postedActions: PostedActions = { current: undefined };
         const runtime = yield* Effect.acquireRelease(
           Effect.sync(() =>
             makeRuntime(
@@ -245,6 +250,7 @@ export namespace App {
                       Layer.mergeAll(
                         actionTransportLayer,
                         browserRpc ? rpcClientLayer : Layer.empty,
+                        Layer.succeed(PostedActions)(postedActions),
                       ).pipe(Layer.provideMerge(clientHttpClient), Layer.provideMerge(app.client)),
                     ),
                   ),
@@ -257,6 +263,9 @@ export namespace App {
         const hydration = yield* runtime.provide(
           hydrateFromDocument(globalThis.document, options.hydration),
         );
+        if (hydration?.postedAction !== undefined) {
+          postedActions.current = postedActionSubmission(hydration.postedAction);
+        }
         const href = options.href ?? `${location.pathname}${location.search}`;
         // A code-split route component must be loaded before hydrating, so the
         // first client pass renders the markup the server rendered. A failed
@@ -272,6 +281,8 @@ export namespace App {
           container,
           { runtime, props: { href }, hydrate: true },
         );
+        // Hydrated: a binding created later (another visit to the form) starts idle.
+        postedActions.current = undefined;
         // The outbox cookie tells the next document request which durable
         // submissions this page holds; the server reports back the ones it
         // already settled (`settledSubmissions`).

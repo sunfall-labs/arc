@@ -31,6 +31,11 @@ export default Component.define("SignInPage", function* (props: Route.Props<type
     ),
   );
   const form = () => StartAction.form(SignIn, { input: { redirectTo: next() } });
+  // A form post without JavaScript that failed comes back with what it sent.
+  const posted = (field: "name" | "email"): string => {
+    const value = signIn.formValues()?.[field];
+    return typeof value === "string" ? value : "";
+  };
   const fieldError = (field: "name" | "email") => {
     const result = signIn.result();
     const value = result._tag === "Success" ? result.value : undefined;
@@ -47,7 +52,6 @@ export default Component.define("SignInPage", function* (props: Route.Props<type
         <p class="muted">No password: tell us who you are. New emails get a new account.</p>
         <form
           method={form().method}
-          action={form().action}
           onSubmit={(event) => {
             event.preventDefault();
             submit(event.currentTarget);
@@ -64,6 +68,7 @@ export default Component.define("SignInPage", function* (props: Route.Props<type
               required
               minlength={2}
               placeholder="Ada Lovelace"
+              value={posted("name")}
               aria-invalid={fieldError("name") === undefined ? "false" : "true"}
             />
             <Show when={fieldError("name")}>
@@ -78,6 +83,7 @@ export default Component.define("SignInPage", function* (props: Route.Props<type
               autocomplete="email"
               required
               placeholder="ada@example.com"
+              value={posted("email")}
               aria-invalid={fieldError("email") === undefined ? "false" : "true"}
             />
             <Show when={fieldError("email")}>

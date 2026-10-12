@@ -375,7 +375,13 @@ export const shouldHandleSsrRequest = (
   }
 
   const method = request.method ?? "GET";
-  if (method !== "GET" && method !== "HEAD") {
+  const contentType = request.headers["content-type"];
+  // A form posted to a page (a no-JavaScript Action submission) is the page's.
+  const formPost =
+    method === "POST" &&
+    typeof contentType === "string" &&
+    /^(application\/x-www-form-urlencoded|multipart\/form-data)\b/i.test(contentType.trim());
+  if (method !== "GET" && method !== "HEAD" && !formPost) {
     return false;
   }
 

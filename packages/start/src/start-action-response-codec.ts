@@ -22,14 +22,7 @@ import {
   hydrateStartPayload,
   type StartHydrationPayload,
 } from "./hydration.js";
-import {
-  hasContentType,
-  mediaTypeOf,
-  negotiateAcceptedMediaType,
-  startHtmlMediaType,
-  startJsonMediaType,
-  type StartTransportRequestError,
-} from "./rpc.js";
+import { mediaTypeOf, startJsonMediaType, type StartTransportRequestError } from "./rpc.js";
 import type { StartRequestFailureKind } from "./request-trace.js";
 import { serializeDefect, type StartActionDefinition } from "./start-action-request-codec.js";
 
@@ -210,13 +203,6 @@ export const actionResponseMeta = (
         };
       });
 
-export const actionResponseMode = (request: Request): "json" | "redirect" =>
-  hasContentType(request.headers, [startJsonMediaType]) ||
-  negotiateAcceptedMediaType(request.headers, [startHtmlMediaType, startJsonMediaType]) ===
-    startJsonMediaType
-    ? "json"
-    : "redirect";
-
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
@@ -225,22 +211,19 @@ const actionValueResponse = (
   action: StartActionDefinition,
   result: unknown,
   meta: StartActionResponseMeta,
-  mode: "json" | "redirect",
 ): Effect.Effect<Response> =>
   Effect.gen(function* () {
     const actionResult = ActionResult.is(result) ? result : undefined;
     if (actionResult && ActionResult.isRedirect(actionResult)) {
       const { location, status, headers, replace } = actionResult;
-      return mode === "json"
-        ? actionJson({
-            _tag: "Redirect",
-            location,
-            status,
-            ...(headers === undefined ? {} : { headers }),
-            ...(replace === undefined ? {} : { replace }),
-            ...meta,
-          })
-        : new Response(null, { status, headers: { location, ...headers } });
+      return actionJson({
+        _tag: "Redirect",
+        location,
+        status,
+        ...(headers === undefined ? {} : { headers }),
+        ...(replace === undefined ? {} : { replace }),
+        ...meta,
+      });
     }
 
     const whole = yield* Effect.exit(encodeActionWire(action.output, result));
@@ -265,9 +248,9 @@ const actionValueResponse = (
           ...(source.cause === undefined ? {} : { cause: serializeDefect(source.cause) }),
           ...meta,
         },
-        // A validation outcome is an answer, not a transport error: JSON clients
-        // get 200, so browsers log nothing; a form post gets 422.
-        mode === "json" ? 200 : 422,
+        // A validation outcome is an answer, not a transport error: 200, so
+        // browsers log nothing.
+        200,
       );
     }
     if (ActionResult.isFailure(actionResult)) {
@@ -289,10 +272,9 @@ export const actionExitResponse = <ActionError>(
   action: StartActionDefinition,
   exit: Exit.Exit<unknown, ActionError>,
   meta: StartActionResponseMeta = {},
-  mode: "json" | "redirect" = "redirect",
 ): Effect.Effect<Response> => {
   if (Exit.isSuccess(exit)) {
-    return actionValueResponse(action, exit.value, meta, mode);
+    return actionValueResponse(action, exit.value, meta);
   }
 
   const failure = exit.cause.reasons.find(Cause.isFailReason);

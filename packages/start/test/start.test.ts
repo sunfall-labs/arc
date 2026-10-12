@@ -2331,7 +2331,7 @@ describe("Sunfall Arc Start", () => {
     const redirect = await Effect.runPromise(
       Effect.scoped(
         handler(
-          new Request(`https://example.com${form.action}`, {
+          new Request("https://example.com/", {
             method: form.method.toUpperCase(),
             headers: { "content-type": "application/x-www-form-urlencoded" },
             body: formBody,
@@ -2405,9 +2405,7 @@ describe("Sunfall Arc Start", () => {
     }
     formData.set("name", "Atlas Forms");
 
-    await expect(
-      Effect.runPromise(StartAction.decodeFormData(Submit, formData)),
-    ).resolves.toEqual({
+    await expect(Effect.runPromise(StartAction.decodeFormData(Submit, formData))).resolves.toEqual({
       id: "atlas",
       name: "Atlas Forms",
     });
@@ -2442,7 +2440,13 @@ describe("Sunfall Arc Start", () => {
         ["note", ""],
         ["estimate", "3"],
       ]),
-    ).resolves.toEqual({ title: "Ship", urgent: false, labelIds: [], assigneeId: null, estimate: 3 });
+    ).resolves.toEqual({
+      title: "Ship",
+      urgent: false,
+      labelIds: [],
+      assigneeId: null,
+      estimate: 3,
+    });
     // One box of a group, then several.
     await expect(
       decode([
@@ -2498,122 +2502,6 @@ describe("Sunfall Arc Start", () => {
     expect(() => StartAction.form(Submit, { input: { count: 1n } })).toThrow(
       StartActionFormEncodeError,
     );
-  });
-
-  it("returns typed JSON redirects for form actions that explicitly accept JSON", async () => {
-    const SubmitResult = Schema.TaggedUnion({
-      Success: {
-        value: Schema.Struct({ ok: Schema.Boolean }),
-      },
-      ValidationFailure: {
-        fieldErrors: Schema.Struct({
-          redirectTo: Schema.optional(Schema.Array(Schema.String)),
-        }),
-        formErrors: Schema.Array(Schema.String),
-      },
-      Redirect: {
-        location: Schema.String,
-        status: Schema.Number,
-        replace: Schema.optional(Schema.Boolean),
-      },
-      Failure: {
-        error: Schema.String,
-      },
-    });
-    const Submit = Action.define<
-      { readonly redirectTo: string },
-      ActionResult<{ readonly ok: boolean }, { readonly redirectTo: string }, string, string>
-    >({
-      name: "Start.action.form.accept-json",
-      input: Schema.Struct({ redirectTo: Schema.String }),
-      output: SubmitResult,
-      run: ({ redirectTo }) =>
-        Effect.succeed(ActionResult.redirect(redirectTo, { status: 303, replace: true })),
-    });
-    const app = makeStartServerApp({
-      routes: [Route.define("/", {})] as const,
-    });
-    const form = StartAction.form(Submit, { input: { redirectTo: "/projects/json" } });
-    const formBody = new URLSearchParams(
-      form.hiddenFields.map((field) => [field.name, field.value]),
-    );
-    const response = await Effect.runPromise(
-      Effect.scoped(
-        createStartRequestHandler(app, { actions: [Submit] })(
-          new Request(`https://example.com${form.action}`, {
-            method: form.method.toUpperCase(),
-            headers: {
-              "content-type": "application/x-www-form-urlencoded",
-              accept: "application/json",
-            },
-            body: formBody,
-          }),
-        ),
-      ),
-    );
-
-    expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toEqual({
-      _tag: "Redirect",
-      location: "/projects/json",
-      status: 303,
-      replace: true,
-    });
-  });
-
-  it("honors Accept quality when choosing form action redirect responses", async () => {
-    const SubmitResult = Schema.TaggedUnion({
-      Success: {
-        value: Schema.Struct({ ok: Schema.Boolean }),
-      },
-      ValidationFailure: {
-        fieldErrors: Schema.Struct({
-          redirectTo: Schema.optional(Schema.Array(Schema.String)),
-        }),
-        formErrors: Schema.Array(Schema.String),
-      },
-      Redirect: {
-        location: Schema.String,
-        status: Schema.Number,
-        replace: Schema.optional(Schema.Boolean),
-      },
-      Failure: {
-        error: Schema.String,
-      },
-    });
-    const Submit = Action.define<
-      { readonly redirectTo: string },
-      ActionResult<{ readonly ok: boolean }, { readonly redirectTo: string }, string, string>
-    >({
-      name: "Start.action.form.accept-quality",
-      input: Schema.Struct({ redirectTo: Schema.String }),
-      output: SubmitResult,
-      run: ({ redirectTo }) => Effect.succeed(ActionResult.redirect(redirectTo, { status: 303 })),
-    });
-    const app = makeStartServerApp({
-      routes: [Route.define("/", {})] as const,
-    });
-    const form = StartAction.form(Submit, { input: { redirectTo: "/projects/html" } });
-    const formBody = new URLSearchParams(
-      form.hiddenFields.map((field) => [field.name, field.value]),
-    );
-    const response = await Effect.runPromise(
-      Effect.scoped(
-        createStartRequestHandler(app, { actions: [Submit] })(
-          new Request(`https://example.com${form.action}`, {
-            method: form.method.toUpperCase(),
-            headers: {
-              "content-type": "application/x-www-form-urlencoded",
-              accept: "text/html, application/json;q=0.1",
-            },
-            body: formBody,
-          }),
-        ),
-      ),
-    );
-
-    expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe("/projects/html");
   });
 
   it("discovers Start actions from the Action registry when no explicit list is supplied", async () => {

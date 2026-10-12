@@ -1,8 +1,8 @@
-import { Action, makeRuntime, Resource, Route } from "@sunfall/arc-core";
+import { Action, ActionResult, makeRuntime, Resource, Route } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
 import { Effect, Layer, Logger, Schema, Context } from "effect";
 import { describe, expect, it } from "vitest";
-import { App, createRequestHandler } from "../src/index.js";
+import { App, createRequestHandler, StartAction } from "../src/index.js";
 import { hydrationScriptId, streamHydrationAttribute } from "../src/hydration.js";
 import { StartDevServerError, handleSsrDevRequest } from "../src/start-vite-dev-ssr.js";
 import { StartRequestHandlerError } from "../src/start-request-handler-error.js";
@@ -200,5 +200,106 @@ describe("dev SSR failure messages", () => {
     expect(
       new StartDevServerError({ operation: "load-module", error: new RenderBroke() }).message,
     ).toBe("Start dev SSR failed to load-module: RenderBroke");
+  });
+});
+
+describe("no-JavaScript form posts to a page", () => {
+  const Rename = Action.define({
+    name: "StartApp.rename",
+    input: Schema.Struct({ id: Schema.String, name: Schema.String }),
+    output: Schema.Union([ActionResult.Redirect, ActionResult.ValidationFailure]),
+  });
+  const rename = Action.implement(Rename, ({ id, name }) =>
+    Effect.succeed(
+      name.trim().length < 3
+        ? ActionResult.validation<Record<string, unknown>, string>({
+            fieldErrors: { name: ["Use at least three characters."] },
+          })
+        : ActionResult.redirect(`/projects/${id}`),
+    ),
+  );
+  const FormRoute = Route.define("/projects/:id/rename", {
+    params: Schema.Struct({ id: Schema.String }),
+  });
+  const RenamePage = Component.define("RenamePage", function* (_props: App.RootProps) {
+    const handle = yield* Component.action(Rename);
+    return () => {
+      const result = handle.result();
+      const value = result._tag === "Success" ? result.value : undefined;
+      const error =
+        value !== undefined && ActionResult.isValidationFailure(value)
+          ? value.fieldErrors["name"]?.[0]
+          : undefined;
+      const posted = handle.formValues()?.["name"];
+      return `name=[${typeof posted === "string" ? posted : ""}] error=[${error ?? ""}]`;
+    };
+  });
+  const formApp = App.define({
+    root: RenamePage,
+    routes: [FormRoute] as const,
+  });
+  const handler = createRequestHandler(formApp, { implementations: [rename] });
+  const post = (fields: Record<string, string>) =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const form = StartAction.form(Rename, { input: { id: "atlas" } });
+          const body = new URLSearchParams([
+            ...form.hiddenFields.map((field) => [field.name, field.value] as [string, string]),
+            ...Object.entries(fields),
+          ]);
+          const response = yield* handler(
+            new Request("https://example.com/projects/atlas/rename?tab=x", {
+              method: form.method.toUpperCase(),
+              headers: { "content-type": "application/x-www-form-urlencoded" },
+              body,
+            }),
+          );
+          return { response, html: yield* Effect.promise(() => response.text()) };
+        }),
+      ),
+    );
+
+  it("follows the Action's redirect with a 303", async () => {
+    const { response } = await post({ name: "Atlas 2" });
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/projects/atlas");
+  });
+
+  it("renders the page again with the outcome and the fields when validation fails", async () => {
+    const { response, html } = await post({ name: "At" });
+    expect(response.status).toBe(422);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    expect(html).toContain("name=[At] error=[Use at least three characters.]");
+    const root = html.match(
+      new RegExp(`<script[^>]*id="${hydrationScriptId}"[^>]*>([\\s\\S]*?)</script>`),
+    )?.[1];
+    expect(JSON.parse(root ?? "{}").postedAction).toMatchObject({
+      action: "StartApp.rename",
+      values: { name: "At" },
+      input: { id: "atlas", name: "At" },
+      outcome: { _tag: "ValidationFailure" },
+    });
+  });
+
+  it("answers a form whose fields fail the input schema as its validation failure", async () => {
+    const { response, html } = await post({});
+    expect(response.status).toBe(422);
+    expect(html).toContain("error=[Missing key]");
+  });
+
+  it("answers 404 for a form naming no served Action", async () => {
+    const response = await Effect.runPromise(
+      Effect.scoped(
+        handler(
+          new Request("https://example.com/projects/atlas/rename", {
+            method: "POST",
+            headers: { "content-type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ __sunfall_arc_action: "Nope" }),
+          }),
+        ),
+      ),
+    );
+    expect(response.status).toBe(404);
   });
 });

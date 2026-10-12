@@ -6,6 +6,26 @@ Entries are newest first.
 
 ## Unreleased (since 0.1.0-alpha.1)
 
+### No-JavaScript Forms Post To Their Page
+
+- `StartAction.form(action, { input })` returns `{ method, hiddenFields }`
+  without an `action`, so the `<form method="post">` posts to the page it is
+  on. Start runs a form-encoded POST to a page as the Action's submission:
+  the fields decode into its input (a schema failure is the form's
+  validation failure), a redirect answers with it, and a success answers 303
+  back to the page.
+- A validation failure renders the page again with status 422 (a failure
+  with 400), as HTML: the submitted Action's `Component.action` binding
+  starts from the outcome (`result()` holds the `ValidationFailure`), and its
+  new `formValues()` returns the posted fields so the inputs keep what was
+  typed. The root hydration payload carries the post (`postedAction`), so
+  the hydrating client renders the same form. A browser without JavaScript
+  sees its form with its errors instead of a JSON page.
+- The action endpoint (`POST /__sunfall-arc/action`) is JSON only: form
+  bodies, the `Accept`-negotiated redirect mode, and 422 validation answers
+  are gone from it.
+- The Vite dev server hands form POSTs to pages to the Start handler.
+
 ### Forms Decode Into Domain Schemas
 
 - Form decoding reads the posted strings as the schema's encoded shape before

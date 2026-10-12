@@ -918,6 +918,11 @@ implementations })`. Declare `output` and `error` schemas: they type the
   browser's handles and encode the wire. A form-backed Action declares
   `ActionResult.Redirect` and `ActionResult.ValidationFailure` in its
   `output`.
+- **Forms work without JavaScript.** Render `StartAction.form`'s hidden
+  fields in a `<form method="post">` with no `action`: it posts to its page.
+  A redirect or success answers 303; a failed post renders the page again,
+  with the Action handle's `result()` holding the outcome and `formValues()`
+  the posted fields to render as input values.
 - **Invalidate by meaning.** Resources `provide` tags, Actions `invalidate`
   them. Call `Resource.invalidate(ref)` yourself only for an explicit refresh
   button.

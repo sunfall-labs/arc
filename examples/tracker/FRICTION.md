@@ -174,6 +174,26 @@ went through `domainOnly` to turn transport failures into defects.
   not declare (transport, wire schema, a missing implementation) as a defect
   (`servedLoad` in `packages/core/src/resource.ts`). `domainOnly` is gone.
 
+### 15. No-JS validation errors were a JSON page
+
+A no-JS form post whose Action returned `ActionResult.validation(...)` was
+answered with 422 JSON, so the browser showed raw JSON instead of the form.
+
+- Fix: a no-JS form posts to its own page (`StartAction.form` has no
+  `action`). Start runs the Action there; a validation failure renders the
+  page again (422, HTML) with the Action's binding seeded from the outcome
+  and the posted fields (`Component.action(...).formValues()`), and the root
+  hydration payload carries the post so the hydrating client matches
+  (`packages/start/src/start-action-form-post.ts`,
+  `packages/core/src/action-posted.ts`, `packages/solid/src/component.ts`).
+  The new-issue and sign-in forms render `formValues()` back into their
+  fields. The action endpoint is JSON only.
+- Tests: `packages/start/test/start-app.test.ts` ("no-JavaScript form posts
+  to a page"); app: `src/server.test.ts` ("renders the form again with its
+  errors and values"), `scripts/production-smoke.mjs` (invalid and valid
+  form posts against the production server); the browser check posts an
+  invalid form with JavaScript off.
+
 ### 16. Validation failures logged console errors
 
 The JSON action client received 422 for a validation result, and browsers log
@@ -225,18 +245,6 @@ ran in dev only.
   and runs `scripts/production-smoke.mjs` against the production server.
 
 ## Open
-
-### 15. No-JS validation errors are a JSON page
-
-A no-JS form post whose Action returns `ActionResult.validation(...)` answers
-422 JSON (`packages/start/src/start-action-response-codec.ts`). The browser
-shows raw JSON instead of the form with its errors. Redirect-mode success
-works; validation does not.
-
-- Proposal: in redirect mode, a `ValidationFailure` answers 303 back to the
-  referring page with the result in a short-lived, HttpOnly flash cookie that
-  the next document request hydrates into the Action's state, so
-  `Component.action(...).result()` shows it on both paths.
 
 ### 18. Change feeds also start in SSR request runtimes (fixed)
 

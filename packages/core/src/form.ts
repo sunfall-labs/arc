@@ -548,7 +548,13 @@ const formFieldValue = (ast: SchemaAST.AST, value: unknown, optional: boolean): 
   }
   if (has("Boolean") && !has("String")) {
     // A checkbox posts "on" when checked and nothing when not.
-    return value === undefined ? false : formTrue.has(value) ? true : formFalse.has(value) ? false : value;
+    return value === undefined
+      ? false
+      : formTrue.has(value)
+        ? true
+        : formFalse.has(value)
+          ? false
+          : value;
   }
   if (value === undefined) {
     // A field the form did not post is "nothing" where the schema can say so.

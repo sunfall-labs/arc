@@ -221,7 +221,6 @@ const AppShell = Component.define("AppShell", function* () {
               </button>
               <form
                 method={signOutForm.method}
-                action={signOutForm.action}
                 class="userMenu"
                 onSubmit={(event) => {
                   event.preventDefault();

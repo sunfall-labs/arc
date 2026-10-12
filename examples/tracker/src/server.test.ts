@@ -12,14 +12,19 @@ const origin = "https://tracker.test";
 const request = (path: string, init: RequestInit = {}): Promise<Response> =>
   Effect.runPromise(Effect.scoped(handleRequest(new Request(`${origin}${path}`, init))));
 
-const formPost = (fields: Record<string, string | ReadonlyArray<string>>, cookie?: string) => {
+/** A form posted without JavaScript to the page it is on. */
+const formPost = (
+  path: string,
+  fields: Record<string, string | ReadonlyArray<string>>,
+  cookie?: string,
+) => {
   const body = new URLSearchParams();
   for (const [name, value] of Object.entries(fields)) {
     for (const item of typeof value === "string" ? [value] : value) {
       body.append(name, item);
     }
   }
-  return request("/__sunfall-arc/action", {
+  return request(path, {
     method: "POST",
     headers: {
       "content-type": "application/x-www-form-urlencoded",
@@ -53,7 +58,7 @@ let cookie = "";
 
 beforeAll(async () => {
   // A no-JavaScript sign-in: a plain form post that answers with a redirect.
-  const response = await formPost({
+  const response = await formPost("/signin?next=%2Fprojects%2FTRK", {
     __sunfall_arc_action: "Tracker.signIn",
     __sunfall_arc_input: JSON.stringify({ redirectTo: "/projects/TRK" }),
     name: "Mara Chen",
@@ -139,6 +144,7 @@ describe("tracker SSR", () => {
 
   it("creates an issue from a no-JavaScript form post", async () => {
     const response = await formPost(
+      "/projects/WEB/new",
       {
         __sunfall_arc_action: "Tracker.createIssue",
         __sunfall_arc_input: JSON.stringify({ projectKey: "WEB" }),
@@ -146,8 +152,8 @@ describe("tracker SSR", () => {
         description: "",
         status: "todo",
         priority: "low",
-        assignee: "",
-        labels: ["l_web-copy", "l_web-bug"],
+        assigneeId: "",
+        labelIds: ["l_web-copy", "l_web-bug"],
       },
       cookie,
     );
@@ -156,5 +162,36 @@ describe("tracker SSR", () => {
     expect(location).toMatch(/^\/issues\/WEB-\d+$/);
     const html = await (await request(location, { headers: { cookie } })).text();
     expect(html).toContain("Form post issue");
+  });
+
+  it("renders the form again with its errors and values when a no-JavaScript post fails validation", async () => {
+    const response = await formPost(
+      "/projects/WEB/new",
+      {
+        __sunfall_arc_action: "Tracker.createIssue",
+        __sunfall_arc_input: JSON.stringify({ projectKey: "WEB" }),
+        title: "x",
+        description: "Kept *as typed*",
+        status: "in_review",
+        priority: "urgent",
+        assigneeId: "",
+        labelIds: "l_web-copy",
+      },
+      cookie,
+    );
+    expect(response.status).toBe(422);
+    expect(response.headers.get("content-type")).toContain("text/html");
+    const html = await response.text();
+    // The error next to the field, and every field as it was posted.
+    expect(html).toContain("Give the issue a title.");
+    expect(html).toMatch(/<input[^>]*name="title"[^>]*value="x"/);
+    expect(html).toContain("Kept *as typed*");
+    expect(html).toMatch(/<input[^>]*value="l_web-copy"[^>]*checked/);
+    // The hydrating client starts from the same outcome.
+    expect(rootPayload(html).postedAction).toMatchObject({
+      action: "Tracker.createIssue",
+      values: { title: "x" },
+      outcome: { _tag: "ValidationFailure", fieldErrors: { title: ["Give the issue a title."] } },
+    });
   });
 });

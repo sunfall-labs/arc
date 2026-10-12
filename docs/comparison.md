@@ -128,9 +128,13 @@ export const projectNameActionTarget = (input: {
 ```
 
 With JavaScript, a component submits it through the Start action transport.
-Without JavaScript, the same Action handles the form post. Validation,
-redirects, success, domain failures, invalidation, services, retries, and
-schemas stay in one path.
+Without JavaScript, the form posts to its own page and the same Action handles
+it: a redirect answers 303, a success redirects back to the page, and a
+validation failure renders the page again (422) with the field errors in the
+Action handle's `result()` and the posted fields in its `formValues()`, as a
+Remix route re-renders with its action data. Validation, redirects, success,
+domain failures, invalidation, services, retries, and schemas stay in one
+path.
 
 The competitive claim is narrow: Sunfall Arc should not win by merely having
 server actions or form posts. It wins only if the action contract, runtime
@@ -369,7 +373,8 @@ Sunfall Arc already has a few unusually useful proof points:
 - Start file routes produce a deterministic, validated route manifest and a
   typed `routeTree.gen.ts`.
 - The example app proves SSR, streamed hydration, branded route params,
-  progressive form posts, validation, redirects, indexed rows, optimistic
+  no-JS form posts (a validation failure renders the page again with its
+  errors and posted values), redirects, indexed rows, optimistic
   mutation, mocking through Effect service Layers, and server-only leak scanning.
 
 ## Where The Incumbents Still Deserve Respect

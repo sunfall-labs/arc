@@ -1,11 +1,7 @@
 import { RequestContext, Resource, ResponseContext, Route } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
 import { App, createRequestHandler, StartAction } from "@sunfall/arc-start";
-import {
-  serverActionPath,
-  streamHydrationAttribute,
-  type StartHydrationChunk,
-} from "@sunfall/arc-start/testing";
+import { streamHydrationAttribute, type StartHydrationChunk } from "@sunfall/arc-start/testing";
 import { Effect, Schema, type Scope } from "effect";
 import { describe, expect, it } from "vitest";
 import {
@@ -34,7 +30,7 @@ const postActionForm = async (
 ): Promise<Response> =>
   runRequest(
     handleRequest(
-      new Request(`https://example.com${serverActionPath}`, {
+      new Request("https://example.com/projects/meridian?tab=activity", {
         method: form.method.toUpperCase(),
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body,

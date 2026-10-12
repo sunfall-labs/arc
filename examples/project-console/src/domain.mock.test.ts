@@ -124,10 +124,9 @@ describe("project console with the server mocked", () => {
     });
     const input = target.hiddenFields.find((field) => field.name === "__sunfall_arc_input");
 
-    expect(target).toMatchObject({
-      method: "post",
-      action: "/__sunfall-arc/action",
-    });
+    // No `action`: the form posts to the page it is on.
+    expect(target.method).toBe("post");
+    expect("action" in target).toBe(false);
     expect(input).toBeDefined();
     expect(JSON.parse(input?.value ?? "{}")).toEqual({
       id: "mocked",

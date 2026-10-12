@@ -575,7 +575,14 @@ includes:
   fetch hook of its own. The server answers `/__sunfall-arc/rpc` with
   `RpcServer.toHttpEffect` over an `RpcGroup` of the `Resource.implement` and
   `Server.implement` values in `implementations`, and `/__sunfall-arc/action`
-  with the `Action.implement` values.
+  (JSON only: content type and accept `application/json`, always answering
+  JSON) with the `Action.implement` values. A form-encoded or multipart `POST`
+  to a page is a no-JavaScript submission of a served Action: a redirect
+  answers with it (303 by default), a success with a 303 back to the page,
+  and a validation failure (422) or failure (400) renders the page again with
+  the outcome and posted fields (`postedAction` in the root hydration
+  payload, which `App.launch` seeds the Action's bindings from until
+  hydration finishes).
 - durable submissions: `App.launch` provides the Action Outbox over the
   browser's one `KeyValueStore` (the client Layer's, else `localStorage`,
   shared with persisted Resources;
@@ -606,6 +613,9 @@ includes:
   decodes a form into the Action's input exactly as the server decodes the
   same form posted without JavaScript (defaults merged, read as the input
   schema's encoded shape like `Form.decodeFormData`).
+  `StartAction.form(action, { input })` returns `{ method: "post",
+hiddenFields }` with no `action`: the `<form method="post">` posts to the
+  page it is on.
 - static sites: `makeStartStaticHistoryAdapter`, `currentStartStaticHref`,
   `normalizeStartStaticBasePath`, `withStartStaticBasePath`,
   `stripStartStaticBasePath`, `StartStaticBasePathError`, and
@@ -849,9 +859,12 @@ value)` (`Component.ResourceRowsReader`), typed by `rows`.
   join `E` and their services join `R`. It replaces the deleted
   `@sunfall/arc-solid-db` package.
 - `Component.action(definition)` returns an `ActionHandle` (`waiting`,
-  `failure`, `result`, `input`, `submit`, `reset`); `waiting()` / `failure()`
-  use the Resource reader's status names, and `result()` keeps the full
-  `AsyncResult`. `submit(input)` and `reset()` return Effects, which event
+  `failure`, `result`, `input`, `formValues`, `submit`, `reset`); `waiting()` /
+  `failure()` use the Resource reader's status names, and `result()` keeps the
+  full `AsyncResult`. `formValues()` is the fields of the no-JavaScript form
+  post the page was rendered again for
+  (`Readonly<Record<string, string | ReadonlyArray<string>>>`, `undefined`
+  otherwise); the handle then starts from that post's settled `result()`. `submit(input)` and `reset()` return Effects, which event
   handlers run through `Component.callback` (handling failures there: a
   submission's failures belong to its caller, never to the Component's `E`). A
   runtime-provided `ActionTransport` (provided by Start's `App.launch` for the

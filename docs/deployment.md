@@ -140,8 +140,11 @@ provides Node `IncomingMessage`/`ServerResponse` values, and
 Every host serves the implementations through the same handler, at two fixed
 paths: `POST /__sunfall-arc/rpc` for Resource loads and server functions (an
 `effect/rpc` `RpcServer` with JSON serialization, answering one request per
-POST) and `POST /__sunfall-arc/action` for Actions. Route both to the Start handler; there is
-nothing else to mount. Responses from the RPC path are always `200` JSON
+POST) and `POST /__sunfall-arc/action` for Actions (JSON only). Route both
+to the Start handler, along with page requests: a form-encoded or multipart
+`POST` to a page is a no-JavaScript Action submission the handler answers
+(a redirect, or the page rendered again), so page routes must forward `POST`
+as well as `GET`. There is nothing else to mount. Responses from the RPC path are always `200` JSON
 arrays of `effect/rpc` messages (typed failures and defects travel inside
 them), so proxies should not rewrite or cache that path. The browser reaches
 both through the client Layer's `HttpClient` (else `FetchHttpClient`) on the

@@ -78,6 +78,7 @@
       "typeTest": "type-tests/core.test-d.ts",
       "sourceSurface": [
         "action-instance",
+        "action-posted",
         "action-transport",
         "action-submission",
         "app",
