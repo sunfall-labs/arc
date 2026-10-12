@@ -50,7 +50,10 @@ const definePage = (name: string, server: { rows: ReadonlyArray<Project>; hang: 
   return { Projects, ref: Projects("all"), loads };
 };
 
-const visible = <A>(runtime: SunfallArcRuntime<any, any>, ref: Resource.Ref<"all", A>) =>
+const visible = <A, R>(
+  runtime: SunfallArcRuntime<any, any>,
+  ref: Resource.Ref<"all", A, never, R>,
+) =>
   Option.getOrUndefined(
     AsyncResult.value(
       eraseRuntime(runtime).runSync(Effect.sync(() => Signal.peek(Resource.result(ref)))),
