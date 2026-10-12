@@ -201,7 +201,6 @@
         "DevtoolsRuntimeEvent",
         "DevtoolsSnapshot",
         "DevtoolsStartAppGraphSchemaCoverage",
-        "DevtoolsStartAppGraphUnknownActionBehaviorEntry",
         "DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry",
         "DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry",
         "DevtoolsStore",

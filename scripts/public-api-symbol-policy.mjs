@@ -341,7 +341,6 @@ export const publicHoverDocGroups = [
       "DevtoolsStoreOptions",
       "DevtoolsStore",
       "DevtoolsStartAppGraphSchemaCoverage",
-      "DevtoolsStartAppGraphUnknownActionBehaviorEntry",
       "DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry",
       "DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry",
       "DevtoolsSummaryResourceRef",
@@ -658,11 +657,7 @@ export const publicHoverDocGroups = [
   },
   {
     file: "packages/start/src/app-graph.ts",
-    declarations: [
-      "StartAppGraphMissingWireSchemas",
-      "StartAppGraphUnknownActionBehavior",
-      "describeStartAppGraphRuntimeDiagnostics",
-    ],
+    declarations: ["StartAppGraphMissingWireSchemas", "describeStartAppGraphRuntimeDiagnostics"],
   },
   {
     file: "packages/start/src/start-app-graph-diagnostics-policy.ts",

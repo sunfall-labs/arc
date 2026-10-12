@@ -794,7 +794,6 @@ const appGraphDiagnosticsWithRoutes = (routeCount: number): DevtoolsStartAppGrap
       status: "declared",
       collections: [],
     },
-    component: "present",
   })),
   serverFunctionModules: [],
   actionModules: [],
@@ -820,7 +819,6 @@ const appGraphDiagnosticsWithRoutes = (routeCount: number): DevtoolsStartAppGrap
     },
   },
   missingSchemas: [],
-  unknownActionBehavior: [],
   unknownRoutePreloadResources: [],
   unknownRoutePreloadCollections: [],
 });

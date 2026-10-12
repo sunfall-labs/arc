@@ -846,7 +846,6 @@ describe("devtools invalidation plans", () => {
         invalidationPlanCount: 1,
         routePlanCount: 1,
         missingSchemaCount: 2,
-        unknownActionBehaviorCount: 0,
         unknownRoutePreloadResourcesCount: 0,
         unknownRoutePreloadCollectionsCount: 0,
         notFoundRoutePlanCount: 0,
@@ -1780,7 +1779,6 @@ describe("devtools invalidation plans", () => {
           },
         },
       ],
-      unknownActionBehavior: [],
     };
     const store = makeDevtoolsStore();
 
@@ -1847,16 +1845,6 @@ describe("devtools invalidation plans", () => {
           },
         },
       ],
-      unknownActionBehavior: [
-        {
-          kind: "action",
-          name: "User.rename",
-          invalidates: "unknown",
-          optimistic: "absent",
-          retry: "present",
-          concurrency: "latest",
-        },
-      ],
     });
     expect(snapshotAppGraph?.missingSchemas).toEqual([
       {
@@ -1883,7 +1871,6 @@ describe("devtools invalidation plans", () => {
         serverFunctionCount: 1,
         actionCount: 1,
         missingSchemaCount: 2,
-        unknownActionBehaviorCount: 1,
         unknownRoutePreloadResourcesCount: 1,
         unknownRoutePreloadCollectionsCount: 1,
       });
@@ -1933,16 +1920,6 @@ describe("devtools invalidation plans", () => {
         output: 0,
         error: 1,
       });
-      expect(summary.graph.actions.unknownBehavior).toEqual([
-        {
-          kind: "action",
-          name: "User.rename",
-          invalidates: "unknown",
-          optimistic: "absent",
-          retry: "present",
-          concurrency: "latest",
-        },
-      ]);
     }
 
     const panels = describeDevtoolsPanels({ appGraph: staleAppGraph });
@@ -5641,7 +5618,6 @@ describe("devtools invalidation plans", () => {
       routePlanCount: 1,
       runtimeEventCount: 7,
       missingSchemaCount: 0,
-      unknownActionBehaviorCount: 0,
       unknownRoutePreloadResourcesCount: 0,
       unknownRoutePreloadCollectionsCount: 0,
     });
@@ -5655,7 +5631,6 @@ describe("devtools invalidation plans", () => {
             paramsSchema: "present",
             searchSchema: "present",
             preload: "present",
-            component: "present",
           },
         ],
       },
@@ -5940,7 +5915,6 @@ const goldenPathAppGraphDiagnostics = (
         status: "declared",
         collections: ["Golden.Project.collection"],
       },
-      component: "present",
     },
   ],
   serverFunctionModules: [
@@ -6041,7 +6015,6 @@ const goldenPathAppGraphDiagnostics = (
     },
   },
   missingSchemas: [],
-  unknownActionBehavior: [],
   unknownRoutePreloadResources: [],
   unknownRoutePreloadCollections: [],
 });
@@ -6077,7 +6050,6 @@ const appGraphDiagnostics: DevtoolsStartAppGraphDiagnostics = {
         status: "declared",
         collections: [],
       },
-      component: "present",
     },
   ],
   serverFunctionModules: [
@@ -6185,7 +6157,6 @@ const appGraphDiagnostics: DevtoolsStartAppGraphDiagnostics = {
       error: false,
     },
   ],
-  unknownActionBehavior: [],
   unknownRoutePreloadResources: [],
   unknownRoutePreloadCollections: [],
 };

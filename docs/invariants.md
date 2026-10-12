@@ -147,8 +147,10 @@ documented as outside the current release bar.
   schema/branded param checks as `Route.href`.
 - App graph diagnostics must expose route ownership by id, source file, path,
   and path params. When the Vite virtual app-graph module can import route
-  modules, it must resolve params/search schema, preload, and component presence
-  to `present` or `absent` instead of leaving those facts implicit.
+  modules, it must resolve params/search schema and preload presence to
+  `present` or `absent` instead of leaving those facts implicit. Components
+  attach in app modules through `Route.withComponent`, so route modules carry
+  no component fact to report.
 - Route preload resource diagnostics distinguish `declared`, `none`, and
   `unknown`. Static graph facts come from route `preloadResources` declarations;
   runtime route plans remain the proof of exact resource refs touched for a
@@ -167,12 +169,9 @@ documented as outside the current release bar.
   wire-schema completeness so agents can route edits without guessing across
   the client/server boundary.
 - App graph diagnostics must expose action behavior metadata for invalidation,
-  optimistic updates, retry policy, and concurrency. When a manifest is
-  hand-written and cannot prove a behavior fact, diagnostics must report
-  `unknown` rather than guessing.
-- Start build policy can opt into rejecting unknown action behavior metadata, so
-  teams can make invalidation/retry/concurrency provenance a CI-enforced
-  contract once their manifests are ready.
+  optimistic updates, retry policy, and concurrency. Manifests are derived
+  from the server entry's `Action.define` values, so these facts are always
+  known; there is no build policy for unknown behavior.
 - Start build policy can opt into resolved diagnostics checks for route preload
   resource and collection declarations. The check runs from the generated
   `virtual:sunfall-arc/app-graph` module, where route modules have been imported

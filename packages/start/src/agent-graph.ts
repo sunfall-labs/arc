@@ -124,7 +124,6 @@ const routeFacts = (route: StartAppGraphRouteDiagnostics): StartAgentGraphFactRe
     preload: route.preload,
     preloadResources: route.preloadResources,
     preloadCollections: route.preloadCollections,
-    component: route.component,
   });
 
 const serverFunctionFacts = (
@@ -446,7 +445,6 @@ export const createStartAgentGraph = (input: StartAgentGraphInput): StartAgentGr
       status: report.status,
       policyClean: (input.diagnosticsPolicyViolations?.length ?? 0) === 0,
       wireComplete: diagnostics.missingSchemas.length === 0,
-      actionBehaviorKnown: diagnostics.unknownActionBehavior.length === 0,
       routePreloadsDeclared:
         diagnostics.unknownRoutePreloadResources.length === 0 &&
         diagnostics.unknownRoutePreloadCollections.length === 0,

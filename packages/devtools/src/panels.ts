@@ -7,7 +7,6 @@ import {
   devtoolsResourceNodeId,
   devtoolsRoutePanelItemId,
   devtoolsRoutePlanPanelItemId,
-  devtoolsUnknownActionPanelItemId,
   devtoolsUnknownRoutePreloadCollectionsPanelItemId,
   devtoolsUnknownRoutePreloadResourcesPanelItemId,
 } from "./graph-ids.js";
@@ -134,8 +133,7 @@ const diagnosticsSeverity = (summary: DevtoolsSummary): DevtoolsPanelSeverity =>
   if (summary.overview.missingSchemaCount > 0) {
     return "error";
   }
-  return summary.overview.unknownActionBehaviorCount > 0 ||
-    summary.overview.unknownRoutePreloadResourcesCount > 0 ||
+  return summary.overview.unknownRoutePreloadResourcesCount > 0 ||
     summary.overview.unknownRoutePreloadCollectionsCount > 0
     ? "warning"
     : "ok";
@@ -520,11 +518,10 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
     diagnostics: {
       id: "diagnostics",
       title: "Diagnostics",
-      summary: `${summary.overview.missingSchemaCount} missing schemas, ${summary.overview.unknownActionBehaviorCount} unknown action behaviors`,
+      summary: `${summary.overview.missingSchemaCount} missing schemas`,
       severity: diagnosticsPanelSeverity,
       metrics: [
         panelMetric("missing schemas", summary.overview.missingSchemaCount),
-        panelMetric("unknown action behavior", summary.overview.unknownActionBehaviorCount),
         panelMetric(
           "unknown preload resources",
           summary.overview.unknownRoutePreloadResourcesCount,
@@ -543,15 +540,6 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
                 detail: schema.kind,
                 severity: "error",
                 data: toDevtoolsSerializableValue(schema),
-              }),
-            ),
-            ...summary.graph.actions.unknownBehavior.map((entry) =>
-              panelItem({
-                id: devtoolsUnknownActionPanelItemId(entry.name),
-                label: entry.name,
-                detail: "unknown action behavior",
-                severity: "warning",
-                data: toDevtoolsSerializableValue(entry),
               }),
             ),
             ...summary.graph.routes.unknownPreloadResources.map((entry) =>

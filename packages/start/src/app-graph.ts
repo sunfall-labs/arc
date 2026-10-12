@@ -96,7 +96,6 @@ export interface StartAppGraphRouteDiagnostics {
   readonly preload: StartAppGraphRouteFeaturePresence;
   readonly preloadResources: import("@sunfall/arc-core").Route.PreloadResourceDiagnostics;
   readonly preloadCollections: import("@sunfall/arc-core").Route.PreloadCollectionDiagnostics;
-  readonly component: StartAppGraphRouteFeaturePresence;
 }
 
 /** Wire schema fields tracked for server function and action contracts. */
@@ -198,16 +197,6 @@ export interface StartAppGraphMissingSchema {
   readonly error: boolean;
 }
 
-/** Action whose static behavior cannot be fully described. */
-export interface StartAppGraphUnknownActionBehaviorEntry {
-  readonly kind: "action";
-  readonly name: string;
-  readonly invalidates: ActionManifest["entries"][number]["behavior"]["invalidates"];
-  readonly optimistic: ActionManifest["entries"][number]["behavior"]["optimistic"];
-  readonly retry: ActionManifest["entries"][number]["behavior"]["retry"];
-  readonly concurrency: ActionManifest["entries"][number]["behavior"]["concurrency"];
-}
-
 /** Route whose preload resource declarations are unknown or incomplete. */
 export interface StartAppGraphUnknownRoutePreloadResourcesEntry {
   readonly kind: "route";
@@ -252,7 +241,6 @@ export interface StartAppGraphDiagnostics {
     readonly actions: StartAppGraphSchemaCoverage;
   };
   readonly missingSchemas: readonly StartAppGraphMissingSchema[];
-  readonly unknownActionBehavior: readonly StartAppGraphUnknownActionBehaviorEntry[];
   readonly unknownRoutePreloadResources: readonly StartAppGraphUnknownRoutePreloadResourcesEntry[];
   readonly unknownRoutePreloadCollections: readonly StartAppGraphUnknownRoutePreloadCollectionsEntry[];
 }
@@ -271,7 +259,6 @@ export interface StartAppGraphRouteDiagnosticsRuntimeCandidate {
       readonly params?: unknown;
       readonly search?: unknown;
       readonly preload?: unknown;
-      readonly component?: unknown;
     };
   };
   readonly preloadResources: import("@sunfall/arc-core").Route.PreloadResourceDiagnostics;
@@ -293,14 +280,6 @@ export interface StartAppGraphWireSchemaPolicy {
   readonly requireError?: boolean;
 }
 
-/** Build policy for required action behavior metadata. */
-export interface StartAppGraphActionBehaviorPolicy {
-  readonly requireInvalidates?: boolean;
-  readonly requireOptimistic?: boolean;
-  readonly requireRetry?: boolean;
-  readonly requireConcurrency?: boolean;
-}
-
 /** Error raised when a serialized Start app graph cannot be parsed or validated. */
 export class StartAppGraphParseError extends Data.TaggedError("StartAppGraphParseError")<{
   readonly message: string;
@@ -312,13 +291,6 @@ export class StartAppGraphMissingWireSchemas extends Data.TaggedError(
   "StartAppGraphMissingWireSchemas",
 )<{
   readonly missing: readonly StartAppGraphMissingSchema[];
-}> {}
-
-/** Error raised when required action behavior metadata is unknown. */
-export class StartAppGraphUnknownActionBehavior extends Data.TaggedError(
-  "StartAppGraphUnknownActionBehavior",
-)<{
-  readonly unknown: readonly StartAppGraphUnknownActionBehaviorEntry[];
 }> {}
 
 /** Error raised when a diagnostics DTO does not match the public wire shape. */
@@ -469,8 +441,7 @@ const isRouteDiagnostics = (value: unknown): value is StartAppGraphRouteDiagnost
   isFeaturePresence(value.searchSchema) &&
   isFeaturePresence(value.preload) &&
   isPreloadResourceDiagnostics(value.preloadResources) &&
-  isPreloadCollectionDiagnostics(value.preloadCollections) &&
-  isFeaturePresence(value.component);
+  isPreloadCollectionDiagnostics(value.preloadCollections);
 
 const isWireDiagnostics = (value: unknown): value is StartAppGraphWireDiagnostics =>
   isRecord(value) &&
@@ -560,17 +531,6 @@ const isMissingSchemaDiagnostics = (value: unknown): value is StartAppGraphMissi
   typeof value.output === "boolean" &&
   typeof value.error === "boolean";
 
-const isUnknownActionBehaviorDiagnostics = (
-  value: unknown,
-): value is StartAppGraphUnknownActionBehaviorEntry =>
-  isRecord(value) &&
-  value.kind === "action" &&
-  typeof value.name === "string" &&
-  isActionBehaviorPresence(value.invalidates) &&
-  isActionBehaviorPresence(value.optimistic) &&
-  isActionBehaviorPresence(value.retry) &&
-  isActionManifestConcurrency(value.concurrency);
-
 const isUnknownRoutePreloadResourcesDiagnostics = (
   value: unknown,
 ): value is StartAppGraphUnknownRoutePreloadResourcesEntry =>
@@ -623,8 +583,6 @@ const isStartAppGraphDiagnostics = (value: unknown): value is StartAppGraphDiagn
   isSchemaCoverage(value.schemaCoverage.actions) &&
   Array.isArray(value.missingSchemas) &&
   value.missingSchemas.every(isMissingSchemaDiagnostics) &&
-  Array.isArray(value.unknownActionBehavior) &&
-  value.unknownActionBehavior.every(isUnknownActionBehaviorDiagnostics) &&
   Array.isArray(value.unknownRoutePreloadResources) &&
   value.unknownRoutePreloadResources.every(isUnknownRoutePreloadResourcesDiagnostics) &&
   Array.isArray(value.unknownRoutePreloadCollections) &&
@@ -805,7 +763,6 @@ export const describeFileRouteManifestEntry = (
     readonly preload?: StartAppGraphRouteFeaturePresence;
     readonly preloadResources?: import("@sunfall/arc-core").Route.PreloadResourceDiagnostics;
     readonly preloadCollections?: import("@sunfall/arc-core").Route.PreloadCollectionDiagnostics;
-    readonly component?: StartAppGraphRouteFeaturePresence;
   } = {},
 ): StartAppGraphRouteDiagnostics => ({
   routeId: String(entry.routeId),
@@ -826,7 +783,6 @@ export const describeFileRouteManifestEntry = (
     status: "unknown",
     collections: [],
   },
-  component: moduleFeatures.component ?? "unknown",
 });
 
 const runtimeFeaturePresence = (value: unknown): StartAppGraphRouteFeaturePresence =>
@@ -842,7 +798,6 @@ export const describeStartAppGraphRouteDiagnosticsRuntimeCandidate = (
     preload: runtimeFeaturePresence(candidate.route.options?.preload),
     preloadResources: candidate.preloadResources,
     preloadCollections: candidate.preloadCollections,
-    component: runtimeFeaturePresence(candidate.route.options?.component),
   });
 
 const routeModuleDiagnosticsKey = (
@@ -1034,24 +989,6 @@ export const describeStartAppGraph = (graph: StartAppGraph): StartAppGraphDiagno
         error: entry.wire.errorSchema,
       }),
     );
-  const unknownActionBehavior = graph.actions.entries
-    .filter(
-      (entry) =>
-        entry.behavior.invalidates === "unknown" ||
-        entry.behavior.optimistic === "unknown" ||
-        entry.behavior.retry === "unknown" ||
-        entry.behavior.concurrency === "unknown",
-    )
-    .map(
-      (entry): StartAppGraphUnknownActionBehaviorEntry => ({
-        kind: "action",
-        name: entry.name,
-        invalidates: entry.behavior.invalidates,
-        optimistic: entry.behavior.optimistic,
-        retry: entry.behavior.retry,
-        concurrency: entry.behavior.concurrency,
-      }),
-    );
 
   return {
     version: 1,
@@ -1090,7 +1027,6 @@ export const describeStartAppGraph = (graph: StartAppGraph): StartAppGraphDiagno
       actions: schemaCoverage(graph.actions.entries),
     },
     missingSchemas: [...serverFunctionMissingSchemas, ...actionMissingSchemas],
-    unknownActionBehavior,
     unknownRoutePreloadResources: unknownRoutePreloadResourcesForDiagnostics({
       routeModules,
     }),
@@ -1169,35 +1105,6 @@ export const validateStartAppGraphWireSchemasEffect = (
   return missing.length === 0
     ? Effect.void
     : Effect.fail(new StartAppGraphMissingWireSchemas({ missing }));
-};
-
-const shouldReportUnknownActionBehavior = (
-  entry: StartAppGraphUnknownActionBehaviorEntry,
-  policy: Required<StartAppGraphActionBehaviorPolicy>,
-): boolean =>
-  (policy.requireInvalidates && entry.invalidates === "unknown") ||
-  (policy.requireOptimistic && entry.optimistic === "unknown") ||
-  (policy.requireRetry && entry.retry === "unknown") ||
-  (policy.requireConcurrency && entry.concurrency === "unknown");
-
-/** Validates action invalidation/optimistic/retry/concurrency metadata against policy. */
-export const validateStartAppGraphActionBehaviorEffect = (
-  graph: StartAppGraph,
-  policy: StartAppGraphActionBehaviorPolicy = {},
-): Effect.Effect<void, StartAppGraphUnknownActionBehavior> => {
-  const requiredPolicy: Required<StartAppGraphActionBehaviorPolicy> = {
-    requireInvalidates: policy.requireInvalidates ?? true,
-    requireOptimistic: policy.requireOptimistic ?? false,
-    requireRetry: policy.requireRetry ?? false,
-    requireConcurrency: policy.requireConcurrency ?? true,
-  };
-  const unknown = describeStartAppGraph(graph).unknownActionBehavior.filter((entry) =>
-    shouldReportUnknownActionBehavior(entry, requiredPolicy),
-  );
-
-  return unknown.length === 0
-    ? Effect.void
-    : Effect.fail(new StartAppGraphUnknownActionBehavior({ unknown }));
 };
 
 const serializeSection = (

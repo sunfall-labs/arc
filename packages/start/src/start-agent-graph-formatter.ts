@@ -130,7 +130,6 @@ const selfReviewText = (selfReview: StartAgentGraphSelfReview): string =>
   [
     `policy ${selfReview.policyClean ? "clean" : "needs-attention"}`,
     `wire ${selfReview.wireComplete ? "complete" : "needs-attention"}`,
-    `action behavior ${selfReview.actionBehaviorKnown ? "known" : "needs-attention"}`,
     `route preloads ${selfReview.routePreloadsDeclared ? "declared" : "needs-attention"}`,
   ].join("; ");
 
@@ -185,7 +184,7 @@ const formatStartAgentGraphVerbose = (
     `resource tags: ${graph.summary.resourceTags}`,
     `collections: ${graph.summary.collections}`,
     `findings: ${graph.summary.findings}`,
-    `self review: policy ${graph.selfReview.policyClean ? "clean" : "needs-attention"}, wire ${graph.selfReview.wireComplete ? "complete" : "needs-attention"}, action behavior ${graph.selfReview.actionBehaviorKnown ? "known" : "needs-attention"}, route preloads ${graph.selfReview.routePreloadsDeclared ? "declared" : "needs-attention"}`,
+    `self review: policy ${graph.selfReview.policyClean ? "clean" : "needs-attention"}, wire ${graph.selfReview.wireComplete ? "complete" : "needs-attention"}, route preloads ${graph.selfReview.routePreloadsDeclared ? "declared" : "needs-attention"}`,
   ];
   const query = options.query;
   const result = query === undefined ? undefined : queryStartAgentGraph(graph, query);

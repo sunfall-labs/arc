@@ -339,9 +339,6 @@ const validateLoadedStartAppGraphDiagnosticsCoherence = (
   if (!sameJson(diagnostics.missingSchemas, expected.missingSchemas)) {
     return "missingSchemas must match the graph manifests.";
   }
-  if (!sameJson(diagnostics.unknownActionBehavior, expected.unknownActionBehavior)) {
-    return "unknownActionBehavior must match graph.actions.entries.";
-  }
   if (!sameStringArray(diagnostics.serverOnlyModules, expected.serverOnlyModules)) {
     return "serverOnlyModules must match the graph manifests.";
   }

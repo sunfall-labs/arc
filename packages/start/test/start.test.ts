@@ -131,7 +131,6 @@ import {
   resolveStartRpcEndpoint,
   resolveStartTransportEndpoints,
 } from "../src/start-transport-endpoints.js";
-import { makeActionManifest } from "../src/action-manifest.js";
 import { serializeFileRouteManifest } from "../src/file-routes.js";
 import { isStartManifestServerOnlyModule } from "../src/manifest-entry-core.js";
 import {
@@ -162,7 +161,6 @@ import type { StartAgentGraphQueryKind } from "../src/start-agent-graph-contract
 import { startAgentGraphQueryKinds } from "../src/start-agent-graph-vocabulary.js";
 import { startDiagnosticsCliVerifyCommandsForQuery } from "../src/start-diagnostics-cli-contract.js";
 import {
-  createStartAppGraph,
   describeStartAppGraph,
   serializeStartAppGraph as serializeStartAppGraphValue,
 } from "../src/app-graph.js";
@@ -195,7 +193,6 @@ import {
   sunfallArcStart,
   StartAppGraphDiagnosticsRunnerError,
   StartAppGraphMissingWireSchemas,
-  StartAppGraphUnknownActionBehavior,
   StartDevServerError,
   FileRouteDefinitionsOutputPathError,
   StartHandlerNotFound,
@@ -7053,7 +7050,7 @@ describe("Sunfall Arc Start", () => {
     expect(resolved).toBe(`\0${appGraphVirtualModuleId}`);
     expect(String(loaded)).toMatchInlineSnapshot(`
       "export const graph = {"version":1,"routes":{"version":1,"routeDirectory":"src/routes","entries":[{"id":"index","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[]},{"id":"projects/$id","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}]}],"modules":[{"id":"index","kind":"Route","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[],"exportName":"Route"},{"id":"projects/$id","kind":"Route","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}],"exportName":"Route"}]},"serverFunctions":{"version":1,"rpcPath":"/__sunfall-arc/rpc","entries":[{"id":"sf_1qfaiav_fixture-project-get","name":"Fixture.project.get","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Import","id":"sf_1qfaiav_fixture-project-get","name":"Fixture.project.get","rpcPath":"/__sunfall-arc/rpc","module":"/src/project/project.contract.ts","exportName":"getProject","moduleKind":"contract"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false}}]},"actions":{"version":1,"actionPath":"/__sunfall-arc/action","entries":[{"id":"act_gx6dkz_fixture-project-rename","name":"Fixture.project.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Import","id":"act_gx6dkz_fixture-project-rename","name":"Fixture.project.rename","actionPath":"/__sunfall-arc/action","module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false},"behavior":{"invalidates":"absent","optimistic":"absent","retry":"absent","concurrency":"latest"}}]}};
-      export const diagnostics = {"version":1,"routeCount":2,"serverFunctionCount":1,"actionCount":1,"routePaths":["/","/projects/:id"],"routeModules":[{"routeId":"route_root","routePath":"/","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","pathParamCount":0,"hasPathParams":false,"params":[],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]},"component":"unknown"},{"routeId":"route_projects_$id","routePath":"/projects/:id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","pathParamCount":1,"hasPathParams":true,"params":[{"name":"id","optional":false}],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]},"component":"unknown"}],"serverFunctionModules":[{"id":"sf_1qfaiav_fixture-project-get","name":"Fixture.project.get","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Import","rpcPath":"/__sunfall-arc/rpc","module":"/src/project/project.contract.ts","exportName":"getProject","moduleKind":"contract"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]}}],"actionModules":[{"id":"act_gx6dkz_fixture-project-rename","name":"Fixture.project.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Import","actionPath":"/__sunfall-arc/action","module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]},"behavior":{"invalidates":"absent","optimistic":"absent","retry":"absent","concurrency":"latest"}}],"resourceFamilies":[],"resourceTags":[],"collectionDefinitions":[],"serverOnlyModules":["/src/project/project.server.ts"],"browserClientModules":["/src/project/project.actions.ts","/src/project/project.contract.ts"],"rpcPath":"/__sunfall-arc/rpc","actionPath":"/__sunfall-arc/action","schemaCoverage":{"serverFunctions":{"total":1,"input":1,"output":1,"error":0},"actions":{"total":1,"input":1,"output":1,"error":0}},"missingSchemas":[{"kind":"serverFunction","name":"Fixture.project.get","input":true,"output":true,"error":false},{"kind":"action","name":"Fixture.project.rename","input":true,"output":true,"error":false}],"unknownActionBehavior":[],"unknownRoutePreloadResources":[],"unknownRoutePreloadCollections":[]};
+      export const diagnostics = {"version":1,"routeCount":2,"serverFunctionCount":1,"actionCount":1,"routePaths":["/","/projects/:id"],"routeModules":[{"routeId":"route_root","routePath":"/","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","pathParamCount":0,"hasPathParams":false,"params":[],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]}},{"routeId":"route_projects_$id","routePath":"/projects/:id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","pathParamCount":1,"hasPathParams":true,"params":[{"name":"id","optional":false}],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]}}],"serverFunctionModules":[{"id":"sf_1qfaiav_fixture-project-get","name":"Fixture.project.get","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Import","rpcPath":"/__sunfall-arc/rpc","module":"/src/project/project.contract.ts","exportName":"getProject","moduleKind":"contract"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]}}],"actionModules":[{"id":"act_gx6dkz_fixture-project-rename","name":"Fixture.project.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Import","actionPath":"/__sunfall-arc/action","module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]},"behavior":{"invalidates":"absent","optimistic":"absent","retry":"absent","concurrency":"latest"}}],"resourceFamilies":[],"resourceTags":[],"collectionDefinitions":[],"serverOnlyModules":["/src/project/project.server.ts"],"browserClientModules":["/src/project/project.actions.ts","/src/project/project.contract.ts"],"rpcPath":"/__sunfall-arc/rpc","actionPath":"/__sunfall-arc/action","schemaCoverage":{"serverFunctions":{"total":1,"input":1,"output":1,"error":0},"actions":{"total":1,"input":1,"output":1,"error":0}},"missingSchemas":[{"kind":"serverFunction","name":"Fixture.project.get","input":true,"output":true,"error":false},{"kind":"action","name":"Fixture.project.rename","input":true,"output":true,"error":false}],"unknownRoutePreloadResources":[],"unknownRoutePreloadCollections":[]};
       export const diagnosticsPolicyViolations = [];
       export const routes = graph.routes;
       export const serverFunctions = graph.serverFunctions;
@@ -8101,7 +8098,6 @@ describe("Sunfall Arc Start", () => {
                 actions: { total: 0, input: 0, output: 0, error: 0 },
               },
               missingSchemas: [],
-              unknownActionBehavior: [],
               unknownRoutePreloadResources: [],
               unknownRoutePreloadCollections: [],
             },
@@ -8165,7 +8161,6 @@ describe("Sunfall Arc Start", () => {
                     status: "declared",
                     collections: ["ProjectRows"],
                   },
-                  component: "present",
                 },
               ],
               serverFunctionModules: [],
@@ -8182,7 +8177,6 @@ describe("Sunfall Arc Start", () => {
                 actions: { total: 0, input: 0, output: 0, error: 0 },
               },
               missingSchemas: [],
-              unknownActionBehavior: [],
               unknownRoutePreloadResources: [],
               unknownRoutePreloadCollections: [],
             },
@@ -8240,7 +8234,6 @@ describe("Sunfall Arc Start", () => {
                 status: "declared" as const,
                 collections: ["ProjectRows"],
               },
-              component: "present" as const,
             },
           ],
           serverFunctionModules: [
@@ -8359,7 +8352,6 @@ describe("Sunfall Arc Start", () => {
               error: false,
             },
           ],
-          unknownActionBehavior: [],
           unknownRoutePreloadResources: [],
           unknownRoutePreloadCollections: [],
         },
@@ -8502,7 +8494,6 @@ describe("Sunfall Arc Start", () => {
                       status: "none",
                       collections: [],
                     },
-                    component: "present",
                   },
                 ],
                 serverFunctionModules: [],
@@ -8519,7 +8510,6 @@ describe("Sunfall Arc Start", () => {
                   actions: { total: 0, input: 0, output: 0, error: 0 },
                 },
                 missingSchemas: [],
-                unknownActionBehavior: [],
                 unknownRoutePreloadResources: [],
                 unknownRoutePreloadCollections: [],
               },
@@ -8676,7 +8666,6 @@ describe("Sunfall Arc Start", () => {
                       status: "declared",
                       collections: ["ProjectRows"],
                     },
-                    component: "present",
                   },
                 ],
                 serverFunctionModules: [],
@@ -8693,7 +8682,6 @@ describe("Sunfall Arc Start", () => {
                   actions: { total: 0, input: 0, output: 0, error: 0 },
                 },
                 missingSchemas: [],
-                unknownActionBehavior: [],
                 unknownRoutePreloadResources: [],
                 unknownRoutePreloadCollections: [],
               },
@@ -8864,7 +8852,6 @@ describe("Sunfall Arc Start", () => {
               status: "unknown" as const,
               collections: [],
             },
-            component: "present" as const,
           },
         ],
         serverFunctionModules: [
@@ -8945,16 +8932,6 @@ describe("Sunfall Arc Start", () => {
             error: false,
           },
         ],
-        unknownActionBehavior: [
-          {
-            kind: "action" as const,
-            name: "Project.rename",
-            invalidates: "unknown" as const,
-            optimistic: "unknown" as const,
-            retry: "present" as const,
-            concurrency: "unknown" as const,
-          },
-        ],
         unknownRoutePreloadResources: [
           {
             kind: "route" as const,
@@ -9004,7 +8981,6 @@ describe("Sunfall Arc Start", () => {
     expect(formatted).toContain("Add `preloadResources: [...]`");
     expect(formatted).toContain("Add `preloadCollections: [...]`");
     expect(formatted).toContain("Owner: src/project/project.actions.ts#renameProject");
-    expect(formatted).toContain("Declare action behavior metadata");
     expect(formatted).toContain("Add `input` and `error` schemas");
     expect(formatted).toContain("Owner: src/project/project.server.ts#loadProject");
     expect(formatted).toContain("Add `output` and `error` schemas");
@@ -9061,7 +9037,6 @@ describe("Sunfall Arc Start", () => {
               status: "none" as const,
               collections: [],
             },
-            component: "present" as const,
           },
         ],
         serverFunctionModules: [],
@@ -9078,7 +9053,6 @@ describe("Sunfall Arc Start", () => {
           actions: { total: 0, input: 0, output: 0, error: 0 },
         },
         missingSchemas: [],
-        unknownActionBehavior: [],
         unknownRoutePreloadResources: [unknownPreloadRoute],
         unknownRoutePreloadCollections: [],
       },
@@ -9150,49 +9124,6 @@ describe("Sunfall Arc Start", () => {
         }),
       ),
     ).resolves.toBeUndefined();
-  });
-
-  it("can fail the Start build policy on unknown action behavior metadata", async () => {
-    // Derived Actions always report their behavior; a hand-built manifest
-    // entry without it reports "unknown".
-    const base = await Effect.runPromise(makeStartBuildAppGraphEffect({ buildPolicy: false }));
-    const graph = createStartAppGraph({
-      routes: base.routes,
-      serverFunctions: base.serverFunctions,
-      actions: await Effect.runPromise(
-        makeActionManifest([
-          {
-            name: "Start.Project.policy.unknown-action",
-            module: "/src/project/project.actions.ts",
-            exportName: "RenameProject",
-            inputSchema: true,
-            outputSchema: true,
-          },
-        ]),
-      ),
-    });
-    const exit = await Effect.runPromiseExit(
-      validateStartBuildPolicyEffect(graph, {
-        wireSchemas: false,
-        actionBehavior: {
-          requireInvalidates: true,
-          requireConcurrency: true,
-        },
-      }),
-    );
-    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
-
-    expect(failure).toBeInstanceOf(StartAppGraphUnknownActionBehavior);
-    expect(failure).toMatchObject({
-      unknown: [
-        {
-          kind: "action",
-          name: "Start.Project.policy.unknown-action",
-          invalidates: "unknown",
-          concurrency: "unknown",
-        },
-      ],
-    });
   });
 
   it("enforces configured build policy before the Vite preset emits app graph defines", async () => {

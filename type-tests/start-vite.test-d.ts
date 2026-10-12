@@ -7,7 +7,6 @@ import {
   FileRouteDiscoveryError,
   StartAppGraphDiagnosticsRunnerError,
   StartAppGraphMissingWireSchemas,
-  StartAppGraphUnknownActionBehavior,
   StartAppGraphUnknownRoutePreloadCollections,
   StartAppGraphUnknownRoutePreloadResources,
   StartDevServerError,
@@ -41,7 +40,6 @@ const viteExports: Array<unknown> = [
   FileRouteDiscoveryError,
   StartAppGraphDiagnosticsRunnerError,
   StartAppGraphMissingWireSchemas,
-  StartAppGraphUnknownActionBehavior,
   StartAppGraphUnknownRoutePreloadCollections,
   StartAppGraphUnknownRoutePreloadResources,
   StartDevServerError,
@@ -81,9 +79,7 @@ const diagnosticsBuildPolicyOptions = {
   },
 } satisfies SunfallArcStartOptions;
 type Assert<T extends true> = T;
-type StaticStartBuildPolicyErrors =
-  | StartAppGraphMissingWireSchemas
-  | StartAppGraphUnknownActionBehavior;
+type StaticStartBuildPolicyErrors = StartAppGraphMissingWireSchemas;
 type _StartBuildPolicyErrorIsStaticOnly = Assert<
   StartBuildPolicyError extends StaticStartBuildPolicyErrors ? true : false
 >;

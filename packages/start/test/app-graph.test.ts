@@ -13,12 +13,10 @@ import {
   StartAppGraphDiagnosticsPolicyException,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
-  StartAppGraphUnknownActionBehavior,
   StartAppGraphUnknownRoutePreloadCollections,
   StartAppGraphUnknownRoutePreloadResources,
   unknownRoutePreloadCollectionsForDiagnostics,
   unknownRoutePreloadResourcesForDiagnostics,
-  validateStartAppGraphActionBehaviorEffect,
   validateStartAppGraphDiagnosticsPolicyExceptionEffect,
   validateStartAppGraphDiagnosticsPolicyEffect,
   validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect,
@@ -141,7 +139,6 @@ describe("Start app graph", () => {
                   status: "unknown",
                   collections: [],
                 },
-                component: "unknown",
               },
               {
                 routeId: "route_projects_$id",
@@ -167,7 +164,6 @@ describe("Start app graph", () => {
                   status: "unknown",
                   collections: [],
                 },
-                component: "unknown",
               },
             ],
             serverFunctionModules: [
@@ -267,7 +263,6 @@ describe("Start app graph", () => {
                 error: false,
               },
             ],
-            unknownActionBehavior: [],
             unknownRoutePreloadResources: [],
             unknownRoutePreloadCollections: [],
           });
@@ -461,24 +456,6 @@ describe("Start app graph", () => {
               diagnosticsPolicyViolations: [],
             }),
           ),
-          Effect.exit(
-            decodeStartAppGraphDiagnosticsDtoEffect({
-              diagnostics: {
-                ...diagnostics,
-                unknownActionBehavior: [
-                  {
-                    kind: "action",
-                    name: "Project.rename",
-                    invalidates: "unknown",
-                    optimistic: "unknown",
-                    retry: "unknown",
-                    concurrency: "maybe",
-                  },
-                ],
-              },
-              diagnosticsPolicyViolations: [],
-            }),
-          ),
         ]);
 
         yield* Effect.sync(() => {
@@ -531,32 +508,6 @@ describe("Start app graph", () => {
                 kind: "action",
                 name: "Project.rename",
                 error: false,
-              },
-            ],
-          });
-        });
-      }),
-    );
-  });
-
-  it("can require action behavior metadata for build diagnostics", () => {
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        const graph = yield* makeGraphEffect({
-          actionBehavior: "unknown",
-        });
-
-        const exit = yield* Effect.exit(validateStartAppGraphActionBehaviorEffect(graph));
-
-        yield* Effect.sync(() => {
-          expect(firstFailure(exit)).toBeInstanceOf(StartAppGraphUnknownActionBehavior);
-          expect(firstFailure(exit)).toMatchObject({
-            unknown: [
-              {
-                kind: "action",
-                name: "Project.rename",
-                invalidates: "unknown",
-                concurrency: "unknown",
               },
             ],
           });
@@ -848,7 +799,6 @@ describe("Start app graph", () => {
             preloadCollections: {
               status: "unknown",
             },
-            component: "absent",
           });
           expect(diagnostics.unknownRoutePreloadResources).toEqual([]);
           expect(diagnostics.unknownRoutePreloadCollections).toEqual([
@@ -910,7 +860,6 @@ describe("Start app graph", () => {
                 options: {
                   params: {},
                   preload: () => undefined,
-                  component: () => null,
                 },
               },
               preloadResources: {
@@ -953,7 +902,6 @@ describe("Start app graph", () => {
               status: "declared",
               families: ["Project.byId"],
             },
-            component: "present",
           });
         });
       }),
@@ -980,7 +928,6 @@ describe("Start app graph", () => {
                 options: {
                   params: {},
                   preload: () => undefined,
-                  component: () => null,
                 },
               },
               preloadResources: {
@@ -1061,7 +1008,6 @@ describe("Start app graph", () => {
                 options: {
                   params: {},
                   preload: () => undefined,
-                  component: () => null,
                 },
               },
               preloadResources: {
@@ -1249,7 +1195,6 @@ describe("Start app graph", () => {
         status: "pass",
         policyClean: true,
         wireComplete: true,
-        actionBehaviorKnown: true,
         routePreloadsDeclared: true,
         findingCount: 0,
       },
@@ -1327,7 +1272,6 @@ describe("Start app graph", () => {
         status: "pass",
         policyClean: true,
         wireComplete: true,
-        actionBehaviorKnown: true,
         routePreloadsDeclared: true,
         findingCount: 0,
       },
@@ -1375,7 +1319,6 @@ describe("Start app graph", () => {
                 options: {
                   params: {},
                   preload: () => undefined,
-                  component: () => null,
                 },
               },
               preloadResources: {
@@ -1453,7 +1396,6 @@ describe("Start app graph", () => {
                 options: {
                   params: {},
                   preload: () => undefined,
-                  component: () => null,
                 },
               },
               preloadResources: {
@@ -1675,9 +1617,7 @@ describe("Start app graph", () => {
   });
 });
 
-const makeGraphEffect = (
-  options: { readonly actionBehavior?: "known" | "unknown" } = {},
-): Effect.Effect<
+const makeGraphEffect = (): Effect.Effect<
   ReturnType<typeof createStartAppGraph>,
   ActionManifestError | ServerFunctionManifestError,
   never
@@ -1707,14 +1647,10 @@ const makeGraphEffect = (
         clientExportName: "RenameProject",
         inputSchema: true,
         outputSchema: true,
-        ...(options.actionBehavior === "unknown"
-          ? {}
-          : {
-              invalidates: true,
-              optimistic: false,
-              retry: true,
-              concurrency: "latest" as const,
-            }),
+        invalidates: true,
+        optimistic: false,
+        retry: true,
+        concurrency: "latest" as const,
       },
     ]);
 

@@ -52,7 +52,6 @@ import {
   type DevtoolsSnapshot,
   type DevtoolsStartAppGraphDiagnostics,
   type DevtoolsStartAppGraphSchemaCoverage,
-  type DevtoolsStartAppGraphUnknownActionBehaviorEntry,
   type DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry,
   type DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry,
   type DevtoolsStore,
@@ -465,7 +464,6 @@ declare const devtoolsAppGraph: DevtoolsStartAppGraphDiagnostics;
 const devtoolsStartSchemaCoverage: DevtoolsStartAppGraphSchemaCoverage =
   devtoolsAppGraph.schemaCoverage.actions;
 type DevtoolsStartUnknowns =
-  | DevtoolsStartAppGraphUnknownActionBehaviorEntry
   | DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry
   | DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry;
 Effect.runSync(devtoolsStore.setAppGraphDiagnostics(devtoolsAppGraph));

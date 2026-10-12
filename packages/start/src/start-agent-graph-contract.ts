@@ -67,7 +67,6 @@ export interface StartAgentGraphSelfReview {
   readonly status: StartDiagnosticsReport["status"];
   readonly policyClean: boolean;
   readonly wireComplete: boolean;
-  readonly actionBehaviorKnown: boolean;
   readonly routePreloadsDeclared: boolean;
   readonly findingCount: number;
 }

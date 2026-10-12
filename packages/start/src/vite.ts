@@ -81,10 +81,7 @@ export {
   FileRouteDefinitionsOutputPathError,
   FileRouteDefinitionsFileWriteError,
 } from "./generated-route-definitions.js";
-export {
-  StartAppGraphMissingWireSchemas,
-  StartAppGraphUnknownActionBehavior,
-} from "./app-graph.js";
+export { StartAppGraphMissingWireSchemas } from "./app-graph.js";
 export {
   StartAppGraphUnknownRoutePreloadCollections,
   StartAppGraphUnknownRoutePreloadResources,

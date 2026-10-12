@@ -575,7 +575,6 @@ export interface DevtoolsStartAppGraphRouteModuleDiagnostics {
   readonly preload: DevtoolsStartAppGraphFeaturePresence;
   readonly preloadResources: DevtoolsStartAppGraphRoutePreloadResources;
   readonly preloadCollections: DevtoolsStartAppGraphRoutePreloadCollections;
-  readonly component: DevtoolsStartAppGraphFeaturePresence;
 }
 
 /** Wire schema completeness diagnostics for one action/server-function contract. */
@@ -699,16 +698,6 @@ export interface DevtoolsStartAppGraphCollectionDiagnostics {
   };
 }
 
-/** Action whose behavior policy could not be fully described statically. */
-export interface DevtoolsStartAppGraphUnknownActionBehaviorEntry {
-  readonly kind: "action";
-  readonly name: string;
-  readonly invalidates: DevtoolsStartAppGraphActionBehaviorPresence;
-  readonly optimistic: DevtoolsStartAppGraphActionBehaviorPresence;
-  readonly retry: DevtoolsStartAppGraphActionBehaviorPresence;
-  readonly concurrency: DevtoolsStartAppGraphActionConcurrency;
-}
-
 /** Route whose resource preload policy remains unknown after app graph analysis. */
 export interface DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry {
   readonly kind: "route";
@@ -760,7 +749,6 @@ export interface DevtoolsStartAppGraphDiagnostics {
     readonly actions: DevtoolsStartAppGraphSchemaCoverage;
   };
   readonly missingSchemas: readonly DevtoolsStartAppGraphMissingSchema[];
-  readonly unknownActionBehavior: readonly DevtoolsStartAppGraphUnknownActionBehaviorEntry[];
   readonly unknownRoutePreloadResources: readonly DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry[];
   readonly unknownRoutePreloadCollections: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[];
 }
@@ -1077,7 +1065,6 @@ export interface DevtoolsSummary {
     readonly requestTraceCount: number;
     readonly runtimeEventCount: number;
     readonly missingSchemaCount: number;
-    readonly unknownActionBehaviorCount: number;
     readonly unknownRoutePreloadResourcesCount: number;
     readonly unknownRoutePreloadCollectionsCount: number;
     readonly notFoundRoutePlanCount: number;
@@ -1121,7 +1108,6 @@ export interface DevtoolsSummary {
               readonly count: number;
             }[];
           };
-          readonly unknownBehavior: readonly DevtoolsStartAppGraphUnknownActionBehaviorEntry[];
         };
         readonly resources: {
           readonly familyCount: number;

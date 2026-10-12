@@ -21,7 +21,6 @@ const summaryLines = (summary: StartDiagnosticsReportSummary): readonly string[]
   `resource tags: ${summary.resourceTags}`,
   `collections: ${summary.collections}`,
   `missing schemas: ${summary.missingSchemas}`,
-  `unknown action behavior: ${summary.unknownActionBehavior}`,
   `unknown route preload resources: ${summary.unknownRoutePreloadResources}`,
   `unknown route preload collections: ${summary.unknownRoutePreloadCollections}`,
   `policy violations: ${summary.policyViolations}`,

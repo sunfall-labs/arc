@@ -4,12 +4,9 @@ import { isAbsolute, relative as relativePath, resolve as resolvePath } from "no
 import {
   createStartAppGraph,
   serializeStartAppGraph,
-  validateStartAppGraphActionBehaviorEffect,
   validateStartAppGraphWireSchemasEffect,
   type StartAppGraph,
-  type StartAppGraphActionBehaviorPolicy,
   type StartAppGraphMissingWireSchemas as StartAppGraphMissingWireSchemasError,
-  type StartAppGraphUnknownActionBehavior as StartAppGraphUnknownActionBehaviorError,
   type StartAppGraphWireSchemaPolicy,
 } from "./app-graph.js";
 import {
@@ -130,7 +127,6 @@ export interface StartManifestOptions extends SunfallArcStartOptions {
 /** Build-time policies that can fail the build when app graph contracts drift. */
 export interface StartBuildPolicy {
   readonly wireSchemas?: StartAppGraphWireSchemaPolicy | false;
-  readonly actionBehavior?: StartAppGraphActionBehaviorPolicy | false;
   /** Browser-client policy for fully static deployments. Enforced by the Vite plugin. */
   readonly staticClient?: StartStaticClientPolicy | false;
   /** Resolved runtime diagnostics policy, enforced by the Vite diagnostics gate. */
@@ -146,9 +142,7 @@ export interface StartStaticClientPolicy {
 }
 
 /** Failure channel for static Start build policy validation. */
-export type StartBuildPolicyError =
-  | StartAppGraphMissingWireSchemasError
-  | StartAppGraphUnknownActionBehaviorError;
+export type StartBuildPolicyError = StartAppGraphMissingWireSchemasError;
 
 /** Options for discovering file-route modules from a route directory. */
 export interface FileRouteDiscoveryOptions {
@@ -546,11 +540,6 @@ export const validateStartBuildPolicyEffect = (
         graph,
         wireSchemas ?? defaultStartBuildWireSchemaPolicy,
       );
-    }
-
-    const actionBehavior = policy.actionBehavior;
-    if (actionBehavior !== undefined && actionBehavior !== false) {
-      yield* validateStartAppGraphActionBehaviorEffect(graph, actionBehavior);
     }
   });
 
