@@ -162,6 +162,8 @@ const verifyEffect = (laneConcurrency) =>
     );
 
     yield* run("workspace tests", ["test"]);
+    // One iteration of every bench, so benches cannot rot between measured runs.
+    yield* run("benchmark smoke", ["benchmark"], { env: { ARC_BENCH_SMOKE: "1" } });
 
     const verifyPackageTargets = yield* workspaceVerifyPackageTargetsEffect(workspaceRoot);
     yield* runAll(

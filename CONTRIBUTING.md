@@ -10,8 +10,11 @@ pnpm verify
 `pnpm verify` is the gate for every change and for every release. It builds the
 packages, checks formatting and lint, typechecks the workspace and the public
 type tests, runs the public API audit, the Effect command runner and package
-payload policies, the Effect-first audit, the workspace tests, the example and
-starter verifies, starter package generation, and package dry runs.
+payload policies, the Effect-first audit, the workspace tests, one iteration
+of every benchmark in `benchmarks/*.bench.ts` (`ARC_BENCH_SMOKE=1`, so a bench
+that drifts from the framework fails the gate), the example and starter
+verifies, starter package generation, and package dry runs. `pnpm benchmark`
+runs the benchmarks for measurement.
 
 ### Docs Stay Checked
 

@@ -20,14 +20,15 @@ import {
 } from "../packages/start/src/hydration.js";
 import { preloadRequest } from "../packages/start/src/start-request-preload.js";
 import { makeStartServerApp } from "../packages/start/src/start-server-app.js";
-import { serverRpcPath, startJsonMediaType } from "../packages/start/src/rpc.js";
+import { serverRpcPath } from "../packages/start/src/rpc.js";
 import { Effect, Schema } from "effect";
 import { afterAll, beforeAll, bench, describe } from "vitest";
 import { handleRequest } from "../examples/project-console/src/server.js";
+import { benchOptions } from "./bench-options.js";
 
-const microBenchOptions = { throws: true, time: 1_000, warmupTime: 250 };
-const asyncBenchOptions = { throws: true, time: 1_000, warmupTime: 250 };
-const macroBenchOptions = { throws: true, time: 5_000, warmupTime: 500 };
+const microBenchOptions = benchOptions(1_000, 250);
+const asyncBenchOptions = benchOptions(1_000, 250);
+const macroBenchOptions = benchOptions(5_000, 500);
 
 const assertBench = (condition: unknown, message: string): void => {
   if (!condition) {
@@ -494,24 +495,26 @@ describe("Sunfall Arc release baseline", () => {
             benchRpcApp,
             new Request(`https://example.test${serverRpcPath}`, {
               method: "POST",
-              headers: {
-                accept: startJsonMediaType,
-                "content-type": startJsonMediaType,
-              },
+              headers: { "content-type": "application/json" },
+              // One `effect/rpc` request message (`RpcSerialization.json`).
               body: JSON.stringify({
-                name: echo.name,
-                input: { value: "atlas" },
+                _tag: "Request",
+                id: "1",
+                tag: echo.name,
+                payload: { value: "atlas" },
+                headers: [],
               }),
             }),
           ),
         ),
       );
-      const body = (await response.json()) as {
+      const messages = (await response.json()) as ReadonlyArray<{
         readonly _tag?: string;
-        readonly value?: { readonly value?: string };
-      };
+        readonly exit?: { readonly _tag?: string; readonly value?: { readonly value?: string } };
+      }>;
+      const exit = messages.find((message) => message._tag === "Exit")?.exit;
       assertBench(
-        body._tag === "Success" && body.value?.value === "ATLAS",
+        exit?._tag === "Success" && exit.value?.value === "ATLAS",
         "Start RPC response body drifted.",
       );
     },
