@@ -444,8 +444,8 @@ Sunfall Arc replaces multiple libraries with one coherent model:
 - React state libraries become `Signal`, `Signal.derive`, scoped `watch`, and
   Effect `Stream` adapters.
 - Foldkit-style frontend architecture becomes `Program.define`,
-  `Program.update`, `Program.emit`, Effect commands, Stream subscriptions,
-  deterministic stories, and runtime timelines.
+  `Program.emit`, Effect commands, Stream subscriptions, pure `Program.step`
+  tests, and runtime timelines.
 - React Query becomes `Resource`, `Action`, semantic tags, invalidation plans,
   retry schedules, and hydration.
 - Next/Remix full-stack conventions become progressive `Action.define` flows,

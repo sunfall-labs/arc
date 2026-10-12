@@ -351,25 +351,23 @@ describe("Component bindings", () => {
             | { readonly _tag: "Loaded"; readonly project: Project };
           const definition = Program.define<{ readonly name: string }, Message, never, ProjectApi>({
             initial: { name: "idle" },
-            update: (model, message) => {
-              switch (message._tag) {
-                case "Load":
-                  return Program.next(
-                    model,
-                    Program.emit(
-                      ProjectApi.use((api) =>
-                        api
-                          .get("atlas")
-                          .pipe(Effect.map((project) => ({ _tag: "Loaded", project }) as const)),
-                      ),
+            on: {
+              Load: (model) =>
+                Program.next(
+                  model,
+                  Program.emit(
+                    ProjectApi.use((api) =>
+                      api
+                        .get("atlas")
+                        .pipe(Effect.map((project) => ({ _tag: "Loaded", project }) as const)),
                     ),
-                  );
-                case "Loaded":
-                  return Program.next(
-                    { name: message.project.name },
-                    Program.emit(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid)),
-                  );
-              }
+                  ),
+                ),
+              Loaded: (_model, message) =>
+                Program.next(
+                  { name: message.project.name },
+                  Program.emit(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid)),
+                ),
             },
           });
 

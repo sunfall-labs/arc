@@ -18,7 +18,7 @@ That is the core difference.
 | What teams reach for    | What it does well                      | Sunfall Arc's bet                                                                                                             |
 | ----------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | React / Solid           | Component model and reactive UI        | Keep fine-grained UI ergonomics, but attach async work to Effect scopes and runtime ownership.                                |
-| Foldkit                 | Model/message/update program loop      | Match the loop with `Program.define`, `Program.update`, and `Program.emit`, then run commands through the Arc runtime graph.  |
+| Foldkit                 | Model/message/update program loop      | Match the loop with `Program.define`, `Program.step`, and `Program.emit`, then run commands through the Arc runtime graph.    |
 | Next / Remix            | Full-stack routes, forms, server work  | Keep progressive enhancement, but make server contracts, schemas, request runtimes, and manifests explicit.                   |
 | TanStack Start / Router | Typed routes and full-stack wiring     | Add Schema-branded params, request-local Effect runtimes, app graph diagnostics, and stricter build gates.                    |
 | TanStack Query          | Async reads, retries, invalidation     | Replace cache keys with typed resources, semantic tags, Effect `Schedule`, hydration, and public lifecycle events.            |
@@ -237,9 +237,9 @@ mental model from server state and mutation state.
 
 Foldkit's strongest product idea is the frontend program loop: one model, typed
 messages, an update function, subscriptions, and a view that can stay boring.
-Sunfall Arc now meets that surface directly with `Program.define({ initial, on })`,
-keeps `Program.update(...)` for conventional update definitions, and uses
-`Program.emit(...)` for immediate or Effect-produced follow-up messages.
+Sunfall Arc now meets that surface directly with `Program.define({ initial, on })`:
+one pure handler per message `_tag`, with `Program.emit(...)` for immediate or
+Effect-produced follow-up messages.
 
 The bet is not to out-Foldkit Foldkit's renderer. It is to make that same loop
 the front door to Arc's Effect runtime, resources, actions, SSR, tests, and
@@ -261,22 +261,6 @@ const ProjectProgram = Program.define<ProjectModel, ProjectMessage>({
     Loaded: (_model, message) => ({ selected: message.project, loading: false }),
   },
   subscriptions: (model) => (model.selected ? ProjectEvents.changes(model.selected.id) : undefined),
-});
-```
-
-If a team prefers the explicit `update` slot, the same exhaustive handlers can
-sit behind it:
-
-```ts
-const loadProjectMessageEffect = (id: ProjectId) =>
-  ProjectApi.use((api) =>
-    Effect.map(api.get(id), (project) => ({ _tag: "Loaded", project }) as const),
-  );
-
-const update = Program.update<ProjectModel, ProjectMessage>({
-  Load: (model, message) =>
-    Program.next({ ...model, loading: true }, Program.emit(loadProjectMessageEffect(message.id))),
-  Loaded: (_model, message) => ({ selected: message.project, loading: false }),
 });
 ```
 
@@ -303,17 +287,17 @@ the active UI scope/runtime rather than becoming a separate frontend runtime.
 The test shape now follows the same model:
 
 ```ts
-const story = Program.story(ProjectProgram);
-const load = yield * story.send({ _tag: "Load", id: "atlas" });
-
+const load = Program.step(ProjectProgram, ProjectProgram.initial, { _tag: "Load", id: "atlas" });
+expect(load.model.loading).toBe(true);
 expect(load.commands).toHaveLength(1);
-yield * story.resolve(load.commands[0]!);
-expect(read(story.model).selected?.id).toBe("atlas");
+
+const loaded = Effect.runSync(load.commands[0]!.effect.pipe(Effect.provide(ProjectApiTest)));
+expect(loaded).toMatchObject({ _tag: "Loaded" });
 ```
 
-That keeps Foldkit's "story test" clarity while preserving Effect services and
-typed command failures instead of inventing a separate frontend-only test
-runtime.
+Handlers are pure, so a transition is a function call: no runtime, DOM, or
+timers. Commands stay inspectable descriptions whose Effects a test runs with
+its own services, instead of a separate frontend-only test runtime.
 
 At runtime, every Program commit is an entry on the whole-app Timeline, next to
 Resource, Action, router, and plain Signal commits:

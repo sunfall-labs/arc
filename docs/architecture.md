@@ -61,8 +61,9 @@ Sunfall Arc should stay unusually strict in these places:
 - route preload is typed, interruptible, and declared for diagnostics;
 - resources and collections live in the active runtime/store, never global
   process state;
-- Program updates return plain model data or `Program.next(...)`; async work
-  leaves the update through Effect commands and Stream subscriptions;
+- Program handlers are pure: they return plain model data or `Program.next(...)`;
+  async work leaves the handler through Effect commands and Stream
+  subscriptions, so `Program.step` tests a transition with no runtime;
 - actions are the one mutation path: they own mutation policy, optimistic
   Signal and Collection patches, invalidation, and result shape;
 - a failure that can reach rendering joins a Component's `E`; a failure of work
@@ -189,8 +190,8 @@ export const makeProjectId = (id: string): ProjectId => Schema.decodeUnknownSync
 
 ## Program Loop
 
-The smallest Sunfall Arc unit is a named model/message loop. Prefer the compact
-handler-map front door for tagged message unions:
+The smallest Sunfall Arc unit is a named model/message loop. Messages are a
+tagged union, and `on` holds one pure handler per `_tag`:
 
 ```ts
 type CounterModel = { readonly count: number; readonly loading: boolean };
@@ -217,11 +218,12 @@ export const CounterProgram = Program.define<CounterModel, CounterMessage>({
 });
 ```
 
-`on` is exhaustive by message `_tag` and compiles to
-`update: Program.update({ ... })`. Use the lower-level `update` callback when
-messages are not a tagged union or when a local switch is genuinely clearer.
+`on` is exhaustive by message `_tag` and is the one way to write a transition:
+there is no lower-level `update` callback, and messages are always tagged
+(`{ _tag: "Tick" }`, not `"tick"`).
 
-An update writes a plain model value or `Program.next(model, commandInput)`.
+A handler is pure and synchronous: it returns a plain model value or
+`Program.next(model, commandInput)`, and never an Effect.
 Commands are Effects that may emit one follow-up message, and `Program.emit(...)`
 is their one constructor: `Program.emit(message)` emits immediately,
 `Program.emit(effect)` emits the message the Effect produces, and an Effect that
@@ -230,6 +232,25 @@ batches several for `Program.next(model, ...)`.
 `Program.subscription(stream)` connects model-dependent Streams to the same
 message loop. Promise-shaped host work belongs inside `Effect.tryPromise(...)`
 before the command or subscription emits a plain message.
+
+Because handlers are pure, a transition is tested as a function call.
+`Program.step(program, model, message)` returns `{ model, commands }` without
+running anything; a command is a description whose `effect` a test runs (with
+test services) to get the message it emits:
+
+```ts
+const loading = Program.step(CounterProgram, CounterProgram.initial, { _tag: "Load" });
+expect(loading.model.loading).toBe(true);
+expect(loading.commands).toHaveLength(1);
+expect(Effect.runSync(loading.commands[0]!.effect)).toEqual({ _tag: "Loaded", amount: 2 });
+expect(Program.step(CounterProgram, loading.model, { _tag: "Loaded", amount: 2 }).model).toEqual({
+  count: 2,
+  loading: false,
+});
+```
+
+The runtime uses the same `Program.step`: it commits the model, then runs the
+commands on the Runtime Spine.
 
 Started Programs run on the Runtime Spine and expose a readable model signal,
 a typed `dispatch(message)` Effect that completes once the update commits,
@@ -450,6 +471,14 @@ an in-flight submission and never crosses a wire. Collections implement the
 `ActionOptimisticRows` seam from Core, so Core owns the transaction and DB owns
 the row layering; `Collection.applyChanges` remains the direct write for
 remote feeds and local-only collections, never for server data.
+
+`Action.planOptimistic(definition, input)` tests a patch without a runtime,
+store, or backend: it runs `optimistic` against a recording transaction and
+returns the changes it would make, applying none. A Signal change reports the
+value the signal would read (computed from its current value); a row change
+reports the store and the change as given (`{ _tag: "Update", rows: Projects,
+key, update: { name } }`). It is the optimistic counterpart of
+`Action.planInvalidation`.
 
 Collection persistence uses the same `KeyValueStore` as the Action Outbox
 below. A persisted collection stores its synced snapshot at

@@ -1436,3 +1436,57 @@ describe("Action", () => {
       ));
   });
 });
+
+describe("Action.planOptimistic", () => {
+  it("reports the value each signal patch would produce without writing it", () => {
+    const title = Signal.make("Atlas");
+    const count = Signal.make(1);
+    const Rename = Action.define({
+      name: "rename.plan-optimistic-signals",
+      optimistic: (name: string, transaction) =>
+        Effect.gen(function* () {
+          yield* transaction.signal(title, name);
+          yield* transaction.signal(count, (value) => value + 1);
+          yield* transaction.signal(count, (value) => value * 10);
+        }),
+      run: (name: string) => Effect.succeed(name),
+    });
+
+    const changes = Effect.runSync(Action.planOptimistic(Rename, "Apollo"));
+
+    expect(changes).toEqual([
+      { _tag: "Signal", signal: title, value: "Apollo" },
+      { _tag: "Signal", signal: count, value: 2 },
+      { _tag: "Signal", signal: count, value: 20 },
+    ]);
+    expect(Signal.peek(title)).toBe("Atlas");
+    expect(Signal.peek(count)).toBe(1);
+  });
+
+  it("plans nothing for an Action without an optimistic patch", () => {
+    const Rename = Action.define({
+      name: "rename.plan-optimistic-none",
+      run: (name: string) => Effect.succeed(name),
+    });
+
+    expect(Effect.runSync(Action.planOptimistic(Rename, "Apollo"))).toEqual([]);
+  });
+
+  it("treats a throwing signal updater as a defect", () => {
+    const cause = new Error("updater failed");
+    const title = Signal.make("Atlas");
+    const Rename = Action.define({
+      name: "rename.plan-optimistic-throw",
+      optimistic: (_name: string, transaction) =>
+        transaction.signal(title, () => {
+          throw cause;
+        }),
+      run: (name: string) => Effect.succeed(name),
+    });
+
+    const exit = Effect.runSyncExit(Action.planOptimistic(Rename, "Apollo"));
+
+    expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true);
+    expect(Signal.peek(title)).toBe("Atlas");
+  });
+});

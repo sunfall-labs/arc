@@ -50,7 +50,7 @@ interface Mounted<Model, Message> {
 }
 
 /** Binds `Component.program` in an instance under a Solid root, running `setup` in the same owner. */
-const mount = <Model, Message>(
+const mount = <Model, Message extends Program.TaggedMessage>(
   definition: Program.Definition<Model, Message>,
   setup: (program: Handle<Model, Message>) => void = () => {},
   options?: Component.ProgramOptions,

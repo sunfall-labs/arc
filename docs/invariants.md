@@ -62,9 +62,10 @@ documented as outside the current release bar.
 - Program models and messages are plain values. Promise-shaped values,
   Effect-shaped values, and `undefined`/`void` messages are rejected because
   command Effects reserve `undefined`/`void` as the no-message sentinel.
-- Tagged Program definitions can use `Program.define({ initial, on })`; the
-  `on` map and `Program.update(...)` helper are keyed by each message `_tag`.
-  Non-tagged loops use the conventional `update(model, message)` callback.
+- Program definitions are `Program.define({ initial, on })`: messages are a
+  tagged union, the `on` map is keyed by each message `_tag`, and handlers are
+  pure and synchronous, so `Program.step(program, model, message)` tests a
+  transition with no runtime. There is no `update` callback.
 - `Program.emit(...)` is the one command constructor: an immediate message,
   the message an Effect produces, or nothing when the Effect completes with
   `void`. `Program.commands(...)` only batches.

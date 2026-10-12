@@ -171,6 +171,11 @@ retry? })` (`ActionOutboxOptions`) provides the `ActionOutbox` service over
 - `Action.planInvalidation(...)` for adapters/tests that need action
   invalidation planning with synchronous `invalidates` callback throws reported
   as `EffectInputCallbackError`.
+- `Action.planOptimistic(definition, input)` (`Action.OptimisticChange`) is the
+  test surface for `optimistic`: it runs the callback against a recording
+  transaction and returns the changes it would make (a Signal's next value, or
+  a row store plus the `Insert`/`Update`/`Delete` change as given) without
+  applying any or needing a runtime, store, or backend.
 - `PlainValue` is the expert-public type vocabulary for non-executable data
   seams. Promise-shaped values must be adapted through `Effect.tryPromise(...)`,
   and direct Effect values are executable work unless wrapped as
@@ -324,23 +329,22 @@ Release decisions:
   rejected so host async work is routed through Effect primitives, and a
   throwing callback is a defect (as with `Effect.sync`).
 - `Program` is the public facade for the headless frontend loop around
-  centralized model/message state. `Program.define(...)` accepts either a plain
-  initial model with a pure-or-Effect `update(model, message)` callback or, for
-  tagged messages, an exhaustive `on` handler map keyed by every message `_tag`.
-  `Program.update(...)` builds the same callback from a handler map when callers
-  want the compact handlers inside a conventional definition. `Program.emit(...)`
+  centralized model/message state. `Program.define(...)` takes a plain initial
+  model and an exhaustive `on` handler map keyed by every message `_tag`
+  (messages are always tagged; there is no `update` callback). Handlers are
+  pure and synchronous: they return the next model or `Program.next(model,
+commands)`, never an Effect. `Program.emit(...)`
   is the one command constructor: it emits an immediate message, or runs an
   Effect after the model commits and emits the message it produces; an Effect
   that completes with `void` emits nothing, so background work is
   `Program.emit(effect)` too. `Program.commands(...)` batches commands for
   `Program.next(model, ...)`.
   `Program.next(...)` widens variant commands through the Program's message
-  union so handlers do not need command-level union generics. Both definition
-  surfaces use the same Effect commands and Stream subscriptions.
+  union so handlers do not need command-level union generics.
   `Program.start(definition, { runtime })` always takes an explicit runtime
   (there is no default-runtime fallback); it adds runtime startup/provision
   errors to the failure channel and rejects runtimes that do not provide the
-  Program's update, command, and subscription requirements. UI code starts
+  Program's command and subscription requirements. UI code starts
   Programs with Solid's `Component.program(...)`.
   Program models and messages are plain data: Promise-shaped values,
   Effect-shaped values, and `undefined`/`void` messages are rejected. Commands
@@ -364,19 +368,20 @@ Release decisions:
   already committed updates acknowledge successfully. Committed model changes
   own subscription restarts, and stale subscription generations cannot emit
   follow-up messages or timeline facts.
-  Internally, Program Contract, Program Primitives, Program Story Harness, and
-  Program Runtime Coordinator Modules separate public data Interfaces, pure
-  constructors/normalizers, deterministic story execution, and live
-  Queue/Fiber/Scope execution while the public export surface stays anchored at
-  `program.ts`.
+  Internally, Program Contract, Program Primitives, and Program Runtime
+  Coordinator Modules separate public data Interfaces, pure
+  constructors/normalizers/`Program.step`, and live Queue/Fiber/Scope execution
+  while the public export surface stays anchored at `program.ts`.
   `Program.RuntimeError<E, ER = never>` separates Program-domain failures from
   Runtime Spine startup/provision failures. `Program.DispatchError<E, ER>` adds
   `ProgramDisposed` for live `dispatch(...)` acknowledgement drops. The
   Solid `Component.program(...)` binding runs on its instance's already-started
   runtime, so its handle carries no `ER`.
-  `Program.step(...)` and `Program.story(...)` are the deterministic test
-  surface: they run updates as Effects, expose returned commands without running
-  them implicitly, and let tests resolve commands back into typed messages.
+  `Program.step(program, model, message)` is the one test surface: a pure,
+  synchronous call returning `{ model, commands }` with the commands unrun.
+  A command is a description whose `effect` a test runs (with test services)
+  to get the message it emits. The runtime applies messages through the same
+  function.
 - `Form.decodeFormData(...)` decodes browser `FormData` through Effect
   Schema and maps schema failures to typed `Form.ValidationError` values.
   `Form.data(...)` is the explicit intermediate object conversion, preserving

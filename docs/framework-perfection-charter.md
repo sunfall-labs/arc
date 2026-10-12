@@ -48,10 +48,8 @@ Sunfall Arc is ready when all of these are true:
 
 - Prefer small vertical slices over sweeping rewrites.
 - Keep APIs boring unless the extra power is backed by tests and docs.
-- Teach the compact Program front door first. Prefer
-  `Program.define({ initial, on })` for tagged message examples, and use
-  `Program.update(...)` or a manual `update` callback only when that shape is
-  clearer.
+- Teach the one Program front door: `Program.define({ initial, on })` with
+  tagged messages and pure handlers, tested with `Program.step(...)`.
 - Treat type tests as product tests.
 - Fix confusing names before external users learn them.
 - Keep server-only and browser-safe boundaries explicit.

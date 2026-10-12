@@ -6,6 +6,24 @@ publication under `https://github.com/sunfall-labs/arc`; this remains a
 release-candidate draft until final npm publication is selected. The selected
 first public alpha version is `0.1.0-alpha.1`.
 
+## Pure Testing
+
+- Program handlers are the one way to write a transition: `Program.define`
+  takes `on` only (the `update` callback and `Program.update(...)` are gone),
+  messages are always tagged, and handlers are pure and synchronous (an
+  Effect returned from a handler is a type error; Effect work goes in
+  `Program.emit(effect)` commands).
+- `Program.step(program, model, message)` is now a pure synchronous function
+  returning `{ model, commands }` with the commands unrun; run a command's
+  `effect` to get the message it emits. It replaces `Program.story(...)` and
+  its `Program.Story`/`StoryEntry`/`StoryOptions` types, and the runtime
+  applies messages through the same function.
+- `Action.planOptimistic(definition, input)` returns the changes an Action's
+  `optimistic` patch would make (`Action.OptimisticChange`: a Signal's next
+  value, or a row store plus its `Insert`/`Update`/`Delete` change) without
+  applying any, so patches are tested with no runtime, store, or backend.
+- The golden path gains a Testing section whose snippets run as tests.
+
 ## Durable Submissions And Tracing Papercuts
 
 - `Action.restoreOutbox` is a function: `Action.restoreOutbox(options?)` takes

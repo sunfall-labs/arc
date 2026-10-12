@@ -842,7 +842,7 @@ export namespace Component {
    * return () => <For each={todos.model().items}>{(item) => <li>{item().title}</li>}</For>;
    * ```
    */
-  export const program = <Model, Message, E, R>(
+  export const program = <Model, Message extends Program.TaggedMessage, E, R>(
     definition: Program.Definition<Model, Message, E, R>,
     options?: ProgramOptions,
   ): Effect.Effect<ProgramHandle<Model, Message, E>, never, R> =>

@@ -85,22 +85,28 @@ export interface ProgramStep<Model, Message, E = never, R = never> {
   readonly commands: ReadonlyArray<ProgramCommand<Message, E, R>>;
 }
 
-/** Value returned by an update callback: a model or a model plus commands. */
+/** Value a message handler returns: the next model, or the next model plus commands. */
 export type ProgramUpdate<Model, Message, E = never, R = never> =
   | ProgramModelValue<Model>
   | ProgramStep<Model, Message, E, R>;
 
-/** Tagged Program message shape accepted by handler-map definitions. */
+/** Tagged message shape every Program message has. */
 export interface ProgramTaggedMessage {
   readonly _tag: PropertyKey;
 }
 
-/** Exhaustive tag-indexed handlers for Program message unions. */
+/**
+ * Exhaustive message handlers keyed by each message `_tag`.
+ *
+ * Handlers are pure and synchronous: they return the next model, optionally
+ * with commands. Effect work goes in commands (`Program.emit(effect)`), so a
+ * transition can be tested by calling `Program.step(...)` with no runtime.
+ */
 export type ProgramHandlerMap<Model, Message extends ProgramTaggedMessage, E = never, R = never> = {
   readonly [Tag in Message["_tag"] & PropertyKey]: (
     model: Model,
     message: ProgramMessageValue<Extract<Message, { readonly _tag: Tag }>>,
-  ) => EffectInput<ProgramUpdate<Model, Message, E, R>, E, R>;
+  ) => ProgramUpdate<Model, Message, E, R>;
 };
 
 /** Stream subscription that emits messages into a Program. */
@@ -118,31 +124,13 @@ export type ProgramSubscriptionInput<Message, E = never, R = never> =
   | null
   | undefined;
 
-/** Extracts the error channel from a Program update EffectInput. */
-export type ProgramUpdateError<Out> = EffectInputError<Out>;
-/** Extracts the requirement channel from a Program update EffectInput. */
-export type ProgramUpdateRequirements<Out> = EffectInputRequirements<Out>;
 /** Extracts the error channel from a Program subscription EffectInput. */
 export type ProgramSubscriptionError<Out> = EffectInputError<Out>;
 /** Extracts the requirement channel from a Program subscription EffectInput. */
 export type ProgramSubscriptionRequirements<Out> = EffectInputRequirements<Out>;
 
 /** Definition for a headless model/message loop with Effect-owned work. */
-export interface ProgramDefinition<Model, Message, E = never, R = never> {
-  /** Optional stable name used for signal labels and `Timeline` causes. */
-  readonly name?: string;
-  readonly initial: ProgramModelValue<Model>;
-  readonly update: (
-    model: Model,
-    message: ProgramMessageValue<Message>,
-  ) => EffectInput<ProgramUpdate<Model, Message, E, R>, E, R>;
-  readonly subscriptions?: (
-    model: Model,
-  ) => EffectInput<ProgramSubscriptionInput<Message, E, R>, E, R>;
-}
-
-/** Definition shorthand for tagged-message Programs. */
-export interface ProgramHandlerDefinition<
+export interface ProgramDefinition<
   Model,
   Message extends ProgramTaggedMessage,
   E = never,
@@ -151,7 +139,7 @@ export interface ProgramHandlerDefinition<
   /** Optional stable name used for signal labels and `Timeline` causes. */
   readonly name?: string;
   readonly initial: ProgramModelValue<Model>;
-  /** Exhaustive message handlers keyed by each message `_tag`. */
+  /** Exhaustive pure message handlers keyed by each message `_tag`. */
   readonly on: ProgramHandlerMap<Model, Message, E, R>;
   readonly subscriptions?: (
     model: Model,
@@ -171,53 +159,6 @@ export type ProgramDispatchError<E, ER = never> = ProgramRuntimeError<E, ER> | P
 export class ProgramDisposed extends Data.TaggedError("ProgramDisposed")<{
   readonly reason: string;
 }> {}
-
-/** One deterministic Program transition captured for story-style tests. */
-export interface ProgramStoryEntry<Model, Message, E = never, R = never> {
-  readonly message: Message;
-  readonly before: Model;
-  readonly after: Model;
-  readonly commands: ReadonlyArray<ProgramCommand<Message, E, R>>;
-}
-
-/** Deterministic Program runner for docs, tests, and reducer-style examples. */
-export interface ProgramStory<Model, Message, E = never, R = never> {
-  /** Current model after all story messages that have been applied. */
-  readonly model: ReadableSignal<Model>;
-  /** Applied transitions, including returned commands that have not run implicitly. */
-  readonly history: ReadableSignal<ReadonlyArray<ProgramStoryEntry<Model, Message, E, R>>>;
-  /** Applies one message through `update` and records the resulting transition. */
-  send(
-    message: ProgramMessageValue<Message>,
-  ): Effect.Effect<
-    ProgramStoryEntry<Model, Message, E, R>,
-    ProgramFailure<Message, ProgramRuntimeError<E>>,
-    R
-  >;
-  /** Runs one command without applying its emitted message. */
-  run(
-    command: ProgramCommand<Message, E, R>,
-  ): Effect.Effect<
-    ProgramMessageValue<Message> | void,
-    ProgramFailure<Message, ProgramRuntimeError<E>>,
-    R
-  >;
-  /** Runs one command and applies its emitted message when it produces one. */
-  resolve(
-    command: ProgramCommand<Message, E, R>,
-  ): Effect.Effect<
-    ProgramStoryEntry<Model, Message, E, R> | undefined,
-    ProgramFailure<Message, ProgramRuntimeError<E>>,
-    R
-  >;
-  /** Resets the story to a known model and clears history. */
-  reset(model?: ProgramModelValue<Model>): void;
-}
-
-/** Options for creating a deterministic Program story. */
-export interface ProgramStoryOptions<Model> {
-  readonly initial?: ProgramModelValue<Model>;
-}
 
 /** Running Program handle with model state, dispatch, failure, and disposal APIs. */
 export interface ProgramInstance<Model, Message, E = never, DispatchE = E> {

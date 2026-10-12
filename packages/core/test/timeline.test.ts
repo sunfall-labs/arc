@@ -144,7 +144,7 @@ describe("Timeline recording", () => {
           Program.define<number, { readonly _tag: "Increment" }>({
             name: "Board",
             initial: 0,
-            update: (model) => model + 1,
+            on: { Increment: (model) => model + 1 },
           }),
           { runtime: defaultRuntime },
         );

@@ -13,6 +13,7 @@ import {
 import {
   makeActionOptimisticTransactionRuntime,
   type ActionOptimisticSettle,
+  type ActionOptimisticTransaction,
   type ActionOptimisticTransactionRuntime,
 } from "./action-optimistic.js";
 import { ActionOutbox } from "./action-outbox.js";
@@ -114,7 +115,7 @@ export const runActionEffect = <I, A, E, R>(
 export const applyActionOptimisticEffect = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
   input: I,
-  transaction: ActionOptimisticTransactionRuntime,
+  transaction: { readonly api: ActionOptimisticTransaction },
 ): Effect.Effect<void, never, R> =>
   definition.optimistic === undefined
     ? Effect.void

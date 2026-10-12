@@ -47,19 +47,19 @@ points show we are no longer merely experimental.
 
 ## Where Arc Must Be Better
 
-| Current tool category | Why teams use it                               | Sunfall Arc target                                                                                                                           |
-| --------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| React state libraries | Local reactive values and derived state        | `Signal`, `Signal.derive`, scoped `watch`, and Effect `Stream` adapters with component-owned scopes                                          |
-| Foldkit / Elm loops   | Central model/message/update architecture      | `Program.define({ initial, on })`, `Program.update`, `Program.emit`, Effect commands, Stream subscriptions, stories, timelines, and scopes   |
-| TanStack Query        | Async reads, stale data, retries, invalidation | `Resource.define`, Effect `Cache`, `Schedule`, semantic `Resource.tag`, invalidation plans, hydration, and resource event streams            |
-| Mutation helpers      | Pending state, optimistic updates, retries     | `Action.define`, typed concurrency, optimistic transactions, result-carried invalidation, typed failure state, and Effect retry/interruption |
-| Next.js / Remix       | App routes, server actions, forms, hosting     | Progressive `Action.define` endpoints, server contracts, response services, request runtimes, no-JS forms, manifests, and deploy adapters    |
-| TanStack Router/Start | Typed routes, SSR, server functions            | Schema routes, file-route generation, request runtimes, server contracts, manifests, Start actions, and strict app graph diagnostics         |
-| TanStack DB           | Normalized client data and live queries        | `Collection`, runtime-local stores, secondary indexes, optimistic queues, persistence, sync adapters, live queries, and Start hydration      |
-| Form libraries        | Field state and validation                     | `Form` with schema-derived field names and values, typed validation errors, and `ActionResult` progressive action results                    |
-| RPC layers            | Type-safe client/server calls                  | `Server.contract`, `Server.client`, `Server.implement`, deterministic manifests, schema validation, and server-only module walls             |
-| Test mocking tools    | Swap services and server behavior              | `Capability` layers, `Server.mock`, `Server.mockLayer`, request runtimes, and type-preserving schema validation                              |
-| Framework devtools    | Inspect private runtime state                  | Generated app graph plus public Effect event streams and deterministic causal graphs                                                         |
+| Current tool category | Why teams use it                               | Sunfall Arc target                                                                                                                               |
+| --------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| React state libraries | Local reactive values and derived state        | `Signal`, `Signal.derive`, scoped `watch`, and Effect `Stream` adapters with component-owned scopes                                              |
+| Foldkit / Elm loops   | Central model/message/update architecture      | `Program.define({ initial, on })`, `Program.step`, `Program.emit`, Effect commands, Stream subscriptions, pure step tests, timelines, and scopes |
+| TanStack Query        | Async reads, stale data, retries, invalidation | `Resource.define`, Effect `Cache`, `Schedule`, semantic `Resource.tag`, invalidation plans, hydration, and resource event streams                |
+| Mutation helpers      | Pending state, optimistic updates, retries     | `Action.define`, typed concurrency, optimistic transactions, result-carried invalidation, typed failure state, and Effect retry/interruption     |
+| Next.js / Remix       | App routes, server actions, forms, hosting     | Progressive `Action.define` endpoints, server contracts, response services, request runtimes, no-JS forms, manifests, and deploy adapters        |
+| TanStack Router/Start | Typed routes, SSR, server functions            | Schema routes, file-route generation, request runtimes, server contracts, manifests, Start actions, and strict app graph diagnostics             |
+| TanStack DB           | Normalized client data and live queries        | `Collection`, runtime-local stores, secondary indexes, optimistic queues, persistence, sync adapters, live queries, and Start hydration          |
+| Form libraries        | Field state and validation                     | `Form` with schema-derived field names and values, typed validation errors, and `ActionResult` progressive action results                        |
+| RPC layers            | Type-safe client/server calls                  | `Server.contract`, `Server.client`, `Server.implement`, deterministic manifests, schema validation, and server-only module walls                 |
+| Test mocking tools    | Swap services and server behavior              | `Capability` layers, `Server.mock`, `Server.mockLayer`, request runtimes, and type-preserving schema validation                                  |
+| Framework devtools    | Inspect private runtime state                  | Generated app graph plus public Effect event streams and deterministic causal graphs                                                             |
 
 The replacement must remain honest. If a category is not yet more ergonomic or
 more correct than the incumbent, it stays an active win condition.
@@ -108,8 +108,8 @@ Sunfall Arc is winning when these are also true:
 
 ## First Slices Landed
 
-- Program front door: `Program.define({ initial, on })`, `Program.update(...)`,
-  `Program.emit(...)`, deterministic stories, UI adapters, typed failures,
+- Program front door: `Program.define({ initial, on })`, `Program.emit(...)`,
+  pure `Program.step(...)` tests, UI adapters, typed failures,
   scoped subscriptions, and bounded timelines.
 - Streaming SSR core: `createHtmlStreamEffect`, hydration chunks, typed stream
   errors, Web `Response` adapter, and request runtime cleanup on body close or

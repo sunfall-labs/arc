@@ -165,10 +165,10 @@ Last evidence pass: May 17, 2026.
     `signal-transaction.ts` recorder seam, with coverage in
     `packages/core/test/timeline.test.ts` and
     `packages/solid/test/timeline.test.ts`.
-- [x] Program facade is separated from contract, story, and runtime execution.
+- [x] Program facade is separated from contract, pure stepping, and runtime execution.
   - Evidence: `packages/core/src/program.ts` preserves public exports while
-    `program-contract.ts`, `program-primitives.ts`, `program-story.ts`, and
-    `program-runtime.ts` own focused internal Modules.
+    `program-contract.ts`, `program-primitives.ts` (including the pure
+    `Program.step`), and `program-runtime.ts` own focused internal Modules.
 - [x] Program dispatch and subscription lifecycle is Effect-owned.
   - Evidence: `packages/core/src/program-runtime.ts` tracks pending
     `dispatchEffect(...)` acknowledgements with `Deferred`, completes them
