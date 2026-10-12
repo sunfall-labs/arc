@@ -1,4 +1,5 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,10 +8,14 @@ import { Component } from "@sunfall/arc-solid";
 import { Effect } from "effect";
 import { afterAll, describe, expect, it } from "vitest";
 import { App, createRequestHandler } from "../src/index.js";
-import { serve } from "../src/node.js";
+import { serve, StartNodeServeError } from "../src/node.js";
 import { clientAssetsFromViteManifest, type ViteManifest } from "../src/start-client-assets.js";
 import { isStartDependencyModule } from "../src/start-chunk-naming.js";
-import { routeModulesByPath } from "../src/start-server-build.js";
+import {
+  productionServerEntryModule,
+  productionServerHandlerExport,
+  routeModulesByPath,
+} from "../src/start-server-build.js";
 import { sunfallArcStart } from "../src/vite.js";
 
 // A client build manifest shaped like Vite's: an entry with a shared chunk and
@@ -81,6 +86,42 @@ describe("clientAssetsFromViteManifest", () => {
         ] as never,
       }),
     ).toEqual({ "/": ["src/routes/index.component.tsx", "src/routes/_layout.tsx"] });
+  });
+});
+
+describe("production server entry", () => {
+  it("serves `handlerExport`, else `default`, else `handleRequest`", () => {
+    expect(productionServerHandlerExport(["default", "handleRequest"], undefined)).toBe("default");
+    expect(productionServerHandlerExport(["handleRequest", "app"], undefined)).toBe(
+      "handleRequest",
+    );
+    expect(productionServerHandlerExport(["app"], undefined)).toBe(undefined);
+    expect(productionServerHandlerExport(["default", "handler"], "handler")).toBe("handler");
+    expect(productionServerHandlerExport(["default"], "handler")).toBe(undefined);
+  });
+
+  it("imports the handler by name, so the build never reads a missing export", () => {
+    const root = mkdtempSync(join(tmpdir(), "arc-start-server-entry-"));
+    try {
+      mkdirSync(join(root, "dist/client/.vite"), { recursive: true });
+      writeFileSync(join(root, "dist/client/.vite/manifest.json"), JSON.stringify(manifest));
+      const source = productionServerEntryModule({
+        root,
+        outDir: "dist",
+        base: "/",
+        serverEntry: "src/server.tsx",
+        clientEntry: "src/main.tsx",
+        handlerExport: "default",
+        fileRoutes: { version: 1, entries: [], modules: [] } as never,
+      });
+      expect(source).toContain(
+        `import { "default" as handler } from ${JSON.stringify(join(root, "src/server.tsx"))};`,
+      );
+      expect(source).toContain("serveMain(handler, {");
+      expect(source).not.toContain("handleRequest");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 
@@ -186,4 +227,37 @@ describe("serve", () => {
         }),
       ),
     ));
+
+  it("fails with a message naming the host and port when the port is in use", async () => {
+    const taken = createServer();
+    await new Promise<void>((resolve) => taken.listen(0, "127.0.0.1", resolve));
+    const port = (taken.address() as AddressInfo).port;
+    try {
+      const error = await Effect.runPromise(
+        Effect.scoped(
+          Effect.flip(
+            serve(createRequestHandler(app), { clientDir, assets, port, host: "127.0.0.1" }),
+          ),
+        ),
+      );
+      expect(error).toBeInstanceOf(StartNodeServeError);
+      expect(error.message).toBe(
+        `Cannot listen on 127.0.0.1 port ${port}: the port is already in use (set PORT to another port)`,
+      );
+    } finally {
+      await new Promise((resolve) => taken.close(resolve));
+    }
+  });
+
+  it("fails with a message naming the client build it cannot read", async () => {
+    const missing = join(clientDir, "missing");
+    const error = await Effect.runPromise(
+      Effect.scoped(
+        Effect.flip(serve(createRequestHandler(app), { clientDir: missing, assets, port: 0 })),
+      ),
+    );
+    expect(error.message.startsWith(`Cannot read the client build at ${missing}: ENOENT`)).toBe(
+      true,
+    );
+  });
 });

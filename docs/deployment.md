@@ -43,10 +43,11 @@ routes share. A package that only lazy routes import stays in their chunks.
 `dist/server/index.js` serves the client build's files (hashed `assets/` with
 `immutable` caching, `public/` files with `no-cache`) and sends every other
 request to the server entry's handler (its `default` or `handleRequest`
-export, or `handlerExport`). Documents reference the built entry and its
+export, or `handlerExport`; the build fails if the entry exports none of
+them). Documents reference the built entry and its
 stylesheets, and `modulepreload` the entry, its imports, and the matched
 route's lazy `*.component.tsx` chunk, so the browser fetches the route's code
-alongside the entry instead of after it runs. It listens on `PORT` (default 3000) and `HOST`, and closes gracefully on `SIGINT`/`SIGTERM`.
+alongside the entry instead of after it runs. It listens on `PORT` (default 3000) and `HOST`, and closes gracefully on `SIGINT`/`SIGTERM`. If it cannot start, it prints a `StartNodeServeError` naming the client build or the address (for example, that the port is already in use) and exits with status 1.
 
 That file calls `serveMain(handler, { clientDir, assets })` from
 `@sunfall/arc-start/node`. A host that manages its own process uses `serve`,

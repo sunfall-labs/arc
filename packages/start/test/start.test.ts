@@ -142,10 +142,21 @@ const discoverFileRoutesSync = (options: FileRouteDiscoveryOptions = {}) =>
   Effect.runSync(discoverFileRoutes(options));
 const serializeStartFileRouteManifest = (options: SunfallArcStartOptions = {}) =>
   JSON.stringify(Effect.runSync(makeStartFileRouteManifest(options)));
+/** Loads one of the plugin's virtual modules, outside a Vite build. */
+const loadVirtualModule = (plugin: ReturnType<typeof sunfallArcStart>, id: string) =>
+  plugin.load.call(
+    {
+      load: () => Promise.reject(new Error("virtual modules load nothing else")),
+      error: (message) => {
+        throw new Error(message);
+      },
+    },
+    id,
+  );
 /** The file-route manifest the plugin serves as `virtual:sunfall-arc/file-routes`. */
 const loadFileRouteManifestModule = (plugin: ReturnType<typeof sunfallArcStart>): unknown => {
   const resolved = plugin.resolveId(fileRouteManifestVirtualModuleId);
-  const loaded = String(resolved === null ? undefined : plugin.load(resolved));
+  const loaded = String(resolved === null ? undefined : loadVirtualModule(plugin, resolved));
   const match = /^export const manifest = (.*);$/m.exec(loaded);
   return match?.[1] === undefined ? undefined : JSON.parse(match[1]);
 };
@@ -4879,7 +4890,7 @@ describe("Sunfall Arc Start", () => {
     const plugin = sunfallArcStart(options);
     plugin.config();
     const resolved = plugin.resolveId(fileRouteManifestVirtualModuleId);
-    const loaded = resolved === null ? undefined : plugin.load(resolved);
+    const loaded = resolved === null ? undefined : loadVirtualModule(plugin, resolved);
 
     expect(JSON.parse(manifest)).toMatchObject({
       version: 1,
@@ -4944,7 +4955,7 @@ describe("Sunfall Arc Start", () => {
       },
     });
     const resolved = plugin.resolveId(fileRouteDefinitionsVirtualModuleId);
-    const loaded = resolved === null ? undefined : plugin.load(resolved);
+    const loaded = resolved === null ? undefined : loadVirtualModule(plugin, resolved);
 
     expect(resolved).toBe(`\0${fileRouteDefinitionsVirtualModuleId}`);
     expect(String(loaded)).toContain('import { route as route_root } from "/src/routes/index.js";');
@@ -4978,7 +4989,7 @@ describe("Sunfall Arc Start", () => {
       const plugin = sunfallArcStart();
       plugin.config({ root });
       const resolved = plugin.resolveId(fileRouteManifestVirtualModuleId);
-      const loaded = resolved === null ? undefined : plugin.load(resolved);
+      const loaded = resolved === null ? undefined : loadVirtualModule(plugin, resolved);
 
       expect(discoverFileRoutesSync({ root })).toEqual([
         "src/routes/index.tsx",
@@ -5073,7 +5084,7 @@ describe("Sunfall Arc Start", () => {
       expect(JSON.stringify(manifest)).not.toContain("routeTree.gen");
 
       const resolved = plugin.resolveId(fileRouteDefinitionsVirtualModuleId);
-      const loaded = resolved === null ? undefined : plugin.load(resolved);
+      const loaded = resolved === null ? undefined : loadVirtualModule(plugin, resolved);
       expect(String(loaded)).not.toContain("routeTree.gen");
 
       const invalidated: Array<{ readonly id: string }> = [];
@@ -5139,7 +5150,7 @@ describe("Sunfall Arc Start", () => {
       expect(invalidated.map((module) => module.id)).toEqual(resolvedIds);
 
       const resolved = plugin.resolveId(fileRouteDefinitionsVirtualModuleId);
-      const loaded = resolved === null ? undefined : plugin.load(resolved);
+      const loaded = resolved === null ? undefined : loadVirtualModule(plugin, resolved);
       expect(String(loaded)).toContain("route_projects_$id");
 
       rmSync(join(root, "src/routes/projects/$id.tsx"), { force: true });
@@ -5218,8 +5229,8 @@ describe("Sunfall Arc Start", () => {
     });
     plugin.config({ root: process.cwd() });
     const manifestId = plugin.resolveId(fileRouteManifestVirtualModuleId);
-    const firstModule = manifestId === null ? undefined : plugin.load(manifestId);
-    const secondModule = manifestId === null ? undefined : plugin.load(manifestId);
+    const firstModule = manifestId === null ? undefined : loadVirtualModule(plugin, manifestId);
+    const secondModule = manifestId === null ? undefined : loadVirtualModule(plugin, manifestId);
 
     expect(fileRoutes.iteratorCalls).toBe(1);
     expect(String(firstModule)).toContain("src/routes/projects/$id.tsx");

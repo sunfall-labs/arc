@@ -36,6 +36,8 @@ import { startChunkNamingConfig } from "./start-chunk-naming.js";
 import {
   isProductionServerEntry,
   productionServerEntryModule,
+  productionServerEntryPath,
+  productionServerHandlerExport,
   resolveProductionServerEntryId,
   startServerBuildConfig,
 } from "./start-server-build.js";
@@ -79,6 +81,14 @@ export interface SunfallArcStartResolvedConfig {
   };
 }
 
+/** The part of Vite's plugin context the Start plugin's `load` hook uses. */
+export interface SunfallArcStartLoadContext {
+  readonly load: (options: {
+    readonly id: string;
+  }) => Promise<{ readonly exports?: readonly string[] | null }>;
+  readonly error: (message: string) => never;
+}
+
 /** Vite plugin shape returned by `sunfallArcStart`. */
 export interface SunfallArcStartPlugin {
   readonly name: typeof sunfallArcStartPluginName;
@@ -94,7 +104,8 @@ export interface SunfallArcStartPlugin {
   };
   readonly closeBundle: () => void | Promise<void>;
   readonly resolveId: (id: string) => string | null;
-  readonly load: (id: string) => string | null;
+  /** Loads Start's virtual modules; the production server entry loads asynchronously. */
+  readonly load: (this: SunfallArcStartLoadContext, id: string) => string | null | Promise<string>;
   readonly transform: (
     code: string,
     id: string,
@@ -394,15 +405,35 @@ export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallAr
     load(id) {
       const activeOptions = currentOptions();
       if (isProductionServerEntry(id)) {
-        return productionServerEntryModule({
-          root: viteRoot,
-          outDir: serverBuild?.outDir ?? viteOutDir,
-          base: viteBase,
-          serverEntry,
-          clientEntry: normalizedOptions.clientEntry ?? defaultStartClientEntry,
-          handlerExport: normalizedOptions.handlerExport,
-          fileRoutes: Effect.runSync(makeStartFileRouteManifest(activeOptions)),
-        });
+        // The server entry's exports decide which one the server imports by
+        // name, so a missing handler fails the build instead of the server.
+        const loadProductionServerEntry = (context: SunfallArcStartLoadContext) =>
+          Effect.gen(function* () {
+            const { exports } = yield* Effect.promise(() =>
+              context.load({ id: productionServerEntryPath(viteRoot, serverEntry) }),
+            );
+            const handlerExport = productionServerHandlerExport(
+              exports ?? [],
+              normalizedOptions.handlerExport,
+            );
+            if (handlerExport === undefined) {
+              return yield* Effect.sync(() =>
+                context.error(
+                  `${serverEntry} has no ${normalizedOptions.handlerExport ?? "default or handleRequest"} export for the production server to serve`,
+                ),
+              );
+            }
+            return productionServerEntryModule({
+              root: viteRoot,
+              outDir: serverBuild?.outDir ?? viteOutDir,
+              base: viteBase,
+              serverEntry,
+              clientEntry: normalizedOptions.clientEntry ?? defaultStartClientEntry,
+              handlerExport,
+              fileRoutes: yield* makeStartFileRouteManifest(activeOptions),
+            });
+          });
+        return runStartHostPromise(loadProductionServerEntry(this));
       }
       return Effect.runSync(loadStartVirtualModule(id, activeOptions));
     },
