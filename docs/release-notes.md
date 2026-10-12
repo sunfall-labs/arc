@@ -15,6 +15,9 @@ first public alpha version is `0.1.0-alpha.1`.
   file location. `Route.Factory<Path>` / `RouteFactory`, the generated
   `FileRoute` type, and the `routeModuleExportName` generator option are
   removed with it.
+- Pure aliases are removed: `Capability.layer` / `Capability.mock` /
+  `Capability.provide` (use the capability's own `layer` / `mock` /
+  `provide` methods) and `Server.definitions()` (use `Server.functions()`).
 
 ## Durable Submissions And Tracing Papercuts
 

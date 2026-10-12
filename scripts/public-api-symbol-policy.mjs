@@ -58,7 +58,7 @@ export const publicHoverDocGroups = [
     declarations: ["CapabilityTypeId", "isCapability"],
     allDeclarations: ["Capability"],
     namespaceDeclarations: {
-      Capability: ["Any", "Shape", "Identifier", "define", "layer", "mock", "provide"],
+      Capability: ["Any", "Shape", "Identifier", "define"],
     },
   },
   {

@@ -526,9 +526,6 @@ export namespace Server {
   export const functions = (): ReadonlyMap<string, AnyServerFunction> =>
     serverFunctionDefinitionRegistry<AnyServerFunction>();
 
-  /** Alias for `Server.functions()`, useful for registry-oriented adapters. */
-  export const definitions = (): ReadonlyMap<string, AnyServerFunction> => functions();
-
   /** Looks up a registered server function by function name. */
   export const get = <I = unknown, A = unknown, E = never, R = never>(
     name: string,
