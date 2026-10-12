@@ -8,6 +8,7 @@ import {
 } from "effect";
 import type { AsyncResult } from "effect/reactivity";
 import type {
+  CheckedEffectInput,
   EffectInput,
   EffectInputError,
   EffectInputRequirements,
@@ -180,11 +181,19 @@ export interface ResourceFamilyOptions<I, A, E = never, R = never> {
    *
    * Direct Effect values are interpreted as work. If the domain value itself is
    * an Effect, wrap it with `Effect.succeed(effectValue)` so it crosses this
-   * Interface as data.
+   * Interface as data. `Resource.define` checks the callback as an
+   * `EffectInput`; the family stores it as a `CheckedEffectInput`.
    */
-  readonly load: (input: I) => EffectInput<A, E, R>;
-  /** Tags provided by a successful value for later invalidation. */
-  readonly provides?: (value: A, input: I) => ReadonlyArray<ResourceTag>;
+  readonly load: (input: I) => CheckedEffectInput<A, E, R>;
+  /**
+   * Tags provided by a successful value for later invalidation.
+   *
+   * Declared as a method so its parameters are bivariant: a family whose load
+   * never succeeds (`A = never`) stays assignable to the erased
+   * `AnyResourceFamily`/`AnyResourceRef`, whichever order TypeScript measures
+   * the variance of `A` in.
+   */
+  provides?(value: A, input: I): ReadonlyArray<ResourceTag>;
 }
 
 /**

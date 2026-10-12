@@ -975,7 +975,11 @@ const outboxPendingCount: Effect.Effect<number> = Effect.map(
   Action.outbox,
   (outbox) => outbox.pending.get().length,
 );
-const outboxRestore: Effect.Effect<void> = Action.restoreOutbox;
+const outboxRestore: Effect.Effect<void> = Action.restoreOutbox();
+const outboxRestoreSettled: Effect.Effect<void> = Action.restoreOutbox({
+  settled: ["submission-1"],
+});
+void outboxRestoreSettled;
 const outboxService: Effect.Effect<ActionOutbox, never, ActionOutbox> = Effect.gen(function* () {
   return yield* ActionOutbox;
 });

@@ -111,26 +111,18 @@
       "sourceSurface": [
         "collection-errors",
         "collection-index-materialization",
-        "collection-persistence",
         "collection-snapshot-codec",
         "query-builder",
-        "query-plan",
-        "sqlite-persistence"
+        "query-plan"
       ],
       "requiredTypeTestImports": [
         "Collection",
         "CollectionRowKeyChanged",
         "CollectionRowNotFound",
         "CollectionSnapshotCodecError",
-        "CollectionStorageError",
         "Query",
         "QueryEvaluationError",
         "ReadonlyCollectionMutation",
-        "SQLitePersistence",
-        "SQLitePersistenceInvalidRow",
-        "SQLitePersistenceInvalidStatementParams",
-        "SQLitePersistenceInvalidTableName",
-        "SQLitePersistenceUnsupportedStatement",
         "UnknownCollectionIndex",
         "UnsupportedLiveQuery"
       ],
@@ -158,11 +150,7 @@
         "Query.JoinKey",
         "Query.SortDirection",
         "Query.SortValue",
-        "SQLitePersistence.MemoryStatementDatabase",
-        "SQLitePersistence.statementDriver",
-        "SQLitePersistence.storage",
-        "SQLitePersistence.defaultTable",
-        "SQLitePersistence.Row"
+        "Collection.PersistenceConfig"
       ]
     },
     {

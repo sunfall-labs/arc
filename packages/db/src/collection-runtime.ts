@@ -36,15 +36,14 @@ import {
   ensureCollectionRowKey,
 } from "./collection-projection-callback-policy.js";
 import {
-  collectionPersistenceKey,
   dehydrateCollections as dehydrateCollectionsWithStore,
   dehydrateCollectionsEffect as dehydrateCollectionsWithStoreEffect,
   hydrateCollectionEffect as hydrateCollectionWithStoreEffect,
   hydrateCollectionsEffect as hydrateCollectionsWithStoreEffect,
   validateCollectionsHydrationEffect as validateCollectionsHydrationWithStoreEffect,
-  persistCollectionEffect as persistCollectionWithStoreEffect,
+  persistCollectionEffect,
   persistCollectionForReasonEffect,
-  restoreCollectionEffect as restoreCollectionWithStoreEffect,
+  restoreCollectionEffect,
   snapshotCollectionEffect as snapshotCollectionWithStoreEffect,
 } from "./collection-persistence.js";
 import { commitCollectionWriteEffect } from "./collection-write-commit.js";
@@ -70,7 +69,6 @@ import type {
   CollectionIndexValue,
   CollectionKey,
   CollectionOptions,
-  CollectionPersistenceStorage,
   CollectionPersistOptions,
   CollectionRow,
   CollectionRuntimeError,
@@ -132,27 +130,6 @@ const hydrateCollectionEffect = <A extends object, K extends CollectionKey, E, R
   store?: RuntimeCollectionStore,
 ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
   hydrateCollectionWithStoreEffect(definition, snapshot, options, collectionStoreEffect, store);
-
-export const persistenceKey = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  options: CollectionPersistOptions = {},
-): string => collectionPersistenceKey(definition, options);
-
-const persistCollectionEffect = <A extends object, K extends CollectionKey, E, R, PE, PR>(
-  definition: CollectionDefinition<A, K, E, R>,
-  storage: CollectionPersistenceStorage<PE, PR>,
-  options: CollectionPersistOptions = {},
-  store?: RuntimeCollectionStore,
-): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR> =>
-  persistCollectionWithStoreEffect(definition, storage, options, collectionStoreEffect, store);
-
-const restoreCollectionEffect = <A extends object, K extends CollectionKey, E, R, PE, PR>(
-  definition: CollectionDefinition<A, K, E, R>,
-  storage: CollectionPersistenceStorage<PE, PR>,
-  options: CollectionPersistOptions & CollectionHydrateOptions = {},
-  store?: RuntimeCollectionStore,
-): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR> =>
-  restoreCollectionWithStoreEffect(definition, storage, options, collectionStoreEffect, store);
 
 const persistForReasonEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -474,14 +451,10 @@ export const defineCollection = <
     snapshot: () => snapshotCollectionEffect(definition),
     hydrate: (snapshot: CollectionSnapshot<A, K>, hydrateOptions?: CollectionHydrateOptions) =>
       hydrateCollectionEffect(definition, snapshot, hydrateOptions),
-    persist: <PE = never, PR = never>(
-      storage: CollectionPersistenceStorage<PE, PR>,
-      persistOptions?: CollectionPersistOptions,
-    ) => persistCollectionEffect(definition, storage, persistOptions),
-    restore: <PE = never, PR = never>(
-      storage: CollectionPersistenceStorage<PE, PR>,
-      restoreOptions?: CollectionPersistOptions & CollectionHydrateOptions,
-    ) => restoreCollectionEffect(definition, storage, restoreOptions),
+    persist: (persistOptions?: CollectionPersistOptions) =>
+      persistCollectionEffect(definition, persistOptions, collectionStoreEffect),
+    restore: (restoreOptions?: CollectionPersistOptions & CollectionHydrateOptions) =>
+      restoreCollectionEffect(definition, restoreOptions, collectionStoreEffect),
     applyChanges: (
       changes: ReadonlyArray<CollectionChange<A, K>>,
       writeOptions?: CollectionWriteOptions,

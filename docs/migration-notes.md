@@ -15,6 +15,40 @@ app's `actions` so the server deduplicates replays. Treat `ActionQueued` from
 `submit` as "saved, waiting to sync", and render `Action.outbox` pending and
 failures for the global status.
 
+## From Collection Storage Adapters And SQLitePersistence
+
+Collection persistence now uses the runtime's `effect/persistence`
+`KeyValueStore`, the same store as durable Action submissions. Provide one in
+the app's Layer (`KeyValueStore.layerStorage(() => localStorage)` in the
+browser, `KeyValueStore.layerMemory` in tests, `KeyValueStore.layerSql` over
+your own `SqlClient` for SQLite or Postgres) instead of passing storage to each
+collection.
+
+| Before                                                                                                       | After                                                          |
+| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| `persistence: { storage, key }`                                                                              | `persistence: { key, version? }`; the store comes from context |
+| `Projects.persist(storage, { key })`                                                                         | `Projects.persist({ key? })`                                   |
+| `Projects.restore(storage, { key })`                                                                         | `Projects.restore({ key? })`                                   |
+| `Collection.storage(localStorage)`                                                                           | `KeyValueStore.layerStorage(() => localStorage)`               |
+| `Collection.memoryStorage()`, `Collection.MemoryStorage`                                                     | `KeyValueStore.layerMemory`                                    |
+| `Collection.PersistenceStorage<E, R>`, `Collection.StorageLike`                                              | `KeyValueStore.KeyValueStore`                                  |
+| `Collection.PersistenceConfig<E, R>`                                                                         | `Collection.PersistenceConfig`                                 |
+| `CollectionStorageError`                                                                                     | `KeyValueStoreError`                                           |
+| `SQLitePersistence.*` (`storage`, `statementDriver`, ...)                                                    | `KeyValueStore.layerSql({ table? })` with your `SqlClient`     |
+| `SQLitePersistenceInvalidRow`, `...InvalidStatementParams`, `...InvalidTableName`, `...UnsupportedStatement` | removed; failures are `KeyValueStoreError`                     |
+| default key `sunfall-arc:collection:<name>`                                                                  | `arc/collections/v1/<name>` (`version` sets `v<n>`)            |
+
+A persisted collection's `E` now includes `KeyValueStoreError` and its `R`
+includes `KeyValueStore`; `Collection.define` infers both, and explicitly typed
+definitions must spell them.
+
+Existing data is not read: snapshots under the old `sunfall-arc:collection:*`
+keys and rows in the old SQLite persistence table restore as empty, and the
+next persist writes the new key. Synced collections simply reload. To carry a
+local-only collection over, read the old value once (it is the same snapshot
+JSON) and write it to `arc/collections/v1/<name>` with the `KeyValueStore`
+before the first restore.
+
 ## From Effect-Suffixed Names And Path Addressing
 
 This alpha applies three naming rules across every package:

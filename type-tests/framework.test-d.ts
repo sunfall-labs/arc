@@ -11,6 +11,7 @@ import {
   Stream,
   Option,
 } from "effect";
+import type { KeyValueStore } from "effect/persistence";
 import { AsyncResult } from "effect/reactivity";
 import {
   Action,
@@ -105,13 +106,9 @@ import {
   CollectionRowKeyChanged,
   CollectionRowNotFound,
   CollectionSnapshotCodecError,
-  CollectionStorageError,
   Query,
   QueryEvaluationError,
   ReadonlyCollectionMutation,
-  SQLitePersistence,
-  SQLitePersistenceInvalidRow,
-  SQLitePersistenceInvalidTableName,
 } from "@sunfall/arc-db";
 import {
   collectCollectionsEffect,
@@ -1650,11 +1647,22 @@ const projectHydrateEffect: Effect.Effect<
 > = ProjectsCollection.hydrate(projectsSnapshot);
 void projectHydrateEffect;
 
-const projectMemoryStorage = Collection.memoryStorage();
-ProjectsCollection.persist(projectMemoryStorage, { key: "projects" });
-ProjectsCollection.restore(projectMemoryStorage, { key: "projects", replace: false });
-ProjectsCollection.persist(projectMemoryStorage);
-ProjectsCollection.restore(projectMemoryStorage);
+// Persistence reads and writes the runtime's KeyValueStore.
+const projectPersistEffect: Effect.Effect<
+  void,
+  KeyValueStore.KeyValueStoreError | CollectionSnapshotCodecError | EffectInputCallbackError,
+  KeyValueStore.KeyValueStore
+> = ProjectsCollection.persist({ key: "projects", version: 2 });
+const projectRestoreEffect: Effect.Effect<
+  void,
+  KeyValueStore.KeyValueStoreError | CollectionSnapshotCodecError | EffectInputCallbackError,
+  KeyValueStore.KeyValueStore
+> = ProjectsCollection.restore({ key: "projects", replace: false });
+// @ts-expect-error persisting requires the runtime's KeyValueStore
+const projectPersistWithoutStore: Effect.Effect<void, unknown> = ProjectsCollection.persist();
+void projectPersistEffect;
+void projectRestoreEffect;
+void projectPersistWithoutStore;
 Effect.map(collectionStoreEffect, (store) => {
   const diagnosticsEffect: Effect.Effect<CollectionStoreDiagnosticsSnapshot> =
     store.diagnostics.snapshot;
@@ -1664,15 +1672,10 @@ Effect.map(collectionStoreEffect, (store) => {
   diagnostics.pendingMutationCount.toFixed();
   void diagnosticsEffect;
 });
-const projectBrowserStorage = Collection.storage({
-  getItem: () => null,
-  setItem: () => undefined,
-});
-const projectBrowserPersistEffect: Effect.Effect<
-  void,
-  CollectionStorageError | CollectionSnapshotCodecError | EffectInputCallbackError
-> = ProjectsCollection.persist(projectBrowserStorage);
-void projectBrowserPersistEffect;
+// @ts-expect-error custom storage adapters are gone: provide a KeyValueStore Layer instead
+Collection.memoryStorage();
+// @ts-expect-error custom storage adapters are gone: provide a KeyValueStore Layer instead
+Collection.storage(localStorage);
 
 const ListProjectsForCollection = Server.fn<void, readonly Project[], ProjectError>(
   "Projects.collection.list",
@@ -1696,8 +1699,6 @@ const ServerProjectsCollection = Collection.define<
 
 declare const projectRowsPromise: Promise<readonly Project[]>;
 declare const promisedBoolean: Promise<boolean>;
-declare const promisedStorageText: Promise<string | null>;
-declare const promisedSqliteRow: Promise<SQLitePersistence.Row | null>;
 const syncAdapter: Collection.SyncAdapter<Project> = {
   name: "projects-sync",
   load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
@@ -1771,146 +1772,45 @@ ProjectsCollection.applyChanges(collectionChanges, {
   origin: "remote",
   synced: true,
 });
-const sqliteStorage = SQLitePersistence.storage(
-  {
-    table: () => ({
-      get: (key) => {
-        key.namespace.toUpperCase();
-        return null;
-      },
-      upsert: (row) => {
-        row.schemaVersion.toFixed();
-        row.updatedAt.toFixed();
-      },
-      delete: (key) => {
-        key.key.toUpperCase();
-      },
-    }),
-  },
-  { namespace: "workspace:a", schemaVersion: 1 },
-);
-const promisePersistenceCollection = Collection.define<Project>({
-  name: "Projects.promisePersistence",
-  getKey: (project) => project.id,
-  persistence: {
-    storage: {
-      // @ts-expect-error persistence storage reads must return Effect or a pure value, not Promise
-      getItem: () => promisedStorageText,
-      setItem: () => undefined,
-    },
-  },
-  sync: {
-    load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
-  },
-});
-const invalidSqliteTableStorage = SQLitePersistence.storage(
-  {
-    table: () => ({
-      get: () => null,
-      upsert: () => undefined,
-    }),
-  },
-  { tableName: "" },
-);
-const invalidSqliteTableGetEffect: Effect.Effect<
-  string | null,
-  EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
-> = toEffect(invalidSqliteTableStorage.getItem("projects"));
-void invalidSqliteTableGetEffect;
-const sqliteStorageTopLevel = SQLitePersistence.storage({
-  table: () => ({
-    get: () => null,
-    upsert: () => undefined,
-  }),
-});
-const sqliteStatementStorage = SQLitePersistence.storage(
-  SQLitePersistence.statementDriver({
-    execute: (_sql, params) => {
-      params?.map((param) => param?.valueOf());
-    },
-    select: (_sql, params) => {
-      params?.map((param) => param?.valueOf());
-      return [];
-    },
-  }),
-);
-const promiseSqliteStorage = SQLitePersistence.storage({
-  table: () => ({
-    // @ts-expect-error SQLite table reads must return Effect or a pure value, not Promise
-    get: () => promisedSqliteRow,
-    upsert: () => undefined,
-  }),
-});
-const promiseSqliteStatementStorage = SQLitePersistence.storage(
-  SQLitePersistence.statementDriver({
-    // @ts-expect-error SQLite statement execution must return Effect or a pure value, not Promise
-    execute: () => promisedVoid,
-    select: () => [],
-  }),
-);
-const sqlitePreparedStatementDatabase = SQLitePersistence.preparedStatementDatabase({
-  prepare: (sql) => {
-    sql.toUpperCase();
-    return {
-      run: (...params) => {
-        params.map((param) => param?.valueOf());
-      },
-      all: (...params) => {
-        params.map((param) => param?.valueOf());
-        return [];
-      },
-    };
-  },
-});
-const sqlitePreparedStatementStorage = SQLitePersistence.storage(
-  SQLitePersistence.statementDriver(sqlitePreparedStatementDatabase),
-);
-const sqliteMemoryStatementDatabase = SQLitePersistence.memoryStatementDatabase();
-const sqliteMemoryStatementStorage = SQLitePersistence.storage(
-  SQLitePersistence.statementDriver(sqliteMemoryStatementDatabase),
-);
-sqliteMemoryStatementDatabase
-  .tableRows("collection_snapshots")
-  .map((row) => row.schemaVersion.toFixed());
-ProjectsCollection.persist(sqliteStorage);
-ProjectsCollection.restore(sqliteStorageTopLevel);
-ProjectsCollection.restore(sqliteStatementStorage);
-ProjectsCollection.restore(sqlitePreparedStatementStorage);
-ProjectsCollection.restore(sqliteMemoryStatementStorage);
-
-const PersistedProjectsCollection = Collection.define<
-  Project,
-  string,
-  EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
->({
+// Schema-inferred persisted collections add the KeyValueStore channels.
+const PersistedProjectsCollection = Collection.define({
   name: "Projects.persistedCollection",
+  output: ProjectSchema,
   getKey: (project) => project.id,
   persistence: {
-    storage: sqliteStorage,
     key: "projects",
+    version: 2,
     loadAfterRestore: true,
   },
   sync: {
     load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]),
   },
 });
-PersistedProjectsCollection.preload();
+const persistedProjectsPreload: Effect.Effect<
+  void,
+  KeyValueStore.KeyValueStoreError,
+  KeyValueStore.KeyValueStore
+> = PersistedProjectsCollection.preload();
+// @ts-expect-error a persisted collection's preload requires KeyValueStore
+const persistedProjectsPreloadWithoutStore: Effect.Effect<void, unknown> =
+  PersistedProjectsCollection.preload();
+void persistedProjectsPreload;
+void persistedProjectsPreloadWithoutStore;
 PersistedProjectsCollection.applyChanges([
   { _tag: "Upsert", value: { id: "atlas", name: "Atlas" } },
 ]);
 
-Collection.define<
-  Project,
-  string,
-  EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
->({
-  name: "Projects.badPersistedCollection",
+// Explicitly typed persisted collections must declare the KeyValueStore channels.
+Collection.define<Project, string, KeyValueStore.KeyValueStoreError, KeyValueStore.KeyValueStore>({
+  name: "Projects.explicitPersistedCollection",
   getKey: (project) => project.id,
-  persistence: {
-    storage: sqliteStorage,
-  },
-  // @ts-expect-error persisted collection loader output must satisfy the row type
-  load: () => Effect.succeed([{ id: "atlas" }]),
+  persistence: { key: "projects" },
+});
+Collection.define<Project>({
+  name: "Projects.missingPersistenceChannels",
+  getKey: (project) => project.id,
+  // @ts-expect-error persistence needs KeyValueStoreError in E and KeyValueStore in R
+  persistence: {},
 });
 
 const collectionPayload = dehydrateCollections([ProjectsCollection]);

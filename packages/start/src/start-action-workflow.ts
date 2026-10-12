@@ -1,4 +1,15 @@
-import { Context, Deferred, Effect, Layer, Option, Schema, Scope } from "effect";
+import {
+  Clock,
+  Context,
+  Duration,
+  Effect,
+  Exit,
+  Layer,
+  Option,
+  Schema,
+  Scope,
+  Semaphore,
+} from "effect";
 import { Activity, Workflow, WorkflowEngine } from "effect/workflow";
 import type { AnySunfallArcRuntime } from "@sunfall/arc-core";
 
@@ -32,6 +43,8 @@ type SubmissionWorkflow = Workflow.Workflow<
 /** One Workflow per Action name (its tag), shared by every handler. */
 const workflows = new Map<string, SubmissionWorkflow>();
 
+type Engine = WorkflowEngine.WorkflowEngine["Service"];
+
 /**
  * Per engine: the Actions registered with it, and the Activity bodies of its
  * in-flight executions (keyed by Action name and submission id). Handlers that
@@ -40,23 +53,57 @@ const workflows = new Map<string, SubmissionWorkflow>();
 interface EngineRegistrations {
   readonly actions: Set<string>;
   readonly producers: Map<string, Effect.Effect<ActionResponseRecord>>;
-  /** Registrations live as long as the process. */
+  /** Owns the registrations (and, for an in-memory generation, the engine). */
   readonly scope: Scope.Closeable;
 }
-const engines = new WeakMap<object, EngineRegistrations>();
 
-/** Per-handler state: the in-memory engine used when the server Layer provides none. */
+/** Registrations on a server-provided engine live as long as the engine. */
+const providedEngines = new WeakMap<object, EngineRegistrations>();
+
+/**
+ * One generation of a durable Action's in-memory engine.
+ *
+ * `WorkflowEngine.layerMemory` never forgets an execution, so the default
+ * engine rotates: new submissions go to the newest generation, a generation
+ * stops taking new submissions once it is `maxAge` old, and it is closed (with
+ * every record it holds) once it has nothing in flight and its last execution
+ * settled `maxAge` ago. A client replays a submission only within `maxAge` of
+ * creating it, which is before the server first saw it, so every record lives
+ * as long as a replay can still reach it, and memory holds at most about two
+ * `maxAge` windows of submissions.
+ */
+interface MemoryGeneration {
+  readonly engine: Engine;
+  readonly registrations: EngineRegistrations;
+  readonly openedAt: number;
+  readonly ids: Set<string>;
+  inFlight: number;
+  settledAt: number;
+}
+
+/** A durable Action's in-memory engine generations, oldest first. */
+interface MemoryLane {
+  readonly generations: Array<MemoryGeneration>;
+  /** The generation holding each live submission id. */
+  readonly byId: Map<string, MemoryGeneration>;
+}
+
+/** Per-handler state: the in-memory engines used when the server Layer provides none. */
 export interface StartActionWorkflows {
-  readonly scope: Scope.Closeable;
-  readonly defaultEngine: Deferred.Deferred<WorkflowEngine.WorkflowEngine["Service"]>;
-  defaultEngineStarted: boolean;
+  readonly lanes: Map<string, MemoryLane>;
+  readonly lock: Semaphore.Semaphore;
 }
 
 export const makeStartActionWorkflows = (): StartActionWorkflows => ({
-  scope: Scope.makeUnsafe(),
-  defaultEngine: Deferred.makeUnsafe(),
-  defaultEngineStarted: false,
+  lanes: new Map(),
+  lock: Semaphore.makeUnsafe(1),
 });
+
+/** The durability facts of the Action a submission belongs to. */
+export interface DurableSubmissionAction {
+  readonly name: string;
+  readonly durable: { readonly maxAge: Duration.Input };
+}
 
 const producerKey = (actionName: string, id: string): string => `${actionName}\u0000${id}`;
 
@@ -74,39 +121,114 @@ const workflowFor = (actionName: string): SubmissionWorkflow => {
   return workflow;
 };
 
-const registrationsFor = (engine: object): EngineRegistrations => {
-  let registrations = engines.get(engine);
+const makeRegistrations = (scope: Scope.Closeable): EngineRegistrations => ({
+  actions: new Set(),
+  producers: new Map(),
+  scope,
+});
+
+const providedRegistrationsFor = (engine: object): EngineRegistrations => {
+  let registrations = providedEngines.get(engine);
   if (registrations === undefined) {
-    registrations = { actions: new Set(), producers: new Map(), scope: Scope.makeUnsafe() };
-    engines.set(engine, registrations);
+    registrations = makeRegistrations(Scope.makeUnsafe());
+    providedEngines.set(engine, registrations);
   }
   return registrations;
 };
 
-/** The server Layer's `WorkflowEngine`, or the handler's in-memory one. */
-const engineFor = (
+const openMemoryGeneration = (now: number): Effect.Effect<MemoryGeneration> =>
+  Effect.gen(function* () {
+    const scope = yield* Scope.make();
+    const context = yield* Layer.buildWithScope(WorkflowEngine.layerMemory, scope);
+    return {
+      engine: Context.get(context, WorkflowEngine.WorkflowEngine),
+      registrations: makeRegistrations(scope),
+      openedAt: now,
+      ids: new Set(),
+      inFlight: 0,
+      settledAt: now,
+    };
+  });
+
+/**
+ * Picks the in-memory generation for one submission and counts it in flight:
+ * the generation already holding its id (a replay or a duplicate), else the
+ * newest open one. Closes generations whose records no client can still replay.
+ */
+const acquireMemoryGeneration = (
+  state: StartActionWorkflows,
+  action: DurableSubmissionAction,
+  id: string,
+): Effect.Effect<MemoryGeneration> =>
+  state.lock.withPermits(1)(
+    Effect.gen(function* () {
+      const now = yield* Clock.currentTimeMillis;
+      const maxAge = Duration.toMillis(action.durable.maxAge);
+      let lane = state.lanes.get(action.name);
+      if (lane === undefined) {
+        lane = { generations: [], byId: new Map() };
+        state.lanes.set(action.name, lane);
+      }
+      const newest = lane.generations.at(-1);
+      if (newest === undefined || now - newest.openedAt >= maxAge) {
+        lane.generations.push(yield* openMemoryGeneration(now));
+      }
+      const current = lane.generations.at(-1)!;
+      for (const generation of lane.generations.slice(0, -1)) {
+        if (generation.inFlight === 0 && now - generation.settledAt >= maxAge) {
+          lane.generations.splice(lane.generations.indexOf(generation), 1);
+          for (const retired of generation.ids) {
+            lane.byId.delete(retired);
+          }
+          yield* Scope.close(generation.registrations.scope, Exit.void);
+        }
+      }
+      const generation = lane.byId.get(id) ?? current;
+      generation.ids.add(id);
+      lane.byId.set(id, generation);
+      generation.inFlight++;
+      return generation;
+    }),
+  );
+
+const releaseMemoryGeneration = (generation: MemoryGeneration): Effect.Effect<void> =>
+  Effect.map(Clock.currentTimeMillis, (now) => {
+    generation.inFlight--;
+    generation.settledAt = Math.max(generation.settledAt, now);
+  });
+
+const providedEngineOf = (
+  runtime: AnySunfallArcRuntime<unknown>,
+): Effect.Effect<Option.Option<Engine>> =>
+  runtime
+    .provide(Effect.serviceOption(WorkflowEngine.WorkflowEngine))
+    .pipe(Effect.catchCause(() => Effect.succeedNone));
+
+/**
+ * The engine one submission runs on: the server Layer's `WorkflowEngine`, or
+ * the handler's in-memory generation for the submission's Action.
+ */
+const withSubmissionEngine = <A, R>(
   state: StartActionWorkflows,
   runtime: AnySunfallArcRuntime<unknown>,
-): Effect.Effect<WorkflowEngine.WorkflowEngine["Service"]> =>
+  action: DurableSubmissionAction,
+  id: string,
+  use: (engine: Engine, registrations: EngineRegistrations) => Effect.Effect<A, never, R>,
+): Effect.Effect<A, never, R> =>
   Effect.gen(function* () {
-    const provided = yield* runtime
-      .provide(Effect.serviceOption(WorkflowEngine.WorkflowEngine))
-      .pipe(Effect.catchCause(() => Effect.succeedNone));
+    const provided = yield* providedEngineOf(runtime);
     if (Option.isSome(provided)) {
-      return provided.value;
+      return yield* use(provided.value, providedRegistrationsFor(provided.value));
     }
-    if (!state.defaultEngineStarted) {
-      state.defaultEngineStarted = true;
-      yield* Layer.buildWithScope(WorkflowEngine.layerMemory, state.scope).pipe(
-        Effect.map((context) => Context.get(context, WorkflowEngine.WorkflowEngine)),
-        Effect.flatMap((engine) => Deferred.succeed(state.defaultEngine, engine)),
-      );
-    }
-    return yield* Deferred.await(state.defaultEngine);
+    return yield* Effect.acquireUseRelease(
+      acquireMemoryGeneration(state, action, id),
+      (generation) => use(generation.engine, generation.registrations),
+      releaseMemoryGeneration,
+    );
   });
 
 const registerOnce = (
-  engine: WorkflowEngine.WorkflowEngine["Service"],
+  engine: Engine,
   registrations: EngineRegistrations,
   actionName: string,
   workflow: SubmissionWorkflow,
@@ -164,18 +286,12 @@ const fromRecord = (record: ActionResponseRecord): Response =>
 export const runActionSubmissionWorkflow = <E, R>(
   state: StartActionWorkflows,
   runtime: AnySunfallArcRuntime<unknown>,
-  actionName: string,
+  action: DurableSubmissionAction,
   submission: { readonly id: string; readonly input: unknown },
   produce: Effect.Effect<Response, E, R>,
 ): Effect.Effect<Response, never, R> =>
   Effect.gen(function* () {
-    const workflow = workflowFor(actionName);
-    const engine = yield* engineFor(state, runtime);
-    const registrations = registrationsFor(engine);
-    const producers = registrations.producers;
-    yield* registerOnce(engine, registrations, actionName, workflow);
-
-    const key = producerKey(actionName, submission.id);
+    const workflow = workflowFor(action.name);
     // The engine runs the Activity on its own fiber: hand it the request's
     // context, so `run` sees the request runtime's services.
     const context = yield* Effect.context<R>();
@@ -184,19 +300,75 @@ export const runActionSubmissionWorkflow = <E, R>(
       Effect.flatMap(toRecord),
       Effect.provideContext(context),
     ) as Effect.Effect<ActionResponseRecord>;
-    const owns = !producers.has(key);
-    if (owns) {
-      producers.set(key, producer);
-    }
-    const record = yield* workflow.execute({ id: submission.id, input: submission.input }).pipe(
-      Effect.provideService(WorkflowEngine.WorkflowEngine, engine),
-      Effect.ensuring(
-        Effect.sync(() => {
-          if (owns && producers.get(key) === producer) {
-            producers.delete(key);
+    const key = producerKey(action.name, submission.id);
+
+    return yield* withSubmissionEngine(
+      state,
+      runtime,
+      action,
+      submission.id,
+      (engine, registrations) =>
+        Effect.gen(function* () {
+          const producers = registrations.producers;
+          yield* registerOnce(engine, registrations, action.name, workflow);
+          const owns = !producers.has(key);
+          if (owns) {
+            producers.set(key, producer);
           }
+          const record = yield* workflow
+            .execute({ id: submission.id, input: submission.input })
+            .pipe(
+              Effect.provideService(WorkflowEngine.WorkflowEngine, engine),
+              Effect.ensuring(
+                Effect.sync(() => {
+                  if (owns && producers.get(key) === producer) {
+                    producers.delete(key);
+                  }
+                }),
+              ),
+            );
+          return fromRecord(record);
         }),
-      ),
     );
-    return fromRecord(record);
+  });
+
+/**
+ * The ids among a browser's `pending` durable submissions that already
+ * settled on this server: their outcome is in the state the server renders
+ * next, so the client restores them without re-applying their patch. A
+ * submission still running, unknown, or unreadable counts as unsettled, which
+ * keeps the client's patch (the pre-existing behavior).
+ */
+export const settledActionSubmissionsEffect = (
+  state: StartActionWorkflows,
+  runtime: AnySunfallArcRuntime<unknown>,
+  actions: ReadonlyMap<string, { readonly durable?: unknown }>,
+  pending: ReadonlyArray<{ readonly action: string; readonly id: string }>,
+): Effect.Effect<ReadonlyArray<string>> =>
+  Effect.gen(function* () {
+    if (pending.length === 0) {
+      return [];
+    }
+    const provided = yield* providedEngineOf(runtime);
+    const settled: Array<string> = [];
+    for (const { action, id } of pending) {
+      if (actions.get(action)?.durable === undefined) {
+        continue;
+      }
+      const engine = Option.isSome(provided)
+        ? provided.value
+        : state.lanes.get(action)?.byId.get(id)?.engine;
+      if (engine === undefined) {
+        continue;
+      }
+      const workflow = workflowFor(action);
+      const result = yield* workflow.executionId({ id, input: null }).pipe(
+        Effect.flatMap((executionId) => engine.poll(workflow, executionId)),
+        Effect.catchCause(() => Effect.succeedNone),
+      );
+      if (Option.isSome(result) && result.value._tag === "Complete") {
+        settled.push(id);
+      }
+    }
+    return settled;
   });

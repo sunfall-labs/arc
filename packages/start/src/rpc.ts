@@ -19,10 +19,8 @@ export const startHtmlMediaType = "text/html";
 
 /** Request/response correlation header propagated by Start transports. */
 export const startRequestIdHeader = "x-sunfall-arc-request-id";
-/** W3C trace context header forwarded through Start transports. */
+/** W3C trace context header read for request trace facts. */
 export const startTraceparentHeader = "traceparent";
-/** W3C baggage header forwarded through Start transports. */
-export const startBaggageHeader = "baggage";
 /** Response diagnostics header describing the transport kind. */
 export const startTransportKindHeader = "x-sunfall-arc-transport";
 /** Response diagnostics header describing the Start transport protocol version. */
@@ -37,8 +35,6 @@ export interface StartTransportDiagnostics {
   readonly method: string;
   readonly path: string;
   readonly requestId: string;
-  readonly traceparent?: string;
-  readonly baggage?: string;
   readonly accept?: string;
   readonly contentType?: string;
   readonly protocolVersion: typeof startTransportProtocolVersion;
@@ -65,14 +61,6 @@ export class StartTransportRequestError extends Data.TaggedError("StartTransport
   readonly acceptedMediaTypes?: readonly string[];
   readonly supportedMediaTypes?: readonly string[];
 }> {}
-
-/** Headers to seed on Start transport requests from clients and tests. */
-export interface StartTransportRequestHeadersOptions {
-  readonly headers?: HeadersInit;
-  readonly requestId?: string;
-  readonly traceparent?: string;
-  readonly baggage?: string;
-}
 
 const nonEmptySafeHeaderValue = (value: string | null | undefined): string | undefined => {
   const trimmed = value?.trim();
@@ -208,8 +196,6 @@ export const startTransportDiagnosticsEffect = (
     const envelopeRequestId = nonEmptySafeHeaderValue(options.requestId);
     const requestId =
       incomingRequestId ?? envelopeRequestId ?? (yield* Effect.sync(makeStartRequestId));
-    const traceparent = nonEmptySafeHeaderValue(request.headers.get(startTraceparentHeader));
-    const baggage = nonEmptySafeHeaderValue(request.headers.get(startBaggageHeader));
     const accept = nonEmptySafeHeaderValue(request.headers.get("accept"));
     const contentType = nonEmptySafeHeaderValue(request.headers.get("content-type"));
 
@@ -218,8 +204,6 @@ export const startTransportDiagnosticsEffect = (
       method: request.method,
       path: url.pathname,
       requestId,
-      ...(traceparent === undefined ? {} : { traceparent }),
-      ...(baggage === undefined ? {} : { baggage }),
       ...(accept === undefined ? {} : { accept }),
       ...(contentType === undefined ? {} : { contentType }),
       protocolVersion: startTransportProtocolVersion,
@@ -238,28 +222,6 @@ export const startTransportEndpointEnvelopeEffect = (
     diagnostics,
   }));
 
-/** Builds request headers with optional request id and trace propagation values. */
-export const startTransportRequestHeaders = (
-  options: StartTransportRequestHeadersOptions = {},
-): Headers => {
-  const headers = new Headers(options.headers);
-  const requestId = nonEmptySafeHeaderValue(options.requestId);
-  const traceparent = nonEmptySafeHeaderValue(options.traceparent);
-  const baggage = nonEmptySafeHeaderValue(options.baggage);
-
-  if (requestId) {
-    headers.set(startRequestIdHeader, requestId);
-  }
-  if (traceparent) {
-    headers.set(startTraceparentHeader, traceparent);
-  }
-  if (baggage) {
-    headers.set(startBaggageHeader, baggage);
-  }
-
-  return headers;
-};
-
 /** Builds response headers carrying Start transport diagnostics. */
 export const startTransportResponseHeaders = (
   diagnostics: StartTransportDiagnostics,
@@ -269,13 +231,6 @@ export const startTransportResponseHeaders = (
   next.set(startRequestIdHeader, diagnostics.requestId);
   next.set(startTransportKindHeader, diagnostics.kind);
   next.set(startTransportProtocolHeader, diagnostics.protocolVersion);
-
-  if (diagnostics.traceparent) {
-    next.set(startTraceparentHeader, diagnostics.traceparent);
-  }
-  if (diagnostics.baggage) {
-    next.set(startBaggageHeader, diagnostics.baggage);
-  }
 
   return next;
 };

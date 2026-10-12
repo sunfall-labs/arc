@@ -30,6 +30,7 @@ import {
   type ActionOutboxEntry,
   type ActionOutboxFailure,
   type ActionOutboxOptions,
+  type ActionOutboxRestoreOptions,
 } from "./action-outbox.js";
 import { getActionDefinition } from "./definition-registry.js";
 import { Signal } from "./signal.js";
@@ -428,94 +429,101 @@ export const makeActionOutboxLayer = (
           }),
         );
 
-      const restore: Effect.Effect<void> = Effect.gen(function* () {
-        if (restored) {
-          return;
-        }
-        restored = true;
-        const stored = yield* readStored.pipe(
-          Effect.catch((error) =>
-            Effect.as(
-              Effect.logWarning("Action outbox: could not read pending submissions.", error),
-              [] as ReadonlyArray<StoredSubmission>,
-            ),
-          ),
-        );
-        const now = yield* Clock.currentTimeMillis;
-        const restoredLive: Array<LiveSubmission> = [];
-        const dropped: Array<ActionOutboxFailure> = [];
-        const owned = new Set(queue.map((live) => live.record.id));
-
-        for (const record of stored) {
-          if (owned.has(record.id)) {
-            continue;
+      const restore = (options: ActionOutboxRestoreOptions = {}): Effect.Effect<void> =>
+        Effect.gen(function* () {
+          if (restored) {
+            return;
           }
-          const definition = getActionDefinition<AnyDurableDefinition>(record.action);
-          if (definition === undefined || definition.durable === undefined) {
-            dropped.push(unrestorable(record, "UnknownAction"));
-            continue;
-          }
-          const decoded = yield* Effect.exit(decodeInput(definition, record.input));
-          if (Exit.isFailure(decoded)) {
-            dropped.push(unrestorable(record, "InvalidInput", Cause.squash(decoded.cause)));
-            continue;
-          }
-          const input = decoded.value;
-          if (isExpired(definition, record.createdAt, now)) {
-            dropped.push(
-              droppedFailure(
-                record,
-                input,
-                new ActionSubmissionExpired({
-                  actionName: record.action,
-                  id: record.id,
-                  createdAt: record.createdAt,
-                }),
+          restored = true;
+          const stored = yield* readStored.pipe(
+            Effect.catch((error) =>
+              Effect.as(
+                Effect.logWarning("Action outbox: could not read pending submissions.", error),
+                [] as ReadonlyArray<StoredSubmission>,
               ),
-            );
-            continue;
-          }
-          const transaction = makeActionOptimisticTransactionRuntime(definition.name);
-          // Re-apply the patch on top of the hydrated state, in submission order.
-          const patched = yield* Effect.exit(
-            applyActionOptimisticEffect(definition, input, transaction),
+            ),
           );
-          if (Exit.isFailure(patched)) {
-            yield* transaction.rollback;
-            dropped.push(droppedFailure(record, input, patched.cause));
-            continue;
-          }
-          restoredLive.push({ record, definition, input, transaction, waiter: undefined });
-        }
+          const now = yield* Clock.currentTimeMillis;
+          const restoredLive: Array<LiveSubmission> = [];
+          const dropped: Array<ActionOutboxFailure> = [];
+          const owned = new Set(queue.map((live) => live.record.id));
+          const settled = new Set(options.settled);
 
-        // Restored submissions are older than any made this session.
-        queue.unshift(...restoredLive);
-        if (dropped.length > 0) {
-          const droppedIds = new Set(dropped.map((failure) => failure.id));
-          yield* mutateStoredLogged((submissions) =>
-            submissions.filter((record) => !droppedIds.has(record.id)),
-          );
-        }
-        Signal.batch(
-          () => {
-            pending.set(queue.map(toEntry));
-            if (dropped.length > 0) {
-              failures.set([...failures.get(), ...dropped]);
+          for (const record of stored) {
+            if (owned.has(record.id)) {
+              continue;
             }
-          },
-          {
-            cause: {
-              _tag: "Action",
-              action: restoredLive[0]?.record.action ?? dropped[0]?.action ?? "ActionOutbox",
-              event: "restore",
+            const definition = getActionDefinition<AnyDurableDefinition>(record.action);
+            if (definition === undefined || definition.durable === undefined) {
+              dropped.push(unrestorable(record, "UnknownAction"));
+              continue;
+            }
+            const decoded = yield* Effect.exit(decodeInput(definition, record.input));
+            if (Exit.isFailure(decoded)) {
+              dropped.push(unrestorable(record, "InvalidInput", Cause.squash(decoded.cause)));
+              continue;
+            }
+            const input = decoded.value;
+            if (isExpired(definition, record.createdAt, now)) {
+              dropped.push(
+                droppedFailure(
+                  record,
+                  input,
+                  new ActionSubmissionExpired({
+                    actionName: record.action,
+                    id: record.id,
+                    createdAt: record.createdAt,
+                  }),
+                ),
+              );
+              continue;
+            }
+            const transaction = makeActionOptimisticTransactionRuntime(definition.name);
+            // Re-apply the patch on top of the hydrated state, in submission
+            // order, unless the server settled the submission before rendering
+            // that state: it already reflects the outcome, and the replay only
+            // fetches the recorded response.
+            const patched = yield* Effect.exit(
+              settled.has(record.id)
+                ? Effect.void
+                : applyActionOptimisticEffect(definition, input, transaction),
+            );
+            if (Exit.isFailure(patched)) {
+              yield* transaction.rollback;
+              dropped.push(droppedFailure(record, input, patched.cause));
+              continue;
+            }
+            restoredLive.push({ record, definition, input, transaction, waiter: undefined });
+          }
+
+          // Restored submissions are older than any made this session.
+          queue.unshift(...restoredLive);
+          if (dropped.length > 0) {
+            const droppedIds = new Set(dropped.map((failure) => failure.id));
+            yield* mutateStoredLogged((submissions) =>
+              submissions.filter((record) => !droppedIds.has(record.id)),
+            );
+          }
+          Signal.batch(
+            () => {
+              pending.set(queue.map(toEntry));
+              if (dropped.length > 0) {
+                failures.set([...failures.get(), ...dropped]);
+              }
             },
-          },
-        );
-        if (queue.length > 0) {
-          yield* trigger;
-        }
-        // Optimistic patches re-apply with the restoring runtime's context.
-      }) as Effect.Effect<void>;
+            {
+              cause: {
+                _tag: "Action",
+                action: restoredLive[0]?.record.action ?? dropped[0]?.action ?? "ActionOutbox",
+                event: "restore",
+              },
+            },
+          );
+          if (queue.length > 0) {
+            yield* trigger;
+          }
+          // Optimistic patches re-apply with the restoring runtime's context.
+        }) as Effect.Effect<void>;
 
       const dismiss = (id: string): Effect.Effect<void> =>
         Effect.sync(() => {

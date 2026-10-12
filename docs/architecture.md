@@ -451,6 +451,16 @@ an in-flight submission and never crosses a wire. Collections implement the
 the row layering; `Collection.applyChanges` remains the direct write for
 remote feeds and local-only collections, never for server data.
 
+Collection persistence uses the same `KeyValueStore` as the Action Outbox
+below. A persisted collection stores its synced snapshot at
+`arc/collections/v<version>/<key>` (key defaults to the collection name,
+version to `1`), encoded with `KeyValueStore.toSchemaStore` over the snapshot
+schema with the collection's `output` row codec, so collection and outbox keys
+never collide. Persistence adds `KeyValueStore` to the collection's `R` and
+`KeyValueStoreError` to its `E`. Durable commits (direct writes, hydrate,
+restore, load writeback) serialize on a semaphore owned by each store's
+`CollectionState`.
+
 ### Durable Submissions
 
 An Action opts into durability with one policy field. It requires an `input`
@@ -508,7 +518,8 @@ Outbox (`ActionOutbox`, provided by `Action.outboxLayer()`; Start's
 - **Reloads.** `App.launch` hydrates the root first (so the first client
   render matches the server's), then runs `Action.restoreOutbox`: pending
   submissions are decoded, re-patched in order on top of the hydrated rows and
-  Signals, and replayed. An entry older than its Action's `durable.maxAge`
+  Signals, and replayed. Submissions the server already settled before
+  rendering the page are not re-patched (see below). An entry older than its Action's `durable.maxAge`
   fails with `ActionSubmissionExpired`; one whose Action is no longer defined
   and durable, or whose input no longer decodes, fails with
   `ActionSubmissionUnrestorable`. A durable Action must be defined in a module
@@ -534,14 +545,30 @@ is empty, since typed failures are part of the response. A replayed POST with
 the same id returns the recorded response without running `run` again, and a
 duplicate that arrives mid-run joins the running execution. The engine is the
 server Layer's `WorkflowEngine` when it provides one (a cluster or SQL-backed
-engine gives exactly-once across instances and restarts), otherwise a
-per-handler `WorkflowEngine.layerMemory`. Submissions without an id
-(non-durable Actions, progressive forms) run directly.
+engine gives exactly-once across instances and restarts), otherwise the
+handler's in-memory engine. Submissions without an id, or for an Action that
+is not durable (progressive forms), run directly.
 
-One window remains: when the server applied a submission but the response was
-lost, a reload re-applies the patch on top of server data that already
-includes it, until the replay returns the recorded response and the
-invalidation reload replaces it. The server never applies it twice.
+The in-memory engine is `WorkflowEngine.layerMemory`, which never forgets an
+execution, so Start rotates it per Action in generations bounded by the
+Action's `durable.maxAge`: new submissions go to the newest generation, a
+generation stops taking new ones once it is `maxAge` old, and it is closed
+with all its records once nothing in it is in flight and its last execution
+settled `maxAge` ago. A client replays a submission only within `maxAge` of
+creating it (before the server first saw it), so a record lives as long as a
+replay can reach it, and memory holds at most about two `maxAge` windows of
+submissions. A persistent engine owns its own retention.
+
+A lost response does not double-apply a patch after a reload. `App.launch`
+mirrors the outbox's `pending` into the `sunfall-arc-outbox` cookie
+(`[action, id]` pairs, oldest 32). A document request that carries it makes
+the server poll the engine for those ids after preload, and the root
+hydration payload lists the ones that already completed
+(`settledSubmissions`). `Action.restoreOutbox({ settled })` restores those
+without re-applying their patch, because the rendered state already reflects
+their outcome, and their replay only fetches the recorded response. A
+submission that settles after the server polls stays patched until its
+replay returns, as before.
 
 ## Resource Dependency Graph
 

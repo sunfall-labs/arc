@@ -33,6 +33,34 @@ type Assert<T extends true> = T;
 type Eq<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Parts<C> = C extends Component<infer P, infer E, infer R> ? { P: P; E: E; R: R } : never;
 
+// A Resource whose load never succeeds infers `A = never`. It stays an erased
+// `Resource.AnyRef` (preloads, invalidation, hydration) whichever order the
+// checker meets it in, so this block comes before any other Resource here.
+const MissingProject = Resource.define({
+  name: "type-tests/Component/MissingProject",
+  error: ProjectNotFound,
+  load: (id: string) => Effect.fail(new ProjectNotFound({ id })),
+});
+const BrokenStats = Resource.define({
+  name: "type-tests/Component/BrokenStats",
+  load: (_: "all") => Effect.suspend(() => Effect.fail(new ConfigMissing())),
+});
+const missingRef: Resource.AnyRef = MissingProject("atlas");
+const brokenRefs: ReadonlyArray<Resource.AnyRef> = [BrokenStats("all"), missingRef];
+void brokenRefs;
+const missingPreload = Resource.preload(MissingProject("atlas"));
+type _missingPreload = Assert<Eq<typeof missingPreload, Effect.Effect<never, ProjectNotFound>>>;
+const brokenPreload = Resource.preload(BrokenStats("all"));
+type _brokenPreload = Assert<Eq<typeof brokenPreload, Effect.Effect<never, ConfigMissing>>>;
+const MissingCard = Component.define("MissingCard", function* () {
+  const project = yield* Component.resource(MissingProject);
+  const stats = yield* Component.resource(BrokenStats);
+  return () => [project("atlas"), stats("all")];
+});
+type _missingCard = Assert<
+  Eq<Parts<typeof MissingCard>["E"], ProjectNotFound | ResourceUntypedFailure>
+>;
+
 const ProjectById = Resource.define({
   name: "type-tests/Component/ProjectById",
   error: Schema.Union([ProjectNotFound, Forbidden]),

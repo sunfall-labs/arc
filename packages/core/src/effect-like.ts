@@ -91,6 +91,20 @@ export type EffectInput<A, E = never, R = never> =
   | DirectEffectInputValue<A>
   | Effect.Effect<PromiseSafeValue<A>, E, R>;
 
+/**
+ * The stored form of a callback result that crossed an `EffectInput` seam.
+ *
+ * `EffectInput` uses conditional types over `A` to reject Promise-shaped
+ * values, which TypeScript cannot measure the variance of: inside a type that
+ * is later compared with its erased `any` form, `A` would read as invariant,
+ * and a never-succeeding definition (`A = never`) would be accepted or
+ * rejected depending on the order files are checked in. Definition types
+ * store this plain covariant union instead; the define seam that receives the
+ * callback still checks it with `EffectInput`/`EnsureEffectInput`, and
+ * `toEffect` still rejects Promise-shaped values at run time.
+ */
+export type CheckedEffectInput<A, E = never, R = never> = A | Effect.Effect<A, E, R>;
+
 export type EffectInputValue<Out> =
   Out extends Effect.Effect<infer A, infer _E, infer _R>
     ? PromiseSafeValue<A>

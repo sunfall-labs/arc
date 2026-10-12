@@ -1,11 +1,10 @@
 import { EffectInputCallbackError } from "@sunfall/arc-core";
-import { Effect, Data, Schema, SchemaAST } from "effect";
+import { Cause, Data, Effect, Exit, Option, Schema, SchemaAST, SchemaIssue } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import type {
   CollectionHydrateOptions,
   CollectionHydrationPayload,
   CollectionKey,
-  CollectionOrigin,
   CollectionRowSnapshot,
   CollectionSnapshot,
 } from "./collection-contract.js";
@@ -54,168 +53,164 @@ export class CollectionSnapshotCodecError extends Data.TaggedError("CollectionSn
   readonly reason: string;
 }> {}
 
-const failCodec = (
-  operation: CollectionSnapshotCodecOperation,
-  path: string,
-  reason: string,
-): never => {
-  throw new CollectionSnapshotCodecError({ operation, path, reason });
-};
-
-const assertCodec: (
-  condition: unknown,
-  operation: CollectionSnapshotCodecOperation,
-  path: string,
-  reason: string,
-) => asserts condition = (
-  condition: unknown,
-  operation: CollectionSnapshotCodecOperation,
-  path: string,
-  reason: string,
-) => {
-  if (!condition) {
-    failCodec(operation, path, reason);
-  }
-};
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
 const isObjectValue = (value: unknown): value is object =>
   typeof value === "object" && value !== null;
 
 const cloneValue = <A>(value: A): A => cloneCollectionValue(value);
+
+const CollectionKeySchema = Schema.Union([Schema.String, Schema.Finite]).annotate({
+  expected: "a string or finite number collection key",
+});
+
+const isCollectionKey = Schema.is(CollectionKeySchema);
+
+/**
+ * Row values without an `output` schema: any non-null object, JSON-encoded
+ * as `JSON.stringify` would (Dates as ISO strings, `undefined` fields dropped).
+ */
+const CollectionPlainValueSchema = Schema.Any.check(
+  Schema.makeFilter(isObjectValue, { expected: "a non-null object value" }),
+);
+
+const uniqueBy = <A>(field: string, identity: (item: A) => unknown, reason: (item: A) => string) =>
+  Schema.makeFilter<ReadonlyArray<A>>((items) => {
+    const seen = new Set<unknown>();
+    for (const [index, item] of items.entries()) {
+      const id = identity(item);
+      if (seen.has(id)) {
+        return { path: [index, field], issue: reason(item) };
+      }
+      seen.add(id);
+    }
+    return undefined;
+  });
+
+/**
+ * The snapshot envelope over a row value schema: `name`, `rows` (unique keys),
+ * and a finite `updatedAt`. Persistence passes the collection's row schema so
+ * values round-trip through their JSON codec; hydration validates the envelope
+ * over plain values and decodes rows against the definition afterwards.
+ */
+export const collectionSnapshotSchema = (value: Schema.Codec<unknown, unknown>) =>
+  Schema.Struct({
+    name: Schema.String,
+    rows: Schema.Array(
+      Schema.Struct({
+        key: CollectionKeySchema,
+        value,
+        synced: Schema.Boolean,
+        origin: Schema.Literals(["local", "remote"]),
+      }),
+    ).check(
+      uniqueBy(
+        "key",
+        (row: { readonly key: CollectionKey }) => row.key,
+        (row) => `Duplicate row key '${String(row.key)}' in collection snapshot.`,
+      ),
+    ),
+    updatedAt: Schema.Finite,
+  });
+
+const CollectionSnapshotEnvelopeSchema = collectionSnapshotSchema(CollectionPlainValueSchema);
+
+const CollectionHydrationPayloadSchema = Schema.Struct({
+  collections: Schema.Array(CollectionSnapshotEnvelopeSchema).check(
+    uniqueBy(
+      "name",
+      (snapshot: { readonly name: string }) => snapshot.name,
+      (snapshot) => `Duplicate collection '${snapshot.name}' in collection hydration payload.`,
+    ),
+  ),
+});
+
+const issueFormatter = SchemaIssue.makeFormatterStandardSchemaV1();
+
+const appendIssuePath = (path: string, segments: ReadonlyArray<unknown>): string =>
+  segments.reduce<string>((out, segment) => {
+    const key =
+      typeof segment === "object" && segment !== null && "key" in segment
+        ? (segment as { readonly key: PropertyKey }).key
+        : segment;
+    return typeof key === "number" ? `${out}[${key}]` : `${out}.${String(key)}`;
+  }, path);
+
+/** Maps a `SchemaError` to the codec error at the first issue's payload path. */
+export const collectionSnapshotCodecErrorFromSchema = (
+  error: Schema.SchemaError,
+  operation: CollectionSnapshotCodecOperation,
+  path = "$",
+): CollectionSnapshotCodecError => {
+  const [issue] = issueFormatter(error.issue).issues;
+  return new CollectionSnapshotCodecError({
+    operation,
+    path: appendIssuePath(path, issue?.path ?? []),
+    reason: issue?.message ?? error.message,
+  });
+};
+
+const decodeEnvelope = <S extends Schema.Decoder<unknown>>(
+  schema: S,
+  value: unknown,
+  operation: CollectionSnapshotCodecOperation,
+  path: string,
+): S["Type"] => {
+  const result = Schema.decodeUnknownExit(schema)(value);
+  if (Exit.isSuccess(result)) {
+    return result.value;
+  }
+  const error = Cause.findErrorOption(result.cause);
+  throw Option.isSome(error) && Schema.isSchemaError(error.value)
+    ? collectionSnapshotCodecErrorFromSchema(error.value, operation, path)
+    : Cause.squash(result.cause);
+};
+
+const detachSnapshotValues = <A extends object, K extends CollectionKey>(
+  snapshot: typeof CollectionSnapshotEnvelopeSchema.Type,
+  operation: CollectionSnapshotCodecOperation,
+  path: string,
+): CollectionSnapshot<A, K> => ({
+  name: snapshot.name,
+  rows: snapshot.rows.map((row, index) => {
+    try {
+      return { ...row, key: row.key as K, value: cloneValue(row.value as A) };
+    } catch (cause) {
+      throw new CollectionSnapshotCodecError({
+        operation,
+        path:
+          cause instanceof CollectionValueReadError ? cause.path : `${path}.rows[${index}].value`,
+        reason: "Expected collection snapshot values to be readable plain data.",
+      });
+    }
+  }),
+  updatedAt: snapshot.updatedAt,
+});
 
 export const validateCollectionKey = <K extends CollectionKey>(
   value: unknown,
   operation: CollectionSnapshotCodecOperation,
   path: string,
 ): K => {
-  assertCodec(
-    typeof value === "string" || (typeof value === "number" && Number.isFinite(value)),
-    operation,
-    path,
-    "Expected a string or finite number collection key.",
-  );
+  if (!isCollectionKey(value)) {
+    throw new CollectionSnapshotCodecError({
+      operation,
+      path,
+      reason: "Expected a string or finite number collection key.",
+    });
+  }
   return value as K;
 };
 
-const validateKey = validateCollectionKey;
-
-const validateString = (
-  value: unknown,
-  operation: CollectionSnapshotCodecOperation,
-  path: string,
-): string => {
-  assertCodec(typeof value === "string", operation, path, "Expected a string.");
-  return value;
-};
-
-const validateNumber = (
-  value: unknown,
-  operation: CollectionSnapshotCodecOperation,
-  path: string,
-): number => {
-  assertCodec(
-    typeof value === "number" && Number.isFinite(value),
-    operation,
-    path,
-    "Expected a finite number.",
-  );
-  return value;
-};
-
-const validateOrigin = (
-  value: unknown,
-  operation: CollectionSnapshotCodecOperation,
-  path: string,
-): CollectionOrigin => {
-  assertCodec(
-    value === "local" || value === "remote",
-    operation,
-    path,
-    "Expected collection origin to be 'local' or 'remote'.",
-  );
-  return value;
-};
-
-const validateObjectValue = <A extends object>(
-  value: unknown,
-  operation: CollectionSnapshotCodecOperation,
-  path: string,
-): A => {
-  assertCodec(isObjectValue(value), operation, path, "Expected a non-null object value.");
-  return cloneValue(value) as A;
-};
-
-const validateRecord = (
-  value: unknown,
-  operation: CollectionSnapshotCodecOperation,
-  path: string,
-  label: string,
-): Record<string, unknown> => {
-  assertCodec(isRecord(value), operation, path, `Expected ${label}.`);
-  return value;
-};
-
-const validateArray = (
-  value: unknown,
-  operation: CollectionSnapshotCodecOperation,
-  path: string,
-  label: string,
-): ReadonlyArray<unknown> => {
-  assertCodec(Array.isArray(value), operation, path, `Expected ${label}.`);
-  return value;
-};
-
-export const validateCollectionRowSnapshot = <A extends object, K extends CollectionKey>(
-  value: unknown,
-  operation: CollectionSnapshotCodecOperation,
-  path: string,
-): CollectionRowSnapshot<A, K> => {
-  const row = validateRecord(value, operation, path, "a collection row snapshot");
-  const synced = row.synced;
-  assertCodec(
-    typeof synced === "boolean",
-    operation,
-    `${path}.synced`,
-    "Expected a boolean sync flag.",
-  );
-  return {
-    key: validateKey<K>(row.key, operation, `${path}.key`),
-    value: validateObjectValue<A>(row.value, operation, `${path}.value`),
-    synced,
-    origin: validateOrigin(row.origin, operation, `${path}.origin`),
-  };
-};
-
+/** Validates a snapshot envelope and detaches its row values from the input. */
 export const validateCollectionSnapshot = <A extends object, K extends CollectionKey>(
   value: unknown,
   operation: CollectionSnapshotCodecOperation = "hydrate",
   path = "$",
-): CollectionSnapshot<A, K> => {
-  const snapshot = validateRecord(value, operation, path, "a collection snapshot");
-  const rows = validateArray(snapshot.rows, operation, `${path}.rows`, "a row snapshot array");
-  const decodedRows = rows.map((row, index) =>
-    validateCollectionRowSnapshot<A, K>(row, operation, `${path}.rows[${index}]`),
+): CollectionSnapshot<A, K> =>
+  detachSnapshotValues(
+    decodeEnvelope(CollectionSnapshotEnvelopeSchema, value, operation, path),
+    operation,
+    path,
   );
-  const rowKeys = new Set<CollectionKey>();
-  decodedRows.forEach((row, index) => {
-    assertCodec(
-      !rowKeys.has(row.key),
-      operation,
-      `${path}.rows[${index}].key`,
-      `Duplicate row key '${String(row.key)}' in collection snapshot.`,
-    );
-    rowKeys.add(row.key);
-  });
-
-  return {
-    name: validateString(snapshot.name, operation, `${path}.name`),
-    rows: decodedRows,
-    updatedAt: validateNumber(snapshot.updatedAt, operation, `${path}.updatedAt`),
-  };
-};
 
 const catchSnapshotCodecError =
   (operation: CollectionSnapshotCodecOperation, path: string) =>
@@ -223,7 +218,6 @@ const catchSnapshotCodecError =
     if (error instanceof CollectionSnapshotCodecError) {
       return error;
     }
-
     return new CollectionSnapshotCodecError({
       operation,
       path,
@@ -231,7 +225,7 @@ const catchSnapshotCodecError =
     });
   };
 
-export const validateCollectionSnapshotEffect = <A extends object, K extends CollectionKey>(
+const validateCollectionSnapshotEffect = <A extends object, K extends CollectionKey>(
   value: unknown,
   operation: CollectionSnapshotCodecOperation = "hydrate",
   path = "$",
@@ -254,6 +248,21 @@ export const validateCollectionSnapshotEffect = <A extends object, K extends Col
  * path inside the shape the caller declared.
  */
 const outputDecodesRowArray = (schema: Schema.Top): boolean => SchemaAST.isArrays(schema.ast);
+
+/**
+ * The codec one row value persists through: the `output` row schema (the
+ * element of a rows schema), or plain non-null objects without one.
+ */
+export const collectionRowValueSchema = (output: unknown): Schema.Codec<unknown, unknown> => {
+  if (!Schema.isSchema(output)) {
+    return CollectionPlainValueSchema;
+  }
+  if (!outputDecodesRowArray(output)) {
+    return output as Schema.Codec<unknown, unknown>;
+  }
+  const [element] = (output.ast as SchemaAST.Arrays).rest;
+  return element === undefined ? CollectionPlainValueSchema : Schema.make(element);
+};
 
 export const decodeCollectionOutputValuesEffect = <A extends object>(
   schema: unknown,
@@ -443,28 +452,11 @@ export const validateCollectionHydrationPayload = (
   value: unknown,
   operation: CollectionSnapshotCodecOperation = "hydrate",
 ): CollectionHydrationPayload => {
-  const payload = validateRecord(value, operation, "$", "a collection hydration payload");
-  const collections = validateArray(
-    payload.collections,
-    operation,
-    "$.collections",
-    "a collection snapshot array",
-  );
-  const decodedCollections = collections.map((snapshot, index) =>
-    validateCollectionSnapshot(snapshot, operation, `$.collections[${index}]`),
-  );
-  const names = new Set<string>();
-  decodedCollections.forEach((snapshot, index) => {
-    assertCodec(
-      !names.has(snapshot.name),
-      operation,
-      `$.collections[${index}].name`,
-      `Duplicate collection '${snapshot.name}' in collection hydration payload.`,
-    );
-    names.add(snapshot.name);
-  });
+  const payload = decodeEnvelope(CollectionHydrationPayloadSchema, value, operation, "$");
   return {
-    collections: decodedCollections,
+    collections: payload.collections.map((snapshot, index) =>
+      detachSnapshotValues(snapshot, operation, `$.collections[${index}]`),
+    ),
   };
 };
 
@@ -486,17 +478,14 @@ export const storedRowSnapshot = <A extends object, K extends CollectionKey>(
   origin: row.origin,
 });
 
-export const storedRowFromSnapshot = <A extends object, K extends CollectionKey>(
+const storedRowFromSnapshot = <A extends object, K extends CollectionKey>(
   snapshot: CollectionRowSnapshot<A, K>,
-): StoredRow<A, K> => {
-  const row = validateCollectionRowSnapshot<A, K>(snapshot, "hydrate", "$.row");
-  return {
-    key: row.key,
-    value: row.value,
-    synced: row.synced,
-    origin: row.origin,
-  };
-};
+): StoredRow<A, K> => ({
+  key: snapshot.key,
+  value: snapshot.value,
+  synced: snapshot.synced,
+  origin: snapshot.origin,
+});
 
 export const collectionSnapshotFromState = <A extends object, K extends CollectionKey, E>(
   definition: { readonly name: string },
@@ -510,39 +499,6 @@ export const collectionSnapshotFromState = <A extends object, K extends Collecti
     updatedAt,
   };
 };
-
-export const collectionSnapshotFromValues = <A extends object, K extends CollectionKey>(
-  name: string,
-  values: ReadonlyArray<A>,
-  getKey: (value: A) => K,
-  updatedAt: number,
-): CollectionSnapshot<A, K> => ({
-  name,
-  rows: values.map((value) => ({
-    key: getKey(value),
-    value: cloneValue(value),
-    synced: true,
-    origin: "remote",
-  })),
-  updatedAt,
-});
-
-export const collectionSnapshotFromValuesEffect = <A extends object, K extends CollectionKey>(
-  name: string,
-  values: ReadonlyArray<A>,
-  getKey: (value: A) => K,
-  updatedAt: number,
-): Effect.Effect<CollectionSnapshot<A, K>, EffectInputCallbackError> =>
-  Effect.try({
-    try: () => collectionSnapshotFromValues(name, values, getKey, updatedAt),
-    catch: (cause) =>
-      new EffectInputCallbackError({
-        operation: `Collection.snapshot(${name}).getKey`,
-        cause,
-        guidance:
-          "Collection snapshot key callbacks must be synchronous, pure, and total. Move Effectful work into collection loaders or mutation handlers.",
-      }),
-  });
 
 /**
  * Applies a snapshot as the synced base. Optimistic Action patches in the
@@ -574,17 +530,6 @@ const applyValidatedCollectionSnapshotState = <A extends object, K extends Colle
   return snapshot;
 };
 
-export const hydrateCollectionSnapshotState = <A extends object, K extends CollectionKey, E>(
-  state: CollectionState<A, K, E>,
-  value: CollectionSnapshot<A, K>,
-  options: CollectionHydrateOptions,
-): CollectionSnapshot<A, K> =>
-  applyValidatedCollectionSnapshotState(
-    state,
-    validateCollectionSnapshot<A, K>(value, "hydrate"),
-    options,
-  );
-
 export const hydrateCollectionSnapshotStateEffect = <A extends object, K extends CollectionKey, E>(
   state: CollectionState<A, K, E>,
   value: CollectionSnapshot<A, K>,
@@ -596,29 +541,3 @@ export const hydrateCollectionSnapshotStateEffect = <A extends object, K extends
       catch: catchSnapshotCodecError("hydrate", "$"),
     }),
   );
-
-export const encodeCollectionSnapshotEffect = <A extends object, K extends CollectionKey>(
-  value: CollectionSnapshot<A, K>,
-): Effect.Effect<string, CollectionSnapshotCodecError> =>
-  Effect.try({
-    try: () => {
-      const snapshot = validateCollectionSnapshot<A, K>(value, "encode");
-      const encoded = JSON.stringify(snapshot);
-      assertCodec(
-        typeof encoded === "string",
-        "encode",
-        "$",
-        "Expected JSON.stringify to return a string.",
-      );
-      return encoded;
-    },
-    catch: catchSnapshotCodecError("encode", "$"),
-  });
-
-export const decodeCollectionSnapshotEffect = <A extends object, K extends CollectionKey>(
-  encoded: string,
-): Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError> =>
-  Effect.try({
-    try: () => validateCollectionSnapshot<A, K>(JSON.parse(encoded), "decode"),
-    catch: catchSnapshotCodecError("decode", "$"),
-  });

@@ -12,8 +12,7 @@ import type {
 } from "./collection-contract.js";
 import {
   collectionPersistenceConfig,
-  collectionPersistencePersistOptions,
-  persistCollectionSnapshotEffect,
+  persistCollectionLoadSnapshotEffect,
   restoreCollectionBeforePreloadEffect,
 } from "./collection-persistence.js";
 import { ingestCollectionOutputRowsEffect } from "./collection-row-ingress.js";
@@ -265,20 +264,7 @@ const persistLoadSnapshotEffect = <A extends object, K extends CollectionKey, E,
   store: RuntimeCollectionStore,
   snapshot: CollectionSnapshot<A, K>,
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
-  Effect.suspend(() => {
-    const config = collectionPersistenceConfig(definition);
-    if (config === undefined || config.persistOnLoad === false) {
-      return Effect.succeed(undefined);
-    }
-
-    return persistCollectionSnapshotEffect(
-      definition,
-      Effect.succeed(snapshot),
-      config.storage,
-      collectionPersistencePersistOptions(config),
-      store,
-    ).pipe(Effect.asVoid);
-  });
+  Effect.suspend(() => persistCollectionLoadSnapshotEffect(definition, store, snapshot));
 
 const restoreLoadStateIfCurrentEffect = <A extends object, K extends CollectionKey, E>(
   state: CollectionState<A, K, E>,

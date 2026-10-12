@@ -5,9 +5,7 @@ import {
 } from "@sunfall/arc-core";
 import { Effect, type Scope } from "effect";
 import {
-  startBaggageHeader,
   startRequestIdHeader,
-  startTraceparentHeader,
   startTransportKindHeader,
   startTransportProtocolHeader,
   startTransportEndpointEnvelopeEffect,
@@ -39,12 +37,6 @@ const setResponseContextTransportDiagnosticsEffect = (
       responseContext.setHeader(startRequestIdHeader, diagnostics.requestId),
       responseContext.setHeader(startTransportKindHeader, diagnostics.kind),
       responseContext.setHeader(startTransportProtocolHeader, diagnostics.protocolVersion),
-      ...(diagnostics.traceparent === undefined
-        ? []
-        : [responseContext.setHeader(startTraceparentHeader, diagnostics.traceparent)]),
-      ...(diagnostics.baggage === undefined
-        ? []
-        : [responseContext.setHeader(startBaggageHeader, diagnostics.baggage)]),
     ],
     { discard: true },
   ).pipe(Effect.orDie);

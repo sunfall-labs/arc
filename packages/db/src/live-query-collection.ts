@@ -24,7 +24,6 @@ import type {
   CollectionIndexRecord,
   CollectionKey,
   CollectionPersistOptions,
-  CollectionPersistenceStorage,
 } from "./collection-contract.js";
 
 /**
@@ -142,10 +141,7 @@ export const makeLiveQueryCollectionDefinition = <
     hydratePreflightEffect: () => Effect.fail(readonlySnapshotCodecFailure("hydrate")),
     hydrateWithStoreEffect: () => Effect.fail(readonlySnapshotCodecFailure("hydrate")),
     hydrate: () => Effect.fail(readonlySnapshotCodecFailure("hydrate")),
-    persist: <PE = never, PR = never>(
-      storage: CollectionPersistenceStorage<PE, PR>,
-      persistOptions?: CollectionPersistOptions,
-    ) =>
+    persist: (persistOptions?: CollectionPersistOptions) =>
       Effect.gen(function* () {
         const store = yield* collectionStoreEffect;
         const updatedAt = yield* Clock.currentTimeMillis;
@@ -157,12 +153,11 @@ export const makeLiveQueryCollectionDefinition = <
         yield* persistCollectionSnapshotEffect(
           definition,
           Effect.succeed(snapshot),
-          storage,
           persistOptions,
           store,
         );
       }),
-    restore: <_PE = never, _PR = never>() => Effect.fail(readonlySnapshotCodecFailure("restore")),
+    restore: () => Effect.fail(readonlySnapshotCodecFailure("restore")),
     applyChanges: () => readonlyFail("applyChanges"),
   };
   markStoreExplicitCollectionSnapshotDefinition(definition);

@@ -125,6 +125,12 @@ export interface StartHydrationPayload extends ResourceHydrationPayload {
   readonly collections?: Collection.HydrationPayload["collections"];
   /** Route preload failure the server rendered; the hydrating router starts in that `Failure` state. */
   readonly routeFailure?: RoutePreloadFailureSnapshot;
+  /**
+   * Ids of the browser's pending durable submissions (from its outbox cookie)
+   * that the server settled before rendering this state. `App.launch` restores
+   * them without re-applying their optimistic patch.
+   */
+  readonly settledSubmissions?: ReadonlyArray<string>;
 }
 
 /** One ordered hydration payload emitted during streamed HTML rendering. */
@@ -358,7 +364,10 @@ const isStartHydrationPayload = (value: unknown): value is StartHydrationPayload
   isRecord(value) &&
   Array.isArray(value.resources) &&
   (value.collections === undefined || Array.isArray(value.collections)) &&
-  (value.routeFailure === undefined || isRoutePreloadFailureSnapshot(value.routeFailure));
+  (value.routeFailure === undefined || isRoutePreloadFailureSnapshot(value.routeFailure)) &&
+  (value.settledSubmissions === undefined ||
+    (Array.isArray(value.settledSubmissions) &&
+      value.settledSubmissions.every((id) => typeof id === "string")));
 
 /** Narrow an unknown value to the current streamed hydration chunk wire format. */
 export const isStartHydrationChunk = (value: unknown): value is StartHydrationChunk =>
@@ -507,6 +516,7 @@ export const mergeStartHydrationPayloads = (
 ): StartHydrationPayload => {
   const resources: Array<StartHydrationPayload["resources"][number]> = [];
   const collections: Array<NonNullable<StartHydrationPayload["collections"]>[number]> = [];
+  const settledSubmissions = new Set<string>();
   let routeFailure: RoutePreloadFailureSnapshot | undefined;
 
   for (const payload of payloads) {
@@ -515,12 +525,16 @@ export const mergeStartHydrationPayloads = (
       collections.push(...payload.collections);
     }
     routeFailure = payload.routeFailure ?? routeFailure;
+    for (const id of payload.settledSubmissions ?? []) {
+      settledSubmissions.add(id);
+    }
   }
 
   return {
     resources,
     ...(collections.length > 0 ? { collections } : {}),
     ...(routeFailure === undefined ? {} : { routeFailure }),
+    ...(settledSubmissions.size > 0 ? { settledSubmissions: [...settledSubmissions] } : {}),
   };
 };
 

@@ -426,10 +426,6 @@ export const publicHoverDocGroups = [
     declarations: ["CollectionSnapshotCodecError"],
   },
   {
-    file: "packages/db/src/collection-persistence.ts",
-    declarations: ["CollectionStorageError"],
-  },
-  {
     file: "packages/db/src/index.ts",
     namespaceDeclarations: {
       Collection: [
@@ -457,16 +453,11 @@ export const publicHoverDocGroups = [
         "Snapshot",
         "HydrationPayload",
         "HydrateOptions",
-        "PersistenceStorage",
         "PersistOptions",
         "PersistenceConfig",
         "LiveQueryOptions",
-        "StorageLike",
-        "MemoryStorage",
         "define",
         "liveQuery",
-        "memoryStorage",
-        "storage",
       ],
     },
   },
@@ -513,40 +504,6 @@ export const publicHoverDocGroups = [
   {
     file: "packages/solid-db/src/live-query.ts",
     declarations: ["LiveQueryBindingOptions", "LiveQueryHandle", "liveQuery"],
-  },
-  {
-    file: "packages/db/src/sqlite-persistence.ts",
-    declarations: [
-      "SQLitePersistenceInvalidTableName",
-      "SQLitePersistenceUnsupportedStatement",
-      "SQLitePersistenceInvalidRow",
-      "SQLitePersistenceInvalidStatementParams",
-    ],
-    namespaceDeclarations: {
-      SQLitePersistence: [
-        "Key",
-        "Row",
-        "Table",
-        "Driver",
-        "MemoryStatement",
-        "MemoryStatementDatabase",
-        "PreparedStatement",
-        "PreparedStatementDatabase",
-        "PreparedStatementDatabaseOptions",
-        "StatementValue",
-        "StatementParams",
-        "StatementRow",
-        "StatementDatabase",
-        "Options",
-        "defaultTable",
-        "defaultNamespace",
-        "defaultSchemaVersion",
-        "storage",
-        "preparedStatementDatabase",
-        "statementDriver",
-        "memoryStatementDatabase",
-      ],
-    },
   },
   {
     file: "packages/core/src/browser-router-state.ts",
