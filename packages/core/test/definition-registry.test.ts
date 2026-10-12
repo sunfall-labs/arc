@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { Action, Server } from "../src/index.js";
 import {
@@ -22,8 +22,12 @@ describe("Core definition registry", () => {
       name: registryName("global-action"),
       run: () => Effect.succeed("pong"),
     });
-    const ping = Server.implement(Server.contract(registryName("global-server")), () =>
-      Effect.succeed("pong"),
+    const ping = Server.implement(
+      Server.contract(registryName("global-server"), {
+        input: Schema.Void,
+        output: Schema.Unknown,
+      }),
+      () => Effect.succeed("pong"),
     );
 
     expect(actionDefinitionRegistry().get(Ping.name)).toBe(Ping);
@@ -38,7 +42,10 @@ describe("Core definition registry", () => {
       run: () => Effect.succeed("before"),
     });
     const beforeServer = Server.implement(
-      Server.contract(registryName("snapshot-before-server")),
+      Server.contract(registryName("snapshot-before-server"), {
+        input: Schema.Void,
+        output: Schema.Unknown,
+      }),
       () => Effect.succeed("before"),
     );
 
@@ -49,7 +56,10 @@ describe("Core definition registry", () => {
       run: () => Effect.succeed("after"),
     });
     const afterServer = Server.implement(
-      Server.contract(registryName("snapshot-after-server")),
+      Server.contract(registryName("snapshot-after-server"), {
+        input: Schema.Void,
+        output: Schema.Unknown,
+      }),
       () => Effect.succeed("after"),
     );
 
@@ -71,11 +81,17 @@ describe("Core definition registry", () => {
       run: () => Effect.succeed("local"),
     });
     const globalServer = Server.implement(
-      Server.contract(registryName("explicit-global-server")),
+      Server.contract(registryName("explicit-global-server"), {
+        input: Schema.Void,
+        output: Schema.Unknown,
+      }),
       () => Effect.succeed("global"),
     );
     const localServer = Server.implement(
-      Server.contract(registryName("explicit-local-server")),
+      Server.contract(registryName("explicit-local-server"), {
+        input: Schema.Void,
+        output: Schema.Unknown,
+      }),
       () => Effect.succeed("local"),
     );
 
@@ -99,8 +115,12 @@ describe("Core definition registry", () => {
       name: registryName("map-local-action"),
       run: () => Effect.succeed("local"),
     });
-    const localServer = Server.implement(Server.contract(registryName("map-local-server")), () =>
-      Effect.succeed("local"),
+    const localServer = Server.implement(
+      Server.contract(registryName("map-local-server"), {
+        input: Schema.Void,
+        output: Schema.Unknown,
+      }),
+      () => Effect.succeed("local"),
     );
 
     const app = {
@@ -127,11 +147,13 @@ describe("Core definition registry", () => {
       run: () => Effect.succeed("second"),
     });
     const serverName = registryName("duplicate-server");
-    const firstServer = Server.implement(Server.contract(serverName), () =>
-      Effect.succeed("first"),
+    const firstServer = Server.implement(
+      Server.contract(serverName, { input: Schema.Void, output: Schema.Unknown }),
+      () => Effect.succeed("first"),
     );
-    const secondServer = Server.implement(Server.contract(serverName), () =>
-      Effect.succeed("second"),
+    const secondServer = Server.implement(
+      Server.contract(serverName, { input: Schema.Void, output: Schema.Unknown }),
+      () => Effect.succeed("second"),
     );
 
     expect(getActionDefinition(actionName)).not.toBe(FirstAction);
@@ -175,8 +197,14 @@ describe("Core definition registry", () => {
     );
 
     const serverName = registryName("reset-duplicate-server");
-    Server.implement(Server.contract(serverName), () => Effect.succeed("first"));
-    Server.implement(Server.contract(serverName), () => Effect.succeed("second"));
+    Server.implement(
+      Server.contract(serverName, { input: Schema.Void, output: Schema.Unknown }),
+      () => Effect.succeed("first"),
+    );
+    Server.implement(
+      Server.contract(serverName, { input: Schema.Void, output: Schema.Unknown }),
+      () => Effect.succeed("second"),
+    );
     expect(Server.registryDiagnostics().duplicates).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kind: "serverFunction", name: serverName }),

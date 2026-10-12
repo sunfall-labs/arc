@@ -224,7 +224,7 @@ In a Start app, `App.launch(app)` provides it for the app's `actions` (the
 Actions the server serves); those submit over the network and their responses (hydrated Resources,
 Resource invalidations) apply to the submitting runtime. Every
 other Action runs its `run` locally. The handle, its result type, and its error
-type (the Action's own errors plus `Server.ClientError`) are the same either
+type (the Action's own errors plus `Action.ClientError`) are the same either
 way. The no-JS form path is unchanged: `StartAction.form(definition, ...)`
 renders the same Action as a progressive `<form method="post">`.
 

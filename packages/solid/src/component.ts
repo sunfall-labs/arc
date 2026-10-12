@@ -11,7 +11,6 @@ import {
   type SunfallArcRuntime,
   type Action,
   type ActionResult,
-  type Server,
   type State,
   StateRefTypeId,
 } from "@sunfall/arc-core";
@@ -704,7 +703,7 @@ export namespace Component {
    * Failures an Action submission reports: its own and transport failures. A
    * callback that breaks its contract is a defect, not part of the type.
    */
-  export type ActionError<E> = E | Server.ClientError;
+  export type ActionError<E> = E | Action.ClientError;
 
   /**
    * Instance-bound Action handle from `Component.action`.

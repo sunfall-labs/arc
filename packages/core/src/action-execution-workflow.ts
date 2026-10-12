@@ -28,7 +28,7 @@ import type { ResourceInvalidation, ResourceInvalidationPlan } from "./resource.
 import { planResourceInvalidation, runResourceInvalidationPlan } from "./resource-runtime.js";
 import type { ActionDefinition } from "./action.js";
 import { ActionTransport, type ActionTransportSubmission } from "./action-transport.js";
-import type { ServerClientError } from "./server.js";
+import type { ActionClientError } from "./action-transport.js";
 import { withSignalTransition } from "./signal-transaction.js";
 import type { TimelineActionCause } from "./timeline.js";
 
@@ -182,7 +182,7 @@ export const executeAction = <I, A, E, R>(
   options: ActionExecutionOptions<I, A, E, R>,
 ): Effect.Effect<
   ActionExecutionOutcome<A, R>,
-  E | ServerClientError | ActionInterrupted,
+  E | ActionClientError | ActionInterrupted,
   R | ActionResultInvalidationRequirements<A>
 > =>
   Effect.gen(function* () {
@@ -229,7 +229,7 @@ export interface ActionExecutionWorkflowOptions<I, A, E, R, ER> {
   readonly submissions: ActionSubmissionController<
     I,
     A,
-    E | ER | ServerClientError,
+    E | ER | ActionClientError,
     ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>>
   >;
   readonly runAtActionBoundary: <Value, Error, Requirements>(
@@ -255,7 +255,7 @@ export interface ActionExecutionWorkflow<I, A, E, R, ER> {
     input: I,
   ) => Effect.Effect<
     A,
-    E | ER | ServerClientError | ActionInterrupted,
+    E | ER | ActionClientError | ActionInterrupted,
     R | ActionResultInvalidationRequirements<A>
   >;
   readonly captureReset: () => Effect.Effect<void>;
@@ -278,10 +278,10 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
 
   const runWorkflow = (
     input: I,
-    submission: ActionSubmissionRun<A, E | ER | ServerClientError>,
+    submission: ActionSubmissionRun<A, E | ER | ActionClientError>,
   ): Effect.Effect<
     A,
-    E | ER | ServerClientError | ActionInterrupted,
+    E | ER | ActionClientError | ActionInterrupted,
     R | ActionResultInvalidationRequirements<A>
   > =>
     Effect.suspend(() => {
@@ -302,7 +302,7 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
               // and `Action.define` adds it to their error type.
               return yield* outbox.value.submit(definition, input) as Effect.Effect<
                 A,
-                E | ServerClientError
+                E | ActionClientError
               >;
             }
           }
@@ -337,13 +337,13 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
     input: I,
   ): Effect.Effect<
     A,
-    E | ER | ServerClientError | ActionInterrupted,
+    E | ER | ActionClientError | ActionInterrupted,
     R | ActionResultInvalidationRequirements<A>
   > =>
     runAtActionBoundary(
       Effect.suspend(() => {
         return Effect.withFiber((fiber) => {
-          const submissionFiber = fiber as ActionSubmissionFiber<A, E | ER | ServerClientError>;
+          const submissionFiber = fiber as ActionSubmissionFiber<A, E | ER | ActionClientError>;
 
           return submissions.beginEffect(submissionFiber).pipe(
             Effect.flatMap((submission) => {

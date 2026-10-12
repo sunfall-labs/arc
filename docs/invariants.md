@@ -163,8 +163,10 @@ documented as outside the current release bar.
 - Shared code defines server contracts and browser-safe clients.
 - Server handler modules implement contracts and are excluded from browser
   graphs.
-- RPC separates domain failures, protocol errors, transport errors, defects, and
-  interruption.
+- Every server function is an `effect/rpc` `Rpc` with required input and
+  output schemas; there is no schema-less wire path.
+- RPC separates typed (Schema-encoded) failures, transport errors
+  (`RpcClientError`), defects, and interruption, as `effect/rpc` does.
 - Tests can replace server behavior through mocks and service Layers without
   importing server-only modules.
 

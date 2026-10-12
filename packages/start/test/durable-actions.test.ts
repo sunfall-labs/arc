@@ -12,7 +12,7 @@ import {
   State,
   type AnySunfallArcRuntime,
 } from "@sunfall/arc-core";
-import type { StartFetch } from "../src/index.js";
+import { testHttpClientLayer, type TestFetch } from "./test-http-client.js";
 import { makeActionTransportLayer } from "../src/start-action-transport.js";
 import { createStartRequestHandler } from "../src/start-request-handler.js";
 import { makeStartServerApp } from "../src/start-server-app.js";
@@ -107,7 +107,7 @@ describe("durable Action submissions over Start", () => {
         const handler = createStartRequestHandler(app, { actions: [Advance] });
         const browser = makeBrowser();
         const bodies: Array<{ readonly name: string; readonly id?: string }> = [];
-        const fetcher: StartFetch = (input, init) =>
+        const fetcher: TestFetch = (input, init) =>
           Effect.gen(function* () {
             bodies.push(JSON.parse(String(init?.body)));
             const url =
@@ -118,7 +118,9 @@ describe("durable Action submissions over Start", () => {
           });
         const runtime = makeRuntime(
           Layer.mergeAll(
-            makeActionTransportLayer({ fetch: fetcher, actions: [Advance] }),
+            makeActionTransportLayer({ actions: [Advance] }).pipe(
+              Layer.provide(testHttpClientLayer(fetcher)),
+            ),
             Action.outboxLayer().pipe(Layer.provide(KeyValueStore.layerMemory)),
           ),
         );
@@ -282,7 +284,7 @@ describe("durable Action submissions over Start", () => {
         expect(page.headers.get("cache-control")).toBe("private");
         expect(browser.jar.has(startActionSubmitterCookieName)).toBe(true);
         const network = { loseResponses: true };
-        const fetcher: StartFetch<TypeError> = (input, init) =>
+        const fetcher: TestFetch = (input, init) =>
           Effect.gen(function* () {
             const url =
               input instanceof Request
@@ -297,7 +299,9 @@ describe("durable Action submissions over Start", () => {
           });
         const runtime = makeRuntime(
           Layer.mergeAll(
-            makeActionTransportLayer({ fetch: fetcher, actions: [Advance] }),
+            makeActionTransportLayer({ actions: [Advance] }).pipe(
+              Layer.provide(testHttpClientLayer(fetcher)),
+            ),
             Action.outboxLayer({ retry: Schedule.spaced("5 millis") }).pipe(
               Layer.provide(KeyValueStore.layerMemory),
             ),
@@ -334,7 +338,7 @@ describe("durable Action submissions over Start", () => {
         });
         const browser = makeBrowser();
         yield* browser.visit(handler);
-        const fetcher: StartFetch<TypeError> = (input, init) =>
+        const fetcher: TestFetch = (input, init) =>
           Effect.gen(function* () {
             const url = new URL(String(input), "https://example.com").href;
             yield* browser.send(handler, new Request(url, init));
@@ -343,7 +347,9 @@ describe("durable Action submissions over Start", () => {
           });
         const runtime = makeRuntime(
           Layer.mergeAll(
-            makeActionTransportLayer({ fetch: fetcher, actions: [Advance] }),
+            makeActionTransportLayer({ actions: [Advance] }).pipe(
+              Layer.provide(testHttpClientLayer(fetcher)),
+            ),
             Action.outboxLayer({ retry: Schedule.recurs(0) }).pipe(
               Layer.provide(KeyValueStore.layerMemory),
             ),

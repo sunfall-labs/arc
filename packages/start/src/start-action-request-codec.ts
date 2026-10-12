@@ -1,11 +1,20 @@
-import { Form, Server, ServerRpcProtocolError, type Action } from "@sunfall/arc-core";
+import { ActionProtocolError, Form, type Action, type Server } from "@sunfall/arc-core";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
 import { hasContentType, serverActionPath, startJsonMediaType } from "./rpc.js";
 import {
-  readStartTransportFormDataBody,
-  readStartTransportJsonBody,
-} from "./start-transport-body.js";
-import { encodeServerWire } from "@sunfall/arc-core/internal";
+  actionDefinitionRegistry,
+  encodeActionWire,
+  type CoreDefinitionRegistry,
+} from "@sunfall/arc-core/internal";
+
+/** Serializes thrown defects into JSON-safe diagnostic data when possible. */
+export const serializeDefect = (defect: unknown): unknown =>
+  defect instanceof Error
+    ? { _tag: defect.name, message: defect.message, stack: defect.stack }
+    : defect;
+
+const protocolBodyReadError = (message: string, cause: unknown): ActionProtocolError =>
+  new ActionProtocolError({ message, payload: serializeDefect(cause) });
 
 /** Longest submission id the action endpoint accepts. */
 export const startActionSubmissionIdMaxLength = 128;
@@ -132,7 +141,7 @@ const encodePartialWithSchema = (
     ? (schema as { readonly fields?: unknown }).fields
     : undefined;
   if (!isRecord(fields) || !isRecord(input)) {
-    return encodeServerWire(schema, input);
+    return encodeActionWire(schema, input);
   }
   const present = Object.fromEntries(
     Object.keys(input).flatMap((key) => (Schema.isSchema(fields[key]) ? [[key, fields[key]]] : [])),
@@ -147,7 +156,7 @@ const encodePartialWithSchema = (
 export const encodeStartActionInput = (
   action: StartActionDefinition,
   input: unknown,
-): Effect.Effect<unknown, Schema.SchemaError> => encodeServerWire(action.input, input);
+): Effect.Effect<unknown, Schema.SchemaError> => encodeActionWire(action.input, input);
 
 /** Encodes a partial Start action input through the present fields of a struct input schema. */
 export const encodeStartActionPartialInput = (
@@ -240,14 +249,17 @@ export const startActionForm = <I, A, E, R>(
 
 const readActionJsonEffect = (
   request: Request,
-): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>
+): Effect.Effect<StartActionRequest, ActionProtocolError> =>
   Effect.flatMap(
-    readStartTransportJsonBody(request, "Expected a JSON action request body."),
+    Effect.tryPromise({
+      try: () => request.json(),
+      catch: (cause) => protocolBodyReadError("Expected a JSON action request body.", cause),
+    }),
     (payload) =>
       isStartActionRequest(payload)
         ? Effect.succeed(payload)
         : Effect.fail(
-            new ServerRpcProtocolError({
+            new ActionProtocolError({
               message: `Expected an action request with string name and input fields, and an optional id of 1 to ${startActionSubmissionIdMaxLength} characters.`,
               payload,
             }),
@@ -281,15 +293,15 @@ const formDataToObject = (formData: FormData): Record<string, unknown> => {
 
 const readActionFormEffect = (
   request: Request,
-): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>
+): Effect.Effect<StartActionRequest, ActionProtocolError> =>
   Effect.gen(function* () {
-    const formData = yield* readStartTransportFormDataBody(
-      request,
-      "Expected an action form body.",
-    );
+    const formData = yield* Effect.tryPromise({
+      try: () => request.formData(),
+      catch: (cause) => protocolBodyReadError("Expected an action form body.", cause),
+    });
     const name = formData.get(startActionNameField);
     if (typeof name !== "string" || name.length === 0) {
-      return yield* new ServerRpcProtocolError({
+      return yield* new ActionProtocolError({
         message: `Missing ${startActionNameField} form field.`,
       });
     }
@@ -306,9 +318,9 @@ const readActionFormEffect = (
     const baseInput = yield* Effect.try({
       try: () => JSON.parse(encodedInput) as unknown,
       catch: (cause) =>
-        new ServerRpcProtocolError({
+        new ActionProtocolError({
           message: `Could not parse ${startActionInputField} as JSON.`,
-          payload: Server.serializeDefect(cause),
+          payload: serializeDefect(cause),
         }),
     });
 
@@ -332,7 +344,64 @@ const readActionFormEffect = (
  */
 export const readStartActionRequest = (
   request: Request,
-): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>
+): Effect.Effect<StartActionRequest, ActionProtocolError> =>
   hasContentType(request.headers, [startJsonMediaType])
     ? readActionJsonEffect(request)
     : readActionFormEffect(request);
+
+/** Error raised when multiple Start actions use the same public action name. */
+export class StartActionDuplicateName extends Data.TaggedError("StartActionDuplicateName")<{
+  readonly actionName: string;
+  readonly first: number;
+  readonly duplicate: number;
+  readonly message: string;
+}> {}
+
+export type StartActionMap<Actions extends StartActionDefinition = StartActionDefinition> =
+  ReadonlyMap<string, Actions>;
+
+export type StartActionSource<Actions extends StartActionDefinition = StartActionDefinition> =
+  | Iterable<Actions>
+  | StartActionMap<Actions>;
+
+const isStartActionMap = <Actions extends StartActionDefinition>(
+  actions: StartActionSource<Actions>,
+): actions is StartActionMap<Actions> =>
+  typeof (actions as { readonly get?: unknown }).get === "function" &&
+  typeof (actions as { readonly has?: unknown }).has === "function" &&
+  typeof (actions as { readonly forEach?: unknown }).forEach === "function";
+
+export const materializeStartActionMap = <Actions extends StartActionDefinition>(
+  actions: Iterable<Actions>,
+): StartActionMap<Actions> => {
+  const actionMap = new Map<string, Actions>();
+  const firstIndexes = new Map<string, number>();
+  let index = 0;
+  for (const action of actions) {
+    const first = firstIndexes.get(action.name);
+    if (first !== undefined) {
+      throw new StartActionDuplicateName({
+        actionName: action.name,
+        first,
+        duplicate: index,
+        message: `Duplicate Start action name: ${action.name}`,
+      });
+    }
+    actionMap.set(action.name, action);
+    firstIndexes.set(action.name, index);
+    index++;
+  }
+
+  return actionMap;
+};
+
+export const makeActionMap = <Actions extends StartActionDefinition = StartActionDefinition>(
+  actions?: StartActionSource<Actions>,
+  registry?: CoreDefinitionRegistry<Actions, Server.Fn<any, any, any, any>>,
+): StartActionMap<Actions> => {
+  if (actions === undefined) {
+    return (registry?.actions ?? actionDefinitionRegistry()) as StartActionMap<Actions>;
+  }
+
+  return isStartActionMap(actions) ? actions : materializeStartActionMap(actions);
+};

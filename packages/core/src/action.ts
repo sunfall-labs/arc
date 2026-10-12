@@ -13,7 +13,11 @@ import {
   type ActionQueued,
 } from "./action-outbox.js";
 import { makeActionOutboxLayer } from "./action-outbox-layer.js";
-import type { ActionTransportResponse, ActionTransportSubmission } from "./action-transport.js";
+import type {
+  ActionClientError,
+  ActionTransportResponse,
+  ActionTransportSubmission,
+} from "./action-transport.js";
 import type { KeyValueStore } from "effect/persistence";
 import {
   makeActionOptimisticPlanRuntime,
@@ -39,7 +43,6 @@ import {
 } from "./resource.js";
 import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
 import type { AnySunfallArcRuntime, SunfallArcRuntime } from "./runtime.js";
-import type { ServerClientError } from "./server.js";
 import type { ReadableSignal } from "./signal.js";
 
 /** Expert-public structural marker used to recognize Action Definitions. */
@@ -170,16 +173,16 @@ export interface ActionInstance<
 > {
   readonly definition: ActionDefinition<I, A, DefinitionError, DefinitionRequirements>;
   /**
-   * Submission state. Failures include `ServerClientError`: a runtime that
+   * Submission state. Failures include `ActionClientError`: a runtime that
    * provides an `ActionTransport` serving this Action submits it remotely. A
    * callback that breaks its contract (throws synchronously) is a defect.
    */
-  readonly state: ReadableSignal<ActionState<I, A, E | ServerClientError>>;
+  readonly state: ReadableSignal<ActionState<I, A, E | ActionClientError>>;
   readonly invalidationPlan: ReadableSignal<
     ResourceInvalidationPlan<InvalidationRequirements> | undefined
   >;
   /** Runs the action workflow as an Effect, preserving typed errors and requirements. */
-  submit(input: I): Effect.Effect<A, E | ServerClientError | ActionInterrupted, R>;
+  submit(input: I): Effect.Effect<A, E | ActionClientError | ActionInterrupted, R>;
   /** Resets visible action state as an Effect. */
   reset(): Effect.Effect<void>;
 }
@@ -284,6 +287,8 @@ export namespace Action {
   export type TransportSubmission = ActionTransportSubmission;
   /** Response an `ActionTransport` returns for one Action submission. */
   export type TransportResponse<A, E> = ActionTransportResponse<A, E>;
+  /** Failures a submission reports beside the Action's own (transport, protocol, wire schema). */
+  export type ClientError = ActionClientError;
 
   /**
    * Layer providing the runtime's Action Outbox, which persists durable Action

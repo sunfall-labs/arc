@@ -93,21 +93,13 @@ export const RecipeSchema = Schema.Struct({
 
 export type Recipe = typeof RecipeSchema.Type;
 
-export const ListRecipeSummariesContract = Server.contract<
-  "all",
-  RecipeSummary[],
-  RecipeContentError
->("Docs.recipes.list", {
+export const ListRecipeSummariesContract = Server.contract("Docs.recipes.list", {
   input: Schema.Literal("all"),
   output: Schema.Array(RecipeSummarySchema),
   error: RecipeContentErrorSchema,
 });
 
-export const GetRecipeContract = Server.contract<
-  { readonly slug: RecipeSlug },
-  Recipe,
-  RecipeContentError
->("Docs.recipe.get", {
+export const GetRecipeContract = Server.contract("Docs.recipe.get", {
   input: Schema.Struct({ slug: RecipeSlug }),
   output: RecipeSchema,
   error: RecipeContentErrorSchema,

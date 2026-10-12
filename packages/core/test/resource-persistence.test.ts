@@ -8,7 +8,7 @@ import {
   ActionTransport,
   makeRuntime,
   Resource,
-  ServerTransportError,
+  ActionTransportError,
   Signal,
   type SunfallArcRuntime,
 } from "../src/index.js";
@@ -130,7 +130,7 @@ describe("Resource policy.persist", () => {
               Effect.suspend(() => {
                 if (!network.online) {
                   return Effect.fail(
-                    new ServerTransportError({ reason: "Network", message: "offline" }),
+                    new ActionTransportError({ reason: "Network", message: "offline" }),
                   );
                 }
                 network.applied.push(submission!.id);

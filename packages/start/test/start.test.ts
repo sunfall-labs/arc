@@ -35,7 +35,6 @@ import {
   Action,
   ActionResult,
   EffectInputCallbackError,
-  EffectInputPromiseRejected,
   makeRuntime,
   Resource,
   ResourceTypeId,
@@ -48,7 +47,7 @@ import {
   runWithRuntime,
   type BrowserRouterState,
   Server,
-  ServerTransportError,
+  ActionTransportError,
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
 import {
@@ -69,18 +68,14 @@ import {
   StartAction,
   StartActionFormEncodeError,
   StartActionDuplicateName,
-  type StartFetch,
   type StartHydrationPayload,
 } from "../src/index.js";
+import { testHttpClientLayer, type TestFetch } from "./test-http-client.js";
 import { createStartRequestHandler } from "../src/start-request-handler.js";
 import { makeStartServerApp } from "../src/start-server-app.js";
 import { createHtmlResponse } from "../src/streaming.js";
-import { makeRpcClientLayer } from "../src/start-rpc-client.js";
-import type { ServerRpcClientOptions } from "../src/start-fetch.js";
-import {
-  makeActionTransportLayer,
-  type ActionTransportLayerOptions,
-} from "../src/start-action-transport.js";
+import { rpcClientLayer } from "../src/start-rpc-client.js";
+import { makeActionTransportLayer } from "../src/start-action-transport.js";
 import {
   createServerActionResponse,
   createServerRpcResponse,
@@ -155,12 +150,22 @@ const loadFileRouteManifestModule = (plugin: ReturnType<typeof sunfallArcStart>)
   const match = /^export const manifest = (.*);$/m.exec(loaded);
   return match?.[1] === undefined ? undefined : JSON.parse(match[1]);
 };
-const makeRpcClient = (options: ServerRpcClientOptions<any, any, never> = {}): Server.Client =>
-  Effect.runSync(
-    Effect.gen(function* () {
-      return yield* Server.Client;
-    }).pipe(Effect.provide(makeRpcClientLayer(options as never))),
+/** One `effect/rpc` request message (`RpcSerialization.json`) calling `tag` with `payload`. */
+const rpcMessage = (tag: string, payload: unknown): string =>
+  JSON.stringify({ _tag: "Request", id: "1", tag, payload, headers: [] });
+
+/** The encoded `Exit` of the one request in an `effect/rpc` JSON response. */
+const readRpcExit = (response: Response) =>
+  Effect.map(
+    Effect.promise(
+      () => response.json() as Promise<ReadonlyArray<{ _tag: string; exit?: unknown }>>,
+    ),
+    (messages) => messages.find((message) => message._tag === "Exit")?.exit,
   );
+
+/** Start's browser `Server.Client` (`RpcClient` over HTTP), posting through `fetch`. */
+const rpcClientOver = (fetch: TestFetch): Layer.Layer<Server.Client> =>
+  rpcClientLayer.pipe(Layer.provide(testHttpClientLayer(fetch)));
 
 const scriptText = (script: string): string =>
   script.replace(/^<script[^>]*>/, "").replace("</script>", "");
@@ -255,21 +260,24 @@ const oneShotIterable = <A>(values: readonly A[]) => {
 const submitViaActionTransport = <I, A, E, R>(
   definition: Action.Definition<I, A, E, R>,
   input: I,
-  options: Omit<ActionTransportLayerOptions<any, any>, "actions"> & {
+  options: {
+    readonly fetch: TestFetch;
     readonly runtime?: object;
-  } = {},
+  },
 ) => {
-  const { runtime, ...transport } = options;
   const instance = makeActionInstance(
     definition,
-    eraseRuntime((runtime ?? defaultRuntime) as typeof defaultRuntime),
+    eraseRuntime((options.runtime ?? defaultRuntime) as typeof defaultRuntime),
   );
-  return instance.submit(input).pipe(
-    Effect.provide(
-      // The options mirror whatever fetch typing each test uses.
-      makeActionTransportLayer({ ...transport, actions: [definition] } as never),
-    ),
-  );
+  return instance
+    .submit(input)
+    .pipe(
+      Effect.provide(
+        makeActionTransportLayer({ actions: [definition] }).pipe(
+          Layer.provide(testHttpClientLayer(options.fetch)),
+        ),
+      ),
+    );
 };
 
 /** Records spans; `requests()` reads ended Start request spans' attributes. */
@@ -643,10 +651,7 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("uses request-local server clients even when the app runtime provides one", async () => {
-    const LookupProject = Server.contract<
-      { readonly id: string },
-      { readonly id: string; readonly path: string }
-    >("Start.Project.request-local-server-client", {
+    const LookupProject = Server.contract("Start.Project.request-local-server-client", {
       input: Schema.Struct({ id: Schema.String }),
       output: Schema.Struct({ id: Schema.String, path: Schema.String }),
     });
@@ -665,13 +670,7 @@ describe("Sunfall Arc Start", () => {
       ),
     );
     const ambientClient: Server.Client = {
-      call: () =>
-        Effect.fail(
-          new ServerTransportError({
-            reason: "Network",
-            message: "ambient ServerClient should not handle request-runtime calls",
-          }),
-        ),
+      call: () => Effect.die("ambient ServerClient should not handle request-runtime calls"),
     };
     const ProjectRoute = Route.define("/local-server-client/:id", {
       params: Schema.Struct({ id: Schema.String }),
@@ -1081,14 +1080,11 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("finalizes RPC failure request metrics from the request runtime finalization event", () => {
-    const FailsDomain = Server.contract<{ readonly value: string }, string, string>(
-      "Start.metrics.rpc.failure",
-      {
-        input: Schema.Struct({ value: Schema.String }),
-        output: Schema.String,
-        error: Schema.String,
-      },
-    );
+    const FailsDomain = Server.contract("Start.metrics.rpc.failure", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.String,
+      error: Schema.String,
+    });
     Server.implement(
       FailsDomain,
       (): Effect.Effect<string, string> => Effect.fail("metrics-domain-failed"),
@@ -1125,21 +1121,18 @@ describe("Sunfall Arc Start", () => {
             new Request(`https://example.com${serverRpcPath}`, {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({
-                name: FailsDomain.name,
-                input: { value: "atlas" },
-              }),
+              body: rpcMessage(FailsDomain.name, { value: "atlas" }),
             }),
           );
-          const body = yield* Effect.tryPromise(() => response.json());
+          const exit = yield* readRpcExit(response);
           const afterDuration = yield* Metric.value(requestDuration);
           const afterSuccess = yield* Metric.value(requestSuccessStatus);
           const afterFailure = yield* Metric.value(requestFailureStatus);
 
           yield* Effect.sync(() => {
-            expect(body).toEqual({
+            expect(exit).toEqual({
               _tag: "Failure",
-              error: "metrics-domain-failed",
+              cause: [{ _tag: "Fail", error: "metrics-domain-failed" }],
             });
             expect(afterDuration.count).toBe(beforeDuration.count + 1);
             expect(afterSuccess.occurrences.get("success") ?? 0).toBe(beforeSuccessCount);
@@ -1444,7 +1437,7 @@ describe("Sunfall Arc Start", () => {
 
   it("continues the client's current span into the server request span over RPC", async () => {
     const serverSpans: Array<Tracer.Span> = [];
-    const Traced = Server.contract<string, string>("Start.trace.client-propagation", {
+    const Traced = Server.contract("Start.trace.client-propagation", {
       input: Schema.String,
       output: Schema.String,
     });
@@ -1460,11 +1453,11 @@ describe("Sunfall Arc Start", () => {
       routes: [Route.define("/", {})] as const,
     });
     const handler = createStartRequestHandler(app);
-    const fetcher: StartFetch = (input, init) =>
+    const fetcher: TestFetch = (input, init) =>
       Effect.orDie(
         Effect.scoped(handler(new Request(new URL(String(input), "https://example.com"), init))),
       );
-    const client = Layer.succeed(Server.Client)(makeRpcClient({ fetch: fetcher }));
+    const client = rpcClientOver(fetcher);
 
     const clientSpan = await Effect.runPromise(
       Effect.gen(function* () {
@@ -1485,11 +1478,9 @@ describe("Sunfall Arc Start", () => {
     });
     const parent =
       requestSpan?._tag === "Span" ? Option.getOrUndefined(requestSpan.parent) : undefined;
-    expect(parent).toMatchObject({
-      _tag: "ExternalSpan",
-      traceId: clientSpan.traceId,
-      spanId: clientSpan.spanId,
-    });
+    // The request span continues the client's HTTP span, a child of the
+    // caller's span through the `RpcClient` span.
+    expect(parent).toMatchObject({ _tag: "ExternalSpan", traceId: clientSpan.traceId });
   });
 
   it("fails invalid response context status through the typed Start request error path", async () => {
@@ -1561,13 +1552,10 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("serves server functions over the Start RPC endpoint", async () => {
-    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
-      "Start.echo.rpc",
-      {
-        input: Schema.Struct({ value: Schema.String }),
-        output: Schema.Struct({ value: Schema.String }),
-      },
-    );
+    const Echo = Server.contract("Start.echo.rpc", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+    });
     const echo = Server.implement(Echo, ({ value }) =>
       Effect.orDie(
         ResponseContext.use((response) =>
@@ -1589,16 +1577,13 @@ describe("Sunfall Arc Start", () => {
           new Request(`https://example.com${serverRpcPath}`, {
             method: "POST",
             headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              name: echo.name,
-              input: { value: "ada" },
-            }),
+            body: rpcMessage(echo.name, { value: "ada" }),
           }),
         ),
       ),
     );
 
-    await expect(response.json()).resolves.toEqual({
+    await expect(Effect.runPromise(readRpcExit(response))).resolves.toEqual({
       _tag: "Success",
       value: { value: "ADA" },
     });
@@ -1607,13 +1592,10 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("finalizes transport diagnostics after ResponseContext headers", async () => {
-    const SpoofRpc = Server.contract<{ readonly value: string }, { readonly value: string }>(
-      "Start.echo.transport-diagnostics",
-      {
-        input: Schema.Struct({ value: Schema.String }),
-        output: Schema.Struct({ value: Schema.String }),
-      },
-    );
+    const SpoofRpc = Server.contract("Start.echo.transport-diagnostics", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+    });
     const spoofRpc = Server.implement(SpoofRpc, ({ value }) =>
       ResponseContext.use((response) =>
         Effect.gen(function* () {
@@ -1660,10 +1642,7 @@ describe("Sunfall Arc Start", () => {
               "content-type": "application/json",
               [startRequestIdHeader]: "req-rpc-authoritative",
             },
-            body: JSON.stringify({
-              name: spoofRpc.name,
-              input: { value: "ada" },
-            }),
+            body: rpcMessage(spoofRpc.name, { value: "ada" }),
           }),
         ),
       ),
@@ -1688,7 +1667,7 @@ describe("Sunfall Arc Start", () => {
       ),
     );
 
-    await expect(rpcResponse.json()).resolves.toEqual({
+    await expect(Effect.runPromise(readRpcExit(rpcResponse))).resolves.toEqual({
       _tag: "Success",
       value: { value: "ADA" },
     });
@@ -1709,9 +1688,7 @@ describe("Sunfall Arc Start", () => {
     );
   });
 
-  it("maps non-JSON-safe RPC and action response bodies to defect responses", async () => {
-    const BigRpc = Server.contract<null, bigint>("Start.bigint.rpc");
-    const bigRpc = Server.implement(BigRpc, () => Effect.succeed(1n));
+  it("maps non-JSON-safe action response bodies to defect responses", async () => {
     const BigAction = Action.define<null, bigint>({
       name: "Start.bigint.action",
       run: () => Effect.succeed(1n),
@@ -1719,21 +1696,6 @@ describe("Sunfall Arc Start", () => {
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
     });
-    const rpcResponse = await Effect.runPromise(
-      Effect.scoped(
-        createServerRpcResponse(
-          app,
-          new Request(`https://example.com${serverRpcPath}`, {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({
-              name: bigRpc.name,
-              input: null,
-            }),
-          }),
-        ),
-      ),
-    );
     const actionResponse = await Effect.runPromise(
       Effect.scoped(
         createServerActionResponse(
@@ -1751,10 +1713,6 @@ describe("Sunfall Arc Start", () => {
       ),
     );
 
-    expect(rpcResponse.status).toBe(500);
-    await expect(rpcResponse.json()).resolves.toMatchObject({
-      _tag: "Defect",
-    });
     expect(actionResponse.status).toBe(500);
     await expect(actionResponse.json()).resolves.toMatchObject({
       _tag: "Defect",
@@ -1763,13 +1721,10 @@ describe("Sunfall Arc Start", () => {
 
   it("records RPC and Start action spans inside request spans", async () => {
     const recorder = spanRecorder();
-    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
-      "Start.echo.trace",
-      {
-        input: Schema.Struct({ value: Schema.String }),
-        output: Schema.Struct({ value: Schema.String }),
-      },
-    );
+    const Echo = Server.contract("Start.echo.trace", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+    });
     const echo = Server.implement(Echo, ({ value }) =>
       Effect.succeed({ value: value.toUpperCase() }),
     );
@@ -1795,15 +1750,12 @@ describe("Sunfall Arc Start", () => {
               "content-type": "application/json",
               "x-sunfall-arc-request-id": "req-rpc-trace",
             },
-            body: JSON.stringify({
-              name: echo.name,
-              input: { value: "ada" },
-            }),
+            body: rpcMessage(echo.name, { value: "ada" }),
           }),
         ),
       ),
     );
-    await expect(rpcResponse.json()).resolves.toEqual({
+    await expect(Effect.runPromise(readRpcExit(rpcResponse))).resolves.toEqual({
       _tag: "Success",
       value: { value: "ADA" },
     });
@@ -1862,13 +1814,10 @@ describe("Sunfall Arc Start", () => {
 
   it("uses one generated request id for transport diagnostics and the request span", async () => {
     const recorder = spanRecorder();
-    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
-      "Start.echo.trace.generated-id",
-      {
-        input: Schema.Struct({ value: Schema.String }),
-        output: Schema.Struct({ value: Schema.String }),
-      },
-    );
+    const Echo = Server.contract("Start.echo.trace.generated-id", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+    });
     const echo = Server.implement(Echo, ({ value }) => Effect.succeed({ value }));
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
@@ -1883,15 +1832,12 @@ describe("Sunfall Arc Start", () => {
             headers: {
               "content-type": "application/json",
             },
-            body: JSON.stringify({
-              name: echo.name,
-              input: { value: "ada" },
-            }),
+            body: rpcMessage(echo.name, { value: "ada" }),
           }),
         ),
       ),
     );
-    await expect(response.json()).resolves.toEqual({
+    await expect(Effect.runPromise(readRpcExit(response))).resolves.toEqual({
       _tag: "Success",
       value: { value: "ada" },
     });
@@ -1904,14 +1850,11 @@ describe("Sunfall Arc Start", () => {
 
   it("classifies RPC and Start action request failures by layer", async () => {
     const recorder = spanRecorder();
-    const FailsDomain = Server.contract<{ readonly value: string }, string, string>(
-      "Start.trace.failure.domain",
-      {
-        input: Schema.Struct({ value: Schema.String }),
-        output: Schema.String,
-        error: Schema.String,
-      },
-    );
+    const FailsDomain = Server.contract("Start.trace.failure.domain", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.String,
+      error: Schema.String,
+    });
     const failsDomain = Server.implement(
       FailsDomain,
       (): Effect.Effect<string, string> => Effect.fail("domain-failed"),
@@ -1929,15 +1872,14 @@ describe("Sunfall Arc Start", () => {
     const handler = createStartRequestHandler(app, {
       actions: [ActionFailsDomain],
     });
-    const rpcRequest = (id: string, body: unknown, init: RequestInit = {}) =>
+    const rpcRequest = (id: string, tag: string, payload: unknown) =>
       new Request(`https://example.com${serverRpcPath}`, {
         method: "POST",
         headers: {
           "content-type": "application/json",
           "x-sunfall-arc-request-id": id,
-          ...init.headers,
         },
-        body: JSON.stringify(body),
+        body: rpcMessage(tag, payload),
       });
     const actionRequest = (id: string, body: unknown) =>
       new Request(`https://example.com${serverActionPath}`, {
@@ -1951,44 +1893,32 @@ describe("Sunfall Arc Start", () => {
 
     const rpcDomain = await recorder.run(
       Effect.scoped(
-        handler(
-          rpcRequest("req-rpc-domain-failure", {
-            name: failsDomain.name,
-            input: { value: "ada" },
-          }),
-        ),
+        handler(rpcRequest("req-rpc-domain-failure", failsDomain.name, { value: "ada" })),
       ),
     );
-    await expect(rpcDomain.json()).resolves.toEqual({
+    await expect(Effect.runPromise(readRpcExit(rpcDomain))).resolves.toEqual({
       _tag: "Failure",
-      error: "domain-failed",
+      cause: [{ _tag: "Fail", error: "domain-failed" }],
     });
 
     const rpcValidation = await recorder.run(
       Effect.scoped(
-        handler(
-          rpcRequest("req-rpc-validation-failure", {
-            name: failsDomain.name,
-            input: { value: 1 },
-          }),
-        ),
+        handler(rpcRequest("req-rpc-validation-failure", failsDomain.name, { value: 1 })),
       ),
     );
-    expect(rpcValidation.status).toBe(400);
-    await rpcValidation.text();
+    // `RpcServer` answers payloads that fail the input schema with a defect.
+    await expect(Effect.runPromise(readRpcExit(rpcValidation))).resolves.toMatchObject({
+      _tag: "Failure",
+      cause: [{ _tag: "Die" }],
+    });
 
     const rpcProtocol = await recorder.run(
-      Effect.scoped(
-        handler(
-          rpcRequest("req-rpc-protocol-failure", {
-            name: "Start.trace.missing",
-            input: {},
-          }),
-        ),
-      ),
+      Effect.scoped(handler(rpcRequest("req-rpc-protocol-failure", "Start.trace.missing", {}))),
     );
-    expect(rpcProtocol.status).toBe(404);
-    await rpcProtocol.text();
+    await expect(Effect.runPromise(readRpcExit(rpcProtocol))).resolves.toEqual({
+      _tag: "Failure",
+      cause: [{ _tag: "Die", defect: "Unknown request tag: Start.trace.missing" }],
+    });
 
     const rpcTransport = await recorder.run(
       Effect.scoped(
@@ -2044,7 +1974,7 @@ describe("Sunfall Arc Start", () => {
         "sunfall-arc.request.id": "req-rpc-validation-failure",
         "sunfall-arc.request.transport": "rpc",
         "sunfall-arc.request.status": "failure",
-        "sunfall-arc.failure.kind": "validation",
+        "sunfall-arc.failure.kind": "protocol",
       }),
       expect.objectContaining({
         "sunfall-arc.request.id": "req-rpc-protocol-failure",
@@ -2162,27 +2092,19 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("lets browser runtimes call server functions through ServerClient", async () => {
-    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
-      "Start.echo.remote",
-      {
-        input: Schema.Struct({ value: Schema.String }),
-        output: Schema.Struct({ value: Schema.String }),
-      },
-    );
+    const Echo = Server.contract("Start.echo.remote", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+    });
     const echo = Server.client(Echo);
     Server.implement(Echo, ({ value }) => Effect.succeed({ value: `server:${value}` }));
     const app = makeStartServerApp({
       routes: [Route.define("/", {})] as const,
     });
     const handler = createStartRequestHandler(app);
-    const fetcher: StartFetch = (input, init) =>
+    const fetcher: TestFetch = (input, init) =>
       Effect.orDie(Effect.scoped(handler(new Request(input, init))));
-    const runtime = Layer.succeed(Server.Client)(
-      makeRpcClient({
-        endpoint: `https://example.com${serverRpcPath}`,
-        fetch: fetcher,
-      }),
-    );
+    const runtime = rpcClientOver(fetcher);
 
     await expect(
       Effect.runPromise(Effect.provide(echo.effect({ value: "atlas" }), runtime)),
@@ -2197,7 +2119,7 @@ describe("Sunfall Arc Start", () => {
       readonly _tag: "ExampleError";
       readonly message: string;
     };
-    const Fail = Server.contract<string, string, ExampleErrorType>("Start.fail.remote", {
+    const Fail = Server.contract("Start.fail.remote", {
       input: Schema.String,
       output: Schema.String,
       error: ExampleError,
@@ -2212,14 +2134,9 @@ describe("Sunfall Arc Start", () => {
       routes: [Route.define("/", {})] as const,
     });
     const handler = createStartRequestHandler(app);
-    const fetcher: StartFetch = (input, init) =>
+    const fetcher: TestFetch = (input, init) =>
       Effect.orDie(Effect.scoped(handler(new Request(input, init))));
-    const runtime = Layer.succeed(Server.Client)(
-      makeRpcClient({
-        endpoint: `https://example.com${serverRpcPath}`,
-        fetch: fetcher,
-      }),
-    );
+    const runtime = rpcClientOver(fetcher);
     const exit = await Effect.runPromise(Effect.exit(Effect.provide(fail.effect("x"), runtime)));
 
     expect(Exit.isFailure(exit)).toBe(true);
@@ -2641,13 +2558,10 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("uses the app registry snapshot for RPC and action dispatch", () => {
-    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
-      "Start.registry.snapshot.echo",
-      {
-        input: Schema.Struct({ value: Schema.String }),
-        output: Schema.Struct({ value: Schema.String }),
-      },
-    );
+    const Echo = Server.contract("Start.registry.snapshot.echo", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+    });
     const echo = Server.implement(Echo, ({ value }) =>
       Effect.succeed({ value: value.toUpperCase() }),
     );
@@ -2671,10 +2585,7 @@ describe("Sunfall Arc Start", () => {
             new Request(`https://example.com${serverRpcPath}`, {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({
-                name: echo.name,
-                input: { value: "snapshot" },
-              }),
+              body: rpcMessage(echo.name, { value: "snapshot" }),
             }),
           );
           const action = yield* handler(
@@ -2688,7 +2599,7 @@ describe("Sunfall Arc Start", () => {
             }),
           );
 
-          const rpcBody = yield* Effect.tryPromise(() => rpc.json());
+          const rpcBody = yield* readRpcExit(rpc);
           const actionBody = yield* Effect.tryPromise(() => action.json());
           expect(rpcBody).toEqual({
             _tag: "Success",
@@ -2704,13 +2615,10 @@ describe("Sunfall Arc Start", () => {
   });
 
   it("dispatches RPC and actions from an explicit app-local registry", () => {
-    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>(
-      "Start.registry.local.echo",
-      {
-        input: Schema.Struct({ value: Schema.String }),
-        output: Schema.Struct({ value: Schema.String }),
-      },
-    );
+    const Echo = Server.contract("Start.registry.local.echo", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+    });
     const localEcho = Server.implement(Echo, ({ value }) =>
       Effect.succeed({ value: `local:${value}` }),
     );
@@ -2744,10 +2652,7 @@ describe("Sunfall Arc Start", () => {
             new Request(`https://example.com${serverRpcPath}`, {
               method: "POST",
               headers: { "content-type": "application/json" },
-              body: JSON.stringify({
-                name: localEcho.name,
-                input: { value: "registry" },
-              }),
+              body: rpcMessage(localEcho.name, { value: "registry" }),
             }),
           );
           const action = yield* handler(
@@ -2761,7 +2666,7 @@ describe("Sunfall Arc Start", () => {
             }),
           );
 
-          const rpcBody = yield* Effect.tryPromise(() => rpc.json());
+          const rpcBody = yield* readRpcExit(rpc);
           const actionBody = yield* Effect.tryPromise(() => action.json());
           expect(rpcBody).toEqual({
             _tag: "Success",
@@ -2813,7 +2718,7 @@ describe("Sunfall Arc Start", () => {
     });
     const clientRuntime = makeRuntime();
     const ref = Project("atlas");
-    const fetcher: StartFetch = (input, init) => {
+    const fetcher: TestFetch = (input, init) => {
       const url =
         input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
       return Effect.orDie(Effect.scoped(handler(new Request(url, init))));
@@ -2854,7 +2759,9 @@ describe("Sunfall Arc Start", () => {
             .submit({ id: "atlas", name: "Renamed Through Transport" })
             .pipe(
               Effect.provide(
-                makeActionTransportLayer({ fetch: fetcher, actions: [RenameProject] }),
+                makeActionTransportLayer({ actions: [RenameProject] }).pipe(
+                  Layer.provide(testHttpClientLayer(fetcher)),
+                ),
               ),
             ),
         ),
@@ -2917,7 +2824,7 @@ describe("Sunfall Arc Start", () => {
     const clientRuntime = makeRuntime();
     const hydratedRef = HydratedProject.ref("atlas");
     const invalidatedRef = InvalidatedProject.ref("atlas");
-    const fetcher: StartFetch = () =>
+    const fetcher: TestFetch = () =>
       Effect.succeed(
         new Response(
           JSON.stringify({
@@ -3041,7 +2948,7 @@ describe("Sunfall Arc Start", () => {
     });
     const runtime = makeRuntime();
     const ref = Project("atlas");
-    const fetcher: StartFetch = (input, init) => {
+    const fetcher: TestFetch = (input, init) => {
       const url =
         input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
       return Effect.orDie(Effect.scoped(handler(new Request(url, init))));
@@ -3100,7 +3007,7 @@ describe("Sunfall Arc Start", () => {
       makeStartServerApp({ routes: [Route.define("/", {})] as const }),
       { actions: [Rename] },
     );
-    const fetcher: StartFetch = (input, init) => {
+    const fetcher: TestFetch = (input, init) => {
       const url =
         input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
       site = "endpoint";
@@ -3148,7 +3055,7 @@ describe("Sunfall Arc Start", () => {
       output: ProjectSchema,
       run: ({ id, name }) => Effect.succeed({ id, name }),
     });
-    const badFetch: StartFetch = () =>
+    const badFetch: TestFetch = () =>
       Effect.succeed(
         new Response(
           JSON.stringify({
@@ -3180,7 +3087,7 @@ describe("Sunfall Arc Start", () => {
       output: Schema.Struct({ value: Schema.String }),
       run: ({ value }) => Effect.succeed({ value }),
     });
-    const fetcher: StartFetch = () =>
+    const fetcher: TestFetch = () =>
       Effect.succeed(
         new Response(
           JSON.stringify({
@@ -3199,7 +3106,7 @@ describe("Sunfall Arc Start", () => {
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
-    expect(failure).toBeInstanceOf(ServerTransportError);
+    expect(failure).toBeInstanceOf(ActionTransportError);
     expect(failure).toMatchObject({
       reason: "BadStatus",
       status: 500,
@@ -3251,7 +3158,7 @@ describe("Sunfall Arc Start", () => {
       cause: undefined,
     };
     const validationWithStatus =
-      (status: number): StartFetch =>
+      (status: number): TestFetch =>
       () =>
         Effect.succeed(
           new Response(JSON.stringify(validationBody), {
@@ -3268,7 +3175,7 @@ describe("Sunfall Arc Start", () => {
     );
     const failure = Exit.isFailure(badExit) ? firstFailure(badExit.cause) : undefined;
 
-    expect(failure).toBeInstanceOf(ServerTransportError);
+    expect(failure).toBeInstanceOf(ActionTransportError);
     expect(failure).toMatchObject({
       reason: "BadStatus",
       status: 200,
@@ -3291,7 +3198,7 @@ describe("Sunfall Arc Start", () => {
       output: Schema.Struct({ value: Schema.String }),
       run: ({ value }) => Effect.succeed({ value }),
     });
-    const malformedInvalidation: StartFetch = () =>
+    const malformedInvalidation: TestFetch = () =>
       Effect.succeed(
         new Response(
           JSON.stringify({
@@ -3305,7 +3212,7 @@ describe("Sunfall Arc Start", () => {
           { headers: { "content-type": "application/json" } },
         ),
       );
-    const malformedHydration: StartFetch = () =>
+    const malformedHydration: TestFetch = () =>
       Effect.succeed(
         new Response(
           JSON.stringify({
@@ -3318,7 +3225,7 @@ describe("Sunfall Arc Start", () => {
           { headers: { "content-type": "application/json" } },
         ),
       );
-    const missingSuccessValue: StartFetch = () =>
+    const missingSuccessValue: TestFetch = () =>
       Effect.succeed(
         new Response(
           JSON.stringify({
@@ -3327,7 +3234,7 @@ describe("Sunfall Arc Start", () => {
           { headers: { "content-type": "application/json" } },
         ),
       );
-    const missingRefInput: StartFetch = () =>
+    const missingRefInput: TestFetch = () =>
       Effect.succeed(
         new Response(
           JSON.stringify({
@@ -3376,7 +3283,7 @@ describe("Sunfall Arc Start", () => {
       missingRefInputExit,
     ]) {
       const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
-      expect(failure).toBeInstanceOf(ServerTransportError);
+      expect(failure).toBeInstanceOf(ActionTransportError);
       expect(failure).toMatchObject({
         reason: "InvalidResponse",
         message: "Action response did not match the Sunfall Arc Start action protocol.",
@@ -3397,7 +3304,7 @@ describe("Sunfall Arc Start", () => {
       run: ({ value }) => Effect.succeed({ value }),
     });
     const responseWithInvalidation =
-      (invalidation: unknown): StartFetch =>
+      (invalidation: unknown): TestFetch =>
       () =>
         Effect.succeed(
           new Response(
@@ -3409,7 +3316,7 @@ describe("Sunfall Arc Start", () => {
             { headers: { "content-type": "application/json" } },
           ),
         );
-    const responseWithTarget = (target: unknown): StartFetch =>
+    const responseWithTarget = (target: unknown): TestFetch =>
       responseWithInvalidation({
         targets: [target],
         entries: [],
@@ -3528,27 +3435,27 @@ describe("Sunfall Arc Start", () => {
       ? firstFailure(malformedTagCauseExit.cause)
       : undefined;
 
-    expect(unknownFamily).toBeInstanceOf(ServerTransportError);
+    expect(unknownFamily).toBeInstanceOf(ActionTransportError);
     expect(unknownFamily).toMatchObject({
       reason: "InvalidResponse",
       message: "Start action invalidation metadata referenced an unknown Resource family.",
     });
-    expect(keyMismatch).toBeInstanceOf(ServerTransportError);
+    expect(keyMismatch).toBeInstanceOf(ActionTransportError);
     expect(keyMismatch).toMatchObject({
       reason: "InvalidResponse",
       message: "Start action invalidation metadata did not match the Resource input.",
     });
-    expect(entryMismatch).toBeInstanceOf(ServerTransportError);
+    expect(entryMismatch).toBeInstanceOf(ActionTransportError);
     expect(entryMismatch).toMatchObject({
       reason: "InvalidResponse",
       message: "Start action invalidation metadata did not match the Resource input.",
     });
-    expect(malformedTagTarget).toBeInstanceOf(ServerTransportError);
+    expect(malformedTagTarget).toBeInstanceOf(ActionTransportError);
     expect(malformedTagTarget).toMatchObject({
       reason: "InvalidResponse",
       message: "Start action invalidation metadata did not match the Resource tag key.",
     });
-    expect(malformedTagCause).toBeInstanceOf(ServerTransportError);
+    expect(malformedTagCause).toBeInstanceOf(ActionTransportError);
     expect(malformedTagCause).toMatchObject({
       reason: "InvalidResponse",
       message: "Start action invalidation metadata did not match the Resource tag key.",
@@ -3572,7 +3479,7 @@ describe("Sunfall Arc Start", () => {
     });
     const definitions = resourceDefinitionRegistry() as Map<string, unknown>;
     const globalDefinition = definitions.get("Start.action.client.runtime-local-ref");
-    const fetcher: StartFetch = () =>
+    const fetcher: TestFetch = () =>
       Effect.succeed(
         new Response(
           JSON.stringify({
@@ -3614,13 +3521,7 @@ describe("Sunfall Arc Start", () => {
     }
   });
 
-  it("applies action response metadata to the submitting runtime, not the transport runtime", async () => {
-    interface TransportToken {
-      readonly token: string;
-    }
-    const TransportToken = Context.Service<TransportToken>(
-      "@sunfall/arc-start/test/ActionTransportToken",
-    );
+  it("applies action response metadata to the submitting runtime only", async () => {
     const Project = Resource.define({
       name: "Start.action.client.response-runtime",
       load: (_id: string) => Effect.succeed({ id: "atlas", name: "Initial" }),
@@ -3632,39 +3533,40 @@ describe("Sunfall Arc Start", () => {
       run: ({ value }) => Effect.succeed({ value }),
     });
     const appRuntime = makeRuntime();
-    const transportRuntime = makeRuntime(Layer.succeed(TransportToken)({ token: "transport-ok" }));
+    const otherRuntime = makeRuntime();
     const ref = Project("atlas");
-    const fetcher: StartFetch<never, TransportToken> = () =>
-      TransportToken.use(({ token }) =>
-        Effect.succeed(
-          new Response(
-            JSON.stringify({
-              _tag: "Success",
-              value: { value: token },
-              hydration: {
-                resources: [
-                  {
-                    name: Project.family.options.name,
-                    key: ref.key,
-                    input: "atlas",
-                    state: {
-                      _tag: "Success",
-                      waiting: false,
-                      value: { id: "atlas", name: "Hydrated In App Runtime" },
-                      timestamp: 1,
+    const fetcher: TestFetch = () =>
+      Effect.succeed("transport-ok").pipe(
+        Effect.map(
+          (token) =>
+            new Response(
+              JSON.stringify({
+                _tag: "Success",
+                value: { value: token },
+                hydration: {
+                  resources: [
+                    {
+                      name: Project.family.options.name,
+                      key: ref.key,
+                      input: "atlas",
+                      state: {
+                        _tag: "Success",
+                        waiting: false,
+                        value: { id: "atlas", name: "Hydrated In App Runtime" },
+                        timestamp: 1,
+                      },
                     },
-                  },
-                ],
-              },
-            }),
-            { headers: { "content-type": "application/json" } },
-          ),
+                  ],
+                },
+              }),
+              { headers: { "content-type": "application/json" } },
+            ),
         ),
       );
 
     try {
       await runInRuntime(appRuntime, Resource.preload(ref));
-      await runInRuntime(transportRuntime, Resource.preload(ref));
+      await runInRuntime(otherRuntime, Resource.preload(ref));
 
       await expect(
         Effect.runPromise(
@@ -3674,7 +3576,6 @@ describe("Sunfall Arc Start", () => {
             {
               fetch: fetcher,
               runtime: appRuntime,
-              transportRuntime,
             },
           ),
         ),
@@ -3689,7 +3590,7 @@ describe("Sunfall Arc Start", () => {
         name: "Hydrated In App Runtime",
       });
       expect(
-        runWithRuntime(transportRuntime, () =>
+        runWithRuntime(otherRuntime, () =>
           AsyncResult.getOrElse(Effect.runSync(Resource.status(ref)).result, () => undefined),
         ),
       ).toEqual({
@@ -3698,7 +3599,7 @@ describe("Sunfall Arc Start", () => {
       });
     } finally {
       await Effect.runPromise(appRuntime.dispose);
-      await Effect.runPromise(transportRuntime.dispose);
+      await Effect.runPromise(otherRuntime.dispose);
     }
   });
 
@@ -3709,7 +3610,7 @@ describe("Sunfall Arc Start", () => {
       output: Schema.Struct({ value: Schema.String }),
       run: ({ value }) => Effect.succeed({ value }),
     });
-    const fetcher: StartFetch = () =>
+    const fetcher: TestFetch = () =>
       Effect.succeed(
         new Response(
           JSON.stringify({
@@ -3728,65 +3629,16 @@ describe("Sunfall Arc Start", () => {
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
-    expect(failure).toBeInstanceOf(ServerTransportError);
+    expect(failure).toBeInstanceOf(ActionTransportError);
     expect(failure).toMatchObject({
       reason: "InvalidResponse",
       message: "Start action response metadata could not be applied.",
     });
   });
 
-  it("normalizes Start action client header and fetch setup throws as transport errors", async () => {
+  it("normalizes Start action HTTP client failures as network transport errors", async () => {
     const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.action.client.transport-setup-throw",
-      input: Schema.Struct({ value: Schema.String }),
-      output: Schema.Struct({ value: Schema.String }),
-      run: ({ value }) => Effect.succeed({ value }),
-    });
-    const headerCause = new Error("headers failed");
-    const fetchCause = new Error("fetcher failed");
-
-    const headerExit = await Effect.runPromiseExit(
-      submitViaActionTransport(
-        Ping,
-        { value: "ok" },
-        {
-          headers: () => {
-            throw headerCause;
-          },
-        },
-      ),
-    );
-    const fetchExit = await Effect.runPromiseExit(
-      submitViaActionTransport(
-        Ping,
-        { value: "ok" },
-        {
-          fetch: () => {
-            throw fetchCause;
-          },
-        },
-      ),
-    );
-    const headerFailure = Exit.isFailure(headerExit) ? firstFailure(headerExit.cause) : undefined;
-    const fetchFailure = Exit.isFailure(fetchExit) ? firstFailure(fetchExit.cause) : undefined;
-
-    expect(headerFailure).toBeInstanceOf(ServerTransportError);
-    expect(headerFailure).toMatchObject({
-      reason: "Network",
-      message: "Could not construct Start transport headers.",
-      cause: headerCause,
-    });
-    expect(fetchFailure).toBeInstanceOf(ServerTransportError);
-    expect(fetchFailure).toMatchObject({
-      reason: "Network",
-      message: "Start action request failed.",
-      cause: fetchCause,
-    });
-  });
-
-  it("rejects Promise-shaped Start action client headers as transport errors", async () => {
-    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
-      name: "Start.action.client.promise-headers",
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
       run: ({ value }) => Effect.succeed({ value }),
@@ -3797,17 +3649,18 @@ describe("Sunfall Arc Start", () => {
         Ping,
         { value: "ok" },
         {
-          headers: (() => Promise.resolve({ authorization: "Bearer token" })) as never,
+          fetch: () => {
+            throw new Error("fetcher failed");
+          },
         },
       ),
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 
-    expect(failure).toBeInstanceOf(ServerTransportError);
+    expect(failure).toBeInstanceOf(ActionTransportError);
     expect(failure).toMatchObject({
       reason: "Network",
-      message: "Could not construct Start transport headers.",
-      cause: expect.any(EffectInputPromiseRejected),
+      message: "Start action request failed.",
     });
   });
 
@@ -3852,7 +3705,7 @@ describe("Sunfall Arc Start", () => {
     });
     const clientRuntime = makeRuntime();
     const ref = Project("atlas");
-    const fetcher: StartFetch = (input, init) => {
+    const fetcher: TestFetch = (input, init) => {
       const url =
         input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
       return Effect.orDie(Effect.scoped(handler(new Request(url, init))));
@@ -3923,7 +3776,7 @@ describe("Sunfall Arc Start", () => {
     });
     const clientRuntime = makeRuntime();
     const ref = Project("atlas");
-    const fetcher: StartFetch = (input, init) =>
+    const fetcher: TestFetch = (input, init) =>
       Effect.orDie(
         Effect.scoped(
           Effect.gen(function* () {
@@ -3987,12 +3840,16 @@ describe("Sunfall Arc Start", () => {
     const handler = createStartRequestHandler(app, {
       actions: [Ping],
     });
-    const fetcher: StartFetch = (input, init) => {
+    const fetcher: TestFetch = (input, init) => {
       const url =
         input instanceof Request ? input.url : new URL(String(input), "https://example.com").href;
       return Effect.orDie(Effect.scoped(handler(new Request(url, init))));
     };
-    const runtime = makeRuntime(makeActionTransportLayer({ fetch: fetcher, actions: [Ping] }));
+    const runtime = makeRuntime(
+      makeActionTransportLayer({ actions: [Ping] }).pipe(
+        Layer.provide(testHttpClientLayer(fetcher)),
+      ),
+    );
     const action = Action.use(Ping, { runtime });
 
     try {
@@ -4028,7 +3885,7 @@ describe("Sunfall Arc Start", () => {
       },
       run: ({ value }) => Effect.succeed({ value }),
     });
-    const fetcher: StartFetch = () =>
+    const fetcher: TestFetch = () =>
       Effect.gen(function* () {
         const requestNumber = ++requests;
         yield* Deferred.await(release);
@@ -4044,7 +3901,11 @@ describe("Sunfall Arc Start", () => {
           },
         );
       });
-    const runtime = makeRuntime(makeActionTransportLayer({ fetch: fetcher, actions: [Ping] }));
+    const runtime = makeRuntime(
+      makeActionTransportLayer({ actions: [Ping] }).pipe(
+        Layer.provide(testHttpClientLayer(fetcher)),
+      ),
+    );
     const action = Action.use(Ping, { runtime });
 
     try {
@@ -4166,7 +4027,7 @@ describe("Sunfall Arc Start", () => {
           headers: { "content-type": "application/json" },
         },
       );
-    const fetcher: StartFetch = () =>
+    const fetcher: TestFetch = () =>
       Effect.gen(function* () {
         requests += 1;
         const current = requests;
@@ -4179,7 +4040,9 @@ describe("Sunfall Arc Start", () => {
         return responseFor("Second", 2);
       });
     const runtime = makeRuntime(
-      makeActionTransportLayer({ fetch: fetcher, actions: [RenameProject] }),
+      makeActionTransportLayer({ actions: [RenameProject] }).pipe(
+        Layer.provide(testHttpClientLayer(fetcher)),
+      ),
     );
     const action = Action.use(RenameProject, { runtime });
 

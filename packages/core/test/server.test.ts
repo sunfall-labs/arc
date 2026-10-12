@@ -9,11 +9,7 @@ describe("Server contracts", () => {
     name: Schema.String,
   });
 
-  const GetUser = Server.contract<
-    { readonly id: string },
-    { readonly id: string; readonly name: string },
-    never
-  >("Test.User.get", {
+  const GetUser = Server.contract("Test.User.get", {
     input: Schema.Struct({ id: Schema.String }),
     output: User,
   });
@@ -73,9 +69,12 @@ describe("Server contracts", () => {
     ));
 
   it("captures synchronous local handler throws in the Effect error channel", () => {
-    const Broken = Server.implement(Server.contract<void, string>("Test.Broken.local"), () => {
-      throw new Error("handler failed");
-    });
+    const Broken = Server.implement(
+      Server.contract("Test.Broken.local", { input: Schema.Void, output: Schema.String }),
+      () => {
+        throw new Error("handler failed");
+      },
+    );
 
     return Effect.runPromise(
       Effect.exit(Broken.effect(undefined)).pipe(
@@ -128,13 +127,11 @@ describe("Server contracts", () => {
     ));
 
   it("validates mock failures against the contract error schema", () => {
-    const FailingUser = Server.contract<void, string, { readonly code: string }>(
-      "Test.User.mockFailure",
-      {
-        output: Schema.String,
-        error: Schema.Struct({ code: Schema.String }),
-      },
-    );
+    const FailingUser = Server.contract("Test.User.mockFailure", {
+      input: Schema.Void,
+      output: Schema.String,
+      error: Schema.Struct({ code: Schema.String }),
+    });
     const failingUser = Server.client(FailingUser);
 
     return Effect.runPromise(
@@ -167,13 +164,11 @@ describe("Server contracts", () => {
   });
 
   it("validates local client failures against the contract error schema", () => {
-    const FailingUser = Server.contract<void, string, { readonly code: string }>(
-      "Test.User.localFailure",
-      {
-        output: Schema.String,
-        error: Schema.Struct({ code: Schema.String }),
-      },
-    );
+    const FailingUser = Server.contract("Test.User.localFailure", {
+      input: Schema.Void,
+      output: Schema.String,
+      error: Schema.Struct({ code: Schema.String }),
+    });
     const failingUser = Server.client(FailingUser);
     Server.implement(FailingUser, () =>
       Effect.as(
@@ -202,7 +197,7 @@ describe("Server contracts", () => {
   });
 
   it("dispatches local clients through explicit registry snapshots", () => {
-    const EchoContract = Server.contract<string, string>("Test.Server.localClient.registry", {
+    const EchoContract = Server.contract("Test.Server.localClient.registry", {
       input: Schema.String,
       output: Schema.String,
     });

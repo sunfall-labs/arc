@@ -12,14 +12,10 @@
 
 ## Define the browser-safe contract
 
-Start with a shared contract. This module is safe for the browser because it only exports schemas, error types, and the typed client handle.
+Start with a shared contract. This module is safe for the browser because it only exports schemas, error types, and the typed client handle. The `input` and `output` schemas are required (`error` defaults to `Schema.Never`): the contract is an `effect/rpc` `Rpc`, and its types come from the schemas.
 
 ```ts
-export const GetProjectContract = Server.contract<
-  { readonly id: ProjectId },
-  Project,
-  ProjectError
->("Project.get", {
+export const GetProjectContract = Server.contract("Project.get", {
   input: Schema.Struct({ id: ProjectId }),
   output: ProjectSchema,
   error: ProjectErrorSchema,

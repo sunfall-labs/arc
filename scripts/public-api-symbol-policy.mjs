@@ -139,7 +139,15 @@ export const publicHoverDocGroups = [
   },
   {
     file: "packages/core/src/action-transport.ts",
-    declarations: ["ActionTransportSubmission", "ActionTransportResponse", "ActionTransport"],
+    declarations: [
+      "ActionTransportError",
+      "ActionProtocolError",
+      "ActionNotFound",
+      "ActionClientError",
+      "ActionTransportResponse",
+      "ActionTransportSubmission",
+      "ActionTransport",
+    ],
   },
   {
     file: "packages/core/src/action-outbox.ts",
@@ -550,7 +558,11 @@ export const publicHoverDocGroups = [
   },
   {
     file: "packages/start/src/start-action-request-codec.ts",
-    declarations: ["StartActionFormOptions", "StartActionFormEncodeError"],
+    declarations: [
+      "StartActionFormOptions",
+      "StartActionFormEncodeError",
+      "StartActionDuplicateName",
+    ],
   },
   {
     file: "packages/start/src/start-action-client.ts",
@@ -581,10 +593,6 @@ export const publicHoverDocGroups = [
   {
     file: "packages/start/src/hydration.ts",
     declarations: ["HydrateFromDocumentOptions"],
-  },
-  {
-    file: "packages/start/src/start-transport-protocol.ts",
-    declarations: ["StartActionDuplicateName"],
   },
   {
     file: "packages/start/src/start-manifest-wall.ts",
