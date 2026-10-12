@@ -1,14 +1,12 @@
 import { Cause, Effect, Exit, Schema } from "effect";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import {
-  defineApp,
   EffectInputCallbackError,
   EffectInputPromiseRejected,
   RequestContext,
   Resource,
   ResponseCookieSerializationError,
   ResponseContext,
-  route,
   Route,
   RouteNavigationError,
   RoutePreloadError,
@@ -16,6 +14,7 @@ import {
   type RoutePreloadFailureEncoding,
   Server,
   ServerRouteHandlerError,
+  App,
 } from "../src/index.js";
 import {
   buildRoutePath,
@@ -31,21 +30,21 @@ import {
 
 describe("route", () => {
   it("builds typed hrefs", () => {
-    const ProjectRoute = route("/projects/:id", {});
+    const ProjectRoute = Route.define("/projects/:id", {});
 
     expect(Route.href(ProjectRoute, { params: { id: "abc" } })).toBe("/projects/abc");
     expect(Route.href(ProjectRoute, { params: { id: "a b" } })).toBe("/projects/a%20b");
   });
 
   it("matches routes without an options object", () => {
-    const ProjectRoute = route("/projects/:id");
+    const ProjectRoute = Route.define("/projects/:id");
 
     expect(Route.href(ProjectRoute, { params: { id: "atlas" } })).toBe("/projects/atlas");
     expect(ProjectRoute.match("/projects/atlas")?.params).toEqual({ id: "atlas" });
   });
 
   it("infers route props", () => {
-    const ProjectRoute = route("/projects/:id", {});
+    const ProjectRoute = Route.define("/projects/:id", {});
 
     expectTypeOf<Route.Props<typeof ProjectRoute>>().toMatchTypeOf<{
       readonly params: { readonly id: string };
@@ -55,8 +54,8 @@ describe("route", () => {
   });
 
   it("builds and matches optional route params", () => {
-    const MaybeProjectRoute = route("/projects/:id?", {});
-    const NestedMaybeProjectRoute = route("/projects/:id?/settings", {});
+    const MaybeProjectRoute = Route.define("/projects/:id?", {});
+    const NestedMaybeProjectRoute = Route.define("/projects/:id?/settings", {});
 
     expect(Route.href(MaybeProjectRoute)).toBe("/projects");
     expect(Route.href(MaybeProjectRoute, { params: {} })).toBe("/projects");
@@ -75,7 +74,7 @@ describe("route", () => {
   });
 
   it("builds static route hrefs without an options object", () => {
-    const HomeRoute = route("/", {});
+    const HomeRoute = Route.define("/", {});
 
     expect(Route.href(HomeRoute)).toBe("/");
     expect(Route.href(HomeRoute, {})).toBe("/");
@@ -115,8 +114,8 @@ describe("route", () => {
   });
 
   it("defines client-only apps", () => {
-    const Home = route("/", {});
-    const app = defineApp({
+    const Home = Route.define("/", {});
+    const app = App.define({
       routes: [Home],
       client: {},
     });
@@ -125,7 +124,7 @@ describe("route", () => {
   });
 
   it("matches route params and search", () => {
-    const ProjectRoute = route("/projects/:id", {
+    const ProjectRoute = Route.define("/projects/:id", {
       params: Schema.Struct({ id: Schema.String }),
       search: Schema.Struct({ tab: Schema.optional(Schema.Literal("activity")) }),
     });
@@ -138,8 +137,8 @@ describe("route", () => {
   });
 
   it("matches static routes before dynamic routes when caller order is reversed", () => {
-    const ProjectRoute = route("/projects/:id", {});
-    const ProjectSettingsRoute = route("/projects/settings", {});
+    const ProjectRoute = Route.define("/projects/:id", {});
+    const ProjectSettingsRoute = Route.define("/projects/settings", {});
 
     const match = Route.match([ProjectRoute, ProjectSettingsRoute] as const, "/projects/settings");
 
@@ -148,8 +147,8 @@ describe("route", () => {
   });
 
   it("keeps caller order for same-specificity dynamic routes", () => {
-    const ProjectBySlugRoute = route("/projects/:slug", {});
-    const ProjectByIdRoute = route("/projects/:id", {});
+    const ProjectBySlugRoute = Route.define("/projects/:slug", {});
+    const ProjectByIdRoute = Route.define("/projects/:id", {});
 
     const match = Route.match([ProjectBySlugRoute, ProjectByIdRoute] as const, "/projects/atlas");
 
@@ -159,7 +158,7 @@ describe("route", () => {
 
   it("runs route preload as an Effect", () => {
     let preloaded = "";
-    const ProjectRoute = route("/projects/:id", {
+    const ProjectRoute = Route.define("/projects/:id", {
       preload: ({ params }) =>
         Effect.sync(() => {
           preloaded = params.id;
@@ -168,7 +167,7 @@ describe("route", () => {
     const match = ProjectRoute.match("/projects/atlas");
 
     expect(match).toBeDefined();
-    const effect = Route.preloadEffect(match!);
+    const effect = Route.preload(match!);
     expect(preloaded).toBe("");
 
     return Effect.runPromise(
@@ -180,7 +179,7 @@ describe("route", () => {
   });
 
   it("reports synchronous preload throws as defects inside the returned Effect", () => {
-    const ProjectRoute = route("/projects/:id", {
+    const ProjectRoute = Route.define("/projects/:id", {
       preload: () => {
         throw "preload-failed";
       },
@@ -190,7 +189,7 @@ describe("route", () => {
     expect(match).toBeDefined();
     let effect: Effect.Effect<void, RoutePreloadError> | undefined;
     expect(() => {
-      effect = Route.preloadEffect(match!);
+      effect = Route.preload(match!);
     }).not.toThrow();
 
     return Effect.runPromise(
@@ -210,7 +209,7 @@ describe("route", () => {
   });
 
   it("reports erased Promise-shaped preload returns as defects", () => {
-    const ProjectRoute = route("/projects/:id", {
+    const ProjectRoute = Route.define("/projects/:id", {
       preload: () => Promise.resolve(undefined) as never,
     });
     const match = ProjectRoute.match("/projects/atlas");
@@ -218,7 +217,7 @@ describe("route", () => {
     expect(match).toBeDefined();
 
     return Effect.runPromise(
-      Effect.exit(Route.preloadEffect(match!)).pipe(
+      Effect.exit(Route.preload(match!)).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
             expect(Exit.isFailure(exit)).toBe(true);
@@ -238,13 +237,13 @@ describe("route", () => {
       class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
         id: Schema.String,
       }) {}
-      const ProjectRoute = route("/projects/:id", {
+      const ProjectRoute = Route.define("/projects/:id", {
         error: ProjectNotFound,
         preload: ({ params }) => Effect.fail(new ProjectNotFound({ id: params.id })),
       });
       const match = ProjectRoute.match("/projects/atlas")!;
 
-      const error = yield* Effect.flip(Route.preloadEffect(match));
+      const error = yield* Effect.flip(Route.preload(match));
       expectTypeOf(error).toEqualTypeOf<RoutePreloadError<ProjectNotFound>>();
       expect(error.cause).toBeInstanceOf(ProjectNotFound);
       expect(error.cause.id).toBe("atlas");
@@ -259,15 +258,15 @@ describe("route", () => {
         id: Schema.String,
         at: Schema.Date,
       }) {}
-      const ProjectRoute = route("/projects/:id", {
+      const ProjectRoute = Route.define("/projects/:id", {
         error: ProjectNotFound,
         preload: ({ params }) =>
           Effect.fail(new ProjectNotFound({ id: params.id, at: new Date(0) })),
       });
       const match = ProjectRoute.match("/projects/atlas")!;
-      const error = yield* Effect.flip(Route.preloadEffect(match));
+      const error = yield* Effect.flip(Route.preload(match));
 
-      const snapshot = yield* Route.preloadFailureSnapshotEffect(ProjectRoute, error);
+      const snapshot = yield* Route.preloadFailureSnapshot(ProjectRoute, error);
       expect(snapshot).toEqual({
         path: "/projects/:id",
         href: "/projects/atlas",
@@ -290,12 +289,12 @@ describe("route", () => {
       class ProjectMissing extends Schema.TaggedError<ProjectMissing>()("ProjectMissing", {
         secret: Schema.String,
       }) {}
-      const ProjectRoute = route("/projects/:id", {
+      const ProjectRoute = Route.define("/projects/:id", {
         preload: () => Effect.fail(new ProjectMissing({ secret: "db-host" })),
       });
-      const error = yield* Effect.flip(Route.preloadEffect(ProjectRoute.match("/projects/atlas")!));
+      const error = yield* Effect.flip(Route.preload(ProjectRoute.match("/projects/atlas")!));
 
-      const snapshot = yield* Route.preloadFailureSnapshotEffect(ProjectRoute, error);
+      const snapshot = yield* Route.preloadFailureSnapshot(ProjectRoute, error);
       expect(snapshot.failure).toEqual({ _tag: "Untyped", tag: "ProjectMissing" });
       const decoded = Route.preloadFailureCauseFromSnapshot(ProjectRoute, snapshot).reasons.find(
         Cause.isFailReason,
@@ -308,13 +307,13 @@ describe("route", () => {
       class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
         id: Schema.String,
       }) {}
-      const ProjectRoute = route("/projects/:id", {
+      const ProjectRoute = Route.define("/projects/:id", {
         error: ProjectNotFound,
         preload: () => Effect.fail("not-a-project-not-found" as never),
       });
-      const error = yield* Effect.flip(Route.preloadEffect(ProjectRoute.match("/projects/atlas")!));
+      const error = yield* Effect.flip(Route.preload(ProjectRoute.match("/projects/atlas")!));
 
-      const snapshot = yield* Route.preloadFailureSnapshotEffect(ProjectRoute, error);
+      const snapshot = yield* Route.preloadFailureSnapshot(ProjectRoute, error);
       expect(snapshot.failure).toEqual({ _tag: "Unencodable" });
       expect(JSON.stringify(snapshot)).not.toContain("not-a-project-not-found");
 
@@ -341,7 +340,7 @@ describe("route", () => {
     class ProjectNotFound extends Schema.TaggedError<ProjectNotFound>()("ProjectNotFound", {
       id: Schema.String,
     }) {}
-    route("/projects/:id", {
+    Route.define("/projects/:id", {
       error: ProjectNotFound,
       // @ts-expect-error preload may fail only with the route error schema's type
       preload: () => Effect.fail("missing"),
@@ -349,16 +348,16 @@ describe("route", () => {
   });
 
   it("plans route preload resources and hydration payloads", () => {
-    const Project = Resource.family<string, { readonly id: string; readonly name: string }>({
+    const Project = Resource.define<string, { readonly id: string; readonly name: string }>({
       name: "Route.Project.plan",
       load: (id) => Effect.succeed({ id, name: "Atlas" }),
     });
-    const ProjectRoute = route("/projects/:id", {
-      preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
+    const ProjectRoute = Route.define("/projects/:id", {
+      preload: ({ params }) => Resource.preload(Project(params.id)),
     });
 
     return Effect.runPromise(
-      Route.planNavigationEffect([ProjectRoute] as const, "/projects/atlas").pipe(
+      Route.planNavigation([ProjectRoute] as const, "/projects/atlas").pipe(
         Effect.tap((plan) =>
           Effect.sync(() => {
             expect(plan._tag).toBe("Matched");
@@ -372,7 +371,7 @@ describe("route", () => {
                 value: { id: "atlas", name: "Atlas" },
               },
             });
-            expect(Effect.runSync(Resource.readEffect(Project("atlas")))).toEqual({
+            expect(Effect.runSync(Resource.read(Project("atlas")))).toEqual({
               id: "atlas",
               name: "Atlas",
             });
@@ -385,11 +384,11 @@ describe("route", () => {
 
   it("describes declared route preload resource families without executing preload", () => {
     let ran = false;
-    const Project = Resource.family({
+    const Project = Resource.define({
       name: "Route.Project.preload-diagnostics",
       load: (id: string) => Effect.succeed({ id }),
     });
-    const ProjectRoute = route("/projects/:id", {
+    const ProjectRoute = Route.define("/projects/:id", {
       preloadResources: [Project, Project("atlas"), "Route.Project.extra"],
       preloadCollections: [{ name: "Route.Project.collection" }, "Route.Project.collection.extra"],
       preload: () =>
@@ -397,10 +396,10 @@ describe("route", () => {
           ran = true;
         }),
     });
-    const UnknownRoute = route("/unknown", {
+    const UnknownRoute = Route.define("/unknown", {
       preload: () => Effect.void,
     });
-    const PlainRoute = route("/plain", {});
+    const PlainRoute = Route.define("/plain", {});
 
     expect(Route.preloadResourceFamilies(ProjectRoute)).toEqual([
       "Route.Project.extra",
@@ -438,10 +437,10 @@ describe("route", () => {
   });
 
   it("plans not found routes without running preload", () => {
-    const Home = route("/", {});
+    const Home = Route.define("/", {});
 
     return Effect.runPromise(
-      Route.planNavigationEffect([Home] as const, "/missing").pipe(
+      Route.planNavigation([Home] as const, "/missing").pipe(
         Effect.tap((plan) =>
           Effect.sync(() =>
             expect(plan).toEqual({
@@ -459,7 +458,7 @@ describe("route", () => {
   });
 
   it("captures route schema decode failures inside navigation effects", () => {
-    const ProjectRoute = route("/projects/:id", {
+    const ProjectRoute = Route.define("/projects/:id", {
       params: Schema.Struct({ id: Schema.Number }),
     });
 
@@ -467,7 +466,7 @@ describe("route", () => {
       | Effect.Effect<Route.NavigationPlan<typeof ProjectRoute>, Route.NavigationError>
       | undefined;
     expect(() => {
-      effect = Route.planNavigationEffect([ProjectRoute] as const, "/projects/atlas");
+      effect = Route.planNavigation([ProjectRoute] as const, "/projects/atlas");
     }).not.toThrow();
 
     return Effect.runPromise(
@@ -484,7 +483,7 @@ describe("route", () => {
   });
 
   it("captures route schema decode failures inside match effects", () => {
-    const ProjectRoute = route("/projects/:id", {
+    const ProjectRoute = Route.define("/projects/:id", {
       params: Schema.Struct({ id: Schema.Number }),
     });
 
@@ -502,8 +501,8 @@ describe("route", () => {
   });
 
   it("captures route grammar failures inside match effects", () => {
-    const DuplicateParamRoute = route("/projects/:id/:id", {});
-    const InvalidParamRoute = route("/invalid-projects/:123", {});
+    const DuplicateParamRoute = Route.define("/projects/:id/:id", {});
+    const InvalidParamRoute = Route.define("/invalid-projects/:123", {});
 
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -525,7 +524,7 @@ describe("route", () => {
   });
 
   it("keeps schema decode failures synchronous for match helpers", () => {
-    const ProjectRoute = route("/projects/:id", {
+    const ProjectRoute = Route.define("/projects/:id", {
       params: Schema.Struct({ id: Schema.Number }),
     });
 
@@ -588,12 +587,12 @@ describe("Server", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const response = yield* Server.handleRouteEffect(
+        const response = yield* Server.handleRoute(
           serverRoute,
           new Request("https://example.com/hello"),
         );
         const responseText = yield* Effect.promise(() => response.text());
-        const effectResponse = yield* Server.handleRouteEffect(
+        const effectResponse = yield* Server.handleRoute(
           serverRoute,
           new Request("https://example.com/effect"),
         );
@@ -616,7 +615,7 @@ describe("Server", () => {
 
     let effect: Effect.Effect<Response, ServerRouteHandlerError> | undefined;
     expect(() => {
-      effect = Server.handleRouteEffect(serverRoute, new Request("https://example.com/hello"));
+      effect = Server.handleRoute(serverRoute, new Request("https://example.com/hello"));
     }).not.toThrow();
     expect(called).toBe(0);
 
@@ -656,7 +655,7 @@ describe("Server", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const response = yield* Server.handleRouteEffect(
+        const response = yield* Server.handleRoute(
           serverRoute,
           new Request("https://example.com/login"),
         );
@@ -689,7 +688,7 @@ describe("Server", () => {
           ),
         );
         const failure = yield* Effect.flip(
-          Server.handleRouteEffect(serverRoute, new Request("https://example.com/bad-cookie")),
+          Server.handleRoute(serverRoute, new Request("https://example.com/bad-cookie")),
         );
 
         expect(failure).toBeInstanceOf(ResponseCookieSerializationError);
@@ -709,7 +708,7 @@ describe("Server", () => {
 
     return Effect.runPromise(
       Effect.flip(
-        Server.handleRouteEffect(
+        Server.handleRoute(
           serverRoute,
           new Request("https://example.com/cookies", {
             headers: {
@@ -746,9 +745,7 @@ describe("Server", () => {
     );
 
     return Effect.runPromise(
-      Effect.flip(
-        Server.handleRouteEffect(serverRoute, new Request("https://example.com/cookies")),
-      ).pipe(
+      Effect.flip(Server.handleRoute(serverRoute, new Request("https://example.com/cookies"))).pipe(
         Effect.tap((error) =>
           Effect.sync(() => {
             expect(error).toBeInstanceOf(ResponseCookieSerializationError);
@@ -774,9 +771,7 @@ describe("Server", () => {
     );
 
     return Effect.runPromise(
-      Effect.flip(
-        Server.handleRouteEffect(serverRoute, new Request("https://example.com/headers")),
-      ).pipe(
+      Effect.flip(Server.handleRoute(serverRoute, new Request("https://example.com/headers"))).pipe(
         Effect.tap((error) =>
           Effect.sync(() => {
             expect(error).toBeInstanceOf(ServerRouteHandlerError);
@@ -802,9 +797,7 @@ describe("Server", () => {
     );
 
     return Effect.runPromise(
-      Effect.flip(
-        Server.handleRouteEffect(serverRoute, new Request("https://example.com/status")),
-      ).pipe(
+      Effect.flip(Server.handleRoute(serverRoute, new Request("https://example.com/status"))).pipe(
         Effect.tap((error) =>
           Effect.sync(() => {
             expect(error).toBeInstanceOf(ServerRouteHandlerError);

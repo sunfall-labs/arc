@@ -301,10 +301,9 @@ describe("project console SSR", () => {
     expect(generatedRoutes).toContain(
       'const route_projects_$id_path: "/projects/:id" = route_projects_$id.path;',
     );
-    expect(generatedRoutes).toContain('  "/projects/:id": route_projects_$id');
-    expect(generatedRoutes).toContain("export const hrefByPath");
+    expect(generatedRoutes).toContain("  route_projects_$id: route_projects_$id,");
+    expect(generatedRoutes).not.toContain("ByPath");
     expect(generatedRoutes).toContain("export type FileRouteHrefOptions<Id extends FileRouteId>");
-    expect(generatedRoutes).toContain("export type FileRouteMatch<Path extends FileRoutePath>");
     expect(bundleText).not.toContain("seedProjects");
     expect(bundleText).not.toContain("Move invoice preview");
     expect(bundleText).not.toContain("Webhook replay still manual");

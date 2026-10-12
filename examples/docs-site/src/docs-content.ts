@@ -157,7 +157,7 @@ export const docsPages = [
         language: "tsx",
         code: `export const ProjectApi = Capability.define<ProjectApi>("ProjectApi");
 
-export const ProjectById = Resource.family({
+export const ProjectById = Resource.define({
   name: "Project.byId",
   input: ProjectId,
   output: ProjectSchema,
@@ -172,10 +172,10 @@ export const ProjectById = Resource.family({
       {
         _tag: "Code",
         language: "tsx",
-        code: `export const Route = defineFileRoute("/projects/:id")({
+        code: `export const Route = FileRoute.define("/projects/:id")({
   params: ProjectRouteParams,
   preloadResources: [ProjectById],
-  preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id)),
+  preload: ({ params }) => Resource.preload(ProjectById(params.id)),
 });`,
       },
       {
@@ -188,7 +188,7 @@ export const ProjectById = Resource.family({
         code: `import { Component } from "@sunfall/arc-solid";
 import { Loading } from "solid-js";
 
-const ProjectPage = Component.make("ProjectPage", function* (
+const ProjectPage = Component.define("ProjectPage", function* (
   props: Route.Props<typeof ProjectRoute>,
 ) {
   // The family's load error joins E and its services join R.
@@ -331,7 +331,7 @@ createServer(
       },
       {
         _tag: "Paragraph",
-        text: "Make sure the file route declares the Resource or Collection it owns with preloadResources / preloadCollections in defineFileRoute(path)(options). Start diagnostics can require those declarations at build time.",
+        text: "Make sure the file route declares the Resource or Collection it owns with preloadResources / preloadCollections in FileRoute.define(path)(options). Start diagnostics can require those declarations at build time.",
       },
       {
         _tag: "Heading",

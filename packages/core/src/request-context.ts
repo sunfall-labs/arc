@@ -107,7 +107,7 @@ const parseCookies = (header: string | null): ReadonlyMap<string, string> => {
 };
 
 /** Creates the request service value and reports host parsing failures as typed Effects. */
-export const makeRequestContextEffect = (
+export const makeRequestContext = (
   request: Request,
 ): Effect.Effect<RequestContext, EffectInputCallbackError> =>
   Effect.try({
@@ -244,7 +244,7 @@ const serializeResponseCookieResult = (
 };
 
 /** Serializes a cookie name, value, and attributes for a `Set-Cookie` header. */
-export const serializeResponseCookieEffect = (
+export const serializeResponseCookie = (
   name: string,
   value: string,
   options: ResponseCookieOptions = {},
@@ -318,14 +318,14 @@ export const makeResponseContext = (): ResponseContext => {
           }),
       }),
     setCookie: (name, value, options) =>
-      Effect.flatMap(serializeResponseCookieEffect(name, value, options), (cookie) =>
+      Effect.flatMap(serializeResponseCookie(name, value, options), (cookie) =>
         Effect.sync(() => {
           cookies.push(cookie);
         }),
       ),
     deleteCookie: (name, options) =>
       Effect.flatMap(
-        serializeResponseCookieEffect(name, "", {
+        serializeResponseCookie(name, "", {
           ...options,
           expires: new Date(0),
           maxAge: 0,
@@ -360,7 +360,7 @@ const applyResponseContextUnsafe = (context: ResponseContext, response: Response
 };
 
 /** Applies accumulated response metadata and reports host failures as typed Effects. */
-export const applyResponseContextEffect = (
+export const applyResponseContext = (
   context: ResponseContext,
   response: Response,
 ): Effect.Effect<Response, EffectInputCallbackError> =>
@@ -381,7 +381,7 @@ export const provideRequest =
   <A, E, R>(
     effect: Effect.Effect<A, E, R>,
   ): Effect.Effect<A, E | EffectInputCallbackError, Exclude<R, RequestContext>> =>
-    Effect.flatMap(makeRequestContextEffect(request), (requestContext) =>
+    Effect.flatMap(makeRequestContext(request), (requestContext) =>
       Effect.provideService(effect, RequestContext, requestContext),
     );
 

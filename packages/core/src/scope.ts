@@ -106,7 +106,7 @@ export class UiScope {
    * reverse registration order. Disposal is captured when the Effect runs;
    * host cleanup hooks fork it so the scope closes to new work immediately.
    */
-  disposeEffect(): Effect.Effect<void> {
+  dispose(): Effect.Effect<void> {
     return Effect.suspend(() => this.captureDisposeEffect());
   }
 }
@@ -137,7 +137,7 @@ export interface RuntimeUiScopeFrame<ER = unknown> {
    * Runtime-bound, failure-swallowing disposal. Host cleanup hooks fork it on
    * `runtime`; forking starts synchronously, so the frame closes immediately.
    */
-  disposeEffect(): Effect.Effect<void>;
+  dispose(): Effect.Effect<void>;
 }
 
 /** Creates a runtime-owned UI frame for adapter component or route lifetimes. */
@@ -149,8 +149,7 @@ export const makeRuntimeUiScopeFrame = <ER>(
     runtime,
     scope,
     run: (f) => runWithRuntime(runtime, () => runWithScope(scope, f)),
-    disposeEffect: () =>
-      runtime.provide(scope.disposeEffect()).pipe(Effect.catchCause(() => Effect.void)),
+    dispose: () => runtime.provide(scope.dispose()).pipe(Effect.catchCause(() => Effect.void)),
   };
 };
 

@@ -591,7 +591,7 @@ const collectionTraceState = <RuntimeServices, RuntimeError>(
   collection: Collection.Any,
 ): Pick<StartRequestTraceCollection, "state" | "waiting"> => {
   try {
-    const result = runWithRuntime(runtime, () => collection.state().get());
+    const result = runWithRuntime(runtime, () => collection.result().get());
     return { state: result._tag, waiting: result.waiting };
   } catch {
     return {};
@@ -681,10 +681,6 @@ export const buildStartRequestTrace = (
   };
 };
 
-export const requestRuntimeTeardownSnapshot = <RuntimeServices, RuntimeError>(
-  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
-): StartRequestTraceTeardownSnapshot => runtime.resourceStore.diagnostics.snapshotUnsafe();
-
 export const requestRuntimeDisposeTraceEffect = <RuntimeServices, RuntimeError>(
   runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
 ): Effect.Effect<{
@@ -695,9 +691,9 @@ export const requestRuntimeDisposeTraceEffect = <RuntimeServices, RuntimeError>(
   readonly cleanupFailure?: StartRequestTraceCleanupFailure;
 }> =>
   Effect.gen(function* () {
-    const beforeDispose = requestRuntimeTeardownSnapshot(runtime);
-    const disposeExit = yield* Effect.exit(runtime.disposeEffect);
-    const afterDispose = requestRuntimeTeardownSnapshot(runtime);
+    const beforeDispose = yield* runtime.resourceStore.diagnostics.snapshot;
+    const disposeExit = yield* Effect.exit(runtime.dispose);
+    const afterDispose = yield* runtime.resourceStore.diagnostics.snapshot;
     const completedAt = yield* Clock.currentTimeMillis;
     return {
       runtimeDisposed: Exit.isSuccess(disposeExit),

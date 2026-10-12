@@ -1,12 +1,12 @@
 import { Cause, Data, Deferred, Effect, Exit, Fiber, Layer, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
-  defineApp,
   EffectInputPromiseRejected,
-  route,
   Server,
   ServerClient,
   ServerTransportError,
+  Route,
+  App,
 } from "@sunfall/arc-core";
 import { makeRpcClientLayer, type ServerRpcClientOptions, type StartFetch } from "../src/index.js";
 import {
@@ -40,8 +40,8 @@ const makeRpcClient = (options: ServerRpcClientOptions<any, any, never> = {}): S
 
 const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
-const app = defineApp({
-  routes: [route("/", {})] as const,
+const app = App.define({
+  routes: [Route.define("/", {})] as const,
   client: {},
 });
 

@@ -2,18 +2,13 @@ import {
   type EffectInputCallbackError,
   Resource,
   Route,
-  type AnySunfallArcRuntime,
   type RoutePreloadFailureSnapshot,
-  type SunfallArcRuntime,
   type ResourceHydrationApplyError,
   type ResourceSnapshotCodecError,
   type ResourceHydrationPayload,
   type ResourceHydrationOptions,
 } from "@sunfall/arc-core";
-import {
-  currentOrDefaultRuntime,
-  validateResourceHydrationPayloadEffect,
-} from "@sunfall/arc-core/internal";
+import { validateResourceHydrationPayloadEffect } from "@sunfall/arc-core/internal";
 import { type Collection, CollectionSnapshotCodecError } from "@sunfall/arc-db";
 import {
   dehydrateCollectionsEffect,
@@ -176,18 +171,7 @@ export interface HydrateStartHydrationChunksFromDocumentEffectOptions
 }
 
 /** Effect-first options for reading and applying the document hydration script. */
-export interface HydrateFromDocumentEffectOptions extends HydrateStartHydrationChunksFromDocumentEffectOptions {}
-
-/** Synchronous host-seam options for reading and applying the document hydration script. */
-export interface HydrateFromDocumentOptions<
-  RuntimeServices = never,
-  RuntimeError = never,
-> extends HydrateFromDocumentEffectOptions {
-  /** Runtime used by the synchronous host-seam document hydration facade. */
-  readonly runtime?:
-    | SunfallArcRuntime<RuntimeServices, RuntimeError>
-    | AnySunfallArcRuntime<RuntimeError>;
-}
+export interface HydrateFromDocumentOptions extends HydrateStartHydrationChunksFromDocumentEffectOptions {}
 
 /** Options for preloading request-time collections into the Start hydration payload. */
 export interface PreloadRequestOptions extends StartCollectionHydrationOptions {}
@@ -307,15 +291,6 @@ const streamCollectionHydrateOptions = (
   ...options,
   replace: false,
 });
-
-const runHydrationSync = <A, E, RuntimeServices, RuntimeError>(
-  effect: Effect.Effect<A, E>,
-  runtime:
-    | SunfallArcRuntime<RuntimeServices, RuntimeError>
-    | AnySunfallArcRuntime<RuntimeError>
-    | undefined,
-): A =>
-  (runtime ?? (currentOrDefaultRuntime() as AnySunfallArcRuntime<RuntimeError>)).runSync(effect);
 
 const runStartHydrationTransportSync = <A, E>(effect: Effect.Effect<A, E>): A => {
   const exit = Effect.runSyncExit(effect);
@@ -659,7 +634,7 @@ export const hydrateStartPayloadEffect = (
         collections: payload.collections,
       });
     }
-    yield* Resource.hydrateEffect(payload, options);
+    yield* Resource.hydrate(payload, options);
     if (payload.collections && collections.length > 0) {
       yield* hydrateCollectionsEffect(
         collections,
@@ -668,7 +643,7 @@ export const hydrateStartPayloadEffect = (
       );
     }
     if (payload.routeFailure !== undefined) {
-      yield* Route.hydratePreloadFailureEffect(payload.routeFailure);
+      yield* Route.hydratePreloadFailure(payload.routeFailure);
     }
   });
 
@@ -725,10 +700,10 @@ export const hydrateStartHydrationChunksFromDocumentEffect = (
  * Root payload hydration runs before streamed chunks. Streamed chunks then use
  * the progressive semantics of `hydrateStartHydrationChunksFromDocumentEffect`.
  */
-export const hydrateFromDocumentEffect = (
+export const hydrateFromDocument = (
   document: StartHydrationDocument = globalThis.document,
   id = hydrationScriptId,
-  options: HydrateFromDocumentEffectOptions = {},
+  options: HydrateFromDocumentOptions = {},
 ): Effect.Effect<StartHydrationPayload | undefined, StartHydrationError> =>
   Effect.gen(function* () {
     const payload = yield* readHydrationPayloadEffect(document, id);
@@ -747,11 +722,3 @@ export const hydrateFromDocumentEffect = (
       ...chunks.map((chunk) => chunk.payload),
     ]);
   });
-
-/** Synchronous host-seam facade for full document hydration. */
-export const hydrateFromDocument = <RuntimeServices = never, RuntimeError = never>(
-  document: StartHydrationDocument = globalThis.document,
-  id = hydrationScriptId,
-  options: HydrateFromDocumentOptions<RuntimeServices, RuntimeError> = {},
-): StartHydrationPayload | undefined =>
-  runHydrationSync(hydrateFromDocumentEffect(document, id, options), options.runtime);

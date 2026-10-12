@@ -13,21 +13,21 @@ edge.
 - Public async APIs expose Effect v4 values; Promise interop belongs only at explicit compatibility host/runtime boundaries.
 - Framework callbacks should return `Effect` or a pure value, not `Promise`. Use `Effect.tryPromise` at the edge that talks to a Promise-shaped host API.
 - `async` framework callbacks are a type error for programs, resources, actions, route preloads, Start renderers, server implementations, DB collections, capabilities, and form validators.
-- Program update/on handlers return plain models, `Program.next(...)`, or Effects that produce those values. Use `Program.emit(...)` for follow-up messages and `Program.effect(...)` or lower-level `Program.command(...)` for work that may complete without a message.
+- Program update/on handlers return plain models, `Program.next(...)`, or Effects that produce those values. `Program.emit(...)` is the one command constructor: a message, an Effect that produces one, or an Effect that completes with `void` for work without a message.
 - Domain failures use tagged errors so callers can recover with `Effect.catchTag`.
 - Server request data is provided through Effect services, not globals.
 - Signals are latest-value cells. Use `Signal.values` / `Signal.changes` when temporal semantics matter.
 - Resource and action state may use signals internally, but side effects should be modeled as `Effect`.
-- Route preload should return Effect values, usually `Resource.prefetchEffect(...)`, so stale navigations can be interrupted.
+- Route preload should return Effect values, usually `Resource.preload(...)`, so stale navigations can be interrupted.
 - Retry, cancellation, scheduling, and cleanup should delegate to Effect primitives such as `Schedule`, fiber interruption, and scopes.
 - Resource lifetime work, including GC, should use `Effect.sleep` and fibers rather than host timers.
 - Promise interop is allowed only at UI/runtime boundaries such as Suspense, Web Streams, executable CLIs, and compatibility host adapters.
-- `defineApp({ server })` is the server-side dependency provider for SSR/request work. Prefer an Effect `Layer` there.
+- `App.define({ server })` is the server-side dependency provider for SSR/request work. Prefer an Effect `Layer` there.
 - Start request work uses a fresh Request Runtime with the app services, a request-local `ResourceStore`, and a request-local `Server.localClient(...)`; do not share resource cache state or remote browser RPC clients across SSR requests.
 - Start streamed responses keep the Request Runtime open until the response body closes or is cancelled.
 - Start action requests should run Action Definitions through the Request Runtime; do not create separate mutation handlers that bypass Capability services, schemas, retries, or invalidation.
 - Run application work through `SunfallArcRuntime`; use raw `Effect.runPromise` only in tests or in the runtime implementation itself.
-- Treat `Resource.family(...)` as a Resource Definition. Runtime/request state belongs to `ResourceStore`, reached through the Runtime Spine.
+- Treat `Resource.define(...)` as a Resource Definition. Runtime/request state belongs to `ResourceStore`, reached through the Runtime Spine.
 - Use `Effect.catch`, not the Effect 3 name `catchAll`.
 - Prefer explicit `Resource` / `Action` state and Effect recovery combinators over component-level `try` syntax for first-class APIs.
 - Solid UI is typed `Component`s: runtime state comes from setup-time bindings (`Component.resource`, `action`, `program`, `stream`, `callback`, `router`, `SolidDb.collection` / `liveQuery`) whose services join the Component's `R`, and each instance owns an Effect `Scope`. Use Solid `createEffect` only for imperative DOM sinks; there is no generic `useEffect`.
@@ -71,7 +71,7 @@ type UserId = typeof UserId.Type;
 
 const makeUserId = (id: string): UserId => Schema.decodeUnknownSync(UserId)(id);
 
-const UserById = Resource.family({
+const UserById = Resource.define({
   name: "User.byId",
   input: UserId,
   load: (id: UserId) => Effect.succeed({ id }),
@@ -79,20 +79,20 @@ const UserById = Resource.family({
 
 const ref = UserById(makeUserId("1"));
 
-yield * Resource.prefetchEffect(ref);
+yield * Resource.preload(ref);
 ```
 
-Under the hood, `Resource.family` uses Effect `Cache`: `prefetchEffect` maps to
-cached `get`, `refreshEffect` maps to forced `refresh`, and `gcFor` is the cache
+Under the hood, `Resource.define` uses Effect `Cache`: `preload` maps to
+cached `get`, `refresh` maps to forced `refresh`, and `gcFor` is the cache
 TTL. The cache is owned by the active `ResourceStore`, so separate runtimes,
 tests, and SSR requests do not share resource values or tag indexes.
 Visible resource entry GC uses immediately-started interruptible Effect fibers,
 not raw timers.
-Runtime diagnostics use `Resource.subscribeEventsEffect()` and Effect `PubSub`
+Runtime diagnostics use `Resource.subscribeEvents()` and Effect `PubSub`
 instead of inspecting Resource Store maps directly.
 
 When a family should batch sibling loads, back it with Effect `Request` and
-`RequestResolver` through `Resource.requestFamily`. The Resource layer still owns
+`RequestResolver` through `Resource.define`. The Resource layer still owns
 visible state, TTL, hydration, and invalidation; Effect owns request collection,
 batch grouping, resolver delay, resolver cache/dedupe, and completion.
 
@@ -114,7 +114,7 @@ const userResolver = RequestResolver.make<GetUserRequest>((entries) =>
   }),
 );
 
-const UserById = Resource.requestFamily({
+const UserById = Resource.define({
   name: "User.byId",
   input: UserId,
   request: (id: UserId) => GetUserRequest({ id }),
@@ -136,7 +136,7 @@ const UserTag = Resource.tag<{ readonly id: UserId }>("User", {
   key: ({ id }) => id,
 });
 
-const UserById = Resource.family({
+const UserById = Resource.define({
   name: "User.byId",
   input: UserId,
   load: (id: UserId) => getUser.effect({ id }),
@@ -158,14 +158,14 @@ When debugging, ask the runtime for the plan rather than guessing which cache
 entries will move:
 
 ```ts
-const plan = yield * Action.planInvalidationEffect(RenameUser, user, input);
+const plan = yield * Action.planInvalidation(RenameUser, user, input);
 
 for (const entry of plan.entries) {
   console.log(entry.ref.key, entry.causes);
 }
 ```
 
-`Action.planInvalidationEffect(...)` keeps synchronous `invalidates` callback
+`Action.planInvalidation(...)` keeps synchronous `invalidates` callback
 failures in the typed `EffectInputCallbackError` channel.
 
 SSR hydration must populate both layers:
@@ -178,14 +178,14 @@ yield *
   });
 ```
 
-Start hydration helpers call `Resource.hydrateEffect(payload)` for resource
+Start hydration helpers call `Resource.hydrate(payload)` for resource
 entries and collection hydration for DB snapshots, so the resource signal used
 by components and the Effect cache entry in the active `ResourceStore` update
-together. Use `hydrateFromDocumentEffect(...)` for full browser payloads and
+together. Use `hydrateFromDocument(...)` for full browser payloads and
 `hydrateStartPayloadEffect(...)` for already-parsed payloads.
 
 ```tsx
-const UserCard = Component.make("UserCard", function* (props: { readonly id: UserId }) {
+const UserCard = Component.define("UserCard", function* (props: { readonly id: UserId }) {
   const user = yield* Component.resource(UserById);
   // The reader suspends until the first value, then keeps the view mounted
   // while refreshes update it in place.
@@ -205,7 +205,7 @@ the prior settled result. Do not mirror `AsyncResult` into ad hoc flags; read
 `AsyncResult.value`, `AsyncResult.error`, and `result.waiting` instead.
 
 ```ts
-const UserById = Resource.family({
+const UserById = Resource.define({
   name: "User.byId",
   input: UserId,
   load: (id: UserId) => getUser.effect({ id }),
@@ -238,7 +238,7 @@ const SaveUser = Action.define({
 // runtime-provided ActionTransport when the server serves it.
 const save = yield * Component.action(SaveUser);
 
-yield * save.submitEffect(input);
+yield * save.submit(input);
 ```
 
 Expose progressive actions to Start when the same mutation should work with
@@ -285,7 +285,7 @@ const runtime = makeRuntime(
 
 // In a Component setup: the same handle, local or remote.
 const rename = yield * Component.action(RenameUser);
-yield * rename.submitEffect(input);
+yield * rename.submit(input);
 ```
 
 Start action responses include a serializable invalidation plan and a hydration
@@ -324,7 +324,7 @@ const form = Form.make<typeof RenameProjectInput, ProjectNameTooShort>({
 
 form.setField("name", "Atlas Revenue");
 
-const input = yield * form.validateEffect();
+const input = yield * form.validate();
 ```
 
 Start progressive forms reuse the same schema-backed action request codec as JSON
@@ -350,7 +350,7 @@ const ProjectApiTest = ProjectApi.mock({
   rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
 });
 
-const ProjectById = Resource.family({
+const ProjectById = Resource.define({
   name: "Project.byId",
   input: ProjectId,
   load: (id: ProjectId) => ProjectApi.use((api) => api.get(id)),
@@ -402,23 +402,23 @@ yield * getProjectLegacy.invoke({ id: makeProjectId("atlas") });
 ```
 
 ```ts
-const UserRoute = route("/users/:id", {
+const UserRoute = Route.define("/users/:id", {
   params: Schema.Struct({ id: UserId }),
-  preload: ({ params }) => Resource.prefetchEffect(UserById(params.id)),
+  preload: ({ params }) => Resource.preload(UserById(params.id)),
 });
 
 Route.href(UserRoute, { params: { id: makeUserId("1") } });
 ```
 
 ```ts
-const result = yield * Resource.collectEffect(Route.preloadEffect(match));
-const payload = yield * Resource.hydrationPayloadEffect(result.refs);
+const result = yield * Resource.collect(Route.preload(match));
+const payload = yield * Resource.hydrationPayload(result.refs);
 ```
 
 Prefer route plans when callers need the full navigation data graph:
 
 ```ts
-const plan = yield * Route.planNavigationEffect(routes, "/users/1");
+const plan = yield * Route.planNavigation(routes, "/users/1");
 
 if (plan._tag === "Matched") {
   plan.refs;
@@ -431,7 +431,7 @@ const UsersLive = Layer.succeed(Users)({
   get: (id: string) => Effect.succeed({ id }),
 });
 
-const app = defineApp({
+const app = App.define({
   routes,
   client: BrowserLive,
   server: UsersLive,
@@ -452,7 +452,7 @@ yield * Signal.values(count).pipe(Stream.runForEach((value) => Effect.log(`count
 ```ts
 const presence =
   yield *
-  Signal.fromStreamEffect(presenceStream, {
+  Signal.fromStream(presenceStream, {
     status: "offline",
   });
 
@@ -460,7 +460,7 @@ presence.get();
 ```
 
 ```tsx
-const Title = Component.make("Title", function* () {
+const Title = Component.define("Title", function* () {
   const title = Signal.make("Sunfall Arc");
   // Each call forks in the instance Scope: interrupted when it unmounts.
   const keepAlive = yield* Component.callback(() => Effect.never);

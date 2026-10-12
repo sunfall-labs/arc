@@ -177,7 +177,7 @@ describe("SQLite persistence storage", () => {
       Effect.gen(function* () {
         yield* Effect.scoped(
           first.provide(
-            Projects.applyChangesEffect([
+            Projects.applyChanges([
               {
                 _tag: "Upsert",
                 value: { id: "atlas", name: "Atlas", status: "active", progress: 72 },
@@ -189,9 +189,7 @@ describe("SQLite persistence storage", () => {
             ]),
           ),
         );
-        yield* Effect.scoped(
-          first.provide(Projects.persistEffect(storage, { key: "projects-cache" })),
-        );
+        yield* Effect.scoped(first.provide(Projects.persist(storage, { key: "projects-cache" })));
 
         yield* Effect.sync(() => {
           const row = fake.table("collection_snapshots").row("workspace:a", "projects-cache");
@@ -221,9 +219,7 @@ describe("SQLite persistence storage", () => {
           });
         });
 
-        yield* Effect.scoped(
-          second.provide(Projects.restoreEffect(storage, { key: "projects-cache" })),
-        );
+        yield* Effect.scoped(second.provide(Projects.restore(storage, { key: "projects-cache" })));
 
         yield* Effect.sync(() =>
           expect(
@@ -234,9 +230,7 @@ describe("SQLite persistence storage", () => {
             ),
           ).toEqual(["Atlas", "Lumen"]),
         );
-      }).pipe(
-        Effect.ensuring(Effect.orDie(Effect.andThen(first.disposeEffect, second.disposeEffect))),
-      ),
+      }).pipe(Effect.ensuring(Effect.orDie(Effect.andThen(first.dispose, second.dispose)))),
     );
   });
 

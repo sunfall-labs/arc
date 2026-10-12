@@ -54,7 +54,7 @@ export interface ResourceUiBindingControllerOptions<I, A, E, R, ER> {
  *
  * The Solid adapter owns host reactivity and async rendering. This controller
  * owns the Resource-specific policy that stays host-independent and testable
- * without a renderer: ref identity, runtime-bound refresh/prefetch Effects, automatic
+ * without a renderer: ref identity, runtime-bound refresh/preload Effects, automatic
  * preload fibers, keyed preload failures, observer failure swallowing, stale
  * preload interruption, and retained-ref cleanup.
  */
@@ -64,9 +64,9 @@ export interface ResourceUiBindingController<I, A, E, R, ER> {
     ref: ResourceRef<I, A, E, R>,
   ): ReadableSignal<AsyncResult.AsyncResult<A, ResourceLoadError<E>>>;
   /** Runtime-bound refresh Effect for the supplied ref. */
-  refreshEffect(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E> | ER>;
-  /** Runtime-bound prefetch Effect for the supplied ref. */
-  prefetchEffect(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E> | ER>;
+  refresh(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E> | ER>;
+  /** Runtime-bound preload Effect for the supplied ref. */
+  preload(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E> | ER>;
   /** Marks a ref as current, clearing stale keyed failures and interrupting stale preload joins. */
   bindRef(ref: ResourceRef<I, A, E, R>): void;
   /** Starts the automatic preload when the current Resource state is still initial. */
@@ -75,13 +75,9 @@ export interface ResourceUiBindingController<I, A, E, R, ER> {
     options?: ResourceUiAutoPreloadOptions<E, ER>,
   ): void;
   /** Interrupts the current automatic preload join fiber as an Effect. */
-  interruptPreloadEffect(): Effect.Effect<void>;
-  /** Runtime-owned synchronous convenience for current-ref cleanup hooks. */
-  interruptPreload(): void;
+  interruptPreload(): Effect.Effect<void>;
   /** Disposes controller-owned preload and retained-ref work as an Effect. */
-  disposeEffect(): Effect.Effect<void>;
-  /** Runtime-owned synchronous convenience for UI adapter cleanup hooks. */
-  dispose(): void;
+  dispose(): Effect.Effect<void>;
   /** Returns the current automatic preload failure only when it belongs to `ref`. */
   preloadFailureFor(ref: ResourceRef<I, A, E, R>): ResourceLoadError<E> | ER | undefined;
 }
@@ -109,13 +105,9 @@ export interface ResourceUiSuspensePreloadController<I, A, E, R, ER, Token> {
   /** Interrupts the current preload join when it belongs to a stale ref. */
   interruptStale(ref: ResourceRef<I, A, E, R>): void;
   /** Interrupts the current preload join fiber, if any. */
-  interruptEffect(): Effect.Effect<void>;
-  /** Runtime-owned synchronous convenience for UI adapter interrupt hooks. */
-  interrupt(): void;
+  interrupt(): Effect.Effect<void>;
   /** Disposes controller-owned preload join work as an Effect. */
-  disposeEffect(): Effect.Effect<void>;
-  /** Runtime-owned synchronous convenience for UI adapter cleanup hooks. */
-  dispose(): void;
+  dispose(): Effect.Effect<void>;
 }
 
 /** Resolves a Resource UI ref input to the current Resource ref. */
@@ -348,16 +340,12 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
 
   return {
     result,
-    refreshEffect,
-    prefetchEffect,
+    refresh: refreshEffect,
+    preload: prefetchEffect,
     bindRef,
     startInitialPreload,
-    interruptPreloadEffect,
-    interruptPreload,
-    disposeEffect,
-    dispose: () => {
-      void options.runtime.runFork(disposeCapturedEffect(captureDisposal()));
-    },
+    interruptPreload: interruptPreloadEffect,
+    dispose: disposeEffect,
     preloadFailureFor: (ref) => resourceUiPreloadFailureFor(preloadFailure, ref),
   };
 };
@@ -453,9 +441,7 @@ export const makeResourceUiSuspensePreloadController = <
         interrupt();
       }
     },
-    interruptEffect,
-    interrupt,
-    disposeEffect: interruptEffect,
-    dispose: interrupt,
+    interrupt: interruptEffect,
+    dispose: interruptEffect,
   };
 };

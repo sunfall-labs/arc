@@ -141,7 +141,7 @@ function DocsNav() {
 }
 
 /** The recipe index in the sidebar: suspends until loaded and fails quietly. */
-const RecipeNavList = Component.make("RecipeNavList", function* () {
+const RecipeNavList = Component.define("RecipeNavList", function* () {
   const recipes = yield* Component.resource(RecipeIndex);
   return () => <RecipeNavLinks recipes={recipes("all")} />;
 }).pipe(
@@ -236,7 +236,7 @@ function PageRail(props: { readonly items: ReadonlyArray<PageRailItem> }) {
 }
 
 /** A recipe grid over the shared recipe index Resource. */
-const RecipeIndexGrid = Component.make(
+const RecipeIndexGrid = Component.define(
   "RecipeIndexGrid",
   function* (props: { readonly limit?: number }) {
     const recipes = yield* Component.resource(RecipeIndex);
@@ -247,7 +247,7 @@ const RecipeIndexGrid = Component.make(
   Component.loading(() => <RecipeGridSkeleton />),
 );
 
-const HomeView = Component.make("HomeView", function* () {
+const HomeView = Component.define("HomeView", function* () {
   const Recipes = yield* RecipeIndexGrid;
   return () => (
     <article class="pageStack">
@@ -406,7 +406,7 @@ function DocsListItem(props: { readonly item: string }) {
   );
 }
 
-const CookbookIndexView = Component.make("CookbookIndexView", function* () {
+const CookbookIndexView = Component.define("CookbookIndexView", function* () {
   const Recipes = yield* RecipeIndexGrid;
   return () => (
     <article class="pageStack">
@@ -456,7 +456,7 @@ const blogContractExample = `export const GetIssue = Server.contract<
 
 const blogResourceExample = `export const IssueApi = Capability.define<IssueApi>("IssueApi");
 
-export const IssueById = Resource.family({
+export const IssueById = Resource.define({
   name: "Issue.byId",
   input: IssueId,
   output: IssueSchema,
@@ -485,18 +485,18 @@ const blogEffectTestExample = `const IssueApiTest = IssueApi.layer({
 
 const issue = yield* makeRuntime(IssueApiTest).provide(
   Effect.gen(function* () {
-    yield* Resource.prefetchEffect(IssueById(makeIssueId("ISSUE-42")));
-    return yield* Resource.readEffect(IssueById(makeIssueId("ISSUE-42")));
+    yield* Resource.preload(IssueById(makeIssueId("ISSUE-42")));
+    return yield* Resource.read(IssueById(makeIssueId("ISSUE-42")));
   }),
 );`;
 
-const blogRouteExample = `export const Route = defineFileRoute("/issues/:id")({
+const blogRouteExample = `export const Route = FileRoute.define("/issues/:id")({
   params: IssueRouteParams,
   preloadResources: [IssueById],
-  preload: ({ params }) => Resource.prefetchEffect(IssueById(params.id)),
+  preload: ({ params }) => Resource.preload(IssueById(params.id)),
 });`;
 
-const blogUiExample = `const IssuePage = Component.make("IssuePage", function* (
+const blogUiExample = `const IssuePage = Component.define("IssuePage", function* (
   props: Route.Props<typeof IssueRoute>,
 ) {
   const issue = yield* Component.resource(IssueById);
@@ -857,7 +857,7 @@ function RecipeGrid(props: { readonly recipes: ReadonlyArray<RecipeSummary> }) {
  * suspends the `<Loading>` (route preload and hydration make it synchronous),
  * and refreshes keep the article mounted while `waiting` drives the chrome.
  */
-const RecipeRouteView = Component.make(
+const RecipeRouteView = Component.define(
   "RecipeRouteView",
   function* (props: Route.Props<typeof RecipeRoute>) {
     const recipe = yield* Component.resource(RecipeBySlug);
@@ -985,7 +985,7 @@ function CodeBlock(props: { readonly code: string; readonly language?: string | 
 }
 
 /** Related recipes read the shared index; while it loads or if it fails, nothing shows. */
-const RelatedRecipes = Component.make(
+const RelatedRecipes = Component.define(
   "RelatedRecipes",
   function* (props: { readonly recipe: Recipe }) {
     const recipes = yield* Component.resource(RecipeIndex);
@@ -1080,7 +1080,7 @@ const routes = [
 ] as const;
 
 /** Renders the matched docs view in place, so static navigation swaps content without a blank frame. */
-const DocsRouteOutlet = Component.make("DocsRouteOutlet", function* () {
+const DocsRouteOutlet = Component.define("DocsRouteOutlet", function* () {
   const Home = yield* HomeView;
   const Cookbook = yield* CookbookIndexView;
   const RecipePage = yield* RecipeRouteView;
@@ -1141,7 +1141,7 @@ const DocsRouteOutlet = Component.make("DocsRouteOutlet", function* () {
  * The docs site: one Component tree from the client entry (`launch`) and the
  * server render (`embed`).
  */
-const DocsSite = Component.make(
+const DocsSite = Component.define(
   "DocsSite",
   function* (props: { readonly initialHref?: string; readonly hydratedHref?: string }) {
     const { runtime } = yield* Component.instance;

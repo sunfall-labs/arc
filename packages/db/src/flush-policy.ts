@@ -254,7 +254,7 @@ export const flushCollectionsPendingMutationsEffect = <
           transactions: [],
         });
       } else {
-        const transactions = yield* collection.flushPendingMutationsEffect();
+        const transactions = yield* collection.flushPendingMutations();
         results.push({
           _tag: "Flushed",
           collection: collection.name,

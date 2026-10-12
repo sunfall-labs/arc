@@ -1,4 +1,4 @@
-import { defineApp, type AppDefinitionRegistryInput } from "@sunfall/arc-core";
+import { type AppDefinitionRegistryInput, App } from "@sunfall/arc-core";
 import { DocsContentApiStaticClient } from "./content.js";
 import { routeById, routes } from "./routeTree.gen.js";
 
@@ -23,7 +23,7 @@ export const docsSiteEmptyRegistry = {
 export const createDocsSiteApp = <const RegistryInput extends AppDefinitionRegistryInput>(
   registry: RegistryInput,
 ) =>
-  defineApp({
+  App.define({
     ...docsSiteAppBaseOptions,
     registry,
   });

@@ -13,7 +13,7 @@ export const bindInInstance = <A>(
   binding: Effect.Effect<A, unknown, unknown>,
 ): A => {
   let bound: { readonly value: A } | undefined;
-  const Harness = Component.make("Harness", function* () {
+  const Harness = Component.define("Harness", function* () {
     bound = { value: yield* binding };
     return () => undefined;
   }) as Component<{}, never, never>;

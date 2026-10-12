@@ -142,7 +142,7 @@ export const projectResourceInvalidations = (
   id: ProjectIdType,
 ): readonly Resource.Invalidation[] => [ProjectsTag, ProjectTag({ id })];
 
-export const ProjectList = Resource.family({
+export const ProjectList = Resource.define({
   name: "Projects.list",
   input: Schema.Literal("all"),
   output: Schema.Array(ProjectSummarySchema),
@@ -155,7 +155,7 @@ export const ProjectList = Resource.family({
   },
 });
 
-export const ProjectById = Resource.family({
+export const ProjectById = Resource.define({
   name: "Project.byId",
   input: ProjectIdSchema,
   output: ProjectSchema,
@@ -170,16 +170,13 @@ export const ProjectById = Resource.family({
 
 export const ProjectsRef = ProjectList("all");
 
-export const preloadProjectsEffect = Resource.prefetchEffect(ProjectsRef);
+export const preloadProjectsEffect = Resource.preload(ProjectsRef);
 
 export const preloadProjectRouteEffect = (
   params: ProjectRouteParamsType,
 ): Effect.Effect<void, ProjectRemoteError, ProjectApi> =>
   Effect.asVoid(
-    Effect.all([
-      Resource.prefetchEffect(ProjectsRef),
-      Resource.prefetchEffect(ProjectById(params.id)),
-    ]),
+    Effect.all([Resource.preload(ProjectsRef), Resource.preload(ProjectById(params.id))]),
   );
 
 export const SubmitProjectName = Action.define({

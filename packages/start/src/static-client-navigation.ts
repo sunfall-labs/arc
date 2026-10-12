@@ -215,7 +215,7 @@ export const makeStartStaticHistoryAdapter = <
       };
     },
     createHref: (href) => withStartStaticBasePath(href, basePath),
-    prepareHrefEffect,
+    prepareHref: prepareHrefEffect,
     commit: (href, navigateOptions: BrowserNavigateOptions = {}) => {
       const windowLike = getWindow();
       if (windowLike === undefined) {

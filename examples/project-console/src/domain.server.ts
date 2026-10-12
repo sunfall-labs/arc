@@ -373,12 +373,14 @@ const submitProjectNameEffect = (
   const name = input.name.trim();
 
   if (name.length < 3) {
-    return ActionResult.validationEffect<SubmitProjectNameInput, string>({
-      fieldErrors: {
-        name: ["Use at least three meaningful characters."],
-      },
-      formErrors: [],
-    });
+    return Effect.succeed(
+      ActionResult.validation<SubmitProjectNameInput, string>({
+        fieldErrors: {
+          name: ["Use at least three meaningful characters."],
+        },
+        formErrors: [],
+      }),
+    );
   }
 
   return renameProjectEffect({ id: input.id, name }).pipe(
@@ -387,7 +389,7 @@ const submitProjectNameEffect = (
         ? ActionResult.redirect(input.redirectTo, { status: 303, replace: true })
         : ActionResult.success(project),
     ),
-    Effect.catch((error) => ActionResult.failureEffect(error)),
+    Effect.catch((error) => Effect.succeed(ActionResult.failure(error))),
   );
 };
 

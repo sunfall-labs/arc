@@ -18,7 +18,7 @@ const isProjects: boolean = isCollection(projects);
 const collected: Effect.Effect<
   { readonly definitions: ReadonlyArray<Collection.Any> },
   Collection.RuntimeError
-> = collectCollectionsEffect(projects.preloadEffect());
+> = collectCollectionsEffect(projects.preload());
 const diagnostics: ReadonlyArray<CollectionDefinitionDiagnostics> =
   defaultCollectionDefinitionRegistry.diagnostics().collections;
 const rows: ReadonlyArray<Project> = buildQuery((query) =>

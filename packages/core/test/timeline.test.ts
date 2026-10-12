@@ -138,7 +138,7 @@ describe("Timeline recording", () => {
           }),
           { runtime: defaultRuntime },
         );
-        yield* action.submitEffect("Atlas");
+        yield* action.submit("Atlas");
 
         const program = Program.start(
           Program.define<number, { readonly _tag: "Increment" }>({
@@ -148,15 +148,15 @@ describe("Timeline recording", () => {
           }),
           { runtime: defaultRuntime },
         );
-        yield* program.dispatchEffect({ _tag: "Increment" });
-        yield* program.disposeEffect;
+        yield* program.dispatch({ _tag: "Increment" });
+        yield* program.dispose;
 
-        const Project = Resource.family({
+        const Project = Resource.define({
           name: "Project.get",
           load: (id: string) => Effect.succeed({ id }),
         });
         const ref = Project("atlas");
-        yield* Resource.prefetchEffect(ref);
+        yield* Resource.preload(ref);
 
         expect(Signal.peek(recording.entries).map((entry) => entry.cause)).toEqual([
           { _tag: "Action", action: "Project.rename", event: "submit" },

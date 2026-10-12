@@ -101,7 +101,7 @@ type CollectionSyncReturn<Sync, Key extends PropertyKey> = Sync extends {
 
 type CollectionSyncEffectOutputs<Sync> =
   | CollectionSyncReturn<Sync, "load">
-  | CollectionSyncReturn<Sync, "refetch">
+  | CollectionSyncReturn<Sync, "refresh">
   | CollectionSyncReturn<Sync, "insert">
   | CollectionSyncReturn<Sync, "update">
   | CollectionSyncReturn<Sync, "delete">;
@@ -183,8 +183,9 @@ export {
  *
  * `Collection.define(...)` returns a definition whose methods are the single
  * way to read and write it: synchronous reactive reads (`rows`, `get`,
- * `index`, ...) and `*Effect` methods for loads and writes, which keep errors
- * and service requirements typed in Effect.
+ * `index`, `result`, ...) and Effect-returning methods for loads and writes
+ * (`preload`, `refresh`, `insert`, `update`, `delete`, `applyChanges`, ...),
+ * which keep errors and service requirements typed in Effect.
  */
 export namespace Collection {
   /** Runtime definition returned by `Collection.define(...)`. */
@@ -281,12 +282,12 @@ export namespace Collection {
   export type IndexRecord<A extends object> = CollectionIndexRecord<A>;
   /** Partial row update payload. */
   export type Update<A extends object> = CollectionUpdate<A>;
-  /** Remote row change applied by `applyChangesEffect` or streamed by `sync.changes`. */
+  /** Remote row change applied by `applyChanges` or streamed by `sync.changes`. */
   export type Change<A extends object, K extends CollectionKey = CollectionKey> = CollectionChange<
     A,
     K
   >;
-  /** Origin/synced metadata for `applyChangesEffect`. */
+  /** Origin/synced metadata for `applyChanges`. */
   export type WriteOptions = CollectionWriteOptions;
   /** Durable snapshot for one collection row. */
   export type RowSnapshot<A extends object, K extends CollectionKey> = CollectionRowSnapshot<A, K>;
@@ -442,10 +443,9 @@ export namespace Collection {
     makeLiveQueryCollectionDefinition(options);
 
   /** Flush queued optimistic mutations across many collections. */
-  export const flushAllPendingMutationsEffect = flushCollectionsPendingMutationsEffect;
+  export const flushAllPendingMutations = flushCollectionsPendingMutationsEffect;
   /** Decide whether to flush pending mutations for background sync triggers. */
-  export const backgroundSyncPendingMutationsEffect =
-    backgroundSyncCollectionsPendingMutationsEffect;
+  export const backgroundSyncPendingMutations = backgroundSyncCollectionsPendingMutationsEffect;
 
   /** Create in-memory persistence storage for tests, demos, or ephemeral data. */
   export const memoryStorage = (

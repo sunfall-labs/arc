@@ -5,10 +5,9 @@ import {
   Program,
   Resource,
   ResourceFailure,
-  route,
   Route,
 } from "@sunfall/arc-core";
-import { Cause, Context, Data, Deferred, Effect, Exit, Layer, Option, Stream } from "effect";
+import { Cause, Context, Data, Deferred, Effect, Exit, Fiber, Layer, Option, Stream } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { createComponent, Errored, Loading, render } from "@solidjs/web";
 import { createContext, createRoot, flush, NotReadyError, useContext } from "solid-js";
@@ -40,11 +39,11 @@ describe("Component bindings", () => {
       Effect.runPromise(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          const ProjectById = Resource.family<string, Project>({
+          const ProjectById = Resource.define<string, Project>({
             name: "SolidBindings.sync-read",
             load: (id) => Effect.succeed({ id, name: "Atlas" }),
           });
-          yield* runtime.provide(Resource.prefetchEffect(ProjectById("atlas")));
+          yield* runtime.provide(Resource.preload(ProjectById("atlas")));
 
           let dispose: (() => void) | undefined;
           const value = createRoot((rootDispose) => {
@@ -53,7 +52,7 @@ describe("Component bindings", () => {
           });
           expect(value).toEqual({ id: "atlas", name: "Atlas" });
           dispose?.();
-          yield* runtime.disposeEffect;
+          yield* runtime.dispose;
         }),
       ));
 
@@ -62,12 +61,12 @@ describe("Component bindings", () => {
         Effect.gen(function* () {
           let fail = false;
           const runtime = makeRuntime();
-          const ProjectById = Resource.family<string, Project, string>({
+          const ProjectById = Resource.define<string, Project, string>({
             name: "SolidBindings.stale-failure",
             load: (id) => (fail ? Effect.fail("offline") : Effect.succeed({ id, name: "Atlas" })),
           });
           const ref = ProjectById("atlas");
-          yield* runtime.provide(Resource.prefetchEffect(ref));
+          yield* runtime.provide(Resource.preload(ref));
 
           let dispose: (() => void) | undefined;
           const project = createRoot((rootDispose) => {
@@ -79,14 +78,14 @@ describe("Component bindings", () => {
           expect(project.failure("atlas")).toBeUndefined();
 
           fail = true;
-          yield* Effect.flip(runtime.provide(Resource.refreshEffect(ref)));
+          yield* Effect.flip(runtime.provide(Resource.refresh(ref)));
           flush();
 
           expect(project("atlas")).toEqual({ id: "atlas", name: "Atlas" });
           const failure = project.failure("atlas");
           expect(failure === undefined ? undefined : Cause.squash(failure)).toBe("offline");
           dispose?.();
-          yield* runtime.disposeEffect;
+          yield* runtime.dispose;
         }),
       ));
 
@@ -94,11 +93,11 @@ describe("Component bindings", () => {
       Effect.runPromise(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          const ProjectById = Resource.family<string, Project, string>({
+          const ProjectById = Resource.define<string, Project, string>({
             name: "SolidBindings.first-failure",
             load: () => Effect.fail("offline"),
           });
-          yield* Effect.flip(runtime.provide(Resource.prefetchEffect(ProjectById("atlas"))));
+          yield* Effect.flip(runtime.provide(Resource.preload(ProjectById("atlas"))));
 
           let dispose: (() => void) | undefined;
           const project = createRoot((rootDispose) => {
@@ -116,7 +115,7 @@ describe("Component bindings", () => {
             AsyncResult.error((thrown as ResourceFailure<string, Project, string>).result),
           ).toEqual(Option.some("offline"));
           dispose?.();
-          yield* runtime.disposeEffect;
+          yield* runtime.dispose;
         }),
       ));
 
@@ -126,7 +125,7 @@ describe("Component bindings", () => {
           Effect.gen(function* () {
             let version = 0;
             const release = yield* Deferred.make<void>();
-            const ProjectById = Resource.family<string, string>({
+            const ProjectById = Resource.define<string, string>({
               name: "SolidBindings.refresh-mounted",
               load: (id) =>
                 Effect.suspend(() =>
@@ -137,8 +136,8 @@ describe("Component bindings", () => {
             });
             const ref = ProjectById("atlas");
             const runtime = makeRuntime();
-            yield* Effect.addFinalizer(() => runtime.disposeEffect.pipe(Effect.orDie));
-            const Card = Component.make("Card", function* () {
+            yield* Effect.addFinalizer(() => runtime.dispose.pipe(Effect.orDie));
+            const Card = Component.define("Card", function* () {
               const project = yield* Component.resource(ProjectById);
               return () => [
                 (() => project("atlas")) as never,
@@ -151,7 +150,7 @@ describe("Component bindings", () => {
             yield* waitForText(container, "atlas v0");
             const content = container.firstChild;
 
-            runtime.runFork(Resource.refreshEffect(ref));
+            runtime.runFork(Resource.refresh(ref));
             yield* waitForText(container, "atlas v0 refreshing");
             yield* Deferred.succeed(release, undefined);
             yield* waitForText(container, "atlas v1");
@@ -165,17 +164,17 @@ describe("Component bindings", () => {
       vi.useFakeTimers();
       let dispose: (() => void) | undefined;
       const runtime = makeRuntime();
-      const ProjectById = Resource.family<string, Project>({
+      const ProjectById = Resource.define<string, Project>({
         name: "SolidBindings.mounted-gc-retention",
         load: (id) => Effect.succeed({ id, name: "Atlas" }),
         policy: { gcFor: 10 },
       });
       const ref = ProjectById("atlas");
       const status = async () =>
-        (await Effect.runPromise(runtime.provide(Resource.statusEffect(ref)))).result._tag;
+        (await Effect.runPromise(runtime.provide(Resource.status(ref)))).result._tag;
 
       try {
-        await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
+        await Effect.runPromise(runtime.provide(Resource.preload(ref)));
         const project = createRoot((rootDispose) => {
           dispose = rootDispose;
           return bindInInstance(runtime, Component.resource(ProjectById));
@@ -192,7 +191,7 @@ describe("Component bindings", () => {
       } finally {
         dispose?.();
         vi.useRealTimers();
-        await Effect.runPromise(Effect.orDie(runtime.disposeEffect));
+        await Effect.runPromise(Effect.orDie(runtime.dispose));
       }
     });
 
@@ -204,7 +203,7 @@ describe("Component bindings", () => {
           const runtime = makeRuntime();
           const started = yield* Deferred.make<void>();
           const interrupted = yield* Deferred.make<void>();
-          const ProjectById = Resource.family<string, Project>({
+          const ProjectById = Resource.define<string, Project>({
             name: "SolidBindings.pending-cleanup",
             load: (id) =>
               Effect.gen(function* () {
@@ -237,7 +236,7 @@ describe("Component bindings", () => {
             Effect.catch(() => Effect.succeed(false)),
           );
           expect(interruptedBeforeRuntimeDispose).toBe(false);
-          yield* runtime.disposeEffect;
+          yield* runtime.dispose;
           yield* Deferred.await(interrupted);
         }),
       ));
@@ -262,7 +261,7 @@ describe("Component bindings", () => {
           expect(action.result()._tag).toBe("Initial");
           expect(action.input()).toEqual(Option.none());
 
-          action.submit("atlas");
+          const submission = yield* Effect.forkChild(action.submit("atlas"));
           yield* Effect.sleep(0);
           expect(action.result().waiting).toBe(true);
           expect(action.input()).toEqual(Option.some("atlas"));
@@ -277,13 +276,13 @@ describe("Component bindings", () => {
             ),
           );
 
-          expect(yield* action.submitEffect("kepler")).toBe("saved:kepler");
-          action.reset();
-          yield* Effect.sleep(0);
+          expect(yield* Fiber.join(submission)).toBe("saved:atlas");
+          expect(yield* action.submit("kepler")).toBe("saved:kepler");
+          yield* action.reset();
           expect(action.result()._tag).toBe("Initial");
         }).pipe(
           Effect.ensuring(Effect.sync(() => dispose?.())),
-          Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+          Effect.ensuring(Effect.orDie(runtime.dispose)),
         ),
       );
     });
@@ -305,15 +304,24 @@ describe("Component bindings", () => {
               ),
           });
 
-          const action = createRoot((rootDispose) => {
+          // Handlers submit through `Component.callback`, in the instance's Scope.
+          const submit = createRoot((rootDispose) => {
             dispose = rootDispose;
-            return bindInInstance(runtime, Component.action(Save));
+            return bindInInstance(
+              runtime,
+              Effect.gen(function* () {
+                const action = yield* Component.action(Save);
+                return yield* Component.callback((id: string) =>
+                  action.submit(id).pipe(Effect.ignore),
+                );
+              }),
+            );
           });
-          action.submit("atlas");
+          submit("atlas");
           expect(yield* Deferred.await(started)).toBe("Atlas");
           dispose?.();
           yield* Deferred.await(interrupted);
-          yield* runtime.disposeEffect;
+          yield* runtime.dispose;
         }),
       ));
   });
@@ -335,7 +343,7 @@ describe("Component bindings", () => {
                 case "Load":
                   return Program.next(
                     model,
-                    Program.command(
+                    Program.emit(
                       ProjectApi.use((api) =>
                         api
                           .get("atlas")
@@ -346,7 +354,7 @@ describe("Component bindings", () => {
                 case "Loaded":
                   return Program.next(
                     { name: message.project.name },
-                    Program.effect(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid)),
+                    Program.emit(Deferred.succeed(loaded, undefined).pipe(Effect.asVoid)),
                   );
               }
             },
@@ -358,16 +366,16 @@ describe("Component bindings", () => {
           });
 
           expect(program.model()).toEqual({ name: "idle" });
-          yield* program.dispatchEffect({ _tag: "Load" });
+          yield* program.dispatch({ _tag: "Load" });
           yield* Deferred.await(loaded);
           flush();
           expect(program.model()).toEqual({ name: "Atlas" });
 
           dispose?.();
           yield* Effect.sleep(0);
-          const exit = yield* Effect.exit(program.dispatchEffect({ _tag: "Load" }));
+          const exit = yield* Effect.exit(program.dispatch({ _tag: "Load" }));
           expect(Exit.isFailure(exit)).toBe(true);
-          yield* runtime.disposeEffect;
+          yield* runtime.dispose;
         }),
       ));
 
@@ -397,7 +405,7 @@ describe("Component bindings", () => {
           yield* Deferred.await(emitted);
           expect(name()).toBe("Atlas");
           dispose?.();
-          yield* runtime.disposeEffect;
+          yield* runtime.dispose;
         }),
       ));
 
@@ -427,7 +435,7 @@ describe("Component bindings", () => {
           expect(yield* Deferred.await(started)).toBe("Atlas");
           dispose?.();
           yield* Deferred.await(interrupted);
-          yield* runtime.disposeEffect;
+          yield* runtime.dispose;
         }),
       ));
   });
@@ -446,12 +454,12 @@ describe("Component bindings", () => {
                 return Effect.succeed({ get: (id: string) => Effect.succeed({ id, name: id }) });
               }),
             );
-            const Card = Component.make("Card", function* (props: { readonly id: string }) {
+            const Card = Component.define("Card", function* (props: { readonly id: string }) {
               const api = yield* ProjectApi;
               const project = yield* api.get(props.id);
               return () => `${project.name};`;
             });
-            const App = Component.make("App", function* () {
+            const App = Component.define("App", function* () {
               const Inner = yield* Card;
               return () => [Inner({ id: "a" }), Inner({ id: "b" })];
             }).pipe(
@@ -475,14 +483,14 @@ describe("Component bindings", () => {
           Effect.gen(function* () {
             const Theme = createContext("light");
             const gate = yield* Deferred.make<void>();
-            const Card = Component.make("Card", function* () {
+            const Card = Component.define("Card", function* () {
               const before = useContext(Theme);
               yield* Deferred.await(gate);
               const after = useContext(Theme);
               return () => `${before}/${after}`;
             });
             const runtime = makeRuntime();
-            yield* Effect.addFinalizer(() => runtime.disposeEffect.pipe(Effect.orDie));
+            yield* Effect.addFinalizer(() => runtime.dispose.pipe(Effect.orDie));
             const Embedded = Component.embed(Card, runtime);
 
             const container = document.createElement("div");
@@ -515,10 +523,10 @@ describe("Component bindings", () => {
       Effect.runPromise(
         Effect.scoped(
           Effect.gen(function* () {
-            const ProjectRoute = route("/component-routes/:id", {
+            const ProjectRoute = Route.define("/component-routes/:id", {
               preload: ({ params }) => ProjectApi.use((api) => api.get(params.id)),
             });
-            const ProjectView = Component.make(
+            const ProjectView = Component.define(
               "ProjectView",
               function* (props: Route.Props<typeof ProjectRoute>) {
                 const api = yield* ProjectApi;
@@ -527,7 +535,7 @@ describe("Component bindings", () => {
               },
             );
             const routes = [Route.withComponent(ProjectRoute, ProjectView)] as const;
-            const App = Component.make("App", function* () {
+            const App = Component.define("App", function* () {
               const router = yield* Component.router(routes, {
                 history: makeMemoryBrowserHistoryAdapter({
                   initialHref: "/component-routes/atlas",
@@ -548,15 +556,15 @@ describe("Component bindings", () => {
         Effect.scoped(
           Effect.gen(function* () {
             class Missing extends Data.TaggedError("Missing")<{ readonly id: string }> {}
-            const Typed = Component.make("Typed", function* () {
+            const Typed = Component.define("Typed", function* () {
               yield* Effect.fail(new Missing({ id: "atlas" }));
               return () => "never";
             }).pipe(Component.catchAll((error) => `missing ${error.id}`));
-            const Defect = Component.make("Defect", function* () {
+            const Defect = Component.define("Defect", function* () {
               yield* Effect.die(new Error("bug"));
               return () => "never";
             }).pipe(Component.catchAll(() => "typed"));
-            const App = Component.make("App", function* () {
+            const App = Component.define("App", function* () {
               const TypedView = yield* Typed;
               const DefectView = yield* Defect;
               return () => [

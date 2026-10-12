@@ -150,7 +150,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
             onSuccess: (message) =>
               message === undefined
                 ? Effect.void
-                : validateProgramMessageEffect<Message>("Program.command", message as Message).pipe(
+                : validateProgramMessageEffect<Message>("Program.emit", message as Message).pipe(
                     Effect.matchEffect({
                       onFailure: (error) =>
                         Effect.sync(() =>
@@ -405,15 +405,10 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
   return {
     model,
     failures,
-    dispatch: (message) => {
-      void scheduler.forkRuntime(
-        instanceDispatchEffect(message).pipe(Effect.catchCause(() => Effect.void)),
-      );
-    },
-    dispatchEffect: instanceDispatchEffect,
+    dispatch: instanceDispatchEffect,
     clearFailures: () =>
       Signal.batch(() => failures.set([]), { cause: cause("clearFailures", undefined) }),
-    disposeEffect,
+    dispose: disposeEffect,
   };
 
   function instanceDispatchEffect(
@@ -423,7 +418,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
       return Effect.fail(disposedFailure(message));
     }
 
-    return validateProgramMessageEffect<Message>("Program.dispatch", message as Message).pipe(
+    return validateProgramMessageEffect<Message>("Program.emit", message as Message).pipe(
       Effect.matchEffect({
         onFailure: (error) =>
           Effect.gen(function* () {

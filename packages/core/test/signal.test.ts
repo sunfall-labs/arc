@@ -164,7 +164,7 @@ describe("Signal", () => {
     expect(evaluates).toBe(evaluatesAfterFailure + 1);
 
     unrelatedUnsubscribe();
-    await Effect.runPromise(scope.disposeEffect());
+    await Effect.runPromise(scope.dispose());
   });
 
   it("stops tracking derived dependencies after the last subscriber unsubscribes", () => {
@@ -245,7 +245,7 @@ describe("Signal", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const settled = yield* Deferred.make<void>();
-          const signal = yield* Signal.fromStreamEffect(
+          const signal = yield* Signal.fromStream(
             Stream.make(1, 2).pipe(
               Stream.tap((n) => (n === 2 ? Deferred.succeed(settled, undefined) : Effect.void)),
             ),

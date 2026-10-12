@@ -49,12 +49,12 @@ Every store read/write has an Effect form:
 ```ts
 const store = makeDevtoolsStore();
 
-yield * store.recordResourceEventEffect(event);
-yield * store.recordRequestTraceEffect(trace);
-const snapshot = yield * store.getSnapshotEffect();
-const summary = yield * store.getSummaryEffect();
-const graph = yield * store.getCausalGraphEffect();
-const panels = yield * store.getPanelsEffect();
+yield * store.recordResourceEvent(event);
+yield * store.recordRequestTrace(trace);
+const snapshot = yield * store.getSnapshot();
+const summary = yield * store.getSummary();
+const graph = yield * store.getCausalGraph();
+const panels = yield * store.getPanels();
 ```
 
 Actions can be observed directly from their public instance. The observer is
@@ -68,7 +68,7 @@ and defects) and `ResourceInterrupted` when a load was cancelled and the entry
 returned to its prior settled result:
 
 ```ts
-yield * store.trackActionEffect(renameAction);
+yield * store.trackAction(renameAction);
 ```
 
 Full-stack Start actions expose the same causal shape as serialized JSON
@@ -77,17 +77,16 @@ devtools:
 
 ```ts
 yield *
-  store.recordActionStateEffect("Project.rename", "Success", {
+  store.recordActionState("Project.rename", "Success", {
     input: { id: "atlas" },
     serializedInvalidationPlan: startAction.invalidation.get(),
   });
 ```
 
-For the common case, Start-shaped action instances are observable directly. The
-type is structural, so devtools stays independent of the full-stack package:
+For the common case, Action instances are observable directly:
 
 ```ts
-yield * store.trackStartActionEffect(renameStartAction);
+yield * store.trackAction(renameAction);
 ```
 
 State history comes from the app `Timeline`, not from private queues or fibers.
@@ -97,7 +96,7 @@ Program message and failure commits land on the Programs panel:
 
 ```ts
 const recording = yield * Timeline.record();
-yield * store.trackTimelineEffect(recording);
+yield * store.trackTimeline(recording);
 ```
 
 The default policy redacts common secret-shaped keys such as passwords, tokens,
@@ -117,15 +116,14 @@ making `@sunfall/arc-start` depend on `@sunfall/arc-devtools`:
 
 ```ts
 const handler = createRequestHandler(app, {
-  onRequestTrace: (trace) => store.recordRequestTraceEffect(trace),
+  onRequestTrace: (trace) => store.recordRequestTrace(trace),
 });
 ```
 
-The plain methods remain for host adapters, but framework internals and tests
-should prefer the Effect methods so observation composes with services, scopes,
-and interruption. Those plain methods intentionally live on the store object as
-host-boundary facades over the same Effect implementation; only split them out
-if a future host package needs a separate boundary.
+Every store method returns an Effect (there are no synchronous twins), so
+observation composes with services, scopes, and interruption; the request trace
+hook above accepts that Effect directly, and a non-Effect host runs it with
+`Effect.runSync(...)`.
 
 Start request handling also emits Effect-native observability alongside the
 plain trace payload. `@sunfall/arc-start` exports `startRequestCountMetric`,
@@ -233,42 +231,39 @@ Effect-native event streams:
   schema coverage, action invalidation/optimistic/retry/concurrency metadata,
   route preload resource and collection declarations, resource families,
   resource tags, and DB collection definitions.
-- `Route.planNavigationEffect(...)` exposes the route facts: matched href,
+- `Route.planNavigation(...)` exposes the route facts: matched href,
   params, search, preloaded resource refs, and the resource hydration count.
   Start request traces also carry route-plan hydration resource keys so the
   graph can link exact `Hydrates` edges for streamed request payloads.
-- `Resource.subscribeEventsEffect()` exposes runtime resource lifecycle facts
+- `Resource.subscribeEvents()` exposes runtime resource lifecycle facts
   without reading cache internals, including `ResourceInvalidated` events emitted
   before invalidated refs refresh.
 - Collection store subscriptions expose DB collection lifecycle and mutation
   facts without reading private row maps.
-- `store.trackActionEffect(action)` exposes action state and invalidation plan
+- `store.trackAction(action)` exposes action state and invalidation plan
   facts without reading private action internals.
-- `store.recordActionStateEffect(..., { serializedInvalidationPlan })` exposes
+- `store.recordActionState(..., { serializedInvalidationPlan })` exposes
   Start action causality from transport metadata without coupling devtools to the
   full-stack package.
-- `store.trackStartActionEffect(startAction)` observes Start-shaped action
-  instances directly and records serialized invalidation metadata on successful
-  states.
-- `store.trackTimelineEffect(recording)` records a running Timeline's retained
+- `store.trackTimeline(recording)` records a running Timeline's retained
   and future entries as `TimelineCommit` runtime events until its Scope closes.
   Each commit's target is the Program, Action, Resource, or Collection its cause
   names; unnamed Programs share the `Program` target, so name Programs that
   should appear separately.
-- `store.recordRequestTraceEffect(trace)` exposes the request-level join across
+- `store.recordRequestTrace(trace)` exposes the request-level join across
   request context, response context, services, route plans, resources,
   collections, server functions, actions, streams, fibers, and teardown.
 - `createRequestHandler(..., { onRequestTrace })` emits that shape for SSR,
   server RPC, Start action, response stream-close, stream-cancel, and
   request-failure paths. Teardown records reason, duration, and before/after
   Resource Store snapshots.
-- `Resource.planInvalidationEffect(...)` and action invalidation plans expose
+- `Resource.planInvalidation(...)` and action invalidation plans expose
   the semantic invalidation facts: targeted tags/refs, matched live resources,
   and the exact causes for each invalidated resource.
 
-Adapters should record those facts into `makeDevtoolsStore()` through the Effect
-methods. `getSummaryEffect()` then provides route, invalidation, runtime, and
-request/resource inspectors, while `getCausalGraphEffect()` links the golden
+Adapters record those facts into `makeDevtoolsStore()` through its Effect
+methods. `getSummary()` then provides route, invalidation, runtime, and
+request/resource inspectors, while `getCausalGraph()` links the golden
 path with deterministic edges such as request trace `UsesEndpoint`, request
 trace `Records` resources/collections/actions/server functions, route plan
 `Matches` route, route plan `Preloads` and `Hydrates` resource, action `Emits`
@@ -287,7 +282,7 @@ limits decide which trace facts remain attached.
 
 ## Panel Model
 
-`describeDevtoolsPanels(...)` and `store.getPanelsEffect()` provide the first
+`describeDevtoolsPanels(...)` and `store.getPanels()` provide the first
 UI-facing panel contract. The result is JSON-safe and ordered for direct
 rendering:
 
@@ -322,7 +317,7 @@ for a browser-embedded panel, documentation preview, or app shell:
 
 ```ts
 const html = renderDevtoolsPanelsHtml({
-  panels: yield * store.getPanelsEffect(),
+  panels: yield * store.getPanels(),
   selectedPanelId: "requests",
   maxItemsPerPanel: 12,
 });
@@ -336,9 +331,9 @@ lifecycle ownership can mount the same contract through Effect:
 
 ```ts
 yield *
-  mountDevtoolsPanelsEffect({
+  mountDevtoolsPanels({
     root: document.getElementById("sunfall-arc-devtools")!,
-    panels: yield * store.getPanelsEffect(),
+    panels: yield * store.getPanels(),
   });
 ```
 
@@ -351,16 +346,16 @@ inspected-window bridge through the devtools package:
 
 ```ts
 yield *
-  installDevtoolsBridgeEffect(() => ({
-    panels: store.getPanels(),
+  installDevtoolsBridge(() => ({
+    panels: Effect.runSync(store.getPanels()),
     selectedPanelId: "requests",
     title: "Sunfall Arc Devtools",
   }));
 ```
 
 The scoped bridge restores any previous `globalThis.__SUNFALL_ARC_DEVTOOLS__`
-value when the Effect scope closes. The plain `installDevtoolsBridge(...)`
-helper is available for non-Effect host setup. Extension transports should
+value when the Effect scope closes (or on its `uninstall()`). Extension
+transports should
 resolve inspected-window values with
 `resolveSunfallArcDevtoolsBridgePayload(...)` before rendering so invalid bridge
 payloads can be reported as typed diagnostics instead of collapsing to
@@ -375,14 +370,14 @@ need contract error details.
 
 The checked app-shell integration lives at
 [`examples/devtools-panel`](../examples/devtools-panel). It mounts sample
-public facts through `mountDevtoolsPanelsEffect(...)` and verifies typecheck,
+public facts through `mountDevtoolsPanels(...)` and verifies typecheck,
 render output, and production build.
 
 The checked browser-extension shell lives at
 [`examples/devtools-extension`](../examples/devtools-extension). It emits a
 Manifest V3 devtools page, registers `panel.html` through the browser devtools
 panel host, mounts the same public panel contract through
-`mountDevtoolsPanelsEffect(...)`, and reads live inspected-page panel payloads
+`mountDevtoolsPanels(...)`, and reads live inspected-page panel payloads
 from `globalThis.__SUNFALL_ARC_DEVTOOLS__` through
 `chrome.devtools.inspectedWindow.eval`. The bridge accepts either a
 `DevtoolsPanels` payload wrapper or a provider function returning that wrapper,

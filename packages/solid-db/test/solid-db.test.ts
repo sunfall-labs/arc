@@ -62,7 +62,7 @@ const makeDelayedCleanupRuntime = () => {
     delayForks: () => {
       delayForks = true;
     },
-    disposeEffect: runtime.disposeEffect,
+    disposeEffect: runtime.dispose,
   };
 };
 
@@ -151,17 +151,15 @@ describe("solid-db", () => {
           "atlas",
         ]);
         expect(handles.projects.index("active", false)[0]?.id).toBe("lumen");
-        expect(handles.activeNames.data()).toEqual(["Atlas"]);
+        expect(handles.activeNames.rows()).toEqual(["Atlas"]);
 
-        yield* Projects.applyChangesEffect([
-          { _tag: "Update", key: "lumen", changes: { active: true } },
-        ]);
+        yield* Projects.applyChanges([{ _tag: "Update", key: "lumen", changes: { active: true } }]);
 
         expect(handles.projects.index("active", true).map((project) => project.id)).toEqual([
           "atlas",
           "lumen",
         ]);
-        expect(handles.activeNames.data()).toEqual(["Atlas", "Lumen"]);
+        expect(handles.activeNames.rows()).toEqual(["Atlas", "Lumen"]);
       }).pipe(Effect.ensuring(Effect.sync(() => dispose?.()))),
     );
   });
@@ -195,7 +193,7 @@ describe("solid-db", () => {
           { preload: false },
         );
         createEffect(
-          () => `${projects.rows().length}:${activeNames.data().join(",")}`,
+          () => `${projects.rows().length}:${activeNames.rows().join(",")}`,
           (value) => {
             rendered.push(value);
           },
@@ -207,7 +205,7 @@ describe("solid-db", () => {
     const whileRendered = listeners();
 
     await Effect.runPromise(
-      Projects.applyChangesEffect([{ _tag: "Update", key: "lumen", changes: { active: true } }]),
+      Projects.applyChanges([{ _tag: "Update", key: "lumen", changes: { active: true } }]),
     );
     flush();
     dispose();
@@ -274,7 +272,7 @@ describe("solid-db", () => {
     );
   });
 
-  it("ignores automatic preload failures from superseded DB generations after refetch", () => {
+  it("ignores automatic preload failures from superseded DB generations after refresh", () => {
     let dispose: (() => void) | undefined;
 
     return Effect.runPromise(
@@ -293,7 +291,7 @@ describe("solid-db", () => {
                 yield* Deferred.await(staleRelease);
                 return [{ id: "atlas", name: "Atlas Slow", active: true }];
               }),
-            refetch: () =>
+            refresh: () =>
               Effect.succeed<ReadonlyArray<Project>>([
                 { id: "atlas", name: "Atlas Fresh", active: true },
               ]),
@@ -313,7 +311,7 @@ describe("solid-db", () => {
 
         yield* Effect.sleep("0 millis");
         yield* Deferred.await(staleStarted);
-        yield* Projects.refetchEffect();
+        yield* Projects.refresh();
 
         expect(handle.rows().map((project) => project.name)).toEqual(["Atlas Fresh"]);
 
@@ -469,10 +467,10 @@ describe("solid-db", () => {
             // Switching sources switches the preload work, which restarts preloading.
             return makeSolidDbReactiveBinding<typeof staleFailure | Collection.RuntimeError>({
               runtime: eraseRuntime(runtime.runtime),
-              preloadEffect: () =>
+              load: () =>
                 archive()
-                  ? ArchivedProjects.preloadEffect()
-                  : ActiveProjects.preloadEffect().pipe(
+                  ? ArchivedProjects.preload()
+                  : ActiveProjects.preload().pipe(
                       Effect.andThen(Deferred.await(staleRelease)),
                       Effect.andThen(Effect.fail(staleFailure)),
                     ),
@@ -568,7 +566,7 @@ describe("solid-db", () => {
             dispose = rootDispose;
             makeSolidDbReactiveBinding<typeof staleFailure>({
               runtime: eraseRuntime(runtime.runtime),
-              preloadEffect: () =>
+              load: () =>
                 Deferred.await(staleRelease).pipe(Effect.andThen(Effect.fail(staleFailure))),
               onPreloadFailure: (error) => {
                 observedFailures.push(error);
@@ -639,15 +637,15 @@ describe("solid-db", () => {
           ),
         );
 
-        yield* runtime.provide(Projects.preloadEffect());
-        yield* handles.names.refetchEffect();
+        yield* runtime.provide(Projects.preload());
+        yield* handles.names.refresh();
         yield* Effect.sleep("0 millis");
 
         expect(loads).toBe(2);
         expect(handles.projects.rows().map((project) => project.name)).toEqual(["Atlas", "Lumen"]);
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+        Effect.ensuring(Effect.orDie(runtime.dispose)),
       ),
     );
   });
@@ -699,7 +697,7 @@ describe("solid-db", () => {
           );
 
           const insert = runtime.runFork(
-            Projects.insertEffect({ id: "lumen", name: "Lumen", active: false }),
+            Projects.insert({ id: "lumen", name: "Lumen", active: false }),
           );
           yield* Effect.sleep("0 millis");
 
@@ -710,22 +708,22 @@ describe("solid-db", () => {
           yield* Fiber.join(insert);
 
           expect(projects.pendingMutations()).toEqual([]);
-          yield* runtime.provide(Projects.updateEffect("atlas", { name: "Atlas Prime" }));
-          yield* runtime.provide(Projects.deleteEffect("lumen"));
+          yield* runtime.provide(Projects.update("atlas", { name: "Atlas Prime" }));
+          yield* runtime.provide(Projects.delete("lumen"));
           yield* runtime.provide(
-            Projects.applyChangesEffect([
+            Projects.applyChanges([
               { _tag: "Upsert", value: { id: "orion", name: "Orion", active: true } },
               { _tag: "Update", key: "orion", changes: { active: false } },
             ]),
           );
-          yield* runtime.provide(Projects.applyChangesEffect([{ _tag: "Delete", key: "orion" }]));
+          yield* runtime.provide(Projects.applyChanges([{ _tag: "Delete", key: "orion" }]));
 
-          expect(yield* runtime.provide(Projects.flushPendingMutationsEffect())).toEqual([]);
+          expect(yield* runtime.provide(Projects.flushPendingMutations())).toEqual([]);
           expect(calls).toEqual(["insert:lumen", "update:atlas", "delete:lumen"]);
           expect(projects.rows().map((project) => project.name)).toEqual(["Atlas Prime"]);
         } finally {
           dispose?.();
-          yield* runtime.disposeEffect;
+          yield* runtime.dispose;
         }
       }),
     );
@@ -749,12 +747,12 @@ describe("solid-db", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         yield* firstRuntime.provide(
-          Projects.applyChangesEffect([
+          Projects.applyChanges([
             { _tag: "Upsert", value: { id: "atlas", name: "Atlas", active: true } },
           ]),
         );
         yield* secondRuntime.provide(
-          Projects.applyChangesEffect([
+          Projects.applyChanges([
             { _tag: "Upsert", value: { id: "lumen", name: "Lumen", active: true } },
           ]),
         );
@@ -780,7 +778,7 @@ describe("solid-db", () => {
         flush();
 
         yield* secondRuntime.provide(
-          Projects.applyChangesEffect([
+          Projects.applyChanges([
             { _tag: "Update", key: "lumen", changes: { name: "Lumen Prime" } },
           ]),
         );
@@ -789,7 +787,7 @@ describe("solid-db", () => {
         const afterOtherRuntime = [...rendered];
 
         yield* firstRuntime.provide(
-          Projects.applyChangesEffect([
+          Projects.applyChanges([
             { _tag: "Update", key: "atlas", changes: { name: "Atlas Prime" } },
           ]),
         );
@@ -802,8 +800,8 @@ describe("solid-db", () => {
         });
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
-        Effect.ensuring(Effect.orDie(firstRuntime.disposeEffect)),
-        Effect.ensuring(Effect.orDie(secondRuntime.disposeEffect)),
+        Effect.ensuring(Effect.orDie(firstRuntime.dispose)),
+        Effect.ensuring(Effect.orDie(secondRuntime.dispose)),
       ),
     );
   });
@@ -844,7 +842,7 @@ describe("solid-db", () => {
         }
         expect(second.timestamp).toBe(first.timestamp);
 
-        yield* Projects.applyChangesEffect([
+        yield* Projects.applyChanges([
           { _tag: "Update", key: "atlas", changes: { active: false } },
         ]);
         yield* Effect.sleep("0 millis");
@@ -854,7 +852,7 @@ describe("solid-db", () => {
         }
         expect(unchanged.timestamp).toBe(first.timestamp);
 
-        yield* Projects.applyChangesEffect([
+        yield* Projects.applyChanges([
           { _tag: "Update", key: "atlas", changes: { name: "Atlas Prime" } },
         ]);
         yield* Effect.sleep("0 millis");
@@ -893,7 +891,7 @@ describe("solid-db", () => {
     );
 
     try {
-      expect(() => handle.data()).not.toThrow();
+      expect(() => handle.rows()).not.toThrow();
       expect(asyncResultFacts(handle.result())).toMatchObject({
         _tag: "Failure",
         error: { _tag: "QueryEvaluationError", operation: "filter" },
@@ -937,13 +935,13 @@ describe("solid-db", () => {
     );
 
     try {
-      expect(handle.data()).toEqual(["Atlas"]);
+      expect(handle.rows()).toEqual(["Atlas"]);
       setOnlyActive?.(false);
       flush();
-      expect(handle.data()).toEqual(["Atlas", "Lumen"]);
+      expect(handle.rows()).toEqual(["Atlas", "Lumen"]);
       setOnlyActive?.(true);
       flush();
-      expect(handle.data()).toEqual(["Atlas"]);
+      expect(handle.rows()).toEqual(["Atlas"]);
     } finally {
       dispose?.();
     }
@@ -992,15 +990,15 @@ describe("solid-db", () => {
     try {
       await Effect.runPromise(Effect.sleep("0 millis"));
       expect(activeLoads).toBe(1);
-      expect(handle.data()).toEqual(["Atlas"]);
+      expect(handle.rows()).toEqual(["Atlas"]);
 
       selectArchive?.(true);
       flush();
-      expect(handle.data()).toEqual(["Lumen"]);
+      expect(handle.rows()).toEqual(["Lumen"]);
       await Effect.runPromise(Effect.sleep("20 millis"));
 
       expect(archiveLoads).toBe(1);
-      expect(handle.data()).toEqual(["Lumen"]);
+      expect(handle.rows()).toEqual(["Lumen"]);
     } finally {
       dispose?.();
     }

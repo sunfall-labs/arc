@@ -35,7 +35,6 @@ import {
   projectWorkQueueQuery,
   type ProjectWorkQueueItem,
 } from "./project-collections.js";
-import { hrefByPath, isRoutePathMatch } from "./routeTree.gen.js";
 import { HealthBadge, Metric, PresencePill } from "./ui.tsrx";
 
 type ProjectSummaryRow = Collection.Row<ProjectSummary, ProjectId>;
@@ -47,8 +46,8 @@ const ProjectNameFormInput = Schema.Struct({
 
 const projectHref = (id: ProjectId, tab?: ProjectTab): string =>
   tab === undefined || tab === "overview"
-    ? hrefByPath("/projects/:id", { params: { id } })
-    : hrefByPath("/projects/:id", { params: { id }, search: { tab } });
+    ? Route.href(ProjectRoute, { params: { id } })
+    : Route.href(ProjectRoute, { params: { id }, search: { tab } });
 
 const initialPresence: PresenceEvent = {
   activeUsers: 4,
@@ -144,8 +143,7 @@ type AppRoutes = typeof routes;
 
 const projectIdFromMatch = (
   match: Route.Match<AppRoutes[number]> | undefined,
-): ProjectId | undefined =>
-  isRoutePathMatch("/projects/:id", match) ? match.params.id : undefined;
+): ProjectId | undefined => (Route.isMatch(ProjectRoute, match) ? match.params.id : undefined);
 
 function HomeRouteView() {
   const router = useRouter<AppRoutes>();
@@ -167,7 +165,7 @@ function ProjectIndexRouteView() {
   );
 }
 
-const ProjectRows = Component.make(
+const ProjectRows = Component.define(
   "ProjectRows",
   function* (props: { readonly selectedId: ProjectId | undefined; readonly search: string }) {
     const projects = yield* SolidDb.collection(ProjectSummaries);
@@ -225,14 +223,12 @@ const ProjectRows = Component.make(
   },
 );
 
-const AppShell = Component.make("AppShell", function* () {
+const AppShell = Component.define("AppShell", function* () {
   const presence = yield* Component.stream(makePresenceStream(), initialPresence);
   // ProjectSummaries follows ProjectsRef, so refreshing the Resource refreshes
   // the sidebar rows too.
   const refresh = yield* Component.callback((id: ProjectId | undefined) =>
-    Resource.invalidateEffect(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef).pipe(
-      Effect.ignore,
-    ),
+    Resource.invalidate(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef).pipe(Effect.ignore),
   );
   const Rows = yield* ProjectRows;
 
@@ -364,13 +360,13 @@ function ProjectTabs(props: { readonly project: Project; readonly selected: Proj
   );
 }
 
-const WorkQueueSummary = Component.make(
+const WorkQueueSummary = Component.define(
   "WorkQueueSummary",
   function* (props: { readonly projectId: ProjectId }) {
     const queue = yield* SolidDb.liveQuery((query) =>
       projectWorkQueueQuery(props.projectId)(query),
     );
-    const items = () => queue.data();
+    const items = () => queue.rows();
     const blocked = () => items().filter((item) => item.status === "blocked").length;
     const unsynced = () => items().filter((item) => !item.synced).length;
 
@@ -390,7 +386,7 @@ const WorkQueueSummary = Component.make(
   },
 );
 
-const ProjectWorkQueue = Component.make(
+const ProjectWorkQueue = Component.define(
   "ProjectWorkQueue",
   function* (props: { readonly project: Project }) {
     const collection = yield* SolidDb.collection(ProjectWorkItems, { preload: false });
@@ -398,7 +394,7 @@ const ProjectWorkQueue = Component.make(
       projectWorkQueueQuery(props.project.id)(query),
     );
     const moveItem = yield* Component.callback((id: WorkItemId, status: WorkItemStatus) =>
-      ProjectWorkItems.updateEffect(id, { status }).pipe(Effect.ignore),
+      ProjectWorkItems.update(id, { status }).pipe(Effect.ignore),
     );
 
     return () => (
@@ -415,7 +411,7 @@ const ProjectWorkQueue = Component.make(
 
         <div class="taskList">
           {/* Keyed by id: a recomputed query hands back new row objects for the same items. */}
-          <For each={queue.data()} keyed={(item) => item.id}>
+          <For each={queue.rows()} keyed={(item) => item.id}>
             {(item) => (
               <WorkQueueRow
                 item={item()}
@@ -424,7 +420,7 @@ const ProjectWorkQueue = Component.make(
               />
             )}
           </For>
-          <Show when={queue.data().length === 0}>
+          <Show when={queue.rows().length === 0}>
             <p class="emptyState">No open work items for this project.</p>
           </Show>
         </div>
@@ -496,7 +492,7 @@ const renameValidationMessage = (result: ProjectNameSubmissionResult): string | 
  * client runtime's ActionTransport serves the rename on the server (the same
  * Action the no-JS form posts), while advance runs locally.
  */
-const ProjectActions = Component.make(
+const ProjectActions = Component.define(
   "ProjectActions",
   function* (props: { readonly project: Project }) {
     // The router only follows redirect hrefs here, so it needs no route typing.
@@ -527,9 +523,9 @@ const ProjectActions = Component.make(
                 advancePending: model.advancePending,
               },
               Program.emit(
-                StartAction.decodeFormDataEffect(ProjectNameFormInput, message.formData).pipe(
+                StartAction.decodeFormData(ProjectNameFormInput, message.formData).pipe(
                   Effect.flatMap(({ name }) =>
-                    rename.submitEffect({
+                    rename.submit({
                       id: model.project.id,
                       name,
                       redirectTo: makeProjectReturnTo(projectHref(model.project.id, "activity")),
@@ -583,7 +579,7 @@ const ProjectActions = Component.make(
                     renamePending: false,
                     advancePending: model.advancePending,
                   },
-                  Program.effect(
+                  Program.emit(
                     Effect.sync(() =>
                       router.navigateHref(
                         result.location,
@@ -612,7 +608,7 @@ const ProjectActions = Component.make(
                 advancePending: true,
               },
               Program.emit(
-                advance.submitEffect({ id: model.project.id }).pipe(
+                advance.submit({ id: model.project.id }).pipe(
                   Effect.match({
                     onFailure: (error): ProjectActionsMessage => ({ _tag: "AdvanceFailed", error }),
                     onSuccess: (project): ProjectActionsMessage => ({
@@ -639,10 +635,15 @@ const ProjectActions = Component.make(
       }),
     );
 
+    // Program failures land in `actions.failures()`, so handlers ignore them.
+    const send = yield* Component.callback((message: ProjectActionsMessage) =>
+      actions.dispatch(message).pipe(Effect.ignore),
+    );
+
     createEffect(
       () => props.project,
       (current) => {
-        actions.dispatch({ _tag: "ProjectChanged", project: current });
+        send({ _tag: "ProjectChanged", project: current });
       },
     );
 
@@ -661,7 +662,7 @@ const ProjectActions = Component.make(
           action={renameForm().action}
           onSubmit={(event) => {
             event.preventDefault();
-            actions.dispatch({
+            send({
               _tag: "SubmitRename",
               formData: new FormData(event.currentTarget),
             });
@@ -689,7 +690,7 @@ const ProjectActions = Component.make(
           class="commandButton secondary"
           type="button"
           disabled={model().advancePending}
-          onClick={() => actions.dispatch({ _tag: "Advance" })}
+          onClick={() => send({ _tag: "Advance" })}
         >
           <ArrowIcon />
           {model().advancePending ? "Advancing" : "Advance"}
@@ -707,7 +708,7 @@ const ProjectActions = Component.make(
  * synchronous), and refreshes keep the same content mounted (the rename form
  * keeps its text) while `waiting`/`failure` drive the status chrome.
  */
-const ProjectPage = Component.make(
+const ProjectPage = Component.define(
   "ProjectPage",
   function* (props: Route.Props<typeof ProjectRoute>) {
     const project = yield* Component.resource(ProjectById);
@@ -812,7 +813,7 @@ const routes = [HomeUiRoute, ProjectsUiRoute, ProjectUiRoute] as const;
  * Components' services join its `R`, so `launch` checks the runtime provides
  * them.
  */
-const ProjectConsole = Component.make(
+const ProjectConsole = Component.define(
   "ProjectConsole",
   function* (props: { readonly initialHref?: string }) {
     const router = yield* Component.router(

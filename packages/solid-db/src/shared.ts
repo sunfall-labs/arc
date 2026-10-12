@@ -24,7 +24,7 @@ export interface SolidDbReactiveBindingOptions<E, R = never, ER = never> {
   readonly runtime: AnySunfallArcRuntime<ER>;
   readonly preload?: boolean | undefined;
   /** Preload work for the current sources; preloading restarts when it changes. */
-  readonly preloadEffect: Accessor<Effect.Effect<void, E, R>>;
+  readonly load: Accessor<Effect.Effect<void, E, R>>;
   /**
    * Observer for automatic preload failures.
    *
@@ -73,12 +73,13 @@ export const makeSolidDbReactiveBinding = <E, R = never, ER = never>(
 
   // Preloading is a side effect, so it runs in the apply phase whenever the
   // source set (and with it the preload work) changes.
-  createRenderEffect(options.preloadEffect, (preloadEffect) => {
+  createRenderEffect(options.load, (preloadEffect) => {
     preloadController.start(preloadEffect, options.preload !== false);
   });
 
   onCleanup(() => {
-    preloadController.interrupt();
+    // Runs synchronously, so the preload generation retires with the owner.
+    void Effect.runFork(preloadController.interrupt());
   });
 
   return {

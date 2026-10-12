@@ -42,11 +42,11 @@ import { collectionSyncHandlers } from "./sync-adapter.js";
 
 /** Options for one Collection Sync Load Policy invocation. */
 export interface CollectionSyncLoadPolicyOptions<A> {
-  /** Forces a fresh `refetch`/`load` attempt even when the collection is already ready. */
+  /** Forces a fresh `refresh`/`load` attempt even when the collection is already ready. */
   readonly force: boolean;
   /**
    * Source snapshot already in hand (a `follow` emission). The policy commits
-   * it like a loaded result without calling `load`/`refetch`, retrying, or
+   * it like a loaded result without calling `load`/`refresh`, retrying, or
    * marking the load state `waiting`.
    */
   readonly source?: ReadonlyArray<A>;
@@ -211,7 +211,7 @@ const collectionLoadOperation = <A extends object, K extends CollectionKey, E, R
   force: boolean,
 ): (() => EffectInput<ReadonlyArray<A>, E, R>) | undefined =>
   force
-    ? (collectionSyncHandlers(definition).refetch ?? collectionSyncHandlers(definition).load)
+    ? (collectionSyncHandlers(definition).refresh ?? collectionSyncHandlers(definition).load)
     : collectionSyncHandlers(definition).load;
 
 const restoreBeforePreloadEffect = <A extends object, K extends CollectionKey, E, R>(
@@ -358,7 +358,7 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
   );
 
 /**
- * Runs the Collection Sync Load Policy for `preloadEffect` and `refetchEffect`.
+ * Runs the Collection Sync Load Policy for `preload` and `refresh`.
  *
  * The policy owns in-flight load ownership, joiners, stale generation checks,
  * restore-before-load, retry scheduling, row replacement, lifecycle events, and
@@ -496,21 +496,21 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
  * Starts the definition's `sync.follow` and `sync.changes` streams for the
  * active Collection Store.
  *
- * Each stream runs once per store after a successful preload/refetch. The
+ * Each stream runs once per store after a successful preload/refresh. The
  * fibers live in the store's scope, so store (runtime) disposal interrupts
  * them.
  *
  * `follow` emissions go through the load policy as forced attempts, which
  * supersede stale in-flight loads and rebase pending optimistic mutations
- * exactly like a refetch; an emission that is the snapshot the rows were last
+ * exactly like a refresh; an emission that is the snapshot the rows were last
  * loaded from is skipped. A follow failure is recorded like a load failure
- * and clears the running flag, so the next successful preload or refetch
+ * and clears the running flag, so the next successful preload or refresh
  * restarts it.
  *
  * `changes` batches are applied through `applyChanges`. A batch that fails to
  * apply is published as `CollectionChangeFeedFailure` and the stream keeps
  * running; a stream failure is published the same way, recorded like a load
- * failure, and restarts on the next successful preload or refetch.
+ * failure, and restarts on the next successful preload or refresh.
  */
 export const followCollectionSyncEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,

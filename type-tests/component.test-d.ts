@@ -7,7 +7,6 @@ import {
   Program,
   Resource,
   Route,
-  route,
   type ActionInterrupted,
   type AnySunfallArcRuntime,
   type EffectInputCallbackError,
@@ -31,14 +30,14 @@ type Assert<T extends true> = T;
 type Eq<A, B> = (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
 type Parts<C> = C extends Component<infer P, infer E, infer R> ? { P: P; E: E; R: R } : never;
 
-const ProjectById = Resource.family({
+const ProjectById = Resource.define({
   name: "type-tests/Component/ProjectById",
   load: (id: string) => ProjectApi.use((api) => api.get(id)),
 });
 
 // Leaf: a resource whose typed load error joins E and services join R. A
 // throwing load callback (EffectInputCallbackError) is a defect, not part of E.
-const ProjectCard = Component.make("ProjectCard", function* (props: { readonly id: string }) {
+const ProjectCard = Component.define("ProjectCard", function* (props: { readonly id: string }) {
   const project = yield* Component.resource(ProjectById);
   return (): JSX.Element => project(props.id);
 });
@@ -55,7 +54,7 @@ type _card = Assert<
 
 // Leaf with a different service, no props, no failures. Setup finalizers need
 // no Scope in R: setup always runs in the instance Scope.
-const ActivityFeed = Component.make("ActivityFeed", function* () {
+const ActivityFeed = Component.define("ActivityFeed", function* () {
   const realtime = yield* Realtime;
   yield* Effect.addFinalizer(() => Effect.void);
   return () => realtime.feed().join(",");
@@ -63,7 +62,7 @@ const ActivityFeed = Component.make("ActivityFeed", function* () {
 type _feed = Assert<Eq<Parts<typeof ActivityFeed>, { P: {}; E: never; R: Realtime }>>;
 
 // Parent: children's R accumulates, handled tags leave E, yielded children are plain renders.
-const Dashboard = Component.make("Dashboard", function* (props: { readonly selected: string }) {
+const Dashboard = Component.define("Dashboard", function* (props: { readonly selected: string }) {
   const Card = yield* ProjectCard.pipe(
     Component.catchTags({ ProjectNotFound: (error) => `gone ${error.id}` }),
     Component.loading(() => "loading"),
@@ -80,14 +79,14 @@ type _dash = Assert<
 >;
 
 // Nested yields keep inferring through a further level.
-const Shell = Component.make("Shell", function* () {
+const Shell = Component.define("Shell", function* () {
   const Inner = yield* Dashboard;
   return () => Inner({ selected: "atlas" });
 });
 type _shell = Assert<Eq<Parts<typeof Shell>, { P: {}; E: Forbidden; R: ProjectApi | Realtime }>>;
 
 // Setup failures are render failures.
-const Configured = Component.make("Configured", function* () {
+const Configured = Component.define("Configured", function* () {
   yield* Effect.fail(new ConfigMissing());
   return () => "configured";
 });
@@ -161,7 +160,7 @@ const renameSubmit: Effect.Effect<
   string,
   ProjectNotFound | Forbidden | EffectInputCallbackError | Server.ClientError | ActionInterrupted,
   never
-> = renameHandle.submitEffect({ id: "atlas", name: "Atlas" });
+> = renameHandle.submit({ id: "atlas", name: "Atlas" });
 void renameSubmit;
 
 // Programs: the definition's services join R.
@@ -196,10 +195,10 @@ type _openBinding = Assert<
 
 // Router: route preload services and route Components' services and failures
 // join the component, so `launch` checks them.
-const ProjectRoute = route("/projects/:id", {
+const ProjectRoute = Route.define("/projects/:id", {
   preload: ({ params }) => ProjectApi.use((api) => api.get(params.id)),
 });
-const ProjectPage = Component.make(
+const ProjectPage = Component.define(
   "ProjectPage",
   function* (props: Route.Props<typeof ProjectRoute>) {
     const realtime = yield* Realtime;
@@ -207,7 +206,7 @@ const ProjectPage = Component.make(
   },
 );
 const routes = [Route.withComponent(ProjectRoute, ProjectPage)] as const;
-const RoutedApp = Component.make("RoutedApp", function* () {
+const RoutedApp = Component.define("RoutedApp", function* () {
   const router = yield* Component.router(routes);
   return () => RouterProvider({ router });
 });
@@ -332,7 +331,7 @@ export function negatives() {
   // @ts-expect-error callbacks must handle their failures
   Component.callback((id: string) => ProjectApi.use((api) => api.get(id)));
 
-  Component.make("WrongProps", function* () {
+  Component.define("WrongProps", function* () {
     const Card = yield* ProjectCard;
     // @ts-expect-error the yielded render keeps its props type
     return () => Card({ id: 1 });

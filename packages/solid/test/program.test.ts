@@ -67,12 +67,12 @@ const mount = <Model, Message>(
   return {
     program,
     send: async (message) => {
-      await Effect.runPromise(program.dispatchEffect(message));
+      await Effect.runPromise(program.dispatch(message));
       flush();
     },
     dispose: async () => {
       disposeRoot();
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     },
   };
 };
@@ -289,7 +289,7 @@ describe("Component.program fine-grained model", () => {
     expect(countRuns()).toBe(2);
 
     await dispose();
-    const exit = await Effect.runPromiseExit(program.dispatchEffect({ _tag: "Increment" }));
+    const exit = await Effect.runPromiseExit(program.dispatch({ _tag: "Increment" }));
     flush();
     expect(Exit.isFailure(exit)).toBe(true);
     expect(countRuns()).toBe(2);

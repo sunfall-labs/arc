@@ -77,18 +77,18 @@ const solidDbCollectionResult: () => AsyncResult.AsyncResult<
   void,
   Collection.RuntimeError<"load">
 > = solidDbProjects.result;
-// @ts-expect-error writes run `collection.updateEffect(...)` through `Component.callback`.
+// @ts-expect-error writes run `collection.update(...)` through `Component.callback`.
 solidDbProjects.updateEffect;
-// @ts-expect-error loads run `collection.refetchEffect()` through `Component.callback`.
+// @ts-expect-error loads run `collection.refresh()` through `Component.callback`.
 solidDbProjects.refetchEffect;
 // @ts-expect-error handles expose one `result()` accessor instead of state/waiting/error.
 void solidDbProjects.state;
 
 const solidDbLivePreload: Effect.Effect<void, "query" | QueryEvaluationError> =
-  solidDbLiveProjects.preloadEffect();
+  solidDbLiveProjects.preload();
 const solidDbLiveRefetch: Effect.Effect<void, "query" | QueryEvaluationError> =
-  solidDbLiveProjects.refetchEffect();
-const solidDbLiveData: () => ReadonlyArray<SolidDbProject> = solidDbLiveProjects.data;
+  solidDbLiveProjects.refresh();
+const solidDbLiveData: () => ReadonlyArray<SolidDbProject> = solidDbLiveProjects.rows;
 const solidDbLiveState: () => AsyncResult.AsyncResult<
   ReadonlyArray<SolidDbProject>,
   "query" | QueryEvaluationError

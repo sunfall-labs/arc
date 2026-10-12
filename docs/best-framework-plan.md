@@ -107,12 +107,12 @@ semantics rather than hide them.
 
 Sunfall Arc should replace the TanStack Query mental model with a stronger graph:
 
-- `Resource.family` is a typed async read definition;
+- `Resource.define` is a typed async read definition;
 - successful resource values publish semantic `Resource.tag` facts;
 - `Action.define` invalidates domain facts, not strings;
 - `ActionResult` can carry invalidations with success, validation, redirect, or
   domain failure results;
-- `Resource.planInvalidationEffect` explains which live refs will refresh and
+- `Resource.planInvalidation` explains which live refs will refresh and
   why;
 - runtime events publish invalidation before refresh, then pending/success or
   failure after refresh.
@@ -178,7 +178,7 @@ Actions and forms should not split into "JS app" and "HTML fallback" versions.
 One `Action.define` should support:
 
 - component event handlers through one `Component.action(...)` binding
-  (`submit` / `submitEffect`);
+  (its `submit` Effect, bridged by `Component.callback`);
 - server execution through Start's `ActionTransport`
   (`makeActionTransportLayer`), chosen by the runtime, not the component;
 - plain form posts through `StartAction.form`;
@@ -297,7 +297,7 @@ export const ProjectTag = Resource.tag<{ readonly id: ProjectId }>("Project", {
   key: ({ id }) => id,
 });
 
-export const ProjectById = Resource.family({
+export const ProjectById = Resource.define({
   name: "Project.byId",
   input: ProjectId,
   output: Project,
@@ -328,7 +328,7 @@ export const RenameProject = Action.define({
 Component code should stay compact:
 
 ```tsx
-const ProjectPage = Component.make("ProjectPage", function* (props: { readonly id: ProjectId }) {
+const ProjectPage = Component.define("ProjectPage", function* (props: { readonly id: ProjectId }) {
   const project = yield* Component.resource(ProjectById);
   const rename = yield* Component.action(RenameProject);
 

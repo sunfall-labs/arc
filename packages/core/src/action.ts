@@ -125,7 +125,7 @@ export interface ActionOptions<I, A, E = never, R = never> {
 /**
  * Live action controller returned by Action.use.
  *
- * Read state in UI code and submit through submitEffect.
+ * Read state in UI code and submit through submit.
  */
 export interface ActionInstance<
   I,
@@ -148,13 +148,11 @@ export interface ActionInstance<
     ResourceInvalidationPlan<InvalidationRequirements> | undefined
   >;
   /** Runs the action workflow as an Effect, preserving typed errors and requirements. */
-  submitEffect(
+  submit(
     input: I,
   ): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError | ActionInterrupted, R>;
   /** Resets visible action state as an Effect. */
-  resetEffect(): Effect.Effect<void>;
-  /** Runtime-owned synchronous convenience for UI event handlers. */
-  reset(): void;
+  reset(): Effect.Effect<void>;
 }
 
 /** Runtime options for constructing an Action Instance from a definition. */
@@ -238,23 +236,19 @@ export namespace Action {
   export type OptimisticTransaction = ActionOptimisticTransaction;
 
   /** Effect-first invalidation planning that reports action callback throws in the error channel. */
-  export const planInvalidationEffect = <I, A, E, R>(
+  export const planInvalidation = <I, A, E, R>(
     definition: ActionDefinition<I, A, E, R>,
     value: A,
     input: I,
   ): Effect.Effect<
     ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>>,
     EffectInputCallbackError
-  > =>
-    Effect.flatMap(
-      invalidationsForEffect(definition, value, input),
-      Resource.planInvalidationEffect,
-    );
+  > => Effect.flatMap(invalidationsForEffect(definition, value, input), Resource.planInvalidation);
 
   /**
    * Defines and registers a reusable action without binding it to UI state.
    *
-   * Registered actions are available through the default `defineApp(...)`
+   * Registered actions are available through the default `App.define(...)`
    * registry snapshot. Use
    * `Action.use(...)` to create an instance for a component or interaction
    * boundary.

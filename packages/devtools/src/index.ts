@@ -54,7 +54,7 @@ export const renderDevtoolsPanelsHtml = (input: DevtoolsPanelUiInput = {}): stri
  * Mounts the panel renderer into a host DOM root inside a Scope; the renderer
  * unmounts when the Scope closes. Use `bootDevtoolsPanels` from non-Effect hosts.
  */
-export const mountDevtoolsPanelsEffect = (
+export const mountDevtoolsPanels = (
   options: DevtoolsPanelMountOptions,
 ): Effect.Effect<DevtoolsPanelMount, never, Scope.Scope> =>
   mountDevtoolsPanelsEffectWithResolver(options, resolveDevtoolsPanels);
@@ -86,9 +86,10 @@ const wireDevtoolsPanelLifecycleCleanup = (
 };
 
 /**
- * Host facade over `mountDevtoolsPanelsEffect`: boots a live Devtools panel in
- * its own fiber and optionally wires browser lifecycle cleanup. Stop it with
- * `boot.interrupt()` or `boot.interruptEffect`.
+ * Host facade over `mountDevtoolsPanels` for hosts without an Effect entry
+ * point: boots a live Devtools panel in its own fiber and optionally wires
+ * browser lifecycle cleanup. Stop it with `boot.interrupt()`; Effect hosts
+ * use the scoped `mountDevtoolsPanels` instead.
  */
 export const bootDevtoolsPanels = (options: DevtoolsPanelBootOptions): DevtoolsPanelBoot => {
   const { afterMount, lifecycleWindow, ...mountOptions } = options;
@@ -102,7 +103,7 @@ export const bootDevtoolsPanels = (options: DevtoolsPanelBootOptions): DevtoolsP
   const fiber = Effect.runFork(
     Effect.scoped(
       Effect.gen(function* () {
-        const mount = yield* mountDevtoolsPanelsEffect(mountOptions);
+        const mount = yield* mountDevtoolsPanels(mountOptions);
         if (afterMount) {
           yield* afterMount(mount);
         }
@@ -111,13 +112,8 @@ export const bootDevtoolsPanels = (options: DevtoolsPanelBootOptions): DevtoolsP
     ).pipe(Effect.ensuring(Effect.sync(() => releaseLifecycleListeners()))),
   );
   interruptBootFiber = () => interruptDevtoolsPanelBoot(fiber);
-  const interruptEffect = Effect.gen(function* () {
-    releaseLifecycleListeners();
-    yield* interruptBootFiber();
-  });
   const boot: DevtoolsPanelBoot = {
     fiber,
-    interruptEffect,
     interrupt: () => {
       releaseLifecycleListeners();
       void Effect.runFork(interruptBootFiber());

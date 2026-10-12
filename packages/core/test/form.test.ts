@@ -121,7 +121,7 @@ describe("Form", () => {
     });
 
     return Effect.runPromise(
-      form.validateEffect().pipe(
+      form.validate().pipe(
         Effect.tap((value) =>
           Effect.sync(() =>
             expect(value).toEqual({
@@ -154,7 +154,7 @@ describe("Form", () => {
     form.setField("name", 42);
 
     return Effect.runPromise(
-      Effect.exit(form.validateEffect()).pipe(
+      Effect.exit(form.validate()).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
             expect(Exit.isFailure(exit)).toBe(true);
@@ -183,7 +183,7 @@ describe("Form", () => {
     });
 
     return Effect.runPromise(
-      Effect.exit(form.validateEffect()).pipe(
+      Effect.exit(form.validate()).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
             expect(Exit.isFailure(exit)).toBe(true);
@@ -217,7 +217,7 @@ describe("Form", () => {
         }),
     ]) {
       const form = makeForm();
-      const exit = Effect.runSync(Effect.exit(form.validateEffect()));
+      const exit = Effect.runSync(Effect.exit(form.validate()));
 
       expect(Exit.isFailure(exit)).toBe(true);
       const state = form.state.get();
@@ -237,7 +237,7 @@ describe("Form", () => {
       },
     });
 
-    const exit = await Effect.runPromise(Effect.exit(form.validateEffect()));
+    const exit = await Effect.runPromise(Effect.exit(form.validate()));
 
     expect(Exit.isFailure(exit)).toBe(true);
     const state = form.state.get();
@@ -279,7 +279,7 @@ describe("Form", () => {
 
     return Effect.runPromise(
       Effect.exit(
-        Effect.provideService(form.validateEffect(), ReservedNames, {
+        Effect.provideService(form.validate(), ReservedNames, {
           has: () => Effect.succeed(true),
         }),
       ).pipe(
@@ -307,7 +307,7 @@ describe("Form", () => {
         formData.append("tags", "core");
         formData.set("__framework", "hidden");
 
-        const decoded = yield* Form.decodeFormDataEffect(TagsInput, formData, {
+        const decoded = yield* Form.decodeFormData(TagsInput, formData, {
           omitFields: ["__framework"],
         });
 
@@ -331,7 +331,7 @@ describe("Form", () => {
         const formData = new FormData();
         formData.set("progress", "not-a-number");
 
-        const failure = yield* Effect.flip(Form.decodeFormDataEffect(ProgressInput, formData));
+        const failure = yield* Effect.flip(Form.decodeFormData(ProgressInput, formData));
 
         expect(failure.fieldErrors.progress?.[0]).toBeInstanceOf(Schema.SchemaError);
         expect(failure.formErrors).toEqual([]);
@@ -480,7 +480,7 @@ describe("Form", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const validation = Effect.runFork(form.validateEffect());
+        const validation = Effect.runFork(form.validate());
         yield* Deferred.await(started);
 
         initial.details.name = "Mutated Initial";
@@ -521,7 +521,7 @@ describe("Form", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const validation = Effect.runFork(form.validateEffect());
+        const validation = Effect.runFork(form.validate());
         yield* Deferred.await(started);
         form.setField("name", "Atlas Revenue");
         yield* Deferred.succeed(release, undefined);
@@ -552,7 +552,7 @@ describe("Form", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const validation = Effect.runFork(form.validateEffect());
+        const validation = Effect.runFork(form.validate());
         yield* Deferred.await(started);
         form.reset({ id: "phoenix", name: "Phoenix Ops" });
         yield* Deferred.succeed(release, undefined);

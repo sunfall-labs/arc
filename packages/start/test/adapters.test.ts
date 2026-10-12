@@ -10,7 +10,7 @@ import { Socket, type AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 import { Deferred, Effect, Option } from "effect";
 import { describe, expect, it } from "vitest";
-import { defineApp, makeRuntime, route } from "@sunfall/arc-core";
+import { makeRuntime, Route, App } from "@sunfall/arc-core";
 import { createFetchHandler, toFetchHandler } from "../src/fetch.js";
 import {
   createNodeHandler,
@@ -392,8 +392,8 @@ describe("Start deployment adapters", () => {
       readonly teardown?: { readonly runtimeDisposed?: boolean; readonly reason?: string };
     }> = [];
     let cancelled: unknown;
-    const Home = route("/", {});
-    const app = defineApp({
+    const Home = Route.define("/", {});
+    const app = App.define({
       routes: [Home] as const,
       client: {},
     });

@@ -230,9 +230,7 @@ export const actionResponseMetaEffect = (
   plan === undefined
     ? Effect.succeed({})
     : Effect.gen(function* () {
-        const resources = yield* Resource.hydrationPayloadEffect(
-          plan.entries.map((entry) => entry.ref),
-        );
+        const resources = yield* Resource.hydrationPayload(plan.entries.map((entry) => entry.ref));
         const hydration = createStartHydrationPayload(resources);
         return {
           invalidation: describeStartActionInvalidationPlan(plan),

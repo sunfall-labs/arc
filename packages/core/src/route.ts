@@ -128,7 +128,7 @@ export interface RouteLazyComponent<Component = unknown, E = never> {
   /** Export name read from the lazily imported module. */
   readonly exportName: string;
   /** Starts loading the component chunk as an Effect and reuses the descriptor's in-flight owner. */
-  preloadEffect(): Effect.Effect<Component, E | RouteLazyComponentLoadError>;
+  preload(): Effect.Effect<Component, E | RouteLazyComponentLoadError>;
   /** Returns the loaded component, or throws a tagged pending/failure value for UI adapters. */
   read(): Component;
 }
@@ -157,7 +157,7 @@ export class RouteLazyComponentPending<E = never> extends Data.TaggedError(
   "RouteLazyComponentPending",
 )<{
   readonly exportName: string;
-  readonly preloadEffect: Effect.Effect<unknown, E | RouteLazyComponentLoadError>;
+  readonly preload: Effect.Effect<unknown, E | RouteLazyComponentLoadError>;
 }> {}
 
 /** Error failed by lazy route component preload Effects when the loaded module is invalid. */
@@ -250,15 +250,15 @@ function lazyRouteComponent<Component, E = never>(
   return {
     [RouteLazyComponentTypeId]: RouteLazyComponentTypeId,
     exportName,
-    preloadEffect,
+    preload: preloadEffect,
     read: () => {
       switch (state._tag) {
         case "Initial":
-          throw new RouteLazyComponentPending({ exportName, preloadEffect: preloadEffect() });
+          throw new RouteLazyComponentPending({ exportName, preload: preloadEffect() });
         case "Pending":
           throw new RouteLazyComponentPending({
             exportName,
-            preloadEffect: Fiber.join(state.fiber),
+            preload: Fiber.join(state.fiber),
           });
         case "Success":
           return state.component;
@@ -282,7 +282,7 @@ const routeLazyComponentPendingEffect = <E = never>(
   value: unknown,
 ): Effect.Effect<unknown, E | RouteLazyComponentLoadError> | undefined =>
   value instanceof RouteLazyComponentPending
-    ? (value.preloadEffect as Effect.Effect<unknown, E | RouteLazyComponentLoadError>)
+    ? (value.preload as Effect.Effect<unknown, E | RouteLazyComponentLoadError>)
     : undefined;
 
 /** Runtime capability needed to launch lazy route component Suspense preload work. */
@@ -379,7 +379,7 @@ export interface RouteDefinition<
    * Matches a URL and synchronously decodes params/search when schemas are present.
    *
    * Schema decode failures throw from this sync API. Use
-   * `Route.planNavigationEffect(...)` when callers need typed
+   * `Route.planNavigation(...)` when callers need typed
    * `RouteNavigationError` failures instead.
    */
   match(input: string | URL): RouteMatch<this> | undefined;
@@ -606,7 +606,7 @@ type CheckedRoutePreload<Options> = Options extends {
  */
 export type CheckedRouteOptions<Options> = Options & CheckedRoutePreload<Options>;
 
-/** Route definition that `route(path, options)` returns for `Options`. */
+/** Route definition that `Route.define(path, options)` returns for `Options`. */
 export type RouteDefinitionFromOptions<Path extends string, Options> = RouteDefinition<
   Path,
   ParamsFromOptions<Path, Options>,
@@ -748,71 +748,6 @@ const orderedRouteDefinitions = <
     })
     .map((entry) => entry.definition);
 
-/**
- * Defines a typed route with path params, optional search decoding, and preload work.
- *
- * Params are inferred from `:param` segments unless a params schema is supplied.
- *
- * @example
- * ```ts
- * const userRoute = route("/users/:id", {
- *   preload: ({ params }) => Resource.prefetchEffect(UserResource(params.id))
- * });
- *
- * const href = userRoute.build({ id: "42" });
- * ```
- */
-export function route<const Path extends string>(
-  path: Path,
-): RouteDefinition<Path, ParamsForPath<Path>, Record<string, never>, never, never>;
-export function route<const Path extends string, const Options extends RouteOptionsInput>(
-  path: Path,
-  options: CheckedRouteOptions<Options>,
-): RouteDefinition<
-  Path,
-  ParamsFromOptions<Path, Options>,
-  SearchFromOptions<Options>,
-  PreloadRequirementsFromOptions<Options>,
-  PreloadErrorFromOptions<Options>
->;
-export function route<const Path extends string, const Options extends RouteOptionsInput>(
-  path: Path,
-  options: CheckedRouteOptions<Options> = {} as CheckedRouteOptions<Options>,
-): RouteDefinitionFromOptions<Path, Options> {
-  type Params = ParamsFromOptions<Path, Options>;
-  type Search = SearchFromOptions<Options>;
-  type PreloadRequirements = PreloadRequirementsFromOptions<Options>;
-  type PreloadError = PreloadErrorFromOptions<Options>;
-
-  const definition: RouteDefinition<Path, Params, Search, PreloadRequirements, PreloadError> = {
-    path,
-    options: options as RouteOptions<Path, Params, Search, PreloadRequirements, PreloadError>,
-    build(params, search) {
-      const record = params as Record<string, unknown>;
-      const compiled = buildRoutePath(path, record);
-
-      return appendSearch(compiled, search as Record<string, unknown> | undefined);
-    },
-    match(input) {
-      const url = parseRouteUrl(input);
-      const params = matchRoutePath(path, url.pathname);
-      if (!params) {
-        return undefined;
-      }
-
-      return {
-        route: definition,
-        params: decode<Params>(options.params, params),
-        search: decode<Search>(options.search, searchObject(url.searchParams)),
-        pathname: url.pathname,
-        href: `${url.pathname}${url.search}`,
-      } as RouteMatch<typeof definition>;
-    },
-  };
-
-  return definition;
-}
-
 /** Helpers for matching, building, and preloading route definitions. */
 export namespace Route {
   export type Definition<
@@ -913,6 +848,71 @@ export namespace Route {
     | Component<R>
     | LazyComponent<Component<R>, E>;
 
+  /**
+   * Defines a typed route with path params, optional search decoding, and preload work.
+   *
+   * Params are inferred from `:param` segments unless a params schema is supplied.
+   *
+   * @example
+   * ```ts
+   * const userRoute = Route.define("/users/:id", {
+   *   preload: ({ params }) => Resource.preload(UserResource(params.id))
+   * });
+   *
+   * const href = userRoute.build({ id: "42" });
+   * ```
+   */
+  export function define<const Path extends string>(
+    path: Path,
+  ): RouteDefinition<Path, ParamsForPath<Path>, Record<string, never>, never, never>;
+  export function define<const Path extends string, const Options extends RouteOptionsInput>(
+    path: Path,
+    options: CheckedRouteOptions<Options>,
+  ): RouteDefinition<
+    Path,
+    ParamsFromOptions<Path, Options>,
+    SearchFromOptions<Options>,
+    PreloadRequirementsFromOptions<Options>,
+    PreloadErrorFromOptions<Options>
+  >;
+  export function define<const Path extends string, const Options extends RouteOptionsInput>(
+    path: Path,
+    options: CheckedRouteOptions<Options> = {} as CheckedRouteOptions<Options>,
+  ): RouteDefinitionFromOptions<Path, Options> {
+    type Params = ParamsFromOptions<Path, Options>;
+    type Search = SearchFromOptions<Options>;
+    type PreloadRequirements = PreloadRequirementsFromOptions<Options>;
+    type PreloadError = PreloadErrorFromOptions<Options>;
+
+    const definition: RouteDefinition<Path, Params, Search, PreloadRequirements, PreloadError> = {
+      path,
+      options: options as RouteOptions<Path, Params, Search, PreloadRequirements, PreloadError>,
+      build(params, search) {
+        const record = params as Record<string, unknown>;
+        const compiled = buildRoutePath(path, record);
+
+        return appendSearch(compiled, search as Record<string, unknown> | undefined);
+      },
+      match(input) {
+        const url = parseRouteUrl(input);
+        const params = matchRoutePath(path, url.pathname);
+        if (!params) {
+          return undefined;
+        }
+
+        return {
+          route: definition,
+          params: decode<Params>(options.params, params),
+          search: decode<Search>(options.search, searchObject(url.searchParams)),
+          pathname: url.pathname,
+          href: `${url.pathname}${url.search}`,
+        } as RouteMatch<typeof definition>;
+      },
+    };
+
+    return definition;
+  }
+
   /** Creates a route component descriptor backed by a lazily imported module. */
   export const lazyComponent = lazyRouteComponent;
 
@@ -923,7 +923,7 @@ export namespace Route {
   export const readComponent = readRouteComponent;
 
   /** Extracts preload work from a thrown lazy route pending marker. */
-  export const lazyComponentPendingEffect = routeLazyComponentPendingEffect;
+  export const lazyComponentPending = routeLazyComponentPendingEffect;
 
   /** Forks a pending lazy component preload for framework Suspense adapters. */
   export const forkLazyComponentSuspense = forkRouteLazyComponentSuspense;
@@ -952,7 +952,7 @@ export namespace Route {
     component: RouteComponent,
   ): Definition<R["path"], Params<R>, Search<R>, PreloadRequirements<R>, PreloadFailure<R>> &
     RouteWithComponent<RouteComponent> =>
-    route(definition.path, {
+    define(definition.path, {
       ...definition.options,
       component,
     }) as unknown as Definition<
@@ -968,7 +968,7 @@ export namespace Route {
    * Returns the first matching route for a URL, or undefined when none match.
    *
    * This sync helper delegates to each route's `match(...)`; schema-backed
-   * params/search decode failures throw. Use `Route.planNavigationEffect(...)`
+   * params/search decode failures throw. Use `Route.planNavigation(...)`
    * for an Effect-returning navigation path with typed `RouteNavigationError`
    * failures.
    */
@@ -987,13 +987,24 @@ export namespace Route {
   };
 
   /**
+   * Narrows a route match to `definition`'s match.
+   *
+   * Routes compare by path, so the check also holds for the copies
+   * `Route.withComponent(...)` returns.
+   */
+  export const isMatch = <R extends Definition<string, unknown, unknown, any>>(
+    definition: R,
+    match: Match<Definition<string, unknown, unknown, any>> | undefined,
+  ): match is Match<R> => match?.route.path === definition.path;
+
+  /**
    * Runs a matched route's preload function as an Effect.
    *
    * Typed preload failures become `RoutePreloadError<Route.PreloadFailure<R>>`.
    * Synchronous throws and Promise returns break the preload contract and are
    * defects.
    */
-  export const preloadEffect = <R extends Definition<string, unknown, unknown, any>>(
+  export const preload = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>,
   ): Effect.Effect<void, RoutePreloadError<PreloadFailure<R>>, PreloadRequirements<R>> =>
     Effect.suspend(() => {
@@ -1014,7 +1025,7 @@ export namespace Route {
    * Preloads a lazy route component chunk, when the route component is lazy.
    * A failed load fails with `RouteLazyComponentFailed`.
    */
-  export const preloadComponentEffect = <R extends Definition<string, unknown, unknown, any>>(
+  export const preloadComponent = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>,
   ): Effect.Effect<void, RouteLazyComponentFailed<unknown>> => {
     const component = match.route.options.component;
@@ -1022,7 +1033,7 @@ export namespace Route {
       return Effect.void;
     }
 
-    return component.preloadEffect().pipe(
+    return component.preload().pipe(
       Effect.asVoid,
       Effect.catchCause((cause) =>
         Effect.fail(
@@ -1105,7 +1116,7 @@ export namespace Route {
    * failure that does not encode is logged and sent as `Unencodable`, without
    * its data. Without an `error` schema only the failure `_tag` is sent.
    */
-  export const preloadFailureSnapshotEffect = <R extends Definition<string, unknown, unknown, any>>(
+  export const preloadFailureSnapshot = <R extends Definition<string, unknown, unknown, any>>(
     definition: R,
     error: RoutePreloadError<PreloadFailure<R>>,
   ): Effect.Effect<RoutePreloadFailureSnapshot> => {
@@ -1191,16 +1202,16 @@ export namespace Route {
    * the outlet's failure view. The record is consumed by the first router that
    * reads it; later navigations to the href run its preload again.
    */
-  export const hydratePreloadFailureEffect = (
+  export const hydratePreloadFailure = (
     snapshot: RoutePreloadFailureSnapshot,
   ): Effect.Effect<void> =>
     Effect.map(resourceStoreEffect, (store) => hydrateRoutePreloadFailure(store, snapshot));
 
   /** Runs matched route preload and captures touched resources for hydration. */
-  export const planPreloadEffect = <R extends Definition<string, unknown, unknown, any>>(
+  export const planPreload = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>,
   ): Effect.Effect<PreloadPlan<R>, PreloadError<R>, PreloadRequirements<R>> =>
-    collectResourceEffect(preloadEffect(match)).pipe(
+    collectResourceEffect(preload(match)).pipe(
       Effect.flatMap((collected) =>
         resourceHydrationPayloadEffect(collected.refs).pipe(
           Effect.map((resources) => ({
@@ -1218,7 +1229,7 @@ export namespace Route {
    * Route preloads run inside Effect so adapters can await data and serialize only
    * resources touched during the preload.
    */
-  export const planNavigationEffect = <
+  export const planNavigation = <
     const Routes extends readonly Definition<string, unknown, unknown, any>[],
   >(
     routes: Routes,
@@ -1258,7 +1269,7 @@ export namespace Route {
             return Effect.succeed(notFound);
           }
 
-          return planPreloadEffect(matched).pipe(
+          return planPreload(matched).pipe(
             Effect.map(
               (plan): NavigationPlan<Routes[number]> => ({
                 _tag: "Matched" as const,

@@ -104,7 +104,7 @@ const serverProjects: Collection.Definition<
 > = ServerProjects;
 
 // A Resource ref backs a collection directly.
-const ProjectRows = Resource.family<void, ReadonlyArray<Project>, "resource-load">({
+const ProjectRows = Resource.define<void, ReadonlyArray<Project>, "resource-load">({
   name: "type-tests/project-rows",
   load: () => Effect.fail("resource-load" as const),
 });
@@ -150,14 +150,14 @@ Collection.define({
 const projectState: AsyncResult.AsyncResult<
   void,
   Collection.RuntimeError<never>
-> = dbStaticProjectsCollection.state().get();
+> = dbStaticProjectsCollection.result().get();
 const projectRows: ReadonlyArray<Collection.Row<Project, string>> =
   dbStaticProjectsCollection.rows();
 const applyChanges: Effect.Effect<
   void,
   Collection.RuntimeError<"load"> | CollectionRowNotFound | CollectionRowKeyChanged,
   DbRuntimeService
-> = dbProjectsCollection.applyChangesEffect(
+> = dbProjectsCollection.applyChanges(
   [
     { _tag: "Upsert", value: { id: "atlas", name: "Atlas" } },
     { _tag: "Update", key: "atlas", changes: { name: "Atlas Prime" } },
@@ -165,9 +165,9 @@ const applyChanges: Effect.Effect<
   ],
   { origin: "remote", synced: true },
 );
-// @ts-expect-error fire-and-forget writes were removed; run applyChangesEffect instead.
+// @ts-expect-error fire-and-forget writes were removed; run applyChanges instead.
 dbProjectsCollection.writeInsert;
-// @ts-expect-error direct write Effects were folded into applyChangesEffect.
+// @ts-expect-error direct write Effects were folded into applyChanges.
 dbProjectsCollection.writeInsertEffect;
 // @ts-expect-error pending mutations are read reactively with pendingMutations().
 dbProjectsCollection.pendingMutationsEffect;
@@ -215,17 +215,16 @@ const collectionStorage: Collection.PersistenceStorage<CollectionStorageError> =
 const collectionFlushEffect: Effect.Effect<
   ReadonlyArray<Collection.FlushAllPendingMutationsResult>,
   unknown
-> = Collection.flushAllPendingMutationsEffect([dbStaticProjectsCollection]);
+> = Collection.flushAllPendingMutations([dbStaticProjectsCollection]);
 const collectionBackgroundSyncEffect: Effect.Effect<Collection.BackgroundSyncResult, unknown> =
-  Collection.backgroundSyncPendingMutationsEffect([dbStaticProjectsCollection]);
+  Collection.backgroundSyncPendingMutations([dbStaticProjectsCollection]);
 const liveQueryCollection = Collection.liveQuery<Project, string, unknown>({
   name: "type-tests/live-query-projects",
   getKey: (project) => project.id,
   query: (query) =>
     query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project),
 });
-const liveQueryCollectionWrite: Effect.Effect<void, unknown> =
-  liveQueryCollection.applyChangesEffect([]);
+const liveQueryCollectionWrite: Effect.Effect<void, unknown> = liveQueryCollection.applyChanges([]);
 
 declare const collectionFlushError: Collection.FlushAllPendingMutationsError<
   readonly [typeof dbProjectsCollection],
@@ -292,7 +291,7 @@ publicQueryBuilder.sources;
 publicQueryBuilder.innerJoin;
 // @ts-expect-error predicate helpers were removed; use plain operators in where(...).
 Query.eq;
-// @ts-expect-error Query.build is internal; use Query.onceEffect or Query.live.
+// @ts-expect-error Query.build is internal; use Query.once or Query.live.
 Query.build;
 declare const neverQueryBuilder: Query.Builder<any, never, any, any>;
 // @ts-expect-error public Query.Builder is branded; use Query.from(...) instead of structural fakes.
@@ -317,7 +316,7 @@ const liveQueryState: AsyncResult.AsyncResult<
 > = publicLiveQuery.state.get();
 // @ts-expect-error public live query handles do not expose their internal builder.
 publicLiveQuery.builder;
-const onceRows: Effect.Effect<ReadonlyArray<Project>, unknown, unknown> = Query.onceEffect(
+const onceRows: Effect.Effect<ReadonlyArray<Project>, unknown, unknown> = Query.once(
   publicQueryFactory,
 );
 const queryEvaluationError = new QueryEvaluationError({

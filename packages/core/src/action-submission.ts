@@ -90,9 +90,9 @@ export interface ActionSubmissionController<I, A, E, P = ResourceInvalidationPla
    * time. UI adapters use this host cleanup seam so later submissions cannot be
    * interrupted by a queued reset.
    */
-  readonly captureResetEffect: () => Effect.Effect<void>;
+  readonly captureReset: () => Effect.Effect<void>;
   /** Lazy Effect-first reset for callers already composing inside Effect. */
-  readonly resetEffect: () => Effect.Effect<void>;
+  readonly reset: () => Effect.Effect<void>;
 }
 
 export interface ActionSubmissionControllerOptions {
@@ -247,7 +247,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
           currentSubmission = undefined;
         }
       }),
-    captureResetEffect,
-    resetEffect,
+    captureReset: captureResetEffect,
+    reset: resetEffect,
   };
 };

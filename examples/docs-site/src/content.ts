@@ -57,7 +57,7 @@ export const RecipeTag = Resource.tag<{ readonly slug: RecipeSlugType }>("Docs.r
   key: ({ slug }) => slug,
 });
 
-export const RecipeIndex = Resource.family({
+export const RecipeIndex = Resource.define({
   name: "Docs.recipes",
   input: Schema.Literal("all"),
   output: Schema.Array(RecipeSummarySchema),
@@ -69,7 +69,7 @@ export const RecipeIndex = Resource.family({
   },
 });
 
-export const RecipeBySlug = Resource.family({
+export const RecipeBySlug = Resource.define({
   name: "Docs.recipe",
   input: RecipeSlug,
   output: RecipeSchema,
@@ -83,7 +83,7 @@ export const RecipeBySlug = Resource.family({
 
 export const RecipeIndexRef = RecipeIndex("all");
 
-export const preloadRecipeIndexEffect = Resource.prefetchEffect(RecipeIndexRef);
+export const preloadRecipeIndexEffect = Resource.preload(RecipeIndexRef);
 
 export const recipeInvalidations = (slug: RecipeSlugType): readonly Resource.Invalidation[] => [
   RecipesTag,

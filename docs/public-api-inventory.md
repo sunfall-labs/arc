@@ -111,7 +111,7 @@ event/fiber/module seams without exposing mutable cache internals.
 
 Golden-path public groups:
 
-- `defineApp`, `route`, `Route`, `Resource`, `Action`, `ActionResult`,
+- `App`, `Route`, `Resource`, `Action`, `ActionResult`,
   `Program`
 - `Server`, `ServerClient`, request/response context services
 - `Signal`, `Form`, `Capability`
@@ -133,9 +133,10 @@ Golden-path public groups:
   may be renderer component values (Solid's typed `Component`), and
   `Route.withComponent(...)` keeps the attached component's type
   (`Route.ComponentOf<R>`) so adapters can check its requirements.
-- `Resource.requestFamily` for Resource state backed by Effect
-  `RequestResolver` batching/deduping.
-- `Resource.deleteEffect(ref)` for explicit Effect-first removal from the
+- `Resource.define(...)` is the one Resource constructor: it loads through
+  `load`, or, given `request` and `resolver`, through an Effect
+  `RequestResolver` that batches and dedupes sibling loads.
+- `Resource.evict(ref)` for explicit Effect-first removal from the
   active Resource Store when tests, adapters, or cache policies need to drop a
   ref before GC.
 - Resource namespace aliases such as `Resource.Tag`,
@@ -147,11 +148,11 @@ Golden-path public groups:
   `ResourceHydrationSuccessState` are also Core-owned public vocabulary. Type-test and hover-policy pins keep adapters from depending on
   namespace-only imports when a top-level type is the clearer LSP target.
 - `ResourceHydrationPayload` (`Resource.HydrationPayload`) is the one name for
-  the shared Core/Start payload-only contract. `Resource.hydrateEffect(...)`
+  the shared Core/Start payload-only contract. `Resource.hydrate(...)`
   accepts the payload object shape; raw snapshot arrays must be wrapped as
-  `{ resources: snapshots }`. `Resource.hydrationPayloadEffect(...)` creates
+  `{ resources: snapshots }`. `Resource.hydrationPayload(...)` creates
   validated payloads from loaded Resource refs.
-- `Action.planInvalidationEffect(...)` for adapters/tests that need action
+- `Action.planInvalidation(...)` for adapters/tests that need action
   invalidation planning with synchronous `invalidates` callback throws reported
   as `EffectInputCallbackError`.
 - `PlainValue` is the expert-public type vocabulary for non-executable data
@@ -162,9 +163,8 @@ Golden-path public groups:
   values at Core and Start host seams. It treats throwing `then` getters as
   Promise-shaped so each caller can report its typed boundary error instead of
   surfacing the getter throw as a defect.
-- Browser router helper types such as `BrowserNavigateArgs`,
-  `BrowserRouterPath`, and `BrowserRouterRouteForPath` are Core-owned route
-  helper vocabulary. Adapters do not re-export them; Core is their only import
+- Browser router helper types such as `BrowserNavigateArgs` and
+  `BrowserRouterError` are Core-owned route helper vocabulary. Adapters do not re-export them; Core is their only import
   path.
 - `stableStringify(...)` and the `StableStringify*` errors are expert-public
   Stable Identity Codec vocabulary for cache keys, route/resource identity, and
@@ -201,7 +201,7 @@ Release decisions:
   `makeRuntimeUiScopeFrame(...)`, `scoped`, `runWithScope`, `getCurrentScope`,
   `onDispose`, `forkScoped`, `watch`) is internal adapter plumbing in
   `@sunfall/arc-core/internal`. Frames expose one disposal path,
-  `disposeEffect()`, which host cleanup hooks fork on the owning runtime.
+  `dispose()`, which host cleanup hooks fork on the owning runtime.
 - `SunfallArcRuntime<R, ER>` is the typed Runtime Spine: `provide(...)` removes
   only services actually present in `R` plus the Resource Store, and
   `runFork(...)`/`runSync(...)` only accept Effects whose requirements are
@@ -219,25 +219,25 @@ Release decisions:
   queue, and fiber collections are intentionally internal implementation state;
   the Core root barrel intentionally does not export `MutableResourceStore`,
   `makeMutableResourceStore(...)`, or `unsafeMutableResourceStore(...)`.
-- `Route.preloadEffect(...)`, `Route.planPreloadEffect(...)`, and
-  `Route.planNavigationEffect(...)` preserve the service requirements and the
+- `Route.preload(...)`, `Route.planPreload(...)`, and
+  `Route.planNavigation(...)` preserve the service requirements and the
   typed preload failure (`Route.PreloadFailure<R>`) declared by routes. A
   route's `error` option (`RouteErrorSchema<E>`, a service-free Schema codec)
   types its preload failure as `RoutePreloadError<E>`; preloads that fail with
   anything else are compile errors. `BrowserRouterError<Routes>` is the typed
-  failure union in router `Failure` state. `Route.preloadFailureSnapshotEffect`
+  failure union in router `Failure` state. `Route.preloadFailureSnapshot`
   and `Route.preloadFailureCauseFromSnapshot` own the
   `RoutePreloadFailureSnapshot` wire form (`RoutePreloadFailureEncoding`):
   schema-encoded JSON with an `error` schema, the failure `_tag` only without
   one, and a `RoutePreloadFailureCodecError` defect when the failure cannot
   cross with the schema. `CheckedRouteOptions<Options>` and
   `RouteDefinitionFromOptions<Path, Options>` let builders such as Start file
-  routes reuse `route(...)` option checking and inference. Planning Effects also expose
+  routes reuse `Route.define(...)` option checking and inference. Planning Effects also expose
   `ResourceSnapshotCodecError` when touched resources cannot be serialized into
   hydration payloads. Solid and Start adapters may discharge service
   requirements only by running through a Runtime Spine.
 - `Route.lazyComponent(...)` is Effect-first: the chunk loader is an
-  `Effect`, the descriptor exposes `preloadEffect()`, and
+  `Effect`, the descriptor exposes `preload()`, and
   `Route.readComponent(...)` reports lazy pending/failure through tagged values.
   The Solid adapter is the only layer that converts pending lazy route loads
   into host Suspense Promise tokens. Lazy component load state is cached on the
@@ -269,14 +269,15 @@ Release decisions:
   `makeBrowserRouterLinkPreloader(...)` seam accepts only full preload identity
   facts and requirement-free preload Effects, so framework adapters must
   provide route services before handing hover work to Core.
-- `BrowserRouterKernel.disposeEffect()` and
-  `BrowserRouterHostController.disposeEffect()` are the Effect-first disposal
-  Interfaces for route preload lifetime teardown. Sync `dispose()` remains a
-  runtime-owned host cleanup convenience for framework owner hooks.
+- `BrowserRouterKernel.dispose()` and
+  `BrowserRouterHostController.dispose()` return the Effect that tears down
+  route preload lifetimes; there is no synchronous twin. Framework owner hooks
+  fork it (`Effect.runFork(controller.dispose())`), which starts synchronously,
+  and `start()` returns that same cleanup for headless hosts.
 - Browser route render decisions live in Core internals so framework adapters
   share the same outlet state meaning; app code uses framework router outlets.
 - `Action.use(definition, { runtime })` is a runtime-bound action instance:
-  services provided by the explicit runtime are removed from `submitEffect(...)`
+  services provided by the explicit runtime are removed from `submit(...)`
   requirements, and the runtime error channel is added to the action error
   surface. The runtime is required: there is no default-runtime fallback.
   Submissions report `Server.ClientError` beside the Action's own failures,
@@ -288,19 +289,21 @@ Release decisions:
   facade keeps runtime binding and requirement subtraction local, so LSP hovers
   still show the action requirements after any explicit Runtime Spine is
   applied.
-- `Capability.useEffect(...)` is public with explicit pure-value and
-  Effect-returning overloads; Promise-returning callbacks remain rejected so
-  host async work is routed through Effect primitives.
+- `Capability.use(...)` is the one service accessor, with explicit
+  Effect-returning and plain-value overloads; Promise-returning callbacks are
+  rejected so host async work is routed through Effect primitives, and a
+  throwing callback is a defect (as with `Effect.sync`).
 - `Program` is the public facade for the headless frontend loop around
   centralized model/message state. `Program.define(...)` accepts either a plain
   initial model with a pure-or-Effect `update(model, message)` callback or, for
   tagged messages, an exhaustive `on` handler map keyed by every message `_tag`.
   `Program.update(...)` builds the same callback from a handler map when callers
   want the compact handlers inside a conventional definition. `Program.emit(...)`
-  creates a command that emits one immediate or Effect-produced follow-up
-  message on success; `Program.command(...)` is the lower-level command for
-  Effects that may emit a message or intentionally complete empty, and
-  `Program.effect(...)` is the no-message background-work helper.
+  is the one command constructor: it emits an immediate message, or runs an
+  Effect after the model commits and emits the message it produces; an Effect
+  that completes with `void` emits nothing, so background work is
+  `Program.emit(effect)` too. `Program.commands(...)` batches commands for
+  `Program.next(model, ...)`.
   `Program.next(...)` widens variant commands through the Program's message
   union so handlers do not need command-level union generics. Both definition
   surfaces use the same Effect commands and Stream subscriptions.
@@ -312,20 +315,21 @@ Release decisions:
   Program models and messages are plain data: Promise-shaped values,
   Effect-shaped values, and `undefined`/`void` messages are rejected. Commands
   that intentionally emit nothing reserve `undefined`/`void` as the no-message
-  sentinel; host Promise work that emits a message belongs inside
-  `Program.emit(...)`, while no-message background work belongs in
-  `Program.effect(...)` or lower-level `Program.command(...)`.
+  sentinel; host Promise work belongs inside `Program.emit(...)`, mapped to a
+  message or completing with `void`.
   Started Programs report typed update/command/subscription failures through a
-  signal and keep `dispatchEffect(...)` composable for tests and workflows.
+  signal. `dispatch(message)` is the one dispatch: an Effect that queues the
+  message and completes once its update commits; UI event handlers bridge it
+  with Solid's `Component.callback`.
   Programs keep no history of their own: message and failure commits are
   labelled entries on the app `Timeline`. When disposal drops a queued update
-  before it commits, `dispatchEffect(...)` fails with a `ProgramFailure` whose
+  before it commits, `dispatch(...)` fails with a `ProgramFailure` whose
   error is `ProgramDisposed`; updates that already committed still acknowledge
   successfully. Definitions may set `name`, which labels the Program's signals
   (`<name>.model`, `<name>.failures`) and its `Timeline` causes. The public
   Program facade keeps queue, command, subscription, failure, and disposal
   orchestration. Runtime lifecycle policy also stays internal:
-  disposal fails pending or queued `dispatchEffect(...)` acknowledgements with
+  disposal fails pending or queued `dispatch(...)` acknowledgements with
   `ProgramFailure<..., ProgramDisposed>` when the update has not committed;
   already committed updates acknowledge successfully. Committed model changes
   own subscription restarts, and stale subscription generations cannot emit
@@ -337,13 +341,13 @@ Release decisions:
   `program.ts`.
   `Program.RuntimeError<E, ER = never>` separates Program-domain failures from
   Runtime Spine startup/provision failures. `Program.DispatchError<E, ER>` adds
-  `ProgramDisposed` for live `dispatchEffect(...)` acknowledgement drops. The
+  `ProgramDisposed` for live `dispatch(...)` acknowledgement drops. The
   Solid `Component.program(...)` binding runs on its instance's already-started
   runtime, so its handle carries no `ER`.
   `Program.step(...)` and `Program.story(...)` are the deterministic test
   surface: they run updates as Effects, expose returned commands without running
   them implicitly, and let tests resolve commands back into typed messages.
-- `Form.decodeFormDataEffect(...)` decodes browser `FormData` through Effect
+- `Form.decodeFormData(...)` decodes browser `FormData` through Effect
   Schema and maps schema failures to typed `Form.ValidationError` values.
   `Form.data(...)` is the explicit intermediate object conversion, preserving
   repeated field names as arrays and allowing framework hidden fields to be
@@ -359,26 +363,26 @@ Release decisions:
   `EffectInputCallbackError`, schema errors, and transport errors stay in the
   client error channel.
 - `Resource.LoadError<E>` is public hover vocabulary for Resource state,
-  status, `prefetchEffect(...)`, `refreshEffect(...)`, and Solid
+  status, `preload(...)`, `refresh(...)`, and Solid
   resource handles. It means the declared load error `E` plus
   `EffectInputCallbackError` from synchronous `load`/`provides` callback
   throws.
 - `ResourceKeyError` is public hover vocabulary for the default Resource key
   codec. It tells callers when JSON-compatible values plus Date, URL, Map, and
   Set are not enough and an explicit `key` callback is required.
-- Resource operations have one Effect form each (`statusEffect`, `readEffect`,
-  `dehydrateEffect`, `hydrationPayloadEffect`, `hydrateEffect`,
-  `planInvalidationEffect`, `invalidateEffect`, `runInvalidationPlanEffect`);
+- Resource operations have one Effect form each (`status`, `read`,
+  `dehydrate`, `hydrationPayload`, `hydrate`,
+  `planInvalidation`, `invalidate`, `runInvalidationPlan`);
   the synchronous twins that ran on an ambient/default runtime are removed.
   Host seams run them on an explicit runtime (`runtime.runSync(...)`).
 - `Resource.diagnostics()` and `Resource.result(...)` are public LSP
   vocabulary for devtools and render seams. Registry lookups (family/tag
   definitions, registry diagnostics, refs for a tag, Action definitions) are
   internal plumbing in `@sunfall/arc-core/internal`.
-- `Resource.readEffect(...)` is the public Effect-first read Interface for
+- `Resource.read(...)` is the public Effect-first read Interface for
   already-loaded refs. Missing, pending, collected, and failed states stay in
   typed Effect failure channels instead of escaping as render-control throws.
-- `Resource.collectEffect(...)` is the public preload/read collection seam for
+- `Resource.collect(...)` is the public preload/read collection seam for
   route planners and adapters that need the value plus touched Resource refs.
   The result type is exposed as `Resource.Collected<A>`; the internal
   `ResourceCollector` service and flat `ResourceCollected` alias are not root
@@ -388,9 +392,9 @@ Release decisions:
   observe the same wire policy as hydrate.
 - `resource-ui-binding` is the internal Resource UI Binding Controller
   Module for framework adapters. It owns Resource ref identity, runtime-bound
-  refresh/prefetch Effects, automatic preload fibers, keyed preload failures,
+  refresh/preload Effects, automatic preload fibers, keyed preload failures,
   observer and host setter failure swallowing, stale preload interruption,
-  retained-ref cleanup through `disposeEffect()`, and Suspense preload-token
+  retained-ref cleanup through `dispose()`, and Suspense preload-token
   dedupe. The Solid adapter still owns host reactivity and host Suspense throwing.
 - Async state is Effect's `AsyncResult` (`effect/reactivity`) everywhere:
   `Resource.result(ref)`, `ResourceStatus.result`, `ActionState.result`,
@@ -407,7 +411,7 @@ Release decisions:
   plumbing halves of `action-submission`, `resource-snapshot-codec`, and
   `route-grammar` are internal Modules exported from
   `@sunfall/arc-core/internal` for sibling adapter packages. App code uses the
-  higher-level `Action`, `Resource`, `Route`, `Server`, and `defineApp`
+  higher-level `Action`, `Resource`, `Route`, `Server`, and `App.define`
   facades.
 
 ### `@sunfall/arc-start`
@@ -427,18 +431,20 @@ includes:
   describe its options, render context, and the `onRequestTrace` hook.
   `StartRenderContext.hydrationRootScript` is the streamed renderer's root-only
   script; `legacyHydrationScript` is the full non-streaming payload.
-- HTML responses: `createStartStreamedHtmlResponseEffect`,
-  `createHtmlResponseEffect`, `htmlChunk`, and `StartStreamError`.
-- hydration: `hydrateFromDocumentEffect` is canonical; `hydrateFromDocument` is
-  the synchronous host-boundary facade for browser boot before mount.
+- HTML responses: `createStartStreamedHtmlResponse`,
+  `createHtmlResponse`, `htmlChunk`, and `StartStreamError`.
+- hydration: `hydrateFromDocument(document, id?, options?)` is the one
+  document hydration entry: an Effect the client entry runs on its runtime
+  (`runtime.provide(...)`) before `Component.launch(..., { hydrate: true })`.
+  There is no synchronous facade.
   `StartHydrationPayload`, `StartHydrationDocument`, `StartHydrationError`, and
   the `StartHydration*ParseError` / `StartHydrationPayloadSerializeError`
   classes are public error vocabulary.
 - RPC: `makeRpcClientLayer(options?)` is the single browser `ServerClient`
   layer constructor (`makeRpcClientLayer()` uses the default transport).
   Service-backed `StartFetch<E, R>` requires an explicit `transportRuntime`.
-- file routes: `defineFileRoute(path)(options)` takes the same options as core
-  `route(path, options)`; Start checks `path` against the discovered file.
+- file routes: `FileRoute.define(path)(options)` takes the same options as core
+  `Route.define(path, options)`; Start checks `path` against the discovered file.
   Static preload hints use core `preloadResources` / `preloadCollections`, and
   runtime work lives in `preload`.
 - actions: `makeActionTransportLayer(options)` (with
@@ -448,7 +454,7 @@ includes:
   and error types; responses hydrate and invalidate the submitting runtime. A
   serviceful `StartFetch<E, R>` requires a `transportRuntime`. The
   `StartAction` namespace keeps only progressive (no-JS) form support:
-  `StartAction.form`, `StartAction.decodeFormDataEffect`, and
+  `StartAction.form`, `StartAction.decodeFormData`, and
   `StartAction.Form`; plus `StartActionFormOptions`,
   `StartActionInvalidationPlan`, `StartActionFormEncodeError`, and
   `StartActionDuplicateName`.
@@ -511,7 +517,7 @@ Release decisions:
   and `StartActionInvalidationPlan` with `DevtoolsInvalidationPlan`, so Start
   and Devtools never import each other.
 - The root does not re-export Core symbols; import `Action`, `Resource`,
-  `Route`, `Server`, `Signal`, and `defineApp` from `@sunfall/arc-core`.
+  `Route`, `Server`, `Signal`, and `App.define` from `@sunfall/arc-core`.
 - `virtual:sunfall-arc/routes` intentionally exposes broad route maps; apps that
   need exact literal route ids, paths, params, search, or href options import
   the written generated route definitions artifact.
@@ -538,7 +544,7 @@ The root export includes:
   `SQLitePersistence*` errors).
 - `Collection.define({ ..., sync })` is the single way to back a collection;
   `sync` is an inline `Collection.SyncAdapter` or a `Resource.Ref`. Remote rows
-  arrive through `sync.changes` or the definition's `applyChangesEffect(...)`.
+  arrive through `sync.changes` or the definition's `applyChanges(...)`.
 - `@sunfall/arc-db/internal` (Internal) carries adapter plumbing for Solid DB,
   Start, and devtools: `bindCollectionRuntimeEffect`,
   `makeCollectionReactivePreloadController`, `collectCollectionsEffect`,
@@ -573,18 +579,18 @@ Release decisions:
   writes, change-feed batch application, row metadata, hydration/persistence
   facades, event publication, and live-query-visible versioning together while
   delegating store lookup/lifecycle to the Runtime Collection Store Module,
-  load/refetch ordering to the Collection Sync Load Policy Module, and queued
+  load/refresh ordering to the Collection Sync Load Policy Module, and queued
   optimistic mutation execution to the Collection Mutation Workflow Module. Sync
   adapters emit batches and loader/mutation Effects; they do not own store
   mutation or in-flight load policy.
-- The internal Collection Sync Load Policy Module owns `preloadEffect(...)` and
-  `refetchEffect(...)` orchestration: in-flight `Deferred` ownership/joining,
-  stale generation checks, restore-before-load, load/refetch selection, retry
+- The internal Collection Sync Load Policy Module owns `preload(...)` and
+  `refresh(...)` orchestration: in-flight `Deferred` ownership/joining,
+  stale generation checks, restore-before-load, load/refresh selection, retry
   scheduling, row replacement, load lifecycle events, and load persistence. It
-  is not exported; public access remains the same Collection load/refetch
+  is not exported; public access remains the same Collection load/refresh
   Effects.
-- The internal Collection Mutation Workflow Module owns `insertEffect(...)`,
-  `updateEffect(...)`, `deleteEffect(...)`, and `flushPendingMutationsEffect()`
+- The internal Collection Mutation Workflow Module owns `insert(...)`,
+  `update(...)`, `delete(...)`, and `flushPendingMutations()`
   orchestration: mutation row ingress, transaction construction, handler DTO
   detachment, active `Deferred` attempt joining, retry scheduling, optimistic
   commit/rollback, mutation lifecycle events, mutation persistence, and restored
@@ -600,7 +606,7 @@ Release decisions:
 - The internal Collection Write Commit Module owns direct-write atomicity:
   snapshot state, apply row changes, persist, restore on persistence failure,
   and publish `CollectionWritten` only after persistence succeeds. The public
-  write APIs and `Collection.applyChangesEffect(...)` keep the same facade.
+  write APIs and `Collection.applyChanges(...)` keep the same facade.
 - The internal Live Query Collection Materialization Module owns per-store
   derived projection state for `Collection.liveQuery(...)`: keyed rows, lookup
   maps, secondary-index buckets, state/version signals, `Ready.updatedAt`, and
@@ -609,17 +615,17 @@ Release decisions:
 - The internal Collection Query Source Adapter owns how Query Builder, Query
   Plan, Live Query State, and Live Query Runtime read from Collection
   Definitions and Live Query Collections: rows, row counts, indexes, version
-  and state signals, and preload/refetch Effects. It is not exported; public
+  and state signals, and preload/refresh Effects. It is not exported; public
   query access remains `Query.*`, `Collection.liveQuery(...)`, and regular
   Collection read interfaces.
 - The internal Query Execution Plan Module owns query validation entrypoints,
   compiled Query Stage Plan consumption, source adapter selection, source
-  preload/refetch, snapshot execution, diagnostics, and projection stages shared
-  by `Query.build(...).execute()`, `Query.onceEffect(...)`,
+  preload/refresh, snapshot execution, diagnostics, and projection stages shared
+  by `Query.build(...).execute()`, `Query.once(...)`,
   `Query.diagnostics(...)`, and live-query state. The internal Query Stage Plan
   compiles source roles, unique source adapters, base-source ordering, identity
   alias ordering, join sources, grouping, filters, ordering, and window facts
-  once so snapshot execution, projection, preload/refetch, Live Query State,
+  once so snapshot execution, projection, preload/refresh, Live Query State,
   and Live Query Runtime share stage policy. The internal Query Stage Plan is
   exported only for sibling DB modules and is not re-exported from
   `@sunfall/arc-db`; public Query APIs stay unchanged.
@@ -656,14 +662,14 @@ Release decisions:
   `CollectionRuntimeError<E>` for each collection, so handler failures, snapshot
   codec failures, and synchronous callback failures stay visible through the
   coordination APIs.
-- `CollectionOptions.refetch` is public as the forced-refresh companion to
-  `load`. The Collection Runtime owns the first preload versus forced refetch
+- `CollectionOptions.refresh` is public as the forced-refresh companion to
+  `load`. The Collection Runtime owns the first preload versus forced refresh
   selection so shared Collection Definitions remain runtime/request-local.
 - Collection and Live Query Collection persistence share the same snapshot
   storage callback policy: synchronous storage throws become
   `EffectInputCallbackError`, while codec failures remain
   `CollectionSnapshotCodecError`.
-- Collection hydration helpers share one validation wall: `dehydrateEffect(...)`
+- Collection hydration helpers share one validation wall: `dehydrate(...)`
   validates the produced payload through the snapshot codec, and
   `validateHydrationPayloadEffect(...)` runs the same definition-owned and
   target-store preflight as `hydratePayloadEffect(...)` without applying rows.
@@ -676,7 +682,7 @@ Release decisions:
   with the same output key follow the public collection last-write semantics,
   and hidden duplicate changes do not bump `version()`/`Ready.updatedAt`.
 - Live Query Collections are read-only at the Collection Contract seam.
-  `Collection.applyChangesEffect(...)` fails with `ReadonlyCollectionMutation`
+  `Collection.applyChanges(...)` fails with `ReadonlyCollectionMutation`
   before mutating rows, writing persistence, or publishing write events. Their
   persistence path still shares the normal snapshot helper and emits
   `CollectionPersisted` for devtools and sync observers. Collection definition
@@ -696,7 +702,7 @@ Release decisions:
   package seam because public access remains through the DB root and
   `Collection.sqlite*` helpers.
 - `Collection.resourceSyncAdapter(...)` returns a sync adapter whose load and
-  refetch errors use `Resource.LoadError<E>`, because Resource callbacks can
+  refresh errors use `Resource.LoadError<E>`, because Resource callbacks can
   fail before the underlying user error channel `E` is reached.
   Its `follow` stream is `Resource.changes(ref)`, so a loaded collection
   reconciles its synced rows on every later success of the Resource.
@@ -712,10 +718,10 @@ Release decisions:
   should only use pure, total projection callbacks.
 - Public `Query.Factory<TResult>` annotations default error and requirement
   channels to `never`, not `any`. Serviceful query factories must spell their
-  `E`/`R` parameters so `Query.onceEffect(...)`, `Query.live(...)`, and live
+  `E`/`R` parameters so `Query.once(...)`, `Query.live(...)`, and live
   query collections cannot hide collection failures or service requirements.
   `Query.build(...).execute()`, `Query.diagnostics(...)`,
-  `Query.onceEffect(...)`, and `Query.live(...)` normalize synchronous factory
+  `Query.once(...)`, and `Query.live(...)` normalize synchronous factory
   failures, Promise-shaped, Effect-shaped, or non-builder factory results, and
   plan-validation throws as `QueryEvaluationError` values. Invalid
   `orderBy(...)` comparables such as `NaN` or invalid Dates fail with operation
@@ -752,7 +758,7 @@ Release decisions:
   `Collection.ChangeFeedSubscription<E, R>` preserve serviceful cleanup
   Effects for adapter authors. Scoped release publishes unsubscribe failures as
   `CollectionChangeFeedFailure` events and swallows them after publication so
-  awaiting `Collection.subscribeChangesEffect(...)` observes subscription setup
+  awaiting `Collection.subscribeChanges(...)` observes subscription setup
   failures, not cleanup failure rethrows. `CollectionPersistenceConfig.hydrate`
   explicitly accepts `false` for definitions that enable persistence but
   disable config-driven restore hydration before preload.
@@ -789,13 +795,12 @@ The root export includes:
   inspected-window payloads;
 - `renderDevtoolsPanelsHtml` for deterministic embeddable HTML;
 - panel mounting has one scoped Effect and one host facade:
-  `mountDevtoolsPanelsEffect(...)` mounts inside a Scope and unmounts when it
+  `mountDevtoolsPanels(...)` mounts inside a Scope and unmounts when it
   closes; `bootDevtoolsPanels(...)` (with `DevtoolsPanelBoot` /
   `DevtoolsPanelBootOptions`) runs that Effect in its own fiber for non-Effect
-  shells and is stopped with `boot.interrupt()` or `boot.interruptEffect`;
-- `sunfallArcDevtoolsBridgeGlobal`, `installDevtoolsBridge`, and
-  `installDevtoolsBridgeEffect` for exposing a scoped inspected-window bridge
-  to browser extension panels;
+  shells and is stopped with its host `boot.interrupt()`;
+- `sunfallArcDevtoolsBridgeGlobal` and the scoped `installDevtoolsBridge`
+  for exposing an inspected-window bridge to browser extension panels;
 - JSON-safe serialization helpers, including the public
   `DevtoolsSerializationPolicy` used to bound arbitrary runtime values and
   redact secret-shaped keys;
@@ -823,8 +828,8 @@ Release decisions:
   return. Route-plan and invalidation record methods return retained fact
   indexes for adapters that emit runtime events against duplicate recorded facts.
 - Timeline observation is a first-class store capability:
-  `recordTimelineEntry(...)`, `recordTimelineEntryEffect(...)`, and
-  `trackTimelineEffect(recording)` copy Core `TimelineEntry` values into
+  `recordTimelineEntry(...)`, `recordTimelineEntry(...)`, and
+  `trackTimeline(recording)` copy Core `TimelineEntry` values into
   `TimelineCommit` runtime events (`DevtoolsTimelineCommit`), linked to the
   Program, Action, Resource, or Collection their cause names. Store
   `serializationPolicy` options apply before those commits enter snapshots.
@@ -887,7 +892,7 @@ The root export includes:
 - Local source modules: `component`, `link`, and `router`.
 - `Component`: the single Solid app model. Typed component definitions whose
   services and render failures flow through `yield*` in setup instead of JSX:
-  `Component.make` (per-instance setup receiving props, returning the render
+  `Component.define` (per-instance setup receiving props, returning the render
   function), setup-time bindings (`resource`, `action`, `program`, `stream`,
   `callback`, `router`, and the expert `instance` seam for binding authors),
   boundaries (`catchTags`, `catchAll`, `loading`), `provide`, and the entry
@@ -918,13 +923,23 @@ Release decisions:
   content stays mounted), and `waiting(input)` / `failure(input)` are the
   value-free status accessors.
 - `Component.action(definition)` returns an `ActionHandle` (`result`, `input`,
-  `submit`, `submitEffect`, `reset`). A runtime-provided `ActionTransport`
-  (Start's `makeActionTransportLayer`) makes the same handle submit remotely.
+  `submit`, `reset`); `submit(input)` and `reset()` return Effects, which event
+  handlers run through `Component.callback` (handling failures there). A
+  runtime-provided `ActionTransport` (Start's `makeActionTransportLayer`) makes
+  the same handle submit remotely.
 - `Component.program(definition, options?)` returns a `ProgramHandle` whose
   `model()` is a fine-grained, deeply read-only Solid projection
   (`Component.ProgramModelView<Model>`) reconciled from the committed model
   (`committed`); `ProgramOptions.key` (default `"id"`, `null` for positional)
-  sets the array reconcile identity.
+  sets the array reconcile identity. `dispatch(message)` returns the Effect that
+  completes once the update commits; handlers bridge it with
+  `Component.callback`.
+- Handle vocabulary is uniform: members that run work (`submit`, `dispatch`,
+  `reset`, `preload`, `refresh`) return Effects; `result()` is the
+  `AsyncResult` status accessor (actions, collections, live queries);
+  row-valued accessors are `rows()`; a Resource renders through its reader
+  (`reader(input)`, with `waiting` / `failure`); pure synchronous state writes
+  (`clearFailures()`, `Form.setField`) stay synchronous.
 - `Component.router(routes, options?)` creates the instance's router with the
   setup's runtime and context. The routes' preload services and route
   Components' services and failures (`RouterServices`, `RouterError`) join the
@@ -944,17 +959,15 @@ Release decisions:
   behavior, and navigates only plain left clicks. The Solid adapter delegates
   hover/click intent to the Core Browser Router Link Decision policy while
   keeping DOM event wiring local.
-- `BrowserRouter` mirrors generated route path ergonomics with
-  `hrefByPath(...)`, `navigateByPath(...)`, `matchByPath(...)`, and
-  `preloadByPathEffect(...)`; route-object helpers remain available for callers
-  already holding concrete route definitions. Solid type tests pin
-  each path helper so adapter LSP coverage does not rely only on route-object
-  examples.
+- `BrowserRouter` addresses routes by definition only: `href(route, ...)`,
+  `navigate(route, ...)`, and `preload(route, ...)` (an Effect), plus
+  `navigateHref(href)` for raw hrefs such as Action redirects. `match()` is the
+  current match; `Route.isMatch(route, match)` narrows it.
 - `RouterOutlet` delegates branch rendering, route-owned UI scope lifetime,
   Solid root cleanup, runtime-bound route finalizers, transition, same-state
   renderer-swap, initial failed-render, and update failed-render disposal
   ordering, stale queued-render suppression, and awaitable internal
-  `disposeEffect()` cleanup to the internal Solid Route Render Scope
+  `dispose()` cleanup to the internal Solid Route Render Scope
   Controller. This keeps the public Solid router surface stable while making
   route render lifetime policy local.
 - Resource readers consume Core's Resource UI Binding Controller for shared
@@ -988,8 +1001,8 @@ Release decisions:
 - Both bindings share one internal Solid DB Reactive Binding Module for the
   instance runtime, source subscriptions, cleanup with the instance owner,
   automatic preload through the DB-owned Collection Reactive Preload
-  Controller, and runtime-bound returned Effects (`preloadEffect`,
-  `refetchEffect`), which no longer expose the query's service requirement.
+  Controller, and runtime-bound returned Effects (`preload`,
+  `refresh`), which no longer expose the query's service requirement.
 
 ### `@sunfall/arc-tsrx`
 

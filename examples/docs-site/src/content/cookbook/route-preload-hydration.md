@@ -15,10 +15,10 @@
 File routes should declare the data they own. Arc can then explain and verify what a page needs before rendering it.
 
 ```ts
-export const Route = defineFileRoute("/projects/:id")({
+export const Route = FileRoute.define("/projects/:id")({
   params: ProjectRouteParams,
   preloadResources: [ProjectById],
-  preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id)),
+  preload: ({ params }) => Resource.preload(ProjectById(params.id)),
 });
 ```
 
@@ -33,7 +33,7 @@ export const handleRequest = createRequestHandler(app, {
       // `embed` checks the request runtime provides every service App needs.
       const body = renderToString(() => createComponent(Component.embed(App, runtime), {}));
 
-      return yield* createStartStreamedHtmlResponseEffect({
+      return yield* createStartStreamedHtmlResponse({
         shell: htmlChunk('<!doctype html><div id="root">'),
         chunks: Stream.make(htmlChunk(body)),
         hydrationPlan,
@@ -45,10 +45,13 @@ export const handleRequest = createRequestHandler(app, {
 
 ## Hydrate before mount
 
-On the client, hydrate the payload, then hydrate the same Component tree. Resource readers read synchronously from the hydrated state, so there is no loading flash and no refetch.
+On the client, hydrate the payload, then hydrate the same Component tree. Resource readers read synchronously from the hydrated state, so there is no loading flash and no refresh.
 
 ```ts
 const runtime = makeRuntime(Layer.empty);
-hydrateFromDocument(document, undefined, { runtime });
-Effect.runFork(Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() }));
+Effect.runFork(
+  runtime
+    .provide(hydrateFromDocument(document))
+    .pipe(Effect.andThen(Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() }))),
+);
 ```

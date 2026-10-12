@@ -38,7 +38,7 @@ const createResourceResult = <I, A, E, R = unknown, ER = never>(
   });
 
   onCleanup(() => {
-    controller.dispose();
+    void Effect.runFork(controller.dispose());
   });
 
   return () => controller.result(currentRef()).get();
@@ -82,12 +82,10 @@ export const createResourceSuspense = <I, A, E, R = unknown, ER = unknown>(
       ER,
       SuspenseOutcomeToken<A>
     >(runtime);
-    scope.addFinalizer(() => {
-      preloadController.dispose();
-    });
+    scope.addFinalizer(() => preloadController.dispose());
 
     const readOutcome = (ref: ResourceRef<I, A, E, R>): SuspenseOutcome<A> | undefined => {
-      const exit = runtime.runSync(Effect.exit(Resource.readEffect(ref)));
+      const exit = runtime.runSync(Effect.exit(Resource.read(ref)));
       if (Exit.isSuccess(exit)) {
         return { _tag: "Value", value: exit.value };
       }

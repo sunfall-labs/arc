@@ -33,5 +33,5 @@ export namespace StartAction {
    * Hidden Start transport fields emitted by `StartAction.form(...)` are omitted
    * automatically before the schema decoder runs.
    */
-  export const decodeFormDataEffect = decodeStartActionFormDataEffect;
+  export const decodeFormData = decodeStartActionFormDataEffect;
 }

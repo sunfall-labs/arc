@@ -46,7 +46,7 @@ Enhanced clients intercept submit and call the same Action through its Component
 const rename = yield * Component.action(SubmitProjectName);
 
 const submit = (formData: FormData) =>
-  StartAction.decodeFormDataEffect(ProjectNameFormInput, formData).pipe(
-    Effect.flatMap(({ name }) => rename.submitEffect({ id: project.id, name })),
+  StartAction.decodeFormData(ProjectNameFormInput, formData).pipe(
+    Effect.flatMap(({ name }) => rename.submit({ id: project.id, name })),
   );
 ```

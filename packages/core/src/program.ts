@@ -49,10 +49,7 @@ export {
 } from "./program-contract.js";
 import {
   defineProgram,
-  programCommand,
   programCommands,
-  programDispatch,
-  programEffect,
   programEmit,
   programNext,
   programStepEffect,
@@ -200,32 +197,16 @@ export namespace Program {
    */
   export const next = programNext;
   /**
-   * Creates a command that can emit a follow-up message through Effect.
-   *
-   * Prefer `Program.emit(...)` when every successful run emits a message;
-   * `Program.command(...)` is the lower-level form for commands that may
-   * intentionally complete without one.
-   *
-   * Emitted messages must be plain values. Use `Effect.tryPromise(...)` inside
-   * the command for host Promise work before mapping to a resolved message.
-   */
-  export const command = programCommand;
-  /**
-   * Creates a command from an immediate or Effect-produced follow-up message.
+   * The one command constructor: emits a message, or runs an Effect after the
+   * model commits and emits the message it produces. An Effect that completes
+   * with `void` emits nothing, so background work is `Program.emit(effect)`
+   * too. Failures go to the Program's error channel.
    *
    * Emitted messages must be plain values. Use `Effect.tryPromise(...)` inside
    * the Effect for host Promise work before mapping to a resolved message.
    */
   export const emit = programEmit;
-  /** Creates a command from an Effect that may fail through the Program error channel. */
-  export const effect = programEffect;
-  /**
-   * Creates a command that immediately dispatches another message.
-   *
-   * The message must be a plain value; Promise-shaped messages are rejected.
-   */
-  export const dispatch = programDispatch;
-  /** Creates a step that emits several commands after a model update. */
+  /** Batches several commands (skipping `false`/`null`/`undefined`) for `Program.next(model, ...)`. */
   export const commands = programCommands;
   /**
    * Creates a Stream-backed subscription for model-driven external input.

@@ -194,7 +194,7 @@ const preloadRouteDeclaredCollectionsEffect = (
     const touchedNames = new Set(routeTouchedCollections.map((collection) => collection.name));
     for (const collection of routeDeclaredCollections) {
       if (!touchedNames.has(collection.name)) {
-        yield* collection.preloadEffect().pipe(
+        yield* collection.preload().pipe(
           Effect.mapError((cause) =>
             preloadError("declared-collection-preload", cause, {
               collectionName: collection.name,
@@ -220,7 +220,7 @@ const startCollectionCanHydrate = (
   runWithRuntime(
     runtime,
     () =>
-      AsyncResult.isSuccess(collection.state().get()) ||
+      AsyncResult.isSuccess(collection.result().get()) ||
       collection.rows().length > 0 ||
       collection.pendingMutations().length > 0,
   );
@@ -288,7 +288,7 @@ const startRoutePlanEffect = <
   Route.NavigationError<Routes[number]>,
   Route.PreloadRequirements<Routes[number]>
 > => {
-  const planned = Route.planNavigationEffect(routes, url).pipe(
+  const planned = Route.planNavigation(routes, url).pipe(
     Effect.map((routePlan): StartRoutePlanOutcome<Routes> => ({ routePlan })),
   );
   return routePreloadFailure === "fail"
@@ -302,8 +302,8 @@ const startRoutePlanEffect = <
             }
             // Encoded with the route's `error` schema (or tag-only without one);
             // the server render decodes this snapshot exactly like the client.
-            const routeFailure = yield* Route.preloadFailureSnapshotEffect(match.route, error);
-            yield* Route.hydratePreloadFailureEffect(routeFailure);
+            const routeFailure = yield* Route.preloadFailureSnapshot(match.route, error);
+            yield* Route.hydratePreloadFailure(routeFailure);
             return {
               routePlan: {
                 _tag: "Matched",
@@ -400,6 +400,6 @@ export const preloadRequest = <
   const runtime = makeRequestRuntime(app);
   return Effect.ensuring(
     preloadRequestEffectWithRuntime(app, request, runtime, options),
-    runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
+    runtime.dispose.pipe(Effect.catchCause(() => Effect.void)),
   );
 };

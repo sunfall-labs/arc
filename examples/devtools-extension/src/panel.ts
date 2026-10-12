@@ -45,4 +45,4 @@ export const devtoolsExtensionPanelBoot = bootDevtoolsPanels({
   },
 });
 export const devtoolsExtensionPanelBootFiber = devtoolsExtensionPanelBoot.fiber;
-export const interruptDevtoolsExtensionPanelBoot = devtoolsExtensionPanelBoot.interruptEffect;
+export const interruptDevtoolsExtensionPanelBoot = devtoolsExtensionPanelBoot.interrupt;

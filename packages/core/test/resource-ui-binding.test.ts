@@ -25,7 +25,7 @@ describe("Resource UI Binding Controller", () => {
   it("exposes undefined previous values through the bound AsyncResult", async () => {
     const runtime = makeRuntime();
     let fail = false;
-    const Maybe = Resource.family<void, undefined, string>({
+    const Maybe = Resource.define<void, undefined, string>({
       name: "ResourceUi.undefined-previous",
       load: () => (fail ? Effect.fail("failed") : Effect.succeed(undefined)),
     });
@@ -35,27 +35,27 @@ describe("Resource UI Binding Controller", () => {
     });
 
     try {
-      await Effect.runPromise(controller.prefetchEffect(ref));
+      await Effect.runPromise(controller.preload(ref));
       fail = true;
-      await Effect.runPromise(Effect.exit(controller.refreshEffect(ref)));
+      await Effect.runPromise(Effect.exit(controller.refresh(ref)));
 
       const result = controller.result(ref).get();
       expect(result).toMatchObject({ _tag: "Failure", waiting: false });
       expect(AsyncResult.error(result)).toEqual(Option.some("failed"));
       expect(AsyncResult.value(result)).toEqual(Option.some(undefined));
     } finally {
-      await Effect.runPromise(controller.disposeEffect());
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(controller.dispose());
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
-  it("binds refresh and prefetch effects to the supplied runtime", () => {
+  it("binds refresh and preload effects to the supplied runtime", () => {
     const runtime = makeRuntime(
       Layer.succeed(ProjectApi)({
         get: (id) => Effect.succeed({ id, name: id === "atlas" ? "Atlas" : id }),
       }),
     );
-    const ProjectById = Resource.family<string, Project, never, ProjectApi>({
+    const ProjectById = Resource.define<string, Project, never, ProjectApi>({
       name: "ResourceUiBinding.runtime-bound",
       load: (id) => ProjectApi.use((api) => api.get(id)),
     });
@@ -66,14 +66,14 @@ describe("Resource UI Binding Controller", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const prefetched = yield* controller.prefetchEffect(ref);
-        const refreshed = yield* controller.refreshEffect(ref);
+        const prefetched = yield* controller.preload(ref);
+        const refreshed = yield* controller.refresh(ref);
 
         expect(prefetched).toEqual({ id: "atlas", name: "Atlas" });
         expect(refreshed).toEqual({ id: "atlas", name: "Atlas" });
       }).pipe(
-        Effect.ensuring(controller.disposeEffect()),
-        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+        Effect.ensuring(controller.dispose()),
+        Effect.ensuring(Effect.orDie(runtime.dispose)),
       ),
     );
   });
@@ -81,7 +81,7 @@ describe("Resource UI Binding Controller", () => {
   it("keys automatic preload failures to the current ref and swallows observers", () => {
     const runtime = makeRuntime();
     const failure = { _tag: "ResourceUiPreloadFailed" } as const;
-    const ProjectById = Resource.family<string, Project, typeof failure>({
+    const ProjectById = Resource.define<string, Project, typeof failure>({
       name: "ResourceUiBinding.preload-failure",
       load: (id) => (id === "fail" ? Effect.fail(failure) : Effect.succeed({ id, name: "Atlas" })),
     });
@@ -121,7 +121,7 @@ describe("Resource UI Binding Controller", () => {
         expect(controller.preloadFailureFor(okRef)).toBeUndefined();
         expect(changes.at(-1)).toBeUndefined();
 
-        yield* runtime.provide(Resource.deleteEffect(failedRef));
+        yield* runtime.provide(Resource.evict(failedRef));
         controller.startInitialPreload(failedRef, {
           onPreloadFailure: (error) =>
             Effect.sync(() => {
@@ -133,8 +133,8 @@ describe("Resource UI Binding Controller", () => {
         expect(controller.preloadFailureFor(failedRef)).toBe(failure);
         expect(observedThroughEffect).toEqual([failure]);
       }).pipe(
-        Effect.ensuring(controller.disposeEffect()),
-        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+        Effect.ensuring(controller.dispose()),
+        Effect.ensuring(Effect.orDie(runtime.dispose)),
       ),
     );
   });
@@ -143,11 +143,11 @@ describe("Resource UI Binding Controller", () => {
     const runtime = makeRuntime();
     const failure = { _tag: "ResourceUiRetryPreloadFailed" } as const;
     let shouldFail = true;
-    const ProjectById = Resource.family<string, Project, typeof failure>({
+    const ProjectById = Resource.define<string, Project, typeof failure>({
       name: "ResourceUiBinding.preload-failure-retry",
       load: (id) => (shouldFail ? Effect.fail(failure) : Effect.succeed({ id, name: "Atlas" })),
     });
-    const prefetchRef = ProjectById("prefetch");
+    const prefetchRef = ProjectById("preload");
     const refreshRef = ProjectById("refresh");
     const changes: Array<Resource.LoadError<typeof failure> | undefined> = [];
     const controller = makeResourceUiBindingController<
@@ -170,8 +170,8 @@ describe("Resource UI Binding Controller", () => {
         expect(controller.preloadFailureFor(prefetchRef)).toBe(failure);
 
         shouldFail = false;
-        expect(yield* controller.prefetchEffect(prefetchRef)).toEqual({
-          id: "prefetch",
+        expect(yield* controller.preload(prefetchRef)).toEqual({
+          id: "preload",
           name: "Atlas",
         });
         expect(controller.preloadFailureFor(prefetchRef)).toBeUndefined();
@@ -183,15 +183,15 @@ describe("Resource UI Binding Controller", () => {
         expect(controller.preloadFailureFor(refreshRef)).toBe(failure);
 
         shouldFail = false;
-        expect(yield* controller.refreshEffect(refreshRef)).toEqual({
+        expect(yield* controller.refresh(refreshRef)).toEqual({
           id: "refresh",
           name: "Atlas",
         });
         expect(controller.preloadFailureFor(refreshRef)).toBeUndefined();
         expect(changes.at(-1)).toBeUndefined();
       }).pipe(
-        Effect.ensuring(controller.disposeEffect()),
-        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+        Effect.ensuring(controller.dispose()),
+        Effect.ensuring(Effect.orDie(runtime.dispose)),
       ),
     );
   });
@@ -210,7 +210,7 @@ describe("Resource UI Binding Controller", () => {
         return fiber;
       },
     };
-    const ProjectById = Resource.family<string, Project>({
+    const ProjectById = Resource.define<string, Project>({
       name: "ResourceUiBinding.preload-defect",
       load: () => Effect.die("preload defect"),
     });
@@ -231,15 +231,15 @@ describe("Resource UI Binding Controller", () => {
         expect(Exit.isSuccess(exit)).toBe(true);
         expect(controller.preloadFailureFor(ref)).toBeUndefined();
       }).pipe(
-        Effect.ensuring(controller.disposeEffect()),
-        Effect.ensuring(Effect.orDie(baseRuntime.disposeEffect)),
+        Effect.ensuring(controller.dispose()),
+        Effect.ensuring(Effect.orDie(baseRuntime.dispose)),
       ),
     );
   });
 
   it("serializes retained refs across rapid ref changes", () => {
     const runtime = makeRuntime();
-    const ProjectById = Resource.family<string, Project>({
+    const ProjectById = Resource.define<string, Project>({
       name: "ResourceUiBinding.retention-order",
       load: (id) => Effect.succeed({ id, name: id }),
     });
@@ -258,15 +258,15 @@ describe("Resource UI Binding Controller", () => {
         const store = unsafeMutableResourceStore(runtime.resourceStore);
         expect([...store.retainedRefs.entries()]).toEqual([[resourceRefStoreKey(secondRef), 1]]);
       }).pipe(
-        Effect.ensuring(controller.disposeEffect()),
-        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+        Effect.ensuring(controller.dispose()),
+        Effect.ensuring(Effect.orDie(runtime.dispose)),
       ),
     );
   });
 
-  it("disposeEffect releases retained refs before completing", () => {
+  it("dispose releases retained refs before completing", () => {
     const runtime = makeRuntime();
-    const ProjectById = Resource.family<string, Project>({
+    const ProjectById = Resource.define<string, Project>({
       name: "ResourceUiBinding.dispose-retention",
       load: (id) => Effect.succeed({ id, name: id }),
     });
@@ -283,16 +283,16 @@ describe("Resource UI Binding Controller", () => {
         const store = unsafeMutableResourceStore(runtime.resourceStore);
         expect([...store.retainedRefs.entries()]).toEqual([[resourceRefStoreKey(ref), 1]]);
 
-        yield* controller.disposeEffect();
+        yield* controller.dispose();
 
         expect([...store.retainedRefs.entries()]).toEqual([]);
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
-  it("disposeEffect swallows preload failure observer defects", () => {
+  it("dispose swallows preload failure observer defects", () => {
     const runtime = makeRuntime();
-    const ProjectById = Resource.family<string, Project>({
+    const ProjectById = Resource.define<string, Project>({
       name: "ResourceUiBinding.dispose-observer-defect",
       load: (id) => Effect.succeed({ id, name: id }),
     });
@@ -309,12 +309,12 @@ describe("Resource UI Binding Controller", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         controller.bindRef(ref);
-        yield* controller.disposeEffect();
+        yield* controller.dispose();
 
         const store = unsafeMutableResourceStore(runtime.resourceStore);
         expect([...store.retainedRefs.entries()]).toEqual([]);
         expect(observerCalls).toBeGreaterThan(0);
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
@@ -325,7 +325,7 @@ describe("Resource UI Binding Controller", () => {
         const started = yield* Deferred.make<void>();
         let releases = 0;
         // The load acquires a resource in the caller's Scope, so the family requires it.
-        const ProjectById = Resource.family<string, Project, never, Scope.Scope>({
+        const ProjectById = Resource.define<string, Project, never, Scope.Scope>({
           name: "ResourceUiBinding.interrupt-preload-effect",
           load: (id) =>
             Effect.acquireRelease(
@@ -349,16 +349,16 @@ describe("Resource UI Binding Controller", () => {
 
         controller.startInitialPreload(ref);
         yield* Deferred.await(started);
-        yield* controller.interruptPreloadEffect();
+        yield* controller.interruptPreload();
 
         expect(releases).toBe(1);
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
-  it("disposeEffect lets the same ref bind retain again after cleanup replay", () => {
+  it("dispose lets the same ref bind retain again after cleanup replay", () => {
     const runtime = makeRuntime();
-    const ProjectById = Resource.family<string, Project>({
+    const ProjectById = Resource.define<string, Project>({
       name: "ResourceUiBinding.dispose-rebind",
       load: (id) => Effect.succeed({ id, name: id }),
     });
@@ -375,80 +375,22 @@ describe("Resource UI Binding Controller", () => {
         const store = unsafeMutableResourceStore(runtime.resourceStore);
         expect([...store.retainedRefs.entries()]).toEqual([[resourceRefStoreKey(ref), 1]]);
 
-        yield* controller.disposeEffect();
+        yield* controller.dispose();
         expect([...store.retainedRefs.entries()]).toEqual([]);
 
         controller.bindRef(ref);
         yield* Effect.sleep("20 millis");
         expect([...store.retainedRefs.entries()]).toEqual([[resourceRefStoreKey(ref), 1]]);
       }).pipe(
-        Effect.ensuring(controller.disposeEffect()),
-        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
-      ),
-    );
-  });
-
-  it("captures retained refs before queued sync disposal executes", () => {
-    const baseRuntime = makeRuntime();
-    const queuedDisposals: Array<Effect.Effect<void, unknown>> = [];
-    let queueNextDispose = false;
-    const runtime: typeof baseRuntime = {
-      ...baseRuntime,
-      runFork: <A, E, R>(
-        effect: Effect.Effect<A, E, R>,
-        options?: Effect.RunOptions,
-      ): Fiber.Fiber<A, E> => {
-        if (queueNextDispose) {
-          queueNextDispose = false;
-          queuedDisposals.push(Effect.asVoid(effect as Effect.Effect<A, E, never>));
-          return baseRuntime.runFork(Effect.never as Effect.Effect<A, E, never>, options);
-        }
-        return baseRuntime.runFork(effect as Effect.Effect<A, E, never>, options);
-      },
-    };
-    const ProjectById = Resource.family<string, Project>({
-      name: "ResourceUiBinding.queued-dispose-owner",
-      load: (id) => Effect.succeed({ id, name: id }),
-    });
-    const firstRef = ProjectById("first");
-    const secondRef = ProjectById("second");
-    const controller = makeResourceUiBindingController<string, Project, never, never, never>({
-      runtime: eraseRuntime(runtime),
-    });
-
-    return Effect.runPromise(
-      Effect.gen(function* () {
-        controller.bindRef(firstRef);
-        yield* Effect.sleep("20 millis");
-
-        const store = unsafeMutableResourceStore(baseRuntime.resourceStore);
-        expect([...store.retainedRefs.entries()]).toEqual([[resourceRefStoreKey(firstRef), 1]]);
-
-        queueNextDispose = true;
-        controller.dispose();
-        controller.bindRef(secondRef);
-        yield* Effect.sleep("20 millis");
-
-        expect(queuedDisposals).toHaveLength(1);
-        expect([...store.retainedRefs.entries()]).toEqual([
-          [resourceRefStoreKey(firstRef), 1],
-          [resourceRefStoreKey(secondRef), 1],
-        ]);
-
-        yield* queuedDisposals[0]!;
-        yield* Effect.sleep("20 millis");
-
-        expect([...store.retainedRefs.entries()]).toEqual([[resourceRefStoreKey(secondRef), 1]]);
-      }).pipe(
-        Effect.ensuring(controller.disposeEffect()),
-        Effect.ensuring(Effect.orDie(baseRuntime.disposeEffect)),
+        Effect.ensuring(controller.dispose()),
+        Effect.ensuring(Effect.orDie(runtime.dispose)),
       ),
     );
   });
 
   it("dedupes Suspense preload host tokens per ref", () => {
     const runtime = makeRuntime();
-    const ProjectById = Resource.family<string, Project>({
+    const ProjectById = Resource.define<string, Project>({
       name: "ResourceUiBinding.suspense-token",
       load: (id) => Effect.never.pipe(Effect.as({ id, name: id })),
     });
@@ -471,8 +413,7 @@ describe("Resource UI Binding Controller", () => {
     expect(sameToken).toBe(firstToken);
     expect(secondToken).not.toBe(firstToken);
 
-    controller.dispose();
-    return Effect.runPromise(runtime.disposeEffect);
+    return Effect.runPromise(Effect.andThen(controller.dispose(), runtime.dispose));
   });
 
   it("captures Suspense preload owners before queued sync interruption executes", () => {
@@ -495,7 +436,7 @@ describe("Resource UI Binding Controller", () => {
     };
     const starts: Array<string> = [];
     const finalizers: Array<string> = [];
-    const ProjectById = Resource.family<string, Project>({
+    const ProjectById = Resource.define<string, Project>({
       name: "ResourceUiBinding.suspense-queued-owner",
       load: (id) => Effect.succeed({ id, name: id }),
     });
@@ -548,11 +489,11 @@ describe("Resource UI Binding Controller", () => {
         yield* Effect.sleep("20 millis");
         expect(finalizers).toEqual(["first"]);
 
-        yield* controller.disposeEffect();
+        yield* controller.dispose();
         expect(finalizers).toEqual(["first", "second"]);
       }).pipe(
-        Effect.ensuring(controller.disposeEffect()),
-        Effect.ensuring(Effect.orDie(baseRuntime.disposeEffect)),
+        Effect.ensuring(controller.dispose()),
+        Effect.ensuring(Effect.orDie(baseRuntime.dispose)),
       ),
     );
   });
@@ -564,7 +505,7 @@ describe("Resource UI Binding Controller", () => {
         const started = yield* Deferred.make<void>();
         let releases = 0;
         // The load acquires a resource in the caller's Scope, so the family requires it.
-        const ProjectById = Resource.family<string, Project, never, Scope.Scope>({
+        const ProjectById = Resource.define<string, Project, never, Scope.Scope>({
           name: "ResourceUiBinding.suspense-dispose-effect",
           load: (id) =>
             Effect.acquireRelease(
@@ -589,17 +530,17 @@ describe("Resource UI Binding Controller", () => {
           toHostToken: (preloadFiber) => preloadFiber,
         });
         yield* Deferred.await(started);
-        yield* controller.disposeEffect();
+        yield* controller.dispose();
 
         expect(releases).toBe(1);
-        yield* runtime.disposeEffect;
+        yield* runtime.dispose;
       }),
     ));
 
   it("clears completed Suspense preload tokens before same-ref reloads", () => {
     const runtime = makeRuntime();
     let loads = 0;
-    const ProjectById = Resource.family<string, Project>({
+    const ProjectById = Resource.define<string, Project>({
       name: "ResourceUiBinding.suspense-completed-token",
       load: (id) =>
         Effect.sync(() => {
@@ -624,7 +565,7 @@ describe("Resource UI Binding Controller", () => {
         });
         expect(yield* Fiber.join(firstFiber)).toEqual({ id: "atlas", name: "Atlas 1" });
 
-        yield* runtime.provide(Resource.deleteEffect(ref));
+        yield* runtime.provide(Resource.evict(ref));
 
         const secondFiber = controller.hostToken(ref, {
           toHostToken: (preloadFiber) => preloadFiber,
@@ -633,8 +574,8 @@ describe("Resource UI Binding Controller", () => {
         expect(yield* Fiber.join(secondFiber)).toEqual({ id: "atlas", name: "Atlas 2" });
         expect(loads).toBe(2);
       }).pipe(
-        Effect.ensuring(Effect.sync(() => controller.dispose())),
-        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+        Effect.ensuring(Effect.suspend(() => controller.dispose())),
+        Effect.ensuring(Effect.orDie(runtime.dispose)),
       ),
     );
   });
@@ -642,7 +583,7 @@ describe("Resource UI Binding Controller", () => {
   it("runs default Suspense preload fibers in a Scope", () => {
     const runtime = makeRuntime();
     let releases = 0;
-    const ProjectById = Resource.family<string, Project, never, Scope.Scope>({
+    const ProjectById = Resource.define<string, Project, never, Scope.Scope>({
       name: "ResourceUiBinding.suspense-default-scoped",
       load: (id) =>
         Effect.acquireRelease(Effect.succeed({ id, name: "Atlas" }), () =>
@@ -671,8 +612,8 @@ describe("Resource UI Binding Controller", () => {
         expect(project).toEqual({ id: "atlas", name: "Atlas" });
         expect(releases).toBe(1);
       }).pipe(
-        Effect.ensuring(Effect.sync(() => controller.dispose())),
-        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+        Effect.ensuring(Effect.suspend(() => controller.dispose())),
+        Effect.ensuring(Effect.orDie(runtime.dispose)),
       ),
     );
   });

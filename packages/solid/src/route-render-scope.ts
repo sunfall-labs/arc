@@ -29,8 +29,7 @@ export interface SolidRouteRenderInput<Routes extends readonly AnyRoute[], ER> {
 
 export interface SolidRouteRenderScopeController<Routes extends readonly AnyRoute[], ER> {
   update(input: SolidRouteRenderInput<Routes, ER>): void;
-  disposeEffect(): Effect.Effect<void>;
-  dispose(): void;
+  dispose(): Effect.Effect<void>;
 }
 
 interface RenderedRouteScope {
@@ -137,7 +136,7 @@ const renderInRouteScope = <ER>(
         // Preserve the original render error or cleanup outcome.
       }
     }),
-    frame.disposeEffect(),
+    frame.dispose(),
   ).pipe(Effect.catchCause(() => Effect.void));
   let node: JSX.Element;
   try {
@@ -315,11 +314,6 @@ export const makeSolidRouteRenderScopeController = <
       return joinRouteDisposal(startCurrentRouteDisposal());
     });
 
-  const dispose = (): void => {
-    transitionVersion++;
-    void startCurrentRouteDisposal();
-  };
-
   const renderInitial = (): void => {
     try {
       const initial = render(options.initialInput);
@@ -359,7 +353,6 @@ export const makeSolidRouteRenderScopeController = <
         renderTransition(input, transition, startCurrentRouteDisposal()),
       );
     },
-    disposeEffect,
-    dispose,
+    dispose: disposeEffect,
   };
 };

@@ -40,7 +40,6 @@ import {
   persistCollectionEffect as persistCollectionWithStoreEffect,
   persistCollectionForReasonEffect,
   restoreCollectionEffect as restoreCollectionWithStoreEffect,
-  snapshotCollection as snapshotCollectionWithStore,
   snapshotCollectionEffect as snapshotCollectionWithStoreEffect,
 } from "./collection-persistence.js";
 import { commitCollectionWriteEffect } from "./collection-write-commit.js";
@@ -123,12 +122,6 @@ const collectionPendingMutations = <A extends object, K extends CollectionKey, E
   state.version.get();
   return pendingMutationSnapshots(state);
 };
-
-const snapshotCollection = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  store: RuntimeCollectionStore = currentCollectionStore() as RuntimeCollectionStore,
-  updatedAt = Date.now(),
-): CollectionSnapshot<A, K> => snapshotCollectionWithStore(definition, store, updatedAt);
 
 const snapshotCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -218,7 +211,7 @@ const applyCollectionChangesWithStoreEffect = <A extends object, K extends Colle
       return yield* Effect.fail(
         new ReadonlyCollectionMutation({
           collection: definition.name,
-          operation: "applyChangesEffect",
+          operation: "applyChanges",
         }) as CollectionRuntimeError<E>,
       );
     }
@@ -316,8 +309,8 @@ const applyCollectionChangesWithStoreEffect = <A extends object, K extends Colle
         }
         rebaseCollectionBaseRows(state, rebaseKeys);
       },
-      persistEffect: persistForReasonEffect(definition, dbStore, "write"),
-      publishEffect: (event) => publishStoreEvent(dbStore, event),
+      persist: persistForReasonEffect(definition, dbStore, "write"),
+      publish: (event) => publishStoreEvent(dbStore, event),
     });
   });
 
@@ -354,7 +347,7 @@ export const defineCollection = <
     options,
     name: options.name,
     getKey: options.getKey,
-    state: () => collectionState(definition).loadState,
+    result: () => collectionState(definition).loadState,
     version: () => collectionState(definition).version,
     get: (key: K) => {
       const state = collectionState(definition);
@@ -370,40 +363,36 @@ export const defineCollection = <
     index: (index: string, value: CollectionIndexValue) => rowsByIndex(definition, index, value),
     firstByIndex: (index: string, value: CollectionIndexValue) =>
       rowsByIndex(definition, index, value)[0],
-    preloadEffect: () =>
+    preload: () =>
       Effect.gen(function* () {
         yield* recordCollectionPreload(definition);
         yield* runCollectionSyncLoadPolicyEffect(definition, { force: false });
         yield* followSync;
       }),
-    refetchEffect: () =>
+    refresh: () =>
       Effect.gen(function* () {
         yield* recordCollectionPreload(definition);
         yield* runCollectionSyncLoadPolicyEffect(definition, { force: true });
         yield* followSync;
       }),
     pendingMutations: () => collectionPendingMutations(definition),
-    flushPendingMutationsEffect: () => flushCollectionPendingMutationsEffect(definition),
-    snapshotEffect: () => snapshotCollectionEffect(definition),
-    snapshot: () => snapshotCollection(definition),
-    hydrateEffect: (
-      snapshot: CollectionSnapshot<A, K>,
-      hydrateOptions?: CollectionHydrateOptions,
-    ) => hydrateCollectionEffect(definition, snapshot, hydrateOptions),
-    persistEffect: <PE = never, PR = never>(
+    flushPendingMutations: () => flushCollectionPendingMutationsEffect(definition),
+    snapshot: () => snapshotCollectionEffect(definition),
+    hydrate: (snapshot: CollectionSnapshot<A, K>, hydrateOptions?: CollectionHydrateOptions) =>
+      hydrateCollectionEffect(definition, snapshot, hydrateOptions),
+    persist: <PE = never, PR = never>(
       storage: CollectionPersistenceStorage<PE, PR>,
       persistOptions?: CollectionPersistOptions,
     ) => persistCollectionEffect(definition, storage, persistOptions),
-    restoreEffect: <PE = never, PR = never>(
+    restore: <PE = never, PR = never>(
       storage: CollectionPersistenceStorage<PE, PR>,
       restoreOptions?: CollectionPersistOptions & CollectionHydrateOptions,
     ) => restoreCollectionEffect(definition, storage, restoreOptions),
-    insertEffect: (input: A | ReadonlyArray<A>) =>
-      insertCollectionMutationEffect(definition, input),
-    updateEffect: (key: K, update: CollectionUpdate<A>) =>
+    insert: (input: A | ReadonlyArray<A>) => insertCollectionMutationEffect(definition, input),
+    update: (key: K, update: CollectionUpdate<A>) =>
       updateCollectionMutationEffect(definition, key, update),
-    deleteEffect: (key: K) => deleteCollectionMutationEffect(definition, key),
-    applyChangesEffect: (
+    delete: (key: K) => deleteCollectionMutationEffect(definition, key),
+    applyChanges: (
       changes: ReadonlyArray<CollectionChange<A, K>>,
       writeOptions?: CollectionWriteOptions,
     ) => applyCollectionChangesEffect(definition, changes, writeOptions),

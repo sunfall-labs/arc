@@ -5,15 +5,12 @@ import {
   makeRuntime,
   Program,
   Resource,
-  route,
   Route,
   RouterRouteNotRegistered,
   Signal,
   type BrowserNavigateArgs,
   type BrowserNavigateOptions,
   type BrowserRouterError,
-  type BrowserRouterPath,
-  type BrowserRouterRouteForPath,
   type BrowserRouterState,
   type EffectInputCallbackError,
   type ProgramFailure,
@@ -40,31 +37,19 @@ interface SolidProject {
   readonly name: string;
 }
 
-const solidRoutes = [route("/", {}), route("/projects/:id", {})] as const;
+const solidRoutes = [Route.define("/", {}), Route.define("/projects/:id", {})] as const;
 const solidHistory = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
 const solidRouter: BrowserRouter<typeof solidRoutes> = useRouter<typeof solidRoutes>();
 const solidRouterState: BrowserRouterState<typeof solidRoutes> = solidRouter.state();
-const solidRoutePath: BrowserRouterPath<typeof solidRoutes> = "/";
-type SolidRouteForHome = BrowserRouterRouteForPath<typeof solidRoutes, typeof solidRoutePath>;
-const solidRouteForPath: SolidRouteForHome = solidRoutes[0];
 const solidRouteHref: string = Route.href(solidRoutes[0]);
 const solidNavigateArgs: BrowserNavigateArgs<(typeof solidRoutes)[0]> = [];
 const solidNavigateOptions: BrowserNavigateOptions = { replace: true };
-const solidHrefByPath: string = solidRouter.hrefByPath("/projects/:id", {
-  params: { id: "atlas" },
-});
-solidRouter.navigateByPath(
-  "/projects/:id",
-  {
-    params: { id: "atlas" },
-  },
-  solidNavigateOptions,
-);
-const solidMatchByPath = solidRouter.matchByPath("/projects/:id");
-const solidPreloadByPathEffect: Effect.Effect<
+const solidHref: string = solidRouter.href(solidRoutes[1], { params: { id: "atlas" } });
+solidRouter.navigate(solidRoutes[1], { params: { id: "atlas" } }, solidNavigateOptions);
+const solidPreload: Effect.Effect<
   void,
   BrowserRouterError<typeof solidRoutes>
-> = solidRouter.preloadByPathEffect("/projects/:id", { params: { id: "atlas" } });
+> = solidRouter.preload(solidRoutes[1], { params: { id: "atlas" } });
 const solidPlainLeftClick: boolean = isPlainLeftClick({
   button: 0,
   metaKey: false,
@@ -107,7 +92,7 @@ solidProgramHandle.clearTimeline();
 const solidProgramDispatch: Effect.Effect<
   void,
   ProgramFailure<"tick", EffectInputCallbackError | Program.Disposed>
-> = solidProgramHandle.dispatchEffect("tick");
+> = solidProgramHandle.dispatch("tick");
 declare const solidUnknownProgramHandle: Component.ProgramHandle<number, unknown, never>;
 const solidProgramCount: number = solidProgramHandle.model();
 void solidProgramCount;
@@ -177,8 +162,8 @@ void solidInvalidBoardOptions;
 void Component.program(solidBoardProgram, { key: "id" });
 void Component.program(solidBoardProgram, { key: null });
 
-solidUnknownProgramHandle.dispatch("any message");
-const SolidProjectById = Resource.family<string, SolidProject>({
+void solidUnknownProgramHandle.dispatch("any message");
+const SolidProjectById = Resource.define<string, SolidProject>({
   name: "Solid.type-test.project",
   load: (id) => Effect.succeed({ id, name: "Atlas" }),
 });
@@ -221,10 +206,14 @@ void Component.action(SolidAction);
 const solidActionSubmit: Effect.Effect<
   { readonly ok: boolean },
   Component.ActionError<never> | ActionInterrupted
-> = solidAction.submitEffect({ id: "atlas" });
+> = solidAction.submit({ id: "atlas" });
 const solidActionStateTag: "Initial" | "Success" | "Failure" = solidAction.result()._tag;
 const solidActionInput: Option.Option<{ readonly id: string }> = solidAction.input();
-solidAction.submit({ id: "atlas" });
+// Event handlers bridge the Effect through `Component.callback`, which requires
+// the failures to be handled.
+void Component.callback((id: string) => solidAction.submit({ id }).pipe(Effect.ignore));
+// @ts-expect-error -- `Component.callback` rejects unhandled submission failures.
+void Component.callback((id: string) => solidAction.submit({ id }));
 const solidExports: Array<unknown> = [
   RouterContextMissing,
   RouterLink,
@@ -234,14 +223,11 @@ const solidExports: Array<unknown> = [
   useRouter,
   solidRouter,
   solidRouterState,
-  solidRoutePath,
-  solidRouteForPath,
   solidRouteHref,
   solidNavigateArgs,
   solidNavigateOptions,
-  solidHrefByPath,
-  solidMatchByPath,
-  solidPreloadByPathEffect,
+  solidHref,
+  solidPreload,
   solidPlainLeftClick,
   solidRouterLinkProps,
   solidRouterLinkNode,
@@ -268,13 +254,11 @@ type SolidRouter = BrowserRouter | RouterOutletProps;
 type SolidRouterLinkProps = RouterLinkProps<(typeof solidRoutes)[0]>;
 type SolidBrowserNavigateArgs = BrowserNavigateArgs<(typeof solidRoutes)[0]>;
 type SolidBrowserNavigateOptions = BrowserNavigateOptions;
-type SolidBrowserRouterPath = BrowserRouterPath<typeof solidRoutes>;
-type SolidBrowserRouterRouteForPath = BrowserRouterRouteForPath<typeof solidRoutes, "/">;
 type SolidBrowserRouterState = BrowserRouterState<typeof solidRoutes>;
 type SolidRouterProviderProps = RouterProviderProps<typeof solidRoutes>;
 type SolidRouteHrefOptions = Route.HrefOptions<(typeof solidRoutes)[0]>;
 // Full Component typing coverage lives in type-tests/component.test-d.ts.
-const solidComponent: Component<{}> = Component.make("SolidTypeTest", function* () {
+const solidComponent: Component<{}> = Component.define("SolidTypeTest", function* () {
   yield* Effect.void;
   return () => "ok";
 });
@@ -284,8 +268,6 @@ type _SolidRouter = SolidRouter;
 type _SolidRouterLinkProps = SolidRouterLinkProps;
 type _SolidBrowserNavigateArgs = SolidBrowserNavigateArgs;
 type _SolidBrowserNavigateOptions = SolidBrowserNavigateOptions;
-type _SolidBrowserRouterPath = SolidBrowserRouterPath;
-type _SolidBrowserRouterRouteForPath = SolidBrowserRouterRouteForPath;
 type _SolidBrowserRouterState = SolidBrowserRouterState;
 type _SolidRouterProviderProps = SolidRouterProviderProps;
 type _SolidRouteHrefOptions = SolidRouteHrefOptions;

@@ -74,7 +74,7 @@ const RouteViewKey: typeof RouteViewTypeId = "~@sunfall/arc-core/RouteView";
  *
  * @example
  * ```tsx
- * const ProjectCard = Component.make("ProjectCard", function* (props: { readonly id: string }) {
+ * const ProjectCard = Component.define("ProjectCard", function* (props: { readonly id: string }) {
  *   const project = yield* Component.resource(ProjectById);
  *   return () => <article>{project(props.id).name}</article>;
  * });
@@ -168,7 +168,7 @@ const setupRenderToken = (fiber: Fiber.Fiber<Component.Render, unknown>) =>
 /**
  * Renders one instance of `component` in `environment`: runs its setup with
  * the instance's props, owner, and Scope, then renders. A synchronous setup
- * renders in place (so hydrated reads stay synchronous); an asynchronous one
+ * renders right away (so hydrated reads stay synchronous); an asynchronous one
  * suspends the nearest `<Loading>`. Setup failures throw from the render, to
  * the nearest `<Errored>`. Solid disposing the instance interrupts a running
  * setup and closes the instance Scope.
@@ -199,10 +199,14 @@ const renderInstance = <P>(
     );
   });
   const exit = fiber.pollUnsafe();
-  if (exit !== undefined) {
-    return runWithRuntime(runtime, renderFromExit(exit));
-  }
-  const ready = createMemo<Component.Render>(() => setupRenderToken(fiber));
+  const ready: Accessor<Component.Render> =
+    exit === undefined
+      ? createMemo<Component.Render>(() => setupRenderToken(fiber))
+      : () => renderFromExit(exit);
+  // Render in a computation of the instance's own: a pending read there
+  // suspends the nearest `<Loading>` and retries only this render once it
+  // settles. Rendering in the caller's computation would make a pending read
+  // re-run that computation, recreating the instance and re-running setup.
   return createMemo(() => {
     const render = ready();
     return untrack(() => runWithRuntime(runtime, render));
@@ -237,7 +241,7 @@ const withSetupContext = (
     [RuntimeTypeId]: RuntimeTypeId,
     managed: runtime.managed,
     resourceStore: runtime.resourceStore,
-    disposeEffect: runtime.disposeEffect,
+    dispose: runtime.dispose,
     provide: (effect, options) => runtime.provide(withContext(effect), options),
     runFork: (effect, options) => runtime.runFork(withContext(effect), options),
     runSync: (effect) => runtime.runSync(withContext(effect)),
@@ -320,7 +324,7 @@ const hostFor = (runtime: AnySunfallArcRuntime<unknown>): Host => {
   const host: Host = {
     scope,
     layers,
-    disposeEffect: Effect.suspend(() => {
+    dispose: Effect.suspend(() => {
       const fibers = Array.from(layers.values());
       layers.clear();
       return Effect.andThen(Fiber.interruptAll(fibers), Scope.close(scope, Exit.void));
@@ -689,12 +693,14 @@ export namespace Component {
     readonly result: Accessor<AsyncResult.AsyncResult<A, ActionError<E>>>;
     /** Input of the latest submission (`Option.none()` while idle). */
     readonly input: Accessor<Option.Option<I>>;
-    /** Fire-and-forget submit for event handlers; the outcome lands in `result()`. */
-    readonly submit: (input: I) => void;
-    /** Submission as an Effect (for Programs and composed workflows), with the instance's context. */
-    readonly submitEffect: (input: I) => Effect.Effect<A, ActionError<E> | ActionInterrupted>;
+    /**
+     * Submits `input` with the instance's context; the outcome also lands in
+     * `result()`. Bridge it to an event handler with `Component.callback`,
+     * handling (or ignoring) its failures there.
+     */
+    readonly submit: (input: I) => Effect.Effect<A, ActionError<E> | ActionInterrupted>;
     /** Interrupts in-flight submissions and returns to `Initial`. */
-    readonly reset: () => void;
+    readonly reset: () => Effect.Effect<void>;
   }
 
   /**
@@ -741,10 +747,12 @@ export namespace Component {
     readonly committed: ReadableSignal<Model>;
     /** Typed update, command, and subscription failures reported by the Program loop. */
     readonly failures: Accessor<ReadonlyArray<ProgramFailure<Message, Program.RuntimeError<E>>>>;
-    /** Fire-and-forget dispatch for event handlers. */
-    readonly dispatch: (message: Message) => void;
-    /** Dispatch that completes after the update commits, or fails if disposal drops it. */
-    readonly dispatchEffect: (
+    /**
+     * Queues `message` and completes once its update commits (failing if the
+     * update fails or disposal drops it). Bridge it to an event handler with
+     * `Component.callback`; failures are also reported through `failures()`.
+     */
+    readonly dispatch: (
       message: Message,
     ) => Effect.Effect<void, ProgramFailure<Message, Program.DispatchError<E>>>;
     /** Clears accumulated failures. */
@@ -763,7 +771,7 @@ export namespace Component {
    *
    * @example
    * ```tsx
-   * const Dashboard = Component.make("Dashboard", function* () {
+   * const Dashboard = Component.define("Dashboard", function* () {
    *   const Card = yield* ProjectCard.pipe(
    *     Component.catchTags({ ProjectNotFound: () => <p>Gone</p> }),
    *     Component.loading(() => <Spinner />),
@@ -772,12 +780,12 @@ export namespace Component {
    * });
    * ```
    */
-  export const make = <Eff extends Effect.Effect<any, any, any>, P = {}>(
+  export const define = <Eff extends Effect.Effect<any, any, any>, P = {}>(
     name: string,
     body: (props: P) => Generator<Eff, Render, never>,
   ): Component<P, ErrorOf<Eff>, ServicesOf<Eff>> =>
     makeComponent(name, (props: P) =>
-      Effect.flatMap(currentInstance("Component.make"), (instance) =>
+      Effect.flatMap(currentInstance("Component.define"), (instance) =>
         Effect.gen(() => ownedGenerator(body(props), instance)),
       ),
     ) as Component<P, ErrorOf<Eff>, ServicesOf<Eff>>;
@@ -835,14 +843,11 @@ export namespace Component {
     Effect.gen(function* () {
       const current = yield* instance;
       const instanceAction = makeActionInstance(definition, current.runtime);
-      yield* Effect.addFinalizer(() => instanceAction.resetEffect());
+      yield* Effect.addFinalizer(() => instanceAction.reset());
       const handle: ActionHandle<I, A, E> = {
         result: () => instanceAction.state.get().result,
         input: () => instanceAction.state.get().input,
-        submit: (input) => {
-          current.fork(Effect.ignore(instanceAction.submitEffect(input)));
-        },
-        submitEffect: instanceAction.submitEffect,
+        submit: instanceAction.submit,
         reset: instanceAction.reset,
       };
       return handle;
@@ -868,18 +873,13 @@ export namespace Component {
       const started = current.run(() =>
         startProgramOnRuntime<Model, Message, E, R, never>(definition, current.runtime),
       );
-      yield* Effect.addFinalizer(() => started.disposeEffect);
+      yield* Effect.addFinalizer(() => started.dispose);
       const model = current.run(() => projectModel(started.model, options?.key));
       const handle: ProgramHandle<Model, Message, E> = {
         model,
         committed: started.model,
         failures: () => started.failures.get(),
-        dispatch: started.dispatch as (message: Message) => void,
-        dispatchEffect: started.dispatchEffect as ProgramHandle<
-          Model,
-          Message,
-          E
-        >["dispatchEffect"],
+        dispatch: started.dispatch as ProgramHandle<Model, Message, E>["dispatch"],
         clearFailures: started.clearFailures,
       };
       return handle;
@@ -909,7 +909,7 @@ export namespace Component {
    *
    * @example
    * ```tsx
-   * const refresh = yield* Component.callback(() => Resource.invalidateEffect(ProjectsRef));
+   * const refresh = yield* Component.callback(() => Resource.invalidate(ProjectsRef));
    * return () => <button onClick={refresh}>Refresh</button>;
    * ```
    */
@@ -1102,7 +1102,7 @@ export namespace Component {
         (options?.runtime === undefined ? undefined : eraseRuntime(options.runtime)) ??
         (yield* Effect.acquireRelease(
           Effect.sync(() => eraseRuntime(makeRuntime())),
-          (owned) => owned.disposeEffect.pipe(Effect.ignore({ log: true })),
+          (owned) => owned.dispose.pipe(Effect.ignore({ log: true })),
         ));
       // Start the runtime first, so its startup failure (`ER`) fails the mount.
       yield* runtime.provide(Effect.void) as Effect.Effect<void, ER>;

@@ -75,7 +75,7 @@ const startStaticPreparedHrefReusableEffect = (
       return Effect.succeed(true);
     case "Hydrated":
       return Effect.forEach(prepared.refs, (ref) =>
-        Resource.statusEffect(ref).pipe(
+        Resource.status(ref).pipe(
           Effect.map(
             (status) => status.result._tag === "Success" && !status.isStale && !status.isGcExpired,
           ),
@@ -92,7 +92,7 @@ const watchStartStaticPreparedHrefInvalidationsEffect = (
   preparedHrefs: Map<string, StartStaticPreparedHref>,
 ): Effect.Effect<void, never, Scope.Scope> =>
   Effect.gen(function* () {
-    const events = yield* Resource.subscribeEventsEffect();
+    const events = yield* Resource.subscribeEvents();
     yield* Effect.forever(
       PubSub.take(events).pipe(
         Effect.tap((event) =>

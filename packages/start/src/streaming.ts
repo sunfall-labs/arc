@@ -354,7 +354,7 @@ const htmlHeaders = (input: HeadersInit | undefined): Headers => {
  * The response body is a `ReadableStream`; the response itself is created
  * without failing, while stream failures are represented in the stream Effect.
  */
-export const createHtmlResponseEffect = <E = never, R = never>(
+export const createHtmlResponse = <E = never, R = never>(
   options: HtmlResponseOptions<E, R>,
 ): Effect.Effect<Response, never, R> =>
   Effect.map(createReadableHtmlStreamEffect(options), (body) => {
@@ -372,7 +372,7 @@ export const createHtmlResponseEffect = <E = never, R = never>(
  * Creates a Start streaming HTML `Response` and appends route hydration chunks
  * from the render hydration plan before the tail.
  */
-export const createStartStreamedHtmlResponseEffect = <E = never, R = never>(
+export const createStartStreamedHtmlResponse = <E = never, R = never>(
   options: StartStreamedHtmlResponseOptions<E, R>,
 ): Effect.Effect<Response, never, R> => {
   const { hydrationPlan, chunks, ...htmlOptions } = options;
@@ -385,7 +385,7 @@ export const createStartStreamedHtmlResponseEffect = <E = never, R = never>(
       : chunks === undefined
         ? Stream.make(...hydrationChunks)
         : chunks.pipe(Stream.concat(Stream.make(...hydrationChunks)));
-  return createHtmlResponseEffect({
+  return createHtmlResponse({
     ...htmlOptions,
     ...(responseChunks === undefined ? {} : { chunks: responseChunks }),
   });

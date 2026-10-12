@@ -26,15 +26,16 @@ export interface CollectionBindingOptions<E = never> {
  * Instance-bound reactive reads of a collection, from `SolidDb.collection`.
  *
  * Accessors read the instance runtime's Collection Store. Writes and loads go
- * through the definition's `*Effect` methods, run with `Component.callback`:
- * `yield* Component.callback((id) => Todos.updateEffect(id, patch))`.
+ * through the definition's Effect-returning methods, run with
+ * `Component.callback`:
+ * `yield* Component.callback((id) => Todos.update(id, patch).pipe(Effect.ignore))`.
  */
 export interface CollectionHandle<A extends object, K extends Collection.Key, E = never> {
   /** Current rows, including optimistic local writes. */
   readonly rows: Accessor<ReadonlyArray<Collection.Row<A, K>>>;
   /**
    * Current load `AsyncResult` with normalized runtime failures: `Success` once
-   * rows are loaded, `waiting` while preloading or refetching, `Failure` with
+   * rows are loaded, `waiting` while preloading or refreshing, `Failure` with
    * the load `Cause`. Rows stay readable through `rows()` in every state.
    */
   readonly result: Accessor<AsyncResult.AsyncResult<void, Collection.RuntimeError<E>>>;
@@ -59,18 +60,18 @@ export const collection = <A extends object, K extends Collection.Key, E = never
   options: CollectionBindingOptions<E> = {},
 ): Effect.Effect<CollectionHandle<A, K, E>, never, R> =>
   Effect.map(Component.instance, (instance) => {
-    const preloadEffect = definition.preloadEffect();
+    const preloadEffect = definition.preload();
     const binding = instance.run(() =>
       makeSolidDbReactiveBinding<Collection.RuntimeError<E>, R, never>({
         runtime: instance.runtime,
         preload: options.preload,
-        preloadEffect: () => preloadEffect,
+        load: () => preloadEffect,
         onPreloadFailure: options.onPreloadFailure,
       }),
     );
     const handle: CollectionHandle<A, K, E> = {
       rows: () => binding.read(() => definition.rows()),
-      result: () => binding.read(() => definition.state().get()),
+      result: () => binding.read(() => definition.result().get()),
       preloadFailure: binding.preloadFailure,
       pendingMutations: () => binding.read(() => definition.pendingMutations()),
       get: (key) => binding.read(() => definition.get(key)),

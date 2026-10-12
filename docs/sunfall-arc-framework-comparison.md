@@ -53,7 +53,7 @@ export const ProjectTag = Resource.tag<{ readonly id: ProjectId }>("Project", {
   key: ({ id }) => id,
 });
 
-export const ProjectById = Resource.family<ProjectId, Project, ProjectError, ProjectApi>({
+export const ProjectById = Resource.define<ProjectId, Project, ProjectError, ProjectApi>({
   name: "Project.byId",
   input: ProjectId,
   output: ProjectSchema,
@@ -131,7 +131,7 @@ Typed routers help catch bad links. Sunfall Arc leans into that, but keeps schem
 and generated route facts close to the app graph:
 
 ```ts
-const RouteBuilder = defineFileRoute("/projects/:id");
+const RouteBuilder = FileRoute.define("/projects/:id");
 
 export const Route = RouteBuilder.preload({
   params: Schema.Struct({ id: ProjectId }),
@@ -143,9 +143,9 @@ export const Route = RouteBuilder.preload({
 }).route();
 ```
 
-The generated route file exposes maps such as `routeById`, `routeByPath`,
-direct helpers such as `hrefByPath("/projects/:id", ...)`, params-by-id,
-search-by-path, route `Match` aliases, and href options. The Start app graph can
+The generated route file exposes the `routeById` map of route definitions
+(addressed with `Route.href(...)` like any definition), params-by-id,
+search-by-id, and href options. The Start app graph can
 then tell diagnostics and agents which route owns params, search, preload
 resources, collections, server functions, actions, schemas, and modules.
 
@@ -283,13 +283,15 @@ const update = Program.update<ProjectModel, ProjectMessage>({
 The Solid adapter is intentionally small:
 
 ```tsx
-const OpenProject = Component.make("OpenProject", function* (props: { readonly id: ProjectId }) {
+const OpenProject = Component.define("OpenProject", function* (props: { readonly id: ProjectId }) {
   const program = yield* Component.program(ProjectProgram); // R += the Program's services
+  // `dispatch` is an Effect; failures already land in `program.failures()`.
+  const load = yield* Component.callback((id: ProjectId) =>
+    program.dispatch({ _tag: "Load", id }).pipe(Effect.ignore),
+  );
 
   return () => (
-    <button onClick={() => program.dispatch({ _tag: "Load", id: props.id })}>
-      {program.model().loading ? "Loading" : "Open"}
-    </button>
+    <button onClick={() => load(props.id)}>{program.model().loading ? "Loading" : "Open"}</button>
   );
 });
 ```
@@ -328,7 +330,7 @@ apps and devtools inspect and travel history without reaching into private
 state. Devtools does that through the public Effect API:
 
 ```ts
-yield * store.trackTimelineEffect(recording);
+yield * store.trackTimeline(recording);
 ```
 
 Those rows go through the same bounded/redacted Devtools serialization contract
@@ -341,15 +343,19 @@ the Solid target through TSRX today, rather than pretending it needs a custom UI
 compiler first.
 
 ```tsx
-const RenameForm = Component.make("RenameForm", function* (props: { readonly id: ProjectId }) {
+const RenameForm = Component.define("RenameForm", function* (props: { readonly id: ProjectId }) {
   const project = yield* Component.resource(ProjectById); // E += load error, R += ProjectApi
   const rename = yield* Component.action(RenameProject); // local, or remote via ActionTransport
+  // The outcome lands in `rename.result()`, so the handler ignores failures.
+  const save = yield* Component.callback((name: string) =>
+    rename.submit({ id: props.id, name }).pipe(Effect.ignore),
+  );
 
   return () => (
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        rename.submit({ id: props.id, name: nextName() });
+        save(nextName());
       }}
     >
       <input value={project(props.id).name} />

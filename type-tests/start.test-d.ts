@@ -1,12 +1,10 @@
 import {
-  createHtmlResponseEffect,
+  createHtmlResponse,
   createRequestHandler,
-  createStartStreamedHtmlResponseEffect,
+  createStartStreamedHtmlResponse,
   currentStartStaticHref,
-  defineFileRoute,
   htmlChunk,
   hydrateFromDocument,
-  hydrateFromDocumentEffect,
   makeRpcClientLayer,
   makeStartStaticHistoryAdapter,
   normalizeStartStaticBasePath,
@@ -31,7 +29,6 @@ import {
   type CreateRequestHandlerOptions,
   type HtmlResponseOptions,
   type HtmlStreamChunk,
-  type HydrateFromDocumentEffectOptions,
   type HydrateFromDocumentOptions,
   type ServerFunctionManifestSource,
   type ServerRpcClientOptions,
@@ -53,25 +50,24 @@ import {
   type StartStaticHistoryWindow,
   type StartStreamedHtmlResponseOptions,
   type StartTransportEndpointOverrides,
+  FileRoute,
 } from "@sunfall/arc-start";
 import { Effect, type Layer, Schema } from "effect";
 import {
-  route,
   type ActionDefinition,
   type ActionTransport,
-  type Route,
+  Route,
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
 
 const startExports: Array<unknown> = [
-  createHtmlResponseEffect,
+  createHtmlResponse,
   createRequestHandler,
-  createStartStreamedHtmlResponseEffect,
+  createStartStreamedHtmlResponse,
   currentStartStaticHref,
-  defineFileRoute,
+  FileRoute.define,
   htmlChunk,
   hydrateFromDocument,
-  hydrateFromDocumentEffect,
   makeRpcClientLayer,
   makeStartStaticHistoryAdapter,
   normalizeStartStaticBasePath,
@@ -97,7 +93,6 @@ type StartTypes =
   | CreateRequestHandlerOptions<readonly Route.Definition<string, unknown, unknown, any>[]>
   | HtmlResponseOptions
   | HtmlStreamChunk
-  | HydrateFromDocumentEffectOptions
   | HydrateFromDocumentOptions
   | ServerFunctionManifestSource
   | ServerRpcClientOptions
@@ -122,12 +117,12 @@ type StartTypes =
 void startExports;
 type _StartTypes = StartTypes;
 
-const typedFileRoute = defineFileRoute("/typed/:id")({
+const typedFileRoute = FileRoute.define("/typed/:id")({
   preloadResources: [],
 });
 const typedFileRoutePath: "/typed/:id" = typedFileRoute.path;
 const typedFileRouteParams: { readonly id: string } = {} as Route.Params<typeof typedFileRoute>;
-const coreRoute = route("/typed/:id", { preloadResources: [] });
+const coreRoute = Route.define("/typed/:id", { preloadResources: [] });
 const sameShape: typeof coreRoute = typedFileRoute;
 void typedFileRoutePath;
 void typedFileRouteParams;
@@ -155,7 +150,7 @@ const startActionFormEncodeError = new StartActionFormEncodeError({
   guidance: "use serializable defaults",
 });
 declare const startActionBrowserFormData: FormData;
-const decodedStartActionFormDataEffect = StartAction.decodeFormDataEffect(
+const decodedStartActionFormDataEffect = StartAction.decodeFormData(
   Schema.Struct({ id: Schema.String }),
   startActionBrowserFormData,
 );

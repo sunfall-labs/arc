@@ -19,7 +19,7 @@ describe("Collection Timeline causes", () => {
           sync: { load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }]) },
         });
 
-        yield* Projects.preloadEffect();
+        yield* Projects.preload();
 
         const entries = Signal.peek(recording.entries);
         expect(new Set(entries.map((entry) => Timeline.describe(entry.cause)))).toEqual(

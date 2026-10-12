@@ -36,8 +36,8 @@ The basic starter includes:
 - one typed `Component` tree, rendered on the server with
   `Component.embed(App, runtime)` and hydrated in the browser with
   `Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() })`
-  after the synchronous `hydrateFromDocument` host facade runs
-  `hydrateFromDocumentEffect(...)`, so the route-preloaded Resource reads
+  after `runtime.provide(hydrateFromDocument(document))` restores the server
+  payload in the same client Effect, so the route-preloaded Resource reads
   synchronously (no loading flash);
 - a production leak scan for `starter.server` sentinels.
 

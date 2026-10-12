@@ -1,6 +1,6 @@
-import { defineApp } from "@sunfall/arc-core";
+import { App } from "@sunfall/arc-core";
 import {
-  createStartStreamedHtmlResponseEffect,
+  createStartStreamedHtmlResponse,
   createRequestHandler,
   htmlChunk,
 } from "@sunfall/arc-start";
@@ -13,7 +13,7 @@ import { DocsContentApiLive } from "./content-live.js";
 import { docsSiteServerRegistry } from "./start-options.js";
 import "./styles.css";
 
-export const serverApp = defineApp({
+export const serverApp = App.define({
   ...docsSiteAppBaseOptions,
   server: DocsContentApiLive,
   registry: docsSiteServerRegistry,
@@ -47,7 +47,7 @@ export const handleRequest = createRequestHandler(serverApp, {
         createComponent(Component.embed(DocsSite, runtime), { initialHref: href }),
       );
 
-      return yield* createStartStreamedHtmlResponseEffect({
+      return yield* createStartStreamedHtmlResponse({
         shell: htmlChunk(shellOpen(generateHydrationScript())),
         chunks: Stream.make(htmlChunk(`${body}</div>\n`)),
         hydrationPlan,

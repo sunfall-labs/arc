@@ -27,15 +27,25 @@ const runtimeLayer = import.meta.env.DEV
     )
   : DocsContentApiStaticClient;
 const runtime = makeRuntime(runtimeLayer);
-hydrateFromDocument(document, undefined, {
-  runtime,
-  ...(import.meta.env.DEV ? {} : { timestamp: "now" as const }),
-});
 
+// Restore the server's hydration payload into the runtime, then hydrate the
+// server-rendered markup with the same tree.
 Effect.runFork(
-  Component.launch(DocsSite, root, {
-    runtime,
-    props: { hydratedHref: currentDocsSiteHref() },
-    hydrate: root.hasChildNodes(),
-  }),
+  runtime
+    .provide(
+      hydrateFromDocument(
+        document,
+        undefined,
+        import.meta.env.DEV ? {} : { timestamp: "now" as const },
+      ),
+    )
+    .pipe(
+      Effect.andThen(
+        Component.launch(DocsSite, root, {
+          runtime,
+          props: { hydratedHref: currentDocsSiteHref() },
+          hydrate: root.hasChildNodes(),
+        }),
+      ),
+    ),
 );

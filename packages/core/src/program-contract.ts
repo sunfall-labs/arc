@@ -161,11 +161,11 @@ export interface ProgramHandlerDefinition<
 /** Program error channel plus callback and Runtime Spine startup/provision errors. */
 export type ProgramRuntimeError<E, ER = never> = E | EffectInputCallbackError | ER;
 
-/** Error channel for live `dispatchEffect(...)`, including disposal drops. */
+/** Error channel for live `dispatch(...)`, including disposal drops. */
 export type ProgramDispatchError<E, ER = never> = ProgramRuntimeError<E, ER> | ProgramDisposed;
 
 /**
- * Error reported when `dispatchEffect(...)` cannot apply because the Program
+ * Error reported when `dispatch(...)` cannot apply because the Program
  * was disposed before the message update committed.
  */
 export class ProgramDisposed extends Data.TaggedError("ProgramDisposed")<{
@@ -225,19 +225,17 @@ export interface ProgramInstance<Model, Message, E = never, DispatchE = E> {
   readonly model: ReadableSignal<Model>;
   /** Accumulated typed failures from updates, commands, and subscriptions. */
   readonly failures: ReadableSignal<ReadonlyArray<ProgramFailure<Message, E>>>;
-  /** Fire-and-forget dispatch for UI event handlers. */
-  dispatch(message: ProgramMessageValue<Message>): void;
   /**
    * Effect dispatch that completes after the message update has committed.
    *
    * If disposal happens before the update commits, the Effect fails with a
    * `ProgramFailure` whose error is `ProgramDisposed`.
    */
-  dispatchEffect(
+  dispatch(
     message: ProgramMessageValue<Message>,
   ): Effect.Effect<void, ProgramFailure<Message, DispatchE>>;
   /** Clears accumulated failures. */
   clearFailures(): void;
   /** Stops the message loop and interrupts active subscriptions/commands. */
-  disposeEffect: Effect.Effect<void>;
+  dispose: Effect.Effect<void>;
 }

@@ -53,8 +53,6 @@ const actionStateFacts = <I, A, E>(
   input: Option.getOrUndefined(state.input),
 });
 
-type AnyActionInstance = ActionInstance<any, any, any, any>;
-
 const normalizeHistoryLimit = (value: number | undefined, fallback: number): number =>
   value === undefined || !Number.isFinite(value) || value <= 0
     ? fallback
@@ -514,76 +512,26 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsS
   const getCausalGraphEffect = () => Effect.sync(() => describeDevtoolsCausalGraph(summaryInput()));
 
   const store = {
-    getSnapshot: () => Effect.runSync(getSnapshotEffect()),
-    getSnapshotEffect,
-    setSnapshot: (next: DevtoolsSnapshot) => {
-      Effect.runSync(setSnapshotEffect(next));
-    },
-    setSnapshotEffect,
-    setAppGraphDiagnostics: (appGraph: DevtoolsStartAppGraphDiagnostics) => {
-      Effect.runSync(setAppGraphDiagnosticsEffect(appGraph));
-    },
-    setAppGraphDiagnosticsEffect,
-    clearAppGraphDiagnostics: () => {
-      Effect.runSync(clearAppGraphDiagnosticsEffect());
-    },
-    clearAppGraphDiagnosticsEffect,
-    recordInvalidation: (plan: ResourceInvalidationPlan) => {
-      return Effect.runSync(recordInvalidationEffect(plan));
-    },
-    recordInvalidationEffect,
-    recordSerializedInvalidation: (plan: DevtoolsInvalidationPlan) => {
-      return Effect.runSync(recordSerializedInvalidationEffect(plan));
-    },
-    recordSerializedInvalidationEffect,
-    recordActionState: (
-      action: string,
-      state: string,
-      actionOptions: DevtoolsRecordActionStateOptions = {},
-    ) => {
-      Effect.runSync(recordActionStateEffect(action, state, actionOptions));
-    },
-    recordActionStateEffect,
-    recordAction: (action: AnyActionInstance) => {
-      Effect.runSync(recordActionEffect(action));
-    },
-    recordActionEffect,
-    trackActionEffect,
-    recordRoutePlan: (plan: Route.NavigationPlan) => {
-      return Effect.runSync(recordRoutePlanEffect(plan));
-    },
-    recordRoutePlanEffect,
-    recordSerializedRoutePlan: (plan: DevtoolsRoutePlan) => {
-      return Effect.runSync(recordSerializedRoutePlanEffect(plan));
-    },
-    recordSerializedRoutePlanEffect,
-    recordResourceEvent: (event: ResourceStoreEvent) => {
-      Effect.runSync(recordResourceEventEffect(event));
-    },
-    recordResourceEventEffect,
-    recordCollectionEvent: (event: DevtoolsCollectionStoreEvent) => {
-      Effect.runSync(recordCollectionEventEffect(event));
-    },
-    recordCollectionEventEffect,
-    recordTimelineEntry: (entry: TimelineEntry) => {
-      Effect.runSync(recordTimelineEntryEffect(entry));
-    },
-    recordTimelineEntryEffect,
-    trackTimelineEffect,
-    recordRuntimeEvent: (event: DevtoolsRuntimeEvent) => {
-      Effect.runSync(recordRuntimeEventEffect(event));
-    },
-    recordRuntimeEventEffect,
-    recordRequestTrace: (trace: DevtoolsRequestTrace) => {
-      Effect.runSync(recordRequestTraceEffect(trace));
-    },
-    recordRequestTraceEffect,
-    getSummary: () => Effect.runSync(getSummaryEffect()),
-    getSummaryEffect,
-    getPanels: () => Effect.runSync(getPanelsEffect()),
-    getPanelsEffect,
-    getCausalGraph: () => Effect.runSync(getCausalGraphEffect()),
-    getCausalGraphEffect,
+    getSnapshot: getSnapshotEffect,
+    setSnapshot: setSnapshotEffect,
+    setAppGraphDiagnostics: setAppGraphDiagnosticsEffect,
+    clearAppGraphDiagnostics: clearAppGraphDiagnosticsEffect,
+    recordInvalidation: recordInvalidationEffect,
+    recordSerializedInvalidation: recordSerializedInvalidationEffect,
+    recordActionState: recordActionStateEffect,
+    recordAction: recordActionEffect,
+    trackAction: trackActionEffect,
+    recordRoutePlan: recordRoutePlanEffect,
+    recordSerializedRoutePlan: recordSerializedRoutePlanEffect,
+    recordResourceEvent: recordResourceEventEffect,
+    recordCollectionEvent: recordCollectionEventEffect,
+    recordTimelineEntry: recordTimelineEntryEffect,
+    trackTimeline: trackTimelineEffect,
+    recordRuntimeEvent: recordRuntimeEventEffect,
+    recordRequestTrace: recordRequestTraceEffect,
+    getSummary: getSummaryEffect,
+    getPanels: getPanelsEffect,
+    getCausalGraph: getCausalGraphEffect,
   } satisfies DevtoolsStore;
 
   return store;

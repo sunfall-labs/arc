@@ -14,15 +14,15 @@ import {
   devtoolsPanelSeverities,
   sunfallArcDevtoolsBridgeGlobal,
   installDevtoolsBridge,
-  installDevtoolsBridgeEffect,
   isDevtoolsSerializableValue,
   makeDevtoolsStore,
-  mountDevtoolsPanelsEffect,
+  mountDevtoolsPanels,
   resolveSunfallArcDevtoolsBridgePayload,
   renderDevtoolsPanelsHtml,
   toDevtoolsSerializableValue,
   type DevtoolsBridgePayload,
   type DevtoolsBridgePayloadContractResolution,
+  type DevtoolsBridgeInstall,
   type DevtoolsBridgeTarget,
   type DevtoolsCausalEdgeKind,
   type DevtoolsCausalGraph,
@@ -75,37 +75,36 @@ const devtoolsStoreOptions: DevtoolsStoreOptions = {
   },
 };
 const devtoolsStore: DevtoolsStore = makeDevtoolsStore(devtoolsStoreOptions);
-const devtoolsSnapshot: DevtoolsSnapshot = devtoolsStore.getSnapshot();
-const devtoolsSnapshotEffect: Effect.Effect<DevtoolsSnapshot> = devtoolsStore.getSnapshotEffect();
-devtoolsStore.setSnapshot(devtoolsSnapshot);
-const devtoolsSetSnapshotEffect: Effect.Effect<void> =
-  devtoolsStore.setSnapshotEffect(devtoolsSnapshot);
-const devtoolsSummary: DevtoolsSummary = devtoolsStore.getSummary();
-const devtoolsSummaryEffect: Effect.Effect<DevtoolsSummary> = devtoolsStore.getSummaryEffect();
-const devtoolsPanels: DevtoolsPanels = devtoolsStore.getPanels();
-const devtoolsPanelsEffect: Effect.Effect<DevtoolsPanels> = devtoolsStore.getPanelsEffect();
-const devtoolsCausalGraph: DevtoolsCausalGraph = devtoolsStore.getCausalGraph();
+const devtoolsSnapshot: DevtoolsSnapshot = Effect.runSync(devtoolsStore.getSnapshot());
+const devtoolsSnapshotEffect: Effect.Effect<DevtoolsSnapshot> = devtoolsStore.getSnapshot();
+Effect.runSync(devtoolsStore.setSnapshot(devtoolsSnapshot));
+const devtoolsSetSnapshotEffect: Effect.Effect<void> = devtoolsStore.setSnapshot(devtoolsSnapshot);
+const devtoolsSummary: DevtoolsSummary = Effect.runSync(devtoolsStore.getSummary());
+const devtoolsSummaryEffect: Effect.Effect<DevtoolsSummary> = devtoolsStore.getSummary();
+const devtoolsPanels: DevtoolsPanels = Effect.runSync(devtoolsStore.getPanels());
+const devtoolsPanelsEffect: Effect.Effect<DevtoolsPanels> = devtoolsStore.getPanels();
+const devtoolsCausalGraph: DevtoolsCausalGraph = Effect.runSync(devtoolsStore.getCausalGraph());
 const devtoolsCausalGraphEffect: Effect.Effect<DevtoolsCausalGraph> =
-  devtoolsStore.getCausalGraphEffect();
-declare const devtoolsActionInstance: Parameters<DevtoolsStore["recordActionEffect"]>[0];
-declare const devtoolsRoutePlanInput: Parameters<DevtoolsStore["recordRoutePlanEffect"]>[0];
-declare const devtoolsTimelineRecording: Parameters<DevtoolsStore["trackTimelineEffect"]>[0];
+  devtoolsStore.getCausalGraph();
+declare const devtoolsActionInstance: Parameters<DevtoolsStore["recordAction"]>[0];
+declare const devtoolsRoutePlanInput: Parameters<DevtoolsStore["recordRoutePlan"]>[0];
+declare const devtoolsTimelineRecording: Parameters<DevtoolsStore["trackTimeline"]>[0];
 declare const devtoolsTimelineEntry: TimelineEntry;
 const devtoolsRecordActionEffect: Effect.Effect<void> =
-  devtoolsStore.recordActionEffect(devtoolsActionInstance);
+  devtoolsStore.recordAction(devtoolsActionInstance);
 const devtoolsTrackActionEffect: Effect.Effect<void, never, Scope.Scope> =
-  devtoolsStore.trackActionEffect(devtoolsActionInstance);
+  devtoolsStore.trackAction(devtoolsActionInstance);
 const devtoolsRecordRoutePlanEffect: Effect.Effect<number> =
-  devtoolsStore.recordRoutePlanEffect(devtoolsRoutePlanInput);
+  devtoolsStore.recordRoutePlan(devtoolsRoutePlanInput);
 const devtoolsTrackTimelineEffect: Effect.Effect<void, never, Scope.Scope> =
-  devtoolsStore.trackTimelineEffect(devtoolsTimelineRecording);
+  devtoolsStore.trackTimeline(devtoolsTimelineRecording);
 const devtoolsCustomRuntimeEvent: DevtoolsRuntimeEvent = {
   _tag: "Custom",
   name: "type-test",
   payload: { ok: true },
 };
 const devtoolsRecordCustomRuntimeEventEffect: Effect.Effect<void> =
-  devtoolsStore.recordRuntimeEventEffect(devtoolsCustomRuntimeEvent);
+  devtoolsStore.recordRuntimeEvent(devtoolsCustomRuntimeEvent);
 
 const devtoolsSummaryInput: DevtoolsSummaryInput = {
   snapshot: devtoolsSnapshot,
@@ -167,7 +166,7 @@ const devtoolsPanelMountOptions: DevtoolsPanelMountOptions = {
   panels: explicitDevtoolsPanels,
 };
 const devtoolsPanelMountEffect: Effect.Effect<DevtoolsPanelMount, never, Scope.Scope> =
-  mountDevtoolsPanelsEffect(devtoolsPanelMountOptions).pipe(
+  mountDevtoolsPanels(devtoolsPanelMountOptions).pipe(
     Effect.tap((mount) =>
       Effect.sync(() =>
         mount.update({ panels: explicitDevtoolsPanels, selectedPanelId: "actions" }),
@@ -180,7 +179,6 @@ const devtoolsPanelBootOptions: DevtoolsPanelBootOptions = {
   afterMount: (mount) => Effect.sync(() => mount.update({ selectedPanelId: "diagnostics" })),
 };
 const devtoolsPanelBoot: DevtoolsPanelBoot = bootDevtoolsPanels(devtoolsPanelBootOptions);
-const devtoolsPanelBootInterruptEffect: Effect.Effect<void> = devtoolsPanelBoot.interruptEffect;
 const devtoolsBootFiber: Fiber.Fiber<void, never> = devtoolsPanelBoot.fiber;
 devtoolsPanelBoot.interrupt();
 
@@ -298,12 +296,12 @@ const devtoolsCollectionStoreEvent: DevtoolsCollectionStoreEvent = {
   collection: "Projects",
   mutations: 1,
 };
-devtoolsStore.recordTimelineEntry(devtoolsTimelineEntry);
+Effect.runSync(devtoolsStore.recordTimelineEntry(devtoolsTimelineEntry));
 const devtoolsRecordTimelineEntryEffect: Effect.Effect<void> =
-  devtoolsStore.recordTimelineEntryEffect(devtoolsTimelineEntry);
-devtoolsStore.recordCollectionEvent(devtoolsCollectionStoreEvent);
+  devtoolsStore.recordTimelineEntry(devtoolsTimelineEntry);
+Effect.runSync(devtoolsStore.recordCollectionEvent(devtoolsCollectionStoreEvent));
 const devtoolsRecordCollectionEventEffect: Effect.Effect<void> =
-  devtoolsStore.recordCollectionEventEffect(devtoolsCollectionStoreEvent);
+  devtoolsStore.recordCollectionEvent(devtoolsCollectionStoreEvent);
 const devtoolsRuntimeEvents: ReadonlyArray<DevtoolsRuntimeEvent> = [
   {
     _tag: "ResourceStoreEvent",
@@ -385,45 +383,53 @@ const devtoolsUnknownInvalidationTarget: DevtoolsUnknownInvalidationTarget =
     target: "not-a-resource",
     guidance: "Use Resource refs or tags.",
   });
-const devtoolsSerializedInvalidationIndex: number = devtoolsStore.recordSerializedInvalidation(
-  serializedInvalidationPlan,
+const devtoolsSerializedInvalidationIndex: number = Effect.runSync(
+  devtoolsStore.recordSerializedInvalidation(serializedInvalidationPlan),
 );
 const devtoolsSerializedInvalidationIndexEffect: Effect.Effect<number> =
-  devtoolsStore.recordSerializedInvalidationEffect(serializedInvalidationPlan);
-const devtoolsSerializedRoutePlanIndex: number =
-  devtoolsStore.recordSerializedRoutePlan(serializedRoutePlan);
+  devtoolsStore.recordSerializedInvalidation(serializedInvalidationPlan);
+const devtoolsSerializedRoutePlanIndex: number = Effect.runSync(
+  devtoolsStore.recordSerializedRoutePlan(serializedRoutePlan),
+);
 const devtoolsSerializedRoutePlanIndexEffect: Effect.Effect<number> =
-  devtoolsStore.recordSerializedRoutePlanEffect(serializedRoutePlan);
-devtoolsStore.recordActionState("Project.touch", "Success", {
-  serializedInvalidationPlan,
-});
+  devtoolsStore.recordSerializedRoutePlan(serializedRoutePlan);
+Effect.runSync(
+  devtoolsStore.recordActionState("Project.touch", "Success", {
+    serializedInvalidationPlan,
+  }),
+);
 const devtoolsRecordActionStateEffect: Effect.Effect<void, DevtoolsActionInvalidationPlanConflict> =
-  devtoolsStore.recordActionStateEffect("Project.touch", "Success", {
+  devtoolsStore.recordActionState("Project.touch", "Success", {
     serializedInvalidationPlan,
   });
 const devtoolsLiveActionStateOptions: DevtoolsRecordActionStateOptions = {
   input: { id: "atlas" },
   invalidationPlan: devtoolsLiveInvalidationPlan,
 };
-devtoolsStore.recordActionState("Project.touch", "Success", devtoolsLiveActionStateOptions);
-devtoolsStore.recordActionState("Project.touch", "Success", {
-  invalidationPlan: devtoolsLiveInvalidationPlan,
-  // @ts-expect-error devtools action state accepts either live or serialized invalidation plans, not both
-  serializedInvalidationPlan,
-});
+Effect.runSync(
+  devtoolsStore.recordActionState("Project.touch", "Success", devtoolsLiveActionStateOptions),
+);
+Effect.runSync(
+  devtoolsStore.recordActionState("Project.touch", "Success", {
+    invalidationPlan: devtoolsLiveInvalidationPlan,
+    // @ts-expect-error devtools action state accepts either live or serialized invalidation plans, not both
+    serializedInvalidationPlan,
+  }),
+);
 const devtoolsRecordActionStateConflictEffect: Effect.Effect<
   void,
   DevtoolsActionInvalidationPlanConflict
-> = devtoolsStore.recordActionStateEffect("Project.touch", "Success", {
+> = devtoolsStore.recordActionState("Project.touch", "Success", {
   invalidationPlan: devtoolsLiveInvalidationPlan,
   serializedInvalidationPlan,
 } as unknown as DevtoolsRecordActionStateOptions);
-const devtoolsRecordRuntimeEventEffect: Effect.Effect<void> =
-  devtoolsStore.recordRuntimeEventEffect(devtoolsRuntimeEvents[7]!);
-devtoolsStore.recordRuntimeEvent(devtoolsRuntimeEvents[0]!);
-devtoolsStore.recordRequestTrace(devtoolsRequestTrace);
+const devtoolsRecordRuntimeEventEffect: Effect.Effect<void> = devtoolsStore.recordRuntimeEvent(
+  devtoolsRuntimeEvents[7]!,
+);
+Effect.runSync(devtoolsStore.recordRuntimeEvent(devtoolsRuntimeEvents[0]!));
+Effect.runSync(devtoolsStore.recordRequestTrace(devtoolsRequestTrace));
 const devtoolsRecordRequestTraceEffect: Effect.Effect<void> =
-  devtoolsStore.recordRequestTraceEffect(devtoolsRequestTrace);
+  devtoolsStore.recordRequestTrace(devtoolsRequestTrace);
 
 const devtoolsBridgePayload: DevtoolsBridgePayload = {
   panels: explicitDevtoolsPanels,
@@ -447,11 +453,13 @@ if (invalidDevtoolsBridgePayloadResolution._tag === "Invalid") {
   void bridgeDiagnosticPanels;
 }
 const devtoolsBridgeTarget: DevtoolsBridgeTarget = {};
-const devtoolsBridgeInstall = installDevtoolsBridge(devtoolsBridgePayload, devtoolsBridgeTarget);
 devtoolsBridgeTarget[sunfallArcDevtoolsBridgeGlobal] = () => devtoolsBridgePayload;
-devtoolsBridgeInstall.uninstall();
-const devtoolsBridgeInstallEffect: Effect.Effect<void, never, Scope.Scope> =
-  installDevtoolsBridgeEffect(() => devtoolsBridgePayload, devtoolsBridgeTarget);
+const devtoolsBridgeInstallEffect: Effect.Effect<DevtoolsBridgeInstall, never, Scope.Scope> =
+  installDevtoolsBridge(devtoolsBridgePayload, devtoolsBridgeTarget);
+const devtoolsBridgeUninstall: Effect.Effect<void, never, Scope.Scope> = Effect.map(
+  devtoolsBridgeInstallEffect,
+  (install) => install.uninstall(),
+);
 
 declare const devtoolsAppGraph: DevtoolsStartAppGraphDiagnostics;
 const devtoolsStartSchemaCoverage: DevtoolsStartAppGraphSchemaCoverage =
@@ -460,12 +468,12 @@ type DevtoolsStartUnknowns =
   | DevtoolsStartAppGraphUnknownActionBehaviorEntry
   | DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry
   | DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry;
-devtoolsStore.setAppGraphDiagnostics(devtoolsAppGraph);
+Effect.runSync(devtoolsStore.setAppGraphDiagnostics(devtoolsAppGraph));
 const devtoolsSetAppGraphDiagnosticsEffect: Effect.Effect<void> =
-  devtoolsStore.setAppGraphDiagnosticsEffect(devtoolsAppGraph);
-devtoolsStore.clearAppGraphDiagnostics();
+  devtoolsStore.setAppGraphDiagnostics(devtoolsAppGraph);
+Effect.runSync(devtoolsStore.clearAppGraphDiagnostics());
 const devtoolsClearAppGraphDiagnosticsEffect: Effect.Effect<void> =
-  devtoolsStore.clearAppGraphDiagnosticsEffect();
+  devtoolsStore.clearAppGraphDiagnostics();
 const devtoolsActionInvalidationPlanConflict: DevtoolsActionInvalidationPlanConflict =
   new DevtoolsActionInvalidationPlanConflict({ guidance: "Choose one invalidation plan source." });
 
@@ -478,7 +486,6 @@ void devtoolsCausalGraph;
 void describedDevtoolsCausalGraph;
 void devtoolsPanelMountEffect;
 void renderedDevtoolsHtml;
-void devtoolsPanelBootInterruptEffect;
 void devtoolsBootFiber;
 void devtoolsSerializedWithPolicy;
 void invalidDevtoolsSerializationPolicy;
@@ -505,6 +512,7 @@ void devtoolsRecordActionStateConflictEffect;
 void devtoolsRecordRuntimeEventEffect;
 void devtoolsRecordRequestTraceEffect;
 void devtoolsBridgeInstallEffect;
+void devtoolsBridgeUninstall;
 void devtoolsSetAppGraphDiagnosticsEffect;
 void devtoolsClearAppGraphDiagnosticsEffect;
 void devtoolsActionInvalidationPlanConflict;

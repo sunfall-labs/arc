@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { Resource, createBrowserRouterHostController, makeRuntime, route } from "@sunfall/arc-core";
+import { Resource, createBrowserRouterHostController, makeRuntime, Route } from "@sunfall/arc-core";
 import { eraseRuntime } from "@sunfall/arc-core/internal";
 import { Deferred, Effect, Fiber } from "effect";
 import { Window } from "happy-dom";
@@ -42,7 +42,7 @@ describe("Start static client navigation", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const window = new Window({
             url: "https://docs.test/project-docs/docs/getting-started?tab=install",
           });
@@ -66,9 +66,9 @@ describe("Start static client navigation", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const window = new Window({ url: "https://docs.test/app/projects/1" });
-          const ProjectRoute = route("/projects/:id", {
+          const ProjectRoute = Route.define("/projects/:id", {
             preloadResources: ["Start.Static.Project.initial-handoff"],
           });
           const fetch = vi.fn(
@@ -85,10 +85,10 @@ describe("Start static client navigation", () => {
             parseDocument: parseHtmlDocument,
           });
 
-          yield* history.prepareHrefEffect!("/projects/1");
+          yield* history.prepareHref!("/projects/1");
           expect(fetch).toHaveBeenCalledTimes(0);
 
-          yield* history.prepareHrefEffect!("/projects/1");
+          yield* history.prepareHref!("/projects/1");
           expect(fetch).toHaveBeenCalledTimes(1);
         }),
       ),
@@ -98,20 +98,20 @@ describe("Start static client navigation", () => {
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const ProjectById = Resource.family({
+          const ProjectById = Resource.define({
             name: "Start.Static.Project.router-navigation",
             load: (
               _id: string,
             ): Effect.Effect<{ readonly id: string; readonly name: string }, Error> =>
               Effect.fail(new Error("static host has no RPC loader")),
           });
-          const ProjectRoute = route("/projects/:id", {
+          const ProjectRoute = Route.define("/projects/:id", {
             preloadResources: [ProjectById],
-            preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id)),
+            preload: ({ params }) => Resource.preload(ProjectById(params.id)),
           });
           const routes = [ProjectRoute] as const;
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const window = new Window({ url: "https://docs.test/app/" });
           const ref = ProjectById("1");
           const html = `<!doctype html><html><body>${createHydrationScript({
@@ -145,7 +145,7 @@ describe("Start static client navigation", () => {
             initialHref: "/",
             runtime: eraseRuntime(runtime),
           });
-          yield* Effect.addFinalizer(() => router.disposeEffect());
+          yield* Effect.addFinalizer(() => router.dispose());
 
           router.navigate(ProjectRoute, { params: { id: "1" } });
           yield* Effect.promise(() =>
@@ -156,7 +156,7 @@ describe("Start static client navigation", () => {
               }),
             ),
           );
-          const project = yield* runtime.provide(Resource.prefetchEffect(ref));
+          const project = yield* runtime.provide(Resource.preload(ref));
 
           expect(fetch).toHaveBeenCalledTimes(1);
           expect(String(fetch.mock.calls[0]?.[0])).toBe("https://docs.test/app/projects/1");
@@ -173,7 +173,7 @@ describe("Start static client navigation", () => {
       await Effect.runPromise(
         Effect.scoped(
           Effect.gen(function* () {
-            const ProjectById = Resource.family({
+            const ProjectById = Resource.define({
               name: "Start.Static.Project.fresh-static-preparation",
               load: (
                 _id: string,
@@ -183,12 +183,12 @@ describe("Start static client navigation", () => {
                 staleFor: "1 minute",
               },
             });
-            const ProjectRoute = route("/projects/:id", {
+            const ProjectRoute = Route.define("/projects/:id", {
               preloadResources: [ProjectById],
-              preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id)),
+              preload: ({ params }) => Resource.preload(ProjectById(params.id)),
             });
             const runtime = makeRuntime();
-            yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+            yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
             const window = new Window({ url: "https://docs.test/app/" });
             const ref = ProjectById("1");
             const html = `<!doctype html><html><body>${createHydrationScript({
@@ -218,9 +218,9 @@ describe("Start static client navigation", () => {
               parseDocument: parseHtmlDocument,
             });
 
-            yield* history.prepareHrefEffect!("/projects/1");
-            yield* history.prepareHrefEffect!("/projects/1");
-            const status = yield* runtime.provide(Resource.statusEffect(ref));
+            yield* history.prepareHref!("/projects/1");
+            yield* history.prepareHref!("/projects/1");
+            const status = yield* runtime.provide(Resource.status(ref));
 
             expect(fetch).toHaveBeenCalledTimes(1);
             expect(status.result).toMatchObject({ _tag: "Success", timestamp: 120_000 });
@@ -238,18 +238,18 @@ describe("Start static client navigation", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const window = new Window({ url: "https://docs.test/app/" });
-          const ProjectById = Resource.family({
+          const ProjectById = Resource.define({
             name: "Start.Static.Project.coalesced",
             load: (
               _id: string,
             ): Effect.Effect<{ readonly id: string; readonly name: string }, Error> =>
               Effect.fail(new Error("static host has no RPC loader")),
           });
-          const ProjectRoute = route("/projects/:id", {
+          const ProjectRoute = Route.define("/projects/:id", {
             preloadResources: [ProjectById],
-            preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id)),
+            preload: ({ params }) => Resource.preload(ProjectById(params.id)),
           });
           const ref = ProjectById("1");
           const html = `<!doctype html><html><body>${createHydrationScript({
@@ -283,17 +283,17 @@ describe("Start static client navigation", () => {
             parseDocument: parseHtmlDocument,
           });
 
-          const first = Effect.runFork(history.prepareHrefEffect!("/projects/1"));
+          const first = Effect.runFork(history.prepareHref!("/projects/1"));
           yield* Deferred.await(fetchStarted);
           yield* Fiber.interrupt(first);
-          const second = Effect.runPromise(history.prepareHrefEffect!("/projects/1"));
+          const second = Effect.runPromise(history.prepareHref!("/projects/1"));
           yield* Effect.sleep("10 millis");
 
           expect(fetch).toHaveBeenCalledTimes(1);
 
           yield* Deferred.succeed(releaseFetch, undefined);
           yield* Effect.promise(() => second);
-          yield* history.prepareHrefEffect!("/projects/1");
+          yield* history.prepareHref!("/projects/1");
 
           expect(fetch).toHaveBeenCalledTimes(1);
         }),
@@ -307,7 +307,7 @@ describe("Start static client navigation", () => {
       await Effect.runPromise(
         Effect.scoped(
           Effect.gen(function* () {
-            const ProjectById = Resource.family({
+            const ProjectById = Resource.define({
               name: "Start.Static.Project.stale-resource",
               load: (
                 _id: string,
@@ -317,12 +317,12 @@ describe("Start static client navigation", () => {
                 staleFor: 10,
               },
             });
-            const ProjectRoute = route("/projects/:id", {
+            const ProjectRoute = Route.define("/projects/:id", {
               preloadResources: [ProjectById],
-              preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id)),
+              preload: ({ params }) => Resource.preload(ProjectById(params.id)),
             });
             const runtime = makeRuntime();
-            yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+            yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
             const window = new Window({ url: "https://docs.test/app/" });
             const ref = ProjectById("1");
             const html = (): string =>
@@ -353,12 +353,12 @@ describe("Start static client navigation", () => {
               parseDocument: parseHtmlDocument,
             });
 
-            yield* history.prepareHrefEffect!("/projects/1");
-            yield* history.prepareHrefEffect!("/projects/1");
+            yield* history.prepareHref!("/projects/1");
+            yield* history.prepareHref!("/projects/1");
             expect(fetch).toHaveBeenCalledTimes(1);
 
             yield* Effect.promise(() => vi.advanceTimersByTimeAsync(11));
-            yield* history.prepareHrefEffect!("/projects/1");
+            yield* history.prepareHref!("/projects/1");
             expect(fetch).toHaveBeenCalledTimes(2);
           }),
         ),
@@ -372,19 +372,19 @@ describe("Start static client navigation", () => {
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          const ProjectById = Resource.family({
+          const ProjectById = Resource.define({
             name: "Start.Static.Project.deleted-resource",
             load: (
               _id: string,
             ): Effect.Effect<{ readonly id: string; readonly name: string }, Error> =>
               Effect.fail(new Error("static host has no RPC loader")),
           });
-          const ProjectRoute = route("/projects/:id", {
+          const ProjectRoute = Route.define("/projects/:id", {
             preloadResources: [ProjectById],
-            preload: ({ params }) => Resource.prefetchEffect(ProjectById(params.id)),
+            preload: ({ params }) => Resource.preload(ProjectById(params.id)),
           });
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const window = new Window({ url: "https://docs.test/app/" });
           const ref = ProjectById("1");
           const html = `<!doctype html><html><body>${createHydrationScript({
@@ -414,14 +414,14 @@ describe("Start static client navigation", () => {
             parseDocument: parseHtmlDocument,
           });
 
-          yield* history.prepareHrefEffect!("/projects/1");
-          yield* history.prepareHrefEffect!("/projects/1");
+          yield* history.prepareHref!("/projects/1");
+          yield* history.prepareHref!("/projects/1");
           expect(fetch).toHaveBeenCalledTimes(1);
 
-          yield* runtime.provide(Resource.deleteEffect(ref));
+          yield* runtime.provide(Resource.evict(ref));
           yield* Effect.promise(() =>
             vi.waitFor(async () => {
-              await Effect.runPromise(history.prepareHrefEffect!("/projects/1"));
+              await Effect.runPromise(history.prepareHref!("/projects/1"));
               expect(fetch).toHaveBeenCalledTimes(2);
             }),
           );
@@ -434,8 +434,8 @@ describe("Start static client navigation", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
-          const ProjectRoute = route("/projects/:id", {
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+          const ProjectRoute = Route.define("/projects/:id", {
             preloadResources: ["Start.Static.Project.environment"],
           });
           const window = new Window({ url: "https://docs.test/app/" });
@@ -453,11 +453,11 @@ describe("Start static client navigation", () => {
             parseDocument: parseHtmlDocument,
           });
 
-          yield* history.prepareHrefEffect!("/projects/1");
+          yield* history.prepareHref!("/projects/1");
           expect(fetch).toHaveBeenCalledTimes(0);
 
           windowLike = asHistoryWindow(window);
-          yield* history.prepareHrefEffect!("/projects/1");
+          yield* history.prepareHref!("/projects/1");
           expect(fetch).toHaveBeenCalledTimes(1);
         }),
       ),
@@ -468,10 +468,10 @@ describe("Start static client navigation", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const window = new Window({ url: "https://docs.test/app/" });
-          const PlainRoute = route("/plain");
-          const CollectionRoute = route("/collections", {
+          const PlainRoute = Route.define("/plain");
+          const CollectionRoute = Route.define("/collections", {
             preloadCollections: ["Start.Static.Collection.projects"],
           });
           const fetch = vi.fn(
@@ -487,10 +487,10 @@ describe("Start static client navigation", () => {
             parseDocument: parseHtmlDocument,
           });
 
-          yield* history.prepareHrefEffect!("/plain");
+          yield* history.prepareHref!("/plain");
           expect(fetch).toHaveBeenCalledTimes(0);
 
-          yield* history.prepareHrefEffect!("/collections");
+          yield* history.prepareHref!("/collections");
           expect(fetch).toHaveBeenCalledTimes(1);
         }),
       ),

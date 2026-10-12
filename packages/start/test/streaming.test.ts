@@ -7,7 +7,7 @@ import {
 } from "../src/hydration.js";
 import { responseWithScopeLifetimeEffect } from "../src/response-lifetime.js";
 import {
-  createHtmlResponseEffect,
+  createHtmlResponse,
   createHtmlStreamEffect,
   createStreamHydrationScript,
   htmlChunk,
@@ -324,7 +324,7 @@ describe("Start streaming", () => {
   it("adapts the Effect stream to a Web Response host boundary", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
-        const response = yield* createHtmlResponseEffect({
+        const response = yield* createHtmlResponse({
           shell: "<html>",
           chunks: Stream.make("<body>ready</body>"),
           tail: "</html>",
@@ -535,7 +535,7 @@ describe("Start streaming", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const events: StartResponseStreamFinalizeEvent[] = [];
-        const response = yield* createHtmlResponseEffect({
+        const response = yield* createHtmlResponse({
           shell: "<html>",
           chunks: Stream.fail("chunk failed"),
         });

@@ -88,7 +88,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         yield* runtime.provide(
-          Projects.hydrateEffect({
+          Projects.hydrate({
             name: Projects.name,
             rows: [
               {
@@ -132,7 +132,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
           }),
         );
         yield* runtime.provide(
-          Tasks.hydrateEffect({
+          Tasks.hydrate({
             name: Tasks.name,
             rows: [
               {
@@ -177,7 +177,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
         );
 
         const results = yield* runtime.provide(
-          Collection.flushAllPendingMutationsEffect([Projects, Tasks]),
+          Collection.flushAllPendingMutations([Projects, Tasks]),
         );
 
         expect(results).toMatchObject([
@@ -206,7 +206,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
           done: true,
           $synced: true,
         });
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
@@ -239,7 +239,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         yield* runtime.provide(
-          Projects.hydrateEffect({
+          Projects.hydrate({
             name: Projects.name,
             rows: [
               {
@@ -283,7 +283,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
           }),
         );
         yield* runtime.provide(
-          Tasks.hydrateEffect({
+          Tasks.hydrate({
             name: Tasks.name,
             rows: [
               {
@@ -328,7 +328,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
         );
 
         const results = yield* runtime.provide(
-          Collection.flushAllPendingMutationsEffect([Projects, Tasks], {
+          Collection.flushAllPendingMutations([Projects, Tasks], {
             skip: ({ collection }) =>
               Effect.sync(() => {
                 skipChecks.push(collection.name);
@@ -363,7 +363,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
           done: true,
           $synced: false,
         });
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
@@ -377,13 +377,13 @@ describe("flushCollectionsPendingMutationsEffect", () => {
 
     try {
       await Effect.runPromise(
-        runtime.provide(Projects.hydrateEffect(pendingProjectSnapshot(Projects.name))),
+        runtime.provide(Projects.hydrate(pendingProjectSnapshot(Projects.name))),
       );
 
       await expect(
         Effect.runPromise(
           runtime.provide(
-            Collection.flushAllPendingMutationsEffect([Projects], {
+            Collection.flushAllPendingMutations([Projects], {
               skip: () => {
                 throw cause;
               },
@@ -396,7 +396,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
         cause,
       });
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
@@ -409,13 +409,13 @@ describe("flushCollectionsPendingMutationsEffect", () => {
 
     try {
       await Effect.runPromise(
-        runtime.provide(Projects.hydrateEffect(pendingProjectSnapshot(Projects.name))),
+        runtime.provide(Projects.hydrate(pendingProjectSnapshot(Projects.name))),
       );
 
       await expect(
         Effect.runPromise(
           runtime.provide(
-            Collection.flushAllPendingMutationsEffect([Projects], {
+            Collection.flushAllPendingMutations([Projects], {
               skip: Promise.resolve(true) as never,
             }),
           ),
@@ -426,7 +426,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
         cause: expect.any(EffectInputPromiseRejected),
       });
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
@@ -447,10 +447,10 @@ describe("flushCollectionsPendingMutationsEffect", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* runtime.provide(Projects.hydrateEffect(pendingProjectSnapshot(Projects.name)));
+        yield* runtime.provide(Projects.hydrate(pendingProjectSnapshot(Projects.name)));
 
         const result = yield* runtime.provide(
-          Collection.backgroundSyncPendingMutationsEffect([Projects], {
+          Collection.backgroundSyncPendingMutations([Projects], {
             trigger: "online",
             adapter: {
               name: "test-online",
@@ -495,7 +495,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
         ]);
         expect(persistedProjects).toEqual([{ id: "atlas", name: "Atlas", progress: 80 }]);
         expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
@@ -509,13 +509,13 @@ describe("flushCollectionsPendingMutationsEffect", () => {
 
     try {
       await Effect.runPromise(
-        runtime.provide(Projects.hydrateEffect(pendingProjectSnapshot(Projects.name))),
+        runtime.provide(Projects.hydrate(pendingProjectSnapshot(Projects.name))),
       );
 
       await expect(
         Effect.runPromise(
           runtime.provide(
-            Collection.backgroundSyncPendingMutationsEffect([Projects], {
+            Collection.backgroundSyncPendingMutations([Projects], {
               adapter: {
                 name: "test-throw",
                 shouldFlush: () => {
@@ -531,7 +531,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
         cause,
       });
     } finally {
-      await Effect.runPromise(runtime.disposeEffect);
+      await Effect.runPromise(runtime.dispose);
     }
   });
 
@@ -551,10 +551,10 @@ describe("flushCollectionsPendingMutationsEffect", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* runtime.provide(Projects.hydrateEffect(pendingProjectSnapshot(Projects.name)));
+        yield* runtime.provide(Projects.hydrate(pendingProjectSnapshot(Projects.name)));
 
         const result = yield* runtime.provide(
-          Collection.backgroundSyncPendingMutationsEffect([Projects], {
+          Collection.backgroundSyncPendingMutations([Projects], {
             trigger: "visibility",
             adapter: {
               name: "test-hidden",
@@ -582,7 +582,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
             attempts: 0,
           },
         ]);
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
@@ -597,7 +597,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const result = yield* runtime.provide(
-          Collection.backgroundSyncPendingMutationsEffect([Projects], {
+          Collection.backgroundSyncPendingMutations([Projects], {
             adapter: {
               name: "test-idle",
               shouldFlush: () =>
@@ -621,7 +621,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
           results: [],
         });
         expect(adapterChecks).toBe(0);
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 });

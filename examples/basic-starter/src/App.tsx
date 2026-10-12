@@ -8,7 +8,7 @@ import "./styles.css";
  * preload and hydration make it synchronous), and a failed first load renders
  * the `catchAll` view.
  */
-const Welcome = Component.make("Welcome", function* () {
+const Welcome = Component.define("Welcome", function* () {
   const welcome = yield* Component.resource(WelcomeResource);
   return () => (
     <>
@@ -21,7 +21,7 @@ const Welcome = Component.make("Welcome", function* () {
   Component.loading(() => <h1>Loading starter resource</h1>),
 );
 
-const App = Component.make("App", function* () {
+const App = Component.define("App", function* () {
   const Content = yield* Welcome;
   return () => (
     <main class="starterShell">

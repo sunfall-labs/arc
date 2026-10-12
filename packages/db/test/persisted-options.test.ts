@@ -33,7 +33,7 @@ describe("Collection persistence options", () => {
       Effect.gen(function* () {
         yield* Effect.scoped(
           first.provide(
-            Projects.applyChangesEffect([
+            Projects.applyChanges([
               {
                 _tag: "Upsert",
                 value: {
@@ -48,7 +48,7 @@ describe("Collection persistence options", () => {
 
         yield* Effect.sync(() => expect(storage.values.has("projects-preload")).toBe(true));
 
-        yield* Effect.scoped(second.provide(Projects.preloadEffect()));
+        yield* Effect.scoped(second.provide(Projects.preload()));
 
         yield* Effect.sync(() => {
           expect(load).not.toHaveBeenCalled();
@@ -59,9 +59,7 @@ describe("Collection persistence options", () => {
             runWithRuntime(second, () => Projects.rows().map((project) => project.id)),
           ).toEqual(["atlas"]);
         });
-      }).pipe(
-        Effect.ensuring(Effect.orDie(Effect.andThen(first.disposeEffect, second.disposeEffect))),
-      ),
+      }).pipe(Effect.ensuring(Effect.orDie(Effect.andThen(first.dispose, second.dispose)))),
     );
   });
 
@@ -87,7 +85,7 @@ describe("Collection persistence options", () => {
       Effect.gen(function* () {
         yield* Effect.scoped(
           first.provide(
-            Projects.applyChangesEffect([
+            Projects.applyChanges([
               {
                 _tag: "Upsert",
                 value: {
@@ -100,7 +98,7 @@ describe("Collection persistence options", () => {
           ),
         );
 
-        yield* Effect.scoped(second.provide(Projects.preloadEffect()));
+        yield* Effect.scoped(second.provide(Projects.preload()));
 
         yield* Effect.sync(() => {
           expect(
@@ -112,9 +110,7 @@ describe("Collection persistence options", () => {
           ) as Collection.Snapshot<Project>;
           expect(persisted.rows.map((row) => row.key)).toEqual(["lumen"]);
         });
-      }).pipe(
-        Effect.ensuring(Effect.orDie(Effect.andThen(first.disposeEffect, second.disposeEffect))),
-      ),
+      }).pipe(Effect.ensuring(Effect.orDie(Effect.andThen(first.dispose, second.dispose)))),
     );
   });
 
@@ -137,7 +133,7 @@ describe("Collection persistence options", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const update = runtime.runFork(Projects.updateEffect("atlas", { progress: 80 }));
+        const update = runtime.runFork(Projects.update("atlas", { progress: 80 }));
         yield* Effect.sleep("10 millis");
 
         yield* Effect.sync(() => {
@@ -183,7 +179,7 @@ describe("Collection persistence options", () => {
         Effect.ensuring(
           Deferred.succeed(release, undefined).pipe(
             Effect.ignore,
-            Effect.andThen(Effect.orDie(runtime.disposeEffect)),
+            Effect.andThen(Effect.orDie(runtime.dispose)),
           ),
         ),
       ),

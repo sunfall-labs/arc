@@ -177,13 +177,13 @@ describe("Sunfall Arc client render", () => {
       on: { Increment: (model) => model + 1 },
     });
     let counter: Component.ProgramHandle<number, { readonly _tag: "Increment" }, never> | undefined;
-    const View = Component.make("CounterView", function* () {
+    const View = Component.define("CounterView", function* () {
       const handle = yield* Component.program(Counter);
       counter = handle;
       return () => textCell(() => String(handle.model()));
     });
     const view = mount(() => createComponent(Component.embed(View, runtime) as never, {}));
-    const dispatchEffect = counter!.dispatchEffect;
+    const dispatchEffect = counter!.dispatch;
     await Effect.runPromise(
       Effect.forEach(Array.from({ length: 1000 }), () => dispatchEffect({ _tag: "Increment" }), {
         discard: true,
@@ -226,7 +226,7 @@ describe("Sunfall Arc client render", () => {
     dispose(): void;
   } => {
     let board: BoardHandle | undefined;
-    const View = Component.make("BoardView", function* () {
+    const View = Component.define("BoardView", function* () {
       const handle = yield* Component.program(Board);
       board = handle;
       return () => view(handle) as never;
@@ -238,7 +238,7 @@ describe("Sunfall Arc client render", () => {
   const relabelOneRowPerRound = async (board: BoardHandle): Promise<void> => {
     for (let round = 0; round < relabelRounds; round++) {
       const id = round * 50;
-      await Effect.runPromise(board.dispatchEffect({ _tag: "Relabel", id, label: `edit ${id}` }));
+      await Effect.runPromise(board.dispatch({ _tag: "Relabel", id, label: `edit ${id}` }));
       flush();
     }
   };
@@ -269,14 +269,14 @@ describe("Sunfall Arc client render", () => {
     view.dispose();
   });
 
-  const ProjectById = Resource.family<number, Row>({
+  const ProjectById = Resource.define<number, Row>({
     name: "ClientBench.project",
     load: (id) => Effect.succeed({ id, label: `project ${id}` }),
   });
   runWithRuntime(runtime, () =>
     Effect.runSync(
       runtime.provide(
-        Effect.forEach(makeRows(200), (row) => Resource.prefetchEffect(ProjectById(row.id)), {
+        Effect.forEach(makeRows(200), (row) => Resource.preload(ProjectById(row.id)), {
           discard: true,
         }),
       ),
@@ -284,12 +284,12 @@ describe("Sunfall Arc client render", () => {
   );
 
   bench("resource bindings: mount and dispose 200 Components reading cached Resources", () => {
-    const Project = Component.make("ProjectRow", function* (props: { readonly id: number }) {
+    const Project = Component.define("ProjectRow", function* (props: { readonly id: number }) {
       const project = yield* Component.resource(ProjectById);
       return () => textCell(() => project(props.id).label);
     });
     const Rows = Component.embed(
-      Component.make("ProjectRows", function* () {
+      Component.define("ProjectRows", function* () {
         const Row = yield* Project;
         return () => makeRows(200).map((row) => Row({ id: row.id }));
       }),

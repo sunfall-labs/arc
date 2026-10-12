@@ -24,11 +24,15 @@ import { Component } from "@sunfall/arc-solid";
 import { Effect } from "effect";
 import { Loading, Show } from "solid-js";
 
-const ProjectPage = Component.make("ProjectPage", function* (props: { readonly id: ProjectId }) {
+const ProjectPage = Component.define("ProjectPage", function* (props: { readonly id: ProjectId }) {
   const project = yield* Component.resource(ProjectById); // E += load error, R += ProjectApi
   const rename = yield* Component.action(RenameProject); // R += the action's services
   const refresh = yield* Component.callback(() =>
-    Resource.invalidateEffect(ProjectById(props.id)).pipe(Effect.ignore),
+    Resource.invalidate(ProjectById(props.id)).pipe(Effect.ignore),
+  );
+  // `submit` returns an Effect; its outcome lands in `rename.result()`.
+  const save = yield* Component.callback((name: string) =>
+    rename.submit({ id: props.id, name }).pipe(Effect.ignore),
   );
 
   return () => (
@@ -37,7 +41,7 @@ const ProjectPage = Component.make("ProjectPage", function* (props: { readonly i
         project={project(props.id)}
         refreshing={project.waiting(props.id)}
         saving={rename.result().waiting}
-        onRename={(name) => rename.submit({ id: props.id, name })}
+        onRename={save}
         onRefresh={refresh}
       />
       <Show when={project.failure(props.id)}>{(cause) => <InlineError cause={cause()} />}</Show>
@@ -56,7 +60,7 @@ Streams, Collections, the router) is a setup-time binding in a `Component`.
 
 ## Setup And Render
 
-`Component.make(name, function* (props) { ...; return () => <View /> })`:
+`Component.define(name, function* (props) { ...; return () => <View /> })`:
 
 - **Setup runs once per instance**, with that instance's Solid props, under the
   instance's Solid owner and with an instance `Scope`. Read props in tracked
@@ -69,7 +73,11 @@ Streams, Collections, the router) is a setup-time binding in a `Component`.
   component body.
 - **Asynchronous setup** (awaiting a service built by an async Layer, an
   `Effect.sleep`, ...) suspends the nearest `<Loading>`; a synchronous setup
-  renders in place, which keeps hydration and preloaded reads synchronous.
+  renders right away, which keeps hydration and preloaded reads synchronous.
+  Render runs in a computation of the instance's own, so a render whose first
+  Resource read is pending suspends the nearest `<Loading>` and then retries
+  only itself: the instance, its setup, and its bindings are kept (also under
+  a `<Show>` with function children).
 - **Failures**: a failing setup, a failing provided Layer, or a failed first
   Resource load throws to the nearest `<Errored>` when the instance renders;
   `Component.catchTags` / `Component.catchAll` are those boundaries, typed.
@@ -93,16 +101,24 @@ the parent setup's context (including `Component.provide` services), and adds
 Each binding is an Effect yielded in setup. Its services join the component's
 `R`; typed failures that render join `E`.
 
-| Binding                                 | Returns                                                                                                       | Joins                                                                |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
-| `Component.resource(family)`            | `ResourceReader`: `reader(input)`, `waiting`, `failure`                                                       | load error to `E`, services                                          |
-| `Component.action(definition)`          | `ActionHandle`: `result`, `input`, `submit`, `submitEffect`, `reset`                                          | action services                                                      |
-| `Component.program(definition, opts?)`  | `ProgramHandle`: fine-grained `model`, `committed`, `failures`, `dispatch`, `dispatchEffect`, `clearFailures` | program services                                                     |
-| `Component.stream(stream, initial)`     | `Accessor<A>` of the latest element                                                                           | stream services                                                      |
-| `Component.callback(f)`                 | `(...args) => void` that forks `f(...args)` (failures handled)                                                | callback services                                                    |
-| `Component.router(routes, options?)`    | the instance's `BrowserRouter<Routes>`                                                                        | route preload and route Component services, route Component failures |
-| `SolidDb.collection(definition, opts?)` | `CollectionHandle`: `rows`, `result`, `get`, `index`, `pendingMutations`, `preloadFailure`                    | collection services                                                  |
-| `SolidDb.liveQuery(query, opts?)`       | `LiveQueryHandle`: `data`, `result`, `preloadEffect`, `refetchEffect`                                         | source services                                                      |
+| Binding                                 | Returns                                                                                              | Joins                                                                |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `Component.resource(family)`            | `ResourceReader`: `reader(input)`, `waiting`, `failure`                                              | load error to `E`, services                                          |
+| `Component.action(definition)`          | `ActionHandle`: `result`, `input`, `submit` (Effect), `reset` (Effect)                               | action services                                                      |
+| `Component.program(definition, opts?)`  | `ProgramHandle`: fine-grained `model`, `committed`, `failures`, `dispatch` (Effect), `clearFailures` | program services                                                     |
+| `Component.stream(stream, initial)`     | `Accessor<A>` of the latest element                                                                  | stream services                                                      |
+| `Component.callback(f)`                 | `(...args) => void` that forks `f(...args)` (failures handled)                                       | callback services                                                    |
+| `Component.router(routes, options?)`    | the instance's `BrowserRouter<Routes>`                                                               | route preload and route Component services, route Component failures |
+| `SolidDb.collection(definition, opts?)` | `CollectionHandle`: `rows`, `result`, `get`, `index`, `pendingMutations`, `preloadFailure`           | collection services                                                  |
+| `SolidDb.liveQuery(query, opts?)`       | `LiveQueryHandle`: `rows`, `result`, `preload` (Effect), `refresh` (Effect)                          | source services                                                      |
+
+Handles share one vocabulary. Members that run work (`submit`, `dispatch`,
+`reset`, `preload`, `refresh`) return Effects; event handlers run them through
+`Component.callback`. `result()` is the `AsyncResult` status of actions,
+collections, and live queries; row-valued accessors are `rows()`; a Resource
+renders through its reader (`reader(input)`, with `waiting(input)` /
+`failure(input)` for status). Pure synchronous state writes such as
+`clearFailures()` stay synchronous.
 
 Every binding runs with the setup's context: Effects it starts see the
 runtime's services and `Component.provide` Layers. `Component.instance` is the
@@ -118,7 +134,7 @@ to get a Resource value into JSX:
 
 - The first load suspends the nearest `<Loading>` (a route preload or SSR
   hydration makes it synchronous, so hydrated pages render with no fallback
-  flash and no refetch).
+  flash and no refresh).
 - Afterwards the reader keeps returning the current value, or the stale value
   after a failed refresh. `<Loading>` shows its fallback only until the first
   value, so **content stays mounted across refreshes**: inputs keep their text,
@@ -146,13 +162,15 @@ return () => (
 ```
 
 Key lists by identity (`<For each={rows()} keyed={(row) => row.id}>`) so a
-refetch that hands back new row objects keeps the same rows mounted.
+refresh that hands back new row objects keeps the same rows mounted.
 
 ### Actions: one binding, local or remote
 
 `Component.action(definition)` binds an Action to the instance. `submit(input)`
-is the fire-and-forget form for event handlers (the outcome lands in
-`result()`); `submitEffect(input)` composes into Programs and workflows.
+returns the submission Effect (it composes into Programs and workflows, and its
+outcome also lands in `result()`); an event handler runs it through
+`Component.callback`, which requires its failures to be handled (usually
+`Effect.ignore`, since `result()` carries them). `reset()` is an Effect too.
 `result()` is an `AsyncResult`: `Initial` while idle, `waiting` while a
 submission is in flight, then `Success` or `Failure` (full `Cause`, latest
 success kept as `previousSuccess`). Unmounting interrupts in-flight
@@ -219,7 +237,7 @@ item object is replaced, an O(rows) diff that renders nothing). The rules:
   projection.
 
 Because setup runs per instance, a Program can close over the instance's other
-bindings: a form Program that submits `rename.submitEffect(...)` from a command
+bindings: a form Program that submits `rename.submit(...)` from a command
 gets its own Action and Program per mounted form.
 
 ### Streams and callbacks
@@ -236,7 +254,7 @@ const presence = yield * Component.stream(presenceStream, initialPresence);
 const move =
   yield *
   Component.callback((id: WorkItemId, status: WorkItemStatus) =>
-    WorkItems.updateEffect(id, { status }).pipe(Effect.ignore),
+    WorkItems.update(id, { status }).pipe(Effect.ignore),
   );
 ```
 
@@ -294,15 +312,18 @@ from one of these entry points, and every binding reads it from its instance.
 renderToString(() => createComponent(Component.embed(App, runtime), { initialHref: href }));
 
 // client entry: restore the Resource snapshot, then hydrate the same tree
-hydrateFromDocument(document, undefined, { runtime });
-Effect.runFork(Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() }));
+Effect.runFork(
+  runtime
+    .provide(hydrateFromDocument(document))
+    .pipe(Effect.andThen(Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() }))),
+);
 ```
 
 `launch` and `embed` render the same tree, so server markup is reused. Each
 request runtime runs setup for its own instances (and builds provided Layers
 once); request runtime disposal releases them. Route-preloaded and hydrated
 Resources read synchronously on both sides, so there is no `<Loading>` flash
-and no refetch. An asynchronous setup renders the nearest `<Loading>` fallback
+and no refresh. An asynchronous setup renders the nearest `<Loading>` fallback
 under `renderToString`.
 
 ## Routing
@@ -319,7 +340,7 @@ const routes = [
   Route.withComponent(ProjectRoute, ProjectPage), // a typed Component
 ] as const;
 
-const App = Component.make("App", function* (props: { readonly initialHref?: string }) {
+const App = Component.define("App", function* (props: { readonly initialHref?: string }) {
   const router = yield* Component.router(
     routes,
     props.initialHref === undefined ? {} : { initialHref: props.initialHref },
@@ -390,8 +411,8 @@ app keeps working; `resume()` returns the DOM to the head.
 
 ```ts
 const recording = yield * Timeline.record();
-yield * counter.dispatchEffect({ _tag: "Increment" });
-yield * counter.dispatchEffect({ _tag: "Increment" });
+yield * counter.dispatch({ _tag: "Increment" });
+yield * counter.dispatch({ _tag: "Increment" });
 
 const [first] = Signal.peek(recording.entries);
 yield * recording.travel(first!.sequence);

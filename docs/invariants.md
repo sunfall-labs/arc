@@ -65,15 +65,14 @@ documented as outside the current release bar.
 - Tagged Program definitions can use `Program.define({ initial, on })`; the
   `on` map and `Program.update(...)` helper are keyed by each message `_tag`.
   Non-tagged loops use the conventional `update(model, message)` callback.
-- `Program.emit(...)` is the follow-up-message helper for immediate or
-  Effect-produced messages. `Program.effect(...)` represents no-message
-  background work, and lower-level `Program.command(...)` is reserved for
-  Effects that may emit a message or intentionally complete empty.
+- `Program.emit(...)` is the one command constructor: an immediate message,
+  the message an Effect produces, or nothing when the Effect completes with
+  `void`. `Program.commands(...)` only batches.
 - Update, command, and subscription failures are reported as typed
   `ProgramFailure` values without replacing the current model.
 - Subscriptions are tied to committed model generations; stale generations
   cannot emit follow-up messages or timeline facts after a restart.
-- `dispatchEffect(...)` acknowledges only updates that commit. Disposal before
+- `dispatch(message)` is an Effect that acknowledges only updates that commit. Disposal before
   commit fails the acknowledgement with `ProgramDisposed`; disposal after commit
   preserves the committed model.
 
@@ -138,11 +137,12 @@ documented as outside the current release bar.
 - The default generated route definition file lives in the project at
   `src/routeTree.gen.ts` so editor, agent, and non-Vite tooling can inspect the
   same generated route surface as the bundler.
-- Generated route definition files must expose both `routeById` and
-  `routeByPath` maps to the same imported route definitions, keeping id and path
-  lookup as discovery surfaces over the single canonical `Route.href` API.
-- Generated route definition files must expose route-id, route-path,
-  params-by-id, search-by-path, and href-options-by-id type maps derived from
+- Generated route definition files expose a `routeById` map to the imported
+  route definitions; routes are addressed by definition everywhere
+  (`Route.href`, `router.navigate`, `router.preload`), with no path-keyed
+  helpers.
+- Generated route definition files must expose route-id, params-by-id,
+  search-by-id, and href-options-by-id type maps derived from
   the imported route modules, so generated route metadata preserves the same
   schema/branded param checks as `Route.href`.
 - App graph diagnostics must expose route ownership by id, source file, path,

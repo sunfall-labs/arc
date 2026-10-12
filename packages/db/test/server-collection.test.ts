@@ -54,9 +54,9 @@ describe("Server functions as collection sync operations", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* Projects.insertEffect({ id: "lumen", name: "Lumen", archived: false });
-        yield* Projects.updateEffect("atlas", { name: "Atlas Prime" });
-        yield* Projects.deleteEffect("lumen");
+        yield* Projects.insert({ id: "lumen", name: "Lumen", archived: false });
+        yield* Projects.update("atlas", { name: "Atlas Prime" });
+        yield* Projects.delete("lumen");
 
         yield* Effect.sync(() => {
           expect(inserts).toMatchObject([

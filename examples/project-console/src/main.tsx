@@ -35,6 +35,15 @@ const runtime = makeRuntime(
     ProjectApiLive,
   ),
 );
-hydrateFromDocument(document, undefined, { runtime, collections });
 
-Effect.runFork(Component.launch(ProjectConsole, root, { runtime, hydrate: root.hasChildNodes() }));
+// Restore the server's hydration payload into the runtime, then hydrate the
+// server-rendered markup with the same tree.
+Effect.runFork(
+  runtime
+    .provide(hydrateFromDocument(document, undefined, { collections }))
+    .pipe(
+      Effect.andThen(
+        Component.launch(ProjectConsole, root, { runtime, hydrate: root.hasChildNodes() }),
+      ),
+    ),
+);

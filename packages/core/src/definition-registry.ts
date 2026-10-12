@@ -4,7 +4,7 @@ export interface NamedCoreDefinition {
 }
 
 /**
- * Registry of named core definitions captured by `defineApp(...)` and consumed
+ * Registry of named core definitions captured by `App.define(...)` and consumed
  * by manifest, diagnostics, and adapter integrations.
  *
  * Actions and server functions are keyed by `definition.name`.
@@ -18,7 +18,7 @@ export interface CoreDefinitionRegistry<
 }
 
 /**
- * Definitions accepted by `defineApp(...)` or `makeCoreDefinitionRegistry(...)`.
+ * Definitions accepted by `App.define(...)` or `makeCoreDefinitionRegistry(...)`.
  *
  * Iterables and maps are keyed by each definition's `name`; map keys are
  * treated only as caller-owned labels and are not trusted as registry identity.
@@ -76,7 +76,7 @@ export interface CoreDefinitionRegistryDiagnostics {
 /**
  * Mutable registry Adapter for named core definitions.
  *
- * Build tools, tests, and `defineApp(...)` use this seam to capture Actions and
+ * Build tools, tests, and `App.define(...)` use this seam to capture Actions and
  * Server functions without reading module-global state directly.
  */
 export interface CoreDefinitionRegistryAdapter<
@@ -322,7 +322,7 @@ export const getActionDefinition = <Definition extends NamedCoreDefinition = Nam
 /**
  * Test-only reset for the process-wide Action registry.
  *
- * Unsafe because it affects later `defineApp(...)` snapshots in the same
+ * Unsafe because it affects later `App.define(...)` snapshots in the same
  * process.
  */
 export const clearActionDefinitionRegistryUnsafe = (): void => {
@@ -353,7 +353,7 @@ export const getServerFunctionDefinition = <
 /**
  * Test-only reset for the process-wide Server function registry.
  *
- * Unsafe because it affects later `defineApp(...)` snapshots in the same
+ * Unsafe because it affects later `App.define(...)` snapshots in the same
  * process.
  */
 export const clearServerFunctionDefinitionRegistryUnsafe = (): void => {

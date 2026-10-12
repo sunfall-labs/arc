@@ -28,7 +28,7 @@ const Counter = Program.define<number, { readonly _tag: "Noop" }>({
 describe("Component.program on the server", () => {
   it("renders the Program model with Solid's server build", async () => {
     const runtime = makeRuntime();
-    const BoardView = Component.make("BoardView", function* () {
+    const BoardView = Component.define("BoardView", function* () {
       const board = yield* Component.program(BoardProgram);
       const counter = yield* Component.program(Counter);
       return () => {
@@ -43,6 +43,6 @@ describe("Component.program on the server", () => {
     const html = renderToString(() => createComponent(Component.embed(BoardView, runtime), {}));
 
     expect(html.replace(/<!--[^>]*-->/g, "")).toBe("Roadmap:[Plan][Ship]#7");
-    await Effect.runPromise(runtime.disposeEffect);
+    await Effect.runPromise(runtime.dispose);
   });
 });

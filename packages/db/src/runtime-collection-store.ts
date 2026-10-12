@@ -79,12 +79,11 @@ export class RuntimeCollectionStore implements CollectionStore {
   readonly #events = Effect.runSync(PubSub.sliding<CollectionStoreEvent>(1024));
   /** Lifetime of store-owned background work such as `follow` streams. */
   readonly scope: Scope.Closeable = Effect.runSync(Scope.make());
-  readonly disposeEffect = Scope.close(this.scope, Exit.void).pipe(
+  readonly dispose = Scope.close(this.scope, Exit.void).pipe(
     Effect.ensuring(PubSub.shutdown(this.#events)),
   );
   readonly diagnostics = {
-    snapshot: (): CollectionStoreDiagnosticsSnapshot => this.diagnosticsSnapshot(),
-    snapshotEffect: Effect.sync(() => this.diagnosticsSnapshot()),
+    snapshot: Effect.sync(() => this.diagnosticsSnapshot()),
   };
 
   state(definition: AnyCollection): CollectionState<any, any, any>;
@@ -151,11 +150,7 @@ export class RuntimeCollectionStore implements CollectionStore {
     return PubSub.publish(this.#events, event).pipe(Effect.asVoid);
   }
 
-  subscribeEventsEffect(): Effect.Effect<
-    PubSub.Subscription<CollectionStoreEvent>,
-    never,
-    Scope.Scope
-  > {
+  subscribeEvents(): Effect.Effect<PubSub.Subscription<CollectionStoreEvent>, never, Scope.Scope> {
     return PubSub.subscribe(this.#events);
   }
 }
@@ -212,4 +207,4 @@ export const subscribeCollectionEventsEffect = (): Effect.Effect<
   PubSub.Subscription<CollectionStoreEvent>,
   never,
   Scope.Scope
-> => Effect.flatMap(collectionStoreEffect, (store) => store.subscribeEventsEffect());
+> => Effect.flatMap(collectionStoreEffect, (store) => store.subscribeEvents());

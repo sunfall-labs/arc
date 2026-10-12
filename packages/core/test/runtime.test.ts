@@ -2,7 +2,7 @@ import { Cause, Context, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   Action,
-  disposeResourceStoreEffect,
+  disposeResourceStore,
   makeResourceStore,
   makeRuntime,
   Resource,
@@ -34,7 +34,7 @@ describe("Sunfall Arc runtime", () => {
         Numbers.use((numbers) => numbers.get("atlas")).pipe(
           Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
           Effect.asVoid,
-          Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+          Effect.ensuring(Effect.orDie(runtime.dispose)),
         ),
       ),
     );
@@ -51,7 +51,7 @@ describe("Sunfall Arc runtime", () => {
         getNumber("kepler").pipe(
           Effect.tap((value) => Effect.sync(() => expect(value).toBe(6))),
           Effect.asVoid,
-          Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+          Effect.ensuring(Effect.orDie(runtime.dispose)),
         ),
       ),
     );
@@ -79,7 +79,7 @@ describe("Sunfall Arc runtime", () => {
             expect(effectValue).toBe("remote:atlas");
             expect(effectValueFromCallable).toBe("remote:kepler");
           });
-        }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+        }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
       ),
     );
   });
@@ -95,7 +95,7 @@ describe("Sunfall Arc runtime", () => {
         getNumber.effect("atlas").pipe(
           Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
           Effect.asVoid,
-          Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+          Effect.ensuring(Effect.orDie(runtime.dispose)),
         ),
       ),
     );
@@ -103,7 +103,7 @@ describe("Sunfall Arc runtime", () => {
 
   it("uses the current runtime for resource Effect boundaries", () => {
     const runtime = makeRuntime(NumbersLive);
-    const NumberById = Resource.family<string, number, never, Numbers>({
+    const NumberById = Resource.define<string, number, never, Numbers>({
       name: "Runtime.Number.byId",
       load: (id) => Numbers.use((numbers) => numbers.get(id)),
     });
@@ -111,15 +111,15 @@ describe("Sunfall Arc runtime", () => {
 
     return Effect.runPromise(
       runtime.provide(
-        Resource.prefetchEffect(ref).pipe(
+        Resource.preload(ref).pipe(
           Effect.tap((value) =>
             Effect.sync(() => {
               expect(value).toBe(5);
-              expect(runtime.runSync(Resource.readEffect(ref))).toBe(5);
+              expect(runtime.runSync(Resource.read(ref))).toBe(5);
             }),
           ),
           Effect.asVoid,
-          Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+          Effect.ensuring(Effect.orDie(runtime.dispose)),
         ),
       ),
     );
@@ -128,7 +128,7 @@ describe("Sunfall Arc runtime", () => {
   it("keeps provided Resource Store overrides visible to Resource reads", () => {
     const runtime = makeRuntime(NumbersLive);
     const overrideStore = makeResourceStore();
-    const NumberById = Resource.family<string, number, never, Numbers>({
+    const NumberById = Resource.define<string, number, never, Numbers>({
       name: "Runtime.Number.override.byId",
       load: (id) => Numbers.use((numbers) => numbers.get(id)),
     });
@@ -137,17 +137,17 @@ describe("Sunfall Arc runtime", () => {
     return Effect.runPromise(
       runtime.provide(
         Effect.gen(function* () {
-          yield* Resource.prefetchEffect(ref);
-          const value = yield* Resource.readEffect(ref);
+          yield* Resource.preload(ref);
+          const value = yield* Resource.read(ref);
           yield* Effect.sync(() => {
             expect(value).toBe(5);
-            expect(() => runtime.runSync(Resource.readEffect(ref))).toThrow(ResourcePending);
+            expect(() => runtime.runSync(Resource.read(ref))).toThrow(ResourcePending);
           });
         }).pipe(
           Effect.ensuring(
             Effect.gen(function* () {
-              yield* Effect.orDie(disposeResourceStoreEffect(overrideStore));
-              yield* Effect.orDie(runtime.disposeEffect);
+              yield* Effect.orDie(disposeResourceStore(overrideStore));
+              yield* Effect.orDie(runtime.dispose);
             }),
           ),
         ),
@@ -165,10 +165,10 @@ describe("Sunfall Arc runtime", () => {
     const action = Action.use(SaveNumber, { runtime });
 
     return Effect.runPromise(
-      action.submitEffect(41).pipe(
+      action.submit(41).pipe(
         Effect.tap((value) => Effect.sync(() => expect(value).toBe(42))),
         Effect.asVoid,
-        Effect.ensuring(Effect.orDie(runtime.disposeEffect)),
+        Effect.ensuring(Effect.orDie(runtime.dispose)),
       ),
     );
   });
@@ -187,11 +187,11 @@ describe("Sunfall Arc runtime", () => {
           ),
         );
         runtime.resourceStore.moduleRegistry.register(Symbol("failing-module"), {
-          disposeEffect: Effect.fail("store dispose failed"),
+          dispose: Effect.fail("store dispose failed"),
         });
 
         yield* runtime.provide(Effect.void);
-        const exit = yield* Effect.exit(runtime.disposeEffect);
+        const exit = yield* Effect.exit(runtime.dispose);
 
         yield* Effect.sync(() => {
           expect(exit._tag).toBe("Failure");

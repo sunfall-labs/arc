@@ -26,21 +26,19 @@ import {
   StableStringifyInvalidDate,
   StableStringifyUnsupportedValue,
   UnsupportedDuration,
-  applyResponseContextEffect,
+  applyResponseContext,
   createBrowserRouterHostController,
-  defineApp,
-  disposeResourceStoreEffect,
+  disposeResourceStore,
   isActionDefinition,
   isPromiseLikeValue,
-  makeRequestContextEffect,
+  makeRequestContext,
   makeResponseContext,
   makeMemoryBrowserHistoryAdapter,
   makeResourceStore,
   makeRuntime,
   provideRequest,
   provideResponse,
-  route,
-  serializeResponseCookieEffect,
+  serializeResponseCookie,
   stableStringify,
   type ActionConcurrency,
   type ActionDefinition,
@@ -57,8 +55,6 @@ import {
   type BrowserHistoryWindow,
   type BrowserNavigateOptions,
   type BrowserNavigateArgs,
-  type BrowserRouterPath,
-  type BrowserRouterRouteForPath,
   type BrowserRouterHostController,
   type ActionUseOptions,
   type AnySunfallArcRuntime,
@@ -80,6 +76,7 @@ import {
   type ActionTransportResponse,
   type RouteView,
   type RouteWithComponent,
+  App,
 } from "@sunfall/arc-core";
 import {
   UiScope,
@@ -151,16 +148,16 @@ type ResourceCollectedIsNamespaced = import("@sunfall/arc-core").ResourceCollect
 
 const runtime = makeRuntime();
 const requestRuntime = withResourceStore(runtime, makeResourceStore());
-const runtimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> = runtime.disposeEffect;
+const runtimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> = runtime.dispose;
 class CoreAdapterCleanupError {
   readonly _tag = "CoreAdapterCleanupError";
 }
 requestRuntime.resourceStore.moduleRegistry.register(Symbol("core-adapter-cleanup"), {
-  disposeEffect: Effect.fail(new CoreAdapterCleanupError()),
+  dispose: Effect.fail(new CoreAdapterCleanupError()),
 });
 const requestRuntimeStoreDisposeEffect: Effect.Effect<void, ResourceStoreDisposeError> =
-  disposeResourceStoreEffect(requestRuntime.resourceStore);
-const coreRoutes = [route("/projects/:id", {})] as const;
+  disposeResourceStore(requestRuntime.resourceStore);
+const coreRoutes = [Route.define("/projects/:id", {})] as const;
 const coreLazyRouteComponent = Route.lazyComponent(
   Effect.succeed({ default: (_props: Route.Props<(typeof coreRoutes)[0]>) => undefined }),
 );
@@ -184,23 +181,23 @@ const coreLazyRouteComponentWithImportErrorShape: Route.LazyComponent<
 const coreLazyRouteComponentPreloadEffect: Effect.Effect<
   Route.Component<(typeof coreRoutes)[0]>,
   RouteLazyComponentLoadError
-> = coreLazyRouteComponent.preloadEffect();
+> = coreLazyRouteComponent.preload();
 const coreLazyRouteComponentImportErrorPreloadEffect: Effect.Effect<
   Route.Component<(typeof coreRoutes)[0]>,
   CoreLazyRouteImportError | RouteLazyComponentLoadError
-> = coreLazyRouteComponentWithImportError.preloadEffect();
+> = coreLazyRouteComponentWithImportError.preload();
 const coreLazyRoutePending = new RouteLazyComponentPending<CoreLazyRouteImportError>({
   exportName: "default",
-  preloadEffect: coreLazyRouteComponentWithImportError.preloadEffect(),
+  preload: coreLazyRouteComponentWithImportError.preload(),
 });
 const coreLazyRoutePendingEffect: Effect.Effect<
   unknown,
   CoreLazyRouteImportError | RouteLazyComponentLoadError
-> = coreLazyRoutePending.preloadEffect;
+> = coreLazyRoutePending.preload;
 const coreLazyRoutePendingExtractedEffect: Effect.Effect<
   unknown,
   CoreLazyRouteImportError | RouteLazyComponentLoadError
-> = Route.lazyComponentPendingEffect<CoreLazyRouteImportError>(coreLazyRoutePending)!;
+> = Route.lazyComponentPending<CoreLazyRouteImportError>(coreLazyRoutePending)!;
 declare const coreLazyRouteSuspenseRuntime: Route.LazyComponentSuspenseRuntime<CoreAdapterCleanupError>;
 const coreLazyRouteSuspenseFiber:
   | Fiber.Fiber<
@@ -225,13 +222,13 @@ class CoreProjectNotFound extends Schema.TaggedError<CoreProjectNotFound>()("Cor
   id: Schema.String,
 }) {}
 const coreProjectNotFoundSchema: RouteErrorSchema<CoreProjectNotFound> = CoreProjectNotFound;
-const CoreTypedRoute = route("/core-typed/:id", {
+const CoreTypedRoute = Route.define("/core-typed/:id", {
   error: coreProjectNotFoundSchema,
   preload: ({ params }) => Effect.fail(new CoreProjectNotFound({ id: params.id })),
 });
 declare const coreTypedPreloadError: RoutePreloadError<CoreProjectNotFound>;
 const coreTypedFailureSnapshot: Effect.Effect<RoutePreloadFailureSnapshot> =
-  Route.preloadFailureSnapshotEffect(CoreTypedRoute, coreTypedPreloadError);
+  Route.preloadFailureSnapshot(CoreTypedRoute, coreTypedPreloadError);
 declare const coreTypedSnapshot: RoutePreloadFailureSnapshot;
 const coreTypedSnapshotEncoding: RoutePreloadFailureEncoding = coreTypedSnapshot.failure;
 const coreTypedFailureCause: Cause.Cause<RoutePreloadError<CoreProjectNotFound>> =
@@ -261,9 +258,8 @@ const browserRouterKernelOptions: BrowserRouterKernelOptions<typeof coreRoutes, 
   initialHref: "/projects/atlas",
 };
 const browserRouterKernel = createBrowserRouterKernel(coreRoutes, browserRouterKernelOptions);
-const browserRouterKernelDisposeEffect: Effect.Effect<void> = browserRouterKernel.disposeEffect();
-const browserRouterPath: BrowserRouterPath<typeof coreRoutes> = "/projects/:id";
-type CoreProjectRoute = BrowserRouterRouteForPath<typeof coreRoutes, "/projects/:id">;
+const browserRouterKernelDisposeEffect: Effect.Effect<void> = browserRouterKernel.dispose();
+type CoreProjectRoute = (typeof coreRoutes)[0];
 const browserNavigateArgs: BrowserNavigateArgs<CoreProjectRoute> = [{ params: { id: "atlas" } }];
 const browserRouterInitialHost: BrowserRouterInitialMatchedHost = "browser";
 const browserRouterInitialMatch = coreRoutes[0].match("/projects/atlas");
@@ -281,8 +277,7 @@ const browserRouterHostController = createBrowserRouterHostController(coreRoutes
   runtime: browserRouterKernelRuntime,
   history: memoryHistory,
 });
-const browserRouterHostDisposeEffect: Effect.Effect<void> =
-  browserRouterHostController.disposeEffect();
+const browserRouterHostDisposeEffect: Effect.Effect<void> = browserRouterHostController.dispose();
 const windowHistory = makeWindowBrowserHistoryAdapter();
 const browserHistory: BrowserHistoryAdapter = memoryHistory;
 const navigateOptions: BrowserNavigateOptions = { replace: true };
@@ -367,7 +362,7 @@ const coreExports: Array<unknown> = [
   StableStringifyUnsupportedValue,
   UnsupportedDuration,
   UiScope,
-  applyResponseContextEffect,
+  applyResponseContext,
   browserRouteActiveRenderer,
   browserRouteRenderDecision,
   browserRouteRenderIdentity,
@@ -379,8 +374,8 @@ const coreExports: Array<unknown> = [
   compareRoutePathSpecificity,
   createBrowserRouterKernel,
   createBrowserRouterHostController,
-  defineApp,
-  disposeResourceStoreEffect,
+  App.define,
+  disposeResourceStore,
   forkScoped,
   hrefForRouteInput,
   isActionDefinition,
@@ -388,13 +383,13 @@ const coreExports: Array<unknown> = [
   isPromiseLikeValue,
   isRouteParamName,
   isRoutePathSegmentPrefix,
-  makeRequestContextEffect,
+  makeRequestContext,
   makeResponseContext,
   makeMemoryBrowserHistoryAdapter,
   makeWindowBrowserHistoryAdapter,
   makeResourceUiBindingController,
   makeResourceUiSuspensePreloadController,
-  route,
+  Route.define,
   makeRuntimeUiScope,
   matchRoutePath,
   onDispose,
@@ -430,9 +425,8 @@ const coreExports: Array<unknown> = [
   routePathSegmentsEqual,
   routePathSlug,
   scoped,
-  serializeResponseCookieEffect,
+  serializeResponseCookie,
   stableStringify,
-  browserRouterPath,
   browserNavigateArgs,
   stableIdentity,
   stableCircularData,
@@ -470,7 +464,7 @@ const matchedResourceState: string = AsyncResult.builder(refreshingResourceResul
   .onFailure((cause, failed) => `${String(Cause.squash(cause))}:${failed.previousSuccess._tag}`)
   .onSuccess((value, success) => `${String(value)}:${String(success.waiting)}`)
   .exhaustive();
-const typeTestResource = Resource.family<string, string, string>({
+const typeTestResource = Resource.define<string, string, string>({
   name: "type-tests/core-resource-ui",
   load: (id) => Effect.succeed(id),
 });
@@ -494,7 +488,7 @@ const typeTestResourceNamespacePayload: Resource.HydrationPayload =
 const collectedResourceEffect: Effect.Effect<
   Resource.Collected<string>,
   Resource.LoadError<string>
-> = Resource.collectEffect(Resource.prefetchEffect(typeTestResourceRef));
+> = Resource.collect(Resource.preload(typeTestResourceRef));
 Effect.map(collectedResourceEffect, (collected) => {
   const value: string = collected.value;
   collected.refs.map((ref) => ref.key);
@@ -518,9 +512,8 @@ const resourceUiBindingController: ResourceUiBindingController<
   never
 > = makeResourceUiBindingController(resourceUiBindingControllerOptions);
 const resourceUiBindingInterruptPreloadEffect: Effect.Effect<void> =
-  resourceUiBindingController.interruptPreloadEffect();
-const resourceUiBindingDisposeEffect: Effect.Effect<void> =
-  resourceUiBindingController.disposeEffect();
+  resourceUiBindingController.interruptPreload();
+const resourceUiBindingDisposeEffect: Effect.Effect<void> = resourceUiBindingController.dispose();
 const resourceUiAutoPreloadOptions: ResourceUiAutoPreloadOptions<string, never> = {
   preload: true,
   onPreloadFailure: () => undefined,
@@ -560,9 +553,9 @@ const resourceUiSuspensePreloadFiber = resourceUiSuspensePreloadController.hostT
   resourceUiSuspensePreloadOptions,
 );
 const resourceUiSuspenseInterruptEffect: Effect.Effect<void> =
-  resourceUiSuspensePreloadController.interruptEffect();
+  resourceUiSuspensePreloadController.interrupt();
 const resourceUiSuspenseDisposeEffect: Effect.Effect<void> =
-  resourceUiSuspensePreloadController.disposeEffect();
+  resourceUiSuspensePreloadController.dispose();
 type RuntimeShape = SunfallArcRuntime;
 type AnyRuntimeShape = AnySunfallArcRuntime;
 type RouterKernelShape = BrowserRouterKernel<typeof coreRoutes>;
@@ -587,7 +580,7 @@ const actionResultLabel: string = ActionResult.match(actionSuccess, {
   failure: () => "failure",
 });
 
-const appDefinition = defineApp({
+const appDefinition = App.define({
   routes: coreRoutes,
   client: () => null,
   server: runtime,
@@ -600,7 +593,7 @@ const profileForm: FormInstance<{ readonly name: string }, "required"> = Form.ma
   validate: (values, errors) =>
     values.name.length === 0 ? Effect.fail(errors.field("name", "required")) : Effect.void,
 });
-const profileValidationEffect = Form.validateEffect(profileForm);
+const profileValidationEffect = Form.validate(profileForm);
 const profileFormData = Form.data(new FormData());
 
 type CounterMessage = "increment" | "decrement";
@@ -609,11 +602,12 @@ const counterProgram = Program.define({
   update: (model: number, message: CounterMessage) =>
     Program.next<number, CounterMessage>(message === "increment" ? model + 1 : model - 1),
 });
-const counterStep = Program.next(
-  1,
-  Program.commands(Program.dispatch<CounterMessage>("increment")),
+const counterStep = Program.next(1, Program.commands(Program.emit<CounterMessage>("increment")));
+const counterCommand: Program.Command<CounterMessage> = Program.emit(Effect.void);
+const counterCommands = Program.commands(
+  Program.emit<CounterMessage>("increment"),
+  Program.emit(Effect.void),
 );
-const counterCommand = Program.effect<CounterMessage>(Effect.void);
 const counterSubscription = Program.subscription(Stream.empty as Stream.Stream<CounterMessage>);
 const counterStory = Program.story(counterProgram);
 const counterRuntimeError: Program.RuntimeError<never> =
@@ -678,19 +672,19 @@ const runtimeUiScope = makeRuntimeUiScope(browserRouterKernelRuntime);
 const runtimeUiScopeFrame: RuntimeUiScopeFrame = makeRuntimeUiScopeFrame(
   browserRouterKernelRuntime,
 );
-const uiScopeDispose: Effect.Effect<void> = uiScope.disposeEffect();
-const runtimeUiScopeFrameDispose: Effect.Effect<void> = runtimeUiScopeFrame.disposeEffect();
+const uiScopeDispose: Effect.Effect<void> = uiScope.dispose();
+const runtimeUiScopeFrameDispose: Effect.Effect<void> = runtimeUiScopeFrame.dispose();
 const scopedValue = scoped(() => "scoped");
 onDispose(() => Effect.void);
 onDispose(() => undefined);
 
 const request = new Request("https://sunfall-arc.test/projects/atlas?tab=overview");
-const requestContextEffect = makeRequestContextEffect(request);
+const requestContextEffect = makeRequestContext(request);
 const responseContext = makeResponseContext();
-const appliedResponseEffect = applyResponseContextEffect(responseContext, new Response("ok"));
+const appliedResponseEffect = applyResponseContext(responseContext, new Response("ok"));
 const providedRequest = provideRequest(request)(Effect.succeed("ok"));
 const providedResponse = provideResponse(responseContext)(Effect.succeed("ok"));
-const cookieHeaderEffect = serializeResponseCookieEffect("theme", "dark", { sameSite: "Lax" });
+const cookieHeaderEffect = serializeResponseCookie("theme", "dark", { sameSite: "Lax" });
 
 const codecOperation: ResourceSnapshotCodecOperation = "decode";
 const codecError = new ResourceSnapshotCodecError({
@@ -775,7 +769,7 @@ const CoreLinkPreloadApi = Context.Service<CoreLinkPreloadApi>("CoreLinkPreloadA
 const coreLinkPreloader = makeBrowserRouterLinkPreloader({
   runtime,
   enabled: () => true,
-  preloadEffect: () => Effect.void,
+  preload: () => Effect.void,
 });
 const coreLinkPreloaderShape: BrowserRouterLinkPreloader = coreLinkPreloader;
 const coreLinkPreloadIdentity: BrowserRouterLinkPreloadIdentity = {
@@ -783,21 +777,20 @@ const coreLinkPreloadIdentity: BrowserRouterLinkPreloadIdentity = {
   enabled: true,
 };
 coreLinkPreloaderShape.bindPreloadIdentity(coreLinkPreloadIdentity);
-const coreLinkPreloaderInterruptEffect: Effect.Effect<void> =
-  coreLinkPreloaderShape.interruptEffect();
+const coreLinkPreloaderInterruptEffect: Effect.Effect<void> = coreLinkPreloaderShape.interrupt();
 // @ts-expect-error Core Router Link Preloader exposes only full preload identity ownership facts
 coreLinkPreloaderShape.bindTarget("/projects/atlas");
 const coreLinkPreloaderRuntime: BrowserRouterLinkPreloaderRuntime = runtime;
 const coreLinkPreloaderOptions: BrowserRouterLinkPreloaderOptions = {
   runtime: coreLinkPreloaderRuntime,
   enabled: () => true,
-  preloadEffect: () => Effect.void,
+  preload: () => Effect.void,
 };
 makeBrowserRouterLinkPreloader({
   runtime,
   enabled: () => true,
   // @ts-expect-error router link preloads must be provided before reaching the Core preloader
-  preloadEffect: () => CoreLinkPreloadApi.useSync((service) => service.warm()),
+  preload: () => CoreLinkPreloadApi.use((service) => service.warm()),
 });
 const clickDecision: BrowserRouterLinkClickDecision = browserRouterLinkClickDecision({
   event: {
@@ -836,6 +829,7 @@ void profileValidationEffect;
 void profileFormData;
 void counterStep;
 void counterCommand;
+void counterCommands;
 void counterSubscription;
 void counterStory;
 void counterRuntimeError;
@@ -903,7 +897,7 @@ void coreActionTransportService;
 // Route components may be renderer component values; `withComponent` keeps the
 // attached component's type for adapters to check.
 declare const coreRouteView: RouteView<Route.Props<typeof coreTypedRoute>>;
-const coreTypedRoute = route("/core-view/:id", {});
+const coreTypedRoute = Route.define("/core-view/:id", {});
 const coreRouteWithView = Route.withComponent(coreTypedRoute, coreRouteView);
 const coreRouteViewCarrier: RouteWithComponent<typeof coreRouteView> = coreRouteWithView;
 const coreRouteViewOf: Route.ComponentOf<typeof coreRouteWithView> = coreRouteView;

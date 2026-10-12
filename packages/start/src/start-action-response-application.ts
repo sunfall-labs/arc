@@ -185,8 +185,8 @@ const startActionResponseInvalidationEffect = (
         : [];
 
     if (invalidationTargets.length > 0) {
-      const plan = yield* Resource.planInvalidationEffect(invalidationTargets);
-      yield* Resource.runInvalidationPlanEffect({
+      const plan = yield* Resource.planInvalidation(invalidationTargets);
+      yield* Resource.runInvalidationPlan({
         targets: plan.targets,
         entries: plan.entries.filter(
           (entry) => !hydratedResources.has(startActionInvalidationEntryIdentity(entry)),

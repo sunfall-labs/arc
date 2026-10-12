@@ -60,7 +60,7 @@ const QueryBuilderTypeId: unique symbol = Symbol.for(
  * Immutable builder for collection-backed queries.
  *
  * Builders are cheap descriptions. `execute` reads current collection state
- * synchronously; `Query.onceEffect` and `Query.live` preload sources first.
+ * synchronously; `Query.once` and `Query.live` preload sources first.
  */
 export interface QueryBuilderInterface<
   TContext extends AnyQueryContext,
@@ -438,18 +438,18 @@ export interface QueryRoot {
  * has loaded, `Success` with the current rows (timestamped by the latest source
  * load), `Failure` carrying the source or evaluation `Cause` with the last good
  * rows as `previousSuccess`, and `waiting` while any source is loading. Preload/
- * refetch effects expose the union of source collection error and requirement
+ * refresh effects expose the union of source collection error and requirement
  * channels.
  */
 export interface LiveQuery<T, E = never, R = never> {
-  readonly data: ReadableSignal<ReadonlyArray<T>>;
+  readonly rows: ReadableSignal<ReadonlyArray<T>>;
   readonly state: ReadableSignal<
     AsyncResult.AsyncResult<ReadonlyArray<T>, E | QueryEvaluationError>
   >;
   readonly sources: ReadonlyArray<AnyCollection>;
   evaluate(): ReadonlyArray<T>;
-  preloadEffect(): Effect.Effect<void, E | QueryEvaluationError, R>;
-  refetchEffect(): Effect.Effect<void, E | QueryEvaluationError, R>;
+  preload(): Effect.Effect<void, E | QueryEvaluationError, R>;
+  refresh(): Effect.Effect<void, E | QueryEvaluationError, R>;
 }
 
 const queryRoot: QueryRoot = {
@@ -587,7 +587,7 @@ export const buildQuery = <T, E = never, R = never>(
  * Query API for composing derived views over collections.
  *
  * Query factories receive `Query.from`/`query.from` and return an immutable
- * builder. Use `onceEffect` for one-shot reads and `live` for reactive data.
+ * builder. Use `once` for one-shot reads and `live` for reactive data.
  */
 export namespace Query {
   /** Immutable query builder DSL carrying context, result, error, and requirement types without exposing plan internals. */
@@ -673,7 +673,7 @@ export namespace Query {
    * normalized as `QueryEvaluationError` with operation `"evaluate"` in the
    * Effect error channel.
    */
-  export const onceEffect = <T, E = never, R = never>(
+  export const once = <T, E = never, R = never>(
     factory: QueryFactory<T, E, R>,
   ): Effect.Effect<ReadonlyArray<T>, E | QueryEvaluationError, R> =>
     Effect.gen(function* () {

@@ -1,5 +1,5 @@
 import { Data, Effect } from "effect";
-import { hydrateFromDocumentEffect } from "./hydration.js";
+import { hydrateFromDocument } from "./hydration.js";
 import {
   startStaticHydratedHrefPreparationOutcomeEffect,
   type StartStaticHrefPreparationOutcome,
@@ -124,7 +124,7 @@ export const hydrateStartStaticTargetDocumentEffect = <RuntimeError = unknown>(
         staticHydrationError(options.href, options.browserHref, "ParseFailed", { cause }),
     });
     const hydrateEffect = options.runtime.provide(
-      hydrateFromDocumentEffect(staticDocument, undefined, {
+      hydrateFromDocument(staticDocument, undefined, {
         timestamp: "now",
         skipFresh: true,
       }).pipe(Effect.flatMap(startStaticHydratedHrefPreparationOutcomeEffect)),

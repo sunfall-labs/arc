@@ -88,15 +88,15 @@ export interface ActionExecutionWorkflowOptions<I, A, E, R, ER> {
 }
 
 export interface ActionExecutionWorkflow<I, A, E, R, ER> {
-  readonly submitEffect: (
+  readonly submit: (
     input: I,
   ) => Effect.Effect<
     A,
     E | ER | EffectInputCallbackError | ServerClientError | ActionInterrupted,
     R | ActionResultInvalidationRequirements<A>
   >;
-  readonly captureResetEffect: () => Effect.Effect<void>;
-  readonly resetEffect: () => Effect.Effect<void>;
+  readonly captureReset: () => Effect.Effect<void>;
+  readonly reset: () => Effect.Effect<void>;
 }
 
 /**
@@ -246,8 +246,8 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
     );
 
   return {
-    submitEffect,
-    captureResetEffect: submissions.captureResetEffect,
-    resetEffect: submissions.resetEffect,
+    submit: submitEffect,
+    captureReset: submissions.captureReset,
+    reset: submissions.reset,
   };
 };

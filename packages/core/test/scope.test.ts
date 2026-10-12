@@ -26,7 +26,7 @@ describe("UiScope", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* scope.disposeEffect();
+        yield* scope.dispose();
         expect(events).toEqual(["second", "first"]);
       }),
     );
@@ -44,7 +44,7 @@ describe("UiScope", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* scope.disposeEffect();
+        yield* scope.dispose();
         expect(events).toEqual(["third", "first"]);
       }),
     );
@@ -64,7 +64,7 @@ describe("UiScope", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* scope.disposeEffect();
+        yield* scope.dispose();
         expect(events).toEqual(["cleanup"]);
       }),
     );
@@ -86,7 +86,7 @@ describe("UiScope", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* scope.disposeEffect();
+        yield* scope.dispose();
         expect(events).toEqual(["start", "done"]);
       }),
     );
@@ -109,7 +109,7 @@ describe("UiScope", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* scope.disposeEffect();
+        yield* scope.dispose();
         expect(interrupted).toBe(true);
       }),
     );
@@ -133,7 +133,7 @@ describe("UiScope", () => {
         count.set(1);
         yield* Effect.sleep("10 millis");
 
-        yield* scope.disposeEffect();
+        yield* scope.dispose();
         count.set(2);
         yield* Effect.sleep("10 millis");
 
@@ -158,7 +158,7 @@ describe("UiScope", () => {
     ).not.toThrow();
 
     expect(() => count.set(1)).not.toThrow();
-    await Effect.runPromise(scope.disposeEffect());
+    await Effect.runPromise(scope.dispose());
   });
 
   it("runs finalizers registered after disposal through the configured runner", async () => {
@@ -171,7 +171,7 @@ describe("UiScope", () => {
       },
     });
 
-    await Effect.runPromise(scope.disposeEffect());
+    await Effect.runPromise(scope.dispose());
     scope.addFinalizer(() =>
       Effect.sync(() => {
         events.push("late");
@@ -192,7 +192,7 @@ describe("UiScope", () => {
           },
         });
 
-        yield* scope.disposeEffect();
+        yield* scope.dispose();
         scope.addFinalizer(() => Effect.die("late finalizer defect"));
 
         if (lateFinalizer === undefined) {
@@ -208,11 +208,11 @@ describe("UiScope", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const scope = makeRuntimeUiScope(eraseRuntime(runtime));
           const events: Array<string> = [];
 
-          yield* scope.disposeEffect();
+          yield* scope.dispose();
           scope.addFinalizer(() =>
             Effect.sync(() => {
               events.push("late");
@@ -230,7 +230,7 @@ describe("UiScope", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const frame = makeRuntimeUiScopeFrame(eraseRuntime(runtime));
           const events: Array<string> = [];
 
@@ -245,7 +245,7 @@ describe("UiScope", () => {
           });
 
           expect(value).toBe("rendered");
-          yield* frame.disposeEffect();
+          yield* frame.dispose();
           frame.scope.addFinalizer(() =>
             Effect.sync(() => {
               events.push("late");
@@ -258,12 +258,12 @@ describe("UiScope", () => {
       ),
     ));
 
-  it("forking frame disposeEffect closes the scope immediately", () =>
+  it("forking frame dispose closes the scope immediately", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const frame = makeRuntimeUiScopeFrame(eraseRuntime(runtime));
           const events: Array<string> = [];
 
@@ -275,7 +275,7 @@ describe("UiScope", () => {
             );
           });
 
-          const fiber = runtime.runFork(frame.disposeEffect());
+          const fiber = runtime.runFork(frame.dispose());
           expect(() => frame.scope.fork(Effect.never)).toThrow(UiScopeDisposed);
           yield* Fiber.join(fiber);
           expect(events).toEqual(["dispose"]);

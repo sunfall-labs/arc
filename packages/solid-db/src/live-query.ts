@@ -30,7 +30,7 @@ export interface LiveQueryBindingOptions<E = never> {
  */
 export interface LiveQueryHandle<T, E = never> {
   /** Current rows (always the last good rows) from the instance runtime. */
-  readonly data: Accessor<ReadonlyArray<T>>;
+  readonly rows: Accessor<ReadonlyArray<T>>;
   /**
    * Current live query `AsyncResult`: source load results and evaluation
    * failures folded together, `waiting` while any source is loading, and
@@ -40,9 +40,9 @@ export interface LiveQueryHandle<T, E = never> {
   /** Failure captured from the automatic mount-time source preload, if enabled. */
   readonly preloadFailure: Accessor<E | QueryEvaluationError | undefined>;
   /** Ensure all query sources have loaded in the instance runtime. */
-  preloadEffect(): Effect.Effect<void, E | QueryEvaluationError>;
+  preload(): Effect.Effect<void, E | QueryEvaluationError>;
   /** Force a fresh source preload and live query evaluation in the instance runtime. */
-  refetchEffect(): Effect.Effect<void, E | QueryEvaluationError>;
+  refresh(): Effect.Effect<void, E | QueryEvaluationError>;
 }
 
 type LiveQueryInput<T, E, R> = Query.Factory<T, E, R> | Query.Live<T, E, R>;
@@ -82,15 +82,15 @@ export const liveQuery = <T, E = never, R = never>(
       const binding = makeSolidDbReactiveBinding<E | QueryEvaluationError, R, never>({
         runtime,
         preload: options.preload,
-        preloadEffect: () => live().preloadEffect(),
+        load: () => live().preload(),
         onPreloadFailure: options.onPreloadFailure,
       });
       const handle: LiveQueryHandle<T, E> = {
-        data: () => binding.read(() => live().data.get()),
+        rows: () => binding.read(() => live().rows.get()),
         result: () => binding.read(() => live().state.get()),
         preloadFailure: binding.preloadFailure,
-        preloadEffect: () => binding.bindEffect(Effect.suspend(() => live().preloadEffect())),
-        refetchEffect: () => binding.bindEffect(Effect.suspend(() => live().refetchEffect())),
+        preload: () => binding.bindEffect(Effect.suspend(() => live().preload())),
+        refresh: () => binding.bindEffect(Effect.suspend(() => live().refresh())),
       };
       return handle;
     });

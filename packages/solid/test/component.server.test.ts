@@ -1,4 +1,4 @@
-import { defineApp, Resource, route } from "@sunfall/arc-core";
+import { Resource, Route, App } from "@sunfall/arc-core";
 import { createRequestHandler } from "@sunfall/arc-start";
 import { Effect, Schema } from "effect";
 import { createComponent, isServer, renderToString } from "@solidjs/web";
@@ -11,17 +11,16 @@ describe("Component (server)", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         expect(isServer).toBe(true);
-        const { App, ProjectById, events } = ssrApp();
-        const ProjectRoute = route("/projects/:id", {
+        const { App: Root, ProjectById, events } = ssrApp();
+        const ProjectRoute = Route.define("/projects/:id", {
           params: Schema.Struct({ id: Schema.String }),
-          preload: ({ params }) =>
-            Resource.prefetchEffect(ProjectById(params.id)).pipe(Effect.asVoid),
+          preload: ({ params }) => Resource.preload(ProjectById(params.id)).pipe(Effect.asVoid),
         });
-        const app = defineApp({ routes: [ProjectRoute] as const, client: {} });
+        const app = App.define({ routes: [ProjectRoute] as const, client: {} });
         const handler = createRequestHandler(app, {
           render: ({ runtime, match }) =>
             renderToString(() =>
-              createComponent(Component.embed(App, runtime), { id: match?.params.id ?? "" }),
+              createComponent(Component.embed(Root, runtime), { id: match?.params.id ?? "" }),
             ),
         });
         const request = Effect.fn(function* () {

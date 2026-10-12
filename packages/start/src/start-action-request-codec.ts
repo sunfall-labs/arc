@@ -90,7 +90,7 @@ const startActionOmittedFormFields = (
 };
 
 /**
- * Build `Form.decodeFormDataEffect(...)` options that omit Start's hidden
+ * Build `Form.decodeFormData(...)` options that omit Start's hidden
  * transport fields while preserving any app-level omitted fields.
  */
 export const startActionFormDataDecodeOptions = (
@@ -103,7 +103,7 @@ export const startActionFormDataDecodeOptions = (
 /**
  * Decode only user-authored fields from a Start action FormData payload.
  *
- * This is a convenience wrapper around `Form.decodeFormDataEffect(...)` that
+ * This is a convenience wrapper around `Form.decodeFormData(...)` that
  * automatically ignores the hidden action name and encoded-default-input fields
  * emitted by `StartAction.form(...)`.
  */
@@ -111,7 +111,7 @@ export const decodeStartActionFormDataEffect = <S extends Schema.Top>(
   schema: S,
   formData: FormData,
   options: FormDataDecodeOptions = {},
-) => Form.decodeFormDataEffect(schema, formData, startActionFormDataDecodeOptions(options));
+) => Form.decodeFormData(schema, formData, startActionFormDataDecodeOptions(options));
 
 /** Error raised by the synchronous progressive form encoding facade. */
 export class StartActionFormEncodeError extends Data.TaggedError("StartActionFormEncodeError")<{

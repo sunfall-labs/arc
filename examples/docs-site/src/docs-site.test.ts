@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import {
   Resource,
+  Route,
   createBrowserRouterHostController,
   makeRuntime,
   type AnySunfallArcRuntime,
@@ -8,7 +9,7 @@ import {
 import { Window } from "happy-dom";
 import { describe, expect, it, vi } from "vitest";
 import { Effect } from "effect";
-import { hydrateFromDocumentEffect, type StartHydrationDocument } from "@sunfall/arc-start";
+import { hydrateFromDocument, type StartHydrationDocument } from "@sunfall/arc-start";
 import {
   extractStartStaticHtmlLinks,
   startStaticPageOutputPath,
@@ -21,14 +22,7 @@ import {
   RecipeBySlug,
   RecipeIndexRef,
 } from "./content.js";
-import {
-  hrefById,
-  hrefByPath,
-  routeById,
-  routeByPath,
-  routes,
-  type FileRouteHrefOptionsById,
-} from "./routeTree.gen.js";
+import { routeById, routes, type FileRouteHrefOptionsById } from "./routeTree.gen.js";
 import { handleRequest, serverApp } from "./server.js";
 import {
   normalizeDocsSiteBasePath,
@@ -239,26 +233,20 @@ describe("docs site", () => {
       routeById.route_docs,
       routeById.route_docs_$slug,
     ]);
-    expect(routeByPath["/blog/introducing-sunfall-arc"]).toBe(
-      routeById.route_blog_introducing_sunfall_arc,
-    );
-    expect(routeByPath["/cookbook/:slug"]).toBe(routeById.route_cookbook_$slug);
-    expect(routeByPath["/docs"]).toBe(routeById.route_docs);
-    expect(routeByPath["/docs/:slug"]).toBe(routeById.route_docs_$slug);
     expect(blogHrefOptions).toEqual({});
     expect(cookbookHrefOptions).toEqual({});
     expect(docsHrefOptions).toEqual({});
     expect(docsPageHrefOptions.params.slug).toBe("getting-started");
     expect(recipeHrefOptions.params.slug).toBe("resource-from-server-function");
-    expect(hrefById("route_blog_introducing_sunfall_arc")).toBe("/blog/introducing-sunfall-arc");
-    expect(hrefById("route_cookbook")).toBe("/cookbook");
-    expect(hrefById("route_docs")).toBe("/docs");
-    expect(hrefById("route_docs_$slug", docsPageHrefOptions)).toBe("/docs/getting-started");
-    expect(hrefByPath("/blog/introducing-sunfall-arc", blogHrefOptions)).toBe(
+    expect(Route.href(routeById.route_blog_introducing_sunfall_arc, blogHrefOptions)).toBe(
       "/blog/introducing-sunfall-arc",
     );
-    expect(hrefByPath("/docs/:slug", docsPageHrefOptions)).toBe("/docs/getting-started");
-    expect(hrefByPath("/cookbook/:slug", recipeHrefOptions)).toBe(
+    expect(Route.href(routeById.route_cookbook)).toBe("/cookbook");
+    expect(Route.href(routeById.route_docs)).toBe("/docs");
+    expect(Route.href(routeById.route_docs_$slug, docsPageHrefOptions)).toBe(
+      "/docs/getting-started",
+    );
+    expect(Route.href(routeById.route_cookbook_$slug, recipeHrefOptions)).toBe(
       "/cookbook/resource-from-server-function",
     );
   });
@@ -352,7 +340,7 @@ describe("docs site", () => {
           );
           const runtime = makeRuntime(DocsContentApiLive);
           yield* Effect.addFinalizer(() =>
-            runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
+            runtime.dispose.pipe(Effect.catchCause(() => Effect.void)),
           );
 
           vi.stubGlobal("window", window);
@@ -366,8 +354,8 @@ describe("docs site", () => {
           );
 
           const history = makeDocsSiteHistoryAdapter({ runtime, routes });
-          yield* history.prepareHrefEffect!("/cookbook/resource-from-server-function");
-          const recipe = yield* runtime.provide(Resource.prefetchEffect(RecipeBySlug(slug)));
+          yield* history.prepareHref!("/cookbook/resource-from-server-function");
+          const recipe = yield* runtime.provide(Resource.preload(RecipeBySlug(slug)));
 
           expect(fetch).toHaveBeenCalledTimes(1);
           expect(String(fetch.mock.calls[0]?.[0])).toBe(
@@ -411,7 +399,7 @@ describe("docs site", () => {
             );
             const runtime = makeRuntime(DocsContentApiStaticClient);
             yield* Effect.addFinalizer(() =>
-              runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
+              runtime.dispose.pipe(Effect.catchCause(() => Effect.void)),
             );
 
             vi.stubGlobal("window", window);
@@ -425,24 +413,20 @@ describe("docs site", () => {
             );
 
             yield* runtime.provide(
-              hydrateFromDocumentEffect(
-                window.document as unknown as StartHydrationDocument,
-                undefined,
-                {
-                  timestamp: "now",
-                },
-              ),
+              hydrateFromDocument(window.document as unknown as StartHydrationDocument, undefined, {
+                timestamp: "now",
+              }),
             );
-            const indexStatusBefore = yield* runtime.provide(Resource.statusEffect(RecipeIndexRef));
+            const indexStatusBefore = yield* runtime.provide(Resource.status(RecipeIndexRef));
             yield* Effect.sync(() => vi.setSystemTime(targetHydrationNow));
 
             const routerRuntime = runtime as unknown as AnySunfallArcRuntime;
             const history = makeDocsSiteHistoryAdapter({ runtime: routerRuntime, routes });
-            yield* history.prepareHrefEffect!(targetHref);
-            yield* history.prepareHrefEffect!(targetHref);
-            const recipe = yield* runtime.provide(Resource.prefetchEffect(RecipeBySlug(slug)));
-            const recipeStatus = yield* runtime.provide(Resource.statusEffect(RecipeBySlug(slug)));
-            const indexStatus = yield* runtime.provide(Resource.statusEffect(RecipeIndexRef));
+            yield* history.prepareHref!(targetHref);
+            yield* history.prepareHref!(targetHref);
+            const recipe = yield* runtime.provide(Resource.preload(RecipeBySlug(slug)));
+            const recipeStatus = yield* runtime.provide(Resource.status(RecipeBySlug(slug)));
+            const indexStatus = yield* runtime.provide(Resource.status(RecipeIndexRef));
 
             expect(fetch).toHaveBeenCalledTimes(1);
             expect(recipe.title).toBe("Route preload and hydration");
@@ -490,7 +474,7 @@ describe("docs site", () => {
           );
           const runtime = makeRuntime(DocsContentApiLive);
           yield* Effect.addFinalizer(() =>
-            runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
+            runtime.dispose.pipe(Effect.catchCause(() => Effect.void)),
           );
 
           vi.stubGlobal("window", window);
@@ -511,7 +495,7 @@ describe("docs site", () => {
             runtime: routerRuntime,
           });
           yield* Effect.addFinalizer(() =>
-            router.disposeEffect().pipe(Effect.catchCause(() => Effect.void)),
+            router.dispose().pipe(Effect.catchCause(() => Effect.void)),
           );
 
           router.navigateHref(targetHref);
@@ -520,7 +504,7 @@ describe("docs site", () => {
               expect(router.state.get()).toMatchObject({ _tag: "Ready", href: targetHref }),
             ),
           );
-          const recipe = yield* runtime.provide(Resource.prefetchEffect(RecipeBySlug(slug)));
+          const recipe = yield* runtime.provide(Resource.preload(RecipeBySlug(slug)));
 
           expect(fetch).toHaveBeenCalledTimes(1);
           expect(String(fetch.mock.calls[0]?.[0])).toBe(
@@ -557,7 +541,7 @@ describe("docs site", () => {
           );
           const runtime = makeRuntime(DocsContentApiStaticClient);
           yield* Effect.addFinalizer(() =>
-            runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
+            runtime.dispose.pipe(Effect.catchCause(() => Effect.void)),
           );
 
           vi.stubGlobal("window", window);
@@ -571,13 +555,9 @@ describe("docs site", () => {
           );
 
           yield* runtime.provide(
-            hydrateFromDocumentEffect(
-              window.document as unknown as StartHydrationDocument,
-              undefined,
-              {
-                timestamp: "now",
-              },
-            ),
+            hydrateFromDocument(window.document as unknown as StartHydrationDocument, undefined, {
+              timestamp: "now",
+            }),
           );
 
           const routerRuntime = runtime as unknown as AnySunfallArcRuntime;
@@ -588,7 +568,7 @@ describe("docs site", () => {
             runtime: routerRuntime,
           });
           yield* Effect.addFinalizer(() =>
-            router.disposeEffect().pipe(Effect.catchCause(() => Effect.void)),
+            router.dispose().pipe(Effect.catchCause(() => Effect.void)),
           );
 
           router.navigateHref(targetHref);
@@ -597,7 +577,7 @@ describe("docs site", () => {
               expect(router.state.get()).toMatchObject({ _tag: "Ready", href: targetHref }),
             ),
           );
-          const recipe = yield* runtime.provide(Resource.prefetchEffect(RecipeBySlug(slug)));
+          const recipe = yield* runtime.provide(Resource.preload(RecipeBySlug(slug)));
 
           expect(fetch).toHaveBeenCalledTimes(1);
           expect(String(fetch.mock.calls[0]?.[0])).toBe(
@@ -619,7 +599,7 @@ describe("docs site", () => {
     expect(historySource).toContain("docsSiteHref");
     expect(historySource).toContain("makeStartStaticHistoryAdapter");
     expect(historySource).toContain("basePath: docsSiteBasePath");
-    expect(historySource).not.toContain("hydrateFromDocumentEffect");
+    expect(historySource).not.toContain("hydrateFromDocument");
     expect(historySource).not.toContain('"Docs.recipe"');
     expect(mainSource).toContain("import.meta.env.DEV");
     expect(mainSource).toContain("makeRpcClientLayer()");

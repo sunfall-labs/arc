@@ -6,7 +6,6 @@ import {
   makeMemoryBrowserHistoryAdapter,
   makeRuntime,
   Resource,
-  route,
   Route,
   RouteNavigationError,
   RoutePreloadError,
@@ -66,7 +65,7 @@ const RouterProvider = <
   if (runtime === null) {
     throw new Error("RouterProvider shim needs a RuntimeProvider shim");
   }
-  const Tree = Component.make("RouterTree", function* () {
+  const Tree = Component.define("RouterTree", function* () {
     const router = yield* Component.router(props.routes, {
       ...(props.initialHref === undefined ? {} : { initialHref: props.initialHref }),
       ...(props.hydrating === undefined ? {} : { hydrating: props.hydrating }),
@@ -107,9 +106,9 @@ describe("createBrowserRouter", () => {
         Effect.gen(function* () {
           let preloads = 0;
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/projects/:id", {
+          const ProjectRoute = Route.define("/projects/:id", {
             preload: () =>
               Effect.sync(() => {
                 preloads++;
@@ -171,10 +170,10 @@ describe("createBrowserRouter", () => {
           );
 
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           const started = yield* Deferred.make<void>();
           let releases = 0;
-          const SlowRoute = route("/owner-cleanup-slow", {
+          const SlowRoute = Route.define("/owner-cleanup-slow", {
             preload: () =>
               Effect.acquireRelease(Deferred.succeed(started, undefined), () =>
                 Effect.sync(() => {
@@ -207,9 +206,9 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/projects/:id", {
+          const ProjectRoute = Route.define("/projects/:id", {
             preload: () => Effect.fail("missing-project").pipe(Effect.asVoid),
           });
 
@@ -251,9 +250,9 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/schema-projects/:id", {
+          const ProjectRoute = Route.define("/schema-projects/:id", {
             params: Schema.Struct({ id: Schema.Number }),
           });
 
@@ -310,10 +309,10 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/ordered-projects/:id", {});
-          const ProjectSettingsRoute = route("/ordered-projects/settings", {});
+          const ProjectRoute = Route.define("/ordered-projects/:id", {});
+          const ProjectSettingsRoute = Route.define("/ordered-projects/settings", {});
           const routes = [ProjectRoute, ProjectSettingsRoute] as const;
 
           let dispose: () => void = () => undefined;
@@ -346,15 +345,15 @@ describe("createBrowserRouter", () => {
         Effect.gen(function* () {
           const preloaded: Array<string> = [];
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/projects/:id", {
+          const ProjectRoute = Route.define("/projects/:id", {
             preload: ({ params }) =>
               Effect.sync(() => {
                 preloaded.push(`project:${params.id}`);
               }),
           });
-          const ProjectSettingsRoute = route("/projects/settings", {
+          const ProjectSettingsRoute = Route.define("/projects/settings", {
             preload: () =>
               Effect.sync(() => {
                 preloaded.push("settings");
@@ -372,7 +371,7 @@ describe("createBrowserRouter", () => {
           });
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
 
-          yield* router.preloadEffect(ProjectRoute, { params: { id: "settings" } });
+          yield* router.preload(ProjectRoute, { params: { id: "settings" } });
           expect(preloaded).toEqual(["settings"]);
 
           router.navigateHref("/projects/settings");
@@ -397,7 +396,7 @@ describe("createBrowserRouter", () => {
         Effect.gen(function* () {
           window.history.replaceState(null, "", "/projects/atlas");
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           yield* Effect.addFinalizer(() =>
             Effect.sync(() => {
               window.history.replaceState(null, "", "/");
@@ -405,7 +404,7 @@ describe("createBrowserRouter", () => {
           );
 
           let attempts = 0;
-          const ProjectRoute = route("/projects/:id", {
+          const ProjectRoute = Route.define("/projects/:id", {
             preload: () =>
               Effect.gen(function* () {
                 attempts++;
@@ -467,9 +466,9 @@ describe("createBrowserRouter", () => {
                 }),
             }),
           );
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/projects/:id", {
+          const ProjectRoute = Route.define("/projects/:id", {
             preload: ({ params }) => ProjectApi.use((api) => api.preload(params.id)),
           });
           let dispose: () => void = () => undefined;
@@ -484,7 +483,7 @@ describe("createBrowserRouter", () => {
           );
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
 
-          yield* router.preloadEffect(ProjectRoute, { params: { id: "atlas" } });
+          yield* router.preload(ProjectRoute, { params: { id: "atlas" } });
 
           expect(preloaded).toEqual(["atlas"]);
         }),
@@ -497,9 +496,9 @@ describe("createBrowserRouter", () => {
         Effect.gen(function* () {
           const events: Array<string> = [];
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/projects/:id", {
+          const ProjectRoute = Route.define("/projects/:id", {
             preload: () =>
               Effect.acquireRelease(
                 Effect.sync(() => {
@@ -523,29 +522,29 @@ describe("createBrowserRouter", () => {
           );
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
 
-          yield* router.preloadEffect(ProjectRoute, { params: { id: "atlas" } });
+          yield* router.preload(ProjectRoute, { params: { id: "atlas" } });
 
           expect(events).toEqual(["acquire", "release"]);
         }),
       ),
     ));
 
-  it("supports typed route path helpers for hrefs, matches, preloads, and navigation", () =>
+  it("supports typed definition-based hrefs, matches, preloads, and navigation", () =>
     Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
           window.history.replaceState(null, "", "/");
           const preloaded: Array<string> = [];
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
           yield* Effect.addFinalizer(() =>
             Effect.sync(() => {
               window.history.replaceState(null, "", "/");
             }),
           );
 
-          const ProjectsRoute = route("/path-helper-projects");
-          const ProjectRoute = route("/path-helper-projects/:id", {
+          const ProjectsRoute = Route.define("/path-helper-projects");
+          const ProjectRoute = Route.define("/path-helper-projects/:id", {
             preload: ({ params }) =>
               Effect.sync(() => {
                 preloaded.push(params.id);
@@ -571,28 +570,18 @@ describe("createBrowserRouter", () => {
             }),
           );
 
-          expect(router.hrefByPath("/path-helper-projects")).toBe("/path-helper-projects");
-          expect(
-            router.hrefByPath("/path-helper-projects/:id", {
-              params: { id: "kepler" },
-            }),
-          ).toBe("/path-helper-projects/kepler");
-          expect(router.matchByPath("/path-helper-projects/:id")?.params.id).toBe("atlas");
-          expect(router.matchByPath("/path-helper-projects")).toBeUndefined();
+          expect(router.href(ProjectsRoute)).toBe("/path-helper-projects");
+          expect(router.href(ProjectRoute, { params: { id: "kepler" } })).toBe(
+            "/path-helper-projects/kepler",
+          );
+          expect(router.match()?.route).toBe(ProjectRoute);
+          expect(router.match()?.params).toEqual({ id: "atlas" });
           expect(preloaded).toEqual(["atlas"]);
 
-          yield* router.preloadByPathEffect("/path-helper-projects/:id", {
-            params: { id: "curie" },
-          });
+          yield* router.preload(ProjectRoute, { params: { id: "curie" } });
           expect(preloaded).toEqual(["atlas", "curie"]);
 
-          router.navigateByPath(
-            "/path-helper-projects/:id",
-            {
-              params: { id: "kepler" },
-            },
-            { replace: true },
-          );
+          router.navigate(ProjectRoute, { params: { id: "kepler" } }, { replace: true });
           yield* Effect.promise(() =>
             vi.waitFor(() => {
               expect(router.state()).toMatchObject({
@@ -601,9 +590,9 @@ describe("createBrowserRouter", () => {
               });
             }),
           );
-          expect(router.matchByPath("/path-helper-projects/:id")?.params.id).toBe("kepler");
+          expect(router.match()?.params).toEqual({ id: "kepler" });
 
-          router.navigateByPath("/path-helper-projects");
+          router.navigate(ProjectsRoute);
           yield* Effect.promise(() =>
             vi.waitFor(() => {
               expect(router.state()).toMatchObject({
@@ -612,7 +601,7 @@ describe("createBrowserRouter", () => {
               });
             }),
           );
-          expect(router.matchByPath("/path-helper-projects")?.route).toBe(ProjectsRoute);
+          expect(router.match()?.route).toBe(ProjectsRoute);
         }),
       ),
     ));
@@ -623,10 +612,10 @@ describe("createBrowserRouter", () => {
         Effect.gen(function* () {
           const preloaded: Array<string> = [];
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/router-projects/:id");
-          const OutsideRoute = route("/outside-projects/:id", {
+          const ProjectRoute = Route.define("/router-projects/:id");
+          const OutsideRoute = Route.define("/outside-projects/:id", {
             preload: ({ params }) =>
               Effect.sync(() => {
                 preloaded.push(params.id);
@@ -647,7 +636,7 @@ describe("createBrowserRouter", () => {
 
           const exit = yield* Effect.exit(
             // @ts-expect-error outside route intentionally violates the configured router tuple
-            router.preloadEffect(OutsideRoute, { params: { id: "atlas" } }),
+            router.preload(OutsideRoute, { params: { id: "atlas" } }),
           );
 
           expect(preloaded).toEqual([]);
@@ -669,30 +658,6 @@ describe("createBrowserRouter", () => {
               RouterRouteNotRegistered,
             );
           }
-
-          const pathExit = yield* Effect.exit(
-            // @ts-expect-error outside route path intentionally violates the configured router tuple
-            router.preloadByPathEffect("/outside-projects/:id", { params: { id: "atlas" } }),
-          );
-          expect(preloaded).toEqual([]);
-          expect(pathExit._tag).toBe("Failure");
-          if (pathExit._tag === "Failure") {
-            expect(pathExit.cause.reasons.find(Cause.isFailReason)?.error).toBeInstanceOf(
-              RouteNavigationError,
-            );
-          }
-
-          // @ts-expect-error outside route path intentionally violates the configured router tuple
-          router.navigateByPath("/outside-projects/:id", { params: { id: "atlas" } });
-          expect(preloaded).toEqual([]);
-          const pathState = router.state();
-          expect(pathState._tag).toBe("Failure");
-          if (pathState._tag === "Failure") {
-            expect(pathState.error).toBeInstanceOf(RouteNavigationError);
-            expect((pathState.error as RouteNavigationError).cause).toBeInstanceOf(
-              RouterRouteNotRegistered,
-            );
-          }
         }),
       ),
     ));
@@ -707,9 +672,9 @@ describe("createBrowserRouter", () => {
             ...makeMemoryBrowserHistoryAdapter({ initialHref: "/missing" }),
             createHref: (href: string) => `/project-docs${href}`,
           };
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/link-projects/:id", {
+          const ProjectRoute = Route.define("/link-projects/:id", {
             preload: ({ params }) =>
               Effect.sync(() => {
                 preloaded.push(params.id);
@@ -788,9 +753,9 @@ describe("createBrowserRouter", () => {
         Effect.gen(function* () {
           const preloaded: Array<string> = [];
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/download-projects/:id", {
+          const ProjectRoute = Route.define("/download-projects/:id", {
             preload: ({ params }) =>
               Effect.sync(() => {
                 preloaded.push(params.id);
@@ -879,18 +844,18 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const history = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
           const initialWindowPathname = window.location.pathname;
-          const HomeRoute = route("/", {
+          const HomeRoute = Route.define("/", {
             component: () => {
               const element = document.createElement("h1");
               element.textContent = "Home";
               return element;
             },
           });
-          const ProjectRoute = route("/provider-history/:id", {
+          const ProjectRoute = Route.define("/provider-history/:id", {
             component: ({ params }: { readonly params: { readonly id: string } }) => {
               const element = document.createElement("h1");
               element.textContent = `Project ${params.id}`;
@@ -946,7 +911,7 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           let imports = 0;
           let renders = 0;
@@ -961,14 +926,14 @@ describe("createBrowserRouter", () => {
               };
             }),
           );
-          const ProjectRoute = route("/lazy-solid-projects/:id", {
+          const ProjectRoute = Route.define("/lazy-solid-projects/:id", {
             component: LazyProject,
           });
           const match = ProjectRoute.match("/lazy-solid-projects/atlas");
           if (!match) {
             expect.fail("Expected lazy Solid route to match.");
           }
-          yield* Route.preloadComponentEffect(match);
+          yield* Route.preloadComponent(match);
           const container = document.createElement("div");
           const dispose = render(
             () =>
@@ -1000,7 +965,7 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const release = yield* Deferred.make<void>();
           let imports = 0;
@@ -1017,7 +982,7 @@ describe("createBrowserRouter", () => {
               };
             }),
           );
-          const ProjectRoute = route("/ready-lazy-solid-projects/:id", {
+          const ProjectRoute = Route.define("/ready-lazy-solid-projects/:id", {
             component: LazyProject,
           });
           const container = document.createElement("div");
@@ -1064,10 +1029,10 @@ describe("createBrowserRouter", () => {
         Effect.gen(function* () {
           const preloaded: Array<string> = [];
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/registered-link-projects/:id");
-          const OutsideRoute = route("/outside-link-projects/:id", {
+          const ProjectRoute = Route.define("/registered-link-projects/:id");
+          const OutsideRoute = Route.define("/outside-link-projects/:id", {
             preload: ({ params }) =>
               Effect.sync(() => {
                 preloaded.push(params.id);
@@ -1128,10 +1093,10 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           let starts = 0;
-          const ProjectRoute = route("/hover-disabled-projects/:id", {
+          const ProjectRoute = Route.define("/hover-disabled-projects/:id", {
             preload: () =>
               Effect.sync(() => {
                 starts++;
@@ -1175,11 +1140,11 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           let starts = 0;
           let finalizers = 0;
-          const ProjectRoute = route("/hover-projects/:id", {
+          const ProjectRoute = Route.define("/hover-projects/:id", {
             preload: () =>
               Effect.sync(() => {
                 starts++;
@@ -1254,12 +1219,12 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const started = yield* Deferred.make<void>();
           const release = yield* Deferred.make<void>();
           let loads = 0;
-          const Project = Resource.family<string, { readonly id: string }>({
+          const Project = Resource.define<string, { readonly id: string }>({
             name: "SolidRouter.hover-navigate-resource-owner",
             load: (id) =>
               Effect.gen(function* () {
@@ -1269,8 +1234,8 @@ describe("createBrowserRouter", () => {
                 return { id };
               }),
           });
-          const ProjectRoute = route("/hover-navigate-projects/:id", {
-            preload: ({ params }) => Resource.prefetchEffect(Project(params.id)),
+          const ProjectRoute = Route.define("/hover-navigate-projects/:id", {
+            preload: ({ params }) => Resource.preload(Project(params.id)),
           });
 
           let router: BrowserRouter<readonly [typeof ProjectRoute]> | undefined;
@@ -1334,7 +1299,7 @@ describe("createBrowserRouter", () => {
           expect(
             runWithRuntime(
               runtime,
-              () => Effect.runSync(Resource.statusEffect(Project("atlas"))).result._tag,
+              () => Effect.runSync(Resource.status(Project("atlas"))).result._tag,
             ),
           ).toBe("Success");
         }),
@@ -1347,10 +1312,10 @@ describe("createBrowserRouter", () => {
         Effect.gen(function* () {
           const runtime = makeRuntime();
           const release = yield* Deferred.make<void>();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           let renders = 0;
-          const ProjectRoute = route("/projects/:id", {
+          const ProjectRoute = Route.define("/projects/:id", {
             preload: () => Deferred.await(release),
             component: () => {
               renders++;
@@ -1411,7 +1376,7 @@ describe("createBrowserRouter", () => {
   it("mounts the outlet without strict untracked-read warnings", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const runtime = makeRuntime();
-    const HomeRoute = route("/", { component: () => "home" });
+    const HomeRoute = Route.define("/", { component: () => "home" });
     const container = document.createElement("div");
     const dispose = render(
       () =>
@@ -1437,7 +1402,7 @@ describe("createBrowserRouter", () => {
     } finally {
       dispose();
       warn.mockRestore();
-      await Effect.runPromise(Effect.orDie(runtime.disposeEffect));
+      await Effect.runPromise(Effect.orDie(runtime.dispose));
     }
   });
 
@@ -1446,9 +1411,9 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/renderer-pending/:id", {
+          const ProjectRoute = Route.define("/renderer-pending/:id", {
             component: () => "project",
           });
           const routes = [ProjectRoute] as const;
@@ -1497,9 +1462,9 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/renderer-cleanup/:id", {
+          const ProjectRoute = Route.define("/renderer-cleanup/:id", {
             component: () => "project",
           });
           const routes = [ProjectRoute] as const;
@@ -1545,7 +1510,7 @@ describe("createBrowserRouter", () => {
               node: currentNode,
               renderError,
             });
-            disposeController = controller.disposeEffect;
+            disposeController = controller.dispose;
             node = () => currentNode.get();
             update = (pending) =>
               controller.update({
@@ -1586,9 +1551,9 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/renderer-failed-cleanup/:id", {
+          const ProjectRoute = Route.define("/renderer-failed-cleanup/:id", {
             component: () => "project",
           });
           const routes = [ProjectRoute] as const;
@@ -1622,7 +1587,7 @@ describe("createBrowserRouter", () => {
               node: currentNode,
               renderError: renderErrorSignal,
             });
-            disposeController = controller.disposeEffect;
+            disposeController = controller.dispose;
             node = () => currentNode.get();
             update = (pending) =>
               controller.update({
@@ -1676,9 +1641,9 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/renderer-initial-failed-cleanup/:id", {
+          const ProjectRoute = Route.define("/renderer-initial-failed-cleanup/:id", {
             component: () => "project",
           });
           const routes = [ProjectRoute] as const;
@@ -1725,7 +1690,7 @@ describe("createBrowserRouter", () => {
               node: currentNode,
               renderError: renderErrorSignal,
             });
-            disposeController = controller.disposeEffect;
+            disposeController = controller.dispose;
             node = () => currentNode.get();
             update = (pending) =>
               controller.update({
@@ -1766,9 +1731,9 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/renderer-dispose-effect/:id", {
+          const ProjectRoute = Route.define("/renderer-dispose-effect/:id", {
             component: () => "project",
           });
           const routes = [ProjectRoute] as const;
@@ -1807,9 +1772,9 @@ describe("createBrowserRouter", () => {
               node: currentNode,
               renderError,
             });
-            const controllerDisposeEffect: Effect.Effect<void> = controller.disposeEffect();
+            const controllerDisposeEffect: Effect.Effect<void> = controller.dispose();
             void controllerDisposeEffect;
-            disposeController = controller.disposeEffect;
+            disposeController = controller.dispose;
           });
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
 
@@ -1834,9 +1799,9 @@ describe("createBrowserRouter", () => {
               delete hydrationGlobal._$HY;
             }),
           );
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/hydrating-projects/:id", {
+          const ProjectRoute = Route.define("/hydrating-projects/:id", {
             preload: () => Deferred.await(release),
           });
           let router: BrowserRouter<readonly [typeof ProjectRoute]> | undefined;
@@ -1890,9 +1855,9 @@ describe("createBrowserRouter", () => {
               }
             }),
           );
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/server-projects/:id", {
+          const ProjectRoute = Route.define("/server-projects/:id", {
             preload: () =>
               Effect.sync(() => {
                 preloads++;
@@ -1942,9 +1907,9 @@ describe("createBrowserRouter", () => {
               }
             }),
           );
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const ProjectRoute = route("/post-hydration-projects/:id", {
+          const ProjectRoute = Route.define("/post-hydration-projects/:id", {
             preload: () => Deferred.await(release),
           });
           let dispose: () => void = () => undefined;
@@ -1977,15 +1942,15 @@ describe("createBrowserRouter", () => {
         Effect.gen(function* () {
           const runtime = makeRuntime();
           const release = yield* Deferred.make<void>();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
-          const ProjectById = Resource.family<string, { readonly id: string }>({
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+          const ProjectById = Resource.define<string, { readonly id: string }>({
             name: "SolidRouter.pending-runtime-resource",
             load: (id) => Effect.succeed({ id }),
           });
           const ref = ProjectById("atlas");
-          yield* runtime.provide(Resource.prefetchEffect(ref));
+          yield* runtime.provide(Resource.preload(ref));
 
-          const ProjectRoute = route("/pending-runtime/:id", {
+          const ProjectRoute = Route.define("/pending-runtime/:id", {
             preload: () => Deferred.await(release),
             component: () => "project",
           });
@@ -1998,7 +1963,7 @@ describe("createBrowserRouter", () => {
                   return createComponent(RouterProvider, {
                     routes: [ProjectRoute] as const,
                     initialHref: "/pending-runtime/atlas",
-                    pending: () => Effect.runSync(Resource.statusEffect(ref)).result._tag,
+                    pending: () => Effect.runSync(Resource.status(ref)).result._tag,
                   });
                 },
               }),
@@ -2018,10 +1983,10 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const events: Array<string> = [];
-          const OldRoute = route("/old", {
+          const OldRoute = Route.define("/old", {
             component: () => {
               events.push("old:setup");
               onDispose(() => Effect.sync(() => events.push("old:cleanup")));
@@ -2030,7 +1995,7 @@ describe("createBrowserRouter", () => {
               return element;
             },
           });
-          const NewRoute = route("/new", {
+          const NewRoute = Route.define("/new", {
             component: () => {
               events.push("new:setup");
               onDispose(() => Effect.sync(() => events.push("new:cleanup")));
@@ -2089,13 +2054,13 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const renderError = new Error("route render failed");
-          const GoodRoute = route("/render-good", {
+          const GoodRoute = Route.define("/render-good", {
             component: () => "good",
           });
-          const ThrowingRoute = route("/render-throw", {
+          const ThrowingRoute = Route.define("/render-throw", {
             component: () => {
               throw renderError;
             },
@@ -2156,13 +2121,13 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const preloadFailure = "missing-project" as const;
-          const GoodRoute = route("/preload-good", {
+          const GoodRoute = Route.define("/preload-good", {
             component: () => "good",
           });
-          const FailingRoute = route("/preload-fail", {
+          const FailingRoute = Route.define("/preload-fail", {
             preload: () => Effect.fail(preloadFailure).pipe(Effect.asVoid),
             component: () => "never",
           });
@@ -2227,9 +2192,9 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
-          const FailingRoute = route("/renderer-failure", {
+          const FailingRoute = Route.define("/renderer-failure", {
             preload: () => Effect.fail("offline" as const).pipe(Effect.asVoid),
             component: () => "never",
           });
@@ -2282,21 +2247,21 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
-          const ProjectById = Resource.family<string, { readonly id: string }>({
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
+          const ProjectById = Resource.define<string, { readonly id: string }>({
             name: "SolidRouter.route-scope-runtime-disposal",
             load: (id) => Effect.succeed({ id }),
           });
           const ref = ProjectById("atlas");
-          yield* runtime.provide(Resource.prefetchEffect(ref));
+          yield* runtime.provide(Resource.preload(ref));
 
-          const OldRoute = route("/scope-old", {
+          const OldRoute = Route.define("/scope-old", {
             component: () => {
-              onDispose(() => Resource.deleteEffect(ref));
+              onDispose(() => Resource.evict(ref));
               return "old";
             },
           });
-          const NewRoute = route("/scope-new", {
+          const NewRoute = Route.define("/scope-new", {
             component: () => "new",
           });
           const routes = [OldRoute, NewRoute] as const;
@@ -2334,7 +2299,7 @@ describe("createBrowserRouter", () => {
           yield* Effect.sleep("20 millis");
 
           expect(
-            runWithRuntime(runtime, () => Effect.runSync(Resource.statusEffect(ref)).result._tag),
+            runWithRuntime(runtime, () => Effect.runSync(Resource.status(ref)).result._tag),
           ).toBe("Initial");
         }),
       ),
@@ -2346,26 +2311,26 @@ describe("createBrowserRouter", () => {
         Effect.gen(function* () {
           const routerRuntime = makeRuntime();
           const nestedRuntime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(routerRuntime.disposeEffect));
-          yield* Effect.addFinalizer(() => Effect.orDie(nestedRuntime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(routerRuntime.dispose));
+          yield* Effect.addFinalizer(() => Effect.orDie(nestedRuntime.dispose));
 
-          const ProjectById = Resource.family<string, { readonly id: string }>({
+          const ProjectById = Resource.define<string, { readonly id: string }>({
             name: "SolidRouter.solid-cleanup-runtime",
             load: (id) => Effect.succeed({ id }),
           });
           const ref = ProjectById("atlas");
-          yield* routerRuntime.provide(Resource.prefetchEffect(ref));
+          yield* routerRuntime.provide(Resource.preload(ref));
 
           const cleanupStatuses: Array<string> = [];
-          const OldRoute = route("/solid-cleanup-runtime-old", {
+          const OldRoute = Route.define("/solid-cleanup-runtime-old", {
             component: () => {
               onCleanup(() => {
-                cleanupStatuses.push(Effect.runSync(Resource.statusEffect(ref)).result._tag);
+                cleanupStatuses.push(Effect.runSync(Resource.status(ref)).result._tag);
               });
               return "old";
             },
           });
-          const NewRoute = route("/solid-cleanup-runtime-new", {
+          const NewRoute = Route.define("/solid-cleanup-runtime-new", {
             component: () => "new",
           });
           const routes = [OldRoute, NewRoute] as const;
@@ -2412,10 +2377,7 @@ describe("createBrowserRouter", () => {
             }),
           );
           expect(
-            runWithRuntime(
-              nestedRuntime,
-              () => Effect.runSync(Resource.statusEffect(ref)).result._tag,
-            ),
+            runWithRuntime(nestedRuntime, () => Effect.runSync(Resource.status(ref)).result._tag),
           ).toBe("Initial");
         }),
       ),
@@ -2426,10 +2388,10 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const events: Array<string> = [];
-          const OldRoute = route("/solid-old", {
+          const OldRoute = Route.define("/solid-old", {
             component: () => {
               events.push("old:setup");
               onCleanup(() => {
@@ -2440,7 +2402,7 @@ describe("createBrowserRouter", () => {
               return element;
             },
           });
-          const NewRoute = route("/solid-new", {
+          const NewRoute = Route.define("/solid-new", {
             component: () => {
               events.push(`new:setup:${events.includes("old:solid-cleanup")}`);
               const element = document.createElement("span");
@@ -2492,11 +2454,11 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const events: Array<string> = [];
           const release = yield* Deferred.make<void>();
-          const OldRoute = route("/async-old", {
+          const OldRoute = Route.define("/async-old", {
             component: () => {
               events.push("old:setup");
               onDispose(() =>
@@ -2511,7 +2473,7 @@ describe("createBrowserRouter", () => {
               return element;
             },
           });
-          const NewRoute = route("/async-new", {
+          const NewRoute = Route.define("/async-new", {
             component: () => {
               events.push(`new:setup:${events.includes("old:scope-start")}`);
               const element = document.createElement("span");
@@ -2574,10 +2536,10 @@ describe("createBrowserRouter", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(runtime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(runtime.dispose));
 
           const events: Array<string> = [];
-          const RouteWithCleanup = route("/cleanup", {
+          const RouteWithCleanup = Route.define("/cleanup", {
             component: () => {
               events.push("setup");
               onCleanup(() => {
@@ -2626,10 +2588,10 @@ describe("createBrowserRouter", () => {
         Effect.gen(function* () {
           const outerRuntime = makeRuntime();
           const innerRuntime = makeRuntime();
-          yield* Effect.addFinalizer(() => Effect.orDie(outerRuntime.disposeEffect));
-          yield* Effect.addFinalizer(() => Effect.orDie(innerRuntime.disposeEffect));
+          yield* Effect.addFinalizer(() => Effect.orDie(outerRuntime.dispose));
+          yield* Effect.addFinalizer(() => Effect.orDie(innerRuntime.dispose));
 
-          const ProjectById = Resource.family<
+          const ProjectById = Resource.define<
             string,
             { readonly id: string; readonly name: string }
           >({
@@ -2638,10 +2600,10 @@ describe("createBrowserRouter", () => {
           });
           const ref = ProjectById("atlas");
           let renderedStatus: string | undefined;
-          const ProjectRoute = route("/runtime-projects/:id", {
-            preload: () => Resource.prefetchEffect(ref),
+          const ProjectRoute = Route.define("/runtime-projects/:id", {
+            preload: () => Resource.preload(ref),
             component: () => {
-              const status = Effect.runSync(Resource.statusEffect(ref)).result;
+              const status = Effect.runSync(Resource.status(ref)).result;
               renderedStatus = status._tag;
               const element = document.createElement("span");
               element.textContent = status._tag;
@@ -2680,10 +2642,7 @@ describe("createBrowserRouter", () => {
           );
 
           expect(
-            runWithRuntime(
-              innerRuntime,
-              () => Effect.runSync(Resource.statusEffect(ref)).result._tag,
-            ),
+            runWithRuntime(innerRuntime, () => Effect.runSync(Resource.status(ref)).result._tag),
           ).toBe("Initial");
         }),
       ),

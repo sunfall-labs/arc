@@ -10,17 +10,17 @@ pnpm --filter @sunfall/arc-example-devtools-extension verify
 ```
 
 The build emits a Manifest V3 extension with `devtools.html`, `panel.html`, and
-`manifest.json` in `dist`. The panel uses `mountDevtoolsPanelsEffect(...)`, so
+`manifest.json` in `dist`. The panel uses `mountDevtoolsPanels(...)`, so
 DOM lifecycle ownership stays inside an Effect scope before crossing the
 browser-extension boundary. It renders checked sample facts as a fallback, then
 polls the inspected page for live panel data through:
 
 ```ts
-import { installDevtoolsBridgeEffect } from "@sunfall/arc-devtools";
+import { installDevtoolsBridge } from "@sunfall/arc-devtools";
 
 yield *
-  installDevtoolsBridgeEffect(() => ({
-    panels: store.getPanels(),
+  installDevtoolsBridge(() => ({
+    panels: Effect.runSync(store.getPanels()),
     selectedPanelId: "requests",
     title: "Sunfall Arc Devtools",
   }));

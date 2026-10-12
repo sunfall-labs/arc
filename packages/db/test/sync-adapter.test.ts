@@ -20,7 +20,7 @@ interface Project {
 }
 
 describe("Collection sync adapters", () => {
-  it("adapts generic sync loads, refetches, and mutation handlers", () => {
+  it("adapts generic sync loads, refreshes, and mutation handlers", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const inserts: Array<Collection.SyncInsertPayload<Project, string>> = [];
@@ -40,7 +40,7 @@ describe("Collection sync adapters", () => {
           sync: {
             name: "generic-test",
             load,
-            refetch,
+            refresh: refetch,
             insert: (payload) =>
               Effect.sync(() => {
                 inserts.push(payload);
@@ -65,21 +65,21 @@ describe("Collection sync adapters", () => {
           ]),
         );
 
-        yield* Projects.preloadEffect();
+        yield* Projects.preload();
 
         expect(Projects.rows().map((project) => project.name)).toEqual(["Atlas"]);
         expect(load).toHaveBeenCalledTimes(1);
         expect(refetch).not.toHaveBeenCalled();
 
-        yield* Projects.refetchEffect();
+        yield* Projects.refresh();
 
         expect(Projects.rows().map((project) => project.name)).toEqual(["Atlas Prime"]);
         expect(load).toHaveBeenCalledTimes(1);
         expect(refetch).toHaveBeenCalledTimes(1);
 
-        yield* Projects.insertEffect({ id: "lumen", name: "Lumen", archived: false });
-        yield* Projects.updateEffect("atlas", { archived: true });
-        yield* Projects.deleteEffect("lumen");
+        yield* Projects.insert({ id: "lumen", name: "Lumen", archived: false });
+        yield* Projects.update("atlas", { archived: true });
+        yield* Projects.delete("lumen");
 
         expect(inserts).toMatchObject([
           {
@@ -142,9 +142,9 @@ describe("Collection sync adapters", () => {
           },
         });
 
-        const loadError = yield* Effect.flip(LoadProjects.preloadEffect());
+        const loadError = yield* Effect.flip(LoadProjects.preload());
         const insertError = yield* Effect.flip(
-          InsertProjects.insertEffect({ id: "atlas", name: "Atlas", archived: false }),
+          InsertProjects.insert({ id: "atlas", name: "Atlas", archived: false }),
         );
 
         expect(loadError).toBeInstanceOf(EffectInputCallbackError);
@@ -156,7 +156,7 @@ describe("Collection sync adapters", () => {
       }),
     ));
 
-  it("preserves sync adapter receivers for method-style load and refetch callbacks", () =>
+  it("preserves sync adapter receivers for method-style load and refresh callbacks", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         interface MethodSyncAdapter extends Collection.SyncAdapter<Project> {
@@ -171,7 +171,7 @@ describe("Collection sync adapters", () => {
           load(this: MethodSyncAdapter) {
             return this.loaded;
           },
-          refetch(this: MethodSyncAdapter) {
+          refresh(this: MethodSyncAdapter) {
             return this.refreshed;
           },
         };
@@ -181,15 +181,15 @@ describe("Collection sync adapters", () => {
           sync,
         });
 
-        yield* Projects.preloadEffect();
+        yield* Projects.preload();
         expect(Projects.rows().map((project) => project.name)).toEqual(["Atlas"]);
 
-        yield* Projects.refetchEffect();
+        yield* Projects.refresh();
         expect(Projects.rows().map((project) => project.name)).toEqual(["Atlas Prime"]);
       }),
     ));
 
-  it("keeps first load versus refetch selection local to each runtime", () => {
+  it("keeps first load versus refresh selection local to each runtime", () => {
     const first = makeRuntime();
     const second = makeRuntime();
 
@@ -209,12 +209,12 @@ describe("Collection sync adapters", () => {
           sync: {
             name: "runtime-local-load",
             load,
-            refetch,
+            refresh: refetch,
           },
         });
 
-        yield* first.provide(Projects.preloadEffect());
-        yield* second.provide(Projects.preloadEffect());
+        yield* first.provide(Projects.preload());
+        yield* second.provide(Projects.preload());
 
         expect(load).toHaveBeenCalledTimes(2);
         expect(refetch).not.toHaveBeenCalled();
@@ -225,7 +225,7 @@ describe("Collection sync adapters", () => {
           second.runSync(Effect.sync(() => Projects.rows().map((project) => project.name))),
         ).toEqual(["Atlas"]);
 
-        yield* first.provide(Projects.refetchEffect());
+        yield* first.provide(Projects.refresh());
 
         expect(load).toHaveBeenCalledTimes(2);
         expect(refetch).toHaveBeenCalledTimes(1);
@@ -238,8 +238,8 @@ describe("Collection sync adapters", () => {
       }).pipe(
         Effect.ensuring(
           Effect.gen(function* () {
-            yield* Effect.orDie(first.disposeEffect);
-            yield* Effect.orDie(second.disposeEffect);
+            yield* Effect.orDie(first.dispose);
+            yield* Effect.orDie(second.dispose);
           }),
         ),
       ),
@@ -275,11 +275,11 @@ describe("Collection sync adapters", () => {
           sync: { load, insert },
         });
 
-        yield* Projects.preloadEffect();
+        yield* Projects.preload();
 
         expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
 
-        yield* Projects.insertEffect({ id: "lumen", name: "Lumen", archived: false });
+        yield* Projects.insert({ id: "lumen", name: "Lumen", archived: false });
 
         expect(inserted).toMatchObject([[{ id: "lumen", name: "Lumen", archived: false }]]);
       }),
@@ -290,7 +290,7 @@ describe("Collection sync adapters", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         let loads = 0;
-        const ProjectRows = Resource.family<void, ReadonlyArray<Project>>({
+        const ProjectRows = Resource.define<void, ReadonlyArray<Project>>({
           name: "Projects.sync.resource.rows",
           load: () =>
             Effect.sync(() => {
@@ -315,11 +315,11 @@ describe("Collection sync adapters", () => {
           ]),
         );
 
-        yield* Projects.preloadEffect();
+        yield* Projects.preload();
 
         expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
 
-        yield* Projects.refetchEffect();
+        yield* Projects.refresh();
 
         expect(Projects.rows().map((project) => project.id)).toEqual(["lumen"]);
 
@@ -350,7 +350,7 @@ describe("Collection sync changes", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* runtime.provide(Projects.preloadEffect());
+        yield* runtime.provide(Projects.preload());
         yield* Queue.offer(remote, [
           { _tag: "Upsert", value: { id: "orion", name: "Orion", archived: true } },
           { _tag: "Update", key: "atlas", changes: { name: "Atlas Prime" } },
@@ -363,7 +363,7 @@ describe("Collection sync changes", () => {
           { id: "atlas", name: "Atlas Prime", $origin: "remote", $synced: true },
           { id: "orion", name: "Orion", archived: false, $origin: "remote", $synced: true },
         ]);
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
@@ -392,7 +392,7 @@ describe("Collection sync changes", () => {
           Effect.scoped(
             Effect.gen(function* () {
               const events = yield* subscribeCollectionEventsEffect();
-              yield* Projects.preloadEffect();
+              yield* Projects.preload();
               yield* Queue.offer(remote, [
                 { _tag: "Update", key: "missing", changes: { name: "Ghost" } },
               ]);
@@ -420,7 +420,7 @@ describe("Collection sync changes", () => {
             }),
           ),
         )
-        .pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+        .pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
@@ -453,8 +453,8 @@ describe("Collection sync changes", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* runtime.provide(Projects.preloadEffect());
-        yield* runtime.provide(Projects.refetchEffect());
+        yield* runtime.provide(Projects.preload());
+        yield* runtime.provide(Projects.refresh());
         yield* eventually(() => lifecycle.started === 1);
 
         yield* PubSub.publish(remote, [
@@ -462,7 +462,7 @@ describe("Collection sync changes", () => {
         ]);
         yield* eventually(() => names()[0] === "Atlas Live");
 
-        yield* Effect.orDie(runtime.disposeEffect);
+        yield* Effect.orDie(runtime.dispose);
         expect(lifecycle).toEqual({ started: 1, stopped: 1 });
       }),
     );
@@ -478,13 +478,13 @@ describe("Collection sync changes", () => {
         changes: () => Stream.fail("feed-lost" as const),
       },
     });
-    const state = () => runtime.runSync(Effect.sync(() => Projects.state().get()));
+    const state = () => runtime.runSync(Effect.sync(() => Projects.result().get()));
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* runtime.provide(Projects.preloadEffect());
+        yield* runtime.provide(Projects.preload());
         yield* eventually(() => state()._tag === "Failure");
-      }).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      }).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 });
@@ -513,7 +513,7 @@ describe("Collection sync follow", () => {
     let rows: ReadonlyArray<Project> = [{ id: "atlas", name: "Atlas", archived: false }];
     const loads = { count: 0 };
     const Tag = Resource.tag(`${name}.tag`);
-    const Family = Resource.family({
+    const Family = Resource.define({
       name: `${name}.resource`,
       input: Schema.Literal("all"),
       output: Schema.Array(ProjectSchema),
@@ -532,8 +532,8 @@ describe("Collection sync follow", () => {
       getKey: (project) => project.id,
       sync: optimistic
         ? {
-            load: () => Resource.prefetchEffect(ref),
-            refetch: () => Resource.refreshEffect(ref),
+            load: () => Resource.preload(ref),
+            refresh: () => Resource.refresh(ref),
             follow: () => Resource.changes(ref),
             update: (payload: Collection.SyncUpdatePayload<Project, string>) =>
               Effect.gen(function* () {
@@ -568,12 +568,12 @@ describe("Collection sync follow", () => {
       runtime
         .provide(
           Effect.gen(function* () {
-            yield* fixture.Projects.preloadEffect();
+            yield* fixture.Projects.preload();
             expect(names()).toEqual(["Atlas"]);
             expect(fixture.loads.count).toBe(1);
 
             fixture.setRows([{ id: "atlas", name: "Atlas Prime", archived: false }]);
-            yield* Resource.invalidateEffect(fixture.Tag);
+            yield* Resource.invalidate(fixture.Tag);
 
             yield* eventually(() => names()[0] === "Atlas Prime");
             // The Resource reload fed the collection; the collection did not fetch again.
@@ -581,12 +581,12 @@ describe("Collection sync follow", () => {
             expect(fixture.Projects.rows()).toMatchObject([{ id: "atlas", $synced: true }]);
 
             fixture.setRows([{ id: "lumen", name: "Lumen", archived: true }]);
-            yield* Resource.refreshEffect(fixture.ref);
+            yield* Resource.refresh(fixture.ref);
             yield* eventually(() => names()[0] === "Lumen");
             expect(fixture.loads.count).toBe(3);
           }),
         )
-        .pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+        .pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
@@ -599,15 +599,15 @@ describe("Collection sync follow", () => {
       runtime
         .provide(
           Effect.gen(function* () {
-            yield* fixture.Projects.preloadEffect();
+            yield* fixture.Projects.preload();
             fixture.gate.deferred = yield* Deferred.make<void>();
             const mutation = yield* Effect.forkChild(
-              fixture.Projects.updateEffect("atlas", { name: "Atlas Local" }),
+              fixture.Projects.update("atlas", { name: "Atlas Local" }),
             );
             yield* eventually(() => fixture.updates.length === 1);
 
             fixture.setRows([{ id: "atlas", name: "Atlas Remote", archived: true }]);
-            yield* Resource.invalidateEffect(fixture.Tag);
+            yield* Resource.invalidate(fixture.Tag);
             yield* eventually(() => fixture.loads.count === 2 && rows()[0]?.archived === true);
             // The followed snapshot rebases the pending patch instead of clobbering it.
             expect(rows()).toMatchObject([{ name: "Atlas Local", archived: true, $synced: false }]);
@@ -617,7 +617,7 @@ describe("Collection sync follow", () => {
             expect(rows()).toMatchObject([{ name: "Atlas Local", archived: true, $synced: true }]);
           }),
         )
-        .pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+        .pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
   });
 
@@ -632,10 +632,10 @@ describe("Collection sync follow", () => {
       Effect.gen(function* () {
         const { resources, collection } = yield* server.provide(
           Effect.gen(function* () {
-            yield* fixture.Projects.preloadEffect();
+            yield* fixture.Projects.preload();
             return {
-              resources: yield* Resource.hydrationPayloadEffect([fixture.ref]),
-              collection: yield* fixture.Projects.snapshotEffect(),
+              resources: yield* Resource.hydrationPayload([fixture.ref]),
+              collection: yield* fixture.Projects.snapshot(),
             };
           }),
         );
@@ -643,15 +643,15 @@ describe("Collection sync follow", () => {
 
         yield* client.provide(
           Effect.gen(function* () {
-            yield* Resource.hydrateEffect(resources);
-            yield* fixture.Projects.hydrateEffect(collection);
-            yield* fixture.Projects.preloadEffect();
+            yield* Resource.hydrate(resources);
+            yield* fixture.Projects.hydrate(collection);
+            yield* fixture.Projects.preload();
             yield* Effect.sleep("5 millis");
             expect(fixture.loads.count).toBe(1);
             expect(names()).toEqual(["Atlas"]);
 
             fixture.setRows([{ id: "atlas", name: "Atlas Prime", archived: false }]);
-            yield* Resource.invalidateEffect(fixture.Tag);
+            yield* Resource.invalidate(fixture.Tag);
             yield* eventually(() => names()[0] === "Atlas Prime");
             expect(fixture.loads.count).toBe(2);
           }),
@@ -659,8 +659,8 @@ describe("Collection sync follow", () => {
       }).pipe(
         Effect.ensuring(
           Effect.gen(function* () {
-            yield* Effect.orDie(server.disposeEffect);
-            yield* Effect.orDie(client.disposeEffect);
+            yield* Effect.orDie(server.dispose);
+            yield* Effect.orDie(client.dispose);
           }),
         ),
       ),
@@ -696,15 +696,15 @@ describe("Collection sync follow", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* runtime.provide(Projects.preloadEffect());
-        yield* runtime.provide(Projects.preloadEffect());
-        yield* runtime.provide(Projects.refetchEffect());
+        yield* runtime.provide(Projects.preload());
+        yield* runtime.provide(Projects.preload());
+        yield* runtime.provide(Projects.refresh());
         yield* eventually(() => lifecycle.started === 1);
 
         yield* PubSub.publish(source, [{ id: "atlas", name: "Atlas Live", archived: false }]);
         yield* eventually(() => names()[0] === "Atlas Live");
 
-        yield* Effect.orDie(runtime.disposeEffect);
+        yield* Effect.orDie(runtime.dispose);
         expect(lifecycle).toEqual({ started: 1, stopped: 1 });
       }),
     );

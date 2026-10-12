@@ -424,7 +424,7 @@ export namespace Signal {
     );
 
   /** Creates a signal from a stream inside an Effect scope. */
-  export const fromStreamEffect = <A, R>(
+  export const fromStream = <A, R>(
     stream: Stream.Stream<A, never, R>,
     initial: A,
   ): Effect.Effect<ReadableSignal<A>, never, R | Scope.Scope> =>

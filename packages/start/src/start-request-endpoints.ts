@@ -2,7 +2,7 @@ import {
   ActionTransport,
   Server,
   ServerRpcProtocolError,
-  applyResponseContextEffect,
+  applyResponseContext,
   type EffectInputCallbackError,
   makeResponseContext,
   type ActionDefinition,
@@ -204,9 +204,9 @@ export const createServerRpcResponseEffect = <
   return Effect.ensuring(
     Effect.flatMap(
       createServerRpcResponseEffectWithRuntime(app, request, runtime, responseContext),
-      (response) => applyResponseContextEffect(responseContext, response),
+      (response) => applyResponseContext(responseContext, response),
     ),
-    runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
+    runtime.dispose.pipe(Effect.catchCause(() => Effect.void)),
   ) as Effect.Effect<
     Response,
     EffectInputCallbackError,
@@ -324,7 +324,7 @@ export const createServerActionResponseEffectWithRuntime = <
           const exit = yield* Effect.exit(
             withStartActionObservability(
               action.name,
-              Effect.provideService(instance.submitEffect(input), ActionTransport, {
+              Effect.provideService(instance.submit(input), ActionTransport, {
                 submit: () => Option.none(),
               }),
             ),
@@ -409,9 +409,9 @@ export const createServerActionResponseEffect = <
   return Effect.ensuring(
     Effect.flatMap(
       createServerActionResponseEffectWithRuntime(app, request, runtime, actions, responseContext),
-      (response) => applyResponseContextEffect(responseContext, response),
+      (response) => applyResponseContext(responseContext, response),
     ),
-    runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)),
+    runtime.dispose.pipe(Effect.catchCause(() => Effect.void)),
   ) as Effect.Effect<
     Response,
     EffectInputCallbackError,

@@ -1,15 +1,6 @@
 import { Cause, Effect, Exit, Fiber, PubSub, Schema, Scope } from "effect";
 import { describe, expect, it } from "vitest";
-import {
-  Action,
-  makeRuntime,
-  Program,
-  Resource,
-  route,
-  Route,
-  Signal,
-  Timeline,
-} from "@sunfall/arc-core";
+import { Action, makeRuntime, Program, Resource, Route, Signal, Timeline } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
 import { collectionStoreEffect } from "@sunfall/arc-db/internal";
 import {
@@ -25,9 +16,8 @@ import {
   describeRoutePlan,
   sunfallArcDevtoolsBridgeGlobal,
   installDevtoolsBridge,
-  installDevtoolsBridgeEffect,
   isDevtoolsSerializableValue,
-  mountDevtoolsPanelsEffect,
+  mountDevtoolsPanels,
   renderDevtoolsPanelsHtml,
   toDevtoolsSerializableValue,
   type DevtoolsBridgeTarget,
@@ -47,6 +37,11 @@ import { devtoolsPanelStyles } from "../src/panel-renderer.js";
 import { defaultRuntime } from "@sunfall/arc-core/internal";
 
 type DevtoolsLifecycleType = "pagehide" | "beforeunload";
+
+const installBridgeForTest = (
+  ...args: Parameters<typeof installDevtoolsBridge>
+): Effect.Success<ReturnType<typeof installDevtoolsBridge>> =>
+  Effect.runSync(installDevtoolsBridge(...args).pipe(Scope.provide(Scope.makeUnsafe())));
 
 const makeDevtoolsLifecycleWindow = () => {
   const listeners = new Map<DevtoolsLifecycleType, Set<() => void>>([
@@ -99,18 +94,16 @@ describe("devtools invalidation plans", () => {
     };
 
     const conflictOptions = {
-      invalidationPlan: Effect.runSync(Resource.planInvalidationEffect(Tag)),
+      invalidationPlan: Effect.runSync(Resource.planInvalidation(Tag)),
       serializedInvalidationPlan: serialized,
     } as unknown as Parameters<typeof store.recordActionState>[2];
 
-    expect(() => store.recordActionState("Devtools.conflict", "Pending", conflictOptions)).toThrow(
-      DevtoolsActionInvalidationPlanConflict,
-    );
+    expect(() =>
+      Effect.runSync(store.recordActionState("Devtools.conflict", "Pending", conflictOptions)),
+    ).toThrow(DevtoolsActionInvalidationPlanConflict);
 
     const effectFailure = await Effect.runPromise(
-      store
-        .recordActionStateEffect("Devtools.conflict", "Pending", conflictOptions)
-        .pipe(Effect.flip),
+      store.recordActionState("Devtools.conflict", "Pending", conflictOptions).pipe(Effect.flip),
     );
     expect(effectFailure).toBeInstanceOf(DevtoolsActionInvalidationPlanConflict);
   });
@@ -119,19 +112,17 @@ describe("devtools invalidation plans", () => {
     const UserTag = Resource.tag<{ readonly id: string }>("User.devtools", {
       key: ({ id }) => id,
     });
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.devtools",
       load: (id: string) => Effect.succeed({ id }),
       provides: (user) => [UserTag({ id: user.id })],
     });
     const ref = User("1");
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
+    await Effect.runPromise(Resource.preload(ref));
 
     expect(
-      describeInvalidationPlan(
-        Effect.runSync(Resource.planInvalidationEffect(UserTag({ id: "1" }))),
-      ),
+      describeInvalidationPlan(Effect.runSync(Resource.planInvalidation(UserTag({ id: "1" })))),
     ).toEqual({
       targets: [
         {
@@ -164,10 +155,10 @@ describe("devtools invalidation plans", () => {
     const SecondTag = Resource.tag("Second.devtools");
     const store = makeDevtoolsStore({ invalidationLimit: 1 });
 
-    store.recordInvalidation(Effect.runSync(Resource.planInvalidationEffect(FirstTag)));
-    store.recordInvalidation(Effect.runSync(Resource.planInvalidationEffect(SecondTag)));
+    Effect.runSync(store.recordInvalidation(Effect.runSync(Resource.planInvalidation(FirstTag))));
+    Effect.runSync(store.recordInvalidation(Effect.runSync(Resource.planInvalidation(SecondTag))));
 
-    expect(store.getSnapshot().invalidations).toEqual([
+    expect(Effect.runSync(store.getSnapshot()).invalidations).toEqual([
       {
         targets: [
           {
@@ -182,9 +173,9 @@ describe("devtools invalidation plans", () => {
   });
 
   it("normalizes unsafe store history limits before trimming", async () => {
-    const RouteUser = route("/history/:id", {});
+    const RouteUser = Route.define("/history/:id", {});
     const routePlan = await Effect.runPromise(
-      Route.planNavigationEffect([RouteUser] as const, "/history/1"),
+      Route.planNavigation([RouteUser] as const, "/history/1"),
     );
     const invalidationStore = makeDevtoolsStore({ invalidationLimit: 0 });
     const routeStore = makeDevtoolsStore({ routePlanLimit: -1 });
@@ -192,40 +183,46 @@ describe("devtools invalidation plans", () => {
     const eventStore = makeDevtoolsStore({ eventLimit: Number.POSITIVE_INFINITY });
 
     for (let index = 0; index < 55; index++) {
-      invalidationStore.recordSerializedInvalidation({
-        targets: [{ _tag: "Tag", key: `Project.${index}`, name: "Project" }],
-        entries: [],
-      });
-      routeStore.recordRoutePlan(routePlan);
-      traceStore.recordRequestTrace({
-        request: {
-          id: `req:${index}`,
-          method: "GET",
-          url: `https://example.test/history/${index}`,
-          path: `/history/${index}`,
-          transport: "ssr",
-        },
-        services: [],
-        resources: [],
-        collections: [],
-        serverFunctions: [],
-        actions: [],
-        fibers: [],
-        streams: [],
-        status: "success",
-      });
+      Effect.runSync(
+        invalidationStore.recordSerializedInvalidation({
+          targets: [{ _tag: "Tag", key: `Project.${index}`, name: "Project" }],
+          entries: [],
+        }),
+      );
+      Effect.runSync(routeStore.recordRoutePlan(routePlan));
+      Effect.runSync(
+        traceStore.recordRequestTrace({
+          request: {
+            id: `req:${index}`,
+            method: "GET",
+            url: `https://example.test/history/${index}`,
+            path: `/history/${index}`,
+            transport: "ssr",
+          },
+          services: [],
+          resources: [],
+          collections: [],
+          serverFunctions: [],
+          actions: [],
+          fibers: [],
+          streams: [],
+          status: "success",
+        }),
+      );
     }
     for (let index = 0; index < 505; index++) {
-      eventStore.recordRuntimeEvent({
-        _tag: "Custom",
-        name: `event:${index}`,
-      });
+      Effect.runSync(
+        eventStore.recordRuntimeEvent({
+          _tag: "Custom",
+          name: `event:${index}`,
+        }),
+      );
     }
 
-    expect(invalidationStore.getSnapshot().invalidations).toHaveLength(50);
-    expect(routeStore.getSnapshot().routePlans).toHaveLength(50);
-    expect(traceStore.getSnapshot().requestTraces).toHaveLength(50);
-    expect(eventStore.getSnapshot().events).toHaveLength(500);
+    expect(Effect.runSync(invalidationStore.getSnapshot()).invalidations).toHaveLength(50);
+    expect(Effect.runSync(routeStore.getSnapshot()).routePlans).toHaveLength(50);
+    expect(Effect.runSync(traceStore.getSnapshot()).requestTraces).toHaveLength(50);
+    expect(Effect.runSync(eventStore.getSnapshot()).events).toHaveLength(500);
   });
 
   it("records serialized action invalidation plans from full-stack transports", async () => {
@@ -257,13 +254,13 @@ describe("devtools invalidation plans", () => {
     const store = makeDevtoolsStore();
 
     await Effect.runPromise(
-      store.recordActionStateEffect("Project.rename", "Success", {
+      store.recordActionState("Project.rename", "Success", {
         input: { id: "atlas" },
         serializedInvalidationPlan: plan,
       }),
     );
 
-    const snapshot = store.getSnapshot();
+    const snapshot = Effect.runSync(store.getSnapshot());
 
     expect(snapshot.invalidations).toEqual([plan]);
     expect(snapshot.actions).toEqual([
@@ -283,7 +280,7 @@ describe("devtools invalidation plans", () => {
         invalidationIndexes: [0],
       },
     ]);
-    expect(store.getCausalGraph().edges).toContainEqual(
+    expect(Effect.runSync(store.getCausalGraph()).edges).toContainEqual(
       expect.objectContaining({
         kind: "Emits",
         source: "action:Project.rename",
@@ -320,24 +317,32 @@ describe("devtools invalidation plans", () => {
     const secondPlan = invalidationPlan("second-tail");
     const store = makeDevtoolsStore();
 
-    store.recordActionState("Project.bulk.first", "Success", {
-      serializedInvalidationPlan: firstPlan,
-    });
-    store.recordActionState("Project.bulk.second", "Success", {
-      serializedInvalidationPlan: secondPlan,
-    });
-    store.recordRuntimeEvent({
-      _tag: "Invalidation",
-      action: "Project.bulk.first",
-      plan: firstPlan,
-    });
-    store.recordRuntimeEvent({
-      _tag: "Invalidation",
-      action: "Project.bulk.second",
-      plan: secondPlan,
-    });
+    Effect.runSync(
+      store.recordActionState("Project.bulk.first", "Success", {
+        serializedInvalidationPlan: firstPlan,
+      }),
+    );
+    Effect.runSync(
+      store.recordActionState("Project.bulk.second", "Success", {
+        serializedInvalidationPlan: secondPlan,
+      }),
+    );
+    Effect.runSync(
+      store.recordRuntimeEvent({
+        _tag: "Invalidation",
+        action: "Project.bulk.first",
+        plan: firstPlan,
+      }),
+    );
+    Effect.runSync(
+      store.recordRuntimeEvent({
+        _tag: "Invalidation",
+        action: "Project.bulk.second",
+        plan: secondPlan,
+      }),
+    );
 
-    const snapshot = store.getSnapshot();
+    const snapshot = Effect.runSync(store.getSnapshot());
     expect(snapshot.invalidations).toHaveLength(2);
     expect(snapshot.invalidations[0]?.entries[49]?.ref.key).toBe("Project:first-tail");
     expect(snapshot.invalidations[1]?.entries[49]?.ref.key).toBe("Project:second-tail");
@@ -366,8 +371,7 @@ describe("devtools invalidation plans", () => {
       }),
     ]);
     expect(
-      store
-        .getCausalGraph()
+      Effect.runSync(store.getCausalGraph())
         .nodes.filter((node) => node.kind === "InvalidationPlan")
         .map((node) => node.id),
     ).toEqual(["invalidation:0", "invalidation:1"]);
@@ -398,14 +402,14 @@ describe("devtools invalidation plans", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* store.recordActionStateEffect("Project.first", "Success", {
+        yield* store.recordActionState("Project.first", "Success", {
           serializedInvalidationPlan: firstPlan,
         });
-        yield* store.recordActionStateEffect("Project.second", "Success", {
+        yield* store.recordActionState("Project.second", "Success", {
           serializedInvalidationPlan: secondPlan,
         });
 
-        const snapshot = store.getSnapshot();
+        const snapshot = Effect.runSync(store.getSnapshot());
         expect(snapshot.invalidations).toEqual([secondPlan]);
         expect(snapshot.actions).toEqual([
           {
@@ -434,14 +438,14 @@ describe("devtools invalidation plans", () => {
           },
         ]);
 
-        expect(store.getCausalGraph().edges).not.toContainEqual(
+        expect(Effect.runSync(store.getCausalGraph()).edges).not.toContainEqual(
           expect.objectContaining({
             kind: "Emits",
             source: "action:Project.first",
             target: "invalidation:0",
           }),
         );
-        expect(store.getCausalGraph().edges).toContainEqual(
+        expect(Effect.runSync(store.getCausalGraph()).edges).toContainEqual(
           expect.objectContaining({
             kind: "Emits",
             source: "action:Project.second",
@@ -467,34 +471,36 @@ describe("devtools invalidation plans", () => {
     };
     const store = makeDevtoolsStore({ invalidationLimit: 2 });
 
-    store.recordSerializedInvalidation(firstPlan);
-    store.recordSerializedInvalidation(secondPlan);
-    store.recordRequestTrace({
-      request: {
-        id: "req-project-action",
-        method: "POST",
-        url: "https://example.test/__sunfall-arc/action",
-        path: "/__sunfall-arc/action",
-        transport: "action",
-      },
-      services: [],
-      resources: [],
-      collections: [],
-      serverFunctions: [],
-      actions: [
-        {
-          name: "Project.rename",
-          state: "Success",
-          invalidationIndexes: [1],
+    Effect.runSync(store.recordSerializedInvalidation(firstPlan));
+    Effect.runSync(store.recordSerializedInvalidation(secondPlan));
+    Effect.runSync(
+      store.recordRequestTrace({
+        request: {
+          id: "req-project-action",
+          method: "POST",
+          url: "https://example.test/__sunfall-arc/action",
+          path: "/__sunfall-arc/action",
+          transport: "action",
         },
-      ],
-      fibers: [],
-      streams: [],
-      status: "success",
-    });
-    store.recordSerializedInvalidation(thirdPlan);
+        services: [],
+        resources: [],
+        collections: [],
+        serverFunctions: [],
+        actions: [
+          {
+            name: "Project.rename",
+            state: "Success",
+            invalidationIndexes: [1],
+          },
+        ],
+        fibers: [],
+        streams: [],
+        status: "success",
+      }),
+    );
+    Effect.runSync(store.recordSerializedInvalidation(thirdPlan));
 
-    const snapshot = store.getSnapshot();
+    const snapshot = Effect.runSync(store.getSnapshot());
     expect(snapshot.invalidations).toEqual([secondPlan, thirdPlan]);
     expect(snapshot.requestTraces?.[0]?.actions).toEqual([
       {
@@ -515,7 +521,7 @@ describe("devtools invalidation plans", () => {
         ],
       },
     });
-    expect(store.getSummary().requests.traces[0]?.actions).toEqual([
+    expect(Effect.runSync(store.getSummary()).requests.traces[0]?.actions).toEqual([
       {
         name: "Project.rename",
         state: "Success",
@@ -527,7 +533,7 @@ describe("devtools invalidation plans", () => {
 
   it("tracks action instances as scoped runtime facts", async () => {
     let value = 0;
-    const Count = Resource.family({
+    const Count = Resource.define({
       name: "Count.action-devtools",
       load: () => Effect.succeed(value),
     });
@@ -547,14 +553,14 @@ describe("devtools invalidation plans", () => {
     await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          yield* Resource.prefetchEffect(ref);
-          yield* store.trackActionEffect(action);
-          yield* action.submitEffect(undefined);
+          yield* Resource.preload(ref);
+          yield* store.trackAction(action);
+          yield* action.submit(undefined);
         }),
       ),
     );
 
-    const snapshot = store.getSnapshot();
+    const snapshot = Effect.runSync(store.getSnapshot());
     expect(snapshot.actions).toEqual([
       {
         name: "Count.increment-devtools",
@@ -591,37 +597,44 @@ describe("devtools invalidation plans", () => {
       },
     });
 
-    store.recordTimelineEntry({
-      sequence: 1,
-      at: 10,
-      cause: {
-        _tag: "Program",
-        program: "Counter.program-devtools",
-        event: "message",
-        message: { _tag: "Increment", accessToken: "secret-token" },
-      },
-      changes: [
-        {
-          signal: model,
-          name: "Counter.model",
-          previous,
-          next: { count: 1, nested: { apiKey: "secret-api-key", tenantPrivate: "tenant-secret" } },
+    Effect.runSync(
+      store.recordTimelineEntry({
+        sequence: 1,
+        at: 10,
+        cause: {
+          _tag: "Program",
+          program: "Counter.program-devtools",
+          event: "message",
+          message: { _tag: "Increment", accessToken: "secret-token" },
         },
-      ],
-    });
-    store.recordTimelineEntry({
-      sequence: 2,
-      at: 11,
-      cause: {
-        _tag: "Program",
-        program: "Counter.program-devtools",
-        event: "failure",
-        message: { _tag: "Fail" },
-      },
-      changes: [{ signal: failures, name: "Counter.failures", previous: [], next: ["boom"] }],
-    });
+        changes: [
+          {
+            signal: model,
+            name: "Counter.model",
+            previous,
+            next: {
+              count: 1,
+              nested: { apiKey: "secret-api-key", tenantPrivate: "tenant-secret" },
+            },
+          },
+        ],
+      }),
+    );
+    Effect.runSync(
+      store.recordTimelineEntry({
+        sequence: 2,
+        at: 11,
+        cause: {
+          _tag: "Program",
+          program: "Counter.program-devtools",
+          event: "failure",
+          message: { _tag: "Fail" },
+        },
+        changes: [{ signal: failures, name: "Counter.failures", previous: [], next: ["boom"] }],
+      }),
+    );
 
-    const summary = store.getSummary();
+    const summary = Effect.runSync(store.getSummary());
     const firstEventData = summary.runtime.events[0]?.data as {
       readonly cause?: { readonly message?: { readonly accessToken?: unknown } };
       readonly changes?: ReadonlyArray<{
@@ -656,7 +669,9 @@ describe("devtools invalidation plans", () => {
     expect(JSON.stringify(summary)).not.toContain("secret-api-key");
     expect(JSON.stringify(summary)).not.toContain("tenant-secret");
 
-    const programsPanel = store.getPanels().panels.find((panel) => panel.id === "programs");
+    const programsPanel = Effect.runSync(store.getPanels()).panels.find(
+      (panel) => panel.id === "programs",
+    );
     expect(programsPanel).toMatchObject({
       title: "Programs",
       summary: "1 programs, 2 events",
@@ -685,7 +700,7 @@ describe("devtools invalidation plans", () => {
     );
     expect(JSON.stringify(programsPanel)).not.toContain("open-sesame");
     expect(JSON.stringify(programsPanel)).not.toContain("secret-token");
-    expect(store.getCausalGraph().nodes).toContainEqual(
+    expect(Effect.runSync(store.getCausalGraph()).nodes).toContainEqual(
       expect.objectContaining({
         id: "program:Counter.program-devtools",
         kind: "Program",
@@ -710,45 +725,49 @@ describe("devtools invalidation plans", () => {
         Effect.scoped(
           Effect.gen(function* () {
             const recording = yield* Timeline.record();
-            yield* program.dispatchEffect({ _tag: "Increment" });
-            yield* store.trackTimelineEffect(recording);
-            yield* program.dispatchEffect({ _tag: "Increment" });
+            yield* program.dispatch({ _tag: "Increment" });
+            yield* store.trackTimeline(recording);
+            yield* program.dispatch({ _tag: "Increment" });
           }),
         ),
       );
 
       const tracked =
-        store.getSnapshot().events?.filter((event) => event._tag === "TimelineCommit") ?? [];
+        Effect.runSync(store.getSnapshot()).events?.filter(
+          (event) => event._tag === "TimelineCommit",
+        ) ?? [];
       expect(program.model.get()).toEqual({ count: 2 });
       expect(tracked.map((event) => event.commit.label)).toEqual([
         'Program "Counter.program-track" message Increment',
         'Program "Counter.program-track" message Increment',
       ]);
-      expect(store.getSummary().runtime.events.map((event) => event.target)).toEqual([
+      expect(
+        Effect.runSync(store.getSummary()).runtime.events.map((event) => event.target),
+      ).toEqual([
         { kind: "Program", id: "program:Counter.program-track" },
         { kind: "Program", id: "program:Counter.program-track" },
       ]);
 
-      await Effect.runPromise(program.dispatchEffect({ _tag: "Increment" }));
+      await Effect.runPromise(program.dispatch({ _tag: "Increment" }));
       expect(
-        store.getSnapshot().events?.filter((event) => event._tag === "TimelineCommit"),
+        Effect.runSync(store.getSnapshot()).events?.filter(
+          (event) => event._tag === "TimelineCommit",
+        ),
       ).toHaveLength(tracked.length);
     } finally {
-      await Effect.runPromise(program.disposeEffect);
+      await Effect.runPromise(program.dispose);
     }
   });
 
   it("serializes route plans into plain data", async () => {
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.route-devtools",
       load: (id: string) => Effect.succeed({ id }),
     });
-    const UserRoute = route("/users/:id", {
-      preload: ({ params }) => Resource.prefetchEffect(User(params.id)).pipe(Effect.asVoid),
+    const UserRoute = Route.define("/users/:id", {
+      preload: ({ params }) => Resource.preload(User(params.id)).pipe(Effect.asVoid),
     });
-    const plan = await Effect.runPromise(
-      Route.planNavigationEffect([UserRoute] as const, "/users/1"),
-    );
+    const plan = await Effect.runPromise(Route.planNavigation([UserRoute] as const, "/users/1"));
 
     expect(describeRoutePlan(plan)).toEqual({
       _tag: "Matched",
@@ -777,26 +796,24 @@ describe("devtools invalidation plans", () => {
     const UserTag = Resource.tag<{ readonly id: string }>("User.summary-devtools", {
       key: ({ id }) => id,
     });
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.summary-devtools",
       load: (id: string) => Effect.succeed({ id }),
       provides: (user) => [UserTag({ id: user.id })],
     });
-    const UserRoute = route("/users/:id", {
-      preload: ({ params }) => Resource.prefetchEffect(User(params.id)),
+    const UserRoute = Route.define("/users/:id", {
+      preload: ({ params }) => Resource.preload(User(params.id)),
     });
     const ref = User("1");
 
     const routePlan = await Effect.runPromise(
       Effect.gen(function* () {
-        yield* Resource.prefetchEffect(ref);
-        return describeRoutePlan(
-          yield* Route.planNavigationEffect([UserRoute] as const, "/users/1"),
-        );
+        yield* Resource.preload(ref);
+        return describeRoutePlan(yield* Route.planNavigation([UserRoute] as const, "/users/1"));
       }),
     );
     const invalidationPlan = describeInvalidationPlan(
-      Effect.runSync(Resource.planInvalidationEffect(UserTag({ id: "1" }))),
+      Effect.runSync(Resource.planInvalidation(UserTag({ id: "1" }))),
     );
     const summary = describeDevtoolsSummary({
       appGraph: appGraphDiagnostics,
@@ -1006,7 +1023,7 @@ describe("devtools invalidation plans", () => {
   it("installs the inspected-window devtools bridge with scoped cleanup", async () => {
     const target: DevtoolsBridgeTarget = {};
     const panels = describeDevtoolsPanels();
-    const install = installDevtoolsBridge(
+    const install = installBridgeForTest(
       {
         panels,
         selectedPanelId: "requests",
@@ -1031,7 +1048,7 @@ describe("devtools invalidation plans", () => {
     await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          yield* installDevtoolsBridgeEffect(
+          yield* installDevtoolsBridge(
             () => ({
               panels,
               selectedPanelId: "resources",
@@ -1073,9 +1090,9 @@ describe("devtools invalidation plans", () => {
     const thirdProvider = { panels, title: "Third" };
     target[sunfallArcDevtoolsBridgeGlobal] = previous;
 
-    const first = installDevtoolsBridge(firstProvider, target);
-    const second = installDevtoolsBridge(secondProvider, target);
-    const third = installDevtoolsBridge(thirdProvider, target);
+    const first = installBridgeForTest(firstProvider, target);
+    const second = installBridgeForTest(secondProvider, target);
+    const third = installBridgeForTest(thirdProvider, target);
 
     expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(thirdProvider);
     second.uninstall();
@@ -1088,8 +1105,8 @@ describe("devtools invalidation plans", () => {
     expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(previous);
 
     const noBaselineTarget: DevtoolsBridgeTarget = {};
-    const noBaselineFirst = installDevtoolsBridge(firstProvider, noBaselineTarget);
-    const noBaselineSecond = installDevtoolsBridge(secondProvider, noBaselineTarget);
+    const noBaselineFirst = installBridgeForTest(firstProvider, noBaselineTarget);
+    const noBaselineSecond = installBridgeForTest(secondProvider, noBaselineTarget);
 
     noBaselineFirst.uninstall();
     expect(noBaselineTarget[sunfallArcDevtoolsBridgeGlobal]).toBe(secondProvider);
@@ -1500,7 +1517,7 @@ describe("devtools invalidation plans", () => {
     } as unknown as HTMLElement;
     const mountScope = Effect.runSync(Scope.make());
     Effect.runSync(
-      mountDevtoolsPanelsEffect({
+      mountDevtoolsPanels({
         root,
         panels: missingPanels,
         selectedPanelId: "diagnostics",
@@ -1540,7 +1557,7 @@ describe("devtools invalidation plans", () => {
     boot.interrupt();
 
     expectNoDevtoolsLifecycleListeners(listeners);
-    await Effect.runPromise(boot.interruptEffect);
+    await Effect.runPromise(Fiber.await(boot.fiber));
   });
 
   it("releases devtools panel lifecycle listeners when afterMount fails synchronously", async () => {
@@ -1619,16 +1636,16 @@ describe("devtools invalidation plans", () => {
       .unknownRoutePreloadCollections;
     const store = makeDevtoolsStore();
 
-    store.setAppGraphDiagnostics(legacyAppGraph);
+    Effect.runSync(store.setAppGraphDiagnostics(legacyAppGraph));
 
-    const snapshotAppGraph = store.getSnapshot().appGraph;
+    const snapshotAppGraph = Effect.runSync(store.getSnapshot()).appGraph;
     expect(snapshotAppGraph?.collectionDefinitions).toEqual([]);
     expect(snapshotAppGraph?.unknownRoutePreloadCollections).toEqual([]);
     expect(snapshotAppGraph?.routeModules[0]?.preloadCollections).toEqual({
       status: "unknown",
       collections: [],
     });
-    const summary = store.getSummary();
+    const summary = Effect.runSync(store.getSummary());
     expect(summary.overview.collectionDefinitionCount).toBe(0);
     expect(summary.overview.unknownRoutePreloadCollectionsCount).toBe(0);
     expect(summary.graph._tag).toBe("Available");
@@ -1639,8 +1656,9 @@ describe("devtools invalidation plans", () => {
       status: "unknown",
       collections: [],
     });
-    const appGraphPanelItem = store.getPanels().panels.find((panel) => panel.id === "app-graph")
-      ?.items[0];
+    const appGraphPanelItem = Effect.runSync(store.getPanels()).panels.find(
+      (panel) => panel.id === "app-graph",
+    )?.items[0];
     expect(appGraphPanelItem).toMatchObject({
       severity: "warning",
       metrics: expect.arrayContaining([
@@ -1650,12 +1668,10 @@ describe("devtools invalidation plans", () => {
         },
       ]),
     });
-    const routeNode = store
-      .getCausalGraph()
-      .nodes.find(
-        (node) =>
-          node.kind === "Route" && node.label === appGraphDiagnostics.routeModules[0]!.routePath,
-      );
+    const routeNode = Effect.runSync(store.getCausalGraph()).nodes.find(
+      (node) =>
+        node.kind === "Route" && node.label === appGraphDiagnostics.routeModules[0]!.routePath,
+    );
     expect(routeNode?.data).toMatchObject({
       preloadCollections: {
         status: "unknown",
@@ -1768,9 +1784,9 @@ describe("devtools invalidation plans", () => {
     };
     const store = makeDevtoolsStore();
 
-    store.setAppGraphDiagnostics(staleAppGraph);
+    Effect.runSync(store.setAppGraphDiagnostics(staleAppGraph));
 
-    const snapshotAppGraph = store.getSnapshot().appGraph;
+    const snapshotAppGraph = Effect.runSync(store.getSnapshot()).appGraph;
     expect(snapshotAppGraph).toMatchObject({
       routeCount: 1,
       serverFunctionCount: 1,
@@ -1860,7 +1876,7 @@ describe("devtools invalidation plans", () => {
     ]);
 
     const directSummary = describeDevtoolsSummary({ appGraph: staleAppGraph });
-    const storeSummary = store.getSummary();
+    const storeSummary = Effect.runSync(store.getSummary());
     for (const summary of [directSummary, storeSummary]) {
       expect(summary.overview).toMatchObject({
         routeCount: 1,
@@ -1975,7 +1991,7 @@ describe("devtools invalidation plans", () => {
       ]),
     );
 
-    const causalGraph = store.getCausalGraph();
+    const causalGraph = Effect.runSync(store.getCausalGraph());
     expect(causalGraph.nodes).toContainEqual(
       expect.objectContaining({
         id: "schema-coverage:serverFunctions",
@@ -2054,16 +2070,16 @@ describe("devtools invalidation plans", () => {
     };
     const store = makeDevtoolsStore();
 
-    store.setAppGraphDiagnostics(staleAppGraph);
+    Effect.runSync(store.setAppGraphDiagnostics(staleAppGraph));
 
-    const snapshotAppGraph = store.getSnapshot().appGraph;
+    const snapshotAppGraph = Effect.runSync(store.getSnapshot()).appGraph;
     expect(snapshotAppGraph?.unknownRoutePreloadResources.map((entry) => entry.routePath)).toEqual([
       "/users/:id",
     ]);
     expect(
       snapshotAppGraph?.unknownRoutePreloadCollections.map((entry) => entry.routePath),
     ).toEqual(["/users/:id"]);
-    const summary = store.getSummary();
+    const summary = Effect.runSync(store.getSummary());
     expect(summary.overview).toMatchObject({
       unknownRoutePreloadResourcesCount: 1,
       unknownRoutePreloadCollectionsCount: 1,
@@ -2079,11 +2095,13 @@ describe("devtools invalidation plans", () => {
       "/users/:id",
     ]);
     const appGraphItems =
-      store.getPanels().panels.find((panel) => panel.id === "app-graph")?.items ?? [];
+      Effect.runSync(store.getPanels()).panels.find((panel) => panel.id === "app-graph")?.items ??
+      [];
     expect(appGraphItems.find((item) => item.label === "/users/:id")?.severity).toBe("warning");
     expect(appGraphItems.find((item) => item.label === "/static")?.severity).toBe("ok");
     const diagnostics =
-      store.getPanels().panels.find((panel) => panel.id === "diagnostics")?.items ?? [];
+      Effect.runSync(store.getPanels()).panels.find((panel) => panel.id === "diagnostics")?.items ??
+      [];
     expect(diagnostics).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -2104,23 +2122,25 @@ describe("devtools invalidation plans", () => {
       presentUnknownCollections;
     void _legacyCollectionsField;
     const preservedStore = makeDevtoolsStore();
-    preservedStore.setSnapshot({
-      resources: [],
-      actions: [],
-      invalidations: [],
-      routePlans: [],
-      appGraph: {
-        ...appGraphDiagnostics,
-        routeModules: [legacyRoute as never],
-        unknownRoutePreloadResources: [],
-        unknownRoutePreloadCollections: [],
-      },
-    });
-    expect(preservedStore.getSnapshot().appGraph).toMatchObject({
+    Effect.runSync(
+      preservedStore.setSnapshot({
+        resources: [],
+        actions: [],
+        invalidations: [],
+        routePlans: [],
+        appGraph: {
+          ...appGraphDiagnostics,
+          routeModules: [legacyRoute as never],
+          unknownRoutePreloadResources: [],
+          unknownRoutePreloadCollections: [],
+        },
+      }),
+    );
+    expect(Effect.runSync(preservedStore.getSnapshot()).appGraph).toMatchObject({
       unknownRoutePreloadResources: [],
       unknownRoutePreloadCollections: [],
     });
-    const preservedSummary = preservedStore.getSummary();
+    const preservedSummary = Effect.runSync(preservedStore.getSummary());
     expect(preservedSummary.overview).toMatchObject({
       unknownRoutePreloadResourcesCount: 0,
       unknownRoutePreloadCollectionsCount: 0,
@@ -2132,7 +2152,8 @@ describe("devtools invalidation plans", () => {
     expect(preservedSummary.graph.routes.unknownPreloadResources).toEqual([]);
     expect(preservedSummary.graph.routes.unknownPreloadCollections).toEqual([]);
     expect(
-      preservedStore.getPanels().panels.find((panel) => panel.id === "diagnostics")?.items,
+      Effect.runSync(preservedStore.getPanels()).panels.find((panel) => panel.id === "diagnostics")
+        ?.items,
     ).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -2146,23 +2167,23 @@ describe("devtools invalidation plans", () => {
     const UserTag = Resource.tag<{ readonly id: string }>("User.causal-devtools", {
       key: ({ id }) => id,
     });
-    const User = Resource.family({
+    const User = Resource.define({
       name: "User.causal-devtools",
       load: (id: string) => Effect.succeed({ id }),
       provides: (user) => [UserTag({ id: user.id })],
     });
-    const UserRoute = route("/users/:id", {
-      preload: ({ params }) => Resource.prefetchEffect(User(params.id)),
+    const UserRoute = Route.define("/users/:id", {
+      preload: ({ params }) => Resource.preload(User(params.id)),
     });
     const ref = User("1");
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
+    await Effect.runPromise(Resource.preload(ref));
 
     const routePlan = describeRoutePlan(
-      await Effect.runPromise(Route.planNavigationEffect([UserRoute] as const, "/users/1")),
+      await Effect.runPromise(Route.planNavigation([UserRoute] as const, "/users/1")),
     );
     const invalidationPlan = describeInvalidationPlan(
-      Effect.runSync(Resource.planInvalidationEffect(UserTag({ id: "1" }))),
+      Effect.runSync(Resource.planInvalidation(UserTag({ id: "1" }))),
     );
     const summary = describeDevtoolsSummary({
       appGraph: appGraphDiagnostics,
@@ -2445,14 +2466,14 @@ describe("devtools invalidation plans", () => {
 
   it("links runtime events to existing invalidation and route-plan facts", async () => {
     const RuntimeTargetTag = Resource.tag("Runtime.target-devtools");
-    const RuntimeTargetRoute = route("/runtime-targets/:id", {});
+    const RuntimeTargetRoute = Route.define("/runtime-targets/:id", {});
     const routePlan = describeRoutePlan(
       await Effect.runPromise(
-        Route.planNavigationEffect([RuntimeTargetRoute] as const, "/runtime-targets/1"),
+        Route.planNavigation([RuntimeTargetRoute] as const, "/runtime-targets/1"),
       ),
     );
     const invalidationPlan = describeInvalidationPlan(
-      Effect.runSync(Resource.planInvalidationEffect(RuntimeTargetTag)),
+      Effect.runSync(Resource.planInvalidation(RuntimeTargetTag)),
     );
     const summary = describeDevtoolsSummary({
       snapshot: {
@@ -2531,35 +2552,35 @@ describe("devtools invalidation plans", () => {
     const MissingTag = Resource.tag<{ readonly id: string }>("Runtime.unrecorded-target-devtools", {
       key: ({ id }) => id,
     });
-    const MissingResource = Resource.family({
+    const MissingResource = Resource.define({
       name: "Runtime.unrecorded-resource-devtools",
       load: (id: string) => Effect.succeed({ id }),
       provides: (value) => [MissingTag({ id: value.id })],
     });
-    const FirstRoute = route("/runtime-recorded/:id", {});
-    const SecondRoute = route("/runtime-recorded-other/:id", {});
-    const MissingRoute = route("/runtime-unrecorded/:id", {
-      preload: ({ params }) => Resource.prefetchEffect(MissingResource(params.id)),
+    const FirstRoute = Route.define("/runtime-recorded/:id", {});
+    const SecondRoute = Route.define("/runtime-recorded-other/:id", {});
+    const MissingRoute = Route.define("/runtime-unrecorded/:id", {
+      preload: ({ params }) => Resource.preload(MissingResource(params.id)),
     });
     const recordedRoutePlans = await Effect.runPromise(
       Effect.all([
-        Route.planNavigationEffect([FirstRoute] as const, "/runtime-recorded/1"),
-        Route.planNavigationEffect([SecondRoute] as const, "/runtime-recorded-other/2"),
+        Route.planNavigation([FirstRoute] as const, "/runtime-recorded/1"),
+        Route.planNavigation([SecondRoute] as const, "/runtime-recorded-other/2"),
       ]),
     );
     const missingRoutePlan = await Effect.runPromise(
-      Route.planNavigationEffect([MissingRoute] as const, "/runtime-unrecorded/3"),
+      Route.planNavigation([MissingRoute] as const, "/runtime-unrecorded/3"),
     );
     const missingInvalidationPlan = describeInvalidationPlan(
-      Effect.runSync(Resource.planInvalidationEffect(MissingTag({ id: "3" }))),
+      Effect.runSync(Resource.planInvalidation(MissingTag({ id: "3" }))),
     );
     const missingRouteSummary = describeRoutePlan(missingRoutePlan);
     const missingResourceKey = MissingResource("3").key;
     const missingResourceId = `resource:${missingResourceKey}`;
     const missingTargetId = `resource-tag:${missingInvalidationPlan.targets[0]!.key}`;
     const recordedInvalidations = [
-      describeInvalidationPlan(Effect.runSync(Resource.planInvalidationEffect(FirstTag))),
-      describeInvalidationPlan(Effect.runSync(Resource.planInvalidationEffect(SecondTag))),
+      describeInvalidationPlan(Effect.runSync(Resource.planInvalidation(FirstTag))),
+      describeInvalidationPlan(Effect.runSync(Resource.planInvalidation(SecondTag))),
     ];
     const summary = describeDevtoolsSummary({
       snapshot: {
@@ -2663,16 +2684,16 @@ describe("devtools invalidation plans", () => {
   });
 
   it("links request-embedded route plans to matching recorded route-plan facts", async () => {
-    const OtherRoute = route("/request-route-other/:id", {});
-    const RequestTargetRoute = route("/request-route-targets/:a/:b", {});
+    const OtherRoute = Route.define("/request-route-other/:id", {});
+    const RequestTargetRoute = Route.define("/request-route-targets/:a/:b", {});
     const otherPlan = describeRoutePlan(
       await Effect.runPromise(
-        Route.planNavigationEffect([OtherRoute] as const, "/request-route-other/1"),
+        Route.planNavigation([OtherRoute] as const, "/request-route-other/1"),
       ),
     );
     const routePlan = describeRoutePlan(
       await Effect.runPromise(
-        Route.planNavigationEffect([RequestTargetRoute] as const, "/request-route-targets/1/2"),
+        Route.planNavigation([RequestTargetRoute] as const, "/request-route-targets/1/2"),
       ),
     );
     const requestRoutePlan: DevtoolsRoutePlan =
@@ -3083,22 +3104,24 @@ describe("devtools invalidation plans", () => {
     const bytes = new Uint8Array([1, 2, 3]);
     const buffer = Buffer.from([4, 5, 6]);
 
-    store.recordRuntimeEvent({
-      _tag: "Custom",
-      name: "Devtools.detached-payload",
-      payload: {
-        error,
-        bytes,
-        buffer,
-      },
-    });
+    Effect.runSync(
+      store.recordRuntimeEvent({
+        _tag: "Custom",
+        name: "Devtools.detached-payload",
+        payload: {
+          error,
+          bytes,
+          buffer,
+        },
+      }),
+    );
 
     error.message = "after";
     (error as Error & { extra: { nested: { value: number } } }).extra.nested.value = 2;
     bytes[0] = 9;
     buffer[0] = 9;
 
-    const event = store.getSnapshot().events?.[0];
+    const event = Effect.runSync(store.getSnapshot()).events?.[0];
     expect(event?._tag).toBe("Custom");
     const payload =
       event?._tag === "Custom"
@@ -3143,14 +3166,16 @@ describe("devtools invalidation plans", () => {
     });
 
     expect(() =>
-      store.recordRuntimeEvent({
-        _tag: "Custom",
-        name: "Devtools.hostile-array",
-        payload: hostileArray,
-      }),
+      Effect.runSync(
+        store.recordRuntimeEvent({
+          _tag: "Custom",
+          name: "Devtools.hostile-array",
+          payload: hostileArray,
+        }),
+      ),
     ).not.toThrow();
 
-    const event = store.getSnapshot().events?.[0];
+    const event = Effect.runSync(store.getSnapshot()).events?.[0];
     expect(event).toMatchObject({
       _tag: "Custom",
       payload: {
@@ -3167,14 +3192,16 @@ describe("devtools invalidation plans", () => {
     }
 
     expect(() =>
-      store.recordRuntimeEvent({
-        _tag: "Custom",
-        name: "Devtools.deep-payload",
-        payload,
-      }),
+      Effect.runSync(
+        store.recordRuntimeEvent({
+          _tag: "Custom",
+          name: "Devtools.deep-payload",
+          payload,
+        }),
+      ),
     ).not.toThrow();
 
-    const event = store.getSnapshot().events?.[0];
+    const event = Effect.runSync(store.getSnapshot()).events?.[0];
     expect(event?._tag).toBe("Custom");
     let cursor = event?._tag === "Custom" ? event.payload : undefined;
     for (let depth = 0; depth < 8; depth++) {
@@ -3221,17 +3248,19 @@ describe("devtools invalidation plans", () => {
     });
 
     expect(() =>
-      store.recordRuntimeEvent({
-        _tag: "Custom",
-        name: "Devtools.large-payload",
-        payload: {
-          largeArray,
-          largeMap,
-        },
-      }),
+      Effect.runSync(
+        store.recordRuntimeEvent({
+          _tag: "Custom",
+          name: "Devtools.large-payload",
+          payload: {
+            largeArray,
+            largeMap,
+          },
+        }),
+      ),
     ).not.toThrow();
 
-    const event = store.getSnapshot().events?.[0];
+    const event = Effect.runSync(store.getSnapshot()).events?.[0];
     const payload =
       event?._tag === "Custom"
         ? (event.payload as {
@@ -3279,16 +3308,18 @@ describe("devtools invalidation plans", () => {
     const bytes = new Uint8Array(buffer);
     bytes.set([4, 5, 6]);
 
-    store.recordRuntimeEvent({
-      _tag: "Custom",
-      name: "Devtools.array-buffer",
-      payload: {
-        buffer,
-      },
-    });
+    Effect.runSync(
+      store.recordRuntimeEvent({
+        _tag: "Custom",
+        name: "Devtools.array-buffer",
+        payload: {
+          buffer,
+        },
+      }),
+    );
     bytes[0] = 9;
 
-    const event = store.getSnapshot().events?.[0];
+    const event = Effect.runSync(store.getSnapshot()).events?.[0];
     const copiedBuffer =
       event?._tag === "Custom"
         ? (event.payload as { readonly buffer: ArrayBuffer }).buffer
@@ -3302,7 +3333,7 @@ describe("devtools invalidation plans", () => {
       byteLength: 3,
       bytes: [4, 5, 6],
     });
-    expect(store.getSummary().runtime.events[0]?.data).toEqual({
+    expect(Effect.runSync(store.getSummary()).runtime.events[0]?.data).toEqual({
       name: "Devtools.array-buffer",
       payload: {
         buffer: {
@@ -3317,24 +3348,24 @@ describe("devtools invalidation plans", () => {
   it("lets the store expose graph-aware summaries", () => {
     const store = makeDevtoolsStore();
 
-    store.setAppGraphDiagnostics(appGraphDiagnostics);
+    Effect.runSync(store.setAppGraphDiagnostics(appGraphDiagnostics));
 
-    expect(store.getSummary().overview).toMatchObject({
+    expect(Effect.runSync(store.getSummary()).overview).toMatchObject({
       routeCount: 1,
       serverFunctionCount: 1,
       actionCount: 1,
       missingSchemaCount: 2,
     });
-    expect(store.getSummary().graph).toMatchObject({
+    expect(Effect.runSync(store.getSummary()).graph).toMatchObject({
       _tag: "Available",
       routes: {
         paths: ["/users/:id"],
       },
     });
 
-    store.clearAppGraphDiagnostics();
+    Effect.runSync(store.clearAppGraphDiagnostics());
 
-    expect(store.getSummary().graph).toEqual({
+    expect(Effect.runSync(store.getSummary()).graph).toEqual({
       _tag: "Unavailable",
     });
   });
@@ -3342,8 +3373,8 @@ describe("devtools invalidation plans", () => {
   it("detaches store summaries from nested app graph diagnostics", () => {
     const store = makeDevtoolsStore();
 
-    store.setAppGraphDiagnostics(appGraphDiagnostics);
-    const summary = store.getSummary();
+    Effect.runSync(store.setAppGraphDiagnostics(appGraphDiagnostics));
+    const summary = Effect.runSync(store.getSummary());
     if (summary.graph._tag !== "Available") {
       throw new Error("expected available app graph summary");
     }
@@ -3352,7 +3383,7 @@ describe("devtools invalidation plans", () => {
     (summary.graph.routes.modules[0]!.preloadResources.families as unknown as string[])[0] =
       "Mutated.family";
 
-    const next = store.getSummary();
+    const next = Effect.runSync(store.getSummary());
     expect(next.graph).toMatchObject({
       _tag: "Available",
       routes: {
@@ -3378,7 +3409,7 @@ describe("devtools invalidation plans", () => {
     const panels = describeDevtoolsPanels({ appGraph });
     const store = makeDevtoolsStore();
 
-    store.setAppGraphDiagnostics(appGraph);
+    Effect.runSync(store.setAppGraphDiagnostics(appGraph));
 
     expect(summary.overview.routeCount).toBe(1_001);
     expect(summary.graph).toMatchObject({
@@ -3437,14 +3468,14 @@ describe("devtools invalidation plans", () => {
     expect(defaultRenderedHtml).toContain("&quot;shown&quot;: 999");
     expect(defaultRenderedHtml).toContain("&quot;hidden&quot;: 2");
 
-    const snapshotRouteModules = store.getSnapshot().appGraph?.routeModules;
+    const snapshotRouteModules = Effect.runSync(store.getSnapshot()).appGraph?.routeModules;
     expect(snapshotRouteModules).toHaveLength(1_001);
     expect(
       snapshotRouteModules?.some(
         (routeModule) => (routeModule as { readonly _tag?: unknown })._tag === "Truncated",
       ),
     ).toBe(false);
-    expect(store.getSummary().graph).toMatchObject({
+    expect(Effect.runSync(store.getSummary()).graph).toMatchObject({
       _tag: "Available",
       routes: {
         modules: expect.arrayContaining([
@@ -3454,22 +3485,24 @@ describe("devtools invalidation plans", () => {
         ]),
       },
     });
-    expect(isDevtoolsPanels(store.getPanels())).toBe(true);
+    expect(isDevtoolsPanels(Effect.runSync(store.getPanels()))).toBe(true);
   });
 
   it("summarizes collection events and observes their collection target", () => {
     const store = makeDevtoolsStore();
 
-    store.recordCollectionEvent({
-      _tag: "CollectionHydrated",
-      collection: "Projects.collection-devtools",
-      count: 2,
-      updatedAt: 1,
-    });
+    Effect.runSync(
+      store.recordCollectionEvent({
+        _tag: "CollectionHydrated",
+        collection: "Projects.collection-devtools",
+        count: 2,
+        updatedAt: 1,
+      }),
+    );
 
-    const summary = store.getSummary();
+    const summary = Effect.runSync(store.getSummary());
 
-    expect(store.getSnapshot().events).toEqual([
+    expect(Effect.runSync(store.getSnapshot()).events).toEqual([
       {
         _tag: "CollectionStoreEvent",
         sequence: 0,
@@ -3514,20 +3547,24 @@ describe("devtools invalidation plans", () => {
   it("projects resource failure causes and interruptions into resource state facts", () => {
     const store = makeDevtoolsStore();
 
-    store.recordResourceEvent({
-      _tag: "ResourceFailure",
-      name: "Project.failed-resource",
-      key: "Project.failed-resource:atlas",
-      cause: Cause.die(new Error("loader crashed")),
-      previous: false,
-    });
-    store.recordResourceEvent({
-      _tag: "ResourceInterrupted",
-      name: "Project.interrupted-resource",
-      key: "Project.interrupted-resource:atlas",
-    });
+    Effect.runSync(
+      store.recordResourceEvent({
+        _tag: "ResourceFailure",
+        name: "Project.failed-resource",
+        key: "Project.failed-resource:atlas",
+        cause: Cause.die(new Error("loader crashed")),
+        previous: false,
+      }),
+    );
+    Effect.runSync(
+      store.recordResourceEvent({
+        _tag: "ResourceInterrupted",
+        name: "Project.interrupted-resource",
+        key: "Project.interrupted-resource:atlas",
+      }),
+    );
 
-    expect(store.getSummary().resources).toEqual([
+    expect(Effect.runSync(store.getSummary()).resources).toEqual([
       expect.objectContaining({
         key: "Project.failed-resource:atlas",
         state: "Failure",
@@ -3544,19 +3581,23 @@ describe("devtools invalidation plans", () => {
   it("projects resource and collection runtime events into their panels", () => {
     const store = makeDevtoolsStore();
 
-    store.recordResourceEvent({
-      _tag: "ResourceSuccess",
-      name: "Project.runtime-resource",
-      key: "Project.runtime-resource:atlas",
-      timestamp: 1,
-    });
-    store.recordCollectionEvent({
-      _tag: "CollectionLoadFailure",
-      collection: "Project.runtime-collection",
-      error: new Error("offline"),
-    });
+    Effect.runSync(
+      store.recordResourceEvent({
+        _tag: "ResourceSuccess",
+        name: "Project.runtime-resource",
+        key: "Project.runtime-resource:atlas",
+        timestamp: 1,
+      }),
+    );
+    Effect.runSync(
+      store.recordCollectionEvent({
+        _tag: "CollectionLoadFailure",
+        collection: "Project.runtime-collection",
+        error: new Error("offline"),
+      }),
+    );
 
-    const summary = store.getSummary();
+    const summary = Effect.runSync(store.getSummary());
     expect(summary.resources).toEqual([
       expect.objectContaining({
         key: "Project.runtime-resource:atlas",
@@ -3566,7 +3607,7 @@ describe("devtools invalidation plans", () => {
       }),
     ]);
 
-    const panels = store.getPanels();
+    const panels = Effect.runSync(store.getPanels());
     expect(panels.panels.find((panel) => panel.id === "resources")).toMatchObject({
       severity: "ok",
       items: [
@@ -3595,14 +3636,16 @@ describe("devtools invalidation plans", () => {
     const store = makeDevtoolsStore();
     const error = { message: "feed failed" };
 
-    store.recordCollectionEvent({
-      _tag: "CollectionChangeFeedFailure",
-      collection: "Projects.collection-feed",
-      error,
-    });
+    Effect.runSync(
+      store.recordCollectionEvent({
+        _tag: "CollectionChangeFeedFailure",
+        collection: "Projects.collection-feed",
+        error,
+      }),
+    );
     error.message = "mutated";
 
-    const snapshot = store.getSnapshot();
+    const snapshot = Effect.runSync(store.getSnapshot());
     const event = snapshot.events?.[0];
 
     expect(event).toMatchObject({
@@ -3615,7 +3658,7 @@ describe("devtools invalidation plans", () => {
         },
       },
     });
-    expect(store.getSummary().runtime.events[0]).toMatchObject({
+    expect(Effect.runSync(store.getSummary()).runtime.events[0]).toMatchObject({
       _tag: "CollectionStoreEvent",
       label: "CollectionChangeFeedFailure",
       target: {
@@ -3685,9 +3728,9 @@ describe("devtools invalidation plans", () => {
       status: "success",
     };
 
-    store.recordRequestTrace(trace);
+    Effect.runSync(store.recordRequestTrace(trace));
 
-    const snapshot = store.getSnapshot();
+    const snapshot = Effect.runSync(store.getSnapshot());
     const storedTrace = snapshot.requestTraces?.[0];
     expect(storedTrace?.request.url).toContain("tab=activity");
     expect(storedTrace?.request.url).toContain("[redacted]=[redacted]");
@@ -3724,7 +3767,12 @@ describe("devtools invalidation plans", () => {
       storedTrace?.request.cookies?.filter((cookie) => cookie.name === "[redacted]"),
     ).toHaveLength(2);
 
-    const projections = [snapshot, store.getSummary(), store.getPanels(), store.getCausalGraph()];
+    const projections = [
+      snapshot,
+      Effect.runSync(store.getSummary()),
+      Effect.runSync(store.getPanels()),
+      Effect.runSync(store.getCausalGraph()),
+    ];
     for (const projection of projections) {
       const projected = JSON.stringify(projection).toLowerCase();
       for (const raw of [
@@ -3864,11 +3912,11 @@ describe("devtools invalidation plans", () => {
       },
     };
 
-    await Effect.runPromise(store.recordRequestTraceEffect(trace));
+    await Effect.runPromise(store.recordRequestTrace(trace));
 
-    const snapshot = store.getSnapshot();
-    const summary = store.getSummary();
-    const graph = store.getCausalGraph();
+    const snapshot = Effect.runSync(store.getSnapshot());
+    const summary = Effect.runSync(store.getSummary());
+    const graph = Effect.runSync(store.getCausalGraph());
 
     expect(snapshot.requestTraces).toEqual([trace]);
     expect(snapshot.events).toEqual([
@@ -3939,7 +3987,7 @@ describe("devtools invalidation plans", () => {
         routeHref: "/projects/atlas?tab=activity",
       },
     ]);
-    const panels = store.getPanels();
+    const panels = Effect.runSync(store.getPanels());
     const requestPanel = panels.panels.find((panel) => panel.id === "requests");
     expect(requestPanel).toMatchObject({
       severity: "ok",
@@ -4014,7 +4062,7 @@ describe("devtools invalidation plans", () => {
         }),
       ],
     });
-    await expect(Effect.runPromise(store.getPanelsEffect())).resolves.toMatchObject({
+    await expect(Effect.runPromise(store.getPanels())).resolves.toMatchObject({
       panels: expect.arrayContaining([expect.objectContaining({ id: "requests" })]),
     });
     expect(summary.runtime.events).toEqual([
@@ -4138,18 +4186,21 @@ describe("devtools invalidation plans", () => {
       },
     };
 
-    store.recordRequestTrace(trace);
+    Effect.runSync(store.recordRequestTrace(trace));
 
-    expect(store.getSnapshot().requestTraces?.[0]?.teardown?.cleanupFailure).toEqual({
+    expect(
+      Effect.runSync(store.getSnapshot()).requestTraces?.[0]?.teardown?.cleanupFailure,
+    ).toEqual({
       _tag: "Failure",
       message: "cleanup-failed",
     });
-    expect(store.getSummary().requests.traces[0]?.cleanupFailure).toEqual({
+    expect(Effect.runSync(store.getSummary()).requests.traces[0]?.cleanupFailure).toEqual({
       _tag: "Failure",
       message: "cleanup-failed",
     });
     expect(
-      store.getPanels().panels.find((panel) => panel.id === "requests")?.items[0]?.data,
+      Effect.runSync(store.getPanels()).panels.find((panel) => panel.id === "requests")?.items[0]
+        ?.data,
     ).toMatchObject({
       cleanupFailure: {
         _tag: "Failure",
@@ -4186,14 +4237,18 @@ describe("devtools invalidation plans", () => {
       status: "success",
     };
 
-    store.recordRuntimeEvent({
-      _tag: "RequestTrace",
-      trace,
-    });
+    Effect.runSync(
+      store.recordRuntimeEvent({
+        _tag: "RequestTrace",
+        trace,
+      }),
+    );
 
-    const summary = store.getSummary();
-    const requestPanel = store.getPanels().panels.find((panel) => panel.id === "requests");
-    const graph = store.getCausalGraph();
+    const summary = Effect.runSync(store.getSummary());
+    const requestPanel = Effect.runSync(store.getPanels()).panels.find(
+      (panel) => panel.id === "requests",
+    );
+    const graph = Effect.runSync(store.getCausalGraph());
 
     expect(summary.requests.traces).toEqual([
       expect.objectContaining({
@@ -4285,9 +4340,9 @@ describe("devtools invalidation plans", () => {
       },
     };
 
-    await Effect.runPromise(store.recordRequestTraceEffect(trace));
+    await Effect.runPromise(store.recordRequestTrace(trace));
 
-    const summary = store.getSummary();
+    const summary = Effect.runSync(store.getSummary());
     expect(summary.requests.traces[0]).toMatchObject({
       failureKind: "validation",
       beforeDispose: {
@@ -4319,7 +4374,9 @@ describe("devtools invalidation plans", () => {
       ],
     });
 
-    const requestPanel = store.getPanels().panels.find((panel) => panel.id === "requests");
+    const requestPanel = Effect.runSync(store.getPanels()).panels.find(
+      (panel) => panel.id === "requests",
+    );
     expect(requestPanel?.items[0]).toMatchObject({
       detail:
         "action failure (validation) server:Project.load:domain, action:Project.rename:validation",
@@ -4381,14 +4438,16 @@ describe("devtools invalidation plans", () => {
       status: "success",
     };
 
-    store.recordRuntimeEvent({
-      _tag: "Custom",
-      sequence: 0,
-      name: "before-trace",
-    });
-    store.recordRequestTrace(trace);
+    Effect.runSync(
+      store.recordRuntimeEvent({
+        _tag: "Custom",
+        sequence: 0,
+        name: "before-trace",
+      }),
+    );
+    Effect.runSync(store.recordRequestTrace(trace));
 
-    const snapshot = store.getSnapshot();
+    const snapshot = Effect.runSync(store.getSnapshot());
     expect(snapshot.requestTraces?.[0]?.request.id).toBe("trace:0");
     expect(snapshot.events?.[1]).toMatchObject({
       _tag: "RequestTrace",
@@ -4400,7 +4459,7 @@ describe("devtools invalidation plans", () => {
       },
     });
 
-    const graph = store.getCausalGraph();
+    const graph = Effect.runSync(store.getCausalGraph());
     expect(graph.nodes.filter((node) => node.kind === "RequestTrace")).toEqual([
       expect.objectContaining({ id: "request-trace:trace:0" }),
     ]);
@@ -4486,10 +4545,10 @@ describe("devtools invalidation plans", () => {
       status: "success",
     });
 
-    store.recordRequestTrace(requestTrace("/projects/existing", "trace:1"));
-    store.recordRequestTrace(requestTrace("/projects/runtime"));
+    Effect.runSync(store.recordRequestTrace(requestTrace("/projects/existing", "trace:1")));
+    Effect.runSync(store.recordRequestTrace(requestTrace("/projects/runtime")));
 
-    const snapshot = store.getSnapshot();
+    const snapshot = Effect.runSync(store.getSnapshot());
     expect(snapshot.requestTraces?.map((trace) => trace.request.id)).toEqual([
       "trace:1",
       "trace:2",
@@ -4523,23 +4582,25 @@ describe("devtools invalidation plans", () => {
     });
     const importedTrace = requestTrace("/projects/imported");
 
-    store.setSnapshot({
-      resources: [],
-      actions: [],
-      invalidations: [],
-      routePlans: [],
-      requestTraces: [importedTrace, requestTrace("/projects/existing", "trace:7")],
-      events: [
-        {
-          _tag: "RequestTrace",
-          sequence: 3,
-          trace: importedTrace,
-        },
-      ],
-    });
-    store.recordRequestTrace(requestTrace("/projects/runtime"));
+    Effect.runSync(
+      store.setSnapshot({
+        resources: [],
+        actions: [],
+        invalidations: [],
+        routePlans: [],
+        requestTraces: [importedTrace, requestTrace("/projects/existing", "trace:7")],
+        events: [
+          {
+            _tag: "RequestTrace",
+            sequence: 3,
+            trace: importedTrace,
+          },
+        ],
+      }),
+    );
+    Effect.runSync(store.recordRequestTrace(requestTrace("/projects/runtime")));
 
-    const snapshot = store.getSnapshot();
+    const snapshot = Effect.runSync(store.getSnapshot());
     expect(snapshot.requestTraces?.map((trace) => trace.request.id)).toEqual([
       "trace:8",
       "trace:7",
@@ -4551,18 +4612,17 @@ describe("devtools invalidation plans", () => {
       ),
     ).toEqual(["trace:8", "trace:9"]);
 
-    expect(store.getSummary().requests.traces.map((trace) => trace.id)).toEqual([
+    expect(Effect.runSync(store.getSummary()).requests.traces.map((trace) => trace.id)).toEqual([
       "trace:8",
       "trace:7",
       "trace:9",
     ]);
     expect(
-      store
-        .getCausalGraph()
+      Effect.runSync(store.getCausalGraph())
         .nodes.filter((node) => node.kind === "RequestTrace")
         .map((node) => node.id),
     ).toEqual(["request-trace:trace:7", "request-trace:trace:8", "request-trace:trace:9"]);
-    expect(store.getCausalGraph().edges).toEqual(
+    expect(Effect.runSync(store.getCausalGraph()).edges).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           kind: "Observes",
@@ -4610,27 +4670,29 @@ describe("devtools invalidation plans", () => {
     const droppedTrace = requestTrace("Project:dropped");
     const retainedTrace = requestTrace("Project:retained");
 
-    store.setSnapshot({
-      resources: [],
-      actions: [],
-      invalidations: [],
-      routePlans: [],
-      requestTraces: [droppedTrace, retainedTrace],
-      events: [
-        {
-          _tag: "RequestTrace",
-          sequence: 0,
-          trace: droppedTrace,
-        },
-        {
-          _tag: "RequestTrace",
-          sequence: 1,
-          trace: retainedTrace,
-        },
-      ],
-    });
+    Effect.runSync(
+      store.setSnapshot({
+        resources: [],
+        actions: [],
+        invalidations: [],
+        routePlans: [],
+        requestTraces: [droppedTrace, retainedTrace],
+        events: [
+          {
+            _tag: "RequestTrace",
+            sequence: 0,
+            trace: droppedTrace,
+          },
+          {
+            _tag: "RequestTrace",
+            sequence: 1,
+            trace: retainedTrace,
+          },
+        ],
+      }),
+    );
 
-    const snapshot = store.getSnapshot();
+    const snapshot = Effect.runSync(store.getSnapshot());
     expect(
       snapshot.requestTraces?.map((trace) => ({
         id: trace.request.id,
@@ -4664,7 +4726,7 @@ describe("devtools invalidation plans", () => {
       },
     ]);
 
-    const graph = store.getCausalGraph();
+    const graph = Effect.runSync(store.getCausalGraph());
     expect(graph.edges).toContainEqual(
       expect.objectContaining({
         kind: "Observes",
@@ -4733,17 +4795,19 @@ describe("devtools invalidation plans", () => {
     };
 
     expect(() =>
-      store.setSnapshot({
-        resources: [],
-        actions: [],
-        invalidations: [],
-        routePlans: [],
-        requestTraces: [droppedTrace, retainedTrace],
-      }),
+      Effect.runSync(
+        store.setSnapshot({
+          resources: [],
+          actions: [],
+          invalidations: [],
+          routePlans: [],
+          requestTraces: [droppedTrace, retainedTrace],
+        }),
+      ),
     ).not.toThrow();
-    expect(store.getSnapshot().requestTraces?.map((trace) => trace.request.path)).toEqual([
-      "/retained",
-    ]);
+    expect(
+      Effect.runSync(store.getSnapshot()).requestTraces?.map((trace) => trace.request.path),
+    ).toEqual(["/retained"]);
   });
 
   it("applies store limits and fact rebasing when importing snapshots", () => {
@@ -4806,41 +4870,43 @@ describe("devtools invalidation plans", () => {
       status: "success",
     });
 
-    store.setSnapshot({
-      resources: [],
-      actions: [
-        {
-          name: "Project.rename",
-          state: "Success",
-          invalidationIndexes: [0, 1],
-        },
-      ],
-      invalidations: [firstInvalidation, secondInvalidation],
-      routePlans: [firstRoutePlan, secondRoutePlan],
-      requestTraces: [requestTrace("trace:0"), requestTrace("trace:1")],
-      events: [
-        {
-          _tag: "Custom",
-          sequence: 0,
-          name: "dropped",
-        },
-        {
-          _tag: "ActionState",
-          sequence: 1,
-          action: "Project.rename",
-          state: "Success",
-          invalidationIndexes: [0, 1],
-        },
-        {
-          _tag: "RoutePlan",
-          sequence: 2,
-          routePlanIndex: 1,
-          plan: secondRoutePlan,
-        },
-      ],
-    });
+    Effect.runSync(
+      store.setSnapshot({
+        resources: [],
+        actions: [
+          {
+            name: "Project.rename",
+            state: "Success",
+            invalidationIndexes: [0, 1],
+          },
+        ],
+        invalidations: [firstInvalidation, secondInvalidation],
+        routePlans: [firstRoutePlan, secondRoutePlan],
+        requestTraces: [requestTrace("trace:0"), requestTrace("trace:1")],
+        events: [
+          {
+            _tag: "Custom",
+            sequence: 0,
+            name: "dropped",
+          },
+          {
+            _tag: "ActionState",
+            sequence: 1,
+            action: "Project.rename",
+            state: "Success",
+            invalidationIndexes: [0, 1],
+          },
+          {
+            _tag: "RoutePlan",
+            sequence: 2,
+            routePlanIndex: 1,
+            plan: secondRoutePlan,
+          },
+        ],
+      }),
+    );
 
-    const snapshot = store.getSnapshot();
+    const snapshot = Effect.runSync(store.getSnapshot());
     expect(snapshot.invalidations).toEqual([secondInvalidation]);
     expect(snapshot.routePlans).toEqual([secondRoutePlan]);
     expect(snapshot.requestTraces?.map((trace) => trace.request.id)).toEqual(["trace:1"]);
@@ -4876,23 +4942,27 @@ describe("devtools invalidation plans", () => {
         resourceCount: 0,
       },
     };
-    const invalidationIndex = store.recordSerializedInvalidation({
-      targets: [{ _tag: "Tag", key: "Duplicate.Project", name: "Duplicate.Project" }],
-      entries: [],
-    });
-    const firstRoutePlanIndex = store.recordSerializedRoutePlan(plan);
-    const secondRoutePlanIndex = store.recordSerializedRoutePlan(plan);
+    const invalidationIndex = Effect.runSync(
+      store.recordSerializedInvalidation({
+        targets: [{ _tag: "Tag", key: "Duplicate.Project", name: "Duplicate.Project" }],
+        entries: [],
+      }),
+    );
+    const firstRoutePlanIndex = Effect.runSync(store.recordSerializedRoutePlan(plan));
+    const secondRoutePlanIndex = Effect.runSync(store.recordSerializedRoutePlan(plan));
 
-    store.recordRuntimeEvent({
-      _tag: "RoutePlan",
-      routePlanIndex: secondRoutePlanIndex,
-      plan,
-    });
+    Effect.runSync(
+      store.recordRuntimeEvent({
+        _tag: "RoutePlan",
+        routePlanIndex: secondRoutePlanIndex,
+        plan,
+      }),
+    );
 
     expect(invalidationIndex).toBe(0);
     expect(firstRoutePlanIndex).toBe(0);
     expect(secondRoutePlanIndex).toBe(1);
-    expect(store.getSnapshot().events).toEqual([
+    expect(Effect.runSync(store.getSnapshot()).events).toEqual([
       expect.objectContaining({
         _tag: "RoutePlan",
         sequence: 0,
@@ -4900,7 +4970,7 @@ describe("devtools invalidation plans", () => {
       }),
     ]);
 
-    const summary = store.getSummary();
+    const summary = Effect.runSync(store.getSummary());
     expect(summary.routes.plans.map((routePlan) => routePlan.index)).toEqual([0, 1]);
     expect(summary.runtime.events[0]).toMatchObject({
       _tag: "RoutePlan",
@@ -4913,7 +4983,7 @@ describe("devtools invalidation plans", () => {
         href: "/duplicate",
       },
     });
-    expect(store.getCausalGraph().edges).toContainEqual(
+    expect(Effect.runSync(store.getCausalGraph()).edges).toContainEqual(
       expect.objectContaining({
         kind: "Observes",
         source: "runtime-event:0:RoutePlan",
@@ -4933,29 +5003,31 @@ describe("devtools invalidation plans", () => {
     });
 
     expect(() =>
-      store.setSnapshot({
-        resources: [],
-        actions: [],
-        invalidations: [],
-        routePlans: [],
-        events: [
-          {
-            _tag: "Custom",
-            sequence: 0,
-            name: "dropped",
-            payload: droppedPayload,
-          },
-          {
-            _tag: "Custom",
-            sequence: 1,
-            name: "kept",
-            payload: { ok: true },
-          },
-        ],
-      }),
+      Effect.runSync(
+        store.setSnapshot({
+          resources: [],
+          actions: [],
+          invalidations: [],
+          routePlans: [],
+          events: [
+            {
+              _tag: "Custom",
+              sequence: 0,
+              name: "dropped",
+              payload: droppedPayload,
+            },
+            {
+              _tag: "Custom",
+              sequence: 1,
+              name: "kept",
+              payload: { ok: true },
+            },
+          ],
+        }),
+      ),
     ).not.toThrow();
 
-    expect(store.getSnapshot().events).toEqual([
+    expect(Effect.runSync(store.getSnapshot()).events).toEqual([
       {
         _tag: "Custom",
         sequence: 1,
@@ -4968,25 +5040,29 @@ describe("devtools invalidation plans", () => {
   it("seeds runtime event sequence ids from imported snapshots", () => {
     const store = makeDevtoolsStore();
 
-    store.setSnapshot({
-      resources: [],
-      actions: [],
-      invalidations: [],
-      routePlans: [],
-      events: [
-        {
-          _tag: "Custom",
-          sequence: 4,
-          name: "imported",
-        },
-      ],
-    });
-    store.recordRuntimeEvent({
-      _tag: "Custom",
-      name: "runtime",
-    });
+    Effect.runSync(
+      store.setSnapshot({
+        resources: [],
+        actions: [],
+        invalidations: [],
+        routePlans: [],
+        events: [
+          {
+            _tag: "Custom",
+            sequence: 4,
+            name: "imported",
+          },
+        ],
+      }),
+    );
+    Effect.runSync(
+      store.recordRuntimeEvent({
+        _tag: "Custom",
+        name: "runtime",
+      }),
+    );
 
-    expect(store.getSnapshot().events).toEqual([
+    expect(Effect.runSync(store.getSnapshot()).events).toEqual([
       {
         _tag: "Custom",
         sequence: 4,
@@ -4998,7 +5074,7 @@ describe("devtools invalidation plans", () => {
         name: "runtime",
       },
     ]);
-    expect(store.getCausalGraph().nodes).toEqual(
+    expect(Effect.runSync(store.getCausalGraph()).nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           id: "runtime-event:4:Custom",
@@ -5017,30 +5093,34 @@ describe("devtools invalidation plans", () => {
   it("rebases duplicate runtime event sequences imported from snapshots", () => {
     const store = makeDevtoolsStore();
 
-    store.setSnapshot({
-      resources: [],
-      actions: [],
-      invalidations: [],
-      routePlans: [],
-      events: [
-        {
-          _tag: "Custom",
-          sequence: 0,
-          name: "first",
-        },
-        {
-          _tag: "Custom",
-          sequence: 0,
-          name: "second",
-        },
-      ],
-    });
-    store.recordRuntimeEvent({
-      _tag: "Custom",
-      name: "runtime",
-    });
+    Effect.runSync(
+      store.setSnapshot({
+        resources: [],
+        actions: [],
+        invalidations: [],
+        routePlans: [],
+        events: [
+          {
+            _tag: "Custom",
+            sequence: 0,
+            name: "first",
+          },
+          {
+            _tag: "Custom",
+            sequence: 0,
+            name: "second",
+          },
+        ],
+      }),
+    );
+    Effect.runSync(
+      store.recordRuntimeEvent({
+        _tag: "Custom",
+        name: "runtime",
+      }),
+    );
 
-    expect(store.getSnapshot().events).toEqual([
+    expect(Effect.runSync(store.getSnapshot()).events).toEqual([
       {
         _tag: "Custom",
         sequence: 0,
@@ -5062,18 +5142,22 @@ describe("devtools invalidation plans", () => {
   it("rebases duplicate caller-supplied runtime event sequences", () => {
     const store = makeDevtoolsStore();
 
-    store.recordRuntimeEvent({
-      _tag: "Custom",
-      sequence: 0,
-      name: "first",
-    });
-    store.recordRuntimeEvent({
-      _tag: "Custom",
-      sequence: 0,
-      name: "second",
-    });
+    Effect.runSync(
+      store.recordRuntimeEvent({
+        _tag: "Custom",
+        sequence: 0,
+        name: "first",
+      }),
+    );
+    Effect.runSync(
+      store.recordRuntimeEvent({
+        _tag: "Custom",
+        sequence: 0,
+        name: "second",
+      }),
+    );
 
-    expect(store.getSnapshot().events).toEqual([
+    expect(Effect.runSync(store.getSnapshot()).events).toEqual([
       {
         _tag: "Custom",
         sequence: 0,
@@ -5085,7 +5169,7 @@ describe("devtools invalidation plans", () => {
         name: "second",
       },
     ]);
-    expect(store.getCausalGraph().nodes).toEqual(
+    expect(Effect.runSync(store.getCausalGraph()).nodes).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ id: "runtime-event:0:Custom" }),
         expect.objectContaining({ id: "runtime-event:1:Custom" }),
@@ -5117,22 +5201,26 @@ describe("devtools invalidation plans", () => {
     };
     const store = makeDevtoolsStore();
 
-    store.setSnapshot({
-      resources: [],
-      actions: [],
-      invalidations: [],
-      routePlans: [routePlan],
-    });
-    store.recordRuntimeEvent({
-      _tag: "RoutePlan",
-      plan: reorderedRoutePlan,
-    });
+    Effect.runSync(
+      store.setSnapshot({
+        resources: [],
+        actions: [],
+        invalidations: [],
+        routePlans: [routePlan],
+      }),
+    );
+    Effect.runSync(
+      store.recordRuntimeEvent({
+        _tag: "RoutePlan",
+        plan: reorderedRoutePlan,
+      }),
+    );
 
-    expect(store.getSnapshot().events?.[0]).toMatchObject({
+    expect(Effect.runSync(store.getSnapshot()).events?.[0]).toMatchObject({
       _tag: "RoutePlan",
       routePlanIndex: 0,
     });
-    expect(store.getSummary().runtime.events[0]?.target).toEqual({
+    expect(Effect.runSync(store.getSummary()).runtime.events[0]?.target).toEqual({
       kind: "RoutePlan",
       id: "route-plan:0:/ordered",
     });
@@ -5205,19 +5293,23 @@ describe("devtools invalidation plans", () => {
       entries: [],
     };
 
-    store.setSnapshot({
-      resources: [],
-      actions: [],
-      invalidations: [plan],
-      routePlans: [],
-    });
-    store.recordRuntimeEvent({
-      _tag: "Invalidation",
-      plan,
-    });
+    Effect.runSync(
+      store.setSnapshot({
+        resources: [],
+        actions: [],
+        invalidations: [plan],
+        routePlans: [],
+      }),
+    );
+    Effect.runSync(
+      store.recordRuntimeEvent({
+        _tag: "Invalidation",
+        plan,
+      }),
+    );
 
     expect(accessedIndexes).not.toContain("50");
-    expect(store.getSnapshot().events?.[0]).toMatchObject({
+    expect(Effect.runSync(store.getSnapshot()).events?.[0]).toMatchObject({
       _tag: "Invalidation",
       invalidationIndex: 0,
     });
@@ -5238,15 +5330,17 @@ describe("devtools invalidation plans", () => {
       entries: [],
     };
 
-    store.setSnapshot({
-      resources: [],
-      actions: [],
-      invalidations: [plan],
-      routePlans: [],
-    });
+    Effect.runSync(
+      store.setSnapshot({
+        resources: [],
+        actions: [],
+        invalidations: [plan],
+        routePlans: [],
+      }),
+    );
     input.id = "changed-after-set";
 
-    const firstSnapshot = store.getSnapshot();
+    const firstSnapshot = Effect.runSync(store.getSnapshot());
     const firstTarget = firstSnapshot.invalidations[0]?.targets[0];
     expect(firstTarget).toMatchObject({
       _tag: "Ref",
@@ -5258,7 +5352,7 @@ describe("devtools invalidation plans", () => {
       (firstTarget.input as { id: string }).id = "changed-after-read";
     }
 
-    expect(store.getSnapshot().invalidations[0]?.targets[0]).toMatchObject({
+    expect(Effect.runSync(store.getSnapshot()).invalidations[0]?.targets[0]).toMatchObject({
       _tag: "Ref",
       input: {
         id: "atlas",
@@ -5268,21 +5362,21 @@ describe("devtools invalidation plans", () => {
 
   it("detaches live invalidation and route-plan descriptions at serialization time", async () => {
     const input = { id: "atlas" };
-    const Project = Resource.family({
+    const Project = Resource.define({
       name: "Devtools.detached-ref",
       load: (projectInput: typeof input) => Effect.succeed(projectInput),
     });
-    const routeDefinition = route("/detached-route/:id", {
+    const routeDefinition = Route.define("/detached-route/:id", {
       search: Schema.Struct({
         tab: Schema.String,
       }),
     });
     const ref = Project(input);
     const invalidationPlan = describeInvalidationPlan(
-      Effect.runSync(Resource.planInvalidationEffect(ref)),
+      Effect.runSync(Resource.planInvalidation(ref)),
     );
     const navigationPlan = await Effect.runPromise(
-      Route.planNavigationEffect([routeDefinition] as const, "/detached-route/atlas?tab=activity"),
+      Route.planNavigation([routeDefinition] as const, "/detached-route/atlas?tab=activity"),
     );
     const routePlan = describeRoutePlan(navigationPlan);
 
@@ -5316,14 +5410,16 @@ describe("devtools invalidation plans", () => {
       },
     };
 
-    store.recordRuntimeEvent({
-      _tag: "Custom",
-      name: "custom",
-      payload,
-    });
+    Effect.runSync(
+      store.recordRuntimeEvent({
+        _tag: "Custom",
+        name: "custom",
+        payload,
+      }),
+    );
     payload.nested.count = 2;
 
-    const firstEvent = store.getSnapshot().events?.[0];
+    const firstEvent = Effect.runSync(store.getSnapshot()).events?.[0];
     expect(firstEvent).toMatchObject({
       _tag: "Custom",
       payload: {
@@ -5336,7 +5432,7 @@ describe("devtools invalidation plans", () => {
       (firstEvent.payload as { nested: { count: number } }).nested.count = 3;
     }
 
-    expect(store.getSnapshot().events?.[0]).toMatchObject({
+    expect(Effect.runSync(store.getSnapshot()).events?.[0]).toMatchObject({
       _tag: "Custom",
       payload: {
         nested: {
@@ -5351,26 +5447,22 @@ describe("devtools invalidation plans", () => {
 
     const [snapshot, summary, graph] = await Effect.runPromise(
       Effect.gen(function* () {
-        yield* store.setAppGraphDiagnosticsEffect(appGraphDiagnostics);
-        yield* store.recordRuntimeEventEffect({
+        yield* store.setAppGraphDiagnostics(appGraphDiagnostics);
+        yield* store.recordRuntimeEvent({
           _tag: "Custom",
           name: "first",
           payload: {
             ignored: true,
           },
         });
-        yield* store.recordResourceEventEffect({
+        yield* store.recordResourceEvent({
           _tag: "ResourceSuccess",
           name: "User.effect-devtools",
           key: "User.effect-devtools:1",
           timestamp: 1,
         });
 
-        return yield* Effect.all([
-          store.getSnapshotEffect(),
-          store.getSummaryEffect(),
-          store.getCausalGraphEffect(),
-        ]);
+        return yield* Effect.all([store.getSnapshot(), store.getSummary(), store.getCausalGraph()]);
       }),
     );
 
@@ -5420,7 +5512,7 @@ describe("devtools invalidation plans", () => {
     const ProjectTag = Resource.tag<{ readonly id: string }>("Golden.Project", {
       key: ({ id }) => id,
     });
-    const ProjectById = Resource.family({
+    const ProjectById = Resource.define({
       name: "Golden.Project.byId",
       input: ProjectId,
       output: Project,
@@ -5445,15 +5537,14 @@ describe("devtools invalidation plans", () => {
       run: (input) => Effect.succeed(input),
       invalidates: (project) => [ProjectsTag, ProjectTag({ id: project.id })],
     });
-    const ProjectRoute = route("/projects/:id", {
+    const ProjectRoute = Route.define("/projects/:id", {
       params: ProjectId,
       search: Schema.Struct({ tab: Schema.optional(Schema.String) }),
       preloadCollections: [ProjectRows],
       preload: ({ params }) =>
-        Effect.all(
-          [Resource.prefetchEffect(ProjectById({ id: params.id })), ProjectRows.preloadEffect()],
-          { discard: true },
-        ),
+        Effect.all([Resource.preload(ProjectById({ id: params.id })), ProjectRows.preload()], {
+          discard: true,
+        }),
     });
     const ref = ProjectById({ id: "atlas" });
     const resourceDiagnostics = Resource.diagnostics();
@@ -5462,7 +5553,7 @@ describe("devtools invalidation plans", () => {
     const [summary, graph] = await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
-          yield* store.setAppGraphDiagnosticsEffect(
+          yield* store.setAppGraphDiagnostics(
             goldenPathAppGraphDiagnostics({
               resourceFamilies: resourceDiagnostics.families.filter(
                 (family) => family.name === "Golden.Project.byId",
@@ -5476,22 +5567,20 @@ describe("devtools invalidation plans", () => {
           yield* runtime.provide(
             Effect.scoped(
               Effect.gen(function* () {
-                const resourceSubscription = yield* Resource.subscribeEventsEffect();
+                const resourceSubscription = yield* Resource.subscribeEvents();
                 const collectionStore = yield* collectionStoreEffect;
-                const collectionSubscription = yield* collectionStore.subscribeEventsEffect();
-                const routePlan = yield* Route.planNavigationEffect(
+                const collectionSubscription = yield* collectionStore.subscribeEvents();
+                const routePlan = yield* Route.planNavigation(
                   [ProjectRoute] as const,
                   "/projects/atlas?tab=activity",
                 );
 
-                yield* store.recordRoutePlanEffect(routePlan);
-                yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
-                yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
-                yield* store.recordCollectionEventEffect(
-                  yield* PubSub.take(collectionSubscription),
-                );
+                yield* store.recordRoutePlan(routePlan);
+                yield* store.recordResourceEvent(yield* PubSub.take(resourceSubscription));
+                yield* store.recordResourceEvent(yield* PubSub.take(resourceSubscription));
+                yield* store.recordCollectionEvent(yield* PubSub.take(collectionSubscription));
 
-                yield* action.submitEffect({ id: "atlas", name: "Atlas Prime" });
+                yield* action.submit({ id: "atlas", name: "Atlas Prime" });
                 const invalidationPlan = action.invalidationPlan.get();
                 const actionState = action.state.get();
 
@@ -5499,11 +5588,11 @@ describe("devtools invalidation plans", () => {
                   expect.fail("Expected the golden-path action to expose an invalidation plan.");
                 }
 
-                yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
-                yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
-                yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
-                yield* store.recordInvalidationEffect(invalidationPlan);
-                yield* store.recordRuntimeEventEffect({
+                yield* store.recordResourceEvent(yield* PubSub.take(resourceSubscription));
+                yield* store.recordResourceEvent(yield* PubSub.take(resourceSubscription));
+                yield* store.recordResourceEvent(yield* PubSub.take(resourceSubscription));
+                yield* store.recordInvalidation(invalidationPlan);
+                yield* store.recordRuntimeEvent({
                   _tag: "ActionState",
                   action: RenameProject.name,
                   state: actionState.result._tag,
@@ -5512,8 +5601,8 @@ describe("devtools invalidation plans", () => {
                   invalidationIndexes: [0],
                 });
 
-                const snapshot = yield* store.getSnapshotEffect();
-                yield* store.setSnapshotEffect({
+                const snapshot = yield* store.getSnapshot();
+                yield* store.setSnapshot({
                   ...snapshot,
                   resources: [
                     {
@@ -5534,9 +5623,9 @@ describe("devtools invalidation plans", () => {
             ),
           );
 
-          return yield* Effect.all([store.getSummaryEffect(), store.getCausalGraphEffect()]);
+          return yield* Effect.all([store.getSummary(), store.getCausalGraph()]);
         }),
-      ).pipe(Effect.ensuring(Effect.orDie(runtime.disposeEffect))),
+      ).pipe(Effect.ensuring(Effect.orDie(runtime.dispose))),
     );
 
     expect(summary.overview).toMatchObject({

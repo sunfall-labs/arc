@@ -22,7 +22,7 @@ describe("Timeline in the Solid DOM", () => {
       Effect.scoped(
         Effect.gen(function* () {
           const runtime = makeRuntime();
-          yield* Effect.addFinalizer(() => runtime.disposeEffect.pipe(Effect.orDie));
+          yield* Effect.addFinalizer(() => runtime.dispose.pipe(Effect.orDie));
           const recording = yield* Timeline.record();
           const title = Signal.make("Draft", { name: "title" });
           const container = document.createElement("div");
@@ -30,7 +30,7 @@ describe("Timeline in the Solid DOM", () => {
             | Component.ProgramHandle<{ readonly count: number }, CounterMessage, never>
             | undefined;
 
-          const View = Component.make("View", function* () {
+          const View = Component.define("View", function* () {
             const counter = yield* Component.program(CounterProgram);
             program = counter;
             return () => reactive(() => `${title.get()}:${counter.model().count}`);
@@ -43,9 +43,9 @@ describe("Timeline in the Solid DOM", () => {
           flush();
           expect(container.textContent).toBe("Draft:0");
 
-          yield* program!.dispatchEffect({ _tag: "Increment" });
+          yield* program!.dispatch({ _tag: "Increment" });
           title.set("Published");
-          yield* program!.dispatchEffect({ _tag: "Increment" });
+          yield* program!.dispatch({ _tag: "Increment" });
           flush();
           expect(container.textContent).toBe("Published:2");
 
@@ -55,7 +55,7 @@ describe("Timeline in the Solid DOM", () => {
           expect(container.textContent).toBe("Draft:1");
 
           // Live dispatches keep committing to the head while the DOM stays travelled.
-          yield* program!.dispatchEffect({ _tag: "Increment" });
+          yield* program!.dispatch({ _tag: "Increment" });
           flush();
           expect(container.textContent).toBe("Draft:1");
           expect(Signal.peek(program!.committed)).toEqual({ count: 3 });

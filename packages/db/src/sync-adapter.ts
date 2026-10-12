@@ -27,7 +27,7 @@ import type {
 export interface CollectionSyncHandlers<A extends object, K extends CollectionKey, E, R> {
   readonly diagnostics: CollectionSyncDiagnostics | undefined;
   readonly load: (() => EffectInput<ReadonlyArray<A>, E, R>) | undefined;
-  readonly refetch: (() => EffectInput<ReadonlyArray<A>, E, R>) | undefined;
+  readonly refresh: (() => EffectInput<ReadonlyArray<A>, E, R>) | undefined;
   readonly follow: (() => Stream.Stream<ReadonlyArray<A>, E, R>) | undefined;
   readonly changes: (() => Stream.Stream<ReadonlyArray<CollectionChange<A, K>>, E, R>) | undefined;
   readonly onInsert:
@@ -58,7 +58,7 @@ export interface CollectionSyncHandlers<A extends object, K extends CollectionKe
 const emptyHandlers: CollectionSyncHandlers<any, any, any, any> = {
   diagnostics: undefined,
   load: undefined,
-  refetch: undefined,
+  refresh: undefined,
   follow: undefined,
   changes: undefined,
   onInsert: undefined,
@@ -83,8 +83,8 @@ const resourceHandlers = <A extends object, K extends CollectionKey, E, R>(
 ): CollectionSyncHandlers<A, K, E, R> => ({
   ...(emptyHandlers as CollectionSyncHandlers<A, K, E, R>),
   diagnostics: { adapter: `resource:${ref.family.options.name}` },
-  load: () => Resource.prefetchEffect(ref) as Effect.Effect<ReadonlyArray<A>, E, R>,
-  refetch: () => Resource.refreshEffect(ref) as Effect.Effect<ReadonlyArray<A>, E, R>,
+  load: () => Resource.preload(ref) as Effect.Effect<ReadonlyArray<A>, E, R>,
+  refresh: () => Resource.refresh(ref) as Effect.Effect<ReadonlyArray<A>, E, R>,
   follow: () => Resource.changes(ref) as Stream.Stream<ReadonlyArray<A>, E, R>,
 });
 
@@ -97,10 +97,10 @@ const adapterHandlers = <A extends object, K extends CollectionKey, E, R>(
     load:
       sync.load !== undefined
         ? () => sync.load!()
-        : sync.refetch !== undefined
-          ? () => sync.refetch!()
+        : sync.refresh !== undefined
+          ? () => sync.refresh!()
           : undefined,
-    refetch: sync.refetch === undefined ? undefined : () => sync.refetch!(),
+    refresh: sync.refresh === undefined ? undefined : () => sync.refresh!(),
     follow: sync.follow === undefined ? undefined : () => sync.follow!(),
     changes: sync.changes === undefined ? undefined : () => sync.changes!(),
     onInsert:

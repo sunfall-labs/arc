@@ -14,11 +14,11 @@ const registryName = (name: string): string => `Resource.registry.${++registryTe
 describe("Resource definition registry", () => {
   it("preserves replacing global resource definitions and records duplicate diagnostics", () => {
     const familyName = registryName("duplicate-family");
-    const First = Resource.family({
+    const First = Resource.define({
       name: familyName,
       load: () => Effect.succeed(1),
     });
-    const Second = Resource.family({
+    const Second = Resource.define({
       name: familyName,
       load: () => Effect.succeed(2),
     });
@@ -85,7 +85,7 @@ describe("Resource definition registry", () => {
     const schemaName = registryName("schema-diagnostics");
     const metadataName = registryName("metadata-diagnostics");
     const registry = makeResourceDefinitionRegistry();
-    const SchemaBacked = Resource.family({
+    const SchemaBacked = Resource.define({
       name: schemaName,
       input: Schema.String,
       output: Schema.Number,

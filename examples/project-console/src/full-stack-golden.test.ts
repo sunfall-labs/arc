@@ -1,12 +1,12 @@
 import {
-  defineApp,
   RequestContext,
   Resource,
   ResponseContext,
-  route,
   Server,
   type AnySunfallArcRuntime,
   type SunfallArcRuntime,
+  Route,
+  App,
 } from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
 import { createRequestHandler, StartAction } from "@sunfall/arc-start";
@@ -180,7 +180,7 @@ describe("project console full-stack golden path", () => {
       readonly requestPath: string;
     }
 
-    const BoundaryResource = Resource.family({
+    const BoundaryResource = Resource.define({
       name: "ProjectConsoleGolden.boundary.resource",
       input: Schema.String,
       output: Schema.Struct({
@@ -203,24 +203,21 @@ describe("project console full-stack golden path", () => {
         load: () => Effect.succeed([{ id: "atlas", name: "Collected Atlas" }]),
       },
     });
-    const BoundaryRoute = route("/golden/:id", {
+    const BoundaryRoute = Route.define("/golden/:id", {
       params: Schema.Struct({ id: Schema.String }),
       preload: ({ params }) =>
         Effect.asVoid(
-          Effect.all([
-            Resource.prefetchEffect(BoundaryResource(params.id)),
-            BoundaryCollection.preloadEffect(),
-          ]),
+          Effect.all([Resource.preload(BoundaryResource(params.id)), BoundaryCollection.preload()]),
         ),
     });
-    const boundaryApp = defineApp({
+    const boundaryApp = App.define({
       routes: [BoundaryRoute] as const,
       client: {},
     });
     const handler = createRequestHandler(boundaryApp, {
       render: ({ collections, legacyHydrationScript, match, runtime }) => {
         const id = match?.params.id ?? "missing";
-        const project = runtime.runSync(Resource.readEffect(BoundaryResource(id)));
+        const project = runtime.runSync(Resource.read(BoundaryResource(id)));
         const collection = collections.collections[0];
         return [
           "<html><body>",

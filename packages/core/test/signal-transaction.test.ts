@@ -312,8 +312,8 @@ describe("Program and Action commits", () => {
           { runtime: defaultRuntime },
         );
 
-        yield* program.dispatchEffect("increment");
-        yield* Effect.flip(program.dispatchEffect("fail"));
+        yield* program.dispatch("increment");
+        yield* Effect.flip(program.dispatch("fail"));
 
         expect(
           Signal.peek(recording.entries).map((entry) => ({
@@ -324,7 +324,7 @@ describe("Program and Action commits", () => {
           { cause: 'Program "Counter" message increment', changed: ["Counter.model"] },
           { cause: 'Program "Counter" failure', changed: ["Counter.failures"] },
         ]);
-        yield* program.disposeEffect;
+        yield* program.dispose;
       }).pipe(Effect.scoped),
     ));
 });

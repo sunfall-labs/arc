@@ -19,6 +19,11 @@ if (!root) {
 }
 
 const runtime = makeRuntime(Layer.empty);
-hydrateFromDocument(document, undefined, { runtime });
 
-Effect.runFork(Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() }));
+// Restore the server's hydration payload into the runtime, then hydrate the
+// server-rendered markup with the same tree.
+Effect.runFork(
+  runtime
+    .provide(hydrateFromDocument(document))
+    .pipe(Effect.andThen(Component.launch(App, root, { runtime, hydrate: root.hasChildNodes() }))),
+);

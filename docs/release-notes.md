@@ -6,6 +6,46 @@ publication under `https://github.com/sunfall-labs/arc`; this remains a
 release-candidate draft until final npm publication is selected. The selected
 first public alpha version is `0.1.0-alpha.1`.
 
+## One Name Per Operation (Breaking)
+
+- Definition constructors are `define`, namespaced: `Resource.define` (which
+  also takes `request` + `resolver` in place of `load`, replacing
+  `Resource.requestFamily`), `Route.define` (replacing flat `route`),
+  `App.define` (replacing `defineApp`), `FileRoute.define(path)(options)`
+  (replacing `defineFileRoute`), and `Component.define` (replacing
+  `Component.make`).
+- No Arc operation carries an `Effect` suffix, and each has one form: the
+  Effect takes the plain name and every synchronous twin is removed
+  (`Resource.preload` / `refresh` / `read` / `hydrate` / ..., `Resource.evict`
+  for the old `deleteEffect`, `Route.preload` / `planNavigation` / ...,
+  Collection `preload` / `refresh` / `insert` / `update` / `delete` /
+  `applyChanges` / `snapshot` / ..., `Query.once`, `runtime.dispose`,
+  `createStartStreamedHtmlResponse`, `hydrateFromDocument`, the devtools store
+  methods, `installDevtoolsBridge`, `mountDevtoolsPanels`, and the rest; see
+  the migration notes for the full table). `Capability.use` is the one service
+  accessor (`useEffect` / `useSync` are gone), and the trivial
+  `ActionResult.*Effect` constructors and the `fail` alias are removed.
+- Handles share one vocabulary: `submit`, `dispatch`, `reset`, `preload`, and
+  `refresh` return Effects, and UI event handlers run them through
+  `Component.callback`. `result()` names every `AsyncResult` accessor
+  (Collection `state()` and `Query.Live.state` are now `result`), and row
+  accessors are `rows` (`Query.Live.data` and `LiveQueryHandle.data` are now
+  `rows`). Collection sync adapters provide `refresh` instead of `refetch`.
+- `Program.emit(...)` is the one command constructor (a message, the message an
+  Effect produces, or nothing for a `void` Effect); `Program.command`,
+  `Program.effect`, and `Program.dispatch` are removed. `Program.commands`
+  batches.
+- Routes are addressed by definition only: the router's `hrefByPath`,
+  `navigateByPath`, `matchByPath`, and `preloadByPathEffect`, the
+  `BrowserRouterPath` / `BrowserRouterRouteForPath` types, and the generated
+  route tree's path-keyed maps, helpers, and types (plus `hrefById` and
+  `isRoutePathMatch`) are removed. `navigateHref(href)` stays for raw hrefs,
+  and `Route.isMatch(route, match)` narrows a match.
+- Fixed: a Component whose first render read a pending Resource re-ran its
+  setup (and rebound its readers) once the read settled, because the render ran
+  in its caller's computation. Render now runs in a computation of the
+  instance's own, so only the render retries.
+
 ## Components Are The Single Solid App Model (Breaking)
 
 - Solid UI is built from typed `Component`s only. `Component.make(name,

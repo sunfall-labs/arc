@@ -1,4 +1,4 @@
-import { defineApp, type AppDefinitionRegistryInput } from "@sunfall/arc-core";
+import { type AppDefinitionRegistryInput, App } from "@sunfall/arc-core";
 import { ProjectApiLive } from "./domain.js";
 import { routeById, routes } from "./routeTree.gen.js";
 
@@ -20,7 +20,7 @@ export const projectConsoleEmptyRegistry = {
 export const createProjectConsoleApp = <const RegistryInput extends AppDefinitionRegistryInput>(
   registry: RegistryInput,
 ) =>
-  defineApp({
+  App.define({
     ...projectConsoleAppBaseOptions,
     registry,
   });

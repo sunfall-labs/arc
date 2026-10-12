@@ -13,9 +13,7 @@ export interface CollectionReactivePreloadController<E, _ER = never> {
   /** Starts a new preload when enabled, interrupting any previous one first. */
   start(preloadEffect: Effect.Effect<void, E, unknown> | undefined, enabled: boolean): void;
   /** Interrupts the current preload fiber and retires its generation as an Effect. */
-  interruptEffect(): Effect.Effect<void>;
-  /** Runtime-owned synchronous convenience for framework cleanup hooks. */
-  interrupt(): void;
+  interrupt(): Effect.Effect<void>;
 }
 
 /** Options for the shared collection/live-query preload controller. */
@@ -114,5 +112,5 @@ export const makeCollectionReactivePreloadController = <E, ER = never>(
     );
   };
 
-  return { interruptEffect, interrupt, start };
+  return { interrupt: interruptEffect, start };
 };

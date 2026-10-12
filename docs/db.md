@@ -35,24 +35,24 @@ without choosing between correctness, inspectability, and ergonomics.
 
 - `Collection.define(...)` declares a typed keyed row collection. It is the one
   way to back a collection: pass `sync` as an inline `Collection.SyncAdapter`
-  (`load`, `refetch`, `follow`, `changes`, `insert`, `update`, `delete`) or as a
+  (`load`, `refresh`, `follow`, `changes`, `insert`, `update`, `delete`) or as a
   `Resource.Ref`. Without `sync` the collection is local-only.
 - Collection vs Resource: a Resource is a cached async read; a Collection is a
   keyed, indexed, optimistic row store, and may be backed by a Resource via
   `sync: ref`.
 - The definition's methods are the single read/write path: reactive reads
-  (`rows()`, `get()`, `index()`, `firstByIndex()`, `state()`, `version()`,
-  `pendingMutations()`) and `*Effect` methods for loads and writes
-  (`preloadEffect`, `refetchEffect`, `insertEffect`, `updateEffect`,
-  `deleteEffect`, `applyChangesEffect`, `flushPendingMutationsEffect`,
-  `snapshotEffect`, `hydrateEffect`, `persistEffect`, `restoreEffect`).
+  (`rows()`, `get()`, `index()`, `firstByIndex()`, `result()`, `version()`,
+  `pendingMutations()`) and Effect-returning methods for loads and writes
+  (`preload`, `refresh`, `insert`, `update`,
+  `delete`, `applyChanges`, `flushPendingMutations`,
+  `snapshot`, `hydrate`, `persist`, `restore`).
 - Collection state is stored per active Sunfall Arc runtime/resource store.
 - Names key stores, snapshots, persistence, and hydration. Redefining a name
   (HMR, re-evaluated modules) replaces the earlier definition; Start rejects
   two distinct collections sharing a name within one app.
 - Collections support Effect-first loading, retry policy, optimistic `insert`,
   `update`, and `delete` mutations, and direct remote writes through
-  `applyChangesEffect(...)`.
+  `applyChanges(...)`.
 - Collections can declare secondary indexes for runtime-local materialized
   keyed lookup and indexed query joins.
 - Mutations apply locally before persistence, mark rows as unsynced, and roll
@@ -67,12 +67,12 @@ without choosing between correctness, inspectability, and ergonomics.
 - In-flight optimistic transactions are tracked in a pending mutation queue and
   included in snapshots. Flushes join an active mutation attempt instead of
   replaying an in-flight handler.
-- Collection preload and refetch coordination is store-owned: concurrent
-  preloads share the active load, forced refetches advance the store generation,
+- Collection preload and refresh coordination is store-owned: concurrent
+  preloads share the active load, forced refreshes advance the store generation,
   and stale earlier loads cannot overwrite newer rows or persistence.
-- `Collection.flushAllPendingMutationsEffect(...)` coordinates mutation flushes
+- `Collection.flushAllPendingMutations(...)` coordinates mutation flushes
   across collections and can skip work while offline.
-- `Collection.backgroundSyncPendingMutationsEffect(...)` lets host adapters
+- `Collection.backgroundSyncPendingMutations(...)` lets host adapters
   decide whether trigger-driven pending mutation flushes should run.
 - `SQLitePersistence.*` adapts SQLite-shaped drivers into collection snapshot
   persistence without baking in IndexedDB.
@@ -95,15 +95,15 @@ Collection and live-query load state uses Effect's `AsyncResult`
 Resources and Actions. Rows are always their own signal, so local-first reads
 never wait on load state.
 
-- `collection.state()` is
+- `collection.result()` is
   `ReadableSignal<AsyncResult<void, Collection.RuntimeError<E>>>`: `Initial`
   before the first load, `Success` (timestamped with the load's `Clock` time)
   once rows are loaded, and `Failure` carrying the load `Cause` with the last
-  success as `previousSuccess`. A preload or refetch marks the current result
+  success as `previousSuccess`. A preload or refresh marks the current result
   `waiting` instead of switching tags; an interrupted load returns to the prior
   settled result.
-- `liveQuery.state` is `ReadableSignal<AsyncResult<ReadonlyArray<T>, E | QueryEvaluationError>>`
-  beside `liveQuery.data` (always the last good rows). It folds source load
+- `liveQuery.result` is `ReadableSignal<AsyncResult<ReadonlyArray<T>, E | QueryEvaluationError>>`
+  beside `liveQuery.rows` (always the last good rows). It folds source load
   results and evaluation failures: `Initial` while any source has never loaded,
   `Success` with the current rows (timestamped by the latest source load),
   `Failure` with the source or evaluation `Cause` keeping the last good rows as
@@ -116,14 +116,14 @@ the Component's `R`, so `Component.launch` checks them.
 `result`, `get`, `index`, `pendingMutations`, `preloadFailure`); writes run the
 definition's Effects through `Component.callback`.
 `SolidDb.liveQuery(query, options?)` returns `data`, `result`,
-`preloadFailure`, `preloadEffect`, and `refetchEffect`; its query factory runs
+`preloadFailure`, `preload`, and `refresh`; its query factory runs
 tracked, so a signal or prop read in the factory rebuilds the query.
 
 ```tsx
-const ProjectList = Component.make("ProjectList", function* () {
+const ProjectList = Component.define("ProjectList", function* () {
   const projects = yield* SolidDb.collection(Projects);
   const archive = yield* Component.callback((id: ProjectId) =>
-    Projects.updateEffect(id, { archived: true }).pipe(Effect.ignore),
+    Projects.update(id, { archived: true }).pipe(Effect.ignore),
   );
   const result = () => projects.result();
 
@@ -146,7 +146,7 @@ const ProjectList = Component.make("ProjectList", function* () {
 ```
 
 Rendering rows inside a builder branch would rebuild the whole list on every
-load transition; keying `<For>` by id keeps rows mounted when a refetch hands
+load transition; keying `<For>` by id keeps rows mounted when a refresh hands
 back new row objects (see
 [Solid Adapter](solid-adapter.md#keep-content-mounted-across-refreshes)).
 
@@ -165,7 +165,7 @@ const ActiveProjectNames = Query.live((query) =>
 ```
 
 The concrete `QueryBuilder` constructor is internal to the package source; apps
-use `Query.from(...)`, `Query.onceEffect(...)`,
+use `Query.from(...)`, `Query.once(...)`,
 `Query.live(...)`, and the branded `Query.Builder` fluent Interface. The
 public builder type does not expose execution-plan storage and cannot be
 structurally faked, and public `LiveQuery` handles expose data/state/source
@@ -175,9 +175,9 @@ malformed builder construction and plan mutation behind the Query Module seam.
 Internally, Query Builder, Query Execution Plan, Live Query State, and Live
 Query Runtime read source collections through the Collection Query Source
 Adapter. That keeps rows, row counts, secondary-index probes, version/state
-signals, and preload/refetch Effects behind one source Interface for normal
+signals, and preload/refresh Effects behind one source Interface for normal
 Collections and read-only Live Query Collections. Query Execution Plan owns
-validation, source preloading/refetching, snapshot execution, diagnostics, and
+validation, source preloading/refreshing, snapshot execution, diagnostics, and
 remaining projection stages after the live IVM graph has already applied
 filters, grouping, ordering, or windows.
 
@@ -257,7 +257,7 @@ plan.joins[0];
 // }
 ```
 
-`Query.diagnostics(...)`, `Query.onceEffect(...)`, and `Query.live(...)` use the
+`Query.diagnostics(...)`, `Query.once(...)`, and `Query.live(...)` use the
 same typed failure
 envelope. Unsupported plan shapes, invalid source aliases or indexes,
 Promise-shaped, Effect-shaped, or non-builder query factory results, and invalid
@@ -286,9 +286,9 @@ after materialization until the framework has explicit insertion-order
 semantics.
 
 Public `Query.Factory<TResult>` annotations default error and requirement
-channels to `never`. If a factory reads collections whose load/refetch work can
+channels to `never`. If a factory reads collections whose load/refresh work can
 fail or needs services, spell those channels in the annotation instead of
-relying on a broad alias. This keeps `Query.onceEffect(...)`, `Query.live(...)`,
+relying on a broad alias. This keeps `Query.once(...)`, `Query.live(...)`,
 and Live Query Collection hovers aligned with the actual source collections.
 
 Filters use plain JavaScript operators inside `where(...)`
@@ -317,7 +317,7 @@ The Live Query Collection does not own source rows and rejects local mutations.
 It is useful when a D2/materialized view should be passed to APIs that expect a
 Collection Definition, or used as a source for another live query.
 
-Repeated `state().get()` reads are stable: the `Success` result (and its
+Repeated `result().get()` reads are stable: the `Success` result (and its
 `timestamp`) changes only when
 the collection-shaped materialized projection changes, not because a component
 or devtools panel inspected the derived collection. Duplicate source rows with
@@ -327,7 +327,7 @@ That projection now uses the shared row-ingress key policy, so invalid derived
 keys and `getKey` callback throws fail through typed collection snapshot or
 callback errors instead of bypassing normal validation.
 
-Because the rows are derived, `hydrateEffect(...)` and `restoreEffect(...)` fail
+Because the rows are derived, `hydrate(...)` and `restore(...)` fail
 with `CollectionSnapshotCodecError`; hydrate or restore the source collections
 instead and let the live-query collection rebuild its materialized view.
 Persisting a Live Query Collection still uses the shared snapshot persistence
@@ -391,7 +391,7 @@ Method-style adapters keep their receiver. An adapter `name` is reported as
 A Resource ref can back a collection directly:
 
 ```ts
-const ProjectRows = Resource.family<void, ReadonlyArray<Project>>({
+const ProjectRows = Resource.define<void, ReadonlyArray<Project>>({
   name: "Project.rows",
   load: () => ProjectApi.use((api) => api.list()),
 });
@@ -404,21 +404,21 @@ const Projects = Collection.define({
 });
 ```
 
-Preload calls `Resource.prefetchEffect(ref)`, refetch calls
-`Resource.refreshEffect(ref)`, and once either succeeds the collection follows
+Preload calls `Resource.preload(ref)`, refresh calls
+`Resource.refresh(ref)`, and once either succeeds the collection follows
 `Resource.changes(ref)` for the lifetime of its Collection Store. Every later
 success of the Resource (a reload triggered by an Action's invalidation tags, a
 refresh elsewhere, a hydration) reconciles the collection's synced rows, with no
 second fetch. When the collection also needs to commit writes, spell the same
-operations inline: `{ load: () => Resource.prefetchEffect(ref), refetch: () =>
-Resource.refreshEffect(ref), follow: () => Resource.changes(ref), update }`.
+operations inline: `{ load: () => Resource.preload(ref), refresh: () =>
+Resource.refresh(ref), follow: () => Resource.changes(ref), update }`.
 
 `follow` is a `Stream` of authoritative row snapshots. It starts once per
-Collection Store after the first successful preload or refetch, runs in the
+Collection Store after the first successful preload or refresh, runs in the
 store's scope (runtime disposal interrupts it), and each emission goes through
-the same load policy as a forced refetch, so stale loads are superseded and
+the same load policy as a forced refresh, so stale loads are superseded and
 pending optimistic mutations stay rebased on top. A follow failure is recorded
-like a load failure and restarts on the next successful preload or refetch.
+like a load failure and restarts on the next successful preload or refresh.
 
 `changes` is a `Stream` of incremental remote change batches. It has the same
 lifecycle as `follow`; the collection owns the subscription:
@@ -445,13 +445,13 @@ that fails the output schema) is published as a `CollectionChangeFeedFailure`
 store event and the stream keeps running; a stream failure is published the same
 way and recorded as a load failure.
 
-For one-off imperative writes, `applyChangesEffect(...)` applies a batch in
+For one-off imperative writes, `applyChanges(...)` applies a batch in
 order without queuing mutation handlers. Rows default to `origin: "remote"` and
 `synced: true`:
 
 ```ts
 yield *
-  Projects.applyChangesEffect([
+  Projects.applyChanges([
     { _tag: "Upsert", value: { id: "atlas", name: "Atlas Prime" } },
     { _tag: "Update", key: "orion", changes: { name: "Orion Prime" } },
     { _tag: "Delete", key: "lumen" },
@@ -475,7 +475,7 @@ const Projects = Collection.define<Project>({
   sync: {
     name: "tanstack-query:projects",
     load: () => Effect.tryPromise(() => queryClient.fetchQuery(projectsQuery)),
-    refetch: () =>
+    refresh: () =>
       Effect.tryPromise(() => queryClient.invalidateQueries({ queryKey: ["projects"] })).pipe(
         Effect.andThen(Effect.tryPromise(() => queryClient.fetchQuery(projectsQuery))),
       ),
@@ -495,12 +495,12 @@ Collections expose synchronous inspection helpers for UI/runtime-bound code and
 Effect forms for durable SSR, route preload, tests, and server adapters:
 
 ```ts
-const snapshot = yield * Projects.snapshotEffect();
+const snapshot = yield * Projects.snapshot();
 
-yield * Projects.hydrateEffect(snapshot);
+yield * Projects.hydrate(snapshot);
 ```
 
-Use `snapshotEffect(...)` for hydration, persistence, and server payloads. The
+Use `snapshot(...)` for hydration, persistence, and server payloads. The
 synchronous `snapshot()` is an inspection view of the current runtime store; it
 does not wait behind in-flight durable commit permits.
 
@@ -525,8 +525,8 @@ adapters:
 ```ts
 const storage = Collection.storage(localStorage);
 
-yield * Projects.persistEffect(storage, { key: "projects" });
-yield * Projects.restoreEffect(storage, { key: "projects" });
+yield * Projects.persist(storage, { key: "projects" });
+yield * Projects.restore(storage, { key: "projects" });
 ```
 
 `Collection.memoryStorage()` is useful for tests and in-memory examples. Both
@@ -544,8 +544,8 @@ const storage = SQLitePersistence.storage(sqliteDriver, {
   schemaVersion: 1,
 });
 
-yield * Projects.restoreEffect(storage, { key: "projects" });
-yield * Projects.persistEffect(storage, { key: "projects" });
+yield * Projects.restore(storage, { key: "projects" });
+yield * Projects.persist(storage, { key: "projects" });
 ```
 
 Schema versions are checked at the storage Adapter. A mismatch reads as no
@@ -644,7 +644,7 @@ is enough to satisfy preload; set `loadAfterRestore: true` when preload should
 also refresh from the remote loader. Refetch always forces the loader. The
 internal Collection Sync Load Policy runs this as one Effect v4 workflow, so
 concurrent preloads join the same in-flight `Deferred` and a slower old preload
-cannot overwrite a newer forced refetch. The same policy persists fresh
+cannot overwrite a newer forced refresh. The same policy persists fresh
 snapshots after loads, while the internal Collection Mutation Workflow owns
 optimistic transaction persistence, active mutation `Deferred` joiners,
 commit/rollback, and restored pending flush replay.
@@ -665,7 +665,7 @@ Restored or current pending transactions can be flushed back through the
 collection's mutation handlers without re-applying local row changes:
 
 ```ts
-const flushed = yield * Projects.flushPendingMutationsEffect();
+const flushed = yield * Projects.flushPendingMutations();
 
 flushed.map((transaction) => transaction.id);
 ```
@@ -687,7 +687,7 @@ collections or skip flushing while offline:
 ```ts
 const results =
   yield *
-  Collection.flushAllPendingMutationsEffect([Projects, Tasks], {
+  Collection.flushAllPendingMutations([Projects, Tasks], {
     skip: () => Network.use((network) => !network.online),
   });
 
@@ -700,7 +700,7 @@ whether a pending flush is allowed to run:
 ```ts
 const sync =
   yield *
-  Collection.backgroundSyncPendingMutationsEffect([Projects, Tasks], {
+  Collection.backgroundSyncPendingMutations([Projects, Tasks], {
     trigger: "online",
     adapter: {
       name: "browser-online",
@@ -719,9 +719,9 @@ The DB Module does not listen to browser events directly. Browser, native,
 worker, or server hosts own those triggers and call the Background Sync
 Interface with adapters that match their scheduling and connectivity rules.
 
-When a mutation handler is still in flight, `persistEffect` stores both the
+When a mutation handler is still in flight, `persist` stores both the
 optimistic rows and the rollback rows for the pending transaction. A later
-`restoreEffect` can hydrate the same local state and expose the same pending
+`restore` can hydrate the same local state and expose the same pending
 transaction facts to devtools or sync adapters.
 
 Collection lifecycle events flow through the active Resource Store's collection
@@ -732,19 +732,19 @@ event runtime pipeline.
 ## Start SSR
 
 Start can include DB collection snapshots in the normal hydration script. Route
-preloads that call `collection.preloadEffect()` or
-`collection.refetchEffect()` are collected automatically and dehydrated from
+preloads that call `collection.preload()` or
+`collection.refresh()` are collected automatically and dehydrated from
 the request runtime:
 
 ```ts
-const ProjectRoute = route("/projects/:id", {
-  preload: () => Projects.preloadEffect(),
+const ProjectRoute = Route.define("/projects/:id", {
+  preload: () => Projects.preload(),
 });
 ```
 
 Explicit `collections` are still supported as a hydration registry and override.
 They are always dehydrated, even when a route preload does not touch them.
-Live query preload and refetch validate the query plan before source collection
+Live query preload and refresh validate the query plan before source collection
 loads run. Invalid aliases, indexes, or unsupported plan shapes fail with
 `QueryEvaluationError`, and Solid DB automatic preload records that
 failure without causing source side effects.
@@ -771,26 +771,23 @@ export const handleRequest = createRequestHandler(app, {
 ```
 
 The browser entrypoint hydrates both resources and collections from the same
-script. Prefer the Effect form and run it through the browser Runtime Spine so
-hydration lands in the same runtime that the UI will use:
+script. Run the `hydrateFromDocument(...)` Effect through the browser Runtime
+Spine, before mounting, so hydration lands in the same runtime that the UI will
+use:
 
 ```ts
 const runtime = makeRuntime(AppLive);
 
-runtime.runSync(
-  hydrateFromDocumentEffect(document, "__SUNFALL_ARC_HYDRATION__", {
-    collections: [Projects, Tasks],
-  }),
+Effect.runFork(
+  runtime
+    .provide(hydrateFromDocument(document, undefined, { collections: [Projects, Tasks] }))
+    .pipe(Effect.andThen(Component.launch(App, root, { runtime, hydrate: true }))),
 );
 ```
 
-Minimal browser entrypoints can use the synchronous host facade
-`hydrateFromDocument(document, id, { runtime, collections })`; it runs
-`hydrateFromDocumentEffect(...)` before the UI mounts.
-
 For streamed SSR responses, Start emits incremental JSON scripts with
-`data-sunfall-arc-hydration-chunk`. `hydrateFromDocument(...)` /
-`hydrateFromDocumentEffect(...)` ingest those chunks after the root payload with
+`data-sunfall-arc-hydration-chunk`. `hydrateFromDocument(...)` ingests those
+chunks after the root payload with
 the same collection definitions, and consumed chunk scripts are marked so later
 scans do not apply the same collection snapshot twice.
 

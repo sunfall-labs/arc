@@ -9,7 +9,7 @@ import {
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
 import { browserRouterInitialMatchedState } from "@sunfall/arc-core/internal";
-import { Data } from "effect";
+import { Data, Effect } from "effect";
 import {
   createComponent,
   createContext,
@@ -53,7 +53,7 @@ export interface BrowserRouterOptions<ER = never> extends BrowserRouterOptionsBa
 
 type SolidBrowserRouterHostController<Routes extends readonly AnyRoute[], ER> = Omit<
   BrowserRouterHostController<Routes, ER>,
-  "state" | "match" | "start" | "dispose" | "disposeEffect"
+  "state" | "match" | "start" | "dispose"
 >;
 
 /** Solid browser router backed by Sunfall Arc route definitions and preload. */
@@ -175,10 +175,12 @@ export const createBrowserRouter = <const Routes extends readonly AnyRoute[], ER
   // Controller signals are Arc signals, which Solid tracks natively.
   const state: Accessor<BrowserRouterState<Routes, ER>> = () => controller.state.get();
   const match: Accessor<Route.Match<Routes[number]> | undefined> = () => controller.match.get();
-  const stopController = canUseBrowser() ? controller.start() : controller.dispose;
+  if (canUseBrowser()) {
+    controller.start();
+  }
 
   onCleanup(() => {
-    stopController();
+    void Effect.runFork(controller.dispose());
   });
 
   const router: BrowserRouter<Routes, ER> = {
@@ -189,13 +191,9 @@ export const createBrowserRouter = <const Routes extends readonly AnyRoute[], ER
     canHandleRoute: controller.canHandleRoute,
     href: controller.href,
     createHref: controller.createHref,
-    hrefByPath: controller.hrefByPath,
     navigate: controller.navigate,
-    navigateByPath: controller.navigateByPath,
     navigateHref: controller.navigateHref,
-    matchByPath: controller.matchByPath,
-    preloadEffect: controller.preloadEffect,
-    preloadByPathEffect: controller.preloadByPathEffect,
+    preload: controller.preload,
   };
   if (options.renderView !== undefined) {
     viewRenderers.set(router, options.renderView);
@@ -249,7 +247,7 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
   });
 
   onCleanup(() => {
-    routeRenderScope.dispose();
+    void Effect.runFork(routeRenderScope.dispose());
   });
 
   return createMemo(() => {
@@ -272,7 +270,7 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
  *
  * @example
  * ```tsx
- * const App = Component.make("App", function* () {
+ * const App = Component.define("App", function* () {
  *   const router = yield* Component.router(routes);
  *   return () => <RouterProvider router={router} notFound={() => <NotFound />} />;
  * });

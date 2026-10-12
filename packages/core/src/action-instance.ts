@@ -38,17 +38,12 @@ export const makeActionInstance = <I, A, E, R, ER>(
     definition,
     state: submissions.state,
     invalidationPlan: submissions.invalidationPlan,
-    submitEffect: workflow.submitEffect as (
+    submit: workflow.submit as (
       input: I,
     ) => Effect.Effect<
       A,
       E | ER | EffectInputCallbackError | ServerClientError | ActionInterrupted
     >,
-    resetEffect: workflow.resetEffect,
-    reset: () => {
-      void runtime.runFork(
-        workflow.captureResetEffect().pipe(Effect.catchCause(() => Effect.void)),
-      );
-    },
+    reset: workflow.reset,
   };
 };

@@ -30,8 +30,8 @@ const runtime = makeRuntime(ProjectApiTest);
 
 const projectEffect = runtime.provide(
   Effect.gen(function* () {
-    yield* Resource.prefetchEffect(ProjectById(makeProjectId("atlas")));
-    return yield* Resource.readEffect(ProjectById(makeProjectId("atlas")));
+    yield* Resource.preload(ProjectById(makeProjectId("atlas")));
+    return yield* Resource.read(ProjectById(makeProjectId("atlas")));
   }),
 );
 ```

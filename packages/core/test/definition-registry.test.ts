@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { Action, defineApp, Server } from "../src/index.js";
+import { Action, Server, App } from "../src/index.js";
 import {
   makeCoreDefinitionRegistryAdapter,
   actionDefinitionRegistry,
@@ -40,7 +40,7 @@ describe("Core definition registry", () => {
       handler: () => Effect.succeed("before"),
     });
 
-    const app = defineApp({
+    const app = App.define({
       routes: [] as const,
       client: {},
     });
@@ -77,7 +77,7 @@ describe("Core definition registry", () => {
       handler: () => Effect.succeed("local"),
     });
 
-    const app = defineApp({
+    const app = App.define({
       routes: [] as const,
       client: {},
       registry: {
@@ -103,7 +103,7 @@ describe("Core definition registry", () => {
       handler: () => Effect.succeed("local"),
     });
 
-    const app = defineApp({
+    const app = App.define({
       routes: [] as const,
       client: {},
       registry: {

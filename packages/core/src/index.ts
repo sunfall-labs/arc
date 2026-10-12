@@ -16,12 +16,7 @@ export {
 } from "./browser-router-history-adapter.js";
 export * from "./browser-router-host-controller.js";
 export { RouterRouteNotRegistered, type BrowserNavigateArgs } from "./browser-router-kernel.js";
-export type {
-  BrowserRouterError,
-  BrowserRouterPath,
-  BrowserRouterRouteForPath,
-  BrowserRouterState,
-} from "./browser-router-state.js";
+export type { BrowserRouterError, BrowserRouterState } from "./browser-router-state.js";
 export * from "./capability.js";
 export {
   EffectInputCallbackError,
@@ -49,7 +44,7 @@ export {
   type ResourceSnapshotCodecOperation,
 } from "./resource-snapshot-codec.js";
 export {
-  disposeResourceStoreEffect,
+  disposeResourceStore,
   makeResourceStore,
   ResourceStore,
   ResourceStoreDisposeError,

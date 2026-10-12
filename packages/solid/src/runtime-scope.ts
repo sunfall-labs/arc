@@ -13,7 +13,7 @@ export const createRuntimeScope = <A, ER>(
 ): A => {
   const frame = makeRuntimeUiScopeFrame(runtime);
   onCleanup(() => {
-    void runtime.runFork(frame.disposeEffect());
+    void runtime.runFork(frame.dispose());
   });
   return frame.run(() => f(frame.scope));
 };

@@ -10,7 +10,7 @@ import {
   Redactable,
 } from "effect";
 import {
-  disposeResourceStoreEffect,
+  disposeResourceStore,
   makeMutableResourceStore,
   makeResourceStore,
   ResourceStore,
@@ -71,7 +71,7 @@ export interface AnySunfallArcRuntime<ER = unknown> {
   /** Runs a synchronous Effect at a host or ambient seam where service typing is erased. */
   runSync<A, E, RIn>(effect: Effect.Effect<A, E, RIn>): A;
   /** Disposes runtime-owned resources and reports typed disposal failures. */
-  readonly disposeEffect: Effect.Effect<void, RuntimeDisposeError>;
+  readonly dispose: Effect.Effect<void, RuntimeDisposeError>;
 }
 
 /**
@@ -115,7 +115,7 @@ export interface SunfallArcRuntime<R = never, ER = never> {
   /** Runs a synchronous Effect whose service requirements are satisfied by this runtime. */
   runSync<A, E, RIn>(effect: RuntimeReadyEffect<A, E, RIn, R>): A;
   /** Disposes runtime-owned resources and reports typed disposal failures. */
-  readonly disposeEffect: Effect.Effect<void, RuntimeDisposeError>;
+  readonly dispose: Effect.Effect<void, RuntimeDisposeError>;
 }
 
 /** Options for providing runtime services to an Effect without executing it. */
@@ -217,7 +217,7 @@ const fromManagedRuntime = <R, ER>(
             provideRuntimeServices(effect, { resourceStore: store }) as Effect.Effect<any, any>,
           ),
         ),
-      disposeEffect,
+      dispose: disposeEffect,
     };
     return scopedRuntime;
   };
@@ -241,7 +241,7 @@ const fromManagedRuntime = <R, ER>(
       );
     }) as Effect.Effect<A, E | ER, RuntimeRemainingRequirements<RIn, R>>;
 
-  const disposeStore = disposeResourceStoreEffect(resourceStore);
+  const disposeStore = disposeResourceStore(resourceStore);
   const disposeEffect: Effect.Effect<void, RuntimeDisposeError> = options.disposeManaged
     ? Effect.gen(function* () {
         const storeExit = yield* Effect.exit(disposeStore);
@@ -265,7 +265,7 @@ const fromManagedRuntime = <R, ER>(
       runWithRuntime(runtime, () =>
         managedRuntime.runSync(provideRuntimeServices(effect) as Effect.Effect<any, any>),
       ),
-    disposeEffect,
+    dispose: disposeEffect,
   };
 
   return runtime;

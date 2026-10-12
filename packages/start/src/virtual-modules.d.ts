@@ -60,27 +60,6 @@ declare module "virtual:sunfall-arc/routes" {
   export const routeById: Readonly<
     Record<string, import("@sunfall/arc-core").Route.Definition<string, unknown, unknown, any>>
   >;
-  /** Broad virtual map keyed by route path. */
-  export const routeByPath: Readonly<
-    Record<string, import("@sunfall/arc-core").Route.Definition<string, unknown, unknown, any>>
-  >;
-  /** Broad virtual map from route path to generated route id. */
-  export const routeIdByPath: Readonly<Record<string, string>>;
-  /** Builds a typed href for a virtual route id. Written generated files narrow this per app. */
-  export const hrefById: <Id extends FileRouteId>(
-    id: Id,
-    ...args: import("@sunfall/arc-core").Route.HrefArgs<RouteById[Id]>
-  ) => string;
-  /** Builds a typed href for a virtual route path. Written generated files narrow this per app. */
-  export const hrefByPath: <Path extends FileRoutePath>(
-    path: Path,
-    ...args: import("@sunfall/arc-core").Route.HrefArgs<RouteByPath[Path]>
-  ) => string;
-  /** Narrows a broad route match to one virtual route path pattern. */
-  export const isRoutePathMatch: <Path extends FileRoutePath>(
-    path: Path,
-    match: import("@sunfall/arc-core").Route.Match<FileRoute> | undefined,
-  ) => match is FileRouteMatch<Path>;
   /** Layout module exports scoped to each generated route id. */
   export const fileRouteLayoutsById: Readonly<Record<string, readonly unknown[]>>;
   /** Nearest error boundary module export keyed by generated route id. */
@@ -89,22 +68,10 @@ declare module "virtual:sunfall-arc/routes" {
   export const fileRouteMetadataById: Readonly<Record<string, readonly unknown[]>>;
   /** Returns layout modules for a virtual route id. Written generated files narrow this per app. */
   export const layoutsById: <Id extends FileRouteId>(id: Id) => FileRouteLayouts<Id>;
-  /** Returns layout modules for a virtual route path. Written generated files narrow this per app. */
-  export const layoutsByPath: <Path extends FileRoutePath>(
-    path: Path,
-  ) => FileRouteLayouts<RouteIdByPath[Path]>;
   /** Returns the nearest error boundary for a virtual route id, when one exists. */
   export const errorBoundaryById: <Id extends FileRouteId>(id: Id) => FileRouteErrorBoundary<Id>;
-  /** Returns the nearest error boundary for a virtual route path, when one exists. */
-  export const errorBoundaryByPath: <Path extends FileRoutePath>(
-    path: Path,
-  ) => FileRouteErrorBoundary<RouteIdByPath[Path]>;
   /** Returns metadata modules for a virtual route id. Written generated files narrow this per app. */
   export const metadataById: <Id extends FileRouteId>(id: Id) => FileRouteMetadataModules<Id>;
-  /** Returns metadata modules for a virtual route path. Written generated files narrow this per app. */
-  export const metadataByPath: <Path extends FileRoutePath>(
-    path: Path,
-  ) => FileRouteMetadataModules<RouteIdByPath[Path]>;
   /** Generated file-route manifest modules used by diagnostics and tooling. */
   export const fileRouteModules: readonly import("./file-routes.js").FileRouteManifestModule[];
   /** Generated route metadata used by diagnostics and tooling. */
@@ -113,16 +80,10 @@ declare module "virtual:sunfall-arc/routes" {
   export type RouteTree = typeof routes;
   /** Broad map type keyed by generated route id. */
   export type RouteById = typeof routeById;
-  /** Broad map type keyed by route path. */
-  export type RouteByPath = typeof routeByPath;
-  /** Broad map type from route path to generated route id. */
-  export type RouteIdByPath = typeof routeIdByPath;
   /** One generated file route definition. */
   export type FileRoute = RouteTree[number];
   /** Broad file route id union for virtual modules. */
   export type FileRouteId = keyof RouteById;
-  /** Broad file route path union for virtual modules. */
-  export type FileRoutePath = keyof RouteByPath;
   /** Params mapped by route id. Written generated files narrow this per app. */
   export type FileRouteParamsById = {
     readonly [Id in FileRouteId]: import("@sunfall/arc-core").Route.Params<RouteById[Id]>;
@@ -143,28 +104,6 @@ declare module "virtual:sunfall-arc/routes" {
   };
   /** Href arguments for one virtual route id. */
   export type FileRouteHrefArgs<Id extends FileRouteId> = FileRouteHrefArgsById[Id];
-  /** Params mapped by route path. Written generated files narrow this per app. */
-  export type FileRouteParamsByPath = {
-    readonly [Path in FileRoutePath]: import("@sunfall/arc-core").Route.Params<RouteByPath[Path]>;
-  };
-  /** Search values mapped by route path. Written generated files narrow this per app. */
-  export type FileRouteSearchByPath = {
-    readonly [Path in FileRoutePath]: import("@sunfall/arc-core").Route.Search<RouteByPath[Path]>;
-  };
-  /** Href options mapped by route path. Written generated files narrow this per app. */
-  export type FileRouteHrefOptionsByPath = {
-    readonly [Path in FileRoutePath]: import("@sunfall/arc-core").Route.HrefOptions<
-      RouteByPath[Path]
-    >;
-  };
-  /** Href arguments mapped by route path. Written generated files narrow this per app. */
-  export type FileRouteHrefArgsByPath = {
-    readonly [Path in FileRoutePath]: import("@sunfall/arc-core").Route.HrefArgs<RouteByPath[Path]>;
-  };
-  /** Route match narrowed to one virtual route path pattern. */
-  export type FileRouteMatch<Path extends FileRoutePath> = import("@sunfall/arc-core").Route.Match<
-    RouteByPath[Path]
-  >;
   /** Layout modules keyed by virtual route id. */
   export type FileRouteLayoutsById = typeof fileRouteLayoutsById;
   /** Error boundary modules keyed by virtual route id when present. */

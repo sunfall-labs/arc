@@ -298,7 +298,7 @@ export const subscribeResourceEventsEffect = (): Effect.Effect<
   PubSub.Subscription<ResourceStoreEvent>,
   never,
   Scope.Scope
-> => Effect.flatMap(resourceStoreEffect, (store) => store.eventBus.subscribeEffect);
+> => Effect.flatMap(resourceStoreEffect, (store) => store.eventBus.subscribe);
 
 const isSettledResourceEvent = (ref: AnyResourceRef, event: ResourceStoreEvent): boolean =>
   (event._tag === "ResourceSuccess" || event._tag === "ResourceHydrated") &&
@@ -318,7 +318,7 @@ export const resourceChangesStream = <I, A, E, R>(ref: ResourceRef<I, A, E, R>):
       yield* Effect.acquireRelease(retainResourceRefEffect(ref), () =>
         releaseResourceRefEffect(ref),
       );
-      const subscription = yield* store.eventBus.subscribeEffect;
+      const subscription = yield* store.eventBus.subscribe;
       const settled = Stream.fromSubscription(subscription).pipe(
         Stream.filter((event) => isSettledResourceEvent(ref as AnyResourceRef, event)),
       );
@@ -515,7 +515,7 @@ const resourcePending = <I, A, E, R>(
     reason,
     result,
     guidance:
-      "The Resource value is not loaded yet. Run Resource.prefetchEffect(...) before Resource.readEffect(...), or read it with a UI adapter such as Solid's Component.resource(...) reader for Suspense.",
+      "The Resource value is not loaded yet. Run Resource.preload(...) before Resource.read(...), or read it with a UI adapter such as Solid's Component.resource(...) reader for Suspense.",
   });
 
 type ResourceReadDecision<I, A, E, R> =

@@ -22,9 +22,9 @@ export type {
 
 export {
   /** Builds a buffered HTML response inside Effect. */
-  createHtmlResponseEffect,
+  createHtmlResponse,
   /** Builds a streamed HTML response with ordered hydration chunks. */
-  createStartStreamedHtmlResponseEffect,
+  createStartStreamedHtmlResponse,
   /** Wraps a string as an HTML stream chunk. */
   htmlChunk,
   /** Error raised when an HTML response stream fails. */
@@ -39,8 +39,6 @@ export {
 
 export {
   /** Reads and hydrates Start payloads from a document as an Effect. */
-  hydrateFromDocumentEffect,
-  /** Synchronous host-seam facade for document hydration before mount. */
   hydrateFromDocument,
   /** Error raised when a streamed hydration chunk cannot be parsed. */
   StartHydrationChunkParseError,
@@ -48,8 +46,6 @@ export {
   StartHydrationPayloadParseError,
   /** Error raised when a Start hydration payload cannot be serialized for HTML. */
   StartHydrationPayloadSerializeError,
-  /** Options for `hydrateFromDocumentEffect`. */
-  type HydrateFromDocumentEffectOptions,
   /** Options for `hydrateFromDocument`. */
   type HydrateFromDocumentOptions,
   /** Shared options for request preload and client hydration collections. */
@@ -93,8 +89,8 @@ export {
 } from "./start-transport-endpoints.js";
 
 export {
-  /** Defines a file-backed route checked against its discovered file path. */
-  defineFileRoute,
+  /** File-backed route definitions: `FileRoute.define(path)(options)`. */
+  FileRoute,
 } from "./file-route.js";
 
 export {
