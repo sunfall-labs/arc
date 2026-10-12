@@ -11,8 +11,8 @@ target. The public API is owned by Sunfall Arc:
 - `Resource` for typed async/cache state.
 - `Collection` / `Query` for normalized client data, secondary indexes, and
   live materialized queries.
-- `Action` for every change to server data: optimistic Signal and Collection
-  patches, the Effect that writes, and invalidation.
+- `Action` for every change to server data: optimistic Signal, Resource, and
+  Collection patches, the Effect that writes, and invalidation.
 - `Capability` for named app services and test layers.
 - `Route` (`Route.define`) for typed routes.
 - `RouterProvider` / `RouterOutlet` for browser history, route preload, and route-owned scopes.
@@ -64,7 +64,7 @@ Sunfall Arc should stay unusually strict in these places:
   async work leaves the handler through Effect commands and Stream
   subscriptions, so `Program.step` tests a transition with no runtime;
 - actions are the one mutation path: they own mutation policy, optimistic
-  Signal and Collection patches, invalidation, and result shape;
+  Signal, Resource, and Collection patches, invalidation, and result shape;
 - a failure that can reach rendering joins a Component's `E`; a failure of work
   a caller starts is returned to that caller; a callback that breaks its
   contract is a defect;
@@ -452,31 +452,51 @@ for the life of one submission:
 optimistic: (input, transaction) =>
   Effect.all([
     transaction.update(Projects, input.id, { name: input.name }),
-    transaction.signal(lastRenamed, input.id),
+    transaction.set(ProjectById(input.id), (project) => ({ ...project, name: input.name })),
+    transaction.set(lastRenamed, input.id),
   ]),
 ```
 
-`transaction.signal`, `insert`, `update`, and `delete` apply before `run` (or
-the remote submission). Collection patches are layers over the collection's
-synced rows in the submitting runtime's store: rows read `$synced: false`, a
-`follow`/refresh snapshot replaces the base underneath without dropping the
-layer, and later submissions' layers stack on top. Success commits the
-transaction: Signal patches fold into the base value and row layers fold into
-the synced base, where the `invalidates` reload (or, remotely, the response's
+The transaction has one verb per kind of state. `set(target, update)` patches a
+value: a writable Signal, or the entry a Resource ref names (`ProjectById(id)`,
+from any family). `update` is a plain value or a pure updater of the current
+one, typed by the target (the Resource's output type). `insert`, `update`, and
+`delete` patch rows. Every patch applies before `run` (or the remote
+submission).
+
+A Resource patch is a layer over the entry's synced value in the submitting
+runtime's store, like a row layer. Readers (`Resource.result`,
+`Resource.read`, the Solid reader with its `waiting` and `failure`) see the
+patched value with the entry's own status, so there is no Suspense flash; a
+reload during the submission replaces the synced value underneath and the
+layer stays on top. Loads (`Resource.preload`, `refresh`, `changes`, and so a
+Collection following the Resource) and snapshots see only the synced value.
+An entry that has not loaded is left alone: the patch is a no-op.
+
+Collection patches are layers over the collection's synced rows in the
+submitting runtime's store: rows read `$synced: false`, a `follow`/refresh
+snapshot replaces the base underneath without dropping the layer, and later
+submissions' layers stack on top. Success commits the transaction: Signal and
+Resource patches fold into the base value and row layers fold into the synced
+base, where the `invalidates` reload (or, remotely, the response's
 invalidations) replaces them. A typed failure, defect, or interruption rolls
-the transaction back and rebases every other submission's patches. Snapshots
-(SSR dehydration, persistence) carry only the synced base: a patch belongs to
-an in-flight submission and never crosses a wire. Collections implement the
+the transaction back and rebases every other submission's patches. Patch,
+commit, and rollback writes commit under the Action's Timeline cause
+(`submit`, `success`, `failure`), so travel shows them. Snapshots (SSR
+dehydration, persistence) carry only the synced base: a patch belongs to an
+in-flight submission and never crosses a wire. Collections implement the
 `ActionOptimisticRows` seam from Core, so Core owns the transaction and DB owns
 the row layering; `Collection.applyChanges` remains the direct write for
 remote feeds and local-only collections, never for server data.
 
-`Action.planOptimistic(definition, input)` tests a patch without a runtime,
-store, or backend: it runs `optimistic` against a recording transaction and
-returns the changes it would make, applying none. A Signal change reports the
-value the signal would read (computed from its current value); a row change
-reports the store and the change as given (`{ _tag: "Update", rows: Projects,
-key, update: { name } }`). It is the optimistic counterpart of
+`Action.planOptimistic(definition, input)` tests a patch without writing
+anything or calling a backend: it runs `optimistic` against a recording
+transaction and returns the changes it would make, applying none. A `set`
+reports `{ _tag: "Set", target, value }` with the value the Signal or Resource
+entry would read, computed from its current value in the caller's runtime (a
+Resource entry that has not loaded plans no change); a row change reports the
+store and the change as given (`{ _tag: "Update", rows: Projects, key,
+update: { name } }`). It is the optimistic counterpart of
 `Action.planInvalidation`.
 
 Collection persistence uses the same `KeyValueStore` as the Action Outbox
@@ -545,9 +565,11 @@ Outbox (`ActionOutbox`, provided by `Action.outboxLayer()`; Start's
   a final failure in the outbox's `failures` instead.
 - **Reloads.** `App.launch` hydrates the root first (so the first client
   render matches the server's), then runs `Action.restoreOutbox`: pending
-  submissions are decoded, re-patched in order on top of the hydrated rows and
-  Signals, and replayed. Submissions the server already settled before
-  rendering the page are not re-patched (see below). An entry older than its Action's `durable.maxAge`
+  submissions are decoded, re-patched in order on top of the hydrated rows,
+  Resource entries, and Signals, and replayed. Restoring after hydration is
+  what lets a Resource patch apply: before it, the entry has not loaded.
+  Submissions the server already settled before rendering the page are not
+  re-patched (see below). An entry older than its Action's `durable.maxAge`
   fails with `ActionSubmissionExpired`; one whose Action is no longer defined
   and durable, or whose input no longer decodes, fails with
   `ActionSubmissionUnrestorable`. A durable Action must be defined in a module

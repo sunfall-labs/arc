@@ -18,7 +18,8 @@ client store, optimistic-update glue, persistence adapter, and sync glue.
 - Collections own keyed rows, secondary indexes, the optimistic layers Actions
   put over them, persistence snapshots, and collection events.
 - Actions own every change to server data: `optimistic` patches Collection
-  rows, `run` writes the backend, `invalidates` reloads the sources.
+  rows (and Resource entries or Signals with `transaction.set`), `run` writes
+  the backend, `invalidates` reloads the sources.
 - Live queries own derived materialized views and query plans.
 - Sync adapters connect collections to server functions, local-first engines,
   browser APIs, workers, or existing query clients.
