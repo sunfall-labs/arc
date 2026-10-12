@@ -2,7 +2,7 @@ import type { Resource } from "@sunfall/arc-core";
 import {
   devtoolsActionNodeId as actionNodeId,
   devtoolsInvalidationNodeId as invalidationNodeId,
-  devtoolsProgramNodeId as programNodeId,
+  devtoolsStateNodeId as stateNodeId,
   devtoolsRequestTraceNodeId as requestTraceNodeId,
   devtoolsResourceNodeId as resourceNodeId,
   devtoolsRoutePlanNodeId as routePlanNodeId,
@@ -206,8 +206,8 @@ const timelineCommitTarget = (
   commit: DevtoolsTimelineCommit,
 ): DevtoolsSummaryRuntimeEvent["target"] => {
   switch (commit.cause._tag) {
-    case "Program":
-      return { kind: "Program", id: programNodeId(commit.cause.program ?? "Program") };
+    case "State":
+      return { kind: "State", id: stateNodeId(commit.cause.state) };
     case "Action":
       return { kind: "Action", id: actionNodeId(commit.cause.action) };
     case "Resource":

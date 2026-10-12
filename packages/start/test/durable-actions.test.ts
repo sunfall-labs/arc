@@ -9,6 +9,7 @@ import {
   makeRuntime,
   Route,
   Signal,
+  State,
   type AnySunfallArcRuntime,
 } from "@sunfall/arc-core";
 import type { StartFetch } from "../src/index.js";
@@ -22,6 +23,18 @@ import {
   makeStartActionWorkflows,
   runActionSubmissionWorkflow,
 } from "../src/start-action-workflow.js";
+import { defaultRuntime } from "@sunfall/arc-core/internal";
+
+/** A running State holding one value: the optimistic target these tests patch. */
+const stateCell = <A>(initial: A, options: { readonly name: string }) =>
+  State.start(
+    {
+      name: options.name,
+      initial,
+      on: { Set: (_current, message) => message.value },
+    } as State.Definition<A, { readonly _tag: "Set"; readonly value: A }>,
+    { runtime: defaultRuntime },
+  );
 
 const AdvanceInput = Schema.Struct({ id: Schema.String });
 const AdvanceOutput = Schema.Struct({ id: Schema.String, progress: Schema.Number });
@@ -29,7 +42,7 @@ const AdvanceOutput = Schema.Struct({ id: Schema.String, progress: Schema.Number
 /** A served durable Action whose `run` counts executions. */
 const defineAdvance = (name: string) => {
   const runs = { count: 0 };
-  const progress = Signal.make(0, { name: `${name}.progress` });
+  const progress = stateCell(0, { name: `${name}.progress` });
   const Advance = Action.define({
     name,
     input: AdvanceInput,
@@ -295,7 +308,7 @@ describe("durable Action submissions over Start", () => {
         const queued = yield* Effect.flip(advance.submit({ id: "atlas" }));
         expect(queued).toBeInstanceOf(ActionQueued);
         expect(runs.count).toBe(1);
-        expect(Signal.peek(progress)).toBe(8);
+        expect(Signal.peek(progress.model)).toBe(8);
 
         network.loseResponses = false;
         const outbox = yield* runtime.provide(Action.outbox);
@@ -305,7 +318,7 @@ describe("durable Action submissions over Start", () => {
         expect(Signal.peek(outbox.pending)).toEqual([]);
         expect(Signal.peek(outbox.failures)).toEqual([]);
         expect(runs.count).toBe(1);
-        expect(Signal.peek(progress)).toBe(8);
+        expect(Signal.peek(progress.model)).toBe(8);
         yield* runtime.dispose;
       }),
     ));

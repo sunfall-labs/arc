@@ -2,8 +2,19 @@ import { createEffect, createRoot, flush } from "@solidjs/signals";
 import { Deferred, Effect, Exit, Fiber, Option, Schema } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
-import { Action, ActionResult, Resource, Signal, Timeline } from "../src/index.js";
+import { Action, ActionResult, Resource, Signal, State, Timeline } from "../src/index.js";
 import { defaultRuntime } from "../src/internal.js";
+
+/** A running State holding one value: the optimistic target these tests patch. */
+const stateCell = <A>(initial: A, options: { readonly name: string }) =>
+  State.start(
+    {
+      name: options.name,
+      initial,
+      on: { Set: (_current, message) => message.value },
+    } as State.Definition<A, { readonly _tag: "Set"; readonly value: A }>,
+    { runtime: defaultRuntime },
+  );
 
 interface Project {
   readonly id: string;
@@ -280,7 +291,7 @@ describe("Action optimistic patches and rejected ActionResults", () => {
     result: (name: string) => ActionResult<string, { readonly name: string }, string, string>,
   ) => {
     const { ref, ProjectById } = makeFixture();
-    const draft = Signal.make("Atlas", { name: `RejectedResult.${suffix}.draft` });
+    const draft = stateCell("Atlas", { name: `RejectedResult.${suffix}.draft` });
     const { rowsRef, rowName } = projectRows(suffix);
     const Save = Action.define({
       name: `RejectedResult.${suffix}`,
@@ -310,7 +321,7 @@ describe("Action optimistic patches and rejected ActionResults", () => {
         const result = yield* Action.use(Save, { runtime: defaultRuntime }).submit("At");
 
         expect(result._tag).toBe("ValidationFailure");
-        expect(Signal.peek(draft)).toBe("Atlas");
+        expect(Signal.peek(draft.model)).toBe("Atlas");
         expect(rowName()).toBe("Atlas");
         expect(yield* Resource.read(ref)).toMatchObject({ name: "Atlas" });
         // Each patch committed on submit; one failure commit undid them all,
@@ -342,20 +353,20 @@ describe("Action optimistic patches and rejected ActionResults", () => {
         const failed = defineSave("failure", () => ActionResult.failure("taken"));
         yield* failed.preload;
         yield* Action.use(failed.Save, { runtime: defaultRuntime }).submit("Atlas 2");
-        expect(Signal.peek(failed.draft)).toBe("Atlas");
+        expect(Signal.peek(failed.draft.model)).toBe("Atlas");
         expect(failed.rowName()).toBe("Atlas");
 
         const saved = defineSave("success", (name) => ActionResult.success(name));
         yield* saved.preload;
         yield* Action.use(saved.Save, { runtime: defaultRuntime }).submit("Atlas 2");
-        expect(Signal.peek(saved.draft)).toBe("Atlas 2");
+        expect(Signal.peek(saved.draft.model)).toBe("Atlas 2");
         expect(saved.rowName()).toBe("Atlas 2");
         expect(yield* Resource.read(saved.ref)).toMatchObject({ name: "Atlas 2" });
 
         const redirected = defineSave("redirect", () => ActionResult.redirect("/projects"));
         yield* redirected.preload;
         yield* Action.use(redirected.Save, { runtime: defaultRuntime }).submit("Atlas 2");
-        expect(Signal.peek(redirected.draft)).toBe("Atlas 2");
+        expect(Signal.peek(redirected.draft.model)).toBe("Atlas 2");
         expect(redirected.rowName()).toBe("Atlas 2");
       }),
     ));

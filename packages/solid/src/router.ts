@@ -1,14 +1,13 @@
 import {
   createBrowserRouterHostController,
   Route,
-  Signal,
   type AnySunfallArcRuntime,
   type BrowserHistoryAdapter,
   type BrowserRouterHostController,
   type BrowserRouterState,
   type SunfallArcRuntime,
 } from "@sunfall/arc-core";
-import { browserRouterInitialMatchedState } from "@sunfall/arc-core/internal";
+import { browserRouterInitialMatchedState, SignalWrites } from "@sunfall/arc-core/internal";
 import { Data, Effect } from "effect";
 import {
   createComponent,
@@ -210,8 +209,8 @@ export const RouterOutlet = <const Routes extends readonly AnyRoute[], ER = neve
   const renderers = createMemo(() => routerOutletRenderers(props));
   // Outlet state lives in Arc signals: Solid tracks them natively on the client,
   // and writes stay plain committed values during server rendering.
-  const node = Signal.make<JSX.Element>(undefined, { name: "RouterOutlet.node" });
-  const renderError = Signal.make<unknown>(undefined, { name: "RouterOutlet.renderError" });
+  const node = SignalWrites.make<JSX.Element>(undefined, { name: "RouterOutlet.node" });
+  const renderError = SignalWrites.make<unknown>(undefined, { name: "RouterOutlet.renderError" });
   const input = () => ({ state: router.state(), renderers: renderers() });
   const routeRenderScope = makeSolidRouteRenderScopeController({
     // The first render is synchronous (server rendering runs no effects); the

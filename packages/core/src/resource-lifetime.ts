@@ -4,7 +4,7 @@ import { parseDuration } from "./resource-duration.js";
 import { publishResourceStoreEvent } from "./resource-events.js";
 import type { ResourceRef, ResourceStatus } from "./resource.js";
 import type { MutableResourceStore as ResourceStoreState } from "./resource-store.js";
-import { Signal, type WritableSignal } from "./signal.js";
+import { SignalWrites, type WritableSignal } from "./signal.js";
 import type { TimelineResourceCause } from "./timeline.js";
 import { batchSignalWrites } from "./signal-transaction.js";
 
@@ -50,7 +50,7 @@ export const makeResourceEntry = <A, E>(
 ): ResourceLifetimeEntry<A, E> => ({
   resource,
   key,
-  state: Signal.make<AsyncResult.AsyncResult<A, E>>(AsyncResult.initial(), {
+  state: SignalWrites.make<AsyncResult.AsyncResult<A, E>>(AsyncResult.initial(), {
     name: `${resource}(${key})`,
   }),
   optimistic: undefined,

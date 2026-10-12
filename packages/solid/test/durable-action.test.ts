@@ -3,13 +3,25 @@ import {
   ActionTransport,
   makeRuntime,
   ServerTransportError,
-  Signal,
+  State,
 } from "@sunfall/arc-core";
 import { Cause, Effect, Exit, Layer, Option, Schedule, Schema } from "effect";
 import { KeyValueStore } from "effect/persistence";
 import type { JSX } from "@solidjs/web";
 import { describe, expect, it, vi } from "vitest";
 import { Component } from "../src/index.js";
+import { defaultRuntime } from "@sunfall/arc-core/internal";
+
+/** A running State holding one value: the optimistic target these tests patch. */
+const stateCell = <A>(initial: A, options: { readonly name: string }) =>
+  State.start(
+    {
+      name: options.name,
+      initial,
+      on: { Set: (_current, message) => message.value },
+    } as State.Definition<A, { readonly _tag: "Set"; readonly value: A }>,
+    { runtime: defaultRuntime },
+  );
 
 const waitForText = (container: Element, text: string) =>
   Effect.promise(() => vi.waitFor(() => expect(container.textContent).toBe(text)));
@@ -33,7 +45,7 @@ describe("durable Actions in Components", () => {
                     ),
               ),
           });
-          const progress = Signal.make(0, { name: "SolidDurable.progress" });
+          const progress = stateCell(0, { name: "SolidDurable.progress" });
           const Advance = Action.define({
             name: "SolidDurable.advance",
             input: Schema.Struct({ id: Schema.String }),
@@ -66,7 +78,7 @@ describe("durable Actions in Components", () => {
                 Cause.findErrorOption(failure).pipe(
                   Option.exists((error) => (error as { _tag?: string })._tag === "ActionQueued"),
                 );
-              return `${progress.get()}|${outbox.pending.get().length} waiting|${queued ? "queued" : "-"}`;
+              return `${progress.model.get()}|${outbox.pending.get().length} waiting|${queued ? "queued" : "-"}`;
             };
             return () => text as unknown as JSX.Element;
           });

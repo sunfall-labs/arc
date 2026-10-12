@@ -10,9 +10,9 @@ export const devtoolsActionNodeId = (name: string): string => `action:${name}`;
 
 export const devtoolsEndpointNodeId = (name: string): string => `endpoint:${name}`;
 
-export const devtoolsProgramNodeId = (name: string): string => `program:${name}`;
+export const devtoolsStateNodeId = (name: string): string => `state:${name}`;
 
-export const devtoolsProgramPanelItemId = (eventId: string): string => `program-event:${eventId}`;
+export const devtoolsStatePanelItemId = (eventId: string): string => `state-event:${eventId}`;
 
 export const devtoolsInvalidationNodeId = (index: number): string => `invalidation:${index}`;
 
@@ -56,8 +56,8 @@ export const devtoolsInvalidationTargetNodeId = (
 export const devtoolsRuntimeTargetLabel = (
   target: NonNullable<DevtoolsSummaryRuntimeEvent["target"]>,
 ): string =>
-  target.kind === "Program" && target.id.startsWith("program:")
-    ? target.id.slice("program:".length)
+  target.kind === "State" && target.id.startsWith("state:")
+    ? target.id.slice("state:".length)
     : target.kind === "RequestTrace" && target.id.startsWith("request-trace:")
       ? target.id.slice("request-trace:".length)
       : target.id;

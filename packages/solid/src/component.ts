@@ -5,7 +5,6 @@ import {
   Signal,
   type ActionInterrupted,
   type AnySunfallArcRuntime,
-  type Program,
   type Resource,
   type Route,
   type RouteViewTypeId,
@@ -13,6 +12,8 @@ import {
   type Action,
   type ActionResult,
   type Server,
+  type State,
+  StateRefTypeId,
 } from "@sunfall/arc-core";
 import {
   eraseRuntime,
@@ -20,7 +21,8 @@ import {
   resourceRenderCause,
   resourceRowsGet,
   resourceRowsIndex,
-  startProgramOnRuntime,
+  SignalWrites,
+  startStateOnRuntime,
   withSignalTransition,
   type ResourceStoreModule,
 } from "@sunfall/arc-core/internal";
@@ -66,7 +68,7 @@ const RouteViewKey: typeof RouteViewTypeId = "~@sunfall/arc-core/RouteView";
  * Solid component `(props: P) => JSX.Element`.
  *
  * Setup (the generator body) runs **once per instance**, with that instance's
- * props, under its Solid owner. It binds resources, actions, programs, and
+ * props, under its Solid owner. It binds resources, actions, states, and
  * streams (each adding its services and failures to the component type) and
  * returns the render function. Anything shared per runtime is shared by
  * construction: Resources live in the runtime's Resource Store, and
@@ -449,10 +451,10 @@ const makeResourceReader = <I, A, E, R>(
 };
 
 // ---------------------------------------------------------------------------
-// Programs
+// States
 // ---------------------------------------------------------------------------
 
-type ProgramModelLeaf =
+type StateModelLeaf =
   | string
   | number
   | bigint
@@ -465,30 +467,46 @@ type ProgramModelLeaf =
   | ((...args: never) => unknown);
 
 /**
- * Projects a Program model signal into a fine-grained Solid view owned by the
+ * Projects a State model signal into a fine-grained Solid view owned by the
  * current owner.
  *
- * The model is boxed so primitive, nullable, and union models share one
- * path: `box.value` re-notifies only when the root changes identity (a
- * primitive change, an object/array swap, or a different keyed entity),
+ * A State whose initial model is a primitive (a toggle, a search string)
+ * reads the signal directly: there is nothing to reconcile, so it skips the
+ * store projection. Object models are boxed so nullable and union models
+ * share one path: `box.value` re-notifies only when the root changes identity
+ * (a primitive change, an object/array swap, or a different keyed entity),
  * while reconcile adopts each committed model as the store's backing and
- * notifies only the leaves that changed.
+ * notifies only the leaves that changed. Either path renders every value
+ * correctly; only the granularity differs.
  *
  * A projection (not a plain store) is required: plain stores share one proxy
- * per raw object across every store, so two instances of a Program, whose
+ * per raw object across every store, so two instances of a State, whose
  * immutable models share objects such as `initial`, would see each other's
  * reconciles. A projection's proxies belong to its own family.
  */
 const projectModel = <Model>(
   model: Signal.Readable<Model>,
-  key: Component.ProgramOptions["key"],
-): Accessor<Component.ProgramModelView<Model>> => {
-  const view = createProjection<{ value: Component.ProgramModelView<Model> }>(
-    () => ({ value: model.get() as Component.ProgramModelView<Model> }),
+  initial: unknown,
+  key: Component.StateOptions["key"],
+): Accessor<Component.StateView<Model>> => {
+  if (typeof initial !== "object" || initial === null) {
+    return () => model.get() as Component.StateView<Model>;
+  }
+  const view = createProjection<{ value: Component.StateView<Model> }>(
+    () => ({ value: model.get() as Component.StateView<Model> }),
     {},
     { key: key === undefined ? "id" : key },
   );
   return () => view.value;
+};
+
+/** True for a `{ ... }` payload; DOM events and other class instances are not payloads. */
+const isPayload = (value: unknown): value is Readonly<Record<string, unknown>> => {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
 };
 
 // ---------------------------------------------------------------------------
@@ -718,57 +736,81 @@ export namespace Component {
   }
 
   /**
-   * Deeply read-only view of a Program model as Solid renders it.
+   * Deeply read-only view of a State model as Solid renders it.
    *
    * Plain objects and arrays become read-only at every level. `Map` and `Set`
    * values become `ReadonlyMap` / `ReadonlySet`; primitives, functions, `Date`,
    * and `RegExp` pass through unchanged.
    */
-  export type ProgramModelView<Model> = unknown extends Model
+  export type StateView<Model> = unknown extends Model
     ? Model
-    : Model extends ProgramModelLeaf
+    : Model extends StateModelLeaf
       ? Model
       : Model extends ReadonlyMap<infer K, infer V>
         ? ReadonlyMap<K, V>
         : Model extends ReadonlySet<infer V>
           ? ReadonlySet<V>
-          : { readonly [Key in keyof Model]: ProgramModelView<Model[Key]> };
+          : { readonly [Key in keyof Model]: StateView<Model[Key]> };
 
-  /** Options for `Component.program`. */
-  export interface ProgramOptions {
+  /** Options for `Component.state`. */
+  export interface StateOptions {
     /**
-     * Identity used to reconcile model updates into the fine-grained view: a
+     * Identity used to reconcile object models into the fine-grained view: a
      * property name or a function of each plain object in the model.
      *
      * Array items whose key matches keep their view identity across inserts,
      * removals, and reorders, and an object whose key changes is treated as a
      * different entity. Defaults to `"id"` (Solid's projection default); items
      * without the key fall back to position. `null` reconciles positionally.
+     * Primitive models are read directly and ignore it.
      */
     readonly key?: string | ((item: object) => unknown) | null;
   }
 
-  /** Instance-bound Program handle from `Component.program`. */
-  export interface ProgramHandle<Model, Message, E> {
+  /**
+   * One DOM-ready sender per message tag. A message without fields takes no
+   * argument and ignores one it is given, so it binds straight to an event
+   * (`onClick={menu.send.Toggle}`); a message with fields takes them
+   * (`send.Search({ query })`).
+   */
+  export type StateSend<Message extends State.TaggedMessage> = {
+    readonly [Tag in Message["_tag"]]: [
+      keyof Omit<Extract<Message, { readonly _tag: Tag }>, "_tag">,
+    ] extends [never]
+      ? (event?: unknown) => void
+      : (fields: Omit<Extract<Message, { readonly _tag: Tag }>, "_tag">) => void;
+  };
+
+  /** Instance-bound State handle from `Component.state`. */
+  export interface StateHandle<
+    Model,
+    Message extends State.TaggedMessage,
+    E,
+  > extends State.Ref<Model> {
     /**
-     * Current model as a fine-grained, read-only Solid view: a computation
-     * re-runs only when the parts of the model it reads change, unchanged
-     * subtrees keep their identity, and array items keep it across reorders
-     * by `ProgramOptions.key`.
+     * Current model as a read-only Solid view. Object models are
+     * fine-grained: a computation re-runs only when the parts of the model it
+     * reads change, unchanged subtrees keep their identity, and array items
+     * keep it across reorders by `StateOptions.key`.
      */
-    readonly model: Accessor<ProgramModelView<Model>>;
+    readonly model: Accessor<StateView<Model>>;
     /** Committed model for Effect-side reads (`Signal.peek`, `Signal.changes`). */
     readonly committed: Signal.Readable<Model>;
-    /** Typed update, command, and subscription failures reported by the Program loop. */
-    readonly failures: Accessor<ReadonlyArray<Program.Failure<Message, Program.RuntimeError<E>>>>;
+    /**
+     * Sends a message from a DOM event: it is queued right away and applied
+     * by the State loop, and a failure lands in `failures()`.
+     */
+    readonly send: StateSend<Message>;
     /**
      * Queues `message` and completes once its update commits (failing if the
-     * update fails or disposal drops it). Bridge it to an event handler with
-     * `Component.callback`; failures are also reported through `failures()`.
+     * update fails or disposal drops it). For Effect code that must wait for
+     * the update; event handlers use `send`.
      */
     readonly dispatch: (
       message: Message,
-    ) => Effect.Effect<void, Program.Failure<Message, Program.DispatchError<E>>>;
+    ) => Effect.Effect<void, State.Failure<Message, State.DispatchError<E>>>;
+    /** Typed update, command, and subscription failures reported by the State loop. */
+    readonly failures: Accessor<ReadonlyArray<State.Failure<Message, State.RuntimeError<E>>>>;
     /** Clears accumulated failures. */
     readonly clearFailures: () => void;
   }
@@ -909,42 +951,67 @@ export namespace Component {
     }) as Effect.Effect<ActionHandle<I, A, E>, never, R | ActionResult.InvalidationRequirements<A>>;
 
   /**
-   * Starts a Program for this instance and returns its handle, with the model
-   * as a fine-grained read-only Solid view. The definition's services join the
-   * component's `R`; the Program stops when the instance is disposed.
+   * Starts a State for this instance and returns its handle: the model as a
+   * read-only Solid view, and one DOM-ready sender per message. The
+   * definition's services join the component's `R`; the State stops when the
+   * instance is disposed. Each instance owns its own State, so keying a
+   * component on an entity (`<Editor id={id} />`) gives each entity a fresh one.
    *
    * @example
    * ```tsx
-   * const todos = yield* Component.program(TodosProgram);
-   * return () => <For each={todos.model().items}>{(item) => <li>{item().title}</li>}</For>;
+   * const MenuOpen = State.define({ name: "Menu.open", initial: false, on: { Toggle: (open) => !open } });
+   *
+   * const Menu = Component.define("Menu", function* () {
+   *   const menu = yield* Component.state(MenuOpen);
+   *   return () => <button aria-expanded={menu.model()} onClick={menu.send.Toggle}>Menu</button>;
+   * });
    * ```
    */
-  export const program = <Model, Message extends Program.TaggedMessage, E, R>(
-    definition: Program.Definition<Model, Message, E, R>,
-    options?: ProgramOptions,
-  ): Effect.Effect<ProgramHandle<Model, Message, E>, never, R> =>
+  export const state = <Model, Message extends State.TaggedMessage, E, R>(
+    definition: State.Definition<Model, Message, E, R>,
+    options?: StateOptions,
+  ): Effect.Effect<StateHandle<Model, Message, E>, never, R> =>
     Effect.gen(function* () {
       const current = yield* instance;
       const started = current.run(() =>
-        startProgramOnRuntime<Model, Message, E, R, never>(definition, current.runtime),
+        startStateOnRuntime<Model, Message, E, R, never>(definition, current.runtime),
       );
       yield* Effect.addFinalizer(() => started.dispose);
-      const model = current.run(() => projectModel(started.model, options?.key));
-      const handle: ProgramHandle<Model, Message, E> = {
+      const model = current.run(() =>
+        projectModel(started.model, definition.initial, options?.key),
+      );
+      const dispatch = started.dispatch as StateHandle<Model, Message, E>["dispatch"];
+      const send: Record<string, (fields?: unknown) => void> = {};
+      for (const tag of Object.keys(definition.on)) {
+        send[tag] = (fields) => {
+          const message = (isPayload(fields) ? { ...fields, _tag: tag } : { _tag: tag }) as Message;
+          // Started immediately, so the message is queued within the DOM event.
+          current.runtime.runSync(
+            Effect.forkIn(Effect.ignore(dispatch(message)), current.scope, {
+              startImmediately: true,
+            }),
+          );
+        };
+      }
+      const handle: StateHandle<Model, Message, E> = {
+        [StateRefTypeId]: started[StateRefTypeId],
         model,
         committed: started.model,
+        send: send as StateSend<Message>,
+        dispatch,
         failures: () => started.failures.get(),
-        dispatch: started.dispatch as ProgramHandle<Model, Message, E>["dispatch"],
         clearFailures: started.clearFailures,
       };
       return handle;
-    }) as Effect.Effect<ProgramHandle<Model, Message, E>, never, R>;
+    }) as Effect.Effect<StateHandle<Model, Message, E>, never, R>;
 
   /**
-   * Runs a Stream for this instance and returns its latest value as an
-   * accessor (`initial` until the first element). Each element commits under
-   * the transition `<Component>.<name>`. The stream's services join the
-   * component's `R`; it is interrupted when the instance is disposed.
+   * Runs a Stream for this instance and returns its latest value as a
+   * read-only accessor (`initial` until the first element): a read of an
+   * external source, like a Resource, not client state, so nothing can write
+   * it. Each element commits under the transition `<Component>.<name>`. The
+   * stream's services join the component's `R`; it is interrupted when the
+   * instance is disposed.
    */
   export const stream = <A, R>(
     name: string,
@@ -954,7 +1021,7 @@ export namespace Component {
     Effect.gen(function* () {
       const current = yield* instance;
       const transition = `${current.name}.${name}`;
-      const latest = Signal.make(initial, { name: transition });
+      const latest = SignalWrites.make(initial, { name: transition });
       current.fork(
         withSignalTransition(
           source.pipe(Stream.runForEach((value) => Effect.sync(() => latest.set(value)))),
@@ -966,15 +1033,16 @@ export namespace Component {
 
   /**
    * Turns an Effect-returning function into a named callback for DOM event
-   * handlers: the one way component code changes Signals it owns.
+   * handlers that run Effect work other than a State change: submitting an
+   * Action, invalidating a Resource, travelling a Timeline. State changes go
+   * through `Component.state(...).send`.
    *
    * Each call forks the Effect in the instance's Scope with the setup's
    * context (interrupted on unmount), starting it right away so synchronous
    * work lands within the DOM event, as the named transition
-   * `<Component>.<name>`: Signal writes it makes commit under that name on the
-   * `Timeline`, while Actions and Programs it runs keep their own causes. Its
-   * services join the component's `R`; it must handle its own failures
-   * (`E = never`).
+   * `<Component>.<name>`; Actions, Resources, and States it touches commit
+   * under their own causes. Its services join the component's `R`; it must
+   * handle its own failures (`E = never`).
    *
    * @example
    * ```tsx

@@ -1,4 +1,4 @@
-import { Program } from "@sunfall/arc-core";
+import { State } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { ProjectApi, type Project } from "./projects.js";
 
@@ -12,14 +12,14 @@ type Message =
 
 // Handlers are pure: they return the next model, and Effect work leaves them
 // as commands that run after the model commits.
-export const ProjectLoader = Program.define<Model, Message, never, ProjectApi>({
+export const ProjectLoader = State.define<Model, Message>()({
   name: "ProjectLoader",
   initial: { status: "idle", projects: [] },
   on: {
     Load: (model) =>
-      Program.next(
+      State.next(
         { ...model, status: "loading" },
-        Program.emit(
+        State.emit(
           ProjectApi.use((api) => api.list()).pipe(
             Effect.map((projects) => ({ _tag: "Loaded", projects }) as const),
           ),
