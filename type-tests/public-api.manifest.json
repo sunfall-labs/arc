@@ -56,7 +56,6 @@
         "ResourceStatus",
         "ResourceTag",
         "ResourceTagDefinition",
-        "RouteErrorSchema",
         "RoutePreloadError",
         "RoutePreloadFailureCodecError",
         "RoutePreloadFailureEncoding",

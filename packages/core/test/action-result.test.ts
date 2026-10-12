@@ -32,7 +32,7 @@ describe("ActionResult", () => {
     });
 
     return Effect.runPromise(
-      Effect.exit(ActionResult.validateForm(form)).pipe(
+      Effect.exit(ActionResult.fromValidation(form.validate())).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {
             expect(Exit.isSuccess(exit)).toBe(true);
@@ -170,17 +170,8 @@ describe("ActionResult", () => {
   it("rejects Promise-shaped validation error payloads", () => {
     for (const build of [
       () =>
-        ActionResult.fieldError<{ readonly name: string }, "name", string>(
-          "name",
-          Promise.resolve("too short") as never,
-        ),
-      () =>
-        ActionResult.formError<{ readonly name: string }, string>(
-          Promise.resolve("invalid") as never,
-        ),
-      () =>
-        ActionResult.fields<{ readonly name: string }, string>({
-          name: [Promise.resolve("too short") as never],
+        ActionResult.validation<{ readonly name: string }, string>({
+          fieldErrors: { name: [Promise.resolve("too short") as never] },
         }),
       () =>
         ActionResult.validation<{ readonly name: string }, string>({
@@ -202,17 +193,8 @@ describe("ActionResult", () => {
   it("rejects Effect-shaped validation error payloads", () => {
     for (const build of [
       () =>
-        ActionResult.fieldError<{ readonly name: string }, "name", string>(
-          "name",
-          Effect.succeed("too short") as never,
-        ),
-      () =>
-        ActionResult.formError<{ readonly name: string }, string>(
-          Effect.succeed("invalid") as never,
-        ),
-      () =>
-        ActionResult.fields<{ readonly name: string }, string>({
-          name: [Effect.succeed("too short") as never],
+        ActionResult.validation<{ readonly name: string }, string>({
+          fieldErrors: { name: [Effect.succeed("too short") as never] },
         }),
       () =>
         ActionResult.validation<{ readonly name: string }, string>({
@@ -287,10 +269,9 @@ describe("ActionResult", () => {
     }> {}
 
     const error = new ProjectNameTooShort({ minimum: 3 });
-    const result = ActionResult.fieldError<{ readonly name: string }, "name", ProjectNameTooShort>(
-      "name",
-      error,
-    );
+    const result = ActionResult.validation<{ readonly name: string }, ProjectNameTooShort>({
+      fieldErrors: { name: [error] },
+    });
 
     expect(result).toMatchObject({
       _tag: "ValidationFailure",

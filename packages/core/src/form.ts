@@ -563,19 +563,6 @@ export namespace Form {
   export type DataOptions = FormDataDecodeOptions;
 
   /**
-   * Creates a custom form validation error from field and form errors.
-   *
-   * Use inside custom validators when multiple fields need to fail at once.
-   */
-  export const error = makePlainError;
-
-  /** Creates a validation error for one field. */
-  export const fieldError = <Values extends object, K extends FormFieldKey<Values>, E>(
-    field: K,
-    error: PlainValue<E>,
-  ): FormValidationError<Values, E> => makePlainError(singleFieldError(field, error));
-
-  /**
    * Creates a form controller from an Effect Schema and initial values.
    *
    * Custom validation may return an Effect, so checks can depend on services and
@@ -735,15 +722,6 @@ export namespace Form {
       validate: validateEffect,
     };
   };
-
-  /** Runs validation for a form as an Effect and leaves state updated with the result. */
-  export const validate = <Values extends object, E, R>(
-    form: FormInstance<Values, E, R>,
-  ): Effect.Effect<
-    Values,
-    FormValidationError<Values, E | Schema.SchemaError | EffectInputCallbackError>,
-    R
-  > => form.validate();
 
   /** Converts FormData to a schema-friendly object, preserving repeated fields as arrays. */
   export const data = formDataToObject;

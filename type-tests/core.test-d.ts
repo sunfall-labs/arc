@@ -69,7 +69,6 @@ import {
   type ResourceSnapshotCodecOperation,
   type ResourceHydrationPayload,
   type BrowserRouterError,
-  type RouteErrorSchema,
   type RoutePreloadFailureEncoding,
   type RoutePreloadFailureSnapshot,
   type ActionTransportResponse,
@@ -224,7 +223,7 @@ void coreLazyRouteSuspenseFiber;
 class CoreProjectNotFound extends Schema.TaggedError<CoreProjectNotFound>()("CoreProjectNotFound", {
   id: Schema.String,
 }) {}
-const coreProjectNotFoundSchema: RouteErrorSchema<CoreProjectNotFound> = CoreProjectNotFound;
+const coreProjectNotFoundSchema: Resource.ErrorSchema<CoreProjectNotFound> = CoreProjectNotFound;
 const CoreTypedRoute = Route.define("/core-typed/:id", {
   error: coreProjectNotFoundSchema,
   preload: ({ params }) => Effect.fail(new CoreProjectNotFound({ id: params.id })),
@@ -244,7 +243,7 @@ const coreRouteFailureCodecError = new RoutePreloadFailureCodecError({
   operation: "decode",
 });
 // @ts-expect-error route error schemas must decode and encode without services
-const coreServiceErrorSchema: RouteErrorSchema = null as unknown as Schema.Codec<
+const coreServiceErrorSchema: Resource.ErrorSchema = null as unknown as Schema.Codec<
   CoreProjectNotFound,
   unknown,
   "Service"
@@ -265,7 +264,7 @@ const browserRouterKernelDisposeEffect: Effect.Effect<void> = browserRouterKerne
 type CoreProjectRoute = (typeof coreRoutes)[0];
 const browserNavigateArgs: BrowserNavigateArgs<CoreProjectRoute> = [{ params: { id: "atlas" } }];
 const browserRouterInitialHost: BrowserRouterInitialMatchedHost = "browser";
-const browserRouterInitialMatch = coreRoutes[0].match("/projects/atlas");
+const browserRouterInitialMatch = Route.match([coreRoutes[0]], "/projects/atlas");
 if (browserRouterInitialMatch) {
   const initialMatchedStateOptions: BrowserRouterInitialMatchedStateOptions<typeof coreRoutes> = {
     href: "/projects/atlas",
@@ -571,7 +570,7 @@ const actionSuccess: ActionResultSuccess<number> = ActionResult.success(1);
 const actionFailure: ActionResultFailure<"failed"> = ActionResult.failure("failed");
 const actionRedirect: ActionResultRedirect = ActionResult.redirect("/login", { replace: true });
 const actionValidation: ActionResultValidationFailure<{ readonly name: string }, "required"> =
-  ActionResult.fieldError("name", "required");
+  ActionResult.validation({ fieldErrors: { name: ["required" as const] } });
 const actionBoundary: ActionResultBoundary<{ readonly name: string }, "required", "failed"> =
   actionValidation;
 const actionResultLabel: string = ActionResult.match(actionSuccess, {
@@ -589,7 +588,7 @@ const profileForm: FormInstance<{ readonly name: string }, "required"> = Form.ma
   validate: (values, errors) =>
     values.name.length === 0 ? Effect.fail(errors.field("name", "required")) : Effect.void,
 });
-const profileValidationEffect = Form.validate(profileForm);
+const profileValidationEffect = profileForm.validate();
 const profileFormData = Form.data(new FormData());
 
 type CounterMessage = { readonly _tag: "Increment" } | { readonly _tag: "Decrement" };
@@ -697,7 +696,7 @@ const responseContext = makeResponseContext();
 const appliedResponseEffect = applyResponseContext(responseContext, new Response("ok"));
 const providedRequest = provideRequest(request)(Effect.succeed("ok"));
 const providedResponse = provideResponse(responseContext)(Effect.succeed("ok"));
-const cookieHeaderEffect = serializeResponseCookie("theme", "dark", { sameSite: "Lax" });
+const cookieHeaderEffect = serializeResponseCookie("theme", "dark", { sameSite: "lax" });
 
 const codecOperation: ResourceSnapshotCodecOperation = "decode";
 const codecError = new ResourceSnapshotCodecError({
@@ -730,7 +729,7 @@ const projectRouteParams: ProjectRouteParams = { id: "atlas" };
 const readyState = {
   _tag: "Ready",
   href: "/projects/atlas",
-  match: coreRoutes[0].match("/projects/atlas")!,
+  match: Route.match([coreRoutes[0]], "/projects/atlas")!,
 } as const;
 const renderKey = browserRouteRenderKey(readyState);
 const renderDecision: BrowserRouteRenderDecision<typeof coreRoutes, never> =

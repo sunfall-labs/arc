@@ -149,7 +149,7 @@ describe("project console full-stack golden path", () => {
           .setCookie("golden-project", id, {
             httpOnly: true,
             path: "/",
-            sameSite: "Lax",
+            sameSite: "lax",
           })
           .pipe(Effect.orDie);
         return {

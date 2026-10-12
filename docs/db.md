@@ -229,7 +229,7 @@ const ActiveProjectNames = Query.live((query) =>
 ```
 
 The concrete `QueryBuilder` constructor is internal to the package source; apps
-use `Query.from(...)`, `Query.once(...)`,
+start queries with `query.from(...)` inside `Query.once(...)`,
 `Query.live(...)`, and the branded `Query.Builder` fluent Interface. The
 public builder type does not expose execution-plan storage and cannot be
 structurally faked, and public `LiveQuery` handles expose data/state/source

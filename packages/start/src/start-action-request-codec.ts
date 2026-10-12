@@ -7,12 +7,7 @@ import {
 } from "@sunfall/arc-core";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
 import { hasContentType, startJsonMediaType } from "./rpc.js";
-import {
-  resolveStartActionEndpoint,
-  type StartActionEndpointManifest,
-  type StartTransportEndpointManifestSource,
-  type StartTransportEndpointOverrides,
-} from "./start-transport-endpoints.js";
+import { resolveStartActionEndpoint } from "./start-transport-endpoints.js";
 import {
   readStartTransportFormDataBody,
   readStartTransportJsonBody,
@@ -57,16 +52,11 @@ export interface StartActionForm {
 
 /** Options used to build a progressive HTML form for a typed Start action. */
 export interface StartActionFormOptions<I> {
-  /** Form action URL. Defaults to the Start action endpoint. */
+  /**
+   * Form action URL. Defaults to the Start action endpoint; pass the app's
+   * configured `actionPath` (or any absolute URL) when it differs.
+   */
   readonly action?: string;
-  /** Action endpoint path. Defaults to the shared Start action path. */
-  readonly actionPath?: string;
-  /** Endpoint pair resolved from the Start transport endpoint policy. */
-  readonly endpoints?: StartTransportEndpointOverrides;
-  /** Action manifest whose `actionPath` should be used when no explicit action is supplied. */
-  readonly actionManifest?: StartActionEndpointManifest;
-  /** App graph whose action manifest should supply the action path. */
-  readonly appGraph?: StartTransportEndpointManifestSource;
   /** Partial input serialized into the hidden input field. */
   readonly input?: Partial<I>;
 }
@@ -248,7 +238,9 @@ export const startActionForm = <I, A, E, R>(
   options: StartActionFormOptions<I> = {},
 ): StartActionForm => ({
   method: "post",
-  action: String(resolveStartActionEndpoint(options)),
+  action: String(
+    resolveStartActionEndpoint(options.action === undefined ? {} : { action: options.action }),
+  ),
   hiddenFields: [
     {
       name: startActionNameField,

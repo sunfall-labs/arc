@@ -77,7 +77,6 @@ const promiseLikeCallbackResult = { then() {} } as never;
 describe("Start prerender planning", () => {
   it("discovers static file routes and keeps dynamic routes explicit", () => {
     const pages = planStartPrerenderPages(manifest, {
-      enabled: true,
       pages: [{ path: "/posts/hello", outputPath: "posts/hello/index.html" }],
     });
 
@@ -90,7 +89,6 @@ describe("Start prerender planning", () => {
 
   it("lets explicit pages disable or filter discovered paths", () => {
     const pages = planStartPrerenderPages(manifest, {
-      enabled: true,
       filter: ({ path }) => path !== "/admin",
       pages: [{ path: "/about", prerender: false }],
     });
@@ -100,7 +98,6 @@ describe("Start prerender planning", () => {
 
   it("normalizes prerender defaults and disabled configs", () => {
     expect(resolveStartPrerenderOptions(false)).toBeUndefined();
-    expect(resolveStartPrerenderOptions({ enabled: false })).toBeUndefined();
     expect(resolveStartPrerenderOptions(true)).toMatchObject({
       autoStaticPathsDiscovery: true,
       autoSubfolderIndex: true,
@@ -133,7 +130,6 @@ describe("Start prerender planning", () => {
             configFile: false,
             serverEntry: "/src/server.ts",
             prerender: {
-              enabled: true,
               autoStaticPathsDiscovery: false,
               crawlLinks: false,
             },
@@ -168,7 +164,6 @@ describe("Start prerender planning", () => {
             configFile: false,
             serverEntry: "/src/server.ts",
             prerender: {
-              enabled: true,
               autoStaticPathsDiscovery: false,
               crawlLinks: false,
             },
@@ -203,7 +198,6 @@ describe("Start prerender planning", () => {
               configFile: false,
               serverEntry: "/src/server.ts",
               prerender: {
-                enabled: true,
                 autoStaticPathsDiscovery: false,
                 crawlLinks: false,
                 onSuccess: () => promiseLikeCallbackResult,
@@ -238,7 +232,6 @@ describe("Start prerender planning", () => {
               configFile: false,
               serverEntry: "/src/server.ts",
               prerender: {
-                enabled: true,
                 autoStaticPathsDiscovery: false,
                 crawlLinks: false,
                 failOnError: false,
@@ -274,7 +267,6 @@ describe("Start prerender planning", () => {
             configFile: false,
             serverEntry: "/src/server.ts",
             prerender: {
-              enabled: true,
               autoStaticPathsDiscovery: false,
               crawlLinks: false,
               onSuccess: () =>
@@ -308,7 +300,6 @@ describe("Start prerender planning", () => {
               configFile: false,
               serverEntry: "/src/server.ts",
               prerender: {
-                enabled: true,
                 autoStaticPathsDiscovery: false,
                 crawlLinks: false,
                 failOnError: false,
@@ -344,7 +335,6 @@ describe("Start prerender planning", () => {
         },
         serverEntry: "/src/server.ts",
         prerender: {
-          enabled: true,
           autoStaticPathsDiscovery: false,
           crawlLinks: false,
         },
@@ -385,7 +375,6 @@ describe("Start prerender planning", () => {
               configFile: false,
               serverEntry: "/src/server.ts",
               prerender: {
-                enabled: true,
                 autoStaticPathsDiscovery: false,
                 crawlLinks: false,
               },

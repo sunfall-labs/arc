@@ -313,6 +313,73 @@ const defineServerFunction = <I, A, E = never, R = never>(
   return callable;
 };
 
+/** ServerClient that answers calls using the supplied mocks; backs `Server.mockLayer`. */
+const mockClient = (...mocks: readonly AnyServerFunctionMock[]): ServerClient => {
+  const byName = new Map<string, AnyServerFunctionMock>(mocks.map((mock) => [mock.name, mock]));
+
+  return {
+    call: <I, A, E, R>(
+      fn: ServerFunction<I, A, E, R>,
+      input: I,
+    ): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R> =>
+      Effect.gen(function* () {
+        const mock = mockFor(byName, fn);
+        if (!mock) {
+          return yield* Effect.fail(new ServerFunctionNotFound({ functionName: fn.name }));
+        }
+
+        const encodedInput = yield* encodeServerWire(fn.input, input);
+        const decodedInput = yield* decodeServerWire<I>(mock.input, encodedInput);
+        const value = yield* catchServerFunctionError(
+          fn,
+          invokeEffectInput(`Server.mock(${fn.name}).handler`, mock.handler, decodedInput),
+        );
+        const encodedOutput = yield* encodeServerWire(mock.output, value);
+        return yield* decodeServerWire<A>(fn.output, encodedOutput);
+      }),
+  };
+};
+
+/**
+ * Creates and registers a client-only server function stub for `Server.client`.
+ *
+ * Calls require a provided `ServerClient`; without one, the stub fails with
+ * `ServerFunctionNotFound`.
+ */
+const serverFunctionStub = <I, A, E = never>(
+  name: string,
+  definition: Omit<ServerFunctionDefinition<I, A, E, never>, "handler">,
+): ServerFunction<I, A, E, never> => {
+  const missing = (): ServerFunctionNotFound => new ServerFunctionNotFound({ functionName: name });
+  const local = (_input: I): Effect.Effect<A, ServerFunctionNotFound> => Effect.fail(missing());
+  const effect = (input: I): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError> =>
+    Effect.gen(function* () {
+      const client = yield* Effect.serviceOption(ServerClient);
+      if (Option.isSome(client)) {
+        return yield* client.value.call(callable, input);
+      }
+      return yield* Effect.fail(missing());
+    });
+  const invoke = (_input: unknown): Effect.Effect<unknown, ServerFunctionNotFound> =>
+    Effect.fail(missing());
+  const callable = ((input: I) => effect(input)) as ServerFunction<I, A, E, never>;
+
+  Object.defineProperties(callable, {
+    [ServerFunctionTypeId]: { value: ServerFunctionTypeId },
+    name: { value: name },
+    input: { value: definition.input, enumerable: true },
+    output: { value: definition.output, enumerable: true },
+    error: { value: definition.error, enumerable: true },
+    hasHandler: { value: false, enumerable: true },
+    effect: { value: effect, enumerable: true },
+    local: { value: local, enumerable: true },
+    invoke: { value: invoke, enumerable: true },
+  });
+
+  registerServerFunctionDefinition(callable);
+  return callable;
+};
+
 /** Helpers for contracts, client stubs, server implementations, mocks, and routes. */
 export namespace Server {
   export type Fn<I, A, E = never, R = never> = ServerFunction<I, A, E, R>;
@@ -349,7 +416,7 @@ export namespace Server {
   export const client = <I, A, E = never>(
     contract: ServerFunctionContract<I, A, E>,
   ): ServerFunction<I, A, E, never> =>
-    stub(contract.name, {
+    serverFunctionStub(contract.name, {
       input: contract.input,
       output: contract.output,
       error: contract.error,
@@ -389,7 +456,7 @@ export namespace Server {
       >,
     });
 
-  /** Creates a mock handler for a contract, suitable for Server.mockClient or mockLayer. */
+  /** Creates a mock handler for a contract, provided through `Server.mockLayer`. */
   export const mock = <Contract extends AnyServerFunctionContract, Out>(
     contract: Contract,
     handler: (
@@ -419,44 +486,10 @@ export namespace Server {
     >,
   });
 
-  /** Creates a ServerClient that answers calls using the supplied mocks. */
-  export const mockClient = (...mocks: readonly AnyServerFunctionMock[]): ServerClient => {
-    const byName = new Map<string, AnyServerFunctionMock>(mocks.map((mock) => [mock.name, mock]));
-
-    return {
-      call: <I, A, E, R>(
-        fn: ServerFunction<I, A, E, R>,
-        input: I,
-      ): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R> =>
-        Effect.gen(function* () {
-          const mock = mockFor(byName, fn);
-          if (!mock) {
-            return yield* Effect.fail(new ServerFunctionNotFound({ functionName: fn.name }));
-          }
-
-          const encodedInput = yield* encodeServerWire(fn.input, input);
-          const decodedInput = yield* decodeServerWire<I>(mock.input, encodedInput);
-          const value = yield* catchServerFunctionError(
-            fn,
-            invokeEffectInput(`Server.mock(${fn.name}).handler`, mock.handler, decodedInput),
-          );
-          const encodedOutput = yield* encodeServerWire(mock.output, value);
-          return yield* decodeServerWire<A>(fn.output, encodedOutput);
-        }),
-    };
-  };
-
   /** Builds a `ServerClient` Layer backed by local test mocks. */
   export const mockLayer = (
     ...mocks: readonly AnyServerFunctionMock[]
   ): Layer.Layer<ServerClient> => Layer.succeed(ServerClient)(mockClient(...mocks));
-
-  /** Provides local test mocks to one Effect that calls server functions. */
-  export const provideMocks = <A, E, R>(
-    effect: Effect.Effect<A, E, R>,
-    ...mocks: readonly AnyServerFunctionMock[]
-  ): Effect.Effect<A, E, Exclude<R, ServerClient>> =>
-    Effect.provideService(effect, ServerClient, mockClient(...mocks));
 
   /**
    * Defines and registers a callable server function with a local handler.
@@ -480,47 +513,6 @@ export namespace Server {
     name: string,
     definition: Definition & CheckedServerFunctionHandler<I, Definition>,
   ): ServerFunction<I, A, E, R> => defineServerFunction(name, definition);
-
-  /**
-   * Creates and registers a client-only server function stub.
-   *
-   * Calls require a provided `ServerClient`; without one, the stub fails with
-   * `ServerFunctionNotFound`.
-   */
-  export const stub = <I, A, E = never>(
-    name: string,
-    definition: Omit<ServerFunctionDefinition<I, A, E, never>, "handler">,
-  ): ServerFunction<I, A, E, never> => {
-    const missing = (): ServerFunctionNotFound =>
-      new ServerFunctionNotFound({ functionName: name });
-    const local = (_input: I): Effect.Effect<A, ServerFunctionNotFound> => Effect.fail(missing());
-    const effect = (input: I): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError> =>
-      Effect.gen(function* () {
-        const client = yield* Effect.serviceOption(ServerClient);
-        if (Option.isSome(client)) {
-          return yield* client.value.call(callable, input);
-        }
-        return yield* Effect.fail(missing());
-      });
-    const invoke = (_input: unknown): Effect.Effect<unknown, ServerFunctionNotFound> =>
-      Effect.fail(missing());
-    const callable = ((input: I) => effect(input)) as ServerFunction<I, A, E, never>;
-
-    Object.defineProperties(callable, {
-      [ServerFunctionTypeId]: { value: ServerFunctionTypeId },
-      name: { value: name },
-      input: { value: definition.input, enumerable: true },
-      output: { value: definition.output, enumerable: true },
-      error: { value: definition.error, enumerable: true },
-      hasHandler: { value: false, enumerable: true },
-      effect: { value: effect, enumerable: true },
-      local: { value: local, enumerable: true },
-      invoke: { value: invoke, enumerable: true },
-    });
-
-    registerServerFunctionDefinition(callable);
-    return callable;
-  };
 
   /** Registered server functions keyed by function name. */
   export const functions = (): ReadonlyMap<string, AnyServerFunction> =>

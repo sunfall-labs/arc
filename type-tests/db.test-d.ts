@@ -18,7 +18,7 @@ import {
   UnknownCollectionIndex,
   UnsupportedLiveQuery,
 } from "@sunfall/arc-db";
-// @ts-expect-error QueryBuilder construction is internal; use Query.from(...) and Query.Builder.
+// @ts-expect-error QueryBuilder construction is internal; use query.from(...) and Query.Builder.
 import { QueryBuilder } from "@sunfall/arc-db";
 void QueryBuilder;
 
@@ -215,15 +215,19 @@ const erasedCollectionRequirementsService: DbRuntimeService = erasedCollectionRe
 
 // --- Query ---
 
-const publicQueryRoot: Query.Root = Query;
+declare const publicQueryRoot: Query.Root;
+// @ts-expect-error Query.from was removed; start queries from the factory root with query.from(...).
+Query.from;
 const publicQueryFactory: Query.Factory<Project, any, any> = (query) =>
   query
     .from({ project: dbStaticProjectsCollection })
     .where(({ project }) => project.name !== "" && project.id.length > 0)
     .select(({ project }) => project);
-const publicQueryBuilder: Query.Builder<any, Project, any, any> = Query.from({
-  project: dbStaticProjectsCollection,
-}).select(({ project }) => project);
+const publicQueryBuilder: Query.Builder<any, Project, any, any> = publicQueryRoot
+  .from({
+    project: dbStaticProjectsCollection,
+  })
+  .select(({ project }) => project);
 const publicQueryRows: ReadonlyArray<Project> = publicQueryBuilder.execute();
 // @ts-expect-error public Query.Builder does not expose execution-plan internals.
 publicQueryBuilder.sources;
@@ -234,7 +238,7 @@ Query.eq;
 // @ts-expect-error Query.build is internal; use Query.once or Query.live.
 Query.build;
 declare const neverQueryBuilder: Query.Builder<any, never, any, any>;
-// @ts-expect-error public Query.Builder is branded; use Query.from(...) instead of structural fakes.
+// @ts-expect-error public Query.Builder is branded; use query.from(...) instead of structural fakes.
 const structuralQueryBuilder: Query.Builder<any, Project, any, any> = {
   where: () => neverQueryBuilder,
   select: () => neverQueryBuilder,

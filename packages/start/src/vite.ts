@@ -73,7 +73,6 @@ export type {
   StartPrerenderPage,
   StartPrerenderPageContext,
   StartPrerenderPageInput,
-  StartPrerenderPageOptions,
   StartPrerenderSuccessEvent,
 } from "./start-prerender.js";
 export { StartPrerenderError } from "./start-prerender.js";

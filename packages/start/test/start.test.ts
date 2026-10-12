@@ -2322,7 +2322,7 @@ describe("Sunfall Arc Start", () => {
               yield* response.setCookie("theme", "dark", {
                 path: "/",
                 secure: true,
-                sameSite: "None",
+                sameSite: "none",
               });
               return "<html><body>context</body></html>";
             }),
@@ -3028,7 +3028,7 @@ describe("Sunfall Arc Start", () => {
       ),
     ).resolves.toEqual({ value: "action:again" });
 
-    expect(StartAction.form(Ping, { actionManifest: endpoints.actions }).action).toBe(
+    expect(StartAction.form(Ping, { action: endpoints.actions.actionPath }).action).toBe(
       endpoints.actions.actionPath,
     );
     expect(traces).toEqual([
@@ -3155,9 +3155,6 @@ describe("Sunfall Arc Start", () => {
     );
     expect(resolveStartActionEndpoint({ action: "https://forms.example.test/action" })).toBe(
       "https://forms.example.test/action",
-    );
-    expect(() => StartAction.form(Ping, { actionPath: "https://example.com/action" })).toThrow(
-      StartTransportEndpointPathError,
     );
     expect(StartAction.form(Ping, { action: "https://forms.example.test/action" }).action).toBe(
       "https://forms.example.test/action",

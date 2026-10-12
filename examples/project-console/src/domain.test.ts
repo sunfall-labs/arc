@@ -39,11 +39,11 @@ describe("project console domain", () => {
   });
 
   it("decodes project route params through the branded schema", () => {
-    const match = ProjectRoute.match("/projects/atlas?tab=settings");
+    const match = Route.match([ProjectRoute], "/projects/atlas?tab=settings");
 
     expect(match?.params.id).toBe(makeProjectId("atlas"));
     expect(match?.search.tab).toBe("settings");
-    expect(() => ProjectRoute.match("/projects/Atlas")).toThrow();
+    expect(() => Route.match([ProjectRoute], "/projects/Atlas")).toThrow();
   });
 
   it("normalizes ProjectError class instances and plain decoded objects", () => {

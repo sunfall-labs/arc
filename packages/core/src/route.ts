@@ -9,6 +9,7 @@ import {
   isResourceRef,
   type AnyResourceFamily,
   type AnyResourceRef,
+  type ResourceErrorSchema,
   type ResourceHydrationPayload,
 } from "./resource.js";
 import {
@@ -84,16 +85,6 @@ export type RoutePreloadResult<Requirements = never, E = unknown> = void | Effec
   E,
   Requirements
 >;
-
-/**
- * Schema for a route's typed preload failure, like Effect RPC's `error`.
- *
- * Start encodes a failure the server rendered with this schema (as JSON) and
- * the hydrating client decodes it back into the same typed value, so both
- * renders show the real failure with its declared fields. Encoding and
- * decoding run synchronously, so the schema cannot require services.
- */
-export type RouteErrorSchema<E = unknown> = Schema.Codec<E, unknown, never, never>;
 
 export const RouteLazyComponentTypeId: unique symbol = Symbol.for(
   "@sunfall/arc-core/RouteLazyComponent",
@@ -334,8 +325,12 @@ export interface RouteOptions<Path extends string, Params, Search, PreloadRequir
   readonly params?: AnySchema<Params>;
   /** Optional schema that decodes URL search values after route matching. */
   readonly search?: AnySchema<Search>;
-  /** Optional schema for the typed preload failure; see `RouteDefineOptions.error`. */
-  readonly error?: RouteErrorSchema<any>;
+  /**
+   * Optional schema for the typed preload failure; see `RouteDefineOptions.error`.
+   * Routes share `Resource.ErrorSchema`: Start encodes a failure the server
+   * rendered with it and the hydrating client decodes the same typed value.
+   */
+  readonly error?: ResourceErrorSchema<any>;
   /** Effect-first work run before navigation/render. */
   readonly preload?: (
     context: RouteContext<RouteDefinition<Path, Params, Search, PreloadRequirements, any>>,
@@ -487,16 +482,10 @@ export interface RouteDefinition<
   readonly options: RouteOptions<Path, Params, Search, PreloadRequirements>;
   /** Phantom: the route's typed preload failure (see `Route.PreloadFailure`). */
   readonly "~preloadFailure"?: (_: never) => PreloadError;
-  /** Builds an href from typed path params and optional search values. */
-  build(params: Params, search?: Partial<Search>): string;
-  /**
-   * Matches a URL and synchronously decodes params/search when schemas are present.
-   *
-   * Schema decode failures throw from this sync API. Use
-   * `Route.planNavigation(...)` when callers need typed
-   * `RouteNavigationError` failures instead.
-   */
-  match(input: string | URL): RouteMatch<this> | undefined;
+  /** Phantom: the route's typed path params (see `Route.Params`). */
+  readonly "~params"?: (_: never) => Params;
+  /** Phantom: the route's typed search values (see `Route.Search`). */
+  readonly "~search"?: (_: never) => Search;
 }
 
 /** Params type carried by a route definition. */
@@ -844,27 +833,37 @@ const makeRouteDefinition = (
   const definition: RouteDefinition<string, unknown, unknown, unknown, unknown> = {
     path,
     options,
-    build(params, search) {
-      const compiled = buildRoutePath(path, params as Record<string, unknown>);
-      return appendSearch(compiled, search as Record<string, unknown> | undefined);
-    },
-    match(input) {
-      const url = parseRouteUrl(input);
-      const params = matchRoutePath(path, url.pathname);
-      if (!params) {
-        return undefined;
-      }
-
-      return {
-        route: definition,
-        params: decode(options.params, params),
-        search: decode(options.search, searchObject(url.searchParams)),
-        pathname: url.pathname,
-        href: `${url.pathname}${url.search}`,
-      } as RouteMatch<typeof definition>;
-    },
   };
   return definition;
+};
+
+const routeHref = (
+  definition: RouteDefinition<string, unknown, unknown, unknown, unknown>,
+  params: unknown,
+  search: unknown,
+): string =>
+  appendSearch(
+    buildRoutePath(definition.path, params as Record<string, unknown>),
+    search as Record<string, unknown> | undefined,
+  );
+
+const matchRouteDefinition = <R extends RouteDefinition<string, unknown, unknown, any, any>>(
+  definition: R,
+  input: string | URL,
+): RouteMatch<R> | undefined => {
+  const url = parseRouteUrl(input);
+  const params = matchRoutePath(definition.path, url.pathname);
+  if (!params) {
+    return undefined;
+  }
+
+  return {
+    route: definition,
+    params: decode(definition.options.params, params),
+    search: decode(definition.options.search, searchObject(url.searchParams)),
+    pathname: url.pathname,
+    href: `${url.pathname}${url.search}`,
+  } as RouteMatch<R>;
 };
 
 /** Helpers for matching, building, and preloading route definitions. */
@@ -974,7 +973,7 @@ export namespace Route {
    *   preload: ({ params }) => Resource.preload(UserResource(params.id))
    * });
    *
-   * const href = userRoute.build({ id: "42" });
+   * const href = Route.href(userRoute, { params: { id: "42" } });
    * ```
    */
   export function define<const Path extends string>(
@@ -984,7 +983,7 @@ export namespace Route {
     const Path extends string,
     ParamsSchema extends AnySchema | undefined = undefined,
     SearchSchema extends AnySchema | undefined = undefined,
-    ErrorSchema extends RouteErrorSchema<any> | undefined = undefined,
+    ErrorSchema extends ResourceErrorSchema<any> | undefined = undefined,
     Out = never,
   >(
     path: Path,
@@ -1024,7 +1023,7 @@ export namespace Route {
     ...args: HrefArgs<R>
   ): string => {
     const options = (args[0] ?? {}) as HrefOptions<R>;
-    return definition.build((options.params ?? {}) as Params<R>, options.search);
+    return routeHref(definition, options.params ?? {}, options.search);
   };
 
   /** Route returned by `withComponent`: the same route carrying its component `C`. */
@@ -1092,7 +1091,7 @@ export namespace Route {
     input: string | URL,
   ): Match<Routes[number]> | undefined => {
     for (const definition of orderedRouteDefinitions(routes)) {
-      const matched = definition.match(input);
+      const matched = matchRouteDefinition(definition, input);
       if (matched) {
         return matched as Match<Routes[number]>;
       }

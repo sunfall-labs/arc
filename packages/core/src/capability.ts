@@ -17,10 +17,8 @@ export interface Capability<Identifier, Shape> {
   readonly [CapabilityTypeId]: typeof CapabilityTypeId;
   readonly key: string;
   readonly tag: Context.Service<Identifier, Shape>;
-  /** Creates a production Layer for this capability. */
+  /** Creates a Layer that provides this capability, for production or tests. */
   readonly layer: (service: Shape) => Layer.Layer<Identifier>;
-  /** Creates a test Layer for this capability. */
-  readonly mock: (service: Shape) => Layer.Layer<Identifier>;
   /**
    * Accesses the provided service.
    *
@@ -33,10 +31,6 @@ export interface Capability<Identifier, Shape> {
     <A, E, R>(f: (service: Shape) => Effect.Effect<A, E, R>): Effect.Effect<A, E, R | Identifier>;
     <A>(f: (service: Shape) => PlainValue<A>): Effect.Effect<PlainValue<A>, never, Identifier>;
   };
-  readonly provide: <A, E, R>(
-    effect: Effect.Effect<A, E, R>,
-    service: Shape,
-  ) => Effect.Effect<A, E, Exclude<R, Identifier>>;
 }
 
 /** Runtime guard for values created by `Capability.define(...)`. */
@@ -93,9 +87,7 @@ export namespace Capability {
       key,
       tag,
       layer: (service) => Layer.succeed(tag)(service),
-      mock: (service) => Layer.succeed(tag)(service),
       use: use as Capability<Shape, Shape>["use"],
-      provide: (effect, service) => Effect.provideService(effect, tag, service),
     };
   };
 }

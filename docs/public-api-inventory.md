@@ -256,7 +256,7 @@ Release decisions:
 - `Route.preload(...)`, `Route.planPreload(...)`, and
   `Route.planNavigation(...)` preserve the service requirements and the
   typed preload failure (`Route.PreloadFailure<R>`) declared by routes. A
-  route's `error` option (`RouteErrorSchema<E>`, a service-free Schema codec)
+  route's `error` option (`Resource.ErrorSchema<E>`, the same service-free Schema codec Resource families use)
   types its preload failure as `RoutePreloadError<E>`; `preload` is inferred
   from its own body and failures the schema does not cover are compile errors
   reported on `error` as `RoutePreloadFailureNotInErrorSchema<Undeclared>`
@@ -797,7 +797,7 @@ version?, ... }`, `persist(options?)`, and `restore(options?)` use the
   source, aggregate, build, diagnostics, once, and live helpers, so this
   factory-result guidance stays visible in LSP hovers. The concrete
   `QueryBuilder` constructor is not a package-root export; public callers use
-  `Query.from(...)`, factory callbacks, and the branded `Query.Builder` fluent
+  `query.from(...)` inside factory callbacks and the branded `Query.Builder` fluent
   Interface so the Query Module owns builder construction and execution-plan
   storage. Prefer `Query.EvaluationError` and
   `Query.UnsupportedLiveQuery` in namespace-first adapter code while the root

@@ -4544,13 +4544,15 @@ describe("Query", () => {
   it("rejects invalid query factory results at the factory boundary", async () => {
     const promised = Effect.runPromise(
       Effect.succeed(
-        Query.from({
-          project: Collection.define<Project>({
-            name: "Projects.promise-query-factory",
-            getKey: (project) => project.id,
-            initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
+        buildQuery((query) =>
+          query.from({
+            project: Collection.define<Project>({
+              name: "Projects.promise-query-factory",
+              getKey: (project) => project.id,
+              initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }],
+            }),
           }),
-        }),
+        ),
       ),
     );
     const throwingThenFactoryResult = Object.defineProperty({}, "then", {
@@ -4576,7 +4578,7 @@ describe("Query", () => {
       {
         label: "effect",
         reason: "effect",
-        factory: (() => Effect.succeed(Query.from({}))) as never,
+        factory: (() => Effect.succeed(buildQuery((query) => query.from({})))) as never,
       },
       {
         label: "non-builder",

@@ -391,7 +391,7 @@ const queryFactoryResultRejected = (
         ? "Query factories must return a QueryBuilder synchronously. Move async work into collection Effects before building the query."
         : reason === "effect"
           ? "Query factories must return a QueryBuilder, not an Effect. Move Effect work into collection sources and keep the factory synchronous."
-          : "Query factories must return the QueryBuilder produced by Query.from(...).",
+          : "Query factories must return the QueryBuilder produced by query.from(...).",
   });
 
 const validateQueryFactoryResult = <T, E, R>(value: unknown): AnyQueryBuilder<T, E, R> => {
@@ -585,7 +585,7 @@ export const buildQuery = <T, E = never, R = never>(
 /**
  * Query API for composing derived views over collections.
  *
- * Query factories receive `Query.from`/`query.from` and return an immutable
+ * Query factories receive the query root and start with `query.from(...)`, returning an immutable
  * builder. Use `once` for one-shot reads and `live` for reactive data.
  */
 export namespace Query {
@@ -631,8 +631,6 @@ export namespace Query {
     Aggregates extends AnyQueryAggregateRecord,
   > = QueryAggregateResult<TKey, Aggregates>;
 
-  /** Start a query from one or more named collection sources. */
-  export const from = queryRoot.from;
   /** Count non-null aggregate values in `groupBy`. */
   export const count = aggregateCount;
   /** Sum numeric aggregate values in `groupBy`. */

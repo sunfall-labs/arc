@@ -1,14 +1,9 @@
-import { Effect, type Schema } from "effect";
-import type { EffectInputCallbackError, PlainValue } from "./effect-like.js";
+import { Effect } from "effect";
+import type { PlainValue } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import { rejectPlainSyncCallbackValue } from "./effect-input-sync.js";
 import { validateResourceInvalidationsArraySync } from "./resource-dependency-graph.js";
-import {
-  FormValidationError,
-  type FormFieldErrors,
-  type FormFieldKey,
-  type FormInstance,
-} from "./form.js";
+import { FormValidationError, type FormFieldErrors, type FormFieldKey } from "./form.js";
 import type { ResourceInvalidation } from "./resource.js";
 
 /** Runtime marker shared by every `ActionResult` variant. */
@@ -279,47 +274,6 @@ const validation = <Values extends object, E, R = never>(
   };
 };
 
-/** Builds a validation failure from a field-error map of plain errors. */
-const fields = <Values extends object, E, R = never>(
-  fieldErrors: FormFieldErrors<Values, PlainValue<E>>,
-  options: Omit<ActionResultValidationInput<Values, E>, "fieldErrors"> &
-    ActionResultOptions<R> = {},
-): ActionResultValidationFailure<Values, E, R> =>
-  validation<Values, E, R>(
-    {
-      fieldErrors,
-      ...(options.formErrors === undefined ? {} : { formErrors: options.formErrors }),
-      ...(options.cause === undefined ? {} : { cause: options.cause }),
-    } as ActionResultValidationInput<Values, E>,
-    options,
-  );
-
-/** Builds a validation failure for one field using plain error data. */
-const fieldError = <Values extends object, K extends FormFieldKey<Values>, E, R = never>(
-  field: K,
-  error: PlainValue<E>,
-  options: Omit<ActionResultValidationInput<Values, E>, "fieldErrors"> &
-    ActionResultOptions<R> = {},
-): ActionResultValidationFailure<Values, E, R> => {
-  const fieldErrors: FormFieldErrors<Values, PlainValue<E>> = {};
-  fieldErrors[field] = [error];
-  return fields(fieldErrors, options);
-};
-
-/** Builds a validation failure for one form-level plain error. */
-const formError = <Values extends object, E, R = never>(
-  error: PlainValue<E>,
-  options: Omit<ActionResultValidationInput<Values, E>, "formErrors"> & ActionResultOptions<R> = {},
-): ActionResultValidationFailure<Values, E, R> =>
-  validation<Values, E, R>(
-    {
-      formErrors: [error],
-      ...(options.fieldErrors === undefined ? {} : { fieldErrors: options.fieldErrors }),
-      ...(options.cause === undefined ? {} : { cause: options.cause }),
-    } as ActionResultValidationInput<Values, E>,
-    options,
-  );
-
 /** Appends invalidations to an existing action result. */
 const withInvalidation = <Result extends AnyActionResult, R = never>(
   result: Result,
@@ -387,23 +341,17 @@ const fromEffect = <A, E = never, R = never>(
     Effect.catch((error) => Effect.succeed(failure<E>(error as PlainValue<E>))),
   ) as Effect.Effect<ActionResult<A, never, never, E>, never, R>;
 
-/** Converts a form validation Effect into plain success or validation-failure results. */
-const fromValidationEffect = <Values extends object, E, R = never>(
+/**
+ * Converts a form validation Effect, such as `form.validate()`, into plain
+ * success or validation-failure results.
+ */
+const fromValidation = <Values extends object, E, R = never>(
   effect: PlainValue<Values> | Effect.Effect<PlainValue<Values>, FormValidationError<Values, E>, R>,
 ): Effect.Effect<ActionResult<Values, Values, E, never>, never, R> =>
   toEffect(effect as never).pipe(
     Effect.map((value) => success<Values>(value as PlainValue<Values>)),
     Effect.catch((error) => Effect.succeed(validation(error))),
   ) as Effect.Effect<ActionResult<Values, Values, E, never>, never, R>;
-
-/** Validates a `FormInstance` and returns an action result instead of failing. */
-const validateForm = <Values extends object, E, R = never>(
-  form: FormInstance<Values, E, R>,
-): Effect.Effect<
-  ActionResult<Values, Values, E | Schema.SchemaError | EffectInputCallbackError, never>,
-  never,
-  R
-> => fromValidationEffect(form.validate() as never);
 
 /** Extracts a success value or fails with the boundary result for explicit handling. */
 const requireSuccess = <A, Values extends object, ValidationError, E>(
@@ -417,9 +365,6 @@ export const ActionResult = {
   failure,
   redirect,
   validation,
-  fields,
-  fieldError,
-  formError,
   withInvalidation,
   invalidations,
   is,
@@ -429,7 +374,6 @@ export const ActionResult = {
   isFailure,
   match,
   fromEffect,
-  fromValidationEffect,
-  validateForm,
+  fromValidation,
   requireSuccess,
 } as const;

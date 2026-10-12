@@ -464,12 +464,12 @@ ActionResult.fromEffect<unknown>(Effect.succeed(promisedProject));
 ActionResult.fromEffect<Project, typeof promisedProject>(Effect.fail(promisedProject));
 // @ts-expect-error ActionResult.fromEffect rejects Effect failures that are Effect-shaped
 ActionResult.fromEffect<Project, typeof effectNumberValue>(Effect.fail(effectNumberValue));
-// @ts-expect-error ActionResult.fromValidationEffect rejects Promise-shaped direct values
-ActionResult.fromValidationEffect(promisedProject);
-// @ts-expect-error ActionResult.fromValidationEffect rejects Effect successes that are Promise-shaped
-ActionResult.fromValidationEffect(Effect.succeed(promisedProject));
-// @ts-expect-error ActionResult.fromValidationEffect successes must be plain data, not Effect-shaped
-ActionResult.fromValidationEffect<Effect.Effect<number>, string>(Effect.succeed(effectNumberValue));
+// @ts-expect-error ActionResult.fromValidation rejects Promise-shaped direct values
+ActionResult.fromValidation(promisedProject);
+// @ts-expect-error ActionResult.fromValidation rejects Effect successes that are Promise-shaped
+ActionResult.fromValidation(Effect.succeed(promisedProject));
+// @ts-expect-error ActionResult.fromValidation successes must be plain data, not Effect-shaped
+ActionResult.fromValidation<Effect.Effect<number>, string>(Effect.succeed(effectNumberValue));
 // @ts-expect-error ActionResult.success rejects Promise-shaped payloads
 ActionResult.success(promisedProject);
 // @ts-expect-error ActionResult.success rejects Effect-shaped payloads
@@ -482,17 +482,14 @@ ActionResult.success<any>(promisedProject);
 ActionResult.failure(promisedProject);
 // @ts-expect-error ActionResult.failure rejects Effect-shaped errors
 ActionResult.failure(effectNumberValue);
-// @ts-expect-error ActionResult field validation errors cannot be Promise-shaped
-ActionResult.fieldError<{ readonly name: string }, "name", Project>("name", promisedProject);
-ActionResult.fieldError<{ readonly name: string }, "name", Effect.Effect<number>>(
-  "name",
-  // @ts-expect-error ActionResult field validation errors cannot be Effect-shaped
-  effectNumberValue,
-);
-// @ts-expect-error ActionResult form validation errors cannot be Promise-shaped
-ActionResult.formError<{ readonly name: string }, Project>(promisedProject);
+// @ts-expect-error ActionResult field validation errors cannot be Effect-shaped
+ActionResult.validation<{ readonly name: string }, Effect.Effect<number>>({
+  fieldErrors: { name: [effectNumberValue] },
+});
 // @ts-expect-error ActionResult field error maps cannot contain Promise-shaped errors
-ActionResult.fields<{ readonly name: string }, Project>({ name: [promisedProject] });
+ActionResult.validation<{ readonly name: string }, Project>({
+  fieldErrors: { name: [promisedProject] },
+});
 // @ts-expect-error ActionResult validation inputs cannot contain Promise-shaped form errors
 ActionResult.validation<{ readonly name: string }, Project>({ formErrors: [promisedProject] });
 
@@ -505,8 +502,8 @@ type ProjectError = {
 toEffect<typeof maybePromisedProject>(maybePromisedProject);
 // @ts-expect-error ActionResult.fromEffect rejects Promise-shaped union success values
 ActionResult.fromEffect<typeof maybePromisedProject>(maybePromisedProject);
-// @ts-expect-error ActionResult.fromValidationEffect rejects Promise-shaped union success values
-ActionResult.fromValidationEffect<typeof maybePromisedProject, ProjectError>(maybePromisedProject);
+// @ts-expect-error ActionResult.fromValidation rejects Promise-shaped union success values
+ActionResult.fromValidation<typeof maybePromisedProject, ProjectError>(maybePromisedProject);
 // @ts-expect-error invokeEffectInput rejects callbacks whose success type includes Promise-shaped union members
 invokeEffectInput<[], typeof maybePromisedProject>("test.callback", () => maybePromisedProject);
 
@@ -746,7 +743,7 @@ const staticRouteFailure: [Route.PreloadFailure<typeof staticRoute>] extends [ne
 const typedProjectPreload: Effect.Effect<
   void,
   RoutePreloadError<TypedProjectNotFound | TypedProjectForbidden>
-> = Route.preload(TypedProjectRoute.match("/typed-projects/atlas")!);
+> = Route.preload(Route.match([TypedProjectRoute], "/typed-projects/atlas")!);
 Route.define("/typed-projects/:id", {
   // @ts-expect-error preload may fail only with the route error schema's type
   error: TypedProjectNotFound,
@@ -2617,10 +2614,10 @@ ProjectApi.layer({
   rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
 });
 
-ProjectApi.mock({
-  get: (id) => Effect.succeed({ id, name: "Mock Project" }),
-  rename: (input) => Effect.succeed({ id: input.id, name: input.name }),
-});
+// @ts-expect-error Capability.mock was removed; test doubles use layer(...)
+ProjectApi.mock;
+// @ts-expect-error Capability.provide was removed; provide layer(...) instead
+ProjectApi.provide;
 
 // @ts-expect-error capability implementation must include all service methods
 ProjectApi.layer({
@@ -3233,14 +3230,16 @@ const resultWithServicefulInvalidation = ActionResult.withInvalidation(
 const resultWithServicefulInvalidationRequirement: ActionResultInvalidationRequirements<
   typeof resultWithServicefulInvalidation
 > = {} as ProjectApi;
-const fieldErrorWithServicefulInvalidation = ActionResult.fieldError<
+const fieldErrorWithServicefulInvalidation = ActionResult.validation<
   { readonly id: string },
-  "id",
   string,
   ProjectApi
->("id", "Required", {
-  invalidates: [ServicefulProjectResource("atlas")],
-});
+>(
+  { fieldErrors: { id: ["Required"] } },
+  {
+    invalidates: [ServicefulProjectResource("atlas")],
+  },
+);
 const fieldErrorWithServicefulInvalidationRequirement: ActionResultInvalidationRequirements<
   typeof fieldErrorWithServicefulInvalidation
 > = {} as ProjectApi;
@@ -3443,8 +3442,13 @@ touchHandle.submit({ slug: "atlas" });
 StartAction.use(TouchProject);
 
 StartAction.form(TouchProject, {
-  actionManifest: { actionPath: "/custom/action" },
+  action: "/custom/action",
   input: { id: "atlas" },
+});
+
+StartAction.form(TouchProject, {
+  // @ts-expect-error the form action URL is set only through `action`
+  actionPath: "/custom/action",
 });
 
 StartAction.form(TouchProject, {
@@ -3455,11 +3459,6 @@ StartAction.form(TouchProject, {
 StartAction.form(TouchProject, {
   // @ts-expect-error progressive action form defaults must match action input value types
   input: { id: 123 },
-});
-
-StartAction.form(TouchProject, {
-  actionPath: "/custom/action",
-  input: { id: "atlas" },
 });
 
 const touchStartActionForm: StartAction.Form<typeof TouchProject> = StartAction.form(TouchProject);
@@ -3725,15 +3724,14 @@ const ProjectFormSchema = Schema.Struct({
 });
 type ProjectFormValues = typeof ProjectFormSchema.Type;
 
-ActionResult.fieldError<ProjectFormValues, "name", string>("name", "Required");
-ActionResult.fields<ProjectFormValues, string>({
-  spend: ["Must be positive"],
+ActionResult.validation<ProjectFormValues, string>({
+  fieldErrors: { name: ["Required"], spend: ["Must be positive"] },
 });
-// @ts-expect-error validation field errors must target known form fields
-ActionResult.fieldError<ProjectFormValues, "missing", string>("missing", "Required");
-ActionResult.fields<ProjectFormValues, string>({
-  // @ts-expect-error validation field maps reject unknown form fields
-  missing: ["Required"],
+ActionResult.validation<ProjectFormValues, string>({
+  fieldErrors: {
+    // @ts-expect-error validation field maps reject unknown form fields
+    missing: ["Required"],
+  },
 });
 
 const projectForm = Form.make({
@@ -3775,17 +3773,17 @@ Form.make<typeof ProjectFormSchema, ProjectFormValues, string>({
     Effect.fail(validation.form(effectNumberValue)),
 });
 
-// @ts-expect-error Form.fieldError errors must be plain data, not Promise-shaped
-Form.fieldError<ProjectFormValues, "name", string>("name", promisedString);
-// @ts-expect-error Form.fieldError errors must be plain data, not Effect-shaped
-Form.fieldError<ProjectFormValues, "name", Effect.Effect<number>>("name", effectNumberValue);
-Form.error<ProjectFormValues, string>({
-  // @ts-expect-error Form.error field errors must be plain data, not Promise-shaped
-  name: [promisedString],
-});
-Form.error<ProjectFormValues, Effect.Effect<number>>({
-  // @ts-expect-error Form.error field errors must be plain data, not Effect-shaped
-  name: [effectNumberValue],
+Form.make<typeof ProjectFormSchema, ProjectFormValues, string>({
+  name: "projectForm",
+  schema: ProjectFormSchema,
+  initial: { id: "atlas", name: "Atlas Billing", spend: 1200 },
+  validate: (_values, validation) =>
+    Effect.fail(
+      validation.fields({
+        // @ts-expect-error form validation field maps must hold plain data, not Promise-shaped
+        name: [promisedString],
+      }),
+    ),
 });
 
 projectForm.setField("name", "Atlas Revenue");

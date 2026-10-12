@@ -40,7 +40,7 @@ describe("route", () => {
     const ProjectRoute = Route.define("/projects/:id");
 
     expect(Route.href(ProjectRoute, { params: { id: "atlas" } })).toBe("/projects/atlas");
-    expect(ProjectRoute.match("/projects/atlas")?.params).toEqual({ id: "atlas" });
+    expect(Route.match([ProjectRoute], "/projects/atlas")?.params).toEqual({ id: "atlas" });
   });
 
   it("infers route props", () => {
@@ -60,10 +60,10 @@ describe("route", () => {
     expect(Route.href(MaybeProjectRoute)).toBe("/projects");
     expect(Route.href(MaybeProjectRoute, { params: {} })).toBe("/projects");
     expect(Route.href(MaybeProjectRoute, { params: { id: "atlas" } })).toBe("/projects/atlas");
-    expect(MaybeProjectRoute.match("/projects")?.params).toEqual({});
-    expect(MaybeProjectRoute.match("/projects/atlas")?.params).toEqual({ id: "atlas" });
-    expect(NestedMaybeProjectRoute.match("/projects/settings")?.params).toEqual({});
-    expect(NestedMaybeProjectRoute.match("/projects/atlas/settings")?.params).toEqual({
+    expect(Route.match([MaybeProjectRoute], "/projects")?.params).toEqual({});
+    expect(Route.match([MaybeProjectRoute], "/projects/atlas")?.params).toEqual({ id: "atlas" });
+    expect(Route.match([NestedMaybeProjectRoute], "/projects/settings")?.params).toEqual({});
+    expect(Route.match([NestedMaybeProjectRoute], "/projects/atlas/settings")?.params).toEqual({
       id: "atlas",
     });
     expectTypeOf<Route.Props<typeof MaybeProjectRoute>>().toMatchTypeOf<{
@@ -154,7 +154,7 @@ describe("route", () => {
           preloaded = params.id;
         }),
     });
-    const match = ProjectRoute.match("/projects/atlas");
+    const match = Route.match([ProjectRoute], "/projects/atlas");
 
     expect(match).toBeDefined();
     const effect = Route.preload(match!);
@@ -174,7 +174,7 @@ describe("route", () => {
         throw "preload-failed";
       },
     });
-    const match = ProjectRoute.match("/projects/atlas");
+    const match = Route.match([ProjectRoute], "/projects/atlas");
 
     expect(match).toBeDefined();
     let effect: Effect.Effect<void, RoutePreloadError> | undefined;
@@ -202,7 +202,7 @@ describe("route", () => {
     const ProjectRoute = Route.define("/projects/:id", {
       preload: () => Promise.resolve(undefined) as never,
     });
-    const match = ProjectRoute.match("/projects/atlas");
+    const match = Route.match([ProjectRoute], "/projects/atlas");
 
     expect(match).toBeDefined();
 
@@ -231,7 +231,7 @@ describe("route", () => {
         error: ProjectNotFound,
         preload: ({ params }) => Effect.fail(new ProjectNotFound({ id: params.id })),
       });
-      const match = ProjectRoute.match("/projects/atlas")!;
+      const match = Route.match([ProjectRoute], "/projects/atlas")!;
 
       const error = yield* Effect.flip(Route.preload(match));
       expectTypeOf(error).toEqualTypeOf<RoutePreloadError<ProjectNotFound>>();
@@ -253,7 +253,7 @@ describe("route", () => {
         preload: ({ params }) =>
           Effect.fail(new ProjectNotFound({ id: params.id, at: new Date(0) })),
       });
-      const match = ProjectRoute.match("/projects/atlas")!;
+      const match = Route.match([ProjectRoute], "/projects/atlas")!;
       const error = yield* Effect.flip(Route.preload(match));
 
       const snapshot = yield* Route.preloadFailureSnapshot(ProjectRoute, error);
@@ -282,7 +282,9 @@ describe("route", () => {
       const ProjectRoute = Route.define("/projects/:id", {
         preload: () => Effect.fail(new ProjectMissing({ secret: "db-host" })),
       });
-      const error = yield* Effect.flip(Route.preload(ProjectRoute.match("/projects/atlas")!));
+      const error = yield* Effect.flip(
+        Route.preload(Route.match([ProjectRoute], "/projects/atlas")!),
+      );
 
       const snapshot = yield* Route.preloadFailureSnapshot(ProjectRoute, error);
       expect(snapshot.failure).toEqual({ _tag: "Untyped", tag: "ProjectMissing" });
@@ -302,7 +304,9 @@ describe("route", () => {
         error: ProjectNotFound,
         preload: () => Effect.fail("not-a-project-not-found" as never),
       });
-      const error = yield* Effect.flip(Route.preload(ProjectRoute.match("/projects/atlas")!));
+      const error = yield* Effect.flip(
+        Route.preload(Route.match([ProjectRoute], "/projects/atlas")!),
+      );
 
       const snapshot = yield* Route.preloadFailureSnapshot(ProjectRoute, error);
       expect(snapshot.failure).toEqual({ _tag: "Unencodable" });
@@ -519,7 +523,7 @@ describe("route", () => {
       params: Schema.Struct({ id: Schema.Number }),
     });
 
-    expect(() => ProjectRoute.match("/projects/atlas")).toThrow();
+    expect(() => Route.match([ProjectRoute], "/projects/atlas")).toThrow();
     expect(() => Route.match([ProjectRoute] as const, "/projects/atlas")).toThrow();
   });
 });
@@ -637,7 +641,7 @@ describe("Server", () => {
           yield* response.setCookie("session", "abc123", {
             httpOnly: true,
             path: "/",
-            sameSite: "Lax",
+            sameSite: "lax",
           });
           return new Response("ok");
         }),

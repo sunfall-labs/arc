@@ -25,22 +25,14 @@ import {
   startStaticPageOutputPath,
 } from "./static-export.js";
 
-/** Per-page prerender override for explicit pages. */
-export interface StartPrerenderPageOptions {
-  /** Whether this explicit page should be prerendered. Defaults to true. */
-  readonly enabled?: boolean;
-  /** HTML output path relative to the build output directory. */
-  readonly outputPath?: string;
-}
-
 /** Explicit page entry added to the static prerender plan. */
 export interface StartPrerenderPage {
   /** Root-relative page path to prerender. */
   readonly path: string;
   /** HTML output path relative to the build output directory. */
   readonly outputPath?: string;
-  /** Per-page prerender override. */
-  readonly prerender?: boolean | StartPrerenderPageOptions;
+  /** Set to `false` to drop this page from the plan, including discovered routes. Defaults to true. */
+  readonly prerender?: boolean;
 }
 
 /** Explicit prerender page input accepted by `StartPrerenderOptions.pages`. */
@@ -68,8 +60,6 @@ export interface StartPrerenderFailureEvent {
 
 /** Static prerender options consumed by the Start Vite build hook. */
 export interface StartPrerenderOptions {
-  /** Enables static prerendering after a production Vite build. */
-  readonly enabled?: boolean;
   /** Origin used when constructing build-time SSR requests. */
   readonly origin?: string;
   /** Write `/docs` to `docs/index.html` instead of `docs.html`. Defaults to true. */
@@ -94,7 +84,7 @@ export interface StartPrerenderOptions {
   readonly onError?: (event: StartPrerenderFailureEvent) => EffectInput<void, unknown, never>;
 }
 
-/** Boolean shorthand or option object for configuring Start prerendering. */
+/** `true` for defaults, an option object to customize, or `false` to disable Start prerendering. */
 export type StartPrerenderConfig = boolean | StartPrerenderOptions;
 
 /** Runtime input for executing the Start prerender Effect. */
@@ -222,9 +212,6 @@ export const resolveStartPrerenderOptions = (
     return undefined;
   }
   const options = config === true ? {} : config;
-  if (options.enabled === false) {
-    return undefined;
-  }
 
   return {
     origin: options.origin ?? defaultPrerenderOrigin,
@@ -248,14 +235,10 @@ const explicitPageOptions = (
     return { path: normalizeStartStaticPath(input), enabled: true };
   }
 
-  const path = normalizeStartStaticPath(input.path);
-  const prerender = input.prerender;
-  const pageOptions = typeof prerender === "object" && prerender !== null ? prerender : {};
-  const outputPath = pageOptions.outputPath ?? input.outputPath;
   return {
-    path,
-    ...(outputPath === undefined ? {} : { outputPath }),
-    enabled: prerender === false || pageOptions.enabled === false ? false : true,
+    path: normalizeStartStaticPath(input.path),
+    ...(input.outputPath === undefined ? {} : { outputPath: input.outputPath }),
+    enabled: input.prerender !== false,
   };
 };
 

@@ -202,8 +202,8 @@ describe("browser router kernel", () => {
     const component = () => undefined;
     const Project = Route.withComponent(Route.define("/render-projects/:id"), component);
     const Empty = Route.define("/empty-render-route");
-    const projectMatch = Project.match("/render-projects/atlas");
-    const emptyMatch = Empty.match("/empty-render-route");
+    const projectMatch = Route.match([Project], "/render-projects/atlas");
+    const emptyMatch = Route.match([Empty], "/empty-render-route");
 
     if (!projectMatch || !emptyMatch) {
       expect.fail("Expected test routes to match.");
@@ -253,7 +253,7 @@ describe("browser router kernel", () => {
       (props: { readonly projectId: string }) => props.projectId,
       ({ params }) => ({ projectId: params.id }),
     );
-    const mappedMatch = MappedProject.match("/mapped-render-projects/atlas")!;
+    const mappedMatch = Route.match([MappedProject], "/mapped-render-projects/atlas")!;
     expect(
       browserRouteRenderDecision({
         _tag: "Ready",
@@ -343,8 +343,8 @@ describe("browser router kernel", () => {
           lazyComponent,
         );
 
-        const unrelated = Unrelated.match("/unattached-components/atlas");
-        const project = Project.match("/attached-lazy-components/atlas");
+        const unrelated = Route.match([Unrelated], "/unattached-components/atlas");
+        const project = Route.match([Project], "/attached-lazy-components/atlas");
         if (unrelated === undefined || project === undefined) {
           return expect.fail("expected both routes to match");
         }
@@ -435,7 +435,7 @@ describe("browser router kernel", () => {
   it("shares initial matched state policy across framework adapters", () => {
     const Project = Route.define("/initial-projects/:id");
     const routes = [Project] as const;
-    const match = Project.match("/initial-projects/atlas");
+    const match = Route.match([Project], "/initial-projects/atlas");
     expect(match).toBeDefined();
 
     expect(

@@ -314,7 +314,7 @@ yield *
       yield* response.setCookie("session", token, {
         httpOnly: true,
         path: "/",
-        sameSite: "Lax",
+        sameSite: "lax",
       });
     }),
   );
@@ -373,7 +373,7 @@ export const ProjectApiLive = ProjectApi.layer({
 ```
 
 Resources, actions, and route preload depend on `ProjectApi.use(...)`. Server
-functions are one live implementation; tests can swap `ProjectApi.mock(...)`
+functions are one live implementation; tests can swap `ProjectApi.layer(...)`
 without importing server modules or replacing app code.
 
 ## Progressive Actions
@@ -1289,7 +1289,7 @@ export const renameProject = Server.implement(RenameProject, (input) =>
 );
 ```
 
-`Server.fn` and `Server.stub` remain the low-level primitives behind this split,
+`Server.fn` remains the low-level primitive behind this split,
 but new isomorphic code should prefer the contract/client/implement pattern so
 the browser graph never imports server handlers and handlers cannot drift from
 their public schema.
@@ -1432,17 +1432,20 @@ Tests should mock contracts, not modules:
 ```ts
 const value =
   yield *
-  Server.provideMocks(
+  Effect.provide(
     getProject.effect({ id: makeProjectId("atlas") }),
-    Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Mock Project" })),
+    Server.mockLayer(
+      Server.mock(GetProject, ({ id }) => Effect.succeed({ id, name: "Mock Project" })),
+    ),
   );
 ```
 
 `Server.mock(...)` does not register a global handler and does not import
 `.server.ts`. It still validates through the contract schemas, so test doubles
-catch bad inputs and outputs early. `Server.mockLayer(...)` exposes the same
-transport as an Effect `Layer` for apps or integration tests that build a
-runtime with dependency injection.
+catch bad inputs and outputs early. `Server.mockLayer(...)` is the one way to
+install mocks: provide it to a single Effect, or merge it into the runtime
+Layer for apps and integration tests that build a runtime with dependency
+injection.
 
 ## Signal And Stream Semantics
 
@@ -1666,16 +1669,13 @@ const result = ActionResult.redirect("/projects/atlas", {
   replace: true,
 });
 
-const validation = ActionResult.fieldError(
-  "name",
-  new ProjectNameTooShort({
-    minimum: 3,
-  }),
-);
+const validation = ActionResult.validation({
+  fieldErrors: { name: [new ProjectNameTooShort({ minimum: 3 })] },
+});
 ```
 
 `ActionResult` can represent success, validation failure, redirect, and domain
-failure. `ActionResult.validateForm(form)` turns a form validation failure
+failure. `ActionResult.fromValidation(form.validate())` turns a form validation failure
 into a success-channel `ValidationFailure`, and `ActionResult.withInvalidation`
 lets the result carry Resource invalidation targets into existing action
 workflows while preserving any services required by those invalidated Resource

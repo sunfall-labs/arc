@@ -95,8 +95,6 @@ export const publicHoverDocGroups = [
         "ValidationError",
         "DataFileMode",
         "DataOptions",
-        "error",
-        "fieldError",
         "make",
       ],
     },
@@ -474,7 +472,6 @@ export const publicHoverDocGroups = [
         "Aggregate",
         "Aggregates",
         "AggregateResult",
-        "from",
         "count",
         "sum",
         "avg",
@@ -638,7 +635,6 @@ export const publicHoverDocGroups = [
   {
     file: "packages/start/src/start-prerender.ts",
     declarations: [
-      "StartPrerenderPageOptions",
       "StartPrerenderPage",
       "StartPrerenderPageInput",
       "StartPrerenderPageContext",
