@@ -122,7 +122,7 @@ describe("App.launch", () => {
           );
           const hydrationGlobal = globalThis as { _$HY?: unknown };
           hydrationGlobal._$HY = { events: [], completed: new WeakSet(), r: {} };
-          document.body.innerHTML = `<div id="root">${ssrMarkup}</div>${createHydrationScript(
+          document.body.innerHTML = `<div id="root">${ssrMarkup}</div>${createHydrationScriptSync(
             createStartHydrationPayload(resources),
           )}`;
           yield* Effect.addFinalizer(() =>

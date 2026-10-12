@@ -865,7 +865,7 @@ export interface ResourceOptimisticTarget {
 export const peekResourceValueEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
 ): Effect.Effect<Option.Option<A>> =>
-  Effect.map(resourceStoreEffect, (store) => {
+  Effect.map(activeResourceStore, (store) => {
     const entry = peekResourceEntry(ref, store);
     return entry === undefined ? Option.none() : AsyncResult.value(entry.state.get());
   });
@@ -882,7 +882,7 @@ export const patchResourceEffect = <I, A, E, R>(
   apply: (value: A) => A,
 ): Effect.Effect<ResourceOptimisticTarget | undefined, unknown> =>
   Effect.gen(function* () {
-    const store = yield* resourceStoreEffect;
+    const store = yield* activeResourceStore;
     const entry = peekResourceEntry(ref, store);
     if (entry === undefined) {
       return undefined;

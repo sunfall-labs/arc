@@ -2,16 +2,12 @@ import { createEffect, createRoot, flush } from "@solidjs/signals";
 import { Deferred, Effect, Exit, Fiber, Option } from "effect";
 import { AsyncResult } from "effect/reactivity";
 import { describe, expect, it } from "vitest";
+import { Action, ActionResult, Resource, Signal, Timeline } from "../src/index.js";
 import {
-  Action,
   ActionOptimisticRowsTypeId,
-  ActionResult,
-  Resource,
-  Signal,
-  Timeline,
+  defaultRuntime,
   type ActionOptimisticRows,
-} from "../src/index.js";
-import { defaultRuntime } from "../src/internal.js";
+} from "../src/internal.js";
 
 interface Project {
   readonly id: string;
