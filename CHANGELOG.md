@@ -79,6 +79,10 @@ Entries are newest first.
   the first hover or focus. A link is one statically created anchor with its
   attribute bindings, not a `<Dynamic>`. Route patterns are parsed once and
   cached, so building an href no longer re-parses the pattern.
+- A rendered link holds one state object, its `href` getter, and three
+  event handlers (its behavior is on a shared prototype), down from thirteen
+  closures: the 1,000-link list's JS heap after load drops a further
+  8.43 MB to 8.25 MB.
 - `RouterLink` now also preloads on focus (keyboard navigation), and an
   `onFocus` handler passed to it runs first, like `onMouseEnter`.
 - Measured on the 1,000-link list of `benchmarks/compare` (5 interleaved

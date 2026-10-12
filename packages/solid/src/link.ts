@@ -16,10 +16,11 @@ import {
   onCleanup,
   runWithOwner,
   untrack,
+  type Owner,
 } from "solid-js";
 import { dynamic, isServer, type JSX } from "@solidjs/web";
 import { Effect } from "effect";
-import { useRouter } from "./router.js";
+import { useRouter, type BrowserRouter } from "./router.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
 
@@ -78,6 +79,111 @@ const Anchor = dynamic(() => "a", { static: true }) as (
 ) => JSX.Element;
 
 /**
+ * A browser link's state. Its behavior lives on the prototype, so a link
+ * holds this object, its three event handlers, and its `href` getter; the
+ * preloader and its effect exist only after the first hover or focus.
+ */
+class BrowserLink<R extends AnyRoute> {
+  private preloader: BrowserRouterLinkPreloader | undefined;
+
+  constructor(
+    private readonly props: RouterLinkProps<R>,
+    private readonly router: BrowserRouter<readonly AnyRoute[], unknown>,
+    private readonly owner: Owner | null,
+  ) {}
+
+  href(): string {
+    return Route.href<R>(
+      this.props.route,
+      ...hrefArgs(this.props.options as Route.HrefOptions<R> | undefined),
+    );
+  }
+
+  private target(): string | undefined {
+    return typeof this.props.target === "string" ? this.props.target : undefined;
+  }
+
+  private preloadDecision(defaultPrevented: boolean) {
+    return browserRouterLinkPreloadDecision({
+      defaultPrevented,
+      preload: this.props.preload !== false,
+      canHandleRoute: this.router.canHandleRoute(this.props.route),
+      target: this.target(),
+      download: this.props.download,
+    });
+  }
+
+  private preloadIdentity() {
+    return browserRouterLinkPreloadIdentity({
+      href: this.href(),
+      preload: this.props.preload !== false,
+      canHandleRoute: this.router.canHandleRoute(this.props.route),
+      target: this.target(),
+      download: this.props.download,
+    });
+  }
+
+  private intentPreloader(): BrowserRouterLinkPreloader {
+    if (this.preloader !== undefined) {
+      return this.preloader;
+    }
+    const preloader = makeBrowserRouterLinkPreloader({
+      runtime: this.router.runtime,
+      enabled: () => this.preloadDecision(false)._tag === "Preload",
+      preload: () =>
+        this.router.preload<R>(
+          this.props.route,
+          ...hrefArgs(this.props.options as Route.HrefOptions<R> | undefined),
+        ),
+    });
+    this.preloader = preloader;
+    // Bound now, so the effect's first run sees the same identity and keeps
+    // the preload this intent starts.
+    preloader.bindPreloadIdentity(untrack(() => this.preloadIdentity()));
+    runWithOwner(this.owner, () => {
+      createRenderEffect(
+        () => this.preloadIdentity(),
+        (identity) => {
+          preloader.bindPreloadIdentity(identity);
+        },
+      );
+      onCleanup(() => {
+        void Effect.runFork(preloader.interrupt());
+      });
+    });
+    return preloader;
+  }
+
+  intent(
+    handler: AnchorHandler<MouseEvent> | AnchorHandler<FocusEvent> | undefined,
+    event: AnchorEvent<Event>,
+  ): void {
+    callAnchorHandler(handler as AnchorHandler<Event> | undefined, event);
+    if (this.preloadDecision(event.defaultPrevented)._tag === "Preload") {
+      this.intentPreloader().preload();
+    }
+  }
+
+  click(event: AnchorEvent<MouseEvent>): void {
+    callAnchorHandler(this.props.onClick, event);
+    const clickDecision = browserRouterLinkClickDecision({
+      event,
+      href: this.href(),
+      replace: this.props.replace === true,
+      canHandleRoute: this.router.canHandleRoute(this.props.route),
+      target: this.target(),
+      download: this.props.download,
+    });
+    if (clickDecision._tag === "Ignore") {
+      return;
+    }
+
+    event.preventDefault();
+    this.router.navigateHref(clickDecision.href, clickDecision.options);
+  }
+}
+
+/**
  * Typed Solid anchor that builds hrefs, preloads on hover or focus, and
  * navigates on plain clicks.
  *
@@ -98,95 +204,21 @@ export const RouterLink = <R extends AnyRoute>(props: RouterLinkProps<R>): JSX.E
     "onFocus",
   ) as Omit<JSX.AnchorHTMLAttributes<HTMLAnchorElement>, "href">;
   const router = useRouter();
-  const routeHref = (): string =>
-    Route.href<R>(props.route, ...hrefArgs(props.options as Route.HrefOptions<R> | undefined));
+  const link = new BrowserLink(props, router, isServer ? null : getOwner());
   const href = {
     get href() {
-      return router.createHref(routeHref());
+      return router.createHref(link.href());
     },
   };
   if (isServer) {
     return createComponent(Anchor, merge(anchorProps, href));
   }
-
-  const owner = getOwner();
-  const target = (): string | undefined =>
-    typeof props.target === "string" ? props.target : undefined;
-  const preloadDecision = (defaultPrevented: boolean) =>
-    browserRouterLinkPreloadDecision({
-      defaultPrevented,
-      preload: props.preload !== false,
-      canHandleRoute: router.canHandleRoute(props.route),
-      target: target(),
-      download: props.download,
-    });
-  const preloadIdentity = () =>
-    browserRouterLinkPreloadIdentity({
-      href: routeHref(),
-      preload: props.preload !== false,
-      canHandleRoute: router.canHandleRoute(props.route),
-      target: target(),
-      download: props.download,
-    });
-  let preloader: BrowserRouterLinkPreloader | undefined;
-  const intentPreloader = (): BrowserRouterLinkPreloader => {
-    if (preloader !== undefined) {
-      return preloader;
-    }
-    const created = makeBrowserRouterLinkPreloader({
-      runtime: router.runtime,
-      enabled: () => preloadDecision(false)._tag === "Preload",
-      preload: () =>
-        router.preload<R>(
-          props.route,
-          ...hrefArgs(props.options as Route.HrefOptions<R> | undefined),
-        ),
-    });
-    preloader = created;
-    // Bound now, so the effect's first run sees the same identity and keeps
-    // the preload this intent starts.
-    created.bindPreloadIdentity(untrack(preloadIdentity));
-    runWithOwner(owner, () => {
-      createRenderEffect(preloadIdentity, (identity) => {
-        created.bindPreloadIdentity(identity);
-      });
-      onCleanup(() => {
-        void Effect.runFork(created.interrupt());
-      });
-    });
-    return created;
-  };
-  const preloadOnIntent = (event: Event): void => {
-    if (preloadDecision(event.defaultPrevented)._tag === "Preload") {
-      intentPreloader().preload();
-    }
-  };
-
-  const onMouseEnter: JSX.EventHandler<HTMLAnchorElement, MouseEvent> = (event) => {
-    callAnchorHandler(props.onMouseEnter, event);
-    preloadOnIntent(event);
-  };
-  const onFocus: JSX.EventHandler<HTMLAnchorElement, FocusEvent> = (event) => {
-    callAnchorHandler(props.onFocus, event);
-    preloadOnIntent(event);
-  };
-  const onClick: JSX.EventHandler<HTMLAnchorElement, MouseEvent> = (event) => {
-    callAnchorHandler(props.onClick, event);
-    const clickDecision = browserRouterLinkClickDecision({
-      event,
-      href: routeHref(),
-      replace: props.replace === true,
-      canHandleRoute: router.canHandleRoute(props.route),
-      target: target(),
-      download: props.download,
-    });
-    if (clickDecision._tag === "Ignore") {
-      return;
-    }
-
-    event.preventDefault();
-    router.navigateHref(clickDecision.href, clickDecision.options);
-  };
-
-  return createComponent(Anchor, merge(anchorProps, href, { onClick, onMouseEnter, onFocus }));
+  return createComponent(
+    Anchor,
+    merge(anchorProps, href, {
+      onClick: (event: AnchorEvent<MouseEvent>) => link.click(event),
+      onMouseEnter: (event: AnchorEvent<MouseEvent>) => link.intent(props.onMouseEnter, event),
+      onFocus: (event: AnchorEvent<FocusEvent>) => link.intent(props.onFocus, event),
+    }),
+  );
 };
