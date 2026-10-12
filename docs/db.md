@@ -195,6 +195,12 @@ key, patch | draft => next)`, and `transaction.delete(collection, key)` are
 - The same Action submits remotely through Start's `ActionTransport`: the
   patch applies on the client, and the server's response invalidations reload
   the source.
+- `durable: { maxAge }` makes the submission survive going offline and
+  reloading: the Action Outbox stores the schema-encoded input in the client
+  Layer's `effect/persistence` `KeyValueStore` (prefix `arc/actions/v1/`),
+  keeps the row layer applied while it is pending, re-applies it on top of
+  hydrated rows after a reload, and replays in order when connectivity
+  returns. See [Durable Submissions](architecture.md#durable-submissions).
 - `Collection.liveQuery(...)` collections are derived: patch their source
   collections instead.
 
@@ -687,7 +693,9 @@ concurrent preloads join the same in-flight `Deferred` and a slower old preload
 cannot overwrite a newer forced refresh. The same policy persists fresh
 snapshots after loads; `applyChanges` persists after writes (`persistOnWrite`).
 Optimistic Action layers are never persisted: a reload mid-submission restores
-the synced rows, and the Action's own outcome decides the rest.
+the synced rows, and the Action's own outcome decides the rest. A durable
+Action's pending submissions are persisted by the Action Outbox instead, which
+re-runs their `optimistic` patches on top of the restored rows.
 
 Collection lifecycle events flow through the active Resource Store's collection
 store. Store access and event subscription are adapter plumbing on
@@ -747,8 +755,6 @@ inside SSR work so the request runtime is honored.
 
 ## Next Slices
 
-- Durable Action submissions: queue schema-encoded Action inputs while offline
-  and submit them on reconnect, with their optimistic layers restored.
 - Concrete host packages that wrap `SQLitePersistence.statementDriver(...)` for
   OPFS/browser, Node, React Native, and Durable Objects.
 - Sync adapters for Electric and PowerSync once real host integrations need

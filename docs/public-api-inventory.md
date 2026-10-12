@@ -87,8 +87,8 @@ coverage.
 
 The root export re-exports these local modules:
 
-- `action`, `action-result`, `action-submission`, `action-transport`, `app`
-  (registry requirement types only), `capability`
+- `action`, `action-outbox`, `action-result`, `action-submission`,
+  `action-transport`, `app` (registry requirement types only), `capability`
 - `browser-router-history-adapter`, `browser-router-host-controller`,
   `browser-router-kernel`, `browser-router-state`, `effect-like`, `form`,
   `program`, `request-context`
@@ -130,7 +130,20 @@ Golden-path public groups:
   `ServerClient`. Every Action instance looks it up on submit; Actions it
   serves run remotely and the response applies to the submitting runtime,
   every other Action runs locally. Start's `App.launch(app)` provides it for
-  the app's Actions.
+  the app's Actions. `ActionTransportSubmission` carries a durable
+  submission's id (its idempotency key).
+- Durable submissions: `Action.define({ input, durable: { maxAge } })`
+  (`ActionDurablePolicy`, schema input required by the types) adds
+  `ActionQueued` to the Action's error type. `Action.outboxLayer({
+retry? })` (`ActionOutboxOptions`) provides the `ActionOutbox` service over
+  the runtime's `effect/persistence` `KeyValueStore` (prefix
+  `arc/actions/v1/`); `Action.outbox`
+  is its read side (`ActionOutboxView`: `pending`, `failures`, `dismiss`,
+  with `ActionOutboxEntry` / `ActionOutboxFailure`), empty without an outbox;
+  `Action.restoreOutbox` restores pending submissions after hydration.
+  `ActionSubmissionExpired` and `ActionSubmissionUnrestorable` are the
+  outbox's failure vocabulary;
+  `isRetryableActionFailure` is the retry classification.
 - `RouteView`, `RouteViewTypeId`, and `RouteWithComponent`: route components
   may be renderer component values (Solid's typed `Component`), and
   `Route.withComponent(...)` keeps the attached component's type
@@ -477,6 +490,13 @@ includes:
 - transports: `App.launch` owns the browser RPC client and the action
   transport; `App.LaunchOptions.transport` sets their `endpoints`, `fetch`
   (`StartFetch`, `StartFetchInit`, `StartFetchInput`), and `headers`.
+- durable submissions: `App.launch` provides the Action Outbox over the
+  client Layer's `KeyValueStore` (in-memory when it has none;
+  `App.LaunchOptions.outbox` sets `retry`) and restores it after
+  hydrating. The action endpoint runs a submission that carries an id as an
+  `effect/workflow` Workflow keyed by that id, on the server Layer's
+  `WorkflowEngine` (a per-handler `WorkflowEngine.layerMemory` engine by
+  default). Start adds no exports for either.
 - file routes: `FileRoute.define(path)(options)` takes the same options as core
   `Route.define(path, options)`; Start checks `path` against the discovered file.
   Static preload hints use core `preloadResources` / `preloadCollections`, and

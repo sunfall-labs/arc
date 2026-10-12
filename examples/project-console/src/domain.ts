@@ -209,14 +209,6 @@ export const SubmitProjectName = Action.define({
       : projectResourceInvalidations(input.id),
 });
 
-/**
- * Actions the Start server serves. The server registers them, and the client
- * runtime's `makeActionTransportLayer` submits them over the network; every
- * other Action (like `AdvanceProject` in `project-collections.ts`) runs locally
- * through the same binding.
- */
-export const projectConsoleActions = [SubmitProjectName] as const;
-
 export const projectNameActionTarget = (input: {
   readonly id: ProjectIdType;
   readonly redirectTo?: ProjectReturnTo;

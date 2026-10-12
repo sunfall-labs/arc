@@ -1,6 +1,16 @@
-import { Effect, Schema } from "effect";
+import { Effect, Option, type Layer, Schema } from "effect";
 import type { ActionResultInvalidationRequirements } from "./action-result.js";
 import { ActionInterrupted, type ActionState } from "./action-submission.js";
+import {
+  ActionOutbox,
+  emptyActionOutboxView,
+  type ActionDurablePolicy,
+  type ActionOutboxOptions,
+  type ActionOutboxView,
+  type ActionQueued,
+} from "./action-outbox.js";
+import { makeActionOutboxLayer } from "./action-outbox-layer.js";
+import type { KeyValueStore } from "effect/persistence";
 import type { ActionOptimisticTransaction } from "./action-optimistic.js";
 import { invalidationsForEffect } from "./action-execution-workflow.js";
 import { makeActionInstance } from "./action-instance.js";
@@ -71,6 +81,13 @@ export interface ActionDefinition<I, A, E = never, R = never> {
   readonly error?: unknown;
   /** Concurrency and retry policy for stateful submissions. */
   readonly policy?: ActionPolicy<E>;
+  /**
+   * Makes submissions durable: each is persisted in the runtime's Action
+   * Outbox before it is sent and replayed in order until it settles. Requires
+   * an `input` schema (submissions are stored schema-encoded); submitting can
+   * then also fail with `ActionQueued`.
+   */
+  readonly durable?: ActionDurablePolicy;
   /**
    * Effect-first action implementation.
    *
@@ -243,6 +260,62 @@ export namespace Action {
   /** Public namespace alias for the optimistic Action transaction object. */
   export type OptimisticTransaction = ActionOptimisticTransaction;
 
+  /** Public namespace alias for the durability policy of `Action.define({ durable })`. */
+  export type DurablePolicy = ActionDurablePolicy;
+  /** Public namespace alias for `Action.outboxLayer` options. */
+  export type OutboxOptions = ActionOutboxOptions;
+  /** Public namespace alias for the Action Outbox read side. */
+  export type Outbox = ActionOutboxView;
+
+  /**
+   * Layer providing the runtime's Action Outbox, which persists durable Action
+   * submissions in the runtime's `KeyValueStore` (`effect/persistence`) and
+   * replays them in order (global FIFO) with the `retry` backoff, on `online`
+   * events, and on new durable submissions. Start's `App.launch` provides one
+   * over the client Layer's `KeyValueStore`; core hosts provide it themselves
+   * and run `Action.restoreOutbox` once their state is hydrated.
+   *
+   * @example
+   * ```ts
+   * const runtime = makeRuntime(
+   *   Action.outboxLayer().pipe(
+   *     Layer.provideMerge(KeyValueStore.layerStorage(() => localStorage)),
+   *   ),
+   * );
+   * ```
+   */
+  export const outboxLayer = (
+    options: ActionOutboxOptions = {},
+  ): Layer.Layer<ActionOutbox, never, KeyValueStore.KeyValueStore> =>
+    makeActionOutboxLayer(options);
+
+  /**
+   * The runtime's Action Outbox read side: pending durable submissions and the
+   * final failures nobody was waiting on. A runtime without an outbox (a
+   * server render) reports nothing pending.
+   *
+   * @example
+   * ```tsx
+   * const outbox = yield* Action.outbox;
+   * return () => <Show when={outbox.pending.get().length > 0}>{outbox.pending.get().length} waiting to sync</Show>;
+   * ```
+   */
+  export const outbox: Effect.Effect<ActionOutboxView> = Effect.map(
+    Effect.serviceOption(ActionOutbox),
+    Option.getOrElse((): ActionOutboxView => emptyActionOutboxView),
+  );
+
+  /**
+   * Restores the runtime's persisted durable submissions (once): re-applies
+   * their optimistic patches in order on top of the current state, then
+   * replays them. Run it after hydration; `App.launch` does. A no-op without
+   * an outbox.
+   */
+  export const restoreOutbox: Effect.Effect<void> = Effect.flatMap(
+    Effect.serviceOption(ActionOutbox),
+    Option.match({ onNone: () => Effect.void, onSome: (outbox) => outbox.restore }),
+  );
+
   /** Plans the invalidations a successful value triggers; a throwing `invalidates` is a defect. */
   export const planInvalidation = <I, A, E, R>(
     definition: ActionDefinition<I, A, E, R>,
@@ -282,6 +355,55 @@ export namespace Action {
     > & {
       readonly input: Input;
       readonly output: Output;
+      readonly durable: ActionDurablePolicy;
+      readonly run: (input: Schema.Schema.Type<Input>) => EnsureEffectInput<Out>;
+    } & RejectPromiseEffectInput<Out>,
+  ): ActionDefinition<
+    Schema.Schema.Type<Input>,
+    EffectInputValue<Out>,
+    EffectInputError<Out> | ActionQueued,
+    ActionInferredRequirements<Out, never, InvalidationRequirements>
+  >;
+  export function define<
+    const Input extends Schema.Top,
+    Run extends (input: Schema.Schema.Type<Input>) => unknown,
+    InvalidationRequirements = never,
+  >(
+    definition: ActionDefinitionCommonOptions<
+      Schema.Schema.Type<Input>,
+      EffectInputValue<ReturnType<Run>>,
+      EffectInputError<ReturnType<Run>>,
+      EffectInputRequirements<ReturnType<Run>>,
+      InvalidationRequirements
+    > & {
+      readonly input: Input;
+      readonly output?: never;
+      readonly durable: ActionDurablePolicy;
+      readonly run: Run &
+        ((input: Schema.Schema.Type<Input>) => EnsureEffectInput<ReturnType<Run>>);
+    } & RejectPromiseEffectInput<ReturnType<Run>>,
+  ): ActionDefinition<
+    Schema.Schema.Type<Input>,
+    EffectInputValue<ReturnType<Run>>,
+    EffectInputError<ReturnType<Run>> | ActionQueued,
+    ActionInferredRequirements<ReturnType<Run>, never, InvalidationRequirements>
+  >;
+  export function define<
+    const Input extends Schema.Top,
+    const Output extends Schema.Top,
+    Out extends EffectInput<Schema.Schema.Type<Output>, any, any>,
+    InvalidationRequirements = never,
+  >(
+    definition: ActionDefinitionCommonOptions<
+      Schema.Schema.Type<Input>,
+      EffectInputValue<Out>,
+      EffectInputError<Out>,
+      EffectInputRequirements<Out>,
+      InvalidationRequirements
+    > & {
+      readonly input: Input;
+      readonly output: Output;
+      readonly durable?: never;
       readonly run: (input: Schema.Schema.Type<Input>) => EnsureEffectInput<Out>;
     } & RejectPromiseEffectInput<Out>,
   ): ActionDefinition<
@@ -306,6 +428,7 @@ export namespace Action {
     > & {
       readonly input: Input;
       readonly output?: never;
+      readonly durable?: never;
       readonly run: Run &
         ((input: Schema.Schema.Type<Input>) => EnsureEffectInput<ReturnType<Run>>);
       readonly invalidates?: (
@@ -331,6 +454,7 @@ export namespace Action {
     > & {
       readonly input?: never;
       readonly output: Output;
+      readonly durable?: never;
       readonly run: (input: I) => EnsureEffectInput<Out>;
       readonly invalidates?: (
         value: EffectInputValue<Out>,
@@ -350,6 +474,7 @@ export namespace Action {
     R = never,
     InvalidationRequirements = never,
     Definition extends Omit<ActionOptions<I, A, E, R>, "run" | "optimistic" | "invalidates"> & {
+      readonly durable?: never;
       readonly run: (input: I) => EffectInput<A, E, R>;
       readonly optimistic?: (
         input: I,
@@ -360,6 +485,7 @@ export namespace Action {
         input: I,
       ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
     } = Omit<ActionOptions<I, A, E, R>, "run" | "optimistic" | "invalidates"> & {
+      readonly durable?: never;
       readonly run: (input: I) => EffectInput<A, E, R>;
       readonly optimistic?: (
         input: I,
@@ -389,6 +515,7 @@ export namespace Action {
       "output" | "run" | "invalidates"
     > & {
       readonly output?: never;
+      readonly durable?: never;
       readonly run: Run & ((input: I) => EnsureEffectInput<ReturnType<Run>>);
       readonly invalidates?: (
         value: EffectInputValue<ReturnType<Run>>,

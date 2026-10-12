@@ -13,7 +13,9 @@ import {
 import {
   makeActionOptimisticTransactionRuntime,
   type ActionOptimisticSettle,
+  type ActionOptimisticTransactionRuntime,
 } from "./action-optimistic.js";
+import { ActionOutbox } from "./action-outbox.js";
 import {
   catchEffectInputPromiseDefect,
   EffectInputCallbackError,
@@ -27,7 +29,7 @@ import {
   runResourceInvalidationPlanEffect,
 } from "./resource-runtime.js";
 import type { ActionDefinition } from "./action.js";
-import { ActionTransport } from "./action-transport.js";
+import { ActionTransport, type ActionTransportSubmission } from "./action-transport.js";
 import type { ServerClientError } from "./server.js";
 
 const actionCallbackError = (operation: string, cause: unknown): EffectInputCallbackError =>
@@ -86,6 +88,115 @@ export const invalidationsForEffect = <I, A, E, R>(
       >,
   );
 
+/** Runs a definition's `run` with its retry policy; callback contract breaks are defects. */
+export const runActionEffect = <I, A, E, R>(
+  definition: ActionDefinition<I, A, E, R>,
+  input: I,
+): Effect.Effect<A, E, R> => {
+  const operation = `Action.run(${definition.name})`;
+  return Effect.flatMap(
+    Effect.try({
+      try: () => definition.run(input),
+      catch: (cause) => actionCallbackError(operation, cause),
+    }),
+    (result) => {
+      const effect = toEffect(result as never) as Effect.Effect<A, E, R>;
+      const retry = definition.policy?.retry;
+      return catchEffectInputPromiseDefect(
+        operation,
+        retry === undefined ? effect : Effect.retry(effect, retry),
+      );
+    },
+  ).pipe(callbackContractDefects) as Effect.Effect<A, E, R>;
+};
+
+/** Applies a definition's `optimistic` patches through `transaction`. */
+export const applyActionOptimisticEffect = <I, A, E, R>(
+  definition: ActionDefinition<I, A, E, R>,
+  input: I,
+  transaction: ActionOptimisticTransactionRuntime,
+): Effect.Effect<void, never, R> =>
+  definition.optimistic === undefined
+    ? Effect.void
+    : invokeEffectInput(
+        `Action.optimistic(${definition.name})`,
+        definition.optimistic,
+        input,
+        transaction.api,
+      ).pipe(Effect.asVoid, callbackContractDefects);
+
+export interface ActionExecutionOptions<I, A, E, R> {
+  readonly definition: ActionDefinition<I, A, E, R>;
+  readonly input: I;
+  /** The submission's optimistic transaction: committed here on success. */
+  readonly transaction: ActionOptimisticTransactionRuntime;
+  /** `"endpoint"` always runs locally; see `ActionExecutionSite`. */
+  readonly site: ActionExecutionSite;
+  /** Durable submission identity, sent to a transport as the idempotency key. */
+  readonly submission?: ActionTransportSubmission;
+  /** Runs once the outcome is known, before it applies (stale-submission checks). */
+  readonly beforeApply: Effect.Effect<void, ActionInterrupted>;
+  /** Whether a remote response applies in full (`false`: invalidations only). */
+  readonly current: () => boolean;
+}
+
+/** Outcome of `executeActionEffect`: the value and the invalidation plan it ran locally. */
+export interface ActionExecutionOutcome<A, R> {
+  readonly value: A;
+  readonly plan: ResourceInvalidationPlan<R | ActionResultInvalidationRequirements<A>> | undefined;
+}
+
+/**
+ * Runs one submission remotely (through the `ActionTransport` that serves it)
+ * or locally, and applies its outcome: on success it commits the optimistic
+ * transaction, then applies the response or runs the invalidations. The
+ * caller owns rolling the transaction back on failure.
+ */
+export const executeActionEffect = <I, A, E, R>(
+  options: ActionExecutionOptions<I, A, E, R>,
+): Effect.Effect<
+  ActionExecutionOutcome<A, R>,
+  E | ServerClientError | ActionInterrupted,
+  R | ActionResultInvalidationRequirements<A>
+> =>
+  Effect.gen(function* () {
+    const { definition, input, transaction } = options;
+    // A transport that serves this Action runs it remotely and applies
+    // the response (hydration and invalidations) itself. The endpoint is
+    // where served Actions run, so it never routes through one.
+    const remote =
+      options.site === "endpoint"
+        ? Option.none()
+        : Option.flatMap(yield* Effect.serviceOption(ActionTransport), (transport) =>
+            transport.submit(definition, input, options.submission),
+          );
+    if (Option.isSome(remote)) {
+      const response = yield* remote.value;
+      yield* options.beforeApply;
+      // The server committed: fold the optimistic patches in before the
+      // response's invalidations reload their sources.
+      if (Exit.isSuccess(response.exit)) {
+        yield* transaction.commit;
+      }
+      yield* response.apply(options.current());
+      const value = yield* response.exit;
+      return { value, plan: undefined };
+    }
+
+    const value = yield* runActionEffect(definition, input);
+    yield* options.beforeApply;
+
+    const invalidations = yield* invalidationsForEffect(definition, value, input);
+    const planned = yield* planResourceInvalidationEffect(invalidations);
+    yield* transaction.commit;
+
+    if (invalidations.length > 0) {
+      yield* runResourceInvalidationPlanEffect(planned);
+      return { value, plan: planned };
+    }
+    return { value, plan: undefined };
+  });
+
 export interface ActionExecutionWorkflowOptions<I, A, E, R, ER> {
   readonly definition: ActionDefinition<I, A, E, R>;
   readonly submissions: ActionSubmissionController<
@@ -138,37 +249,6 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
   const { definition, submissions, runAtActionBoundary } = options;
   const endpoint = options.site === "endpoint";
 
-  const runEffect = (input: I): Effect.Effect<A, E, R> => {
-    const operation = `Action.run(${definition.name})`;
-    return Effect.flatMap(
-      Effect.try({
-        try: () => definition.run(input),
-        catch: (cause) => actionCallbackError(operation, cause),
-      }),
-      (result) => {
-        const effect = toEffect(result as never) as Effect.Effect<A, E, R>;
-        const retry = definition.policy?.retry;
-        return catchEffectInputPromiseDefect(
-          operation,
-          retry === undefined ? effect : Effect.retry(effect, retry),
-        );
-      },
-    ).pipe(callbackContractDefects) as Effect.Effect<A, E, R>;
-  };
-
-  const applyOptimistic = (
-    input: I,
-    transaction: ReturnType<typeof makeActionOptimisticTransactionRuntime>,
-  ): Effect.Effect<void, never, R> =>
-    endpoint || definition.optimistic === undefined
-      ? Effect.void
-      : invokeEffectInput(
-          `Action.optimistic(${definition.name})`,
-          definition.optimistic,
-          input,
-          transaction.api,
-        ).pipe(Effect.asVoid, callbackContractDefects);
-
   const runWorkflow = (
     input: I,
     submission: ActionSubmissionRun<A, E | ER | ServerClientError>,
@@ -185,45 +265,38 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
         Effect.gen(function* () {
           yield* submissions.pendingEffect(submission, input);
 
+          // A durable Action hands the submission to the runtime's outbox,
+          // which owns its optimistic patch until it settles (possibly after
+          // a reload), so interrupting this caller never rolls it back.
+          if (definition.durable !== undefined && !endpoint) {
+            const outbox = yield* Effect.serviceOption(ActionOutbox);
+            if (Option.isSome(outbox)) {
+              // `ActionQueued` is part of `E`: only `durable` definitions reach here,
+              // and `Action.define` adds it to their error type.
+              return yield* outbox.value.submit(definition, input) as Effect.Effect<
+                A,
+                E | ServerClientError
+              >;
+            }
+          }
+
           const transaction = makeActionOptimisticTransactionRuntime(definition.name);
           rollback = transaction.rollback;
-          yield* applyOptimistic(input, transaction);
-
-          // A transport that serves this Action runs it remotely and applies
-          // the response (hydration and invalidations) itself. The endpoint is
-          // where served Actions run, so it never routes through one.
-          const remote = endpoint
-            ? Option.none()
-            : Option.flatMap(yield* Effect.serviceOption(ActionTransport), (transport) =>
-                transport.submit(definition, input),
-              );
-          if (Option.isSome(remote)) {
-            const response = yield* remote.value;
-            yield* submissions.interruptStaleEffect(submission);
-            // The server committed: fold the optimistic patches in before the
-            // response's invalidations reload their sources.
-            if (Exit.isSuccess(response.exit)) {
-              yield* transaction.commit;
-              rollback = Effect.void;
-            }
-            yield* response.apply(submissions.acceptsStateUpdate(submission));
-            return yield* response.exit;
+          if (!endpoint) {
+            yield* applyActionOptimisticEffect(definition, input, transaction);
           }
 
-          const value = yield* runEffect(input);
-          yield* submissions.interruptStaleEffect(submission);
-
-          const invalidations = yield* invalidationsForEffect(definition, value, input);
-          const planned = yield* planResourceInvalidationEffect(invalidations);
-          yield* transaction.commit;
+          const outcome = yield* executeActionEffect({
+            definition,
+            input,
+            transaction,
+            site: endpoint ? "endpoint" : "client",
+            beforeApply: submissions.interruptStaleEffect(submission),
+            current: () => submissions.acceptsStateUpdate(submission),
+          });
           rollback = Effect.void;
-
-          if (invalidations.length > 0) {
-            yield* runResourceInvalidationPlanEffect(planned);
-            plan = planned;
-          }
-
-          return value;
+          plan = outcome.plan;
+          return outcome.value;
         }),
         Effect.suspend(() => rollback.pipe(Effect.catchCause(() => Effect.void))),
       ).pipe(

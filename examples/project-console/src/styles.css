@@ -310,6 +310,19 @@ h3 {
   font-weight: 700;
 }
 
+.syncPill {
+  display: flex;
+  align-items: center;
+  min-height: 38px;
+  border: 1px solid #f0d49a;
+  border-radius: 8px;
+  background: #fff8e8;
+  color: #7a5310;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .buildDot.queued {
   background: #d99816;
 }

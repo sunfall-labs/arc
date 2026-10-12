@@ -16,6 +16,11 @@ import {
 } from "@sunfall/arc-core";
 import { makeActionInstance } from "@sunfall/arc-core/internal";
 import { Cause, Effect, Exit, type Scope } from "effect";
+import {
+  makeStartActionWorkflows,
+  runActionSubmissionWorkflow,
+  type StartActionWorkflows,
+} from "./start-action-workflow.js";
 import type { StartServerApp } from "./start-server-app.js";
 import { validateStartActionRequestEffect, validateStartRpcRequestEffect } from "./rpc.js";
 import { makeRequestRuntime, type RequestRuntimeRemainingRequirements } from "./request-runtime.js";
@@ -228,6 +233,7 @@ export const createServerActionResponseEffectWithRuntime = <
   actions?: StartActionSource<Actions>,
   responseContext: ResponseContext = makeResponseContext(),
   traceFacts?: StartRequestTraceFacts,
+  workflows: StartActionWorkflows = makeStartActionWorkflows(),
 ): Effect.Effect<
   Response,
   never,
@@ -287,75 +293,95 @@ export const createServerActionResponseEffectWithRuntime = <
             return actionFunctionNotFoundResponse(decoded.name);
           }
 
-          const input = yield* decodeWithSchema(action.input, decoded.input).pipe(
-            Effect.catch((error) =>
-              Effect.sync(() => {
-                recordStartRequestTraceFailure(traceFacts, "validation");
-                return actionProtocolFailureResponse(
-                  new ServerRpcProtocolError({
-                    message: error.message,
-                    payload: Server.serializeDefect(error),
-                  }),
-                );
-              }),
-            ),
-          );
-          if (input instanceof Response) {
-            recordStartRequestTraceAction(traceFacts, {
-              name: action.name,
-              state: "Failure",
-              failureKind: "validation",
-            });
-            return input;
-          }
+          const produce = Effect.gen(function* () {
+            const input = yield* decodeWithSchema(action.input, decoded.input).pipe(
+              Effect.catch((error) =>
+                Effect.sync(() => {
+                  recordStartRequestTraceFailure(traceFacts, "validation");
+                  return actionProtocolFailureResponse(
+                    new ServerRpcProtocolError({
+                      message: error.message,
+                      payload: Server.serializeDefect(error),
+                    }),
+                  );
+                }),
+              ),
+            );
+            if (input instanceof Response) {
+              recordStartRequestTraceAction(traceFacts, {
+                name: action.name,
+                state: "Failure",
+                failureKind: "validation",
+              });
+              return input;
+            }
 
-          // The request runtime is already running this endpoint, so it adds
-          // no startup failures to the submission.
-          // The endpoint runs the Action locally and skips `optimistic`: only
-          // the submitting client applies it.
-          const instance = makeActionInstance(
-            action as unknown as ActionDefinition<any, any, never, any>,
-            runtime as unknown as AnySunfallArcRuntime<never>,
-            "endpoint",
-          );
-          const exit = yield* Effect.exit(
-            withStartActionObservability(action.name, instance.submit(input)),
-          );
-          const failureKind = yield* actionFailureKindEffect(action, exit);
-          const metaExit = yield* Effect.exit(
-            actionResponseMetaEffect(instance.invalidationPlan.get()),
-          );
-          if (Exit.isFailure(metaExit)) {
-            const metaInterrupted = metaExit.cause.reasons.some(Cause.isInterruptReason);
-            const metaFailureKind =
-              failureKind === "interruption" || metaInterrupted ? "interruption" : "defect";
+            // The request runtime is already running this endpoint, so it adds
+            // no startup failures to the submission.
+            // The endpoint runs the Action locally and skips `optimistic`: only
+            // the submitting client applies it.
+            const instance = makeActionInstance(
+              action as unknown as ActionDefinition<any, any, never, any>,
+              runtime as unknown as AnySunfallArcRuntime<never>,
+              "endpoint",
+            );
+            const exit = yield* Effect.exit(
+              withStartActionObservability(action.name, instance.submit(input)),
+            );
+            const failureKind = yield* actionFailureKindEffect(action, exit);
+            const metaExit = yield* Effect.exit(
+              actionResponseMetaEffect(instance.invalidationPlan.get()),
+            );
+            if (Exit.isFailure(metaExit)) {
+              const metaInterrupted = metaExit.cause.reasons.some(Cause.isInterruptReason);
+              const metaFailureKind =
+                failureKind === "interruption" || metaInterrupted ? "interruption" : "defect";
+              recordStartRequestTraceAction(traceFacts, {
+                name: action.name,
+                state: "Failure",
+                failureKind: metaFailureKind,
+              });
+              if (failureKind === "interruption") {
+                return yield* actionExitResponseEffect(
+                  action,
+                  exit,
+                  {},
+                  actionResponseMode(request),
+                );
+              }
+              if (metaInterrupted) {
+                return yield* Effect.failCause(metaExit.cause);
+              }
+              return actionRuntimeFailureResponse(Cause.squash(metaExit.cause));
+            }
+            const response = yield* actionExitResponseEffect(
+              action,
+              exit,
+              metaExit.value,
+              actionResponseMode(request),
+            );
+            const responseFailureKind = actionResponseTraceFailureKind(failureKind, response);
             recordStartRequestTraceAction(traceFacts, {
               name: action.name,
-              state: "Failure",
-              failureKind: metaFailureKind,
+              state: responseFailureKind === undefined ? "Success" : "Failure",
+              ...(responseFailureKind === undefined ? {} : { failureKind: responseFailureKind }),
+              ...actionTraceInvalidationIndexesEntry(metaExit.value.invalidation),
             });
-            if (failureKind === "interruption") {
-              return yield* actionExitResponseEffect(action, exit, {}, actionResponseMode(request));
-            }
-            if (metaInterrupted) {
-              return yield* Effect.failCause(metaExit.cause);
-            }
-            return actionRuntimeFailureResponse(Cause.squash(metaExit.cause));
-          }
-          const response = yield* actionExitResponseEffect(
-            action,
-            exit,
-            metaExit.value,
-            actionResponseMode(request),
-          );
-          const responseFailureKind = actionResponseTraceFailureKind(failureKind, response);
-          recordStartRequestTraceAction(traceFacts, {
-            name: action.name,
-            state: responseFailureKind === undefined ? "Success" : "Failure",
-            ...(responseFailureKind === undefined ? {} : { failureKind: responseFailureKind }),
-            ...actionTraceInvalidationIndexesEntry(metaExit.value.invalidation),
+            return response;
           });
-          return response;
+          if (decoded.id === undefined) {
+            return yield* produce;
+          }
+          // A durable submission runs as a Workflow execution keyed by its id:
+          // a replayed id returns the recorded response without running the
+          // Action again.
+          return yield* runActionSubmissionWorkflow(
+            workflows,
+            runtime as unknown as AnySunfallArcRuntime<unknown>,
+            action.name,
+            { id: decoded.id, input: decoded.input },
+            produce,
+          );
         }),
     },
   }) as Effect.Effect<

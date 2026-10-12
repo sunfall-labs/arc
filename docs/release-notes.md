@@ -6,6 +6,29 @@ publication under `https://github.com/sunfall-labs/arc`; this remains a
 release-candidate draft until final npm publication is selected. The selected
 first public alpha version is `0.1.0-alpha.1`.
 
+## Durable Action Submissions
+
+- `Action.define({ input, durable: { maxAge } })` makes an Action's
+  submissions durable (an input schema is required by the types). Each
+  submission is persisted in the runtime's Action Outbox before it is sent,
+  keeps its optimistic patch while pending (re-applied after reloads), and
+  replays in global FIFO order on launch, on `online`, and with backoff.
+  `submit` settles as usual, or fails with the new `ActionQueued` when a
+  retryable transport failure leaves the submission pending.
+- The outbox persists to the client Layer's `effect/persistence`
+  `KeyValueStore` (prefix `arc/actions/v1/`). `Action.outboxLayer({ retry? })`
+  provides it; `App.launch` provides it automatically (over the client Layer's
+  `KeyValueStore`, in-memory when there is none) and runs
+  `Action.restoreOutbox` after hydrating. `Action.outbox` exposes `pending`,
+  `failures`, and `dismiss`; expired and unrestorable entries fail with
+  `ActionSubmissionExpired` / `ActionSubmissionUnrestorable`.
+- `ActionTransport.submit` takes an optional `ActionTransportSubmission`
+  (`{ id }`), and Start sends it as the action request's `id`. Start's action
+  endpoint runs submissions with an id as `effect/workflow` Workflows keyed by
+  that id, on the server Layer's `WorkflowEngine` or an in-memory one, so a
+  replayed POST returns the original response without running `run` again.
+- New Timeline `Action` events: `queue`, `restore`, `replay`, `dismiss`.
+
 ## Mutations Are Actions; One Failure Rule (Breaking)
 
 - Actions are the one way to change server data. `Action.define({ optimistic })`

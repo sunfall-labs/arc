@@ -1,5 +1,5 @@
 import { Component, RouterLink, RouterOutlet, RouterProvider, useRouter } from "@sunfall/arc-solid";
-import { Resource, Route, Signal } from "@sunfall/arc-core";
+import { Action, Resource, Route, Signal } from "@sunfall/arc-core";
 import type { Collection } from "@sunfall/arc-db";
 import { SolidDb } from "@sunfall/arc-solid-db";
 import { Cause, Effect } from "effect";
@@ -130,6 +130,9 @@ const AppShell = Component.define("AppShell", function* () {
     Resource.invalidate(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef).pipe(Effect.ignore),
   );
   const Rows = yield* ProjectRows;
+  // Durable submissions (AdvanceProject) waiting to sync. The server render
+  // has no outbox, so it reports none.
+  const outbox = yield* Action.outbox;
 
   return () => {
     const router = useRouter<AppRoutes>();
@@ -180,6 +183,13 @@ const AppShell = Component.define("AppShell", function* () {
               <h2>Resource cache and action state</h2>
             </div>
             <div class="topBarActions">
+              <Show when={outbox.pending.get().length > 0}>
+                <span class="syncPill" role="status" data-testid="sync-pending">
+                  {outbox.pending.get().length === 1
+                    ? "1 change waiting to sync"
+                    : `${outbox.pending.get().length} changes waiting to sync`}
+                </span>
+              </Show>
               <PresencePill presence={presence()} />
               <button
                 class="iconButton"

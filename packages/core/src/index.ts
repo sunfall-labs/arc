@@ -1,6 +1,22 @@
 export * from "./action.js";
 export * from "./action-result.js";
-export { ActionTransport, type ActionTransportResponse } from "./action-transport.js";
+export {
+  ActionTransport,
+  type ActionTransportResponse,
+  type ActionTransportSubmission,
+} from "./action-transport.js";
+export {
+  ActionOutbox,
+  ActionQueued,
+  ActionSubmissionExpired,
+  ActionSubmissionUnrestorable,
+  type ActionDurablePolicy,
+  type ActionOutboxEntry,
+  type ActionOutboxFailure,
+  type ActionOutboxOptions,
+  type ActionOutboxView,
+  isRetryableActionFailure,
+} from "./action-outbox.js";
 export {
   ActionInterrupted,
   type ActionState,

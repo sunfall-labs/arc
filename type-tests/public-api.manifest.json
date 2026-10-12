@@ -9,6 +9,7 @@
       "typeTest": "type-tests/core.test-d.ts",
       "sourceSurface": [
         "action",
+        "action-outbox",
         "action-result",
         "action-submission",
         "action-transport",
@@ -35,9 +36,13 @@
       "requiredTypeTestImports": [
         "ActionConcurrency",
         "ActionDefinition",
+        "ActionDurablePolicy",
         "ActionInstance",
         "ActionOptions",
+        "ActionOutbox",
+        "ActionOutboxView",
         "ActionPolicy",
+        "ActionQueued",
         "ActionState",
         "ActionTransport",
         "ActionTransportResponse",
