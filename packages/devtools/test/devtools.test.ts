@@ -1,6 +1,6 @@
 import { Cause, Context, Effect, Exit, Fiber, Option, PubSub, Schema, Scope, Tracer } from "effect";
 import { describe, expect, it } from "vitest";
-import { Action, makeRuntime, Program, Resource, Route, Signal, Timeline } from "@sunfall/arc-core";
+import { Action, makeRuntime, State, Resource, Route, Timeline } from "@sunfall/arc-core";
 import { Devtools, DevtoolsActionInvalidationPlanConflict } from "../src/index.js";
 import {
   DevtoolsUnknownInvalidationTarget,
@@ -17,7 +17,7 @@ import {
   normalizeSunfallArcDevtoolsBridgePayload,
 } from "../src/panel-contract.js";
 import { devtoolsPanelStyles } from "../src/panel-renderer.js";
-import { defaultRuntime } from "@sunfall/arc-core/internal";
+import { defaultRuntime, SignalWrites } from "@sunfall/arc-core/internal";
 
 type DevtoolsLifecycleType = "pagehide" | "beforeunload";
 
@@ -515,8 +515,8 @@ describe("devtools invalidation plans", () => {
       password: "open-sesame",
     };
     previous.self = previous;
-    const model = Signal.make(previous, { name: "Counter.model" });
-    const failures = Signal.make<ReadonlyArray<unknown>>([], { name: "Counter.failures" });
+    const model = SignalWrites.make(previous, { name: "Counter.model" });
+    const failures = SignalWrites.make<ReadonlyArray<unknown>>([], { name: "Counter.failures" });
     const store = Devtools.makeStore({
       serializationPolicy: {
         redactKeys: ["tenantPrivate"],
@@ -528,8 +528,8 @@ describe("devtools invalidation plans", () => {
         sequence: 1,
         at: 10,
         cause: {
-          _tag: "Program",
-          program: "Counter.program-devtools",
+          _tag: "State",
+          state: "Counter.state-devtools",
           event: "message",
           message: { _tag: "Increment", accessToken: "secret-token" },
         },
@@ -551,8 +551,8 @@ describe("devtools invalidation plans", () => {
         sequence: 2,
         at: 11,
         cause: {
-          _tag: "Program",
-          program: "Counter.program-devtools",
+          _tag: "State",
+          state: "Counter.state-devtools",
           event: "failure",
           message: { _tag: "Fail" },
         },
@@ -577,10 +577,10 @@ describe("devtools invalidation plans", () => {
     ]);
     expect(summary.runtime.events[0]).toMatchObject({
       at: 10,
-      label: 'Program "Counter.program-devtools" message Increment',
+      label: 'State "Counter.state-devtools" Increment',
       target: {
-        kind: "Program",
-        id: "program:Counter.program-devtools",
+        kind: "State",
+        id: "state:Counter.state-devtools",
       },
     });
     const [change] = firstEventData.changes ?? [];
@@ -595,51 +595,51 @@ describe("devtools invalidation plans", () => {
     expect(JSON.stringify(summary)).not.toContain("secret-api-key");
     expect(JSON.stringify(summary)).not.toContain("tenant-secret");
 
-    const programsPanel = Effect.runSync(store.getPanels()).panels.find(
-      (panel) => panel.id === "programs",
+    const statesPanel = Effect.runSync(store.getPanels()).panels.find(
+      (panel) => panel.id === "states",
     );
-    expect(programsPanel).toMatchObject({
-      title: "Programs",
-      summary: "1 programs, 2 events",
+    expect(statesPanel).toMatchObject({
+      title: "States",
+      summary: "1 states, 2 events",
       severity: "error",
     });
-    expect(programsPanel?.items).toEqual(
+    expect(statesPanel?.items).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: "program-event:runtime-event:0:TimelineCommit",
-          label: 'Program "Counter.program-devtools" message Increment',
-          detail: "Counter.program-devtools message",
+          id: "state-event:runtime-event:0:TimelineCommit",
+          label: 'State "Counter.state-devtools" Increment',
+          detail: "Counter.state-devtools message",
           severity: "ok",
         }),
         expect.objectContaining({
-          id: "program-event:runtime-event:1:TimelineCommit",
-          label: 'Program "Counter.program-devtools" failure',
-          detail: "Counter.program-devtools failure",
+          id: "state-event:runtime-event:1:TimelineCommit",
+          label: 'State "Counter.state-devtools" failure',
+          detail: "Counter.state-devtools failure",
           severity: "error",
         }),
         expect.objectContaining({
-          id: "program-summary:Counter.program-devtools",
-          label: "Counter.program-devtools",
+          id: "state-summary:Counter.state-devtools",
+          label: "Counter.state-devtools",
           severity: "error",
         }),
       ]),
     );
-    expect(JSON.stringify(programsPanel)).not.toContain("open-sesame");
-    expect(JSON.stringify(programsPanel)).not.toContain("secret-token");
+    expect(JSON.stringify(statesPanel)).not.toContain("open-sesame");
+    expect(JSON.stringify(statesPanel)).not.toContain("secret-token");
     expect(Effect.runSync(store.getCausalGraph()).nodes).toContainEqual(
       expect.objectContaining({
-        id: "program:Counter.program-devtools",
-        kind: "Program",
-        label: "Counter.program-devtools",
+        id: "state:Counter.state-devtools",
+        kind: "State",
+        label: "Counter.state-devtools",
       }),
     );
   });
 
   it("tracks a running Timeline recording with scoped cleanup", async () => {
     const store = Devtools.makeStore();
-    const program = Program.start(
-      Program.define<{ readonly count: number }, { readonly _tag: "Increment" }>({
-        name: "Counter.program-track",
+    const state = State.start(
+      State.define<{ readonly count: number }, { readonly _tag: "Increment" }>()({
+        name: "Counter.state-track",
         initial: { count: 0 },
         on: { Increment: (model) => ({ count: model.count + 1 }) },
       }),
@@ -651,9 +651,9 @@ describe("devtools invalidation plans", () => {
         Effect.scoped(
           Effect.gen(function* () {
             const recording = yield* Timeline.record();
-            yield* program.dispatch({ _tag: "Increment" });
+            yield* state.dispatch({ _tag: "Increment" });
             yield* store.trackTimeline(recording);
-            yield* program.dispatch({ _tag: "Increment" });
+            yield* state.dispatch({ _tag: "Increment" });
           }),
         ),
       );
@@ -662,26 +662,26 @@ describe("devtools invalidation plans", () => {
         Effect.runSync(store.getSnapshot()).events?.filter(
           (event) => event._tag === "TimelineCommit",
         ) ?? [];
-      expect(program.model.get()).toEqual({ count: 2 });
+      expect(state.model.get()).toEqual({ count: 2 });
       expect(tracked.map((event) => event.commit.label)).toEqual([
-        'Program "Counter.program-track" message Increment',
-        'Program "Counter.program-track" message Increment',
+        'State "Counter.state-track" Increment',
+        'State "Counter.state-track" Increment',
       ]);
       expect(
         Effect.runSync(store.getSummary()).runtime.events.map((event) => event.target),
       ).toEqual([
-        { kind: "Program", id: "program:Counter.program-track" },
-        { kind: "Program", id: "program:Counter.program-track" },
+        { kind: "State", id: "state:Counter.state-track" },
+        { kind: "State", id: "state:Counter.state-track" },
       ]);
 
-      await Effect.runPromise(program.dispatch({ _tag: "Increment" }));
+      await Effect.runPromise(state.dispatch({ _tag: "Increment" }));
       expect(
         Effect.runSync(store.getSnapshot()).events?.filter(
           (event) => event._tag === "TimelineCommit",
         ),
       ).toHaveLength(tracked.length);
     } finally {
-      await Effect.runPromise(program.dispose);
+      await Effect.runPromise(state.dispose);
     }
   });
 

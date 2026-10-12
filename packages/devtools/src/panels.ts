@@ -1,6 +1,6 @@
 import {
   devtoolsActionNodeId,
-  devtoolsProgramPanelItemId,
+  devtoolsStatePanelItemId,
   devtoolsRequestPanelItemId,
   devtoolsResourceNodeId,
   devtoolsRoutePlanPanelItemId,
@@ -80,11 +80,11 @@ const requestDetail = (request: DevtoolsSummaryRequest): string => {
   return failed.length === 0 ? status : `${status} ${failed.join(", ")}`;
 };
 
-const programEventSeverity = (event: string): DevtoolsPanelSeverity =>
+const stateEventSeverity = (event: string): DevtoolsPanelSeverity =>
   event === "failure" ? "error" : "ok";
 
-/** The Program cause event (`message`, `failure`, `clearFailures`) of a Timeline commit summary. */
-const programCommitEvent = (data: DevtoolsSerializableValue): string => {
+/** The State cause event (`message`, `failure`, `clearFailures`) of a Timeline commit summary. */
+const stateCommitEvent = (data: DevtoolsSerializableValue): string => {
   const cause = isSerializableRecord(data) ? data.cause : undefined;
   const event =
     cause !== undefined && cause !== null && isSerializableRecord(cause) ? cause.event : undefined;
@@ -96,12 +96,12 @@ const isSerializableRecord = (
 ): value is { readonly [key: string]: DevtoolsSerializableValue } =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-const programEventMetricValue = (
+const stateEventMetricValue = (
   value: DevtoolsSerializableValue | undefined,
 ): string | number | undefined =>
   typeof value === "string" || typeof value === "number" ? value : undefined;
 
-const programEventMetrics = (
+const stateEventMetrics = (
   event: DevtoolsSummary["runtime"]["events"][number],
 ): ReadonlyArray<DevtoolsPanelMetric> => {
   if (!isSerializableRecord(event.data)) {
@@ -110,7 +110,7 @@ const programEventMetrics = (
 
   const changes = Array.isArray(event.data.changes) ? event.data.changes.length : undefined;
   return [
-    panelMetric("sequence", programEventMetricValue(event.data.sequence) ?? event.sequence),
+    panelMetric("sequence", stateEventMetricValue(event.data.sequence) ?? event.sequence),
     ...(changes === undefined ? [] : [panelMetric("changes", changes)]),
   ];
 };
@@ -128,7 +128,7 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
         );
   const failedRequestCount = requests.filter((request) => request.status === "failure").length;
   const cancelledRequestCount = requests.filter((request) => request.status === "cancelled").length;
-  const programRuntimeEvents = new Map<
+  const stateRuntimeEvents = new Map<
     string,
     {
       count: number;
@@ -140,18 +140,18 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
     }
   >();
   for (const event of summary.runtime.events) {
-    if (event.target?.kind !== "Program") {
+    if (event.target?.kind !== "State") {
       continue;
     }
-    const name = event.target.id.startsWith("program:")
-      ? event.target.id.slice("program:".length)
+    const name = event.target.id.startsWith("state:")
+      ? event.target.id.slice("state:".length)
       : event.target.id;
-    const tag = programCommitEvent(event.data);
-    const severity = programEventSeverity(tag);
-    const existing = programRuntimeEvents.get(name);
+    const tag = stateCommitEvent(event.data);
+    const severity = stateEventSeverity(tag);
+    const existing = stateRuntimeEvents.get(name);
     const tags = existing?.tags ?? new Set<string>();
     tags.add(tag);
-    programRuntimeEvents.set(name, {
+    stateRuntimeEvents.set(name, {
       count: (existing?.count ?? 0) + 1,
       failures: (existing?.failures ?? 0) + (severity === "error" ? 1 : 0),
       latest: event.label,
@@ -160,27 +160,27 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
       tags,
     });
   }
-  const programEventItems = summary.runtime.events
-    .filter((event) => event.target?.kind === "Program")
+  const stateEventItems = summary.runtime.events
+    .filter((event) => event.target?.kind === "State")
     .map((event) => {
-      const tag = programCommitEvent(event.data);
-      const programName = event.target?.id.startsWith("program:")
-        ? event.target.id.slice("program:".length)
-        : (event.target?.id ?? "Program");
+      const tag = stateCommitEvent(event.data);
+      const stateName = event.target?.id.startsWith("state:")
+        ? event.target.id.slice("state:".length)
+        : (event.target?.id ?? "State");
       return panelItem({
-        id: devtoolsProgramPanelItemId(event.id),
+        id: devtoolsStatePanelItemId(event.id),
         label: event.label,
-        detail: `${programName} ${tag}`,
-        severity: programEventSeverity(tag),
-        metrics: programEventMetrics(event),
+        detail: `${stateName} ${tag}`,
+        severity: stateEventSeverity(tag),
+        metrics: stateEventMetrics(event),
         data: event.data,
       });
     });
-  const programSummaryItems = Array.from(programRuntimeEvents.entries())
+  const stateSummaryItems = Array.from(stateRuntimeEvents.entries())
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([name, runtimeEvents]) =>
       panelItem({
-        id: `program-summary:${name}`,
+        id: `state-summary:${name}`,
         label: name,
         detail: runtimeEvents.latest,
         severity: runtimeEvents.severity,
@@ -194,12 +194,12 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
         }),
       }),
     );
-  const programItems = [...programEventItems, ...programSummaryItems];
-  const programEventCount = Array.from(programRuntimeEvents.values()).reduce(
+  const stateItems = [...stateEventItems, ...stateSummaryItems];
+  const stateEventCount = Array.from(stateRuntimeEvents.values()).reduce(
     (count, entry) => count + entry.count,
     0,
   );
-  const programFailureCount = Array.from(programRuntimeEvents.values()).reduce(
+  const stateFailureCount = Array.from(stateRuntimeEvents.values()).reduce(
     (count, entry) => count + entry.failures,
     0,
   );
@@ -284,20 +284,20 @@ export const describeDevtoolsPanels = (input: DevtoolsPanelsInput = {}): Devtool
         }),
       ),
     },
-    programs: {
-      id: "programs",
-      title: "Programs",
-      summary: `${programRuntimeEvents.size} programs, ${programEventCount} events`,
+    states: {
+      id: "states",
+      title: "States",
+      summary: `${stateRuntimeEvents.size} states, ${stateEventCount} events`,
       severity: maxSeverity(
-        programItems.map((item) => item.severity),
-        programItems.length === 0 ? "info" : "ok",
+        stateItems.map((item) => item.severity),
+        stateItems.length === 0 ? "info" : "ok",
       ),
       metrics: [
-        panelMetric("programs", programRuntimeEvents.size),
-        panelMetric("events", programEventCount),
-        panelMetric("failures", programFailureCount),
+        panelMetric("states", stateRuntimeEvents.size),
+        panelMetric("events", stateEventCount),
+        panelMetric("failures", stateFailureCount),
       ],
-      items: programItems,
+      items: stateItems,
     },
     requests: {
       id: "requests",

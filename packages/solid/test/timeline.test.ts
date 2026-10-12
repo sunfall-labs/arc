@@ -1,10 +1,4 @@
-import {
-  makeRuntime,
-  Program,
-  Signal,
-  SignalWriteOutsideTransition,
-  Timeline,
-} from "@sunfall/arc-core";
+import { makeRuntime, State, Signal, Timeline } from "@sunfall/arc-core";
 import { createComponent, render } from "@solidjs/web";
 import { flush } from "solid-js";
 import { Effect } from "effect";
@@ -14,12 +8,18 @@ import { reactive } from "./component-ssr-fixture.js";
 
 type CounterMessage = { readonly _tag: "Increment" };
 
-const CounterProgram = Program.define<{ readonly count: number }, CounterMessage>({
+const CounterState = State.define<{ readonly count: number }, CounterMessage>()({
   name: "Counter",
   initial: { count: 0 },
   on: {
     Increment: (model) => ({ count: model.count + 1 }),
   },
+});
+
+const TitleState = State.define({
+  name: "Title",
+  initial: "Draft",
+  on: { Rename: (_title, message: { readonly title: string }) => message.title },
 });
 
 describe("Timeline in the Solid DOM", () => {
@@ -30,20 +30,24 @@ describe("Timeline in the Solid DOM", () => {
           const runtime = makeRuntime();
           yield* Effect.addFinalizer(() => runtime.dispose.pipe(Effect.orDie));
           const recording = yield* Timeline.record();
-          const title = Signal.make("Draft", { name: "title" });
           const container = document.createElement("div");
-          let program:
-            | Component.ProgramHandle<{ readonly count: number }, CounterMessage, never>
+          let instance:
+            | Component.StateHandle<{ readonly count: number }, CounterMessage, never>
             | undefined;
-          let rename: ((next: string) => void) | undefined;
+          let title:
+            | Component.StateHandle<
+                string,
+                { readonly _tag: "Rename"; readonly title: string },
+                never
+              >
+            | undefined;
 
           const View = Component.define("View", function* () {
-            const counter = yield* Component.program(CounterProgram);
-            program = counter;
-            rename = yield* Component.callback("rename", (next: string) =>
-              Effect.sync(() => title.set(next)),
-            );
-            return () => reactive(() => `${title.get()}:${counter.model().count}`);
+            const counter = yield* Component.state(CounterState);
+            instance = counter;
+            const named = yield* Component.state(TitleState);
+            title = named;
+            return () => reactive(() => `${named.model()}:${counter.model().count}`);
           });
           const dispose = render(
             () => createComponent(Component.embed(View, runtime), {}),
@@ -53,22 +57,19 @@ describe("Timeline in the Solid DOM", () => {
           flush();
           expect(container.textContent).toBe("Draft:0");
 
-          yield* program!.dispatch({ _tag: "Increment" });
-          // A DOM handler calls the named callback; its write lands synchronously.
-          rename!("Published");
-          yield* program!.dispatch({ _tag: "Increment" });
+          yield* instance!.dispatch({ _tag: "Increment" });
+          yield* title!.dispatch({ _tag: "Rename", title: "Published" });
+          yield* instance!.dispatch({ _tag: "Increment" });
           flush();
           expect(container.textContent).toBe("Published:2");
           // Every commit reads as a named message.
           expect(
             Signal.peek(recording.entries).map((entry) => Timeline.describe(entry.cause)),
           ).toEqual([
-            'Program "Counter" message Increment',
-            "View.rename",
-            'Program "Counter" message Increment',
+            'State "Counter" Increment',
+            'State "Title" Rename',
+            'State "Counter" Increment',
           ]);
-          // A write outside every named transition (here, a bare DOM handler) fails loudly.
-          expect(() => title.set("Bare")).toThrow(SignalWriteOutsideTransition);
 
           const [firstIncrement] = Signal.peek(recording.entries);
           yield* recording.travel(firstIncrement!.sequence);
@@ -76,10 +77,10 @@ describe("Timeline in the Solid DOM", () => {
           expect(container.textContent).toBe("Draft:1");
 
           // Live dispatches keep committing to the head while the DOM stays travelled.
-          yield* program!.dispatch({ _tag: "Increment" });
+          yield* instance!.dispatch({ _tag: "Increment" });
           flush();
           expect(container.textContent).toBe("Draft:1");
-          expect(Signal.peek(program!.committed)).toEqual({ count: 3 });
+          expect(Signal.peek(instance!.committed)).toEqual({ count: 3 });
 
           yield* recording.resume();
           flush();

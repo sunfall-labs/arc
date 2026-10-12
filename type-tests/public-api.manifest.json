@@ -19,7 +19,6 @@
         "browser-router-state",
         "effect-like",
         "form",
-        "program",
         "request-context",
         "resource",
         "resource-store",
@@ -28,6 +27,7 @@
         "runtime",
         "server",
         "signal",
+        "state",
         "timeline"
       ],
       "requiredTypeTestImports": [
@@ -87,7 +87,7 @@
         "browser-router-state",
         "definition-registry",
         "effect-like",
-        "program-start",
+        "state-start",
         "resource",
         "resource-failure-snapshot",
         "resource-registry",
@@ -102,11 +102,12 @@
         "runtime",
         "scope",
         "server-wire-codec",
+        "signal",
         "signal-transaction",
         "signal-watch",
         "stable-stringify"
       ],
-      "requiredTypeTestImports": ["makeActionInstance", "startProgramOnRuntime", "stableStringify"]
+      "requiredTypeTestImports": ["makeActionInstance", "startStateOnRuntime", "stableStringify"]
     },
     {
       "package": "@sunfall/arc-db",

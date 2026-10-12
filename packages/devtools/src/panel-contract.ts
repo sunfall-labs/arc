@@ -17,7 +17,7 @@ export const devtoolsPanelIds: readonly DevtoolsPanelId[] = [
   "routes",
   "resources",
   "actions",
-  "programs",
+  "states",
   "requests",
   "diagnostics",
   "causal-graph",

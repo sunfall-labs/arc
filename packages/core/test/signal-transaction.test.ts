@@ -1,8 +1,8 @@
 import { createEffect, createRoot, createSignal, flush } from "@solidjs/signals";
 import { Data, Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
-import { Program, Signal, Timeline } from "../src/index.js";
-import { defaultRuntime, withSignalTransition } from "../src/internal.js";
+import { State, Signal, Timeline } from "../src/index.js";
+import { defaultRuntime, withSignalTransition, SignalWrites } from "../src/internal.js";
 
 class Boom extends Data.TaggedError("Boom")<{}> {}
 
@@ -20,7 +20,7 @@ const render = <A>(read: () => A) => {
 
 describe("Signal transactions", () => {
   it("reads its own writes while other fibers see committed state", async () => {
-    const count = Signal.make(0, { name: "count" });
+    const count = SignalWrites.make(0, { name: "count" });
     const result = await Effect.runPromise(
       Effect.gen(function* () {
         const midway = yield* Deferred.make<void>();
@@ -33,7 +33,7 @@ describe("Signal transactions", () => {
             return seen;
           }),
         );
-        const inside = yield* Signal.transaction(
+        const inside = yield* SignalWrites.transaction(
           Effect.gen(function* () {
             count.update((n) => n + 1);
             const own = Signal.peek(count);
@@ -51,14 +51,14 @@ describe("Signal transactions", () => {
   });
 
   it("notifies subscribers once per commit with every write applied", async () => {
-    const a = Signal.make(1, { name: "a" });
-    const b = Signal.make(1, { name: "b" });
+    const a = SignalWrites.make(1, { name: "a" });
+    const b = SignalWrites.make(1, { name: "b" });
     const seen: string[] = [];
     a.subscribe(() => seen.push(`a:${Signal.peek(a)},${Signal.peek(b)}`));
     b.subscribe(() => seen.push(`b:${Signal.peek(a)},${Signal.peek(b)}`));
 
     await Effect.runPromise(
-      Signal.transaction(
+      SignalWrites.transaction(
         Effect.gen(function* () {
           a.set(2);
           yield* Effect.yieldNow;
@@ -73,16 +73,16 @@ describe("Signal transactions", () => {
   });
 
   it("renders a commit atomically in Solid", async () => {
-    const a = Signal.make(1, { name: "a" });
-    const b = Signal.make(1, { name: "b" });
+    const a = SignalWrites.make(1, { name: "a" });
+    const b = SignalWrites.make(1, { name: "b" });
     const { seen, dispose } = render(() => `${a.get()},${b.get()}`);
 
     await Effect.runPromise(
-      Signal.transaction(
+      SignalWrites.transaction(
         Effect.all([
-          Signal.updateAndGet(a, () => 2),
+          SignalWrites.updateAndGet(a, () => 2),
           Effect.yieldNow,
-          Signal.updateAndGet(b, () => 2),
+          SignalWrites.updateAndGet(b, () => 2),
         ]),
         { name: "edit" },
       ),
@@ -94,9 +94,9 @@ describe("Signal transactions", () => {
   });
 
   it("commits nothing on failure or interruption", async () => {
-    const count = Signal.make(0, { name: "count" });
+    const count = SignalWrites.make(0, { name: "count" });
     const failure = await Effect.runPromise(
-      Signal.transaction(
+      SignalWrites.transaction(
         Effect.gen(function* () {
           count.set(99);
           return yield* new Boom();
@@ -107,7 +107,7 @@ describe("Signal transactions", () => {
     const afterInterrupt = await Effect.runPromise(
       Effect.gen(function* () {
         const fiber = yield* Effect.forkChild(
-          Signal.transaction(
+          SignalWrites.transaction(
             Effect.andThen(
               Effect.sync(() => count.set(42)),
               Effect.never,
@@ -128,16 +128,16 @@ describe("Signal transactions", () => {
   });
 
   it("joins nested transactions and batches into the outer one", async () => {
-    const count = Signal.make(0, { name: "count" });
+    const count = SignalWrites.make(0, { name: "count" });
     const seen: number[] = [];
     count.subscribe(() => seen.push(Signal.peek(count)));
 
     await Effect.runPromise(
-      Signal.transaction(
+      SignalWrites.transaction(
         Effect.gen(function* () {
-          yield* Signal.transaction(Signal.updateAndGet(count, (n) => n + 1));
-          Signal.batch(() => count.update((n) => n + 1));
-          yield* Signal.updateAndGet(count, (n) => n + 1);
+          yield* SignalWrites.transaction(SignalWrites.updateAndGet(count, (n) => n + 1));
+          SignalWrites.batch(() => count.update((n) => n + 1));
+          yield* SignalWrites.updateAndGet(count, (n) => n + 1);
         }),
         { name: "outer" },
       ),
@@ -147,24 +147,24 @@ describe("Signal transactions", () => {
   });
 
   it("commits concurrent branches atomically with their transaction", async () => {
-    const a = Signal.make(0, { name: "a" });
-    const b = Signal.make(0, { name: "b" });
+    const a = SignalWrites.make(0, { name: "a" });
+    const b = SignalWrites.make(0, { name: "b" });
     const seen: string[] = [];
     a.subscribe(() => seen.push(`${Signal.peek(a)},${Signal.peek(b)}`));
     b.subscribe(() => seen.push(`${Signal.peek(a)},${Signal.peek(b)}`));
 
     const observedMidway = await Effect.runPromise(
-      Signal.transaction(
+      SignalWrites.transaction(
         Effect.gen(function* () {
           yield* Effect.all(
             [
               Effect.andThen(
                 Effect.yieldNow,
-                Signal.updateAndGet(a, () => 1),
+                SignalWrites.updateAndGet(a, () => 1),
               ),
               Effect.andThen(
                 Effect.yieldNow,
-                Signal.updateAndGet(b, () => 1),
+                SignalWrites.updateAndGet(b, () => 1),
               ),
             ],
             { concurrency: "unbounded" },
@@ -179,14 +179,14 @@ describe("Signal transactions", () => {
   });
 
   it("lets a fiber that outlives its transaction commit its own writes", async () => {
-    const count = Signal.make(0, { name: "count" });
+    const count = SignalWrites.make(0, { name: "count" });
     const release = Effect.runSync(Deferred.make<void>());
     const detached = await Effect.runPromise(
-      Signal.transaction(
+      SignalWrites.transaction(
         Effect.forkDetach(
           Effect.andThen(
             Deferred.await(release),
-            Signal.updateAndGet(count, (n) => n + 1),
+            SignalWrites.updateAndGet(count, (n) => n + 1),
           ),
         ),
         { name: "detach" },
@@ -200,8 +200,8 @@ describe("Signal transactions", () => {
   });
 
   it("caches derived reads per transaction write set and committed state", async () => {
-    const count = Signal.make(1, { name: "count" });
-    const other = Signal.make(10, { name: "other" });
+    const count = SignalWrites.make(1, { name: "count" });
+    const other = SignalWrites.make(10, { name: "other" });
     let computes = 0;
     const sum = Signal.derive(() => {
       computes++;
@@ -211,14 +211,16 @@ describe("Signal transactions", () => {
     computes = 0;
 
     const reads = await Effect.runPromise(
-      Signal.transaction(
+      SignalWrites.transaction(
         Effect.sync(() => {
           count.set(2);
           const first = [Signal.peek(sum), Signal.peek(sum)];
           count.set(3);
           const afterWrite = Signal.peek(sum);
           // A separate root fiber has no transaction, so this commits immediately.
-          Effect.runSync(Effect.sync(() => Signal.batch(() => other.set(20), { name: "outside" })));
+          Effect.runSync(
+            Effect.sync(() => SignalWrites.batch(() => other.set(20), { name: "outside" })),
+          );
           const outsideCommitted = Signal.peek(other);
           const afterOutsideCommit = Signal.peek(sum);
           return { first, afterWrite, outsideCommitted, afterOutsideCommit };
@@ -234,11 +236,11 @@ describe("Signal transactions", () => {
   });
 
   it("batches synchronous writes and discards them when the batch throws", () => {
-    const count = Signal.make(0, { name: "count" });
+    const count = SignalWrites.make(0, { name: "count" });
     const seen: number[] = [];
     count.subscribe(() => seen.push(Signal.peek(count)));
 
-    const inside = Signal.batch(
+    const inside = SignalWrites.batch(
       () => {
         count.set(1);
         count.update((n) => n + 1);
@@ -247,7 +249,7 @@ describe("Signal transactions", () => {
       { name: "edit" },
     );
     expect(() =>
-      Signal.batch(
+      SignalWrites.batch(
         () => {
           count.set(100);
           throw new Error("abort");
@@ -264,10 +266,10 @@ describe("Signal transactions", () => {
   });
 
   it("derives from the transaction's own writes before commit", () => {
-    const count = Signal.make(1, { name: "count" });
+    const count = SignalWrites.make(1, { name: "count" });
     const doubled = Signal.derive(() => count.get() * 2);
 
-    const inside = Signal.batch(
+    const inside = SignalWrites.batch(
       () => {
         count.set(5);
         return Signal.peek(doubled);
@@ -279,11 +281,13 @@ describe("Signal transactions", () => {
   });
 
   it("returns the visible value from updateAndGet", async () => {
-    const count = Signal.make(0, { name: "count" });
+    const count = SignalWrites.make(0, { name: "count" });
     const values = await Effect.runPromise(
       Effect.gen(function* () {
-        const lone = yield* Signal.updateAndGet(count, (n) => n + 1);
-        const inTransaction = yield* Signal.transaction(Signal.updateAndGet(count, (n) => n + 1));
+        const lone = yield* SignalWrites.updateAndGet(count, (n) => n + 1);
+        const inTransaction = yield* SignalWrites.transaction(
+          SignalWrites.updateAndGet(count, (n) => n + 1),
+        );
         return { lone, inTransaction, committed: Signal.peek(count) };
       }).pipe((effect) => withSignalTransition(effect, { _tag: "Transition", name: "increment" })),
     );
@@ -293,15 +297,15 @@ describe("Signal transactions", () => {
 
   it("never loses an update dispatched twice from inside a Solid effect", () => {
     const [rawModel, setRawModel] = createSignal(0, { ownedWrite: true });
-    const model = Signal.make(0, { name: "model" });
+    const model = SignalWrites.make(0, { name: "model" });
     const [trigger, setTrigger] = createSignal(0, { ownedWrite: true });
     const dispose = createRoot((disposeRoot) => {
       createEffect(trigger, (value) => {
         if (value === 1) {
           setRawModel(rawModel() + 1);
           setRawModel(rawModel() + 1);
-          Signal.batch(() => model.update((n) => n + 1), { name: "increment" });
-          Signal.batch(() => model.update((n) => n + 1), { name: "increment" });
+          SignalWrites.batch(() => model.update((n) => n + 1), { name: "increment" });
+          SignalWrites.batch(() => model.update((n) => n + 1), { name: "increment" });
         }
       });
       return disposeRoot;
@@ -315,14 +319,14 @@ describe("Signal transactions", () => {
   });
 });
 
-describe("Program and Action commits", () => {
-  it("commits each Program message and failure as one labelled Timeline entry", () =>
+describe("State and Action commits", () => {
+  it("commits each State message and failure as one labelled Timeline entry", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const recording = yield* Timeline.record();
         type Message = { readonly _tag: "Increment" } | { readonly _tag: "Fail" };
-        const program = Program.start(
-          Program.define<number, Message>({
+        const instance = State.start(
+          State.define<number, Message>()({
             name: "Counter",
             initial: 0,
             on: {
@@ -335,8 +339,8 @@ describe("Program and Action commits", () => {
           { runtime: defaultRuntime },
         );
 
-        yield* program.dispatch({ _tag: "Increment" });
-        yield* Effect.flip(program.dispatch({ _tag: "Fail" }));
+        yield* instance.dispatch({ _tag: "Increment" });
+        yield* Effect.flip(instance.dispatch({ _tag: "Fail" }));
 
         expect(
           Signal.peek(recording.entries).map((entry) => ({
@@ -344,20 +348,20 @@ describe("Program and Action commits", () => {
             changed: entry.changes.map((change) => change.name),
           })),
         ).toEqual([
-          { cause: 'Program "Counter" message Increment', changed: ["Counter.model"] },
-          { cause: 'Program "Counter" failure', changed: ["Counter.failures"] },
+          { cause: 'State "Counter" Increment', changed: ["Counter"] },
+          { cause: 'State "Counter" failure', changed: ["Counter.failures"] },
         ]);
-        yield* program.dispose;
+        yield* instance.dispose;
       }).pipe(Effect.scoped),
     ));
 });
 
 describe("Signal Solid projection", () => {
   it("tracks Arc signals natively in Solid computations", () => {
-    const name = Signal.make("a", { name: "name" });
+    const name = SignalWrites.make("a", { name: "name" });
     const { seen, dispose } = render(() => name.get());
 
-    Signal.batch(() => name.set("b"), { name: "rename" });
+    SignalWrites.batch(() => name.set("b"), { name: "rename" });
     flush();
     dispose();
 
@@ -365,11 +369,11 @@ describe("Signal Solid projection", () => {
   });
 
   it("tracks derived signals in Solid computations", () => {
-    const count = Signal.make(1, { name: "count" });
+    const count = SignalWrites.make(1, { name: "count" });
     const doubled = Signal.derive(() => count.get() * 2);
     const { seen, dispose } = render(() => doubled.get());
 
-    Signal.batch(() => count.set(2), { name: "increment" });
+    SignalWrites.batch(() => count.set(2), { name: "increment" });
     flush();
     dispose();
 
@@ -379,10 +383,10 @@ describe("Signal Solid projection", () => {
   it("projects function values as values, not computations", () => {
     const first = () => "first";
     const second = () => "second";
-    const view = Signal.make<() => string>(first, { name: "view" });
+    const view = SignalWrites.make<() => string>(first, { name: "view" });
     const { seen, dispose } = render(() => view.get());
 
-    Signal.batch(() => view.set(second), { name: "swap" });
+    SignalWrites.batch(() => view.set(second), { name: "swap" });
     flush();
     dispose();
 
@@ -390,7 +394,7 @@ describe("Signal Solid projection", () => {
   });
 
   it("releases the projection subscription when Solid stops observing", async () => {
-    const count = Signal.make(0, { name: "count" });
+    const count = SignalWrites.make(0, { name: "count" });
     const subscribers = () => (count as unknown as { listeners: Set<unknown> }).listeners.size;
     const { dispose } = render(() => count.get());
     const whileRendered = subscribers();

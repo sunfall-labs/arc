@@ -1,4 +1,4 @@
-import { Program } from "@sunfall/arc-core";
+import { State } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { expect, test } from "vitest";
 import { ProjectLoader } from "./project-loader.js";
@@ -9,7 +9,7 @@ const atlas: Project = { id: ProjectId.make("atlas"), name: "Atlas", status: "ac
 
 test("Load starts loading and fetches the projects", () => {
   // One transition is one function call: no runtime, DOM, or timers.
-  const loading = Program.step(ProjectLoader, ProjectLoader.initial, { _tag: "Load" });
+  const loading = State.step(ProjectLoader, ProjectLoader.initial, { _tag: "Load" });
   expect(loading.model.status).toBe("loading");
   expect(loading.commands).toHaveLength(1);
 
@@ -23,7 +23,7 @@ test("Load starts loading and fetches the projects", () => {
 
 test("Loaded shows the projects", () => {
   const loading = { status: "loading", projects: [] } as const;
-  const ready = Program.step(ProjectLoader, loading, { _tag: "Loaded", projects: [atlas] });
+  const ready = State.step(ProjectLoader, loading, { _tag: "Loaded", projects: [atlas] });
   expect(ready.model).toEqual({ status: "ready", projects: [atlas] });
   expect(ready.commands).toEqual([]);
 });

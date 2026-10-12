@@ -1,5 +1,5 @@
 import { Clock, Data, Effect, type Scope } from "effect";
-import { Signal, type ReadableSignal } from "./signal.js";
+import { Signal, SignalWrites, type ReadableSignal } from "./signal.js";
 import {
   installSignalCommitRecorder,
   isSignalCommitRecorderInstalled,
@@ -11,9 +11,8 @@ import {
 } from "./signal-transaction.js";
 
 /**
- * Commit made by an application's named transition: a `Component.callback`
- * (named `<Component>.<name>`), a `Component.stream` or `Signal.fromStream`
- * element, or a named `Signal.batch` / `Signal.transaction`.
+ * Commit made by a framework transition: work started by a `Component.callback`
+ * (named `<Component>.<name>`), or a `Component.stream` element.
  */
 export interface TimelineTransitionCause {
   readonly _tag: "Transition";
@@ -43,11 +42,11 @@ export interface TimelineActionCause {
     | "dismiss";
 }
 
-/** Commit made by a running Program: a message update, a failure, or a failure reset. */
-export interface TimelineProgramCause {
-  readonly _tag: "Program";
-  /** The Program definition's `name`, when it has one. */
-  readonly program: string | undefined;
+/** Commit made by a running State: a message update, a failure, or a failure reset. */
+export interface TimelineStateCause {
+  readonly _tag: "State";
+  /** The State definition's `name`. */
+  readonly state: string;
   readonly event: "message" | "failure" | "clearFailures";
   /** The message applied (`message`) or the message that failed (`failure`), when known. */
   readonly message?: unknown;
@@ -73,14 +72,14 @@ export interface TimelineRouterCause {
 export type TimelineCause =
   | TimelineTransitionCause
   | TimelineActionCause
-  | TimelineProgramCause
+  | TimelineStateCause
   | TimelineResourceCause
   | TimelineRouterCause;
 
 /** One signal's committed change inside a timeline entry. */
 export interface TimelineChange {
   readonly signal: ReadableSignal<unknown>;
-  /** The signal's `Signal.make` name. */
+  /** The signal's `SignalWrites.make` name. */
   readonly name: string;
   readonly previous: unknown;
   readonly next: unknown;
@@ -112,7 +111,7 @@ export interface TimelineRecording {
   /**
    * Renders every recorded signal as it was right after entry `sequence`.
    *
-   * Committed state stays live: Effects, Actions, and Programs keep running
+   * Committed state stays live: Effects, Actions, and States keep running
    * against the head and their commits keep being recorded, while Solid shows
    * the travelled values. Signals first written after `sequence` render the
    * value they had then, which for signals created later is their initial value.
@@ -155,8 +154,8 @@ const makeRecording = (clock: Clock.Clock, limit: number) => {
     start === 0 ? ring.slice() : [...ring.slice(start), ...ring.slice(0, start)];
   let sequence = 0;
   let view: Map<SignalTransactionWritable, unknown> | undefined;
-  const version = Signal.make(0, { name: "Timeline.version" });
-  const position = Signal.make<number | undefined>(undefined, { name: "Timeline.position" });
+  const version = SignalWrites.make(0, { name: "Timeline.version" });
+  const position = SignalWrites.make<number | undefined>(undefined, { name: "Timeline.position" });
   const own: ReadonlySet<unknown> = new Set<unknown>([version, position]);
   const entries = Signal.derive((): ReadonlyArray<TimelineEntry> => {
     version.get();
@@ -263,16 +262,16 @@ const makeRecording = (clock: Clock.Clock, limit: number) => {
  *
  * Arc owns application state in writable signals, and every committed change
  * passes through one commit seam. A recording observes that seam, so its
- * entries cover Signals, Resource entries, Action state, Program models,
- * and router state alike.
+ * entries cover State models, Resource entries, Action state, and router
+ * state alike.
  */
 export namespace Timeline {
-  /** Commit named by a Signal transaction or a named callback. */
+  /** Commit made by a framework transition: a named callback or stream element. */
   export type TransitionCause = TimelineTransitionCause;
   /** Commit made by an Action submission. */
   export type ActionCause = TimelineActionCause;
-  /** Commit made by a Program update. */
-  export type ProgramCause = TimelineProgramCause;
+  /** Commit made by a State message, failure, or failure reset. */
+  export type StateCause = TimelineStateCause;
   /** Commit made by a Resource load or invalidation. */
   export type ResourceCause = TimelineResourceCause;
   /** Commit made by router navigation. */
@@ -320,7 +319,7 @@ export namespace Timeline {
 
   /**
    * Human-readable label for a cause: a transition's name (`ProjectPage.rename`)
-   * or a framework event (`Program "Board" message Relabel`).
+   * or a framework event (`State "Board" Relabel`).
    */
   export const describe = (cause: TimelineCause): string => {
     switch (cause._tag) {
@@ -328,12 +327,10 @@ export namespace Timeline {
         return cause.name;
       case "Action":
         return `Action "${cause.action}" ${cause.event}`;
-      case "Program": {
-        const program = cause.program === undefined ? "Program" : `Program "${cause.program}"`;
+      case "State":
         return cause.event === "message"
-          ? `${program} message ${messageLabel(cause.message)}`
-          : `${program} ${cause.event}`;
-      }
+          ? `State "${cause.state}" ${messageLabel(cause.message)}`
+          : `State "${cause.state}" ${cause.event}`;
       case "Resource":
         return `Resource "${cause.resource}" ${cause.event} ${cause.key}`;
       case "Router":

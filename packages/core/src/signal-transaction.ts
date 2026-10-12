@@ -2,19 +2,20 @@ import { Context, Data, Effect, Exit, Fiber } from "effect";
 import type { TimelineCause } from "./timeline.js";
 
 /**
- * A signal was written outside every named transition, so its commit would
- * have no name on the `Timeline`. Raised as a defect at the write.
+ * Internal assertion: a framework signal was written outside every named
+ * transition, so its commit would have no name on the `Timeline`. Raised as a
+ * defect at the write. Application code cannot reach it: application state
+ * changes only through State messages, Actions, and framework events.
  */
 export class SignalWriteOutsideTransition extends Data.TaggedError("SignalWriteOutsideTransition")<{
-  /** The written signal's `Signal.make` name. */
+  /** The written signal's `SignalWrites.make` name. */
   readonly signal: string;
 }> {
   override get message(): string {
     return (
       `Signal "${this.signal}" was written outside a named transition. ` +
-      "Every state change needs a name: write it inside a named " +
-      '`Component.callback("name", ...)`, an Action, or a Program update, ' +
-      "or wrap it in `Signal.batch(f, { name })` / `Signal.transaction(effect, { name })`."
+      "Framework writes must run inside a named transition: a State message, an Action, " +
+      "a framework event, or `SignalWrites.batch(f, { name })` / `SignalWrites.transaction(effect, { name })`."
     );
   }
 }
@@ -68,7 +69,7 @@ export interface SignalCommitRecorder {
 
 /**
  * Internal Effect service carrying the active transaction. It is never part of
- * a public requirement type: `Signal.transaction` provides and removes it.
+ * a public requirement type: `SignalWrites.transaction` provides and removes it.
  */
 const SignalTransaction = Context.Service<SignalTransactionState>(
   "@sunfall/arc-core/SignalTransaction",
@@ -224,7 +225,7 @@ export const currentSignalCommitSequence = (): number => commitSequence;
 
 /**
  * Resolves the transaction a synchronous read or write belongs to: the active
- * `Signal.batch`, else the transaction in the running fiber's context. Fibers
+ * `SignalWrites.batch`, else the transaction in the running fiber's context. Fibers
  * forked inside a transaction inherit it, so concurrent branches commit
  * atomically with it; a fiber still running after commit sees a closed
  * transaction and commits its own writes.

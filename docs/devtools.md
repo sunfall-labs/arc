@@ -87,10 +87,10 @@ yield* store.trackAction(renameAction);
 State history comes from the app `Timeline`, not from private queues or fibers.
 Devtools copies each Timeline entry through the bounded serialization and
 redaction policy before summaries, panels, bridges, or causal graphs inspect it.
-Every commit carries a cause, because Signals change only inside named
-transitions, so each `TimelineCommit` is labelled like a message log
-(`ProjectPage.rename`, `Action "Project.rename" submit`). Program message and
-failure commits land on the Programs panel:
+Every commit carries a cause, because every change is a State message, an
+Action, or a framework event, so each `TimelineCommit` is labelled like a
+message log (`State "Menu.open" Toggle`, `Action "Project.rename" submit`).
+State message and failure commits land on the States panel:
 
 <!-- prettier-ignore -->
 ```ts
@@ -195,11 +195,10 @@ Effect-native event streams:
 - `store.trackTimeline(recording)` records a running Timeline's retained
   and future entries as `TimelineCommit` runtime events until its Scope closes.
   Each commit has a `label` (`Timeline.describe(cause)`) and its `cause`, which
-  is always present. Its target is the Program, Action, or Resource its cause
-  names; a `Transition` cause (a named `Component.callback`, stream,
-  or `Signal.batch`/`Signal.transaction`) has no fact target and is read by its
-  label. Unnamed Programs share the `Program` target, so name Programs that
-  should appear separately.
+  is always present. Its target is the State (`state:<name>`), Action, or Resource its
+  cause names; a `Transition` cause (work from a named `Component.callback`
+  or a `Component.stream` element) has no fact target and is read by its
+  label. Every State has a required `name`, so each appears separately.
 - `Devtools.layerTracer(store)` records Start's request spans for SSR, server
   RPC, Start action, stream-close, stream-cancel, and request-failure paths,
   with route, failure kind, response, stream, and teardown attributes.
@@ -212,7 +211,7 @@ methods. `getSummary()` then provides route, invalidation, runtime, and
 request/resource inspectors, while `getCausalGraph()` links the golden
 path with deterministic edges such as route plan `Matches` route, route plan `Preloads` and `Hydrates` resource, action `Emits`
 invalidation, invalidation `Targets` tags, tag `Causes` resource invalidation,
-and runtime events `Observes` resources, programs, actions, route plans, and
+and runtime events `Observes` resources, states, actions, route plans, and
 invalidations.
 
 Runtime event ids are unique per sequence/tag pair. When a host supplies a
@@ -232,7 +231,7 @@ rendering:
 - Routes
 - Resources
 - Actions
-- Programs
+- States
 - Requests
 - Diagnostics
 - Causal Graph
@@ -247,9 +246,9 @@ serializable items. Request items include the richer teardown facts from Start:
 duration, runtime disposal, teardown reason, before/after fiber, family, module,
 and tag counts, serialized teardown snapshots, and per-server-function/action
 failure owners.
-Program items include event-level rows for messages, before/after snapshots,
-command lifecycle events, emitted follow-up messages, subscription events,
-failures, and disposal, plus per-program summary rows.
+State items (the `states` panel) include event-level rows for messages,
+before/after snapshots, command lifecycle events, emitted follow-up messages,
+subscription events, failures, and disposal, plus per-State summary rows.
 The Diagnostics panel reports panel-contract errors: when a bridge payload fails
 validation, it carries the typed error and the other panels are suppressed.
 
@@ -343,7 +342,7 @@ The devtools product should grow in this order:
 - Action Timeline: `AsyncResult` tag plus `waiting`, input, concurrency,
   optimistic work, invalidation plan, Start transport metadata, and hydration
   payload.
-- Program Timeline: messages, before/after model snapshots, command
+- State Timeline: messages, before/after model snapshots, command
   starts/completions/failures, emitted follow-up messages, subscription events,
   typed failures, and disposal.
 - Requests: Start request spans with their route, failure kind, response,

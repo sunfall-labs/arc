@@ -2,7 +2,7 @@ import { Context, Data, Effect, type Cause, type Duration, type Schedule } from 
 import type { ActionDefinition } from "./action.js";
 import type { ServerClientError } from "./server.js";
 import { ServerTransportError } from "./server-wire-codec.js";
-import { Signal, type ReadableSignal } from "./signal.js";
+import { SignalWrites, type ReadableSignal } from "./signal.js";
 
 /**
  * Durability policy for `Action.define({ durable })`.
@@ -160,10 +160,10 @@ export interface ActionOutbox extends ActionOutboxView {
 
 export const ActionOutbox = Context.Service<ActionOutbox>("@sunfall/arc-core/ActionOutbox");
 
-const emptyPending = Signal.make<ReadonlyArray<ActionOutboxEntry>>([], {
+const emptyPending = SignalWrites.make<ReadonlyArray<ActionOutboxEntry>>([], {
   name: "ActionOutbox.pending",
 });
-const emptyFailures = Signal.make<ReadonlyArray<ActionOutboxFailure>>([], {
+const emptyFailures = SignalWrites.make<ReadonlyArray<ActionOutboxFailure>>([], {
   name: "ActionOutbox.failures",
 });
 

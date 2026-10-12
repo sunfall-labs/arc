@@ -25,8 +25,6 @@ import {
 } from "./signal-transaction.js";
 import type { TimelineTransitionCause } from "./timeline.js";
 
-export { SignalWriteOutsideTransition } from "./signal-transaction.js";
-
 export const SignalTypeId: unique symbol = Symbol.for(
   "@sunfall/arc-core/Signal",
 ) as typeof SignalTypeId;
@@ -45,10 +43,11 @@ export interface ReadableSignal<A> extends Subscribable {
 }
 
 /**
- * Mutable signal. Every write is transactional and named: it joins the
- * caller's open transaction (`Signal.transaction` / `Signal.batch`, an Action,
- * a Program update) or commits on its own under the caller's named
- * `Component.callback`. A write outside every named transition dies with
+ * Internal mutable signal: framework state (State models, Resource entries,
+ * Action state, router state) lives in these. Not public API: application
+ * state is a `State`. Every write is transactional and named: it joins the
+ * caller's open transaction or commits on its own under the caller's named
+ * transition, and a write outside every named transition dies with
  * `SignalWriteOutsideTransition`. Subscribers run only after commit, and only
  * when `Object.is` sees a change.
  */
@@ -67,7 +66,7 @@ export interface SignalStreamOptions {
   readonly strategy?: "sliding" | "dropping" | "suspend";
 }
 
-/** Options for `Signal.transaction` and `Signal.batch`. */
+/** Options for `SignalWrites.transaction` and `SignalWrites.batch`. */
 export interface SignalTransactionOptions {
   /**
    * Names the commit on the `Timeline` (a `Transition` cause). Without one the
@@ -78,7 +77,7 @@ export interface SignalTransactionOptions {
   readonly name?: string;
 }
 
-/** Options for `Signal.make` and `Signal.fromStream`. */
+/** Options for `SignalWrites.make` and `SignalWrites.fromStream`. */
 export interface SignalOptions {
   /** Label shown on `Timeline` changes and in `SignalWriteOutsideTransition`. */
   readonly name: string;
@@ -355,21 +354,15 @@ export const isSignal = (value: unknown): value is ReadableSignal<unknown> =>
   value !== null &&
   (value as { [SignalTypeId]?: unknown })[SignalTypeId] === SignalTypeId;
 
+/**
+ * Read side of Arc's reactive cells. Every writable cell belongs to the
+ * framework: application state is a `State`, server state a `Resource`.
+ */
 export namespace Signal {
+  /** Read-only reactive cell. */
   export type Readable<A> = ReadableSignal<A>;
-  export type Writable<A> = WritableSignal<A>;
+  /** Buffer settings for `Signal.changes` and `Signal.values`. */
   export type StreamOptions = SignalStreamOptions;
-  /** Options for `Signal.make`. */
-  export type Options = SignalOptions;
-  /** Options for `Signal.transaction` and `Signal.batch`. */
-  export type TransactionOptions = SignalTransactionOptions;
-
-  /**
-   * Creates a writable signal. `name` labels its `Timeline` changes and the
-   * `SignalWriteOutsideTransition` defect a write outside a named transition raises.
-   */
-  export const make = <A>(initial: A, options: SignalOptions): WritableSignal<A> =>
-    new WritableSignalImpl(initial, options.name);
 
   /** Creates a derived signal that tracks the signals read by `compute`. */
   export const derive = <A>(compute: () => A): ReadableSignal<A> => new DerivedSignalImpl(compute);
@@ -380,39 +373,6 @@ export namespace Signal {
 
   /** Runs synchronous work with dependency tracking disabled. */
   export const untracked = <A>(f: () => A): A => withoutSignalDependencyObserver(() => untrack(f));
-
-  /**
-   * Runs an Effect as one atomic transaction owned by the current fiber.
-   *
-   * Reads inside see the transaction's own writes; other fibers and the UI see
-   * none of them until success commits all of them at once. Failure or
-   * interruption commits nothing. Nested transactions join the outer one, and
-   * fibers forked inside belong to it until it ends. `name` labels the commit
-   * on the `Timeline`; without it the commit takes the caller's named
-   * transition, and a write with neither dies with `SignalWriteOutsideTransition`.
-   */
-  export const transaction = <A, E, R>(
-    effect: Effect.Effect<A, E, R>,
-    options?: SignalTransactionOptions,
-  ): Effect.Effect<A, E, R> => signalTransaction(effect, transitionCause(options?.name));
-
-  /**
-   * Synchronous counterpart of `transaction`: reads inside `f` see its writes,
-   * subscribers run once after it returns, and a throw commits nothing. Name
-   * it to write from plain synchronous code (a test, a Solid handler).
-   */
-  export const batch = <A>(f: () => A, options?: SignalTransactionOptions): A =>
-    batchSignalWrites(f, transitionCause(options?.name));
-
-  /** Writes `f(current)` and returns the value now visible to the caller. */
-  export const updateAndGet = <A>(
-    signal: WritableSignal<A>,
-    f: (current: A) => A,
-  ): Effect.Effect<A> =>
-    Effect.sync(() => {
-      signal.update(f);
-      return peek(signal);
-    });
 
   /** Stream of future signal values. The current value is not emitted immediately. */
   export const changes = <A>(
@@ -441,6 +401,57 @@ export namespace Signal {
       Stream.sync(() => peek(signal)),
       changes(signal, options),
     );
+}
+
+/**
+ * Internal write side of signals, for framework code (State, Resource,
+ * Action, router, devtools) and test fixtures. Exported only from
+ * `@sunfall/arc-core/internal`.
+ */
+export namespace SignalWrites {
+  /** Options for `SignalWrites.make`. */
+  export type Options = SignalOptions;
+  /** Options for `SignalWrites.transaction` and `SignalWrites.batch`. */
+  export type TransactionOptions = SignalTransactionOptions;
+
+  /**
+   * Creates a writable signal. `name` labels its `Timeline` changes and the
+   * `SignalWriteOutsideTransition` defect a write outside a named transition raises.
+   */
+  export const make = <A>(initial: A, options: SignalOptions): WritableSignal<A> =>
+    new WritableSignalImpl(initial, options.name);
+
+  /**
+   * Runs an Effect as one atomic transaction owned by the current fiber.
+   *
+   * Reads inside see the transaction's own writes; other fibers and the UI see
+   * none of them until success commits all of them at once. Failure or
+   * interruption commits nothing. Nested transactions join the outer one, and
+   * fibers forked inside belong to it until it ends. `name` labels the commit
+   * on the `Timeline`; without it the commit takes the caller's named
+   * transition, and a write with neither dies with `SignalWriteOutsideTransition`.
+   */
+  export const transaction = <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+    options?: SignalTransactionOptions,
+  ): Effect.Effect<A, E, R> => signalTransaction(effect, transitionCause(options?.name));
+
+  /**
+   * Synchronous counterpart of `transaction`: reads inside `f` see its writes,
+   * subscribers run once after it returns, and a throw commits nothing.
+   */
+  export const batch = <A>(f: () => A, options?: SignalTransactionOptions): A =>
+    batchSignalWrites(f, transitionCause(options?.name));
+
+  /** Writes `f(current)` and returns the value now visible to the caller. */
+  export const updateAndGet = <A>(
+    signal: WritableSignal<A>,
+    f: (current: A) => A,
+  ): Effect.Effect<A> =>
+    Effect.sync(() => {
+      signal.update(f);
+      return Signal.peek(signal);
+    });
 
   /**
    * Creates a signal from a stream inside an Effect scope. `name` labels the

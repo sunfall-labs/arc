@@ -68,7 +68,7 @@ or explicit namespace alias, and those declarations must keep JSDoc for LSP
 hovers. Together these checks keep hover/LSP docs from drifting away from
 package Interfaces rather than merely reachable implementation files.
 The curated hover declarations currently cover the Core Action, ActionResult,
-Form, Program, and Resource Interfaces,
+Form, State, and Resource Interfaces,
 browser-router/router Adapter, Solid runtime and hook Adapter seams,
 Start request/hydration/action seams, fetch, and Node Adapter seams,
 Devtools DTO/panel contract seams, the Resource rows contract, and the DB
@@ -86,13 +86,13 @@ The root export re-exports these local modules:
   `action-transport`
 - `browser-router-history-adapter`, `browser-router-host-controller`,
   `browser-router-kernel`, `browser-router-state`, `effect-like`, `form`,
-  `program`, `request-context`
+  `request-context`
 - `resource`, `resource-store`, `route`, `route-grammar`
-- `runtime`, `server`, `signal`, `timeline`
+- `runtime`, `server`, `signal`, `state`, `timeline`
 
 Every module is selected by name: the root exports each namespace (`Action`,
-`ActionResult`, `Form`, `Program`, `Resource`, `Route`,
-`Server`, `Signal`, `Timeline`) plus the error classes, Type IDs, guards,
+`ActionResult`, `Form`, `Resource`, `Route`,
+`Server`, `Signal`, `State`, `Timeline`) plus the error classes, Type IDs, guards,
 services, and runtime helpers that have no namespace home. Each type has
 exactly one public name: types a namespace owns are reachable only as
 namespace members (`Action.Definition`, `Resource.Ref`, `Route.Match`,
@@ -105,11 +105,14 @@ exported only from `@sunfall/arc-core/internal`. Mixed modules' adapter
 plumbing, plus `definition-registry`,
 `resource-registry`, `resource-ui-binding`, `resource-failure-snapshot` (the
 SSR wire codec for failed Resource reads), `action-instance` and
-`program-start` (runtime-erased instance constructors for renderer bindings),
-`scope` (the ambient `UiScope`), `signal-watch`, `signal-transaction`'s
+`state-start` (runtime-erased instance constructors for renderer bindings),
+`scope` (the ambient `UiScope`), `signal`'s write side (`SignalWrites.make` /
+`batch` / `transaction` / `updateAndGet` / `fromStream` and `WritableSignal`,
+for framework code and test fixtures), `signal-watch`, `signal-transaction`'s
 framework commit seam (`batchSignalWrites` / `signalTransaction` with a
-`Timeline.Cause`, `withSignalTransition` for an ambient named transition, and
-`writeUntracedSignals` for bookkeeping that is never recorded), and
+`Timeline.Cause`, `withSignalTransition` for an ambient named transition,
+`writeUntracedSignals` for bookkeeping that is never recorded, and the
+`SignalWriteOutsideTransition` internal assertion), and
 `stable-stringify` (DB query identity), is exported only from
 `@sunfall/arc-core/internal` for sibling Sunfall Arc packages. Each symbol has
 exactly one import path; nothing is exported from both entrypoints.
@@ -121,23 +124,23 @@ internals.
 
 Golden-path public groups:
 
-- `Route`, `Resource`, `Action`, `ActionResult`, `Program` (the app
+- `Route`, `Resource`, `Action`, `ActionResult`, `State` (the app
   definition, `App`, is Start's)
 - `Server`, `Server.Client`, request/response context services
-- `Signal`, `Form`; app services are plain Effect services
+- `Signal` (read-only: `Readable`, `StreamOptions`, `derive`, `peek`,
+  `untracked`, `changes`, `values`), `Form`; app services are plain Effect services
   (`Context.Service` plus a `Layer`), with no Arc wrapper
 - `Timeline`: `Timeline.record(options?)` is a scoped Effect returning a
   `Timeline.Recording` (`entries`, `position`, `travel(sequence)`, `resume()`)
   over every committed change set; every `Timeline.Entry` has a `cause`, and
-  `Timeline.describe(cause)` renders a `Timeline.Cause` (application commits
-  are `Timeline.TransitionCause`: `{ _tag: "Transition", name }`).
-  `Signal.make(initial, { name })` requires a name. Every write happens in a
-  named transition: `Component.callback(name, f)` / `Component.stream(name,
-...)` (named `<Component>.<name>`), `Signal.fromStream(stream, initial, {
-name })`, `Signal.transaction(effect, { name? })` / `Signal.batch(f, { name?
-})` (unnamed ones take the caller's transition), Actions, Programs, and
-  framework events. A write outside all of them dies with the
-  `SignalWriteOutsideTransition` defect (exported for matching).
+  `Timeline.describe(cause)` renders a `Timeline.Cause`. State commits are
+  `Timeline.StateCause` (`{ _tag: "State", state, event, message }`,
+  described as `State "Menu.open" Toggle`); work from
+  `Component.callback(name, f)` and `Component.stream(name, ...)` elements is
+  `Timeline.TransitionCause` (`{ _tag: "Transition", name }`, named
+  `<Component>.<name>`); Actions, Resources, and the router label their own.
+  Every change is named by construction: public Signals are read-only, so
+  application state changes only through State messages and Actions.
   `TimelineEntryUnavailable` and `TimelineAlreadyRecording` are the typed
   failures. `Form.make({ name, ... })` names a form's state and its
   `<name>.setField` / `touchField` / `reset` / `validate` transitions.
@@ -188,7 +191,7 @@ retry? })` (`Action.OutboxOptions`) provides the `ActionOutbox` service over
 - `Action.planOptimistic(definition, input)` (`Action.OptimisticChange`) is the
   test surface for `optimistic`: it runs the callback against a recording
   transaction and returns the changes it would make (`Set` with the value a
-  Signal or loaded Resource entry would read, or a row store plus the
+  State or loaded Resource entry would read, or a row store plus the
   `Insert`/`Update`/`Delete` change as given) without applying any or calling
   a backend.
 - `PlainValue` is the expert-public type vocabulary for non-executable data
@@ -326,13 +329,16 @@ Release decisions:
   A `run`, `optimistic`, or `invalidates` callback that breaks its contract is
   a defect, not part of the error type.
 - Actions are the one mutation path. `optimistic(input, transaction)` patches
-  Signals and Resource entries (`transaction.set(signal | ref, update)`, the
+  States and Resource entries (`transaction.set(state | ref, update)` on a
+  `State.Ref` or a Resource ref, the
   update a value or a pure updater typed by the target) and the rows of a
   Resource with `rows` (`transaction.insert/update/delete(ref, key, ...)`, the
   key typed by `rows.key`) for the life of one submission; the
   transaction commits or rolls back every patch. A Resource patch layers over
   the entry's synced value: readers see it, loads and snapshots do not, and an
-  entry that has not loaded is left alone. A run that returns a rejected `ActionResult` (`ValidationFailure`, `Failure`) rolls the patches back as a failure does. Row patches are entry patch
+  entry that has not loaded is left alone. A State patch layers over the
+  State's model the same way: messages apply to the base and the patch
+  re-applies over it. A run that returns a rejected `ActionResult` (`ValidationFailure`, `Failure`) rolls the patches back as a failure does. Row patches are entry patch
   layers too: an update shares the value's key positions and moves only the
   index buckets the row changed.
 - `Resource.define({ ..., rows })` (array `output` only) adds keyed rows:
@@ -347,56 +353,54 @@ Release decisions:
   facade keeps runtime binding and requirement subtraction local, so LSP hovers
   still show the action requirements after any explicit Runtime Spine is
   applied.
-- `Program` is the public facade for the headless frontend loop around
-  centralized model/message state. `Program.define(...)` takes a plain initial
-  model and an exhaustive `on` handler map keyed by every message `_tag`
-  (messages are always tagged; there is no `update` callback). Handlers are
-  pure and synchronous: they return the next model or `Program.next(model,
-commands)`, never an Effect. `Program.emit(...)`
+- `State` is the one writable client state: a named model/message loop.
+  `State.define({ name, initial, on, subscriptions? })` infers the message
+  union from `on` (each key a `_tag`; a handler's second parameter types that
+  message's fields); `State.define<Model, Message>()({ ... })` names the union
+  up front, which commands that emit the State's own messages need (the
+  inferred form's commands may only emit nothing). `name` is required.
+  Messages are always tagged; there is no `update` callback. Handlers are
+  pure and synchronous: they return the next model or `State.next(model,
+commands)`, never an Effect. `State.emit(...)`
   is the one command constructor: it emits an immediate message, or runs an
   Effect after the model commits and emits the message it produces; an Effect
   that completes with `void` emits nothing, so background work is
-  `Program.emit(effect)` too. `Program.commands(...)` batches commands for
-  `Program.next(model, ...)`.
-  `Program.next(...)` widens variant commands through the Program's message
-  union so handlers do not need command-level union generics.
-  `Program.start(definition, { runtime })` always takes an explicit runtime
+  `State.emit(effect)` too. `State.commands(...)` batches commands for
+  `State.next(model, ...)`, and `State.subscription(stream)` attaches
+  model-dependent Streams.
+  `State.start(definition, { runtime })` always takes an explicit runtime
   (there is no default-runtime fallback); it adds runtime startup/provision
   errors to the failure channel and rejects runtimes that do not provide the
-  Program's command and subscription requirements. UI code starts
-  Programs with Solid's `Component.program(...)`.
-  Program models and messages are plain data: Promise-shaped values,
+  State's command and subscription requirements. UI code binds a State per
+  instance with Solid's `Component.state(...)`.
+  State models and messages are plain data: Promise-shaped values,
   Effect-shaped values, and `undefined`/`void` messages are rejected. Commands
   that intentionally emit nothing reserve `undefined`/`void` as the no-message
-  sentinel; host Promise work belongs inside `Program.emit(...)`, mapped to a
+  sentinel; host Promise work belongs inside `State.emit(...)`, mapped to a
   message or completing with `void`.
-  Started Programs report typed update/command/subscription failures through a
-  signal. `dispatch(message)` is the one dispatch: an Effect that queues the
-  message and completes once its update commits; UI event handlers bridge it
-  with Solid's `Component.callback`.
-  Programs keep no history of their own: message and failure commits are
-  labelled entries on the app `Timeline`. When disposal drops a queued update
-  before it commits, `dispatch(...)` fails with a `Program.Failure` whose
-  error is `Program.Disposed`; updates that already committed still acknowledge
-  successfully. Definitions may set `name`, which labels the Program's signals
-  (`<name>.model`, `<name>.failures`) and its `Timeline` causes. The public
-  Program facade keeps queue, command, subscription, failure, and disposal
-  orchestration. Runtime lifecycle policy also stays internal:
-  disposal fails pending or queued `dispatch(...)` acknowledgements with
-  `Program.Failure<..., Program.Disposed>` when the update has not committed;
-  already committed updates acknowledge successfully. Committed model changes
-  own subscription restarts, and stale subscription generations cannot emit
-  follow-up messages or timeline facts.
-  Internally, Program Contract, Program Primitives, and Program Runtime
+  A running State (`State.Instance`) reports typed update/command/subscription
+  failures (`State.Failure`, tagged `StateFailure`) through a signal.
+  `dispatch(message)` is an Effect that queues the message and completes once
+  its update commits. States keep no history of their own: message and failure
+  commits are `Timeline.StateCause` entries on the app `Timeline`. The model
+  signal is named by the State's `name` and its failures `<name>.failures`.
+  When disposal drops a queued update before it commits, `dispatch(...)` fails
+  with a `State.Failure` whose error is `State.Disposed` (tagged
+  `StateDisposed`); updates that already committed still acknowledge
+  successfully. Committed model changes own subscription restarts, and stale
+  subscription generations cannot emit follow-up messages or timeline facts.
+  Every running State is a `State.Ref<Model>` (carrying `StateRefTypeId`), the
+  target of an Action's `transaction.set`.
+  Internally, State Contract, State Primitives, and State Runtime
   Coordinator Modules separate public data Interfaces, pure
-  constructors/normalizers/`Program.step`, and live Queue/Fiber/Scope execution
-  while the public export surface stays anchored at `program.ts`.
-  `Program.RuntimeError<E, ER = never>` separates Program-domain failures from
-  Runtime Spine startup/provision failures. `Program.DispatchError<E, ER>` adds
-  `Program.Disposed` for live `dispatch(...)` acknowledgement drops. The
-  Solid `Component.program(...)` binding runs on its instance's already-started
+  constructors/normalizers/`State.step`, and live Queue/Fiber/Scope execution
+  while the public export surface stays anchored at `state.ts`.
+  `State.RuntimeError<E, ER = never>` separates State-domain failures from
+  Runtime Spine startup/provision failures. `State.DispatchError<E, ER>` adds
+  `State.Disposed` for live `dispatch(...)` acknowledgement drops. The
+  Solid `Component.state(...)` binding runs on its instance's already-started
   runtime, so its handle carries no `ER`.
-  `Program.step(program, model, message)` is the one test surface: a pure,
+  `State.step(definition, model, message)` is the one test surface: a pure,
   synchronous call returning `{ model, commands }` with the commands unrun.
   A command is a description whose `effect` a test runs (with test services)
   to get the message it emits. The runtime applies messages through the same
@@ -683,7 +687,7 @@ Release decisions:
   `recordTimelineEntry(...)` and
   `trackTimeline(recording)` copy Core `Timeline.Entry` values into
   `TimelineCommit` runtime events (`Devtools.TimelineCommit`), linked to the
-  Program, Action, or Resource their cause names. Store
+  State, Action, or Resource their cause names. Store
   `serializationPolicy` options apply before those commits enter snapshots.
 - The browser panel renderer is public as an embedded UI surface, while
   the bridge helpers are public as the supported app-side handshake for checked
@@ -742,7 +746,7 @@ The root export includes:
 - `Component`: the single Solid app model. Typed component definitions whose
   services and render failures flow through `yield*` in setup instead of JSX:
   `Component.define` (per-instance setup receiving props, returning the render
-  function), setup-time bindings (`resource`, `action`, `program`, `stream`,
+  function), setup-time bindings (`resource`, `action`, `state`, `stream`,
   `callback`, `router`, and the expert `instance` seam for binding authors),
   boundaries (`catchTags`, `catchAll`, `loading`), `provide`, and the entry
   points `launch` (the app entry), `mount` (its composable scoped primitive),
@@ -753,7 +757,7 @@ The root export includes:
 
 Release decisions:
 
-- No Core re-exports: `Resource`, `Action`, `Route`, `Signal`, `Program`,
+- No Core re-exports: `Resource`, `Action`, `Route`, `Signal`, `State`,
   router state/path types, `RouterRouteNotRegistered`, and `makeRuntime`
   are imported from `@sunfall/arc-core` only.
 - There is no hook model and no runtime context: every runtime-backed read or
@@ -786,13 +790,18 @@ value)` (`Component.ResourceRowsReader`), typed by `rows`.
   submission's failures belong to its caller, never to the Component's `E`). A
   runtime-provided `ActionTransport` (provided by Start's `App.launch` for the
   app's Actions) makes the same handle submit remotely.
-- `Component.program(definition, options?)` returns a `ProgramHandle` whose
-  `model()` is a fine-grained, deeply read-only Solid projection
-  (`Component.ProgramModelView<Model>`) reconciled from the committed model
-  (`committed`); `ProgramOptions.key` (default `"id"`, `null` for positional)
-  sets the array reconcile identity. `dispatch(message)` returns the Effect that
-  completes once the update commits; handlers bridge it with
-  `Component.callback`.
+- `Component.state(definition, options?)` starts a State for the instance and
+  returns a `Component.StateHandle` (a `State.Ref`): `model()` is a deeply
+  read-only view (`Component.StateView<Model>`); an object model is a
+  fine-grained Solid projection reconciled from the committed model
+  (`committed`) with `StateOptions.key` (default `"id"`, `null` for
+  positional) as the array identity, and a primitive model is read directly
+  with no projection. `send` (`Component.StateSend<Message>`) has one
+  DOM-ready sender per PascalCase tag: a message without fields takes no
+  argument and ignores an event (`onClick={menu.send.Toggle}`), a message with
+  fields takes them (`send.Search({ query })`); failures land in
+  `failures()`. `dispatch(message)` returns the Effect that completes once the
+  update commits.
 - Handle vocabulary is uniform: members that run work (`submit`, `dispatch`,
   `reset`, `preload`, `refresh`) return Effects; `result()` is the
   `AsyncResult` status accessor (actions, live queries);
@@ -800,11 +809,13 @@ value)` (`Component.ResourceRowsReader`), typed by `rows`.
   (`reader(input)`, with `waiting` / `failure`); pure synchronous state writes
   (`clearFailures()`, `Form.setField`) stay synchronous and carry their own
   Timeline causes.
-- `Component.callback(name, f)` is the one way component code changes Signals
-  it owns: each call forks `f(...args)` in the instance Scope, started
-  immediately, as the named transition `<Component>.<name>`; Actions and
-  Programs it runs keep their own causes. `Component.stream(name, stream,
-initial)` commits each element as `<Component>.<name>`.
+- `Component.callback(name, f)` runs Effect work that is not a State change
+  (submitting an Action, invalidating a Resource): each call forks
+  `f(...args)` in the instance Scope, started immediately, as the named
+  transition `<Component>.<name>`; Actions, Resources, and States it touches
+  keep their own causes. `Component.stream(name, stream, initial)` is a
+  read-only accessor of the Stream's latest element, committing each element
+  as `<Component>.<name>`.
   `Component.Instance.name` exposes the component name to setup-time bindings.
 - `Component.router(routes, options?)` creates the instance's router with the
   setup's runtime and context. The routes' preload services and route

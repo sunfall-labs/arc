@@ -441,7 +441,7 @@ export interface DevtoolsSummaryRuntimeEvent {
         readonly id: string;
       }
     | {
-        readonly kind: "Program";
+        readonly kind: "State";
         readonly id: string;
       }
     | {
@@ -474,7 +474,7 @@ export type DevtoolsCausalNodeKind =
   | "Route"
   | "RoutePlan"
   | "Resource"
-  | "Program"
+  | "State"
   | "Action"
   | "InvalidationPlan"
   | "ResourceTag"
@@ -598,7 +598,7 @@ export type DevtoolsPanelId =
   | "routes"
   | "resources"
   | "actions"
-  | "programs"
+  | "states"
   | "requests"
   | "diagnostics"
   | "causal-graph";

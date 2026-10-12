@@ -1,4 +1,4 @@
-import { makeRuntime, Program, Signal } from "@sunfall/arc-core";
+import { makeRuntime, State, Signal } from "@sunfall/arc-core";
 import { Effect, Exit } from "effect";
 import { createEffect, createRoot, flush, mapArray } from "solid-js";
 import { describe, expect, it } from "vitest";
@@ -25,7 +25,8 @@ type BoardMessage =
 const items = (...ids: ReadonlyArray<number>): ReadonlyArray<Item> =>
   ids.map((id) => ({ id, label: `item ${id}` }));
 
-const BoardProgram = Program.define<Board, BoardMessage>({
+const BoardState = State.define<Board, BoardMessage>()({
+  name: "BoardState",
   initial: { title: "Board", count: 0, items: items(1, 2, 3) },
   on: {
     Rename: (model, message) => ({ ...model, title: message.title }),
@@ -40,34 +41,38 @@ const BoardProgram = Program.define<Board, BoardMessage>({
   },
 });
 
-type Handle<Model, Message> = Component.ProgramHandle<Model, Message, never>;
+type Handle<Model, Message extends State.TaggedMessage> = Component.StateHandle<
+  Model,
+  Message,
+  never
+>;
 
-interface Mounted<Model, Message> {
-  readonly program: Handle<Model, Message>;
+interface Mounted<Model, Message extends State.TaggedMessage> {
+  readonly handle: Handle<Model, Message>;
   /** Dispatches, waits for the commit, and flushes Solid. */
   readonly send: (message: Parameters<Handle<Model, Message>["dispatch"]>[0]) => Promise<void>;
   readonly dispose: () => Promise<void>;
 }
 
-/** Binds `Component.program` in an instance under a Solid root, running `setup` in the same owner. */
-const mount = <Model, Message extends Program.TaggedMessage>(
-  definition: Program.Definition<Model, Message>,
-  setup: (program: Handle<Model, Message>) => void = () => {},
-  options?: Component.ProgramOptions,
+/** Binds `Component.state` in an instance under a Solid root, running `setup` in the same owner. */
+const mount = <Model, Message extends State.TaggedMessage>(
+  definition: State.Definition<Model, Message>,
+  setup: (handle: Handle<Model, Message>) => void = () => {},
+  options?: Component.StateOptions,
 ): Mounted<Model, Message> => {
   const runtime = makeRuntime();
   let disposeRoot: () => void = () => {};
-  const program = createRoot((dispose) => {
+  const handle = createRoot((dispose) => {
     disposeRoot = dispose;
-    const handle = bindInInstance(runtime, Component.program(definition, options));
+    const handle = bindInInstance(runtime, Component.state(definition, options));
     setup(handle);
     return handle;
   });
   flush();
   return {
-    program,
+    handle,
     send: async (message) => {
-      await Effect.runPromise(program.dispatch(message));
+      await Effect.runPromise(handle.dispatch(message));
       flush();
     },
     dispose: async () => {
@@ -90,12 +95,12 @@ const counter = (read: () => unknown): (() => number) => {
   return () => runs;
 };
 
-describe("Component.program fine-grained model", () => {
+describe("Component.state fine-grained model", () => {
   it("re-runs a reader only when the field it reads changes", async () => {
     let titleRuns = () => 0;
     let countRuns = () => 0;
     let rootRuns = () => 0;
-    const { program, send, dispose } = mount(BoardProgram, (handle) => {
+    const { handle, send, dispose } = mount(BoardState, (handle) => {
       titleRuns = counter(() => handle.model().title);
       countRuns = counter(() => handle.model().count);
       rootRuns = counter(() => handle.model());
@@ -103,11 +108,11 @@ describe("Component.program fine-grained model", () => {
     expect([titleRuns(), countRuns(), rootRuns()]).toEqual([1, 1, 1]);
 
     await send({ _tag: "Increment" });
-    expect(program.model().count).toBe(1);
+    expect(handle.model().count).toBe(1);
     expect([titleRuns(), countRuns(), rootRuns()]).toEqual([1, 2, 1]);
 
     await send({ _tag: "Rename", title: "Roadmap" });
-    expect(program.model().title).toBe("Roadmap");
+    expect(handle.model().title).toBe("Roadmap");
     expect([titleRuns(), countRuns(), rootRuns()]).toEqual([2, 2, 1]);
 
     await send({ _tag: "Relabel", id: 2, label: "two" });
@@ -118,7 +123,7 @@ describe("Component.program fine-grained model", () => {
   it("re-runs only the list items that changed and keeps item identity by key", async () => {
     const labelRuns = new Map<number, number>();
     let mapped = 0;
-    const { program, send, dispose } = mount(BoardProgram, (handle) => {
+    const { handle, send, dispose } = mount(BoardState, (handle) => {
       const rows = mapArray(
         () => handle.model().items,
         (item) => {
@@ -135,7 +140,7 @@ describe("Component.program fine-grained model", () => {
       );
       createEffect(rows, () => {});
     });
-    const [first, second, third] = program.model().items;
+    const [first, second, third] = handle.model().items;
     expect(mapped).toBe(3);
     expect([...labelRuns]).toEqual([
       [1, 1],
@@ -144,8 +149,8 @@ describe("Component.program fine-grained model", () => {
     ]);
 
     await send({ _tag: "Relabel", id: 2, label: "two" });
-    expect(program.model().items[1]?.label).toBe("two");
-    expect(program.model().items[1]).toBe(second);
+    expect(handle.model().items[1]?.label).toBe("two");
+    expect(handle.model().items[1]).toBe(second);
     expect([...labelRuns]).toEqual([
       [1, 1],
       [2, 2],
@@ -153,10 +158,10 @@ describe("Component.program fine-grained model", () => {
     ]);
 
     // Reorder: surviving items keep their view identity, nothing re-renders.
-    await send({ _tag: "Replace", items: [...program.committed.get().items].reverse() });
-    expect(program.model().items).toEqual([third, second, first]);
-    expect(program.model().items[0]).toBe(third);
-    expect(program.model().items[2]).toBe(first);
+    await send({ _tag: "Replace", items: [...handle.committed.get().items].reverse() });
+    expect(handle.model().items).toEqual([third, second, first]);
+    expect(handle.model().items[0]).toBe(third);
+    expect(handle.model().items[2]).toBe(first);
     expect(mapped).toBe(3);
     expect([...labelRuns]).toEqual([
       [1, 1],
@@ -166,23 +171,23 @@ describe("Component.program fine-grained model", () => {
 
     // Insert and remove by key: survivors keep identity, only the new item maps.
     await send({ _tag: "Replace", items: [...items(4), ...items(3, 1)] });
-    expect(program.model().items.map((item) => item.id)).toEqual([4, 3, 1]);
-    expect(program.model().items[1]).toBe(third);
-    expect(program.model().items[2]).toBe(first);
+    expect(handle.model().items.map((item) => item.id)).toEqual([4, 3, 1]);
+    expect(handle.model().items[1]).toBe(third);
+    expect(handle.model().items[2]).toBe(first);
     expect(mapped).toBe(4);
     expect(labelRuns.get(3)).toBe(1);
     await dispose();
   });
 
-  it("isolates instances of one Program that share model objects", async () => {
+  it("isolates instances of one State that share model objects", async () => {
     let secondRuns = () => 0;
-    const first = mount(BoardProgram);
-    const second = mount(BoardProgram, (handle) => {
+    const first = mount(BoardState);
+    const second = mount(BoardState, (handle) => {
       secondRuns = counter(() => handle.model().items[0]?.label);
     });
     await first.send({ _tag: "Relabel", id: 1, label: "first only" });
-    expect(first.program.model().items[0]?.label).toBe("first only");
-    expect(second.program.model().items[0]?.label).toBe("item 1");
+    expect(first.handle.model().items[0]?.label).toBe("first only");
+    expect(second.handle.model().items[0]?.label).toBe("item 1");
     expect(secondRuns()).toBe(1);
     await first.dispose();
     await second.dispose();
@@ -194,7 +199,8 @@ describe("Component.program fine-grained model", () => {
       readonly label: string;
     }
     type TagMessage = { readonly _tag: "Set"; readonly tags: ReadonlyArray<Tag> };
-    const Tags = Program.define<ReadonlyArray<Tag>, TagMessage>({
+    const Tags = State.define<ReadonlyArray<Tag>, TagMessage>()({
+      name: "Tags",
       initial: [
         { slug: "a", label: "A" },
         { slug: "b", label: "B" },
@@ -207,22 +213,23 @@ describe("Component.program fine-grained model", () => {
     ];
 
     const bySlug = mount(Tags, undefined, { key: "slug" });
-    const [a, b] = bySlug.program.model();
+    const [a, b] = bySlug.handle.model();
     await bySlug.send({ _tag: "Set", tags: reversed });
-    expect(bySlug.program.model()[0]).toBe(b);
-    expect(bySlug.program.model()[1]).toBe(a);
+    expect(bySlug.handle.model()[0]).toBe(b);
+    expect(bySlug.handle.model()[1]).toBe(a);
     await bySlug.dispose();
 
     const byPosition = mount(Tags, undefined, { key: null });
-    const [first] = byPosition.program.model();
+    const [first] = byPosition.handle.model();
     await byPosition.send({ _tag: "Set", tags: reversed });
-    expect(byPosition.program.model()[0]).toBe(first);
-    expect(byPosition.program.model()[0]?.slug).toBe("b");
+    expect(byPosition.handle.model()[0]).toBe(first);
+    expect(byPosition.handle.model()[0]?.slug).toBe("b");
     await byPosition.dispose();
   });
 
   it("supports primitive and nullable models", async () => {
-    const Counter = Program.define<number, { readonly _tag: "Increment" }>({
+    const Counter = State.define<number, { readonly _tag: "Increment" }>()({
+      name: "Counter",
       initial: 0,
       on: { Increment: (model) => model + 1 },
     });
@@ -232,15 +239,16 @@ describe("Component.program fine-grained model", () => {
     });
     await counted.send({ _tag: "Increment" });
     await counted.send({ _tag: "Increment" });
-    expect(counted.program.model()).toBe(2);
+    expect(counted.handle.model()).toBe(2);
     expect(counterRuns()).toBe(3);
     await counted.dispose();
 
     type Selection = { readonly id: number } | null;
-    const Select = Program.define<
+    const Select = State.define<
       Selection,
       { readonly _tag: "Select"; readonly id: number | null }
-    >({
+    >()({
+      name: "Select",
       initial: null,
       on: { Select: (_model, message) => (message.id === null ? null : { id: message.id }) },
     });
@@ -248,11 +256,11 @@ describe("Component.program fine-grained model", () => {
     const selected = mount(Select, (handle) => {
       selectedRuns = counter(() => handle.model()?.id);
     });
-    expect(selected.program.model()).toBeNull();
+    expect(selected.handle.model()).toBeNull();
     await selected.send({ _tag: "Select", id: 1 });
-    expect(selected.program.model()?.id).toBe(1);
+    expect(selected.handle.model()?.id).toBe(1);
     await selected.send({ _tag: "Select", id: null });
-    expect(selected.program.model()).toBeNull();
+    expect(selected.handle.model()).toBeNull();
     expect(selectedRuns()).toBe(3);
     await selected.dispose();
   });
@@ -263,36 +271,108 @@ describe("Component.program fine-grained model", () => {
       readonly owners: ReadonlyMap<string, string>;
       readonly note: string;
     }
-    const Scheduled = Program.define<Schedule, { readonly _tag: "Note"; readonly note: string }>({
+    const Scheduled = State.define<Schedule, { readonly _tag: "Note"; readonly note: string }>()({
+      name: "Scheduled",
       initial: { at: new Date(0), owners: new Map([["a", "Ada"]]), note: "" },
       on: { Note: (model, message) => ({ ...model, note: message.note }) },
     });
     let atRuns = () => 0;
-    const { program, send, dispose } = mount(Scheduled, (handle) => {
+    const { handle, send, dispose } = mount(Scheduled, (handle) => {
       atRuns = counter(() => handle.model().at);
     });
-    const committed = Signal.peek(program.committed);
-    expect(program.model().at).toBe(committed.at);
-    expect(program.model().owners).toBe(committed.owners);
+    const committed = Signal.peek(handle.committed);
+    expect(handle.model().at).toBe(committed.at);
+    expect(handle.model().owners).toBe(committed.owners);
     await send({ _tag: "Note", note: "moved" });
-    expect(program.model().note).toBe("moved");
+    expect(handle.model().note).toBe("moved");
     expect(atRuns()).toBe(1);
     await dispose();
   });
 
   it("stops projecting when the owning component is disposed", async () => {
     let countRuns = () => 0;
-    const { program, send, dispose } = mount(BoardProgram, (handle) => {
+    const { handle, send, dispose } = mount(BoardState, (handle) => {
       countRuns = counter(() => handle.model().count);
     });
     await send({ _tag: "Increment" });
     expect(countRuns()).toBe(2);
 
     await dispose();
-    const exit = await Effect.runPromiseExit(program.dispatch({ _tag: "Increment" }));
+    const exit = await Effect.runPromiseExit(handle.dispatch({ _tag: "Increment" }));
     flush();
     expect(Exit.isFailure(exit)).toBe(true);
     expect(countRuns()).toBe(2);
-    expect(Signal.peek(program.committed).count).toBe(1);
+    expect(Signal.peek(handle.committed).count).toBe(1);
+  });
+});
+
+/** Waits for queued `send` messages to commit, then flushes Solid. */
+const settle = async (): Promise<void> => {
+  await Effect.runPromise(Effect.sleep("5 millis"));
+  flush();
+};
+
+describe("Component.state send", () => {
+  const MenuOpen = State.define({
+    name: "Menu.open",
+    initial: false,
+    on: { Toggle: (open) => !open },
+  });
+
+  it("binds a message without fields straight to an event, ignoring the event", async () => {
+    let openRuns = () => 0;
+    const { handle, dispose } = mount(MenuOpen, (handle) => {
+      openRuns = counter(() => handle.model());
+    });
+    expect(handle.model()).toBe(false);
+
+    handle.send.Toggle(new Event("click"));
+    await settle();
+    expect(handle.model()).toBe(true);
+    expect(openRuns()).toBe(2);
+
+    handle.send.Toggle();
+    await settle();
+    expect(handle.model()).toBe(false);
+    expect(handle.failures()).toEqual([]);
+    await dispose();
+  });
+
+  it("sends a message's fields", async () => {
+    const Search = State.define({
+      name: "Search",
+      initial: "",
+      on: {
+        Search: (_query, message: { readonly query: string }) => message.query,
+        Clear: () => "",
+      },
+    });
+    const { handle, dispose } = mount(Search);
+    handle.send.Search({ query: "atlas" });
+    await settle();
+    expect(handle.model()).toBe("atlas");
+    expect(Signal.peek(handle.committed)).toBe("atlas");
+    handle.send.Clear();
+    await settle();
+    expect(handle.model()).toBe("");
+    await dispose();
+  });
+
+  it("reports a failing handler through failures()", async () => {
+    const Broken = State.define({
+      name: "Broken",
+      initial: 0,
+      on: {
+        Break: (): number => {
+          throw new Error("boom");
+        },
+      },
+    });
+    const { handle, dispose } = mount(Broken);
+    handle.send.Break();
+    await settle();
+    expect(handle.failures()).toHaveLength(1);
+    expect(handle.failures()[0]).toMatchObject({ _tag: "StateFailure", phase: "Update" });
+    await dispose();
   });
 });

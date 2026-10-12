@@ -1,8 +1,9 @@
 import { Effect } from "effect";
 import { bench, describe } from "vitest";
-import { makeRuntime, Program, Resource, Signal, runWithRuntime } from "@sunfall/arc-core";
+import { makeRuntime, State, Resource, runWithRuntime } from "@sunfall/arc-core";
 import { Component } from "@sunfall/arc-solid";
 import { For, createComponent, createSignal, flush, insert, render } from "./solid-client-shim.js";
+import { SignalWrites } from "@sunfall/arc-core/internal";
 
 // Client render paths: Arc state flowing into DOM updates through the Solid adapter.
 
@@ -91,13 +92,13 @@ describe("Sunfall Arc client render", () => {
   });
 
   bench("fan-out: 1k components read one shared signal, 50 updates, one flush", () => {
-    const shared = Signal.make(0, { name: "shared" });
+    const shared = SignalWrites.make(0, { name: "shared" });
     const Reader = () => textCell(() => String(shared.get()));
     const view = mount(() =>
       Array.from({ length: 1000 }, () => createComponent(Reader as never, {})),
     );
     for (let update = 1; update <= 50; update++) {
-      Signal.batch(() => shared.set(update), { name: "Bench.shared" });
+      SignalWrites.batch(() => shared.set(update), { name: "Bench.shared" });
     }
     flush();
     expectText(view.container, "50".repeat(1000));
@@ -105,7 +106,7 @@ describe("Sunfall Arc client render", () => {
   });
 
   bench("keyed list: create 1k rows from an Arc signal", () => {
-    const rows = Signal.make(makeRows(1000), { name: "rows" });
+    const rows = SignalWrites.make(makeRows(1000), { name: "rows" });
     const view = mount(() => {
       return createComponent(
         For as never,
@@ -127,7 +128,7 @@ describe("Sunfall Arc client render", () => {
   });
 
   bench("keyed list: update every 10th row of 1k", () => {
-    const rows = Signal.make(makeRows(1000), { name: "rows" });
+    const rows = SignalWrites.make(makeRows(1000), { name: "rows" });
     const view = mount(() => {
       return createComponent(
         For as never,
@@ -140,7 +141,7 @@ describe("Sunfall Arc client render", () => {
       );
     });
     for (let round = 0; round < 5; round++) {
-      Signal.batch(
+      SignalWrites.batch(
         () =>
           rows.update((current) =>
             current.map((row, index) =>
@@ -162,27 +163,28 @@ describe("Sunfall Arc client render", () => {
   });
 
   bench("fan-out: 1k components read one shared signal, 50 updates", () => {
-    const shared = Signal.make(0, { name: "shared" });
+    const shared = SignalWrites.make(0, { name: "shared" });
     const Reader = () => textCell(() => String(shared.get()));
     const view = mount(() =>
       Array.from({ length: 1000 }, () => createComponent(Reader as never, {})),
     );
     for (let update = 1; update <= 50; update++) {
-      Signal.batch(() => shared.set(update), { name: "Bench.shared" });
+      SignalWrites.batch(() => shared.set(update), { name: "Bench.shared" });
       flush();
     }
     expectText(view.container, "50".repeat(1000));
     view.dispose();
   });
 
-  bench("program: 1k dispatched messages processed and rendered", async () => {
-    const Counter = Program.define<number, { readonly _tag: "Increment" }>({
+  bench("state: 1k dispatched messages processed and rendered", async () => {
+    const Counter = State.define<number, { readonly _tag: "Increment" }>()({
+      name: "Counter",
       initial: 0,
       on: { Increment: (model) => model + 1 },
     });
-    let counter: Component.ProgramHandle<number, { readonly _tag: "Increment" }, never> | undefined;
+    let counter: Component.StateHandle<number, { readonly _tag: "Increment" }, never> | undefined;
     const View = Component.define("CounterView", function* () {
-      const handle = yield* Component.program(Counter);
+      const handle = yield* Component.state(Counter);
       counter = handle;
       return () => textCell(() => String(handle.model()));
     });
@@ -202,7 +204,8 @@ describe("Sunfall Arc client render", () => {
     readonly rows: ReadonlyArray<Row>;
   }
   type BoardMessage = { readonly _tag: "Relabel"; readonly id: number; readonly label: string };
-  const Board = Program.define<Board, BoardMessage>({
+  const Board = State.define<Board, BoardMessage>()({
+    name: "Board",
     initial: { rows: makeRows(1000) },
     on: {
       Relabel: (model, message) => ({
@@ -220,7 +223,7 @@ describe("Sunfall Arc client render", () => {
       )
       .join("");
 
-  type BoardHandle = Component.ProgramHandle<Board, BoardMessage, never>;
+  type BoardHandle = Component.StateHandle<Board, BoardMessage, never>;
 
   const mountBoard = (
     view: (board: BoardHandle) => unknown,
@@ -231,7 +234,7 @@ describe("Sunfall Arc client render", () => {
   } => {
     let board: BoardHandle | undefined;
     const View = Component.define("BoardView", function* () {
-      const handle = yield* Component.program(Board);
+      const handle = yield* Component.state(Board);
       board = handle;
       return () => view(handle) as never;
     });
@@ -247,7 +250,7 @@ describe("Sunfall Arc client render", () => {
     }
   };
 
-  bench("program: update one row's field in a 1k-row model, 1k row readers", async () => {
+  bench("state: update one row's field in a 1k-row model, 1k row readers", async () => {
     const view = mountBoard((board) =>
       Array.from({ length: 1000 }, (_, index) => textCell(() => board.model().rows[index]!.label)),
     );
@@ -256,7 +259,7 @@ describe("Sunfall Arc client render", () => {
     view.dispose();
   });
 
-  bench("program: update one row's field in a 1k-row model, keyed <For> rows", async () => {
+  bench("state: update one row's field in a 1k-row model, keyed <For> rows", async () => {
     const view = mountBoard((board) =>
       createComponent(
         For as never,

@@ -8,7 +8,7 @@ import {
   ActionTypeId,
   ActionResult,
   Form,
-  Program,
+  State,
   RequestContext,
   Resource,
   ResourceStoreDisposeError,
@@ -84,7 +84,7 @@ import {
   scoped,
   withResourceStore,
   makeActionInstance,
-  startProgramOnRuntime,
+  startStateOnRuntime,
   type BrowserRouterInitialMatchedHost,
   type BrowserRouterInitialMatchedStateOptions,
   type BrowserRouteOutletDefaultRenderers,
@@ -322,7 +322,7 @@ const coreExports: Array<unknown> = [
   ActionTypeId,
   ActionResult,
   Form,
-  Program,
+  State,
   RequestContext,
   Resource,
   ResourceStoreDisposeError,
@@ -566,87 +566,87 @@ const profileValidationEffect = profileForm.validate();
 const profileFormData = Form.data(new FormData());
 
 type CounterMessage = { readonly _tag: "Increment" } | { readonly _tag: "Decrement" };
-const counterProgram = Program.define<number, CounterMessage>({
+const counterState = State.define<number, CounterMessage>()({
+  name: "counterState",
   initial: 0,
   on: {
     Increment: (model) => model + 1,
-    Decrement: (model) => Program.next(model - 1),
+    Decrement: (model) => State.next(model - 1),
   },
 });
-const counterStep = Program.next(
+const counterStep = State.next(
   1,
-  Program.commands(Program.emit<CounterMessage>({ _tag: "Increment" })),
+  State.commands(State.emit<CounterMessage>({ _tag: "Increment" })),
 );
-const counterCommand: Program.Command<CounterMessage> = Program.emit(Effect.void);
-const counterCommands = Program.commands(
-  Program.emit<CounterMessage>({ _tag: "Increment" }),
-  Program.emit(Effect.void),
+const counterCommand: State.Command<CounterMessage> = State.emit(Effect.void);
+const counterCommands = State.commands(
+  State.emit<CounterMessage>({ _tag: "Increment" }),
+  State.emit(Effect.void),
 );
-const counterSubscription = Program.subscription(Stream.empty as Stream.Stream<CounterMessage>);
-// `Program.step` is pure: it returns the next model and the unrun commands.
-const counterPureStep: Program.Step<number, CounterMessage> = Program.step(counterProgram, 0, {
+const counterSubscription = State.subscription(Stream.empty as Stream.Stream<CounterMessage>);
+// `State.step` is pure: it returns the next model and the unrun commands.
+const counterPureStep: State.Step<number, CounterMessage> = State.step(counterState, 0, {
   _tag: "Increment",
 });
 const counterPureStepModel: number = counterPureStep.model;
-const counterPureStepCommands: ReadonlyArray<Program.Command<CounterMessage>> =
+const counterPureStepCommands: ReadonlyArray<State.Command<CounterMessage>> =
   counterPureStep.commands;
-// @ts-expect-error Program.step only accepts the Program's messages.
-Program.step(counterProgram, 0, { _tag: "Reset" });
-const counterRuntimeError: Program.RuntimeError<never> =
-  null as unknown as Program.RuntimeError<never>;
-const counterDispatchError: Program.DispatchError<never> =
-  null as unknown as Program.DispatchError<never>;
-const counterInstance: Program.Instance<
+// @ts-expect-error State.step only accepts the State's messages.
+State.step(counterState, 0, { _tag: "Reset" });
+const counterRuntimeError: State.RuntimeError<never> = null as unknown as State.RuntimeError<never>;
+const counterDispatchError: State.DispatchError<never> =
+  null as unknown as State.DispatchError<never>;
+const counterInstance: State.Instance<
   number,
   CounterMessage,
-  Program.RuntimeError<never>,
-  Program.DispatchError<never>
-> = Program.start(counterProgram, { runtime });
+  State.RuntimeError<never>,
+  State.DispatchError<never>
+> = State.start(counterState, { runtime });
 type TaggedCounterModel = { readonly count: number; readonly loading: boolean };
 type TaggedCounterMessage =
   | { readonly _tag: "Increment" }
   | { readonly _tag: "Load" }
   | { readonly _tag: "Loaded"; readonly amount: number };
-const taggedCounterHandlers: Program.HandlerMap<TaggedCounterModel, TaggedCounterMessage> = {
+const taggedCounterHandlers: State.HandlerMap<TaggedCounterModel, TaggedCounterMessage> = {
   Increment: (model) => ({ ...model, count: model.count + 1 }),
   Load: (model) =>
-    Program.next(
+    State.next(
       { ...model, loading: true },
-      Program.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
+      State.emit(Effect.succeed({ _tag: "Loaded", amount: 2 } as const)),
     ),
   Loaded: (model, message) => ({
     count: model.count + message.amount,
     loading: false,
   }),
 };
-const taggedCounterProgram = Program.define<TaggedCounterModel, TaggedCounterMessage>({
+const taggedCounterState = State.define<TaggedCounterModel, TaggedCounterMessage>()({
+  name: "taggedCounterState",
   initial: { count: 0, loading: false },
   on: taggedCounterHandlers,
 });
-const taggedCounterLoadCommand: Effect.Effect<TaggedCounterMessage | void> = Program.step(
-  taggedCounterProgram,
-  taggedCounterProgram.initial,
+const taggedCounterLoadCommand: Effect.Effect<TaggedCounterMessage | void> = State.step(
+  taggedCounterState,
+  taggedCounterState.initial,
   { _tag: "Load" },
 ).commands[0]!.effect;
-const taggedCounterImmediateCommand = Program.emit({ _tag: "Increment" } as const);
-const taggedCounterImmediateStep: Program.Step<TaggedCounterModel, TaggedCounterMessage> =
-  Program.next({ count: 0, loading: false }, Program.emit({ _tag: "Increment" } as const));
-const effectfulTaggedCounterHandlers: Program.HandlerMap<TaggedCounterModel, TaggedCounterMessage> =
-  {
-    // @ts-expect-error Program handlers are pure: Effect work goes in commands.
-    Increment: (model) => Effect.succeed(model),
-    Load: (model) => model,
-    Loaded: (model) => model,
-  };
-// @ts-expect-error Program handler maps must cover every tagged message.
-const incompleteTaggedCounterHandlers: Program.HandlerMap<
-  TaggedCounterModel,
-  TaggedCounterMessage
-> = {
-  Increment: (model) => model,
+const taggedCounterImmediateCommand = State.emit({ _tag: "Increment" } as const);
+const taggedCounterImmediateStep: State.Step<TaggedCounterModel, TaggedCounterMessage> = State.next(
+  { count: 0, loading: false },
+  State.emit({ _tag: "Increment" } as const),
+);
+const effectfulTaggedCounterHandlers: State.HandlerMap<TaggedCounterModel, TaggedCounterMessage> = {
+  // @ts-expect-error State handlers are pure: Effect work goes in commands.
+  Increment: (model) => Effect.succeed(model),
   Load: (model) => model,
+  Loaded: (model) => model,
 };
-void taggedCounterProgram;
+// @ts-expect-error State handler maps must cover every tagged message.
+const incompleteTaggedCounterHandlers: State.HandlerMap<TaggedCounterModel, TaggedCounterMessage> =
+  {
+    Increment: (model) => model,
+    Load: (model) => model,
+  };
+void taggedCounterState;
 void taggedCounterImmediateCommand;
 void taggedCounterImmediateStep;
 void taggedCounterLoadCommand;
@@ -897,15 +897,16 @@ const coreInternalAction = makeActionInstance(
   Action.define({ name: "core.internal.action", run: (input: string) => input }),
   coreErasedRuntime,
 );
-const coreInternalProgram = startProgramOnRuntime(
-  Program.define<number, { readonly _tag: "Tick" }>({
+const coreInternalState = startStateOnRuntime(
+  State.define<number, { readonly _tag: "Tick" }>()({
+    name: "Test",
     initial: 0,
     on: { Tick: (model) => model + 1 },
   }),
   coreErasedRuntime,
 );
 void coreInternalAction;
-void coreInternalProgram;
+void coreInternalState;
 
 // Durable submissions: `durable` requires an input schema and adds
 // `ActionQueued` to the Action's error type; non-durable Actions are unchanged.

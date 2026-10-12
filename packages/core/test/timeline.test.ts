@@ -3,15 +3,19 @@ import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   Action,
-  Program,
+  State,
   Resource,
   Signal,
-  SignalWriteOutsideTransition,
   Timeline,
   TimelineAlreadyRecording,
   TimelineEntryUnavailable,
 } from "../src/index.js";
-import { defaultRuntime, withSignalTransition } from "../src/internal.js";
+import {
+  defaultRuntime,
+  withSignalTransition,
+  SignalWrites,
+  SignalWriteOutsideTransition,
+} from "../src/internal.js";
 
 /** Renders `read` in a Solid root and returns the latest rendered value after each flush. */
 const render = <A>(read: () => A) => {
@@ -47,32 +51,32 @@ describe("Timeline recording", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const recording = yield* Timeline.record();
-        const count = Signal.make(0, { name: "count" });
-        const label = Signal.make("a", { name: "label" });
+        const count = SignalWrites.make(0, { name: "count" });
+        const label = SignalWrites.make("a", { name: "label" });
 
-        Signal.batch(() => count.set(1), { name: "Counter.increment" });
-        Signal.batch(
+        SignalWrites.batch(() => count.set(1), { name: "Counter.increment" });
+        SignalWrites.batch(
           () => {
             count.set(2);
             label.set("b");
           },
           { name: "Batch edit" },
         );
-        yield* Signal.transaction(
+        yield* SignalWrites.transaction(
           Effect.sync(() => {
             label.set("c");
             // A nested name names the commit only when the outer has none.
-            Signal.batch(() => count.set(3), { name: "Inner" });
+            SignalWrites.batch(() => count.set(3), { name: "Inner" });
           }),
           { name: "Rename" },
         );
-        yield* Signal.transaction(
+        yield* SignalWrites.transaction(
           Effect.sync(() => {
-            Signal.batch(() => count.set(4), { name: "Adopted" });
+            SignalWrites.batch(() => count.set(4), { name: "Adopted" });
           }),
         );
         // A write that changes nothing commits nothing.
-        Signal.batch(() => count.set(4), { name: "Counter.noop" });
+        SignalWrites.batch(() => count.set(4), { name: "Counter.noop" });
 
         expect(entriesOf(recording)).toEqual([
           { cause: "Counter.increment", changes: [["count", 0, 1]] },
@@ -102,21 +106,21 @@ describe("Timeline recording", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const recording = yield* Timeline.record();
-        const draft = Signal.make("", { name: "ProjectPage.draft" });
+        const draft = SignalWrites.make("", { name: "ProjectPage.draft" });
         const message =
-          'Signal "ProjectPage.draft" was written outside a named transition. Every state change ' +
-          'needs a name: write it inside a named `Component.callback("name", ...)`, an Action, ' +
-          "or a Program update, or wrap it in `Signal.batch(f, { name })` / " +
-          "`Signal.transaction(effect, { name })`.";
+          'Signal "ProjectPage.draft" was written outside a named transition. ' +
+          "Framework writes must run inside a named transition: a State message, an Action, " +
+          "a framework event, or `SignalWrites.batch(f, { name })` / " +
+          "`SignalWrites.transaction(effect, { name })`.";
 
-        // Plain synchronous code (a Solid handler or effect) throws at the write.
+        // An unnamed framework write throws at the write: an internal assertion.
         expect(() => draft.set("Atlas")).toThrow(SignalWriteOutsideTransition);
         expect(() => draft.set("Atlas")).toThrow(message);
 
         // In an Effect, the write is a defect; an unnamed transaction is no name.
         for (const write of [
           Effect.sync(() => draft.set("Atlas")),
-          Signal.transaction(Effect.sync(() => draft.set("Atlas"))),
+          SignalWrites.transaction(Effect.sync(() => draft.set("Atlas"))),
         ]) {
           const exit = yield* Effect.exit(write);
           expect(Exit.isFailure(exit) && Cause.squash(exit.cause)).toEqual(
@@ -129,11 +133,11 @@ describe("Timeline recording", () => {
       }).pipe(Effect.scoped),
     ));
 
-  it("commits writes in a named transition under its name, keeping Action and Program causes", () =>
+  it("commits writes in a named transition under its name, keeping Action and State causes", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const recording = yield* Timeline.record();
-        const draft = Signal.make("", { name: "ProjectPage.draft" });
+        const draft = SignalWrites.make("", { name: "ProjectPage.draft" });
         const action = Action.use(
           Action.define({
             name: "Project.rename",
@@ -141,8 +145,8 @@ describe("Timeline recording", () => {
           }),
           { runtime: defaultRuntime },
         );
-        const program = Program.start(
-          Program.define<number, { readonly _tag: "Renamed" }>({
+        const instance = State.start(
+          State.define<number, { readonly _tag: "Renamed" }>()({
             name: "Board",
             initial: 0,
             on: { Renamed: (model) => model + 1 },
@@ -162,20 +166,20 @@ describe("Timeline recording", () => {
               },
             );
             yield* action.submit("Atlas 2");
-            yield* program.dispatch({ _tag: "Renamed" });
+            yield* instance.dispatch({ _tag: "Renamed" });
             // An unnamed transaction inside it takes its name.
-            yield* Signal.transaction(Effect.sync(() => draft.set("")));
+            yield* SignalWrites.transaction(Effect.sync(() => draft.set("")));
           }),
           { _tag: "Transition", name: "ProjectPage.rename" },
         );
-        yield* program.dispose;
+        yield* instance.dispose;
 
         expect(entriesOf(recording).map((entry) => entry.cause)).toEqual([
           "ProjectPage.rename",
           "ProjectPage.rename",
           'Action "Project.rename" submit',
           'Action "Project.rename" success',
-          'Program "Board" message Renamed',
+          'State "Board" Renamed',
           "ProjectPage.rename",
         ]);
       }).pipe(Effect.scoped),
@@ -185,9 +189,9 @@ describe("Timeline recording", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const recording = yield* Timeline.record();
-        const count = Signal.make(0, { name: "count" });
+        const count = SignalWrites.make(0, { name: "count" });
         yield* Effect.exit(
-          Signal.transaction(
+          SignalWrites.transaction(
             Effect.sync(() => count.set(1)).pipe(Effect.andThen(Effect.fail("rollback"))),
             { name: "Rolled back" },
           ),
@@ -196,7 +200,7 @@ describe("Timeline recording", () => {
       }).pipe(Effect.scoped),
     ));
 
-  it("records framework causes from Actions, Programs, and Resources", () =>
+  it("records framework causes from Actions, States, and Resources", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const recording = yield* Timeline.record();
@@ -209,16 +213,16 @@ describe("Timeline recording", () => {
         );
         yield* action.submit("Atlas");
 
-        const program = Program.start(
-          Program.define<number, { readonly _tag: "Increment" }>({
+        const instance = State.start(
+          State.define<number, { readonly _tag: "Increment" }>()({
             name: "Board",
             initial: 0,
             on: { Increment: (model) => model + 1 },
           }),
           { runtime: defaultRuntime },
         );
-        yield* program.dispatch({ _tag: "Increment" });
-        yield* program.dispose;
+        yield* instance.dispatch({ _tag: "Increment" });
+        yield* instance.dispose;
 
         const Project = Resource.define({
           name: "Project.get",
@@ -231,8 +235,8 @@ describe("Timeline recording", () => {
           { _tag: "Action", action: "Project.rename", event: "submit" },
           { _tag: "Action", action: "Project.rename", event: "success" },
           {
-            _tag: "Program",
-            program: "Board",
+            _tag: "State",
+            state: "Board",
             event: "message",
             message: { _tag: "Increment" },
           },
@@ -244,14 +248,14 @@ describe("Timeline recording", () => {
         ).toEqual([
           'Action "Project.rename" submit',
           'Action "Project.rename" success',
-          'Program "Board" message Increment',
+          'State "Board" Increment',
           `Resource "Project.get" load ${ref.key}`,
           `Resource "Project.get" success ${ref.key}`,
         ]);
         expect(Signal.peek(recording.entries)[0]?.changes.map((change) => change.name)).toEqual([
           "Project.rename.state",
         ]);
-        expect(Signal.peek(recording.entries)[2]?.changes[0]?.name).toBe("Board.model");
+        expect(Signal.peek(recording.entries)[2]?.changes[0]?.name).toBe("Board");
         expect(Signal.peek(recording.entries)[3]?.changes[0]?.name).toBe(`Project.get(${ref.key})`);
       }).pipe(Effect.scoped),
     ));
@@ -260,9 +264,9 @@ describe("Timeline recording", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const recording = yield* Timeline.record({ limit: 3 });
-        const count = Signal.make(0, { name: "count" });
+        const count = SignalWrites.make(0, { name: "count" });
         for (let value = 1; value <= 5; value++) {
-          Signal.batch(() => count.set(value), { name: "count" });
+          SignalWrites.batch(() => count.set(value), { name: "count" });
         }
 
         expect(Signal.peek(recording.entries).map((entry) => entry.sequence)).toEqual([3, 4, 5]);
@@ -274,26 +278,26 @@ describe("Timeline recording", () => {
   it("uninstalls on scope close and allows only one recording at a time", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const count = Signal.make(0, { name: "count" });
+        const count = SignalWrites.make(0, { name: "count" });
         const recording = yield* Effect.scoped(
           Effect.gen(function* () {
             const recording = yield* Timeline.record();
             const nested = yield* Effect.exit(Effect.scoped(Timeline.record()));
             expect(nested).toEqual(Exit.fail(new TimelineAlreadyRecording()));
-            Signal.batch(() => count.set(1), { name: "count" });
+            SignalWrites.batch(() => count.set(1), { name: "count" });
             expect(Signal.peek(recording.entries)).toHaveLength(1);
             return recording;
           }),
         );
 
         // Closing the scope drops retained entries and stops recording.
-        Signal.batch(() => count.set(2), { name: "count" });
+        SignalWrites.batch(() => count.set(2), { name: "count" });
         expect(Signal.peek(recording.entries)).toEqual([]);
 
         const next = yield* Effect.scoped(
           Effect.gen(function* () {
             const next = yield* Timeline.record();
-            Signal.batch(() => count.set(3), { name: "count" });
+            SignalWrites.batch(() => count.set(3), { name: "count" });
             return summarize(Signal.peek(next.entries));
           }),
         );
@@ -307,19 +311,19 @@ describe("Timeline travel", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const recording = yield* Timeline.record();
-        const first = Signal.make("Ada", { name: "first" });
-        const last = Signal.make("Lovelace", { name: "last" });
+        const first = SignalWrites.make("Ada", { name: "first" });
+        const last = SignalWrites.make("Lovelace", { name: "last" });
         const full = Signal.derive(() => `${first.get()} ${last.get()}`);
         const view = render(() => ({ first: first.get(), full: full.get() }));
 
-        Signal.batch(
+        SignalWrites.batch(
           () => {
             first.set("Grace");
             last.set("Hopper");
           },
           { name: "Person.edit" },
         );
-        Signal.batch(() => first.set("Barbara"), { name: "Person.rename" });
+        SignalWrites.batch(() => first.set("Barbara"), { name: "Person.rename" });
         expect(view.current()).toEqual({ first: "Barbara", full: "Barbara Hopper" });
 
         const [initial, renamed] = Signal.peek(recording.entries);
@@ -346,16 +350,16 @@ describe("Timeline travel", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const recording = yield* Timeline.record();
-        const count = Signal.make(0, { name: "count" });
+        const count = SignalWrites.make(0, { name: "count" });
         const view = render(() => count.get());
 
-        Signal.batch(() => count.set(1), { name: "count" });
-        Signal.batch(() => count.set(2), { name: "count" });
+        SignalWrites.batch(() => count.set(1), { name: "count" });
+        SignalWrites.batch(() => count.set(2), { name: "count" });
         yield* recording.travel(1);
         expect(view.current()).toBe(1);
 
         // Live work keeps running against the head: no lost updates.
-        Signal.batch(() => count.update((value) => value + 1), { name: "Counter.increment" });
+        SignalWrites.batch(() => count.update((value) => value + 1), { name: "Counter.increment" });
         expect(Signal.peek(count)).toBe(3);
         expect(view.current()).toBe(1);
         expect(entriesOf(recording).at(-1)).toEqual({
@@ -373,11 +377,11 @@ describe("Timeline travel", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const recording = yield* Timeline.record();
-        const count = Signal.make(0, { name: "count" });
-        Signal.batch(() => count.set(1), { name: "count" });
+        const count = SignalWrites.make(0, { name: "count" });
+        SignalWrites.batch(() => count.set(1), { name: "count" });
 
-        const later = Signal.make("initial", { name: "later" });
-        Signal.batch(() => later.set("loaded"), { name: "later" });
+        const later = SignalWrites.make("initial", { name: "later" });
+        SignalWrites.batch(() => later.set("loaded"), { name: "later" });
         const view = render(() => later.get());
         expect(view.current()).toBe("loaded");
 
@@ -385,9 +389,9 @@ describe("Timeline travel", () => {
         expect(view.current()).toBe("initial");
 
         // A signal first written while travelling stays at its travelled value.
-        const fresh = Signal.make("fresh", { name: "fresh" });
+        const fresh = SignalWrites.make("fresh", { name: "fresh" });
         const freshView = render(() => fresh.get());
-        Signal.batch(() => fresh.set("changed"), { name: "fresh" });
+        SignalWrites.batch(() => fresh.set("changed"), { name: "fresh" });
         expect(freshView.current()).toBe("fresh");
 
         yield* recording.resume();
@@ -401,13 +405,13 @@ describe("Timeline travel", () => {
   it("resumes the live head when the recording scope closes mid-travel", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const count = Signal.make(0, { name: "count" });
+        const count = SignalWrites.make(0, { name: "count" });
         const view = render(() => count.get());
         yield* Effect.scoped(
           Effect.gen(function* () {
             const recording = yield* Timeline.record();
-            Signal.batch(() => count.set(1), { name: "count" });
-            Signal.batch(() => count.set(2), { name: "count" });
+            SignalWrites.batch(() => count.set(1), { name: "count" });
+            SignalWrites.batch(() => count.set(2), { name: "count" });
             yield* recording.travel(1);
             expect(view.current()).toBe(1);
           }),

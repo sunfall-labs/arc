@@ -15,16 +15,16 @@ That is the core difference.
 
 ## The Short Version
 
-| What teams reach for    | What it does well                      | Sunfall Arc's bet                                                                                                          |
-| ----------------------- | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| React / Solid           | Component model and reactive UI        | Keep fine-grained UI ergonomics, but attach async work to Effect scopes and runtime ownership.                             |
-| Foldkit                 | Model/message/update program loop      | Match the loop with `Program.define`, `Program.step`, and `Program.emit`, then run commands through the Arc runtime graph. |
-| Next / Remix            | Full-stack routes, forms, server work  | Keep progressive enhancement, but make server contracts, schemas, request runtimes, and manifests explicit.                |
-| TanStack Start / Router | Typed routes and full-stack wiring     | Add Schema-branded params, request-local Effect runtimes, declared preload resources, and stricter build gates.            |
-| TanStack Query          | Async reads, retries, invalidation     | Replace cache keys with typed resources, semantic tags, Effect `Schedule`, hydration, and public lifecycle events.         |
-| TanStack DB             | Normalized local data and live queries | Keep keyed rows and live queries, but put the rows on Resources so caching, persistence, sync, and SSR stay one copy.      |
-| Relay                   | Data graph discipline                  | Aim for graph-level discipline without requiring a GraphQL-only architecture.                                              |
-| Jotai / state libraries | Small local reactive state             | Keep local signals, but connect streams, scopes, resources, actions, and tests through one runtime spine.                  |
+| What teams reach for    | What it does well                      | Sunfall Arc's bet                                                                                                     |
+| ----------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| React / Solid           | Component model and reactive UI        | Keep fine-grained UI ergonomics, but attach async work to Effect scopes and runtime ownership.                        |
+| Foldkit                 | Model/message/update program loop      | Match the loop with `State.define`, `State.step`, and `State.emit`, then run commands through the Arc runtime graph.  |
+| Next / Remix            | Full-stack routes, forms, server work  | Keep progressive enhancement, but make server contracts, schemas, request runtimes, and manifests explicit.           |
+| TanStack Start / Router | Typed routes and full-stack wiring     | Add Schema-branded params, request-local Effect runtimes, declared preload resources, and stricter build gates.       |
+| TanStack Query          | Async reads, retries, invalidation     | Replace cache keys with typed resources, semantic tags, Effect `Schedule`, hydration, and public lifecycle events.    |
+| TanStack DB             | Normalized local data and live queries | Keep keyed rows and live queries, but put the rows on Resources so caching, persistence, sync, and SSR stay one copy. |
+| Relay                   | Data graph discipline                  | Aim for graph-level discipline without requiring a GraphQL-only architecture.                                         |
+| Jotai / state libraries | Small local reactive state             | Keep local signals, but connect streams, scopes, resources, actions, and tests through one runtime spine.             |
 
 ## Compared With TanStack Query
 
@@ -210,11 +210,17 @@ Small state tools are pleasant because they make local state feel lightweight.
 Sunfall Arc keeps that part simple:
 
 ```ts
-const search = Signal.make("", { name: "Search.query" });
-const normalized = Signal.derive(() => read(search).trim().toLowerCase());
+const Search = State.define({
+  name: "Search.query",
+  initial: "",
+  on: { Search: (_query, message: { readonly query: string }) => message.query },
+});
+const search = yield * Component.state(Search); // search.send.Search({ query })
+const normalized = Signal.derive(() => search.committed.get().trim().toLowerCase());
 ```
 
-The difference appears when state meets async work. A signal can stream values,
+The difference appears when state meets async work. A State can grow messages
+and commands, a signal can stream values,
 a component can own a scope, a resource can publish lifecycle facts, and an
 action can invalidate semantic tags. Local state does not become a separate
 mental model from server state and mutation state.
@@ -223,22 +229,24 @@ mental model from server state and mutation state.
 
 Foldkit's strongest product idea is the frontend program loop: one model, typed
 messages, an update function, subscriptions, and a view that can stay boring.
-Sunfall Arc now meets that surface directly with `Program.define({ initial, on })`:
-one pure handler per message `_tag`, with `Program.emit(...)` for immediate or
-Effect-produced follow-up messages.
+Sunfall Arc meets that surface directly with `State.define({ name, initial, on })`:
+one pure handler per message `_tag`, with `State.emit(...)` for immediate or
+Effect-produced follow-up messages. State is also Arc's one writable client
+state, so the loop is not a second state model next to atoms or signals.
 
 The bet is not to out-Foldkit Foldkit's renderer. It is to make that same loop
 the front door to Arc's Effect runtime, resources, actions, SSR, tests, and
 devtools:
 
 ```ts
-const ProjectProgram = Program.define<ProjectModel, ProjectMessage>({
-  initial: { selected: undefined as Project | undefined, loading: false },
+const ProjectState = State.define<ProjectModel, ProjectMessage>()({
+  name: "Project",
+  initial: { selected: undefined, loading: false },
   on: {
     Load: (model, message) =>
-      Program.next(
+      State.next(
         { ...model, loading: true },
-        Program.emit(
+        State.emit(
           ProjectApi.use((api) =>
             Effect.map(api.get(message.id), (project) => ({ _tag: "Loaded", project })),
           ),
@@ -254,14 +262,12 @@ The Solid adapter is intentionally small:
 
 ```tsx
 const OpenProject = Component.define("OpenProject", function* (props: { readonly id: ProjectId }) {
-  const program = yield* Component.program(ProjectProgram); // R += the Program's services
-  // `dispatch` is an Effect; failures already land in `program.failures()`.
-  const load = yield* Component.callback("load", (id: ProjectId) =>
-    program.dispatch({ _tag: "Load", id }).pipe(Effect.ignore),
-  );
-
+  const project = yield* Component.state(ProjectState); // R += the State's services
+  // `send` is DOM-ready; failures land in `project.failures()`.
   return () => (
-    <button onClick={() => load(props.id)}>{program.model().loading ? "Loading" : "Open"}</button>
+    <button onClick={() => project.send.Load({ id: props.id })}>
+      {project.model().loading ? "Loading" : "Open"}
+    </button>
   );
 });
 ```
@@ -273,7 +279,7 @@ the active UI scope/runtime rather than becoming a separate frontend runtime.
 The test shape now follows the same model:
 
 ```ts
-const load = Program.step(ProjectProgram, ProjectProgram.initial, { _tag: "Load", id: "atlas" });
+const load = State.step(ProjectState, ProjectState.initial, { _tag: "Load", id: "atlas" });
 expect(load.model.loading).toBe(true);
 expect(load.commands).toHaveLength(1);
 
@@ -285,14 +291,14 @@ Handlers are pure, so a transition is a function call: no runtime, DOM, or
 timers. Commands stay inspectable descriptions whose Effects a test runs with
 its own services, instead of a separate frontend-only test runtime.
 
-At runtime, every Program commit is an entry on the whole-app Timeline, next to
-Resource, Action, router, and plain Signal commits:
+At runtime, every State commit is an entry on the whole-app Timeline, next to
+Resource, Action, and router commits:
 
 <!-- prettier-ignore -->
 ```ts
 const recording = yield* Timeline.record();
 Signal.peek(recording.entries).map((entry) => Timeline.describe(entry.cause));
-// ['Program "Project" message Load', 'Resource "Project.get" success atlas', ...]
+// ['State "Project" Load', 'Resource "Project.get" success atlas', ...]
 yield* recording.travel(1); // the UI renders that commit; Effects keep running
 ```
 

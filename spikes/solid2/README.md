@@ -23,7 +23,7 @@ pnpm --filter @sunfall/arc-spike-solid2 test
 - **Writes are transactions** (implemented in `packages/core/src/signal.ts` and
   `signal-transaction.ts`). Arc's synchronous graph is committed state; each
   signal lazily projects into a Solid signal for rendering. Raw Solid signals
-  would lose updates in the Program runtime when two messages land in one tick.
+  would lose updates in the State runtime when two messages land in one tick.
 - **Unified on `AsyncResult` (supersedes "keep `ResourceState`").** Resources,
   Actions, and Live Queries now hold Effect's `AsyncResult`
   (`effect/reactivity`) directly: errors stay visible while retrying (`Failure`
